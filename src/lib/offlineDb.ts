@@ -89,6 +89,7 @@ export interface TileMetadata {
 }
 import { createLogger } from '../Utilities/Logger'
 import { encryptString, decryptString } from './secureStorage'
+import type { AuditDomain, AuditSubjectType } from './auditTypes'
 
 const logger = createLogger('OfflineDb')
 
@@ -209,6 +210,24 @@ export interface LocalTrainingCompletion {
   _last_sync_error_message: string | null
 }
 
+/** Shape of an audit_log event stored in IndexedDB. Mirrors the Supabase
+ *  audit_log row plus local-only sync metadata. The unified append-only event
+ *  store (see auditTypes.ts). `seq` is server-assigned (null until synced);
+ *  `payload_enc` is clinic-key ciphertext (enc.v1:) or null for spine-only events. */
+export interface LocalAuditLog extends LocalSyncMeta {
+  id: string
+  seq: number | null
+  clinic_id: string
+  actor_id: string | null
+  domain: AuditDomain
+  event_type: string
+  subject_type: AuditSubjectType
+  subject_id: string
+  occurred_at: string
+  payload_enc: string | null
+  created_at: string
+}
+
 interface PackageBackEndDB extends DBSchema {
   syncQueue: {
     key: string
@@ -323,10 +342,19 @@ interface PackageBackEndDB extends DBSchema {
     key: string  // delta-cache key, e.g. 'user:all'
     value: AdminCacheEntry
   }
+  auditLog: {
+    key: string
+    value: LocalAuditLog
+    indexes: {
+      'by-clinic': string
+      'by-subject': string
+      'by-clinic-sync': [string, string]
+    }
+  }
 }
 
 const DB_NAME = 'packagebackend-offline'
-const DB_VERSION = 14
+const DB_VERSION = 15
 
 let dbInstance: IDBPDatabase<PackageBackEndDB> | null = null
 
@@ -482,6 +510,16 @@ export async function getDb(): Promise<IDBPDatabase<PackageBackEndDB>> {
       // admin user list — avatar_blob is too large for localStorage).
       if (oldVersion < 14) {
         db.createObjectStore('adminCache', { keyPath: 'key' })
+      }
+
+      // v14 → v15: unified append-only audit_log event store (offline-first,
+      // clinic-key-encrypted payload). Indexed by subject for per-entity
+      // timeline folds and by clinic+sync for the queue drain.
+      if (oldVersion < 15) {
+        const auditStore = db.createObjectStore('auditLog', { keyPath: 'id' })
+        auditStore.createIndex('by-clinic', 'clinic_id')
+        auditStore.createIndex('by-subject', 'subject_id')
+        auditStore.createIndex('by-clinic-sync', ['clinic_id', '_sync_status'])
       }
     },
   })
@@ -842,6 +880,64 @@ export async function updateTrainingCompletionSyncStatus(
 }
 
 // ============================================================
+// Audit Log Operations (unified append-only event store)
+// ============================================================
+
+/** Get all local audit events for a clinic. */
+export async function getLocalAuditLogs(clinicId: string): Promise<LocalAuditLog[]> {
+  const db = await getDb()
+  return db.getAllFromIndex('auditLog', 'by-clinic', clinicId)
+}
+
+/** Get all local audit events about a subject (user/item/algorithm), oldest first. */
+export async function getLocalAuditLogsBySubject(subjectId: string): Promise<LocalAuditLog[]> {
+  const db = await getDb()
+  const rows = await db.getAllFromIndex('auditLog', 'by-subject', subjectId)
+  // seq is null until synced; fall back to occurred_at for local ordering.
+  return rows.sort((a, b) => {
+    if (a.seq != null && b.seq != null) return a.seq - b.seq
+    return new Date(a.occurred_at).getTime() - new Date(b.occurred_at).getTime()
+  })
+}
+
+/** Save or update an audit event in IndexedDB (upsert by id — append-only in
+ *  spirit; updates only stamp the server-assigned seq / sync status). */
+export async function saveLocalAuditLog(event: LocalAuditLog): Promise<void> {
+  const db = await getDb()
+  await db.put('auditLog', event)
+}
+
+/** Hard-delete a local audit event (used only by clear/teardown paths). */
+export async function deleteLocalAuditLog(eventId: string): Promise<void> {
+  const db = await getDb()
+  await db.delete('auditLog', eventId)
+}
+
+/** Update the sync status of a local audit event. */
+export async function updateAuditLogSyncStatus(
+  eventId: string,
+  status: TrainingCompletionSyncStatus,
+  errorMessage?: string
+): Promise<void> {
+  const db = await getDb()
+  const event = await db.get('auditLog', eventId)
+  if (!event) return
+
+  event._sync_status = status
+  if (status === 'error') {
+    event._sync_retry_count = (event._sync_retry_count || 0) + 1
+    event._last_sync_error = new Date().toISOString()
+    event._last_sync_error_message = errorMessage || 'Unknown error'
+  } else if (status === 'synced') {
+    event._sync_retry_count = 0
+    event._last_sync_error = null
+    event._last_sync_error_message = null
+  }
+
+  await db.put('auditLog', event)
+}
+
+// ============================================================
 // Property Items Operations
 // ============================================================
 
@@ -1071,6 +1167,33 @@ export async function deleteLocalMapOverlay(overlayId: string): Promise<void> {
   await db.delete('mapOverlays', overlayId)
 }
 
+/**
+ * Membership eviction: hard-delete every clinic-scoped projection row for one
+ * clinic (map overlays + property items/locations) when a user is removed from
+ * a cluster, so no stale cluster data lingers on the device. Best-effort and
+ * per-store isolated — a failure on one store does not block the others.
+ *
+ * Overlay/calendar tombstones live in their own DBs (adtmc-map-overlay-events /
+ * adtmc-calendar-events) and are NOT touched here — the resurrection guard must
+ * outlive eviction exactly as it does on logout.
+ */
+export async function purgeClinicScopedData(clinicId: string): Promise<void> {
+  const db = await getDb()
+  const stores = ['mapOverlays', 'propertyItems', 'propertyLocations'] as const
+  for (const storeName of stores) {
+    try {
+      const ids = await db.getAllKeysFromIndex(storeName, 'by-clinic', clinicId)
+      if (ids.length === 0) continue
+      const tx = db.transaction(storeName, 'readwrite')
+      for (const id of ids) tx.store.delete(id)
+      await tx.done
+      logger.info(`Evicted ${ids.length} ${storeName} rows for clinic ${clinicId}`)
+    } catch (e) {
+      logger.warn(`Failed to purge ${storeName} for clinic ${clinicId}:`, e)
+    }
+  }
+}
+
 // ============================================================
 // Cleanup Operations
 // ============================================================
@@ -1095,11 +1218,12 @@ export async function clearTileCache(): Promise<void> {
 export async function clearAllUserData(): Promise<void> {
   const db = await getDb()
   const tx = db.transaction(
-    ['syncQueue', 'trainingCompletions', 'propertyItems', 'propertyLocations', 'propertyDiscrepancies', 'locationTags', 'mapOverlays', 'cachedTiles', 'tileMetadata', 'featureVoteCycles', 'featureVoteCandidates', 'featureVotes', 'featureVoteSuggestions'],
+    ['syncQueue', 'trainingCompletions', 'propertyItems', 'propertyLocations', 'propertyDiscrepancies', 'locationTags', 'mapOverlays', 'cachedTiles', 'tileMetadata', 'featureVoteCycles', 'featureVoteCandidates', 'featureVotes', 'featureVoteSuggestions', 'auditLog'],
     'readwrite',
   )
   await tx.objectStore('syncQueue').clear()
   await tx.objectStore('trainingCompletions').clear()
+  await tx.objectStore('auditLog').clear()
   await tx.objectStore('propertyItems').clear()
   await tx.objectStore('propertyLocations').clear()
   await tx.objectStore('propertyDiscrepancies').clear()

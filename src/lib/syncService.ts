@@ -25,6 +25,7 @@ import {
   getLocalTrainingCompletions,
   saveLocalTrainingCompletion,
   updateTrainingCompletionSyncStatus,
+  updateAuditLogSyncStatus,
   hardDeleteLocalTrainingCompletion,
   getLocalPropertyItems,
   saveLocalPropertyItem,
@@ -43,7 +44,7 @@ import type { LocalPropertyItem } from '../Types/PropertyTypes'
 const logger = createLogger('SyncService')
 
 /** Tables that the sync queue is allowed to write to. */
-const ALLOWED_SYNC_TABLES = ['training_completions', 'property_items', 'property_locations', 'discrepancies', 'custody_ledger', 'location_tags', 'feature_votes', 'feature_vote_suggestions'] as const
+const ALLOWED_SYNC_TABLES = ['training_completions', 'property_items', 'property_locations', 'discrepancies', 'custody_ledger', 'location_tags', 'feature_votes', 'feature_vote_suggestions', 'audit_log'] as const
 type SyncableTable = typeof ALLOWED_SYNC_TABLES[number]
 
 /** Maximum number of retries before giving up on a sync item. */
@@ -227,6 +228,8 @@ export async function processSyncQueue(userId: string): Promise<SyncResult> {
           await updateFeatureVoteSyncStatus(item.record_id, 'synced')
         } else if (table === 'feature_vote_suggestions' && item.action !== 'delete') {
           await updateFeatureVoteSuggestionSyncStatus(item.record_id, 'synced')
+        } else if (table === 'audit_log' && item.action !== 'delete') {
+          await updateAuditLogSyncStatus(item.record_id, 'synced')
         }
 
         processed++
@@ -260,6 +263,8 @@ export async function processSyncQueue(userId: string): Promise<SyncResult> {
           await updateFeatureVoteSyncStatus(item.record_id, 'error', errorMessage)
         } else if (item.table_name === 'feature_vote_suggestions' && item.action !== 'delete') {
           await updateFeatureVoteSuggestionSyncStatus(item.record_id, 'error', errorMessage)
+        } else if (item.table_name === 'audit_log' && item.action !== 'delete') {
+          await updateAuditLogSyncStatus(item.record_id, 'error', errorMessage)
         }
 
         failed++

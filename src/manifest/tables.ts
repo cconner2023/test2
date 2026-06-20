@@ -16,6 +16,7 @@ export const supabaseTables = {
   location_tags:         { owner: 'property',  readers: ['propertyService', 'syncService'], writers: ['propertyService', 'syncService'] },
   custody_ledger:        { owner: 'property',  readers: ['propertyService', 'syncService'], writers: ['propertyService', 'syncService'] },
   discrepancies:         { owner: 'property',  readers: ['propertyService', 'syncService'], writers: ['propertyService', 'syncService'] },
+  audit_log:             { owner: 'audit',     readers: ['auditService', 'syncService', 'supervisorService', 'adminService', 'trainingService'], writers: ['auditService', 'syncService'], note: 'Unified append-only event store (personnel/property/training/cert); payload_enc clinic-key encrypted; seq = delta cursor' },
   signal_key_bundles:    { owner: 'messaging', readers: ['signal/signalService'], writers: ['signal/signalService', 'signal/vaultDevice', 'signal/clinicVaultDevice'] },
   signal_messages:       { owner: 'messaging', readers: ['signal/vaultDevice', 'signal/clinicVaultDevice', 'signal/supabaseTransport'], writers: ['signal/supabaseTransport'] },
   signal_backups:        { owner: 'messaging', readers: ['signal/backupService'], writers: ['signal/backupService'] },
@@ -37,7 +38,7 @@ export const indexedDBDatabases = {
   'packagebackend-offline': {
     version: 6,
     objectStores: ['syncQueue', 'trainingCompletions', 'propertyItems', 'propertyLocations',
-                   'propertyDiscrepancies', 'locationTags', 'mapOverlays', 'notes'],
+                   'propertyDiscrepancies', 'locationTags', 'mapOverlays', 'notes', 'auditLog'],
     services: ['offlineDb', 'trainingService', 'propertyService', 'mapOverlayService',
                'syncEngine', 'syncService'],
     purpose: 'Offline-first sync queue and data cache',

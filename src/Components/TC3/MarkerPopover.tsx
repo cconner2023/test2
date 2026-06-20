@@ -1,7 +1,7 @@
 import { memo } from 'react'
 import { Check } from 'lucide-react'
 import { useTC3Store } from '../../stores/useTC3Store'
-import { getSuggestedTreatments, getRegionLabel } from '../../Utilities/bodyRegionMap'
+import { getValidTreatments, getRegionLabel } from '../../Utilities/bodyRegionMap'
 import { SectionHeader } from '../Section'
 import { DatePickerInput, PickerInput } from '../FormInputs'
 import type {
@@ -106,14 +106,20 @@ interface MarkerPopoverProps {
 
 export const MarkerPopover = memo(function MarkerPopover({ marker, filter }: MarkerPopoverProps) {
   const updateMarker = useTC3Store((s) => s.updateMarker)
+  // Canonical treatment rows + their editors. The pin nests INTO these rows
+  // (type/category/time), which are the single source of truth — also editable
+  // from the MARCH section. sync no longer overwrites their detail.
+  const tourniquets = useTC3Store((s) => s.card.march.massiveHemorrhage.tourniquets)
+  const hemostatics = useTC3Store((s) => s.card.march.massiveHemorrhage.hemostatics)
+  const updateTourniquet = useTC3Store((s) => s.updateTourniquet)
+  const updateHemostatic = useTC3Store((s) => s.updateHemostatic)
 
   const regionLabel = marker.bodyRegion ? getRegionLabel(marker.bodyRegion) : ''
-  const suggested = getSuggestedTreatments(marker.bodyRegion)
-
-  const sortedTreatments = [
-    ...ALL_TREATMENTS.filter(t => suggested.includes(t.value)),
-    ...ALL_TREATMENTS.filter(t => !suggested.includes(t.value)),
-  ]
+  // Hard-scope by region × injury type. Always keep any already-selected treatment
+  // visible so it stays removable even if the injury edit made it invalid.
+  const valid = getValidTreatments(marker.bodyRegion, marker.injuries)
+  const shownKinds = new Set<TreatmentCategory>([...valid, ...marker.treatments])
+  const sortedTreatments = ALL_TREATMENTS.filter(t => shownKinds.has(t.value))
 
   const toggleInjury = (val: InjuryType) => {
     const next = marker.injuries.includes(val)
@@ -145,6 +151,11 @@ export const MarkerPopover = memo(function MarkerPopover({ marker, filter }: Mar
   const hasTourniquet = marker.treatments.includes('tourniquet')
   const hasHemostatic = marker.treatments.includes('hemostatic')
   const hasIVIO = marker.procedures.length > 0
+
+  // The canonical rows this pin is bound to (created by the store on toggle).
+  const linkedTQ = hasTourniquet ? tourniquets.find(t => t.injuryId === marker.id) : undefined
+  const linkedDressing = hasHemostatic ? hemostatics.find(h => h.injuryId === marker.id) : undefined
+  const detailInputCls = 'flex-1 text-right bg-transparent text-primary placeholder:text-tertiary focus:outline-none text-base md:text-[10pt]'
 
   return (
     <div className="py-2 min-w-[200px]" onClick={(e) => e.stopPropagation()}>
@@ -218,8 +229,19 @@ export const MarkerPopover = memo(function MarkerPopover({ marker, filter }: Mar
             </div>
           )}
 
-          {hasTourniquet && (
+          {linkedTQ && (
             <div className="space-y-2">
+              <div className="flex items-center justify-between border-b border-primary/6 px-1 py-2">
+                <span className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest w-20 shrink-0">TQ Time</span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={linkedTQ.time}
+                  onChange={(e) => updateTourniquet(linkedTQ.id, { time: e.target.value })}
+                  placeholder="HH:MM"
+                  className={detailInputCls}
+                />
+              </div>
               <div className="flex items-center justify-between gap-2 px-1">
                 <SectionHeader>TQ Type</SectionHeader>
                 <ActionPill className="inline-">
@@ -227,9 +249,9 @@ export const MarkerPopover = memo(function MarkerPopover({ marker, filter }: Mar
                     <button
                       key={t}
                       type="button"
-                      onClick={() => updateMarker(marker.id, { tqType: t })}
+                      onClick={() => updateTourniquet(linkedTQ.id, { type: t })}
                       className={`px-3 py-1.5 text-[9pt] font-semibold rounded-full transition-all active:scale-95 ${
-                        marker.tqType === t ? 'bg-themeblue2 text-white' : 'bg-themeblue2/8 text-primary'
+                        linkedTQ.type === t ? 'bg-themeblue2 text-white' : 'bg-themeblue2/8 text-primary'
                       }`}
                     >
                       {t}
@@ -244,9 +266,9 @@ export const MarkerPopover = memo(function MarkerPopover({ marker, filter }: Mar
                     <button
                       key={c}
                       type="button"
-                      onClick={() => updateMarker(marker.id, { tqCategory: c })}
+                      onClick={() => updateTourniquet(linkedTQ.id, { tqCategory: c })}
                       className={`px-3 py-1.5 text-[9pt] font-semibold rounded-full transition-all active:scale-95 ${
-                        marker.tqCategory === c ? 'bg-themeblue2 text-white' : 'bg-themeblue2/8 text-primary'
+                        linkedTQ.tqCategory === c ? 'bg-themeblue2 text-white' : 'bg-themeblue2/8 text-primary'
                       }`}
                     >
                       {c}
@@ -257,23 +279,46 @@ export const MarkerPopover = memo(function MarkerPopover({ marker, filter }: Mar
             </div>
           )}
 
-          {hasHemostatic && (
-            <div className="flex items-center justify-between gap-2 px-1">
-              <SectionHeader>Dressing Type</SectionHeader>
-              <ActionPill className="inline-">
-                {DRESSING_TYPES.map(d => (
-                  <button
-                    key={d}
-                    type="button"
-                    onClick={() => updateMarker(marker.id, { dressingType: d })}
-                    className={`px-3 py-1.5 text-[9pt] font-semibold rounded-full transition-all active:scale-95 ${
-                      marker.dressingType === d ? 'bg-themeblue2 text-white' : 'bg-themeblue2/8 text-primary'
-                    }`}
-                  >
-                    {d}
-                  </button>
-                ))}
-              </ActionPill>
+          {linkedDressing && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between border-b border-primary/6 px-1 py-2">
+                <span className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest w-20 shrink-0">Time</span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={linkedDressing.time ?? ''}
+                  onChange={(e) => updateHemostatic(linkedDressing.id, { time: e.target.value })}
+                  placeholder="HH:MM"
+                  className={detailInputCls}
+                />
+              </div>
+              <div className="flex items-center justify-between border-b border-primary/6 px-1 py-2">
+                <span className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest w-20 shrink-0">Agent</span>
+                <input
+                  type="text"
+                  value={linkedDressing.type}
+                  onChange={(e) => updateHemostatic(linkedDressing.id, { type: e.target.value })}
+                  placeholder="Combat Gauze…"
+                  className={detailInputCls}
+                />
+              </div>
+              <div className="flex items-center justify-between gap-2 px-1">
+                <SectionHeader>Dressing Type</SectionHeader>
+                <ActionPill className="inline-">
+                  {DRESSING_TYPES.map(d => (
+                    <button
+                      key={d}
+                      type="button"
+                      onClick={() => updateHemostatic(linkedDressing.id, { dressingType: d })}
+                      className={`px-3 py-1.5 text-[9pt] font-semibold rounded-full transition-all active:scale-95 ${
+                        linkedDressing.dressingType === d ? 'bg-themeblue2 text-white' : 'bg-themeblue2/8 text-primary'
+                      }`}
+                    >
+                      {d}
+                    </button>
+                  ))}
+                </ActionPill>
+              </div>
             </div>
           )}
         </div>

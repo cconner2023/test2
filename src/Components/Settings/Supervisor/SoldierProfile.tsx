@@ -23,6 +23,8 @@ import type { TrainingCompletionUI } from '../../../lib/trainingService'
 import type { CalendarEvent } from '../../../Types/CalendarTypes'
 import { createLogger } from '../../../Utilities/Logger'
 import { ActionPill } from '../../ActionPill'
+import { UserTimeline } from '../../Timeline/UserTimeline'
+import { useAuthStore } from '../../../stores/useAuthStore'
 
 function formatEventDate(evt: CalendarEvent): string {
   const start = new Date(evt.start_time)
@@ -103,6 +105,7 @@ export function SoldierProfile({
   onScheduleAlgorithm,
 }: SoldierProfileProps) {
   const isMobile = useIsMobile()
+  const viewerClinicId = useAuthStore(s => s.clinicId)
   const now = useMemo(() => new Date(), [])
   const [expandedTestId, setExpandedTestId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -464,6 +467,12 @@ export function SoldierProfile({
           )}
         </div>
       </div>
+
+      {/* Timeline — unified lifecycle spine from audit_log: training, cluster
+          moves, certs (past + future, now-divider). Replaces the team-calendar voice. */}
+      {viewerClinicId && (
+        <UserTimeline subjectId={soldier.id} clinicId={viewerClinicId} />
+      )}
 
       {/* Algorithm Competency — composite category (STP + red flags + ddx + run).
           Tap a row to see the per-dimension breakdown and evaluate/schedule. */}

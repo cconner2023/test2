@@ -65,8 +65,8 @@ export const features = {
   property: {
     label: 'Equipment Inventory',
     store: 'usePropertyStore',
-    services: ['propertyService', 'tagIndex', 'syncService'],
-    tables: ['property_items', 'property_locations', 'location_tags', 'custody_ledger', 'discrepancies'],
+    services: ['propertyService', 'tagIndex', 'syncService', 'auditService'],
+    tables: ['property_items', 'property_locations', 'location_tags', 'custody_ledger', 'discrepancies', 'audit_log'],
     idb: ['packagebackend-offline:propertyItems', 'packagebackend-offline:propertyLocations',
           'packagebackend-offline:propertyDiscrepancies', 'packagebackend-offline:locationTags'],
     components: 'Components/Property/',
@@ -164,12 +164,13 @@ export const features = {
   training: {
     label: 'Training & Completions',
     store: null,
-    services: ['trainingService', 'offlineDb', 'syncService'],
-    tables: ['training_completions'],
-    idb: ['packagebackend-offline:trainingCompletions'],
+    services: ['trainingService', 'auditService', 'offlineDb', 'syncService'],
+    tables: ['training_completions', 'audit_log'],
+    idb: ['packagebackend-offline:trainingCompletions', 'packagebackend-offline:auditLog'],
     components: 'Components/TrainingDrawer.tsx',
     drawer: { id: 'showTrainingDrawer', wrapper: 'TrainingDrawer.tsx' },
     hooks: ['useTrainingCompletions', 'useRealtimeTrainingCompletions'],
+    note: 'Event-sourced: completions are a fold over audit_log domain=training events; training_completions retained transitionally until cutover. calendar_origin_id link lives in a mutable projection, not events.',
   },
 
   noteImport: {
@@ -247,7 +248,7 @@ export const features = {
     services: ['offlineDb', 'syncEngine', 'syncService'],
     tables: ['training_completions', 'property_items', 'property_locations',
              'location_tags', 'custody_ledger', 'discrepancies',
-             'feature_votes', 'feature_vote_suggestions'],
+             'feature_votes', 'feature_vote_suggestions', 'audit_log'],
     idb: ['packagebackend-offline:syncQueue'],
     components: null, // background service
     drawer: null,

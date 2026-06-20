@@ -11,7 +11,7 @@ import { BodyDiagram } from './BodyDiagram'
 import { VitalsForm } from './VitalsForm'
 import { MARCHForm } from './MARCHForm'
 import { NotesPanel } from './NotesPanel'
-import { getRegionLabel } from '../../Utilities/bodyRegionMap'
+import { getRegionLabel, summarizeMarker } from '../../Utilities/bodyRegionMap'
 import { TQAlertBanner } from './TQAlertBanner'
 
 const PAGES = TC3_WIZARD_PAGES
@@ -123,11 +123,7 @@ export const TC3MobileWizard = memo(function TC3MobileWizard({
                   <SectionHeader>Markers</SectionHeader>
                   <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden divide-y divide-tertiary/8">
                     {card.markers.map((m) => {
-                      const typeLabel = m.injuries.length > 0
-                        ? m.injuries.join(', ')
-                        : m.procedures.length > 0
-                          ? m.procedures.join(', ')
-                          : 'Treatment'
+                      const typeLabel = summarizeMarker(m)
                       const regionLabel = m.bodyRegion ? getRegionLabel(m.bodyRegion) : null
 
                       return (

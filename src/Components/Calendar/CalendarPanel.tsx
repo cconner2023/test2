@@ -1301,20 +1301,43 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
             </BaseDrawer>
           )}
 
-          {/* Mobile event detail — Sheet mirroring the map feature editor:
-              EventDetailPanel renders its own ellipsis-left / close-right header,
-              content sits flat (no nested card) and scrolls, backdrop-none keeps
-              the calendar live underneath. The edit form is a separate drawer. */}
+          {/* Mobile event detail + edit — ONE Sheet, mirroring the map feature
+              editor (FeatureEditor): read and edit share a single surface and
+              the header pills swap by mode, rather than the edit being a separate
+              drawer. Detail mode: EventDetailPanel renders its own ellipsis-left /
+              close-right header (hideClose + draggable). Edit mode: the Sheet owns
+              the header (title + Save/Delete pills, built-in Close = Cancel) and
+              drag-dismiss is disabled so a stray drag can't discard form input.
+              backdrop="block" dims the day drawer underneath so the sheet reads as
+              distinct from it (their themewhite3 backgrounds are identical). */}
           <Sheet
-            isOpen={showDayDrawer && dayDrawerView === 'detail'}
-            onClose={handleDayDrawerDetailBack}
+            isOpen={showDayDrawer && (dayDrawerView === 'detail' || dayDrawerView === 'edit')}
+            onClose={dayDrawerView === 'edit' ? handleDayDrawerEditCancel : handleDayDrawerDetailBack}
             height="fit"
-            maxHeight={60}
-            backdrop="none"
+            maxHeight={dayDrawerView === 'edit' ? 85 : 60}
+            backdrop="block"
             zIndex={1200}
-            hideClose
+            hideClose={dayDrawerView === 'detail'}
+            draggable={dayDrawerView === 'detail'}
+            title={dayDrawerView === 'edit' ? 'Edit Event' : undefined}
+            leftContent={dayDrawerView === 'edit' ? (
+              <HeaderPill>
+                <PillButton
+                  icon={Check}
+                  iconSize={18}
+                  accent="success"
+                  onClick={() => eventFormRef.current?.submit()}
+                  label="Save"
+                />
+              </HeaderPill>
+            ) : undefined}
+            rightContent={dayDrawerView === 'edit' && editingEvent ? (
+              <HeaderPill>
+                <PillButton icon={Trash2} iconSize={18} onClick={() => setConfirmDeleteEvent(editingEvent.id)} label="Delete" variant="danger" />
+              </HeaderPill>
+            ) : undefined}
           >
-            {dayDrawerEvent && (
+            {dayDrawerView === 'detail' && dayDrawerEvent && (
               <EventDetailPanel
                 event={dayDrawerEvent}
                 onClose={handleDayDrawerDetailBack}
@@ -1336,37 +1359,8 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                 inSheet
               />
             )}
-          </Sheet>
-
-          {/* Mobile event edit — kept as a full drawer (the form is a modal action). */}
-          <BaseDrawer
-            isVisible={showDayDrawer && dayDrawerView === 'edit'}
-            onClose={handleDayDrawerClose}
-            mobileOnly
-            fullHeight="85dvh"
-            zIndex="z-50"
-            header={{
-              title: 'Edit Event',
-              rightContent: (
-                <HeaderPill>
-                  {editingEvent && (
-                    <PillButton icon={Trash2} iconSize={18} onClick={() => setConfirmDeleteEvent(editingEvent.id)} label="Delete" variant="danger" />
-                  )}
-                  <PillButton icon={X} iconSize={18} onClick={handleDayDrawerEditCancel} label="Cancel" />
-                  <PillButton
-                    icon={Check}
-                    iconSize={18}
-                    accent="success"
-                    onClick={() => eventFormRef.current?.submit()}
-                    label="Save"
-                  />
-                </HeaderPill>
-              ),
-              hideDefaultClose: true,
-            }}
-          >
-            <div className="relative h-full">
-              {editingEvent && (
+            {dayDrawerView === 'edit' && editingEvent && (
+              <div className="relative">
                 <EventForm
                   ref={eventFormRef}
                   initialData={eventToFormData(editingEvent)}
@@ -1376,16 +1370,15 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                   propertyItems={propertyItems}
                   overlayOptions={overlayOptions}
                   roomOptions={roomFormOptions}
-                huddleTaskOptions={huddleTaskFormOptions}
-                checklistTemplates={sortedPccTemplates}
-                clinicOptions={clinicFormOptions}
-                onCreateOverlay={handleCreateOverlayForEvent}
+                  huddleTaskOptions={huddleTaskFormOptions}
+                  checklistTemplates={sortedPccTemplates}
+                  clinicOptions={clinicFormOptions}
+                  onCreateOverlay={handleCreateOverlayForEvent}
                 />
-              )}
-
-              <LoadingOverlay visible={isFormPending || isWriting || isDeleting} className="rounded-xl" />
-            </div>
-          </BaseDrawer>
+                <LoadingOverlay visible={isFormPending || isWriting || isDeleting} className="rounded-xl" />
+              </div>
+            )}
+          </Sheet>
 
         </div>
 

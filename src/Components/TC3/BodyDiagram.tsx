@@ -94,7 +94,7 @@ export const BodyDiagram = memo(function BodyDiagram({
   return (
     <div className="space-y-2">
       <div>
-        <h3 className="text-sm font-semibold text-primary mb-1">Injury Locations</h3>
+        <h3 className="text-sm font-semibold text-primary mb-1">Body Markers</h3>
         <p className="text-[9pt] text-tertiary">DD 1380 Section 3 — Tap on the body to mark injuries, treatments, or IV/IO sites</p>
       </div>
 

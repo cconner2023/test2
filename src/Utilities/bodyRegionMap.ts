@@ -2,7 +2,7 @@
 // Maps SVG body diagram coordinates to anatomical regions and treatment suggestions.
 // Coordinates are percentages (0-100) within the combined 1040×909 SVG viewBox.
 
-import type { BodyRegion, TreatmentCategory } from '../Types/TC3Types'
+import type { BodyRegion, TreatmentCategory, InjuryType } from '../Types/TC3Types'
 import { ALL_TC3_RECTS } from '../Components/TC3/tc3RegionRects'
 
 /** Map a click position (% coords within combined viewBox) to an anatomical body region. */
@@ -20,7 +20,7 @@ export function getBodyRegion(x: number, y: number): BodyRegion | '' {
     return ''
 }
 
-/** Return treatment categories relevant to a body region. */
+/** Return treatment categories relevant to a body region (soft suggestion — superset). */
 export function getSuggestedTreatments(region: BodyRegion | ''): TreatmentCategory[] {
     if (!region) return ['hemostatic', 'other']
 
@@ -34,6 +34,66 @@ export function getSuggestedTreatments(region: BodyRegion | ''): TreatmentCatego
     if (isExtremity) return ['tourniquet', 'hemostatic']
     if (isChest) return ['chestSeal', 'needleDecomp', 'hemostatic']
     return ['hemostatic', 'other']
+}
+
+/**
+ * Hard-scope the treatment options a body-pin should OFFER, by region × injury type.
+ * Unlike getSuggestedTreatments (a soft superset for sort order), this is the actual
+ * allow-list rendered in the marker popover — a head laceration never offers a
+ * tourniquet or needle decomp. Returns the four UI-selectable MARCH categories.
+ * When the region is unknown ('') we can't scope safely, so allow all.
+ */
+export function getValidTreatments(
+    region: BodyRegion | '',
+    injuries: InjuryType[] = [],
+): TreatmentCategory[] {
+    if (!region) return ['tourniquet', 'hemostatic', 'chestSeal', 'needleDecomp']
+
+    const isExtremity = region.includes('upper-arm') || region.includes('forearm')
+        || region.includes('hand') || region.includes('upper-leg')
+        || region.includes('lower-leg') || region.includes('foot')
+
+    const isThorax = region === 'chest-left' || region === 'chest-right' || region === 'back-upper'
+
+    // Tourniquet only makes sense on a limb (extremity hemorrhage / amputation).
+    const allowed = new Set<TreatmentCategory>(['hemostatic'])
+    if (isExtremity) allowed.add('tourniquet')
+    if (isThorax) { allowed.add('chestSeal'); allowed.add('needleDecomp') }
+
+    // Burns are dressed, not tourniqueted — drop TQ for an isolated burn.
+    if (injuries.length > 0 && injuries.every(i => i === 'burn')) allowed.delete('tourniquet')
+
+    return ['tourniquet', 'hemostatic', 'chestSeal', 'needleDecomp'].filter(t =>
+        allowed.has(t as TreatmentCategory)) as TreatmentCategory[]
+}
+
+const TREATMENT_SUMMARY_LABELS: Record<TreatmentCategory, string> = {
+    tourniquet: 'Tourniquet',
+    hemostatic: 'Dressing',
+    chestSeal: 'Chest Seal',
+    needleDecomp: 'Needle-D',
+    other: 'Treatment',
+}
+
+/**
+ * One-line label for a body marker in the Markers summary list. Names the actual
+ * content (injuries · treatments · procedures) so a treatment-only pin reads as
+ * its treatment(s), never a nameless "Treatment" row under an injury-framed list.
+ */
+export function summarizeMarker(m: {
+    injuries: string[]
+    treatments: string[]
+    procedures: string[]
+}): string {
+    const parts: string[] = []
+    if (m.injuries.length) parts.push(m.injuries.join(', '))
+    if (m.treatments.length) {
+        parts.push(m.treatments
+            .map(t => TREATMENT_SUMMARY_LABELS[t as TreatmentCategory] ?? t)
+            .join(', '))
+    }
+    if (m.procedures.length) parts.push(m.procedures.join('/'))
+    return parts.join(' · ') || 'Marker'
 }
 
 const REGION_LABELS: Record<string, string> = {

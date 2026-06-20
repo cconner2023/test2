@@ -435,6 +435,56 @@ export async function decryptServerNoteRow<T extends Record<string, unknown>>(
   return decrypted
 }
 
+// ---- Audit Payload Encrypt/Decrypt ----
+
+/**
+ * Encrypt an audit event payload object for at-rest storage on the wire.
+ * Returns `enc.v1:<base64(IV + ciphertext)>`, or null if the clinic key is
+ * unavailable (offline + never cached).
+ *
+ * IMPORTANT — this does NOT degrade to plaintext the way encryptNote does.
+ * Audit rows must never reach Supabase as cleartext payload. Callers MUST
+ * treat a null return as "cannot encrypt — defer the wire write" (keep the
+ * event in the local, secureStorage-encrypted queue and retry once the key
+ * is available). Events with no sensitive tail (personnel moves, bare
+ * read.recorded) should skip this call entirely and store payload_enc=null.
+ */
+export async function encryptAuditPayload(
+  clinicId: string,
+  payload: unknown
+): Promise<string | null> {
+  const key = await getClinicKey(clinicId)
+  if (!key) {
+    logger.warn('Cannot encrypt audit payload: clinic key not available')
+    return null
+  }
+  return encryptField(key, JSON.stringify(payload))
+}
+
+/**
+ * Decrypt an audit event payload back into its object. Returns null for an
+ * empty value or when the key is unavailable. Legacy/plaintext values (no
+ * enc.v1: prefix) are parsed directly. A decrypt/parse failure resolves to
+ * null with a warning so one bad row never breaks a timeline fold.
+ */
+export async function decryptAuditPayload<T = unknown>(
+  clinicId: string,
+  value: string | null | undefined
+): Promise<T | null> {
+  if (!value) return null
+  const key = await getClinicKey(clinicId)
+  if (!key) {
+    logger.warn('Cannot decrypt audit payload: clinic key not available')
+    return null
+  }
+  try {
+    return JSON.parse(await decryptField(key, value)) as T
+  } catch (err) {
+    logger.warn('Failed to decrypt audit payload:', err)
+    return null
+  }
+}
+
 // ---- Clinic Table Field Encryption ----
 // Used for encrypting fields on the clinics table itself (e.g., location).
 // These use the raw key base64 string directly because during create/list

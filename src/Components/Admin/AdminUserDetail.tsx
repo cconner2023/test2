@@ -15,6 +15,7 @@ import type { Component } from '../../Data/User'
 import { UserAvatar } from '../Settings/UserAvatar'
 import { UserRow } from '../UserRow'
 import { AdminCertsSection } from './AdminCertsSection'
+import { UserTimeline } from '../Timeline/UserTimeline'
 import { TextInput, PickerInput, MultiPickerInput, UicPinInput, PasswordInput } from '../FormInputs'
 import { ErrorDisplay } from '../ErrorDisplay'
 import { ConfirmDialog } from '../ConfirmDialog'
@@ -1182,6 +1183,14 @@ export function AdminUserDetail({
             certs={userCerts}
             onChanged={loadData}
           />
+        </div>
+      )}
+
+      {/* Provenance timeline — lifecycle spine from audit_log: cluster moves,
+          training, certs. Answers the CREATED_SOURCE / "when assigned" question. */}
+      {user?.clinic_id && (
+        <div className="mt-4">
+          <UserTimeline subjectId={user.id} clinicId={user.clinic_id} />
         </div>
       )}
 

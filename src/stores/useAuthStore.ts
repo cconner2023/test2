@@ -224,11 +224,14 @@ function clearRolesStorage() {
  * Fetch a full profile from Supabase for the given user ID.
  * Returns the UserTypes profile and the roles array.
  */
-async function fetchProfileFromSupabase(userId: string): Promise<{ profile: UserTypes; roles: string[]; clinicId: string | null; surrogateClinicIds: string[]; needsPasswordSetup: boolean; clinicTextExpanders: TextExpander[] | null; clinicPlanOrderTags: UserTypes['planOrderTags'] | null; clinicPlanInstructionTags: string[] | null; clinicPlanOrderSets: UserTypes['planOrderSets'] | null }> {
+async function fetchProfileFromSupabase(userId: string): Promise<{ profile: UserTypes; roles: string[]; clinicId: string | null; surrogateClinicIds: string[]; loanReadOk: boolean; needsPasswordSetup: boolean; clinicTextExpanders: TextExpander[] | null; clinicPlanOrderTags: UserTypes['planOrderTags'] | null; clinicPlanInstructionTags: string[] | null; clinicPlanOrderSets: UserTypes['planOrderSets'] | null }> {
   const profile: UserTypes = {}
   let roles: string[] = []
   let clinicId: string | null = null
   let surrogateClinicIds: string[] = []
+  // Confidence flag for the loan read — membership eviction must NOT fire on a
+  // failed/partial loan fetch (would falsely evict a still-valid loan clinic).
+  let loanReadOk = true
   let needsPasswordSetup = false
   let clinicTextExpanders: TextExpander[] | null = null
   let clinicPlanOrderTags: UserTypes['planOrderTags'] | null = null
@@ -278,6 +281,7 @@ async function fetchProfileFromSupabase(userId: string): Promise<{ profile: User
       .eq('user_id', userId)
       .order('created_at', { ascending: true })
     if (loanError) {
+      loanReadOk = false
       console.warn('profile_clinic_loans read failed, falling back to legacy surrogate_clinic_id:', loanError.message)
     } else if (loanRows && loanRows.length > 0) {
       surrogateClinics = (loanRows as Array<{ clinic_id: string; clinic: { name: string } | null }>)
@@ -354,7 +358,7 @@ async function fetchProfileFromSupabase(userId: string): Promise<{ profile: User
     // column not yet present — leave undefined → home-only default in the merge
   }
 
-  return { profile, roles, clinicId, surrogateClinicIds, needsPasswordSetup, clinicTextExpanders, clinicPlanOrderTags, clinicPlanInstructionTags, clinicPlanOrderSets }
+  return { profile, roles, clinicId, surrogateClinicIds, loanReadOk, needsPasswordSetup, clinicTextExpanders, clinicPlanOrderTags, clinicPlanInstructionTags, clinicPlanOrderSets }
 }
 
 export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
@@ -914,8 +918,12 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
     const user = get().user
     if (!user) return
 
+    // Prior reachable membership (from the last persisted roles blob) — diffed
+    // below to detect clusters the user was removed from while away.
+    const prevMembership = loadRolesFromStorage()
+
     try {
-      const { profile, roles, clinicId, surrogateClinicIds, needsPasswordSetup, clinicTextExpanders, clinicPlanOrderTags, clinicPlanInstructionTags, clinicPlanOrderSets } = await fetchProfileFromSupabase(user.id)
+      const { profile, roles, clinicId, surrogateClinicIds, loanReadOk, needsPasswordSetup, clinicTextExpanders, clinicPlanOrderTags, clinicPlanInstructionTags, clinicPlanOrderSets } = await fetchProfileFromSupabase(user.id)
       // Keep supervisingClinicId valid against the new reach. If the prior choice
       // is no longer reachable (loan ended, home clinic changed), fall back to
       // the assigned clinic.
@@ -939,6 +947,24 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
       })
       saveProfileToStorage(profile)
       saveRolesToStorage({ roles, clinicId, surrogateClinicIds, isDevRole: roles.includes('dev') })
+
+      // Clean-break eviction: any clinic we previously had local data for that is
+      // no longer reachable means the user was removed from that cluster. RLS has
+      // already cut server access; nuke the device-side cluster cache so nothing
+      // stale lingers. Guarded so a failed/partial profile read never triggers a
+      // false eviction: require a real home clinic (home is NOT NULL — null means
+      // the read failed), a trustworthy loan read, and a prior membership to diff.
+      if (clinicId && loanReadOk && prevMembership) {
+        const nextReach = new Set<string>([clinicId, ...surrogateClinicIds])
+        const dropped = [prevMembership.clinicId, ...(prevMembership.surrogateClinicIds ?? [])]
+          .filter((id): id is string => !!id && !nextReach.has(id))
+        if (dropped.length > 0) {
+          const { evictClinicData } = await import('../lib/clinicEviction')
+          for (const id of dropped) {
+            await evictClinicData(id).catch(() => { /* best-effort per clinic */ })
+          }
+        }
+      }
 
       // Prefetch barcode encryption key for offline use (fire-and-forget)
       prefetchBarcodeKey().catch(() => {})

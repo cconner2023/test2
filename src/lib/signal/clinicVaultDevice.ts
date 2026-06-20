@@ -310,9 +310,15 @@ export async function deriveAndCacheClinicVaultKey(
   logger.info('Clinic vault wrapping key cached')
 }
 
-/** Clear cached clinic vault key (called on sign-out). */
-export function clearClinicVaultKey(): void {
-  clinicVaultKeys.clear()
+/**
+ * Clear cached clinic vault wrapping key(s).
+ * - With a clinicId: drop only that clinic's key (membership eviction — the
+ *   removed member can no longer decrypt that clinic's snapshot/tail).
+ * - No argument: clear every cached key (sign-out).
+ */
+export function clearClinicVaultKey(clinicId?: string): void {
+  if (clinicId) clinicVaultKeys.delete(clinicId)
+  else clinicVaultKeys.clear()
 }
 
 interface ClinicVaultMaterial {

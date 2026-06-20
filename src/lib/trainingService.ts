@@ -27,6 +27,48 @@ import type { CompletionType, CompletionResult, Json } from '../Types/database.t
 import type { StepResult } from '../Types/SupervisorTestTypes'
 import { createLogger } from '../Utilities/Logger'
 import { immediateSync } from './syncEngine'
+import { emitAudit } from './auditService'
+import { useAuthStore } from '../stores/useAuthStore'
+import type { AuditEventType } from './auditTypes'
+
+/**
+ * Shadow-emit a training lifecycle event into the unified audit_log.
+ *
+ * Additive during the event-sourcing transition: training_completions stays
+ * authoritative until the server gate flips the read path to the event fold
+ * (see v2/training event-sourcing). subject = the soldier; clinic = the authed
+ * user's clinic (own clinic for self-report, the soldier's cluster for
+ * supervisor actions — they are the same cluster). actor = the authed user
+ * (= the sync-queue owner, matching the training_completions write). Best-effort
+ * — emitAudit never throws, so it can't break a completion write.
+ *
+ * training_item_id rides in the (encrypted) payload, not the spine: the fold
+ * groups by (subject, training_item_id) client-side after decrypt; it is never
+ * a SQL filter. result/step_results/supervisor_notes are the sensitive tail.
+ */
+async function emitTrainingEvent(
+  eventType: AuditEventType,
+  subjectUserId: string,
+  actorUserId: string,
+  payload: Record<string, unknown>,
+  occurredAt: string,
+): Promise<void> {
+  const clinicId = useAuthStore.getState().clinicId
+  if (!clinicId || actorUserId === 'guest') return
+  await emitAudit(
+    {
+      clinicId,
+      actorId: actorUserId,
+      domain: 'training',
+      eventType,
+      subjectType: 'user',
+      subjectId: subjectUserId,
+      occurredAt,
+      payload,
+    },
+    actorUserId,
+  )
+}
 
 const logger = createLogger('TrainingService')
 
@@ -191,6 +233,10 @@ export async function createReadCompletion(
     }
   }
 
+  await emitTrainingEvent('read.recorded', userId, userId, {
+    training_item_id: trainingItemId,
+  }, now)
+
   return localToUI(local)
 }
 
@@ -264,6 +310,14 @@ export async function createTestCompletion(params: {
     local._sync_status = 'synced'
   }
 
+  await emitTrainingEvent('test.graded', medicUserId, supervisorId, {
+    training_item_id: trainingItemId,
+    result,
+    step_results: stepResults,
+    supervisor_notes: supervisorNotes ?? null,
+    supervisor_id: supervisorId,
+  }, now)
+
   return localToUI(local)
 }
 
@@ -272,6 +326,16 @@ export async function createTestCompletion(params: {
  */
 export async function deleteCompletion(completionId: string, userId: string): Promise<void> {
   const deletedAt = new Date().toISOString()
+
+  // Capture the row before hard-delete so the void event can name its subject
+  // and training item (event-sourcing transition — see emitTrainingEvent).
+  let voided: LocalTrainingCompletion | undefined
+  if (userId !== 'guest') {
+    try {
+      voided = (await getLocalTrainingCompletions(userId)).find(l => l.id === completionId)
+    } catch { /* best-effort capture */ }
+  }
+
   await hardDeleteLocalTrainingCompletion(completionId)
 
   if (userId !== 'guest') {
@@ -298,6 +362,12 @@ export async function deleteCompletion(completionId: string, userId: string): Pr
       },
       'delete'
     )
+
+    await emitTrainingEvent('completion.voided', voided?.user_id ?? userId, userId, {
+      completion_id: completionId,
+      training_item_id: voided?.training_item_id ?? null,
+      completion_type: voided?.completion_type ?? null,
+    }, deletedAt)
   }
 }
 
@@ -464,6 +534,13 @@ export async function createAssignment(params: {
     local._sync_status = 'synced'
   }
 
+  await emitTrainingEvent('assignment.created', medicUserId, supervisorId, {
+    training_item_id: trainingItemId,
+    due_date: dueDate,
+    supervisor_notes: supervisorNotes ?? null,
+    supervisor_id: supervisorId,
+  }, now)
+
   return localToUI(local)
 }
 
@@ -532,6 +609,15 @@ export async function completeAssignment(params: {
   if (synced) {
     updated._sync_status = 'synced'
   }
+
+  await emitTrainingEvent('assignment.completed', medicUserId, supervisorId, {
+    training_item_id: existing.training_item_id,
+    completion_type: completionType,
+    result,
+    step_results: stepResults ?? null,
+    supervisor_notes: supervisorNotes ?? null,
+    supervisor_id: supervisorId,
+  }, now)
 
   return localToUI(updated)
 }

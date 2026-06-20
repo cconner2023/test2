@@ -132,6 +132,30 @@ export async function clearCalendarEvents(): Promise<void> {
 }
 
 /**
+ * Delete every persisted event belonging to one clinic (membership eviction —
+ * a user removed from a cluster gets that cluster's cached events wiped).
+ * Tombstones are deliberately PRESERVED, identical to the logout contract, so a
+ * still-reachable clinic's vault replay cannot resurrect a deleted event.
+ * Returns the number of events removed.
+ */
+export async function deleteCalendarEventsForClinic(clinicId: string): Promise<number> {
+  try {
+    const db = await getDb()
+    const all = await db.getAll('events')
+    const victims = all.filter(e => e.clinic_id === clinicId)
+    if (victims.length === 0) return 0
+    const tx = db.transaction('events', 'readwrite')
+    for (const e of victims) tx.store.delete(e.id)
+    await tx.done
+    logger.info(`Evicted ${victims.length} calendar events for clinic ${clinicId}`)
+    return victims.length
+  } catch (e) {
+    logger.warn('Failed to evict clinic calendar events from IDB:', e)
+    return 0
+  }
+}
+
+/**
  * Destroy the entire database including tombstones — NOT called on logout.
  * Logout uses clearCalendarEvents() to preserve tombstones so vault replay
  * cannot resurrect deleted events on next login.

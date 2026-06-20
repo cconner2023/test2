@@ -67,6 +67,7 @@ export interface TC3Hemostatic {
   type: string
   location: string
   dressingType: DressingType
+  time?: string     // time applied (HH:MM) — per-dressing, edited on the pin or in MARCH
   injuryId?: string
 }
 
@@ -189,8 +190,10 @@ export interface TC3Card {
       airwayType: string
     }
     respiration: {
-      needleDecomp: { performed: boolean; side: NeedleDecompSide }
-      chestSeal: { applied: boolean; side: NeedleDecompSide }
+      // markerId backref (runtime-only, not serialized) — lets the body-pin sync
+      // clear the seal/decomp it set when that marker drops the treatment or is removed.
+      needleDecomp: { performed: boolean; side: NeedleDecompSide; markerId?: string }
+      chestSeal: { applied: boolean; side: NeedleDecompSide; markerId?: string }
       chestTube: boolean
       o2: boolean
       o2Method: string

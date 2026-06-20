@@ -6,7 +6,7 @@ import { CasualtyInfoForm } from './CasualtyInfoForm'
 import { MechanismForm } from './MechanismForm'
 import { BodyDiagram } from './BodyDiagram'
 import { VitalsForm } from './VitalsForm'
-import { getRegionLabel } from '../../Utilities/bodyRegionMap'
+import { getRegionLabel, summarizeMarker } from '../../Utilities/bodyRegionMap'
 import { TQAlertBanner } from './TQAlertBanner'
 
 /** Left column of the desktop DD1380 layout — front of the card. */
@@ -41,11 +41,7 @@ export const TC3FrontColumn = memo(function TC3FrontColumn() {
             <SectionHeader>Markers</SectionHeader>
             <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden divide-y divide-tertiary/8">
               {card.markers.map((m) => {
-                const typeLabel = m.injuries.length > 0
-                  ? m.injuries.join(', ')
-                  : m.procedures.length > 0
-                    ? m.procedures.join(', ')
-                    : 'Treatment'
+                const typeLabel = summarizeMarker(m)
                 const regionLabel = m.bodyRegion ? getRegionLabel(m.bodyRegion) : null
 
                 return (

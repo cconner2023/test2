@@ -8,6 +8,7 @@ import { supabase } from './supabase'
 import { succeed, fail, type ServiceResult } from './result'
 import { createLogger } from '../Utilities/Logger'
 import { addToSyncQueue } from './offlineDb'
+import { emitAudit } from './auditService'
 import {
   getDb,
   getLocalPropertyItems,
@@ -997,6 +998,31 @@ export async function recordLedgerEntry(
       payload: ledgerEntry as unknown as Record<string, unknown>,
     })
 
+    // Dual-write the same custody event into the unified audit_log (timeline +
+    // consolidation target; custody_ledger folds in once proven). Best-effort —
+    // emitAudit never throws, so a key/queue hiccup can't fail the transfer.
+    await emitAudit(
+      {
+        clinicId: ledgerEntry.clinic_id,
+        actorId: userId,
+        domain: 'property',
+        eventType: 'item.transferred',
+        subjectType: 'item',
+        subjectId: ledgerEntry.item_id,
+        occurredAt: now,
+        payload: {
+          action: ledgerEntry.action,
+          quantity_delta: ledgerEntry.quantity_delta ?? null,
+          condition_code: ledgerEntry.condition_code,
+          from_holder_id: ledgerEntry.from_holder_id,
+          to_holder_id: ledgerEntry.to_holder_id,
+          sub_item_check: ledgerEntry.sub_item_check,
+          notes: ledgerEntry.notes,
+        },
+      },
+      userId,
+    )
+
     immediateSync(userId)
     return succeed({ entry: ledgerEntry })
   } catch (err) {
@@ -1241,6 +1267,21 @@ export async function recordExpendedEntry(
       record_id: ledgerEntry.id,
       payload: ledgerEntry as unknown as Record<string, unknown>,
     })
+
+    // Dual-write into the unified audit_log (see recordLedgerEntry).
+    await emitAudit(
+      {
+        clinicId,
+        actorId: userId,
+        domain: 'property',
+        eventType: 'item.expended',
+        subjectType: 'item',
+        subjectId: itemId,
+        occurredAt: now,
+        payload: { quantity_delta: quantityDelta, condition_code: 'serviceable' },
+      },
+      userId,
+    )
 
     immediateSync(userId)
     return succeed()

@@ -118,10 +118,13 @@ function syncMarkerToMarch(
       }],
     }
   } else if (hasTQ && existingTQ) {
+    // Sync LOCATION only — the canonical tourniquet row owns its type/category/time,
+    // edited on the pin popover or in MARCH. (Previously this clobbered those fields
+    // from the marker's singletons on every marker update.)
     massiveHemorrhage = {
       ...massiveHemorrhage,
       tourniquets: massiveHemorrhage.tourniquets.map(t =>
-        t.injuryId === marker.id ? { ...t, type: marker.tqType, tqCategory: marker.tqCategory, location: regionLabel } : t
+        t.injuryId === marker.id ? { ...t, location: regionLabel } : t
       ),
     }
   } else if (!hasTQ && existingTQ) {
@@ -143,14 +146,16 @@ function syncMarkerToMarch(
         type: 'Combat Gauze',
         location: regionLabel,
         dressingType: marker.dressingType,
+        time: marker.dateTime.slice(11, 16) || nowHHMM(),
         injuryId: marker.id,
       }],
     }
   } else if (hasHemo && existingHemo) {
+    // Sync LOCATION only — the canonical dressing row owns its type/agent/time.
     massiveHemorrhage = {
       ...massiveHemorrhage,
       hemostatics: massiveHemorrhage.hemostatics.map(h =>
-        h.injuryId === marker.id ? { ...h, dressingType: marker.dressingType, location: regionLabel } : h
+        h.injuryId === marker.id ? { ...h, location: regionLabel } : h
       ),
     }
   } else if (!hasHemo && existingHemo) {
@@ -160,19 +165,25 @@ function syncMarkerToMarch(
     }
   }
 
-  // Chest seal
+  // Chest seal — tag the slot with this marker's id so we can clear it when the
+  // marker later drops the treatment (or is removed). Without the backref an
+  // unchecked/deleted chest pin left the seal stuck `applied: true`.
   const hasCS = marker.treatments.includes('chestSeal')
   const side = marker.bodyRegion === 'chest-left' ? 'left'
     : marker.bodyRegion === 'chest-right' ? 'right'
     : 'left' as NeedleDecompSide
   if (hasCS) {
-    respiration = { ...respiration, chestSeal: { applied: true, side } }
+    respiration = { ...respiration, chestSeal: { applied: true, side, markerId: marker.id } }
+  } else if (respiration.chestSeal.markerId === marker.id) {
+    respiration = { ...respiration, chestSeal: { applied: false, side: 'none', markerId: undefined } }
   }
 
   // Needle decomp
   const hasND = marker.treatments.includes('needleDecomp')
   if (hasND) {
-    respiration = { ...respiration, needleDecomp: { performed: true, side } }
+    respiration = { ...respiration, needleDecomp: { performed: true, side, markerId: marker.id } }
+  } else if (respiration.needleDecomp.markerId === marker.id) {
+    respiration = { ...respiration, needleDecomp: { performed: false, side: 'none', markerId: undefined } }
   }
 
   // IV/IO access
@@ -208,12 +219,21 @@ function syncMarkerToMarch(
 
 /** Remove all MARCH entries linked to a marker */
 function removeMarkerFromMarch(markerId: string, march: TC3Card['march']): TC3Card['march'] {
+  const { chestSeal, needleDecomp } = march.respiration
   return {
     ...march,
     massiveHemorrhage: {
       ...march.massiveHemorrhage,
       tourniquets: march.massiveHemorrhage.tourniquets.filter(t => t.injuryId !== markerId),
       hemostatics: march.massiveHemorrhage.hemostatics.filter(h => h.injuryId !== markerId),
+    },
+    respiration: {
+      ...march.respiration,
+      // Clear seal/decomp only if THIS marker is the one that set it.
+      chestSeal: chestSeal.markerId === markerId
+        ? { applied: false, side: 'none', markerId: undefined } : chestSeal,
+      needleDecomp: needleDecomp.markerId === markerId
+        ? { performed: false, side: 'none', markerId: undefined } : needleDecomp,
     },
     circulation: {
       ...march.circulation,
