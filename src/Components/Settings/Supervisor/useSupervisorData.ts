@@ -2,7 +2,9 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useClinicMedics } from '../../../Hooks/useClinicMedics'
 import { useAuth } from '../../../Hooks/useAuth'
 import { fetchClinicCertifications } from '../../../lib/certificationService'
-import { fetchClinicTestHistory, fetchClinicAssignments, type TrainingCompletionUI } from '../../../lib/trainingService'
+import { enrichCalendarLinks, type TrainingCompletionUI } from '../../../lib/trainingService'
+import { fetchAuditByClinicDomain } from '../../../lib/auditService'
+import { foldTrainingState } from '../../../lib/trainingFold'
 import { createLogger } from '../../../Utilities/Logger'
 import {
   formatMedicName,
@@ -141,20 +143,27 @@ export function useSupervisorData(): SupervisorData {
 
     const clinicUserIds = medics.map(u => u.id)
     const allIds = [...clinicUserIds, currentUserId]
+    const foldClinicId = supervisingClinicId ?? userClinicId
 
     try {
-      const [certsData, testsData, assignmentsData] = await Promise.all([
+      // Tests + assignments come from the audit_log event fold (clinic-scoped).
+      // training_completions is retired here — the fold covers it, including a
+      // loaned-in soldier's work graded in THIS clinic (those events carry this
+      // clinic's id and are decryptable; their home-clinic events are not, by
+      // design). Certs are not event-sourced yet, so they still fetch directly.
+      const [certsData, folded] = await Promise.all([
         fetchClinicCertifications(allIds),
-        fetchClinicTestHistory(allIds, currentUserId),
-        fetchClinicAssignments(allIds),
+        foldClinicId
+          ? fetchAuditByClinicDomain(foldClinicId, 'training').then(foldTrainingState).then(enrichCalendarLinks)
+          : Promise.resolve([] as TrainingCompletionUI[]),
       ])
       setCerts(certsData)
-      setTests(testsData)
-      setAssignments(assignmentsData)
+      setTests(folded.filter((c) => c.completionType === 'test'))
+      setAssignments(folded.filter((c) => c.completionType === 'assignment'))
     } catch (err) {
       logger.error('Failed to fetch certs/tests:', err)
     }
-  }, [medics, currentUserId])
+  }, [medics, currentUserId, userClinicId, supervisingClinicId])
 
   useEffect(() => {
     if (!medicsLoading && currentUserId) {

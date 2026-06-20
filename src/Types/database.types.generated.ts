@@ -104,8 +104,66 @@ export type Database = {
         }
         Relationships: []
       }
+      audit_log: {
+        Row: {
+          actor_id: string | null
+          clinic_id: string
+          created_at: string
+          domain: Database["public"]["Enums"]["audit_domain"]
+          event_type: string
+          id: string
+          occurred_at: string
+          payload_enc: string | null
+          seq: number
+          subject_id: string
+          subject_type: string
+        }
+        Insert: {
+          actor_id?: string | null
+          clinic_id: string
+          created_at?: string
+          domain: Database["public"]["Enums"]["audit_domain"]
+          event_type: string
+          id?: string
+          occurred_at?: string
+          payload_enc?: string | null
+          seq?: never
+          subject_id: string
+          subject_type: string
+        }
+        Update: {
+          actor_id?: string | null
+          clinic_id?: string
+          created_at?: string
+          domain?: Database["public"]["Enums"]["audit_domain"]
+          event_type?: string
+          id?: string
+          occurred_at?: string
+          payload_enc?: string | null
+          seq?: never
+          subject_id?: string
+          subject_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audit_log_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "audit_log_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       certifications: {
         Row: {
+          archived_at: string | null
           cert_number: string | null
           created_at: string
           exp_date: string | null
@@ -120,6 +178,7 @@ export type Database = {
           verified_by: string | null
         }
         Insert: {
+          archived_at?: string | null
           cert_number?: string | null
           created_at?: string
           exp_date?: string | null
@@ -134,6 +193,7 @@ export type Database = {
           verified_by?: string | null
         }
         Update: {
+          archived_at?: string | null
           cert_number?: string | null
           created_at?: string
           exp_date?: string | null
@@ -229,7 +289,6 @@ export type Database = {
           plan_order_sets: Json | null
           plan_order_tags: Json | null
           pre_combat_checks: Json
-          rooms: Json
           text_expanders: Json | null
           uics: string[]
           updated_at: string
@@ -257,7 +316,6 @@ export type Database = {
           plan_order_sets?: Json | null
           plan_order_tags?: Json | null
           pre_combat_checks?: Json
-          rooms?: Json
           text_expanders?: Json | null
           uics?: string[]
           updated_at?: string
@@ -285,7 +343,6 @@ export type Database = {
           plan_order_sets?: Json | null
           plan_order_tags?: Json | null
           pre_combat_checks?: Json
-          rooms?: Json
           text_expanders?: Json | null
           uics?: string[]
           updated_at?: string
@@ -719,6 +776,7 @@ export type Database = {
       }
       feedback: {
         Row: {
+          archived_at: string | null
           comments: string | null
           created_at: string
           desired_feature: string | null
@@ -727,9 +785,11 @@ export type Database = {
           most_useful_feature: string | null
           needs_improvement: string | null
           rating: number | null
+          updated_at: string
           user_id: string | null
         }
         Insert: {
+          archived_at?: string | null
           comments?: string | null
           created_at?: string
           desired_feature?: string | null
@@ -738,9 +798,11 @@ export type Database = {
           most_useful_feature?: string | null
           needs_improvement?: string | null
           rating?: number | null
+          updated_at?: string
           user_id?: string | null
         }
         Update: {
+          archived_at?: string | null
           comments?: string | null
           created_at?: string
           desired_feature?: string | null
@@ -749,6 +811,7 @@ export type Database = {
           most_useful_feature?: string | null
           needs_improvement?: string | null
           rating?: number | null
+          updated_at?: string
           user_id?: string | null
         }
         Relationships: []
@@ -973,6 +1036,82 @@ export type Database = {
         }
         Relationships: []
       }
+      outside_session_calls: {
+        Row: {
+          call_id: string
+          initiator_user_id: string
+          session_id: string
+          started_at: string
+          status: string
+        }
+        Insert: {
+          call_id: string
+          initiator_user_id: string
+          session_id: string
+          started_at?: string
+          status?: string
+        }
+        Update: {
+          call_id?: string
+          initiator_user_id?: string
+          session_id?: string
+          started_at?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outside_session_calls_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "outside_sessions"
+            referencedColumns: ["session_id"]
+          },
+        ]
+      }
+      outside_sessions: {
+        Row: {
+          clinic_id: string
+          closed_at: string | null
+          closed_reason: string | null
+          last_seen_at: string
+          opened_at: string
+          outside_pub: string
+          requester_name: string
+          session_id: string
+          status: string
+        }
+        Insert: {
+          clinic_id: string
+          closed_at?: string | null
+          closed_reason?: string | null
+          last_seen_at?: string
+          opened_at?: string
+          outside_pub: string
+          requester_name: string
+          session_id?: string
+          status?: string
+        }
+        Update: {
+          clinic_id?: string
+          closed_at?: string | null
+          closed_reason?: string | null
+          last_seen_at?: string
+          opened_at?: string
+          outside_pub?: string
+          requester_name?: string
+          session_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outside_sessions_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profile_clinic_loans: {
         Row: {
           clinic_id: string
@@ -1035,6 +1174,7 @@ export type Database = {
           note_include_hpi: boolean | null
           note_include_plan: boolean | null
           note_template_clinic_ids: string[] | null
+          notify_calendar_assignments: boolean
           notify_clinic_notes: boolean | null
           notify_dev_alerts: boolean | null
           overview_widgets: Json | null
@@ -1048,6 +1188,7 @@ export type Database = {
           roles: Database["public"]["Enums"]["user_role"][] | null
           supervisor_created: boolean
           surrogate_clinic_id: string | null
+          swipe_actions: Json | null
           text_expanders: Json | null
           theme: string | null
           uic: string | null
@@ -1072,6 +1213,7 @@ export type Database = {
           note_include_hpi?: boolean | null
           note_include_plan?: boolean | null
           note_template_clinic_ids?: string[] | null
+          notify_calendar_assignments?: boolean
           notify_clinic_notes?: boolean | null
           notify_dev_alerts?: boolean | null
           overview_widgets?: Json | null
@@ -1085,6 +1227,7 @@ export type Database = {
           roles?: Database["public"]["Enums"]["user_role"][] | null
           supervisor_created?: boolean
           surrogate_clinic_id?: string | null
+          swipe_actions?: Json | null
           text_expanders?: Json | null
           theme?: string | null
           uic?: string | null
@@ -1109,6 +1252,7 @@ export type Database = {
           note_include_hpi?: boolean | null
           note_include_plan?: boolean | null
           note_template_clinic_ids?: string[] | null
+          notify_calendar_assignments?: boolean
           notify_clinic_notes?: boolean | null
           notify_dev_alerts?: boolean | null
           overview_widgets?: Json | null
@@ -1122,6 +1266,7 @@ export type Database = {
           roles?: Database["public"]["Enums"]["user_role"][] | null
           supervisor_created?: boolean
           surrogate_clinic_id?: string | null
+          swipe_actions?: Json | null
           text_expanders?: Json | null
           theme?: string | null
           uic?: string | null
@@ -1247,7 +1392,12 @@ export type Database = {
           created_by: string
           holder_user_id: string | null
           id: string
+          is_default_zone: boolean
+          kind: string
           name: string
+          ordinal: number
+          overlay_feature_id: string | null
+          overlay_id: string | null
           parent_id: string | null
           photo_data: string | null
           updated_at: string
@@ -1258,7 +1408,12 @@ export type Database = {
           created_by: string
           holder_user_id?: string | null
           id?: string
+          is_default_zone?: boolean
+          kind?: string
           name: string
+          ordinal?: number
+          overlay_feature_id?: string | null
+          overlay_id?: string | null
           parent_id?: string | null
           photo_data?: string | null
           updated_at?: string
@@ -1269,7 +1424,12 @@ export type Database = {
           created_by?: string
           holder_user_id?: string | null
           id?: string
+          is_default_zone?: boolean
+          kind?: string
           name?: string
+          ordinal?: number
+          overlay_feature_id?: string | null
+          overlay_id?: string | null
           parent_id?: string | null
           photo_data?: string | null
           updated_at?: string
@@ -1551,57 +1711,6 @@ export type Database = {
         }
         Relationships: []
       }
-      training_completions: {
-        Row: {
-          calendar_origin_id: string | null
-          completed: boolean
-          completed_at: string | null
-          completion_type: string
-          created_at: string
-          due_date: string | null
-          id: string
-          result: string
-          step_results: Json | null
-          supervisor_id: string | null
-          supervisor_notes: string | null
-          training_item_id: string
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          calendar_origin_id?: string | null
-          completed?: boolean
-          completed_at?: string | null
-          completion_type?: string
-          created_at?: string
-          due_date?: string | null
-          id?: string
-          result?: string
-          step_results?: Json | null
-          supervisor_id?: string | null
-          supervisor_notes?: string | null
-          training_item_id: string
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          calendar_origin_id?: string | null
-          completed?: boolean
-          completed_at?: string | null
-          completion_type?: string
-          created_at?: string
-          due_date?: string | null
-          id?: string
-          result?: string
-          step_results?: Json | null
-          supervisor_id?: string | null
-          supervisor_notes?: string | null
-          training_item_id?: string
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
       user_devices: {
         Row: {
           created_at: string
@@ -1671,6 +1780,18 @@ export type Database = {
         Args: { p_clinic_id: string }
         Returns: undefined
       }
+      _emit_audit: {
+        Args: {
+          p_actor: string
+          p_clinic_id: string
+          p_domain: Database["public"]["Enums"]["audit_domain"]
+          p_event: string
+          p_payload_enc?: string
+          p_subject_id: string
+          p_subject_type: string
+        }
+        Returns: undefined
+      }
       _ensure_clinic_oncall_group: {
         Args: { p_clinic_id: string }
         Returns: string
@@ -1688,12 +1809,21 @@ export type Database = {
       _intake_throttle_reset: { Args: { p_cred: string }; Returns: undefined }
       _is_valid_passphrase: { Args: { p: string }; Returns: boolean }
       _oncall_ring_set: { Args: { p_clinic_id: string }; Returns: string[] }
+      _outside_session_finalize: {
+        Args: { p_reason: string; p_session_id: string }
+        Returns: undefined
+      }
+      _outside_session_sweep: { Args: never; Returns: undefined }
       _random_passphrase: { Args: never; Returns: string }
       _random_unambiguous: { Args: { p_len: number }; Returns: string }
       _sanitize_outside_name: { Args: { p: string }; Returns: string }
       accept_oncall: {
         Args: { p_answer_sdp: Json; p_call_id: string }
         Returns: Json
+      }
+      ack_outside_session_reply: {
+        Args: { p_reply_ids: string[]; p_session_id: string }
+        Returns: undefined
       }
       add_group_member: {
         Args: { p_group_id: string; p_user_id: string }
@@ -1730,7 +1860,7 @@ export type Database = {
           clinic_id: string
         }[]
       }
-      admin_list_users: { Args: never; Returns: Json }
+      admin_list_users: { Args: { p_since?: string }; Returns: Json }
       admin_provision_clinic_vault: {
         Args: {
           p_clinic_id: string
@@ -1881,6 +2011,10 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      end_outside_session: {
+        Args: { p_session_id: string }
+        Returns: undefined
+      }
       fetch_group_members: { Args: { p_group_id: string }; Returns: Json }
       fetch_my_groups: { Args: never; Returns: Json }
       fetch_peer_devices: { Args: { p_peer_id: string }; Returns: Json }
@@ -1977,6 +2111,13 @@ export type Database = {
         }[]
       }
       get_system_shared: { Args: never; Returns: Json }
+      get_user_clinic_sets: {
+        Args: { p_user_ids: string[] }
+        Returns: {
+          clinic_id: string
+          user_id: string
+        }[]
+      }
       get_visible_clinic_ids: { Args: never; Returns: string[] }
       get_visible_uics: { Args: never; Returns: string[] }
       hard_delete_by_origin_id: {
@@ -2040,6 +2181,7 @@ export type Database = {
         Args: { p_call_id: string; p_passcode: string }
         Returns: Json
       }
+      poll_outside_session: { Args: { p_session_id: string }; Returns: Json }
       primary_logout_all: { Args: never; Returns: Json }
       promote_group_member: {
         Args: { p_group_id: string; p_user_id: string }
@@ -2050,6 +2192,34 @@ export type Database = {
         Returns: Json
       }
       purge_message_group: { Args: { p_group_id: string }; Returns: undefined }
+      read_audit: {
+        Args: {
+          p_clinic_id?: string
+          p_domain?: Database["public"]["Enums"]["audit_domain"]
+          p_limit?: number
+          p_since?: number
+          p_subject_id?: string
+        }
+        Returns: {
+          actor_id: string | null
+          clinic_id: string
+          created_at: string
+          domain: Database["public"]["Enums"]["audit_domain"]
+          event_type: string
+          id: string
+          occurred_at: string
+          payload_enc: string | null
+          seq: number
+          subject_id: string
+          subject_type: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "audit_log"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       reap_clinic_vault_below: {
         Args: { p_clinic_id: string; p_watermark: string }
         Returns: number
@@ -2060,6 +2230,15 @@ export type Database = {
           p_device_id: string
           p_device_label: string
           p_is_primary: boolean
+        }
+        Returns: Json
+      }
+      register_outside_session: {
+        Args: {
+          p_outside_pub: string
+          p_passcode: string
+          p_passphrase: string
+          p_requester_name: string
         }
         Returns: Json
       }
@@ -2089,6 +2268,10 @@ export type Database = {
         Returns: Json
       }
       resolve_event_intake_code: { Args: { p_passcode: string }; Returns: Json }
+      ring_outside_session: {
+        Args: { p_call_id: string; p_offer_sdp: Json; p_session_id: string }
+        Returns: Json
+      }
       rotate_event_intake_passcode: {
         Args: { p_clinic_id: string }
         Returns: Json
@@ -2121,6 +2304,14 @@ export type Database = {
         Returns: undefined
       }
       self_cleanup_device: { Args: { p_device_id: string }; Returns: undefined }
+      send_outside_session_call_signal: {
+        Args: { p_call_id: string; p_kind: string; p_sdp?: Json }
+        Returns: undefined
+      }
+      send_outside_session_reply: {
+        Args: { p_sealed: Json; p_session_id: string; p_text: string }
+        Returns: Json
+      }
       send_signal_message: {
         Args: {
           p_group_id?: string
@@ -2202,6 +2393,15 @@ export type Database = {
           p_uic?: string
         }
         Returns: Json
+      }
+      submit_outside_session_call_signal: {
+        Args: {
+          p_call_id: string
+          p_kind: string
+          p_sdp?: Json
+          p_session_id: string
+        }
+        Returns: undefined
       }
       supervisor_add_member: {
         Args: { p_clinic_id: string; p_user_id: string }
@@ -2315,10 +2515,6 @@ export type Database = {
         Args: { p_clinic_id: string; p_pcc: Json }
         Returns: undefined
       }
-      supervisor_update_clinic_rooms: {
-        Args: { p_clinic_id: string; p_rooms: Json }
-        Returns: undefined
-      }
       supervisor_update_clinic_workouts: {
         Args: { p_clinic_id: string; p_workouts: Json }
         Returns: undefined
@@ -2333,10 +2529,7 @@ export type Database = {
       }
       trim_all_signal_backups: { Args: { p_keep?: number }; Returns: number }
       trim_signal_backups: { Args: { p_keep?: number }; Returns: number }
-      update_own_email: {
-        Args: { p_new_email: string }
-        Returns: Json
-      }
+      update_own_email: { Args: { p_new_email: string }; Returns: Json }
       update_own_security_settings:
         | {
             Args: { p_pin_hash?: string; p_pin_salt?: string }
@@ -2402,6 +2595,7 @@ export type Database = {
       }
     }
     Enums: {
+      audit_domain: "property" | "personnel" | "training" | "cert"
       custody_action:
         | "sign_down"
         | "sign_up"
@@ -2554,6 +2748,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      audit_domain: ["property", "personnel", "training", "cert"],
       custody_action: [
         "sign_down",
         "sign_up",

@@ -12,23 +12,22 @@
  *   - 'test': evaluated by a supervisor (GO/NO_GO per performance step)
  */
 
-import { supabase } from './supabase'
 import {
   getLocalTrainingCompletions,
-  saveLocalTrainingCompletion,
-  hardDeleteLocalTrainingCompletion,
-  addToSyncQueue,
-  updateTrainingCompletionSyncStatus,
-  stripLocalFields,
   type LocalTrainingCompletion,
   type TrainingCompletionSyncStatus,
+  setTrainingCalendarLink,
+  getTrainingCalendarLink,
+  getTrainingCalendarLinksByOrigin,
+  deleteTrainingCalendarLink,
+  relinkTrainingCalendarOrigin,
 } from './offlineDb'
-import type { CompletionType, CompletionResult, Json } from '../Types/database.types'
+import type { CompletionType, CompletionResult } from '../Types/database.types'
 import type { StepResult } from '../Types/SupervisorTestTypes'
 import { createLogger } from '../Utilities/Logger'
-import { immediateSync } from './syncEngine'
 import { emitAudit } from './auditService'
 import { useAuthStore } from '../stores/useAuthStore'
+import { parseFoldRowId, foldRowId } from './trainingFold'
 import type { AuditEventType } from './auditTypes'
 
 /**
@@ -157,16 +156,90 @@ export function localToUI(local: LocalTrainingCompletion): TrainingCompletionUI 
 }
 
 
+/**
+ * Build a fold-shaped TrainingCompletionUI for optimistic return from a write.
+ * Under event-sourcing there is no server row — the id matches what the fold
+ * produces (`fold:user:item:type`) so optimistic state lines up with the next
+ * refold and the delete path can re-derive (user, item, type).
+ */
+function foldStub(
+  userId: string,
+  trainingItemId: string,
+  type: CompletionType,
+  result: CompletionResult,
+  completedAt: string | null,
+  opts: {
+    supervisorId?: string | null
+    stepResults?: StepResult[] | null
+    supervisorNotes?: string | null
+    dueDate?: string | null
+  } = {},
+): TrainingCompletionUI {
+  const now = new Date().toISOString()
+  return {
+    id: foldRowId(userId, trainingItemId, type),
+    userId,
+    trainingItemId,
+    completionType: type,
+    result,
+    supervisorId: opts.supervisorId ?? null,
+    stepResults: opts.stepResults ?? null,
+    supervisorNotes: opts.supervisorNotes ?? null,
+    dueDate: opts.dueDate ?? null,
+    calendarOriginId: null,
+    completedAt,
+    createdAt: now,
+    updatedAt: now,
+    syncStatus: 'synced',
+  }
+}
+
 // ============================================================
-// CRUD Operations (Offline-First)
+// CRUD Operations (event-sourced — emit to audit_log, no training_completions)
 // ============================================================
 
 /**
- * Get all training completions for a user from IndexedDB.
+ * Local IDB training completions (legacy store). Retained only for the rare
+ * code path that still reads it directly; the UI sources from the event fold.
  */
 export async function getCompletions(userId: string): Promise<TrainingCompletionUI[]> {
   const locals = await getLocalTrainingCompletions(userId)
   return locals.map(localToUI)
+}
+
+/**
+ * Enrich folded completions with their calendar link (origin id) from the link
+ * projection, so the UI's calendar-cascade delete and "open linked event" still
+ * work under event-sourcing (the fold itself carries no calendar origin).
+ */
+export async function enrichCalendarLinks(
+  rows: TrainingCompletionUI[],
+): Promise<TrainingCompletionUI[]> {
+  return Promise.all(
+    rows.map(async (r) => {
+      const link = await getTrainingCalendarLink(r.userId, r.trainingItemId, r.completionType)
+      return link ? { ...r, calendarOriginId: link.origin_id } : r
+    }),
+  )
+}
+
+/**
+ * Emit a completion.voided event for a (user, item, type) that has no backing
+ * training_completions row (event-sourced delete). Actor = the authed user.
+ */
+export async function voidTrainingCompletion(
+  subjectUserId: string,
+  trainingItemId: string,
+  completionType: string,
+  actorUserId: string,
+): Promise<void> {
+  await emitTrainingEvent(
+    'completion.voided',
+    subjectUserId,
+    actorUserId,
+    { training_item_id: trainingItemId, completion_type: completionType },
+    new Date().toISOString(),
+  )
 }
 
 /**
@@ -178,66 +251,10 @@ export async function createReadCompletion(
   userId: string
 ): Promise<TrainingCompletionUI> {
   const now = new Date().toISOString()
-  const local: LocalTrainingCompletion = {
-    id: crypto.randomUUID(),
-    user_id: userId,
-    training_item_id: trainingItemId,
-    completed: true,
-    completed_at: now,
-    completion_type: 'read',
-    result: 'GO',
-    supervisor_id: null,
-    step_results: null,
-    supervisor_notes: null,
-    due_date: null,
-    calendar_origin_id: null,
-    created_at: now,
-    updated_at: now,
-    _sync_status: userId === 'guest' ? 'synced' : 'pending',
-    _sync_retry_count: 0,
-    _last_sync_error: null,
-    _last_sync_error_message: null,
-  }
-
-  await saveLocalTrainingCompletion(local)
-
-  if (userId !== 'guest') {
-    const payload = stripLocalFields(local as unknown as Record<string, unknown>)
-
-    await addToSyncQueue({
-      user_id: userId,
-      action: 'create',
-      table_name: 'training_completions',
-      record_id: local.id,
-      payload,
-    })
-
-    const synced = await immediateSync(
-      { id: local.id, payload },
-      {
-        tableName: 'training_completions',
-        upsertFn: async (rec) => {
-          const { error } = await supabase
-            .from('training_completions')
-            .upsert(rec.payload as never, {
-              onConflict: 'user_id,training_item_id,completion_type',
-            })
-          if (error) throw error
-        },
-        updateSyncStatus: updateTrainingCompletionSyncStatus,
-      },
-      'create'
-    )
-    if (synced) {
-      local._sync_status = 'synced'
-    }
-  }
-
   await emitTrainingEvent('read.recorded', userId, userId, {
     training_item_id: trainingItemId,
   }, now)
-
-  return localToUI(local)
+  return foldStub(userId, trainingItemId, 'read', 'GO', now)
 }
 
 /**
@@ -255,61 +272,6 @@ export async function createTestCompletion(params: {
   const { medicUserId, trainingItemId, result, stepResults, supervisorNotes, supervisorId } = params
   const now = new Date().toISOString()
 
-  const local: LocalTrainingCompletion = {
-    id: crypto.randomUUID(),
-    user_id: medicUserId,
-    training_item_id: trainingItemId,
-    completed: true,
-    completed_at: now,
-    completion_type: 'test',
-    result,
-    supervisor_id: supervisorId,
-    step_results: stepResults as unknown as Json,
-    supervisor_notes: supervisorNotes || null,
-    due_date: null,
-    calendar_origin_id: null,
-    created_at: now,
-    updated_at: now,
-    _sync_status: 'pending',
-    _sync_retry_count: 0,
-    _last_sync_error: null,
-    _last_sync_error_message: null,
-  }
-
-  await saveLocalTrainingCompletion(local)
-
-  const payload = stripLocalFields(local as unknown as Record<string, unknown>)
-
-  // Queue for sync — user_id in queue = supervisor (the authenticated user),
-  // payload.user_id = medic (the subject of the evaluation)
-  await addToSyncQueue({
-    user_id: supervisorId,
-    action: 'create',
-    table_name: 'training_completions',
-    record_id: local.id,
-    payload,
-  })
-
-  const synced = await immediateSync(
-    { id: local.id, payload },
-    {
-      tableName: 'training_completions',
-      upsertFn: async (rec) => {
-        const { error } = await supabase
-          .from('training_completions')
-          .upsert(rec.payload as never, {
-            onConflict: 'user_id,training_item_id,completion_type',
-          })
-        if (error) throw error
-      },
-      updateSyncStatus: updateTrainingCompletionSyncStatus,
-    },
-    'create'
-  )
-  if (synced) {
-    local._sync_status = 'synced'
-  }
-
   await emitTrainingEvent('test.graded', medicUserId, supervisorId, {
     training_item_id: trainingItemId,
     result,
@@ -318,150 +280,28 @@ export async function createTestCompletion(params: {
     supervisor_id: supervisorId,
   }, now)
 
-  return localToUI(local)
+  return foldStub(medicUserId, trainingItemId, 'test', result, now, {
+    supervisorId,
+    stepResults,
+    supervisorNotes: supervisorNotes ?? null,
+  })
 }
 
 /**
- * Delete a training completion. Hard-deletes from IndexedDB and queues sync.
+ * Delete a training completion (event-sourced): emit a completion.voided event
+ * and drop any calendar link. `completionId` is a fold id (`fold:user:item:type`)
+ * — there is no server row to hard-delete. Non-fold ids are a no-op.
  */
 export async function deleteCompletion(completionId: string, userId: string): Promise<void> {
-  const deletedAt = new Date().toISOString()
-
-  // Capture the row before hard-delete so the void event can name its subject
-  // and training item (event-sourcing transition — see emitTrainingEvent).
-  let voided: LocalTrainingCompletion | undefined
-  if (userId !== 'guest') {
-    try {
-      voided = (await getLocalTrainingCompletions(userId)).find(l => l.id === completionId)
-    } catch { /* best-effort capture */ }
-  }
-
-  await hardDeleteLocalTrainingCompletion(completionId)
-
-  if (userId !== 'guest') {
-    await addToSyncQueue({
-      user_id: userId,
-      action: 'delete',
-      table_name: 'training_completions',
-      record_id: completionId,
-      payload: { _deleted_at_timestamp: deletedAt },
-    })
-
-    await immediateSync(
-      { id: completionId },
-      {
-        tableName: 'training_completions',
-        upsertFn: async () => {
-          const { error } = await supabase
-            .from('training_completions')
-            .delete()
-            .eq('id', completionId)
-          if (error) throw error
-        },
-        updateSyncStatus: updateTrainingCompletionSyncStatus,
-      },
-      'delete'
-    )
-
-    await emitTrainingEvent('completion.voided', voided?.user_id ?? userId, userId, {
-      completion_id: completionId,
-      training_item_id: voided?.training_item_id ?? null,
-      completion_type: voided?.completion_type ?? null,
-    }, deletedAt)
-  }
+  const parsed = parseFoldRowId(completionId)
+  if (!parsed) return
+  await voidTrainingCompletion(parsed.userId, parsed.trainingItemId, parsed.completionType, userId)
+  await deleteTrainingCalendarLink(parsed.userId, parsed.trainingItemId, parsed.completionType)
 }
 
-/**
- * Fetch all completions for a user directly from Supabase.
- * Used for initial reconciliation.
- */
-export async function fetchCompletionsFromServer(userId: string): Promise<LocalTrainingCompletion[]> {
-  const { data, error } = await supabase
-    .from('training_completions')
-    .select('*')
-    .eq('user_id', userId)
-    .order('updated_at', { ascending: false })
-
-  if (error) {
-    throw new Error(`Failed to fetch training completions from server: ${error.message}`)
-  }
-
-  return (data || []).map((row): LocalTrainingCompletion => ({
-    ...row,
-    due_date: row.due_date ?? null,
-    calendar_origin_id: row.calendar_origin_id ?? null,
-    _sync_status: 'synced' as const,
-    _sync_retry_count: 0,
-    _last_sync_error: null,
-    _last_sync_error_message: null,
-  }))
-}
-
-/**
- * Fetch test completion history for a supervisor (all tests they've administered).
- */
-export async function fetchSupervisorTestHistory(supervisorId: string): Promise<TrainingCompletionUI[]> {
-  const { data, error } = await supabase
-    .from('training_completions')
-    .select('*')
-    .eq('supervisor_id', supervisorId)
-    .eq('completion_type', 'test')
-    .order('updated_at', { ascending: false })
-
-  if (error) {
-    throw new Error(`Failed to fetch supervisor test history: ${error.message}`)
-  }
-
-  return (data || []).map(mapRowToTrainingCompletionUI)
-}
-
-/**
- * Fetch all graded test events for a set of clinic users, excluding a specific user.
- * Used by the supervisor History tab to show clinic-wide test history.
- */
-export async function fetchClinicTestHistory(
-  clinicUserIds: string[],
-  excludeUserId: string
-): Promise<TrainingCompletionUI[]> {
-  const targetIds = clinicUserIds.filter(id => id !== excludeUserId)
-  if (targetIds.length === 0) return []
-
-  const { data, error } = await supabase
-    .from('training_completions')
-    .select('*')
-    .in('user_id', targetIds)
-    .eq('completion_type', 'test')
-    .order('updated_at', { ascending: false })
-
-  if (error) {
-    throw new Error(`Failed to fetch clinic test history: ${error.message}`)
-  }
-
-  return (data || []).map(mapRowToTrainingCompletionUI)
-}
-
-/**
- * Fetch all pending assignments for a set of clinic users.
- * Used by the supervisor Soldier Profile to show assigned tasks.
- */
-export async function fetchClinicAssignments(
-  clinicUserIds: string[]
-): Promise<TrainingCompletionUI[]> {
-  if (clinicUserIds.length === 0) return []
-
-  const { data, error } = await supabase
-    .from('training_completions')
-    .select('*')
-    .in('user_id', clinicUserIds)
-    .eq('completion_type', 'assignment')
-    .order('due_date', { ascending: true })
-
-  if (error) {
-    throw new Error(`Failed to fetch clinic assignments: ${error.message}`)
-  }
-
-  return (data || []).map(mapRowToTrainingCompletionUI)
-}
+// Server reader functions (fetchCompletionsFromServer / fetchSupervisorTestHistory
+// / fetchClinicTestHistory / fetchClinicAssignments) were removed with the
+// training_completions table — all reads now come from the audit_log event fold.
 
 // ============================================================
 // Assignment Operations
@@ -481,59 +321,6 @@ export async function createAssignment(params: {
   const { medicUserId, trainingItemId, supervisorId, dueDate, supervisorNotes } = params
   const now = new Date().toISOString()
 
-  const local: LocalTrainingCompletion = {
-    id: crypto.randomUUID(),
-    user_id: medicUserId,
-    training_item_id: trainingItemId,
-    completed: false,
-    completed_at: null,
-    completion_type: 'assignment',
-    result: 'GO',
-    supervisor_id: supervisorId,
-    step_results: null,
-    supervisor_notes: supervisorNotes || null,
-    due_date: dueDate,
-    calendar_origin_id: null,
-    created_at: now,
-    updated_at: now,
-    _sync_status: 'pending',
-    _sync_retry_count: 0,
-    _last_sync_error: null,
-    _last_sync_error_message: null,
-  }
-
-  await saveLocalTrainingCompletion(local)
-
-  const payload = stripLocalFields(local as unknown as Record<string, unknown>)
-
-  await addToSyncQueue({
-    user_id: supervisorId,
-    action: 'create',
-    table_name: 'training_completions',
-    record_id: local.id,
-    payload,
-  })
-
-  const synced = await immediateSync(
-    { id: local.id, payload },
-    {
-      tableName: 'training_completions',
-      upsertFn: async (rec) => {
-        const { error } = await supabase
-          .from('training_completions')
-          .upsert(rec.payload as never, {
-            onConflict: 'user_id,training_item_id,completion_type',
-          })
-        if (error) throw error
-      },
-      updateSyncStatus: updateTrainingCompletionSyncStatus,
-    },
-    'create'
-  )
-  if (synced) {
-    local._sync_status = 'synced'
-  }
-
   await emitTrainingEvent('assignment.created', medicUserId, supervisorId, {
     training_item_id: trainingItemId,
     due_date: dueDate,
@@ -541,7 +328,11 @@ export async function createAssignment(params: {
     supervisor_id: supervisorId,
   }, now)
 
-  return localToUI(local)
+  return foldStub(medicUserId, trainingItemId, 'assignment', 'GO', null, {
+    supervisorId,
+    supervisorNotes: supervisorNotes ?? null,
+    dueDate,
+  })
 }
 
 /**
@@ -560,58 +351,15 @@ export async function completeAssignment(params: {
   const { completionId, medicUserId, completionType, result, stepResults, supervisorNotes, supervisorId } = params
   const now = new Date().toISOString()
 
-  const locals = await getLocalTrainingCompletions(medicUserId)
-  const existing = locals.find(l => l.id === completionId)
-  if (!existing) {
-    throw new Error(`Assignment ${completionId} not found in local store`)
-  }
-
-  const updated: LocalTrainingCompletion = {
-    ...existing,
-    completion_type: completionType,
-    result,
-    completed: true,
-    completed_at: now,
-    step_results: (stepResults as unknown as Json) ?? null,
-    supervisor_notes: supervisorNotes ?? existing.supervisor_notes,
-    supervisor_id: supervisorId,
-    updated_at: now,
-    _sync_status: 'pending',
-  }
-
-  await saveLocalTrainingCompletion(updated)
-
-  const payload = stripLocalFields(updated as unknown as Record<string, unknown>)
-
-  await addToSyncQueue({
-    user_id: supervisorId,
-    action: 'update',
-    table_name: 'training_completions',
-    record_id: completionId,
-    payload,
-  })
-
-  const synced = await immediateSync(
-    { id: completionId, payload },
-    {
-      tableName: 'training_completions',
-      upsertFn: async (rec) => {
-        const { error } = await supabase
-          .from('training_completions')
-          .update(rec.payload as never)
-          .eq('id', completionId)
-        if (error) throw error
-      },
-      updateSyncStatus: updateTrainingCompletionSyncStatus,
-    },
-    'update'
-  )
-  if (synced) {
-    updated._sync_status = 'synced'
+  // completionId is the assignment's fold id (`fold:user:item:assignment`).
+  const parsed = parseFoldRowId(completionId)
+  const trainingItemId = parsed?.trainingItemId
+  if (!trainingItemId) {
+    throw new Error(`completeAssignment: unresolvable completion id ${completionId}`)
   }
 
   await emitTrainingEvent('assignment.completed', medicUserId, supervisorId, {
-    training_item_id: existing.training_item_id,
+    training_item_id: trainingItemId,
     completion_type: completionType,
     result,
     step_results: stepResults ?? null,
@@ -619,101 +367,62 @@ export async function completeAssignment(params: {
     supervisor_id: supervisorId,
   }, now)
 
-  return localToUI(updated)
+  // The assignment row becomes a read/test under the fold — move any calendar
+  // link from the assignment key to the new completion-type key.
+  const existingLink = await getTrainingCalendarLink(medicUserId, trainingItemId, 'assignment')
+  if (existingLink) {
+    await setTrainingCalendarLink(medicUserId, trainingItemId, completionType, existingLink.origin_id)
+    await deleteTrainingCalendarLink(medicUserId, trainingItemId, 'assignment')
+  }
+
+  return foldStub(medicUserId, trainingItemId, completionType, result, now, {
+    supervisorId,
+    stepResults: stepResults ?? null,
+    supervisorNotes: supervisorNotes ?? null,
+  })
 }
 
 /**
- * Update the calendar_origin_id on an assignment record.
- * Called after the calendar event is created and we have the originId.
+ * Link an assignment (its logical completion) to the calendar event it was born
+ * from. Called after the calendar event is created and we have the originId.
+ * completionId is the assignment's fold id.
  */
 export async function updateAssignmentCalendarOriginId(
   completionId: string,
-  userId: string,
+  _userId: string,
   calendarOriginId: string
 ): Promise<void> {
-  const locals = await getLocalTrainingCompletions(userId)
-  const existing = locals.find(l => l.id === completionId)
-  if (!existing) return
-
-  const updated: LocalTrainingCompletion = {
-    ...existing,
-    calendar_origin_id: calendarOriginId,
-    updated_at: new Date().toISOString(),
-  }
-
-  await saveLocalTrainingCompletion(updated)
+  const parsed = parseFoldRowId(completionId)
+  if (!parsed) return
+  await setTrainingCalendarLink(parsed.userId, parsed.trainingItemId, parsed.completionType, calendarOriginId)
 }
 
 /**
- * Re-link training completions when a calendar event's originId rotates
- * (every edit mints a fresh originId via the Signal fan-out ratchet).
- * Keeps the training↔calendar cascade link alive across edits without
- * adding a separate stable id column.
- *
- * Writes IDB AND queues a Supabase update so reconcile doesn't pull the
- * stale originId back on next fullSync — cross-device link rot otherwise.
+ * Re-link when a calendar event's originId rotates (every edit mints a fresh
+ * originId via the Signal fan-out ratchet). Now a pure projection update — the
+ * link is mutable on purpose and is NOT an event (rotating it on every edit
+ * would otherwise flood the append-only log).
  */
 export async function relinkCompletionsByOriginId(
   oldOriginId: string,
   newOriginId: string,
-  userId: string
+  _userId: string
 ): Promise<void> {
-  const locals = await getLocalTrainingCompletions(userId)
-  const matches = locals.filter(l => l.calendar_origin_id === oldOriginId)
-  if (matches.length === 0) return
-
-  const now = new Date().toISOString()
-  for (const local of matches) {
-    const updated: LocalTrainingCompletion = {
-      ...local,
-      calendar_origin_id: newOriginId,
-      updated_at: now,
-      _sync_status: userId === 'guest' ? 'synced' : 'pending',
-    }
-    await saveLocalTrainingCompletion(updated)
-
-    if (userId === 'guest') continue
-
-    const payload = stripLocalFields(updated as unknown as Record<string, unknown>)
-    await addToSyncQueue({
-      user_id: userId,
-      action: 'update',
-      table_name: 'training_completions',
-      record_id: local.id,
-      payload,
-    })
-
-    immediateSync(
-      { id: local.id, payload },
-      {
-        tableName: 'training_completions',
-        upsertFn: async (rec) => {
-          const { error } = await supabase
-            .from('training_completions')
-            .update(rec.payload as never)
-            .eq('id', local.id)
-          if (error) throw error
-        },
-        updateSyncStatus: updateTrainingCompletionSyncStatus,
-      },
-      'update'
-    ).catch(() => { /* drain covers retry */ })
-  }
+  await relinkTrainingCalendarOrigin(oldOriginId, newOriginId)
 }
 
 /**
- * Find and delete any training_completions linked to a calendar event by
- * its current originId. Used by the calendar delete gate to cascade the
- * delete back into training when the event was an assignment surface.
+ * Cascade a calendar delete into training: void every completion linked to the
+ * event's originId and drop the links. Used by the calendar delete gate.
  * Idempotent: no-op if no match.
  */
 export async function deleteCompletionsByCalendarOriginId(
   calendarOriginId: string,
   userId: string
 ): Promise<void> {
-  const locals = await getLocalTrainingCompletions(userId)
-  const matches = locals.filter(l => l.calendar_origin_id === calendarOriginId)
-  for (const match of matches) {
-    await deleteCompletion(match.id, userId)
+  const links = await getTrainingCalendarLinksByOrigin(calendarOriginId)
+  for (const l of links) {
+    await voidTrainingCompletion(l.user_id, l.training_item_id, l.completion_type, userId)
+    await deleteTrainingCalendarLink(l.user_id, l.training_item_id, l.completion_type)
   }
 }

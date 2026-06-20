@@ -37,6 +37,36 @@ interface AuditRow {
   subject_id: string
   occurred_at: string
   payload_enc: string | null
+  created_at?: string
+}
+
+/**
+ * Read-through cache: persist server rows into the local IDB auditLog store so the
+ * event fold is offline-complete (local IDB otherwise holds only this device's own
+ * emits, not the backfilled / cross-device history). Best-effort, never throws.
+ */
+async function cacheAuditRows(rows: AuditRow[]): Promise<void> {
+  await Promise.all(
+    rows.map((r) =>
+      saveLocalAuditLog({
+        id: r.id,
+        seq: r.seq ?? null,
+        clinic_id: r.clinic_id,
+        actor_id: r.actor_id,
+        domain: r.domain,
+        event_type: r.event_type,
+        subject_type: r.subject_type,
+        subject_id: r.subject_id,
+        occurred_at: r.occurred_at,
+        payload_enc: r.payload_enc,
+        created_at: r.created_at ?? r.occurred_at,
+        _sync_status: 'synced',
+        _sync_retry_count: 0,
+        _last_sync_error: null,
+        _last_sync_error_message: null,
+      }).catch(() => {}),
+    ),
+  )
 }
 
 // ---- Emit ----
@@ -171,7 +201,9 @@ export async function fetchAuditBySubject(
     logger.warn('fetchAuditBySubject failed:', error.message)
     return []
   }
-  return Promise.all(((data ?? []) as AuditRow[]).map(toAuditEvent))
+  const rows = (data ?? []) as AuditRow[]
+  await cacheAuditRows(rows)
+  return Promise.all(rows.map(toAuditEvent))
 }
 
 /**
@@ -194,5 +226,7 @@ export async function fetchAuditByClinicDomain(
     logger.warn('fetchAuditByClinicDomain failed:', error.message)
     return []
   }
-  return Promise.all(((data ?? []) as AuditRow[]).map(toAuditEvent))
+  const rows = (data ?? []) as AuditRow[]
+  await cacheAuditRows(rows)
+  return Promise.all(rows.map(toAuditEvent))
 }

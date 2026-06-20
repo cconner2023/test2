@@ -257,8 +257,21 @@ export async function loadSnapshotOverlays(overlays: LocalMapOverlay[]): Promise
  * The map-overlay equivalent of snapshotCalendarEvents — used when rebuilding
  * the clinic snapshot so a freshly-sealed snapshot can never re-include an
  * overlay this device has already deleted (the poison-snapshot guard).
+ *
+ * The tombstone filter only catches overlays this device SAW deleted. A device
+ * returning after an absence still has, in its IDB, an overlay that was deleted
+ * AND reaped while it was away — so it has NO tombstone for it, yet would re-seal
+ * it into the snapshot and resurrect it clinic-wide (the calendar poison-snapshot
+ * bug, overlay twin). When the caller supplies the authoritative vault-resolved
+ * id set (snapshot base ∪ tail), retain an overlay only if the vault actually
+ * carries it, OR it's a local create not yet fanned out (no originId). Mirrors
+ * snapshotCalendarEvents + useCalendarSync Phase B's retain predicate.
  */
-export async function snapshotOverlays(clinicId: string): Promise<LocalMapOverlay[]> {
+export async function snapshotOverlays(clinicId: string, vaultLiveIds?: Set<string>): Promise<LocalMapOverlay[]> {
   const overlays = await getLocalMapOverlays(clinicId)
-  return overlays.filter(o => !_tombstones.has(o.id))
+  return overlays.filter(o => {
+    if (_tombstones.has(o.id)) return false
+    if (vaultLiveIds && o.originId && !vaultLiveIds.has(o.id)) return false
+    return true
+  })
 }

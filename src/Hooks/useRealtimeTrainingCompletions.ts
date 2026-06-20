@@ -1,89 +1,73 @@
 /**
  * useRealtimeTrainingCompletions -- Supabase Realtime subscription for the
- * current user's training completions across devices.
+ * current user's training events on the unified `audit_log` table.
  *
- * Subscribes to INSERT, UPDATE, and DELETE events on the `training_completions`
- * table filtered by `user_id`. When the same user completes, updates, or
- * removes a training completion on another device, the change is reflected
- * locally without requiring a manual refresh or page reload.
+ * Under event-sourcing, training state is a fold over audit_log domain=training
+ * events. This subscribes to INSERTs on audit_log filtered by `subject_id` (the
+ * soldier). audit_log is append-only, so there are no UPDATE/DELETE events — a
+ * "delete" is itself a completion.voided INSERT. Any insert for this subject may
+ * change the fold, so the handler just signals a re-fold (`onChange`); the hook
+ * owner re-reads + re-folds rather than mutating in place (fold ids are synthetic).
  *
- * Handlers are idempotent -- on the originating device the optimistic
- * state already matches, so the upsert is a no-op (or harmless overwrite
- * with the same data).
- *
- * The channel automatically pauses when the page is hidden (backgrounded)
- * and resumes when visible again, reducing battery drain.
- *
- * Requires the `training_completions` table to be in the Supabase Realtime
- * publication.
+ * The channel pauses when the page is hidden and resumes when visible.
+ * Requires `audit_log` to be in the Supabase Realtime publication.
  */
 
 import { useEffect, useRef, useCallback, useMemo } from 'react'
 import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js'
-import { mapRowToTrainingCompletionUI, type TrainingCompletionUI, type TrainingCompletionRow } from '../lib/trainingService'
 import { createLogger } from '../Utilities/Logger'
 import { useSupabaseSubscription } from './useSupabaseSubscription'
 
 const logger = createLogger('RealtimeTraining')
 
+interface AuditLogRealtimeRow {
+  id: string
+  subject_id: string
+  domain: string
+  [key: string]: unknown
+}
+
 interface UseRealtimeTrainingCompletionsOptions {
   userId: string | null
   isAuthenticated: boolean
   isPageVisible: boolean
-  onUpsert: (completion: TrainingCompletionUI) => void
-  onDelete: (completionId: string) => void
+  /** Fired when a training audit event arrives for this subject — re-fold. */
+  onChange: () => void
 }
 
 export function useRealtimeTrainingCompletions({
   userId,
   isAuthenticated,
   isPageVisible,
-  onUpsert,
-  onDelete,
+  onChange,
 }: UseRealtimeTrainingCompletionsOptions): void {
-  const onUpsertRef = useRef(onUpsert)
-  const onDeleteRef = useRef(onDelete)
+  const onChangeRef = useRef(onChange)
   useEffect(() => {
-    onUpsertRef.current = onUpsert
-    onDeleteRef.current = onDelete
-  }, [onUpsert, onDelete])
+    onChangeRef.current = onChange
+  }, [onChange])
 
   const handlePayload = useCallback(
-    (payload: RealtimePostgresChangesPayload<TrainingCompletionRow>) => {
-      const eventType = payload.eventType
-
-      if (eventType === 'INSERT' || eventType === 'UPDATE') {
-        const row = payload.new
-        logger.debug(`${eventType}: ${row.id}`)
-        onUpsertRef.current(mapRowToTrainingCompletionUI(row))
-        return
-      }
-
-      if (eventType === 'DELETE') {
-        const oldRow = payload.old as Partial<TrainingCompletionRow>
-        const completionId = oldRow.id
-        if (!completionId) {
-          logger.warn('DELETE event missing row id, ignoring')
-          return
-        }
-        logger.debug(`DELETE: ${completionId}`)
-        onDeleteRef.current(completionId)
-      }
+    (payload: RealtimePostgresChangesPayload<AuditLogRealtimeRow>) => {
+      if (payload.eventType !== 'INSERT') return
+      const row = payload.new
+      if (row.domain !== 'training') return
+      logger.debug(`audit insert for ${row.subject_id} (${row.id})`)
+      onChangeRef.current()
     },
     [],
   )
 
   const postgresFilter = useMemo(
     () => ({
-      table: 'training_completions',
-      filter: `user_id=eq.${userId}`,
+      table: 'audit_log',
+      filter: `subject_id=eq.${userId}`,
     }),
     [userId],
   )
 
-  useSupabaseSubscription<TrainingCompletionRow>({
+  useSupabaseSubscription<AuditLogRealtimeRow>({
     shouldSubscribe: isAuthenticated && !!userId && isPageVisible,
-    channelName: `personal-training:${userId}`,
+    channelName: `personal-audit:${userId}`,
     postgresFilter,
     onPayload: handlePayload,
     logger,

@@ -108,11 +108,22 @@ export function routeCalendarEvent(content: CalendarEventContent): void {
  * clinic_id differs. Omitting that clause would let the reap eat every
  * cross-cluster copy after the first snapshot cycle.
  */
-export function snapshotCalendarEvents(clinicId: string): CalendarEvent[] {
-  return useCalendarStore.getState().events.filter(
-    e => !_tombstones.has(e.id) &&
-      (e.clinic_id === clinicId || (e.target_clinic_ids?.includes(clinicId) ?? false))
-  )
+export function snapshotCalendarEvents(clinicId: string, vaultLiveIds?: Set<string>): CalendarEvent[] {
+  return useCalendarStore.getState().events.filter(e => {
+    if (_tombstones.has(e.id)) return false
+    const inClinic = e.clinic_id === clinicId || (e.target_clinic_ids?.includes(clinicId) ?? false)
+    if (!inClinic) return false
+    // When the caller supplies the authoritative vault-resolved id set (snapshot
+    // base ∪ tail), retain a store event only if the vault actually carries it,
+    // OR it's a local create not yet fanned out (no originId). This excludes
+    // cache-first-painted ORPHANS: events a returning device cached but whose 'd'
+    // was reaped during its absence, so it never tombstoned them. Without this
+    // the snapshot writer re-seals those orphans and resurrects them clinic-wide
+    // (poison snapshot). Same retain predicate as useCalendarSync Phase B's
+    // drop-stale reconcile, applied at WRITE time so the snapshot can't lie.
+    if (vaultLiveIds && e.originId && !vaultLiveIds.has(e.id)) return false
+    return true
+  })
 }
 
 /**

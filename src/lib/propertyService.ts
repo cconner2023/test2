@@ -159,6 +159,30 @@ export async function createItem(
       payload: item as unknown as Record<string, unknown>,
     })
 
+    // Lifecycle event for the item timeline (best-effort; never throws).
+    await emitAudit(
+      {
+        clinicId: item.clinic_id,
+        actorId: userId,
+        domain: 'property',
+        eventType: 'item.created',
+        subjectType: 'item',
+        subjectId: item.id,
+        occurredAt: now,
+        payload: {
+          name: item.name,
+          nsn: item.nsn,
+          serial_number: item.serial_number,
+          quantity: item.quantity,
+          is_serialized: item.is_serialized,
+          condition_code: item.condition_code,
+          location_id: item.location_id,
+          parent_item_id: item.parent_item_id,
+        },
+      },
+      userId,
+    )
+
     immediateSync(userId)
     return succeed({ item: local })
   } catch (err) {
@@ -166,10 +190,19 @@ export async function createItem(
   }
 }
 
+/** Fields whose change is worth an `item.edited` timeline event (location +
+ *  holder get their own move/assign events; quantity churn is handled by
+ *  expend/split/merge, which pass skipAudit). */
+const AUDITED_EDIT_FIELDS: (keyof PropertyItem)[] = [
+  'name', 'nomenclature', 'nsn', 'lin', 'serial_number',
+  'condition_code', 'quantity', 'expiry_date', 'notes', 'parent_item_id',
+]
+
 export async function updateItem(
   id: string,
   updates: Partial<PropertyItem>,
   userId: string,
+  opts: { skipAudit?: boolean } = {},
 ): Promise<ServiceResult<{ item: LocalPropertyItem }>> {
   try {
     const db = await getDb()
@@ -198,6 +231,52 @@ export async function updateItem(
       record_id: id,
       payload: { ...updates, updated_at: now } as Record<string, unknown>,
     })
+
+    // Lifecycle events for the item timeline. One updateItem can carry a move,
+    // a reassign, and field edits at once → emit each that actually changed.
+    // skipAudit suppresses noise from custody-transfer cascades and qty churn
+    // (expend/split/merge), which log their own dedicated events.
+    if (!opts.skipAudit) {
+      const movedLocation =
+        updates.location_id !== undefined && updates.location_id !== existing.location_id
+      const reassignedHolder =
+        updates.current_holder_id !== undefined &&
+        updates.current_holder_id !== existing.current_holder_id
+      const changedFields = AUDITED_EDIT_FIELDS.filter(
+        (f) => updates[f] !== undefined && updates[f] !== existing[f],
+      )
+
+      if (movedLocation) {
+        await emitAudit(
+          {
+            clinicId: existing.clinic_id, actorId: userId, domain: 'property',
+            eventType: 'item.moved', subjectType: 'item', subjectId: id, occurredAt: now,
+            payload: { from_location_id: existing.location_id, to_location_id: updates.location_id },
+          },
+          userId,
+        )
+      }
+      if (reassignedHolder) {
+        await emitAudit(
+          {
+            clinicId: existing.clinic_id, actorId: userId, domain: 'property',
+            eventType: 'item.assigned', subjectType: 'item', subjectId: id, occurredAt: now,
+            payload: { from_holder_id: existing.current_holder_id, to_holder_id: updates.current_holder_id },
+          },
+          userId,
+        )
+      }
+      if (changedFields.length > 0) {
+        await emitAudit(
+          {
+            clinicId: existing.clinic_id, actorId: userId, domain: 'property',
+            eventType: 'item.edited', subjectType: 'item', subjectId: id, occurredAt: now,
+            payload: { changed: changedFields },
+          },
+          userId,
+        )
+      }
+    }
 
     immediateSync(userId)
     return succeed({ item: updated })
@@ -1164,18 +1243,18 @@ export async function executeTransfer(
     )
     if (!ledgerResult.success) return fail(ledgerResult.error)
 
-    // 3. Update parent item holder
-    await updateItem(payload.parent_item_id, { current_holder_id: payload.to_holder_id }, userId)
+    // 3. Update parent item holder (the ledger entry already logged item.transferred)
+    await updateItem(payload.parent_item_id, { current_holder_id: payload.to_holder_id }, userId, { skipAudit: true })
 
     // 4. Process each sub-item
     let discrepancyCount = 0
     for (const checkItem of payload.checklist) {
       if (checkItem.present) {
         // Present: transfer to new holder
-        await updateItem(checkItem.item_id, { current_holder_id: payload.to_holder_id }, userId)
+        await updateItem(checkItem.item_id, { current_holder_id: payload.to_holder_id }, userId, { skipAudit: true })
       } else {
         // Missing: mark as missing, create discrepancy
-        await updateItem(checkItem.item_id, { condition_code: 'missing' }, userId)
+        await updateItem(checkItem.item_id, { condition_code: 'missing' }, userId, { skipAudit: true })
 
         await createDiscrepancy(
           {

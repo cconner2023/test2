@@ -36,6 +36,15 @@ export type AuditEventType =
   // property — payload: { quantity_delta?, condition_code?, from_holder_id?, to_holder_id?, notes?, sub_item_check? }
   | 'item.transferred'
   | 'item.expended'
+  // property lifecycle — payload varies:
+  //  created:  { name, nsn?, serial_number?, quantity?, is_serialized?, condition_code?, location_id?, parent_item_id? }
+  //  moved:    { from_location_id, to_location_id }
+  //  assigned: { from_holder_id, to_holder_id }
+  //  edited:   { changed: string[] }
+  | 'item.created'
+  | 'item.moved'
+  | 'item.assigned'
+  | 'item.edited'
   // training — payload: { training_item_id, result?, step_results?, supervisor_notes?, due_date?, supersedes? }
   | 'read.recorded'
   | 'test.graded'

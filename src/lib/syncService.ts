@@ -23,10 +23,7 @@ import {
   resetFailedItemsForRetry,
   cleanupSyncedItems,
   getLocalTrainingCompletions,
-  saveLocalTrainingCompletion,
-  updateTrainingCompletionSyncStatus,
   updateAuditLogSyncStatus,
-  hardDeleteLocalTrainingCompletion,
   getLocalPropertyItems,
   saveLocalPropertyItem,
   deleteLocalPropertyItem,
@@ -44,7 +41,7 @@ import type { LocalPropertyItem } from '../Types/PropertyTypes'
 const logger = createLogger('SyncService')
 
 /** Tables that the sync queue is allowed to write to. */
-const ALLOWED_SYNC_TABLES = ['training_completions', 'property_items', 'property_locations', 'discrepancies', 'custody_ledger', 'location_tags', 'feature_votes', 'feature_vote_suggestions', 'audit_log'] as const
+const ALLOWED_SYNC_TABLES = ['property_items', 'property_locations', 'discrepancies', 'custody_ledger', 'location_tags', 'feature_votes', 'feature_vote_suggestions', 'audit_log'] as const
 type SyncableTable = typeof ALLOWED_SYNC_TABLES[number]
 
 /** Maximum number of retries before giving up on a sync item. */
@@ -216,9 +213,7 @@ export async function processSyncQueue(userId: string): Promise<SyncResult> {
         // Mark the corresponding record as synced in IndexedDB.
         // For deletes, the record is already hard-deleted from IndexedDB,
         // so the update will silently no-op (record not found).
-        if (table === 'training_completions') {
-          await updateTrainingCompletionSyncStatus(item.record_id, 'synced')
-        } else if (table === 'property_items' && item.action !== 'delete') {
+        if (table === 'property_items' && item.action !== 'delete') {
           await markPropertyRecordSynced('propertyItems', item.record_id)
         } else if (table === 'property_locations' && item.action !== 'delete') {
           await markPropertyRecordSynced('propertyLocations', item.record_id)
@@ -252,9 +247,7 @@ export async function processSyncQueue(userId: string): Promise<SyncResult> {
         // Mark the corresponding record as error in IndexedDB.
         // For deletes, the record is already hard-deleted from IndexedDB,
         // so the update will silently no-op (record not found).
-        if (item.table_name === 'training_completions') {
-          await updateTrainingCompletionSyncStatus(item.record_id, 'error', errorMessage)
-        } else if (['property_items', 'property_locations', 'discrepancies'].includes(item.table_name) && item.action !== 'delete') {
+        if (['property_items', 'property_locations', 'discrepancies'].includes(item.table_name) && item.action !== 'delete') {
           const storeName = item.table_name === 'property_items' ? 'propertyItems'
             : item.table_name === 'property_locations' ? 'propertyLocations'
             : 'propertyDiscrepancies'
@@ -524,45 +517,9 @@ async function reconcile<TLocal extends { _sync_status: string }, TServer>(
 export async function reconcileTrainingCompletionsWithServer(
   userId: string
 ): Promise<LocalTrainingCompletion[]> {
-  if (!isOnline()) {
-    logger.debug('Offline, skipping training completions reconciliation')
-    return getLocalTrainingCompletions(userId)
-  }
-
-  logger.info('Starting training completions reconciliation with server')
-
-  try {
-    await reconcile<LocalTrainingCompletion, Record<string, unknown>>(userId, {
-      tableName: 'training_completions',
-      fetchLocal: getLocalTrainingCompletions,
-      fetchServer: async (uid) => {
-        const { data, error } = await supabase
-          .from('training_completions')
-          .select('*')
-          .eq('user_id', uid)
-          .order('updated_at', { ascending: false })
-        if (error) throw error
-        return data || []
-      },
-      getId: (r) => (r as Record<string, unknown>).id as string,
-      getTimestamp: (r) => (r as Record<string, unknown>).updated_at as string,
-      saveLocal: async (serverRecord) => {
-        await saveLocalTrainingCompletion({
-          ...serverRecord as unknown as LocalTrainingCompletion,
-          _sync_status: 'synced',
-          _sync_retry_count: 0,
-          _last_sync_error: null,
-          _last_sync_error_message: null,
-        })
-      },
-      deleteLocal: hardDeleteLocalTrainingCompletion,
-      upsertServer: async () => {},
-    })
-  } catch (err) {
-    logger.error('Failed to reconcile training completions:', err)
-    return getLocalTrainingCompletions(userId)
-  }
-
+  // training_completions is RETIRED. Training state now lives in audit_log and is
+  // pulled via the event fold (read-through cached in auditService). There is no
+  // server table to reconcile — this is a no-op kept for its existing callers.
   return getLocalTrainingCompletions(userId)
 }
 

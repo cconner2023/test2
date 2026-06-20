@@ -9,6 +9,7 @@ import type { LocalPropertyItem, LocalPropertyLocation, HolderInfo } from '../..
 import { expiryStatus } from '../../Types/PropertyTypes'
 import { usePropertyStore } from '../../stores/usePropertyStore'
 import { useShareToChat } from '../Messages/ShareToChatPicker'
+import { ItemTimeline } from '../Timeline/ItemTimeline'
 
 export interface PropertyItemDetailHandle {
   /** Open the action menu (Edit / Move / Merge / Share / Enroll / Delete) anchored to the
@@ -192,6 +193,14 @@ export const PropertyItemDetail = forwardRef<PropertyItemDetailHandle, PropertyI
           </SectionCard>
         </div>
       )}
+
+      {/* Lifecycle timeline (creation, move, assign/transfer, edit, expend) */}
+      <ItemTimeline
+        itemId={item.id}
+        clinicId={item.clinic_id}
+        locations={locations}
+        holders={holders}
+      />
 
       <div className={isMobile ? 'h-16 shrink-0' : 'h-8 shrink-0'} />
 

@@ -741,7 +741,11 @@ export async function processClinicVaultMessages(
     // truth — publish it for the drop-stale reconcile, then no-op the rest.
     logger.info('No clinic vault tail past snapshot')
     if (opts.publishReconcile) {
-      publishFullReplayLiveIds(snapshotCalendarEvents(clinicId).map(e => e.id))
+      // The snapshot base IS the live truth here (no tail). Filter the store to
+      // the base's ids so a returning device's cache-painted orphans aren't
+      // published as live (which would block Phase B from pruning them).
+      const baseLiveIds = new Set((snap?.payload.events ?? []).map(e => e.id))
+      publishFullReplayLiveIds(snapshotCalendarEvents(clinicId, baseLiveIds).map(e => e.id))
     }
     await rotateClinicVaultSPK(clinicId, vaultKeys, vaultRow as VaultDeviceKeysRow, clinicKey)
     return 0
@@ -942,6 +946,35 @@ export async function processClinicVaultMessages(
     }
   }
 
+  // 5c-bis. Authoritative vault-resolved calendar id set = snapshot base plus the
+  // tail's surviving creates/updates minus its deletes. The reconcile publish and
+  // the snapshot WRITER below filter the store to THIS set so a returning device's
+  // cache-first-painted orphans (events deleted+reaped while it was away, so never
+  // tombstoned on this device) can't be re-sealed into the snapshot and resurrected
+  // clinic-wide. Every legitimate vault event is in base or tail, so this never
+  // drops live data — it only excludes stale cache that the vault no longer carries.
+  const vaultLiveIds = new Set<string>()
+  for (const e of snap?.payload.events ?? []) vaultLiveIds.add(e.id)
+  for (const { content } of calendarRoutes) {
+    if (content.action === 'delete') vaultLiveIds.delete(content.data.id)
+    else vaultLiveIds.add(content.data.id)
+  }
+
+  // Same authoritative-set logic for overlays = snapshot base ∪ tail overlay
+  // creates/updates ∪ any overlay a tail feature message touches (a feature
+  // implies its parent is live) − tail overlay deletes (applied last so a delete
+  // wins over a same-batch feature). Feeds snapshotOverlays so a returning
+  // device's reaped-while-away orphan overlay can't be re-sealed and resurrected.
+  const overlayVaultLiveIds = new Set<string>()
+  for (const ov of snap?.payload.overlays ?? []) overlayVaultLiveIds.add(ov.id)
+  for (const { content } of overlayRoutes) {
+    if (content.action !== 'delete') overlayVaultLiveIds.add(content.data.id)
+  }
+  for (const { content } of featureRoutes) overlayVaultLiveIds.add(content.data.overlay_id)
+  for (const { content } of overlayRoutes) {
+    if (content.action === 'delete') overlayVaultLiveIds.delete(content.data.id)
+  }
+
   // 5d. Health gate. All clinic members share one vault identity, so a healthy
   // session decrypts ~100% of the tail. A high fail ratio means a wrong session
   // (rotated identity / stale build) — fail closed: don't publish a partial live
@@ -955,7 +988,7 @@ export async function processClinicVaultMessages(
   // partial decrypt poisons the whole login's reconcile (fail-closed).
   if (opts.publishReconcile) {
     if (healthy) {
-      publishFullReplayLiveIds(snapshotCalendarEvents(clinicId).map(e => e.id))
+      publishFullReplayLiveIds(snapshotCalendarEvents(clinicId, vaultLiveIds).map(e => e.id))
     } else {
       poisonFullReplayReconcile()
     }
@@ -991,8 +1024,8 @@ export async function processClinicVaultMessages(
       const payload: ClinicSnapshotPayload = {
         v: CLINIC_SNAPSHOT_PAYLOAD_VERSION,
         watermark: reapWatermark as string,
-        events: snapshotCalendarEvents(clinicId),
-        overlays: await snapshotOverlays(clinicId),
+        events: snapshotCalendarEvents(clinicId, vaultLiveIds),
+        overlays: await snapshotOverlays(clinicId, overlayVaultLiveIds),
       }
       const newVersion = await writeClinicSnapshot(clinicId, payload, baseVersion, clinicKey)
       if (newVersion > 0) {

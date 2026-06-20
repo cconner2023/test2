@@ -10,7 +10,6 @@ export const supabaseTables = {
   clinics:               { owner: 'admin',     readers: ['authService', 'cryptoService', 'supervisorService', 'adminService'], writers: ['adminService'] },
   certifications:        { owner: 'settings',  readers: ['certificationService'], writers: ['certificationService'] },
   account_requests:      { owner: 'admin',     readers: ['adminService', 'accountRequestService'], writers: ['accountRequestService', 'adminService'] },
-  training_completions:  { owner: 'training',  readers: ['trainingService', 'syncService'], writers: ['trainingService', 'syncService'] },
   property_items:        { owner: 'property',  readers: ['propertyService', 'syncService'], writers: ['propertyService', 'syncService'] },
   property_locations:    { owner: 'property',  readers: ['propertyService', 'syncService'], writers: ['propertyService', 'syncService'] },
   location_tags:         { owner: 'property',  readers: ['propertyService', 'syncService'], writers: ['propertyService', 'syncService'] },
@@ -28,10 +27,7 @@ export const supabaseTables = {
   push_subscriptions:    { owner: 'auth',      readers: [], writers: ['pushNotificationService'] },
   app_keys:              { owner: 'crypto',    readers: ['cryptoService'], writers: [] },
   clinic_invites:        { owner: 'admin',     readers: ['clinicAssociationService'], writers: ['clinicAssociationService'] },
-  clinic_association_log: { owner: 'admin',    readers: [], writers: [] },
-  sync_queue:            { owner: 'sync',      readers: [], writers: [] },
   message_rate_limits:   { owner: 'messaging', readers: [], writers: [] },
-  notes:                 { owner: 'notes',     readers: [], writers: [], note: 'Legacy — encrypted clinical notes' },
 } as const;
 
 export const indexedDBDatabases = {

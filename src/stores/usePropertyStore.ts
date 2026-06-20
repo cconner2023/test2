@@ -70,7 +70,7 @@ interface PropertyState {
 
   init: () => Promise<void>
   addItem: (data: Omit<PropertyItem, 'id' | 'created_at' | 'updated_at'>) => Promise<LocalPropertyItem | null>
-  editItem: (id: string, updates: Partial<PropertyItem>) => Promise<void>
+  editItem: (id: string, updates: Partial<PropertyItem>, opts?: { skipAudit?: boolean }) => Promise<void>
   removeItem: (id: string) => Promise<void>
   addLocation: (data: Omit<PropertyLocation, 'id' | 'created_at' | 'updated_at'>) => Promise<{ success: boolean; location?: LocalPropertyLocation }>
   addLevel: (parentId: string, name: string, ordinal: number) => Promise<LocalPropertyLocation | null>
@@ -228,11 +228,11 @@ export const usePropertyStore = create<PropertyState>((set, get) => ({
     return null
   },
 
-  editItem: async (id, updates) => {
+  editItem: async (id, updates, opts) => {
     const user = useAuthStore.getState().user
     if (!user) return
 
-    const result = await updateItem(id, updates, user.id)
+    const result = await updateItem(id, updates, user.id, opts)
     if (result.success) {
       set({ items: get().items.map(i => i.id === id ? result.item : i) })
     }
@@ -362,7 +362,8 @@ export const usePropertyStore = create<PropertyState>((set, get) => ({
     // Never hard-delete on expend: clamp to 0 so the record survives as a
     // reorder signal (qty 0 = depleted, needs restock) vs. re-inputting from scratch.
     const newQty = Math.max(0, item.quantity - quantityDelta)
-    await get().editItem(itemId, { quantity: newQty })
+    // recordExpendedEntry logs item.expended — skip the redundant item.edited.
+    await get().editItem(itemId, { quantity: newQty }, { skipAudit: true })
 
     await recordExpendedEntry(itemId, quantityDelta, clinicId, user.id)
   },
@@ -387,7 +388,7 @@ export const usePropertyStore = create<PropertyState>((set, get) => ({
     )
 
     if (match) {
-      await get().editItem(match.id, { quantity: match.quantity + clampedQty })
+      await get().editItem(match.id, { quantity: match.quantity + clampedQty }, { skipAudit: true })
     } else {
       await get().addItem({
         clinic_id: source.clinic_id,
@@ -413,7 +414,7 @@ export const usePropertyStore = create<PropertyState>((set, get) => ({
     if (clampedQty >= source.quantity) {
       await get().removeItem(itemId)
     } else {
-      await get().editItem(itemId, { quantity: source.quantity - clampedQty })
+      await get().editItem(itemId, { quantity: source.quantity - clampedQty }, { skipAudit: true })
     }
   },
 
@@ -423,7 +424,7 @@ export const usePropertyStore = create<PropertyState>((set, get) => ({
     const target = items.find(i => i.id === targetId)
     if (!source || !target || source.is_serialized || target.is_serialized) return
 
-    await get().editItem(targetId, { quantity: target.quantity + source.quantity })
+    await get().editItem(targetId, { quantity: target.quantity + source.quantity }, { skipAudit: true })
     await get().removeItem(sourceId)
   },
 }))

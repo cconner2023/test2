@@ -28,17 +28,16 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import {
-  getCompletions,
   createReadCompletion,
   createTestCompletion,
   createAssignment,
   completeAssignment,
   deleteCompletion as deleteCompletionApi,
+  enrichCalendarLinks,
   type TrainingCompletionUI,
 } from '../lib/trainingService';
-import {
-  saveLocalTrainingCompletion,
-} from '../lib/offlineDb';
+import { getAuditBySubjectLocal, fetchAuditBySubject } from '../lib/auditService';
+import { foldTrainingState } from '../lib/trainingFold';
 import {
   isOnline as checkOnline,
   setupConnectivityListeners,
@@ -213,6 +212,21 @@ async function ensureInitialTrainingSync(userId: string): Promise<void> {
   return trainingInitSyncInflight
 }
 
+// ── Load the current-state completions from the audit_log event fold ──────────
+// Offline-first: local IDB events + server (read_audit), deduped, training-only,
+// folded into TrainingCompletionUI. training_completions is still dual-written and
+// serves as a fallback (below) so a fold-fetch failure never blanks training.
+async function loadFoldedCompletions(userId: string): Promise<TrainingCompletionUI[]> {
+  const clinicId = useAuthStore.getState().clinicId;
+  const [local, server] = await Promise.all([
+    getAuditBySubjectLocal(userId).catch(() => []),
+    clinicId ? fetchAuditBySubject(userId, { clinicId }).catch(() => []) : Promise.resolve([]),
+  ]);
+  const byId = new Map(([...local, ...server]).map((e) => [e.id, e]));
+  const folded = foldTrainingState([...byId.values()].filter((e) => e.domain === 'training'));
+  return enrichCalendarLinks(folded);
+}
+
 // ── Hook ─────────────────────────────────────────────────────
 
 /**
@@ -268,7 +282,15 @@ export function useTrainingCompletions() {
    * Refresh the completions list from IndexedDB and update pending count.
    */
   const refreshCompletions = useCallback(async (userId: string) => {
-    const items = await getCompletions(userId);
+    // Read current state from the audit_log event fold. The fold's loaders
+    // read-through-cache server events into local IDB, so it is offline-complete;
+    // the legacy training_completions union has been retired (fold verified).
+    let items: TrainingCompletionUI[] = [];
+    try {
+      items = await loadFoldedCompletions(userId);
+    } catch (err) {
+      logger.warn('Fold load failed:', err);
+    }
     // Sort newest first
     items.sort(
       (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
@@ -604,15 +626,13 @@ export function useTrainingCompletions() {
       const userId = userIdRef.current;
       if (!userId) return;
 
-      // Optimistically remove from UI
+      // Optimistically remove from UI (id is a synthetic fold id).
       setCompletions((prev) => prev.filter((c) => c.id !== completionId));
 
-      // If this completion is linked to a calendar event, delegate to the
-      // calendar delete gate — it fan-outs the 'd' and cascades back to
-      // this completion row via deleteCompletionsByCalendarOriginId. The
-      // cascade is fire-and-forget (not awaited end-to-end), but both sides
-      // tombstone locally before any await so resurrection is blocked even
-      // on partial failure.
+      // Linked to a calendar event? cascade through the calendar delete gate —
+      // it fan-outs 'd' and cascades back via deleteCompletionsByCalendarOriginId
+      // (which voids the linked completions). calendarOriginId is populated on the
+      // fold rows by enrichCalendarLinks from the link projection.
       const target = completions.find((c) => c.id === completionId);
       if (target?.calendarOriginId) {
         const event = useCalendarStore
@@ -627,12 +647,13 @@ export function useTrainingCompletions() {
         }
       }
 
-      // No linked event (read/test completion, or orphaned link): hard-delete
-      // directly via the service.
-      deleteCompletionApi(completionId, userId).catch((err) => {
-        logger.error('Delete completion failed:', err);
-        refreshCompletions(userId);
-      });
+      // No linked event: event-source the delete (emit completion.voided + drop link).
+      deleteCompletionApi(completionId, userId)
+        .then(() => refreshCompletions(userId))
+        .catch((err) => {
+          logger.error('Delete completion failed:', err);
+          refreshCompletions(userId);
+        });
     },
     [refreshCompletions, completions, deleteCalendarEvent]
   );
@@ -685,73 +706,18 @@ export function useTrainingCompletions() {
 
   // ── Realtime: training completions subscription ────────────
 
-  const handleRealtimeUpsert = useCallback((completion: TrainingCompletionUI) => {
-    setCompletions((prev) => {
-      const idx = prev.findIndex((c) => c.id === completion.id);
-      if (idx >= 0) {
-        const existing = prev[idx];
-        const existingTime = new Date(existing.createdAt).getTime();
-        const incomingTime = new Date(completion.createdAt).getTime();
-        if (incomingTime >= existingTime) {
-          const next = [...prev];
-          next[idx] = completion;
-          return next;
-        }
-        return prev;
-      }
-      return [completion, ...prev].sort(
-        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-      );
-    });
-
-    // Persist to IndexedDB so the completion survives tab close / refresh
+  // Cross-device training events arrive as audit_log inserts. State is the event
+  // fold (synthetic ids), so realtime can't mutate in place — it re-folds instead.
+  const handleRealtimeChange = useCallback(() => {
     const userId = userIdRef.current;
-    if (userId && userId !== 'guest') {
-      saveLocalTrainingCompletion({
-        id: completion.id,
-        user_id: completion.userId,
-        training_item_id: completion.trainingItemId,
-        completed: completion.completionType !== 'assignment' || !!completion.completedAt,
-        completed_at: completion.completedAt,
-        completion_type: completion.completionType,
-        result: completion.result,
-        supervisor_id: completion.supervisorId,
-        step_results: completion.stepResults as unknown as null,
-        supervisor_notes: completion.supervisorNotes,
-        due_date: completion.dueDate ?? null,
-        calendar_origin_id: completion.calendarOriginId ?? null,
-        created_at: completion.createdAt,
-        updated_at: completion.updatedAt,
-        _sync_status: 'synced',
-        _sync_retry_count: 0,
-        _last_sync_error: null,
-        _last_sync_error_message: null,
-      }).catch((err) => {
-        logger.warn('Failed to persist realtime completion to IndexedDB:', err);
-      });
-    }
-  }, []);
-
-  const handleRealtimeDelete = useCallback((completionId: string) => {
-    setCompletions((prev) => prev.filter((c) => c.id !== completionId));
-
-    // Also remove from IndexedDB
-    import('../lib/offlineDb').then(({ hardDeleteLocalTrainingCompletion }) => {
-      hardDeleteLocalTrainingCompletion(completionId).catch((err) => {
-        logger.warn(
-          'Failed to delete realtime completion from IndexedDB:',
-          err
-        );
-      });
-    });
-  }, []);
+    if (userId && userId !== 'guest') void refreshCompletions(userId);
+  }, [refreshCompletions]);
 
   useRealtimeTrainingCompletions({
     userId: realtimeUserId,
     isAuthenticated: realtimeAuthenticated,
     isPageVisible,
-    onUpsert: handleRealtimeUpsert,
-    onDelete: handleRealtimeDelete,
+    onChange: handleRealtimeChange,
   });
 
   return {

@@ -228,6 +228,18 @@ export interface LocalAuditLog extends LocalSyncMeta {
   created_at: string
 }
 
+/** Mutable link between a logical training completion (user+item+type) and the
+ *  calendar event it was born from. Replaces training_completions.calendar_origin_id
+ *  under event-sourcing — relink rotates origin_id in place (NOT an event), and the
+ *  calendar delete-cascade reads this to know which completions to void. */
+export interface TrainingCalendarLink {
+  key: string // `${user_id}:${training_item_id}:${completion_type}`
+  origin_id: string
+  user_id: string
+  training_item_id: string
+  completion_type: string
+}
+
 interface PackageBackEndDB extends DBSchema {
   syncQueue: {
     key: string
@@ -351,10 +363,17 @@ interface PackageBackEndDB extends DBSchema {
       'by-clinic-sync': [string, string]
     }
   }
+  trainingCalendarLinks: {
+    key: string
+    value: TrainingCalendarLink
+    indexes: {
+      'by-origin': string
+    }
+  }
 }
 
 const DB_NAME = 'packagebackend-offline'
-const DB_VERSION = 15
+const DB_VERSION = 16
 
 let dbInstance: IDBPDatabase<PackageBackEndDB> | null = null
 
@@ -520,6 +539,13 @@ export async function getDb(): Promise<IDBPDatabase<PackageBackEndDB>> {
         auditStore.createIndex('by-clinic', 'clinic_id')
         auditStore.createIndex('by-subject', 'subject_id')
         auditStore.createIndex('by-clinic-sync', ['clinic_id', '_sync_status'])
+      }
+
+      // v15 → v16: training↔calendar link projection (replaces the now-retired
+      // training_completions.calendar_origin_id under event-sourcing).
+      if (oldVersion < 16) {
+        const linkStore = db.createObjectStore('trainingCalendarLinks', { keyPath: 'key' })
+        linkStore.createIndex('by-origin', 'origin_id')
       }
     },
   })
@@ -938,6 +964,63 @@ export async function updateAuditLogSyncStatus(
 }
 
 // ============================================================
+// Training ↔ Calendar Link Projection (event-sourcing)
+// ============================================================
+
+function trainingLinkKey(userId: string, trainingItemId: string, completionType: string): string {
+  return `${userId}:${trainingItemId}:${completionType}`
+}
+
+/** Link a logical training completion to the calendar event it was born from. */
+export async function setTrainingCalendarLink(
+  userId: string, trainingItemId: string, completionType: string, originId: string,
+): Promise<void> {
+  const db = await getDb()
+  await db.put('trainingCalendarLinks', {
+    key: trainingLinkKey(userId, trainingItemId, completionType),
+    origin_id: originId,
+    user_id: userId,
+    training_item_id: trainingItemId,
+    completion_type: completionType,
+  })
+}
+
+/** Get the calendar link for a logical completion (null if none). */
+export async function getTrainingCalendarLink(
+  userId: string, trainingItemId: string, completionType: string,
+): Promise<TrainingCalendarLink | null> {
+  const db = await getDb()
+  return (await db.get('trainingCalendarLinks', trainingLinkKey(userId, trainingItemId, completionType))) ?? null
+}
+
+/** Rotate origin_id on every link pointing at oldOriginId (calendar vault re-create). */
+export async function relinkTrainingCalendarOrigin(oldOriginId: string, newOriginId: string): Promise<void> {
+  const db = await getDb()
+  const rows = await db.getAllFromIndex('trainingCalendarLinks', 'by-origin', oldOriginId)
+  if (rows.length === 0) return
+  const tx = db.transaction('trainingCalendarLinks', 'readwrite')
+  for (const r of rows) {
+    r.origin_id = newOriginId
+    await tx.store.put(r)
+  }
+  await tx.done
+}
+
+/** All logical completions linked to a calendar origin (for delete-cascade). */
+export async function getTrainingCalendarLinksByOrigin(originId: string): Promise<TrainingCalendarLink[]> {
+  const db = await getDb()
+  return db.getAllFromIndex('trainingCalendarLinks', 'by-origin', originId)
+}
+
+/** Drop a logical completion's calendar link. */
+export async function deleteTrainingCalendarLink(
+  userId: string, trainingItemId: string, completionType: string,
+): Promise<void> {
+  const db = await getDb()
+  await db.delete('trainingCalendarLinks', trainingLinkKey(userId, trainingItemId, completionType))
+}
+
+// ============================================================
 // Property Items Operations
 // ============================================================
 
@@ -1218,12 +1301,13 @@ export async function clearTileCache(): Promise<void> {
 export async function clearAllUserData(): Promise<void> {
   const db = await getDb()
   const tx = db.transaction(
-    ['syncQueue', 'trainingCompletions', 'propertyItems', 'propertyLocations', 'propertyDiscrepancies', 'locationTags', 'mapOverlays', 'cachedTiles', 'tileMetadata', 'featureVoteCycles', 'featureVoteCandidates', 'featureVotes', 'featureVoteSuggestions', 'auditLog'],
+    ['syncQueue', 'trainingCompletions', 'propertyItems', 'propertyLocations', 'propertyDiscrepancies', 'locationTags', 'mapOverlays', 'cachedTiles', 'tileMetadata', 'featureVoteCycles', 'featureVoteCandidates', 'featureVotes', 'featureVoteSuggestions', 'auditLog', 'trainingCalendarLinks'],
     'readwrite',
   )
   await tx.objectStore('syncQueue').clear()
   await tx.objectStore('trainingCompletions').clear()
   await tx.objectStore('auditLog').clear()
+  await tx.objectStore('trainingCalendarLinks').clear()
   await tx.objectStore('propertyItems').clear()
   await tx.objectStore('propertyLocations').clear()
   await tx.objectStore('propertyDiscrepancies').clear()
