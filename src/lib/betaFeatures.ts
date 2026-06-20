@@ -43,6 +43,10 @@ export const BETA_FEATURES = {
    *  the supervisor role) so they can finish testing. Flip to false to promote
    *  calls to supervisors. */
   outsideCall: true,
+  /** Algorithm → note routing — tagged algorithm list items (questionOptions.noteTag)
+   *  auto-populate the custom note's HPI/PE sections from the YES/NO answers.
+   *  Dev-only while tagging is rolled out per algorithm; flip to false to open to all. */
+  algorithmNoteRouting: true,
 } as const
 
 export type BetaFeature = keyof typeof BETA_FEATURES

@@ -176,7 +176,6 @@ export const TextTemplatesPanel = () => {
                         onCardTap={handleCardTap}
                         onStartNew={handleStartNew}
                         onShareItem={(e) => transfer.share({ textExpanders: [e] }, e.abbr)}
-                        onExportItem={(e) => transfer.exportFile({ textExpanders: [e] }, e.abbr)}
                         onDeleteItem={(e) => {
                             const isClinic = clinicAbbrSet.has(e.abbr.toLowerCase());
                             if (isClinic && editingClinicId) writeClinic(clinicTextExpanders.filter(x => x.abbr !== e.abbr));

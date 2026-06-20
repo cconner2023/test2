@@ -40,6 +40,11 @@ import { ErrorCode } from '../lib/errorCodes'
 
 const logger = createLogger('RealtimeSignal')
 
+// Minimum gap between 'online'-triggered catch-ups. A flapping connection fires
+// discrete online events per flap; without this a bad link could spam the
+// unread-delta fetch. Visibility/backup triggers stay unthrottled (user-paced).
+const ONLINE_CATCHUP_THROTTLE_MS = 15_000
+
 /** Send a delivery receipt back to the original sender. Fire-and-forget — never throws. */
 async function sendDeliveryReceipt(
   senderUuid: string,
@@ -542,6 +547,13 @@ export function useSignalMessages({
 
   // Track whether catch-up has already run to avoid re-fetching on re-subscribe
   const catchUpDone = useRef(false)
+  // Separate completion flag for the clinic-device catch-up. It must NOT share
+  // catchUpDone with the personal catch-up: the personal effect flips that flag
+  // true on success, which would starve the clinic catch-up (the path that
+  // consumes missed 'd' prune rows by clinic device id) if it runs afterward.
+  const clinicCatchUpDone = useRef(false)
+  // Throttle clock for the 'online' re-trigger (see ONLINE_CATCHUP_THROTTLE_MS).
+  const lastOnlineCatchUpAt = useRef(0)
 
   const processedIds = useRef(new Set<string>())
   const trackProcessed = (id: string) => {
@@ -561,6 +573,7 @@ export function useSignalMessages({
     if (isPageVisible && !prevVisibleRef.current) {
       // Immediate catch-up for messages missed while hidden
       catchUpDone.current = false
+      clinicCatchUpDone.current = false
       setCatchUpTrigger(t => t + 1)
 
       // Safety-net catch-up: only fires if the immediate catch-up
@@ -569,6 +582,7 @@ export function useSignalMessages({
       const timer = setTimeout(() => {
         if (!catchUpDone.current) {
           catchUpDone.current = false
+          clinicCatchUpDone.current = false
           setCatchUpTrigger(t => t + 1)
         }
       }, 2000)
@@ -584,10 +598,31 @@ export function useSignalMessages({
   useEffect(() => {
     const onBackupRestored = () => {
       catchUpDone.current = false
+      clinicCatchUpDone.current = false
       setCatchUpTrigger(t => t + 1)
     }
     window.addEventListener('backup-restored', onBackupRestored)
     return () => window.removeEventListener('backup-restored', onBackupRestored)
+  }, [])
+
+  // Re-trigger catch-up on network reconnect. A long-lived, continuously-
+  // foregrounded session fires no visibilitychange, so without this it never
+  // re-drains its per-device inbox after a blip — a 'd' that arrived while
+  // offline is never consumed and the deleted event resurrects in the local
+  // cache. fetchUnread pulls only the unread delta (read_at IS NULL, within
+  // horizon) and processed rows are marked read, so this re-fetches just what
+  // actually arrived offline (egress-bounded). Throttled against link flap.
+  useEffect(() => {
+    const onOnline = () => {
+      const now = Date.now()
+      if (now - lastOnlineCatchUpAt.current < ONLINE_CATCHUP_THROTTLE_MS) return
+      lastOnlineCatchUpAt.current = now
+      catchUpDone.current = false
+      clinicCatchUpDone.current = false
+      setCatchUpTrigger(t => t + 1)
+    }
+    window.addEventListener('online', onOnline)
+    return () => window.removeEventListener('online', onOnline)
   }, [])
 
   // Offline catch-up: fetch unread messages on mount (filtered by device)
@@ -680,7 +715,7 @@ export function useSignalMessages({
 
   // Clinic device offline catch-up: fetch unread messages for this clinic device
   useEffect(() => {
-    if (!isAuthenticated || !userId || !clinicId || !clinicDeviceId || catchUpDone.current) return
+    if (!isAuthenticated || !userId || !clinicId || !clinicDeviceId || clinicCatchUpDone.current) return
 
     ;(async () => {
       const result = await fetchUnreadMessages(clinicId, clinicDeviceId)
@@ -688,6 +723,9 @@ export function useSignalMessages({
         logger.warn('Clinic catch-up failed:', result.error)
         return
       }
+
+      // Mark done only after a successful fetch so transient failures retry.
+      clinicCatchUpDone.current = true
 
       logger.info(`Clinic catch-up: ${result.data.length} unread messages`)
 

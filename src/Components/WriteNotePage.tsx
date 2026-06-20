@@ -30,6 +30,9 @@ import { EmptyState } from './EmptyState';
 import type { TextExpander } from '../Data/User';
 import { getBlocksForFocusedExam, getCategoryFromSymptomCode } from '../Data/PhysicalExamData';
 import type { CategoryLetter } from '../Data/PhysicalExamData';
+import { composeAlgorithmNoteRouting } from '../Utilities/algorithmNoteRouting';
+import type { PEState } from '../Types/PETypes';
+import { useBetaFlag } from '../lib/betaFeatures';
 
 type DispositionType = dispositionType['type'];
 
@@ -200,18 +203,62 @@ export const WriteNotePage = ({
     // (template mode shows the cycle+Plus ActionPill at top-right and drops the
     // bottom focused-mode FAB).
     const symptomCode = selectedSymptom?.icon || 'A-1';
+
+    // Route tagged algorithm list items (questionOptions.noteTag) into HPI/PE.
+    // Dev-gated (beta) while per-algorithm tagging rolls out.
+    const noteRoutingEnabled = useBetaFlag('algorithmNoteRouting');
+    const algoRouting = useMemo(
+        () => noteRoutingEnabled
+            ? composeAlgorithmNoteRouting(algorithmOptions, cardStates, selectedSymptom?.text, disposition.type, disposition.text)
+            : { hpiText: '', peItems: {}, peBlockKeys: [], planText: '' },
+        [noteRoutingEnabled, algorithmOptions, cardStates, selectedSymptom?.text, disposition.type, disposition.text],
+    );
+
     const [selectedBlockKeys, setSelectedBlockKeys] = useState<string[]>(() => {
         const cat = (getCategoryFromSymptomCode(symptomCode) || 'A') as CategoryLetter;
-        return getBlocksForFocusedExam(cat, symptomCode).blocks.map(b => b.key);
+        const templateKeys = getBlocksForFocusedExam(cat, symptomCode).blocks.map(b => b.key);
+        return [...new Set([...templateKeys, ...algoRouting.peBlockKeys])];
     });
     const [pePickerSignal, setPePickerSignal] = useState(0);
     const [pePickerAnchor, setPePickerAnchor] = useState<DOMRect | null>(null);
     const peHasContent = !!peNote || selectedBlockKeys.length > 0;
 
+    // PE seed from algorithm tags — overlays normal/abnormal findings at mount
+    // (initialState is consumed once by PhysicalExam's state initializer).
+    const algoPeSeed = useMemo<PEState | null>(() => {
+        if (Object.keys(algoRouting.peItems).length === 0) return null;
+        const cat = (getCategoryFromSymptomCode(symptomCode) || 'A') as CategoryLetter;
+        return {
+            categoryLetter: cat,
+            laterality: 'right',
+            spineRegion: 'lumbar',
+            items: algoRouting.peItems,
+            vitals: {},
+            additional: '',
+            mode: 'template',
+            blockKeys: selectedBlockKeys,
+        };
+    }, [algoRouting.peItems, symptomCode, selectedBlockKeys]);
+
+    // HPI seed from algorithm tags — composed narrative, only when HPI is empty
+    // (non-destructive: medic edits always win). Only generates once the medic
+    // opens the Full Note view — mirrors PE/Plan, which only mount in that subtree.
+    const hpiSeededRef = useRef(false);
+    useEffect(() => {
+        if (hpiSeededRef.current || viewMode !== 'fullnote' || !algoRouting.hpiText) return;
+        hpiSeededRef.current = true;
+        setNote(prev => (prev ? prev : algoRouting.hpiText));
+    }, [viewMode, algoRouting.hpiText, setNote]);
+
+
     // ── Plan empty-state picker signal ──────────────────────────────────────
     const [planPickerSignal, setPlanPickerSignal] = useState(0);
     const [planPickerAnchor, setPlanPickerAnchor] = useState<DOMRect | null>(null);
-    const planHasContent = !!planNote;
+    // Plan seed from the active disposition's decision-making (meds + instructions).
+    // Passed as Plan initialText at mount (Plan parses initialText once); planNote
+    // empty → seed used, non-destructive once the medic edits (planNote wins).
+    const planSeedText = planNote || algoRouting.planText;
+    const planHasContent = !!planSeedText;
 
     // ── DDx popover state ──────────────────────────────────────────────────
     const [ddxPopoverVisible, setDdxPopoverVisible] = useState(false);
@@ -374,7 +421,7 @@ export const WriteNotePage = ({
                                     >
                                         <PhysicalExam
                                             initialText={peNote}
-                                            initialState={peState}
+                                            initialState={peState ?? algoPeSeed}
                                             onChange={setPeNote}
                                             onStateChange={setPeState}
                                             colors={colors}
@@ -508,7 +555,7 @@ export const WriteNotePage = ({
                                             orderTags={orderTags}
                                             instructionTags={instructionTags}
                                             orderSets={orderSets}
-                                            initialText={planNote}
+                                            initialText={planSeedText}
                                             onChange={setPlanNote}
                                             expanders={expanders}
                                             pickerOpenSignal={planPickerSignal}

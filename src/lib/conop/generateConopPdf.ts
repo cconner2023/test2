@@ -20,11 +20,24 @@ const GUTTER = 18
 const FOOTER_H = 16
 const LEFT_FRAC = 0.3
 
-const FONT_TITLE = 17
+// Army baseline is Arial 10pt; pdf-lib has no Arial, so we use Helvetica (the
+// metric-compatible standard-14 substitute) and consolidate everything onto the
+// 10pt baseline. Title is the lone heading step-up; footer chrome stays smaller.
+const FONT_TITLE = 14
 const FONT_DTG = 10
-const FONT_SECTION = 8
+const FONT_SECTION = 10
 const FONT_BODY = 10
 const FONT_FOOTER = 8
+
+const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
+
+/** Military date-time group in local time, e.g. 210010JUN26 (DDHHMM + MON + YY). */
+function toDtg(iso: string): string {
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return '—'
+  const p2 = (n: number) => String(n).padStart(2, '0')
+  return `${p2(d.getDate())}${p2(d.getHours())}${p2(d.getMinutes())}${MONTHS[d.getMonth()]}${p2(d.getFullYear() % 100)}`
+}
 
 export interface ConopSubtask {
   label: string
@@ -33,9 +46,12 @@ export interface ConopSubtask {
 
 export interface ConopData {
   title: string
-  /** Pre-formatted start–end window (e.g. "14 JUN 0800 – 14 JUN 1200"). */
-  dtgRange: string
-  category: string
+  /** ISO start timestamp — rendered as a military DTG (Start: 210010JUN26). */
+  startTime: string
+  /** ISO end timestamp — rendered as a military DTG (End: 211200JUN26). */
+  endTime: string
+  /** All-day events have no meaningful end time; the End line is suppressed. */
+  allDay: boolean
   location?: string | null
   assignedNames: string[]
   uniform?: string | null
@@ -88,14 +104,13 @@ function wrapText(font: Font, size: number, text: string, maxWidth: number): str
 const bottomLimit = MARGIN + FOOTER_H + 6
 
 function drawFooter(ctx: Ctx, page: Page): void {
-  const ts = ctx.generatedAt.replace('T', ' ').slice(0, 16)
   page.drawLine({
     start: { x: MARGIN, y: MARGIN + FOOTER_H },
     end: { x: PAGE_W - MARGIN, y: MARGIN + FOOTER_H },
     thickness: 0.4,
     color: ctx.hair,
   })
-  page.drawText(`Beacon · CONOP · Generated ${ts}`, {
+  page.drawText(`CONOP · Generated ${toDtg(ctx.generatedAt)}`, {
     x: MARGIN,
     y: MARGIN + 4,
     size: FONT_FOOTER,
@@ -170,16 +185,23 @@ export async function generateConopPdf(data: ConopData): Promise<Uint8Array> {
     font: bold,
     color: black,
   })
-  const sub = [data.dtgRange, data.category ? data.category.toUpperCase() : '']
-    .filter(Boolean)
-    .join('   ·   ')
-  page.drawText(sub, {
+  // Start / End military DTG as the header subtext (no category).
+  page.drawText(`Start: ${toDtg(data.startTime)}`, {
     x: MARGIN,
-    y: headerY - 34,
+    y: headerY - 30,
     size: FONT_DTG,
     font: helv,
     color: grey,
   })
+  if (!data.allDay) {
+    page.drawText(`End: ${toDtg(data.endTime)}`, {
+      x: MARGIN,
+      y: headerY - 42,
+      size: FONT_DTG,
+      font: helv,
+      color: grey,
+    })
+  }
   page.drawLine({
     start: { x: MARGIN, y: PAGE_H - MARGIN - HEADER_H },
     end: { x: PAGE_W - MARGIN, y: PAGE_H - MARGIN - HEADER_H },
@@ -229,8 +251,6 @@ export async function generateConopPdf(data: ConopData): Promise<Uint8Array> {
   }
   const title = data.title || 'CONOP'
 
-  drawSectionHeader(ctx, 'When', title)
-  drawWrapped(ctx, data.dtgRange || '—', title, helv)
   if (data.reportTime) drawWrapped(ctx, `Report: ${data.reportTime}`, title, helv)
 
   if (data.location) {
@@ -239,7 +259,7 @@ export async function generateConopPdf(data: ConopData): Promise<Uint8Array> {
   }
 
   if (data.assignedNames.length) {
-    drawSectionHeader(ctx, 'Who', title)
+    drawSectionHeader(ctx, 'Assigned', title)
     drawWrapped(ctx, data.assignedNames.join(', '), title, helv)
   }
 

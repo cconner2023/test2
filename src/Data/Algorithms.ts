@@ -34,11 +34,11 @@ export const Algorithm: AlgorithmType[] = [
                 text: "Red Flags",
                 type: "rf",
                 questionOptions: [
-                    { text: "Shortness of Breath" },
-                    { text: "Stridor" },
-                    { text: "Deviated Uvula" },
-                    { text: "Drooling/ Trouble Swallowing" },
-                    { text: "Stiff Neck" }
+                    { text: "Shortness of Breath", noteTag: { target: 'hpi' } },
+                    { text: "Stridor", noteTag: { target: 'pe', findingKey: 'noStridor', abnormalKey: 'stridor' } },
+                    { text: "Deviated Uvula", noteTag: { target: 'pe', findingKey: 'symmetricMidlineUvula', abnormalKey: 'uvularDeviation' } },
+                    { text: "Drooling/ Trouble Swallowing", noteTag: { target: 'pe', findingKey: 'noDrooling', abnormalKey: 'drooling' } },
+                    { text: "Stiff Neck", noteTag: { target: 'hpi' } }
                 ],
                 answerOptions: []
             },
@@ -74,10 +74,10 @@ export const Algorithm: AlgorithmType[] = [
                 text: "Do any of the following apply?",
                 type: "choice",
                 questionOptions: [
-                    { text: "Symptoms > 10 days" },
-                    { text: "Immunosuppression" },
-                    { text: "Inhaled steroid" },
-                    { text: "Fever > 48 hours" }
+                    { text: "Symptoms > 10 days", noteTag: { target: 'hpi' } },
+                    { text: "Immunosuppression", noteTag: { target: 'hpi' } },
+                    { text: "Inhaled steroid", noteTag: { target: 'hpi' } },
+                    { text: "Fever > 48 hours", noteTag: { target: 'hpi' } }
                 ],
                 answerOptions: [
                     {
@@ -106,10 +106,10 @@ export const Algorithm: AlgorithmType[] = [
                 text: "How many of the following apply?",
                 type: "count",
                 questionOptions: [
-                    { text: "Fever > 100.4 F (refer to supervising medical provider" },
-                    { text: "No Cough" },
-                    { text: "Tonsillar Exudate" },
-                    { text: "Swollen anterior cervical nodes" }
+                    { text: "Fever > 100.4 F (refer to supervising medical provider", noteTag: { target: 'pe', findingKey: 'genAfebrile', abnormalKey: 'genFebrile' } },
+                    { text: "No Cough", noteTag: { target: 'hpi', label: 'cough', invert: true } },
+                    { text: "Tonsillar Exudate", noteTag: { target: 'pe', findingKey: 'noTonsillarExudate', abnormalKey: 'tonsillarExudate' } },
+                    { text: "Swollen anterior cervical nodes", noteTag: { target: 'pe', findingKey: 'noLymphadenopathy', abnormalKey: 'cervicalLad' } }
                 ],
                 answerOptions: [
                     {
@@ -135,6 +135,12 @@ export const Algorithm: AlgorithmType[] = [
                                         { ...medList[8] },
                                         { ...medList[0] },
                                         { ...medList[23] }
+                                    ],
+                                    planInstructions: [
+                                        'encourage adequate hydration',
+                                        'rest',
+                                        'avoid irritants',
+                                        'follow-up in 3 days if no improvement'
                                     ]
                                 }
                             },
@@ -204,6 +210,12 @@ export const Algorithm: AlgorithmType[] = [
                                         { ...medList[8] },
                                         { ...medList[0] },
                                         { ...medList[23] }
+                                    ],
+                                    planInstructions: [
+                                        'encourage adequate hydration',
+                                        'rest',
+                                        'avoid irritants',
+                                        'follow-up in 3 days if no improvement'
                                     ]
                                 }
                             },

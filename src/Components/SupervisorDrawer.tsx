@@ -17,6 +17,7 @@ import { useSupervisorData } from './Settings/Supervisor/useSupervisorData'
 import { isEncounterEvent } from './Settings/Supervisor/supervisorHelpers'
 import { SoldierProfile } from './Settings/Supervisor/SoldierProfile'
 import { EvaluateFlow } from './Settings/Supervisor/EvaluateFlow'
+import { AlgorithmEvaluateFlow } from './Settings/Supervisor/AlgorithmEvaluateFlow'
 import { AssignTaskFlow } from './Settings/Supervisor/AssignTaskFlow'
 import { TeamReporting } from './Settings/Supervisor/TeamReporting'
 import { CoverageTasksView } from './Settings/Supervisor/CoverageTasksView'
@@ -39,6 +40,7 @@ type SupervisorView =
   | { screen: 'main' }
   | { screen: 'evaluate-select-task'; soldier: ClinicMedic }
   | { screen: 'evaluate-go-nogo'; soldier: ClinicMedic; taskNumber: string; taskTitle: string }
+  | { screen: 'evaluate-algorithm'; soldier: ClinicMedic; algorithmId: string; algorithmName: string }
   | { screen: 'coverage-tasks'; areaName: string; soldier?: ClinicMedic }
   | { screen: 'coverage-task-evaluate'; areaName: string; soldier: ClinicMedic; taskNumber: string; taskTitle: string }
   | { screen: 'assign-task'; soldier: ClinicMedic; preSelectedTask?: { id: string; title: string } }
@@ -82,6 +84,7 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
   const calendarEvents = useCalendarStore(s => s.events)
   const setShowCalendarDrawer = useNavigationStore(s => s.setShowCalendarDrawer)
   const openCalendarEvent = useNavigationStore(s => s.openCalendarEvent)
+  const requestNewCalendarEvent = useNavigationStore(s => s.requestNewCalendarEvent)
   const { refresh: refreshMedics } = useClinicMedics()
 
   // ── Clinic-admin popovers (shared with Settings/ClinicPanel) ──────────────
@@ -336,10 +339,44 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
     }
   }, [view, submitTestEvaluation, refreshData])
 
+  // ── Algorithm competency: evaluate (cascades to STPs) + schedule ────────────
+
+  const handleEvaluateAlgorithm = useCallback((soldier: ClinicMedic, algorithmId: string, algorithmName: string) => {
+    handleSlideAnimation('left')
+    setView({ screen: 'evaluate-algorithm', soldier, algorithmId, algorithmName })
+  }, [handleSlideAnimation])
+
+  /** Persist one unit of an algorithm evaluation — STP units write real STP
+   *  completions (the cascade), synthetic units write algo:<id>:<dim> keys. */
+  const handleSubmitAlgorithmUnit = useCallback(async (trainingItemId: string, stepResults: StepResult[], notes: string) => {
+    if (view.screen !== 'evaluate-algorithm') return
+    const hasNoGo = stepResults.some(s => s.result === 'NO_GO')
+    await submitTestEvaluation({
+      medicUserId: view.soldier.id,
+      trainingItemId,
+      result: hasNoGo ? 'NO_GO' : 'GO',
+      stepResults,
+      supervisorNotes: notes || undefined,
+    })
+  }, [view, submitTestEvaluation])
+
+  const handleAlgorithmEvalComplete = useCallback(() => {
+    if (view.screen !== 'evaluate-algorithm') return
+    const soldierId = view.soldier.id
+    refreshData()
+    setView({ screen: 'main' })
+    setTreeSelection({ type: 'soldier', soldierId })
+  }, [view, refreshData])
+
   const handleBack = useCallback(() => {
     if (view.screen === 'evaluate-go-nogo') {
       handleSlideAnimation('right')
       setView({ screen: 'evaluate-select-task', soldier: view.soldier })
+    } else if (view.screen === 'evaluate-algorithm') {
+      handleSlideAnimation('right')
+      const soldierId = view.soldier.id
+      setView({ screen: 'main' })
+      setTreeSelection({ type: 'soldier', soldierId })
     } else if (view.screen === 'coverage-task-evaluate') {
       handleSlideAnimation('right')
       setView({ screen: 'coverage-tasks', areaName: view.areaName })
@@ -373,6 +410,16 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
     handleClose()
     setShowCalendarDrawer(true)
   }, [handleClose, setShowCalendarDrawer])
+
+  const handleScheduleAlgorithm = useCallback((soldier: ClinicMedic, algorithmId: string, algorithmName: string) => {
+    requestNewCalendarEvent({
+      title: `Algorithm training — ${algorithmName}`,
+      category: 'training',
+      encounterAlgorithmId: algorithmId,
+      assignedTo: [soldier.id],
+    })
+    handleClose()
+  }, [requestNewCalendarEvent, handleClose])
 
   const handleOpenEvent = useCallback((eventId: string) => {
     handleClose()
@@ -461,6 +508,18 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
           title: 'Evaluation',
           showBack: true,
           onBack: handleBack,
+        }
+      case 'evaluate-algorithm':
+        return {
+          title: 'Algorithm Evaluation',
+          showBack: true,
+          onBack: handleBack,
+          rightContent: (
+            <HeaderPill>
+              <PillButton icon={X} onClick={handleClose} label="Close" />
+            </HeaderPill>
+          ),
+          hideDefaultClose: true,
         }
       case 'coverage-tasks':
         return {
@@ -551,6 +610,8 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
             onEditMember={isSupervisor && clinicId
               ? (memberId, anchor) => setMemberEdit({ memberId, anchor })
               : undefined}
+            onEvaluateAlgorithm={(algorithmId, algorithmName) => handleEvaluateAlgorithm(soldier, algorithmId, algorithmName)}
+            onScheduleAlgorithm={(algorithmId, algorithmName) => handleScheduleAlgorithm(soldier, algorithmId, algorithmName)}
           />
         )
       }
@@ -621,6 +682,19 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
               searchQuery={taskSearchQuery}
               onSelectTask={handleSelectTask}
               onSubmit={handleSubmitEvaluation}
+            />
+          </ScrollPane>
+        )
+
+      case 'evaluate-algorithm':
+        return (
+          <ScrollPane className={scrollPaneCls}>
+            <AlgorithmEvaluateFlow
+              soldier={view.soldier}
+              algorithmId={view.algorithmId}
+              algorithmName={view.algorithmName}
+              onSubmitUnit={handleSubmitAlgorithmUnit}
+              onComplete={handleAlgorithmEvalComplete}
             />
           </ScrollPane>
         )

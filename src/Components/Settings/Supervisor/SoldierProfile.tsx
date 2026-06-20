@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useRef } from 'react'
-import { Building2, ChevronRight, ClipboardList, Calendar, Plus, Check, Trash2, Loader2, Activity } from 'lucide-react'
+import { Building2, ChevronRight, ClipboardList, Calendar, CalendarPlus, ClipboardCheck, Plus, Check, Trash2, Loader2, Activity } from 'lucide-react'
 import { ActionButton } from '../../ActionButton'
 import { ConfirmDialog } from '../../ConfirmDialog'
 import { PreviewOverlay } from '../../PreviewOverlay'
@@ -14,9 +14,9 @@ import {
 } from '../../../lib/certificationService'
 import { CertOverlayFields } from '../../Certifications/CertOverlayFields'
 import { useIsMobile } from '../../../Hooks/useIsMobile'
-import { formatMedicName, getLatestTestByTask, groupEncounters, buildAlgorithmTrainedStatus } from './supervisorHelpers'
+import { formatMedicName, getLatestTestByTask, groupEncounters, buildAlgorithmCompetency } from './supervisorHelpers'
 import { getExpirationStatus, emptyCertForm, type CertFormData } from '../../Certifications/certHelpers'
-import type { FlatTask } from './supervisorHelpers'
+import type { FlatTask, AlgorithmCompetency } from './supervisorHelpers'
 import type { ClinicMedic } from '../../../Types/SupervisorTestTypes'
 import type { Certification } from '../../../Data/User'
 import type { TrainingCompletionUI } from '../../../lib/trainingService'
@@ -73,6 +73,10 @@ interface SoldierProfileProps {
   onOpenEvent: (eventId: string) => void
   /** When provided, the soldier card becomes tap-to-edit (rank/roles/delete via popover) */
   onEditMember?: (memberId: string, anchorRect: DOMRect) => void
+  /** Evaluate a whole algorithm — cascades through its STPs + synthetic dimensions. */
+  onEvaluateAlgorithm?: (algorithmId: string, algorithmName: string) => void
+  /** Schedule algorithm training for this soldier (prefilled calendar event). */
+  onScheduleAlgorithm?: (algorithmId: string, algorithmName: string) => void
 }
 
 export function SoldierProfile({
@@ -95,11 +99,14 @@ export function SoldierProfile({
   onOpenCalendar,
   onOpenEvent,
   onEditMember,
+  onEvaluateAlgorithm,
+  onScheduleAlgorithm,
 }: SoldierProfileProps) {
   const isMobile = useIsMobile()
   const now = useMemo(() => new Date(), [])
   const [expandedTestId, setExpandedTestId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [algoDetail, setAlgoDetail] = useState<{ comp: AlgorithmCompetency; anchor: DOMRect } | null>(null)
 
   const upcomingEvents = useMemo(
     () => calendarEvents.filter(e => new Date(e.end_time) >= now),
@@ -238,11 +245,11 @@ export function SoldierProfile({
 
   const encounterGroups = useMemo(() => groupEncounters(encounterEvents), [encounterEvents])
 
-  /** Per-algorithm trained status for this soldier (from their test completions). */
-  const algorithmTrained = useMemo(() => buildAlgorithmTrainedStatus(tests), [tests])
+  /** Per-algorithm composite competency for this soldier (STP + red flags + ddx + run). */
+  const algorithmCompetency = useMemo(() => buildAlgorithmCompetency(tests), [tests])
   const algorithmTrainedCount = useMemo(
-    () => algorithmTrained.filter(a => a.status === 'trained').length,
-    [algorithmTrained],
+    () => algorithmCompetency.filter(a => a.status === 'trained').length,
+    [algorithmCompetency],
   )
 
   const sortedTests = useMemo(() => {
@@ -458,30 +465,38 @@ export function SoldierProfile({
         </div>
       </div>
 
-      {/* Algorithm Training — trained-or-not per algorithm (distinct from Encounter Log counts) */}
-      <div>
+      {/* Algorithm Competency — composite category (STP + red flags + ddx + run).
+          Tap a row to see the per-dimension breakdown and evaluate/schedule. */}
+      <div data-tour="supervisor-algorithm-competency">
         <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">
-          Algorithm Training{algorithmTrained.length > 0 && ` · ${algorithmTrainedCount}/${algorithmTrained.length} trained`}
+          Algorithm Competency{algorithmCompetency.length > 0 && ` · ${algorithmTrainedCount}/${algorithmCompetency.length} trained`}
         </p>
         <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
-          {algorithmTrained.length === 0 ? (
+          {algorithmCompetency.length === 0 ? (
             <p className="text-[10pt] text-tertiary px-4 py-4">No algorithms map to STP tasks</p>
           ) : (
-            algorithmTrained.map((a, idx) => (
-              <div
+            algorithmCompetency.map((a, idx) => (
+              <button
                 key={a.id}
-                className={`flex items-center gap-3 px-4 py-3 ${idx > 0 ? 'border-t border-tertiary/8' : ''}`}
+                onClick={(e) => setAlgoDetail({ comp: a, anchor: e.currentTarget.getBoundingClientRect() })}
+                className={`w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-themeblue2/5 active:scale-[0.99] transition-all ${idx > 0 ? 'border-t border-tertiary/8' : ''}`}
               >
                 <span className="text-[9pt] font-bold text-white bg-themeblue3 px-1.5 py-0.5 rounded shrink-0 w-10 text-center">
                   {a.id}
                 </span>
-                <p className="flex-1 min-w-0 text-sm font-medium text-primary truncate">{a.name}</p>
-                <span className={`text-[9pt] font-semibold shrink-0 ${
-                  a.status === 'trained' ? 'text-themegreen' : a.status === 'partial' ? 'text-themeyellow' : 'text-tertiary'
+                <span className="text-sm font-medium text-primary min-w-0 truncate flex-1 sm:flex-none sm:w-32 shrink-0">{a.name}</span>
+                <div className="flex-1 min-w-0 hidden sm:block">
+                  <div className="h-1.5 rounded-full bg-tertiary/10 overflow-hidden">
+                    <div className={`h-full rounded-full transition-all ${readinessColor(a.pct)}`} style={{ width: `${a.pct}%` }} />
+                  </div>
+                </div>
+                <span className={`text-[9pt] font-semibold w-12 text-right shrink-0 ${
+                  a.status === 'trained' ? 'text-themegreen' : a.status === 'partial' ? readinessTextColor(a.pct) : 'text-tertiary'
                 }`}>
-                  {a.status === 'trained' ? 'Trained' : a.status === 'partial' ? `${a.validated}/${a.total} STPs` : 'Untrained'}
+                  {a.status === 'trained' ? 'Trained' : a.status === 'partial' ? `${a.pct}%` : 'Untrained'}
                 </span>
-              </div>
+                <ChevronRight size={14} className="text-tertiary shrink-0" />
+              </button>
             ))
           )}
         </div>
@@ -728,6 +743,65 @@ export function SoldierProfile({
         onConfirm={handleConfirmDeleteCert}
         onCancel={() => setConfirmDeleteCert(null)}
       />
+
+      {/* Algorithm competency drill-down — per-dimension breakdown + evaluate/schedule */}
+      <PreviewOverlay
+        isOpen={!!algoDetail}
+        onClose={() => setAlgoDetail(null)}
+        anchorRect={algoDetail?.anchor ?? null}
+        title={algoDetail ? `${algoDetail.comp.id} · ${algoDetail.comp.name}` : ''}
+        maxWidth={400}
+        footer={
+          algoDetail ? (
+            <div className="flex gap-1 bg-themewhite rounded-2xl shadow-lg px-1.5 py-1.5">
+              {onEvaluateAlgorithm && (
+                <ActionButton
+                  icon={ClipboardCheck}
+                  label="Evaluate"
+                  variant="success"
+                  onClick={() => {
+                    const { id, name } = algoDetail.comp
+                    setAlgoDetail(null)
+                    onEvaluateAlgorithm(id, name)
+                  }}
+                />
+              )}
+              {onScheduleAlgorithm && (
+                <ActionButton
+                  icon={CalendarPlus}
+                  label="Schedule"
+                  onClick={() => {
+                    const { id, name } = algoDetail.comp
+                    setAlgoDetail(null)
+                    onScheduleAlgorithm(id, name)
+                  }}
+                />
+              )}
+            </div>
+          ) : undefined
+        }
+      >
+        {algoDetail && (
+          <div className="space-y-3 py-1">
+            {algoDetail.comp.dims.map((d) => {
+              const dimPct = d.total ? Math.round((d.validated / d.total) * 100) : 0
+              return (
+                <div key={d.dim} className="flex items-center gap-3">
+                  <span className="text-sm text-primary w-28 shrink-0 truncate">{d.label}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="h-1.5 rounded-full bg-tertiary/10 overflow-hidden">
+                      <div className={`h-full rounded-full ${readinessColor(dimPct)}`} style={{ width: `${dimPct}%` }} />
+                    </div>
+                  </div>
+                  <span className={`text-[9pt] font-medium w-10 text-right shrink-0 ${d.met ? 'text-themegreen' : readinessTextColor(dimPct)}`}>
+                    {d.validated}/{d.total}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </PreviewOverlay>
 
     </div>
   )

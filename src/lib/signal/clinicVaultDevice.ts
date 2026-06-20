@@ -138,8 +138,14 @@ interface VaultDeviceKeysRow {
 
 // ---- Module-level cached wrapping key ----
 
-let cachedClinicVaultKey: CryptoKey | null = null
-let cachedClinicId: string | null = null
+// Per-clinic wrapping-key cache. A device in N clinics (home + loans) holds one
+// key per clinic. A single shared mutable global (the old cachedClinicVaultKey /
+// cachedClinicId pair) let a concurrent or out-of-order drain seal one clinic's
+// snapshot with ANOTHER clinic's key — cross-clinic contamination producing an
+// undecryptable snapshot (AES-GCM OperationError) that then wedges compaction.
+// Keyed by clinicId; every drain captures its key as a LOCAL const so a later
+// Map mutation for a different clinic can never cross into an in-flight seal.
+const clinicVaultKeys = new Map<string, CryptoKey>()
 
 // ---- PBKDF2 Key Derivation ----
 
@@ -300,15 +306,13 @@ export async function deriveAndCacheClinicVaultKey(
   if (!data) return // Vault doesn't exist yet
 
   const saltBytes = hexToBytes(data.salt)
-  cachedClinicVaultKey = await deriveWrappingKey(encryptionKey, saltBytes, data.kdf_iterations)
-  cachedClinicId = clinicId
+  clinicVaultKeys.set(clinicId, await deriveWrappingKey(encryptionKey, saltBytes, data.kdf_iterations))
   logger.info('Clinic vault wrapping key cached')
 }
 
 /** Clear cached clinic vault key (called on sign-out). */
 export function clearClinicVaultKey(): void {
-  cachedClinicVaultKey = null
-  cachedClinicId = null
+  clinicVaultKeys.clear()
 }
 
 interface ClinicVaultMaterial {
@@ -553,12 +557,11 @@ interface LoadedClinicSnapshot {
 }
 
 /** Seal a snapshot payload with the cached clinic vault key (IV-prefixed AES-GCM, mirrors backupService). */
-async function sealClinicSnapshot(payload: ClinicSnapshotPayload): Promise<{ salt: string; ciphertext: string } | null> {
-  if (!cachedClinicVaultKey) return null
+async function sealClinicSnapshot(payload: ClinicSnapshotPayload, key: CryptoKey): Promise<{ salt: string; ciphertext: string }> {
   const compressed = deflateRaw(new TextEncoder().encode(JSON.stringify(payload)))
-  const salt = crypto.getRandomValues(new Uint8Array(32)) // schema-compat only; key is the cached clinic key
+  const salt = crypto.getRandomValues(new Uint8Array(32)) // schema-compat only; key is the per-clinic vault key
   const iv = crypto.getRandomValues(new Uint8Array(12))
-  const encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, cachedClinicVaultKey, compressed as BufferSource)
+  const encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, compressed as BufferSource)
   const combined = new Uint8Array(iv.length + encrypted.byteLength)
   combined.set(iv, 0)
   combined.set(new Uint8Array(encrypted), iv.length)
@@ -566,18 +569,17 @@ async function sealClinicSnapshot(payload: ClinicSnapshotPayload): Promise<{ sal
 }
 
 /** Open a snapshot ciphertext with the cached clinic vault key. Throws on auth-tag failure (wrong/rotated identity). */
-async function openClinicSnapshot(ciphertextB64: string): Promise<ClinicSnapshotPayload | null> {
-  if (!cachedClinicVaultKey) return null
+async function openClinicSnapshot(ciphertextB64: string, key: CryptoKey): Promise<ClinicSnapshotPayload> {
   const combined = base64ToUint8(ciphertextB64)
   const iv = combined.slice(0, 12)
   const ct = combined.slice(12)
-  const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, cachedClinicVaultKey, ct as BufferSource)
+  const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ct as BufferSource)
   const json = new TextDecoder().decode(inflateRaw(new Uint8Array(decrypted)))
   return JSON.parse(json) as ClinicSnapshotPayload
 }
 
 /** Read the latest clinic snapshot, or null if none / undecryptable (caller rebuilds from the archive). */
-async function readClinicSnapshot(clinicId: string): Promise<LoadedClinicSnapshot | null> {
+async function readClinicSnapshot(clinicId: string, key: CryptoKey): Promise<LoadedClinicSnapshot | null> {
   const { data, error } = await supabase
     .from('signal_backups')
     .select('ciphertext, backup_version')
@@ -587,8 +589,7 @@ async function readClinicSnapshot(clinicId: string): Promise<LoadedClinicSnapsho
     .maybeSingle()
   if (error || !data) return null
   try {
-    const payload = await openClinicSnapshot(data.ciphertext)
-    if (!payload) return null
+    const payload = await openClinicSnapshot(data.ciphertext, key)
     return { version: data.backup_version, payload }
   } catch (e) {
     // Undecryptable snapshot = wrong/rotated clinic identity. Fall back to archive
@@ -603,9 +604,9 @@ async function writeClinicSnapshot(
   clinicId: string,
   payload: ClinicSnapshotPayload,
   expectedVersion: number,
+  key: CryptoKey,
 ): Promise<number> {
-  const sealed = await sealClinicSnapshot(payload)
-  if (!sealed) return -1
+  const sealed = await sealClinicSnapshot(payload, key)
   const { data, error } = await supabase.rpc('write_clinic_snapshot', {
     p_clinic_id: clinicId,
     p_ciphertext: sealed.ciphertext,
@@ -657,7 +658,10 @@ export async function processClinicVaultMessages(
     return 0
   }
 
-  if (!cachedClinicVaultKey || cachedClinicId !== clinicId) {
+  // Capture THIS clinic's key as a local const for the whole drain. Never read
+  // the Map again below — a concurrent drain for another clinic could mutate it.
+  const clinicKey = clinicVaultKeys.get(clinicId)
+  if (!clinicKey) {
     logger.warn('Clinic vault wrapping key not cached — cannot process')
     return 0
   }
@@ -668,7 +672,7 @@ export async function processClinicVaultMessages(
     const blob = await decryptBlob(
       vaultRow.encrypted_blob,
       vaultRow.iv,
-      cachedClinicVaultKey
+      clinicKey
     )
     vaultKeys = await importVaultKeys(blob)
   } catch (e) {
@@ -695,7 +699,7 @@ export async function processClinicVaultMessages(
   // (idempotent upsert) and decrypts only the short tail past the watermark. No
   // snapshot yet — first-ever, or undecryptable after a re-provision — means
   // tailFloor '' = replay the whole archive once and build the first snapshot.
-  const snap = await readClinicSnapshot(clinicId)
+  const snap = await readClinicSnapshot(clinicId, clinicKey)
   let tailFloor = ''
   let baseVersion = 0
   if (snap) {
@@ -722,7 +726,7 @@ export async function processClinicVaultMessages(
     // transient blip. Poison the reconcile and bail.
     logger.warn('Failed to fetch clinic vault tail:', fetchError)
     if (opts.publishReconcile) poisonFullReplayReconcile()
-    await rotateClinicVaultSPK(clinicId, vaultKeys, vaultRow as VaultDeviceKeysRow)
+    await rotateClinicVaultSPK(clinicId, vaultKeys, vaultRow as VaultDeviceKeysRow, clinicKey)
     return 0
   }
 
@@ -733,7 +737,7 @@ export async function processClinicVaultMessages(
     if (opts.publishReconcile) {
       publishFullReplayLiveIds(snapshotCalendarEvents(clinicId).map(e => e.id))
     }
-    await rotateClinicVaultSPK(clinicId, vaultKeys, vaultRow as VaultDeviceKeysRow)
+    await rotateClinicVaultSPK(clinicId, vaultKeys, vaultRow as VaultDeviceKeysRow, clinicKey)
     return 0
   }
 
@@ -959,24 +963,39 @@ export async function processClinicVaultMessages(
   // is already preserved in the snapshot (the personal-vault "never reap until the
   // backup landed" contract). This one watermark-gated pass replaces the old
   // pair-clean + dead-row purge + per-device cursor entirely.
-  const newWatermark = (rows as SignalMessageRow[])[rows.length - 1].created_at
-  const hasNewTail = snap === null ? true : newWatermark > tailFloor
+  // Reap watermark must never reach an UNDECRYPTABLE (dead) row. A dead row was
+  // never routed into the store, so it is NOT in the snapshot built below —
+  // reaping it would destroy it permanently (the "a healthy pass can still purge
+  // the failed minority" hole: deadCount up to VAULT_PURGE_MAX_FAIL_RATIO still
+  // passes the health gate). Cap the watermark to the newest successfully-handled
+  // row STRICTLY BEFORE the earliest dead row; rows from there on stay in the
+  // tail for a future (possibly healthier) drain. Strict-before — not the row
+  // index before the dead one — so a same-timestamp fan-out batch can't slip a
+  // dead row under a `<= watermark` reap. Correctness over compaction completeness.
+  // No dead rows → reap the whole batch (the common, fully-healthy path).
+  let reapWatermark: string | null = (rows as SignalMessageRow[])[rows.length - 1].created_at
+  if (deadRowIdSet.size > 0) {
+    const earliestDead = (rows as SignalMessageRow[]).find(r => deadRowIdSet.has(r.id))!.created_at
+    const safeRows = (rows as SignalMessageRow[]).filter(r => r.created_at < earliestDead)
+    reapWatermark = safeRows.length > 0 ? safeRows[safeRows.length - 1].created_at : null
+  }
+  const hasNewTail = reapWatermark !== null && (snap === null ? true : reapWatermark > tailFloor)
   if (healthy && hasNewTail) {
     try {
       const payload: ClinicSnapshotPayload = {
         v: CLINIC_SNAPSHOT_PAYLOAD_VERSION,
-        watermark: newWatermark,
+        watermark: reapWatermark as string,
         events: snapshotCalendarEvents(clinicId),
         overlays: await snapshotOverlays(clinicId),
       }
-      const newVersion = await writeClinicSnapshot(clinicId, payload, baseVersion)
+      const newVersion = await writeClinicSnapshot(clinicId, payload, baseVersion, clinicKey)
       if (newVersion > 0) {
         const { error: reapErr } = await supabase.rpc('reap_clinic_vault_below', {
           p_clinic_id: clinicId,
-          p_watermark: newWatermark,
+          p_watermark: reapWatermark as string,
         })
         if (reapErr) logger.warn('reap_clinic_vault_below failed:', reapErr.message)
-        else logger.info(`Clinic vault snapshot v${newVersion} written; reaped archive <= ${newWatermark}`)
+        else logger.info(`Clinic vault snapshot v${newVersion} written; reaped archive <= ${reapWatermark}`)
       }
     } catch (e) {
       logger.warn('Clinic snapshot write/reap failed (archive preserved):', e)
@@ -1017,10 +1036,9 @@ async function exportSignedPreKey(spk: ImportedSignedPreKey): Promise<StoredSign
 async function rotateClinicVaultSPK(
   clinicId: string,
   vaultKeys: VaultPrivateKeys,
-  vaultRow: VaultDeviceKeysRow
+  vaultRow: VaultDeviceKeysRow,
+  key: CryptoKey,
 ): Promise<void> {
-  if (!cachedClinicVaultKey) return
-
   // Only rotate if current SPK is old enough — vault messages must remain
   // decryptable across logins, so frequent rotation is destructive.
   const spkAge = Date.now() - new Date(vaultKeys.signedPreKey.createdAt).getTime()
@@ -1071,7 +1089,7 @@ async function rotateClinicVaultSPK(
     const salt = hexToBytes(vaultRow.salt)
     const iv = crypto.getRandomValues(new Uint8Array(12))
     const ptBytes = new TextEncoder().encode(JSON.stringify(updatedBlob))
-    const ciphertext = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, cachedClinicVaultKey, ptBytes)
+    const ciphertext = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, ptBytes)
 
     const { data: rotateData, error: rotateError } = await supabase.from('vault_device_keys').update({
       encrypted_blob: uint8ToBase64(new Uint8Array(ciphertext)),

@@ -101,6 +101,7 @@ export const MASTER_BLOCKS: MasterPEBlock[] = [
                 { key: 'mildDistress', label: 'Mild distress' },
                 { key: 'moderateDistress', label: 'Moderate distress' },
             ], tier: 'baseline' },
+        { key: 'genAfebrile', normal: 'Afebrile', abnormals: [{ key: 'genFebrile', label: 'Febrile' }], tier: 'baseline' },
         ],
     },
 
@@ -210,6 +211,7 @@ export const MASTER_BLOCKS: MasterPEBlock[] = [
         { key: 'noTonsillarExudate', normal: 'No tonsillar exudate', abnormals: [{ key: 'tonsillarExudate', label: 'Tonsillar exudate' }], tier: 'expanded' },
         { key: 'lipsNormal', normal: 'Lips normal', abnormals: [{ key: 'lipLesion', label: 'Lip lesion' }], tier: 'expanded' },
         { key: 'noTrismus', normal: 'No trismus', abnormals: [{ key: 'trismus', label: 'Trismus' }], tier: 'expanded' },
+        { key: 'noDrooling', normal: 'No drooling', abnormals: [{ key: 'drooling', label: 'Drooling' }], tier: 'expanded' },
         ],
     },
 

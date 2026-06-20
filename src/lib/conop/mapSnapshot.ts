@@ -16,7 +16,7 @@
  * resolveColor (MapOverlayTypes). Projection helpers are exported for tests.
  */
 
-import { getTileSource, getTileFromCache, computeOverlayBbox } from '../mapTileService'
+import { getTileSource, getTileFromCache, getTileMeta, computeOverlayBbox } from '../mapTileService'
 import type { TileTheme } from '../../Components/MapOverlay/ThemedTileLayer'
 import { waypointIconSvg } from '../../Components/MapOverlay/WaypointIcon'
 import { resolveColor, type OverlayFeature } from '../../Types/MapOverlayTypes'
@@ -230,11 +230,27 @@ export async function renderConopMapSnapshot(
   if (!rawBbox) return null
   const bbox = padBbox(rawBbox, padFrac)
 
-  const source = getTileSource(basemapId)
+  // Align source + zoom to what the overlay's tiles were ACTUALLY bulk-cached
+  // under. Without this we default to OSM and a fit zoom up to 17 — but tiles are
+  // cached only at zoom 8–13/14 and possibly under a non-OSM source (imagery /
+  // topo). The mismatch is a total cache miss, and since the network fallback is
+  // street-only (imagery/topo would CORS-taint the export canvas) the basemap
+  // renders blank — "just the marker." Reading TileMetadata realigns both.
+  let effectiveBasemap = basemapId
+  let cacheZoomCap = 17
+  if (overlayId) {
+    const meta = await getTileMeta(overlayId)
+    if (meta) {
+      if (!effectiveBasemap && meta.sourceId) effectiveBasemap = meta.sourceId
+      if (typeof meta.zoomMax === 'number') cacheZoomCap = Math.min(cacheZoomCap, meta.zoomMax)
+    }
+  }
+
+  const source = getTileSource(effectiveBasemap)
   // Cap below the source max so a single linked waypoint shows neighborhood
-  // context (~z17) instead of over-zooming to a 2-block view. A whole-overlay
-  // bbox backs off further on its own via fitZoom.
-  const maxZoom = Math.min(source.maxZoom, 17)
+  // context instead of over-zooming to a 2-block view, and never exceed the
+  // cached zoom range. A whole-overlay bbox backs off further via fitZoom.
+  const maxZoom = Math.min(source.maxZoom, cacheZoomCap)
   const z = fitZoom(bbox, width, height, maxZoom, source.minZoom)
   const { recolorPixels } = await import('../../Components/MapOverlay/ThemedTileLayer')
 
@@ -273,7 +289,7 @@ export async function renderConopMapSnapshot(
       if (tx < 0 || ty < 0 || tx >= nTiles || ty >= nTiles) continue
       const destX = tx * TILE_PX - originX
       const destY = ty * TILE_PX - originY
-      tileJobs.push(drawTile(ctx, source, overlayId, basemapId, theme, recolorPixels, z, tx, ty, destX, destY))
+      tileJobs.push(drawTile(ctx, source, overlayId, effectiveBasemap, theme, recolorPixels, z, tx, ty, destX, destY))
     }
   }
   await Promise.all(tileJobs)

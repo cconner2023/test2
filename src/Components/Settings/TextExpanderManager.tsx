@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { Plus, TextCursorInput, Layers, MessageSquare, Download, Trash2 } from 'lucide-react';
+import { Plus, TextCursorInput, Layers, MessageSquare, Trash2 } from 'lucide-react';
 import type { TextExpander } from '../../Data/User';
 import { isFlatTemplate } from '../../Utilities/templateParser';
 import { OverlayActionMenu } from '../OverlayActionMenu';
@@ -36,7 +36,6 @@ interface TextExpanderManagerProps {
     cornerItems?: ContextMenuItem[];
     /** Per-row actions (long-press / right-click lifted-row menu). */
     onShareItem?: (expander: TextExpander) => void;
-    onExportItem?: (expander: TextExpander) => void;
     onDeleteItem?: (expander: TextExpander) => void;
 }
 
@@ -49,7 +48,6 @@ export const TextExpanderManager = ({
     isSupervisorRole = false,
     cornerItems,
     onShareItem,
-    onExportItem,
     onDeleteItem,
 }: TextExpanderManagerProps) => {
     const fabRef = useRef<HTMLDivElement>(null);
@@ -58,7 +56,7 @@ export const TextExpanderManager = ({
     // ride the row (clone includes the text) instead of an editor-header icon.
     const [lifted, setLifted] = useState<({ expander: TextExpander } & LiftSnapshot) | null>(null);
     const pressRef = useRef<LiftPressState | null>(null);
-    const hasRowActions = !!(onShareItem || onExportItem || onDeleteItem);
+    const hasRowActions = !!(onShareItem || onDeleteItem);
     const makeHandlers = useCallback((expander: TextExpander) =>
         liftPressHandlers((snap) => setLifted({ expander, ...snap }), pressRef), []);
 
@@ -144,7 +142,6 @@ export const TextExpanderManager = ({
                     layout="list"
                     items={[
                         ...(onShareItem ? [{ key: 'share', label: 'Share to chat', icon: MessageSquare, onAction: () => onShareItem(lifted.expander) }] : []),
-                        ...(onExportItem ? [{ key: 'export', label: 'Export to file', icon: Download, onAction: () => onExportItem(lifted.expander) }] : []),
                         ...(onDeleteItem ? [{ key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => onDeleteItem(lifted.expander) }] : []),
                     ] as ContextMenuItem[]}
                 />

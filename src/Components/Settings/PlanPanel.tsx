@@ -10,7 +10,6 @@ import { SearchInput } from '../SearchInput';
 import { TextInput } from '../FormInputs';
 import { ActionButton } from '../ActionButton';
 import { PlanAllBlocksPreview, CategoryPicker } from '../PlanBlockPreview';
-import type { LucideIcon } from 'lucide-react';
 import { CATEGORY_META, PlanTagManager } from './PlanTagManager';
 import { OrderSetManager } from './OrderSetManager';
 import { useClusterEditItem } from './ClusterEditPicker';
@@ -235,7 +234,6 @@ export const PlanPanel = () => {
                         })}
                         onTapNew={(anchor) => setOrderSetPopover({ mode: 'new', anchor: anchor.getBoundingClientRect() })}
                         onShareItem={(os) => transfer.share({ planOrderSets: [os] }, os.name)}
-                        onExportItem={(os) => transfer.exportFile({ planOrderSets: [os] }, os.name)}
                         onDeleteItem={(os) => deleteOrderSet(clinicOrderSetIds.has(os.id) ? 'clinic' : 'personal', os.id)}
                         cornerItems={orderSetCornerItems}
                     />
@@ -255,7 +253,6 @@ export const PlanPanel = () => {
                         })}
                         onTapNew={(anchor) => setTagPopover({ mode: 'new', anchor: anchor.getBoundingClientRect() })}
                         onShareItem={(key, tag) => transfer.share(tagToData(key, tag), tag)}
-                        onExportItem={(key, tag) => transfer.exportFile(tagToData(key, tag), tag)}
                         onDeleteItem={(key, tag) => deleteTag((clinicTagSets[key]?.has(tag) ?? false) ? 'clinic' : 'personal', key, tag)}
                     />
             </div>
@@ -464,17 +461,8 @@ function OrderSetEditPopover({
         state: { status: 'active' as const, selectedTags: presets[key] ?? [], freeText: '' },
     })), [allFor, presets]);
 
-    const groupedSelected = useMemo(() =>
-        ALL_KEYS
-            .map(key => ({
-                catKey: key,
-                catLabel: CATEGORY_META[key].label,
-                catIcon: CATEGORY_META[key].icon as LucideIcon,
-                catColor: CATEGORY_META[key].color,
-                catBg: CATEGORY_META[key].bg,
-                tags: presets[key] ?? [],
-            }))
-            .filter(g => g.tags.length > 0),
+    const selectedFlat = useMemo(() =>
+        ALL_KEYS.flatMap(key => (presets[key] ?? []).map(tag => ({ catKey: key, tag }))),
         [presets]
     );
 
@@ -512,36 +500,24 @@ function OrderSetEditPopover({
                             placeholder="Name (e.g. URI Basic)"
                         />
                     </div>
-                    {groupedSelected.length > 0 && (
+                    {selectedFlat.length > 0 && (
                         <div className="border-b border-primary/6">
                             <div className="px-4 pt-3 pb-1">
                                 <p className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest">
                                     Selected
                                 </p>
                             </div>
-                            <div className="px-2 pb-2 space-y-1">
-                                {groupedSelected.map(({ catKey, catLabel, catIcon: CatIcon, catColor, catBg, tags }) => (
-                                    <div key={catKey}>
-                                        <div className="flex items-center gap-2 px-2 pt-1.5 pb-0.5">
-                                            <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${catBg}`}>
-                                                <CatIcon size={11} className="text-themeblue2" />
-                                            </div>
-                                            <span className="text-[9pt] font-semibold uppercase tracking-widest text-themeblue2">{catLabel}</span>
-                                        </div>
-                                        <div className="pl-10">
-                                            {tags.map(tag => (
-                                                <div key={tag} className="flex items-center gap-2 py-1">
-                                                    <span className="flex-1 text-sm text-primary break-words min-w-0">{tag}</span>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => togglePreset(catKey, tag)}
-                                                        className="shrink-0 p-1 text-tertiary active:text-themeredred transition-colors"
-                                                    >
-                                                        <X size={12} />
-                                                    </button>
-                                                </div>
-                                            ))}
-                                        </div>
+                            <div className="px-4 pb-2">
+                                {selectedFlat.map(({ catKey, tag }) => (
+                                    <div key={`${catKey}-${tag}`} className="flex items-center gap-2 py-1">
+                                        <span className="flex-1 text-sm text-primary break-words min-w-0">{tag}</span>
+                                        <button
+                                            type="button"
+                                            onClick={() => togglePreset(catKey, tag)}
+                                            className="shrink-0 p-1 text-tertiary active:text-themeredred transition-colors"
+                                        >
+                                            <X size={12} />
+                                        </button>
                                     </div>
                                 ))}
                             </div>

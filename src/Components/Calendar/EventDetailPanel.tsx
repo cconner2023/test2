@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useMemo } from 'react'
-import { Pencil, X, Share2, Map as MapIcon, Copy, Check, Printer, Image, Ban, CircleDashed, Play, CheckCircle2, Clock, MessageSquare, FileText } from 'lucide-react'
+import { Pencil, X, Share2, Map as MapIcon, Copy, Check, Printer, Image, Ban, CircleDashed, Play, CheckCircle2, Clock, MessageSquare, FileText, MoreHorizontal } from 'lucide-react'
 import { reverseGeocode } from '../MapOverlay/searchResolver'
 import { latLngToUTM } from '../MapOverlay/utmProjection'
 import { OverlayTilePreview } from '../MapOverlay/OverlayTilePreview'
@@ -93,13 +93,6 @@ const STATUS_TRIGGER_ICON: Record<EventStatus, LucideIcon> = {
   cancelled:   Ban,
 }
 
-const STATUS_TRIGGER_COLOR: Record<EventStatus, string> = {
-  pending:     'text-tertiary',
-  in_progress: 'text-themeblue1',
-  completed:   'text-themegreen',
-  cancelled:   'text-themeredred',
-}
-
 export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, onCancelTemplate, apptTypeNames = [], canDeleteTemplate, onStatusChange, onUpdateSubtasks, checklistTemplates = [], assignedNames = [], linkedPropertyItems = [], overlayOptions, roomAnchor, hideHeader }: EventDetailPanelProps) {
   const isMobile = useIsMobile()
   const txt = isMobile ? 'text-sm' : 'text-[10pt]'
@@ -146,10 +139,9 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, 
       const sorted = [...(event.subtasks ?? [])].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
       const data: ConopData = {
         title: event.title || 'CONOP',
-        dtgRange:
-          formatDateTime(event.start_time, event.all_day) +
-          (!event.all_day ? ` – ${formatDateTime(event.end_time, false)}` : ''),
-        category: event.category,
+        startTime: event.start_time,
+        endTime: event.end_time,
+        allDay: event.all_day,
         location: event.location,
         assignedNames: assignedNames.map(a => a.name),
         uniform: event.uniform,
@@ -171,12 +163,12 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, 
   }
   const showCancelTemplate = event.category === 'templated' && !!onCancelTemplate && !isUnscheduledTemplate(event, apptTypeNames)
   const StatusIcon = STATUS_TRIGGER_ICON[event.status]
-  const [statusMenu, setStatusMenu] = useState<{ rect: DOMRect } | null>(null)
-  const statusBtnRef = useRef<HTMLDivElement>(null)
-  const openStatusMenu = () => {
-    const rect = statusBtnRef.current?.getBoundingClientRect()
+  const [moreMenu, setMoreMenu] = useState<{ rect: DOMRect } | null>(null)
+  const moreBtnRef = useRef<HTMLDivElement>(null)
+  const openMoreMenu = () => {
+    const rect = moreBtnRef.current?.getBoundingClientRect()
     if (!rect) return
-    setStatusMenu({ rect })
+    setMoreMenu({ rect })
   }
   void canDeleteTemplate
   const [copied, setCopied] = useState(false)
@@ -226,26 +218,33 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, 
     }, 'image/png')
   }
 
+  // Header actions collapsed into a single ellipsis menu (Close stays a pill).
+  const moreItems: ContextMenuItem[] = []
+  if (onStatusChange) {
+    const statusSub: ContextMenuItem[] = []
+    if (event.status !== 'pending')     statusSub.push({ key: 'pending',    label: 'Pending', icon: Clock,        onAction: () => onStatusChange(event.id, 'pending') })
+    if (event.status !== 'in_progress') statusSub.push({ key: 'inprogress', label: 'Active',  icon: Play,         onAction: () => onStatusChange(event.id, 'in_progress') })
+    if (event.status !== 'completed')   statusSub.push({ key: 'completed',  label: 'Done',    icon: CheckCircle2, onAction: () => onStatusChange(event.id, 'completed') })
+    if (event.status !== 'cancelled')   statusSub.push({ key: 'cancelled',  label: 'Cancel',  icon: Ban,          onAction: () => onStatusChange(event.id, 'cancelled'), destructive: true })
+    moreItems.push({ key: 'status', label: 'Set status', icon: StatusIcon, submenu: statusSub })
+  }
+  moreItems.push({ key: 'share-chat', label: 'Share to chat', icon: MessageSquare, onAction: handleShareToChat })
+  moreItems.push({ key: 'share-cal', label: 'Add to phone calendar', icon: Share2, onAction: () => shareSingleEvent(event).catch(() => {}) })
+  if (showCancelTemplate) moreItems.push({ key: 'cancel-appt', label: 'Cancel appointment', icon: Ban, onAction: () => onCancelTemplate?.(event.id) })
+  if (canExportConop) moreItems.push({ key: 'conop', label: 'CONOP PDF', icon: FileText, onAction: handleExportConop })
+  if (editable) moreItems.push({ key: 'edit', label: 'Edit', icon: Pencil, onAction: () => onEdit(event.id) })
+
   return (
     <div className="flex flex-col h-full">
       {!hideHeader && (
         <div className="flex items-center justify-between px-3 py-2 border-b border-primary/10 shrink-0">
           <div />
           <HeaderPill>
-            {onStatusChange && (
-              <div ref={statusBtnRef} className={STATUS_TRIGGER_COLOR[event.status]}>
-                <PillButton icon={StatusIcon} iconSize={16} onClick={openStatusMenu} label="Status" />
+            {moreItems.length > 0 && (
+              <div ref={moreBtnRef}>
+                <PillButton icon={MoreHorizontal} iconSize={16} onClick={openMoreMenu} label="More" />
               </div>
             )}
-            <PillButton icon={MessageSquare} iconSize={16} onClick={handleShareToChat} label="Share to chat" />
-            <PillButton icon={Share2} iconSize={16} onClick={() => shareSingleEvent(event).catch(() => {})} label="Add to phone calendar" />
-            {showCancelTemplate && (
-              <PillButton icon={Ban} iconSize={16} onClick={() => onCancelTemplate?.(event.id)} label="Cancel appointment" />
-            )}
-            {canExportConop && (
-              <PillButton icon={FileText} iconSize={16} onClick={handleExportConop} label="CONOP PDF" />
-            )}
-            {editable && <PillButton icon={Pencil} iconSize={16} onClick={() => onEdit(event.id)} label="Edit" />}
             <PillButton icon={X} iconSize={16} onClick={onClose} label="Close" />
           </HeaderPill>
         </div>
@@ -491,25 +490,16 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, 
         <div className={isMobile ? 'h-16 shrink-0' : 'h-8 shrink-0'} />
       </div>
 
-      {statusMenu && onStatusChange && (() => {
-        const apply = (next: EventStatus) => { onStatusChange(event.id, next); setStatusMenu(null) }
-        const items: ContextMenuItem[] = []
-        if (event.status !== 'pending')     items.push({ key: 'pending',    label: 'Pending', icon: Clock,        onAction: () => apply('pending') })
-        if (event.status !== 'in_progress') items.push({ key: 'inprogress', label: 'Active',  icon: Play,         onAction: () => apply('in_progress') })
-        if (event.status !== 'completed')   items.push({ key: 'completed',  label: 'Done',    icon: CheckCircle2, onAction: () => apply('completed') })
-        if (event.status !== 'cancelled')   items.push({ key: 'cancelled',  label: 'Cancel',  icon: Ban,          onAction: () => apply('cancelled'), destructive: true })
-        if (items.length === 0) { setStatusMenu(null); return null }
-        return (
-          <AnchoredMenu
-            isOpen
-            anchorRect={statusMenu.rect}
-            onClose={() => setStatusMenu(null)}
-            layout="list"
-            header="Set status"
-            items={items}
-          />
-        )
-      })()}
+      {moreMenu && (
+        <AnchoredMenu
+          isOpen
+          anchorRect={moreMenu.rect}
+          onClose={() => setMoreMenu(null)}
+          layout="list"
+          align="right"
+          items={moreItems}
+        />
+      )}
 
       {shareToChatPicker}
     </div>

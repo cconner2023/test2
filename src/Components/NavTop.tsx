@@ -350,7 +350,7 @@ export function NavTop({ search, import: importProps, actions, ui }: NavTopProps
                                         >
                                             <MessageSquare style={{ width: 20, height: 20 }} />
                                             {totalUnread > 0 && (
-                                                <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 flex items-center justify-center rounded-full bg-themeredred text-white text-[9pt] font-bold leading-none">
+                                                <span className="absolute top-1.5 right-1.5 min-w-[15px] h-[15px] px-1 flex items-center justify-center rounded-full bg-themeredred text-white text-[8pt] font-bold leading-none ring-2 ring-themewhite">
                                                     {totalUnread > 99 ? '99+' : totalUnread}
                                                 </span>
                                             )}

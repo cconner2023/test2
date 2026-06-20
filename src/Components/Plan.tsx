@@ -11,6 +11,7 @@ import { EmptyState } from './EmptyState';
 import type { MergedPlanOrderSet } from '../Hooks/useMergedNoteContent';
 import { ActionPill } from './ActionPill';
 import { ActionButton } from './ActionButton';
+import { Chip, ChipBar } from './Chip';
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -578,28 +579,23 @@ export const Plan = ({ orderTags, instructionTags, orderSets = [], initialText, 
                             <div className="w-full rounded-2xl bg-themewhite shadow-xl border border-tertiary/10 overflow-hidden shrink-0">
                                 <div className="py-2 px-3">
                                     <p className="text-[9pt] md:text-[9pt] font-semibold text-tertiary uppercase tracking-wider mb-2">Order Sets</p>
-                                    <div className="flex overflow-x-auto gap-1.5 pb-1" style={{ scrollbarWidth: 'none' }}>
+                                    <ChipBar>
                                         {orderSets.map(os => {
                                             const isActive = activeSetIds.has(os.id);
                                             return (
-                                                <button
+                                                <Chip
                                                     key={os.id}
-                                                    type="button"
+                                                    active={isActive}
                                                     onClick={() => applyOrderSet(os)}
-                                                    className={`shrink-0 px-3 py-1.5 text-[10pt] rounded-full transition-colors active:scale-95 ${
-                                                        isActive
-                                                            ? 'bg-tertiary/8 text-primary font-medium'
-                                                            : 'bg-tertiary/5 text-tertiary'
-                                                    }`}
                                                 >
                                                     {os.name}
                                                     {os.sourceCollides && (
-                                                        <span className="ml-1 text-[8pt] text-themeblue2/80">· {os.sourceClinicName ?? 'Personal'}</span>
+                                                        <span className={`ml-1 text-[8pt] ${isActive ? 'text-white/80' : 'text-themeblue2/80'}`}>· {os.sourceClinicName ?? 'Personal'}</span>
                                                     )}
-                                                </button>
+                                                </Chip>
                                             );
                                         })}
-                                    </div>
+                                    </ChipBar>
                                 </div>
                             </div>
                         )}

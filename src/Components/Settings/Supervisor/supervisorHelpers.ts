@@ -7,6 +7,13 @@ import type { Certification } from '../../../Data/User'
 import type { CalendarEvent } from '../../../Types/CalendarTypes'
 import { getExpirationStatus } from '../../Certifications/certHelpers'
 import { listAlgorithmsWithStp } from '../../../Utilities/algorithmStp'
+import {
+  ALGO_SYNTH_DIMS,
+  algoDimKey,
+  algoDimLabel,
+  synthesizeAlgoTaskData,
+  type AlgoSynthDim,
+} from '../../../Utilities/algorithmCompetency'
 
 // ─── Encounter Log (algorithm completions) ───────────────────────────────────
 // Algorithm "log to calendar" writes a calendar event tagged with
@@ -65,44 +72,89 @@ export function groupEncounters(events: CalendarEvent[]): EncounterGroup[] {
   return Array.from(byAlgo.values()).sort((a, b) => b.lastAt.localeCompare(a.lastAt))
 }
 
-// ─── Algorithm Trained Status ────────────────────────────────────────────────
-// Distinct from the Encounter Log (which counts how often an algorithm was LOGGED).
-// "Trained" = the soldier has a supervisor `test` completion with result GO for
-// every STP the algorithm maps to (the validated tier; same signal the medic-side
-// useAlgorithmTraining hook derives, but computed here for ANY soldier's tests).
+// ─── Algorithm Competency (composite category) ───────────────────────────────
+// Treats an algorithm as a training CATEGORY (like "Medication Management"),
+// scored as the SUM of four dimensions: STP data + red flags + differentials +
+// algorithm run. Distinct from the Encounter Log (which counts how often an
+// algorithm was LOGGED). Each dimension is derived from supervisor `test`
+// completions: STP dims read the mapped STP task numbers; the synthetic dims read
+// `algo:<id>:<dim>` keys (see Utilities/algorithmCompetency).
 
-export type AlgorithmTrainedLevel = 'trained' | 'partial' | 'untrained'
+export type AlgorithmCompetencyLevel = 'trained' | 'partial' | 'untrained'
 
-export interface AlgorithmTrainedStatus {
+export interface AlgorithmDimScore {
+  dim: 'stp' | AlgoSynthDim
+  label: string
+  /** Graded items passed (test GO). */
+  validated: number
+  /** Total graded items in this dimension. */
+  total: number
+  /** True when every graded item in the dimension is GO. */
+  met: boolean
+}
+
+export interface AlgorithmCompetency {
   id: string
   name: string
-  /** Mapped STP count. */
-  total: number
-  /** Mapped STPs with a latest `test` GO. */
-  validated: number
-  status: AlgorithmTrainedLevel
+  /** Item-count-weighted composite, 0–100. */
+  pct: number
+  status: AlgorithmCompetencyLevel
+  /** Per-dimension breakdown (only dimensions the algorithm actually has). */
+  dims: AlgorithmDimScore[]
+}
+
+/** GO-step count for a synthetic dimension's single completion record. */
+function synthValidated(latest: TrainingCompletionUI | undefined, total: number): number {
+  if (!latest) return 0
+  if (latest.stepResults && latest.stepResults.length) {
+    return latest.stepResults.filter((s) => s.result === 'GO').length
+  }
+  return latest.result === 'GO' ? total : 0
 }
 
 /**
- * Per-algorithm trained status for one soldier, derived from their test
- * completions. Covers every algorithm that maps to STPs (incl. never-logged).
- * Sorted trained → partial → untrained, then by name.
+ * Per-algorithm composite competency for one soldier, derived from their test
+ * completions. Covers every algorithm that maps to STPs. Sorted worst-first
+ * (untrained → partial → trained, then higher % first) so gaps surface on top —
+ * mirrors the Training Competency category ordering.
  */
-export function buildAlgorithmTrainedStatus(
+export function buildAlgorithmCompetency(
   tests: TrainingCompletionUI[]
-): AlgorithmTrainedStatus[] {
+): AlgorithmCompetency[] {
   const latestByTask = getLatestTestByTask(tests)
-  const rows = listAlgorithmsWithStp().map((a): AlgorithmTrainedStatus => {
-    const validated = a.taskNumbers.filter(
-      (tn) => latestByTask.get(tn)?.result === 'GO'
-    ).length
-    const total = a.taskNumbers.length
-    const status: AlgorithmTrainedLevel =
-      validated >= total ? 'trained' : validated > 0 ? 'partial' : 'untrained'
-    return { id: a.id, name: a.name, total, validated, status }
+
+  const rows = listAlgorithmsWithStp().map((a): AlgorithmCompetency => {
+    const dims: AlgorithmDimScore[] = []
+
+    // STP dimension — real STP completions, testable STPs only.
+    const stpKeys = a.taskNumbers.filter(isTaskTestable)
+    if (stpKeys.length > 0) {
+      const validated = stpKeys.filter((tn) => latestByTask.get(tn)?.result === 'GO').length
+      dims.push({ dim: 'stp', label: 'STP data', validated, total: stpKeys.length, met: validated >= stpKeys.length })
+    }
+
+    // Synthetic dimensions — only those with backing content.
+    for (const dim of ALGO_SYNTH_DIMS) {
+      const data = synthesizeAlgoTaskData(a.id, dim)
+      if (!data) continue
+      const total = data.gradedSteps?.length ?? 0
+      const validated = synthValidated(latestByTask.get(algoDimKey(a.id, dim)), total)
+      dims.push({ dim, label: algoDimLabel(dim), validated, total, met: total > 0 && validated >= total })
+    }
+
+    const totalItems = dims.reduce((s, d) => s + d.total, 0)
+    const validItems = dims.reduce((s, d) => s + d.validated, 0)
+    const pct = totalItems ? Math.round((validItems / totalItems) * 100) : 0
+    const status: AlgorithmCompetencyLevel =
+      dims.length > 0 && dims.every((d) => d.met) ? 'trained' : validItems > 0 ? 'partial' : 'untrained'
+
+    return { id: a.id, name: a.name, pct, status, dims }
   })
-  const order: Record<AlgorithmTrainedLevel, number> = { trained: 0, partial: 1, untrained: 2 }
-  return rows.sort((a, b) => order[a.status] - order[b.status] || a.name.localeCompare(b.name))
+
+  const order: Record<AlgorithmCompetencyLevel, number> = { untrained: 0, partial: 1, trained: 2 }
+  return rows.sort(
+    (a, b) => order[a.status] - order[b.status] || b.pct - a.pct || a.name.localeCompare(b.name),
+  )
 }
 
 // ─── Name Formatting ─────────────────────────────────────────────────────────

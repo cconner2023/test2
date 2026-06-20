@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { Plus, UserPlus, Pill, ScanLine, FlaskConical, CalendarCheck, ClipboardList, MessageSquare, Download, Trash2 } from 'lucide-react';
+import { Plus, UserPlus, Pill, ScanLine, FlaskConical, CalendarCheck, ClipboardList, MessageSquare, Trash2, Building2 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { PlanOrderTags, PlanBlockKey } from '../../Data/User';
 import { PLAN_ORDER_CATEGORIES } from '../../Data/User';
@@ -30,21 +30,20 @@ interface PlanTagManagerProps {
     onTapNew: (anchor: HTMLElement) => void;
     /** Per-row actions (long-press / right-click lifted-row menu). */
     onShareItem?: (key: PlanBlockKey, tag: string) => void;
-    onExportItem?: (key: PlanBlockKey, tag: string) => void;
     onDeleteItem?: (key: PlanBlockKey, tag: string) => void;
 }
 
 export const PlanTagManager = ({
     orderTags, instructionTags, clinicTagSets, isSupervisorRole, filter = '', onTapTag, onTapNew,
-    onShareItem, onExportItem, onDeleteItem,
+    onShareItem, onDeleteItem,
 }: PlanTagManagerProps) => {
     const fabRef = useRef<HTMLDivElement>(null);
 
-    // Lift-and-clone row menu (long-press / right-click) — Share / Export / Delete
+    // Lift-and-clone row menu (long-press / right-click) — Share / Delete
     // ride the tag row (clone includes the text) instead of an editor-header icon.
     const [lifted, setLifted] = useState<({ key: PlanBlockKey; tag: string } & LiftSnapshot) | null>(null);
     const pressRef = useRef<LiftPressState | null>(null);
-    const hasRowActions = !!(onShareItem || onExportItem || onDeleteItem);
+    const hasRowActions = !!(onShareItem || onDeleteItem);
     const makeHandlers = useCallback((key: PlanBlockKey, tag: string) =>
         liftPressHandlers((snap) => setLifted({ key, tag, ...snap }), pressRef), []);
 
@@ -74,7 +73,6 @@ export const PlanTagManager = ({
                     <div className="p-2 space-y-2">
                         {visibleCategories.map(key => {
                             const meta = CATEGORY_META[key];
-                            const Icon = meta.icon;
                             const tags = tagsByKey[key];
                             return (
                                 <div
@@ -83,9 +81,6 @@ export const PlanTagManager = ({
                                     className="overflow-hidden"
                                 >
                                     <div className="flex items-center gap-2.5 px-3 py-2 border-b border-primary/6">
-                                        <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${meta.bg}`}>
-                                            <Icon size={12} className={meta.color} />
-                                        </div>
                                         <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">
                                             {meta.label}
                                         </p>
@@ -104,13 +99,9 @@ export const PlanTagManager = ({
                                                     className="w-full flex items-center justify-between gap-2 px-3 py-2.5 text-left border-b border-primary/6 last:border-0 hover:bg-themeblue3/5 active:scale-[0.99] disabled:active:scale-100 transition-colors"
                                                 >
                                                     <span className="text-sm text-primary min-w-0 break-words">{tag}</span>
-                                                    <span className={`text-[9pt] font-semibold tracking-wider uppercase px-1.5 py-0.5 rounded-full shrink-0 ${
-                                                        isClinic
-                                                            ? 'bg-themeblue2/10 text-themeblue2'
-                                                            : 'bg-tertiary/10 text-tertiary'
-                                                    }`}>
-                                                        {isClinic ? 'Cluster' : 'Personal'}
-                                                    </span>
+                                                    {isClinic && (
+                                                        <Building2 size={12} className="text-themeblue2 shrink-0" aria-label="Cluster" />
+                                                    )}
                                                 </button>
                                             );
                                         })}
@@ -141,7 +132,6 @@ export const PlanTagManager = ({
                     layout="list"
                     items={[
                         ...(onShareItem ? [{ key: 'share', label: 'Share to chat', icon: MessageSquare, onAction: () => onShareItem(lifted.key, lifted.tag) }] : []),
-                        ...(onExportItem ? [{ key: 'export', label: 'Export to file', icon: Download, onAction: () => onExportItem(lifted.key, lifted.tag) }] : []),
                         ...(onDeleteItem ? [{ key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => onDeleteItem(lifted.key, lifted.tag) }] : []),
                     ] as ContextMenuItem[]}
                 />

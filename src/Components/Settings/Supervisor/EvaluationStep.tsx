@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Check, ChevronRight, X } from 'lucide-react'
-import { getTaskData, type PerformanceStep } from '../../../Data/TrainingData'
+import { type PerformanceStep } from '../../../Data/TrainingData'
+import { getEvaluableTaskData } from '../../../Utilities/algorithmCompetency'
 import type { StepResult } from '../../../Types/SupervisorTestTypes'
 import { StepCallout } from '../../TrainingStepComponents'
 import { SectionHeader } from '../../Section'
@@ -19,7 +20,7 @@ export function EvaluationStep({
   medicName: string
   onSubmit: (stepResults: StepResult[], notes: string) => void
 }) {
-  const taskData = getTaskData(taskNumber)
+  const taskData = getEvaluableTaskData(taskNumber)
   const [results, setResults] = useState<Map<string, 'GO' | 'NO_GO'>>(new Map())
   const [notes, setNotes] = useState('')
 

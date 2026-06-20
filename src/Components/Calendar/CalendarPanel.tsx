@@ -728,6 +728,9 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
       if (newEventPrefill.encounterAlgorithmId) {
         base = { ...base, encounter_algorithm_id: newEventPrefill.encounterAlgorithmId }
       }
+      if (newEventPrefill.assignedTo && newEventPrefill.assignedTo.length > 0) {
+        base = { ...base, assigned_to: newEventPrefill.assignedTo }
+      }
       if (newEventPrefill.startISO) {
         const start = new Date(newEventPrefill.startISO)
         if (!Number.isNaN(start.getTime())) {

@@ -23,6 +23,8 @@ export interface CalendarPrefill {
     category?: EventCategory
     /** Tag the event with an ADTMC algorithm id (e.g. "A-1") for encounter rollups. */
     encounterAlgorithmId?: string
+    /** Pre-assign the event to these user ids (e.g. the soldier a supervisor is scheduling for). */
+    assignedTo?: string[]
 }
 
 /** Where to send the user back to after a deep-linked calendar event is saved

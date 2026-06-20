@@ -15,8 +15,28 @@ export interface AlgorithmOptions {
 }
 
 export interface questionOptions {
-    text: string
+    text: string,
+    /**
+     * Optional routing tag — composes this list item into a structured note
+     * section based on the medic's YES/NO answer (selected = YES).
+     *   - hpi: YES → positive history statement, NO → pertinent negative.
+     *   - pe:  YES → abnormal finding (abnormalKey), NO → normal finding.
+     * Untagged options behave exactly as before. Plan is already structured via
+     * decisionMaking (ancillaryFind / medFind / specLim).
+     */
+    noteTag?: NoteTag
 }
+
+export type NoteTag =
+    | {
+        target: 'hpi',
+        /** Override the noun used in prose (e.g. "cough" for an option labeled "No Cough"). */
+        label?: string,
+        /** Flip polarity — YES becomes a pertinent negative. For negatively-phrased
+         *  criteria like "No Cough" where selected = absence. */
+        invert?: boolean,
+    }
+    | { target: 'pe'; findingKey: string; abnormalKey?: string }
 export interface answerOptions {
     text: string,
     disposition: dispositionType[],
@@ -48,6 +68,9 @@ export interface decisionMakingType {
     medFind?: medListTypes[];
     specLim?: string[];  // Changed to string array
     ddx?: string[];
+    /** Discrete patient-care instructions composed into the note's PLAN section
+     *  (consolidates the minor-care protocol prose into actionable items). */
+    planInstructions?: string[];
 }
 
 // ---------------------------------------------------------------------------

@@ -1,4 +1,4 @@
-import { Plus, MessageSquare, Download, Trash2 } from 'lucide-react';
+import { Plus, MessageSquare, Trash2, Building2 } from 'lucide-react';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import type { PlanOrderSet, PlanBlockKey } from '../../Data/User';
 import { PLAN_ORDER_CATEGORIES } from '../../Data/User';
@@ -20,23 +20,22 @@ interface OrderSetManagerProps {
      *  menu alongside the New action this manager owns. */
     cornerItems?: ContextMenuItem[];
     /** Per-row actions (long-press / right-click lifted-row menu). When any are
-     *  set, editable rows raise a clone-and-menu with Share / Export / Delete. */
+     *  set, editable rows raise a clone-and-menu with Share / Delete. */
     onShareItem?: (os: PlanOrderSet) => void;
-    onExportItem?: (os: PlanOrderSet) => void;
     onDeleteItem?: (os: PlanOrderSet) => void;
 }
 
 export const OrderSetManager = ({
     orderSets, clinicOrderSetIds, isSupervisorRole, filter = '', onTapRow, onTapNew, cornerItems,
-    onShareItem, onExportItem, onDeleteItem,
+    onShareItem, onDeleteItem,
 }: OrderSetManagerProps) => {
     const fabRef = useRef<HTMLDivElement>(null);
 
-    // Lift-and-clone row menu (long-press / right-click) — Share / Export / Delete
+    // Lift-and-clone row menu (long-press / right-click) — Share / Delete
     // ride the row itself (clone includes the text) instead of an editor-header icon.
     const [lifted, setLifted] = useState<({ os: PlanOrderSet } & LiftSnapshot) | null>(null);
     const pressRef = useRef<LiftPressState | null>(null);
-    const hasRowActions = !!(onShareItem || onExportItem || onDeleteItem);
+    const hasRowActions = !!(onShareItem || onDeleteItem);
     const makeHandlers = useCallback((os: PlanOrderSet) =>
         liftPressHandlers((snap) => setLifted({ os, ...snap }), pressRef), []);
 
@@ -77,9 +76,7 @@ export const OrderSetManager = ({
                                         <div className="flex items-center">
                                             <p className="text-sm font-medium text-primary truncate">{os.name}</p>
                                             {isClinic && (
-                                                <span className="text-[9pt] font-semibold tracking-wider uppercase px-1.5 py-0.5 rounded-full bg-tertiary/10 text-tertiary shrink-0 ml-1.5">
-                                                    Clinic
-                                                </span>
+                                                <Building2 size={12} className="text-themeblue2 shrink-0 ml-1.5" aria-label="Cluster" />
                                             )}
                                         </div>
                                         {tags.length > 0 && (
@@ -115,7 +112,6 @@ export const OrderSetManager = ({
                     layout="list"
                     items={[
                         ...(onShareItem ? [{ key: 'share', label: 'Share to chat', icon: MessageSquare, onAction: () => onShareItem(lifted.os) }] : []),
-                        ...(onExportItem ? [{ key: 'export', label: 'Export to file', icon: Download, onAction: () => onExportItem(lifted.os) }] : []),
                         ...(onDeleteItem ? [{ key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => onDeleteItem(lifted.os) }] : []),
                     ] as ContextMenuItem[]}
                 />

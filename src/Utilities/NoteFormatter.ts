@@ -157,7 +157,7 @@ export function formatAlgorithmContent(
 // Decision making content
 // ---------------------------------------------------------------------------
 
-function findTriggeringDecisionMaking(
+export function findTriggeringDecisionMaking(
     algorithmOptions: AlgorithmOptions[],
     cardStates: CardState[],
     dispositionType: string,
