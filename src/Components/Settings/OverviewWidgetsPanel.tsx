@@ -5,7 +5,6 @@ import type { OverviewWidgetId } from '../../Data/User'
 import { OVERVIEW_WIDGET_META } from '../../Data/User'
 import { ToggleSwitch } from './ToggleSwitch'
 import { SettingsToggleRow } from './SettingsToggleRow'
-import { useAuthStore } from '../../stores/useAuthStore'
 
 const WIDGET_ICONS: Record<OverviewWidgetId, LucideIcon> = {
     'task-list':   ListTodo,
@@ -23,7 +22,6 @@ const DEFAULT_WIDGETS: OverviewWidgetId[] = ['kanban', 'messages']
 
 export function OverviewWidgetsPanel() {
     const { profile, updateProfile, syncProfileField } = useUserProfile()
-    const isDevRole = useAuthStore(s => s.isDevRole)
 
     const isVisible = profile.overviewWidgets !== null
     const VALID_IDS = new Set<string>(WIDGET_ORDER)
@@ -76,7 +74,7 @@ export function OverviewWidgetsPanel() {
                             <p className="text-[9pt] text-tertiary">{active.length} / 3</p>
                         </div>
                         <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden" data-tour="mission-overview-widget-list">
-                            {WIDGET_ORDER.filter(id => id !== 'map-overlay' || isDevRole).map((id, idx) => {
+                            {WIDGET_ORDER.map((id, idx) => {
                                 const meta = OVERVIEW_WIDGET_META[id]
                                 const Icon = WIDGET_ICONS[id]
                                 const isOn = active.includes(id)

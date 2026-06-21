@@ -240,6 +240,13 @@ export function SoldierProfile({
     () => algorithmCompetency.filter(a => a.status === 'trained').length,
     [algorithmCompetency],
   )
+  // Team Coverage Gaps shows Algorithms as one row whose % is the mean across
+  // the per-algorithm scores. Mirror that here so the soldier-level "Algorithms"
+  // row reads the same as its subject-area peers.
+  const algorithmsAggregatePercent = useMemo(() => {
+    if (algorithmCompetency.length === 0) return 0
+    return Math.round(algorithmCompetency.reduce((s, a) => s + a.pct, 0) / algorithmCompetency.length)
+  }, [algorithmCompetency])
 
   const sortedTests = useMemo(() => {
     return [...tests].sort((a, b) => {
@@ -394,34 +401,6 @@ export function SoldierProfile({
         />
       )}
 
-      {/* Algorithm Competency — collapsed to a single row that drills into the
-          grouped (by category) per-algorithm list. Mirrors the master view's
-          Coverage Gaps "Algorithms" row → AlgorithmGapList. */}
-      <div data-tour="supervisor-algorithm-competency">
-        <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">
-          Algorithm Competency
-        </p>
-        <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
-          <button
-            onClick={onOpenAlgorithms}
-            disabled={!onOpenAlgorithms || algorithmCompetency.length === 0}
-            className="w-full flex items-center gap-3 px-4 py-3 text-left enabled:hover:bg-themeblue2/5 enabled:active:scale-[0.99] disabled:cursor-default transition-all"
-          >
-            <span className="text-sm font-medium text-primary flex-1 min-w-0 truncate">Algorithms</span>
-            {algorithmCompetency.length === 0 ? (
-              <span className="text-[9pt] text-tertiary shrink-0">No algorithms map to STP tasks</span>
-            ) : (
-              <>
-                <span className="text-[9pt] font-medium text-tertiary shrink-0">
-                  {algorithmTrainedCount}/{algorithmCompetency.length} trained
-                </span>
-                <ChevronRight size={16} className="text-tertiary shrink-0" />
-              </>
-            )}
-          </button>
-        </div>
-      </div>
-
       {/* Certifications */}
       <div>
         <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">
@@ -476,7 +455,7 @@ export function SoldierProfile({
         <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">
           Training Competency
         </p>
-        {categoryCompetency.length === 0 ? (
+        {categoryCompetency.length === 0 && algorithmCompetency.length === 0 ? (
           <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden px-4 py-4">
             <p className="text-sm text-tertiary">No testable tasks available</p>
           </div>
@@ -505,6 +484,34 @@ export function SoldierProfile({
                 <ChevronRight size={14} className="text-tertiary shrink-0" />
               </button>
             ))}
+
+            {/* Algorithms — composite competency treated as a training category
+                (peer of subject areas), mirroring the team Coverage Gaps row.
+                Drills into the grouped per-algorithm list (SoldierAlgorithmList). */}
+            {algorithmCompetency.length > 0 && (
+              <button
+                data-tour="supervisor-algorithm-competency"
+                onClick={onOpenAlgorithms}
+                disabled={!onOpenAlgorithms}
+                className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-themeblue2/5 active:scale-95 transition-all disabled:active:scale-100"
+              >
+                <span className="text-sm font-medium text-primary min-w-0 truncate shrink-0 w-36">
+                  Algorithms
+                </span>
+                <div className="flex-1 min-w-0">
+                  <div className="h-1.5 rounded-full bg-tertiary/10 overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all ${readinessColor(algorithmsAggregatePercent)}`}
+                      style={{ width: `${algorithmsAggregatePercent}%` }}
+                    />
+                  </div>
+                </div>
+                <span className={`text-[9pt] font-medium w-12 text-right ${readinessTextColor(algorithmsAggregatePercent)}`}>
+                  {algorithmTrainedCount}/{algorithmCompetency.length}
+                </span>
+                <ChevronRight size={14} className="text-tertiary shrink-0" />
+              </button>
+            )}
           </div>
         )}
       </div>

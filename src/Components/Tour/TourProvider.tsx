@@ -66,8 +66,7 @@ function waitForTarget(target: string, timeout = 3000): Promise<boolean> {
 // ─── Provider ────────────────────────────────────────────────────────────────
 
 export function TourProvider({ children, onboardingBlocked = false }: { children: React.ReactNode; onboardingBlocked?: boolean }) {
-  const { isDevRole } = useAuth()
-  if (!GUIDED_TOURS_ENABLED && !isDevRole) return <>{children}</>
+  if (!GUIDED_TOURS_ENABLED) return <>{children}</>
   return <TourProviderInner onboardingBlocked={onboardingBlocked}>{children}</TourProviderInner>
 }
 

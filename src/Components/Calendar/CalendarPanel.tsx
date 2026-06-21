@@ -159,13 +159,17 @@ function DayClone({ dateKey }: { dateKey: string }) {
  *  controls read identically wherever they surface. */
 function ConfigRow<T extends string | number | boolean>({ label, options, current, onPick }: {
   label: string
-  options: { value: T; icon: LucideIcon; ariaLabel: string }[]
+  options: { value: T; icon: LucideIcon; ariaLabel: string; text: string }[]
   current: T
   onPick: (v: T) => void
 }) {
+  const selected = options.find(o => o.value === current)
   return (
     <div className="flex items-center gap-3">
-      <p className="flex-1 min-w-0 text-sm font-medium text-primary">{label}</p>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium text-primary">{label}</p>
+        {selected && <p className="text-[10pt] text-tertiary truncate">{selected.text}</p>}
+      </div>
       <ActionPill shadow="sm" className="shrink-0">
         {options.map(opt => {
           const isActive = current === opt.value
@@ -1091,7 +1095,12 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
 
   // ── Sub-views (form / detail) — desktop: full panel replacement ──
 
-  // ConfirmDialog must render in every branch — extract as a shared element
+  // ConfirmDialog must render in every branch — extract as a shared element.
+  // Delete is triggered from inside the mobile event Sheet (zIndex 1200), but
+  // this dialog is a JSX sibling of that Sheet, so OverlayStackContext gives it
+  // ceiling=0 and it would default to Z.MODAL (70) — buried under the Sheet.
+  // Explicit z-floor 1300 clears the Sheet (same fix as MapOverlayPanel's
+  // SubDrawer confirms). Harmless on desktop, where nothing competes at 1200.
   const deleteConfirmDialog = (
     <ConfirmDialog
       visible={!!confirmDeleteEvent}
@@ -1099,6 +1108,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
       subtitle="Permanent. Removed for all cluster members."
       confirmLabel="Delete"
       variant="danger"
+      zIndex={1300}
       onConfirm={() => {
         if (confirmDeleteEvent) {
           const id = confirmDeleteEvent
@@ -1250,8 +1260,8 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                     <ConfigRow<boolean>
                       label="Weekends"
                       options={[
-                        { value: false, icon: CalendarDays, ariaLabel: 'Show weekends' },
-                        { value: true, icon: CalendarOff, ariaLabel: 'Hide weekends' },
+                        { value: false, icon: CalendarDays, ariaLabel: 'Show weekends', text: 'Shown' },
+                        { value: true, icon: CalendarOff, ariaLabel: 'Hide weekends', text: 'Hidden' },
                       ]}
                       current={hideWeekends}
                       onPick={setHideWeekends}
@@ -1261,9 +1271,9 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                     <ConfigRow<typeof daySpan>
                       label="Layout"
                       options={[
-                        { value: 1, icon: Square, ariaLabel: 'Single day' },
-                        { value: 3, icon: Columns3, ariaLabel: 'Triple day' },
-                        { value: 'summary', icon: ListChecks, ariaLabel: 'Summary (huddle read-out)' },
+                        { value: 1, icon: Square, ariaLabel: 'Single day', text: 'Single day' },
+                        { value: 3, icon: Columns3, ariaLabel: 'Triple day', text: 'Triple day' },
+                        { value: 'summary', icon: ListChecks, ariaLabel: 'Summary (huddle read-out)', text: 'Summary' },
                       ]}
                       current={daySpan}
                       onPick={setDaySpan}
@@ -1274,9 +1284,9 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                       <ConfigRow<typeof t2tZoom>
                         label="Cells"
                         options={[
-                          { value: 'hour', icon: Clock, ariaLabel: 'Hourly cells' },
-                          { value: 'expanded', icon: Grid2x2, ariaLabel: '20-minute cells' },
-                          { value: 'day', icon: CalendarRange, ariaLabel: 'Daily cells' },
+                          { value: 'hour', icon: Clock, ariaLabel: 'Hourly cells', text: 'Hourly' },
+                          { value: 'expanded', icon: Grid2x2, ariaLabel: '20-minute cells', text: '20-minute' },
+                          { value: 'day', icon: CalendarRange, ariaLabel: 'Daily cells', text: 'Daily' },
                         ]}
                         current={t2tZoom}
                         onPick={setT2TZoom}
@@ -1284,8 +1294,8 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                       <ConfigRow<boolean>
                         label="Rows"
                         options={[
-                          { value: false, icon: Rows3, ariaLabel: 'All personnel rows' },
-                          { value: true, icon: Megaphone, ariaLabel: 'Huddle band only' },
+                          { value: false, icon: Rows3, ariaLabel: 'All personnel rows', text: 'All personnel' },
+                          { value: true, icon: Megaphone, ariaLabel: 'Huddle band only', text: 'Huddle only' },
                         ]}
                         current={t2tHuddleOnly}
                         onPick={setT2THuddleOnly}

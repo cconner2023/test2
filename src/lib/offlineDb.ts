@@ -945,6 +945,12 @@ export async function getLocalAuditLogsBySubject(subjectId: string): Promise<Loc
   })
 }
 
+/** Get a single local audit event by id (for in-place edit/delete of PMCS hx). */
+export async function getLocalAuditLog(eventId: string): Promise<LocalAuditLog | undefined> {
+  const db = await getDb()
+  return db.get('auditLog', eventId)
+}
+
 /** Save or update an audit event in IndexedDB (upsert by id — append-only in
  *  spirit; updates only stamp the server-assigned seq / sync status). */
 export async function saveLocalAuditLog(event: LocalAuditLog): Promise<void> {

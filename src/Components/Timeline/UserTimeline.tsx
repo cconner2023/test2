@@ -255,44 +255,48 @@ export function UserTimeline({ subjectId, clinicId, seedEvents, calendarEntries,
   const closeAll = () => { setShowAll(false); setQuery('') }
 
   return (
-    <div className="relative">
+    <div>
       <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">
         {title}{total > 0 && ` · ${total}`}
       </p>
-      <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
-        {loading ? (
-          <div className="flex items-center justify-center px-4 py-6">
-            <Loader2 size={16} className="animate-spin text-tertiary" />
-          </div>
-        ) : total === 0 ? (
-          <p className="text-[10pt] text-tertiary px-4 py-4">No timeline events yet</p>
-        ) : (
-          <div className="divide-y divide-tertiary/8">
-            {preview.future.map((r) => (
-              <TimelineRow key={r.id} row={r} future />
-            ))}
-            <NowDivider />
-            {preview.past.map((r) => (
-              <TimelineRow key={r.id} row={r} future={false} />
-            ))}
-          </div>
+      {/* relative wraps ONLY the card so the overlay pill rides the card's top
+          edge (canonical EmptyState/ActionPill primitive), not the heading. */}
+      <div className="relative">
+        <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+          {loading ? (
+            <div className="flex items-center justify-center px-4 py-6">
+              <Loader2 size={16} className="animate-spin text-tertiary" />
+            </div>
+          ) : total === 0 ? (
+            <p className="text-[10pt] text-tertiary px-4 py-4">No timeline events yet</p>
+          ) : (
+            <div className="divide-y divide-tertiary/8">
+              {preview.future.map((r) => (
+                <TimelineRow key={r.id} row={r} future />
+              ))}
+              <NowDivider />
+              {preview.past.map((r) => (
+                <TimelineRow key={r.id} row={r} future={false} />
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Action pill — "View all" opens the full searchable timeline; callers
+            can fold extra actions (e.g. "View in calendar") into the same pill. */}
+        {(total > 0 || actions) && (
+          <ActionPill shadow="sm" placement="overlay">
+            {total > 0 && (
+              <ActionButton icon={History} label="View all" onClick={() => setShowAll(true)} />
+            )}
+            {actions}
+          </ActionPill>
         )}
       </div>
 
-      {/* Action pill — "View all" opens the full searchable timeline; callers can
-          fold extra actions (e.g. "View in calendar") into the same pill. */}
-      {(total > 0 || actions) && (
-        <ActionPill shadow="sm" placement="overlay">
-          {total > 0 && (
-            <ActionButton icon={History} label="View all" onClick={() => setShowAll(true)} />
-          )}
-          {actions}
-        </ActionPill>
-      )}
-
       <Sheet isOpen={showAll} onClose={closeAll} title={title} maxHeight={90}>
         <div className="px-4 pt-1 pb-2">
-          <SearchInput value={query} onChange={setQuery} placeholder="Search timeline…" autoFocus />
+          <SearchInput value={query} onChange={setQuery} placeholder="Search timeline…" />
         </div>
         {full.future.length === 0 && full.past.length === 0 ? (
           <p className="text-[10pt] text-tertiary px-4 py-8 text-center">No matching events</p>

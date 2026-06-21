@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { Reply, Forward, Ban, MoreHorizontal } from 'lucide-react'
+import { Reply, Forward, Ban, MoreHorizontal, Trash2 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { Section } from '../Section'
 import { ActionButton } from '../ActionButton'
@@ -36,18 +36,18 @@ interface Display {
   panel: string | null
 }
 
-// The pool offered by the picker. Single-use actions (reply / forward / menu)
-// dedupe across directions; `off` is multi-use. Legacy `delete` still resolves
-// in the model (and is per-message gated) but is not offered as a global pref.
-const POOL: SwipeBinding[] = ['reply', 'forward', 'menu', 'off']
+// The pool offered by the picker. Single-use actions (reply / forward / delete /
+// menu) dedupe across directions; `off` is multi-use. `delete` is per-message
+// gated downstream — MessageBubble resolves it to `off` on messages the user
+// can't delete (non-own), so binding it here is always safe.
+const POOL: SwipeBinding[] = ['reply', 'forward', 'delete', 'menu', 'off']
 
 const DISPLAY: Record<SwipeBinding, Display> = {
   reply: { label: 'Reply', icon: Reply, panel: 'bg-themeblue2' },
   forward: { label: 'Forward', icon: Forward, panel: 'bg-themeblue1' },
   menu: { label: 'More', icon: MoreHorizontal, panel: 'bg-themeblue3' },
   off: { label: 'None', icon: Ban, panel: null },
-  // legacy value — shown if a user persisted it before the simplification
-  delete: { label: 'Delete', icon: Ban, panel: 'bg-themeredred' },
+  delete: { label: 'Delete', icon: Trash2, panel: 'bg-themeredred' },
 }
 
 const DIRECTIONS: { key: keyof SwipeActions; label: string; side: 'left' | 'right' }[] = [

@@ -95,7 +95,7 @@ export type TourActionHandler = (action: string) => void | Promise<void>
 // No timer-restart effects. No isPlaying gymnastics.
 
 export function useTour(onAction?: TourActionHandler, isMobile = true) {
-  const { isSupervisorRole, isProviderRole, isDevRole } = useAuth()
+  const { isSupervisorRole, isProviderRole } = useAuth()
 
   const [progress, setProgress] = useState<TourProgress>(loadProgress)
   const [activeTourId, setActiveTourId] = useState<string | null>(null)
@@ -122,7 +122,6 @@ export function useTour(onAction?: TourActionHandler, isMobile = true) {
 
   const availableTours = allTours.filter(t => {
     if (t.releaseOnly) return false // reachable only via a release note, not the catalog
-    if (t.devOnly && !isDevRole) return false
     if (t.tier === 'supervisor' && !isSupervisorRole) return false
     if (t.tier === 'provider' && !isProviderRole) return false
     return true
@@ -132,11 +131,10 @@ export function useTour(onAction?: TourActionHandler, isMobile = true) {
   const canStartTour = useCallback((tourId: string) => {
     const t = allTours.find(x => x.id === tourId)
     if (!t) return false
-    if (t.devOnly && !isDevRole) return false
     if (t.tier === 'supervisor' && !isSupervisorRole) return false
     if (t.tier === 'provider' && !isProviderRole) return false
     return true
-  }, [isDevRole, isSupervisorRole, isProviderRole])
+  }, [isSupervisorRole, isProviderRole])
 
   const activeTour = activeTourId
     ? allTours.find(t => t.id === activeTourId) ?? null

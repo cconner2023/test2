@@ -1,5 +1,5 @@
 import { useState, useMemo, forwardRef, useImperativeHandle, type RefObject } from 'react'
-import { ScanLine, ArrowRightLeft, GitMerge, Plus, Minus, Check, MessageSquare, Pencil, Trash2 } from 'lucide-react'
+import { ScanLine, ArrowRightLeft, GitMerge, Plus, Minus, Check, MessageSquare, Pencil, Trash2, Wrench } from 'lucide-react'
 import { SectionCard } from '../Section'
 import { type ContextMenuItem } from '../ContextMenu'
 import { LiftedRowMenu } from '../LiftedRowMenu'
@@ -11,7 +11,7 @@ import { expiryStatus } from '../../Types/PropertyTypes'
 import { usePropertyStore } from '../../stores/usePropertyStore'
 import { useShareToChat } from '../Messages/ShareToChatPicker'
 import { ItemTimeline } from '../Timeline/ItemTimeline'
-import { ItemPmcs } from './ItemPmcs'
+import { PmcsSheet } from './PmcsSheet'
 
 export interface PropertyItemDetailHandle {
   /** Open the action menu (Edit / Move / Merge / Share / Enroll / Delete) anchored to the
@@ -58,6 +58,7 @@ export const PropertyItemDetail = forwardRef<PropertyItemDetailHandle, PropertyI
 
   const [showSplitSheet, setShowSplitSheet] = useState(false)
   const [showMergeSheet, setShowMergeSheet] = useState(false)
+  const [showPmcs, setShowPmcs] = useState(false)
   const [splitQty, setSplitQty] = useState(1)
   const [splitTargetId, setSplitTargetId] = useState<string | null>(null)
   const [menuAnchor, setMenuAnchor] = useState<{ rect: DOMRect } | null>(null)
@@ -287,9 +288,6 @@ export const PropertyItemDetail = forwardRef<PropertyItemDetailHandle, PropertyI
         </div>
       )}
 
-      {/* PMCS — open faults + clean-check logging (replaces condition chips). */}
-      <ItemPmcs subjectId={item.id} clinicId={item.clinic_id} />
-
       {/* Lifecycle timeline (creation, move, assign/transfer, edit, expend, faults) */}
       <ItemTimeline
         subjectId={item.id}
@@ -320,6 +318,7 @@ export const PropertyItemDetail = forwardRef<PropertyItemDetailHandle, PropertyI
             ...(!item.is_serialized && mergeCandidates.length > 0
               ? [{ key: 'merge', label: 'Merge like items', icon: GitMerge, onAction: () => setShowMergeSheet(true) } as ContextMenuItem]
               : []),
+            { key: 'pmcs', label: 'PMCS', icon: Wrench, onAction: () => setShowPmcs(true) },
             { key: 'share', label: 'Share to chat', icon: MessageSquare, onAction: handleShareToChat },
             { key: 'enroll', label: item.visual_fingerprint ? 'Update Visual ID' : 'Enroll Visual ID', icon: ScanLine, onAction: onEnroll },
             ...(onDelete && canDelete ? [{ key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: onDelete } as ContextMenuItem] : []),
@@ -405,6 +404,16 @@ export const PropertyItemDetail = forwardRef<PropertyItemDetailHandle, PropertyI
           </PreviewOverlay>
         </>
       )}
+
+      {/* PMCS — preview-overlay launched from the ellipsis menu (open faults to
+          correct / clean-check / report + editable, deletable history). */}
+      <PmcsSheet
+        isOpen={showPmcs}
+        onClose={() => setShowPmcs(false)}
+        subjectId={item.id}
+        clinicId={item.clinic_id}
+        containerRef={containerRef}
+      />
 
       {shareToChatPicker}
     </div>

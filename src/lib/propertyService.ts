@@ -8,7 +8,7 @@ import { supabase } from './supabase'
 import { succeed, fail, type ServiceResult } from './result'
 import { createLogger } from '../Utilities/Logger'
 import { addToSyncQueue } from './offlineDb'
-import { emitAudit } from './auditService'
+import { emitAudit, updateAuditEvent, deleteAuditEvent } from './auditService'
 import {
   getDb,
   getLocalPropertyItems,
@@ -464,6 +464,48 @@ export async function recordPmcs(
     if (!event) return fail('Could not record PMCS')
 
     immediateSync(userId)
+    return succeed()
+  } catch (err) {
+    return fail(String(err))
+  }
+}
+
+/**
+ * Edit a PMCS history entry's text in place — a fault.opened description or a
+ * fault.corrected note. `payload` is the FULL new payload for that event type
+ * (e.g. { description } for a fault, { corrects, note } for a correction — the
+ * caller preserves `corrects`). Re-encrypts + hard-updates the audit row.
+ */
+export async function editPmcsEntry(
+  eventId: string,
+  payload: Record<string, unknown>,
+  userId: string,
+): Promise<ServiceResult> {
+  try {
+    const row = await updateAuditEvent(eventId, payload, userId)
+    if (!row) return fail('Could not edit entry')
+    // Await the push: a hard edit re-writes an existing (often already-synced) row,
+    // so the caller's refetch must see the new payload — otherwise the read-through
+    // cache re-surfaces the stale server copy over our optimistic edit.
+    await immediateSync(userId)
+    return succeed()
+  } catch (err) {
+    return fail(String(err))
+  }
+}
+
+/**
+ * Delete a PMCS history entry (fault / correction / clean check). Hard-removes
+ * the audit row — append-only was relaxed for audit_log on 2026-06-21.
+ */
+export async function deletePmcsEntry(eventId: string, userId: string): Promise<ServiceResult> {
+  try {
+    const ok = await deleteAuditEvent(eventId, userId)
+    if (!ok) return fail('Could not delete entry')
+    // Await the push: the row is hard-deleted server-side, so the caller's refetch
+    // must run AFTER the delete lands — otherwise the read-through cache re-fetches
+    // and re-persists the still-present server row, resurrecting the entry.
+    await immediateSync(userId)
     return succeed()
   } catch (err) {
     return fail(String(err))

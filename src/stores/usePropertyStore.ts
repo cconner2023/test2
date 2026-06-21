@@ -31,6 +31,8 @@ import {
   raiseFault as raiseFaultSvc,
   correctFault as correctFaultSvc,
   recordPmcs as recordPmcsSvc,
+  editPmcsEntry as editPmcsEntrySvc,
+  deletePmcsEntry as deletePmcsEntrySvc,
   signOutItems,
   signInReceipt,
   fetchClinicLedger,
@@ -107,6 +109,11 @@ interface PropertyState {
   correctFault: (subjectType: 'item' | 'location', subjectId: string, faultId: string, note?: string) => Promise<boolean>
   /** Record a PMCS with no new faults — logs a clean-check paper-trail entry. */
   recordPmcs: (subjectType: 'item' | 'location', subjectId: string) => Promise<boolean>
+  /** Edit a PMCS history entry in place — `payload` is the full new event payload
+   *  ({ description } for a fault, { corrects, note } for a correction). */
+  editPmcsEntry: (eventId: string, payload: Record<string, unknown>) => Promise<boolean>
+  /** Delete a PMCS history entry (fault / correction / clean check). */
+  deletePmcsEntry: (eventId: string) => Promise<boolean>
 }
 
 let cleanupListeners: (() => void) | null = null
@@ -306,6 +313,24 @@ export const usePropertyStore = create<PropertyState>((set, get) => ({
     if (!user || !clinicId) return false
 
     const result = await recordPmcsSvc(subjectType, subjectId, clinicId, user.id)
+    if (result.success) invalidate('properties')
+    return result.success
+  },
+
+  editPmcsEntry: async (eventId, payload) => {
+    const user = useAuthStore.getState().user
+    if (!user) return false
+
+    const result = await editPmcsEntrySvc(eventId, payload, user.id)
+    if (result.success) invalidate('properties')
+    return result.success
+  },
+
+  deletePmcsEntry: async (eventId) => {
+    const user = useAuthStore.getState().user
+    if (!user) return false
+
+    const result = await deletePmcsEntrySvc(eventId, user.id)
     if (result.success) invalidate('properties')
     return result.success
   },

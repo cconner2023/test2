@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { ChevronLeft, ChevronRight, MapPin, Users2, ListChecks, CalendarOff } from 'lucide-react'
+import { ChevronLeft, ChevronRight, MapPin, ListChecks, CalendarOff } from 'lucide-react'
 import type { CalendarEvent } from '../../Types/CalendarTypes'
 import { STATUS_META, toDateKey } from '../../Types/CalendarTypes'
 import { useCategoryColors } from '../../Hooks/useCategoryColors'
@@ -93,20 +93,16 @@ export function DaySummaryView({
               {event.title || 'Untitled event'}
             </span>
           </div>
-          {(event.location || assigned.length > 0 || subs.length > 0) && (
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10pt] text-tertiary">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10pt] text-tertiary">
               {event.location && (
                 <span className="inline-flex items-center gap-1 min-w-0 max-w-full">
                   <MapPin size={11} className="shrink-0" />
                   <span className="truncate">{event.location}</span>
                 </span>
               )}
-              {assigned.length > 0 && (
-                <span className="inline-flex items-center gap-1 min-w-0 max-w-full">
-                  <Users2 size={11} className="shrink-0" />
-                  <span className="truncate">{assigned.join(', ')}</span>
-                </span>
-              )}
+              <span className="min-w-0 max-w-full truncate">
+                {assigned.length > 0 ? assigned.join(', ') : 'Unassigned'}
+              </span>
               {subs.length > 0 && (
                 <span className="inline-flex items-center gap-1">
                   <ListChecks size={11} className="shrink-0" />
@@ -114,7 +110,6 @@ export function DaySummaryView({
                 </span>
               )}
             </div>
-          )}
         </div>
       </button>
     )

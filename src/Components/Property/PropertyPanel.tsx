@@ -12,7 +12,7 @@ import type { ReceiptItem } from '../../Hooks/useHandReceipts'
 import { PropertyBreadcrumb } from './PropertyBreadcrumb'
 import { PropertySearchOverlay } from './PropertySearchOverlay'
 import { PropertyLocationForm, type PropertyLocationFormHandle } from './PropertyLocationForm'
-import { PropertyLocationDetail, buildLocationMenuItems, usePropertyPhotoUpload } from './PropertyLocationDetail'
+import { PropertyLocationDetail, buildLocationMenuItems, usePropertyPhotoUpload, type PropertyLocationDetailHandle } from './PropertyLocationDetail'
 import { LocationMapLinkPicker } from './LocationMapLinkPicker'
 import { PropertyItemForm, type PropertyItemFormHandle } from './PropertyItemForm'
 import { PropertyLocationMap, type MapNavHandle } from './PropertyLocationMap'
@@ -112,6 +112,7 @@ export const PropertyPanel = memo(function PropertyPanel({
   const itemFormRef = useRef<PropertyItemFormHandle>(null)
   const locationFormRef = useRef<PropertyLocationFormHandle>(null)
   const itemDetailRef = useRef<PropertyItemDetailHandle>(null)
+  const locDetailRef = useRef<PropertyLocationDetailHandle>(null)
   // Desktop right pane — scopes the item's split/merge PreviewOverlay so it dims
   // and centers within the pane rather than spanning the whole viewport.
   const detailPaneRef = useRef<HTMLDivElement>(null)
@@ -327,6 +328,7 @@ export const PropertyPanel = memo(function PropertyPanel({
     onRemovePhoto: () => store.editLocation(loc.id, { photo_data: null }),
     onLinkMap: () => setMapLinkLoc(loc),
     onDelete: () => setPendingDeleteLocId(loc.id),
+    onPmcs: () => locDetailRef.current?.openPmcs(),
   })
 
   // Trayed FAB in a positioning wrapper — matches Calendar/Admin's add FAB
@@ -513,6 +515,7 @@ export const PropertyPanel = memo(function PropertyPanel({
                 </div>
                 <div className="flex-1 min-h-0 overflow-y-auto">
                   <PropertyLocationDetail
+                    ref={locDetailRef}
                     location={selectedLocation}
                     locations={visibleLocations}
                     items={store.items}
@@ -527,6 +530,7 @@ export const PropertyPanel = memo(function PropertyPanel({
                     onDeleteItem={onDeleteItem ? (item) => setPendingDeleteItem(item) : undefined}
                     onAddChildLocation={handleAddChildLocation}
                     onAddItemAtLocation={handleAddItemAtLocation}
+                    containerRef={detailPaneRef}
                   />
                 </div>
               </>
@@ -698,6 +702,7 @@ export const PropertyPanel = memo(function PropertyPanel({
           />
         ) : selectedLocation ? (
           <PropertyLocationDetail
+            ref={locDetailRef}
             location={selectedLocation}
             locations={visibleLocations}
             items={store.items}

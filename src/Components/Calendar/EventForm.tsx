@@ -9,7 +9,6 @@ import type { ClinicPreCombatCheck } from '../../lib/supervisorService'
 import { TextInput, PickerInput, DatePickerInput, TimeInput } from '../FormInputs'
 import { UserAvatar } from '../Settings/UserAvatar'
 import { useIsMobile } from '../../Hooks/useIsMobile'
-import { useAuthStore } from '../../stores/useAuthStore'
 import { MedevacForm } from '../Medevac/MedevacForm'
 import { emptyMedevacRequest } from '../../Types/MedevacTypes'
 
@@ -89,7 +88,6 @@ interface EventFormProps {
 export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
   function EventForm({ initialData, onSave, isEditing, medics, propertyItems, overlayOptions, roomOptions, huddleTaskOptions, clinicOptions, checklistTemplates, onCreateOverlay }, ref) {
     const isMobile = useIsMobile()
-    const isDevRole = useAuthStore(s => s.isDevRole)
     const { resolve: resolveCategoryColor } = useCategoryColors()
     const [form, setForm] = useState<EventFormData>(initialData ?? createEmptyFormData())
     const [errors, setErrors] = useState<Record<string, string>>({})
@@ -236,7 +234,7 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
                     updateField('room_id', null)
                   }
                 }}
-                options={EVENT_CATEGORIES.filter(c => !c.hidden && (!c.devOnly || isDevRole)).map(c => c.label)}
+                options={EVENT_CATEGORIES.filter(c => !c.hidden).map(c => c.label)}
                 placeholder="Category *"
                 required
               />

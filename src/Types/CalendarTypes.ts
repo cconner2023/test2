@@ -162,7 +162,7 @@ export interface EventFormData {
   encounter_algorithm_id?: string | null
 }
 
-export const EVENT_CATEGORIES: { value: EventCategory; label: string; color: string; solidColor: string; hidden?: boolean; devOnly?: boolean }[] = [
+export const EVENT_CATEGORIES: { value: EventCategory; label: string; color: string; solidColor: string; hidden?: boolean }[] = [
   { value: 'training',    label: 'Training',    color: 'bg-themeblue3/20',  solidColor: 'bg-themeblue3' },
   { value: 'duty',        label: 'Duty',        color: 'bg-themeblue3/20',  solidColor: 'bg-themeblue3' },
   { value: 'range',       label: 'Range',       color: 'bg-themeblue3/20',  solidColor: 'bg-themeblue3' },

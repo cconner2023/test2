@@ -78,8 +78,8 @@ export function NavBar({ onKnowledgeBaseClick, onMessagesClick, onPropertyClick,
                 </button>
             )}
 
-            {/* Map Overlay — beta, auth required */}
-            {isAuthenticated && isDevRole && (
+            {/* Map Overlay — auth required */}
+            {isAuthenticated && (
                 <button onClick={onMapOverlayClick} className={BTN} aria-label="Map Overlay" title="Map Overlay">
                     <Map className="w-4 h-4 stroke-themeblue1" />
                     <span className="hidden lg:inline text-[10pt] text-tertiary">Map</span>

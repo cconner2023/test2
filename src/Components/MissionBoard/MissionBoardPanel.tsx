@@ -343,7 +343,6 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
   const allEvents = useCalendarStore(s => s.events)
   const updateEvent = useCalendarStore(s => s.updateEvent)
   const userId = useAuthStore(s => s.user?.id)
-  const isDevRole = useAuthStore(s => s.isDevRole)
   const events = allEvents
   const isSupervisor = useAuthStore(s => s.isSupervisorRole)
   const overviewWidgets = useAuthStore(s => s.profile?.overviewWidgets)
@@ -479,7 +478,7 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
     (overviewWidgets ?? DEFAULT_WIDGETS)
       .map(id => (id as string) === 'gantt' ? 'kanban' : id)
       .filter((id): id is OverviewWidgetId => (VALID_IDS as string[]).includes(id))
-  )).filter(id => id !== 'map-overlay' || isDevRole)
+  ))
 
   const renderActionOverlay = (id: OverviewWidgetId) => {
     const action = widgetAction(id)

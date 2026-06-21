@@ -36,8 +36,6 @@ export interface TourDefinition {
   steps: TourStep[]
   /** Scene-based tours render their own mock UI instead of manipulating the live app */
   scene?: string
-  /** If true, only visible to dev-role users (tour not yet production-ready) */
-  devOnly?: boolean
   /** If true, this tour is NOT listed in the Guided Tours catalog — it is reachable
    *  only via a release note that references its id. Returns the user to the Release
    *  Notes panel on completion. Retired when its note rolls off Release.ts. */

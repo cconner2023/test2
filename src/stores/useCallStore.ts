@@ -7,7 +7,6 @@
 
 import { create } from 'zustand'
 import type { CallStatus, CallDirection, CallMode, CallPeer } from '../lib/webrtc/types'
-import { useAuthStore } from './useAuthStore'
 
 interface CallState {
   status: CallStatus
@@ -65,9 +64,7 @@ export const useCallStore = create<CallState & CallActions>()((set, get) => ({
     set({ status: 'ended', endReason: reason })
     // Keep the overlay open so the caller can leave a voicemail when an
     // outgoing call never connected. Otherwise auto-reset to idle after 2s.
-    // Dev-gated until voicemail is validated in prod — non-dev calls keep the
-    // original 2s auto-reset so they never get stuck in the ended state.
-    const canVoicemail = useAuthStore.getState().isDevRole && st.direction === 'outgoing' && st.connectedAt === null && VOICEMAIL_REASONS.has(reason)
+    const canVoicemail = st.direction === 'outgoing' && st.connectedAt === null && VOICEMAIL_REASONS.has(reason)
     if (canVoicemail) return
     setTimeout(() => {
       // Only reset if still in 'ended' state (avoid race with a new call)

@@ -18,7 +18,9 @@ import { encryptAuditPayload, decryptAuditPayload } from './cryptoService'
 import {
   addToSyncQueue,
   saveLocalAuditLog,
+  getLocalAuditLog,
   getLocalAuditLogsBySubject,
+  deleteLocalAuditLog,
   type LocalAuditLog,
 } from './offlineDb'
 import type { AuditDomain, AuditEvent, EmitAuditInput } from './auditTypes'
@@ -157,6 +159,103 @@ export async function emitAudit(
     // primary mutation (a transfer/grade/loan must still succeed).
     logger.error('emitAudit failed:', getErrorMessage(err, String(err)))
     return null
+  }
+}
+
+/**
+ * Edit an existing event's encrypted payload in place — re-encrypts `newPayload`
+ * with the clinic key and enqueues a hard `update` to audit_log. The event keeps
+ * its id, seq, subject and occurred_at; only payload_enc (and a fresh updated_at
+ * for last-write-wins) change. Used for PMCS history edits (fix a fault's text /
+ * a correction note). audit_log gained UPDATE/DELETE RLS on 2026-06-21 — before
+ * that it was strictly append-only.
+ *
+ * Encrypt-or-defer mirrors emitAudit: if the clinic key is unavailable the row is
+ * stored locally in 'error' state and NOT enqueued (no plaintext on the wire).
+ * Returns the updated local row, or null if the event is unknown / edit failed.
+ */
+export async function updateAuditEvent(
+  eventId: string,
+  newPayload: Record<string, unknown>,
+  userId: string,
+): Promise<LocalAuditLog | null> {
+  try {
+    const existing = await getLocalAuditLog(eventId)
+    if (!existing) {
+      logger.warn(`updateAuditEvent: event ${eventId} not found locally`)
+      return null
+    }
+
+    const payloadEnc = await encryptAuditPayload(existing.clinic_id, newPayload)
+    const deferred = payloadEnc == null // key unavailable
+    const nowIso = new Date().toISOString()
+
+    const row: LocalAuditLog = {
+      ...existing,
+      payload_enc: payloadEnc,
+      _sync_status: deferred ? 'error' : 'pending',
+      _sync_retry_count: 0,
+      _last_sync_error: null,
+      _last_sync_error_message: deferred
+        ? 'clinic key unavailable — payload unencrypted, sync deferred'
+        : null,
+    }
+
+    await saveLocalAuditLog(row)
+
+    if (deferred) {
+      logger.warn(`Audit edit ${eventId} deferred: clinic key unavailable`)
+      return row
+    }
+
+    // seq is GENERATED ALWAYS — never send it in an update. updated_at backs
+    // the sync layer's last-write-wins compare.
+    await addToSyncQueue({
+      user_id: userId,
+      action: 'update',
+      table_name: 'audit_log',
+      record_id: eventId,
+      payload: {
+        id: row.id,
+        clinic_id: row.clinic_id,
+        actor_id: row.actor_id,
+        domain: row.domain,
+        event_type: row.event_type,
+        subject_type: row.subject_type,
+        subject_id: row.subject_id,
+        occurred_at: row.occurred_at,
+        payload_enc: row.payload_enc,
+        updated_at: nowIso,
+      },
+    })
+
+    return row
+  } catch (err) {
+    logger.error('updateAuditEvent failed:', getErrorMessage(err, String(err)))
+    return null
+  }
+}
+
+/**
+ * Hard-delete an audit event — removes the local row and enqueues a `delete` to
+ * audit_log. Used for deleting a PMCS history entry (fault / correction / clean
+ * check). Append-only was relaxed for this on 2026-06-21; the row is physically
+ * removed, not tombstoned. Returns true if the local delete + enqueue succeeded.
+ */
+export async function deleteAuditEvent(eventId: string, userId: string): Promise<boolean> {
+  try {
+    await deleteLocalAuditLog(eventId)
+    await addToSyncQueue({
+      user_id: userId,
+      action: 'delete',
+      table_name: 'audit_log',
+      record_id: eventId,
+      payload: {},
+    })
+    return true
+  } catch (err) {
+    logger.error('deleteAuditEvent failed:', getErrorMessage(err, String(err)))
+    return false
   }
 }
 

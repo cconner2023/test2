@@ -27,7 +27,7 @@ const logger = createLogger('CategoryColorSettings')
  * defaults read-only.
  */
 export function CategoryColorSettings() {
-  const { clinicId: assignedClinicId, supervisingClinicId, isSupervisorRole, isDevRole } = useAuth()
+  const { clinicId: assignedClinicId, supervisingClinicId, isSupervisorRole } = useAuth()
   const clinicId = supervisingClinicId ?? assignedClinicId
   const clinicsGen = useInvalidation('clinics')
   const [colors, setColors] = useState<CategoryColorMap>({})
@@ -47,7 +47,7 @@ export function CategoryColorSettings() {
     return () => { cancelled = true }
   }, [clinicId, clinicsGen])
 
-  const categories = EVENT_CATEGORIES.filter(c => !c.hidden && (!c.devOnly || isDevRole))
+  const categories = EVENT_CATEGORIES.filter(c => !c.hidden)
 
   const persist = async (next: CategoryColorMap) => {
     if (!clinicId) return

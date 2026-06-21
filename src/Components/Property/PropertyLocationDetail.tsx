@@ -1,13 +1,20 @@
-import { useRef, useCallback } from 'react'
-import { Pencil, Package, FolderPlus, Camera, X, Trash2, MapPin, Layers } from 'lucide-react'
+import { useRef, useState, useCallback, forwardRef, useImperativeHandle, type RefObject } from 'react'
+import { Pencil, Package, FolderPlus, Camera, X, Trash2, MapPin, Layers, Wrench } from 'lucide-react'
 import type { ContextMenuItem } from '../ContextMenu'
 import type { LocalPropertyItem, LocalPropertyLocation, HolderInfo } from '../../Types/PropertyTypes'
 import { PropertyLocationTree } from './PropertyLocationTree'
-import { ItemPmcs } from './ItemPmcs'
+import { PmcsSheet } from './PmcsSheet'
 import { ItemTimeline } from '../Timeline/ItemTimeline'
 
 /** Stable empty holders map for vehicle timelines (no custody/move events). */
 const EMPTY_HOLDERS: Map<string, HolderInfo> = new Map()
+
+export interface PropertyLocationDetailHandle {
+  /** Open the vehicle's PMCS overlay (5988). The trigger lives in the host header
+   *  ellipsis (buildLocationMenuItems → onPmcs); the overlay state lives here so
+   *  it stays co-located with the subject. No-op for non-vehicle zones. */
+  openPmcs: () => void
+}
 
 interface PropertyLocationDetailProps {
   location: LocalPropertyLocation
@@ -26,6 +33,8 @@ interface PropertyLocationDetailProps {
   onDeleteItem?: (item: LocalPropertyItem) => void
   onAddChildLocation?: (parentId: string | null) => void
   onAddItemAtLocation?: (locationId: string | null) => void
+  /** Desktop only — the right-pane element the vehicle PMCS PreviewOverlay scopes to. */
+  containerRef?: RefObject<HTMLElement | null>
 }
 
 /**
@@ -35,7 +44,8 @@ interface PropertyLocationDetailProps {
  * preview instead of bespoke bordered rows). Used in the desktop right pane and
  * the mobile sheet. Header actions live in the host (buildLocationMenuItems).
  */
-export function PropertyLocationDetail({
+export const PropertyLocationDetail = forwardRef<PropertyLocationDetailHandle, PropertyLocationDetailProps>(
+  function PropertyLocationDetail({
   location,
   locations,
   items,
@@ -50,7 +60,11 @@ export function PropertyLocationDetail({
   onDeleteItem,
   onAddChildLocation,
   onAddItemAtLocation,
-}: PropertyLocationDetailProps) {
+  containerRef,
+}: PropertyLocationDetailProps, ref) {
+  const [showPmcs, setShowPmcs] = useState(false)
+  useImperativeHandle(ref, () => ({ openPmcs: () => setShowPmcs(true) }), [])
+
   return (
     <div className="flex flex-col pt-1 pb-2">
       {location.photo_data && (
@@ -59,11 +73,11 @@ export function PropertyLocationDetail({
         </div>
       )}
 
-      {/* A vehicle is property too — its own 5988: PMCS faults + paper trail,
-          above the BII/components it holds (the tree below). */}
+      {/* A vehicle is property too — its own 5988 paper trail above the BII/
+          components it holds (the tree below). PMCS itself is the overlay,
+          launched from the header ellipsis (openPmcs handle). */}
       {location.kind === 'vehicle' && (
         <div className="px-4 pt-1 pb-3 space-y-4">
-          <ItemPmcs subjectType="location" subjectId={location.id} clinicId={location.clinic_id} />
           <ItemTimeline
             subjectId={location.id}
             clinicId={location.clinic_id}
@@ -71,6 +85,17 @@ export function PropertyLocationDetail({
             holders={holders ?? EMPTY_HOLDERS}
           />
         </div>
+      )}
+
+      {location.kind === 'vehicle' && (
+        <PmcsSheet
+          isOpen={showPmcs}
+          onClose={() => setShowPmcs(false)}
+          subjectType="location"
+          subjectId={location.id}
+          clinicId={location.clinic_id}
+          containerRef={containerRef}
+        />
       )}
 
       <PropertyLocationTree
@@ -91,7 +116,7 @@ export function PropertyLocationDetail({
       />
     </div>
   )
-}
+})
 
 /** Build the location action menu (header ellipsis) — shared by desktop pane + mobile sheet. */
 export function buildLocationMenuItems(opts: {
@@ -108,11 +133,17 @@ export function buildLocationMenuItems(opts: {
   onRemovePhoto: () => void
   onLinkMap: () => void
   onDelete: () => void
+  /** Open the vehicle PMCS (5988) overlay. Shown only for kind='vehicle' zones. */
+  onPmcs?: () => void
 }): ContextMenuItem[] {
   const hasPhoto = !!opts.location.photo_data
   const hasMapLink = !!opts.location.overlay_id
+  const isVehicle = opts.location.kind === 'vehicle'
   return [
     { key: 'rename', label: 'Rename', icon: Pencil, onAction: opts.onRename },
+    ...(isVehicle && opts.onPmcs
+      ? [{ key: 'pmcs', label: 'PMCS', icon: Wrench, onAction: opts.onPmcs } as ContextMenuItem]
+      : []),
     { key: 'new-item', label: 'New item', icon: Package, onAction: opts.onNewItem },
     { key: 'new-area', label: 'New area', icon: FolderPlus, onAction: opts.onNewArea },
     ...(opts.canAddLevel && opts.onAddLevel
