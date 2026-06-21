@@ -281,7 +281,7 @@ export function AdminUsersList({
           key: 'email',
           label: 'Email User',
           icon: Mail,
-          onAction: () => { openMailto({ to: user.email!, subject: 'Beacon Inquiry', body: `${[user.rank, user.last_name].filter(Boolean).join(' ')},\n\n` }) },
+          onAction: () => { openMailto({ to: user.email!, subject: 'Medical Operations Inquiry', body: `${[user.rank, user.last_name].filter(Boolean).join(' ')},\n\n` }) },
         }] : []),
         {
           key: 'changepw',

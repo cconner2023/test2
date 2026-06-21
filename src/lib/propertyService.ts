@@ -21,6 +21,7 @@ import {
   deleteLocalPropertyLocation,
   getLocalDiscrepancies,
   saveLocalDiscrepancy,
+  saveLocalCustodyEntry,
   getLocalLocationTags,
   getLocalLocationTagsBatch,
   saveLocalLocationTags,
@@ -28,6 +29,11 @@ import {
   getPendingTagCanvasIds,
 } from './offlineDb'
 import { processSyncQueue, isOnline } from './syncService'
+import { resolvePropertyTargetClinics, sendPropertyEvent, deletePropertyVaultMessages } from './propertyVault'
+import { queuePendingPropertySend, addItemTombstone, addZoneTombstone } from './propertyEventStore'
+import { getItemTombstones, getZoneTombstones } from './propertyEventRouting'
+import { useAuthStore } from '../stores/useAuthStore'
+import type { PropertyEntity, PropertyEventPayload } from './signal/messageContent'
 import type {
   PropertyItem,
   PropertyLocation,
@@ -51,6 +57,8 @@ const logger = createLogger('PropertyService')
 function localItem(item: PropertyItem, syncStatus: SyncStatus = 'pending'): LocalPropertyItem {
   return {
     ...item,
+    // Coerce for legacy IDB rows cached before signed_out_external existed.
+    signed_out_external: item.signed_out_external ?? false,
     _sync_status: syncStatus,
     _sync_retry_count: 0,
     _last_sync_error: null,
@@ -87,27 +95,73 @@ async function immediateSync(userId: string): Promise<void> {
   }
 }
 
+// ── Clinic-vault fan-out helpers ─────────────────────────────
+// Property is vault-authoritative: every mutation writes IDB + the plaintext
+// spine (backstop) AND fans a per-device envelope. originId is an IDB/envelope
+// field with no spine column, so it is stripped before the row hits Supabase.
+
+/** Strip client-only fields (originId + sync metadata) before a row hits the spine. */
+function toSpine(row: Record<string, unknown>): Record<string, unknown> {
+  const r: Record<string, unknown> = { ...row }
+  delete r.originId
+  delete r._sync_status; delete r._sync_retry_count; delete r._last_sync_error; delete r._last_sync_error_message
+  return r
+}
+
+/** Build the envelope body for an entity row: keep originId, drop sync metadata. */
+function toEnvelope(row: Record<string, unknown>): Record<string, unknown> {
+  const r: Record<string, unknown> = { ...row }
+  delete r._sync_status; delete r._sync_retry_count; delete r._last_sync_error; delete r._last_sync_error_message
+  return r
+}
+
+/** Fan a property envelope; on failure queue it for the reconnect drain. */
+async function fanProperty(
+  userId: string,
+  action: 'c' | 'u' | 'd',
+  entity: PropertyEntity,
+  payload: PropertyEventPayload,
+  holderIds: string[],
+  authoringClinicId: string | null,
+  fanToClinics?: string[],
+): Promise<void> {
+  try {
+    const sent = await sendPropertyEvent(userId, action, entity, payload, fanToClinics)
+    if (sent) return
+  } catch (e) {
+    logger.warn('property fan-out failed, queuing for retry:', e)
+  }
+  await queuePendingPropertySend({
+    key: `${entity}:${payload.id}`, entity, action, payload,
+    holderIds: holderIds.filter(Boolean), authoringClinicId,
+  }).catch(() => {})
+}
+
 // ── Property Items CRUD ──────────────────────────────────────
 
 export async function fetchClinicItems(clinicId: string): Promise<LocalPropertyItem[]> {
   // Load local first for instant display
   const localItems = await getLocalPropertyItems(clinicId)
 
-  // If online, reconcile with server
+  // Bootstrap-only spine read (vault-authoritative). Download active server rows
+  // absent or newer locally; NEVER delete-local — the clinic-vault drain +
+  // tombstones are the sole authority for deletions, so a missing server row no
+  // longer triggers a local delete (the old resurrection/data-loss vector). The
+  // deleted_at filter + tombstone guard prevent a soft-deleted row from painting.
   if (isOnline()) {
     try {
       const { data, error } = await supabase
         .from('property_items')
         .select('*')
         .eq('clinic_id', clinicId)
+        .is('deleted_at', null)
         .order('name')
 
       if (!error && data) {
-        const serverMap = new Map(data.map((r: PropertyItem) => [r.id, r]))
+        const tomb = getItemTombstones()
         const localMap = new Map(localItems.map((r) => [r.id, r]))
-
-        // Download server-only or newer records
         for (const serverRecord of data) {
+          if (tomb.has(serverRecord.id)) continue
           const local = localMap.get(serverRecord.id)
           if (!local) {
             await saveLocalPropertyItem(localItem(serverRecord as PropertyItem, 'synced'))
@@ -119,16 +173,9 @@ export async function fetchClinicItems(clinicId: string): Promise<LocalPropertyI
             }
           }
         }
-
-        // Remove local synced records not on server
-        for (const local of localItems) {
-          if (local._sync_status === 'synced' && !serverMap.has(local.id)) {
-            await deleteLocalPropertyItem(local.id)
-          }
-        }
       }
     } catch (err) {
-      logger.warn('Server reconciliation failed, using local data:', err)
+      logger.warn('Property bootstrap read failed, using local data:', err)
     }
   }
 
@@ -136,16 +183,23 @@ export async function fetchClinicItems(clinicId: string): Promise<LocalPropertyI
 }
 
 export async function createItem(
-  data: Omit<PropertyItem, 'id' | 'created_at' | 'updated_at'>,
+  data: Omit<PropertyItem, 'id' | 'created_at' | 'updated_at' | 'signed_out_external'>,
   userId: string,
 ): Promise<ServiceResult<{ item: LocalPropertyItem }>> {
   try {
     const now = new Date().toISOString()
+    // Cross-cluster fan-out: an item follows its holder across clusters.
+    const holderIds = data.current_holder_id ? [data.current_holder_id] : []
+    const targets = await resolvePropertyTargetClinics(data.clinic_id, holderIds)
+    const originId = crypto.randomUUID()
     const item: PropertyItem = {
       ...data,
+      signed_out_external: false,
       id: crypto.randomUUID(),
       created_at: now,
       updated_at: now,
+      target_clinic_ids: targets,
+      originId,
     }
 
     const local = localItem(item)
@@ -156,8 +210,13 @@ export async function createItem(
       action: 'create',
       table_name: 'property_items',
       record_id: item.id,
-      payload: item as unknown as Record<string, unknown>,
+      payload: toSpine(item as unknown as Record<string, unknown>),
     })
+
+    await fanProperty(userId, 'c', 'item', {
+      id: item.id, clinic_id: item.clinic_id, target_clinic_ids: targets, originId,
+      data: toEnvelope(item as unknown as Record<string, unknown>),
+    }, holderIds, item.clinic_id)
 
     // Lifecycle event for the item timeline (best-effort; never throws).
     await emitAudit(
@@ -215,9 +274,25 @@ export async function updateItem(
     }
 
     const now = new Date().toISOString()
+
+    // Cross-cluster retract: resolve the new target set from the (possibly
+    // changed) holder. The new envelope fans to UNION(old, new) targets — a
+    // dropped cluster receives the update with target_clinic_ids no longer
+    // listing it, so its snapshot filter + reap remove it. This is NEVER a 'd'
+    // (a global-by-id tombstone would poison the item in a surviving cluster).
+    const oldTargets = existing.target_clinic_ids ?? (existing.clinic_id ? [existing.clinic_id] : [])
+    const oldOriginId = existing.originId ?? null
+    const newHolder = updates.current_holder_id !== undefined ? updates.current_holder_id : existing.current_holder_id
+    const holderIds = newHolder ? [newHolder] : []
+    const newTargets = await resolvePropertyTargetClinics(existing.clinic_id, holderIds)
+    const fanUnion = Array.from(new Set([...oldTargets, ...newTargets]))
+    const newOriginId = crypto.randomUUID()
+
     const updated: LocalPropertyItem = {
       ...existing,
       ...updates,
+      target_clinic_ids: newTargets,
+      originId: newOriginId,
       updated_at: now,
       _sync_status: 'pending',
     }
@@ -229,8 +304,18 @@ export async function updateItem(
       action: 'update',
       table_name: 'property_items',
       record_id: id,
-      payload: { ...updates, updated_at: now } as Record<string, unknown>,
+      payload: toSpine({ ...updates, target_clinic_ids: newTargets, updated_at: now }),
     })
+
+    // Drop the old fan-out copies (across every clinic they reached) before the
+    // new one lands, so dropped clusters and stale duplicates are cleaned up.
+    if (oldOriginId) {
+      for (const c of oldTargets) await deletePropertyVaultMessages([oldOriginId], c)
+    }
+    await fanProperty(userId, 'u', 'item', {
+      id, clinic_id: existing.clinic_id, target_clinic_ids: newTargets, originId: newOriginId,
+      data: toEnvelope(updated as unknown as Record<string, unknown>),
+    }, holderIds, existing.clinic_id, fanUnion)
 
     // Lifecycle events for the item timeline. One updateItem can carry a move,
     // a reassign, and field edits at once → emit each that actually changed.
@@ -390,16 +475,45 @@ export async function deleteItem(
   userId: string,
 ): Promise<ServiceResult> {
   try {
+    const db = await getDb()
+    const existing = await db.get('propertyItems', id)
+    const clinicId = existing?.clinic_id ?? null
+    const targets = existing?.target_clinic_ids ?? (clinicId ? [clinicId] : [])
+    const now = new Date().toISOString()
+
+    // Durable tombstone (in-memory + persisted) so replay / snapshot bootstrap
+    // can never resurrect this item on any device.
+    getItemTombstones().add(id)
+    addItemTombstone(id).catch(() => {})
+
     await deleteLocalPropertyItem(id)
     await purgeItemPins(id)
 
+    // Spine soft-delete (UPDATE deleted_at) — NOT a hard DELETE. Reconcile can't
+    // resurrect, and a device dark past any reap still pulls the tombstone on its
+    // next bootstrap (the spine row with deleted_at survives indefinitely).
     await addToSyncQueue({
       user_id: userId,
-      action: 'delete',
+      action: 'update',
       table_name: 'property_items',
       record_id: id,
-      payload: { _deleted_at_timestamp: new Date().toISOString() },
+      payload: { deleted_at: now, updated_at: now },
     })
+
+    // Durable per-device 'd' envelope — consumed on each device's drain.
+    const originId = crypto.randomUUID()
+    await fanProperty(userId, 'd', 'item', {
+      id, clinic_id: clinicId ?? undefined, target_clinic_ids: targets, originId, data: { id },
+    }, [], clinicId)
+
+    // Deletes now emit an item.deleted timeline event (previously unaudited).
+    if (clinicId) {
+      await emitAudit({
+        clinicId, actorId: userId, domain: 'property',
+        eventType: 'item.deleted', subjectType: 'item', subjectId: id, occurredAt: now,
+        payload: existing ? { name: existing.name, nsn: existing.nsn, serial_number: existing.serial_number } : null,
+      }, userId)
+    }
 
     immediateSync(userId)
     return succeed()
@@ -421,33 +535,29 @@ export async function fetchSubItems(parentId: string): Promise<LocalPropertyItem
 export async function fetchClinicLocations(clinicId: string): Promise<LocalPropertyLocation[]> {
   const localLocs = await getLocalPropertyLocations(clinicId)
 
+  // Bootstrap-only spine read (vault-authoritative) — no delete-local pass.
   if (isOnline()) {
     try {
       const { data, error } = await supabase
         .from('property_locations')
         .select('*')
         .eq('clinic_id', clinicId)
+        .is('deleted_at', null)
         .order('name')
 
       if (!error && data) {
-        const serverMap = new Map(data.map((r: PropertyLocation) => [r.id, r]))
+        const tomb = getZoneTombstones()
         const localMap = new Map(localLocs.map((r) => [r.id, r]))
-
         for (const serverRecord of data) {
+          if (tomb.has(serverRecord.id)) continue
           const local = localMap.get(serverRecord.id)
           if (!local || (local._sync_status !== 'pending' && new Date(serverRecord.updated_at).getTime() >= new Date(local.updated_at).getTime())) {
             await saveLocalPropertyLocation(localLocation(serverRecord as PropertyLocation, 'synced'))
           }
         }
-
-        for (const local of localLocs) {
-          if (local._sync_status === 'synced' && !serverMap.has(local.id)) {
-            await deleteLocalPropertyLocation(local.id)
-          }
-        }
       }
     } catch (err) {
-      logger.warn('Location reconciliation failed:', err)
+      logger.warn('Location bootstrap read failed:', err)
     }
   }
 
@@ -460,11 +570,15 @@ export async function createLocation(
 ): Promise<ServiceResult<{ location: LocalPropertyLocation }>> {
   try {
     const now = new Date().toISOString()
+    const originId = crypto.randomUUID()
+    const targets = data.clinic_id ? [data.clinic_id] : []
     const location: PropertyLocation = {
       ...data,
       id: crypto.randomUUID(),
       created_at: now,
       updated_at: now,
+      target_clinic_ids: targets,
+      originId,
     }
 
     const local = localLocation(location)
@@ -475,8 +589,13 @@ export async function createLocation(
       action: 'create',
       table_name: 'property_locations',
       record_id: location.id,
-      payload: location as unknown as Record<string, unknown>,
+      payload: toSpine(location as unknown as Record<string, unknown>),
     })
+
+    await fanProperty(userId, 'c', 'zone', {
+      id: location.id, clinic_id: location.clinic_id, target_clinic_ids: targets, originId,
+      data: toEnvelope(location as unknown as Record<string, unknown>),
+    }, [], location.clinic_id)
 
     immediateSync(userId)
     return succeed({ location: local })
@@ -496,9 +615,14 @@ export async function updateLocation(
     if (!existing) return fail('Location not found')
 
     const now = new Date().toISOString()
+    const targets = existing.target_clinic_ids ?? (existing.clinic_id ? [existing.clinic_id] : [])
+    const oldOriginId = existing.originId ?? null
+    const newOriginId = crypto.randomUUID()
     const updated: LocalPropertyLocation = {
       ...existing,
       ...updates,
+      target_clinic_ids: targets,
+      originId: newOriginId,
       updated_at: now,
       _sync_status: 'pending',
     }
@@ -510,8 +634,16 @@ export async function updateLocation(
       action: 'update',
       table_name: 'property_locations',
       record_id: id,
-      payload: { ...updates, updated_at: now } as Record<string, unknown>,
+      payload: toSpine({ ...updates, target_clinic_ids: targets, updated_at: now }),
     })
+
+    if (oldOriginId) {
+      for (const c of targets) await deletePropertyVaultMessages([oldOriginId], c)
+    }
+    await fanProperty(userId, 'u', 'zone', {
+      id, clinic_id: existing.clinic_id, target_clinic_ids: targets, originId: newOriginId,
+      data: toEnvelope(updated as unknown as Record<string, unknown>),
+    }, [], existing.clinic_id)
 
     immediateSync(userId)
     return succeed()
@@ -525,6 +657,15 @@ export async function deleteLocation(
   userId: string,
 ): Promise<ServiceResult> {
   try {
+    const db = await getDb()
+    const existing = await db.get('propertyLocations', id)
+    const clinicId = existing?.clinic_id ?? null
+    const targets = existing?.target_clinic_ids ?? (clinicId ? [clinicId] : [])
+    const now = new Date().toISOString()
+
+    getZoneTombstones().add(id)
+    addZoneTombstone(id).catch(() => {})
+
     await deleteLocalPropertyLocation(id)
 
     // Remove tags referencing this location from IndexedDB and Supabase
@@ -533,13 +674,19 @@ export async function deleteLocation(
       await supabase.from('location_tags').delete().eq('target_id', id).eq('target_type', 'location')
     }
 
+    // Spine soft-delete (UPDATE) — never a hard DELETE.
     await addToSyncQueue({
       user_id: userId,
-      action: 'delete',
+      action: 'update',
       table_name: 'property_locations',
       record_id: id,
-      payload: { _deleted_at_timestamp: new Date().toISOString() },
+      payload: { deleted_at: now, updated_at: now },
     })
+
+    const originId = crypto.randomUUID()
+    await fanProperty(userId, 'd', 'zone', {
+      id, clinic_id: clinicId ?? undefined, target_clinic_ids: targets, originId, data: { id },
+    }, [], clinicId)
 
     immediateSync(userId)
     return succeed()
@@ -585,19 +732,30 @@ export async function cascadeDeleteLocation(
     for (const item of items) {
       if (item.location_id && toDelete.has(item.location_id)) {
         const now = new Date().toISOString()
-        await saveLocalPropertyItem({
+        const targets = item.target_clinic_ids ?? (item.clinic_id ? [item.clinic_id] : [])
+        const oldOriginId = item.originId ?? null
+        const newOriginId = crypto.randomUUID()
+        const reassigned: LocalPropertyItem = {
           ...item,
           location_id: reassignParentId,
+          target_clinic_ids: targets,
+          originId: newOriginId,
           updated_at: now,
           _sync_status: 'pending',
-        })
+        }
+        await saveLocalPropertyItem(reassigned)
         await addToSyncQueue({
           user_id: userId,
           action: 'update',
           table_name: 'property_items',
           record_id: item.id,
-          payload: { location_id: reassignParentId, updated_at: now },
+          payload: toSpine({ location_id: reassignParentId, updated_at: now }),
         })
+        if (oldOriginId) { for (const c of targets) await deletePropertyVaultMessages([oldOriginId], c) }
+        await fanProperty(userId, 'u', 'item', {
+          id: item.id, clinic_id: item.clinic_id, target_clinic_ids: targets, originId: newOriginId,
+          data: toEnvelope(reassigned as unknown as Record<string, unknown>),
+        }, item.current_holder_id ? [item.current_holder_id] : [], item.clinic_id)
       }
     }
 
@@ -609,16 +767,26 @@ export async function cascadeDeleteLocation(
       }
     }
 
-    // Delete the locations themselves
+    // Delete the locations themselves (soft-delete spine + 'd' zone envelope)
+    const locById = new Map(allLocations.map(l => [l.id, l]))
     for (const locId of toDelete) {
+      const loc = locById.get(locId)
+      const targets = loc?.target_clinic_ids ?? (clinicId ? [clinicId] : [])
+      const now = new Date().toISOString()
+      getZoneTombstones().add(locId)
+      addZoneTombstone(locId).catch(() => {})
       await deleteLocalPropertyLocation(locId)
       await addToSyncQueue({
         user_id: userId,
-        action: 'delete',
+        action: 'update',
         table_name: 'property_locations',
         record_id: locId,
-        payload: { _deleted_at_timestamp: new Date().toISOString() },
+        payload: { deleted_at: now, updated_at: now },
       })
+      const originId = crypto.randomUUID()
+      await fanProperty(userId, 'd', 'zone', {
+        id: locId, clinic_id: loc?.clinic_id ?? clinicId ?? undefined, target_clinic_ids: targets, originId, data: { id: locId },
+      }, [], loc?.clinic_id ?? clinicId)
     }
 
     immediateSync(userId)
@@ -1002,6 +1170,20 @@ export async function upsertLocationTags(
     // Always save to IndexedDB first (offline-first)
     await saveLocalLocationTags(locationId, fullTags)
 
+    // Fan the canvas as a full-replace 'tags' envelope (vault distribution).
+    // userId comes from the auth store (this fn has no userId param); clinic +
+    // targets come from the canvas's location row.
+    const fanUserId = useAuthStore.getState().user?.id ?? null
+    const db = await getDb()
+    const loc = await db.get('propertyLocations', locationId)
+    const tagClinicId = loc?.clinic_id ?? null
+    const tagTargets = loc?.target_clinic_ids ?? (tagClinicId ? [tagClinicId] : [])
+    if (fanUserId && tagClinicId) {
+      await fanProperty(fanUserId, 'c', 'tags', {
+        id: locationId, clinic_id: tagClinicId, target_clinic_ids: tagTargets, tags: fullTags,
+      }, [], tagClinicId)
+    }
+
     // If online, push to Supabase immediately
     if (isOnline()) {
       try {
@@ -1162,20 +1344,38 @@ export async function recordLedgerEntry(
 ): Promise<ServiceResult<{ entry: CustodyLedgerEntry }>> {
   try {
     const now = new Date().toISOString()
+    // Custody follows both holders across clusters (a transfer to a loaned
+    // soldier must reach his home/loan clinics).
+    const holderIds = [entry.to_holder_id, entry.from_holder_id].filter((h): h is string => !!h)
+    const targets = await resolvePropertyTargetClinics(entry.clinic_id, holderIds)
+    const originId = crypto.randomUUID()
     const ledgerEntry: CustodyLedgerEntry = {
       ...entry,
       id: crypto.randomUUID(),
       recorded_at: now,
+      target_clinic_ids: targets,
+      originId,
     }
 
-    // Ledger is append-only and primarily online
+    // Local projection (custody is now vault-delivered + offline-readable).
+    await saveLocalCustodyEntry({
+      ...ledgerEntry,
+      _sync_status: 'pending', _sync_retry_count: 0, _last_sync_error: null, _last_sync_error_message: null,
+    })
+
+    // Ledger is append-only.
     await addToSyncQueue({
       user_id: userId,
       action: 'create',
       table_name: 'custody_ledger',
       record_id: ledgerEntry.id,
-      payload: ledgerEntry as unknown as Record<string, unknown>,
+      payload: toSpine(ledgerEntry as unknown as Record<string, unknown>),
     })
+
+    await fanProperty(userId, 'c', 'custody', {
+      id: ledgerEntry.id, clinic_id: ledgerEntry.clinic_id, target_clinic_ids: targets, originId,
+      data: toEnvelope(ledgerEntry as unknown as Record<string, unknown>),
+    }, holderIds, ledgerEntry.clinic_id)
 
     // Dual-write the same custody event into the unified audit_log (timeline +
     // consolidation target; custody_ledger folds in once proven). Best-effort —
@@ -1225,6 +1425,25 @@ export async function fetchItemLedger(itemId: string): Promise<CustodyLedgerEntr
   }
 }
 
+/** Clinic-wide custody ledger (newest first) — feeds the DA 2062 accountability
+ *  surface, which folds these rows into hand receipts by hand_receipt_id.
+ *  RLS scopes to the caller's clinic; online-only (matches fetchItemLedger). */
+export async function fetchClinicLedger(clinicId: string): Promise<CustodyLedgerEntry[]> {
+  if (!isOnline()) return []
+  try {
+    const { data, error } = await supabase
+      .from('custody_ledger')
+      .select('*')
+      .eq('clinic_id', clinicId)
+      .order('recorded_at', { ascending: false })
+    if (error) throw error
+    return (data as CustodyLedgerEntry[]) ?? []
+  } catch (err) {
+    logger.warn('Failed to fetch clinic ledger:', err)
+    return []
+  }
+}
+
 // ── Discrepancies ────────────────────────────────────────────
 
 export async function fetchHolderDiscrepancies(holderId: string): Promise<LocalDiscrepancy[]> {
@@ -1237,6 +1456,7 @@ export async function createDiscrepancy(
 ): Promise<ServiceResult<{ discrepancy: LocalDiscrepancy }>> {
   try {
     const now = new Date().toISOString()
+    const originId = crypto.randomUUID()
     const disc: Discrepancy = {
       ...data,
       id: crypto.randomUUID(),
@@ -1246,6 +1466,7 @@ export async function createDiscrepancy(
       rectify_method: null,
       rectify_notes: null,
       created_at: now,
+      originId,
     }
 
     const local = localDiscrepancy(disc)
@@ -1256,8 +1477,18 @@ export async function createDiscrepancy(
       action: 'create',
       table_name: 'discrepancies',
       record_id: disc.id,
-      payload: disc as unknown as Record<string, unknown>,
+      payload: toSpine(disc as unknown as Record<string, unknown>),
     })
+
+    // Discrepancies carry no clinic_id — scope/fan via the parent item's set.
+    const db = await getDb()
+    const parentItem = await db.get('propertyItems', disc.item_id)
+    const clinicId = parentItem?.clinic_id ?? null
+    const targets = parentItem?.target_clinic_ids ?? (clinicId ? [clinicId] : [])
+    await fanProperty(userId, 'c', 'discrepancy', {
+      id: disc.id, clinic_id: clinicId ?? undefined, target_clinic_ids: targets, originId,
+      data: toEnvelope(disc as unknown as Record<string, unknown>),
+    }, [], clinicId)
 
     immediateSync(userId)
     return succeed({ discrepancy: local })
@@ -1278,6 +1509,7 @@ export async function rectifyDiscrepancy(
     if (!existing) return fail('Discrepancy not found')
 
     const now = new Date().toISOString()
+    const newOriginId = crypto.randomUUID()
     const updated: LocalDiscrepancy = {
       ...existing,
       status: 'rectified',
@@ -1285,6 +1517,7 @@ export async function rectifyDiscrepancy(
       rectified_by: userId,
       rectify_method: method as LocalDiscrepancy['rectify_method'],
       rectify_notes: notes || null,
+      originId: newOriginId,
       _sync_status: 'pending',
     }
 
@@ -1303,6 +1536,14 @@ export async function rectifyDiscrepancy(
         rectify_notes: notes || null,
       },
     })
+
+    const parentItem = await db.get('propertyItems', existing.item_id)
+    const clinicId = parentItem?.clinic_id ?? null
+    const targets = parentItem?.target_clinic_ids ?? (clinicId ? [clinicId] : [])
+    await fanProperty(userId, 'u', 'discrepancy', {
+      id, clinic_id: clinicId ?? undefined, target_clinic_ids: targets, originId: newOriginId,
+      data: toEnvelope(updated as unknown as Record<string, unknown>),
+    }, [], clinicId)
 
     immediateSync(userId)
     return succeed()
@@ -1375,6 +1616,130 @@ export async function executeTransfer(
   }
 }
 
+// ── DA 2062 Hand Receipt (multi-item sign-out / sign-in) ─────
+
+export interface SignOutParams {
+  itemIds: string[]
+  clinicId: string
+  /** Issuing hand-receipt holder (usually the current user); may be null. */
+  fromHolderId: string | null
+  /** Cluster member receiving custody, or null when signing OUTSIDE the cluster. */
+  toHolderId: string | null
+  /** Recipient name when signing outside the cluster (no profile id exists). */
+  externalName: string | null
+  /** Optional free-text added to the receipt. */
+  notes: string | null
+}
+
+/**
+ * Sign 1..N items out on a single DA 2062 hand receipt. Writes one append-only
+ * custody_ledger row per item, all sharing a freshly minted hand_receipt_id, and
+ * points each item at its new custodian:
+ *   - internal → current_holder_id = toHolderId
+ *   - external → signed_out_external = true (recipient name lives in the row notes,
+ *     the only place a non-member recipient can be recorded without a profile id)
+ * The item's location_id (its usual/home zone) is left untouched, so the
+ * accountability surface can still show "where it usually lives". Returns the
+ * hand_receipt_id so the caller can immediately print the 2062.
+ */
+export async function signOutItems(
+  params: SignOutParams,
+  userId: string,
+): Promise<ServiceResult<{ handReceiptId: string }>> {
+  try {
+    const { itemIds, clinicId, fromHolderId, toHolderId, externalName, notes } = params
+    if (itemIds.length === 0) return fail('No items selected')
+    const isExternal = !toHolderId
+    if (isExternal && !externalName?.trim()) return fail('External recipient name required')
+
+    const handReceiptId = crypto.randomUUID()
+    // External recipient is carried in the row notes — free-text is the only place a
+    // non-member recipient lives. The accountability fold reads it back as the label.
+    const rowNotes = isExternal
+      ? [externalName!.trim(), notes?.trim()].filter(Boolean).join(' — ')
+      : (notes?.trim() || null)
+
+    for (const itemId of itemIds) {
+      const ledgerResult = await recordLedgerEntry(
+        {
+          item_id: itemId,
+          clinic_id: clinicId,
+          hand_receipt_id: handReceiptId,
+          action: 'sign_down',
+          from_holder_id: fromHolderId,
+          to_holder_id: toHolderId,
+          condition_code: 'serviceable',
+          sub_item_check: null,
+          notes: rowNotes,
+          recorded_by: userId,
+        },
+        userId,
+      )
+      if (!ledgerResult.success) return fail(ledgerResult.error)
+
+      // Point the item at its new custodian. skipAudit — the ledger row already
+      // logged item.transferred for the timeline.
+      await updateItem(
+        itemId,
+        isExternal
+          ? { signed_out_external: true, current_holder_id: null }
+          : { signed_out_external: false, current_holder_id: toHolderId },
+        userId,
+        { skipAudit: true },
+      )
+    }
+
+    return succeed({ handReceiptId })
+  } catch (err) {
+    return fail(String(err))
+  }
+}
+
+/**
+ * Sign a hand receipt back in: append a sign_up row per item (sharing the original
+ * hand_receipt_id so the receipt folds to status 'returned') and clear each item's
+ * custodian. The item returns to its standing zone (location_id was never moved).
+ */
+export async function signInReceipt(
+  handReceiptId: string,
+  clinicId: string,
+  fromHolderId: string | null,
+  itemIds: string[],
+  userId: string,
+): Promise<ServiceResult> {
+  try {
+    if (itemIds.length === 0) return fail('No items on receipt')
+    for (const itemId of itemIds) {
+      const ledgerResult = await recordLedgerEntry(
+        {
+          item_id: itemId,
+          clinic_id: clinicId,
+          hand_receipt_id: handReceiptId,
+          action: 'sign_up',
+          from_holder_id: fromHolderId,
+          to_holder_id: null,
+          condition_code: 'serviceable',
+          sub_item_check: null,
+          notes: 'Signed in',
+          recorded_by: userId,
+        },
+        userId,
+      )
+      if (!ledgerResult.success) return fail(ledgerResult.error)
+
+      await updateItem(
+        itemId,
+        { signed_out_external: false, current_holder_id: null },
+        userId,
+        { skipAudit: true },
+      )
+    }
+    return succeed()
+  } catch (err) {
+    return fail(String(err))
+  }
+}
+
 // ── Visual Fingerprint ───────────────────────────────────────
 
 export async function updateFingerprint(
@@ -1424,6 +1789,8 @@ export async function recordExpendedEntry(
     const now = new Date().toISOString()
     // Offline-first: queue the append-only ledger entry so field/offline
     // expends still produce an accountability record (synced on reconnect).
+    const originId = crypto.randomUUID()
+    const targets = clinicId ? [clinicId] : []
     const ledgerEntry: CustodyLedgerEntry = {
       id: crypto.randomUUID(),
       item_id: itemId,
@@ -1437,15 +1804,27 @@ export async function recordExpendedEntry(
       notes: null,
       recorded_at: now,
       recorded_by: userId,
+      target_clinic_ids: targets,
+      originId,
     }
+
+    await saveLocalCustodyEntry({
+      ...ledgerEntry,
+      _sync_status: 'pending', _sync_retry_count: 0, _last_sync_error: null, _last_sync_error_message: null,
+    })
 
     await addToSyncQueue({
       user_id: userId,
       action: 'create',
       table_name: 'custody_ledger',
       record_id: ledgerEntry.id,
-      payload: ledgerEntry as unknown as Record<string, unknown>,
+      payload: toSpine(ledgerEntry as unknown as Record<string, unknown>),
     })
+
+    await fanProperty(userId, 'c', 'custody', {
+      id: ledgerEntry.id, clinic_id: clinicId, target_clinic_ids: targets, originId,
+      data: toEnvelope(ledgerEntry as unknown as Record<string, unknown>),
+    }, [], clinicId)
 
     // Dual-write into the unified audit_log (see recordLedgerEntry).
     await emitAudit(

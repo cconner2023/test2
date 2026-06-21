@@ -381,6 +381,7 @@ export type Database = {
           recorded_at: string
           recorded_by: string
           sub_item_check: Json | null
+          target_clinic_ids: string[]
           to_holder_id: string | null
         }
         Insert: {
@@ -395,6 +396,7 @@ export type Database = {
           recorded_at?: string
           recorded_by: string
           sub_item_check?: Json | null
+          target_clinic_ids?: string[]
           to_holder_id?: string | null
         }
         Update: {
@@ -409,6 +411,7 @@ export type Database = {
           recorded_at?: string
           recorded_by?: string
           sub_item_check?: Json | null
+          target_clinic_ids?: string[]
           to_holder_id?: string | null
         }
         Relationships: [
@@ -1296,6 +1299,7 @@ export type Database = {
           condition_code: Database["public"]["Enums"]["property_condition"]
           created_at: string
           current_holder_id: string | null
+          deleted_at: string | null
           expiry_date: string | null
           id: string
           is_serialized: boolean
@@ -1310,6 +1314,7 @@ export type Database = {
           photo_url: string | null
           quantity: number
           serial_number: string | null
+          target_clinic_ids: string[]
           updated_at: string
           visual_fingerprint: Json | null
         }
@@ -1318,6 +1323,7 @@ export type Database = {
           condition_code?: Database["public"]["Enums"]["property_condition"]
           created_at?: string
           current_holder_id?: string | null
+          deleted_at?: string | null
           expiry_date?: string | null
           id?: string
           is_serialized?: boolean
@@ -1332,6 +1338,7 @@ export type Database = {
           photo_url?: string | null
           quantity?: number
           serial_number?: string | null
+          target_clinic_ids?: string[]
           updated_at?: string
           visual_fingerprint?: Json | null
         }
@@ -1340,6 +1347,7 @@ export type Database = {
           condition_code?: Database["public"]["Enums"]["property_condition"]
           created_at?: string
           current_holder_id?: string | null
+          deleted_at?: string | null
           expiry_date?: string | null
           id?: string
           is_serialized?: boolean
@@ -1354,6 +1362,7 @@ export type Database = {
           photo_url?: string | null
           quantity?: number
           serial_number?: string | null
+          target_clinic_ids?: string[]
           updated_at?: string
           visual_fingerprint?: Json | null
         }
@@ -1393,6 +1402,7 @@ export type Database = {
           clinic_id: string
           created_at: string
           created_by: string
+          deleted_at: string | null
           holder_user_id: string | null
           id: string
           is_default_zone: boolean
@@ -1403,12 +1413,14 @@ export type Database = {
           overlay_id: string | null
           parent_id: string | null
           photo_data: string | null
+          target_clinic_ids: string[]
           updated_at: string
         }
         Insert: {
           clinic_id: string
           created_at?: string
           created_by: string
+          deleted_at?: string | null
           holder_user_id?: string | null
           id?: string
           is_default_zone?: boolean
@@ -1419,12 +1431,14 @@ export type Database = {
           overlay_id?: string | null
           parent_id?: string | null
           photo_data?: string | null
+          target_clinic_ids?: string[]
           updated_at?: string
         }
         Update: {
           clinic_id?: string
           created_at?: string
           created_by?: string
+          deleted_at?: string | null
           holder_user_id?: string | null
           id?: string
           is_default_zone?: boolean
@@ -1435,6 +1449,7 @@ export type Database = {
           overlay_id?: string | null
           parent_id?: string | null
           photo_data?: string | null
+          target_clinic_ids?: string[]
           updated_at?: string
         }
         Relationships: [

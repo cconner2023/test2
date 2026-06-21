@@ -123,7 +123,7 @@ export function parseGPX(xml: string, overlayId: string): ParseResult {
 export function serializeGPX(features: OverlayFeature[], overlayName: string): string {
   const out: string[] = []
   out.push('<?xml version="1.0" encoding="UTF-8"?>')
-  out.push(`<gpx version="1.1" creator="Beacon" xmlns="http://www.topografix.com/GPX/1/1" xmlns:beacon="${NS_BEACON}">`)
+  out.push(`<gpx version="1.1" creator="Medical Operations" xmlns="http://www.topografix.com/GPX/1/1" xmlns:beacon="${NS_BEACON}">`)
   out.push(`  <metadata><name>${esc(overlayName)}</name></metadata>`)
 
   for (const f of features) {

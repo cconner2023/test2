@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import { Palette, Shield, Lock, MessageSquare, Bell, Stethoscope, Scale, X, Building2, Check, Radio, Compass, LayoutDashboard, HardDrive, Smartphone } from 'lucide-react';
+import { Palette, Shield, Lock, MessageSquare, Bell, Stethoscope, Scale, X, Building2, Check, Radio, Compass, LayoutDashboard, HardDrive, Smartphone, ClipboardList } from 'lucide-react';
 import { BaseDrawer } from '../BaseDrawer';
 import { resizeImage } from '../../Hooks/useProfileAvatar';
 import { useAvatar } from '../../Utilities/AvatarContext';
@@ -40,6 +40,7 @@ import { GUIDED_TEXT_EXPANDER } from '../../Data/GuidedTourData';
 import { ThemePickerPanel } from './ThemePickerPanel';
 import { StoragePanel } from './StoragePanel';
 import { FeatureVotesPanel } from './FeatureVotesPanel';
+import { AccountabilityPanel } from './AccountabilityPanel';
 import { useFeatureVotesStore, selectHasUnvotedActiveCycle } from '../../stores/useFeatureVotesStore';
 import { useTheme } from '../../Utilities/ThemeContext';
 
@@ -57,7 +58,7 @@ export const Settings = ({
 }: SettingsDrawerProps) => {
     const { currentAvatar, setAvatar, avatarList, customImage, isCustom, setCustomImage, clearCustomImage } = useAvatar();
     const { themeName } = useTheme();
-    const [activePanel, setActivePanel] = useState<'main' | 'release-notes' | 'avatar-picker' | 'user-profile' | 'pin-setup' | 'notification-settings' | 'feedback' | 'note-content' | 'privacy-policy' | 'sessions-devices' | 'clinic' | 'lora' | 'plan-settings' | 'text-templates' | 'provider-templates' | 'guided-tours' | 'overview-widgets' | 'theme-picker' | 'storage' | 'feature-votes' | 'checklists'>('main');
+    const [activePanel, setActivePanel] = useState<'main' | 'release-notes' | 'avatar-picker' | 'user-profile' | 'pin-setup' | 'notification-settings' | 'feedback' | 'note-content' | 'privacy-policy' | 'sessions-devices' | 'clinic' | 'lora' | 'plan-settings' | 'text-templates' | 'provider-templates' | 'guided-tours' | 'overview-widgets' | 'theme-picker' | 'storage' | 'feature-votes' | 'checklists' | 'accountability'>('main');
     const { profile, updateProfile } = useUserProfile();
     const [slideDirection, setSlideDirection] = useState<'left' | 'right' | ''>('');
     const prevVisibleRef = useRef(false);
@@ -234,6 +235,7 @@ const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
         if (isAuthenticated) {
             items.push(
                 { type: 'header', label: 'Utilities' },
+                ...(isDevRole ? [opt(PANEL.ACCOUNTABILITY, <ClipboardList size={20} />, 'Hand Receipts', 'DA 2062s — what\'s signed out & where it lives')] : []),
                 opt(PANEL.STORAGE, <HardDrive size={20} />, 'Local Storage', 'Cached data and sync status'),
                 ...(whisperNetVisible ? [opt(PANEL.LORA, <Radio size={20} />, 'WhisperNet', 'LoRa mesh offline messaging')] : []),
             );
@@ -318,6 +320,7 @@ const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
             case 'overview-widgets':        return { title: 'Mission Overview', ...backTo() };
             case 'theme-picker':            return { title: 'Appearance', ...backTo() };
             case 'storage':                 return { title: 'Local Storage', ...backTo() };
+            case 'accountability':          return { title: 'Hand Receipts', ...backTo() };
             case 'text-templates': {
                 const doTemplatesBack = () => { handleSlideAnimation('right'); setActivePanel('note-content'); };
                 return {
@@ -494,6 +497,7 @@ const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
                             'overview-widgets': <OverviewWidgetsPanel />,
                             'theme-picker':     <ThemePickerPanel />,
                             'storage':          <StoragePanel />,
+                            'accountability':   <AccountabilityPanel />,
                             'plan-settings':    <PlanPanel />,
                             'checklists':       <ChecklistsPanel />,
                             'provider-templates': <ProviderTemplatesPanel />,

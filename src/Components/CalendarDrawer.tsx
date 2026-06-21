@@ -1,7 +1,6 @@
 import { useState, useCallback, useEffect } from 'react'
 import { useShallow } from 'zustand/react/shallow'
-import { X, Settings as SettingsIcon, Check, ChevronLeft, ChevronRight, CalendarDays, CalendarOff, Square, Columns3, Clock, Grid2x2, CalendarRange } from 'lucide-react'
-import type { LucideIcon } from 'lucide-react'
+import { X, Settings as SettingsIcon, Check, ChevronLeft, ChevronRight } from 'lucide-react'
 import { BaseDrawer } from './BaseDrawer'
 import { HeaderPill, PillButton } from './HeaderPill'
 import { PreviewOverlay } from './PreviewOverlay'
@@ -16,7 +15,6 @@ import { useClinicMedics } from '../Hooks/useClinicMedics'
 import { useClinicGroupedMedics } from '../Hooks/useClinicGroupedMedics'
 import { UserAvatar } from './Settings/UserAvatar'
 import { getDisplayName } from '../Utilities/nameUtils'
-import { ActionPill } from './ActionPill'
 import { CalendarClinicEditor } from './Calendar/CalendarClinicEditor'
 import { SupervisorClinicFilterPanel, ClusterFilterPanel } from './SupervisorClinicSwitcher'
 import type { EventCategory } from '../Types/CalendarTypes'
@@ -40,8 +38,7 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
         events, personnelFilter, togglePersonnelFilter, clearPersonnelFilter,
         monthLabel, viewMode, rosterSearchQuery, setRosterSearchQuery,
         selectedDate, setSelectedDate,
-        daySpan, setDaySpan, hideWeekends, setHideWeekends,
-        t2tZoom, setT2TZoom,
+        hideWeekends,
         categoryFilter, setCategoryFilter,
     } = useCalendarStore(useShallow(s => ({
         events: s.events,
@@ -54,12 +51,7 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
         setRosterSearchQuery: s.setRosterSearchQuery,
         selectedDate: s.selectedDate,
         setSelectedDate: s.setSelectedDate,
-        daySpan: s.daySpan,
-        setDaySpan: s.setDaySpan,
         hideWeekends: s.hideWeekends,
-        setHideWeekends: s.setHideWeekends,
-        t2tZoom: s.t2tZoom,
-        setT2TZoom: s.setT2TZoom,
         categoryFilter: s.categoryFilter,
         setCategoryFilter: s.setCategoryFilter,
     })))
@@ -161,75 +153,14 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
         setShowDatePopover(false)
     }, [setSelectedDate])
 
-    // View prefs — borderless rows (label + icon-toggle pill) stacked inside one card
-    const renderIconToggleRow = <T extends string | number | boolean>(
-        label: string,
-        options: { value: T; icon: LucideIcon; ariaLabel: string }[],
-        current: T,
-        onPick: (v: T) => void,
-    ) => (
-        <div className="flex items-center gap-3 px-4 py-2.5">
-            <p className="flex-1 min-w-0 text-sm font-medium text-primary">{label}</p>
-            <ActionPill className="shrink-0">
-                {options.map(opt => {
-                    const isActive = current === opt.value
-                    const Icon = opt.icon
-                    return (
-                        <button
-                            key={String(opt.value)}
-                            onClick={() => onPick(opt.value)}
-                            aria-label={opt.ariaLabel}
-                            aria-pressed={isActive}
-                            className={`w-9 h-9 rounded-full flex items-center justify-center transition-all active:scale-95 ${
-                                isActive
-                                    ? 'bg-themeblue2 text-white'
-                                    : 'bg-themeblue2/8 text-primary'
-                            }`}
-                        >
-                            <Icon size={16} />
-                        </button>
-                    )
-                })}
-            </ActionPill>
+    // Per-view layout prefs (Weekends / Day layout / Troops cells + huddle-only)
+    // now live on the calendar's view-config popover (re-tap the active view pill).
+    // The settings drawer keeps only clinic-level config (supervisor).
+    const layoutSection = isSupervisorRole ? (
+        <div className="px-5 py-4">
+            <CalendarClinicEditor variant="calendar" />
         </div>
-    )
-
-    const layoutSection = (
-        <div className="px-5 py-4 space-y-2">
-            <p className="px-1 text-[10pt] font-medium text-tertiary uppercase tracking-wide">View</p>
-            <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 py-1.5 divide-y divide-themeblue3/10">
-                {renderIconToggleRow<boolean>(
-                    'Weekends',
-                    [
-                        { value: false, icon: CalendarDays, ariaLabel: 'Show weekends' },
-                        { value: true, icon: CalendarOff, ariaLabel: 'Hide weekends' },
-                    ],
-                    hideWeekends,
-                    setHideWeekends,
-                )}
-                {renderIconToggleRow<typeof daySpan>(
-                    'Day view',
-                    [
-                        { value: 1, icon: Square, ariaLabel: 'Single day' },
-                        { value: 3, icon: Columns3, ariaLabel: 'Triple day' },
-                    ],
-                    daySpan,
-                    setDaySpan,
-                )}
-                {renderIconToggleRow<typeof t2tZoom>(
-                    'Troops to Task',
-                    [
-                        { value: 'hour', icon: Clock, ariaLabel: 'Hourly cells' },
-                        { value: 'expanded', icon: Grid2x2, ariaLabel: '20-minute cells' },
-                        { value: 'day', icon: CalendarRange, ariaLabel: 'Daily cells' },
-                    ],
-                    t2tZoom,
-                    setT2TZoom,
-                )}
-            </div>
-            {isSupervisorRole && <CalendarClinicEditor variant="calendar" />}
-        </div>
-    )
+    ) : null
 
     // Category filter panel — list-item UI matching personnelFilterPanel
     const categoryFilterPanel = (
@@ -388,19 +319,19 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
                                         placeholder="Search personnel"
                                     />
                                 </div>
-                                <button
-                                    data-tour="calendar-settings"
-                                    onClick={() => setShowSettings(true)}
-                                    className={`shrink-0 w-9 h-9 rounded-full flex items-center justify-center transition-colors active:scale-95 ${
-                                        hideWeekends || daySpan !== 1 || t2tZoom !== 'hour'
-                                            ? 'bg-themeblue3/10 text-themeblue3'
-                                            : 'text-tertiary hover:text-primary'
-                                    }`}
-                                    aria-label="Calendar settings"
-                                    title="Calendar settings"
-                                >
-                                    <SettingsIcon className="w-4 h-4" />
-                                </button>
+                                {/* Settings gear holds clinic config (supervisor only);
+                                    per-view layout prefs moved to the island view-config popover. */}
+                                {isSupervisorRole && (
+                                    <button
+                                        data-tour="calendar-settings"
+                                        onClick={() => setShowSettings(true)}
+                                        className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center transition-colors active:scale-95 text-tertiary hover:text-primary"
+                                        aria-label="Calendar settings"
+                                        title="Calendar settings"
+                                    >
+                                        <SettingsIcon className="w-4 h-4" />
+                                    </button>
+                                )}
                             </div>
                             <div className="shrink-0">
                                 <MiniCalendar

@@ -32,6 +32,7 @@ export const PANEL = {
     STORAGE: 37,
     FEATURE_VOTES: 38,
     CHECKLISTS: 39,
+    ACCOUNTABILITY: 40,
 } as const;
 
 export type PanelId = (typeof PANEL)[keyof typeof PANEL];
@@ -61,6 +62,7 @@ export const PANEL_TARGET: Partial<Record<PanelId, string>> = {
     [PANEL.STORAGE]: 'storage',
     [PANEL.FEATURE_VOTES]: 'feature-votes',
     [PANEL.CHECKLISTS]: 'checklists',
+    [PANEL.ACCOUNTABILITY]: 'accountability',
 };
 
 export type SettingsItem =

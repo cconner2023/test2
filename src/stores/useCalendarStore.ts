@@ -6,7 +6,13 @@ import { createLogger } from '../Utilities/Logger'
 const logger = createLogger('CalendarPersist')
 
 type CalendarViewMode = 'month' | 'day' | 'troops'
-export type CalendarDaySpan = 1 | 3
+/**
+ * Day-view layout — how the Day pill renders:
+ *   1         — single timeline (default)
+ *   3         — triple-day timeline
+ *   'summary' — flat chronological agenda list (the huddle read-out)
+ */
+export type CalendarDaySpan = 1 | 3 | 'summary'
 /**
  * Troops-to-Task timeline granularity — the width of one cell on the same 24h
  * multi-day scroll axis:
@@ -22,9 +28,10 @@ interface CalendarPrefs {
   daySpan: CalendarDaySpan
   hideWeekends: boolean
   t2tZoom: CalendarT2TZoom
+  t2tHuddleOnly: boolean
 }
 
-const DEFAULT_PREFS: CalendarPrefs = { daySpan: 1, hideWeekends: false, t2tZoom: 'hour' }
+const DEFAULT_PREFS: CalendarPrefs = { daySpan: 1, hideWeekends: false, t2tZoom: 'hour', t2tHuddleOnly: false }
 
 function loadPrefs(): CalendarPrefs {
   if (typeof window === 'undefined') return DEFAULT_PREFS
@@ -33,9 +40,10 @@ function loadPrefs(): CalendarPrefs {
     if (!raw) return DEFAULT_PREFS
     const parsed = JSON.parse(raw) as Partial<CalendarPrefs>
     return {
-      daySpan: parsed.daySpan === 3 ? 3 : 1,
+      daySpan: parsed.daySpan === 3 ? 3 : parsed.daySpan === 'summary' ? 'summary' : 1,
       hideWeekends: !!parsed.hideWeekends,
       t2tZoom: parsed.t2tZoom === 'expanded' || parsed.t2tZoom === 'day' ? parsed.t2tZoom : 'hour',
+      t2tHuddleOnly: !!parsed.t2tHuddleOnly,
     }
   } catch {
     return DEFAULT_PREFS
@@ -73,6 +81,8 @@ interface CalendarState {
   hideWeekends: boolean
   /** Troops-to-Task timeline cell granularity. Persisted to localStorage. */
   t2tZoom: CalendarT2TZoom
+  /** Troops-to-Task: collapse to the huddle band only (hide personnel lanes). Persisted. */
+  t2tHuddleOnly: boolean
   /**
    * Clinic-default per-category colors (shared layer). NOT persisted — synced
    * from clinics.calendar_category_colors by useClinicCategoryColorsSync, mounted
@@ -125,6 +135,7 @@ interface CalendarActions {
   setDaySpan: (span: CalendarDaySpan) => void
   setHideWeekends: (hide: boolean) => void
   setT2TZoom: (zoom: CalendarT2TZoom) => void
+  setT2THuddleOnly: (only: boolean) => void
   /** Replace the synced clinic-default color map (called by useClinicCategoryColorsSync). */
   setClinicCategoryColors: (colors: CategoryColorMap) => void
 }
@@ -202,6 +213,7 @@ export const useCalendarStore = create<CalendarStore>()(calendarPersist((set) =>
   daySpan: loadPrefs().daySpan,
   hideWeekends: loadPrefs().hideWeekends,
   t2tZoom: loadPrefs().t2tZoom,
+  t2tHuddleOnly: loadPrefs().t2tHuddleOnly,
   clinicCategoryColors: {},
   hydrated: false,
   vaultReplayDone: false,
@@ -278,16 +290,20 @@ export const useCalendarStore = create<CalendarStore>()(calendarPersist((set) =>
     s.fullReplayLiveIds === null ? {} : { fullReplayLiveIds: [...s.fullReplayLiveIds, ...ids] }
   )),
   setDaySpan: (span) => set((s) => {
-    savePrefs({ daySpan: span, hideWeekends: s.hideWeekends, t2tZoom: s.t2tZoom })
+    savePrefs({ daySpan: span, hideWeekends: s.hideWeekends, t2tZoom: s.t2tZoom, t2tHuddleOnly: s.t2tHuddleOnly })
     return { daySpan: span }
   }),
   setHideWeekends: (hide) => set((s) => {
-    savePrefs({ daySpan: s.daySpan, hideWeekends: hide, t2tZoom: s.t2tZoom })
+    savePrefs({ daySpan: s.daySpan, hideWeekends: hide, t2tZoom: s.t2tZoom, t2tHuddleOnly: s.t2tHuddleOnly })
     return { hideWeekends: hide }
   }),
   setT2TZoom: (zoom) => set((s) => {
-    savePrefs({ daySpan: s.daySpan, hideWeekends: s.hideWeekends, t2tZoom: zoom })
+    savePrefs({ daySpan: s.daySpan, hideWeekends: s.hideWeekends, t2tZoom: zoom, t2tHuddleOnly: s.t2tHuddleOnly })
     return { t2tZoom: zoom }
+  }),
+  setT2THuddleOnly: (only) => set((s) => {
+    savePrefs({ daySpan: s.daySpan, hideWeekends: s.hideWeekends, t2tZoom: s.t2tZoom, t2tHuddleOnly: only })
+    return { t2tHuddleOnly: only }
   }),
   setClinicCategoryColors: (colors) => set({ clinicCategoryColors: colors }),
 })))

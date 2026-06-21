@@ -5,7 +5,7 @@ import { SearchInput } from './SearchInput'
 import { BaseDrawer } from './BaseDrawer'
 import { PropertyPanel, type PropertyView } from './Property/PropertyPanel'
 import { ConfirmDialog } from './ConfirmDialog'
-import { ItemScanner } from './Property/ItemScanner'
+import { SignOutSheet } from './Property/SignOutSheet'
 import { PropertyNavSheet, type PropertyNavSheetHandle } from './Property/PropertyNavSheet'
 import { EnrollScanStep } from './Property/EnrollScanStep'
 import { useIsMobile } from '../Hooks/useIsMobile'
@@ -17,6 +17,10 @@ import { useNavigationStore } from '../stores/useNavigationStore'
 import { useShallow } from 'zustand/react/shallow'
 import { exportPropertyCSV } from '../Utilities/PropertyCSV'
 import { PropertyCSVImportDrawer } from './Property/PropertyCSVImportDrawer'
+import { PdfPreviewModal } from './PdfPreviewModal'
+import { usePropertyLabelExport } from '../Hooks/usePropertyLabelExport'
+import type { LabelPresetKey } from '../Utilities/PropertyLabelExport'
+import { usePropertyVault } from '../Hooks/usePropertyVault'
 
 interface PropertyDrawerProps {
     isVisible: boolean
@@ -33,12 +37,16 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
             items: s.items,
             locations: s.locations,
             enrollFingerprint: s.enrollFingerprint,
-            expendItem: s.expendItem,
         }))
     )
     const { navigateToPath, init, setEditingItem, removeItem, items } = store
     const isSupervisorRole = useAuthStore(s => s.isSupervisorRole)
+    const isDevRole = useAuthStore(s => s.isDevRole)
     const isMobile = useIsMobile()
+
+    // Drain any property fan-outs queued while offline (re-resolves cross-cluster
+    // targets on reconnect). Mirrors useCalendarVault's drain effect.
+    usePropertyVault()
 
     const [view, setView] = useState<PropertyView>('property')
     const [showLocationSheet, setShowLocationSheet] = useState(false)
@@ -49,12 +57,14 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
     const [searchFocused, setSearchFocused] = useState(false)
     const [selectedItem, setSelectedItem] = useState<LocalPropertyItem | null>(null)
     const [pendingDeleteItem, setPendingDeleteItem] = useState<LocalPropertyItem | null>(null)
-    const [scanMode, setScanMode] = useState(false)
+    const [showSignOutSheet, setShowSignOutSheet] = useState(false)
     const [enrollingItem, setEnrollingItem] = useState<LocalPropertyItem | null>(null)
     const [enrollAutoStart, setEnrollAutoStart] = useState(false)
     const [pendingEnrollNew, setPendingEnrollNew] = useState<LocalPropertyItem | null>(null)
     const [showAddSheet, setShowAddSheet] = useState(false)
     const [showImportSheet, setShowImportSheet] = useState(false)
+    const [showLabelSheet, setShowLabelSheet] = useState(false)
+    const { exportLabels, labelPreview, downloadLabels, clearLabelPreview } = usePropertyLabelExport()
     const addItemTriggerRef = useRef<(() => void) | null>(null)
     const addLocationTriggerRef = useRef<(() => void) | null>(null)
     const initRef = useRef(false)
@@ -134,11 +144,6 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
             setView('property-form')
         }
     }, [isMobile])
-
-    const handleScanMatch = useCallback(async (itemId: string, qty: number) => {
-        await store.expendItem(itemId, qty)
-        setScanMode(false)
-    }, [store])
 
     const handleBack = useCallback(() => {
         if (view === 'property-form') {
@@ -297,11 +302,28 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                 options={[
                     { key: 'item', label: 'New Item', onAction: () => { setShowAddSheet(false); addItemTriggerRef.current?.() } },
                     { key: 'location', label: 'New Location', onAction: () => { setShowAddSheet(false); addLocationTriggerRef.current?.() } },
-                    { key: 'scan', label: 'Scan to expend', onAction: () => { setShowAddSheet(false); setScanMode(true) } },
+                    ...(isDevRole ? [{ key: 'da2062', label: 'New DA 2062', onAction: () => { setShowAddSheet(false); setShowSignOutSheet(true) } }] : []),
                     { key: 'import-csv', label: 'Import CSV', onAction: () => { setShowAddSheet(false); setShowImportSheet(true) } },
                     { key: 'export-csv', label: 'Export CSV', onAction: () => { setShowAddSheet(false); exportPropertyCSV(items, store.locations) } },
+                    { key: 'print-labels', label: 'Print labels', onAction: () => { setShowAddSheet(false); setShowLabelSheet(true) } },
                 ]}
                 onClose={() => setShowAddSheet(false)}
+            />
+
+            <ActionSheet
+                visible={showLabelSheet}
+                title="Print labels — choose stock"
+                options={[
+                    { key: 'standard', label: 'Address (1" × 2⅝")', onAction: () => { setShowLabelSheet(false); exportLabels({ items: items.map(i => ({ id: i.id, name: i.name, nsn: i.nsn })), geometry: 'standard' as LabelPresetKey }) } },
+                    { key: 'fileFolder', label: 'File folder (⅔" × 3‑7/16")', onAction: () => { setShowLabelSheet(false); exportLabels({ items: items.map(i => ({ id: i.id, name: i.name, nsn: i.nsn })), geometry: 'fileFolder' as LabelPresetKey }) } },
+                ]}
+                onClose={() => setShowLabelSheet(false)}
+            />
+
+            <PdfPreviewModal
+                preview={labelPreview}
+                onDownload={downloadLabels}
+                onClose={clearLabelPreview}
             />
 
             <ConfirmDialog
@@ -328,13 +350,10 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                 onCancel={() => setPendingEnrollNew(null)}
             />
 
-            {scanMode && (
-                <ItemScanner
-                    items={items}
-                    onMatch={handleScanMatch}
-                    onClose={() => setScanMode(false)}
-                />
-            )}
+            <SignOutSheet
+                isOpen={showSignOutSheet}
+                onClose={() => setShowSignOutSheet(false)}
+            />
 
             {enrollingItem && (
                 <div className="fixed inset-0 z-50 bg-black/50 flex items-end justify-center pb-8">

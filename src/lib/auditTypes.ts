@@ -43,10 +43,12 @@ export type AuditEventType =
   //  moved:    { from_location_id, to_location_id }
   //  assigned: { from_holder_id, to_holder_id }
   //  edited:   { changed: string[] }
+  //  deleted:  { name?, nsn?, serial_number? }   // item removed from accountability
   | 'item.created'
   | 'item.moved'
   | 'item.assigned'
   | 'item.edited'
+  | 'item.deleted'
   // property faults — a fault can belong to ANY property item (vehicle 5988
   // faults, a broken med fridge, an unserviceable monitor). Append-only:
   // correcting never removes the opened event, so the full found→fixed history

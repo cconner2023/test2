@@ -25,8 +25,13 @@ export interface SwipeActions {
   rtl: SwipeBinding
 }
 
-/** Defaults: swipe-right opens the menu, swipe-left deletes. */
-export const DEFAULT_SWIPE_ACTIONS: SwipeActions = { ltr: 'menu', rtl: 'delete' }
+/**
+ * Defaults: swipe-right replies, swipe-left forwards. Kept to the simple
+ * immediate-fire actions — the settings picker only exposes reply / forward /
+ * off, though the model still honours legacy `delete` / `menu` bindings that a
+ * user persisted before the picker was simplified.
+ */
+export const DEFAULT_SWIPE_ACTIONS: SwipeActions = { ltr: 'reply', rtl: 'forward' }
 
 const VALID: ReadonlySet<SwipeBinding> = new Set(['reply', 'forward', 'delete', 'menu', 'off'])
 

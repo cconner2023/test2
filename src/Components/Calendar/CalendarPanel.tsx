@@ -1,6 +1,8 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
-import { Clock, Users2, CalendarDays, X, Check, Pencil, Trash2, CalendarPlus, Play, CheckCircle2, Ban, CircleDashed, Move, MessageSquare } from 'lucide-react'
+import { Clock, Users2, CalendarDays, X, Check, Pencil, Trash2, CalendarPlus, Play, CheckCircle2, Ban, CircleDashed, Move, MessageSquare, CalendarOff, Square, Columns3, ListChecks, Grid2x2, CalendarRange, Rows3, Megaphone } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import { type ContextMenuItem } from '../ContextMenu'
+import { ActionPill } from '../ActionPill'
 import { LiftedRowMenu } from '../LiftedRowMenu'
 import { useShallow } from 'zustand/react/shallow'
 import { useIsMobile } from '../../Hooks/useIsMobile'
@@ -9,6 +11,7 @@ import type { EventFormHandle } from './EventForm'
 import { EventDetailPanel } from './EventDetailPanel'
 import { DayView } from './DayView'
 import { TripleDayView } from './TripleDayView'
+import { DaySummaryView } from './DaySummaryView'
 import { TroopsToTaskView } from './TroopsToTaskView'
 import { InfiniteScrollCalendar } from './InfiniteScrollCalendar'
 import { useShareToChat } from '../Messages/ShareToChatPicker'
@@ -151,6 +154,41 @@ function DayClone({ dateKey }: { dateKey: string }) {
   )
 }
 
+/** One labeled icon-toggle row inside the view-config popover. Mirrors the
+ *  CalendarDrawer settings idiom (label + ActionPill of icon options) so the
+ *  controls read identically wherever they surface. */
+function ConfigRow<T extends string | number | boolean>({ label, options, current, onPick }: {
+  label: string
+  options: { value: T; icon: LucideIcon; ariaLabel: string }[]
+  current: T
+  onPick: (v: T) => void
+}) {
+  return (
+    <div className="flex items-center gap-3">
+      <p className="flex-1 min-w-0 text-sm font-medium text-primary">{label}</p>
+      <ActionPill shadow="sm" className="shrink-0">
+        {options.map(opt => {
+          const isActive = current === opt.value
+          const Icon = opt.icon
+          return (
+            <button
+              key={String(opt.value)}
+              onClick={() => onPick(opt.value)}
+              aria-label={opt.ariaLabel}
+              aria-pressed={isActive}
+              className={`w-9 h-9 rounded-full flex items-center justify-center transition-all active:scale-95 ${
+                isActive ? 'bg-themeblue2 text-white' : 'bg-themeblue2/8 text-primary'
+              }`}
+            >
+              <Icon size={16} />
+            </button>
+          )
+        })}
+      </ActionPill>
+    </div>
+  )
+}
+
 interface CalendarPanelProps {
   onBack: () => void
   scrollNonce?: number
@@ -162,6 +200,10 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
   const isMobile = useIsMobile()
   const [panelView, setPanelView] = useState<PanelView>('calendar')
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null)
+  // View-config popover (Map basemap-picker pattern) — opened by re-tapping the
+  // already-active view pill. Holds the active view's layout options so they live
+  // on the island instead of buried in the settings drawer.
+  const [showViewConfig, setShowViewConfig] = useState(false)
 
   const calendarDrawerEventId = useNavigationStore(s => s.calendarDrawerEventId)
   const calendarDrawerEventEditMode = useNavigationStore(s => s.calendarDrawerEventEditMode)
@@ -380,8 +422,10 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     selectedDateStr, storeSetSelectedDate,
     vaultReplayDone,
     hydrationError, clearHydrationError,
-    daySpan,
-    t2tZoom,
+    daySpan, setDaySpan,
+    hideWeekends, setHideWeekends,
+    t2tZoom, setT2TZoom,
+    t2tHuddleOnly, setT2THuddleOnly,
     categoryFilter, setCategoryFilter,
     clusterFilter,
   } = useCalendarStore(useShallow(s => ({
@@ -400,7 +444,13 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     hydrationError: s.hydrationError,
     clearHydrationError: s.clearHydrationError,
     daySpan: s.daySpan,
+    setDaySpan: s.setDaySpan,
+    hideWeekends: s.hideWeekends,
+    setHideWeekends: s.setHideWeekends,
     t2tZoom: s.t2tZoom,
+    setT2TZoom: s.setT2TZoom,
+    t2tHuddleOnly: s.t2tHuddleOnly,
+    setT2THuddleOnly: s.setT2THuddleOnly,
     categoryFilter: s.categoryFilter,
     setCategoryFilter: s.setCategoryFilter,
     clusterFilter: s.clusterFilter,
@@ -558,6 +608,17 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
       setViewMode('day')
     }
   }, [viewMode, moveModeEventId, setSelectedDate, setViewMode])
+
+  // View-pill tap: switch views, or — if the pill is already active — toggle its
+  // config popover. Every view carries layout options, so every pill shows the caret.
+  const selectView = useCallback((v: 'month' | 'day' | 'troops') => {
+    if (viewMode === v) {
+      setShowViewConfig(o => !o)
+    } else {
+      setViewMode(v)
+      setShowViewConfig(false)
+    }
+  }, [viewMode, setViewMode])
 
   const handlePrevDay = useCallback(() => {
     const prev = new Date(selectedDate)
@@ -1141,6 +1202,22 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
               />
             )}
 
+            {viewMode === 'day' && daySpan === 'summary' && (
+              <DaySummaryView
+                date={selectedDate}
+                events={dayEvents}
+                resolveAssigned={resolveAssigned}
+                onSelectEvent={handleSelectEvent}
+                onEventContextMenu={handleEventContextMenu}
+                onDayContextMenu={handleDayContextMenu}
+                {...(isMobile ? {
+                  onPrevDay: handlePrevDay,
+                  onNextDay: handleNextDay,
+                  onDateTap: onOpenControls,
+                } : {})}
+              />
+            )}
+
             {viewMode === 'troops' && (
               <TroopsToTaskView
                 key={`t2t-${t2tZoom}`}
@@ -1149,6 +1226,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                 medics={ownClinicMedics}
                 huddleTasks={sortedHuddleTasks}
                 zoom={t2tZoom}
+                huddleOnly={t2tHuddleOnly}
                 onSelectEvent={handleSelectEvent}
                 onEventContextMenu={handleEventContextMenu}
                 onAssign={assignPersonnel}
@@ -1160,20 +1238,79 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
             )}
           </div>
 
+          {/* View-config popover — floats above the island's active pill (Map
+              basemap-picker pattern). Holds the active view's layout options. */}
+          {showViewConfig && (
+            <>
+              <div className="absolute inset-0 z-30" onClick={() => setShowViewConfig(false)} />
+              <div className="absolute bottom-[4.5rem] inset-x-0 z-50 flex items-end justify-center px-4 pb-[max(0rem,var(--sab,0px))] pointer-events-none">
+                <div className="pointer-events-auto w-full max-w-xs rounded-2xl bg-themewhite shadow-lg border border-tertiary/15 p-3 space-y-2.5 animate-fadeIn">
+                  {viewMode === 'month' && (
+                    <ConfigRow<boolean>
+                      label="Weekends"
+                      options={[
+                        { value: false, icon: CalendarDays, ariaLabel: 'Show weekends' },
+                        { value: true, icon: CalendarOff, ariaLabel: 'Hide weekends' },
+                      ]}
+                      current={hideWeekends}
+                      onPick={setHideWeekends}
+                    />
+                  )}
+                  {viewMode === 'day' && (
+                    <ConfigRow<typeof daySpan>
+                      label="Layout"
+                      options={[
+                        { value: 1, icon: Square, ariaLabel: 'Single day' },
+                        { value: 3, icon: Columns3, ariaLabel: 'Triple day' },
+                        { value: 'summary', icon: ListChecks, ariaLabel: 'Summary (huddle read-out)' },
+                      ]}
+                      current={daySpan}
+                      onPick={setDaySpan}
+                    />
+                  )}
+                  {viewMode === 'troops' && (
+                    <>
+                      <ConfigRow<typeof t2tZoom>
+                        label="Cells"
+                        options={[
+                          { value: 'hour', icon: Clock, ariaLabel: 'Hourly cells' },
+                          { value: 'expanded', icon: Grid2x2, ariaLabel: '20-minute cells' },
+                          { value: 'day', icon: CalendarRange, ariaLabel: 'Daily cells' },
+                        ]}
+                        current={t2tZoom}
+                        onPick={setT2TZoom}
+                      />
+                      <ConfigRow<boolean>
+                        label="Rows"
+                        options={[
+                          { value: false, icon: Rows3, ariaLabel: 'All personnel rows' },
+                          { value: true, icon: Megaphone, ariaLabel: 'Huddle band only' },
+                        ]}
+                        current={t2tHuddleOnly}
+                        onPick={setT2THuddleOnly}
+                      />
+                    </>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
+
           <BottomIsland
             glass
+            z={showViewConfig ? 'z-40' : 'z-20'}
             tour="calendar-view-switcher"
             fab={
               <AddFab tour="calendar-add-event" label="Add event" onClick={() => setShowAddSheet(true)} className="absolute right-4" />
             }
           >
-            <IslandButton active={viewMode === 'month'} onClick={() => setViewMode('month')} label="Month" tour="calendar-view-month">
+            <IslandButton caret active={viewMode === 'month'} onClick={() => selectView('month')} label="Month" tour="calendar-view-month">
               <CalendarDays className="w-5 h-5" />
             </IslandButton>
-            <IslandButton active={viewMode === 'day'} onClick={() => setViewMode('day')} label="Day" tour="calendar-view-day">
+            <IslandButton caret active={viewMode === 'day'} onClick={() => selectView('day')} label="Day" tour="calendar-view-day">
               <Clock className="w-5 h-5" />
             </IslandButton>
-            <IslandButton active={viewMode === 'troops'} onClick={() => setViewMode('troops')} label="Troops to Task" tour="calendar-view-troops">
+            <IslandButton caret active={viewMode === 'troops'} onClick={() => selectView('troops')} label="Troops to Task" tour="calendar-view-troops">
               <Users2 className="w-5 h-5" />
             </IslandButton>
           </BottomIsland>

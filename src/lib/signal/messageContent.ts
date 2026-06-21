@@ -19,6 +19,7 @@
 
 import type { EventCategory, EventStatus, CategorySwatchId } from '../../Types/CalendarTypes'
 import type { OverlayFeature, OverlayFloor } from '../../Types/MapOverlayTypes'
+import type { LocationTag } from '../../Types/PropertyTypes'
 
 // ---- Content Types ----
 
@@ -160,6 +161,37 @@ export interface MapFeatureContent {
   type: 'map_feature'
   action: 'create' | 'update' | 'delete'
   data: MapFeaturePayload
+}
+
+/** The five property entities that ride one clinic-vault envelope channel. */
+export type PropertyEntity = 'item' | 'zone' | 'custody' | 'discrepancy' | 'tags'
+
+/**
+ * Payload for a property sync message — one envelope type covers all five
+ * property entities (items, zones, custody, discrepancies, tags), discriminated
+ * by `entity`. Per-entity semantics (custody append-only, tags canvas-replace)
+ * live in the router (propertyEventRouting.ts), not the wire.
+ *
+ * `id` = entity row id, or the location_id for the 'tags' canvas.
+ * `target_clinic_ids` = {authoring clinic} ∪ holder clinic sets (cross-cluster fan-out).
+ * `data` = the full entity row (c/u) or { id } (d). `tags` carries the canvas set for 'tags'.
+ */
+export interface PropertyEventPayload {
+  id: string
+  clinic_id?: string
+  target_clinic_ids?: string[]
+  originId?: string
+  /** Full entity row on c/u; minimal { id } on d. Absent for the 'tags' entity. */
+  data?: Record<string, unknown>
+  /** Canvas tag set — present only for the 'tags' entity (full-canvas replace). */
+  tags?: LocationTag[]
+}
+
+export interface PropertyEventContent {
+  type: 'property_event'
+  action: 'create' | 'update' | 'delete'
+  entity: PropertyEntity
+  data: PropertyEventPayload
 }
 
 /**
@@ -377,7 +409,7 @@ export interface ReactionContent {
   remove?: boolean
 }
 
-export type MessageContent = TextContent | ImageContent | VoiceContent | CalendarEventContent | MapOverlayContent | MapFeatureContent | SharedRefContent | SharedBundleContent | IntakeRequestContent | OncallCallContent | OutsideMessageContent | OutsideSessionContent | OutsideSessionUpdate | ReactionContent
+export type MessageContent = TextContent | ImageContent | VoiceContent | CalendarEventContent | MapOverlayContent | MapFeatureContent | PropertyEventContent | SharedRefContent | SharedBundleContent | IntakeRequestContent | OncallCallContent | OutsideMessageContent | OutsideSessionContent | OutsideSessionUpdate | ReactionContent
 
 // ---- Compact wire shapes ----
 
@@ -435,6 +467,15 @@ interface WireMapFeature {
   c?: string
   /** Feature payload. Full feature on c/u; { id } on d. */
   f: Record<string, unknown>
+}
+
+interface WirePropertyEvent {
+  t: 'p'
+  a: 'c' | 'u' | 'd'
+  /** Entity discriminator: item | zone | custody | discrepancy | tags. */
+  e: PropertyEntity
+  /** Full payload (id + clinic_id + target_clinic_ids + data/tags). */
+  d: Record<string, unknown>
 }
 
 interface WireSharedRef {
@@ -533,7 +574,7 @@ interface WireReaction {
   r?: 1
 }
 
-type WireContent = WireText | WireImage | WireVoice | WireCalendarEvent | WireMapOverlay | WireMapFeature | WireSharedRef | WireSharedBundle | WireIntake | WireOutsideMessage | WireOncallCall | WireReaction
+type WireContent = WireText | WireImage | WireVoice | WireCalendarEvent | WireMapOverlay | WireMapFeature | WirePropertyEvent | WireSharedRef | WireSharedBundle | WireIntake | WireOutsideMessage | WireOncallCall | WireReaction
 
 // ---- Serialization ----
 
@@ -594,6 +635,17 @@ export function serializeContent(content: MessageContent): string {
       f: content.data.feature as unknown as Record<string, unknown>,
     }
     if (content.data.clinic_id) wire.c = content.data.clinic_id
+    return JSON.stringify(wire)
+  }
+
+  if (content.type === 'property_event') {
+    const actionMap = { create: 'c', update: 'u', delete: 'd' } as const
+    const wire: WirePropertyEvent = {
+      t: 'p',
+      a: actionMap[content.action],
+      e: content.entity,
+      d: content.data as unknown as Record<string, unknown>,
+    }
     return JSON.stringify(wire)
   }
 
@@ -809,6 +861,20 @@ export function parseMessageContent(raw: string): ParsedContent {
             feature: wire.f as unknown as MapFeaturePayload['feature'],
           },
         } satisfies MapFeatureContent,
+      }
+    }
+
+    if (wire.t === 'p') {
+      const actionMap = { c: 'create', u: 'update', d: 'delete' } as const
+      const action = actionMap[wire.a] ?? 'create'
+      return {
+        plaintext: '[property]',
+        content: {
+          type: 'property_event',
+          action,
+          entity: wire.e,
+          data: wire.d as unknown as PropertyEventPayload,
+        } satisfies PropertyEventContent,
       }
     }
 

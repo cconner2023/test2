@@ -21,7 +21,7 @@
  */
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb'
 import type { CompletionType, CompletionResult, Json } from '../Types/database.types'
-import type { LocalPropertyItem, LocalPropertyLocation, LocalDiscrepancy, LocationTag } from '../Types/PropertyTypes'
+import type { LocalPropertyItem, LocalPropertyLocation, LocalDiscrepancy, LocalCustodyEntry, LocationTag } from '../Types/PropertyTypes'
 import type { LocalMapOverlay } from '../Types/MapOverlayTypes'
 
 // ---- Tile Cache Types ----
@@ -287,6 +287,15 @@ interface PackageBackEndDB extends DBSchema {
       'by-status': string
     }
   }
+  custodyLedger: {
+    key: string
+    value: LocalCustodyEntry
+    indexes: {
+      'by-item': string
+      'by-clinic': string
+      'by-holder': string
+    }
+  }
   locationTags: {
     key: string
     value: LocationTag
@@ -373,7 +382,7 @@ interface PackageBackEndDB extends DBSchema {
 }
 
 const DB_NAME = 'packagebackend-offline'
-const DB_VERSION = 16
+const DB_VERSION = 17
 
 let dbInstance: IDBPDatabase<PackageBackEndDB> | null = null
 
@@ -546,6 +555,16 @@ export async function getDb(): Promise<IDBPDatabase<PackageBackEndDB>> {
       if (oldVersion < 16) {
         const linkStore = db.createObjectStore('trainingCalendarLinks', { keyPath: 'key' })
         linkStore.createIndex('by-origin', 'origin_id')
+      }
+
+      // v16 → v17: custody_ledger local projection. Property now rides the clinic
+      // vault (per-device fan-out + snapshot), so custody entries must be readable
+      // offline rather than online-only.
+      if (oldVersion < 17) {
+        const custodyStore = db.createObjectStore('custodyLedger', { keyPath: 'id' })
+        custodyStore.createIndex('by-item', 'item_id')
+        custodyStore.createIndex('by-clinic', 'clinic_id')
+        custodyStore.createIndex('by-holder', 'to_holder_id')
       }
     },
   })
@@ -1033,6 +1052,17 @@ export async function getLocalPropertyItems(clinicId: string): Promise<LocalProp
 }
 
 /**
+ * Get ALL local property items across clinics. Needed by the clinic-vault
+ * snapshot builder: a cross-cluster item authored in clinic A but fanned to
+ * clinic B has clinic_id=A, so the by-clinic index misses it for clinic B —
+ * the snapshot filter matches on target_clinic_ids in JS instead.
+ */
+export async function getAllLocalPropertyItems(): Promise<LocalPropertyItem[]> {
+  const db = await getDb()
+  return db.getAll('propertyItems')
+}
+
+/**
  * Save or update a property item in IndexedDB (upsert).
  */
 export async function saveLocalPropertyItem(item: LocalPropertyItem): Promise<void> {
@@ -1074,6 +1104,12 @@ export async function getLocalPropertySubItems(parentId: string): Promise<LocalP
 export async function getLocalPropertyLocations(clinicId: string): Promise<LocalPropertyLocation[]> {
   const db = await getDb()
   return db.getAllFromIndex('propertyLocations', 'by-clinic', clinicId)
+}
+
+/** All local property zones across clinics — for the cross-cluster snapshot filter. */
+export async function getAllLocalPropertyLocations(): Promise<LocalPropertyLocation[]> {
+  const db = await getDb()
+  return db.getAll('propertyLocations')
 }
 
 /**
@@ -1198,6 +1234,12 @@ export async function getLocalDiscrepanciesByStatus(status: string): Promise<Loc
   return db.getAllFromIndex('propertyDiscrepancies', 'by-status', status)
 }
 
+/** All local discrepancies across clinics — for the clinic-vault snapshot builder. */
+export async function getAllLocalDiscrepancies(): Promise<LocalDiscrepancy[]> {
+  const db = await getDb()
+  return db.getAll('propertyDiscrepancies')
+}
+
 /**
  * Save or update a discrepancy in IndexedDB (upsert).
  */
@@ -1212,6 +1254,40 @@ export async function saveLocalDiscrepancy(discrepancy: LocalDiscrepancy): Promi
 export async function deleteLocalDiscrepancy(discrepancyId: string): Promise<void> {
   const db = await getDb()
   await db.delete('propertyDiscrepancies', discrepancyId)
+}
+
+// ============================================================
+// Custody Ledger Operations (local projection, vault-delivered)
+// ============================================================
+
+/** All custody entries for a clinic (includes cross-cluster copies if their clinic_id matches). */
+export async function getLocalCustodyByClinic(clinicId: string): Promise<LocalCustodyEntry[]> {
+  const db = await getDb()
+  return db.getAllFromIndex('custodyLedger', 'by-clinic', clinicId)
+}
+
+/** All custody entries for one item (the item's transfer history). */
+export async function getLocalCustodyByItem(itemId: string): Promise<LocalCustodyEntry[]> {
+  const db = await getDb()
+  return db.getAllFromIndex('custodyLedger', 'by-item', itemId)
+}
+
+/** All local custody entries across clinics — for the cross-cluster snapshot filter. */
+export async function getAllLocalCustody(): Promise<LocalCustodyEntry[]> {
+  const db = await getDb()
+  return db.getAll('custodyLedger')
+}
+
+/** Upsert a custody entry (idempotent — append-only entity keyed by id). */
+export async function saveLocalCustodyEntry(entry: LocalCustodyEntry): Promise<void> {
+  const db = await getDb()
+  await db.put('custodyLedger', entry)
+}
+
+/** Hard-delete a custody entry from IndexedDB (used only by logout/clear). */
+export async function deleteLocalCustody(entryId: string): Promise<void> {
+  const db = await getDb()
+  await db.delete('custodyLedger', entryId)
 }
 
 // ============================================================
@@ -1301,7 +1377,7 @@ export async function clearTileCache(): Promise<void> {
 export async function clearAllUserData(): Promise<void> {
   const db = await getDb()
   const tx = db.transaction(
-    ['syncQueue', 'trainingCompletions', 'propertyItems', 'propertyLocations', 'propertyDiscrepancies', 'locationTags', 'mapOverlays', 'cachedTiles', 'tileMetadata', 'featureVoteCycles', 'featureVoteCandidates', 'featureVotes', 'featureVoteSuggestions', 'auditLog', 'trainingCalendarLinks'],
+    ['syncQueue', 'trainingCompletions', 'propertyItems', 'propertyLocations', 'propertyDiscrepancies', 'custodyLedger', 'locationTags', 'mapOverlays', 'cachedTiles', 'tileMetadata', 'featureVoteCycles', 'featureVoteCandidates', 'featureVotes', 'featureVoteSuggestions', 'auditLog', 'trainingCalendarLinks'],
     'readwrite',
   )
   await tx.objectStore('syncQueue').clear()
@@ -1311,6 +1387,7 @@ export async function clearAllUserData(): Promise<void> {
   await tx.objectStore('propertyItems').clear()
   await tx.objectStore('propertyLocations').clear()
   await tx.objectStore('propertyDiscrepancies').clear()
+  await tx.objectStore('custodyLedger').clear()
   await tx.objectStore('locationTags').clear()
   await tx.objectStore('mapOverlays').clear()
   await tx.objectStore('cachedTiles').clear()

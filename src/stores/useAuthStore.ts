@@ -27,6 +27,7 @@ import { secureSet, secureGet, secureRemove, persistSupabaseAuth, destroySecureS
 import { clearOutboundQueue, destroyOutboundQueue } from '../lib/signal/outboundQueue'
 import { clearCalendarEvents, clearAllPendingVaultSends } from '../lib/calendarEventStore'
 import { clearAllPendingOverlaySends } from '../lib/mapOverlayEventStore'
+import { clearAllPendingPropertySends } from '../lib/propertyEventStore'
 import { useCalendarStore } from './useCalendarStore'
 import { invalidate } from './useInvalidationStore'
 import { clearBackupKey, createBackup, scheduleBackup, restoreBackup } from '../lib/signal/backupService'
@@ -440,6 +441,12 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
     // is wiped by clearAllUserData below; overlay tombstones live in the
     // adtmc-map-overlay-events DB and must be preserved across logout.
     clearAllPendingOverlaySends().catch(() => {})
+
+    // Same contract for property: the projections (offlineDb propertyItems /
+    // propertyLocations / custodyLedger / propertyDiscrepancies / locationTags)
+    // are wiped by clearAllUserData below; property tombstones live in the
+    // adtmc-property-events DB and must be preserved across logout.
+    clearAllPendingPropertySends().catch(() => {})
 
     // Wipe in-memory messaging state. clearAll() resets conversations,
     // unreadCounts, peerProfiles, etc. — without this, a subsequent signIn

@@ -395,7 +395,7 @@ function ConversationPane({
              && searchResults.medics.length === 0
              && searchResults.messages.length === 0 && (
               <p className="text-[10pt] text-tertiary px-3 py-4 text-center">
-                No results in your conversations. Use New Message to find anyone on Beacon.
+                No results in your conversations. Use New Message to find anyone on the Medical Operations app.
               </p>
             )}
           </div>

@@ -193,7 +193,7 @@ export function stripMapSummary(data: StripMapData): string {
 
 export function stripMapFooter(data: StripMapData): string {
   const ts = data.generatedAt.replace('T', ' ').slice(0, 16)
-  return `Beacon · Generated ${ts} UTC · Bearings ${bearingSuffix(data.bearingReference)}`
+  return `Medical Operations · Generated ${ts} UTC · Bearings ${bearingSuffix(data.bearingReference)}`
 }
 
 function truncate(s: string, max: number): string {

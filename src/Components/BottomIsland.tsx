@@ -13,6 +13,7 @@
  * - `barClassName` extends the bar (Map uses `max-w-[…]`).
  */
 import type { ReactNode } from 'react'
+import { ChevronUp } from 'lucide-react'
 import { GlassBand } from './GlassBand'
 
 interface BottomIslandProps {
@@ -66,11 +67,17 @@ interface IslandButtonProps {
   /** ARIA role, e.g. 'tab' for a tablist. Adds aria-selected when set. */
   role?: string
   disabled?: boolean
+  /**
+   * Show an upward caret on the active pill, hinting that re-tapping it opens a
+   * secondary options popover above the island (Calendar view-config pattern).
+   * Only renders while `active` — the selected tab is the one with options.
+   */
+  caret?: boolean
   /** The icon (or other glyph). Caller controls size. */
   children: ReactNode
 }
 
-export function IslandButton({ active = false, onClick, label, tour, role, disabled, children }: IslandButtonProps) {
+export function IslandButton({ active = false, onClick, label, tour, role, disabled, caret = false, children }: IslandButtonProps) {
   return (
     <button
       onClick={onClick}
@@ -79,11 +86,14 @@ export function IslandButton({ active = false, onClick, label, tour, role, disab
       aria-label={label}
       title={label}
       {...(role ? { role, 'aria-selected': active } : {})}
-      className={`w-11 h-11 rounded-full flex items-center justify-center transition-all duration-200 active:scale-95 ${
+      className={`relative w-11 h-11 rounded-full flex items-center justify-center transition-all duration-200 active:scale-95 ${
         active ? 'bg-themeblue3 text-white shadow-sm' : 'text-tertiary hover:text-primary'
       } ${disabled ? 'opacity-30' : ''}`}
     >
       {children}
+      {caret && active && (
+        <ChevronUp className="absolute top-0.5 left-1/2 -translate-x-1/2 w-2.5 h-2.5 opacity-80" strokeWidth={2.5} aria-hidden />
+      )}
     </button>
   )
 }

@@ -61,9 +61,23 @@ export interface PropertyItem {
   photo_url: string | null
   visual_fingerprint: VisualFingerprint | null
   expiry_date: string | null      // ISO date (YYYY-MM-DD) for consumable/medical supply tracking
+  /** True when signed out on a DA 2062 to a recipient OUTSIDE the cluster (no profile
+   *  id exists for them — recipient name lives in the hand receipt's ledger notes). */
+  signed_out_external: boolean
   notes: string | null
   created_at: string
   updated_at: string
+  /** Soft-delete tombstone marker on the plaintext spine. Set on delete; null = live. */
+  deleted_at?: string | null
+  /**
+   * Clinics this item is distributed to = {clinic_id} ∪ holder's [home, ...active loans].
+   * Computed at fan-out time (propertyVault.resolvePropertyTargetClinics) and stamped so a
+   * single source drives cross-cluster fan-out, the clinic-vault snapshot retain filter, and
+   * the visibility filter. Absent on legacy rows → treated as [clinic_id].
+   */
+  target_clinic_ids?: string[]
+  /** Origin id of the latest vault fan-out for this item (hard-delete resolution). */
+  originId?: string
 }
 
 /** Returns the expiry urgency for an item's expiry_date. null = not expiring. */
@@ -107,6 +121,12 @@ export interface PropertyLocation {
   created_by: string
   created_at: string
   updated_at: string
+  /** Soft-delete tombstone marker on the plaintext spine. Set on delete; null = live. */
+  deleted_at?: string | null
+  /** Cross-cluster fan-out set; zones are single-clinic so normally [clinic_id]. */
+  target_clinic_ids?: string[]
+  /** Origin id of the latest vault fan-out for this zone (hard-delete resolution). */
+  originId?: string
 }
 
 /** Sentinel name for the invisible root location that hosts the top-level canvas. */
@@ -141,6 +161,9 @@ export interface CustodyLedgerEntry {
   id: string
   item_id: string
   clinic_id: string
+  /** Groups the per-item ledger rows written by ONE sign-out action into a single
+   *  DA 2062 hand receipt (1..N items). Null on legacy/non-receipt entries. */
+  hand_receipt_id?: string | null
   action: CustodyAction
   /** Units consumed on an 'expended' entry; defaults to 0/unused for transfer actions. */
   quantity_delta?: number | null
@@ -151,6 +174,10 @@ export interface CustodyLedgerEntry {
   notes: string | null
   recorded_at: string
   recorded_by: string
+  /** Cross-cluster fan-out set = {clinic_id} ∪ from/to holder clinic sets. Append-only entity. */
+  target_clinic_ids?: string[]
+  /** Origin id of the vault fan-out for this ledger row. */
+  originId?: string
 }
 
 export interface SubItemCheck {
@@ -171,6 +198,8 @@ export interface Discrepancy {
   rectify_method: RectifyMethod | null
   rectify_notes: string | null
   created_at: string
+  /** Origin id of the latest vault fan-out for this discrepancy. */
+  originId?: string
 }
 
 // ── Local (offline-first) variants ───────────────────────────
@@ -190,6 +219,8 @@ export interface LocalPropertyItem extends PropertyItem, SyncMetadata {}
 export interface LocalPropertyLocation extends PropertyLocation, SyncMetadata {}
 
 export interface LocalDiscrepancy extends Discrepancy, SyncMetadata {}
+
+export interface LocalCustodyEntry extends CustodyLedgerEntry, SyncMetadata {}
 
 // ── UI / workflow types ──────────────────────────────────────
 
@@ -217,6 +248,30 @@ export interface PropertySearchResult {
   id: string
   name: string
   detail: string | null // NSN, serial, or parent location name
+}
+
+/**
+ * A DA 2062 hand receipt — the folded view of all custody_ledger rows that share a
+ * `hand_receipt_id`. One receipt covers 1..N items signed to a single recipient.
+ */
+export interface HandReceipt {
+  handReceiptId: string
+  /** Member holder id when signed within the cluster; null when external. */
+  toHolderId: string | null
+  /** True when signed to a recipient outside the cluster (recipient is free-text). */
+  isExternal: boolean
+  /** Display label: resolved member name, or the external recipient free-text. */
+  recipientLabel: string
+  /** ISO timestamp of the receipt (recorded_at of its sign-out rows). */
+  recordedAt: string
+  recordedBy: string
+  notes: string | null
+  /** 'open' = still signed out; 'returned' = signed back in (has sign_up rows). */
+  status: 'open' | 'returned'
+  /** ISO timestamp of the return, when status === 'returned'. */
+  returnedAt: string | null
+  /** The per-item sign-out ledger rows that make up this receipt, newest first. */
+  entries: CustodyLedgerEntry[]
 }
 
 /** Holder info resolved from profiles for display. */

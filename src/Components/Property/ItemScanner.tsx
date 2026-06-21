@@ -5,6 +5,7 @@ import { openCamera, closeCamera, captureFrame } from '../../lib/vision/camera'
 import { extractFingerprint } from '../../lib/vision/fingerprint'
 import { matchScan, type MatchResult } from '../../lib/vision/matcher'
 import type { LocalPropertyItem } from '../../Types/PropertyTypes'
+import { parseItemTag } from '../../Utilities/itemLabelCodec'
 import { DisambiguationCard } from './DisambiguationCard'
 
 interface ItemScannerProps {
@@ -115,6 +116,19 @@ export function ItemScanner({ items, onMatch, onClose }: ItemScannerProps) {
       if (result) barcodes.push(result.getText())
     } catch {
       // No barcode found — normal path
+    }
+
+    // Deterministic resolve: our printed Data Matrix labels encode the item id
+    // (BCN-ITEM:<uuid>). A direct hit skips fuzzy visual matching entirely.
+    for (const code of barcodes) {
+      const taggedId = parseItemTag(code)
+      if (taggedId && items.some(i => i.id === taggedId)) {
+        stopCamera()
+        setConfirmedItemId(taggedId)
+        setQuantity(1)
+        setPhase('confirmed')
+        return
+      }
     }
 
     // Visual fingerprint

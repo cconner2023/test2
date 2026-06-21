@@ -26,7 +26,6 @@ import {
   updateAuditLogSyncStatus,
   getLocalPropertyItems,
   saveLocalPropertyItem,
-  deleteLocalPropertyItem,
   stripLocalFields,
   getLocalLocationTags,
   getNextRetryTime,
@@ -37,6 +36,7 @@ import {
   type LocalTrainingCompletion,
 } from './offlineDb'
 import type { LocalPropertyItem } from '../Types/PropertyTypes'
+import { getItemTombstones, getZoneTombstones } from './propertyEventRouting'
 
 const logger = createLogger('SyncService')
 
@@ -458,70 +458,13 @@ async function handleDelete(
 }
 
 // ============================================================
-// Generic Reconciliation
+// Property bootstrap (vault-authoritative)
 // ============================================================
-
-interface ReconcileConfig<TLocal, TServer> {
-  tableName: string
-  fetchLocal: (userId: string) => Promise<TLocal[]>
-  fetchServer: (userId: string) => Promise<TServer[]>
-  getId: (record: TLocal | TServer) => string
-  getTimestamp: (record: TLocal | TServer) => string
-  saveLocal: (record: TServer) => Promise<void>
-  deleteLocal: (id: string) => Promise<void>
-  upsertServer: (record: TLocal) => Promise<void>
-}
-
-async function reconcile<TLocal extends { _sync_status: string }, TServer>(
-  userId: string,
-  config: ReconcileConfig<TLocal, TServer>
-): Promise<{ uploaded: number; downloaded: number; deleted: number }> {
-  let downloaded = 0
-  let deleted = 0
-
-  const serverRecords = await config.fetchServer(userId)
-  const localRecords = await config.fetchLocal(userId)
-
-  const localMap = new Map(localRecords.map((r) => [config.getId(r), r]))
-  const serverMap = new Map(serverRecords.map((r) => [config.getId(r), r]))
-
-  for (const serverRecord of serverRecords) {
-    const localRecord = localMap.get(config.getId(serverRecord))
-
-    if (!localRecord) {
-      await config.saveLocal(serverRecord)
-      downloaded++
-      continue
-    }
-
-    const serverTime = new Date(config.getTimestamp(serverRecord)).getTime()
-    const localTime = new Date(config.getTimestamp(localRecord)).getTime()
-
-    if (localRecord._sync_status === 'pending') {
-      if (serverTime > localTime) {
-        await config.saveLocal(serverRecord)
-        downloaded++
-      }
-    } else {
-      if (serverTime >= localTime) {
-        await config.saveLocal(serverRecord)
-        downloaded++
-      }
-    }
-  }
-
-  for (const localRecord of localRecords) {
-    if (!serverMap.has(config.getId(localRecord))) {
-      if (localRecord._sync_status === 'pending') {
-        continue
-      }
-      await config.deleteLocal(config.getId(localRecord))
-      deleted++
-    }
-  }
-
-  return { uploaded: 0, downloaded, deleted }
-}
+// The generic delete-local reconcile() was removed: property is now
+// vault-authoritative (clinic-vault 'd' envelope + tombstones carry deletions),
+// so reconcilePropertyWithServer / reconcilePropertyLocationsWithServer below do
+// a download-only bootstrap (deleted_at IS NULL, tombstone-guarded, no
+// delete-local). A row missing from the server must never delete the local copy.
 
 // ============================================================
 // Reconciliation: Pull Server State into IndexedDB
@@ -548,37 +491,37 @@ export async function reconcilePropertyWithServer(
     return getLocalPropertyItems(clinicId)
   }
 
-  logger.info('Starting property items reconciliation with server')
+  // Bootstrap-only (vault-authoritative): download active rows, NEVER delete-local.
+  // Property deletions are carried by the clinic-vault 'd' envelope + tombstones,
+  // so a row missing from the server no longer deletes the local copy. The old
+  // generic reconcile() delete-local pass was the resurrection/data-loss vector.
+  logger.info('Starting property items bootstrap from server')
 
   try {
-    await reconcile<LocalPropertyItem, Record<string, unknown>>(clinicId, {
-      tableName: 'property_items',
-      fetchLocal: getLocalPropertyItems,
-      fetchServer: async (cId) => {
-        const { data, error } = await supabase
-          .from('property_items' as any)
-          .select('*')
-          .eq('clinic_id', cId)
-          .order('updated_at', { ascending: false })
-        if (error) throw error
-        return (data || []) as unknown as Record<string, unknown>[]
-      },
-      getId: (r) => (r as Record<string, unknown>).id as string,
-      getTimestamp: (r) => (r as Record<string, unknown>).updated_at as string,
-      saveLocal: async (serverRecord) => {
+    const { data, error } = await supabase
+      .from('property_items' as any)
+      .select('*')
+      .eq('clinic_id', clinicId)
+      .is('deleted_at', null)
+      .order('updated_at', { ascending: false })
+    if (error) throw error
+    const tomb = getItemTombstones()
+    const local = await getLocalPropertyItems(clinicId)
+    const localMap = new Map(local.map((r) => [r.id, r]))
+    for (const sr of (data || []) as unknown as Record<string, unknown>[]) {
+      const id = sr.id as string
+      if (tomb.has(id)) continue
+      const l = localMap.get(id)
+      const serverTime = new Date(sr.updated_at as string).getTime()
+      if (!l || (l._sync_status !== 'pending' && serverTime >= new Date(l.updated_at).getTime())) {
         await saveLocalPropertyItem({
-          ...serverRecord as unknown as LocalPropertyItem,
-          _sync_status: 'synced',
-          _sync_retry_count: 0,
-          _last_sync_error: null,
-          _last_sync_error_message: null,
+          ...sr as unknown as LocalPropertyItem,
+          _sync_status: 'synced', _sync_retry_count: 0, _last_sync_error: null, _last_sync_error_message: null,
         })
-      },
-      deleteLocal: deleteLocalPropertyItem,
-      upsertServer: async () => {},
-    })
+      }
+    }
   } catch (err) {
-    logger.error('Failed to reconcile property items:', err)
+    logger.error('Failed to bootstrap property items:', err)
     return getLocalPropertyItems(clinicId)
   }
 
@@ -590,40 +533,37 @@ export async function reconcilePropertyLocationsWithServer(
 ): Promise<void> {
   if (!isOnline()) return
 
-  logger.info('Starting property locations reconciliation with server')
+  // Bootstrap-only (vault-authoritative): download active rows, NEVER delete-local.
+  logger.info('Starting property locations bootstrap from server')
 
   try {
-    const { getLocalPropertyLocations, saveLocalPropertyLocation, deleteLocalPropertyLocation } = await import('./offlineDb')
+    const { getLocalPropertyLocations, saveLocalPropertyLocation } = await import('./offlineDb')
     type LocalLoc = Awaited<ReturnType<typeof getLocalPropertyLocations>>[number]
 
-    await reconcile<LocalLoc, Record<string, unknown>>(clinicId, {
-      tableName: 'property_locations',
-      fetchLocal: getLocalPropertyLocations,
-      fetchServer: async (cId) => {
-        const { data, error } = await supabase
-          .from('property_locations')
-          .select('*')
-          .eq('clinic_id', cId)
-          .order('updated_at', { ascending: false })
-        if (error) throw error
-        return (data || []) as unknown as Record<string, unknown>[]
-      },
-      getId: (r) => (r as Record<string, unknown>).id as string,
-      getTimestamp: (r) => (r as Record<string, unknown>).updated_at as string,
-      saveLocal: async (serverRecord) => {
+    const { data, error } = await supabase
+      .from('property_locations')
+      .select('*')
+      .eq('clinic_id', clinicId)
+      .is('deleted_at', null)
+      .order('updated_at', { ascending: false })
+    if (error) throw error
+    const tomb = getZoneTombstones()
+    const local = await getLocalPropertyLocations(clinicId)
+    const localMap = new Map(local.map((r) => [r.id, r]))
+    for (const sr of (data || []) as unknown as Record<string, unknown>[]) {
+      const id = sr.id as string
+      if (tomb.has(id)) continue
+      const l = localMap.get(id)
+      const serverTime = new Date(sr.updated_at as string).getTime()
+      if (!l || (l._sync_status !== 'pending' && serverTime >= new Date(l.updated_at).getTime())) {
         await saveLocalPropertyLocation({
-          ...serverRecord as unknown as LocalLoc,
-          _sync_status: 'synced',
-          _sync_retry_count: 0,
-          _last_sync_error: null,
-          _last_sync_error_message: null,
+          ...sr as unknown as LocalLoc,
+          _sync_status: 'synced', _sync_retry_count: 0, _last_sync_error: null, _last_sync_error_message: null,
         })
-      },
-      deleteLocal: deleteLocalPropertyLocation,
-      upsertServer: async () => {},
-    })
+      }
+    }
   } catch (err) {
-    logger.error('Failed to reconcile property locations:', err)
+    logger.error('Failed to bootstrap property locations:', err)
   }
 }
 

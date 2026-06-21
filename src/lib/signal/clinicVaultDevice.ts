@@ -51,11 +51,18 @@ import { initReceiver, ratchetDecrypt } from './ratchet'
 import { uploadKeyBundle, registerDevice } from './signalService'
 import { isCalendarEvent, routeCalendarEvent, initCalendarTombstones, publishFullReplayLiveIds, poisonFullReplayReconcile, snapshotCalendarEvents, loadSnapshotCalendarEvents } from '../calendarRouting'
 import { isMapOverlay, isMapFeature, routeMapOverlay, routeMapFeature, initOverlayTombstones, loadSnapshotOverlays, snapshotOverlays } from '../mapOverlayRouting'
-import type { CalendarEventContent, MapOverlayContent, MapFeatureContent } from './messageContent'
+import {
+  isPropertyEvent, routePropertyEvent, initPropertyTombstones,
+  snapshotPropertyItems, snapshotPropertyZones, snapshotPropertyCustody, snapshotPropertyDiscrepancies, snapshotPropertyTags,
+  loadSnapshotPropertyItems, loadSnapshotPropertyZones, loadSnapshotPropertyCustody, loadSnapshotPropertyDiscrepancies, loadSnapshotPropertyTags,
+  type PropertyTagsSnapshot,
+} from '../propertyEventRouting'
+import type { CalendarEventContent, MapOverlayContent, MapFeatureContent, PropertyEventContent } from './messageContent'
 import { parseMessageContent } from './messageContent'
 import { deflateRaw, inflateRaw } from 'pako'
 import type { CalendarEvent } from '../../Types/CalendarTypes'
 import type { LocalMapOverlay } from '../../Types/MapOverlayTypes'
+import type { LocalPropertyItem, LocalPropertyLocation, LocalCustodyEntry, LocalDiscrepancy } from '../../Types/PropertyTypes'
 import type { PublicKeyBundle, InitialMessage, EncryptedMessage, RatchetState } from './types'
 import type { SignalMessageRow } from './transportTypes'
 import type { SealedEnvelope } from './sealedSender'
@@ -546,7 +553,7 @@ export interface ClinicDrainOptions {
 // the personal signal_backups model — see two-phase-vault-drain: never reap a
 // vault row until the snapshot that preserves it has landed.
 
-const CLINIC_SNAPSHOT_PAYLOAD_VERSION = 1
+const CLINIC_SNAPSHOT_PAYLOAD_VERSION = 2
 const CLINIC_SNAPSHOT_RETAIN = 3
 
 interface ClinicSnapshotPayload {
@@ -555,6 +562,12 @@ interface ClinicSnapshotPayload {
   watermark: string
   events: CalendarEvent[]
   overlays: LocalMapOverlay[]
+  // v2: property entities (default [] when reading a v1 snapshot).
+  propertyItems?: LocalPropertyItem[]
+  propertyZones?: LocalPropertyLocation[]
+  propertyCustody?: LocalCustodyEntry[]
+  propertyDiscrepancies?: LocalDiscrepancy[]
+  propertyTags?: PropertyTagsSnapshot[]
 }
 
 interface LoadedClinicSnapshot {
@@ -651,6 +664,7 @@ export async function processClinicVaultMessages(
   // (useCalendarSync) so the in-memory sets must be warm.
   await initCalendarTombstones()
   await initOverlayTombstones()
+  await initPropertyTombstones()
 
   // 1. Fetch vault row
   const { data: vaultRow } = await supabase
@@ -713,6 +727,11 @@ export async function processClinicVaultMessages(
     tailFloor = snap.payload.watermark
     loadSnapshotCalendarEvents(snap.payload.events)
     await loadSnapshotOverlays(snap.payload.overlays).catch(() => {})
+    await loadSnapshotPropertyItems(snap.payload.propertyItems ?? []).catch(() => {})
+    await loadSnapshotPropertyZones(snap.payload.propertyZones ?? []).catch(() => {})
+    await loadSnapshotPropertyCustody(snap.payload.propertyCustody ?? []).catch(() => {})
+    await loadSnapshotPropertyDiscrepancies(snap.payload.propertyDiscrepancies ?? []).catch(() => {})
+    await loadSnapshotPropertyTags(snap.payload.propertyTags ?? []).catch(() => {})
   }
 
   // 3. Fetch the TAIL: vault rows at/after the snapshot watermark. gte not gt —
@@ -764,6 +783,7 @@ export async function processClinicVaultMessages(
   const calendarRoutes: Array<{ content: CalendarEventContent; originId: string | null }> = []
   const overlayRoutes: Array<{ content: MapOverlayContent; originId: string | null }> = []
   const featureRoutes: Array<{ content: MapFeatureContent; originId: string | null }> = []
+  const propertyRoutes: Array<{ content: PropertyEventContent; originId: string | null }> = []
 
   for (const row of rows as SignalMessageRow[]) {
     try {
@@ -892,6 +912,8 @@ export async function processClinicVaultMessages(
         overlayRoutes.push({ content, originId: (row as SignalMessageRow).origin_id ?? null })
       } else if (isMapFeature(content)) {
         featureRoutes.push({ content, originId: (row as SignalMessageRow).origin_id ?? null })
+      } else if (isPropertyEvent(content)) {
+        propertyRoutes.push({ content, originId: (row as SignalMessageRow).origin_id ?? null })
       }
 
       processedCount++
@@ -946,6 +968,25 @@ export async function processClinicVaultMessages(
     }
   }
 
+  // 5d. Property entities. Serial await — IDB read-modify-write. Delete-aware for
+  // items/zones (a 'd' in this batch suppresses its paired 'c'/'u'). Custody is
+  // append-only, discrepancies are create/rectify, tags are canvas-replace — none
+  // delete, so they always apply in tail order (last-write-per-id wins).
+  if (propertyRoutes.length > 0) {
+    const deletedItemIds = new Set<string>()
+    const deletedZoneIds = new Set<string>()
+    for (const { content } of propertyRoutes) {
+      if (content.action === 'delete' && content.entity === 'item') deletedItemIds.add(content.data.id)
+      if (content.action === 'delete' && content.entity === 'zone') deletedZoneIds.add(content.data.id)
+    }
+    for (const { content } of propertyRoutes) {
+      const suppressed =
+        (content.entity === 'item' && content.action !== 'delete' && deletedItemIds.has(content.data.id)) ||
+        (content.entity === 'zone' && content.action !== 'delete' && deletedZoneIds.has(content.data.id))
+      if (!suppressed) await routePropertyEvent(content).catch(() => {})
+    }
+  }
+
   // 5c-bis. Authoritative vault-resolved calendar id set = snapshot base plus the
   // tail's surviving creates/updates minus its deletes. The reconcile publish and
   // the snapshot WRITER below filter the store to THIS set so a returning device's
@@ -973,6 +1014,34 @@ export async function processClinicVaultMessages(
   for (const { content } of featureRoutes) overlayVaultLiveIds.add(content.data.overlay_id)
   for (const { content } of overlayRoutes) {
     if (content.action === 'delete') overlayVaultLiveIds.delete(content.data.id)
+  }
+
+  // Same authoritative-set logic for each property entity (poison-snapshot guard).
+  // Items/zones: base ∪ tail creates/updates − tail deletes. Custody/discrepancy:
+  // base ∪ tail creates (append-only, never minus).
+  const propertyItemVaultLiveIds = new Set<string>()
+  for (const r of snap?.payload.propertyItems ?? []) propertyItemVaultLiveIds.add(r.id)
+  for (const { content } of propertyRoutes) {
+    if (content.entity !== 'item') continue
+    if (content.action === 'delete') propertyItemVaultLiveIds.delete(content.data.id)
+    else propertyItemVaultLiveIds.add(content.data.id)
+  }
+  const propertyZoneVaultLiveIds = new Set<string>()
+  for (const r of snap?.payload.propertyZones ?? []) propertyZoneVaultLiveIds.add(r.id)
+  for (const { content } of propertyRoutes) {
+    if (content.entity !== 'zone') continue
+    if (content.action === 'delete') propertyZoneVaultLiveIds.delete(content.data.id)
+    else propertyZoneVaultLiveIds.add(content.data.id)
+  }
+  const propertyCustodyVaultLiveIds = new Set<string>()
+  for (const r of snap?.payload.propertyCustody ?? []) propertyCustodyVaultLiveIds.add(r.id)
+  for (const { content } of propertyRoutes) {
+    if (content.entity === 'custody') propertyCustodyVaultLiveIds.add(content.data.id)
+  }
+  const propertyDiscrepancyVaultLiveIds = new Set<string>()
+  for (const r of snap?.payload.propertyDiscrepancies ?? []) propertyDiscrepancyVaultLiveIds.add(r.id)
+  for (const { content } of propertyRoutes) {
+    if (content.entity === 'discrepancy') propertyDiscrepancyVaultLiveIds.add(content.data.id)
   }
 
   // 5d. Health gate. All clinic members share one vault identity, so a healthy
@@ -1026,6 +1095,11 @@ export async function processClinicVaultMessages(
         watermark: reapWatermark as string,
         events: snapshotCalendarEvents(clinicId, vaultLiveIds),
         overlays: await snapshotOverlays(clinicId, overlayVaultLiveIds),
+        propertyItems: await snapshotPropertyItems(clinicId, propertyItemVaultLiveIds),
+        propertyZones: await snapshotPropertyZones(clinicId, propertyZoneVaultLiveIds),
+        propertyCustody: await snapshotPropertyCustody(clinicId, propertyCustodyVaultLiveIds),
+        propertyDiscrepancies: await snapshotPropertyDiscrepancies(clinicId, propertyDiscrepancyVaultLiveIds),
+        propertyTags: await snapshotPropertyTags(clinicId, propertyZoneVaultLiveIds),
       }
       const newVersion = await writeClinicSnapshot(clinicId, payload, baseVersion, clinicKey)
       if (newVersion > 0) {

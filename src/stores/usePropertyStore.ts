@@ -31,9 +31,14 @@ import {
   raiseFault as raiseFaultSvc,
   correctFault as correctFaultSvc,
   recordPmcs as recordPmcsSvc,
+  signOutItems,
+  signInReceipt,
+  fetchClinicLedger,
 } from '../lib/propertyService'
+import type { CustodyLedgerEntry } from '../Types/PropertyTypes'
 import { setupConnectivityListeners, healStuckPendingRecords } from '../lib/syncService'
-import { invalidate } from './useInvalidationStore'
+import { getLocalPropertyItems, getLocalPropertyLocations } from '../lib/offlineDb'
+import { invalidate, useInvalidationStore } from './useInvalidationStore'
 import { createLogger } from '../Utilities/Logger'
 
 const logger = createLogger('PropertyStore')
@@ -73,7 +78,7 @@ interface PropertyState {
   setTransitionState: (state: 'idle' | 'zooming-in' | 'zooming-out') => void
 
   init: () => Promise<void>
-  addItem: (data: Omit<PropertyItem, 'id' | 'created_at' | 'updated_at'>) => Promise<LocalPropertyItem | null>
+  addItem: (data: Omit<PropertyItem, 'id' | 'created_at' | 'updated_at' | 'signed_out_external'>) => Promise<LocalPropertyItem | null>
   editItem: (id: string, updates: Partial<PropertyItem>, opts?: { skipAudit?: boolean }) => Promise<void>
   removeItem: (id: string) => Promise<void>
   addLocation: (data: Omit<PropertyLocation, 'id' | 'created_at' | 'updated_at'>) => Promise<{ success: boolean; location?: LocalPropertyLocation }>
@@ -84,6 +89,14 @@ interface PropertyState {
   refreshLocations: () => Promise<void>
   enrollFingerprint: (itemId: string, fingerprint: VisualFingerprint) => Promise<void>
   expendItem: (itemId: string, quantityDelta: number) => Promise<void>
+  /** Sign 1..N items out on a single DA 2062 hand receipt. `toHolderId` set =
+   *  internal cluster member; null + `externalName` = outside-cluster recipient.
+   *  Resolves to the new hand_receipt_id (for immediate printing) or null. */
+  signOut: (params: { itemIds: string[]; toHolderId: string | null; externalName: string | null; notes: string | null }) => Promise<string | null>
+  /** Sign a hand receipt back in — clears each item's custodian. */
+  signIn: (handReceiptId: string, fromHolderId: string | null, itemIds: string[]) => Promise<boolean>
+  /** Clinic-wide custody ledger (newest first) for the accountability surface. */
+  fetchLedger: () => Promise<CustodyLedgerEntry[]>
   splitItem: (itemId: string, qty: number, targetLocationId: string | null) => Promise<void>
   mergeItems: (sourceId: string, targetId: string) => Promise<void>
   /** Raise a maintenance fault on a property subject (item or vehicle/location);
@@ -97,6 +110,7 @@ interface PropertyState {
 }
 
 let cleanupListeners: (() => void) | null = null
+let cleanupInvalidation: (() => void) | null = null
 
 export const usePropertyStore = create<PropertyState>((set, get) => ({
   items: [],
@@ -221,6 +235,22 @@ export const usePropertyStore = create<PropertyState>((set, get) => ({
         onLocationsReconcileComplete: () => { void get().refreshLocations() },
         getLocations: () => get().locations,
         onTagsReconcileComplete: () => set((state) => ({ tagVersion: state.tagVersion + 1 })),
+      })
+
+      // Vault-authoritative refresh: live per-device fan-out and the clinic-vault
+      // drain fold property changes into IDB and bump invalidate('properties').
+      // Re-read items + zones from IDB on each bump so peer changes surface live.
+      if (cleanupInvalidation) { cleanupInvalidation(); cleanupInvalidation = null }
+      let lastGen = useInvalidationStore.getState().generations.properties
+      cleanupInvalidation = useInvalidationStore.subscribe((s) => {
+        const g = s.generations.properties
+        if (g === lastGen) return
+        lastGen = g
+        const cId = get().clinicId
+        if (!cId) return
+        void Promise.all([getLocalPropertyItems(cId), getLocalPropertyLocations(cId)])
+          .then(([items, locations]) => set({ items, locations }))
+          .catch(() => {})
       })
     } catch (err) {
       logger.warn('Property store init failed:', err)
@@ -408,6 +438,41 @@ export const usePropertyStore = create<PropertyState>((set, get) => ({
     await get().editItem(itemId, { quantity: newQty }, { skipAudit: true })
 
     await recordExpendedEntry(itemId, quantityDelta, clinicId, user.id)
+  },
+
+  signOut: async (params) => {
+    const user = useAuthStore.getState().user
+    const { clinicId } = get()
+    if (!user || !clinicId) return null
+
+    const result = await signOutItems(
+      { ...params, clinicId, fromHolderId: user.id },
+      user.id,
+    )
+    if (!result.success) return null
+
+    invalidate('properties')
+    await get().refreshItems()
+    return result.handReceiptId
+  },
+
+  signIn: async (handReceiptId, fromHolderId, itemIds) => {
+    const user = useAuthStore.getState().user
+    const { clinicId } = get()
+    if (!user || !clinicId) return false
+
+    const result = await signInReceipt(handReceiptId, clinicId, fromHolderId, itemIds, user.id)
+    if (!result.success) return false
+
+    invalidate('properties')
+    await get().refreshItems()
+    return true
+  },
+
+  fetchLedger: async () => {
+    const { clinicId } = get()
+    if (!clinicId) return []
+    return fetchClinicLedger(clinicId)
   },
 
   splitItem: async (itemId, qty, targetLocationId) => {

@@ -9,11 +9,8 @@ import type {
   InjuryType,
   TreatmentCategory,
   ProcedureType,
-  TourniquetType,
-  TQCategory,
-  DressingType,
 } from '../../Types/TC3Types'
-import { ActionPill } from '../ActionPill'
+import { TourniquetEditor, DressingEditor } from './TreatmentEditors'
 
 /* ── Static data ─────────────────────────────────────────────────────────── */
 
@@ -37,10 +34,6 @@ const PROCEDURE_OPTIONS: { value: ProcedureType; label: string }[] = [
   { value: 'IV', label: 'IV' },
   { value: 'IO', label: 'IO' },
 ]
-
-const TQ_TYPES: TourniquetType[] = ['CAT', 'SOFT-T']
-const TQ_CATEGORIES: TQCategory[] = ['Extremity', 'Junctional', 'Truncal']
-const DRESSING_TYPES: DressingType[] = ['Hemostatic', 'Pressure', 'Other']
 
 const TIME_OPTIONS: { value: string; label: string }[] = (() => {
   const opts: { value: string; label: string }[] = []
@@ -111,8 +104,6 @@ export const MarkerPopover = memo(function MarkerPopover({ marker, filter }: Mar
   // from the MARCH section. sync no longer overwrites their detail.
   const tourniquets = useTC3Store((s) => s.card.march.massiveHemorrhage.tourniquets)
   const hemostatics = useTC3Store((s) => s.card.march.massiveHemorrhage.hemostatics)
-  const updateTourniquet = useTC3Store((s) => s.updateTourniquet)
-  const updateHemostatic = useTC3Store((s) => s.updateHemostatic)
 
   const regionLabel = marker.bodyRegion ? getRegionLabel(marker.bodyRegion) : ''
   // Hard-scope by region × injury type. Always keep any already-selected treatment
@@ -155,7 +146,6 @@ export const MarkerPopover = memo(function MarkerPopover({ marker, filter }: Mar
   // The canonical rows this pin is bound to (created by the store on toggle).
   const linkedTQ = hasTourniquet ? tourniquets.find(t => t.injuryId === marker.id) : undefined
   const linkedDressing = hasHemostatic ? hemostatics.find(h => h.injuryId === marker.id) : undefined
-  const detailInputCls = 'flex-1 text-right bg-transparent text-primary placeholder:text-tertiary focus:outline-none text-base md:text-[10pt]'
 
   return (
     <div className="py-2 min-w-[200px]" onClick={(e) => e.stopPropagation()}>
@@ -229,96 +219,20 @@ export const MarkerPopover = memo(function MarkerPopover({ marker, filter }: Mar
             </div>
           )}
 
+          {/* Tourniquet + dressing reuse the SAME editors as the MARCH section
+              overlay (TreatmentEditors.tsx). Location is off — the pin already
+              owns this region. */}
           {linkedTQ && (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between border-b border-primary/6 px-1 py-2">
-                <span className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest w-20 shrink-0">TQ Time</span>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={linkedTQ.time}
-                  onChange={(e) => updateTourniquet(linkedTQ.id, { time: e.target.value })}
-                  placeholder="HH:MM"
-                  className={detailInputCls}
-                />
-              </div>
-              <div className="flex items-center justify-between gap-2 px-1">
-                <SectionHeader>TQ Type</SectionHeader>
-                <ActionPill className="inline-">
-                  {TQ_TYPES.map(t => (
-                    <button
-                      key={t}
-                      type="button"
-                      onClick={() => updateTourniquet(linkedTQ.id, { type: t })}
-                      className={`px-3 py-1.5 text-[9pt] font-semibold rounded-full transition-all active:scale-95 ${
-                        linkedTQ.type === t ? 'bg-themeblue2 text-white' : 'bg-themeblue2/8 text-primary'
-                      }`}
-                    >
-                      {t}
-                    </button>
-                  ))}
-                </ActionPill>
-              </div>
-              <div className="flex items-center justify-between gap-2 px-1">
-                <SectionHeader>TQ Category</SectionHeader>
-                <ActionPill className="inline-">
-                  {TQ_CATEGORIES.map(c => (
-                    <button
-                      key={c}
-                      type="button"
-                      onClick={() => updateTourniquet(linkedTQ.id, { tqCategory: c })}
-                      className={`px-3 py-1.5 text-[9pt] font-semibold rounded-full transition-all active:scale-95 ${
-                        linkedTQ.tqCategory === c ? 'bg-themeblue2 text-white' : 'bg-themeblue2/8 text-primary'
-                      }`}
-                    >
-                      {c}
-                    </button>
-                  ))}
-                </ActionPill>
-              </div>
+            <div className="space-y-1">
+              <div className="px-1"><SectionHeader>Tourniquet</SectionHeader></div>
+              <TourniquetEditor id={linkedTQ.id} showLocation={false} />
             </div>
           )}
 
           {linkedDressing && (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between border-b border-primary/6 px-1 py-2">
-                <span className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest w-20 shrink-0">Time</span>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={linkedDressing.time ?? ''}
-                  onChange={(e) => updateHemostatic(linkedDressing.id, { time: e.target.value })}
-                  placeholder="HH:MM"
-                  className={detailInputCls}
-                />
-              </div>
-              <div className="flex items-center justify-between border-b border-primary/6 px-1 py-2">
-                <span className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest w-20 shrink-0">Agent</span>
-                <input
-                  type="text"
-                  value={linkedDressing.type}
-                  onChange={(e) => updateHemostatic(linkedDressing.id, { type: e.target.value })}
-                  placeholder="Combat Gauze…"
-                  className={detailInputCls}
-                />
-              </div>
-              <div className="flex items-center justify-between gap-2 px-1">
-                <SectionHeader>Dressing Type</SectionHeader>
-                <ActionPill className="inline-">
-                  {DRESSING_TYPES.map(d => (
-                    <button
-                      key={d}
-                      type="button"
-                      onClick={() => updateHemostatic(linkedDressing.id, { dressingType: d })}
-                      className={`px-3 py-1.5 text-[9pt] font-semibold rounded-full transition-all active:scale-95 ${
-                        linkedDressing.dressingType === d ? 'bg-themeblue2 text-white' : 'bg-themeblue2/8 text-primary'
-                      }`}
-                    >
-                      {d}
-                    </button>
-                  ))}
-                </ActionPill>
-              </div>
+            <div className="space-y-1">
+              <div className="px-1"><SectionHeader>Dressing</SectionHeader></div>
+              <DressingEditor id={linkedDressing.id} showLocation={false} />
             </div>
           )}
         </div>

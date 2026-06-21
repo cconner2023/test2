@@ -36,6 +36,8 @@ interface TroopsToTaskViewProps {
   onAssignMedicToHuddle?: (medicId: string, taskId: string, forDateKey: string, providerId?: string) => void
   /** Timeline cell granularity. Changing this remounts the view (keyed in CalendarPanel). */
   zoom?: CalendarT2TZoom
+  /** Collapse to the huddle band only — hides the personnel lanes + unassigned row. */
+  huddleOnly?: boolean
 }
 
 /** Background vertical gridlines for one row — same tick cadence as the time header. */
@@ -205,7 +207,7 @@ function assignLanes(assignments: CalendarEvent[], days: DaySlot[], cfg: ZoomCfg
   return positioned
 }
 
-export function TroopsToTaskView({ date, events, medics, huddleTasks, onSelectEvent, onEventContextMenu, onDateChange, onNewHuddleEvent, onAssignMedicToHuddle, zoom = 'hour' }: TroopsToTaskViewProps) {
+export function TroopsToTaskView({ date, events, medics, huddleTasks, onSelectEvent, onEventContextMenu, onDateChange, onNewHuddleEvent, onAssignMedicToHuddle, zoom = 'hour', huddleOnly = false }: TroopsToTaskViewProps) {
   const { resolve: resolveCategoryColor } = useCategoryColors()
   const cfg = ZOOM_CFG[zoom]
   const ticks = useMemo(() => buildTicks(cfg), [cfg])
@@ -548,7 +550,7 @@ export function TroopsToTaskView({ date, events, medics, huddleTasks, onSelectEv
       className="touch-pan-xy h-full min-h-0 min-w-0 overflow-auto overscroll-contain"
       onScroll={handleScroll}
     >
-      <div className="relative" style={{ minWidth: totalWidth, display: 'grid', gridTemplateRows: `auto auto repeat(${medics.length + (unassignedLanes.length > 0 ? 1 : 0)}, auto) 1fr` }}>
+      <div className="relative" style={{ minWidth: totalWidth, display: 'grid', gridTemplateRows: `auto auto repeat(${huddleOnly ? 0 : medics.length + (unassignedLanes.length > 0 ? 1 : 0)}, auto) 1fr` }}>
         {/* Current time indicator — vertical red line spanning content rows (excludes trailing 1fr footer) */}
         {nowLineX !== null && (
           <div
@@ -801,8 +803,8 @@ export function TroopsToTaskView({ date, events, medics, huddleTasks, onSelectEv
           })()}
         </div>
 
-        {/* Personnel rows */}
-        {medics.map(medic => {
+        {/* Personnel rows — hidden in huddle-only mode (band is the whole view) */}
+        {!huddleOnly && medics.map(medic => {
           const positioned = medicLanes.get(medic.id) ?? []
           const laneCount = positioned.length > 0 ? Math.max(...positioned.map(p => p.lane)) + 1 : 1
           const rowHeight = Math.max(ROW_PAD * 2 + laneCount * (LANE_HEIGHT + LANE_GAP), 52)
@@ -874,7 +876,7 @@ export function TroopsToTaskView({ date, events, medics, huddleTasks, onSelectEv
         })}
 
         {/* Unassigned events row */}
-        {unassignedLanes.length > 0 && (() => {
+        {!huddleOnly && unassignedLanes.length > 0 && (() => {
           const laneCount = Math.max(...unassignedLanes.map(p => p.lane)) + 1
           const rowHeight = Math.max(ROW_PAD * 2 + laneCount * (LANE_HEIGHT + LANE_GAP), 52)
           return (

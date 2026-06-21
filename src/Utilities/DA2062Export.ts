@@ -9,8 +9,12 @@
 import type { PropertyItem, HolderInfo } from '../Types/PropertyTypes'
 export { downloadPdfBytes } from './downloadUtils'
 
+/** Only the fields the 2062 actually renders — lets both full store items and
+ *  lean reprint rows satisfy the export without a cast. */
+export type DA2062Item = Pick<PropertyItem, 'name' | 'nomenclature' | 'nsn' | 'serial_number'>
+
 export interface DA2062Params {
-  items: PropertyItem[]
+  items: DA2062Item[]
   fromHolder: HolderInfo
   toHolder: HolderInfo
   handReceiptNumber: string

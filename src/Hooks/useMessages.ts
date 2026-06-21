@@ -84,6 +84,7 @@ import {
 import { useCalendarStore } from '../stores/useCalendarStore'
 import { isCalendarEvent, routeCalendarEvent } from '../lib/calendarRouting'
 import { isMapOverlay, isMapFeature, routeMapOverlay, routeMapFeature } from '../lib/mapOverlayRouting'
+import { isPropertyEvent, routePropertyEvent } from '../lib/propertyEventRouting'
 import { uploadEncryptedAttachment } from '../lib/signal/attachmentService'
 import { createBackup, markHydrationComplete, scheduleBackup } from '../lib/signal/backupService'
 import { ok as okResult, err as errResult, type Result } from '../lib/result'
@@ -670,6 +671,13 @@ export function useMessages(): UseMessagesReturn {
     // Single-feature overlay envelopes ride the same routing.
     if (isMapFeature(msg.content)) {
       await routeMapFeature(msg.content).catch(() => {})
+      return
+    }
+
+    // Property entities (items/zones/custody/discrepancies/tags) ride the same
+    // out-of-band clinic-vault fan-out as calendar/overlay.
+    if (isPropertyEvent(msg.content)) {
+      await routePropertyEvent(msg.content).catch(() => {})
       return
     }
 

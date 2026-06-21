@@ -342,7 +342,7 @@ export function RequestCard({
     ? [request.first_name, request.last_name]
     : [request.rank, request.last_name]
   ).filter(Boolean).join(' ')},\n\n`
-  const mailtoHref = buildMailtoHref({ to: request.email, subject: 'ADTMC Web App Inquiry', body: mailtoBody })
+  const mailtoHref = buildMailtoHref({ to: request.email, subject: 'Medical Operations Inquiry', body: mailtoBody })
 
   // ── Icon styling ────────────────────────────────────────
   const iconBg = isSupport

@@ -88,11 +88,11 @@ export const ProfilePage = ({
         if (!canvas) return
         canvas.toBlob(async (blob) => {
             if (!blob) return
-            const filename = 'beacon-id-qr.png'
+            const filename = 'medical-ops-id-qr.png'
             const file = new File([blob], filename, { type: 'image/png' })
             try {
                 if (navigator.canShare?.({ files: [file] })) {
-                    await navigator.share({ files: [file], title: 'Beacon ID' })
+                    await navigator.share({ files: [file], title: 'Medical Operations ID' })
                     return
                 }
             } catch { /* user cancelled — fall through */ }

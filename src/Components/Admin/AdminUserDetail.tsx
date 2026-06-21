@@ -741,7 +741,7 @@ export function AdminUserDetail({
                   label: 'Email user',
                   icon: Mail,
                   onAction: () => {
-                    openMailto({ to: user.email!, subject: 'Beacon Inquiry', body: `${[user.rank, user.last_name].filter(Boolean).join(' ')},\n\n` })
+                    openMailto({ to: user.email!, subject: 'Medical Operations Inquiry', body: `${[user.rank, user.last_name].filter(Boolean).join(' ')},\n\n` })
                   },
                 }] as ContextMenuItem[] : []),
                 ...(isDevRole && messagesCtx && onOpenConversation ? [{

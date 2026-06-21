@@ -1,8 +1,7 @@
 import { memo, useState, useCallback, useRef } from 'react'
 import { Plus, X, Check, ChevronRight } from 'lucide-react'
 import type {
-  TC3Tourniquet, TC3Hemostatic, TC3IVAccess, TC3Medication, TC3Marker,
-  TourniquetType, TQCategory, DressingType, NeedleDecompSide,
+  TC3IVAccess, TC3Medication, NeedleDecompSide,
   MedRoute, MedCategory, BodyRegion,
 } from '../../Types/TC3Types'
 import { useTC3Store } from '../../stores/useTC3Store'
@@ -11,93 +10,16 @@ import { Section, SectionHeader } from '../Section'
 import { ActionButton } from '../ActionButton'
 import { ActionPill } from '../ActionPill'
 import { EmptyState } from '../EmptyState'
-import { getBodyRegion, getRegionLabel, getRegionCenter } from '../../Utilities/bodyRegionMap'
-import { TC3BodyDiagramSvg } from './TC3BodyDiagramSvg'
+import { getRegionLabel, getRegionCenter } from '../../Utilities/bodyRegionMap'
+import {
+  CellCard, Cell, Segmented, LocationCell, cellInput,
+  TourniquetEditor, DressingEditor,
+} from './TreatmentEditors'
 
-// ── Cell primitives — match the VitalsForm popover language ──────
-// Bare inputs (no rounded-full / shadow), iOS-zoom-safe (text-base on mobile).
-const cellInput = 'w-full bg-transparent text-primary placeholder:text-tertiary focus:outline-none text-base md:text-sm'
+// Bare select input (no rounded-full / shadow), iOS-zoom-safe — MARCH-local.
 const cellSelect = 'w-full bg-transparent text-primary focus:outline-none text-base md:text-sm -ml-0.5'
 
-/** Hosts a vertical stack of cells inside a popover preview. Flat — rows are
-   divided by hairline borders (see CasualtyInfoForm), no enclosing box. */
-function CellCard({ children }: { children: React.ReactNode }) {
-  return <div>{children}</div>
-}
-
-/** One labelled cell — label on top, value below. Carries its own bottom
-   divider; pass `bare` when the parent row owns the divider (side-by-side cells). */
-function Cell({ label, children, className, bare }: {
-  label: string
-  children: React.ReactNode
-  className?: string
-  bare?: boolean
-}) {
-  return (
-    <div className={`flex flex-col gap-0.5 px-3 py-2 ${bare ? '' : 'border-b border-primary/6 last:border-0'} ${className ?? ''}`}>
-      <span className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest">{label}</span>
-      {children}
-    </div>
-  )
-}
-
-/** Flat segmented selector — NO pills (see conventions/TOGGLE pattern). */
-function Segmented<T extends string>({ options, value, onChange, capitalize }: {
-  options: readonly T[]
-  value: T
-  onChange: (v: T) => void
-  capitalize?: boolean
-}) {
-  return (
-    <div className="flex flex-wrap mt-0.5">
-      {options.map((opt) => (
-        <button
-          key={opt} type="button" onClick={() => onChange(opt)}
-          className={`px-3 py-0.5 transition-colors ${value === opt ? 'bg-themeblue3' : 'active:bg-tertiary/5'}`}
-        >
-          <span className={`text-[9pt] ${capitalize ? 'capitalize' : ''} ${value === opt ? 'text-white font-medium' : 'text-secondary'}`}>{opt}</span>
-        </button>
-      ))}
-    </div>
-  )
-}
-
-/** Location picker — the body diagram is ALWAYS visible (never a blank input). */
-function LocationCell({ value, marker, onChange, label = 'Location' }: {
-  value: string
-  marker?: TC3Marker | null
-  onChange: (label: string, region: BodyRegion | '') => void
-  label?: string
-}) {
-  const handlePick = (x: number, y: number) => {
-    const region = getBodyRegion(x, y)
-    const regionLabel = region ? getRegionLabel(region) : ''
-    if (regionLabel) onChange(regionLabel, region)
-  }
-  return (
-    <div className="flex flex-col gap-1 px-3 py-2 border-b border-primary/6 last:border-0">
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest">{label}</span>
-        <div className="flex items-center gap-1.5">
-          <span className={`text-[9pt] font-medium ${value ? 'text-primary' : 'text-tertiary/50'}`}>{value || 'Tap diagram'}</span>
-          {value && (
-            <button type="button" onClick={() => onChange('', '')} className="text-tertiary active:scale-90">
-              <X size={12} />
-            </button>
-          )}
-        </div>
-      </div>
-      <div className="flex justify-center pt-1">
-        <TC3BodyDiagramSvg markers={marker ? [marker] : []} onAddMarker={handlePick} compact />
-      </div>
-    </div>
-  )
-}
-
 // ── Constants ────────────────────────────────────
-const TOURNIQUET_TYPES: TourniquetType[] = ['CAT', 'SOFT-T', 'other']
-const TQ_CATEGORIES: TQCategory[] = ['Extremity', 'Junctional', 'Truncal']
-const DRESSING_TYPES: DressingType[] = ['Hemostatic', 'Pressure', 'Other']
 const SIDE_OPTIONS: NeedleDecompSide[] = ['left', 'right', 'bilateral']
 const MED_ROUTES: MedRoute[] = ['IV', 'IM', 'IO', 'PO', 'IN', 'PR', 'topical']
 const ROUTE_OPTIONS: ('IV' | 'IO')[] = ['IV', 'IO']
@@ -235,102 +157,25 @@ const ADD_MENU: AddMenuItem[] = [
 ]
 
 // ── Popover previews ─────────────────────────────
+// Both delegate to the shared treatment editors (TreatmentEditors.tsx) — the
+// SAME editor the body-marker popover renders. MARCH wraps it with the linked
+// InjuryBadge; the location cell stays on (MARCH owns placing the pin).
 function TourniquetPreview({ id }: { id: string }) {
-  const tq = useTC3Store((s) => s.card.march.massiveHemorrhage.tourniquets.find((t) => t.id === id))
-  const markers = useTC3Store((s) => s.card.markers)
-  const updateTourniquet = useTC3Store((s) => s.updateTourniquet)
-  const addMarker = useTC3Store((s) => s.addMarker)
-  const updateMarker = useTC3Store((s) => s.updateMarker)
-  if (!tq) return null
-
-  const handleLocation = (label: string, region: BodyRegion | '') => {
-    updateTourniquet(id, { location: label })
-    if (!region) return
-    const center = getRegionCenter(region)
-    if (!center) return
-    if (tq.injuryId) {
-      updateMarker(tq.injuryId, { bodyRegion: region, x: center.x, y: center.y })
-    } else {
-      const markerId = crypto.randomUUID()
-      // Link the tourniquet first so syncMarkerToMarch finds it and updates rather than duplicating
-      updateTourniquet(id, { location: label, injuryId: markerId })
-      addMarker({
-        id: markerId, x: center.x, y: center.y, bodyRegion: region,
-        injuries: [], treatments: ['tourniquet'], procedures: [],
-        gauge: '', tqType: tq.type, tqCategory: tq.tqCategory,
-        dressingType: 'Hemostatic', priority: '',
-        dateTime: new Date().toISOString().slice(0, 16), description: '',
-      })
-    }
-  }
-
-  const marker = tq.injuryId ? markers.find((m) => m.id === tq.injuryId) : null
-
+  const injuryId = useTC3Store((s) => s.card.march.massiveHemorrhage.tourniquets.find((t) => t.id === id)?.injuryId)
   return (
     <div className="px-3 py-3 space-y-2" onClick={(e) => e.stopPropagation()}>
-      <CellCard>
-        <Cell label="Time">
-          <input type="text" inputMode="numeric" value={tq.time}
-            onChange={(e) => updateTourniquet(id, { time: e.target.value })}
-            placeholder="HH:MM" className={cellInput} />
-        </Cell>
-        <Cell label="Category">
-          <Segmented options={TQ_CATEGORIES} value={tq.tqCategory} onChange={(v) => updateTourniquet(id, { tqCategory: v })} />
-        </Cell>
-        <Cell label="Type">
-          <Segmented options={TOURNIQUET_TYPES} value={tq.type} onChange={(v) => updateTourniquet(id, { type: v })} />
-        </Cell>
-        <LocationCell value={tq.location} marker={marker} onChange={handleLocation} />
-      </CellCard>
-      <InjuryBadge injuryId={tq.injuryId} />
+      <TourniquetEditor id={id} />
+      <InjuryBadge injuryId={injuryId} />
     </div>
   )
 }
 
 function DressingPreview({ id }: { id: string }) {
-  const h = useTC3Store((s) => s.card.march.massiveHemorrhage.hemostatics.find((d) => d.id === id))
-  const markers = useTC3Store((s) => s.card.markers)
-  const updateHemostatic = useTC3Store((s) => s.updateHemostatic)
-  const addMarker = useTC3Store((s) => s.addMarker)
-  const updateMarker = useTC3Store((s) => s.updateMarker)
-  if (!h) return null
-
-  const handleLocation = (label: string, region: BodyRegion | '') => {
-    updateHemostatic(id, { location: label })
-    if (!region) return
-    const center = getRegionCenter(region)
-    if (!center) return
-    if (h.injuryId) {
-      updateMarker(h.injuryId, { bodyRegion: region, x: center.x, y: center.y })
-    } else {
-      const markerId = crypto.randomUUID()
-      updateHemostatic(id, { location: label, injuryId: markerId })
-      addMarker({
-        id: markerId, x: center.x, y: center.y, bodyRegion: region,
-        injuries: [], treatments: ['hemostatic'], procedures: [],
-        gauge: '', tqType: 'CAT', tqCategory: 'Extremity',
-        dressingType: h.dressingType, priority: '',
-        dateTime: new Date().toISOString().slice(0, 16), description: '',
-      })
-    }
-  }
-
-  const marker = h.injuryId ? markers.find((m) => m.id === h.injuryId) : null
-
+  const injuryId = useTC3Store((s) => s.card.march.massiveHemorrhage.hemostatics.find((d) => d.id === id)?.injuryId)
   return (
     <div className="px-3 py-3 space-y-2" onClick={(e) => e.stopPropagation()}>
-      <CellCard>
-        <Cell label="Dressing Type">
-          <Segmented options={DRESSING_TYPES} value={h.dressingType} onChange={(v) => updateHemostatic(id, { dressingType: v })} />
-        </Cell>
-        <Cell label="Agent">
-          <input type="text" value={h.type}
-            onChange={(e) => updateHemostatic(id, { type: e.target.value })}
-            placeholder="Combat Gauze, QuikClot..." className={cellInput} />
-        </Cell>
-        <LocationCell value={h.location} marker={marker} onChange={handleLocation} />
-      </CellCard>
-      <InjuryBadge injuryId={h.injuryId} />
+      <DressingEditor id={id} />
+      <InjuryBadge injuryId={injuryId} />
     </div>
   )
 }
