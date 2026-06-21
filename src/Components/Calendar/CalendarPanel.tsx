@@ -1309,7 +1309,13 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
               the header (title + Save/Delete pills, built-in Close = Cancel) and
               drag-dismiss is disabled so a stray drag can't discard form input.
               backdrop="block" dims the day drawer underneath so the sheet reads as
-              distinct from it (their themewhite3 backgrounds are identical). */}
+              distinct from it (their themewhite3 backgrounds are identical).
+              Cancel is an EXPLICIT header pill (not the Sheet's built-in Close):
+              it flips dayDrawerView back to 'detail' while showDayDrawer stays
+              true, so the Sheet must NOT run its slide-down/unmount close path —
+              that would set isMounted=false while isOpen stays true, desyncing the
+              [isOpen]-keyed mount effect and stranding the sheet off-screen (which
+              also froze further event selection). hideClose stays on in both modes. */}
           <Sheet
             isOpen={showDayDrawer && (dayDrawerView === 'detail' || dayDrawerView === 'edit')}
             onClose={dayDrawerView === 'edit' ? handleDayDrawerEditCancel : handleDayDrawerDetailBack}
@@ -1317,11 +1323,13 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
             maxHeight={60}
             backdrop="block"
             zIndex={1200}
-            hideClose={dayDrawerView === 'detail'}
+            hideClose
             draggable={dayDrawerView === 'detail'}
             title={dayDrawerView === 'edit' ? 'Edit Event' : undefined}
-            leftContent={dayDrawerView === 'edit' ? (
+            rightContent={dayDrawerView === 'edit' && editingEvent ? (
               <HeaderPill>
+                <PillButton icon={Trash2} iconSize={18} onClick={() => setConfirmDeleteEvent(editingEvent.id)} label="Delete" variant="danger" />
+                <PillButton icon={X} iconSize={18} onClick={handleDayDrawerEditCancel} label="Cancel" />
                 <PillButton
                   icon={Check}
                   iconSize={18}
@@ -1329,11 +1337,6 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                   onClick={() => eventFormRef.current?.submit()}
                   label="Save"
                 />
-              </HeaderPill>
-            ) : undefined}
-            rightContent={dayDrawerView === 'edit' && editingEvent ? (
-              <HeaderPill>
-                <PillButton icon={Trash2} iconSize={18} onClick={() => setConfirmDeleteEvent(editingEvent.id)} label="Delete" variant="danger" />
               </HeaderPill>
             ) : undefined}
           >

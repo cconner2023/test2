@@ -35,6 +35,8 @@ export interface AlgorithmStpEntry {
   id: string
   /** Display name (the algorithm's `text`). */
   name: string
+  /** Parent category display name (the catData category's `text`). */
+  category: string
   /** Mapped STP task numbers. */
   taskNumbers: string[]
 }
@@ -55,7 +57,12 @@ export function listAlgorithmsWithStp(): AlgorithmStpEntry[] {
         .map((t) => t.icon) ?? []
       if (taskNumbers.length === 0) continue
       seen.add(c.icon)
-      out.push({ id: c.icon, name: (c.text ?? '').trim() || c.icon, taskNumbers })
+      out.push({
+        id: c.icon,
+        name: (c.text ?? '').trim() || c.icon,
+        category: (category.text ?? '').trim() || 'Other',
+        taskNumbers,
+      })
     }
   }
   return out

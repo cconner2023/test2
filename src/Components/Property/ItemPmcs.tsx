@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { AlertTriangle, Plus, Check, ClipboardCheck, Loader2 } from 'lucide-react'
+import { AlertTriangle, Plus, Check, ClipboardCheck, Loader2, Wrench } from 'lucide-react'
 import { getAuditBySubjectLocal, fetchAuditBySubject } from '../../lib/auditService'
 import type { AuditEvent } from '../../lib/auditTypes'
 import { usePropertyStore } from '../../stores/usePropertyStore'
@@ -25,6 +25,12 @@ const logger = createLogger('ItemPmcs')
  *
  * The full found→fixed history (incl. corrected faults + clean checks) lives in
  * ItemTimeline; this card is only the actionable now-state.
+ *
+ * Surfaced as a single "PMCS…" action (ellipsis = opens a flow): the section is
+ * collapsed by default — the header carries only the open-fault count (red, at a
+ * glance). Tapping "PMCS…" reveals the fault list to correct/leave plus the
+ * report-a-fault inline-add and the "No new faults" clean-check. PMCS is never a
+ * separate preview-overlay/sheet — the flow is inline, in place.
  */
 
 interface ItemPmcsProps {
@@ -47,6 +53,8 @@ export function ItemPmcs({ subjectType = 'item', subjectId, clinicId }: ItemPmcs
   const [loading, setLoading] = useState(true)
   const [desc, setDesc] = useState('')
   const [busy, setBusy] = useState(false)
+  // Collapsed by default — "PMCS…" opens the inline check (fault list + report + clean).
+  const [expanded, setExpanded] = useState(false)
   const raiseFault = usePropertyStore((s) => s.raiseFault)
   const correctFault = usePropertyStore((s) => s.correctFault)
   const recordPmcs = usePropertyStore((s) => s.recordPmcs)
@@ -113,9 +121,25 @@ export function ItemPmcs({ subjectType = 'item', subjectId, clinicId }: ItemPmcs
 
   return (
     <div>
-      <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase mb-2">
-        PMCS{open.length > 0 && ` · ${open.length}`}
-      </p>
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2">
+          <span className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">PMCS</span>
+          {open.length > 0 && (
+            <span className="text-[9pt] px-1.5 py-0.5 rounded-full bg-themered/10 text-themered font-semibold">
+              {open.length}
+            </span>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          aria-expanded={expanded}
+          className="shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-full bg-themeblue3/10 text-themeblue3 text-[9pt] font-semibold active:scale-95 transition-all"
+        >
+          <Wrench size={12} /> PMCS…
+        </button>
+      </div>
+      {expanded && (
       <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center px-4 py-6">
@@ -172,6 +196,7 @@ export function ItemPmcs({ subjectType = 'item', subjectId, clinicId }: ItemPmcs
           </div>
         )}
       </div>
+      )}
     </div>
   )
 }

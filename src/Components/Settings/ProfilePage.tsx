@@ -27,19 +27,18 @@ import type { CertInput } from '../../lib/certificationService';
 import { submitProfileChangeRequest } from '../../lib/accountRequestService';
 import { updateOwnEmail } from '../../lib/authService';
 import { isValidEmail } from '../../lib/adminService';
-import { PickerInput } from '../FormInputs';
+import { PickerInput, PasswordInput } from '../FormInputs';
 import { ErrorDisplay } from '../ErrorDisplay';
+import { supabase } from '../../lib/supabase';
 
 interface ProfilePageProps {
     onAvatarClick: () => void;
-    onNavigate: (panel: 'change-password') => void;
     onSignOut: () => void;
     onDeleteAccount: () => Promise<{ success: boolean; error?: string }>;
 }
 
 export const ProfilePage = ({
     onAvatarClick,
-    onNavigate,
     onSignOut,
     onDeleteAccount,
 }: ProfilePageProps) => {
@@ -238,6 +237,58 @@ export const ProfilePage = ({
         if (result.success) closeEmailEdit()
         else setEmailError(result.error || 'Failed to change email')
     }, [newEmail, closeEmailEdit])
+
+    // Self-service password reset — anchored overlay mirroring the email change.
+    // Current password is re-verified via signInWithPassword before updateUser;
+    // the confirm field is the only typo guard (no verification email — no BAA).
+    const pwRowRef = useRef<HTMLButtonElement>(null)
+    const [pwAnchor, setPwAnchor] = useState<DOMRect | null>(null)
+    const [currentPw, setCurrentPw] = useState('')
+    const [newPw, setNewPw] = useState('')
+    const [confirmPw, setConfirmPw] = useState('')
+    const [pwSubmitting, setPwSubmitting] = useState(false)
+    const [pwError, setPwError] = useState<string | null>(null)
+    const [pwSuccess, setPwSuccess] = useState(false)
+
+    const pwValid = currentPw.length > 0 && newPw.length >= 12 && newPw === confirmPw
+
+    const openPwEdit = useCallback(() => {
+        if (!pwRowRef.current) return
+        setCurrentPw(''); setNewPw(''); setConfirmPw('')
+        setPwError(null); setPwSuccess(false)
+        setPwAnchor(pwRowRef.current.getBoundingClientRect())
+    }, [])
+
+    const closePwEdit = useCallback(() => {
+        setPwAnchor(null)
+        setPwSubmitting(false)
+        setPwError(null)
+    }, [])
+
+    const doPwChange = useCallback(async () => {
+        if (!pwValid || !userEmail) return
+        setPwError(null)
+        setPwSubmitting(true)
+
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+            email: userEmail,
+            password: currentPw,
+        })
+        if (signInError) {
+            setPwSubmitting(false)
+            setPwError('Current password is incorrect')
+            return
+        }
+
+        const { error: updateError } = await supabase.auth.updateUser({ password: newPw })
+        setPwSubmitting(false)
+        if (updateError) {
+            setPwError(updateError.message)
+        } else {
+            setPwSuccess(true)
+            setCurrentPw(''); setNewPw(''); setConfirmPw('')
+        }
+    }, [pwValid, userEmail, currentPw, newPw])
 
     // Certifications popovers (inline card)
     const [certForm, setCertForm] = useState<CertFormData>(emptyCertForm)
@@ -486,7 +537,8 @@ export const ProfilePage = ({
                     ) : (
                         <>
                             <button
-                                onClick={() => onNavigate('change-password')}
+                                ref={pwRowRef}
+                                onClick={openPwEdit}
                                 className="flex items-center gap-3 w-full px-4 py-3.5 transition-all active:scale-95 hover:bg-themeblue2/5"
                             >
                                 <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
@@ -754,6 +806,67 @@ export const ProfilePage = ({
                 onConfirm={doEmailChange}
                 onCancel={() => setShowEmailConfirm(false)}
             />
+
+            {/* Password reset popover — self-service, re-verifies current password */}
+            <PreviewOverlay
+                isOpen={!!pwAnchor}
+                onClose={closePwEdit}
+                anchorRect={pwAnchor}
+                title="Reset password"
+                maxWidth={360}
+                footer={
+                    pwAnchor && !pwSuccess ? (
+                        <div className="flex gap-1 bg-themewhite rounded-2xl shadow-lg px-1.5 py-1.5">
+                            <ActionButton
+                                icon={pwSubmitting ? RefreshCw : Check}
+                                label={pwSubmitting ? 'Updating…' : 'Update password'}
+                                variant={!pwValid || pwSubmitting ? 'disabled' : 'success'}
+                                onClick={doPwChange}
+                            />
+                        </div>
+                    ) : undefined
+                }
+            >
+                {pwAnchor && (pwSuccess ? (
+                    <div className="px-5 py-8 flex flex-col items-center justify-center">
+                        <div className="w-14 h-14 rounded-full bg-themegreen/10 flex items-center justify-center mb-4">
+                            <CheckCircle size={28} className="text-themegreen" />
+                        </div>
+                        <h2 className="text-lg font-semibold text-primary">Password updated</h2>
+                        <p className="text-sm text-tertiary mt-2 text-center">
+                            Your password has been changed successfully.
+                        </p>
+                    </div>
+                ) : (
+                    <div>
+                        {pwError && (
+                            <div className="px-4 pt-3">
+                                <ErrorDisplay message={pwError} />
+                            </div>
+                        )}
+                        <PasswordInput
+                            value={currentPw}
+                            onChange={setCurrentPw}
+                            placeholder="Current password"
+                            autoComplete="current-password"
+                        />
+                        <PasswordInput
+                            value={newPw}
+                            onChange={setNewPw}
+                            placeholder="New password (min 12 characters)"
+                            autoComplete="new-password"
+                            hint={newPw.length > 0 && newPw.length < 12 ? 'Password must be at least 12 characters' : undefined}
+                        />
+                        <PasswordInput
+                            value={confirmPw}
+                            onChange={setConfirmPw}
+                            placeholder="Confirm new password"
+                            autoComplete="new-password"
+                            hint={confirmPw.length > 0 && newPw !== confirmPw ? 'Passwords do not match' : undefined}
+                        />
+                    </div>
+                ))}
+            </PreviewOverlay>
 
             {/* Add certification popover */}
             <PreviewOverlay

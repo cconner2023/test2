@@ -502,7 +502,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
                   <div className="text-[10pt] text-themeredred">{barcodeImport.error}</div>
                 </div>
               )}
-              <div className="px-5 pb-[max(2rem,var(--sab,0px))]">
+              <div className="px-5 pb-8">
                 {view === 'note' ? (
                 <ProviderNote
                   hpiNote={hpiNote}

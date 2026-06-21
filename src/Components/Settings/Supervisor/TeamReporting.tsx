@@ -1,5 +1,5 @@
 import { useMemo, useRef } from 'react'
-import { AlertTriangle, Building2, Calendar, Plus } from 'lucide-react'
+import { AlertTriangle, Building2, Calendar, ChevronRight, Plus } from 'lucide-react'
 import { formatMedicName } from './supervisorHelpers'
 import type { ClinicMedic } from '../../../Types/SupervisorTestTypes'
 import type { TeamMetrics } from './supervisorHelpers'
@@ -33,8 +33,9 @@ interface TeamReportingProps {
   testableTaskMap: Map<string, { taskId: string }[]>
   onNavigateToTask?: (taskId: string) => void
   onNavigateToArea?: (areaName: string) => void
-  /** Drill into a single algorithm's team coverage (peer of subject-area gaps). */
-  onNavigateToAlgorithm?: (algorithmId: string, algorithmName: string) => void
+  /** Drill into the per-category algorithm list (A-1…X). The flat algorithm
+   *  list is too long to inline, so "Algorithms" is one Coverage-Gaps row. */
+  onNavigateToAlgorithmList?: () => void
   clinicName?: string | null
   teamEvents: CalendarEvent[]
   /** Per-soldier count of logged algorithm encounters (full history). */
@@ -70,7 +71,7 @@ export function TeamReporting({
   testableTaskMap,
   onNavigateToTask,
   onNavigateToArea,
-  onNavigateToAlgorithm,
+  onNavigateToAlgorithmList,
   clinicName,
   teamEvents,
   encounterCountBySoldier,
@@ -97,8 +98,12 @@ export function TeamReporting({
     return [...metrics.subjectAreaGaps].sort((a, b) => a.coveragePercent - b.coveragePercent)
   }, [metrics.subjectAreaGaps])
 
-  const sortedAlgorithmGaps = useMemo(() => {
-    return [...metrics.algorithmGaps].sort((a, b) => a.coveragePercent - b.coveragePercent)
+  // Algorithms collapse to a single Coverage-Gaps row; the per-algorithm list
+  // lives behind the drill-down. The row's % is the team average across them.
+  const algorithmsAggregatePercent = useMemo(() => {
+    const list = metrics.algorithmGaps
+    if (list.length === 0) return 0
+    return Math.round(list.reduce((s, g) => s + g.coveragePercent, 0) / list.length)
   }, [metrics.algorithmGaps])
 
   if (metrics.totalMedics === 0) {
@@ -303,11 +308,6 @@ export function TeamReporting({
         <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">
           Coverage Gaps
         </p>
-        {sortedAlgorithmGaps.length > 0 && (
-          <p className="text-[8pt] font-semibold text-tertiary uppercase tracking-wider mb-1.5">
-            Subject Areas
-          </p>
-        )}
         <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
           {sortedGaps.map((gap, index) => (
             <button
@@ -345,48 +345,39 @@ export function TeamReporting({
               </span>
             </button>
           ))}
-        </div>
 
-        {/* Algorithms — composite competency, peer of subject-area gaps but with
-            its own drill-down (soldier-by-algorithm, Evaluate cascades to STPs). */}
-        {sortedAlgorithmGaps.length > 0 && (
-          <>
-            <p className="text-[8pt] font-semibold text-tertiary uppercase tracking-wider mt-3 mb-1.5">
-              Algorithms
-            </p>
-            <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
-              {sortedAlgorithmGaps.map((gap) => (
-                <button
-                  key={gap.algorithmId}
-                  onClick={() => onNavigateToAlgorithm?.(gap.algorithmId, gap.name)}
-                  disabled={!onNavigateToAlgorithm}
-                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-themeblue2/5 text-left active:scale-95 transition-all disabled:active:scale-100"
+          {/* Algorithms — composite competency, a single coverage-gap row that
+              drills into the per-category A-1…X list (too long to inline). */}
+          {metrics.algorithmGaps.length > 0 && (
+            <button
+              onClick={() => onNavigateToAlgorithmList?.()}
+              disabled={!onNavigateToAlgorithmList}
+              className="w-full flex items-center gap-3 px-4 py-3 hover:bg-themeblue2/5 text-left active:scale-95 transition-all disabled:active:scale-100"
+            >
+              <span className="text-sm font-medium text-primary min-w-0 truncate shrink-0 w-36">
+                Algorithms
+              </span>
+              <div className="flex-1 min-w-0">
+                <div
+                  className="h-1.5 rounded-full bg-tertiary/10 overflow-hidden"
+                  role="progressbar"
+                  aria-valuenow={algorithmsAggregatePercent}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
                 >
-                  <span className="text-sm text-primary min-w-0 truncate shrink-0 w-36">
-                    {gap.name}
-                  </span>
-                  <div className="flex-1 min-w-0">
-                    <div
-                      className="h-1.5 rounded-full bg-tertiary/10 overflow-hidden"
-                      role="progressbar"
-                      aria-valuenow={gap.coveragePercent}
-                      aria-valuemin={0}
-                      aria-valuemax={100}
-                    >
-                      <div
-                        className={`h-full rounded-full transition-all ${metricBarColor(gap.coveragePercent)}`}
-                        style={{ width: `${gap.coveragePercent}%` }}
-                      />
-                    </div>
-                  </div>
-                  <span className={`text-[9pt] font-medium w-8 text-right ${metricTextColor(gap.coveragePercent)}`}>
-                    {gap.coveragePercent}%
-                  </span>
-                </button>
-              ))}
-            </div>
-          </>
-        )}
+                  <div
+                    className={`h-full rounded-full transition-all ${metricBarColor(algorithmsAggregatePercent)}`}
+                    style={{ width: `${algorithmsAggregatePercent}%` }}
+                  />
+                </div>
+              </div>
+              <span className={`text-[9pt] font-medium w-8 text-right ${metricTextColor(algorithmsAggregatePercent)}`}>
+                {algorithmsAggregatePercent}%
+              </span>
+              <ChevronRight size={16} className="text-tertiary shrink-0" />
+            </button>
+          )}
+        </div>
       </div>
 
     </div>

@@ -17,7 +17,6 @@ import { PlanPanel } from './PlanPanel';
 import { TextTemplatesPanel } from './TextTemplatesPanel';
 import { ProviderTemplatesPanel } from './ProviderTemplatesPanel';
 import { ProfilePage } from './ProfilePage';
-import { ChangePasswordPanel } from './ChangePasswordPanel';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../Hooks/useAuth';
 import { useAuthStore } from '../../stores/useAuthStore';
@@ -58,7 +57,7 @@ export const Settings = ({
 }: SettingsDrawerProps) => {
     const { currentAvatar, setAvatar, avatarList, customImage, isCustom, setCustomImage, clearCustomImage } = useAvatar();
     const { themeName } = useTheme();
-    const [activePanel, setActivePanel] = useState<'main' | 'release-notes' | 'avatar-picker' | 'user-profile' | 'pin-setup' | 'notification-settings' | 'feedback' | 'note-content' | 'privacy-policy' | 'change-password' | 'sessions-devices' | 'clinic' | 'lora' | 'plan-settings' | 'text-templates' | 'provider-templates' | 'guided-tours' | 'overview-widgets' | 'theme-picker' | 'storage' | 'feature-votes' | 'checklists'>('main');
+    const [activePanel, setActivePanel] = useState<'main' | 'release-notes' | 'avatar-picker' | 'user-profile' | 'pin-setup' | 'notification-settings' | 'feedback' | 'note-content' | 'privacy-policy' | 'sessions-devices' | 'clinic' | 'lora' | 'plan-settings' | 'text-templates' | 'provider-templates' | 'guided-tours' | 'overview-widgets' | 'theme-picker' | 'storage' | 'feature-votes' | 'checklists'>('main');
     const { profile, updateProfile } = useUserProfile();
     const [slideDirection, setSlideDirection] = useState<'left' | 'right' | ''>('');
     const prevVisibleRef = useRef(false);
@@ -247,10 +246,6 @@ const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
     const swipeHandlers = useSwipeBack(
         useMemo(() => {
             if (activePanel === 'main') return undefined;
-            // Sub-panels of the profile hub go back to user-profile
-            if (activePanel === 'change-password') {
-                return () => { handleSlideAnimation('right'); setActivePanel('user-profile'); };
-            }
             // clinic panel resets editing state on back
             if (activePanel === 'clinic') {
                 const doBack = () => { handleSlideAnimation('right'); setClinicEditing(false); setClinicDeleteSelection(new Set()); setClinicAddingMember(false); setActivePanel('main'); };
@@ -307,8 +302,6 @@ const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
                     ),
                     hideDefaultClose: true,
                 };
-            // Sub-panel of the profile hub goes back to user-profile
-            case 'change-password':     return { title: 'Reset Password', ...backTo('user-profile') };
             // All panels below slide right back to main
             case 'release-notes':       return { title: 'Release Notes', ...backTo() };
             case 'feature-votes':       return { title: 'Feature Votes', ...backTo() };
@@ -450,10 +443,6 @@ const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
                             'user-profile': (
                                 <ProfilePage
                                     onAvatarClick={() => handleItemClick(PANEL.AVATAR_PICKER, handleClose)}
-                                    onNavigate={(panel) => {
-                                        handleSlideAnimation('left');
-                                        setActivePanel(panel);
-                                    }}
                                     onSignOut={async () => { await clearAllUserData(); await clearServiceWorkerCaches(); await signOut(); handleClose(); }}
                                     onDeleteAccount={async () => {
                                         const result = await deleteOwnAccount();
@@ -466,7 +455,6 @@ const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
                                     }}
                                 />
                             ),
-                            'change-password':      <ChangePasswordPanel />,
                             'avatar-picker': (
                                 <AvatarPickerPanel
                                     onSelect={(id) => {

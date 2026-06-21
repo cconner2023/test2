@@ -11,7 +11,8 @@ const logger = createLogger('UserTimeline')
  *
  * Replaces the supervisor's forward-only "team calendar" voice with a single
  * timeline that renders BOTH past lifecycle events (joined cluster, trained,
- * certified) and future-facing ones, split by a "now" divider. Reads server
+ * certified) and future-facing ones; the event nearest now carries a green
+ * boundary edge (no standalone divider). Reads server
  * (read_audit RPC, RLS/dev-scoped) merged with local pending events, so it
  * paints offline-first. Lifecycle events only — not an activity feed.
  *
@@ -79,6 +80,7 @@ function describeEvent(e: AuditEvent): string {
   const p = e.payload ?? {}
   const item = (p.training_item_id as string) || ''
   switch (e.eventType) {
+    case 'user.created': return 'Account created'
     case 'home.assigned': return 'Assigned to cluster'
     case 'home.returned': return 'Left cluster'
     case 'loan.assigned': return 'Loaned to cluster'
@@ -133,7 +135,7 @@ function calendarToRow(c: TimelineCalendarEntry, onOpenEvent?: (id: string) => v
   }
 }
 
-function TimelineRow({ row, future }: { row: TimelineRowData; future: boolean }) {
+function TimelineRow({ row, future, nowEdge }: { row: TimelineRowData; future: boolean; nowEdge?: 'top' | 'bottom' }) {
   const { Icon } = row
   const body = (
     <>
@@ -147,7 +149,10 @@ function TimelineRow({ row, future }: { row: TimelineRowData; future: boolean })
       <span className="text-[9pt] text-tertiary shrink-0">{fmtDate(row.occurredAt)}</span>
     </>
   )
-  const cls = `w-full text-left flex items-center gap-3 px-4 py-3 ${future ? 'opacity-70' : ''}`
+  // Green edge on the event nearest now marks the past/future boundary
+  // (replaces the standalone "Now" divider row).
+  const edgeCls = nowEdge === 'top' ? 'border-t-2 border-themegreen' : nowEdge === 'bottom' ? 'border-b-2 border-themegreen' : ''
+  const cls = `w-full text-left flex items-center gap-3 px-4 py-3 ${future ? 'opacity-70' : ''} ${edgeCls}`
   return row.onClick
     ? <button type="button" onClick={row.onClick} className={`${cls} transition-colors hover:bg-themeblue3/5`}>{body}</button>
     : <div className={cls}>{body}</div>
@@ -177,7 +182,7 @@ export function UserTimeline({ subjectId, clinicId, seedEvents, calendarEntries,
     return () => { cancelled = true }
   }, [subjectId, clinicId, seedEvents])
 
-  const { past, future, total } = useMemo(() => {
+  const { past, future, total, nowEdge } = useMemo(() => {
     // Merge audit rows with calendar rows, dedupe by id (audit wins on collision).
     const byId = new Map<string, TimelineRowData>()
     for (const c of calendarEntries ?? []) byId.set(c.id, calendarToRow(c, onOpenEvent))
@@ -189,17 +194,27 @@ export function UserTimeline({ subjectId, clinicId, seedEvents, calendarEntries,
       if (a.seq != null && b.seq != null) return b.seq - a.seq
       return new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime()
     })
-    return {
-      future: sorted.filter((r) => new Date(r.occurredAt).getTime() > now),
-      past: sorted.filter((r) => new Date(r.occurredAt).getTime() <= now),
-      total: sorted.length,
+    const future = sorted.filter((r) => new Date(r.occurredAt).getTime() > now)
+    const past = sorted.filter((r) => new Date(r.occurredAt).getTime() <= now)
+    // The single event nearest to now carries the green boundary edge: a past
+    // event takes it on top (now sits just above it), a future event on bottom.
+    let nowEdge: { id: string; side: 'top' | 'bottom' } | null = null
+    let bestDiff = Infinity
+    for (const r of sorted) {
+      const t = new Date(r.occurredAt).getTime()
+      const diff = Math.abs(t - now)
+      if (diff < bestDiff) {
+        bestDiff = diff
+        nowEdge = { id: r.id, side: t > now ? 'bottom' : 'top' }
+      }
     }
+    return { future, past, total: sorted.length, nowEdge }
   }, [events, calendarEntries, onOpenEvent])
 
   return (
     <div>
       <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">
-        {title}{total > 0 && ` · ${total}`}
+        {title}
       </p>
       <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
         {loading ? (
@@ -210,18 +225,12 @@ export function UserTimeline({ subjectId, clinicId, seedEvents, calendarEntries,
           <p className="text-[10pt] text-tertiary px-4 py-4">No timeline events yet</p>
         ) : (
           <div className="divide-y divide-tertiary/8">
-            {future.length > 0 && (
-              <div className="divide-y divide-tertiary/8">
-                {future.map((r) => <TimelineRow key={r.id} row={r} future />)}
-              </div>
-            )}
-            <div className="flex items-center gap-2 px-4 py-1.5 bg-themeblue3/5">
-              <span className="text-[8pt] font-semibold text-themeblue2 uppercase tracking-wider">Now</span>
-              <div className="flex-1 h-px bg-themeblue3/20" />
-            </div>
-            <div className="divide-y divide-tertiary/8">
-              {past.map((r) => <TimelineRow key={r.id} row={r} future={false} />)}
-            </div>
+            {future.map((r) => (
+              <TimelineRow key={r.id} row={r} future nowEdge={nowEdge?.id === r.id ? nowEdge.side : undefined} />
+            ))}
+            {past.map((r) => (
+              <TimelineRow key={r.id} row={r} future={false} nowEdge={nowEdge?.id === r.id ? nowEdge.side : undefined} />
+            ))}
           </div>
         )}
       </div>

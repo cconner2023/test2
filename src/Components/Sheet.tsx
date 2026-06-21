@@ -348,7 +348,7 @@ export function Sheet({
                             onTouchMove={onTouchMove}
                             onTouchEnd={onTouchEnd}
                             onWheel={onWheel}
-                            className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain isolate pb-[max(0px,var(--sab,0px))]"
+                            className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain isolate"
                             style={{ paddingTop: headerHeight }}
                         >
                             {children}

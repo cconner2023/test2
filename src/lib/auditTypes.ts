@@ -30,6 +30,7 @@ export type AuditSubjectType = 'user' | 'item' | 'algorithm' | 'location'
  */
 export type AuditEventType =
   // personnel — spine only, payload_enc = null
+  | 'user.created'
   | 'home.assigned'
   | 'home.returned'
   | 'loan.assigned'

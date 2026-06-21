@@ -22,6 +22,7 @@ import { AssignTaskFlow } from './Settings/Supervisor/AssignTaskFlow'
 import { TeamReporting } from './Settings/Supervisor/TeamReporting'
 import { CoverageTasksView } from './Settings/Supervisor/CoverageTasksView'
 import { AlgorithmCoverageView } from './Settings/Supervisor/AlgorithmCoverageView'
+import { AlgorithmGapList } from './Settings/Supervisor/AlgorithmGapList'
 import { SupervisorTree, type TreeSelection } from './Settings/Supervisor/SupervisorTree'
 import { LoadingSpinner } from './LoadingSpinner'
 import { useMinLoadTime } from '../Hooks/useMinLoadTime'
@@ -44,6 +45,7 @@ type SupervisorView =
   | { screen: 'evaluate-algorithm'; soldier: ClinicMedic; algorithmId: string; algorithmName: string }
   | { screen: 'coverage-tasks'; areaName: string; soldier?: ClinicMedic }
   | { screen: 'coverage-task-evaluate'; areaName: string; soldier: ClinicMedic; taskNumber: string; taskTitle: string }
+  | { screen: 'coverage-algorithm-list' }
   | { screen: 'coverage-algorithm'; algorithmId: string; algorithmName: string }
   | { screen: 'assign-task'; soldier: ClinicMedic; preSelectedTask?: { id: string; title: string } }
 
@@ -308,6 +310,11 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
     setView({ screen: 'coverage-tasks', areaName })
   }, [handleSlideAnimation])
 
+  const handleNavigateToAlgorithmList = useCallback(() => {
+    handleSlideAnimation('left')
+    setView({ screen: 'coverage-algorithm-list' })
+  }, [handleSlideAnimation])
+
   const handleNavigateToAlgorithm = useCallback((algorithmId: string, algorithmName: string) => {
     handleSlideAnimation('left')
     setView({ screen: 'coverage-algorithm', algorithmId, algorithmName })
@@ -387,6 +394,9 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
     } else if (view.screen === 'coverage-task-evaluate') {
       handleSlideAnimation('right')
       setView({ screen: 'coverage-tasks', areaName: view.areaName })
+    } else if (view.screen === 'coverage-algorithm') {
+      handleSlideAnimation('right')
+      setView({ screen: 'coverage-algorithm-list' })
     } else if (view.screen === 'assign-task') {
       handleSlideAnimation('right')
       setTaskSearchQuery('')
@@ -546,6 +556,18 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
           showBack: true,
           onBack: handleBack,
         }
+      case 'coverage-algorithm-list':
+        return {
+          title: 'Algorithms',
+          showBack: true,
+          onBack: handleBack,
+          rightContent: (
+            <HeaderPill>
+              <PillButton icon={X} onClick={handleClose} label="Close" />
+            </HeaderPill>
+          ),
+          hideDefaultClose: true,
+        }
       case 'coverage-algorithm':
         return {
           title: view.algorithmName,
@@ -589,7 +611,7 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
               testableTaskMap={testableTaskMap}
               clinicName={clinicName}
               onNavigateToArea={handleNavigateToArea}
-              onNavigateToAlgorithm={handleNavigateToAlgorithm}
+              onNavigateToAlgorithmList={handleNavigateToAlgorithmList}
               teamEvents={windowedEvents}
               encounterCountBySoldier={encounterCountBySoldier}
               onOpenCalendar={handleOpenCalendar}
@@ -747,6 +769,16 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
               searchQuery=""
               onSelectTask={() => {}}
               onSubmit={handleSubmitEvaluation}
+            />
+          </ScrollPane>
+        )
+
+      case 'coverage-algorithm-list':
+        return (
+          <ScrollPane className={scrollPaneCls}>
+            <AlgorithmGapList
+              gaps={teamMetrics.algorithmGaps}
+              onNavigateToAlgorithm={handleNavigateToAlgorithm}
             />
           </ScrollPane>
         )
