@@ -1,14 +1,14 @@
 import { useState, useMemo, useCallback } from 'react'
-import { Search, ChevronDown, ChevronRight, FileText, RotateCcw, Building2, UserRound, MapPin } from 'lucide-react'
+import { ChevronDown, ChevronRight, FileText, RotateCcw, Building2, UserRound, MapPin } from 'lucide-react'
 import { useAuth } from '../../Hooks/useAuth'
-import { useAuthStore } from '../../stores/useAuthStore'
 import { useHandReceipts } from '../../Hooks/useHandReceipts'
-import { useDA2062Export } from '../../Hooks/useDA2062Export'
+import { useHandReceiptActions } from '../../Hooks/useHandReceiptActions'
+import { usePropertyStore } from '../../stores/usePropertyStore'
+import { SearchInput } from '../SearchInput'
+import { EmptyState } from '../EmptyState'
+import { SignOutSheet } from '../Property/SignOutSheet'
 import { PdfPreviewModal } from '../PdfPreviewModal'
 import { ConfirmDialog } from '../ConfirmDialog'
-import { signInReceipt } from '../../lib/propertyService'
-import { invalidate } from '../../stores/useInvalidationStore'
-import type { HandReceipt, HolderInfo } from '../../Types/PropertyTypes'
 
 /** Short, human relative date (the receipt list is chronological). */
 function formatDate(iso: string): string {
@@ -25,12 +25,21 @@ export const AccountabilityPanel = () => {
   const { clinicId: assignedClinicId, supervisingClinicId } = useAuth()
   const clinicId = supervisingClinicId ?? assignedClinicId
   const { receipts, itemsById, locationNameById, membersById, loading, refetch } = useHandReceipts(clinicId)
-  const { exportDA2062, da2062Preview, downloadDA2062, clearDA2062Preview } = useDA2062Export()
+  const { reprint, pendingSignIn, setPendingSignIn, confirmSignIn, busyId, da2062Preview, downloadDA2062, clearDA2062Preview } =
+    useHandReceiptActions({ clinicId, itemsById, membersById, refetch })
 
   const [query, setQuery] = useState('')
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
-  const [pendingSignIn, setPendingSignIn] = useState<HandReceipt | null>(null)
-  const [busyId, setBusyId] = useState<string | null>(null)
+  const [showSignOut, setShowSignOut] = useState(false)
+
+  // The sign-out sheet reads its item/member lists from the property store, which is
+  // only hydrated once the Property drawer has opened. Init it on demand so a DA 2062
+  // can be started straight from here.
+  const openSignOut = useCallback(() => {
+    const ps = usePropertyStore.getState()
+    if (ps.items.length === 0 && !ps.isLoading) ps.init()
+    setShowSignOut(true)
+  }, [])
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -50,89 +59,26 @@ export const AccountabilityPanel = () => {
     })
   }, [])
 
-  const handleReprint = useCallback(
-    async (r: HandReceipt) => {
-      const items = r.entries
-        .map((e) => itemsById.get(e.item_id))
-        .filter((i): i is NonNullable<typeof i> => !!i)
-      const fromHolder: HolderInfo = membersById.get(r.recordedBy) ?? {
-        id: r.recordedBy,
-        rank: null,
-        firstName: null,
-        lastName: null,
-        displayName: 'Hand Receipt Holder',
-      }
-      const toHolder: HolderInfo = {
-        id: r.toHolderId ?? 'external',
-        rank: null,
-        firstName: null,
-        lastName: null,
-        displayName: r.recipientLabel,
-      }
-      await exportDA2062({
-        items,
-        fromHolder,
-        toHolder,
-        handReceiptNumber: `HR-${r.handReceiptId.slice(0, 8).toUpperCase()}`,
-        date: formatDate(r.recordedAt),
-      })
-    },
-    [itemsById, membersById, exportDA2062],
-  )
-
-  const handleSignIn = useCallback(async () => {
-    const r = pendingSignIn
-    if (!r || !clinicId) {
-      setPendingSignIn(null)
-      return
-    }
-    const userId = useAuthStore.getState().user?.id
-    if (!userId) {
-      setPendingSignIn(null)
-      return
-    }
-    setBusyId(r.handReceiptId)
-    setPendingSignIn(null)
-    const result = await signInReceipt(
-      r.handReceiptId,
-      clinicId,
-      r.toHolderId,
-      r.entries.map((e) => e.item_id),
-      userId,
-    )
-    setBusyId(null)
-    if (result.success) {
-      invalidate('properties')
-      refetch()
-    }
-  }, [pendingSignIn, clinicId, refetch])
-
   return (
     <div className="h-full overflow-y-auto">
       <div className="px-5 pb-4 space-y-4 pt-[calc(var(--drawer-header-h,3.5rem)+0.75rem)]">
-        <p className="text-[10pt] text-tertiary leading-relaxed">
-          Every DA 2062 hand receipt, newest first — what's signed out, to whom, and where each
-          item usually lives.
-        </p>
-
         {/* Search */}
-        <div className="flex items-center gap-2 px-3 rounded-2xl border border-primary/8 bg-themewhite2">
-          <Search size={15} className="text-tertiary shrink-0" />
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search recipient or item…"
-            className="w-full bg-transparent py-2.5 text-base md:text-sm text-primary placeholder:text-tertiary focus:outline-none"
-          />
-        </div>
+        <SearchInput
+          value={query}
+          onChange={setQuery}
+          placeholder="Search recipient or item…"
+        />
 
         {/* Receipt list */}
         {filtered.length === 0 ? (
-          <div className="rounded-2xl border border-primary/8 px-4 py-8 text-center">
-            <p className="text-[10pt] text-tertiary">
-              {loading ? 'Loading…' : query ? 'No receipts match.' : 'No hand receipts yet.'}
-            </p>
-          </div>
+          <EmptyState
+            title={loading ? 'Loading…' : query ? 'No receipts match.' : 'No hand receipts yet.'}
+            action={
+              !loading && !query
+                ? { icon: FileText, label: 'New DA 2062', onClick: openSignOut }
+                : undefined
+            }
+          />
         ) : (
           <div className="space-y-2.5">
             {filtered.map((r) => {
@@ -214,7 +160,7 @@ export const AccountabilityPanel = () => {
                       {/* Actions */}
                       <div className="flex items-center gap-2 px-4 py-3">
                         <button
-                          onClick={() => handleReprint(r)}
+                          onClick={() => reprint(r)}
                           className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-themeblue3/10 text-themeblue3 text-[10pt] font-medium active:scale-95 transition-transform"
                         >
                           <FileText size={14} />
@@ -240,6 +186,14 @@ export const AccountabilityPanel = () => {
         )}
       </div>
 
+      <SignOutSheet
+        isOpen={showSignOut}
+        onClose={() => {
+          setShowSignOut(false)
+          refetch()
+        }}
+      />
+
       <PdfPreviewModal
         preview={da2062Preview}
         onDownload={downloadDA2062}
@@ -252,7 +206,7 @@ export const AccountabilityPanel = () => {
         subtitle={pendingSignIn ? `${pendingSignIn.entries.length} item(s) return to the property book.` : ''}
         confirmLabel="Sign in"
         variant="primary"
-        onConfirm={handleSignIn}
+        onConfirm={confirmSignIn}
         onCancel={() => setPendingSignIn(null)}
       />
     </div>

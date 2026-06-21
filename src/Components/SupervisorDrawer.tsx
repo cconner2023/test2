@@ -14,7 +14,7 @@ import { updateAssignmentCalendarOriginId } from '../lib/trainingService'
 import { useAuthStore } from '../stores/useAuthStore'
 import { useNavigationStore } from '../stores/useNavigationStore'
 import { useSupervisorData } from './Settings/Supervisor/useSupervisorData'
-import { isEncounterEvent } from './Settings/Supervisor/supervisorHelpers'
+import { isEncounterEvent, buildAlgorithmCompetency } from './Settings/Supervisor/supervisorHelpers'
 import { SoldierProfile } from './Settings/Supervisor/SoldierProfile'
 import { EvaluateFlow } from './Settings/Supervisor/EvaluateFlow'
 import { AlgorithmEvaluateFlow } from './Settings/Supervisor/AlgorithmEvaluateFlow'
@@ -23,6 +23,7 @@ import { TeamReporting } from './Settings/Supervisor/TeamReporting'
 import { CoverageTasksView } from './Settings/Supervisor/CoverageTasksView'
 import { AlgorithmCoverageView } from './Settings/Supervisor/AlgorithmCoverageView'
 import { AlgorithmGapList } from './Settings/Supervisor/AlgorithmGapList'
+import { SoldierAlgorithmList } from './Settings/Supervisor/SoldierAlgorithmList'
 import { SupervisorTree, type TreeSelection } from './Settings/Supervisor/SupervisorTree'
 import { LoadingSpinner } from './LoadingSpinner'
 import { useMinLoadTime } from '../Hooks/useMinLoadTime'
@@ -47,6 +48,7 @@ type SupervisorView =
   | { screen: 'coverage-task-evaluate'; areaName: string; soldier: ClinicMedic; taskNumber: string; taskTitle: string }
   | { screen: 'coverage-algorithm-list' }
   | { screen: 'coverage-algorithm'; algorithmId: string; algorithmName: string }
+  | { screen: 'soldier-algorithm-list'; soldier: ClinicMedic }
   | { screen: 'assign-task'; soldier: ClinicMedic; preSelectedTask?: { id: string; title: string } }
 
 interface SupervisorDrawerProps {
@@ -320,6 +322,11 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
     setView({ screen: 'coverage-algorithm', algorithmId, algorithmName })
   }, [handleSlideAnimation])
 
+  const handleOpenSoldierAlgorithms = useCallback((soldier: ClinicMedic) => {
+    handleSlideAnimation('left')
+    setView({ screen: 'soldier-algorithm-list', soldier })
+  }, [handleSlideAnimation])
+
   const handleCoverageEvaluate = useCallback((soldier: ClinicMedic, taskId: string, taskTitle: string) => {
     if (view.screen !== 'coverage-tasks') return
     handleSlideAnimation('left')
@@ -397,6 +404,11 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
     } else if (view.screen === 'coverage-algorithm') {
       handleSlideAnimation('right')
       setView({ screen: 'coverage-algorithm-list' })
+    } else if (view.screen === 'soldier-algorithm-list') {
+      handleSlideAnimation('right')
+      const soldierId = view.soldier.id
+      setView({ screen: 'main' })
+      setTreeSelection({ type: 'soldier', soldierId })
     } else if (view.screen === 'assign-task') {
       handleSlideAnimation('right')
       setTaskSearchQuery('')
@@ -580,6 +592,18 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
           ),
           hideDefaultClose: true,
         }
+      case 'soldier-algorithm-list':
+        return {
+          title: 'Algorithms',
+          showBack: true,
+          onBack: handleBack,
+          rightContent: (
+            <HeaderPill>
+              <PillButton icon={X} onClick={handleClose} label="Close" />
+            </HeaderPill>
+          ),
+          hideDefaultClose: true,
+        }
       case 'assign-task':
         return {
           title: 'Assign Training',
@@ -652,8 +676,7 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
             onEditMember={isSupervisor && clinicId
               ? (memberId, anchor) => setMemberEdit({ memberId, anchor })
               : undefined}
-            onEvaluateAlgorithm={(algorithmId, algorithmName) => handleEvaluateAlgorithm(soldier, algorithmId, algorithmName)}
-            onScheduleAlgorithm={(algorithmId, algorithmName) => handleScheduleAlgorithm(soldier, algorithmId, algorithmName)}
+            onOpenAlgorithms={() => handleOpenSoldierAlgorithms(soldier)}
           />
         )
       }
@@ -796,6 +819,19 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
             />
           </ScrollPane>
         )
+
+      case 'soldier-algorithm-list': {
+        const soldier = view.soldier
+        return (
+          <ScrollPane className={scrollPaneCls}>
+            <SoldierAlgorithmList
+              competency={buildAlgorithmCompetency(testsForSoldier(soldier.id))}
+              onEvaluateAlgorithm={(algorithmId, algorithmName) => handleEvaluateAlgorithm(soldier, algorithmId, algorithmName)}
+              onScheduleAlgorithm={(algorithmId, algorithmName) => handleScheduleAlgorithm(soldier, algorithmId, algorithmName)}
+            />
+          </ScrollPane>
+        )
+      }
 
       case 'assign-task':
         return (

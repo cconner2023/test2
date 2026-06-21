@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useRef } from 'react'
+import { useState, useMemo, useCallback, useRef, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { ChevronRight, ChevronDown, Pencil, Trash2, Eye, FolderPlus, PackagePlus, MoreHorizontal, FolderClosed, Package, Layers, Truck } from 'lucide-react'
 import { useDrag } from '@use-gesture/react'
@@ -42,6 +42,12 @@ interface PropertyLocationTreeProps {
   /** Add a building floor (kind='level') to a structural zone. */
   onAddLevel?: (containerId: string) => void
   onAddItemAtLocation?: (locationId: string | null) => void
+  /**
+   * Optional DA 2062 hand-receipts section rendered as a sibling to the Unassigned
+   * section (full-tree usages only — never in scoped/`rootId` mode, and hidden while
+   * searching). Owned by the caller so the tree stays free of receipt concerns.
+   */
+  receiptsSection?: ReactNode
 }
 
 interface TreeNode {
@@ -79,6 +85,7 @@ export function PropertyLocationTree({
   onAddChildLocation,
   onAddLevel,
   onAddItemAtLocation,
+  receiptsSection,
 }: PropertyLocationTreeProps) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const [dragState, setDragState] = useState<DragState | null>(null)
@@ -341,7 +348,16 @@ export function PropertyLocationTree({
     }
   }, { filterTaps: true, delay: 150 })
 
-  if (displayRoots.length === 0 && displayUnassigned.length === 0 && displayMembers.length === 0 && displayRootItems.length === 0) {
+  // Render the hand-receipts section only in full-tree mode and when not searching.
+  const showReceipts = !rootId && !isSearching && !!receiptsSection
+
+  if (
+    displayRoots.length === 0 &&
+    displayUnassigned.length === 0 &&
+    displayMembers.length === 0 &&
+    displayRootItems.length === 0 &&
+    !showReceipts
+  ) {
     return (
       <div className="px-6 py-8 text-center text-[10pt] text-tertiary">
         {isSearching ? 'No matches.' : rootId ? 'Nothing here yet' : 'No locations or items yet.'}
@@ -554,6 +570,14 @@ export function PropertyLocationTree({
               {displayUnassigned.map((item) => renderItemRow(item, 16 + 20 + 18, 'w-7 h-7 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all shrink-0'))}
             </>
           )}
+        </div>
+      )}
+
+      {/* DA 2062 hand-receipts mirror — outstanding equipment + history. Sits with
+          the location sections; caller-owned (full-tree, non-search usages only). */}
+      {showReceipts && (
+        <div className="mt-1 border-t border-tertiary/10 pt-1">
+          {receiptsSection}
         </div>
       )}
 

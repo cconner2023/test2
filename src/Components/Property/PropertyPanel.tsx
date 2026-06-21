@@ -4,8 +4,11 @@ import { ConfirmDialog } from '../ConfirmDialog'
 import { LiftedRowMenu } from '../LiftedRowMenu'
 import { AddFab } from '../AddFab'
 import { usePropertyStore } from '../../stores/usePropertyStore'
+import { useAuthStore } from '../../stores/useAuthStore'
 import { useShallow } from 'zustand/react/shallow'
 import { PropertyLocationTree } from './PropertyLocationTree'
+import { HandReceiptsTreeSection } from './HandReceiptsTreeSection'
+import type { ReceiptItem } from '../../Hooks/useHandReceipts'
 import { PropertyBreadcrumb } from './PropertyBreadcrumb'
 import { PropertySearchOverlay } from './PropertySearchOverlay'
 import { PropertyLocationForm, type PropertyLocationFormHandle } from './PropertyLocationForm'
@@ -96,6 +99,10 @@ export const PropertyPanel = memo(function PropertyPanel({
     })),
   )
 
+  // DA 2062 hand-receipts tree section is dev-gated, mirroring the Settings surface
+  // + the "New DA 2062" FAB action.
+  const isDevRole = useAuthStore(s => s.isDevRole)
+
   const visibleLocations = store.locations.filter(l => l.name !== ROOT_LOCATION_NAME)
   const hasData = visibleLocations.length > 0 || store.items.length > 0
   const showLoading = useMinLoadTime(store.isLoading) && !hasData
@@ -179,6 +186,21 @@ export const PropertyPanel = memo(function PropertyPanel({
     if (isMobile) { setMobileItem(item); return }
     onSelectItem(item)
   }, [isMobile, onSelectItem, selectedLocationId])
+
+  // Locate a signed-out item from the hand-receipts tree section: surface it on the
+  // canvas (navigate + select, like any item tap). On mobile, dismiss the Locations
+  // sheet so the map is revealed — "target the signed-out equipment".
+  const handleLocateReceiptItem = useCallback((receiptItem: ReceiptItem) => {
+    const full = store.items.find(i => i.id === receiptItem.id)
+    if (full) handleSelectItem(full)
+    else if (receiptItem.location_id) mapRef.current?.navigateToZone(receiptItem.location_id)
+    if (isMobile) onCloseLocationSheet?.()
+  }, [store.items, handleSelectItem, isMobile, onCloseLocationSheet])
+
+  // Built once, fed to whichever full-tree renders (desktop rail / mobile sheet).
+  const receiptsSection = isDevRole && store.clinicId
+    ? <HandReceiptsTreeSection clinicId={store.clinicId} onLocateItem={handleLocateReceiptItem} />
+    : null
 
   // Keep the nested mobile item fresh as the store mutates; drop it if it vanishes.
   useEffect(() => {
@@ -358,6 +380,7 @@ export const PropertyPanel = memo(function PropertyPanel({
                 onAddChildLocation={handleAddChildLocation}
                 onAddLevel={(id) => mapRef.current?.addFloorTo(id)}
                 onAddItemAtLocation={handleAddItemAtLocation}
+                receiptsSection={receiptsSection}
               />
             </div>
           </div>
@@ -732,6 +755,7 @@ export const PropertyPanel = memo(function PropertyPanel({
           onAddChildLocation={handleAddChildLocation}
           onAddLevel={(id) => mapRef.current?.addFloorTo(id)}
           onAddItemAtLocation={handleAddItemAtLocation}
+          receiptsSection={receiptsSection}
         />
       </Sheet>
 

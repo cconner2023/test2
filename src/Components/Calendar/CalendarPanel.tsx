@@ -609,14 +609,15 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     }
   }, [viewMode, moveModeEventId, setSelectedDate, setViewMode])
 
-  // View-pill tap: switch views, or — if the pill is already active — toggle its
-  // config popover. Every view carries layout options, so every pill shows the caret.
+  // View-pill tap: switch views — auto-opening the new view's config popover so
+  // its layout options are discoverable without knowing to re-tap. Re-tapping the
+  // already-active pill toggles the popover. Every view carries options → caret.
   const selectView = useCallback((v: 'month' | 'day' | 'troops') => {
     if (viewMode === v) {
       setShowViewConfig(o => !o)
     } else {
       setViewMode(v)
-      setShowViewConfig(false)
+      setShowViewConfig(true)
     }
   }, [viewMode, setViewMode])
 
@@ -1240,9 +1241,9 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
 
           {/* View-config popover — floats above the island's active pill (Map
               basemap-picker pattern). Holds the active view's layout options. */}
+          {/* No backdrop — the popover is non-blocking: the calendar stays live and
+              scrollable underneath. Dismiss by re-tapping the active pill. */}
           {showViewConfig && (
-            <>
-              <div className="absolute inset-0 z-30" onClick={() => setShowViewConfig(false)} />
               <div className="absolute bottom-[4.5rem] inset-x-0 z-50 flex items-end justify-center px-4 pb-[max(0rem,var(--sab,0px))] pointer-events-none">
                 <div className="pointer-events-auto w-full max-w-xs rounded-2xl bg-themewhite shadow-lg border border-tertiary/15 p-3 space-y-2.5 animate-fadeIn">
                   {viewMode === 'month' && (
@@ -1293,12 +1294,11 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                   )}
                 </div>
               </div>
-            </>
           )}
 
           <BottomIsland
             glass
-            z={showViewConfig ? 'z-40' : 'z-20'}
+            z="z-20"
             tour="calendar-view-switcher"
             fab={
               <AddFab tour="calendar-add-event" label="Add event" onClick={() => setShowAddSheet(true)} className="absolute right-4" />

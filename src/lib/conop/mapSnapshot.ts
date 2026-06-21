@@ -4,12 +4,15 @@
  * Renders themed basemap tiles + overlay features (routes/areas/waypoints) +
  * labels into a single PNG, with NO Leaflet instance, NO html2canvas, and NO
  * new dependency. Fully offline: tiles come from the per-overlay IDB cache
- * (getTileFromCache), with an OSM-only network fetch fallback. Every drawn
- * pixel originates from a same-origin blob / data URL, so the output canvas is
- * never tainted and toBlob('image/png') always succeeds.
+ * (getTileFromCache) or an imported source's getBlob, with a network fetch
+ * fallback for any CORS-clean source (OSM / Esri imagery / USGS topo). Every
+ * drawn pixel originates from a same-origin blob / data URL — a cross-origin
+ * server that omits CORS makes fetch() THROW (we skip the tile), so the output
+ * canvas is never tainted and toBlob('image/png') always succeeds.
  *
- * Basemap is recolored to the active theme via the shared recolorPixels (same
- * math as ThemedTileLayer) so the export matches the in-app look.
+ * Street basemaps are recolored to the active theme via the shared recolorPixels
+ * (same math as ThemedTileLayer) so the export matches the in-app look; imagery
+ * and topo stay pixel-accurate (matching ThemedTileLayer's street-only recolor).
  *
  * Reuses: computeOverlayBbox + getTileFromCache + getTileSource (mapTileService),
  * recolorPixels + TileTheme (ThemedTileLayer), waypointIconSvg (WaypointIcon),
@@ -120,20 +123,29 @@ async function resolveTileUrl(
   x: number,
   y: number,
 ): Promise<{ url: string; revoke: boolean } | null> {
+  // 1. Per-overlay IDB cache (same-origin blob → always clean).
   if (overlayId) {
     const cached = await getTileFromCache(overlayId, z, x, y, basemapId)
     if (cached) return { url: URL.createObjectURL(cached), revoke: true }
   }
-  // Network fallback only for CORS-enabled street tiles (OSM sends ACAO:*).
-  // Imagery/topo omit ACAO → fetch would CORS-fail, so we skip and leave the
-  // tile as theme-background fill (matches ThemedTileLayer's blank behavior).
-  if (source.category === 'street') {
-    try {
-      const res = await fetch(source.url(z, x, y))
-      if (res.ok) return { url: URL.createObjectURL(await res.blob()), revoke: true }
-    } catch {
-      /* offline / blocked — fall through to background fill */
-    }
+  // 2. Imported basemaps (MBTiles / geo-PDF) keep their tiles in IDB, reached
+  //    via the source's own getBlob — same-origin, never tainting, no network.
+  if (source.getBlob) {
+    const blob = await source.getBlob(z, x, y)
+    return blob ? { url: URL.createObjectURL(blob), revoke: true } : null
+  }
+  // 3. Network fallback for ANY CORS-clean source — not just street. fetch()→
+  //    blob can NEVER taint the export canvas: a server that omits CORS makes
+  //    fetch() THROW (we fall through to theme-background fill), and any blob we
+  //    DO get is wrapped in a same-origin object URL. esri-imagery / usgs-topo
+  //    serve CORS-clean tiles — the same fetch path their bulk download already
+  //    relies on. (The earlier street-only gate conflated this with the <img
+  //    crossOrigin> taint risk in ThemedTileLayer, which fetch() doesn't share.)
+  try {
+    const res = await fetch(source.url(z, x, y))
+    if (res.ok) return { url: URL.createObjectURL(await res.blob()), revoke: true }
+  } catch {
+    /* offline / blocked / no-CORS — fall through to background fill */
   }
   return null
 }
@@ -164,12 +176,17 @@ async function drawTile(
     const sctx = scratch.getContext('2d')
     if (!sctx) return
     sctx.drawImage(img, 0, 0, TILE_PX, TILE_PX)
-    try {
-      const data = sctx.getImageData(0, 0, TILE_PX, TILE_PX)
-      recolor(data.data, theme)
-      sctx.putImageData(data, 0, 0)
-    } catch {
-      /* unexpected taint — blit the un-recolored tile rather than nothing */
+    // Recolor ONLY street tiles — ThemedTileLayer keeps imagery / topo
+    // pixel-accurate, and tinting a satellite/topo scene to the theme would
+    // wreck it. Non-street tiles blit straight through.
+    if (source.category === 'street') {
+      try {
+        const data = sctx.getImageData(0, 0, TILE_PX, TILE_PX)
+        recolor(data.data, theme)
+        sctx.putImageData(data, 0, 0)
+      } catch {
+        /* unexpected taint — blit the un-recolored tile rather than nothing */
+      }
     }
     ctx.drawImage(scratch, destX, destY)
   } finally {

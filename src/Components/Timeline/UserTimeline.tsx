@@ -1,8 +1,12 @@
-import { useEffect, useState, useMemo } from 'react'
-import { Building2, Package, ClipboardCheck, Award, Activity, Calendar, Loader2 } from 'lucide-react'
+import { useEffect, useState, useMemo, type ReactNode } from 'react'
+import { Building2, Package, ClipboardCheck, Award, Activity, Calendar, History, Loader2 } from 'lucide-react'
 import { getAuditBySubjectLocal, fetchAuditBySubject } from '../../lib/auditService'
 import type { AuditEvent, AuditDomain } from '../../lib/auditTypes'
 import { createLogger } from '../../Utilities/Logger'
+import { ActionPill } from '../ActionPill'
+import { ActionButton } from '../ActionButton'
+import { Sheet } from '../Sheet'
+import { SearchInput } from '../SearchInput'
 
 const logger = createLogger('UserTimeline')
 
@@ -11,10 +15,11 @@ const logger = createLogger('UserTimeline')
  *
  * Replaces the supervisor's forward-only "team calendar" voice with a single
  * timeline that renders BOTH past lifecycle events (joined cluster, trained,
- * certified) and future-facing ones; the event nearest now carries a green
- * boundary edge (no standalone divider). Reads server
- * (read_audit RPC, RLS/dev-scoped) merged with local pending events, so it
- * paints offline-first. Lifecycle events only — not an activity feed.
+ * certified) and future-facing ones, split by a standalone "now" divider line
+ * (red dot + hairline, mirroring the calendar DayView marker) — future above,
+ * past below. Reads server (read_audit RPC, RLS/dev-scoped) merged with local
+ * pending events, so it paints offline-first. Lifecycle events only — not an
+ * activity feed.
  *
  * Reusable for both the supervisor (SoldierProfile) and admin (AdminUserDetail)
  * surfaces — same component, different subject.
@@ -47,6 +52,10 @@ interface UserTimelineProps {
   /** Tap handler for a calendar row — opens the event in the calendar. */
   onOpenEvent?: (eventId: string) => void
   title?: string
+  /** Max rows shown in the card preview; the rest live behind "View all". Default 5. */
+  previewCount?: number
+  /** Extra action button(s) folded into the timeline's action pill (e.g. "View in calendar"). */
+  actions?: ReactNode
 }
 
 /** Normalized row rendered by the timeline — from an audit event or a calendar entry. */
@@ -135,7 +144,7 @@ function calendarToRow(c: TimelineCalendarEntry, onOpenEvent?: (id: string) => v
   }
 }
 
-function TimelineRow({ row, future, nowEdge }: { row: TimelineRowData; future: boolean; nowEdge?: 'top' | 'bottom' }) {
+function TimelineRow({ row, future }: { row: TimelineRowData; future: boolean }) {
   const { Icon } = row
   const body = (
     <>
@@ -149,18 +158,44 @@ function TimelineRow({ row, future, nowEdge }: { row: TimelineRowData; future: b
       <span className="text-[9pt] text-tertiary shrink-0">{fmtDate(row.occurredAt)}</span>
     </>
   )
-  // Green edge on the event nearest now marks the past/future boundary
-  // (replaces the standalone "Now" divider row).
-  const edgeCls = nowEdge === 'top' ? 'border-t-2 border-themegreen' : nowEdge === 'bottom' ? 'border-b-2 border-themegreen' : ''
-  const cls = `w-full text-left flex items-center gap-3 px-4 py-3 ${future ? 'opacity-70' : ''} ${edgeCls}`
+  const cls = `w-full text-left flex items-center gap-3 px-4 py-3 ${future ? 'opacity-70' : ''}`
   return row.onClick
     ? <button type="button" onClick={row.onClick} className={`${cls} transition-colors hover:bg-themeblue3/5`}>{body}</button>
     : <div className={cls}>{body}</div>
 }
 
-export function UserTimeline({ subjectId, clinicId, seedEvents, calendarEntries, onOpenEvent, title = 'Timeline' }: UserTimelineProps) {
+/** Standalone "now" boundary line between the future block (above) and past
+ *  block (below) — red dot + hairline, mirroring the calendar DayView marker. */
+function NowDivider() {
+  return (
+    <div className="flex items-center gap-2 px-4 py-1.5">
+      <div className="w-2 h-2 rounded-full bg-themeredred shrink-0" />
+      <div className="flex-1 h-px bg-themeredred" />
+    </div>
+  )
+}
+
+/** Split a row set into future/past blocks (newest-first) around the now-line. */
+function arrange(rows: TimelineRowData[]): {
+  future: TimelineRowData[]
+  past: TimelineRowData[]
+} {
+  const now = Date.now()
+  // Newest-first within each half; future shown above the now-divider.
+  const sorted = [...rows].sort((a, b) => {
+    if (a.seq != null && b.seq != null) return b.seq - a.seq
+    return new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime()
+  })
+  const future = sorted.filter((r) => new Date(r.occurredAt).getTime() > now)
+  const past = sorted.filter((r) => new Date(r.occurredAt).getTime() <= now)
+  return { future, past }
+}
+
+export function UserTimeline({ subjectId, clinicId, seedEvents, calendarEntries, onOpenEvent, title = 'Timeline', previewCount = 5, actions }: UserTimelineProps) {
   const [events, setEvents] = useState<AuditEvent[]>([])
   const [loading, setLoading] = useState(true)
+  const [showAll, setShowAll] = useState(false)
+  const [query, setQuery] = useState('')
 
   useEffect(() => {
     let cancelled = false
@@ -182,39 +217,47 @@ export function UserTimeline({ subjectId, clinicId, seedEvents, calendarEntries,
     return () => { cancelled = true }
   }, [subjectId, clinicId, seedEvents])
 
-  const { past, future, total, nowEdge } = useMemo(() => {
-    // Merge audit rows with calendar rows, dedupe by id (audit wins on collision).
+  // Merge audit rows with calendar rows, dedupe by id (audit wins on collision).
+  const allRows = useMemo(() => {
     const byId = new Map<string, TimelineRowData>()
     for (const c of calendarEntries ?? []) byId.set(c.id, calendarToRow(c, onOpenEvent))
     for (const e of events) byId.set(e.id, auditToRow(e))
-    const rows = [...byId.values()]
-    const now = Date.now()
-    // Newest-first within each half; future shown above the now-divider.
-    const sorted = rows.sort((a, b) => {
-      if (a.seq != null && b.seq != null) return b.seq - a.seq
-      return new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime()
-    })
-    const future = sorted.filter((r) => new Date(r.occurredAt).getTime() > now)
-    const past = sorted.filter((r) => new Date(r.occurredAt).getTime() <= now)
-    // The single event nearest to now carries the green boundary edge: a past
-    // event takes it on top (now sits just above it), a future event on bottom.
-    let nowEdge: { id: string; side: 'top' | 'bottom' } | null = null
-    let bestDiff = Infinity
-    for (const r of sorted) {
-      const t = new Date(r.occurredAt).getTime()
-      const diff = Math.abs(t - now)
-      if (diff < bestDiff) {
-        bestDiff = diff
-        nowEdge = { id: r.id, side: t > now ? 'bottom' : 'top' }
-      }
-    }
-    return { future, past, total: sorted.length, nowEdge }
+    return [...byId.values()]
   }, [events, calendarEntries, onOpenEvent])
 
+  const total = allRows.length
+
+  // Preview = the events nearest to "now" (a few upcoming + recent past), so the
+  // card surfaces what matters rather than the farthest-future scheduled rows.
+  const previewRows = useMemo(() => {
+    if (allRows.length <= previewCount) return allRows
+    const now = Date.now()
+    return [...allRows]
+      .sort((a, b) => Math.abs(new Date(a.occurredAt).getTime() - now) - Math.abs(new Date(b.occurredAt).getTime() - now))
+      .slice(0, previewCount)
+  }, [allRows, previewCount])
+
+  const preview = useMemo(() => arrange(previewRows), [previewRows])
+
+  // Full (searchable) list behind "View all".
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    if (!q) return allRows
+    return allRows.filter((r) =>
+      r.label.toLowerCase().includes(q) ||
+      r.sublabel.toLowerCase().includes(q) ||
+      fmtDate(r.occurredAt).toLowerCase().includes(q),
+    )
+  }, [allRows, query])
+
+  const full = useMemo(() => arrange(filtered), [filtered])
+
+  const closeAll = () => { setShowAll(false); setQuery('') }
+
   return (
-    <div>
+    <div className="relative">
       <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">
-        {title}
+        {title}{total > 0 && ` · ${total}`}
       </p>
       <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
         {loading ? (
@@ -225,15 +268,46 @@ export function UserTimeline({ subjectId, clinicId, seedEvents, calendarEntries,
           <p className="text-[10pt] text-tertiary px-4 py-4">No timeline events yet</p>
         ) : (
           <div className="divide-y divide-tertiary/8">
-            {future.map((r) => (
-              <TimelineRow key={r.id} row={r} future nowEdge={nowEdge?.id === r.id ? nowEdge.side : undefined} />
+            {preview.future.map((r) => (
+              <TimelineRow key={r.id} row={r} future />
             ))}
-            {past.map((r) => (
-              <TimelineRow key={r.id} row={r} future={false} nowEdge={nowEdge?.id === r.id ? nowEdge.side : undefined} />
+            <NowDivider />
+            {preview.past.map((r) => (
+              <TimelineRow key={r.id} row={r} future={false} />
             ))}
           </div>
         )}
       </div>
+
+      {/* Action pill — "View all" opens the full searchable timeline; callers can
+          fold extra actions (e.g. "View in calendar") into the same pill. */}
+      {(total > 0 || actions) && (
+        <ActionPill shadow="sm" placement="overlay">
+          {total > 0 && (
+            <ActionButton icon={History} label="View all" onClick={() => setShowAll(true)} />
+          )}
+          {actions}
+        </ActionPill>
+      )}
+
+      <Sheet isOpen={showAll} onClose={closeAll} title={title} maxHeight={90}>
+        <div className="px-4 pt-1 pb-2">
+          <SearchInput value={query} onChange={setQuery} placeholder="Search timeline…" autoFocus />
+        </div>
+        {full.future.length === 0 && full.past.length === 0 ? (
+          <p className="text-[10pt] text-tertiary px-4 py-8 text-center">No matching events</p>
+        ) : (
+          <div className="divide-y divide-tertiary/8 pb-2">
+            {full.future.map((r) => (
+              <TimelineRow key={r.id} row={r} future />
+            ))}
+            <NowDivider />
+            {full.past.map((r) => (
+              <TimelineRow key={r.id} row={r} future={false} />
+            ))}
+          </div>
+        )}
+      </Sheet>
     </div>
   )
 }
