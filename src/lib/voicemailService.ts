@@ -23,18 +23,19 @@ import type { Json } from '../Types/database.types.generated'
 
 const logger = createLogger('Voicemail')
 
-/** Encrypt + persist the signed-in user's greeting. Returns false if the
- *  barcode key is unavailable (offline cold start) or the write fails. */
-export async function saveOwnGreeting(recording: VoiceRecordingResult): Promise<boolean> {
+/** Encrypt + persist the signed-in user's greeting. Returns the stored greeting
+ *  (with its real ciphertext, so the caller can play it back immediately) or
+ *  null if the barcode key is unavailable (offline cold start) or the write fails. */
+export async function saveOwnGreeting(recording: VoiceRecordingResult): Promise<VoicemailGreeting | null> {
   try {
     const key = await getBarcodeKey()
     if (!key) {
       logger.warn('No barcode key available — cannot save greeting')
-      return false
+      return null
     }
     const { data: auth } = await supabase.auth.getUser()
     const userId = auth.user?.id
-    if (!userId) return false
+    if (!userId) return null
 
     const plainBytes = new Uint8Array(await recording.blob.arrayBuffer())
     const combined = await aesGcmEncrypt(key, plainBytes)
@@ -51,12 +52,12 @@ export async function saveOwnGreeting(recording: VoiceRecordingResult): Promise<
 
     if (error) {
       logger.warn('Failed to save greeting:', error.message)
-      return false
+      return null
     }
-    return true
+    return greeting
   } catch (e) {
     logger.warn('saveOwnGreeting error:', e instanceof Error ? e.message : e)
-    return false
+    return null
   }
 }
 

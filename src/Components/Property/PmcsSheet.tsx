@@ -1,16 +1,19 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import {
   AlertTriangle, Plus, Check, ClipboardCheck, Loader2, Wrench,
-  Pencil, Trash2, X, ChevronRight, ChevronLeft, History,
+  Pencil, Trash2, X, ChevronRight, ChevronLeft, History, Paperclip, FileText,
 } from 'lucide-react'
 import { getAuditBySubjectLocal, fetchAuditBySubject } from '../../lib/auditService'
 import type { AuditEvent } from '../../lib/auditTypes'
 import { usePropertyStore } from '../../stores/usePropertyStore'
+import { useAuthStore } from '../../stores/useAuthStore'
 import { useInvalidation } from '../../stores/useInvalidationStore'
 import { useIsMobile } from '../../Hooks/useIsMobile'
 import { TextInput } from '../FormInputs'
 import { Sheet } from '../Sheet'
 import { PreviewOverlay } from '../PreviewOverlay'
+import { uploadEncryptedAttachment, downloadDecryptedAttachment } from '../../lib/signal'
+import type { PmcsDoc } from '../../lib/propertyService'
 import { createLogger } from '../../Utilities/Logger'
 
 const logger = createLogger('PmcsSheet')
@@ -67,6 +70,11 @@ export function PmcsSheet({ isOpen, onClose, subjectType = 'item', subjectId, cl
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [mileage, setMileage] = useState('')
   const [fuelLevel, setFuelLevel] = useState<number | null>(null)
+  const [docFile, setDocFile] = useState<File | null>(null)
+  const [docError, setDocError] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const userId = useAuthStore((s) => s.user?.id)
 
   // Mileage + fuel are a vehicle's 5988 intake; a stock item's PMCS is just the
   // fault check + a clean-check log.
@@ -83,7 +91,7 @@ export function PmcsSheet({ isOpen, onClose, subjectType = 'item', subjectId, cl
   useEffect(() => {
     if (!isOpen) {
       setView('check'); setEditingId(null); setConfirmDeleteId(null); setDesc('')
-      setMileage(''); setFuelLevel(null)
+      setMileage(''); setFuelLevel(null); setDocFile(null); setDocError(null)
     }
   }, [isOpen])
 
@@ -159,11 +167,32 @@ export function PmcsSheet({ isOpen, onClose, subjectType = 'item', subjectId, cl
   const handleRecord = async () => {
     if (!canSubmit || busy) return
     setBusy(true)
+    setDocError(null)
+
+    // Encrypt + upload the 6988E first (signal attachment pipeline: random AES key,
+    // ciphertext to the message-attachments bucket, key rides in the encrypted
+    // payload below). Abort the record if the upload fails so nothing logs without it.
+    let doc: PmcsDoc | undefined
+    if (docFile && userId) {
+      const up = await uploadEncryptedAttachment(userId, docFile)
+      if (!up.ok) {
+        logger.warn('6988E upload failed:', up.error)
+        setDocError('Could not upload the document — try again.')
+        setBusy(false)
+        return
+      }
+      doc = { path: up.data.path, key: up.data.key, mime: docFile.type || undefined, name: docFile.name }
+    }
+
     const miles = parseInt(mileage, 10)
-    const ok = await recordPmcs(subjectType, subjectId, isVehicle ? {
-      mileage: Number.isFinite(miles) ? miles : undefined,
-      fuelLevel: fuelLevel ?? undefined,
-    } : undefined)
+    const readings = {
+      ...(isVehicle ? {
+        mileage: Number.isFinite(miles) ? miles : undefined,
+        fuelLevel: fuelLevel ?? undefined,
+      } : {}),
+      ...(doc ? { doc } : {}),
+    }
+    const ok = await recordPmcs(subjectType, subjectId, Object.keys(readings).length ? readings : undefined)
     setBusy(false)
     if (ok) onClose()
   }
@@ -198,6 +227,28 @@ export function PmcsSheet({ isOpen, onClose, subjectType = 'item', subjectId, cl
     setConfirmDeleteId(null)
     await deletePmcsEntry(id)
     setBusy(false)
+  }
+
+  // Open an attached 6988E: pull the ciphertext, decrypt with the key from the
+  // (already-decrypted) payload, and open the file in a new tab.
+  const openDoc = async (doc: PmcsDoc) => {
+    if (busy) return
+    setBusy(true)
+    const res = await downloadDecryptedAttachment(doc.path, doc.key)
+    setBusy(false)
+    if (!res.ok) { logger.warn('6988E download failed:', res.error); return }
+    const blob = doc.mime ? new Blob([res.data], { type: doc.mime }) : res.data
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank')
+    // Revoke after a beat so the new tab has time to load it.
+    setTimeout(() => URL.revokeObjectURL(url), 60_000)
+  }
+
+  const docOf = (e: AuditEvent): PmcsDoc | null => {
+    const d = e.payload?.doc
+    return d && typeof d === 'object' && typeof (d as PmcsDoc).path === 'string'
+      ? (d as PmcsDoc)
+      : null
   }
 
   // ── CHECK view body — the standard PMCS intake form ─────────────────────────
@@ -255,9 +306,54 @@ export function PmcsSheet({ isOpen, onClose, subjectType = 'item', subjectId, cl
         </button>
       </div>
 
+      {/* Attach a 6988E worksheet — encrypted client-side into the attachment
+          bucket on submit; the key rides in the encrypted PMCS payload. */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*,application/pdf"
+        className="hidden"
+        onChange={(ev) => {
+          const f = ev.target.files?.[0] ?? null
+          setDocFile(f)
+          setDocError(null)
+          ev.target.value = '' // allow re-picking the same file
+        }}
+      />
+      {docFile ? (
+        <div className="flex items-center gap-3 px-4 py-3">
+          <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-themeblue3/10 text-themeblue2">
+            <FileText size={14} />
+          </div>
+          <span className="flex-1 min-w-0 text-sm font-medium text-primary truncate">{docFile.name}</span>
+          <button
+            type="button"
+            onClick={() => setDocFile(null)}
+            disabled={busy}
+            className="shrink-0 w-8 h-8 rounded-full bg-tertiary/8 flex items-center justify-center active:scale-95 transition-all disabled:opacity-40"
+            aria-label="Remove document"
+          >
+            <X size={14} className="text-tertiary" />
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={busy}
+          className="w-full flex items-center gap-3 px-4 py-3 text-left active:bg-secondary/5 transition-colors disabled:opacity-40"
+        >
+          <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-themeblue3/10 text-themeblue2">
+            <Paperclip size={14} />
+          </div>
+          <span className="flex-1 min-w-0 text-sm font-medium text-secondary">Attach 6988E</span>
+        </button>
+      )}
+      {docError && <p className="px-4 pb-2 text-[9pt] font-medium text-themeredred">{docError}</p>}
+
       {/* Submit — logs the PMCS (with readings for a vehicle). Only shown when the
-          intake is complete, per the no-disabled-actions rule; a hint stands in. */}
-      {canSubmit ? (
+          intake is complete, per the no-disabled-actions rule. */}
+      {canSubmit && (
         <button
           type="button"
           onClick={handleRecord}
@@ -269,8 +365,6 @@ export function PmcsSheet({ isOpen, onClose, subjectType = 'item', subjectId, cl
           </div>
           <span className="flex-1 min-w-0 text-sm font-semibold text-themegreen">Record PMCS</span>
         </button>
-      ) : (
-        <p className="px-4 py-3 text-[10pt] text-tertiary">Enter mileage and fuel level to record</p>
       )}
 
       {/* Switch to the full PMCS history (edit / delete past entries). */}
@@ -311,6 +405,7 @@ export function PmcsSheet({ isOpen, onClose, subjectType = 'item', subjectId, cl
         events.map((e) => {
           const open = e.eventType === 'fault.opened' && !correctedIds.has(e.id)
           const editable = e.eventType === 'fault.opened' || e.eventType === 'fault.corrected'
+          const doc = docOf(e)
           const Icon = e.eventType === 'fault.opened' ? AlertTriangle
             : e.eventType === 'fault.corrected' ? Wrench : ClipboardCheck
           return (
@@ -364,6 +459,17 @@ export function PmcsSheet({ isOpen, onClose, subjectType = 'item', subjectId, cl
                     <p className={`text-sm font-medium truncate ${open ? 'text-themered' : 'text-primary'}`}>{describe(e)}</p>
                     <p className="text-[9pt] text-tertiary">{fmtDate(e.occurredAt)}</p>
                   </div>
+                  {doc && (
+                    <button
+                      type="button"
+                      onClick={() => openDoc(doc)}
+                      disabled={busy}
+                      className="shrink-0 w-8 h-8 rounded-full bg-themeblue3/8 flex items-center justify-center active:scale-95 transition-all disabled:opacity-40"
+                      aria-label="View 6988E"
+                    >
+                      <FileText size={13} className="text-themeblue2" />
+                    </button>
+                  )}
                   {editable && (
                     <button
                       type="button"
@@ -397,7 +503,7 @@ export function PmcsSheet({ isOpen, onClose, subjectType = 'item', subjectId, cl
     return (
       <Sheet isOpen={isOpen} onClose={onClose} title="PMCS" height="fit" maxHeight={80} zIndex={1450}>
         <div className="px-4 pt-1 pb-5">
-          <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+          <div className="rounded-2xl overflow-hidden">
             {body}
           </div>
         </div>

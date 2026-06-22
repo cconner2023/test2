@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
-import { Pencil, X, Trash2, ChevronLeft } from 'lucide-react'
+import { Pencil, X, Trash2, ChevronLeft, List } from 'lucide-react'
 import { HeaderPill, PillButton } from './HeaderPill'
 import { SearchInput } from './SearchInput'
 import { BaseDrawer } from './BaseDrawer'
@@ -66,6 +66,7 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
     const { exportLabels, labelPreview, downloadLabels, clearLabelPreview } = usePropertyLabelExport()
     const addItemTriggerRef = useRef<(() => void) | null>(null)
     const addLocationTriggerRef = useRef<(() => void) | null>(null)
+    const openLocationsTriggerRef = useRef<(() => void) | null>(null)
     const initRef = useRef(false)
 
     useEffect(() => { setSearchQuery(''); setSearchFocused(false) }, [view])
@@ -188,9 +189,13 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                     rightContentFill: true,
                     rightContent: (
                         <div className="flex items-center w-full gap-2">
-                            {searchFocused && (
+                            {searchFocused ? (
                                 <HeaderPill>
                                     <PillButton icon={ChevronLeft} onClick={() => setSearchFocused(false)} label="Back" />
+                                </HeaderPill>
+                            ) : (
+                                <HeaderPill>
+                                    <PillButton icon={List} onClick={() => openLocationsTriggerRef.current?.()} label="Locations" />
                                 </HeaderPill>
                             )}
                             <div className="flex-1 min-w-0">
@@ -259,6 +264,7 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                         onEnrollNewItem={(item) => setPendingEnrollNew(item)}
                         onRegisterAddItem={(t) => { addItemTriggerRef.current = t }}
                         onRegisterAddLocation={(t) => { addLocationTriggerRef.current = t }}
+                        onRegisterOpenLocations={(t) => { openLocationsTriggerRef.current = t }}
                     />
                 ) : (
                     <PropertyPanel

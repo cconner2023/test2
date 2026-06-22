@@ -541,6 +541,43 @@ export async function deriveAndCacheVaultKey(
   logger.info('Vault wrapping key cached')
 }
 
+/**
+ * True when the password-derived wrapping key is held in memory. When false,
+ * processVaultMessages bails (warn + return 0) without decrypting anything — the
+ * caller can use this to distinguish a "no key" bail from a "no messages" drain
+ * and offer a non-blocking re-enter-password prompt.
+ */
+export function isVaultKeyCached(): boolean {
+  return cachedVaultKey !== null
+}
+
+/**
+ * Cheap existence check for undrained vault messages — used to decide whether a
+ * key-not-cached bail is worth surfacing a re-auth prompt for (don't nag when
+ * nothing is actually waiting). Mirrors processVaultMessages' unread filter
+ * (recipient + vault device + read_at null, minus per-recipient read rows).
+ */
+export async function hasPendingVaultMessages(userId: string): Promise<boolean> {
+  const { data: readRows } = await supabase
+    .from('signal_message_reads')
+    .select('message_id')
+    .eq('recipient_id', userId)
+  const readIds = (readRows ?? []).map(r => r.message_id)
+
+  let q = supabase
+    .from('signal_messages')
+    .select('id')
+    .eq('recipient_id', userId)
+    .eq('recipient_device_id', VAULT_DEVICE_ID)
+    .is('read_at', null)
+    .limit(1)
+  if (readIds.length > 0) {
+    q = q.not('id', 'in', `(${readIds.join(',')})`)
+  }
+  const { data } = await q
+  return (data?.length ?? 0) > 0
+}
+
 /** Clear cached vault key (called on sign-out). */
 export function clearVaultKey(): void {
   cachedVaultKey = null
@@ -983,7 +1020,31 @@ export async function processVaultMessages(userId: string): Promise<number> {
       processedIds.push(row.id)
       processedCount++
     } catch (e) {
-      logger.error(`Failed to process vault message ${row.id}:`, e instanceof Error ? e.message : e)
+      // An AES-GCM/ratchet auth-tag failure (DOMException 'OperationError') is
+      // DETERMINISTIC: the pre-key material this message's X3DH referenced (a
+      // one-time / signed pre-key) has rotated out of the vault blob, so it can
+      // NEVER decrypt on any future drain. Consume it (stash for ackVaultDrain
+      // to mark read) so it stops re-failing on every login and the backlog
+      // doesn't accumulate. Content, if any, is recoverable from backup-service
+      // conversation history — same rationale as the orphaned-session branch.
+      // This mirrors the OperationError discrimination the wipe path trusts;
+      // dead messages never matched an OTPK, so consumedOtpIds is untouched.
+      const isAuthTagFailure = e instanceof DOMException && e.name === 'OperationError'
+      if (isAuthTagFailure) {
+        logger.warn(`Vault message ${row.id} permanently undecryptable (pre-key rotated out) — consuming`)
+        processedIds.push(row.id)
+        // Count it as processed so the caller's `drainCount > 0` gate runs
+        // createBackup → ackVaultDrain. Otherwise a drain made up ENTIRELY of
+        // dead rows returns 0, ackVaultDrain never fires, and these rows stay
+        // read_at=null → re-fetched + re-warned on every login forever. Dead
+        // rows carry no recoverable content, so acking them without a fresh
+        // backup is safe (nothing to lose from the backstop contract).
+        processedCount++
+      } else {
+        // Transient (network / parse / Web Crypto blip) — leave unread so a
+        // later drain retries. Do NOT consume.
+        logger.error(`Failed to process vault message ${row.id}:`, e instanceof Error ? e.message : e)
+      }
     }
   }
 

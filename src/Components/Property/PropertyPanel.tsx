@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, memo } from 'react'
-import { X, MoreHorizontal, Check, ChevronLeft, List, ScanLine, ClipboardList } from 'lucide-react'
+import { X, MoreHorizontal, Check, ChevronLeft, Map as MapIcon, Camera, ClipboardList } from 'lucide-react'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { LiftedRowMenu } from '../LiftedRowMenu'
 import { AddFab } from '../AddFab'
@@ -43,6 +43,8 @@ interface PropertyPanelProps {
   isMobile?: boolean
   onRegisterAddLocation?: (trigger: () => void) => void
   onRegisterAddItem?: (trigger: () => void) => void
+  /** Mobile only — register a trigger to open the Locations tree sheet (header button). */
+  onRegisterOpenLocations?: (trigger: () => void) => void
   onSearchChange?: (query: string) => void
   /** Mobile only — whether the header search is focused (drives the results overlay). */
   searchFocused?: boolean
@@ -67,6 +69,7 @@ export const PropertyPanel = memo(function PropertyPanel({
   isMobile = true,
   onRegisterAddLocation,
   onRegisterAddItem,
+  onRegisterOpenLocations,
   onSearchChange,
   searchFocused = false,
   onSearchFocusChange,
@@ -134,13 +137,15 @@ export const PropertyPanel = memo(function PropertyPanel({
   const [drawingZone, setDrawingZone] = useState(false)
   // Desktop: left-rail tree search (mirrors the calendar desktop sidebar's search).
   const [desktopSearch, setDesktopSearch] = useState('')
-  // 3-tab switcher (island on mobile, rail header on desktop). 'list' = the
-  // location tree, 'custody' = the DA 2062 receipts; Scan is a momentary action
-  // (camera overlay), not a persistent tab. Desktop rail content follows this.
-  const [propertyTab, setPropertyTab] = useState<'list' | 'custody'>('list')
-  // Mobile: which island tab's sheet is open (null = just the map). Mirrors the
-  // desktop rail content but as toggleable sheets over the full-screen canvas.
-  const [mobileSheet, setMobileSheet] = useState<'list' | 'custody' | null>(null)
+  // Bottom-island tabs (both platforms): 'map' = the canvas, 'custody' = the
+  // DA 2062 sign-outs. Camera is a momentary action (scanner overlay that returns
+  // to the map targeting the match), NOT a persistent tab. Desktop center pane and
+  // mobile custody sheet both follow this. The location tree is no longer a tab —
+  // it's reached via the rail/search on desktop and the header button on mobile.
+  const [propertyTab, setPropertyTab] = useState<'map' | 'custody'>('map')
+  // Mobile: the Locations tree sheet (opened from the top-left header button),
+  // independent of the island tab so it's reachable from map OR sign-outs.
+  const [showLocations, setShowLocations] = useState(false)
   // Scan camera overlay (both platforms) — barcode / visual-ID → locate on map.
   const [showScanner, setShowScanner] = useState(false)
   // Desktop: location form shown in the right pane (create or edit). pendingTag
@@ -184,6 +189,10 @@ export const PropertyPanel = memo(function PropertyPanel({
     })
   }, [onRegisterAddItem])
 
+  useEffect(() => {
+    onRegisterOpenLocations?.(() => setShowLocations(true))
+  }, [onRegisterOpenLocations])
+
   const handleSelectItem = useCallback((item: LocalPropertyItem) => {
     // Auto-navigate the canvas to the item's zone so it surfaces "within that
     // location" — the breadcrumb then points to that zone/sub-zone. Flag the
@@ -206,17 +215,18 @@ export const PropertyPanel = memo(function PropertyPanel({
     const full = store.items.find(i => i.id === receiptItem.id)
     if (full) handleSelectItem(full)
     else if (receiptItem.location_id) mapRef.current?.navigateToZone(receiptItem.location_id)
-    if (isMobile) setMobileSheet(null)
-  }, [store.items, handleSelectItem, isMobile])
+    // Leave the sign-outs tab and surface the map (desktop center pane / mobile canvas).
+    setPropertyTab('map')
+  }, [store.items, handleSelectItem])
 
-  // Scan match → surface the item on the map ("target it"). Mobile: drop any open
-  // sheet so the canvas is revealed. Reuses the same locate path as item taps.
+  // Scan match → surface the item on the map ("target it"). Camera is momentary:
+  // close the overlay and return to the map tab targeting the match (both platforms).
   const handleScanLocate = useCallback((itemId: string) => {
     setShowScanner(false)
     const full = store.items.find(i => i.id === itemId)
     if (full) handleSelectItem(full)
-    if (isMobile) setMobileSheet(null)
-  }, [store.items, handleSelectItem, isMobile])
+    setPropertyTab('map')
+  }, [store.items, handleSelectItem])
 
   // Scan match → expend (secondary action on the confirmed card).
   const handleScanExpend = useCallback((itemId: string, quantity: number) => {
@@ -385,19 +395,19 @@ export const PropertyPanel = memo(function PropertyPanel({
     <AddFab tour="property-add-fab" label="Add" onClick={onOpenAddSheet} className="absolute right-4" />
   ) : null
 
-  // The 3-tab switcher contents (List · Scan · Custody). Shared by the mobile
-  // BottomIsland and the desktop rail header; `active`/`onSelect` differ per
-  // platform (mobile toggles sheets incl. a null state; desktop swaps rail content).
-  const renderTabs = (active: 'list' | 'custody' | null, onSelect: (tab: 'list' | 'custody') => void) => (
+  // The bottom-island tabs (Map · Camera · Sign-outs) — identical on both platforms.
+  // Map/Sign-outs are persistent tabs (drive propertyTab); Camera is momentary (opens
+  // the scanner overlay, which returns to the map). The location tree is NOT a tab.
+  const renderTabs = () => (
     <>
-      <IslandButton role="tab" active={active === 'list'} onClick={() => onSelect('list')} label="Locations" tour="property-tab-list">
-        <List className="w-5 h-5" />
+      <IslandButton role="tab" active={propertyTab === 'map'} onClick={() => setPropertyTab('map')} label="Map" tour="property-tab-map">
+        <MapIcon className="w-5 h-5" />
       </IslandButton>
-      <IslandButton role="tab" onClick={() => setShowScanner(true)} label="Scan" tour="property-tab-scan">
-        <ScanLine className="w-5 h-5" />
+      <IslandButton role="tab" onClick={() => setShowScanner(true)} label="Camera" tour="property-tab-scan">
+        <Camera className="w-5 h-5" />
       </IslandButton>
       {isDevRole && (
-        <IslandButton role="tab" active={active === 'custody'} onClick={() => onSelect('custody')} label="Custody" tour="property-tab-custody">
+        <IslandButton role="tab" active={propertyTab === 'custody'} onClick={() => setPropertyTab('custody')} label="Sign-outs" tour="property-tab-custody">
           <ClipboardList className="w-5 h-5" />
         </IslandButton>
       )}
@@ -414,57 +424,62 @@ export const PropertyPanel = memo(function PropertyPanel({
           <div data-tour="property-locations" className={`shrink-0 border-r border-tertiary/10 flex flex-col bg-themewhite3/50 transition-all duration-300 ${
             railCollapsed ? 'w-0 opacity-0 overflow-hidden border-r-0' : 'w-[260px] opacity-100'
           }`}>
-            {/* Rail header — the 3-tab switcher (List · Scan · Custody). */}
-            <div className="shrink-0 px-3 pt-2 pb-1 flex justify-center">
-              <div role="tablist" aria-label="Property views" className="flex items-center gap-1 rounded-full bg-themewhite2/90 dark:bg-themewhite3/90 border border-tertiary/20 px-1 py-1">
-                {renderTabs(propertyTab, setPropertyTab)}
-              </div>
+            {/* Location tree is always present in the rail (reached by search here);
+                it is no longer an island tab. */}
+            <div className="shrink-0 px-3 pt-2 pb-1">
+              <SearchInput
+                value={desktopSearch}
+                onChange={setDesktopSearch}
+                placeholder="Search items, serials, locations"
+              />
             </div>
-            {propertyTab === 'list' ? (
-              <>
-                <div className="shrink-0 px-3 pb-1">
-                  <SearchInput
-                    value={desktopSearch}
-                    onChange={setDesktopSearch}
-                    placeholder="Search items, serials, locations"
-                  />
-                </div>
-                <div className="flex-1 min-h-0 overflow-y-auto">
-                  <PropertyLocationTree
-                    locations={visibleLocations}
-                    items={store.items}
-                    clinicName={clinicName}
-                    holders={store.holders}
-                    searchQuery={desktopSearch}
-                    hoverActions
-                    activeLocationId={selectedLocationId}
-                    onSelectLocation={handleSelectLocationDesktop}
-                    onSelectItem={handleSelectItem}
-                    onSelectAll={() => mapRef.current?.resetZoom()}
-                    allSelected={!selectedLocationId}
-                    onEditLocation={handleEditLocation}
-                    onEditItem={handleEditItemRow}
-                    onDeleteLocation={onDeleteItem ? (locId) => setPendingDeleteLocId(locId) : undefined}
-                    onDeleteItem={onDeleteItem ? (item) => setPendingDeleteItem(item) : undefined}
-                    onAddChildLocation={handleAddChildLocation}
-                    onAddLevel={(id) => mapRef.current?.addFloorTo(id)}
-                    onAddItemAtLocation={handleAddItemAtLocation}
-                  />
-                </div>
-              </>
-            ) : (
-              store.clinicId && (
-                <div className="flex-1 min-h-0">
-                  <CustodyPanel clinicId={store.clinicId} onLocateItem={handleLocateReceiptItem} />
-                </div>
-              )
-            )}
+            <div className="flex-1 min-h-0 overflow-y-auto">
+              <PropertyLocationTree
+                locations={visibleLocations}
+                items={store.items}
+                clinicName={clinicName}
+                holders={store.holders}
+                searchQuery={desktopSearch}
+                hoverActions
+                activeLocationId={selectedLocationId}
+                onSelectLocation={handleSelectLocationDesktop}
+                onSelectItem={handleSelectItem}
+                onSelectAll={() => mapRef.current?.resetZoom()}
+                allSelected={!selectedLocationId}
+                onEditLocation={handleEditLocation}
+                onEditItem={handleEditItemRow}
+                onDeleteLocation={onDeleteItem ? (locId) => setPendingDeleteLocId(locId) : undefined}
+                onDeleteItem={onDeleteItem ? (item) => setPendingDeleteItem(item) : undefined}
+                onAddChildLocation={handleAddChildLocation}
+                onAddLevel={(id) => mapRef.current?.addFloorTo(id)}
+                onAddItemAtLocation={handleAddItemAtLocation}
+              />
+            </div>
           </div>
 
           <div className="flex-1 min-w-0 relative">
-            {mapEl}
-            {addFab}
-            <LoadingOverlay visible={showLoading} />
+            {/* Island cycles the center pane: Map (canvas) ↔ Sign-outs (custody).
+                Camera is momentary and returns to the map. */}
+            {propertyTab === 'custody' && store.clinicId ? (
+              <CustodyPanel clinicId={store.clinicId} onLocateItem={handleLocateReceiptItem} />
+            ) : (
+              <>
+                {mapEl}
+                {addFab}
+                <LoadingOverlay visible={showLoading} />
+              </>
+            )}
+            {!drawingZone && (
+              <BottomIsland
+                glass
+                z="z-20"
+                role="tablist"
+                ariaLabel="Property views"
+                tour="property-view-switcher"
+              >
+                {renderTabs()}
+              </BottomIsland>
+            )}
           </div>
 
           <div ref={detailPaneRef} className={`shrink-0 border-l border-primary/10 flex flex-col bg-themewhite3 transition-all duration-300 relative ${
@@ -671,8 +686,8 @@ export const PropertyPanel = memo(function PropertyPanel({
           onSelectItem={(item) => { handleSelectItem(item); onSearchChange?.(''); onSearchFocusChange?.(false) }}
           onOpenLocation={(loc) => { mapRef.current?.navigateToZone(loc.id); onSearchChange?.(''); onSearchFocusChange?.(false) }}
         />
-        {/* 3-tab island over the canvas (List · Scan · Custody) + the Add FAB.
-            Hidden while searching or drawing a zone (full canvas needed). */}
+        {/* Bottom island (Map · Camera · Sign-outs) + the Add FAB. Hidden while
+            searching or drawing a zone (full canvas needed). */}
         {!searchFocused && !drawingZone && (
           <BottomIsland
             glass
@@ -682,7 +697,7 @@ export const PropertyPanel = memo(function PropertyPanel({
             ariaLabel="Property views"
             tour="property-view-switcher"
           >
-            {renderTabs(mobileSheet, (tab) => setMobileSheet((s) => (s === tab ? null : tab)))}
+            {renderTabs()}
           </BottomIsland>
         )}
       </div>
@@ -820,23 +835,24 @@ export const PropertyPanel = memo(function PropertyPanel({
       {photoInput}
 
       <Sheet
-        isOpen={mobileSheet === 'list'}
-        onClose={() => setMobileSheet(null)}
+        isOpen={showLocations}
+        onClose={() => setShowLocations(false)}
         title="Locations"
         height="fit"
         maxHeight={70}
         zIndex={1200}
       >
-        {/* List view renders the SAME tree as the desktop rail (not cards). */}
+        {/* List view renders the SAME tree as the desktop rail (not cards). Opened
+            from the top-left header button, reachable from any tab. */}
         <PropertyLocationTree
           locations={visibleLocations}
           items={store.items}
           clinicName={clinicName}
           activeLocationId={selectedLocationId}
           allSelected={!selectedLocationId}
-          onSelectAll={() => { mapRef.current?.resetZoom(); setMobileSheet(null) }}
-          onSelectLocation={(loc) => { mapRef.current?.navigateToZone(loc.id); setMobileSheet(null) }}
-          onSelectItem={(item) => { handleSelectItem(item); setMobileSheet(null) }}
+          onSelectAll={() => { mapRef.current?.resetZoom(); setShowLocations(false) }}
+          onSelectLocation={(loc) => { mapRef.current?.navigateToZone(loc.id); setShowLocations(false) }}
+          onSelectItem={(item) => { handleSelectItem(item); setShowLocations(false) }}
           onEditLocation={handleEditLocation}
           onEditItem={handleEditItemRow}
           onDeleteLocation={onDeleteItem ? (locId) => setPendingDeleteLocId(locId) : undefined}
@@ -847,11 +863,12 @@ export const PropertyPanel = memo(function PropertyPanel({
         />
       </Sheet>
 
-      {/* Custody tab — DA 2062 receipts as their own searchable tree (dev-gated). */}
+      {/* Sign-outs tab — DA 2062 receipts as their own searchable tree (dev-gated).
+          Driven by the island tab; closing returns to the map. */}
       <Sheet
-        isOpen={mobileSheet === 'custody'}
-        onClose={() => setMobileSheet(null)}
-        title="Custody"
+        isOpen={propertyTab === 'custody'}
+        onClose={() => setPropertyTab('map')}
+        title="Sign-outs"
         height="fit"
         maxHeight={75}
         zIndex={1200}

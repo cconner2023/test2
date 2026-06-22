@@ -695,9 +695,16 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
   const reFitRef = useRef<() => void>(() => {})
   reFitRef.current = () => {
     const sel = store.selectedZoneId
-    const selTag = sel ? allWorldTagsRef.current.find((tg) => tg.target_id === sel) : null
+    // A selected tag-less sub-zone lives in childZoneAutoTags, not allWorldTags. Consult
+    // both so the re-fit zooms to it instead of falling through to handleResetZoom — which
+    // deselects (selectZone(null)) and would close the right pane the selection just opened.
+    const selTag = sel
+      ? (allWorldTagsRef.current.find((tg) => tg.target_id === sel)
+          ?? childZoneAutoTagsRef.current.find((tg) => tg.target_id === sel))
+      : null
     if (selTag) zoomToTag(selTag)
-    else handleResetZoom()
+    // Only re-fit to root when nothing is selected — never deselect on a mere resize.
+    else if (!sel) handleResetZoom()
   }
   useEffect(() => {
     if (vpSize.w === 0 || vpSize.h === 0) return

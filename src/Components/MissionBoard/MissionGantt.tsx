@@ -151,8 +151,7 @@ export function TaskRow({ event, onClick, onMenu }: { event: CalendarEvent; onCl
 
   return (
     <button
-      onClick={() => { if (pressRef.current?.fired) return; onClick() }}
-      {...menuPressHandlers(onMenu, pressRef)}
+      {...menuPressHandlers(onMenu, pressRef, { onTap: onClick })}
       className={`w-full flex items-stretch text-left rounded-lg overflow-hidden border border-themeblue3/10 active:scale-[0.99] transition-opacity duration-100 ${
         isDone ? 'opacity-45' : 'opacity-100'
       }`}

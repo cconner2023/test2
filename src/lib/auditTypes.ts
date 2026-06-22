@@ -61,8 +61,13 @@ export type AuditEventType =
   // intake captures readings in the (encrypted) payload; faults found during the
   // same check are separate fault.opened events. Logged so every PMCS leaves a
   // paper-trail entry (proof the subject was inspected on this date).
-  //  payload: { mileage?, fuelLevel? }  — vehicle intake readings (no PHI).
-  //  payload = null                     — clean check on a non-vehicle item.
+  //  payload: { mileage?, fuelLevel?, doc? }  — vehicle intake readings (no PHI)
+  //           and/or an attached 6988E worksheet. `doc` = { path, key, mime?,
+  //           name? }: the worksheet is encrypted client-side into the
+  //           message-attachments bucket (random AES key) and the decryption key
+  //           rides inside this (clinic-key-encrypted) payload — server never
+  //           sees the file plaintext.
+  //  payload = null                     — clean check on a non-vehicle item, no doc.
   | 'pmcs.clear'
   // training — payload: { training_item_id, result?, step_results?, supervisor_notes?, due_date?, supersedes? }
   | 'read.recorded'

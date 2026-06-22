@@ -31,7 +31,7 @@ import { clearAllPendingPropertySends } from '../lib/propertyEventStore'
 import { useCalendarStore } from './useCalendarStore'
 import { invalidate } from './useInvalidationStore'
 import { clearBackupKey, createBackup, scheduleBackup, restoreBackup } from '../lib/signal/backupService'
-import { processVaultMessages, ackVaultDrain, clearVaultKey } from '../lib/signal/vaultDevice'
+import { processVaultMessages, ackVaultDrain, clearVaultKey, isVaultKeyCached, hasPendingVaultMessages } from '../lib/signal/vaultDevice'
 import { clearSystemIdentity } from '../lib/signal/systemIdentity'
 import { deriveAndCacheClinicVaultKey, ensureClinicVaultExists, processClinicVaultMessages, clearClinicVaultKey } from '../lib/signal/clinicVaultDevice'
 import { unsubscribeFromPush, resyncPushSubscription } from '../lib/pushNotificationService'
@@ -100,6 +100,12 @@ interface AuthState {
   sessionReady: boolean
   /** True once Signal Protocol bundle is initialized. False only during first-login init. */
   signalReady: boolean
+  /**
+   * True when the vault drain bailed because the password-derived wrapping key
+   * wasn't cached (live-session resume with no persisted key) AND messages are
+   * actually waiting. Drives the non-blocking VaultUnlockBanner re-auth prompt.
+   */
+  vaultKeyPromptNeeded: boolean
 }
 
 interface AuthActions {
@@ -117,6 +123,8 @@ interface AuthActions {
   setNeedsPasswordSetup: (value: boolean) => void
   /** Clear the reauth flag (e.g. after guest continuation). */
   clearNeedsReauth: () => void
+  /** Set the vault-unlock prompt flag (cleared by the banner after a successful unlock). */
+  setVaultKeyPromptNeeded: (value: boolean) => void
   /** Set the supervisor's active clinic context. No-op if id is not in caller's reach. */
   setSupervisingClinic: (clinicId: string) => void
 }
@@ -410,6 +418,7 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
       sessionReady: false,
       signalReady: false,
       needsReauth: false,
+      vaultKeyPromptNeeded: false,
     })
     clearLocalSessionStorage()
     clearProfileStorage()
@@ -691,6 +700,16 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
               if (drainCount > 0) {
                 const uploaded = await createBackup(userId)
                 if (uploaded) await ackVaultDrain()
+              } else if (!isVaultKeyCached()) {
+                // The drain bailed because the wrapping key wasn't cached — a
+                // live-session resume (e.g. post-SW-update reload) that never ran
+                // the password sign-in path and had no persisted key to restore.
+                // If messages are actually waiting, surface a NON-blocking prompt
+                // to re-enter the password and drain without a full re-login.
+                // (VaultUnlockBanner reads this flag.)
+                if (await hasPendingVaultMessages(userId)) {
+                  set({ vaultKeyPromptNeeded: true })
+                }
               }
             })
             .catch(() => {})
@@ -746,6 +765,7 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
   sessionReady: hasLocalSession,
   signalReady: hasLocalSession,
   needsReauth: false,
+  vaultKeyPromptNeeded: false,
 
   init: () => {
     // Hydrate local session from encrypted storage (upgrade over sync localStorage read)
@@ -913,6 +933,10 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
 
   clearNeedsReauth: () => {
     set({ needsReauth: false })
+  },
+
+  setVaultKeyPromptNeeded: (value) => {
+    set({ vaultKeyPromptNeeded: value })
   },
 
   setSupervisingClinic: (clinicId) => {

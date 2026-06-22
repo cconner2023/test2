@@ -300,8 +300,7 @@ function KanbanCard({ event, onTap, onMenu }: {
   const isDone = event.status === 'completed' || event.status === 'cancelled'
   return (
     <button
-      onClick={() => { if (pressRef.current?.fired) return; onTap() }}
-      {...menuPressHandlers(onMenu, pressRef)}
+      {...menuPressHandlers(onMenu, pressRef, { onTap })}
       className={`flex items-stretch text-left rounded overflow-hidden border border-themeblue3/10 active:scale-[0.98] w-full transition-opacity duration-100 ${isDone ? 'opacity-50' : ''}`}
     >
       <div className={`w-1 shrink-0 ${stripe}`} />
@@ -696,8 +695,7 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
                         <button
                           key={we.event.id}
                           type="button"
-                          onClick={() => { if (weekPressRef.current?.fired) return; handleEventClick(we.event.id) }}
-                          {...menuPressHandlers((rect) => openEventMenu(we.event, rect), weekPressRef)}
+                          {...menuPressHandlers((rect) => openEventMenu(we.event, rect), weekPressRef, { onTap: () => handleEventClick(we.event.id) })}
                           style={{ gridColumn: `${we.startCol} / span ${we.span}` }}
                           className={`min-w-0 px-1.5 py-0.5 rounded text-left overflow-hidden active:opacity-60 ${stripe} ${isDone ? 'opacity-50' : ''}`}
                         >
@@ -781,8 +779,7 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
                   return (
                     <button
                       key={ev.id}
-                      onClick={() => { if (huddlePressRef.current?.fired) return; handleEventClick(ev.id) }}
-                      {...menuPressHandlers((rect) => openEventMenu(ev, rect), huddlePressRef)}
+                      {...menuPressHandlers((rect) => openEventMenu(ev, rect), huddlePressRef, { onTap: () => handleEventClick(ev.id) })}
                       className="flex items-center gap-2 text-left rounded px-1.5 py-1 active:bg-themeblue2/10"
                     >
                       <span className="text-[9pt] text-secondary tabular-nums shrink-0">{ev.start_time.slice(11, 16)}</span>

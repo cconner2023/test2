@@ -51,10 +51,10 @@ export function VoicemailGreetingSection() {
     const result = await stopRecording()
     if (!result) return
     setSaving(true)
-    const ok = await saveOwnGreeting(result)
-    if (ok) {
-      setGreeting({ enc: '', mime: result.mime, dur: Math.round(result.duration * 10) / 10 })
-    }
+    // Store the greeting the service actually persisted — it carries the real
+    // ciphertext, so the play button works without waiting for a reload/refetch.
+    const saved = await saveOwnGreeting(result)
+    if (saved) setGreeting(saved)
     setSaving(false)
   }, [stopRecording])
 

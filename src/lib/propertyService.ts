@@ -442,10 +442,27 @@ export async function correctFault(
   }
 }
 
-/** Vehicle intake readings captured by a PMCS check. Both optional; no PHI. */
+/**
+ * An attached 6988E worksheet. The file is encrypted client-side into the
+ * message-attachments bucket via uploadEncryptedAttachment; `key` is the random
+ * AES key the recipient needs to decrypt it (rides in the encrypted payload, so
+ * the server never sees the plaintext file). No PHI — equipment maintenance.
+ */
+export interface PmcsDoc {
+  path: string
+  key: string
+  mime?: string
+  name?: string
+}
+
+/**
+ * What a PMCS check submits beyond its separately-emitted faults: vehicle intake
+ * readings (mileage, fuel) and/or an attached 6988E worksheet. All optional; no PHI.
+ */
 export interface PmcsReadings {
   mileage?: number
   fuelLevel?: number
+  doc?: PmcsDoc
 }
 
 /**
@@ -464,18 +481,19 @@ export async function recordPmcs(
   readings?: PmcsReadings,
 ): Promise<ServiceResult> {
   try {
-    // Drop undefined keys so a reading-less check stays truly spine-only.
+    // Drop undefined keys so a reading-less, doc-less check stays truly spine-only.
     const payload: PmcsReadings = {}
     if (readings?.mileage != null) payload.mileage = readings.mileage
     if (readings?.fuelLevel != null) payload.fuelLevel = readings.fuelLevel
-    const hasReadings = Object.keys(payload).length > 0
+    if (readings?.doc) payload.doc = readings.doc
+    const hasContent = Object.keys(payload).length > 0
 
     const event = await emitAudit(
       {
         clinicId, actorId: userId, domain: 'property',
         eventType: 'pmcs.clear', subjectType, subjectId,
-        // readings ride in the encrypted payload; null keeps it spine-only.
-        payload: hasReadings ? payload : null,
+        // readings / 6988E ride in the encrypted payload; null keeps it spine-only.
+        payload: hasContent ? payload : null,
       },
       userId,
     )
