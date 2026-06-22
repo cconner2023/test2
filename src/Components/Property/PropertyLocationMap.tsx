@@ -193,6 +193,10 @@ export interface MapNavHandle {
   /** Add the next floor to a building (or bootstrap a structural zone into one),
    *  then activate + zoom to it. Used by the zone/tree "Add level" menu actions. */
   addFloorTo: (containerId: string) => void
+  /** Standardized add-zone flow: enter single-rectangle draw mode on `parentId`'s
+   *  canvas (root when null). On commit, the map fires onZoneDrawn so the parent
+   *  can open the name/parent/type sheet. */
+  startDrawZone: (parentId: string | null) => void
 }
 
 interface PropertyLocationMapProps {
@@ -209,9 +213,16 @@ interface PropertyLocationMapProps {
   /** When provided, the parent owns the selected-zone surface (desktop right pane):
    *  fires on every zone selection change, and the inline canvas popover is suppressed. */
   onSelectZone?: (locationId: string | null) => void
+  /** Standardized add-zone flow: a single-draw rectangle was committed. `canvasId`
+   *  is the canvas it was drawn on (root → top-level zone); rect is canvas-local
+   *  0..1 coords. The parent opens the name/parent/type sheet + persists the tag. */
+  onZoneDrawn?: (rect: { x: number; y: number; width: number; height: number }, canvasId: string) => void
+  /** Fires when single-draw mode toggles on/off, so the parent can hide its mobile
+   *  detail sheet while the user draws on the full-screen canvas. */
+  onDrawingChange?: (active: boolean) => void
 }
 
-export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapProps>(function PropertyLocationMap({ clinicId, locations, items, onCreateLocation, onDeleteLocation, onEditItem, onUpdateLocation, onSelectItem, onCreateItem, onSelectZone }, ref) {
+export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapProps>(function PropertyLocationMap({ clinicId, locations, items, onCreateLocation, onDeleteLocation, onEditItem, onUpdateLocation, onSelectItem, onCreateItem, onSelectZone, onZoneDrawn, onDrawingChange }, ref) {
   const store = usePropertyStore()
   const isMobile = useIsMobile()
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -221,6 +232,9 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
   const [isDrawing, setIsDrawing] = useState(false)
   const [isResizing, setIsResizing] = useState(false)
   const [isMoving, setIsMoving] = useState(false)
+  // Single-draw add-zone mode (standardized "draw first → sheet" flow): the next
+  // drawn rectangle is reported up via onZoneDrawn instead of named inline.
+  const [drawOnce, setDrawOnce] = useState(false)
   const [editCanvasId, setEditCanvasId] = useState<string | null>(null)
   const [editCanvasTags, setEditCanvasTags] = useState<LocationTag[]>([])
   const [pendingZoneDelete, setPendingZoneDelete] = useState<{ targetId: string; label: string } | null>(null)
@@ -767,6 +781,10 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
     pendingNavRef.current = created.id
   }, [store])
 
+  // Delegated through a ref so the imperative handle can reach handleStartDrawZone
+  // (defined below) without a forward reference / stale-closure dep.
+  const startDrawZoneRef = useRef<(parentId: string | null) => void>(() => {})
+
   useImperativeHandle(ref, () => ({
     navigateToZone(targetId: string) {
       if (!executeNavigation(targetId)) {
@@ -786,12 +804,19 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
     addFloorTo(containerId: string) {
       void handleAddFloor(containerId)
     },
+    startDrawZone(parentId: string | null) {
+      startDrawZoneRef.current(parentId)
+    },
   }), [executeNavigation, store, handleResetZoom, handleAddFloor])
 
   // Notify the parent of zone-selection changes so it can drive the right-pane
   // location detail. Ref-indirected so the effect only depends on the selection.
   const onSelectZoneRef = useRef(onSelectZone)
   onSelectZoneRef.current = onSelectZone
+  const onZoneDrawnRef = useRef(onZoneDrawn)
+  onZoneDrawnRef.current = onZoneDrawn
+  const onDrawingChangeRef = useRef(onDrawingChange)
+  onDrawingChangeRef.current = onDrawingChange
   useEffect(() => {
     onSelectZoneRef.current?.(store.selectedZoneId)
   }, [store.selectedZoneId])
@@ -886,7 +911,44 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
     setEditItemPins([])
     setNamingState(null)
     setNameInput('')
-  }, [])
+    if (drawOnce) {
+      setDrawOnce(false)
+      onDrawingChangeRef.current?.(false)
+    }
+  }, [drawOnce])
+
+  // ── Standardized add-zone: enter single-rectangle draw mode on parentId's canvas ──
+  // Loads the canvas's existing zones as visual context, then the first drawn rect
+  // commits via handleDrawOnceComplete → onZoneDrawn (parent opens the details sheet).
+  const handleStartDrawZone = useCallback(async (parentId: string | null) => {
+    if (!rootLocationId) return
+    const canvasId = parentId ?? rootLocationId
+    // Select the parent zone so nested framing (parentBounds) renders; null at root.
+    store.selectZone(parentId)
+    const allTags = await fetchLocationTags(canvasId)
+    setEditCanvasId(canvasId)
+    setEditCanvasTags(allTags.filter((t) => t.target_type !== 'item'))
+    setEditItemPins([])
+    setNamingState(null)
+    setDrawOnce(true)
+    setIsDrawing(true)
+    setIsResizing(false)
+    setIsMoving(false)
+    setIsEditing(true)
+    onDrawingChangeRef.current?.(true)
+    if (canvasId !== rootLocationId) {
+      const parentTag = allWorldTags.find((t) => t.target_id === canvasId)
+      if (parentTag) zoomToTag(parentTag)
+    }
+  }, [rootLocationId, store, allWorldTags, zoomToTag])
+  startDrawZoneRef.current = handleStartDrawZone
+
+  // Single-draw rect committed → exit edit + report to parent (which opens the sheet).
+  const handleDrawOnceComplete = useCallback((rect: { x: number; y: number; width: number; height: number }) => {
+    const canvasId = editCanvasId
+    handleExitEdit()
+    if (canvasId) onZoneDrawnRef.current?.(rect, canvasId)
+  }, [editCanvasId, handleExitEdit])
 
   // ── Nested edit: external name prompt handlers ──
   const handleExternalNameConfirm = useCallback(() => {
@@ -1406,6 +1468,8 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
                       photoMap={photoMap}
                       externalNamePrompt
                       onNamingChange={setNamingState}
+                      drawOnce={drawOnce}
+                      onDrawComplete={handleDrawOnceComplete}
                     />
                   </div>
                   {/* Item pin badges — draggable, zone-relative coords, z-index above edit overlay */}
@@ -1462,6 +1526,8 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
                   photoMap={photoMap}
                   externalNamePrompt
                   onNamingChange={setNamingState}
+                  drawOnce={drawOnce}
+                  onDrawComplete={handleDrawOnceComplete}
                 />
               </div>
             </div>
@@ -1649,6 +1715,14 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
                 <Check size={18} />
               </button>
             </div>
+
+            {/* Single-draw add-zone hint — naming/parent/type are captured in the
+                sheet after the rectangle is drawn, so no inline name prompt here. */}
+            {drawOnce && !namingState && (
+              <div className="mt-1.5 px-4 py-2 rounded-full bg-themewhite2 border border-themeblue3/20 shadow-sm text-[9pt] font-medium text-themeblue2">
+                Draw the new zone
+              </div>
+            )}
 
             {/* Name input for newly drawn zones — drops below the pill */}
             {namingState && (

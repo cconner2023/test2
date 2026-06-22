@@ -10,7 +10,10 @@ import { DisambiguationCard } from './DisambiguationCard'
 
 interface ItemScannerProps {
   items: LocalPropertyItem[]
+  /** Expend the matched item (secondary action on the confirmed card). */
   onMatch: (itemId: string, quantity: number) => void
+  /** Primary action — surface the matched item on the map ("target it"). */
+  onLocate: (itemId: string) => void
   onClose: () => void
 }
 
@@ -26,7 +29,7 @@ function imageDataToCanvas(imageData: ImageData): HTMLCanvasElement {
   return canvas
 }
 
-export function ItemScanner({ items, onMatch, onClose }: ItemScannerProps) {
+export function ItemScanner({ items, onMatch, onLocate, onClose }: ItemScannerProps) {
   const [phase, setPhase] = useState<ScanPhase>('scanning')
   const [matchResult, setMatchResult] = useState<MatchResult | null>(null)
   const [confirmedItemId, setConfirmedItemId] = useState<string | null>(null)
@@ -159,6 +162,11 @@ export function ItemScanner({ items, onMatch, onClose }: ItemScannerProps) {
     scheduleLoop()
   }
 
+  function handleLocate(itemId: string) {
+    stopCamera()
+    onLocate(itemId)
+  }
+
   function handleDisambiguationSelect(itemId: string) {
     stopCamera()
     setConfirmedItemId(itemId)
@@ -265,24 +273,30 @@ export function ItemScanner({ items, onMatch, onClose }: ItemScannerProps) {
             <p className="font-bold text-primary text-base leading-snug">{confirmedItem.name}</p>
 
             {confirmedItem.is_serialized ? (
-              /* Serialized — single unit only */
+              /* Serialized — single unit only. Primary = locate; expend secondary. */
               <div className="flex flex-col gap-2">
                 <button
+                  onClick={() => handleLocate(confirmedItem.id)}
+                  className="w-full py-3 rounded-full bg-themeblue3 text-white font-semibold text-sm active:scale-95 transition-all shadow-lg"
+                >
+                  View on map
+                </button>
+                <button
                   onClick={() => onMatch(confirmedItem.id, 1)}
-                  className="w-full py-3 rounded-full bg-themeredred text-white font-semibold text-sm active:scale-95 transition-all shadow-lg"
+                  className="w-full py-2 text-sm text-themeredred font-medium active:scale-95 transition-all"
                 >
                   Mark as expended
                 </button>
-                <button
-                  onClick={onClose}
-                  className="w-full py-2 text-sm text-secondary font-medium active:scale-95 transition-all"
-                >
-                  View Item
-                </button>
               </div>
             ) : (
-              /* Quantity-tracked */
+              /* Quantity-tracked — locate primary; optional expend with a qty stepper. */
               <div className="flex flex-col gap-3">
+                <button
+                  onClick={() => handleLocate(confirmedItem.id)}
+                  className="w-full py-3 rounded-full bg-themeblue3 text-white font-semibold text-sm active:scale-95 transition-all shadow-lg"
+                >
+                  View on map
+                </button>
                 <div className="flex items-center justify-center gap-4">
                   <button
                     onClick={() => setQuantity(q => Math.max(1, q - 1))}
@@ -300,7 +314,7 @@ export function ItemScanner({ items, onMatch, onClose }: ItemScannerProps) {
                 </div>
                 <button
                   onClick={() => onMatch(confirmedItem.id, quantity)}
-                  className="w-full py-3 rounded-full bg-themeredred text-white font-semibold text-sm active:scale-95 transition-all shadow-lg"
+                  className="w-full py-2 text-sm text-themeredred font-medium active:scale-95 transition-all"
                 >
                   Mark {quantity} as expended
                 </button>

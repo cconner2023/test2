@@ -1,17 +1,19 @@
 import { useState, useEffect, useCallback, useRef, memo } from 'react'
-import { X, MoreHorizontal, Check, ChevronLeft } from 'lucide-react'
+import { X, MoreHorizontal, Check, ChevronLeft, List, ScanLine, ClipboardList } from 'lucide-react'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { LiftedRowMenu } from '../LiftedRowMenu'
 import { AddFab } from '../AddFab'
+import { BottomIsland, IslandButton } from '../BottomIsland'
 import { usePropertyStore } from '../../stores/usePropertyStore'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { useShallow } from 'zustand/react/shallow'
 import { PropertyLocationTree } from './PropertyLocationTree'
-import { HandReceiptsTreeSection } from './HandReceiptsTreeSection'
+import { CustodyPanel } from './CustodyPanel'
+import { ItemScanner } from './ItemScanner'
 import type { ReceiptItem } from '../../Hooks/useHandReceipts'
 import { PropertyBreadcrumb } from './PropertyBreadcrumb'
 import { PropertySearchOverlay } from './PropertySearchOverlay'
-import { PropertyLocationForm, type PropertyLocationFormHandle } from './PropertyLocationForm'
+import { PropertyLocationForm, type PropertyLocationFormHandle, type PendingZoneTag } from './PropertyLocationForm'
 import { PropertyLocationDetail, buildLocationMenuItems, usePropertyPhotoUpload, type PropertyLocationDetailHandle } from './PropertyLocationDetail'
 import { LocationMapLinkPicker } from './LocationMapLinkPicker'
 import { PropertyItemForm, type PropertyItemFormHandle } from './PropertyItemForm'
@@ -51,10 +53,6 @@ interface PropertyPanelProps {
   onEnrollNewItem?: (item: LocalPropertyItem) => void
   /** Open the shared add ActionSheet (FAB lives over the center map pane). */
   onOpenAddSheet?: () => void
-  /** Mobile only — whether the location-select sheet is open (driven by the drawer header). */
-  showLocationSheet?: boolean
-  /** Mobile only — close the location-select sheet. */
-  onCloseLocationSheet?: () => void
 }
 
 export const PropertyPanel = memo(function PropertyPanel({
@@ -75,8 +73,6 @@ export const PropertyPanel = memo(function PropertyPanel({
   onEnrollItem,
   onEnrollNewItem,
   onOpenAddSheet,
-  showLocationSheet,
-  onCloseLocationSheet,
 }: PropertyPanelProps) {
   const store = usePropertyStore(
     useShallow((s) => ({
@@ -92,6 +88,7 @@ export const PropertyPanel = memo(function PropertyPanel({
       removeLocation: s.removeLocation,
       editItem: s.editItem,
       removeItem: s.removeItem,
+      expendItem: s.expendItem,
       holders: s.holders,
       clinicMembers: s.clinicMembers,
       rootLocationId: s.rootLocationId,
@@ -129,13 +126,26 @@ export const PropertyPanel = memo(function PropertyPanel({
   // top of the item/location detail. Back unwinds form → item/location → zone.
   const [mobileForm, setMobileForm] = useState<
     | { kind: 'item'; item: LocalPropertyItem | null; locationId: string | null }
-    | { kind: 'location'; loc: LocalPropertyLocation | null; parentId: string | null }
+    | { kind: 'location'; loc: LocalPropertyLocation | null; parentId: string | null; pendingTag?: PendingZoneTag | null }
     | null
   >(null)
+  // True while the canvas is in single-draw add-zone mode — hides the mobile detail
+  // sheet so the user has the full canvas to draw on.
+  const [drawingZone, setDrawingZone] = useState(false)
   // Desktop: left-rail tree search (mirrors the calendar desktop sidebar's search).
   const [desktopSearch, setDesktopSearch] = useState('')
-  // Desktop: location form shown in the right pane (create or edit).
-  const [editLocationTarget, setEditLocationTarget] = useState<{ loc: LocalPropertyLocation | null; parentId: string | null } | null>(null)
+  // 3-tab switcher (island on mobile, rail header on desktop). 'list' = the
+  // location tree, 'custody' = the DA 2062 receipts; Scan is a momentary action
+  // (camera overlay), not a persistent tab. Desktop rail content follows this.
+  const [propertyTab, setPropertyTab] = useState<'list' | 'custody'>('list')
+  // Mobile: which island tab's sheet is open (null = just the map). Mirrors the
+  // desktop rail content but as toggleable sheets over the full-screen canvas.
+  const [mobileSheet, setMobileSheet] = useState<'list' | 'custody' | null>(null)
+  // Scan camera overlay (both platforms) — barcode / visual-ID → locate on map.
+  const [showScanner, setShowScanner] = useState(false)
+  // Desktop: location form shown in the right pane (create or edit). pendingTag
+  // carries the rectangle drawn in the standardized draw-first add-zone flow.
+  const [editLocationTarget, setEditLocationTarget] = useState<{ loc: LocalPropertyLocation | null; parentId: string | null; pendingTag?: PendingZoneTag | null } | null>(null)
   const [pendingDeleteItem, setPendingDeleteItem] = useState<LocalPropertyItem | null>(null)
   const [pendingDeleteLocId, setPendingDeleteLocId] = useState<string | null>(null)
   // Selected-location action menu (header ellipsis) anchor + photo upload plumbing.
@@ -159,10 +169,11 @@ export const PropertyPanel = memo(function PropertyPanel({
 
   useEffect(() => {
     onRegisterAddLocation?.(() => {
-      if (isMobile) { openMobileLocationForm(null, null); return }
-      setEditLocationTarget({ loc: null, parentId: null })
+      // Standardized add-zone: draw first, then the sheet (name/parent/type).
+      if (isMobile) { setMobileItem(null); setMobileForm(null) }
+      mapRef.current?.startDrawZone(null)
     })
-  }, [onRegisterAddLocation])
+  }, [onRegisterAddLocation, isMobile])
 
   useEffect(() => {
     onRegisterAddItem?.(() => {
@@ -195,13 +206,33 @@ export const PropertyPanel = memo(function PropertyPanel({
     const full = store.items.find(i => i.id === receiptItem.id)
     if (full) handleSelectItem(full)
     else if (receiptItem.location_id) mapRef.current?.navigateToZone(receiptItem.location_id)
-    if (isMobile) onCloseLocationSheet?.()
-  }, [store.items, handleSelectItem, isMobile, onCloseLocationSheet])
+    if (isMobile) setMobileSheet(null)
+  }, [store.items, handleSelectItem, isMobile])
 
-  // Built once, fed to whichever full-tree renders (desktop rail / mobile sheet).
-  const receiptsSection = isDevRole && store.clinicId
-    ? <HandReceiptsTreeSection clinicId={store.clinicId} onLocateItem={handleLocateReceiptItem} />
-    : null
+  // Scan match → surface the item on the map ("target it"). Mobile: drop any open
+  // sheet so the canvas is revealed. Reuses the same locate path as item taps.
+  const handleScanLocate = useCallback((itemId: string) => {
+    setShowScanner(false)
+    const full = store.items.find(i => i.id === itemId)
+    if (full) handleSelectItem(full)
+    if (isMobile) setMobileSheet(null)
+  }, [store.items, handleSelectItem, isMobile])
+
+  // Scan match → expend (secondary action on the confirmed card).
+  const handleScanExpend = useCallback((itemId: string, quantity: number) => {
+    setShowScanner(false)
+    store.expendItem(itemId, quantity)
+  }, [store])
+
+  // Shared camera overlay (fixed inset-0) — rendered in both layouts.
+  const scannerEl = showScanner ? (
+    <ItemScanner
+      items={store.items}
+      onLocate={handleScanLocate}
+      onMatch={handleScanExpend}
+      onClose={() => setShowScanner(false)}
+    />
+  ) : null
 
   // Keep the nested mobile item fresh as the store mutates; drop it if it vanishes.
   useEffect(() => {
@@ -217,10 +248,21 @@ export const PropertyPanel = memo(function PropertyPanel({
     setEditLocationTarget({ loc, parentId: null })
   }, [isMobile, openMobileLocationForm])
 
+  // Add a zone (top-level or child) → standardized draw-first flow: enter canvas
+  // draw mode for the parent's canvas; onZoneDrawn then opens the details sheet.
   const handleAddChildLocation = useCallback((parentId: string | null) => {
-    if (isMobile) { openMobileLocationForm(null, parentId); return }
-    setEditLocationTarget({ loc: null, parentId })
-  }, [isMobile, openMobileLocationForm])
+    if (isMobile) { setMobileItem(null); setMobileForm(null) }
+    mapRef.current?.startDrawZone(parentId)
+  }, [isMobile])
+
+  // Canvas reported a freshly-drawn zone rectangle → open the name/parent/type sheet
+  // (right pane on desktop, nested sheet on mobile) seeded with the drawn geometry.
+  const handleZoneDrawn = useCallback((rect: { x: number; y: number; width: number; height: number }, canvasId: string) => {
+    const parentId = canvasId === store.rootLocationId ? null : canvasId
+    const pendingTag: PendingZoneTag = { canvasId, ...rect }
+    if (isMobile) setMobileForm({ kind: 'location', loc: null, parentId, pendingTag })
+    else setEditLocationTarget({ loc: null, parentId, pendingTag })
+  }, [isMobile, store.rootLocationId])
 
   // Edit an item from a row ellipsis → item form in the right pane / nested sheet.
   const handleEditItemRow = useCallback((item: LocalPropertyItem) => {
@@ -262,14 +304,6 @@ export const PropertyPanel = memo(function PropertyPanel({
     else mapRef.current?.resetZoom()
   }, [isMobile, view, onBack, closeMobileForm])
 
-  const handleMoveLocation = useCallback(async (locationId: string, newParentId: string | null) => {
-    await store.editLocation(locationId, { parent_id: newParentId })
-  }, [store])
-
-  const handleMoveItem = useCallback(async (itemId: string, newLocationId: string | null) => {
-    await store.editItem(itemId, { location_id: newLocationId })
-  }, [store])
-
   const handleConfirmDeleteItem = useCallback(async () => {
     if (!pendingDeleteItem) return
     await store.removeItem(pendingDeleteItem.id)
@@ -310,6 +344,8 @@ export const PropertyPanel = memo(function PropertyPanel({
         if (id && id === pendingItemZoneRef.current) return
         setMobileItem(null); setMobileForm(null)
       }}
+      onZoneDrawn={handleZoneDrawn}
+      onDrawingChange={setDrawingZone}
     />
   ) : null
 
@@ -343,6 +379,31 @@ export const PropertyPanel = memo(function PropertyPanel({
     </div>
   ) : null
 
+  // Mobile variant — placed inside BottomIsland's fab slot (the island owns the
+  // bottom/safe-area offset, so the fab just needs horizontal placement).
+  const islandFab = onOpenAddSheet ? (
+    <AddFab tour="property-add-fab" label="Add" onClick={onOpenAddSheet} className="absolute right-4" />
+  ) : null
+
+  // The 3-tab switcher contents (List · Scan · Custody). Shared by the mobile
+  // BottomIsland and the desktop rail header; `active`/`onSelect` differ per
+  // platform (mobile toggles sheets incl. a null state; desktop swaps rail content).
+  const renderTabs = (active: 'list' | 'custody' | null, onSelect: (tab: 'list' | 'custody') => void) => (
+    <>
+      <IslandButton role="tab" active={active === 'list'} onClick={() => onSelect('list')} label="Locations" tour="property-tab-list">
+        <List className="w-5 h-5" />
+      </IslandButton>
+      <IslandButton role="tab" onClick={() => setShowScanner(true)} label="Scan" tour="property-tab-scan">
+        <ScanLine className="w-5 h-5" />
+      </IslandButton>
+      {isDevRole && (
+        <IslandButton role="tab" active={active === 'custody'} onClick={() => onSelect('custody')} label="Custody" tour="property-tab-custody">
+          <ClipboardList className="w-5 h-5" />
+        </IslandButton>
+      )}
+    </>
+  )
+
   // Desktop layout — left rail (location tree) · center map · right pane (detail/form),
   // mirroring MapOverlayPanel: the rail collapses while the right pane is open.
   if (!isMobile) {
@@ -353,38 +414,51 @@ export const PropertyPanel = memo(function PropertyPanel({
           <div data-tour="property-locations" className={`shrink-0 border-r border-tertiary/10 flex flex-col bg-themewhite3/50 transition-all duration-300 ${
             railCollapsed ? 'w-0 opacity-0 overflow-hidden border-r-0' : 'w-[260px] opacity-100'
           }`}>
-            <div className="shrink-0 px-3 pt-2 pb-1">
-              <SearchInput
-                value={desktopSearch}
-                onChange={setDesktopSearch}
-                placeholder="Search items, serials, locations"
-              />
+            {/* Rail header — the 3-tab switcher (List · Scan · Custody). */}
+            <div className="shrink-0 px-3 pt-2 pb-1 flex justify-center">
+              <div role="tablist" aria-label="Property views" className="flex items-center gap-1 rounded-full bg-themewhite2/90 dark:bg-themewhite3/90 border border-tertiary/20 px-1 py-1">
+                {renderTabs(propertyTab, setPropertyTab)}
+              </div>
             </div>
-            <div className="flex-1 min-h-0 overflow-y-auto">
-              <PropertyLocationTree
-                locations={visibleLocations}
-                items={store.items}
-                clinicName={clinicName}
-                holders={store.holders}
-                searchQuery={desktopSearch}
-                hoverActions
-                activeLocationId={selectedLocationId}
-                onSelectLocation={handleSelectLocationDesktop}
-                onSelectItem={handleSelectItem}
-                onMoveLocation={handleMoveLocation}
-                onMoveItem={handleMoveItem}
-                onSelectAll={() => mapRef.current?.resetZoom()}
-                allSelected={!selectedLocationId}
-                onEditLocation={handleEditLocation}
-                onEditItem={handleEditItemRow}
-                onDeleteLocation={onDeleteItem ? (locId) => setPendingDeleteLocId(locId) : undefined}
-                onDeleteItem={onDeleteItem ? (item) => setPendingDeleteItem(item) : undefined}
-                onAddChildLocation={handleAddChildLocation}
-                onAddLevel={(id) => mapRef.current?.addFloorTo(id)}
-                onAddItemAtLocation={handleAddItemAtLocation}
-                receiptsSection={receiptsSection}
-              />
-            </div>
+            {propertyTab === 'list' ? (
+              <>
+                <div className="shrink-0 px-3 pb-1">
+                  <SearchInput
+                    value={desktopSearch}
+                    onChange={setDesktopSearch}
+                    placeholder="Search items, serials, locations"
+                  />
+                </div>
+                <div className="flex-1 min-h-0 overflow-y-auto">
+                  <PropertyLocationTree
+                    locations={visibleLocations}
+                    items={store.items}
+                    clinicName={clinicName}
+                    holders={store.holders}
+                    searchQuery={desktopSearch}
+                    hoverActions
+                    activeLocationId={selectedLocationId}
+                    onSelectLocation={handleSelectLocationDesktop}
+                    onSelectItem={handleSelectItem}
+                    onSelectAll={() => mapRef.current?.resetZoom()}
+                    allSelected={!selectedLocationId}
+                    onEditLocation={handleEditLocation}
+                    onEditItem={handleEditItemRow}
+                    onDeleteLocation={onDeleteItem ? (locId) => setPendingDeleteLocId(locId) : undefined}
+                    onDeleteItem={onDeleteItem ? (item) => setPendingDeleteItem(item) : undefined}
+                    onAddChildLocation={handleAddChildLocation}
+                    onAddLevel={(id) => mapRef.current?.addFloorTo(id)}
+                    onAddItemAtLocation={handleAddItemAtLocation}
+                  />
+                </div>
+              </>
+            ) : (
+              store.clinicId && (
+                <div className="flex-1 min-h-0">
+                  <CustodyPanel clinicId={store.clinicId} onLocateItem={handleLocateReceiptItem} />
+                </div>
+              )
+            )}
           </div>
 
           <div className="flex-1 min-w-0 relative">
@@ -412,6 +486,7 @@ export const PropertyPanel = memo(function PropertyPanel({
                     ref={locationFormRef}
                     editingLocation={editLocationTarget.loc}
                     defaultParentId={editLocationTarget.parentId}
+                    pendingTag={editLocationTarget.pendingTag}
                     onClose={() => setEditLocationTarget(null)}
                   />
                 </div>
@@ -522,8 +597,6 @@ export const PropertyPanel = memo(function PropertyPanel({
                     holders={store.holders}
                     onNavigateZone={(id) => mapRef.current?.navigateToZone(id)}
                     onSelectItem={handleSelectItem}
-                    onMoveLocation={handleMoveLocation}
-                    onMoveItem={handleMoveItem}
                     onEditLocation={handleEditLocation}
                     onEditItem={handleEditItemRow}
                     onDeleteLocation={onDeleteItem ? (locId) => setPendingDeleteLocId(locId) : undefined}
@@ -574,6 +647,7 @@ export const PropertyPanel = memo(function PropertyPanel({
           onConfirm={handleConfirmDeleteLocation}
           onCancel={() => setPendingDeleteLocId(null)}
         />
+        {scannerEl}
       </>
     )
   }
@@ -585,7 +659,6 @@ export const PropertyPanel = memo(function PropertyPanel({
     <>
       <div data-tour="property-locations" className="h-full relative">
         {mapEl}
-        {addFab}
         <LoadingOverlay visible={showLoading} />
         {/* Search results page — mirrors the map overlay's MapSearchOverlay:
             focusing the header search reveals this over the full-screen canvas. */}
@@ -598,6 +671,20 @@ export const PropertyPanel = memo(function PropertyPanel({
           onSelectItem={(item) => { handleSelectItem(item); onSearchChange?.(''); onSearchFocusChange?.(false) }}
           onOpenLocation={(loc) => { mapRef.current?.navigateToZone(loc.id); onSearchChange?.(''); onSearchFocusChange?.(false) }}
         />
+        {/* 3-tab island over the canvas (List · Scan · Custody) + the Add FAB.
+            Hidden while searching or drawing a zone (full canvas needed). */}
+        {!searchFocused && !drawingZone && (
+          <BottomIsland
+            glass
+            z="z-20"
+            fab={islandFab}
+            role="tablist"
+            ariaLabel="Property views"
+            tour="property-view-switcher"
+          >
+            {renderTabs(mobileSheet, (tab) => setMobileSheet((s) => (s === tab ? null : tab)))}
+          </BottomIsland>
+        )}
       </div>
 
       {/* Selected zone → detail sheet (mirrors the map overlay's feature sheet):
@@ -605,7 +692,7 @@ export const PropertyPanel = memo(function PropertyPanel({
           forms NEST in the SAME sheet (height-transition) — back unwinds
           form → item/location → parent zone. No separate sheets. */}
       <Sheet
-        isOpen={!!selectedLocation || !!mobileItem || !!mobileForm}
+        isOpen={(!!selectedLocation || !!mobileItem || !!mobileForm) && !drawingZone}
         onClose={() => { closeMobileForm(); setMobileItem(null); closeLocationDetail() }}
         title={
           mobileForm
@@ -686,6 +773,7 @@ export const PropertyPanel = memo(function PropertyPanel({
             ref={locationFormRef}
             editingLocation={mobileForm.loc}
             defaultParentId={mobileForm.parentId}
+            pendingTag={mobileForm.pendingTag}
             onClose={() => setMobileForm(null)}
           />
         ) : mobileItem ? (
@@ -709,8 +797,6 @@ export const PropertyPanel = memo(function PropertyPanel({
             holders={store.holders}
             onNavigateZone={(id) => mapRef.current?.navigateToZone(id)}
             onSelectItem={handleSelectItem}
-            onMoveLocation={handleMoveLocation}
-            onMoveItem={handleMoveItem}
             onEditLocation={handleEditLocation}
             onEditItem={handleEditItemRow}
             onDeleteLocation={onDeleteItem ? (locId) => setPendingDeleteLocId(locId) : undefined}
@@ -734,8 +820,8 @@ export const PropertyPanel = memo(function PropertyPanel({
       {photoInput}
 
       <Sheet
-        isOpen={!!showLocationSheet}
-        onClose={() => onCloseLocationSheet?.()}
+        isOpen={mobileSheet === 'list'}
+        onClose={() => setMobileSheet(null)}
         title="Locations"
         height="fit"
         maxHeight={70}
@@ -748,11 +834,9 @@ export const PropertyPanel = memo(function PropertyPanel({
           clinicName={clinicName}
           activeLocationId={selectedLocationId}
           allSelected={!selectedLocationId}
-          onSelectAll={() => { mapRef.current?.resetZoom(); onCloseLocationSheet?.() }}
-          onSelectLocation={(loc) => { mapRef.current?.navigateToZone(loc.id); onCloseLocationSheet?.() }}
-          onSelectItem={(item) => { handleSelectItem(item); onCloseLocationSheet?.() }}
-          onMoveLocation={handleMoveLocation}
-          onMoveItem={handleMoveItem}
+          onSelectAll={() => { mapRef.current?.resetZoom(); setMobileSheet(null) }}
+          onSelectLocation={(loc) => { mapRef.current?.navigateToZone(loc.id); setMobileSheet(null) }}
+          onSelectItem={(item) => { handleSelectItem(item); setMobileSheet(null) }}
           onEditLocation={handleEditLocation}
           onEditItem={handleEditItemRow}
           onDeleteLocation={onDeleteItem ? (locId) => setPendingDeleteLocId(locId) : undefined}
@@ -760,8 +844,23 @@ export const PropertyPanel = memo(function PropertyPanel({
           onAddChildLocation={handleAddChildLocation}
           onAddLevel={(id) => mapRef.current?.addFloorTo(id)}
           onAddItemAtLocation={handleAddItemAtLocation}
-          receiptsSection={receiptsSection}
         />
+      </Sheet>
+
+      {/* Custody tab — DA 2062 receipts as their own searchable tree (dev-gated). */}
+      <Sheet
+        isOpen={mobileSheet === 'custody'}
+        onClose={() => setMobileSheet(null)}
+        title="Custody"
+        height="fit"
+        maxHeight={75}
+        zIndex={1200}
+      >
+        {store.clinicId && (
+          <div className="h-[60vh]">
+            <CustodyPanel clinicId={store.clinicId} onLocateItem={handleLocateReceiptItem} />
+          </div>
+        )}
       </Sheet>
 
       <ConfirmDialog
@@ -790,6 +889,7 @@ export const PropertyPanel = memo(function PropertyPanel({
           onLink={(update) => store.editLocation(mapLinkLoc.id, update)}
         />
       )}
+      {scannerEl}
     </>
   )
 })

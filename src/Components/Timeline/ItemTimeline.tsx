@@ -118,8 +118,12 @@ export function ItemTimeline({ subjectId, clinicId, locations, holders, title = 
       case 'fault.corrected':
         return typeof p.note === 'string' && p.note
           ? `Fault corrected — ${p.note}` : 'Fault corrected'
-      case 'pmcs.clear':
-        return 'PMCS — no new faults'
+      case 'pmcs.clear': {
+        const parts: string[] = []
+        if (typeof p.mileage === 'number') parts.push(`${p.mileage.toLocaleString()} mi`)
+        if (typeof p.fuelLevel === 'number') parts.push(`Fuel ${p.fuelLevel}%`)
+        return parts.length ? `PMCS · ${parts.join(' · ')}` : 'PMCS — no new faults'
+      }
       default:
         return e.eventType
     }

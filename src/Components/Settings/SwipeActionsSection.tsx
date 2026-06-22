@@ -1,9 +1,7 @@
-import { useRef, useState } from 'react'
 import { Reply, Forward, Ban, MoreHorizontal, Trash2 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { Section } from '../Section'
-import { ActionButton } from '../ActionButton'
-import { AnchoredMenu } from '../LiftedRowMenu'
+import { OverlayActionMenu } from '../OverlayActionMenu'
 import type { ContextMenuItem } from '../ContextMenu'
 import { useUserProfile } from '../../Hooks/useUserProfile'
 import {
@@ -15,8 +13,9 @@ import {
 /**
  * Messaging-settings picker for chat-message swipe bindings — Outlook-mobile
  * style. Each direction shows the CURRENT action plus a small live example of
- * the reveal (coloured panel + icon on the swipe side); the corner ellipsis
- * opens the action-menu primitive (AnchoredMenu, list layout) to pick a new one.
+ * the reveal (coloured panel + icon on the swipe side); the corner action
+ * primitive (OverlayActionMenu — overlay ActionPill + AnchoredMenu) collapses to
+ * an ellipsis riding the card's top edge and opens the list to pick a new one.
  *
  * Each selectable action is single-use across the two directions: an action
  * already bound to one direction is dropped from the OTHER direction's menu, so
@@ -89,9 +88,6 @@ interface DirectionRowProps {
 }
 
 function DirectionRow({ dir, label, side, swipe, onSelect }: DirectionRowProps) {
-  const triggerRef = useRef<HTMLDivElement>(null)
-  const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null)
-
   const current = swipe[dir]
   const d = DISPLAY[current] ?? DISPLAY.off
   const other: keyof SwipeActions = dir === 'ltr' ? 'rtl' : 'ltr'
@@ -109,31 +105,14 @@ function DirectionRow({ dir, label, side, swipe, onSelect }: DirectionRowProps) 
     }))
 
   return (
-    <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 p-3">
-      <div className="flex items-center justify-between mb-2.5">
-        <div className="min-w-0">
-          <p className="text-[11pt] font-semibold text-primary leading-tight">{label}</p>
-          <p className="text-[9pt] text-tertiary">{d.label}</p>
-        </div>
-        <div ref={triggerRef} className="shrink-0">
-          <ActionButton
-            icon={MoreHorizontal}
-            label={`Change ${label.toLowerCase()} action`}
-            onClick={() => setAnchorRect(triggerRef.current?.getBoundingClientRect() ?? null)}
-          />
-        </div>
+    <div className="relative rounded-2xl border border-themeblue3/10 bg-themewhite2 p-3">
+      <div className="mb-2.5 min-w-0">
+        <p className="text-sm font-medium text-primary">{label}</p>
+        <p className="text-[9pt] text-tertiary">{d.label}</p>
       </div>
       <ExampleRow binding={current} side={side} />
 
-      <AnchoredMenu
-        isOpen={!!anchorRect}
-        anchorRect={anchorRect}
-        onClose={() => setAnchorRect(null)}
-        layout="list"
-        align="right"
-        header={label}
-        items={items}
-      />
+      <OverlayActionMenu items={items} />
     </div>
   )
 }

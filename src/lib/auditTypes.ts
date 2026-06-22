@@ -57,9 +57,12 @@ export type AuditEventType =
   //  corrected: { corrects, note? }   // `corrects` = the fault.opened event id
   | 'fault.opened'
   | 'fault.corrected'
-  // property PMCS — a preventive-maintenance check that found NO new faults.
-  // Logged so a clean PMCS still leaves a paper-trail entry (proof it was done).
-  // Spine-only, payload = null.
+  // property PMCS — a preventive-maintenance check was performed. The standard
+  // intake captures readings in the (encrypted) payload; faults found during the
+  // same check are separate fault.opened events. Logged so every PMCS leaves a
+  // paper-trail entry (proof the subject was inspected on this date).
+  //  payload: { mileage?, fuelLevel? }  — vehicle intake readings (no PHI).
+  //  payload = null                     — clean check on a non-vehicle item.
   | 'pmcs.clear'
   // training — payload: { training_item_id, result?, step_results?, supervisor_notes?, due_date?, supersedes? }
   | 'read.recorded'

@@ -294,7 +294,11 @@ export function UserTimeline({ subjectId, clinicId, seedEvents, calendarEntries,
         )}
       </div>
 
-      <Sheet isOpen={showAll} onClose={closeAll} title={title} maxHeight={90}>
+      {/* zIndex 1200 — UserTimeline is hosted inside BaseDrawers (SupervisorDrawer,
+          AdminDrawer/AdminUserDetail) whose z-60 stacking context would otherwise
+          trap this fit-Sheet underneath. Matches the overlay-sheet convention
+          (AdminDrawer detail/tree sheets, Property/Map). */}
+      <Sheet isOpen={showAll} onClose={closeAll} title={title} maxHeight={90} zIndex={1200}>
         <div className="px-4 pt-1 pb-2">
           <SearchInput value={query} onChange={setQuery} placeholder="Search timeline…" />
         </div>

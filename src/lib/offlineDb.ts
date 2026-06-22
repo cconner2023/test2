@@ -303,6 +303,12 @@ interface PackageBackEndDB extends DBSchema {
       'by-location': string
     }
   }
+  /** Per-canvas tag version (ms timestamp) — guards the clinic-vault tag channel
+   *  from clobbering a fresher local canvas. Keyed by canvas location_id. */
+  locationTagCanvasMeta: {
+    key: string
+    value: { location_id: string; version: number }
+  }
   mapOverlays: {
     key: string
     value: LocalMapOverlay
@@ -382,7 +388,7 @@ interface PackageBackEndDB extends DBSchema {
 }
 
 const DB_NAME = 'packagebackend-offline'
-const DB_VERSION = 17
+const DB_VERSION = 18
 
 let dbInstance: IDBPDatabase<PackageBackEndDB> | null = null
 
@@ -565,6 +571,14 @@ export async function getDb(): Promise<IDBPDatabase<PackageBackEndDB>> {
         custodyStore.createIndex('by-item', 'item_id')
         custodyStore.createIndex('by-clinic', 'clinic_id')
         custodyStore.createIndex('by-holder', 'to_holder_id')
+      }
+
+      // v17 → v18: per-canvas tag version store. Guards the clinic-vault tag
+      // channel (loadSnapshotPropertyTags / applyTags) from overwriting a
+      // canvas whose local geometry is fresher than a stale snapshot/envelope —
+      // the root cause of "zone canvas geometry resets".
+      if (oldVersion < 18) {
+        db.createObjectStore('locationTagCanvasMeta', { keyPath: 'location_id' })
       }
     },
   })
@@ -1183,21 +1197,52 @@ export async function saveLocalLocationTags(locationId: string, tags: LocationTa
 }
 
 /**
+ * Read a canvas's local tag version (0 if never stamped). The version is a ms
+ * timestamp of the latest LOCAL edit or authoritative server pull; it gates the
+ * clinic-vault tag channel so a stale snapshot can't reset fresher geometry.
+ */
+export async function getLocalTagCanvasVersion(locationId: string): Promise<number> {
+  const db = await getDb()
+  const row = await db.get('locationTagCanvasMeta', locationId)
+  return row?.version ?? 0
+}
+
+/** Stamp a canvas's local tag version (ms timestamp). */
+export async function setLocalTagCanvasVersion(locationId: string, version: number): Promise<void> {
+  const db = await getDb()
+  await db.put('locationTagCanvasMeta', { location_id: locationId, version })
+}
+
+/**
  * Remove all local tags that reference a given target (e.g., a deleted location).
  * Scans all tags and deletes those where target_id matches.
  */
-export async function deleteLocalTagsByTarget(targetId: string): Promise<void> {
+export async function deleteLocalTagsByTarget(targetId: string): Promise<Set<string>> {
   const db = await getDb()
   const tx = db.transaction('locationTags', 'readwrite')
   const store = tx.objectStore('locationTags')
+  // Track which canvases lost a tag so we can bump their versions below and the
+  // caller can durably sync the new (tile-free) canvas to the server.
+  const affectedCanvases = new Set<string>()
   let cursor = await store.openCursor()
   while (cursor) {
     if (cursor.value.target_id === targetId) {
+      affectedCanvases.add(cursor.value.location_id)
       await cursor.delete()
     }
     cursor = await cursor.continue()
   }
   await tx.done
+
+  // Stamp the affected canvases as freshly mutated so the clinic-vault tag
+  // channel (a stale snapshot/envelope) can't re-add the just-deleted tile —
+  // critical when the deletion empties a canvas, since an empty canvas with a
+  // version stamp is no longer freely re-seeded.
+  const now = Date.now()
+  for (const canvasId of affectedCanvases) {
+    await setLocalTagCanvasVersion(canvasId, now)
+  }
+  return affectedCanvases
 }
 
 /**
@@ -1383,7 +1428,7 @@ export async function clearTileCache(): Promise<void> {
 export async function clearAllUserData(): Promise<void> {
   const db = await getDb()
   const tx = db.transaction(
-    ['syncQueue', 'trainingCompletions', 'propertyItems', 'propertyLocations', 'propertyDiscrepancies', 'custodyLedger', 'locationTags', 'mapOverlays', 'cachedTiles', 'tileMetadata', 'featureVoteCycles', 'featureVoteCandidates', 'featureVotes', 'featureVoteSuggestions', 'auditLog', 'trainingCalendarLinks'],
+    ['syncQueue', 'trainingCompletions', 'propertyItems', 'propertyLocations', 'propertyDiscrepancies', 'custodyLedger', 'locationTags', 'locationTagCanvasMeta', 'mapOverlays', 'cachedTiles', 'tileMetadata', 'featureVoteCycles', 'featureVoteCandidates', 'featureVotes', 'featureVoteSuggestions', 'auditLog', 'trainingCalendarLinks'],
     'readwrite',
   )
   await tx.objectStore('syncQueue').clear()
@@ -1395,6 +1440,7 @@ export async function clearAllUserData(): Promise<void> {
   await tx.objectStore('propertyDiscrepancies').clear()
   await tx.objectStore('custodyLedger').clear()
   await tx.objectStore('locationTags').clear()
+  await tx.objectStore('locationTagCanvasMeta').clear()
   await tx.objectStore('mapOverlays').clear()
   await tx.objectStore('cachedTiles').clear()
   await tx.objectStore('tileMetadata').clear()

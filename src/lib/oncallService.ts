@@ -39,6 +39,21 @@ export async function getOutsideContactStatus(
   }
 }
 
+/**
+ * Whether `userId` is currently on-call in ANY of the given clinics
+ * (clinics.oncall — public SELECT). Used as the HARD runtime override for the
+ * per-user call silence: on-call always rings regardless of profiles.allow_calls.
+ * A fresh read (never cached) so a teammate flipping your presence takes effect
+ * immediately. Returns false on any error — fail toward respecting the silence.
+ */
+export async function fetchSelfOnCall(clinicIds: string[], userId: string): Promise<boolean> {
+  const ids = clinicIds.filter(Boolean)
+  if (ids.length === 0 || !userId) return false
+  const { data, error } = await supabase.from('clinics').select('oncall').in('id', ids)
+  if (error || !data) return false
+  return (data as { oncall?: string[] | null }[]).some((row) => (row.oncall ?? []).includes(userId))
+}
+
 // ─── GATE 3: presence (any cluster member toggles self or teammate) ───
 export async function toggleOncallPresence(
   clinicId: string,

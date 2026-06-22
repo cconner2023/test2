@@ -2,6 +2,8 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { Voicemail, Mic, Play, Pause, Trash2, X, Check } from 'lucide-react'
 import { useVoiceRecorder } from '../../Hooks/useVoiceRecorder'
 import { ConfirmDialog } from '../ConfirmDialog'
+import { OverlayActionMenu } from '../OverlayActionMenu'
+import type { ContextMenuItem } from '../ContextMenu'
 import { Section, SectionCard } from '../Section'
 import {
   getOwnGreeting,
@@ -83,8 +85,22 @@ export function VoicemailGreetingSection() {
     if (ok) setGreeting(null)
   }, [])
 
+  // Card corner actions (OverlayActionMenu primitive — overlay ActionPill that
+  // rides the card's top edge). Empty → single inline Record tile; populated →
+  // ellipsis collapsing Re-record + Delete. Hidden while recording (the inline
+  // cancel/save flow controls own that state) and during the first-record save.
+  const cornerItems: ContextMenuItem[] = greeting
+    ? [
+        { key: 'rerecord', label: 'Re-record greeting', icon: Mic, onAction: startRecording },
+        { key: 'delete', label: 'Delete greeting', icon: Trash2, destructive: true, onAction: () => setConfirmDelete(true) },
+      ]
+    : [
+        { key: 'record', label: 'Record greeting', icon: Mic, onAction: startRecording },
+      ]
+
   return (
     <Section title="Voicemail" className="">
+      <div className="relative">
       <SectionCard>
 
         {isRecording ? (
@@ -130,41 +146,25 @@ export function VoicemailGreetingSection() {
               <p className="text-sm font-medium text-primary">Your greeting</p>
               <p className="text-[9pt] text-tertiary mt-0.5">{formatDur(greeting.dur)} · plays when a call goes unanswered</p>
             </div>
-            <button
-              onClick={startRecording}
-              className="w-9 h-9 rounded-full bg-tertiary/10 flex items-center justify-center shrink-0 active:scale-95 transition-all"
-              aria-label="Re-record greeting"
-            >
-              <Mic size={16} className="text-tertiary" />
-            </button>
-            <button
-              onClick={() => setConfirmDelete(true)}
-              className="w-9 h-9 rounded-full bg-tertiary/10 flex items-center justify-center shrink-0 active:scale-95 transition-all"
-              aria-label="Delete greeting"
-            >
-              <Trash2 size={16} className="text-themered" />
-            </button>
           </div>
         ) : (
-          <div
-            className="flex items-center gap-3 px-4 py-3.5 cursor-pointer transition-all active:scale-95 hover:bg-themeblue2/5"
-            onClick={saving ? undefined : startRecording}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(e) => { if (!saving && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); startRecording() } }}
-          >
+          <div className="flex items-center gap-3 px-4 py-3.5">
             <div className="w-9 h-9 rounded-full bg-tertiary/10 flex items-center justify-center shrink-0">
               <Voicemail size={18} className="text-tertiary" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-primary">{saving ? 'Saving…' : 'Record greeting'}</p>
+              <p className="text-sm font-medium text-primary">{saving ? 'Saving…' : 'No greeting'}</p>
               <p className="text-[9pt] text-tertiary mt-0.5">Operational greeting only — no patient information</p>
             </div>
-            <Mic size={16} className="text-themeblue2 shrink-0" />
           </div>
         )}
 
       </SectionCard>
+
+      {!isRecording && (greeting != null || !saving) && (
+        <OverlayActionMenu items={cornerItems} />
+      )}
+      </div>
 
       <ConfirmDialog
         visible={confirmDelete}

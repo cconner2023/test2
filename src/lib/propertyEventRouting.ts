@@ -45,6 +45,8 @@ import {
   saveLocalDiscrepancy,
   getLocalLocationTags,
   saveLocalLocationTags,
+  getLocalTagCanvasVersion,
+  setLocalTagCanvasVersion,
 } from './offlineDb'
 import {
   addItemTombstone,
@@ -61,6 +63,8 @@ const logger = createLogger('PropertyEventRouting')
 export interface PropertyTagsSnapshot {
   location_id: string
   tags: LocationTag[]
+  /** Canvas version (ms timestamp). Absent on pre-v3 snapshots → treated as 0. */
+  version?: number
 }
 
 const SYNC_META = {
@@ -189,12 +193,33 @@ async function applyDiscrepancy(content: PropertyEventContent): Promise<void> {
 }
 
 async function applyTags(content: PropertyEventContent): Promise<void> {
-  // Full-canvas replace keyed on location_id (= content.data.id).
-  const tags = content.data.tags ?? []
+  // Full-canvas replace keyed on location_id (= content.data.id), version-guarded.
   try {
-    await saveLocalLocationTags(content.data.id, tags)
-    invalidate('properties')
+    const wrote = await applyTagsCanvas(content.data.id, content.data.tags ?? [], content.data.version ?? 0)
+    if (wrote) invalidate('properties')
   } catch (e) { logger.warn('Failed to route tags:', e) }
+}
+
+/**
+ * Apply a remote tags canvas (vault snapshot OR live envelope) with a version
+ * guard, so a stale snapshot/envelope can never reset fresher local geometry —
+ * the root cause of "zone canvas geometry resets". An EMPTY local canvas is
+ * always seeded (a fresh device). A NON-EMPTY canvas is overwritten only when
+ * the incoming version is strictly newer than the local version. Returns true
+ * if it wrote.
+ */
+async function applyTagsCanvas(locationId: string, tags: LocationTag[], incomingVersion: number): Promise<boolean> {
+  const localTags = await getLocalLocationTags(locationId)
+  const localVersion = await getLocalTagCanvasVersion(locationId)
+  // Skip when the incoming canvas is NOT strictly newer AND this device already
+  // holds an authoritative copy — either live tags OR a prior version stamp. The
+  // version-stamp check is what stops a stale snapshot from re-adding a tag to a
+  // canvas the device deliberately EMPTIED (e.g. a deleted zone's tile): an empty
+  // canvas is only freely seeded when it has never been touched (version 0).
+  if (incomingVersion <= localVersion && (localTags.length > 0 || localVersion > 0)) return false
+  await saveLocalLocationTags(locationId, tags)
+  await setLocalTagCanvasVersion(locationId, Math.max(incomingVersion, localVersion))
+  return true
 }
 
 /** Direct IDB lookup of an existing local row by entity+id (keyPath get). */
@@ -255,7 +280,7 @@ export async function snapshotPropertyTags(clinicId: string, zoneVaultLiveIds?: 
   const out: PropertyTagsSnapshot[] = []
   for (const z of zones) {
     const tags = await getLocalLocationTags(z.id)
-    if (tags.length > 0) out.push({ location_id: z.id, tags })
+    if (tags.length > 0) out.push({ location_id: z.id, tags, version: await getLocalTagCanvasVersion(z.id) })
   }
   return out
 }
@@ -293,7 +318,11 @@ export async function loadSnapshotPropertyDiscrepancies(entries: LocalDiscrepanc
 }
 
 export async function loadSnapshotPropertyTags(canvases: PropertyTagsSnapshot[]): Promise<void> {
+  // Version-guarded: seeds empty canvases, but never resets a canvas whose local
+  // geometry is fresher than this (possibly stale) snapshot.
   let wrote = false
-  for (const c of canvases) { await saveLocalLocationTags(c.location_id, c.tags); wrote = true }
+  for (const c of canvases) {
+    if (await applyTagsCanvas(c.location_id, c.tags, c.version ?? 0)) wrote = true
+  }
   if (wrote) invalidate('properties')
 }

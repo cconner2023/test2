@@ -1192,6 +1192,7 @@ export type Database = {
           supervisor_created: boolean
           surrogate_clinic_id: string | null
           swipe_actions: Json | null
+          allow_calls: boolean
           text_expanders: Json | null
           theme: string | null
           uic: string | null
@@ -1231,6 +1232,7 @@ export type Database = {
           supervisor_created?: boolean
           surrogate_clinic_id?: string | null
           swipe_actions?: Json | null
+          allow_calls?: boolean
           text_expanders?: Json | null
           theme?: string | null
           uic?: string | null
@@ -1270,6 +1272,7 @@ export type Database = {
           supervisor_created?: boolean
           surrogate_clinic_id?: string | null
           swipe_actions?: Json | null
+          allow_calls?: boolean
           text_expanders?: Json | null
           theme?: string | null
           uic?: string | null

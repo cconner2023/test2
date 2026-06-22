@@ -243,7 +243,7 @@ async function fetchProfileFromSupabase(userId: string): Promise<{ profile: User
   // Disambiguate the embedded clinic relation by FK name — profiles now has
   // two FKs to clinics (clinic_id + surrogate_clinic_id) and PostgREST
   // refuses to resolve `clinics(name)` when multiple FKs target the same table.
-  const PROFILE_SELECT = 'first_name, last_name, middle_initial, credential, component, rank, uic, roles, clinic_id, surrogate_clinic_id, clinic:clinics!profiles_clinic_id_fkey(name), pin_hash, pin_salt, notify_dev_alerts, notify_calendar_assignments, text_expanders, plan_order_tags, plan_instruction_tags, plan_order_sets, needs_password_setup, favorite_medications, provider_note_templates, overview_widgets, theme, swipe_actions, avatar_id, avatar_blob'
+  const PROFILE_SELECT = 'first_name, last_name, middle_initial, credential, component, rank, uic, roles, clinic_id, surrogate_clinic_id, clinic:clinics!profiles_clinic_id_fkey(name), pin_hash, pin_salt, notify_dev_alerts, notify_calendar_assignments, text_expanders, plan_order_tags, plan_instruction_tags, plan_order_sets, needs_password_setup, favorite_medications, provider_note_templates, overview_widgets, theme, swipe_actions, allow_calls, avatar_id, avatar_blob'
   const { data, error: fetchError } = await supabase
     .from('profiles')
     .select(PROFILE_SELECT)
@@ -325,6 +325,7 @@ async function fetchProfileFromSupabase(userId: string): Promise<{ profile: User
     if ('overview_widgets' in sec) profile.overviewWidgets = sec.overview_widgets as UserTypes['overviewWidgets']
     if (typeof sec.theme === 'string') profile.theme = sec.theme
     if (sec.swipe_actions != null) profile.swipeActions = sec.swipe_actions as UserTypes['swipeActions']
+    profile.allowCalls = sec.allow_calls !== false // default true when null/undefined
     if (sec.needs_password_setup === true) needsPasswordSetup = true
   }
 

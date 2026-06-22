@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
-import { Pencil, X, Trash2, List, ChevronLeft } from 'lucide-react'
+import { Pencil, X, Trash2, ChevronLeft } from 'lucide-react'
 import { HeaderPill, PillButton } from './HeaderPill'
 import { SearchInput } from './SearchInput'
 import { BaseDrawer } from './BaseDrawer'
@@ -49,7 +49,6 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
     usePropertyVault()
 
     const [view, setView] = useState<PropertyView>('property')
-    const [showLocationSheet, setShowLocationSheet] = useState(false)
 
     const navSheetRef = useRef<PropertyNavSheetHandle>(null)
 
@@ -165,7 +164,6 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
         setView('property')
         setSearchQuery('')
         setSearchFocused(false)
-        setShowLocationSheet(false)
         setSelectedItem(null)
         setEditingItem(null)
         navigateToPath([])
@@ -190,11 +188,11 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                     rightContentFill: true,
                     rightContent: (
                         <div className="flex items-center w-full gap-2">
-                            <HeaderPill>
-                                {searchFocused
-                                    ? <PillButton icon={ChevronLeft} onClick={() => setSearchFocused(false)} label="Back" />
-                                    : <PillButton icon={List} onClick={() => setShowLocationSheet(s => !s)} label="Locations" />}
-                            </HeaderPill>
+                            {searchFocused && (
+                                <HeaderPill>
+                                    <PillButton icon={ChevronLeft} onClick={() => setSearchFocused(false)} label="Back" />
+                                </HeaderPill>
+                            )}
                             <div className="flex-1 min-w-0">
                                 <SearchInput
                                     value={searchQuery}
@@ -251,8 +249,6 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                         searchFocused={searchFocused}
                         onSearchFocusChange={setSearchFocused}
                         selectedItem={selectedItem}
-                        showLocationSheet={showLocationSheet}
-                        onCloseLocationSheet={() => setShowLocationSheet(false)}
                         onSelectItem={(item) => navSheetRef.current?.openItem(item)}
                         onOpenAddSheet={() => setShowAddSheet(true)}
                         onEditItem={handleEditItem}

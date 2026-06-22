@@ -38,6 +38,7 @@ import {
   fetchClinicLedger,
 } from '../lib/propertyService'
 import type { CustodyLedgerEntry } from '../Types/PropertyTypes'
+import type { PmcsReadings } from '../lib/propertyService'
 import { setupConnectivityListeners, healStuckPendingRecords } from '../lib/syncService'
 import { getLocalPropertyItems, getLocalPropertyLocations } from '../lib/offlineDb'
 import { invalidate, useInvalidationStore } from './useInvalidationStore'
@@ -107,8 +108,9 @@ interface PropertyState {
   raiseFault: (subjectType: 'item' | 'location', subjectId: string, description: string) => Promise<string | null>
   /** Mark a raised fault corrected (faultId = the fault.opened event id). */
   correctFault: (subjectType: 'item' | 'location', subjectId: string, faultId: string, note?: string) => Promise<boolean>
-  /** Record a PMCS with no new faults — logs a clean-check paper-trail entry. */
-  recordPmcs: (subjectType: 'item' | 'location', subjectId: string) => Promise<boolean>
+  /** Record a PMCS check. `readings` carries the vehicle intake (mileage, fuel
+   *  level); omit for a non-vehicle clean-check paper-trail entry. */
+  recordPmcs: (subjectType: 'item' | 'location', subjectId: string, readings?: PmcsReadings) => Promise<boolean>
   /** Edit a PMCS history entry in place — `payload` is the full new event payload
    *  ({ description } for a fault, { corrects, note } for a correction). */
   editPmcsEntry: (eventId: string, payload: Record<string, unknown>) => Promise<boolean>
@@ -307,12 +309,12 @@ export const usePropertyStore = create<PropertyState>((set, get) => ({
     return result.success
   },
 
-  recordPmcs: async (subjectType, subjectId) => {
+  recordPmcs: async (subjectType, subjectId, readings) => {
     const user = useAuthStore.getState().user
     const clinicId = get().clinicId
     if (!user || !clinicId) return false
 
-    const result = await recordPmcsSvc(subjectType, subjectId, clinicId, user.id)
+    const result = await recordPmcsSvc(subjectType, subjectId, clinicId, user.id, readings)
     if (result.success) invalidate('properties')
     return result.success
   },

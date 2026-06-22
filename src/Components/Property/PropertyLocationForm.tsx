@@ -11,11 +11,27 @@ export interface PropertyLocationFormHandle {
   submit: () => void
 }
 
+/** Geometry the user drew on the canvas before this form opened (draw-first add). */
+export interface PendingZoneTag {
+  /** Canvas the rect was drawn on (a parent location id, or the root location). */
+  canvasId: string
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
 interface PropertyLocationFormProps {
   /** The location being edited, or null to create a new one. */
   editingLocation?: LocalPropertyLocation | null
   /** Pre-selected parent when creating (e.g. "New area in X"). */
   defaultParentId?: string | null
+  /**
+   * Standardized draw-first add: the zone rectangle the user just drew. When the
+   * chosen parent still matches the canvas it was drawn on, the tag persists at
+   * this exact geometry; re-parenting falls back to the default auto-grid placement.
+   */
+  pendingTag?: PendingZoneTag | null
   onClose: () => void
 }
 
@@ -25,7 +41,7 @@ interface PropertyLocationFormProps {
  * (forwardRef submit handle), mirroring PropertyItemForm.
  */
 export const PropertyLocationForm = forwardRef<PropertyLocationFormHandle, PropertyLocationFormProps>(
-  function PropertyLocationForm({ editingLocation, defaultParentId = null, onClose }, ref) {
+  function PropertyLocationForm({ editingLocation, defaultParentId = null, pendingTag = null, onClose }, ref) {
   const store = usePropertyStore(
     useShallow((s) => ({
       locations: s.locations,
@@ -99,13 +115,22 @@ export const PropertyLocationForm = forwardRef<PropertyLocationFormHandle, Prope
         created_by: '',
       })
       if (result?.success && result.location) {
-        // Drop a default canvas tag so the new location appears on the map.
         const canvasId = (parentId || null) ?? store.rootLocationId
+        // Draw-first add: persist the rect the user drew, as long as the chosen
+        // parent still maps to the canvas it was drawn on. Otherwise (re-parented,
+        // or no draw) drop a default auto-grid tag so the zone still appears.
+        const useDrawn = !!pendingTag && pendingTag.canvasId === canvasId
         if (canvasId) {
           const existingTags = await fetchLocationTags(canvasId)
-          const zoneCount = existingTags.filter((t) => t.target_type === 'location').length
-          const col = zoneCount % 4
-          const row = Math.floor(zoneCount / 4)
+          let placement: { x: number; y: number; width: number; height: number }
+          if (useDrawn && pendingTag) {
+            placement = { x: pendingTag.x, y: pendingTag.y, width: pendingTag.width, height: pendingTag.height }
+          } else {
+            const zoneCount = existingTags.filter((t) => t.target_type === 'location').length
+            const col = zoneCount % 4
+            const row = Math.floor(zoneCount / 4)
+            placement = { x: 0.05 + col * 0.23, y: 0.05 + row * 0.18, width: 0.2, height: 0.14 }
+          }
           await upsertLocationTags(canvasId, [
             ...existingTags,
             {
@@ -113,10 +138,7 @@ export const PropertyLocationForm = forwardRef<PropertyLocationFormHandle, Prope
               location_id: canvasId,
               target_type: 'location' as const,
               target_id: result.location.id,
-              x: 0.05 + col * 0.23,
-              y: 0.05 + row * 0.18,
-              width: 0.2,
-              height: 0.14,
+              ...placement,
               label: trimmed,
             },
           ])
@@ -127,7 +149,7 @@ export const PropertyLocationForm = forwardRef<PropertyLocationFormHandle, Prope
     } finally {
       setIsSaving(false)
     }
-  }, [name, parentId, kind, isLevel, isEdit, editingLocation, store, onClose])
+  }, [name, parentId, kind, isLevel, isEdit, editingLocation, pendingTag, store, onClose])
 
   useImperativeHandle(ref, () => ({ submit: handleSave }), [handleSave])
 

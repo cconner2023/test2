@@ -20,6 +20,7 @@ import { useMessagesContext } from './MessagesContext'
 import { createWebRTCService, type WebRTCService } from '../lib/webrtc/webrtcService'
 import { onCallSignal, type IncomingCallSignal, type CallSignalBody } from '../lib/webrtc/callSignalBus'
 import { RING_TIMEOUT_MS } from '../lib/webrtc/types'
+import { fetchSelfOnCall } from '../lib/oncallService'
 import type { CallMode, CallPeer } from '../lib/webrtc/types'
 import { createLogger } from '../Utilities/Logger'
 
@@ -155,25 +156,51 @@ export function useCall(): CallActions {
           logger.warn('Ignoring incoming call — already in a call')
           return
         }
-        logger.info('Incoming call from', sig.callerName)
-        activeCallIdRef.current = sig.callId
-        peerIdRef.current = sig.senderId
-        pendingOfferRef.current = sig
 
-        store.startRinging('incoming', {
-          userId: sig.senderId,
-          displayName: sig.callerName ?? 'Unknown',
-        }, sig.mode ?? 'audio')
+        // Bring up the ringing UI for this offer.
+        const ring = () => {
+          activeCallIdRef.current = sig.callId
+          peerIdRef.current = sig.senderId
+          pendingOfferRef.current = sig
+          useCallStore.getState().startRinging('incoming', {
+            userId: sig.senderId,
+            displayName: sig.callerName ?? 'Unknown',
+          }, sig.mode ?? 'audio')
 
-        // Auto-decline after timeout
-        ringTimeoutRef.current = setTimeout(() => {
-          const current = useCallStore.getState()
-          if (current.status === 'ringing' && current.direction === 'incoming') {
+          // Auto-decline after timeout
+          ringTimeoutRef.current = setTimeout(() => {
+            const current = useCallStore.getState()
+            if (current.status === 'ringing' && current.direction === 'incoming') {
+              emit(sig.senderId, { callId: sig.callId, k: 'decline' })
+              current.endCall('No answer')
+              cleanupCall()
+            }
+          }, RING_TIMEOUT_MS)
+        }
+
+        // Soft block: when the user has silenced incoming calls we auto-decline
+        // so the caller drops into the voicemail path ('Call declined' is a
+        // voicemail reason). Clinic on-call presence is a HARD override — while
+        // on-call you always ring. The roster lookup is a fresh read; the device
+        // is online (the offer just arrived over the network).
+        const allowCalls = useAuthStore.getState().profile.allowCalls !== false
+        if (allowCalls) {
+          logger.info('Incoming call from', sig.callerName)
+          ring()
+          return
+        }
+
+        const { clinicId, surrogateClinicIds } = useAuthStore.getState()
+        const clinicIds = [clinicId, ...surrogateClinicIds].filter((x): x is string => !!x)
+        void fetchSelfOnCall(clinicIds, userId).then((onCall) => {
+          if (onCall && useCallStore.getState().status === 'idle') {
+            logger.info('Incoming call from', sig.callerName, '(on-call override)')
+            ring()
+          } else if (!onCall) {
+            logger.info('Incoming call silenced — auto-declining', sig.callerName)
             emit(sig.senderId, { callId: sig.callId, k: 'decline' })
-            current.endCall('No answer')
-            cleanupCall()
           }
-        }, RING_TIMEOUT_MS)
+        })
         return
       }
 

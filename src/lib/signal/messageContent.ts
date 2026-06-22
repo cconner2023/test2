@@ -185,6 +185,11 @@ export interface PropertyEventPayload {
   data?: Record<string, unknown>
   /** Canvas tag set — present only for the 'tags' entity (full-canvas replace). */
   tags?: LocationTag[]
+  /** Canvas version (ms timestamp) — present only for the 'tags' entity. The
+   *  receiver applies a 'tags' payload to a non-empty canvas only when this is
+   *  strictly newer than its local version, so a stale snapshot/envelope can't
+   *  reset fresher local geometry. */
+  version?: number
 }
 
 export interface PropertyEventContent {

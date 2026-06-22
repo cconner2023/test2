@@ -160,6 +160,14 @@ export interface UserTypes {
     /** Chat-message swipe bindings (per direction). Synced to Supabase (profiles.swipe_actions) for cross-device persistence — same train as `theme`. */
     swipeActions?: SwipeActions | null
     /**
+     * Whether to receive incoming medic↔medic calls. false = silenced (soft
+     * block): callers are auto-declined and fall into the voicemail path.
+     * Clinic on-call presence (clinics.oncall) is a hard runtime override — while
+     * on-call you always ring regardless of this flag. Synced to profiles.allow_calls
+     * (same train as `theme`/`swipeActions`). undefined → treated as true (allow).
+     */
+    allowCalls?: boolean
+    /**
      * Avatar selector: a preset avatar id, 'initials', or 'custom'. Lives on the
      * profiles row; the single profiles-row realtime sub (useProfileRealtime)
      * applies cross-device changes as a delta. undefined = profile not loaded

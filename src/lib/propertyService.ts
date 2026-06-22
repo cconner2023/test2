@@ -27,6 +27,8 @@ import {
   saveLocalLocationTags,
   deleteLocalTagsByTarget,
   getPendingTagCanvasIds,
+  getLocalTagCanvasVersion,
+  setLocalTagCanvasVersion,
 } from './offlineDb'
 import { processSyncQueue, isOnline } from './syncService'
 import { resolvePropertyTargetClinics, sendPropertyEvent, deletePropertyVaultMessages } from './propertyVault'
@@ -440,24 +442,40 @@ export async function correctFault(
   }
 }
 
+/** Vehicle intake readings captured by a PMCS check. Both optional; no PHI. */
+export interface PmcsReadings {
+  mileage?: number
+  fuelLevel?: number
+}
+
 /**
- * Record a PMCS (preventive-maintenance check) that found NO new faults. Emits a
- * spine-only `pmcs.clear` event so a clean check still leaves a paper-trail entry
- * — proof the subject was inspected on this date even when nothing was wrong.
- * Reporting faults is raiseFault; this is the "no new faults" path.
+ * Record a PMCS (preventive-maintenance check). This is the intake-submit path:
+ * faults found are raised separately via raiseFault; this logs that the check
+ * happened and carries the vehicle readings (mileage, fuel level) in the
+ * encrypted payload — they're operational, no PHI on the cleartext spine. With
+ * no readings (a non-vehicle item) the event is spine-only (payload null), so it
+ * never defers on a missing clinic key — the original clean-check behaviour.
  */
 export async function recordPmcs(
   subjectType: PropertyFaultSubject,
   subjectId: string,
   clinicId: string,
   userId: string,
+  readings?: PmcsReadings,
 ): Promise<ServiceResult> {
   try {
+    // Drop undefined keys so a reading-less check stays truly spine-only.
+    const payload: PmcsReadings = {}
+    if (readings?.mileage != null) payload.mileage = readings.mileage
+    if (readings?.fuelLevel != null) payload.fuelLevel = readings.fuelLevel
+    const hasReadings = Object.keys(payload).length > 0
+
     const event = await emitAudit(
       {
         clinicId, actorId: userId, domain: 'property',
         eventType: 'pmcs.clear', subjectType, subjectId,
-        // spine-only — no payload to encrypt, so it never defers on a missing key
+        // readings ride in the encrypted payload; null keeps it spine-only.
+        payload: hasReadings ? payload : null,
       },
       userId,
     )
@@ -710,11 +728,13 @@ export async function deleteLocation(
 
     await deleteLocalPropertyLocation(id)
 
-    // Remove tags referencing this location from IndexedDB and Supabase
-    await deleteLocalTagsByTarget(id)
-    if (isOnline()) {
-      await supabase.from('location_tags').delete().eq('target_id', id).eq('target_type', 'location')
-    }
+    // Remove the deleted zone's tile from every canvas it sat on, then queue a
+    // DURABLE full-canvas tag-sync for each affected canvas — not an online-only
+    // direct delete. An offline delete must still remove the server tag on
+    // reconnect; otherwise the geometry-aware reconcile re-adds the tile from the
+    // surviving server row (resurrection via the Supabase channel).
+    const affectedTagCanvases = await deleteLocalTagsByTarget(id)
+    for (const canvasId of affectedTagCanvases) await queueTagSync(canvasId)
 
     // Spine soft-delete (UPDATE) — never a hard DELETE.
     await addToSyncQueue({
@@ -801,12 +821,12 @@ export async function cascadeDeleteLocation(
       }
     }
 
-    // Delete tags referencing any of these locations
+    // Delete tags referencing any of these locations. Durable full-canvas
+    // tag-sync per affected canvas (not online-only) so an offline cascade still
+    // removes the server tags on reconnect instead of having them resurrected.
     for (const locId of toDelete) {
-      await deleteLocalTagsByTarget(locId)
-      if (isOnline()) {
-        await supabase.from('location_tags').delete().eq('target_id', locId).eq('target_type', 'location')
-      }
+      const affectedTagCanvases = await deleteLocalTagsByTarget(locId)
+      for (const canvasId of affectedTagCanvases) await queueTagSync(canvasId)
     }
 
     // Delete the locations themselves (soft-delete spine + 'd' zone envelope)
@@ -1135,9 +1155,11 @@ export async function fetchLocationTags(locationId: string): Promise<LocationTag
         .eq('location_id', locationId)
       if (!error && data) {
         const serverTags = data as LocationTag[]
-        // Accept server state if it differs
+        // Accept server state if it differs (geometry-aware). Stamp the canvas
+        // version so the vault tag channel treats this pull as authoritative.
         if (!tagsEqual(serverTags, localTags)) {
           await saveLocalLocationTags(locationId, serverTags)
+          await setLocalTagCanvasVersion(locationId, Date.now())
           return serverTags
         }
       }
@@ -1209,12 +1231,17 @@ export async function upsertLocationTags(
       rects: t.rects ?? null,
     }))
 
-    // Always save to IndexedDB first (offline-first)
+    // Always save to IndexedDB first (offline-first). Stamp a fresh canvas
+    // version so the clinic-vault tag channel (snapshot/envelope) treats this
+    // local edit as authoritative and a stale snapshot can't reset it.
     await saveLocalLocationTags(locationId, fullTags)
+    const canvasVersion = Date.now()
+    await setLocalTagCanvasVersion(locationId, canvasVersion)
 
     // Fan the canvas as a full-replace 'tags' envelope (vault distribution).
     // userId comes from the auth store (this fn has no userId param); clinic +
-    // targets come from the canvas's location row.
+    // targets come from the canvas's location row. The version rides along so a
+    // peer overwrites its canvas only when this edit is strictly newer.
     const fanUserId = useAuthStore.getState().user?.id ?? null
     const db = await getDb()
     const loc = await db.get('propertyLocations', locationId)
@@ -1222,7 +1249,7 @@ export async function upsertLocationTags(
     const tagTargets = loc?.target_clinic_ids ?? (tagClinicId ? [tagClinicId] : [])
     if (fanUserId && tagClinicId) {
       await fanProperty(fanUserId, 'c', 'tags', {
-        id: locationId, clinic_id: tagClinicId, target_clinic_ids: tagTargets, tags: fullTags,
+        id: locationId, clinic_id: tagClinicId, target_clinic_ids: tagTargets, tags: fullTags, version: canvasVersion,
       }, [], tagClinicId)
     }
 
@@ -1309,9 +1336,11 @@ export async function reconcileLocationTagsWithServer(
       const serverTags = serverByCanvas.get(locId) || []
       const localTags = localByCanvas.get(locId) || []
 
-      // Only update if there's a difference
+      // Only update if there's a difference (geometry-aware). Stamp the canvas
+      // version so the vault tag channel treats this pull as authoritative.
       if (serverTags.length !== localTags.length || !tagsEqual(serverTags, localTags)) {
         await saveLocalLocationTags(locId, serverTags)
+        await setLocalTagCanvasVersion(locId, Date.now())
       }
     }
 
@@ -1320,6 +1349,7 @@ export async function reconcileLocationTagsWithServer(
       if (!localByCanvas.has(locId) || (localByCanvas.get(locId)?.length === 0 && serverTags.length > 0)) {
         if (!pendingCanvasIds.has(locId)) {
           await saveLocalLocationTags(locId, serverTags)
+          await setLocalTagCanvasVersion(locId, Date.now())
         }
       }
     }
@@ -1328,11 +1358,28 @@ export async function reconcileLocationTagsWithServer(
   }
 }
 
-/** Quick structural equality check for tag arrays (by id set). */
+/** Geometry-aware equality for tag arrays. Compares each tag by id AND its
+ *  placement (x/y/width/height/rects) + label/target — NOT just the id set. The
+ *  old id-set-only check made a moved/resized zone (same id, new geometry) look
+ *  "equal", so server↔local reconciliation silently kept stale geometry. */
 function tagsEqual(a: LocationTag[], b: LocationTag[]): boolean {
   if (a.length !== b.length) return false
-  const aIds = new Set(a.map((t) => t.id))
-  return b.every((t) => aIds.has(t.id))
+  const aById = new Map(a.map((t) => [t.id, t]))
+  for (const t of b) {
+    const o = aById.get(t.id)
+    if (!o) return false
+    if (
+      o.x !== t.x ||
+      o.y !== t.y ||
+      (o.width ?? null) !== (t.width ?? null) ||
+      (o.height ?? null) !== (t.height ?? null) ||
+      o.label !== t.label ||
+      o.target_type !== t.target_type ||
+      o.target_id !== t.target_id ||
+      JSON.stringify(o.rects ?? null) !== JSON.stringify(t.rects ?? null)
+    ) return false
+  }
+  return true
 }
 
 // ── Name Sync (tree → canvas tags) ───────────────────────────

@@ -21,8 +21,11 @@ const logger = createLogger('PmcsSheet')
  * surfaced as a preview-overlay launched from the host's ellipsis menu (NOT an
  * inline section). Two views inside one overlay:
  *
- *  - CHECK (default): the actionable now-state — open faults to Correct, an
- *    inline-add to report a new fault, and a "No new faults" clean-check.
+ *  - CHECK (default): the standard PMCS intake — mileage + fuel-level readings
+ *    (vehicle subjects only), the open faults to Correct or leave, an inline-add
+ *    to report a new fault, and a "Record PMCS" submit that logs the check (with
+ *    readings in the pmcs.clear payload). Corrections / new faults emit
+ *    immediately as their own audit events; the submit logs the inspection.
  *  - HISTORY: every PMCS event (faults, corrections, clean checks) with per-row
  *    edit (faults/corrections carry text) and delete. audit_log gained
  *    UPDATE/DELETE on 2026-06-21 so these are real edits/hard-deletes, routed
@@ -62,6 +65,12 @@ export function PmcsSheet({ isOpen, onClose, subjectType = 'item', subjectId, cl
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editText, setEditText] = useState('')
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+  const [mileage, setMileage] = useState('')
+  const [fuelLevel, setFuelLevel] = useState<number | null>(null)
+
+  // Mileage + fuel are a vehicle's 5988 intake; a stock item's PMCS is just the
+  // fault check + a clean-check log.
+  const isVehicle = subjectType === 'location'
 
   const raiseFault = usePropertyStore((s) => s.raiseFault)
   const correctFault = usePropertyStore((s) => s.correctFault)
@@ -74,6 +83,7 @@ export function PmcsSheet({ isOpen, onClose, subjectType = 'item', subjectId, cl
   useEffect(() => {
     if (!isOpen) {
       setView('check'); setEditingId(null); setConfirmDeleteId(null); setDesc('')
+      setMileage(''); setFuelLevel(null)
     }
   }, [isOpen])
 
@@ -133,11 +143,29 @@ export function PmcsSheet({ isOpen, onClose, subjectType = 'item', subjectId, cl
     setBusy(false)
   }
 
-  const handleNoNewFaults = async () => {
-    if (busy) return
+  // Most recent recorded mileage — shown as the "Current" hint so the inspector
+  // updates from the last reading rather than guessing. events are newest-first.
+  const lastMileage = (() => {
+    for (const e of events) {
+      if (e.eventType === 'pmcs.clear' && typeof e.payload?.mileage === 'number') return e.payload.mileage
+    }
+    return null
+  })()
+
+  // A vehicle intake needs both readings; a stock item's PMCS is always submittable
+  // (it logs a clean check / the faults reported during it).
+  const canSubmit = !isVehicle || (mileage.trim() !== '' && fuelLevel != null)
+
+  const handleRecord = async () => {
+    if (!canSubmit || busy) return
     setBusy(true)
-    await recordPmcs(subjectType, subjectId)
+    const miles = parseInt(mileage, 10)
+    const ok = await recordPmcs(subjectType, subjectId, isVehicle ? {
+      mileage: Number.isFinite(miles) ? miles : undefined,
+      fuelLevel: fuelLevel ?? undefined,
+    } : undefined)
     setBusy(false)
+    if (ok) onClose()
   }
 
   const beginEdit = (e: AuditEvent) => {
@@ -172,13 +200,30 @@ export function PmcsSheet({ isOpen, onClose, subjectType = 'item', subjectId, cl
     setBusy(false)
   }
 
-  // ── CHECK view body ─────────────────────────────────────────────────────────
+  // ── CHECK view body — the standard PMCS intake form ─────────────────────────
   const checkBody = loading ? (
     <div className="flex items-center justify-center px-4 py-6">
       <Loader2 size={16} className="animate-spin text-tertiary" />
     </div>
   ) : (
     <div className="divide-y divide-tertiary/8">
+      {/* Vehicle readings — mileage + fuel level. Hidden for non-vehicle items. */}
+      {isVehicle && (
+        <TextInput
+          value={mileage}
+          onChange={(v) => setMileage(v.replace(/[^\d]/g, ''))}
+          inputMode="numeric"
+          placeholder="Mileage"
+          currentValue={lastMileage != null ? `${lastMileage.toLocaleString()} mi` : undefined}
+        />
+      )}
+      {isVehicle && <FuelMeter value={fuelLevel} onChange={setFuelLevel} />}
+
+      {/* Faults — previously-unclosed faults render to Correct or leave; empty if
+          none. The inline-add reports a fault found during this check. */}
+      <div className="px-4 pt-2.5 pb-1 text-[8.5pt] font-semibold text-tertiary tracking-widest uppercase">
+        Faults
+      </div>
       {openFaults.map((f) => (
         <div key={f.id} className="flex items-center gap-3 px-4 py-3">
           <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-themered/10 text-themered">
@@ -195,18 +240,6 @@ export function PmcsSheet({ isOpen, onClose, subjectType = 'item', subjectId, cl
           </button>
         </div>
       ))}
-      {/* No new faults — logs a clean PMCS even when nothing is wrong. */}
-      <button
-        type="button"
-        onClick={handleNoNewFaults}
-        disabled={busy}
-        className="w-full flex items-center gap-3 px-4 py-3 text-left active:bg-themegreen/5 transition-colors disabled:opacity-40"
-      >
-        <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-themegreen/10 text-themegreen">
-          <ClipboardCheck size={14} />
-        </div>
-        <span className="flex-1 min-w-0 text-sm font-medium text-secondary">No new faults</span>
-      </button>
       {/* Inline add — report a new fault (TextInput + circular Plus). */}
       <div className="flex items-center gap-2 px-4 py-3">
         <div className="flex-1 min-w-0">
@@ -221,6 +254,25 @@ export function PmcsSheet({ isOpen, onClose, subjectType = 'item', subjectId, cl
           <Plus size={18} />
         </button>
       </div>
+
+      {/* Submit — logs the PMCS (with readings for a vehicle). Only shown when the
+          intake is complete, per the no-disabled-actions rule; a hint stands in. */}
+      {canSubmit ? (
+        <button
+          type="button"
+          onClick={handleRecord}
+          disabled={busy}
+          className="w-full flex items-center gap-3 px-4 py-3 text-left active:bg-themegreen/5 transition-colors disabled:opacity-40"
+        >
+          <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-themegreen/10 text-themegreen">
+            <ClipboardCheck size={14} />
+          </div>
+          <span className="flex-1 min-w-0 text-sm font-semibold text-themegreen">Record PMCS</span>
+        </button>
+      ) : (
+        <p className="px-4 py-3 text-[10pt] text-tertiary">Enter mileage and fuel level to record</p>
+      )}
+
       {/* Switch to the full PMCS history (edit / delete past entries). */}
       <button
         type="button"
@@ -375,11 +427,58 @@ function describe(e: AuditEvent): string {
       return typeof p.description === 'string' && p.description ? p.description : 'Fault reported'
     case 'fault.corrected':
       return typeof p.note === 'string' && p.note ? `Corrected — ${p.note}` : 'Fault corrected'
-    case 'pmcs.clear':
-      return 'PMCS — no new faults'
+    case 'pmcs.clear': {
+      const parts: string[] = []
+      if (typeof p.mileage === 'number') parts.push(`${p.mileage.toLocaleString()} mi`)
+      if (typeof p.fuelLevel === 'number') parts.push(`Fuel ${p.fuelLevel}%`)
+      return parts.length ? `PMCS · ${parts.join(' · ')}` : 'PMCS — no new faults'
+    }
     default:
       return e.eventType
   }
+}
+
+/**
+ * FuelMeter — a fuel-gauge intake: E ▮▮▮▯▯ F. Ten tappable segments set the level
+ * in increments of 10 (10–100%); the "E" cap sets empty (0). null = not yet read.
+ */
+function FuelMeter({ value, onChange }: { value: number | null; onChange: (v: number) => void }) {
+  const segments = Array.from({ length: 10 }, (_, i) => (i + 1) * 10)
+  return (
+    <div className="px-4 py-3">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-sm font-medium text-secondary">Fuel level</span>
+        <span className="text-sm font-semibold text-primary tabular-nums">
+          {value == null ? '—' : `${value}%`}
+        </span>
+      </div>
+      <div className="flex items-center gap-1.5">
+        <button
+          type="button"
+          onClick={() => onChange(0)}
+          aria-label="Fuel empty"
+          className="w-3.5 shrink-0 text-[9pt] font-bold text-tertiary active:scale-90 transition-transform"
+        >
+          E
+        </button>
+        <div className="flex-1 flex items-center gap-1">
+          {segments.map((lvl) => {
+            const filled = value != null && value >= lvl
+            return (
+              <button
+                key={lvl}
+                type="button"
+                onClick={() => onChange(lvl)}
+                aria-label={`Fuel ${lvl} percent`}
+                className={`h-6 flex-1 rounded-md active:scale-95 transition-all ${filled ? 'bg-themeblue3' : 'bg-tertiary/12'}`}
+              />
+            )
+          })}
+        </div>
+        <span className="w-3.5 shrink-0 text-[9pt] font-bold text-tertiary text-right">F</span>
+      </div>
+    </div>
+  )
 }
 
 function fmtDate(iso: string): string {

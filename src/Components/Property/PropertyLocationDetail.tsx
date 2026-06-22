@@ -24,9 +24,7 @@ interface PropertyLocationDetailProps {
   /** Tap a child zone → navigate to it (canvas on desktop / re-point the sheet on mobile). */
   onNavigateZone: (locationId: string) => void
   onSelectItem: (item: LocalPropertyItem) => void
-  // Tree row actions — drag-to-move, edit, delete, add (mirror the rail/list tree).
-  onMoveLocation?: (locationId: string, newParentId: string | null) => void
-  onMoveItem?: (itemId: string, newLocationId: string | null) => void
+  // Tree row actions — edit, delete, add (mirror the rail/list tree).
   onEditLocation?: (loc: LocalPropertyLocation) => void
   onEditItem?: (item: LocalPropertyItem) => void
   onDeleteLocation?: (locId: string) => void
@@ -40,9 +38,9 @@ interface PropertyLocationDetailProps {
 /**
  * PropertyLocationDetail — the selected-zone CONTENT surface (photo + the zone's
  * subtree rendered with the shared PropertyLocationTree, scoped via rootId, so
- * children/items use the canonical tree rows + lifted-clone menus + drag-clone
- * preview instead of bespoke bordered rows). Used in the desktop right pane and
- * the mobile sheet. Header actions live in the host (buildLocationMenuItems).
+ * children/items use the canonical tree rows + lifted-clone menus instead of
+ * bespoke bordered rows). Used in the desktop right pane and the mobile sheet.
+ * Header actions live in the host (buildLocationMenuItems).
  */
 export const PropertyLocationDetail = forwardRef<PropertyLocationDetailHandle, PropertyLocationDetailProps>(
   function PropertyLocationDetail({
@@ -52,8 +50,6 @@ export const PropertyLocationDetail = forwardRef<PropertyLocationDetailHandle, P
   holders,
   onNavigateZone,
   onSelectItem,
-  onMoveLocation,
-  onMoveItem,
   onEditLocation,
   onEditItem,
   onDeleteLocation,
@@ -105,8 +101,6 @@ export const PropertyLocationDetail = forwardRef<PropertyLocationDetailHandle, P
         holders={holders}
         onSelectLocation={(loc) => onNavigateZone(loc.id)}
         onSelectItem={onSelectItem}
-        onMoveLocation={onMoveLocation}
-        onMoveItem={onMoveItem}
         onEditLocation={onEditLocation}
         onEditItem={onEditItem}
         onDeleteLocation={onDeleteLocation}

@@ -50,6 +50,15 @@ interface CanvasEditOverlayProps {
   externalNamePrompt?: boolean
   /** Called when naming state changes (for external prompt rendering) */
   onNamingChange?: (naming: { index: number; existingLabel: string } | null) => void
+  /**
+   * Single-draw mode: drawing one rectangle does NOT add an editable/named zone
+   * here — instead it reports the drawn rect via onDrawComplete and the parent
+   * takes over (the standardized "draw first → sheet" add-zone flow). No naming,
+   * no multi-zone session.
+   */
+  drawOnce?: boolean
+  /** Fires once a single-draw rectangle is committed (canvas-local 0..1 coords). */
+  onDrawComplete?: (rect: { x: number; y: number; width: number; height: number }) => void
 }
 
 type DragAction =
@@ -89,6 +98,8 @@ export const CanvasEditOverlay = memo(function CanvasEditOverlay({
   photoMap,
   externalNamePrompt = false,
   onNamingChange,
+  drawOnce = false,
+  onDrawComplete,
 }: CanvasEditOverlayProps) {
   const [editTags, setEditTags] = useState<EditableTag[]>(() =>
     tags
@@ -222,6 +233,13 @@ export const CanvasEditOverlay = memo(function CanvasEditOverlay({
       const h = Math.abs(dragAction.currentY - dragAction.startY)
 
       if (w >= MIN_ZONE_SIZE && h >= MIN_ZONE_SIZE) {
+        // Single-draw add-zone flow: hand the rect to the parent (which opens the
+        // name/parent/type sheet) instead of adding + naming a zone in-place.
+        if (drawOnce) {
+          setDragAction(null)
+          onDrawComplete?.({ x, y, width: w, height: h })
+          return
+        }
         const newTag: EditableTag = {
           target_type: 'location',
           target_id: crypto.randomUUID(),
@@ -239,7 +257,7 @@ export const CanvasEditOverlay = memo(function CanvasEditOverlay({
     }
 
     setDragAction(null)
-  }, [dragAction, editTags.length])
+  }, [dragAction, editTags.length, drawOnce, onDrawComplete])
 
   // Track zone pointer-down to distinguish tap (select) from drag (move)
   const zoneDownRef = useRef<{ idx: number; x: number; y: number; nx: number; ny: number } | null>(null)
