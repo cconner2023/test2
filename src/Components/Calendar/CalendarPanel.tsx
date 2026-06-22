@@ -27,6 +27,7 @@ import { BlockTemplatedPanel, type BlockTemplatedHandle } from './BlockTemplated
 import { useAuthStore } from '../../stores/useAuthStore'
 import { HeaderPill, PillButton } from '../HeaderPill'
 import { useCalendarStore } from '../../stores/useCalendarStore'
+import { useDispatchCalendarEvents, DISPATCH_CAL_ID_PREFIX } from '../../Hooks/useDispatchCalendarEvents'
 import { useNavigationStore } from '../../stores/useNavigationStore'
 import type { CalendarPrefill } from '../../stores/useNavigationStore'
 import { useClinicMedics } from '../../Hooks/useClinicMedics'
@@ -555,6 +556,10 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     for (const id of surrogateClinicIds) set.add(id)
     return set
   }, [clinicId, surrogateClinicIds])
+  // Derived read-only dispatch-expiry entries (vehicles on dispatch). Merged in
+  // below AFTER all filters so they always surface; they're inert (not in the
+  // store, so select/edit/delete no-op). See useDispatchCalendarEvents.
+  const dispatchCalEvents = useDispatchCalendarEvents(clinicId)
   const filteredEvents = useMemo(() => {
     let out = events
     if (reachableClinicIds.size > 0) {
@@ -584,8 +589,10 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     if (categoryFilter !== null) {
       out = out.filter(e => categoryFilter.includes(e.category))
     }
-    return out
-  }, [events, personnelFilter, categoryFilter, clusterFilter, reachableClinicIds, userId])
+    // Append derived dispatch-expiry entries last so they always show regardless
+    // of personnel/cluster/category filters (ops-critical, not assignable).
+    return dispatchCalEvents.length ? [...out, ...dispatchCalEvents] : out
+  }, [events, personnelFilter, categoryFilter, clusterFilter, reachableClinicIds, userId, dispatchCalEvents])
 
   const dayEvents = useMemo(() =>
     filteredEvents
@@ -641,6 +648,8 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
   // ── Event CRUD ──
 
   const handleSelectEvent = useCallback((id: string) => {
+    // Derived dispatch-expiry entries are informational only — no detail panel.
+    if (id.startsWith(DISPATCH_CAL_ID_PREFIX)) return
     if (isMobile) {
       setDayDrawerEventId(id)
       setDayDrawerView('detail')

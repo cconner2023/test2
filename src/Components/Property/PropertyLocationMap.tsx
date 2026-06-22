@@ -13,6 +13,8 @@ import { flushSync } from 'react-dom'
 import { Pencil, Check, PenTool, Minus, Scissors, Merge, X, Copy, Camera, Trash2, Maximize2, Move, ChevronLeft, ChevronRight, Plus, Package } from 'lucide-react'
 import { usePropertyStore } from '../../stores/usePropertyStore'
 import { useIsMobile } from '../../Hooks/useIsMobile'
+import { useVehicleDispatches } from '../../Hooks/useVehicleDispatches'
+import type { DispatchStatus } from '../../lib/dispatchFold'
 import { fetchAllLocationTags, fetchLocationTags, upsertLocationTags } from '../../lib/propertyService'
 import { buildTagIndex, findLCA } from '../../lib/tagIndex'
 import type { TagIndex } from '../../lib/tagIndex'
@@ -225,6 +227,13 @@ interface PropertyLocationMapProps {
 export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapProps>(function PropertyLocationMap({ clinicId, locations, items, onCreateLocation, onDeleteLocation, onEditItem, onUpdateLocation, onSelectItem, onCreateItem, onSelectZone, onZoneDrawn, onDrawingChange }, ref) {
   const store = usePropertyStore()
   const isMobile = useIsMobile()
+  // Open-dispatch status per vehicle → the zone-tile red-dot (expiring/expired).
+  const dispatches = useVehicleDispatches(clinicId)
+  const dispatchStatusByLocation = useMemo(() => {
+    const m = new Map<string, DispatchStatus>()
+    for (const [id, d] of dispatches) m.set(id, d.status)
+    return m
+  }, [dispatches])
   const scrollRef = useRef<HTMLDivElement>(null)
   const [tagIndex, setTagIndex] = useState<TagIndex | null>(null)
   const [canvasScale, setCanvasScale] = useState(1)
@@ -1549,6 +1558,7 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
                   photoMap={photoMap}
                   items={items}
                   onItemTap={onSelectItem}
+                  dispatchStatusByLocation={dispatchStatusByLocation}
                 />
 
                 {(!rootLocationId || !tagIndex) && (

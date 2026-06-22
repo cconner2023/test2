@@ -62,13 +62,29 @@ export type AuditEventType =
   // same check are separate fault.opened events. Logged so every PMCS leaves a
   // paper-trail entry (proof the subject was inspected on this date).
   //  payload: { mileage?, fuelLevel?, doc? }  — vehicle intake readings (no PHI)
-  //           and/or an attached 6988E worksheet. `doc` = { path, key, mime?,
+  //           and/or an attached 5988E worksheet. `doc` = { path, key, mime?,
   //           name? }: the worksheet is encrypted client-side into the
   //           message-attachments bucket (random AES key) and the decryption key
   //           rides inside this (clinic-key-encrypted) payload — server never
   //           sees the file plaintext.
   //  payload = null                     — clean check on a non-vehicle item, no doc.
   | 'pmcs.clear'
+  // property DISPATCH — a vehicle (kind='vehicle' location) was put on dispatch
+  // (DA 5982/5987 motor-equipment dispatch). subjectType is ALWAYS 'location'
+  // (vehicles only). Append-only, mirroring faults: opening never mutates the
+  // vehicle, and closing leaves the opened event intact so the full
+  // dispatched→returned history stays in the timeline. The CURRENT dispatch is
+  // the open dispatch.opened with no dispatch.closed pointing back at it (the
+  // same client-side fold as open faults); a dispatch with exp_date < now is
+  // lapsed even without a close. exp_date / odometer / the dispatch form are
+  // operational, no PHI — they ride in the (clinic-key) encrypted payload.
+  //  opened:  { exp_date, doc?, note?, odo_out? }   // exp_date = ISO date the
+  //           dispatch authorization expires; `doc` = the encrypted DA 5982/5987
+  //           ({ path, key, mime?, name? }, same attachment pipeline as the 5988E).
+  //  closed:  { dispatches, returned_at, doc?, note?, odo_in? }  // `dispatches`
+  //           = the dispatch.opened event id this return closes.
+  | 'dispatch.opened'
+  | 'dispatch.closed'
   // training — payload: { training_item_id, result?, step_results?, supervisor_notes?, due_date?, supersedes? }
   | 'read.recorded'
   | 'test.graded'

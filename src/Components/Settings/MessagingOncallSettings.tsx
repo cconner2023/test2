@@ -5,6 +5,7 @@ import { useBetaBypass } from '../../lib/betaFeatures'
 import { useClinicMedics } from '../../Hooks/useClinicMedics'
 import { useClinicGroupedMedics } from '../../Hooks/useClinicGroupedMedics'
 import { toggleOncallPresence, getOutsideContactStatus } from '../../lib/oncallService'
+import { getWarmRoster, setWarmRoster, getWarmOutsideContactOn, setWarmOutsideContactOn } from '../../lib/messagingSettingsWarm'
 import { IntakeMintSection } from './IntakeMintSection'
 import { ToggleSwitch } from './ToggleSwitch'
 import { UserAvatar } from './UserAvatar'
@@ -34,21 +35,25 @@ export function MessagingOncallSettings() {
 
   // Live roster (clinics.oncall — public SELECT). Writes go through the
   // SECURITY DEFINER toggle_oncall_presence RPC (validates cluster membership).
-  const [oncall, setOncall] = useState<string[]>([])
+  const [oncall, setOncall] = useState<string[]>(() => getWarmRoster(clinicId) ?? [])
   const [pending, setPending] = useState<string | null>(null)
 
   // The roster only makes sense once an outside channel (calls OR text) is on
   // for the cluster — otherwise being "on-call" pings nothing. Members read this
   // via the membership-gated status RPC; the supervisor's live master toggles
   // (IntakeMintSection → onOncallEnabledChange) override it without a refetch.
-  const [outsideContactOn, setOutsideContactOn] = useState(false)
+  const [outsideContactOn, setOutsideContactOn] = useState(() => getWarmOutsideContactOn(clinicId) ?? false)
 
   useEffect(() => {
     if (!clinicId) { setOutsideContactOn(false); return }
+    const warm = getWarmOutsideContactOn(clinicId)
+    if (warm !== undefined) setOutsideContactOn(warm)
     let cancelled = false
     getOutsideContactStatus(clinicId).then((res) => {
       if (cancelled || !res.ok) return
-      setOutsideContactOn(res.data.oncall_enabled || res.data.outside_message_enabled)
+      const on = res.data.oncall_enabled || res.data.outside_message_enabled
+      setOutsideContactOn(on)
+      setWarmOutsideContactOn(clinicId, on)
     })
     return () => { cancelled = true }
   }, [clinicId])
@@ -56,7 +61,9 @@ export function MessagingOncallSettings() {
   const loadRoster = useCallback(async () => {
     if (!clinicId) { setOncall([]); return }
     const { data } = await supabase.from('clinics').select('oncall').eq('id', clinicId).maybeSingle()
-    setOncall(((data as { oncall?: string[] } | null)?.oncall) ?? [])
+    const roster = ((data as { oncall?: string[] } | null)?.oncall) ?? []
+    setOncall(roster)
+    setWarmRoster(clinicId, roster)
   }, [clinicId])
 
   useEffect(() => { void loadRoster() }, [loadRoster])
@@ -65,7 +72,11 @@ export function MessagingOncallSettings() {
     if (!clinicId || pending) return
     const isOn = oncall.includes(memberId)
     setPending(memberId)
-    setOncall((prev) => (isOn ? prev.filter((id) => id !== memberId) : [...prev, memberId])) // optimistic
+    setOncall((prev) => { // optimistic — keep the warm cache in step so a re-open matches
+      const next = isOn ? prev.filter((id) => id !== memberId) : [...prev, memberId]
+      setWarmRoster(clinicId, next)
+      return next
+    })
     const res = await toggleOncallPresence(clinicId, memberId, !isOn)
     if (!res.ok) await loadRoster() // revert to server truth on failure
     setPending(null)

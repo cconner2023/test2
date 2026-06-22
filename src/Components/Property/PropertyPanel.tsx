@@ -10,7 +10,7 @@ import { useShallow } from 'zustand/react/shallow'
 import { PropertyLocationTree } from './PropertyLocationTree'
 import { CustodyPanel } from './CustodyPanel'
 import { ItemScanner } from './ItemScanner'
-import type { ReceiptItem } from '../../Hooks/useHandReceipts'
+import { useHandReceipts, type ReceiptItem } from '../../Hooks/useHandReceipts'
 import { PropertyBreadcrumb } from './PropertyBreadcrumb'
 import { PropertySearchOverlay } from './PropertySearchOverlay'
 import { PropertyLocationForm, type PropertyLocationFormHandle, type PendingZoneTag } from './PropertyLocationForm'
@@ -103,6 +103,18 @@ export const PropertyPanel = memo(function PropertyPanel({
   // + the "New DA 2062" FAB action.
   const isDevRole = useAuthStore(s => s.isDevRole)
 
+  // DA 2062 accountability data — lifted here so BOTH the Custody tab AND the unified
+  // search overlay share one fetch (search folds receipts in as a "Sign-outs"
+  // section). Dev-gated: passing null when non-dev skips the fetch entirely.
+  const {
+    receipts,
+    itemsById: receiptItemsById,
+    locationNameById: receiptLocationNameById,
+    membersById: receiptMembersById,
+    loading: receiptsLoading,
+    refetch: refetchReceipts,
+  } = useHandReceipts(isDevRole ? store.clinicId : null)
+
   const visibleLocations = store.locations.filter(l => l.name !== ROOT_LOCATION_NAME)
   const hasData = visibleLocations.length > 0 || store.items.length > 0
   const showLoading = useMinLoadTime(store.isLoading) && !hasData
@@ -192,6 +204,13 @@ export const PropertyPanel = memo(function PropertyPanel({
   useEffect(() => {
     onRegisterOpenLocations?.(() => setShowLocations(true))
   }, [onRegisterOpenLocations])
+
+  // Mobile: focusing the header search opens the results overlay over the canvas
+  // (z1020). The Custody sheet sits above it (z1200), so leave that tab first —
+  // search and the sign-outs sheet are mutually exclusive surfaces.
+  useEffect(() => {
+    if (searchFocused) setPropertyTab('map')
+  }, [searchFocused])
 
   const handleSelectItem = useCallback((item: LocalPropertyItem) => {
     // Auto-navigate the canvas to the item's zone so it surfaces "within that
@@ -375,6 +394,7 @@ export const PropertyPanel = memo(function PropertyPanel({
     onLinkMap: () => setMapLinkLoc(loc),
     onDelete: () => setPendingDeleteLocId(loc.id),
     onPmcs: () => locDetailRef.current?.openPmcs(),
+    onDispatch: () => locDetailRef.current?.openDispatch(),
   })
 
   // Trayed FAB in a positioning wrapper — matches Calendar/Admin's add FAB
@@ -418,6 +438,10 @@ export const PropertyPanel = memo(function PropertyPanel({
   // mirroring MapOverlayPanel: the rail collapses while the right pane is open.
   if (!isMobile) {
     const railCollapsed = view === 'property-form' || view === 'property-detail' || !!editLocationTarget || !!selectedLocation
+    // When the rail search has a query, the results take over the CENTER pane
+    // (mirrors mobile's overlay) instead of filtering the rail tree in place. The
+    // rail keeps the full tree for navigation context; results route to the right pane.
+    const desktopSearching = desktopSearch.trim().length > 0
     return (
       <>
         <div className="flex h-full">
@@ -439,7 +463,7 @@ export const PropertyPanel = memo(function PropertyPanel({
                 items={store.items}
                 clinicName={clinicName}
                 holders={store.holders}
-                searchQuery={desktopSearch}
+                searchQuery=""
                 hoverActions
                 activeLocationId={selectedLocationId}
                 onSelectLocation={handleSelectLocationDesktop}
@@ -458,10 +482,35 @@ export const PropertyPanel = memo(function PropertyPanel({
           </div>
 
           <div className="flex-1 min-w-0 relative">
-            {/* Island cycles the center pane: Map (canvas) ↔ Sign-outs (custody).
+            {/* Search results take over the center pane (mirrors mobile's overlay);
+                otherwise the island cycles Map (canvas) ↔ Sign-outs (custody).
                 Camera is momentary and returns to the map. */}
-            {propertyTab === 'custody' && store.clinicId ? (
-              <CustodyPanel clinicId={store.clinicId} onLocateItem={handleLocateReceiptItem} />
+            {desktopSearching ? (
+              <PropertySearchOverlay
+                isVisible
+                embedded
+                value={desktopSearch}
+                items={store.items}
+                locations={visibleLocations}
+                holders={store.holders}
+                receipts={receipts}
+                receiptItemsById={receiptItemsById}
+                showReceipts={isDevRole}
+                onSelectItem={handleSelectItem}
+                onOpenLocation={(loc) => mapRef.current?.navigateToZone(loc.id)}
+                onSelectReceiptItem={handleLocateReceiptItem}
+              />
+            ) : propertyTab === 'custody' && store.clinicId ? (
+              <CustodyPanel
+                clinicId={store.clinicId}
+                receipts={receipts}
+                itemsById={receiptItemsById}
+                locationNameById={receiptLocationNameById}
+                membersById={receiptMembersById}
+                loading={receiptsLoading}
+                refetch={refetchReceipts}
+                onLocateItem={handleLocateReceiptItem}
+              />
             ) : (
               <>
                 {mapEl}
@@ -469,7 +518,7 @@ export const PropertyPanel = memo(function PropertyPanel({
                 <LoadingOverlay visible={showLoading} />
               </>
             )}
-            {!drawingZone && (
+            {!drawingZone && !desktopSearching && (
               <BottomIsland
                 glass
                 z="z-20"
@@ -510,18 +559,14 @@ export const PropertyPanel = memo(function PropertyPanel({
             {!editLocationTarget && view === 'property-detail' && selectedItem && (
               <>
                 <div className="shrink-0 flex items-center gap-2 px-4 py-3 border-b border-tertiary/10">
-                  {selectedItem.location_id && (
-                    <button
-                      onClick={() => { setSelectedLocationId(selectedItem.location_id); onBack() }}
-                      aria-label="Back to location"
-                      className="w-7 h-7 -ml-1 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all shrink-0"
-                    >
-                      <ChevronLeft size={18} />
-                    </button>
-                  )}
+                  <HeaderPill>
+                    <span className="inline-flex" onClick={(e) => itemDetailRef.current?.openMenu((e.currentTarget as HTMLElement).getBoundingClientRect())}>
+                      <PillButton icon={MoreHorizontal} iconSize={16} onClick={() => {}} label="More actions" />
+                    </span>
+                  </HeaderPill>
                   <div className="flex-1 min-w-0">
                     <PropertyBreadcrumb
-                      locationId={selectedItem.location_id ?? null}
+                      parentId={selectedItem.location_id ?? null}
                       locations={visibleLocations}
                       rootLabel={clinicName}
                       onNavigate={handleBreadcrumbNavigate}
@@ -530,9 +575,6 @@ export const PropertyPanel = memo(function PropertyPanel({
                     <p className="truncate text-sm font-medium text-primary">{selectedItem.name}</p>
                   </div>
                   <HeaderPill>
-                    <span className="inline-flex" onClick={(e) => itemDetailRef.current?.openMenu((e.currentTarget as HTMLElement).getBoundingClientRect())}>
-                      <PillButton icon={MoreHorizontal} iconSize={16} onClick={() => {}} label="More actions" />
-                    </span>
                     <PillButton icon={X} iconSize={16} onClick={() => { onBack(); closeLocationDetail() }} label="Close" />
                   </HeaderPill>
                 </div>
@@ -576,30 +618,22 @@ export const PropertyPanel = memo(function PropertyPanel({
             {!editLocationTarget && view === 'property' && selectedLocation && (
               <>
                 <div className="shrink-0 flex items-center gap-2 px-4 py-3 border-b border-tertiary/10">
-                  {selectedLocation.parent_id && (
-                    <button
-                      onClick={() => mapRef.current?.navigateToZone(selectedLocation.parent_id!)}
-                      aria-label="Back to parent location"
-                      className="w-7 h-7 -ml-1 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all shrink-0"
-                    >
-                      <ChevronLeft size={18} />
-                    </button>
-                  )}
+                  <HeaderPill>
+                    <span className="inline-flex" onClick={openLocMenu}>
+                      <PillButton icon={MoreHorizontal} iconSize={16} onClick={() => {}} label="More actions" />
+                    </span>
+                  </HeaderPill>
                   <div className="flex-1 min-w-0">
                     <PropertyBreadcrumb
-                      locationId={selectedLocation.id}
+                      parentId={selectedLocation.parent_id ?? null}
                       locations={visibleLocations}
                       rootLabel={clinicName}
                       onNavigate={handleBreadcrumbNavigate}
-                      excludeLeaf
                       className="mb-0.5"
                     />
                     <p className="truncate text-sm font-medium text-primary">{selectedLocation.name}</p>
                   </div>
                   <HeaderPill>
-                    <span className="inline-flex" onClick={openLocMenu}>
-                      <PillButton icon={MoreHorizontal} iconSize={16} onClick={() => {}} label="More actions" />
-                    </span>
                     <PillButton icon={X} iconSize={16} onClick={closeLocationDetail} label="Close" />
                   </HeaderPill>
                 </div>
@@ -683,8 +717,12 @@ export const PropertyPanel = memo(function PropertyPanel({
           items={store.items}
           locations={visibleLocations}
           holders={store.holders}
+          receipts={receipts}
+          receiptItemsById={receiptItemsById}
+          showReceipts={isDevRole}
           onSelectItem={(item) => { handleSelectItem(item); onSearchChange?.(''); onSearchFocusChange?.(false) }}
           onOpenLocation={(loc) => { mapRef.current?.navigateToZone(loc.id); onSearchChange?.(''); onSearchFocusChange?.(false) }}
+          onSelectReceiptItem={(item) => { handleLocateReceiptItem(item); onSearchChange?.(''); onSearchFocusChange?.(false) }}
         />
         {/* Bottom island (Map · Camera · Sign-outs) + the Add FAB. Hidden while
             searching or drawing a zone (full canvas needed). */}
@@ -720,11 +758,10 @@ export const PropertyPanel = memo(function PropertyPanel({
           !mobileForm && (mobileItem || selectedLocation) ? (
             <div className="min-w-0">
               <PropertyBreadcrumb
-                locationId={mobileItem ? (mobileItem.location_id ?? null) : (selectedLocation?.id ?? null)}
+                parentId={mobileItem ? (mobileItem.location_id ?? null) : (selectedLocation?.parent_id ?? null)}
                 locations={visibleLocations}
                 rootLabel={clinicName}
                 onNavigate={handleBreadcrumbNavigate}
-                excludeLeaf={!mobileItem}
                 className="mb-0.5"
               />
               <span className="block truncate text-[13pt] font-semibold text-primary">
@@ -745,14 +782,17 @@ export const PropertyPanel = memo(function PropertyPanel({
             <button onClick={closeMobileForm} aria-label="Cancel" className="w-9 h-9 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all">
               <ChevronLeft size={20} />
             </button>
-          ) : mobileItem ? (
-            <button onClick={() => setMobileItem(null)} aria-label="Back to location" className="w-9 h-9 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all">
-              <ChevronLeft size={20} />
-            </button>
-          ) : selectedLocation?.parent_id ? (
-            <button onClick={() => mapRef.current?.navigateToZone(selectedLocation.parent_id!)} aria-label="Back to parent location" className="w-9 h-9 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all">
-              <ChevronLeft size={20} />
-            </button>
+          ) : (mobileItem || selectedLocation) ? (
+            <HeaderPill>
+              <span
+                className="inline-flex"
+                onClick={mobileItem
+                  ? (e) => itemDetailRef.current?.openMenu((e.currentTarget as HTMLElement).getBoundingClientRect())
+                  : openLocMenu}
+              >
+                <PillButton icon={MoreHorizontal} iconSize={18} onClick={() => {}} label="More actions" />
+              </span>
+            </HeaderPill>
           ) : undefined
         }
         actions={
@@ -764,15 +804,6 @@ export const PropertyPanel = memo(function PropertyPanel({
               onClick={() => (mobileForm.kind === 'item' ? itemFormRef.current : locationFormRef.current)?.submit()}
               label="Save"
             />
-          ) : (mobileItem || selectedLocation) ? (
-            <span
-              className="inline-flex"
-              onClick={mobileItem
-                ? (e) => itemDetailRef.current?.openMenu((e.currentTarget as HTMLElement).getBoundingClientRect())
-                : openLocMenu}
-            >
-              <PillButton icon={MoreHorizontal} iconSize={18} onClick={() => {}} label="More actions" />
-            </span>
           ) : undefined
         }
       >
@@ -875,7 +906,16 @@ export const PropertyPanel = memo(function PropertyPanel({
       >
         {store.clinicId && (
           <div className="h-[60vh]">
-            <CustodyPanel clinicId={store.clinicId} onLocateItem={handleLocateReceiptItem} />
+            <CustodyPanel
+              clinicId={store.clinicId}
+              receipts={receipts}
+              itemsById={receiptItemsById}
+              locationNameById={receiptLocationNameById}
+              membersById={receiptMembersById}
+              loading={receiptsLoading}
+              refetch={refetchReceipts}
+              onLocateItem={handleLocateReceiptItem}
+            />
           </div>
         )}
       </Sheet>

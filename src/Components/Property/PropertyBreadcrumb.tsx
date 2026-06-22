@@ -1,95 +1,41 @@
-/** PropertyBreadcrumb — clickable location-ancestry path, styled like the Admin
- *  LocationBreadcrumb (standard size, tertiary, not bold) and rendered at the top
- *  of the detail surface (desktop right pane / mobile sheet). Tapping the root
- *  resets to all-zones; tapping an ancestor zooms to it. */
-import { Fragment } from 'react'
-import { ChevronRight } from 'lucide-react'
+/** PropertyBreadcrumb — the single "one level up" parent crumb shown above the
+ *  current entity's title in a property detail header. Normalized to mirror the
+ *  Admin drawer header breadcrumb: at most two levels (parent → current), where
+ *  the current entity is the title and this crumb is its immediate parent.
+ *
+ *  The crumb recomputes from the current selection ("replenishes"), so tapping
+ *  it walks the hierarchy up one level at a time — there is no separate back
+ *  chevron (the left-side ⋯ menu mirrors the map overlays instead). */
 import type { LocalPropertyLocation } from '../../Types/PropertyTypes'
 
-/** Walk parent_id root→leaf. Depth-bounded; tolerates cycles/missing rows. */
-export function getPropertyAncestry(
-  locationId: string | null | undefined,
-  locations: LocalPropertyLocation[],
-): LocalPropertyLocation[] {
-  if (!locationId) return []
-  const byId = new Map(locations.map((l) => [l.id, l]))
-  const chain: LocalPropertyLocation[] = []
-  const seen = new Set<string>()
-  let cursor: string | null = locationId
-  let depth = 0
-  while (cursor && depth < 32) {
-    if (seen.has(cursor)) break
-    seen.add(cursor)
-    const node = byId.get(cursor)
-    if (!node) break
-    chain.push(node)
-    cursor = node.parent_id ?? null
-    depth++
-  }
-  return chain.reverse()
-}
-
 interface PropertyBreadcrumbProps {
-  /** Current leaf location (selected zone / open item's location). null = root. */
-  locationId: string | null
+  /** The location one level above the current entity. null → clinic root. */
+  parentId: string | null
   locations: LocalPropertyLocation[]
-  /** Root crumb label (clinic / cluster name). */
+  /** Root crumb label (clinic / cluster name), shown when parentId is null. */
   rootLabel: string
-  /** Navigate to a crumb. null → root (reset zoom). */
+  /** Navigate up to this parent. null → root (reset zoom). */
   onNavigate: (locationId: string | null) => void
-  /** Drop the leaf crumb (when the leaf name is already shown as the host title). */
-  excludeLeaf?: boolean
   className?: string
 }
 
 export function PropertyBreadcrumb({
-  locationId,
+  parentId,
   locations,
   rootLabel,
   onNavigate,
-  excludeLeaf = false,
   className = '',
 }: PropertyBreadcrumbProps) {
-  const full = getPropertyAncestry(locationId, locations)
-  const chain = excludeLeaf ? full.slice(0, -1) : full
-
-  // Single line; the LAST crumb takes remaining width and ellipsizes, earlier
-  // crumbs stay fixed (admin title pattern — "both in the title with …").
-  const lastIdx = chain.length - 1
-  const rootIsLast = chain.length === 0
+  const parent = parentId ? locations.find((l) => l.id === parentId) ?? null : null
+  const label = parent ? parent.name : rootLabel
 
   return (
-    <div className={`flex items-center gap-x-1 text-[10pt] min-w-0 overflow-hidden ${className}`}>
-      <button
-        type="button"
-        onClick={() => onNavigate(null)}
-        className={`${rootIsLast ? 'min-w-0 flex-1 truncate text-left' : 'shrink-0'} text-tertiary hover:text-primary active:scale-95 transition-all`}
-      >
-        {rootLabel}
-      </button>
-      {chain.map((node, idx) => {
-        const isLast = idx === lastIdx
-        // With excludeLeaf every remaining crumb is an ancestor (clickable);
-        // otherwise the last crumb is the current leaf (static).
-        const isCurrent = !excludeLeaf && isLast
-        const sizing = isLast ? 'min-w-0 flex-1 truncate text-left' : 'shrink-0'
-        return (
-          <Fragment key={node.id}>
-            <ChevronRight size={12} className="shrink-0 text-tertiary/40" />
-            {isCurrent ? (
-              <span className={`${sizing} text-secondary`} aria-current="location">{node.name}</span>
-            ) : (
-              <button
-                type="button"
-                onClick={() => onNavigate(node.id)}
-                className={`${sizing} text-tertiary hover:text-primary active:scale-95 transition-all`}
-              >
-                {node.name}
-              </button>
-            )}
-          </Fragment>
-        )
-      })}
-    </div>
+    <button
+      type="button"
+      onClick={() => onNavigate(parent ? parent.id : null)}
+      className={`block max-w-full truncate text-left text-[10pt] text-tertiary hover:text-primary active:scale-95 transition-all ${className}`}
+    >
+      {label}
+    </button>
   )
 }

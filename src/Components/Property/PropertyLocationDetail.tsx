@@ -1,9 +1,10 @@
 import { useRef, useState, useCallback, forwardRef, useImperativeHandle, type RefObject } from 'react'
-import { Pencil, Package, FolderPlus, Camera, X, Trash2, MapPin, Layers, Wrench } from 'lucide-react'
+import { Pencil, Package, FolderPlus, Camera, X, Trash2, MapPin, Layers, Wrench, Route } from 'lucide-react'
 import type { ContextMenuItem } from '../ContextMenu'
 import type { LocalPropertyItem, LocalPropertyLocation, HolderInfo } from '../../Types/PropertyTypes'
 import { PropertyLocationTree } from './PropertyLocationTree'
 import { PmcsSheet } from './PmcsSheet'
+import { DispatchSheet } from './DispatchSheet'
 import { ItemTimeline } from '../Timeline/ItemTimeline'
 
 /** Stable empty holders map for vehicle timelines (no custody/move events). */
@@ -14,6 +15,9 @@ export interface PropertyLocationDetailHandle {
    *  ellipsis (buildLocationMenuItems → onPmcs); the overlay state lives here so
    *  it stays co-located with the subject. No-op for non-vehicle zones. */
   openPmcs: () => void
+  /** Open the vehicle's Dispatch overlay (DA 5982/5987). Same host-ellipsis
+   *  trigger pattern as openPmcs (buildLocationMenuItems → onDispatch). */
+  openDispatch: () => void
 }
 
 interface PropertyLocationDetailProps {
@@ -59,7 +63,11 @@ export const PropertyLocationDetail = forwardRef<PropertyLocationDetailHandle, P
   containerRef,
 }: PropertyLocationDetailProps, ref) {
   const [showPmcs, setShowPmcs] = useState(false)
-  useImperativeHandle(ref, () => ({ openPmcs: () => setShowPmcs(true) }), [])
+  const [showDispatch, setShowDispatch] = useState(false)
+  useImperativeHandle(ref, () => ({
+    openPmcs: () => setShowPmcs(true),
+    openDispatch: () => setShowDispatch(true),
+  }), [])
 
   return (
     <div className="flex flex-col pt-1 pb-2">
@@ -88,6 +96,16 @@ export const PropertyLocationDetail = forwardRef<PropertyLocationDetailHandle, P
           isOpen={showPmcs}
           onClose={() => setShowPmcs(false)}
           subjectType="location"
+          subjectId={location.id}
+          clinicId={location.clinic_id}
+          containerRef={containerRef}
+        />
+      )}
+
+      {location.kind === 'vehicle' && (
+        <DispatchSheet
+          isOpen={showDispatch}
+          onClose={() => setShowDispatch(false)}
           subjectId={location.id}
           clinicId={location.clinic_id}
           containerRef={containerRef}
@@ -129,6 +147,8 @@ export function buildLocationMenuItems(opts: {
   onDelete: () => void
   /** Open the vehicle PMCS (5988) overlay. Shown only for kind='vehicle' zones. */
   onPmcs?: () => void
+  /** Open the vehicle Dispatch (DA 5982/5987) overlay. Shown only for vehicles. */
+  onDispatch?: () => void
 }): ContextMenuItem[] {
   const hasPhoto = !!opts.location.photo_data
   const hasMapLink = !!opts.location.overlay_id
@@ -137,6 +157,9 @@ export function buildLocationMenuItems(opts: {
     { key: 'rename', label: 'Rename', icon: Pencil, onAction: opts.onRename },
     ...(isVehicle && opts.onPmcs
       ? [{ key: 'pmcs', label: 'PMCS', icon: Wrench, onAction: opts.onPmcs } as ContextMenuItem]
+      : []),
+    ...(isVehicle && opts.onDispatch
+      ? [{ key: 'dispatch', label: 'Dispatch', icon: Route, onAction: opts.onDispatch } as ContextMenuItem]
       : []),
     { key: 'new-item', label: 'New item', icon: Package, onAction: opts.onNewItem },
     { key: 'new-area', label: 'New area', icon: FolderPlus, onAction: opts.onNewArea },

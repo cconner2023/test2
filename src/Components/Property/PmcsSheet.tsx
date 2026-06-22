@@ -169,14 +169,14 @@ export function PmcsSheet({ isOpen, onClose, subjectType = 'item', subjectId, cl
     setBusy(true)
     setDocError(null)
 
-    // Encrypt + upload the 6988E first (signal attachment pipeline: random AES key,
+    // Encrypt + upload the 5988E first (signal attachment pipeline: random AES key,
     // ciphertext to the message-attachments bucket, key rides in the encrypted
     // payload below). Abort the record if the upload fails so nothing logs without it.
     let doc: PmcsDoc | undefined
     if (docFile && userId) {
       const up = await uploadEncryptedAttachment(userId, docFile)
       if (!up.ok) {
-        logger.warn('6988E upload failed:', up.error)
+        logger.warn('5988E upload failed:', up.error)
         setDocError('Could not upload the document — try again.')
         setBusy(false)
         return
@@ -229,14 +229,14 @@ export function PmcsSheet({ isOpen, onClose, subjectType = 'item', subjectId, cl
     setBusy(false)
   }
 
-  // Open an attached 6988E: pull the ciphertext, decrypt with the key from the
+  // Open an attached 5988E: pull the ciphertext, decrypt with the key from the
   // (already-decrypted) payload, and open the file in a new tab.
   const openDoc = async (doc: PmcsDoc) => {
     if (busy) return
     setBusy(true)
     const res = await downloadDecryptedAttachment(doc.path, doc.key)
     setBusy(false)
-    if (!res.ok) { logger.warn('6988E download failed:', res.error); return }
+    if (!res.ok) { logger.warn('5988E download failed:', res.error); return }
     const blob = doc.mime ? new Blob([res.data], { type: doc.mime }) : res.data
     const url = URL.createObjectURL(blob)
     window.open(url, '_blank')
@@ -306,7 +306,7 @@ export function PmcsSheet({ isOpen, onClose, subjectType = 'item', subjectId, cl
         </button>
       </div>
 
-      {/* Attach a 6988E worksheet — encrypted client-side into the attachment
+      {/* Attach a 5988E worksheet — encrypted client-side into the attachment
           bucket on submit; the key rides in the encrypted PMCS payload. */}
       <input
         ref={fileInputRef}
@@ -346,7 +346,7 @@ export function PmcsSheet({ isOpen, onClose, subjectType = 'item', subjectId, cl
           <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-themeblue3/10 text-themeblue2">
             <Paperclip size={14} />
           </div>
-          <span className="flex-1 min-w-0 text-sm font-medium text-secondary">Attach 6988E</span>
+          <span className="flex-1 min-w-0 text-sm font-medium text-secondary">Attach 5988E</span>
         </button>
       )}
       {docError && <p className="px-4 pb-2 text-[9pt] font-medium text-themeredred">{docError}</p>}
@@ -465,7 +465,7 @@ export function PmcsSheet({ isOpen, onClose, subjectType = 'item', subjectId, cl
                       onClick={() => openDoc(doc)}
                       disabled={busy}
                       className="shrink-0 w-8 h-8 rounded-full bg-themeblue3/8 flex items-center justify-center active:scale-95 transition-all disabled:opacity-40"
-                      aria-label="View 6988E"
+                      aria-label="View 5988E"
                     >
                       <FileText size={13} className="text-themeblue2" />
                     </button>

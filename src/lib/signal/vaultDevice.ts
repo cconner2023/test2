@@ -869,7 +869,17 @@ export async function processVaultMessages(userId: string): Promise<number> {
           ? vaultKeys.signedPreKey
           : vaultKeys.previousSignedPreKeys.find(s => s.keyId === initial.signedPreKeyId)
         if (!matchedSpk) {
-          logger.warn(`Vault SPK ${initial.signedPreKeyId} not found (current or previous) — skipping row ${row.id}`)
+          // The referenced signed pre-key has rotated OUT of the vault blob
+          // (previousSignedPreKeys is bounded; SPKs are only ever removed,
+          // never re-added), so this row can NEVER decrypt on any future drain.
+          // Consume it — same dead-row treatment as the OperationError branch in
+          // the per-row catch below — so it stops re-warning on every login.
+          // processedCount++ ensures a drain made up ENTIRELY of these rows still
+          // trips the caller's `drainCount > 0` gate → createBackup → ackVaultDrain.
+          // Content (if any) is recoverable from backup-service history.
+          logger.warn(`Vault SPK ${initial.signedPreKeyId} not found (current or previous) — consuming row ${row.id}`)
+          processedIds.push(row.id)
+          processedCount++
           continue
         }
         const spkPair = {

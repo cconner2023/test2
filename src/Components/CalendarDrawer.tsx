@@ -404,8 +404,9 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
                         anchorRect={null}
                         title="Calendar Settings"
                         maxWidth={360}
+                        previewMaxHeight="70dvh"
                     >
-                        <div data-tour="calendar-controls-drawer" className="max-h-[70vh] overflow-y-auto">
+                        <div data-tour="calendar-controls-drawer">
                             {layoutSection}
                         </div>
                     </PreviewOverlay>

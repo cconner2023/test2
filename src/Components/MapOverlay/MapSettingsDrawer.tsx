@@ -174,6 +174,7 @@ export function MapSettingsDrawer({
       anchorRect={null}
       title="Map Settings"
       maxWidth={380}
+      previewMaxHeight="70dvh"
     >
       <MapSettingsBody showGrid={showGrid} onToggleGrid={onToggleGrid} />
     </PreviewOverlay>

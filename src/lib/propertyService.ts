@@ -443,7 +443,7 @@ export async function correctFault(
 }
 
 /**
- * An attached 6988E worksheet. The file is encrypted client-side into the
+ * An attached 5988E worksheet. The file is encrypted client-side into the
  * message-attachments bucket via uploadEncryptedAttachment; `key` is the random
  * AES key the recipient needs to decrypt it (rides in the encrypted payload, so
  * the server never sees the plaintext file). No PHI — equipment maintenance.
@@ -457,12 +457,35 @@ export interface PmcsDoc {
 
 /**
  * What a PMCS check submits beyond its separately-emitted faults: vehicle intake
- * readings (mileage, fuel) and/or an attached 6988E worksheet. All optional; no PHI.
+ * readings (mileage, fuel) and/or an attached 5988E worksheet. All optional; no PHI.
  */
 export interface PmcsReadings {
   mileage?: number
   fuelLevel?: number
   doc?: PmcsDoc
+}
+
+/**
+ * What opening a vehicle dispatch records. `exp_date` (ISO date) is when the
+ * dispatch authorization expires — the single date driving the expiring/expired
+ * fold and the calendar entry. `doc` is the encrypted DA 5982/5987 dispatch form
+ * (reuses PmcsDoc + the attachment pipeline). odo_out/note optional. No PHI.
+ */
+export interface DispatchOpenInput {
+  exp_date: string
+  doc?: PmcsDoc
+  note?: string
+  odo_out?: number
+}
+
+/** What closing (returning) a dispatch records. `dispatches` = the dispatch.opened
+ *  event id this return closes; the opened event is left intact for the history. */
+export interface DispatchCloseInput {
+  dispatches: string
+  returned_at: string
+  doc?: PmcsDoc
+  note?: string
+  odo_in?: number
 }
 
 /**
@@ -492,7 +515,7 @@ export async function recordPmcs(
       {
         clinicId, actorId: userId, domain: 'property',
         eventType: 'pmcs.clear', subjectType, subjectId,
-        // readings / 6988E ride in the encrypted payload; null keeps it spine-only.
+        // readings / 5988E ride in the encrypted payload; null keeps it spine-only.
         payload: hasContent ? payload : null,
       },
       userId,
@@ -542,6 +565,79 @@ export async function deletePmcsEntry(eventId: string, userId: string): Promise<
     // must run AFTER the delete lands — otherwise the read-through cache re-fetches
     // and re-persists the still-present server row, resurrecting the entry.
     await immediateSync(userId)
+    return succeed()
+  } catch (err) {
+    return fail(String(err))
+  }
+}
+
+/**
+ * Put a vehicle on dispatch. Emits an append-only `dispatch.opened` event on the
+ * vehicle location (subjectType='location'); the exp date / odometer / dispatch
+ * form ride in the encrypted payload (operational, no PHI). The current dispatch
+ * is the open `dispatch.opened` with no matching `dispatch.closed`, folded
+ * client-side. Returns the event id so a later return can point back at it.
+ */
+export async function openDispatch(
+  subjectId: string,
+  clinicId: string,
+  userId: string,
+  input: DispatchOpenInput,
+): Promise<ServiceResult<{ dispatchId: string }>> {
+  try {
+    const payload: Record<string, unknown> = { exp_date: input.exp_date }
+    if (input.doc) payload.doc = input.doc
+    if (input.note) payload.note = input.note
+    if (input.odo_out != null) payload.odo_out = input.odo_out
+
+    const event = await emitAudit(
+      {
+        clinicId, actorId: userId, domain: 'property',
+        eventType: 'dispatch.opened', subjectType: 'location', subjectId,
+        payload,
+      },
+      userId,
+    )
+    if (!event) return fail('Could not open dispatch')
+
+    immediateSync(userId)
+    return succeed({ dispatchId: event.id })
+  } catch (err) {
+    return fail(String(err))
+  }
+}
+
+/**
+ * Close (return) an open dispatch. Emits a `dispatch.closed` event whose payload
+ * points back at the opened event's id via `dispatches`, so the timeline pairs
+ * dispatched→returned. The opened event is left intact (full history preserved).
+ */
+export async function closeDispatch(
+  subjectId: string,
+  clinicId: string,
+  userId: string,
+  input: DispatchCloseInput,
+): Promise<ServiceResult> {
+  try {
+    const payload: Record<string, unknown> = {
+      dispatches: input.dispatches,
+      returned_at: input.returned_at,
+    }
+    if (input.doc) payload.doc = input.doc
+    if (input.note) payload.note = input.note
+    if (input.odo_in != null) payload.odo_in = input.odo_in
+
+    const event = await emitAudit(
+      {
+        clinicId, actorId: userId, domain: 'property',
+        eventType: 'dispatch.closed', subjectType: 'location', subjectId,
+        payload,
+      },
+      userId,
+    )
+    if (!event) return fail('Could not close dispatch')
+
+    immediateSync(userId)
     return succeed()
   } catch (err) {
     return fail(String(err))

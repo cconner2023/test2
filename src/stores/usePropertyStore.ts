@@ -33,12 +33,14 @@ import {
   recordPmcs as recordPmcsSvc,
   editPmcsEntry as editPmcsEntrySvc,
   deletePmcsEntry as deletePmcsEntrySvc,
+  openDispatch as openDispatchSvc,
+  closeDispatch as closeDispatchSvc,
   signOutItems,
   signInReceipt,
   fetchClinicLedger,
 } from '../lib/propertyService'
 import type { CustodyLedgerEntry } from '../Types/PropertyTypes'
-import type { PmcsReadings } from '../lib/propertyService'
+import type { PmcsReadings, DispatchOpenInput, DispatchCloseInput } from '../lib/propertyService'
 import { setupConnectivityListeners, healStuckPendingRecords } from '../lib/syncService'
 import { getLocalPropertyItems, getLocalPropertyLocations } from '../lib/offlineDb'
 import { invalidate, useInvalidationStore } from './useInvalidationStore'
@@ -114,8 +116,14 @@ interface PropertyState {
   /** Edit a PMCS history entry in place — `payload` is the full new event payload
    *  ({ description } for a fault, { corrects, note } for a correction). */
   editPmcsEntry: (eventId: string, payload: Record<string, unknown>) => Promise<boolean>
-  /** Delete a PMCS history entry (fault / correction / clean check). */
+  /** Delete a PMCS history entry (fault / correction / clean check). Also used
+   *  for dispatch history rows (generic audit edit/delete by event id). */
   deletePmcsEntry: (eventId: string) => Promise<boolean>
+  /** Put a vehicle on dispatch (DA 5982/5987). Resolves to the dispatch.opened
+   *  event id (so a later return can close it) or null. */
+  openDispatch: (subjectId: string, input: DispatchOpenInput) => Promise<string | null>
+  /** Close (return) an open dispatch — `input.dispatches` is the opened event id. */
+  closeDispatch: (subjectId: string, input: DispatchCloseInput) => Promise<boolean>
 }
 
 let cleanupListeners: (() => void) | null = null
@@ -333,6 +341,26 @@ export const usePropertyStore = create<PropertyState>((set, get) => ({
     if (!user) return false
 
     const result = await deletePmcsEntrySvc(eventId, user.id)
+    if (result.success) invalidate('properties')
+    return result.success
+  },
+
+  openDispatch: async (subjectId, input) => {
+    const user = useAuthStore.getState().user
+    const clinicId = get().clinicId
+    if (!user || !clinicId) return null
+
+    const result = await openDispatchSvc(subjectId, clinicId, user.id, input)
+    if (result.success) invalidate('properties')
+    return result.success ? result.dispatchId : null
+  },
+
+  closeDispatch: async (subjectId, input) => {
+    const user = useAuthStore.getState().user
+    const clinicId = get().clinicId
+    if (!user || !clinicId) return false
+
+    const result = await closeDispatchSvc(subjectId, clinicId, user.id, input)
     if (result.success) invalidate('properties')
     return result.success
   },

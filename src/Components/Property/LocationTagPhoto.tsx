@@ -11,6 +11,8 @@
 import { memo } from 'react'
 import { traceCompositeOutline } from '../../lib/tagIndex'
 import type { LocationTag, LocalPropertyItem, ZoneRect } from '../../Types/PropertyTypes'
+import { DispatchDot } from './DispatchDot'
+import type { DispatchStatus } from '../../lib/dispatchFold'
 
 interface LocationTagPhotoProps {
   tags: LocationTag[]
@@ -23,6 +25,9 @@ interface LocationTagPhotoProps {
   items?: LocalPropertyItem[]
   /** Called when an item pin is tapped */
   onItemTap?: (item: LocalPropertyItem) => void
+  /** target_id (vehicle location id) → current open-dispatch status, for the
+   *  expiring/expired red-dot on the zone tile. Vehicles only; absent = no dot. */
+  dispatchStatusByLocation?: Map<string, DispatchStatus>
 }
 
 /** SVG composite shape — uniform fill + outer contour, no overlap darkening */
@@ -112,6 +117,7 @@ export const LocationTagPhoto = memo(function LocationTagPhoto({
   photoMap,
   items,
   onItemTap,
+  dispatchStatusByLocation,
 }: LocationTagPhotoProps) {
   const zones = tags.filter((t) => (t.width ?? 0) > 0 && (t.height ?? 0) > 0)
   const itemPins = tags.filter((t) => t.target_type === 'item')
@@ -194,13 +200,16 @@ export const LocationTagPhoto = memo(function LocationTagPhoto({
               <div className="absolute inset-0 bg-themeyellow/20 pointer-events-none" />
             )}
             <div className="absolute inset-0 flex flex-col items-center justify-center p-1 gap-0.5 overflow-hidden">
-              <span
-                className={['text-[10pt] font-medium text-center leading-tight line-clamp-2 pointer-events-none', !photo ? 'text-primary' : ''].join(' ')}
-                style={photo
-                  ? { color: 'white', textShadow: '0 1px 3px rgba(0,0,0,0.9), 0 0 8px rgba(0,0,0,0.6)' }
-                  : undefined}
-              >
-                {tag.label}
+              <span className="flex items-center gap-1 max-w-full">
+                <span
+                  className={['text-[10pt] font-medium text-center leading-tight line-clamp-2 pointer-events-none', !photo ? 'text-primary' : ''].join(' ')}
+                  style={photo
+                    ? { color: 'white', textShadow: '0 1px 3px rgba(0,0,0,0.9), 0 0 8px rgba(0,0,0,0.6)' }
+                    : undefined}
+                >
+                  {tag.label}
+                </span>
+                <DispatchDot status={dispatchStatusByLocation?.get(tag.target_id)} />
               </span>
               {zoneItemCount > 0 && (
                 <span className={[

@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useRef, forwardRef, useImperativeHandle } from 'react'
-import { ChevronRight, Pencil, Trash2, Map as MapIcon, FolderPlus, PackagePlus, FolderClosed, User, MoreHorizontal, Eye, Truck } from 'lucide-react'
+import { ChevronRight, Pencil, Trash2, Map as MapIcon, FolderPlus, PackagePlus, FolderClosed, User, MoreHorizontal, Eye } from 'lucide-react'
 import { EmptyState } from '../EmptyState'
 import { Section, SectionCard } from '../Section'
 import { type ContextMenuItem } from '../ContextMenu'
@@ -7,6 +7,8 @@ import { LiftedRowMenu } from '../LiftedRowMenu'
 import { ListItemRow } from '../ListItemRow'
 import type { LocalPropertyLocation, LocalPropertyItem, HolderInfo } from '../../Types/PropertyTypes'
 import { expiryStatus } from '../../Types/PropertyTypes'
+import { useVehicleDispatches } from '../../Hooks/useVehicleDispatches'
+import { DispatchDot } from './DispatchDot'
 
 export type PropertySearchFilter = 'all' | 'item' | 'assigned' | 'location' | 'description'
 const SEARCH_FILTERS: { key: PropertySearchFilter; label: string }[] = [
@@ -71,6 +73,8 @@ export const PropertyLocationList = forwardRef<PropertyLocationListHandle, Prope
   onOpenLocation,
 }, ref) {
   const [path, setPath] = useState<DrilldownSegment[]>([])
+  // Current open dispatches per vehicle → the row red-dot (expiring/expired).
+  const dispatches = useVehicleDispatches(locations[0]?.clinic_id ?? null)
   const [contextMenu, setContextMenu] = useState<{ kind: 'location' | 'item'; id: string; rect: DOMRect } | null>(null)
   const longPressRef = useRef<number | null>(null)
   const longPressPreventTap = useRef(false)
@@ -311,13 +315,14 @@ export const PropertyLocationList = forwardRef<PropertyLocationListHandle, Prope
         <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${isMember ? 'bg-themeblue3/10' : 'bg-tertiary/8'}`}>
           {isMember
             ? <User size={18} className="text-themeblue2" />
-            : loc.kind === 'vehicle'
-              ? <Truck size={18} className="text-tertiary" />
-              : <FolderClosed size={18} className="text-tertiary" />
+            : <FolderClosed size={18} className="text-tertiary" />
           }
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-primary truncate">{loc.name}</p>
+          <div className="flex items-center gap-1.5 min-w-0">
+            <p className="text-sm font-medium text-primary truncate">{loc.name}</p>
+            {loc.kind === 'vehicle' && <DispatchDot status={dispatches.get(loc.id)?.status} />}
+          </div>
           {count > 0 && (
             <p className="text-[10pt] text-tertiary mt-0.5">{count} item{count !== 1 ? 's' : ''}</p>
           )}

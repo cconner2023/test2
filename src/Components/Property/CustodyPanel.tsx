@@ -6,11 +6,10 @@ import {
   FileText,
   RotateCcw,
 } from 'lucide-react'
-import { useHandReceipts, type ReceiptItem } from '../../Hooks/useHandReceipts'
+import type { ReceiptItem, HandReceiptData } from '../../Hooks/useHandReceipts'
 import { useHandReceiptActions } from '../../Hooks/useHandReceiptActions'
 import { PdfPreviewModal } from '../PdfPreviewModal'
 import { ConfirmDialog } from '../ConfirmDialog'
-import { SearchInput } from '../SearchInput'
 import type { HandReceipt } from '../../Types/PropertyTypes'
 
 /** Short, human date for the receipt rows (chronological, newest first). */
@@ -20,20 +19,37 @@ function formatDate(iso: string): string {
 
 interface CustodyPanelProps {
   clinicId: string
+  /** Hand-receipt data — lifted to PropertyPanel so this tab and the unified
+   *  search overlay share one fetch. */
+  receipts: HandReceiptData['receipts']
+  itemsById: HandReceiptData['itemsById']
+  locationNameById: HandReceiptData['locationNameById']
+  membersById: HandReceiptData['membersById']
+  loading: HandReceiptData['loading']
+  refetch: HandReceiptData['refetch']
   /** Fly the map to a signed-out item's usual zone and surface it ("target the equipment"). */
   onLocateItem: (item: ReceiptItem) => void
 }
 
 /**
- * Custody tab — the DA 2062 hand receipts as their own searchable tree, the
- * sibling of the List (locations) tab. Two groups, "Signed Out" (open receipts)
- * and "History" (returned). Deliberately icon-light and count-free: a receipt is
- * just recipient + date, expanding inline to its items + Print 2062 / Sign in.
- * Mirrors the Settings AccountabilityPanel data; shares the reprint / sign-in
- * lifecycle via useHandReceiptActions.
+ * Custody tab — the DA 2062 hand receipts as their own tree, the sibling of the
+ * List (locations) tab. Two groups, "Signed Out" (open receipts) and "History"
+ * (returned). Deliberately icon-light and count-free: a receipt is just recipient
+ * + date, expanding inline to its items + Print 2062 / Sign in. SEARCH is NOT here
+ * — it lives in the single property header search (PropertySearchOverlay), which
+ * folds receipts in as a "Sign-outs" section. Shares the reprint / sign-in
+ * lifecycle via useHandReceiptActions; data is supplied by the parent.
  */
-export function CustodyPanel({ clinicId, onLocateItem }: CustodyPanelProps) {
-  const { receipts, itemsById, locationNameById, membersById, loading, refetch } = useHandReceipts(clinicId)
+export function CustodyPanel({
+  clinicId,
+  receipts,
+  itemsById,
+  locationNameById,
+  membersById,
+  loading,
+  refetch,
+  onLocateItem,
+}: CustodyPanelProps) {
   const {
     reprint,
     pendingSignIn,
@@ -45,12 +61,8 @@ export function CustodyPanel({ clinicId, onLocateItem }: CustodyPanelProps) {
     clearDA2062Preview,
   } = useHandReceiptActions({ clinicId, itemsById, membersById, refetch })
 
-  const [query, setQuery] = useState('')
-  const q = query.trim().toLowerCase()
-  const isSearching = q.length > 0
-
   // Group keys: '__signed_out__' (default expanded), '__history__' (default
-  // collapsed), plus each receipt's handReceiptId. Searching force-expands.
+  // collapsed), plus each receipt's handReceiptId.
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set(['__signed_out__']))
   const toggle = useCallback((key: string) => {
     setExpanded((prev) => {
@@ -61,34 +73,17 @@ export function CustodyPanel({ clinicId, onLocateItem }: CustodyPanelProps) {
     })
   }, [])
 
-  const matches = useCallback(
-    (r: HandReceipt) => {
-      if (!isSearching) return true
-      if (r.recipientLabel.toLowerCase().includes(q)) return true
-      return r.entries.some((e) => {
-        const item = itemsById.get(e.item_id)
-        return (
-          !!item?.name?.toLowerCase().includes(q) ||
-          !!item?.serial_number?.toLowerCase().includes(q) ||
-          !!item?.nsn?.toLowerCase().includes(q)
-        )
-      })
-    },
-    [isSearching, q, itemsById],
-  )
-
   const { outstanding, history } = useMemo(() => {
     const outstanding: HandReceipt[] = []
     const history: HandReceipt[] = []
     for (const r of receipts) {
-      if (!matches(r)) continue
       ;(r.status === 'returned' ? history : outstanding).push(r)
     }
     return { outstanding, history }
-  }, [receipts, matches])
+  }, [receipts])
 
   const renderReceipt = (r: HandReceipt) => {
-    const open = isSearching || expanded.has(r.handReceiptId)
+    const open = expanded.has(r.handReceiptId)
     const returned = r.status === 'returned'
     return (
       <div key={r.handReceiptId}>
@@ -174,19 +169,11 @@ export function CustodyPanel({ clinicId, onLocateItem }: CustodyPanelProps) {
     )
   }
 
-  const signedOutOpen = isSearching || expanded.has('__signed_out__')
-  const historyOpen = isSearching || expanded.has('__history__')
+  const signedOutOpen = expanded.has('__signed_out__')
+  const historyOpen = expanded.has('__history__')
 
   return (
     <div className="flex flex-col h-full">
-      <div className="shrink-0 px-3 pt-2 pb-1">
-        <SearchInput
-          value={query}
-          onChange={setQuery}
-          placeholder="Search receipts, recipients, serials"
-        />
-      </div>
-
       <div className="flex-1 min-h-0 overflow-y-auto py-1">
         {/* Signed Out — always shown so an empty list reads as "all in". */}
         <div
@@ -207,7 +194,7 @@ export function CustodyPanel({ clinicId, onLocateItem }: CustodyPanelProps) {
             outstanding.map(renderReceipt)
           ) : (
             <p className="text-[9pt] text-tertiary italic py-1.5" style={{ paddingLeft: '36px' }}>
-              {loading ? 'Loading…' : isSearching ? 'No matches.' : 'Nothing signed out.'}
+              {loading ? 'Loading…' : 'Nothing signed out.'}
             </p>
           )
         )}

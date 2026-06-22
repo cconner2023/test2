@@ -12,6 +12,8 @@ import { SwipeActionsSection } from './Settings/SwipeActionsSection'
 import { MessagesPanel, type MessagesView, type MessagesPanelHandle, type MessagingLens } from './Settings/MessagesPanel'
 import { useMessagesContext } from '../Hooks/MessagesContext'
 import { useAuth } from '../Hooks/useAuth'
+import { useBetaBypass } from '../lib/betaFeatures'
+import { prewarmMessagingSettings } from '../lib/messagingSettingsWarm'
 import { useUserProfile } from '../Hooks/useUserProfile'
 import { useIsMobile } from '../Hooks/useIsMobile'
 import { useCallActions } from '../Hooks/CallContext'
@@ -46,8 +48,19 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
 
     const messagesCtx = useMessagesContext()
     const activePeerRef = messagesCtx?.activePeerRef ?? null
-    const { user } = useAuth()
+    const { user, clinicId: assignedClinicId, supervisingClinicId, isSupervisorRole } = useAuth()
+    const outsideCallBeta = useBetaBypass('outsideCall')
+    const settingsClinicId = supervisingClinicId ?? assignedClinicId
     const { profile } = useUserProfile()
+
+    // Pre-warm the settings popover's reads (outside-contact status, on-call
+    // roster, and — for supervisors — the intake credential) the moment the
+    // drawer mounts, so the gear opens to a fully-painted card instead of a
+    // blank frame while those fetches resolve. See messagingSettingsWarm.ts.
+    useEffect(() => {
+        if (!isVisible || !settingsClinicId) return
+        void prewarmMessagingSettings(settingsClinicId, isSupervisorRole || outsideCallBeta)
+    }, [isVisible, settingsClinicId, isSupervisorRole, outsideCallBeta])
     const panelRef = useRef<MessagesPanelHandle>(null)
     const isMobile = useIsMobile()
     const tourCtx = useTourContext()
@@ -216,8 +229,9 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
             anchorRect={null}
             title="Messaging settings"
             maxWidth={360}
+            previewMaxHeight="70dvh"
         >
-            <div className="px-5 py-4 max-h-[70vh] overflow-y-auto space-y-6">
+            <div className="px-5 py-4 space-y-6">
                 <MessagingOncallSettings />
                 <SwipeActionsSection />
                 <IncomingCallsSection />

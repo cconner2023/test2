@@ -21,6 +21,7 @@ import {
   getEventIntakeCredential,
   type IntakeCredentialMetadata,
 } from '../../lib/eventIntakeService'
+import { getWarmCredential, setWarmCredential } from '../../lib/messagingSettingsWarm'
 import { enableOncall, disableOncall, enableOutsideMessaging, disableOutsideMessaging, enableIntake, disableIntake } from '../../lib/oncallService'
 import { ToggleSwitch } from './ToggleSwitch'
 import { OncallGreetingRow } from './OncallGreetingRow'
@@ -80,8 +81,11 @@ function generatePassphrase(): string {
 export function IntakeMintSection({ clinicId, oncallCount = 0, onOncallEnabledChange }: IntakeMintSectionProps) {
   const { isSupervisorRole } = useAuth()
   const outsideCallBeta = useBetaBypass('outsideCall')
-  const [credential, setCredential] = useState<IntakeCredentialMetadata | null>(null)
-  const [loading, setLoading] = useState(true)
+  // Seed from the warm cache so a pre-warmed open paints immediately. `undefined`
+  // = cache miss → show the loading gate as before; a cached value (incl. null)
+  // means we already know the credential and skip the blank frame.
+  const [credential, setCredential] = useState<IntakeCredentialMetadata | null>(() => getWarmCredential(clinicId) ?? null)
+  const [loading, setLoading] = useState(() => getWarmCredential(clinicId) === undefined)
   const [busy, setBusy] = useState(false)
   const [oncallBusy, setOncallBusy] = useState(false)
   const [msgBusy, setMsgBusy] = useState(false)
@@ -121,6 +125,7 @@ export function IntakeMintSection({ clinicId, oncallCount = 0, onOncallEnabledCh
       const res = await getEventIntakeCredential(clinicId)
       if (res.ok) {
         setCredential(res.data)
+        setWarmCredential(clinicId, res.data)
         setLoadError(null)
       } else {
         // "no active cluster invite" surfaces as an inline note in the empty
@@ -133,7 +138,13 @@ export function IntakeMintSection({ clinicId, oncallCount = 0, onOncallEnabledCh
     }
   }, [clinicId])
 
-  useEffect(() => { refresh() }, [refresh])
+  // Reconcile on mount. When the cache was already warm, do it SILENTLY (no
+  // loading flip) so the seeded card never blanks; a cold mount loads loudly.
+  useEffect(() => {
+    const warm = getWarmCredential(clinicId)
+    if (warm !== undefined) setCredential(warm)
+    void refresh(warm !== undefined)
+  }, [refresh, clinicId])
 
   // Surface on-call-roster relevance to the parent so the personnel roster renders
   // per-member on-call toggles whenever an outside channel that pings on-call is

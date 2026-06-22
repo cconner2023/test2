@@ -1,10 +1,12 @@
 import { useState, useMemo, useCallback } from 'react'
-import { ChevronRight, ChevronDown, Pencil, Trash2, Eye, FolderPlus, PackagePlus, MoreHorizontal, FolderClosed, Layers, Truck } from 'lucide-react'
+import { ChevronRight, ChevronDown, Pencil, Trash2, Eye, FolderPlus, PackagePlus, MoreHorizontal, FolderClosed, Layers } from 'lucide-react'
 import { type ContextMenuItem } from '../ContextMenu'
 import { LiftedRowMenu } from '../LiftedRowMenu'
 import type { LocalPropertyLocation, LocalPropertyItem, HolderInfo } from '../../Types/PropertyTypes'
 import { expiryStatus } from '../../Types/PropertyTypes'
 import { isStructuralZone } from './levelUtils'
+import { useVehicleDispatches } from '../../Hooks/useVehicleDispatches'
+import { DispatchDot } from './DispatchDot'
 
 interface PropertyLocationTreeProps {
   locations: LocalPropertyLocation[]
@@ -68,6 +70,8 @@ export function PropertyLocationTree({
   onAddItemAtLocation,
 }: PropertyLocationTreeProps) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
+  // Current open dispatches per vehicle → the row red-dot (expiring/expired).
+  const dispatches = useVehicleDispatches(locations[0]?.clinic_id ?? null)
   const [contextMenu, setContextMenu] = useState<{ kind: 'location' | 'item'; id: string; rect: DOMRect } | null>(null)
 
   // Open the lifted row menu anchored to a row element's bounding rect.
@@ -279,10 +283,10 @@ export function PropertyLocationTree({
             onClick={() => onSelectLocation(node.location)}
             onKeyDown={(e) => { if (e.key === 'Enter') onSelectLocation(node.location) }}
           >
-            {node.location.kind === 'vehicle' && (
-              <Truck size={14} className="text-tertiary shrink-0" />
-            )}
             <span className="text-[10pt] font-medium text-primary truncate">{node.location.name}</span>
+            {node.location.kind === 'vehicle' && (
+              <DispatchDot status={dispatches.get(node.location.id)?.status} />
+            )}
           </div>
 
           {/* Row actions — ellipsis menu */}
