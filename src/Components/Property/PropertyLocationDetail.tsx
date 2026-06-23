@@ -1,5 +1,5 @@
 import { useRef, useState, useCallback, forwardRef, useImperativeHandle, type RefObject } from 'react'
-import { Pencil, Package, FolderPlus, Camera, X, Trash2, MapPin, Layers, Wrench, Route } from 'lucide-react'
+import { Pencil, Package, FolderPlus, Camera, X, Trash2, Layers, Wrench, Route } from 'lucide-react'
 import type { ContextMenuItem } from '../ContextMenu'
 import type { LocalPropertyItem, LocalPropertyLocation, HolderInfo } from '../../Types/PropertyTypes'
 import { PropertyLocationTree } from './PropertyLocationTree'
@@ -35,8 +35,10 @@ interface PropertyLocationDetailProps {
   onDeleteItem?: (item: LocalPropertyItem) => void
   onAddChildLocation?: (parentId: string | null) => void
   onAddItemAtLocation?: (locationId: string | null) => void
-  /** Desktop only — the right-pane element the vehicle PMCS PreviewOverlay scopes to. */
-  containerRef?: RefObject<HTMLElement | null>
+  /** The whole property drawer element the vehicle PMCS / Dispatch PreviewOverlays
+   *  scope to (dim/center over the entire drawer, not just the pane). Null on mobile
+   *  → the overlays float fixed, auto-stacked above the detail sheet. */
+  drawerRef?: RefObject<HTMLElement | null>
 }
 
 /**
@@ -60,7 +62,7 @@ export const PropertyLocationDetail = forwardRef<PropertyLocationDetailHandle, P
   onDeleteItem,
   onAddChildLocation,
   onAddItemAtLocation,
-  containerRef,
+  drawerRef,
 }: PropertyLocationDetailProps, ref) {
   const [showPmcs, setShowPmcs] = useState(false)
   const [showDispatch, setShowDispatch] = useState(false)
@@ -98,7 +100,7 @@ export const PropertyLocationDetail = forwardRef<PropertyLocationDetailHandle, P
           subjectType="location"
           subjectId={location.id}
           clinicId={location.clinic_id}
-          containerRef={containerRef}
+          containerRef={drawerRef}
         />
       )}
 
@@ -108,7 +110,7 @@ export const PropertyLocationDetail = forwardRef<PropertyLocationDetailHandle, P
           onClose={() => setShowDispatch(false)}
           subjectId={location.id}
           clinicId={location.clinic_id}
-          containerRef={containerRef}
+          containerRef={drawerRef}
         />
       )}
 
@@ -134,7 +136,7 @@ export const PropertyLocationDetail = forwardRef<PropertyLocationDetailHandle, P
 export function buildLocationMenuItems(opts: {
   location: LocalPropertyLocation
   canDelete: boolean
-  onRename: () => void
+  onEdit: () => void
   onNewItem: () => void
   onNewArea: () => void
   /** Add a building floor (kind='level') to this zone. Shown only when canAddLevel. */
@@ -143,7 +145,6 @@ export function buildLocationMenuItems(opts: {
   canAddLevel?: boolean
   onPhoto: () => void
   onRemovePhoto: () => void
-  onLinkMap: () => void
   onDelete: () => void
   /** Open the vehicle PMCS (5988) overlay. Shown only for kind='vehicle' zones. */
   onPmcs?: () => void
@@ -151,10 +152,9 @@ export function buildLocationMenuItems(opts: {
   onDispatch?: () => void
 }): ContextMenuItem[] {
   const hasPhoto = !!opts.location.photo_data
-  const hasMapLink = !!opts.location.overlay_id
   const isVehicle = opts.location.kind === 'vehicle'
   return [
-    { key: 'rename', label: 'Rename', icon: Pencil, onAction: opts.onRename },
+    { key: 'edit', label: 'Edit', icon: Pencil, onAction: opts.onEdit },
     ...(isVehicle && opts.onPmcs
       ? [{ key: 'pmcs', label: 'PMCS', icon: Wrench, onAction: opts.onPmcs } as ContextMenuItem]
       : []),
@@ -166,7 +166,6 @@ export function buildLocationMenuItems(opts: {
     ...(opts.canAddLevel && opts.onAddLevel
       ? [{ key: 'add-level', label: 'Add level', icon: Layers, onAction: opts.onAddLevel } as ContextMenuItem]
       : []),
-    { key: 'link-map', label: hasMapLink ? 'Map link' : 'Link to map', icon: MapPin, onAction: opts.onLinkMap },
     { key: 'photo', label: hasPhoto ? 'Change photo' : 'Add photo', icon: Camera, onAction: opts.onPhoto },
     ...(hasPhoto ? [{ key: 'remove-photo', label: 'Remove photo', icon: X, onAction: opts.onRemovePhoto } as ContextMenuItem] : []),
     ...(opts.canDelete ? [{ key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: opts.onDelete } as ContextMenuItem] : []),

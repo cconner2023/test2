@@ -132,7 +132,7 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, 
       const snap = canExportConop
         ? await renderConopMapSnapshot({
             features: conopGeometry.features,
-            overlayId: conopGeometry.overlayId,
+            overlayIds: conopGeometry.overlayIds,
             theme: getTileTheme(themeName, theme),
             width: 1040,
             height: 980,
@@ -254,13 +254,15 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, 
                 </div>
               </HeaderPill>
             ) : <div />}
+            {/* Title-in-header read affordance (mirrors the map overlay header). */}
+            <h2 className="min-w-0 flex-1 px-2 text-sm font-semibold text-primary truncate text-center">{event.title}</h2>
             <HeaderPill>
               <PillButton icon={X} iconSize={16} onClick={onClose} label="Close" />
             </HeaderPill>
           </>
         ) : (
           <>
-            <div />
+            <h2 className="min-w-0 flex-1 mr-2 text-sm font-semibold text-primary truncate">{event.title}</h2>
             <HeaderPill>
               {moreItems.length > 0 && (
                 <div ref={moreBtnRef}>
@@ -276,8 +278,6 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, 
       <div className={`${inSheet ? '' : 'flex-1 overflow-y-auto'} ${isMobile ? 'px-4 py-4 space-y-4' : 'px-3 py-3 space-y-3'}`}>
         {/* Event read-out */}
         <div className="space-y-3">
-          <h2 className="text-sm font-semibold text-primary">{event.title}</h2>
-
           <Wrapper className="divide-y divide-themeblue3/10">
             <div className={rowPad}>
               <SectionHeader>Date</SectionHeader>
@@ -542,38 +542,46 @@ function gatherLinkedGeometry(
   event: CalendarEvent,
   overlays: LocalMapOverlay[],
   roomAnchor?: { overlay_id: string; overlay_feature_id: string | null },
-): { features: OverlayFeature[]; overlayId?: string } {
+): { features: OverlayFeature[]; overlayId?: string; overlayIds: string[] } {
   const byId = new Map(overlays.map(o => [o.id, o]))
   const seen = new Set<string>()
   const features: OverlayFeature[] = []
-  const add = (f?: OverlayFeature) => {
-    if (f && !seen.has(f.id)) { seen.add(f.id); features.push(f) }
+  // Track every overlay that actually contributed a drawn feature — the snapshot
+  // pulls cached tiles from ALL of them. A single primary overlayId is wrong when
+  // the gathered features span overlays (or when the drawn feature's overlay
+  // differs from structured_location.overlay_id): tiles miss for the regions
+  // backed by the other overlays → blank basemap under the markers.
+  const overlayIds: string[] = []
+  const seenOverlay = new Set<string>()
+  const noteOverlay = (id?: string) => {
+    if (id && !seenOverlay.has(id)) { seenOverlay.add(id); overlayIds.push(id) }
+  }
+  const add = (f?: OverlayFeature, owner?: string) => {
+    if (f && !seen.has(f.id)) { seen.add(f.id); features.push(f); noteOverlay(owner) }
   }
 
   const fullIds = event.linked_overlays ?? []
-  for (const id of fullIds) byId.get(id)?.features.forEach(add)
+  for (const id of fullIds) byId.get(id)?.features.forEach(f => add(f, id))
 
   for (const fa of event.linked_features ?? []) {
     if (fullIds.includes(fa.overlay_id)) continue
-    add(byId.get(fa.overlay_id)?.features.find(x => x.id === fa.feature_id))
+    add(byId.get(fa.overlay_id)?.features.find(x => x.id === fa.feature_id), fa.overlay_id)
   }
 
   const sl = event.structured_location
   if (sl?.overlay_id && !fullIds.includes(sl.overlay_id)) {
     const o = byId.get(sl.overlay_id)
-    if (sl.primary_waypoint_id) add(o?.features.find(x => x.id === sl.primary_waypoint_id))
-    else o?.features.forEach(add)
+    if (sl.primary_waypoint_id) add(o?.features.find(x => x.id === sl.primary_waypoint_id), sl.overlay_id)
+    else o?.features.forEach(f => add(f, sl.overlay_id))
   }
 
   if (roomAnchor) {
     const o = byId.get(roomAnchor.overlay_id)
-    if (roomAnchor.overlay_feature_id) add(o?.features.find(x => x.id === roomAnchor.overlay_feature_id))
-    else o?.features.forEach(add)
+    if (roomAnchor.overlay_feature_id) add(o?.features.find(x => x.id === roomAnchor.overlay_feature_id), roomAnchor.overlay_id)
+    else o?.features.forEach(f => add(f, roomAnchor.overlay_id))
   }
 
-  const overlayId =
-    sl?.overlay_id ?? fullIds[0] ?? event.linked_features?.[0]?.overlay_id ?? roomAnchor?.overlay_id
-  return { features, overlayId }
+  return { features, overlayId: overlayIds[0], overlayIds }
 }
 
 interface LinkedLocationRowProps {

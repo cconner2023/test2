@@ -1,18 +1,22 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import {
   AlertTriangle, Plus, Check, ClipboardCheck, Loader2, Wrench,
-  Pencil, Trash2, X, ChevronRight, ChevronLeft, History, Paperclip, FileText,
+  X, History, Paperclip, FileText,
 } from 'lucide-react'
 import { getAuditBySubjectLocal, fetchAuditBySubject } from '../../lib/auditService'
 import type { AuditEvent } from '../../lib/auditTypes'
 import { usePropertyStore } from '../../stores/usePropertyStore'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { useInvalidation } from '../../stores/useInvalidationStore'
-import { useIsMobile } from '../../Hooks/useIsMobile'
-import { TextInput } from '../FormInputs'
-import { Sheet } from '../Sheet'
+import { TextInput, PickerInput } from '../FormInputs'
 import { PreviewOverlay } from '../PreviewOverlay'
-import { uploadEncryptedAttachment, downloadDecryptedAttachment } from '../../lib/signal'
+import { RecordPreview } from './RecordPreview'
+import { DocScanner } from './DocScanner'
+import { ActionButton } from '../ActionButton'
+import { PillButton } from '../HeaderPill'
+import { SectionCard } from '../Section'
+import { useClinicMedics } from '../../Hooks/useClinicMedics'
+import { uploadEncryptedAttachment } from '../../lib/signal'
 import type { PmcsDoc } from '../../lib/propertyService'
 import { createLogger } from '../../Utilities/Logger'
 
@@ -20,17 +24,20 @@ const logger = createLogger('PmcsSheet')
 
 /**
  * PmcsSheet — the PMCS (preventive-maintenance checks & services) surface for a
- * property subject (a stock item, or a vehicle location with its own 5988),
- * surfaced as a preview-overlay launched from the host's ellipsis menu (NOT an
- * inline section). Two views inside one overlay:
+ * property subject (a stock item, or a vehicle location with its own 5988). Its
+ * ops twin is the DispatchSheet; both are PreviewOverlays (NOT a mobile Sheet)
+ * scoped to the whole property drawer, launched from the host's ellipsis menu.
+ * Two views inside one overlay:
  *
  *  - CHECK (default): the standard PMCS intake — mileage + fuel-level readings
  *    (vehicle subjects only), the open faults to Correct or leave, an inline-add
- *    to report a new fault, and a "Record PMCS" submit that logs the check (with
- *    readings in the pmcs.clear payload). Corrections / new faults emit
- *    immediately as their own audit events; the submit logs the inspection.
- *  - HISTORY: every PMCS event (faults, corrections, clean checks) with per-row
- *    edit (faults/corrections carry text) and delete. audit_log gained
+ *    to report a new fault, and an optional 5988E attachment. The footer carries
+ *    the "Record PMCS" action (present always; disabled until the intake is
+ *    complete). Corrections / new faults emit immediately as their own audit
+ *    events; the footer action logs the inspection (with readings in the
+ *    pmcs.clear payload).
+ *  - HISTORY: every PMCS event as a section card — tap to view its 5988E, with
+ *    per-card edit (faults/corrections carry text) and delete. audit_log gained
  *    UPDATE/DELETE on 2026-06-21 so these are real edits/hard-deletes, routed
  *    through the store (which bumps the `properties` generation so this overlay
  *    AND the inline ItemTimeline refetch in sync).
@@ -48,7 +55,8 @@ interface PmcsSheetProps {
   subjectType?: 'item' | 'location'
   subjectId: string
   clinicId: string
-  /** Desktop only — scopes the PreviewOverlay to the detail pane. */
+  /** Scopes the PreviewOverlay to the property drawer (desktop). Null on mobile
+   *  → the overlay floats fixed, auto-stacked above the detail sheet. */
   containerRef?: React.RefObject<HTMLElement | null>
 }
 
@@ -59,22 +67,34 @@ interface OpenFault {
 }
 
 export function PmcsSheet({ isOpen, onClose, subjectType = 'item', subjectId, clinicId, containerRef }: PmcsSheetProps) {
-  const isMobile = useIsMobile()
   const [events, setEvents] = useState<AuditEvent[]>([])
   const [loading, setLoading] = useState(true)
   const [desc, setDesc] = useState('')
   const [busy, setBusy] = useState(false)
   const [view, setView] = useState<'check' | 'history'>('check')
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [editText, setEditText] = useState('')
-  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+  const [previewEvent, setPreviewEvent] = useState<AuditEvent | null>(null)
   const [mileage, setMileage] = useState('')
   const [fuelLevel, setFuelLevel] = useState<number | null>(null)
+  const [operator, setOperator] = useState('')
+  const [mechanic, setMechanic] = useState('')
   const [docFile, setDocFile] = useState<File | null>(null)
   const [docError, setDocError] = useState<string | null>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [scannerOpen, setScannerOpen] = useState(false)
 
   const userId = useAuthStore((s) => s.user?.id)
+  const { medics } = useClinicMedics()
+
+  // Operator dropdown options — the clinic roster, "RANK Last, First". value =
+  // the display name so the PMCS payload carries a readable name with no later
+  // roster lookup (no PHI — operational identity only).
+  const operatorOptions = medics
+    .map((m) => {
+      const name = [m.rank, [m.lastName, m.firstName].filter(Boolean).join(', ')]
+        .filter(Boolean).join(' ').trim()
+      return name
+    })
+    .filter((n) => n.length > 0)
+    .sort((a, b) => a.localeCompare(b))
 
   // Mileage + fuel are a vehicle's 5988 intake; a stock item's PMCS is just the
   // fault check + a clean-check log.
@@ -83,15 +103,14 @@ export function PmcsSheet({ isOpen, onClose, subjectType = 'item', subjectId, cl
   const raiseFault = usePropertyStore((s) => s.raiseFault)
   const correctFault = usePropertyStore((s) => s.correctFault)
   const recordPmcs = usePropertyStore((s) => s.recordPmcs)
-  const editPmcsEntry = usePropertyStore((s) => s.editPmcsEntry)
-  const deletePmcsEntry = usePropertyStore((s) => s.deletePmcsEntry)
   const propGen = useInvalidation('properties')
 
   // Reset transient UI when the overlay closes.
   useEffect(() => {
     if (!isOpen) {
-      setView('check'); setEditingId(null); setConfirmDeleteId(null); setDesc('')
-      setMileage(''); setFuelLevel(null); setDocFile(null); setDocError(null)
+      setView('check'); setPreviewEvent(null); setDesc('')
+      setMileage(''); setFuelLevel(null); setOperator(''); setMechanic('')
+      setDocFile(null); setDocError(null); setScannerOpen(false)
     }
   }, [isOpen])
 
@@ -190,58 +209,13 @@ export function PmcsSheet({ isOpen, onClose, subjectType = 'item', subjectId, cl
         mileage: Number.isFinite(miles) ? miles : undefined,
         fuelLevel: fuelLevel ?? undefined,
       } : {}),
+      ...(operator.trim() ? { operator: operator.trim() } : {}),
+      ...(mechanic.trim() ? { mechanic: mechanic.trim() } : {}),
       ...(doc ? { doc } : {}),
     }
     const ok = await recordPmcs(subjectType, subjectId, Object.keys(readings).length ? readings : undefined)
     setBusy(false)
     if (ok) onClose()
-  }
-
-  const beginEdit = (e: AuditEvent) => {
-    setConfirmDeleteId(null)
-    setEditingId(e.id)
-    setEditText(
-      e.eventType === 'fault.opened'
-        ? (typeof e.payload?.description === 'string' ? e.payload.description : '')
-        : (typeof e.payload?.note === 'string' ? e.payload.note : ''),
-    )
-  }
-
-  const saveEdit = async (e: AuditEvent) => {
-    const text = editText.trim()
-    if (busy) return
-    // Empty edit on a fault description is meaningless — keep the row unchanged.
-    if (e.eventType === 'fault.opened' && !text) { setEditingId(null); return }
-    setBusy(true)
-    const payload = e.eventType === 'fault.opened'
-      ? { description: text }
-      : { corrects: e.payload?.corrects, note: text }
-    await editPmcsEntry(e.id, payload)
-    setEditingId(null)
-    setBusy(false)
-  }
-
-  const handleDelete = async (id: string) => {
-    if (busy) return
-    setBusy(true)
-    setConfirmDeleteId(null)
-    await deletePmcsEntry(id)
-    setBusy(false)
-  }
-
-  // Open an attached 5988E: pull the ciphertext, decrypt with the key from the
-  // (already-decrypted) payload, and open the file in a new tab.
-  const openDoc = async (doc: PmcsDoc) => {
-    if (busy) return
-    setBusy(true)
-    const res = await downloadDecryptedAttachment(doc.path, doc.key)
-    setBusy(false)
-    if (!res.ok) { logger.warn('5988E download failed:', res.error); return }
-    const blob = doc.mime ? new Blob([res.data], { type: doc.mime }) : res.data
-    const url = URL.createObjectURL(blob)
-    window.open(url, '_blank')
-    // Revoke after a beat so the new tab has time to load it.
-    setTimeout(() => URL.revokeObjectURL(url), 60_000)
   }
 
   const docOf = (e: AuditEvent): PmcsDoc | null => {
@@ -270,11 +244,18 @@ export function PmcsSheet({ isOpen, onClose, subjectType = 'item', subjectId, cl
       )}
       {isVehicle && <FuelMeter value={fuelLevel} onChange={setFuelLevel} />}
 
+      {/* Who did it — operator picked from the clinic roster, mechanic optional
+          free-text (motor-pool / external). Both ride in the encrypted payload. */}
+      <PickerInput
+        value={operator}
+        onChange={setOperator}
+        options={operatorOptions}
+        placeholder="Operator"
+      />
+      <TextInput value={mechanic} onChange={setMechanic} placeholder="Mechanic (optional)" />
+
       {/* Faults — previously-unclosed faults render to Correct or leave; empty if
           none. The inline-add reports a fault found during this check. */}
-      <div className="px-4 pt-2.5 pb-1 text-[8.5pt] font-semibold text-tertiary tracking-widest uppercase">
-        Faults
-      </div>
       {openFaults.map((f) => (
         <div key={f.id} className="flex items-center gap-3 px-4 py-3">
           <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-themered/10 text-themered">
@@ -306,21 +287,12 @@ export function PmcsSheet({ isOpen, onClose, subjectType = 'item', subjectId, cl
         </button>
       </div>
 
-      {/* Attach a 5988E worksheet — encrypted client-side into the attachment
-          bucket on submit; the key rides in the encrypted PMCS payload. */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*,application/pdf"
-        className="hidden"
-        onChange={(ev) => {
-          const f = ev.target.files?.[0] ?? null
-          setDocFile(f)
-          setDocError(null)
-          ev.target.value = '' // allow re-picking the same file
-        }}
-      />
-      {docFile ? (
+      {/* Attach a 5988E worksheet — the TRIGGER lives in the footer (Scan is a
+          footer action) and opens the DocScanner (capture → crop → enhance →
+          multi-page PDF); here we only render the picked-file chip (so it stays
+          visible/removable). Encrypted client-side into the attachment bucket on
+          submit; the key rides in the encrypted PMCS payload. */}
+      {docFile && (
         <div className="flex items-center gap-3 px-4 py-3">
           <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-themeblue3/10 text-themeblue2">
             <FileText size={14} />
@@ -336,122 +308,37 @@ export function PmcsSheet({ isOpen, onClose, subjectType = 'item', subjectId, cl
             <X size={14} className="text-tertiary" />
           </button>
         </div>
-      ) : (
-        <button
-          type="button"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={busy}
-          className="w-full flex items-center gap-3 px-4 py-3 text-left active:bg-secondary/5 transition-colors disabled:opacity-40"
-        >
-          <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-themeblue3/10 text-themeblue2">
-            <Paperclip size={14} />
-          </div>
-          <span className="flex-1 min-w-0 text-sm font-medium text-secondary">Attach 5988E</span>
-        </button>
       )}
       {docError && <p className="px-4 pb-2 text-[9pt] font-medium text-themeredred">{docError}</p>}
-
-      {/* Submit — logs the PMCS (with readings for a vehicle). Only shown when the
-          intake is complete, per the no-disabled-actions rule. */}
-      {canSubmit && (
-        <button
-          type="button"
-          onClick={handleRecord}
-          disabled={busy}
-          className="w-full flex items-center gap-3 px-4 py-3 text-left active:bg-themegreen/5 transition-colors disabled:opacity-40"
-        >
-          <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-themegreen/10 text-themegreen">
-            <ClipboardCheck size={14} />
-          </div>
-          <span className="flex-1 min-w-0 text-sm font-semibold text-themegreen">Record PMCS</span>
-        </button>
-      )}
-
-      {/* Switch to the full PMCS history (edit / delete past entries). */}
-      <button
-        type="button"
-        onClick={() => setView('history')}
-        className="w-full flex items-center gap-3 px-4 py-3 text-left active:bg-secondary/5 transition-colors"
-      >
-        <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-themeblue3/10 text-themeblue2">
-          <History size={14} />
-        </div>
-        <span className="flex-1 min-w-0 text-sm font-medium text-secondary">
-          PMCS history{events.length > 0 && ` · ${events.length}`}
-        </span>
-        <ChevronRight size={16} className="text-tertiary shrink-0" />
-      </button>
     </div>
   )
 
-  // ── HISTORY view body — every PMCS event, editable/deletable per row ─────────
+  // ── HISTORY view body — every PMCS event as a section card. The back chevron
+  //    lives in the overlay HEADER (onBack), not an in-body row. ───────────────
   const historyBody = (
-    <div className="divide-y divide-tertiary/8">
-      <button
-        type="button"
-        onClick={() => { setView('check'); setEditingId(null); setConfirmDeleteId(null) }}
-        className="w-full flex items-center gap-2 px-4 py-2.5 text-left active:bg-secondary/5 transition-colors"
-      >
-        <ChevronLeft size={16} className="text-tertiary shrink-0" />
-        <span className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">PMCS check</span>
-      </button>
+    <div className="px-3 pt-2 pb-3">
       {loading ? (
-        <div className="flex items-center justify-center px-4 py-6">
+        <div className="flex items-center justify-center py-6">
           <Loader2 size={16} className="animate-spin text-tertiary" />
         </div>
       ) : events.length === 0 ? (
-        <p className="text-[10pt] text-tertiary px-4 py-4">No PMCS history yet</p>
+        <p className="text-[10pt] text-tertiary px-1 py-4">No PMCS history yet</p>
       ) : (
-        events.map((e) => {
-          const open = e.eventType === 'fault.opened' && !correctedIds.has(e.id)
-          const editable = e.eventType === 'fault.opened' || e.eventType === 'fault.corrected'
-          const doc = docOf(e)
-          const Icon = e.eventType === 'fault.opened' ? AlertTriangle
-            : e.eventType === 'fault.corrected' ? Wrench : ClipboardCheck
-          return (
-            <div key={e.id} className="px-4 py-3">
-              {editingId === e.id ? (
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 min-w-0">
-                    <TextInput value={editText} onChange={setEditText} placeholder="Entry text" />
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setEditingId(null)}
-                    className="shrink-0 w-8 h-8 rounded-full bg-tertiary/8 flex items-center justify-center active:scale-95 transition-all"
-                  >
-                    <X size={14} className="text-tertiary" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => saveEdit(e)}
-                    disabled={busy}
-                    className="shrink-0 w-8 h-8 rounded-full bg-themegreen/15 flex items-center justify-center active:scale-95 transition-all disabled:opacity-40"
-                  >
-                    <Check size={14} className="text-themegreen" />
-                  </button>
-                </div>
-              ) : confirmDeleteId === e.id ? (
-                <div className="flex items-center gap-3">
-                  <p className="flex-1 min-w-0 text-sm font-medium text-themered">Delete this entry?</p>
-                  <button
-                    type="button"
-                    onClick={() => setConfirmDeleteId(null)}
-                    className="shrink-0 px-2.5 py-1 rounded-full bg-tertiary/8 text-tertiary text-[9pt] font-semibold active:scale-95 transition-all"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleDelete(e.id)}
-                    disabled={busy}
-                    className="shrink-0 px-2.5 py-1 rounded-full bg-themered/10 text-themered text-[9pt] font-semibold active:scale-95 transition-all disabled:opacity-40"
-                  >
-                    Delete
-                  </button>
-                </div>
-              ) : (
-                <div className="flex items-center gap-3">
+        <div className="space-y-2">
+          {events.map((e) => {
+            const open = e.eventType === 'fault.opened' && !correctedIds.has(e.id)
+            const doc = docOf(e)
+            const Icon = e.eventType === 'fault.opened' ? AlertTriangle
+              : e.eventType === 'fault.corrected' ? Wrench : ClipboardCheck
+            return (
+              <SectionCard key={e.id}>
+                {/* Tap the card → RecordPreview (view 5988E / edit / delete). The
+                    per-row pencil + trash are gone; the overlay owns those. */}
+                <button
+                  type="button"
+                  onClick={() => setPreviewEvent(e)}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 text-left active:opacity-70 transition-opacity"
+                >
                   <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${open ? 'bg-themered/10 text-themered' : 'bg-themeblue3/10 text-themeblue2'}`}>
                     <Icon size={14} />
                   </div>
@@ -459,57 +346,51 @@ export function PmcsSheet({ isOpen, onClose, subjectType = 'item', subjectId, cl
                     <p className={`text-sm font-medium truncate ${open ? 'text-themered' : 'text-primary'}`}>{describe(e)}</p>
                     <p className="text-[9pt] text-tertiary">{fmtDate(e.occurredAt)}</p>
                   </div>
-                  {doc && (
-                    <button
-                      type="button"
-                      onClick={() => openDoc(doc)}
-                      disabled={busy}
-                      className="shrink-0 w-8 h-8 rounded-full bg-themeblue3/8 flex items-center justify-center active:scale-95 transition-all disabled:opacity-40"
-                      aria-label="View 5988E"
-                    >
-                      <FileText size={13} className="text-themeblue2" />
-                    </button>
-                  )}
-                  {editable && (
-                    <button
-                      type="button"
-                      onClick={() => beginEdit(e)}
-                      className="shrink-0 w-8 h-8 rounded-full bg-themeblue3/8 flex items-center justify-center active:scale-95 transition-all"
-                      aria-label="Edit entry"
-                    >
-                      <Pencil size={13} className="text-themeblue2" />
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => { setEditingId(null); setConfirmDeleteId(e.id) }}
-                    className="shrink-0 w-8 h-8 rounded-full bg-themered/8 flex items-center justify-center active:scale-95 transition-all"
-                    aria-label="Delete entry"
-                  >
-                    <Trash2 size={13} className="text-themered" />
-                  </button>
-                </div>
-              )}
-            </div>
-          )
-        })
+                  {doc && <FileText size={14} className="text-themeblue2 shrink-0" />}
+                </button>
+              </SectionCard>
+            )
+          })}
+        </div>
       )}
     </div>
   )
 
   const body = view === 'history' ? historyBody : checkBody
 
-  if (isMobile) {
-    return (
-      <Sheet isOpen={isOpen} onClose={onClose} title="PMCS" height="fit" maxHeight={80} zIndex={1450}>
-        <div className="px-4 pt-1 pb-5">
-          <div className="rounded-2xl overflow-hidden">
-            {body}
-          </div>
-        </div>
-      </Sheet>
-    )
-  }
+  // Icon + tint for the previewed record, mirroring its history-row chip.
+  const previewMeta = (() => {
+    const e = previewEvent
+    const open = e?.eventType === 'fault.opened' && !correctedIds.has(e.id)
+    const Icon = e?.eventType === 'fault.opened' ? AlertTriangle
+      : e?.eventType === 'fault.corrected' ? Wrench : ClipboardCheck
+    return { Icon, tint: open ? 'bg-themered/10 text-themered' : 'bg-themeblue3/10 text-themeblue2' }
+  })()
+
+  // Footer actions (check view only) — Attach on the LEFT, the success/confirm
+  // (Record PMCS) on the RIGHT (rightFooter). Per the explicit footer-action
+  // directive Record is present always but DISABLED until the intake is complete.
+  const footer = view === 'check' ? (
+    <div className="flex gap-1 bg-themewhite rounded-2xl px-1.5 py-1.5">
+      <ActionButton
+        icon={docFile ? FileText : Paperclip}
+        label={docFile ? 'Replace 5988E' : 'Scan 5988E'}
+        variant="default"
+        onClick={() => setScannerOpen(true)}
+      />
+      <ActionButton
+        icon={History}
+        label={events.length > 0 ? `History · ${events.length}` : 'History'}
+        variant="default"
+        onClick={() => setView('history')}
+      />
+    </div>
+  ) : undefined
+  const rightFooter = view === 'check' ? (
+    <div className="bg-themewhite rounded-2xl px-1.5 py-1.5">
+      <PillButton icon={Check} iconSize={16} accent="success" disabled={!canSubmit} onClick={handleRecord} label="Record PMCS" />
+    </div>
+  ) : undefined
 
   return (
     <PreviewOverlay
@@ -517,11 +398,30 @@ export function PmcsSheet({ isOpen, onClose, subjectType = 'item', subjectId, cl
       onClose={onClose}
       anchorRect={null}
       containerRef={containerRef}
-      title="PMCS"
+      title={view === 'history' ? 'PMCS history' : 'PMCS'}
+      onBack={view === 'history' ? () => { setView('check'); setPreviewEvent(null) } : undefined}
       maxWidth={360}
       previewMaxHeight="60dvh"
+      footer={footer}
+      rightFooter={rightFooter}
     >
-      {body as ReactNode}
+      <>
+        {body as ReactNode}
+        <RecordPreview
+          event={previewEvent}
+          onClose={() => setPreviewEvent(null)}
+          label={previewEvent ? describe(previewEvent) : ''}
+          Icon={previewMeta.Icon}
+          tint={previewMeta.tint}
+          containerRef={containerRef}
+        />
+        <DocScanner
+          isOpen={scannerOpen}
+          onClose={() => setScannerOpen(false)}
+          onComplete={(f) => { setDocFile(f); setDocError(null) }}
+          formLabel="5988E"
+        />
+      </>
     </PreviewOverlay>
   )
 }
@@ -537,6 +437,8 @@ function describe(e: AuditEvent): string {
       const parts: string[] = []
       if (typeof p.mileage === 'number') parts.push(`${p.mileage.toLocaleString()} mi`)
       if (typeof p.fuelLevel === 'number') parts.push(`Fuel ${p.fuelLevel}%`)
+      if (typeof p.operator === 'string' && p.operator) parts.push(p.operator)
+      if (typeof p.mechanic === 'string' && p.mechanic) parts.push(`Mech ${p.mechanic}`)
       return parts.length ? `PMCS · ${parts.join(' · ')}` : 'PMCS — no new faults'
     }
     default:

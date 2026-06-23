@@ -7,7 +7,7 @@
 import { supabase } from './supabase'
 import { succeed, fail, type ServiceResult } from './result'
 import { createLogger } from '../Utilities/Logger'
-import { addToSyncQueue } from './offlineDb'
+import { addToSyncQueue, removeSyncQueueItemsForRecord } from './offlineDb'
 import { emitAudit, updateAuditEvent, deleteAuditEvent } from './auditService'
 import {
   getDb,
@@ -457,11 +457,15 @@ export interface PmcsDoc {
 
 /**
  * What a PMCS check submits beyond its separately-emitted faults: vehicle intake
- * readings (mileage, fuel) and/or an attached 5988E worksheet. All optional; no PHI.
+ * readings (mileage, fuel), the operator who performed it + the optional mechanic
+ * who serviced it (so we can see who did what), and/or an attached 5988E
+ * worksheet. All optional; no PHI (operational vocabulary only).
  */
 export interface PmcsReadings {
   mileage?: number
   fuelLevel?: number
+  operator?: string
+  mechanic?: string
   doc?: PmcsDoc
 }
 
@@ -476,6 +480,8 @@ export interface DispatchOpenInput {
   doc?: PmcsDoc
   note?: string
   odo_out?: number
+  operator?: string
+  tc?: string
 }
 
 /** What closing (returning) a dispatch records. `dispatches` = the dispatch.opened
@@ -508,6 +514,8 @@ export async function recordPmcs(
     const payload: PmcsReadings = {}
     if (readings?.mileage != null) payload.mileage = readings.mileage
     if (readings?.fuelLevel != null) payload.fuelLevel = readings.fuelLevel
+    if (readings?.operator) payload.operator = readings.operator
+    if (readings?.mechanic) payload.mechanic = readings.mechanic
     if (readings?.doc) payload.doc = readings.doc
     const hasContent = Object.keys(payload).length > 0
 
@@ -589,6 +597,8 @@ export async function openDispatch(
     if (input.doc) payload.doc = input.doc
     if (input.note) payload.note = input.note
     if (input.odo_out != null) payload.odo_out = input.odo_out
+    if (input.operator) payload.operator = input.operator
+    if (input.tc) payload.tc = input.tc
 
     const event = await emitAudit(
       {
@@ -662,6 +672,11 @@ export async function deleteItem(
 
     await deleteLocalPropertyItem(id)
     await purgeItemPins(id)
+
+    // Drop any outstanding create/update for this item first — a failed create
+    // (FK, RLS) would otherwise be retried after the delete and re-insert a live
+    // row. Then enqueue the soft-delete.
+    await removeSyncQueueItemsForRecord(userId, 'property_items', id)
 
     // Spine soft-delete (UPDATE deleted_at) — NOT a hard DELETE. Reconcile can't
     // resurrect, and a device dark past any reap still pulls the tombstone on its
@@ -850,6 +865,11 @@ export async function deleteLocation(
     const affectedTagCanvases = await deleteLocalTagsByTarget(id)
     for (const canvasId of affectedTagCanvases) await queueTagSync(canvasId)
 
+    // Drop any outstanding create/update for this zone first — a failed create
+    // (e.g. parent_id FK not yet satisfiable) would otherwise be retried after the
+    // delete and re-insert a live row. Then enqueue the soft-delete.
+    await removeSyncQueueItemsForRecord(userId, 'property_locations', id)
+
     // Spine soft-delete (UPDATE) — never a hard DELETE.
     await addToSyncQueue({
       user_id: userId,
@@ -952,6 +972,8 @@ export async function cascadeDeleteLocation(
       getZoneTombstones().add(locId)
       addZoneTombstone(locId).catch(() => {})
       await deleteLocalPropertyLocation(locId)
+      // Drop any outstanding create/update so a failed create can't resurrect it.
+      await removeSyncQueueItemsForRecord(userId, 'property_locations', locId)
       await addToSyncQueue({
         user_id: userId,
         action: 'update',
@@ -989,6 +1011,22 @@ export async function ensureMemberLocations(
   const memberLocMap = new Map<string, LocalPropertyLocation>()
   for (const loc of allLocs) {
     if (loc.holder_user_id) memberLocMap.set(loc.holder_user_id, loc)
+  }
+
+  // Prune member-locations whose holder is no longer a home member of this
+  // clinic — e.g. the soldier was moved to another cluster. Their "property
+  // space" must not linger in the old cluster's property. cascade reassigns any
+  // items they still held up to the parent canvas rather than orphaning them.
+  // Guarded on a non-empty roster so a transient/failed member load can never
+  // wipe every member-location.
+  if (members.length > 0) {
+    const memberIds = new Set(members.map(m => m.id))
+    for (const [holderId, loc] of [...memberLocMap]) {
+      if (!memberIds.has(holderId)) {
+        await cascadeDeleteLocation(loc.id, userId, clinicId)
+        memberLocMap.delete(holderId)
+      }
+    }
   }
 
   // locId → display name for newly created member-locations needing canvas zones
@@ -1053,12 +1091,24 @@ export async function ensureDefaultClusterZone(
   rootLocationId: string,
 ): Promise<void> {
   const allLocs = await getLocalPropertyLocations(clinicId)
-  if (allLocs.some(l => l.is_default_zone)) return
+  const existingDefault = allLocs.find(l => l.is_default_zone)
+  if (existingDefault) {
+    // Self-heal legacy rows: the default zone is a top-level physical zone and
+    // must follow the parent_id:null convention used by every zone drawn on the
+    // root canvas. Older BAS rows were created under the root location id, which
+    // hid them from the location tree / list / sheet (those surfaces treat
+    // parent_id===null as top-level) even though the map still rendered them via
+    // the root-canvas tag. Re-home to null so the concept becomes visible.
+    if ((existingDefault.parent_id ?? null) !== null) {
+      await updateLocation(existingDefault.id, { parent_id: null }, userId)
+    }
+    return
+  }
 
   const result = await createLocation(
     {
       clinic_id: clinicId,
-      parent_id: rootLocationId,
+      parent_id: null,
       name: DEFAULT_CLUSTER_ZONE_NAME,
       photo_data: null,
       holder_user_id: null,

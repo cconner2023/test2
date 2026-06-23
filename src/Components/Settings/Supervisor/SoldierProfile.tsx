@@ -388,9 +388,9 @@ export function SoldierProfile({
       )}
 
       {/* Timeline — the single time-ordered spine: audit_log lifecycle (training,
-          cluster moves, certs) merged with calendar-sourced rows — upcoming
-          events (the old "Schedule") above the now-divider, logged algorithm
-          encounters (the old "Encounter Log") below. */}
+          certs) merged with calendar-sourced rows — upcoming events (the old
+          "Schedule") above the now-divider, logged algorithm encounters (the
+          old "Encounter Log") below. */}
       {viewerClinicId && (
         <UserTimeline
           subjectId={soldier.id}

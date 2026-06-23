@@ -364,9 +364,25 @@ async function handleUpdate(
       }
     }
   } else {
-    // Record doesn't exist on server -- create it instead.
-    // This handles the case where a note was created offline,
-    // then updated offline before the create was synced.
+    // Record doesn't exist on the server.
+    //
+    // A SOFT-DELETE (payload carries `deleted_at`) has nothing to soft-delete
+    // when there's no server row — and its partial { deleted_at, updated_at }
+    // payload is NOT a valid insert (no id / clinic_id), so upserting it violates
+    // NOT NULL + RLS WITH CHECK and retries forever (the observed
+    // "Upsert failed: new row violates row-level security policy for table
+    // property_locations" loop, e.g. deleting a zone whose create never synced or
+    // FK-failed). No-op it: peers learn of the delete via the property 'd' vault
+    // envelope, and the download-only bootstrap is tombstone-guarded so nothing
+    // resurrects. Mirrors handleDelete's absent-row no-op.
+    if (payload.deleted_at != null) {
+      logger.debug(`Skipping soft-delete upsert for absent ${tableName}/${recordId} (no server row)`)
+      return
+    }
+
+    // Otherwise this is a full-row update for a record created offline whose
+    // create never synced (e.g. a self-note edited before its create landed) --
+    // upsert the full row.
     const { error } = await supabase
       .from(tableName as any)
       .upsert(payload as never, { onConflict: 'id' })

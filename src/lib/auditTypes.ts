@@ -1,10 +1,12 @@
 /**
  * Unified audit-log types.
  *
- * `audit_log` is the single append-only event store for every domain
- * (personnel, property, training, cert). It replaces per-domain audit tables
- * (custody_ledger folds in; training_completions becomes a fold over training
- * events). Each row is an immutable event; current state is a projection.
+ * `audit_log` is the single append-only event store for the property and
+ * training domains. It replaces per-domain audit tables (custody_ledger folds
+ * in; training_completions becomes a fold over training events). Each row is an
+ * immutable event; current state is a projection. Personnel/account lifecycle
+ * (account creation, home-cluster moves, loans) is intentionally NOT audited
+ * here — strictly training + property.
  *
  * WIRE/ENCRYPTION CONTRACT (Tier 1 — clinic-key at rest):
  * - The SPINE (seq, clinic_id, actor_id, domain, event_type, subject_type,
@@ -12,13 +14,14 @@
  *   so RLS, realtime and the `seq` delta-cursor can filter on it. No PHI.
  * - The TAIL (`payload_enc`) is AES-256-GCM(clinic key), `enc.v1:` framed, via
  *   encryptAuditPayload/decryptAuditPayload in cryptoService. Spine-only events
- *   (personnel moves) store payload_enc = null.
+ *   (e.g. a clean PMCS check) store payload_enc = null.
  * - `seq` is a server-assigned monotonic bigint — the delta cursor. It is null
  *   locally until the row syncs.
  */
 
-/** Domains tracked in the unified audit_log. */
-export type AuditDomain = 'property' | 'personnel' | 'training' | 'cert'
+/** Domains tracked in the unified audit_log. Strictly property + training
+ *  (cert reserved). Personnel/account events are NOT tracked here. */
+export type AuditDomain = 'property' | 'training' | 'cert'
 
 /** What an event is about. `location` covers property zones incl. vehicles
  *  (a vehicle is a kind='vehicle' property_location that carries its own 5988). */
@@ -29,12 +32,6 @@ export type AuditSubjectType = 'user' | 'item' | 'algorithm' | 'location'
  * (open vocabulary, no enum churn) but enumerated here for client exhaustiveness.
  */
 export type AuditEventType =
-  // personnel — spine only, payload_enc = null
-  | 'user.created'
-  | 'home.assigned'
-  | 'home.returned'
-  | 'loan.assigned'
-  | 'loan.returned'
   // property — payload: { quantity_delta?, condition_code?, from_holder_id?, to_holder_id?, notes?, sub_item_check? }
   | 'item.transferred'
   | 'item.expended'
@@ -61,8 +58,11 @@ export type AuditEventType =
   // intake captures readings in the (encrypted) payload; faults found during the
   // same check are separate fault.opened events. Logged so every PMCS leaves a
   // paper-trail entry (proof the subject was inspected on this date).
-  //  payload: { mileage?, fuelLevel?, doc? }  — vehicle intake readings (no PHI)
-  //           and/or an attached 5988E worksheet. `doc` = { path, key, mime?,
+  //  payload: { mileage?, fuelLevel?, operator?, mechanic?, doc? }  — vehicle
+  //           intake readings + who did it: `operator` (the soldier who performed
+  //           the check, picked from the clinic roster) + `mechanic` (optional
+  //           free-text name of who serviced it). No PHI (operational names only).
+  //           Optionally an attached 5988E worksheet. `doc` = { path, key, mime?,
   //           name? }: the worksheet is encrypted client-side into the
   //           message-attachments bucket (random AES key) and the decryption key
   //           rides inside this (clinic-key-encrypted) payload — server never
@@ -78,8 +78,10 @@ export type AuditEventType =
   // same client-side fold as open faults); a dispatch with exp_date < now is
   // lapsed even without a close. exp_date / odometer / the dispatch form are
   // operational, no PHI — they ride in the (clinic-key) encrypted payload.
-  //  opened:  { exp_date, doc?, note?, odo_out? }   // exp_date = ISO date the
-  //           dispatch authorization expires; `doc` = the encrypted DA 5982/5987
+  //  opened:  { exp_date, doc?, note?, odo_out?, operator?, tc? }   // exp_date =
+  //           ISO date the dispatch authorization expires; operator/tc = free-text
+  //           names of the driver + track commander (so we can see who took it
+  //           out); `doc` = the encrypted DA 5982/5987
   //           ({ path, key, mime?, name? }, same attachment pipeline as the 5988E).
   //  closed:  { dispatches, returned_at, doc?, note?, odo_in? }  // `dispatches`
   //           = the dispatch.opened event id this return closes.

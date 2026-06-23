@@ -59,6 +59,16 @@ export interface DeltaCacheConfig<TRow extends { id: string }, TDelta extends De
    * set it for monitoring views that must catch others' writes within a session.
    */
   memTtlMs?: number
+  /**
+   * Called after a BACKGROUND revalidation that actually moved the cached set (a
+   * non-cold delta returning ≥1 changed row/tombstone). Wire it to invalidate() so
+   * an already-mounted list re-reads the now-updated warm memory — the offline-first
+   * "reflect the change when the delta promise resolves" path (a revalidate kicked on
+   * reopen/reconnect lands its rows into a panel the user already has open). Skipped
+   * on the cold first fetch (the awaiting caller already receives those rows) and on
+   * no-op deltas (so it never spins a refetch loop).
+   */
+  onRevalidated?: () => void
 }
 
 interface Entry<TRow> {
@@ -115,10 +125,15 @@ function reconcile<TRow extends { id: string }, TDelta extends DeltaRow>(
         }
       }
       // No base ⇒ no cursor: cold fallback pulls the full live set.
-      const delta = await cfg.fetchDelta(base ? hwm : null)
+      const cold = !base
+      const delta = await cfg.fetchDelta(cold ? null : hwm)
       const merged = applyDelta(base ?? [], delta, hwm, cfg.toRow)
       mem.set(cfg.key, { rows: merged.rows, hwm: merged.hwm, warm: true, ts: Date.now(), inflight: null })
       await cfg.saveBase(cfg.key, merged.rows, merged.hwm)
+      // A non-cold delta that moved the set notifies subscribers so an open list
+      // refetches from warm memory (zero extra egress — it's already cached). Cold
+      // first fetch returns straight to the awaiting caller, so no notify there.
+      if (!cold && delta.length > 0) cfg.onRevalidated?.()
       return merged.rows
     } catch {
       // Serve what we have; next call retries.

@@ -83,10 +83,12 @@ interface EventFormProps {
    * returns the new overlay's id so the picker can auto-link it.
    */
   onCreateOverlay?: (name: string) => Promise<string | null>
+  /** Reports the live title up to the host so the drawer/sheet header can mirror it (map-overlay-style header title). Fires on mount + every change. */
+  onTitleChange?: (title: string) => void
 }
 
 export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
-  function EventForm({ initialData, onSave, isEditing, medics, propertyItems, overlayOptions, roomOptions, huddleTaskOptions, clinicOptions, checklistTemplates, onCreateOverlay }, ref) {
+  function EventForm({ initialData, onSave, isEditing, medics, propertyItems, overlayOptions, roomOptions, huddleTaskOptions, clinicOptions, checklistTemplates, onCreateOverlay, onTitleChange }, ref) {
     const isMobile = useIsMobile()
     const { resolve: resolveCategoryColor } = useCategoryColors()
     const [form, setForm] = useState<EventFormData>(initialData ?? createEmptyFormData())
@@ -121,6 +123,12 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
     }, [form, validate, onSave])
 
     useImperativeHandle(ref, () => ({ submit: handleSubmit }), [handleSubmit])
+
+    // Mirror the live title up to the host header (map-overlay-style title-in-header).
+    // Fires on mount with the initial title and on every keystroke thereafter.
+    useEffect(() => {
+      onTitleChange?.(form.title)
+    }, [form.title, onTitleChange])
 
     // Tour-driven category override (lets the guided tour reveal huddle pickers)
     useEffect(() => {

@@ -15,7 +15,6 @@ import { PropertyBreadcrumb } from './PropertyBreadcrumb'
 import { PropertySearchOverlay } from './PropertySearchOverlay'
 import { PropertyLocationForm, type PropertyLocationFormHandle, type PendingZoneTag } from './PropertyLocationForm'
 import { PropertyLocationDetail, buildLocationMenuItems, usePropertyPhotoUpload, type PropertyLocationDetailHandle } from './PropertyLocationDetail'
-import { LocationMapLinkPicker } from './LocationMapLinkPicker'
 import { PropertyItemForm, type PropertyItemFormHandle } from './PropertyItemForm'
 import { PropertyLocationMap, type MapNavHandle } from './PropertyLocationMap'
 import { isStructuralZone } from './levelUtils'
@@ -128,6 +127,10 @@ export const PropertyPanel = memo(function PropertyPanel({
   // Desktop right pane — scopes the item's split/merge PreviewOverlay so it dims
   // and centers within the pane rather than spanning the whole viewport.
   const detailPaneRef = useRef<HTMLDivElement>(null)
+  // Whole property panel (desktop) — scopes the PMCS / Dispatch overlays so they
+  // dim and center over the ENTIRE drawer (rail · map · pane), not just the pane.
+  // Null on mobile → those overlays float fixed, auto-stacked above the sheet.
+  const panelRef = useRef<HTMLDivElement>(null)
   // Set when we programmatically navigate the canvas to an item's zone (item
   // select), so the resulting onSelectZone doesn't close the item we just opened.
   const pendingItemZoneRef = useRef<string | null>(null)
@@ -167,8 +170,6 @@ export const PropertyPanel = memo(function PropertyPanel({
   const [pendingDeleteLocId, setPendingDeleteLocId] = useState<string | null>(null)
   // Selected-location action menu (header ellipsis) anchor + photo upload plumbing.
   const [locMenu, setLocMenu] = useState<{ rect: DOMRect } | null>(null)
-  // Zone whose map link is being edited (LocationMapLinkPicker open).
-  const [mapLinkLoc, setMapLinkLoc] = useState<LocalPropertyLocation | null>(null)
   const { trigger: triggerPhoto, input: photoInput } = usePropertyPhotoUpload(
     (id, dataUrl) => store.editLocation(id, { photo_data: dataUrl }),
   )
@@ -383,15 +384,15 @@ export const PropertyPanel = memo(function PropertyPanel({
   // Selected-zone action menu items — shared by the desktop pane header + mobile sheet header.
   const locMenuItems = (loc: LocalPropertyLocation) => buildLocationMenuItems({
     location: loc,
-    canDelete: !!onDeleteItem,
-    onRename: () => handleEditLocation(loc),
+    // The default cluster zone (BAS) is a standing concept — never deletable.
+    canDelete: !!onDeleteItem && !loc.is_default_zone,
+    onEdit: () => handleEditLocation(loc),
     onNewItem: () => handleAddItemAtLocation(loc.id),
     onNewArea: () => handleAddChildLocation(loc.id),
     canAddLevel: isStructuralZone(loc),
     onAddLevel: () => mapRef.current?.addFloorTo(loc.id),
     onPhoto: () => triggerPhoto(loc.id),
     onRemovePhoto: () => store.editLocation(loc.id, { photo_data: null }),
-    onLinkMap: () => setMapLinkLoc(loc),
     onDelete: () => setPendingDeleteLocId(loc.id),
     onPmcs: () => locDetailRef.current?.openPmcs(),
     onDispatch: () => locDetailRef.current?.openDispatch(),
@@ -427,7 +428,7 @@ export const PropertyPanel = memo(function PropertyPanel({
         <Camera className="w-5 h-5" />
       </IslandButton>
       {isDevRole && (
-        <IslandButton role="tab" active={propertyTab === 'custody'} onClick={() => setPropertyTab('custody')} label="Sign-outs" tour="property-tab-custody">
+        <IslandButton role="tab" active={propertyTab === 'custody'} onClick={() => { setMobileItem(null); setMobileForm(null); closeLocationDetail(); setPropertyTab('custody') }} label="Sign-outs" tour="property-tab-custody">
           <ClipboardList className="w-5 h-5" />
         </IslandButton>
       )}
@@ -444,7 +445,7 @@ export const PropertyPanel = memo(function PropertyPanel({
     const desktopSearching = desktopSearch.trim().length > 0
     return (
       <>
-        <div className="flex h-full">
+        <div ref={panelRef} className="flex h-full relative">
           <div data-tour="property-locations" className={`shrink-0 border-r border-tertiary/10 flex flex-col bg-themewhite3/50 transition-all duration-300 ${
             railCollapsed ? 'w-0 opacity-0 overflow-hidden border-r-0' : 'w-[260px] opacity-100'
           }`}>
@@ -590,6 +591,7 @@ export const PropertyPanel = memo(function PropertyPanel({
                     onDelete={onDeleteItem ? () => onDeleteItem(selectedItem) : undefined}
                     canDelete={!!onDeleteItem}
                     containerRef={detailPaneRef}
+                    drawerRef={panelRef}
                   />
                 </div>
               </>
@@ -652,7 +654,7 @@ export const PropertyPanel = memo(function PropertyPanel({
                     onDeleteItem={onDeleteItem ? (item) => setPendingDeleteItem(item) : undefined}
                     onAddChildLocation={handleAddChildLocation}
                     onAddItemAtLocation={handleAddItemAtLocation}
-                    containerRef={detailPaneRef}
+                    drawerRef={panelRef}
                   />
                 </div>
               </>
@@ -671,14 +673,6 @@ export const PropertyPanel = memo(function PropertyPanel({
           />
         )}
         {photoInput}
-        {mapLinkLoc && store.clinicId && (
-          <LocationMapLinkPicker
-            location={mapLinkLoc}
-            clinicId={store.clinicId}
-            onClose={() => setMapLinkLoc(null)}
-            onLink={(update) => store.editLocation(mapLinkLoc.id, update)}
-          />
-        )}
 
         <ConfirmDialog
           visible={!!pendingDeleteItem}
@@ -707,8 +701,29 @@ export const PropertyPanel = memo(function PropertyPanel({
   return (
     <>
       <div data-tour="property-locations" className="h-full relative">
-        {mapEl}
-        <LoadingOverlay visible={showLoading} />
+        {/* The island swaps the MAIN SURFACE (calendar's view-switcher model),
+            NOT a sheet over a persistent map: Map (canvas) ↔ Sign-outs (custody),
+            mirroring the desktop center pane. Custody clears the floating glass
+            header the same way the search overlay does. Camera is momentary. */}
+        {propertyTab === 'custody' && store.clinicId ? (
+          <div className="absolute inset-0 pt-[calc(var(--drawer-header-h,3.5rem)+0.5rem)]">
+            <CustodyPanel
+              clinicId={store.clinicId}
+              receipts={receipts}
+              itemsById={receiptItemsById}
+              locationNameById={receiptLocationNameById}
+              membersById={receiptMembersById}
+              loading={receiptsLoading}
+              refetch={refetchReceipts}
+              onLocateItem={handleLocateReceiptItem}
+            />
+          </div>
+        ) : (
+          <>
+            {mapEl}
+            <LoadingOverlay visible={showLoading} />
+          </>
+        )}
         {/* Search results page — mirrors the map overlay's MapSearchOverlay:
             focusing the header search reveals this over the full-screen canvas. */}
         <PropertySearchOverlay
@@ -730,7 +745,7 @@ export const PropertyPanel = memo(function PropertyPanel({
           <BottomIsland
             glass
             z="z-20"
-            fab={islandFab}
+            fab={propertyTab === 'custody' ? undefined : islandFab}
             role="tablist"
             ariaLabel="Property views"
             tour="property-view-switcher"
@@ -833,6 +848,7 @@ export const PropertyPanel = memo(function PropertyPanel({
             onEdit={() => openMobileItemForm(mobileItem, mobileItem.location_id ?? null)}
             onDelete={onDeleteItem ? () => setPendingDeleteItem(mobileItem) : undefined}
             canDelete={!!onDeleteItem}
+            drawerRef={panelRef}
           />
         ) : selectedLocation ? (
           <PropertyLocationDetail
@@ -849,6 +865,7 @@ export const PropertyPanel = memo(function PropertyPanel({
             onDeleteItem={onDeleteItem ? (item) => setPendingDeleteItem(item) : undefined}
             onAddChildLocation={handleAddChildLocation}
             onAddItemAtLocation={handleAddItemAtLocation}
+            drawerRef={panelRef}
           />
         ) : null}
       </Sheet>
@@ -894,32 +911,6 @@ export const PropertyPanel = memo(function PropertyPanel({
         />
       </Sheet>
 
-      {/* Sign-outs tab — DA 2062 receipts as their own searchable tree (dev-gated).
-          Driven by the island tab; closing returns to the map. */}
-      <Sheet
-        isOpen={propertyTab === 'custody'}
-        onClose={() => setPropertyTab('map')}
-        title="Sign-outs"
-        height="fit"
-        maxHeight={75}
-        zIndex={1200}
-      >
-        {store.clinicId && (
-          <div className="h-[60vh]">
-            <CustodyPanel
-              clinicId={store.clinicId}
-              receipts={receipts}
-              itemsById={receiptItemsById}
-              locationNameById={receiptLocationNameById}
-              membersById={receiptMembersById}
-              loading={receiptsLoading}
-              refetch={refetchReceipts}
-              onLocateItem={handleLocateReceiptItem}
-            />
-          </div>
-        )}
-      </Sheet>
-
       <ConfirmDialog
         visible={!!pendingDeleteItem}
         title="Delete this item? This cannot be undone."
@@ -938,14 +929,6 @@ export const PropertyPanel = memo(function PropertyPanel({
         onConfirm={handleConfirmDeleteLocation}
         onCancel={() => setPendingDeleteLocId(null)}
       />
-      {mapLinkLoc && store.clinicId && (
-        <LocationMapLinkPicker
-          location={mapLinkLoc}
-          clinicId={store.clinicId}
-          onClose={() => setMapLinkLoc(null)}
-          onLink={(update) => store.editLocation(mapLinkLoc.id, update)}
-        />
-      )}
       {scannerEl}
     </>
   )

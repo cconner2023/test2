@@ -4,6 +4,7 @@ import { getAuditBySubjectLocal, fetchAuditBySubject } from '../../lib/auditServ
 import { useInvalidation } from '../../stores/useInvalidationStore'
 import type { AuditEvent } from '../../lib/auditTypes'
 import type { LocalPropertyLocation, HolderInfo } from '../../Types/PropertyTypes'
+import { RecordPreview } from '../Property/RecordPreview'
 import { createLogger } from '../../Utilities/Logger'
 
 const logger = createLogger('ItemTimeline')
@@ -60,6 +61,7 @@ const FIELD_LABELS: Record<string, string> = {
 export function ItemTimeline({ subjectId, clinicId, locations, holders, title = 'History' }: ItemTimelineProps) {
   const [events, setEvents] = useState<AuditEvent[]>([])
   const [loading, setLoading] = useState(true)
+  const [previewEvent, setPreviewEvent] = useState<AuditEvent | null>(null)
   const propGen = useInvalidation('properties')
 
   useEffect(() => {
@@ -122,6 +124,8 @@ export function ItemTimeline({ subjectId, clinicId, locations, holders, title = 
         const parts: string[] = []
         if (typeof p.mileage === 'number') parts.push(`${p.mileage.toLocaleString()} mi`)
         if (typeof p.fuelLevel === 'number') parts.push(`Fuel ${p.fuelLevel}%`)
+        if (typeof p.operator === 'string' && p.operator) parts.push(p.operator)
+        if (typeof p.mechanic === 'string' && p.mechanic) parts.push(`Mech ${p.mechanic}`)
         return parts.length ? `PMCS · ${parts.join(' · ')}` : 'PMCS — no new faults'
       }
       default:
@@ -158,18 +162,34 @@ export function ItemTimeline({ subjectId, clinicId, locations, holders, title = 
               const Icon = EVENT_ICON[e.eventType] ?? Pencil
               const open = isOpenFault(e)
               return (
-                <div key={e.id} className="flex items-center gap-3 px-4 py-3">
+                <button
+                  key={e.id}
+                  type="button"
+                  onClick={() => setPreviewEvent(e)}
+                  className="w-full text-left flex items-center gap-3 px-4 py-3 active:opacity-70 transition-opacity"
+                >
                   <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${open ? 'bg-themered/10 text-themered' : 'bg-themeblue3/10 text-themeblue2'}`}>
                     <Icon size={14} />
                   </div>
                   <p className={`flex-1 min-w-0 text-sm font-medium truncate ${open ? 'text-themered' : 'text-primary'}`}>{describe(e)}</p>
                   <span className="text-[9pt] text-tertiary shrink-0">{fmtDate(e.occurredAt)}</span>
-                </div>
+                </button>
               )
             })}
           </div>
         )}
       </div>
+
+      {/* Tap a row → RecordPreview: view its attached form (PMCS/dispatch),
+          edit fault text, or delete the record. The store delete bumps the
+          `properties` generation so this list refetches. */}
+      <RecordPreview
+        event={previewEvent}
+        onClose={() => setPreviewEvent(null)}
+        label={previewEvent ? describe(previewEvent) : ''}
+        Icon={previewEvent ? (EVENT_ICON[previewEvent.eventType] ?? Pencil) : Pencil}
+        tint={previewEvent && isOpenFault(previewEvent) ? 'bg-themered/10 text-themered' : 'bg-themeblue3/10 text-themeblue2'}
+      />
     </div>
   )
 }

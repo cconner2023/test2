@@ -14,8 +14,8 @@ const logger = createLogger('UserTimeline')
  * UserTimeline — the per-subject lifecycle spine read from the unified audit_log.
  *
  * Replaces the supervisor's forward-only "team calendar" voice with a single
- * timeline that renders BOTH past lifecycle events (joined cluster, trained,
- * certified) and future-facing ones, split by a standalone "now" divider line
+ * timeline that renders BOTH past lifecycle events (trained, certified) and
+ * future-facing ones, split by a standalone "now" divider line
  * (red dot + hairline, mirroring the calendar DayView marker) — future above,
  * past below. Reads server (read_audit RPC, RLS/dev-scoped) merged with local
  * pending events, so it paints offline-first. Lifecycle events only — not an
@@ -71,14 +71,12 @@ interface TimelineRowData {
 }
 
 const DOMAIN_ICON: Record<AuditDomain, typeof Building2> = {
-  personnel: Building2,
   property: Package,
   training: ClipboardCheck,
   cert: Award,
 }
 
 const DOMAIN_TINT: Record<AuditDomain, string> = {
-  personnel: 'bg-themeblue3/10 text-themeblue2',
   property: 'bg-themeblue3/10 text-themeblue2',
   training: 'bg-themegreen/10 text-themegreen',
   cert: 'bg-themeblue2/10 text-themeblue2',
@@ -89,11 +87,6 @@ function describeEvent(e: AuditEvent): string {
   const p = e.payload ?? {}
   const item = (p.training_item_id as string) || ''
   switch (e.eventType) {
-    case 'user.created': return 'Account created'
-    case 'home.assigned': return 'Assigned to cluster'
-    case 'home.returned': return 'Left cluster'
-    case 'loan.assigned': return 'Loaned to cluster'
-    case 'loan.returned': return 'Loan ended'
     case 'read.recorded': return item ? `Completed ${item}` : 'Completed training'
     case 'test.graded': return `Evaluated ${item}${p.result ? ` — ${p.result}` : ''}`
     case 'assignment.created': return item ? `Assigned ${item}` : 'Training assigned'

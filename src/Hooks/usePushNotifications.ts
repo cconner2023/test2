@@ -9,6 +9,7 @@ import {
   type SubscriptionInfo,
 } from '../lib/pushNotificationService'
 import { useNavigationStore } from '../stores/useNavigationStore'
+import { invalidate } from '../stores/useInvalidationStore'
 
 export interface ForegroundPush {
   title: string
@@ -50,6 +51,12 @@ export function usePushNotifications() {
         // generic duplicate here and let that rich banner be the sole one.
         const url = event.data.url as string | undefined
         if (url?.includes('view=messages')) return
+        // Admin-routed pushes (new_account / new_feedback / user_login all land on
+        // view=admin) carry server-originated rows the admin drawer can't otherwise
+        // know about — it has no realtime subscription. Bust the 'requests' gen so
+        // an OPEN AdminRequestsList re-pulls (the combined requests+feedback+
+        // suggestions list keys off this gen). Cheap: one query, only if mounted.
+        if (url?.includes('view=admin')) invalidate('requests')
         if (foregroundTimerRef.current) clearTimeout(foregroundTimerRef.current)
         setForegroundPush({
           title: event.data.title || 'Notification',
@@ -68,7 +75,14 @@ export function usePushNotifications() {
           const view = params.get('view')
           const nav = useNavigationStore.getState()
           if (view === 'messages') nav.setShowMessagesDrawer(true)
-          else if (view === 'admin') nav.setShowAdminDrawer(true)
+          else if (view === 'admin') {
+            // Tapping the request push opens the drawer (defaults to the requests
+            // tab). Bust 'requests' first so a backgrounded-not-killed app — whose
+            // gen-keyed cache is warm-but-stale — refetches instead of showing the
+            // pre-request list it had cached.
+            invalidate('requests')
+            nav.setShowAdminDrawer(true)
+          }
           else if (view === 'clinicNotes') nav.setShowProviderDrawer(true)
           else if (view === 'calendar') nav.setShowCalendarDrawer(true)
           // On-call ring + voicemail-delivered notifications. The live ring

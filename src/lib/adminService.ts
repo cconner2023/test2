@@ -464,6 +464,9 @@ const userCacheCfg: DeltaCacheConfig<AdminUser, AdminUserDelta> = {
   // Strip the delta cursor; AdminUser doesn't carry updated_at.
   toRow: ({ updated_at, ...row }) => row,
   memTtlMs: ADMIN_CACHE_TTL_MS,
+  // A background revalidate that picked up another device's (or our own deferred,
+  // now-flushed) write bumps the 'users' gen so an open admin list re-reads it.
+  onRevalidated: () => useInvalidationStore.getState().invalidate('users'),
 }
 
 /**
@@ -685,11 +688,11 @@ export interface AdminLocation {
 // are gone; staleness self-heals on first online read).
 const LOCATION_COLUMNS = 'id, country_code, subdivision, installation, sub_area, display_name, timezone, command, lat, lon, parent_id'
 
-/** Background-revalidate TTL for the persisted base (12h). Locations are admin-
- *  managed taxonomy edited rarely; the editing device revalidates its own cache
- *  immediately on mutation, so other devices tolerating up-to-12h staleness on the
- *  picker is an acceptable trade for skipping a cold-start fetch. */
-const LOCATIONS_TTL_MS = 12 * 60 * 60 * 1000
+/** Background-revalidate TTL for the persisted base. Aligned with the rest of the
+ *  admin drawer (ADMIN_CACHE_TTL_MS) so locations revalidate on cold start exactly
+ *  like users/clinics — a stale persisted base (and a warm-memory read past the
+ *  window, via memTtlMs below) kicks a background delta. */
+const LOCATIONS_TTL_MS = ADMIN_CACHE_TTL_MS
 
 /** A delta row carries the soft-delete + cursor fields the picker shape omits. */
 interface LocationDeltaRow extends AdminLocation { archived_at: string | null; updated_at: string }
@@ -717,6 +720,11 @@ const locationCacheCfg: DeltaCacheConfig<AdminLocation, LocationDeltaRow> = {
   fetchDelta: fetchLocationsDelta,
   // Strip the delta cursor + tombstone; AdminLocation carries neither.
   toRow: ({ archived_at, updated_at, ...row }) => row,
+  // Same SWR posture as users/clinics — a warm-memory read past the window kicks
+  // a background delta so a session that's already loaded locations still catches
+  // another device's writes.
+  memTtlMs: ADMIN_CACHE_TTL_MS,
+  onRevalidated: () => useInvalidationStore.getState().invalidate('locations'),
 }
 
 /** Reconcile after a dev location mutation. The delta-since-hwm returns exactly
@@ -903,6 +911,7 @@ const clinicCacheCfg: DeltaCacheConfig<AdminClinic, ClinicDeltaRow> = {
   // Strip the delta cursor (also drops encryption_key — never persisted).
   toRow: ({ updated_at, ...row }) => row,
   memTtlMs: ADMIN_CACHE_TTL_MS,
+  onRevalidated: () => useInvalidationStore.getState().invalidate('clinics'),
 }
 
 /**

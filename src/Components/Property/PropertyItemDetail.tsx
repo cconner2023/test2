@@ -33,6 +33,9 @@ interface PropertyItemDetailProps {
    *  to (dims/centers within the pane instead of a viewport-wide bottom drawer).
    *  Omitted on mobile, where split/merge render as bottom Sheets. */
   containerRef?: RefObject<HTMLElement | null>
+  /** The whole property drawer element the PMCS overlay scopes to (so it dims/
+   *  centers over the entire drawer, not just the right pane). Null on mobile. */
+  drawerRef?: RefObject<HTMLElement | null>
 }
 
 function DetailRow({ label, value }: { label: string; value: string | null | undefined }) {
@@ -51,7 +54,7 @@ const EXPIRY_LABELS = {
 } as const
 
 export const PropertyItemDetail = forwardRef<PropertyItemDetailHandle, PropertyItemDetailProps>(
-  function PropertyItemDetail({ item, locations, holders, items, onEnroll, onEdit, onDelete, canDelete, containerRef }, ref) {
+  function PropertyItemDetail({ item, locations, holders, items, onEnroll, onEdit, onDelete, canDelete, containerRef, drawerRef }, ref) {
   const isMobile = useIsMobile()
   const splitItem = usePropertyStore(s => s.splitItem)
   const mergeItems = usePropertyStore(s => s.mergeItems)
@@ -412,7 +415,7 @@ export const PropertyItemDetail = forwardRef<PropertyItemDetailHandle, PropertyI
         onClose={() => setShowPmcs(false)}
         subjectId={item.id}
         clinicId={item.clinic_id}
-        containerRef={containerRef}
+        containerRef={drawerRef}
       />
 
       {shareToChatPicker}

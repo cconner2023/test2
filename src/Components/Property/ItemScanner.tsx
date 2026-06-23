@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { X, ScanLine, Loader2, CheckCircle2, AlertCircle } from 'lucide-react'
 import { BrowserMultiFormatReader } from '@zxing/library'
 import { openCamera, closeCamera, captureFrame } from '../../lib/vision/camera'
@@ -198,8 +199,11 @@ export function ItemScanner({ items, onMatch, onLocate, onClose }: ItemScannerPr
   const confirmedItem = confirmedItemId ? items.find(i => i.id === confirmedItemId) : null
   const maxQty = confirmedItem?.quantity ?? 1
 
-  return (
-    <div className="fixed inset-0 z-50 bg-black flex flex-col">
+  // Portal to body: the scanner is a viewport-level overlay. Rendered in-place it
+  // sits inside PropertyDrawer's glassHeader `isolate` content slot, where it can't
+  // escape the z-10 glass header / z-[1020] search overlay (they'd paint on top).
+  return createPortal(
+    <div className="fixed inset-0 z-[2000] bg-black flex flex-col">
       {/* Video layer — always rendered so the element exists for the ref */}
       <video
         ref={videoRef}
@@ -348,6 +352,7 @@ export function ItemScanner({ items, onMatch, onLocate, onClose }: ItemScannerPr
           </div>
         </div>
       )}
-    </div>
+    </div>,
+    document.body,
   )
 }

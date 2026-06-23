@@ -5,6 +5,7 @@ import type { LucideIcon } from 'lucide-react'
 import { SearchInput } from './SearchInput'
 import { BaseOverlay, Z } from './BaseOverlay'
 import { ActionButton } from './ActionButton'
+import { TextInput } from './FormInputs'
 
 export interface ContextMenuAction {
   key: string
@@ -271,14 +272,13 @@ export function PreviewOverlay({
                         <div className="flex items-center gap-2 px-3 py-2.5 border-t border-tertiary/10">
                           {addPrefix}
                           <div className="flex-1">
-                            <input
-                              ref={addInputRef}
-                              type="text"
+                            <TextInput
+                              bare
+                              inputRef={addInputRef}
                               value={addValue}
-                              onChange={(e) => setAddValue(e.target.value)}
+                              onChange={setAddValue}
                               onKeyDown={(e) => { if (e.key === 'Enter') handleAddConfirm() }}
                               placeholder={addPlaceholder}
-                              className="w-full text-[10pt] pl-3 pr-3 py-2 rounded-full border border-tertiary/15 bg-themewhite text-primary outline-none focus:border-themeblue1/30 placeholder:text-tertiary transition-all duration-200"
                             />
                           </div>
                           <button

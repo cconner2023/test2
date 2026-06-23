@@ -8,7 +8,7 @@ import type { CustodyLedgerEntry, HandReceipt, HolderInfo, PropertyItem } from '
 /** Lean item row carried for receipt rendering + reprint. */
 export type ReceiptItem = Pick<
   PropertyItem,
-  'id' | 'name' | 'nomenclature' | 'nsn' | 'serial_number' | 'location_id'
+  'id' | 'name' | 'nomenclature' | 'nsn' | 'serial_number' | 'location_id' | 'quantity'
 >
 
 export interface HandReceiptData {
@@ -68,7 +68,7 @@ export function useHandReceipts(clinicId?: string | null): HandReceiptData {
 
     const loadItems = supabase
       .from('property_items')
-      .select('id, name, nomenclature, nsn, serial_number, location_id')
+      .select('id, name, nomenclature, nsn, serial_number, location_id, quantity')
       .eq('clinic_id', clinicId)
       .then(({ data }) => {
         const map = new Map<string, ReceiptItem>()

@@ -65,6 +65,9 @@ export const TextInput = ({
   inputMode,
   currentValue,
   hint,
+  bare = false,
+  inputRef,
+  onKeyDown,
 }: {
   label?: string
   value: string
@@ -77,29 +80,44 @@ export const TextInput = ({
   inputMode?: 'none' | 'text' | 'tel' | 'url' | 'email' | 'numeric' | 'decimal' | 'search'
   currentValue?: string | null
   hint?: string | null
-}) => (
-  <label className="block border-b border-primary/6 last:border-b-0">
-    {currentValue && (
-      <div className="px-4 pt-2 text-[10pt] text-tertiary">
-        Current: <span className="font-medium">{currentValue}</span>
-      </div>
-    )}
+  /** Render just the input (no self-row label/border) for embedding in a custom layout (e.g. an inline-add row with trailing buttons). */
+  bare?: boolean
+  inputRef?: React.Ref<HTMLInputElement>
+  onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void
+}) => {
+  const input = (
     <input
+      ref={inputRef}
       type={type}
       inputMode={inputMode}
       value={value}
       onChange={(e) => onChange(e.target.value)}
       onBlur={onBlur}
+      onKeyDown={onKeyDown}
       placeholder={placeholder ?? label}
       maxLength={maxLength}
       required={required}
       className="w-full bg-transparent px-4 py-3 text-base md:text-sm text-primary placeholder:text-tertiary focus:outline-none"
     />
-    {hint && (
-      <span className="block px-4 pb-2 text-[10pt] text-themeredred">{hint}</span>
-    )}
-  </label>
-)
+  )
+
+  // Bare: just the input, caller owns the wrapper/row (dense embeds like inline-add rows).
+  if (bare) return input
+
+  return (
+    <label className="block border-b border-primary/6 last:border-b-0">
+      {currentValue && (
+        <div className="px-4 pt-2 text-[10pt] text-tertiary">
+          Current: <span className="font-medium">{currentValue}</span>
+        </div>
+      )}
+      {input}
+      {hint && (
+        <span className="block px-4 pb-2 text-[10pt] text-themeredred">{hint}</span>
+      )}
+    </label>
+  )
+}
 
 /* ── Blood Pressure Input (systolic / diastolic) ── */
 

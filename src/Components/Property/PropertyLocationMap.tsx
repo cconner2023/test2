@@ -252,7 +252,7 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
   const editItemPinsRef = useRef<LocationTag[]>([])
   editItemPinsRef.current = editItemPins
   const editZoneOverlayRef = useRef<HTMLDivElement>(null)
-  const dragRef = useRef<{ startX: number; startY: number; scrollX: number; scrollY: number; zoneId: string | null } | null>(null)
+  const dragRef = useRef<{ startX: number; startY: number; scrollX: number; scrollY: number; zoneId: string | null; itemId: string | null } | null>(null)
   /** Suppress the click event that follows a drag-to-pan or a handled zone tap */
   const suppressClickRef = useRef(false)
   const lcaCleanupRef = useRef<(() => void) | null>(null)
@@ -262,6 +262,12 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
   const [namingState, setNamingState] = useState<{ index: number; existingLabel: string } | null>(null)
   const [nameInput, setNameInput] = useState('')
   const nameInputRef = useRef<HTMLInputElement>(null)
+  // The item pin currently focused by a canvas tap. Drives a deliberate zoom-to-item
+  // (like zooming a location) and keeps the resize re-fit framed on the item instead
+  // of snapping back to the whole zone. Cleared whenever the selected zone changes.
+  const [focusedItemId, setFocusedItemId] = useState<string | null>(null)
+  const focusedItemIdRef = useRef<string | null>(null)
+  focusedItemIdRef.current = focusedItemId
 
   const rootLocationId = store.rootLocationId
 
@@ -433,6 +439,10 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
 
     return [...baseTags, ...autoPins]
   }, [visibleTags, items, store.selectedZoneId])
+  // Ref so the item-focus zoom (and the resize re-fit) can read the live pin set —
+  // a tapped pin is always present here, including auto-pins for the selected zone.
+  const visibleTagsWithPinsRef = useRef<LocationTag[]>([])
+  visibleTagsWithPinsRef.current = visibleTagsWithPins
 
   // ── Auto-rendered child zones ──
   // Child locations that have NO drawn zone tag get a default grid rectangle laid
@@ -530,6 +540,37 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
   /** Convenience — zoom to a LocationTag */
   const zoomToTag = useCallback(
     (tag: LocationTag) => zoomToRect({ x: tag.x, y: tag.y, width: tag.width ?? 0, height: tag.height ?? 0 }),
+    [zoomToRect],
+  )
+
+  /** World-fraction window framed around a tapped item pin (point has no size). */
+  const ITEM_FOCUS_SPAN = 0.18
+
+  /**
+   * Zoom in on an item's pin the same way a zone tap zooms to a location: frame a
+   * small window centred on the point pin, clamped to the containing zone so we
+   * never zoom out past the zone's own framing. Returns false if the pin isn't
+   * currently rendered (so callers can fall back).
+   */
+  const focusItemPin = useCallback(
+    (itemId: string): boolean => {
+      const pin = visibleTagsWithPinsRef.current.find(
+        (t) => t.target_type === 'item' && t.target_id === itemId,
+      )
+      if (!pin) return false
+      const zone =
+        allWorldTagsRef.current.find((t) => t.target_id === pin.location_id && (t.width ?? 0) > 0) ??
+        childZoneAutoTagsRef.current.find((t) => t.target_id === pin.location_id && (t.width ?? 0) > 0)
+      const zoneSpan = zone ? Math.max(zone.width ?? 0, zone.height ?? 0) : ITEM_FOCUS_SPAN
+      const span = Math.min(ITEM_FOCUS_SPAN, zoneSpan || ITEM_FOCUS_SPAN)
+      zoomToRect({
+        x: Math.max(0, pin.x - span / 2),
+        y: Math.max(0, pin.y - span / 2),
+        width: span,
+        height: span,
+      })
+      return true
+    },
     [zoomToRect],
   )
 
@@ -660,6 +701,18 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
     [handleZoneTap],
   )
 
+  // ── Item pin tap → focus-zoom the item, then open its detail ──
+  // Mirrors zone tap: tapping an item drills the canvas in on it (instead of the
+  // old behaviour where the right-pane open just snapped the view back to the zone).
+  const handleItemTap = useCallback(
+    (item: LocalPropertyItem) => {
+      setFocusedItemId(item.id)
+      focusItemPin(item.id)
+      onSelectItem?.(item)
+    },
+    [focusItemPin, onSelectItem],
+  )
+
   // ── Reset zoom — fit all top-level zones into view ──
   const handleResetZoom = useCallback(() => {
     store.selectZone(null)
@@ -703,6 +756,11 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
   // Captured in a ref so the effect depends ONLY on vpSize (not on every store/tag change).
   const reFitRef = useRef<() => void>(() => {})
   reFitRef.current = () => {
+    // A focused item wins: keep the view framed on the tapped item (e.g. the desktop
+    // right-pane open that animates the center column width fires this re-fit — without
+    // this it would snap back to the whole zone and lose the item).
+    const focusedItem = focusedItemIdRef.current
+    if (focusedItem && focusItemPin(focusedItem)) return
     const sel = store.selectedZoneId
     // A selected tag-less sub-zone lives in childZoneAutoTags, not allWorldTags. Consult
     // both so the re-fit zooms to it instead of falling through to handleResetZoom — which
@@ -835,6 +893,14 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
   onDrawingChangeRef.current = onDrawingChange
   useEffect(() => {
     onSelectZoneRef.current?.(store.selectedZoneId)
+  }, [store.selectedZoneId])
+
+  // A zone change (tap another zone, drill up, deselect on empty canvas) makes any
+  // focused item stale → drop it so the re-fit falls back to zone/root framing.
+  // Item taps don't change the selected zone (the pin lives in it), so this never
+  // clears a focus that handleItemTap just set.
+  useEffect(() => {
+    setFocusedItemId(null)
   }, [store.selectedZoneId])
 
   // Process deferred navigation when tags load
@@ -1099,7 +1165,9 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
 
     const zoneEl = (e.target as HTMLElement).closest('[data-zone-target]')
     const zoneId = zoneEl?.getAttribute('data-zone-target') ?? null
-    dragRef.current = { startX: e.clientX, startY: e.clientY, scrollX: el.scrollLeft, scrollY: el.scrollTop, zoneId }
+    const itemEl = (e.target as HTMLElement).closest('[data-item-target]')
+    const itemId = itemEl?.getAttribute('data-item-target') ?? null
+    dragRef.current = { startX: e.clientX, startY: e.clientY, scrollX: el.scrollLeft, scrollY: el.scrollTop, zoneId, itemId }
 
     // Desktop: capture pointer for drag-to-pan (mobile uses native scroll)
     if (!isMobile && e.pointerType === 'mouse') {
@@ -1145,7 +1213,12 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
         if (dx < TAP_THRESHOLD && dy < TAP_THRESHOLD) {
           // Suppress the subsequent click so handleCanvasClick doesn't undo the selection
           suppressClickRef.current = true
-          if (d.zoneId) {
+          if (d.itemId) {
+            // Pointer capture ate the pin's own onClick — resolve the item tap here so
+            // a pin tap focus-zooms + opens the item instead of deselecting the zone.
+            const it = itemsRef.current.find((i) => i.id === d.itemId)
+            if (it) handleItemTap(it)
+          } else if (d.zoneId) {
             handleZoneTap(d.zoneId)
           } else if (store.selectedZoneId) {
             store.selectZone(null)
@@ -1155,7 +1228,19 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
     }
     // Reset suppress flag after click event fires (click comes after pointerup in the same frame)
     setTimeout(() => { suppressClickRef.current = false }, 0)
-  }, [isMobile, isEditing, store, handleZoneTap])
+  }, [isMobile, isEditing, store, handleZoneTap, handleItemTap])
+
+  // Item-pin tap entry point for the pin's own onClick. On desktop the pointer-capture
+  // tap detection in handlePanEnd has already fired handleItemTap and set
+  // suppressClickRef, so this guard drops the trailing click; on mobile (no capture)
+  // it drives the tap normally.
+  const handleCanvasItemTap = useCallback(
+    (item: LocalPropertyItem) => {
+      if (suppressClickRef.current) return
+      handleItemTap(item)
+    },
+    [handleItemTap],
+  )
 
   // ── Canvas click — deselect when tapping empty canvas (mobile uses this + zone onClick) ──
   const handleCanvasClick = useCallback((e: React.MouseEvent) => {
@@ -1484,7 +1569,6 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
                       photoMap={photoMap}
                       externalNamePrompt
                       onNamingChange={setNamingState}
-                      drawOnce={drawOnce}
                       onDrawComplete={handleDrawOnceComplete}
                     />
                   </div>
@@ -1542,7 +1626,6 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
                   photoMap={photoMap}
                   externalNamePrompt
                   onNamingChange={setNamingState}
-                  drawOnce={drawOnce}
                   onDrawComplete={handleDrawOnceComplete}
                 />
               </div>
@@ -1557,7 +1640,7 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
                   scale={1}
                   photoMap={photoMap}
                   items={items}
-                  onItemTap={onSelectItem}
+                  onItemTap={handleCanvasItemTap}
                   dispatchStatusByLocation={dispatchStatusByLocation}
                 />
 

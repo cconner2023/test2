@@ -235,6 +235,10 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     return () => window.removeEventListener('tour:calendar-set-panel-view', onSet)
   }, [])
   const eventFormRef = useRef<EventFormHandle>(null)
+  // Live title mirrored up from the open EventForm so the drawer/sheet/desktop
+  // headers can show it (map-overlay-style title-in-header). EventForm reports
+  // it on mount + every keystroke; empty falls back to "New/Edit Event".
+  const [formTitle, setFormTitle] = useState('')
 
   const { clinicId, surrogateClinicIds, supervisingClinicId, profile, user } = useAuth()
   // Active operating-as clinic — the single source of truth for clinic-scoped
@@ -1342,7 +1346,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
             fullHeight="85dvh"
             zIndex="z-50"
             header={{
-              title: editingEvent ? 'Edit Event' : 'New Event',
+              title: formTitle.trim() || (editingEvent ? 'Edit Event' : 'New Event'),
               rightContent: (
                 <HeaderPill>
                   {editingEvent && (
@@ -1376,6 +1380,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                 checklistTemplates={sortedPccTemplates}
                 clinicOptions={clinicFormOptions}
                 onCreateOverlay={handleCreateOverlayForEvent}
+                onTitleChange={setFormTitle}
               />
               <LoadingOverlay visible={isFormPending || isWriting || isDeleting} className="rounded-xl" />
             </div>
@@ -1481,7 +1486,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
             zIndex={1200}
             hideClose
             draggable={dayDrawerView === 'detail'}
-            title={dayDrawerView === 'edit' ? 'Edit Event' : undefined}
+            title={dayDrawerView === 'edit' ? (formTitle.trim() || 'Edit Event') : undefined}
             rightContent={dayDrawerView === 'edit' && editingEvent ? (
               <HeaderPill>
                 <PillButton icon={Trash2} iconSize={18} onClick={() => setConfirmDeleteEvent(editingEvent.id)} label="Delete" variant="danger" />
@@ -1533,6 +1538,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                   checklistTemplates={sortedPccTemplates}
                   clinicOptions={clinicFormOptions}
                   onCreateOverlay={handleCreateOverlayForEvent}
+                  onTitleChange={setFormTitle}
                 />
                 <LoadingOverlay visible={isFormPending || isWriting || isDeleting} className="rounded-xl" />
               </div>
@@ -1550,8 +1556,8 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
               panelView === 'form' ? (
                 <div className="relative flex flex-col flex-1 min-h-0">
                   <div className="flex items-center justify-between px-3 py-2 border-b border-tertiary/10">
-                    <h2 className="text-sm font-semibold text-primary whitespace-nowrap">
-                      {editingEvent ? 'Edit Event' : 'New Event'}
+                    <h2 className="min-w-0 flex-1 mr-2 text-sm font-semibold text-primary truncate">
+                      {formTitle.trim() || (editingEvent ? 'Edit Event' : 'New Event')}
                     </h2>
                     <HeaderPill>
                       {editingEvent && (
@@ -1582,6 +1588,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                 checklistTemplates={sortedPccTemplates}
                 clinicOptions={clinicFormOptions}
                 onCreateOverlay={handleCreateOverlayForEvent}
+                onTitleChange={setFormTitle}
                     />
                   </div>
                   <LoadingOverlay visible={isFormPending || isWriting || isDeleting} className="rounded-xl" />

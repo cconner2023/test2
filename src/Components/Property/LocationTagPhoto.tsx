@@ -91,6 +91,7 @@ function ItemPin({ pin, item, onTap }: {
 }) {
   return (
     <div
+      data-item-target={item.id}
       className="absolute z-20 select-none cursor-pointer"
       style={{
         left: `${pin.x * 100}%`,

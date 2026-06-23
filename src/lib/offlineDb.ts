@@ -723,6 +723,34 @@ export async function addToSyncQueue(
 }
 
 /**
+ * Remove every queued sync item (pending OR failed) for a single record.
+ *
+ * Used when a record is hard-deleted locally: a still-outstanding create/update
+ * would otherwise resurrect it server-side AFTER the delete — e.g. a create that
+ * FK-failed (status 'failed', so addToSyncQueue's pending-only dedup never merged
+ * the delete into it) gets retried post-delete and re-inserts a LIVE row. Caller
+ * enqueues the fresh soft-delete afterward. Returns the count removed.
+ */
+export async function removeSyncQueueItemsForRecord(
+  userId: string,
+  tableName: string,
+  recordId: string,
+): Promise<number> {
+  const db = await getDb()
+  let removed = 0
+  for (const status of ['pending', 'failed'] as const) {
+    const items = await db.getAllFromIndex('syncQueue', 'by-user-status', [userId, status])
+    for (const it of items) {
+      if (it.table_name === tableName && it.record_id === recordId) {
+        await db.delete('syncQueue', it.id)
+        removed++
+      }
+    }
+  }
+  return removed
+}
+
+/**
  * Get all pending sync items for a user, ordered by creation time (FIFO).
  */
 export async function getPendingSyncItems(userId: string): Promise<SyncQueueItem[]> {

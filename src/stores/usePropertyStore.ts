@@ -430,10 +430,20 @@ export const usePropertyStore = create<PropertyState>((set, get) => ({
     if (!user) return
 
     const allLocs = get().locations
+
+    // The default cluster zone (BAS) is a standing concept, not user-owned —
+    // un-deletable by definition. Refuse the request outright (the explicit
+    // target) and never let it ride along as a descendant of another delete.
+    // This is the single chokepoint for every delete path (row menus + the
+    // canvas editor's merge/delete), so the guard belongs here.
+    if (allLocs.find(l => l.id === id)?.is_default_zone) return
+    const defaultZoneIds = new Set(allLocs.filter(l => l.is_default_zone).map(l => l.id))
+
     const descendantIds = collectDescendants(id, allLocs)
     const allRemovedIds = new Set([id, ...descendantIds])
 
     for (const locId of allRemovedIds) {
+      if (defaultZoneIds.has(locId)) continue
       await deleteLocation(locId, user.id)
     }
 

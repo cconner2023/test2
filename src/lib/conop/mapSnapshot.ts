@@ -89,6 +89,14 @@ export interface ConopSnapshotOptions {
   features: OverlayFeature[]
   /** Overlay whose cached tiles back the offline render. */
   overlayId?: string
+  /**
+   * Every overlay that contributed a drawn feature. The snapshot tries each
+   * one's per-overlay tile cache, so a selection spanning multiple overlays
+   * (or whose feature's overlay differs from the primary) still renders its
+   * basemap instead of leaving the markers floating on blank fill. Falls back
+   * to `overlayId` (single) when omitted.
+   */
+  overlayIds?: string[]
   /** Tile source the overlay's tiles were cached under (defaults to OSM). */
   basemapId?: string
   /** Active theme palette — basemap is recolored to match (getTileTheme). */
@@ -117,14 +125,17 @@ function loadImage(src: string): Promise<HTMLImageElement> {
 /** Resolve a tile to a same-origin object URL (cache first, OSM network fallback). */
 async function resolveTileUrl(
   source: ReturnType<typeof getTileSource>,
-  overlayId: string | undefined,
+  overlayIds: string[],
   basemapId: string | undefined,
   z: number,
   x: number,
   y: number,
 ): Promise<{ url: string; revoke: boolean } | null> {
-  // 1. Per-overlay IDB cache (same-origin blob → always clean).
-  if (overlayId) {
+  // 1. Per-overlay IDB cache (same-origin blob → always clean). The drawn
+  //    geometry can span multiple overlays, so try EACH contributing overlay's
+  //    cache — a tile a feature sits on lives in that feature's overlay cache,
+  //    which may not be the primary overlay.
+  for (const overlayId of overlayIds) {
     const cached = await getTileFromCache(overlayId, z, x, y, basemapId)
     if (cached) return { url: URL.createObjectURL(cached), revoke: true }
   }
@@ -154,7 +165,7 @@ async function resolveTileUrl(
 async function drawTile(
   ctx: CanvasRenderingContext2D,
   source: ReturnType<typeof getTileSource>,
-  overlayId: string | undefined,
+  overlayIds: string[],
   basemapId: string | undefined,
   theme: TileTheme,
   recolor: RecolorFn,
@@ -164,7 +175,7 @@ async function drawTile(
   destX: number,
   destY: number,
 ): Promise<void> {
-  const resolved = await resolveTileUrl(source, overlayId, basemapId, z, x, y)
+  const resolved = await resolveTileUrl(source, overlayIds, basemapId, z, x, y)
   if (!resolved) return
   try {
     const img = await loadImage(resolved.url)
@@ -240,27 +251,31 @@ function canvasToPng(canvas: HTMLCanvasElement): Promise<Uint8Array> {
 export async function renderConopMapSnapshot(
   opts: ConopSnapshotOptions,
 ): Promise<ConopSnapshotResult | null> {
-  const { features, overlayId, basemapId, theme, width, height, padFrac = 0.15 } = opts
+  const { features, overlayId, overlayIds, basemapId, theme, width, height, padFrac = 0.15 } = opts
+
+  // Every overlay backing the render. The geometry can span overlays, so tiles
+  // are resolved from each one's cache (resolveTileUrl loops them).
+  const backingOverlayIds = overlayIds?.length ? overlayIds : overlayId ? [overlayId] : []
 
   const drawable = features.filter((f) => f.geometry && f.geometry.length > 0)
   const rawBbox = computeOverlayBbox(drawable)
   if (!rawBbox) return null
   const bbox = padBbox(rawBbox, padFrac)
 
-  // Align source + zoom to what the overlay's tiles were ACTUALLY bulk-cached
+  // Align source + zoom to what the overlays' tiles were ACTUALLY bulk-cached
   // under. Without this we default to OSM and a fit zoom up to 17 — but tiles are
   // cached only at zoom 8–13/14 and possibly under a non-OSM source (imagery /
-  // topo). The mismatch is a total cache miss, and since the network fallback is
-  // street-only (imagery/topo would CORS-taint the export canvas) the basemap
-  // renders blank — "just the marker." Reading TileMetadata realigns both.
+  // topo). The mismatch is a total cache miss → the basemap renders blank ("just
+  // the marker"). Reading TileMetadata realigns both. Across multiple backing
+  // overlays: take the first source seen, and the SHALLOWEST zoomMax so we never
+  // over-zoom past any contributing overlay's cache.
   let effectiveBasemap = basemapId
   let cacheZoomCap = 17
-  if (overlayId) {
-    const meta = await getTileMeta(overlayId)
-    if (meta) {
-      if (!effectiveBasemap && meta.sourceId) effectiveBasemap = meta.sourceId
-      if (typeof meta.zoomMax === 'number') cacheZoomCap = Math.min(cacheZoomCap, meta.zoomMax)
-    }
+  for (const oid of backingOverlayIds) {
+    const meta = await getTileMeta(oid)
+    if (!meta) continue
+    if (!effectiveBasemap && meta.sourceId) effectiveBasemap = meta.sourceId
+    if (typeof meta.zoomMax === 'number') cacheZoomCap = Math.min(cacheZoomCap, meta.zoomMax)
   }
 
   const source = getTileSource(effectiveBasemap)
@@ -306,7 +321,7 @@ export async function renderConopMapSnapshot(
       if (tx < 0 || ty < 0 || tx >= nTiles || ty >= nTiles) continue
       const destX = tx * TILE_PX - originX
       const destY = ty * TILE_PX - originY
-      tileJobs.push(drawTile(ctx, source, overlayId, effectiveBasemap, theme, recolorPixels, z, tx, ty, destX, destY))
+      tileJobs.push(drawTile(ctx, source, backingOverlayIds, effectiveBasemap, theme, recolorPixels, z, tx, ty, destX, destY))
     }
   }
   await Promise.all(tileJobs)
