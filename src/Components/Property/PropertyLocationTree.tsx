@@ -207,9 +207,11 @@ export function PropertyLocationTree({
   }
 
   // Shared item-row renderer — used for nested items, unassigned items, and the
-  // scoped selected-zone's top-level items. `actionCls` toggles hover-gated vs
-  // always-visible ellipsis.
-  function renderItemRow(item: LocalPropertyItem, paddingLeft: number, actionCls: string) {
+  // scoped selected-zone's top-level items. Takes the row's tree `depth` so item
+  // rows share the exact leading structure of location rows (chevron-slot + gap),
+  // keeping every child at a parent — vehicle, zone, or item — at the same indent.
+  // `actionCls` toggles hover-gated vs always-visible ellipsis.
+  function renderItemRow(item: LocalPropertyItem, depth: number, actionCls: string) {
     const expiry = expiryStatus(item.expiry_date ?? null)
     return (
       <div
@@ -217,15 +219,18 @@ export function PropertyLocationTree({
         role="button"
         tabIndex={0}
         className="group flex items-center gap-2 w-full py-2 pr-6 transition-colors text-left cursor-pointer border-l-2 border-l-transparent hover:bg-secondary/5"
-        style={{ paddingLeft: `${paddingLeft}px` }}
+        style={{ paddingLeft: `${16 + depth * 20}px` }}
         data-prop-row
         onClick={() => onSelectItem(item)}
         onKeyDown={(e) => { if (e.key === 'Enter') onSelectItem(item) }}
         onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); if (onDeleteItem || onAddItemAtLocation) openRowMenu('item', item.id, e.currentTarget as HTMLElement) }}
       >
-        {expiry && (
-          <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${expiry === 'expired' ? 'bg-themeredred' : 'bg-themeyellow'}`} />
-        )}
+        {/* Expiry indicator sits in the chevron slot so item names line up with sibling locations. */}
+        <span className="w-[18px] shrink-0 flex items-center justify-center">
+          {expiry && (
+            <span className={`w-1.5 h-1.5 rounded-full ${expiry === 'expired' ? 'bg-themeredred' : 'bg-themeyellow'}`} />
+          )}
+        </span>
         <span className="text-[10pt] text-primary truncate flex-1">{item.name}</span>
         {item.quantity > 0 && (
           <span className="text-[9pt] text-tertiary tabular-nums shrink-0">{item.quantity}</span>
@@ -305,7 +310,7 @@ export function PropertyLocationTree({
         {hasChildren && !isCollapsed && (
           <>
             {node.children.map((child) => renderNode(child, depth + 1))}
-            {node.items.map((item) => renderItemRow(item, 16 + (depth + 1) * 20 + 18, actionBtnCls))}
+            {node.items.map((item) => renderItemRow(item, depth + 1, actionBtnCls))}
           </>
         )}
       </div>
@@ -340,7 +345,7 @@ export function PropertyLocationTree({
       {displayRoots.map((node) => renderNode(node, 0))}
 
       {/* Scoped mode: the selected zone's own direct items, as top-level rows */}
-      {rootId && displayRootItems.map((item) => renderItemRow(item, 16 + 18, actionBtnCls))}
+      {rootId && displayRootItems.map((item) => renderItemRow(item, 0, actionBtnCls))}
 
       {/* Unassigned items */}
       {showUnassigned && (
@@ -363,7 +368,7 @@ export function PropertyLocationTree({
 
           {(isSearching || !collapsed.has('__unassigned__')) && (
             <>
-              {displayUnassigned.map((item) => renderItemRow(item, 16 + 20 + 18, 'w-7 h-7 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all shrink-0'))}
+              {displayUnassigned.map((item) => renderItemRow(item, 1, 'w-7 h-7 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all shrink-0'))}
             </>
           )}
         </div>

@@ -4,6 +4,7 @@ import type { CalendarEvent } from '../../Types/CalendarTypes'
 import type { CalendarT2TZoom } from '../../stores/useCalendarStore'
 import { PROVIDER_HUDDLE_TASK_ID, toDateKey, formatShortDayLabel, STATUS_META } from '../../Types/CalendarTypes'
 import { useCategoryColors } from '../../Hooks/useCategoryColors'
+import { snapshotHtml } from './menuPress'
 import type { ClinicMedic } from '../../Types/SupervisorTestTypes'
 import { UserAvatar } from '../Settings/UserAvatar'
 import { useIsMobile } from '../../Hooks/useIsMobile'
@@ -19,7 +20,7 @@ interface TroopsToTaskViewProps {
   /** Supervisor-defined huddle stations, sorted by sort_order. One band row per task. */
   huddleTasks: ClinicHuddleTask[]
   onSelectEvent: (id: string) => void
-  onEventContextMenu?: (eventId: string, rect: DOMRect) => void
+  onEventContextMenu?: (eventId: string, rect: DOMRect, html: string) => void
   onAssign: (eventId: string, userId: string) => void
   onUnassign: (eventId: string, userId: string) => void
   onDateChange: (date: Date) => void
@@ -215,7 +216,7 @@ export function TroopsToTaskView({ date, events, medics, huddleTasks, onSelectEv
     ? (e: React.MouseEvent) => {
         e.preventDefault()
         e.stopPropagation()
-        onEventContextMenu(eventId, e.currentTarget.getBoundingClientRect())
+        onEventContextMenu(eventId, e.currentTarget.getBoundingClientRect(), snapshotHtml(e.currentTarget as HTMLElement))
       }
     : undefined, [onEventContextMenu])
   const isMobile = useIsMobile()

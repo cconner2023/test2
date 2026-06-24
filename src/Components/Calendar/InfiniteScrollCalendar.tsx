@@ -14,7 +14,7 @@ interface InfiniteScrollCalendarProps {
   onMonthChange: (monthLabel: string) => void
   onMoveEvent: (eventId: string, targetDateKey: string) => void
   onSelectEvent: (id: string) => void
-  onEventContextMenu?: (eventId: string, rect: DOMRect) => void
+  onEventContextMenu?: (eventId: string, rect: DOMRect, html: string) => void
   onDayContextMenu?: (dateKey: string, rect: DOMRect) => void
   scrollTargetDate?: string
   scrollNonce?: number
@@ -137,7 +137,7 @@ interface EventPillProps {
   event: CalendarEvent
   eventId: string
   onTap: (id: string) => void
-  onMenu?: (eventId: string, rect: DOMRect) => void
+  onMenu?: (eventId: string, rect: DOMRect, html: string) => void
   pressRef: React.MutableRefObject<MenuPressState | null>
   isDragging: boolean
   /** Desktop mouse drag-to-reschedule. Touch long-press is reserved for the
@@ -148,7 +148,7 @@ interface EventPillProps {
 function EventPill({ event, eventId, onTap, onMenu, pressRef, isDragging, onPointerDown }: EventPillProps) {
   const { resolve: resolveCategoryColor } = useCategoryColors()
   const sm = STATUS_META[event.status]
-  const press = menuPressHandlers(onMenu ? (rect) => onMenu(eventId, rect) : undefined, pressRef)
+  const press = menuPressHandlers(onMenu ? (rect, html) => onMenu(eventId, rect, html) : undefined, pressRef)
   return (
     <div
       data-cal-event
@@ -407,7 +407,7 @@ export function InfiniteScrollCalendar({
                     key={seg.event.id}
                     data-cal-event
                     onPointerDown={getDragHandlers(seg.event.id).onPointerDown}
-                    {...menuPressHandlers(onEventContextMenu ? (rect) => onEventContextMenu(seg.event.id, rect) : undefined, eventPressRef)}
+                    {...menuPressHandlers(onEventContextMenu ? (rect, html) => onEventContextMenu(seg.event.id, rect, html) : undefined, eventPressRef)}
                     onClick={(e) => {
                       e.stopPropagation()
                       if (eventPressRef.current?.fired) return

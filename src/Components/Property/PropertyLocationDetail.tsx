@@ -3,6 +3,7 @@ import { Pencil, Package, FolderPlus, Camera, X, Trash2, Layers, Wrench, Route }
 import type { ContextMenuItem } from '../ContextMenu'
 import type { LocalPropertyItem, LocalPropertyLocation, HolderInfo } from '../../Types/PropertyTypes'
 import { PropertyLocationTree } from './PropertyLocationTree'
+import { useIsMobile } from '../../Hooks/useIsMobile'
 import { PmcsSheet } from './PmcsSheet'
 import { DispatchSheet } from './DispatchSheet'
 import { ItemTimeline } from '../Timeline/ItemTimeline'
@@ -64,6 +65,7 @@ export const PropertyLocationDetail = forwardRef<PropertyLocationDetailHandle, P
   onAddItemAtLocation,
   drawerRef,
 }: PropertyLocationDetailProps, ref) {
+  const isMobile = useIsMobile()
   const [showPmcs, setShowPmcs] = useState(false)
   const [showDispatch, setShowDispatch] = useState(false)
   useImperativeHandle(ref, () => ({
@@ -116,6 +118,7 @@ export const PropertyLocationDetail = forwardRef<PropertyLocationDetailHandle, P
 
       <PropertyLocationTree
         rootId={location.id}
+        hoverActions={!isMobile}
         locations={locations}
         items={items}
         holders={holders}

@@ -10,7 +10,7 @@ interface TripleDayViewProps {
   date: Date
   events: CalendarEvent[]
   onSelectEvent: (id: string) => void
-  onEventContextMenu?: (eventId: string, rect: DOMRect) => void
+  onEventContextMenu?: (eventId: string, rect: DOMRect, html: string) => void
   onDayContextMenu?: (dateKey: string, rect: DOMRect) => void
   onPrevDay?: () => void
   onNextDay?: () => void
@@ -138,7 +138,7 @@ export function TripleDayView({ date, events, onSelectEvent, onEventContextMenu,
                       <button
                         key={e.id}
                         onClick={() => { if (eventPressRef.current?.fired) return; onSelectEvent(e.id) }}
-                        {...menuPressHandlers(onEventContextMenu ? (rect) => onEventContextMenu(e.id, rect) : undefined, eventPressRef)}
+                        {...menuPressHandlers(onEventContextMenu ? (rect, html) => onEventContextMenu(e.id, rect, html) : undefined, eventPressRef)}
                         className={`w-full text-left rounded flex items-stretch gap-1 overflow-hidden bg-primary/5 ${sm.opacity} active:scale-95 transition-all duration-200`}
                       >
                         <div className={`w-0.5 shrink-0 rounded-full ${resolveCategoryColor(e.category, e.color).solid}`} />
@@ -206,7 +206,7 @@ export function TripleDayView({ date, events, onSelectEvent, onEventContextMenu,
                     role="button"
                     tabIndex={0}
                     onClick={() => { if (eventPressRef.current?.fired) return; onSelectEvent(event.id) }}
-                    {...menuPressHandlers(onEventContextMenu ? (rect) => onEventContextMenu(event.id, rect) : undefined, eventPressRef)}
+                    {...menuPressHandlers(onEventContextMenu ? (rect, html) => onEventContextMenu(event.id, rect, html) : undefined, eventPressRef)}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' || e.key === ' ') onSelectEvent(event.id)
                     }}

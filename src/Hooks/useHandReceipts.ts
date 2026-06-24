@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { fetchClinicLedger } from '../lib/propertyService'
+import { getLocalPropertyItems, getLocalPropertyLocations } from '../lib/offlineDb'
+import { usePropertyStore } from '../stores/usePropertyStore'
 import { groupHandReceipts } from '../Utilities/handReceipts'
 import { useInvalidation } from '../stores/useInvalidationStore'
 import type { CustodyLedgerEntry, HandReceipt, HolderInfo, PropertyItem } from '../Types/PropertyTypes'
@@ -63,28 +65,38 @@ export function useHandReceipts(clinicId?: string | null): HandReceiptData {
             displayName: [p.rank, p.last_name, p.first_name].filter(Boolean).join(' '),
           })
         }
+        // Offline / RLS-empty → fall back to the property store's in-memory roster
+        // so internal recipient labels still resolve. Best-effort getState (not a
+        // subscription), so the Settings surface still works without store init.
+        if (map.size === 0) {
+          for (const [id, info] of usePropertyStore.getState().holders) map.set(id, info)
+        }
         return map
       })
 
-    const loadItems = supabase
-      .from('property_items')
-      .select('id, name, nomenclature, nsn, serial_number, location_id, quantity')
-      .eq('clinic_id', clinicId)
-      .then(({ data }) => {
-        const map = new Map<string, ReceiptItem>()
-        for (const r of (data ?? []) as ReceiptItem[]) map.set(r.id, r)
-        return map
-      })
+    // Items + locations come from the IDB projection (offline-first, and
+    // store-independent so the Settings surface works without the property store).
+    const loadItems = getLocalPropertyItems(clinicId).then((items) => {
+      const map = new Map<string, ReceiptItem>()
+      for (const r of items) {
+        map.set(r.id, {
+          id: r.id,
+          name: r.name,
+          nomenclature: r.nomenclature,
+          nsn: r.nsn,
+          serial_number: r.serial_number,
+          location_id: r.location_id,
+          quantity: r.quantity,
+        })
+      }
+      return map
+    })
 
-    const loadLocations = supabase
-      .from('property_locations')
-      .select('id, name')
-      .eq('clinic_id', clinicId)
-      .then(({ data }) => {
-        const map = new Map<string, string>()
-        for (const r of data ?? []) map.set(r.id, r.name as string)
-        return map
-      })
+    const loadLocations = getLocalPropertyLocations(clinicId).then((locs) => {
+      const map = new Map<string, string>()
+      for (const r of locs) map.set(r.id, r.name)
+      return map
+    })
 
     Promise.all([fetchClinicLedger(clinicId), loadMembers, loadItems, loadLocations])
       .then(([ledger, members, items, locations]) => {

@@ -25,6 +25,7 @@ import { useClinicName } from '../../Hooks/useClinicNameResolver'
 import type { LocalPropertyItem, LocalPropertyLocation } from '../../Types/PropertyTypes'
 import { ROOT_LOCATION_NAME } from '../../Types/PropertyTypes'
 import { PropertyItemDetail, type PropertyItemDetailHandle } from './PropertyItemDetail'
+import { SignOutForm } from './SignOutForm'
 import { HeaderPill, PillButton } from '../HeaderPill'
 import { SearchInput } from '../SearchInput'
 
@@ -54,6 +55,9 @@ interface PropertyPanelProps {
   onEnrollNewItem?: (item: LocalPropertyItem) => void
   /** Open the shared add ActionSheet (FAB lives over the center map pane). */
   onOpenAddSheet?: () => void
+  /** Register a trigger to open the New DA 2062 sign-out in the detail surface
+   *  (right pane on desktop / detail sheet on mobile). Fired from the add ActionSheet. */
+  onRegisterNewDA2062?: (trigger: () => void) => void
 }
 
 export const PropertyPanel = memo(function PropertyPanel({
@@ -75,6 +79,7 @@ export const PropertyPanel = memo(function PropertyPanel({
   onEnrollItem,
   onEnrollNewItem,
   onOpenAddSheet,
+  onRegisterNewDA2062,
 }: PropertyPanelProps) {
   const store = usePropertyStore(
     useShallow((s) => ({
@@ -168,6 +173,9 @@ export const PropertyPanel = memo(function PropertyPanel({
   const [editLocationTarget, setEditLocationTarget] = useState<{ loc: LocalPropertyLocation | null; parentId: string | null; pendingTag?: PendingZoneTag | null } | null>(null)
   const [pendingDeleteItem, setPendingDeleteItem] = useState<LocalPropertyItem | null>(null)
   const [pendingDeleteLocId, setPendingDeleteLocId] = useState<string | null>(null)
+  // New DA 2062 sign-out, hosted in the detail surface (right pane desktop /
+  // detail sheet mobile) — the same primitive item & zone selection use.
+  const [signOutOpen, setSignOutOpen] = useState(false)
   // Selected-location action menu (header ellipsis) anchor + photo upload plumbing.
   const [locMenu, setLocMenu] = useState<{ rect: DOMRect } | null>(null)
   const { trigger: triggerPhoto, input: photoInput } = usePropertyPhotoUpload(
@@ -205,6 +213,20 @@ export const PropertyPanel = memo(function PropertyPanel({
   useEffect(() => {
     onRegisterOpenLocations?.(() => setShowLocations(true))
   }, [onRegisterOpenLocations])
+
+  // New DA 2062 opens in the detail surface — clear any open item/zone/form first
+  // so the sign-out is the sole occupant of the right pane / detail sheet.
+  useEffect(() => {
+    onRegisterNewDA2062?.(() => {
+      setMobileItem(null)
+      setMobileForm(null)
+      store.setEditingItem(null)
+      setEditLocationTarget(null)
+      setSelectedLocationId(null)
+      mapRef.current?.clearSelection()
+      setSignOutOpen(true)
+    })
+  }, [onRegisterNewDA2062, store])
 
   // Mobile: focusing the header search opens the results overlay over the canvas
   // (z1020). The Custody sheet sits above it (z1200), so leave that tab first —
@@ -438,7 +460,7 @@ export const PropertyPanel = memo(function PropertyPanel({
   // Desktop layout — left rail (location tree) · center map · right pane (detail/form),
   // mirroring MapOverlayPanel: the rail collapses while the right pane is open.
   if (!isMobile) {
-    const railCollapsed = view === 'property-form' || view === 'property-detail' || !!editLocationTarget || !!selectedLocation
+    const railCollapsed = view === 'property-form' || view === 'property-detail' || !!editLocationTarget || !!selectedLocation || signOutOpen
     // When the rail search has a query, the results take over the CENTER pane
     // (mirrors mobile's overlay) instead of filtering the rail tree in place. The
     // rail keeps the full tree for navigation context; results route to the right pane.
@@ -557,14 +579,22 @@ export const PropertyPanel = memo(function PropertyPanel({
                 </div>
               </>
             )}
-            {!editLocationTarget && view === 'property-detail' && selectedItem && (
+            {!editLocationTarget && signOutOpen && (
+              <>
+                <div className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-tertiary/10">
+                  <p className="text-sm font-medium text-primary">New DA 2062</p>
+                  <HeaderPill>
+                    <PillButton icon={X} iconSize={16} onClick={() => setSignOutOpen(false)} label="Close" />
+                  </HeaderPill>
+                </div>
+                <div className="flex-1 min-h-0 overflow-y-auto">
+                  <SignOutForm onClose={() => setSignOutOpen(false)} />
+                </div>
+              </>
+            )}
+            {!editLocationTarget && !signOutOpen && view === 'property-detail' && selectedItem && (
               <>
                 <div className="shrink-0 flex items-center gap-2 px-4 py-3 border-b border-tertiary/10">
-                  <HeaderPill>
-                    <span className="inline-flex" onClick={(e) => itemDetailRef.current?.openMenu((e.currentTarget as HTMLElement).getBoundingClientRect())}>
-                      <PillButton icon={MoreHorizontal} iconSize={16} onClick={() => {}} label="More actions" />
-                    </span>
-                  </HeaderPill>
                   <div className="flex-1 min-w-0">
                     <PropertyBreadcrumb
                       parentId={selectedItem.location_id ?? null}
@@ -576,6 +606,9 @@ export const PropertyPanel = memo(function PropertyPanel({
                     <p className="truncate text-sm font-medium text-primary">{selectedItem.name}</p>
                   </div>
                   <HeaderPill>
+                    <span className="inline-flex" onClick={(e) => itemDetailRef.current?.openMenu((e.currentTarget as HTMLElement).getBoundingClientRect())}>
+                      <PillButton icon={MoreHorizontal} iconSize={16} onClick={() => {}} label="More actions" />
+                    </span>
                     <PillButton icon={X} iconSize={16} onClick={() => { onBack(); closeLocationDetail() }} label="Close" />
                   </HeaderPill>
                 </div>
@@ -596,7 +629,7 @@ export const PropertyPanel = memo(function PropertyPanel({
                 </div>
               </>
             )}
-            {!editLocationTarget && view === 'property-form' && (
+            {!editLocationTarget && !signOutOpen && view === 'property-form' && (
               <>
                 <div className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-tertiary/10">
                   <p className="text-sm font-medium text-primary">
@@ -617,14 +650,9 @@ export const PropertyPanel = memo(function PropertyPanel({
                 </div>
               </>
             )}
-            {!editLocationTarget && view === 'property' && selectedLocation && (
+            {!editLocationTarget && !signOutOpen && view === 'property' && selectedLocation && (
               <>
                 <div className="shrink-0 flex items-center gap-2 px-4 py-3 border-b border-tertiary/10">
-                  <HeaderPill>
-                    <span className="inline-flex" onClick={openLocMenu}>
-                      <PillButton icon={MoreHorizontal} iconSize={16} onClick={() => {}} label="More actions" />
-                    </span>
-                  </HeaderPill>
                   <div className="flex-1 min-w-0">
                     <PropertyBreadcrumb
                       parentId={selectedLocation.parent_id ?? null}
@@ -636,6 +664,9 @@ export const PropertyPanel = memo(function PropertyPanel({
                     <p className="truncate text-sm font-medium text-primary">{selectedLocation.name}</p>
                   </div>
                   <HeaderPill>
+                    <span className="inline-flex" onClick={openLocMenu}>
+                      <PillButton icon={MoreHorizontal} iconSize={16} onClick={() => {}} label="More actions" />
+                    </span>
                     <PillButton icon={X} iconSize={16} onClick={closeLocationDetail} label="Close" />
                   </HeaderPill>
                 </div>
@@ -760,14 +791,16 @@ export const PropertyPanel = memo(function PropertyPanel({
           forms NEST in the SAME sheet (height-transition) — back unwinds
           form → item/location → parent zone. No separate sheets. */}
       <Sheet
-        isOpen={(!!selectedLocation || !!mobileItem || !!mobileForm) && !drawingZone}
-        onClose={() => { closeMobileForm(); setMobileItem(null); closeLocationDetail() }}
+        isOpen={(!!selectedLocation || !!mobileItem || !!mobileForm || signOutOpen) && !drawingZone}
+        onClose={() => { closeMobileForm(); setMobileItem(null); closeLocationDetail(); setSignOutOpen(false) }}
         title={
-          mobileForm
-            ? (mobileForm.kind === 'item'
-                ? (store.editingItem ? 'Edit Item' : 'New Item')
-                : (mobileForm.loc ? 'Edit Location' : 'New Location'))
-            : mobileItem ? mobileItem.name : (selectedLocation?.name ?? '')
+          signOutOpen
+            ? 'New DA 2062'
+            : mobileForm
+              ? (mobileForm.kind === 'item'
+                  ? (store.editingItem ? 'Edit Item' : 'New Item')
+                  : (mobileForm.loc ? 'Edit Location' : 'New Location'))
+              : mobileItem ? mobileItem.name : (selectedLocation?.name ?? '')
         }
         titleNode={
           !mobileForm && (mobileItem || selectedLocation) ? (
@@ -786,11 +819,12 @@ export const PropertyPanel = memo(function PropertyPanel({
           ) : undefined
         }
         height="fit"
-        maxHeight={60}
-        // Always non-blocking, like the map's mobile feature editor: the canvas stays
-        // visible/interactive and the body swaps detail↔form in the SAME sheet (no
-        // separate modal). Close via the header Cancel/Save/X, not a trapping backdrop.
-        backdrop="none"
+        maxHeight={signOutOpen ? 85 : 60}
+        // Detail/form are non-blocking like the map's mobile feature editor: the
+        // canvas stays interactive and the body swaps detail↔form in the SAME sheet.
+        // Sign-out is a focused task, so dim the canvas (non-dismissing) to block
+        // stray taps from selecting items behind it.
+        backdrop={signOutOpen ? 'block' : 'none'}
         zIndex={1200}
         leftContent={
           mobileForm ? (
@@ -822,7 +856,9 @@ export const PropertyPanel = memo(function PropertyPanel({
           ) : undefined
         }
       >
-        {mobileForm?.kind === 'item' ? (
+        {signOutOpen ? (
+          <SignOutForm onClose={() => setSignOutOpen(false)} />
+        ) : mobileForm?.kind === 'item' ? (
           <PropertyItemForm
             ref={itemFormRef}
             editingItem={store.editingItem}

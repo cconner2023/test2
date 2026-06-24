@@ -594,26 +594,63 @@ export async function restoreBackup(userId: string): Promise<void> {
       return
     }
 
-    // Multi-snapshot fallback: pull the most recent N snapshots and walk
-    // newest-first. If a snapshot fails to decrypt or parse, try the next
-    // older one — survives a single corrupt upload.
-    const { data: snapshots, error } = await supabase
+    // Multi-snapshot FOLD: pull the most recent N snapshots AND the richest
+    // (max message_count) snapshot, decrypt every one that decodes, and UNION
+    // their messages + tombstones across all of them. This backfills a sparse
+    // newest snapshot (e.g. one a device wrote right after restoring poorly)
+    // from an older high-water snapshot, instead of trusting the newest alone —
+    // the failure mode that loses sent messages on primary-device replacement.
+    // Server-side trim_all_signal_backups protects the high-water snapshot from
+    // recency-only pruning. saveMessage's id de-dupe + the unioned origin
+    // tombstones (restored first, below) keep the fold delete-correct: an older
+    // snapshot can never resurrect a message tombstoned in a newer one. After a
+    // fold the device's IDB is rich again, so its next backup self-heals.
+    type SnapRow = { snapshot_id: string; salt: string; ciphertext: string; created_at: string }
+
+    const { data: recentSnaps, error } = await supabase
       .from('signal_backups')
-      .select('salt, ciphertext, created_at')
+      .select('snapshot_id, salt, ciphertext, created_at')
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
       .limit(BACKUP_RETAIN_COUNT)
 
-    if (error || !snapshots || snapshots.length === 0) {
+    // High-water snapshot (most messages) — may be older than the recent window.
+    // Best-effort: a failure here just falls back to the recent set.
+    const { data: richSnaps } = await supabase
+      .from('signal_backups')
+      .select('snapshot_id, salt, ciphertext, created_at')
+      .eq('user_id', userId)
+      .order('message_count', { ascending: false })
+      .limit(1)
+
+    if (error || !recentSnaps || recentSnaps.length === 0) {
       logger.info('No backup found for user')
       return
+    }
+
+    // Merge recent + high-water, newest-first, de-duped by snapshot_id.
+    const snapshots: SnapRow[] = []
+    const seenSnapIds = new Set<string>()
+    for (const s of [...recentSnaps, ...(richSnaps ?? [])] as SnapRow[]) {
+      if (seenSnapIds.has(s.snapshot_id)) continue
+      seenSnapIds.add(s.snapshot_id)
+      snapshots.push(s)
     }
 
     // Legacy key (encrypted before userId salt) loaded once, used as a
     // per-snapshot fallback if the primary key fails.
     const legacyKey = await loadLegacyKeyFromIdb().catch(() => null)
 
-    let payload: BackupPayload | null = null
+    // Fold every decryptable snapshot into one payload. Messages keep the FIRST
+    // occurrence by id and we iterate newest-first, so the freshest copy (with
+    // the most up-to-date read state) wins; tombstones are a strict union with
+    // latest-deletedAt on conflict, so every delete is honored.
+    const mergedMessages: StoredMessage[] = []
+    const seenMessageIds = new Set<string>()
+    const mergedTombstones: Record<string, string> = {}
+    const mergedOriginTombstones: Record<string, string> = {}
+    let foldedCount = 0
+
     for (const snap of snapshots) {
       try {
         let compressed: Uint8Array
@@ -629,22 +666,47 @@ export async function restoreBackup(userId: string): Promise<void> {
         const json = new TextDecoder().decode(inflateRaw(compressed))
         const candidate: BackupPayload = JSON.parse(json)
         if (candidate.version !== 1 && candidate.version !== 2 && candidate.version !== 3) {
-          logger.warn(`Unknown backup version ${candidate.version} in snapshot ${snap.created_at} — trying older`)
+          logger.warn(`Unknown backup version ${candidate.version} in snapshot ${snap.created_at} — skipping`)
           continue
         }
-        payload = candidate
-        if (snap !== snapshots[0]) {
-          logger.warn(`Newest backup unusable; restored from snapshot at ${snap.created_at}`)
+
+        for (const msg of candidate.messages) {
+          if (!msg?.id || seenMessageIds.has(msg.id)) continue
+          seenMessageIds.add(msg.id)
+          mergedMessages.push(msg)
         }
-        break
+        if ((candidate.version === 2 || candidate.version === 3) && candidate.tombstones) {
+          for (const [k, deletedAt] of Object.entries(candidate.tombstones)) {
+            if (!mergedTombstones[k] || deletedAt > mergedTombstones[k]) mergedTombstones[k] = deletedAt
+          }
+        }
+        if (candidate.version === 3 && candidate.originTombstones) {
+          for (const [originId, deletedAt] of Object.entries(candidate.originTombstones)) {
+            if (!mergedOriginTombstones[originId] || deletedAt > mergedOriginTombstones[originId]) {
+              mergedOriginTombstones[originId] = deletedAt
+            }
+          }
+        }
+        foldedCount++
       } catch (e) {
-        logger.warn(`Snapshot at ${snap.created_at} failed to decrypt/parse, trying older:`, e instanceof Error ? e.message : e)
+        logger.warn(`Snapshot at ${snap.created_at} failed to decrypt/parse, skipping:`, e instanceof Error ? e.message : e)
       }
     }
 
-    if (!payload) {
+    if (foldedCount === 0) {
       logger.warn(`All ${snapshots.length} snapshot(s) failed to restore`)
       return
+    }
+    if (foldedCount > 1) {
+      logger.info(`Folded ${mergedMessages.length} messages from ${foldedCount} snapshots`)
+    }
+
+    const payload: BackupPayloadV3 = {
+      version: 3,
+      createdAt: new Date().toISOString(),
+      messages: mergedMessages,
+      tombstones: mergedTombstones,
+      originTombstones: mergedOriginTombstones,
     }
 
     let restored = 0

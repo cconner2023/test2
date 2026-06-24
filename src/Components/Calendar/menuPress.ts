@@ -26,8 +26,25 @@ export interface MenuPressOptions {
 const TAP_SLOP = 10
 
 /**
+ * Markup snapshot of the pressed element — feeds the LiftedRowMenu clone so the
+ * lifted row is a faithful copy of what was tapped (not a generic re-render).
+ * Calendar event blocks are absolutely positioned (week pills / day-grid blocks),
+ * so neutralize positioning + width on the clone — it must read as a normal-flow
+ * row inside the lift card. Strip inter-row separators (same as liftPress).
+ */
+export function snapshotHtml(el: HTMLElement): string {
+  const clone = el.cloneNode(true) as HTMLElement
+  clone.classList.remove('absolute')
+  clone.style.position = ''
+  clone.style.top = clone.style.left = clone.style.right = clone.style.bottom = ''
+  clone.style.width = clone.style.transform = ''
+  return clone.outerHTML.replace(/border-[tb] border-[a-z]+\/\d+/g, '')
+}
+
+/**
  * Right-click + long-press handlers that resolve the pressed element's DOMRect
- * and fire `onMenu(rect)` — the anchor for the LiftedRowMenu clone/raise peek
+ * plus an html snapshot and fire `onMenu(rect, html)` — the anchor + faithful
+ * clone of the tapped row for the LiftedRowMenu clone/raise peek
  * (the same iOS "lift the row, drop the menu beneath it" gesture used by the
  * messaging conversation rows and map-overlay rows).
  *
@@ -43,7 +60,7 @@ const TAP_SLOP = 10
  * The ref guard dedupes so only one of the two fires per interaction.
  */
 export function menuPressHandlers(
-  onMenu: ((rect: DOMRect) => void) | undefined,
+  onMenu: ((rect: DOMRect, html: string) => void) | undefined,
   ref: MutableRefObject<MenuPressState | null>,
   options: MenuPressOptions = {},
 ) {
@@ -53,7 +70,8 @@ export function menuPressHandlers(
     onContextMenu: (e: MouseEvent) => {
       e.preventDefault()
       e.stopPropagation()
-      onMenu(e.currentTarget.getBoundingClientRect())
+      const el = e.currentTarget as HTMLElement
+      onMenu(el.getBoundingClientRect(), snapshotHtml(el))
     },
     onTouchStart: (e: TouchEvent) => {
       e.stopPropagation()
@@ -66,7 +84,7 @@ export function menuPressHandlers(
         startY: t?.clientY ?? 0,
         timer: setTimeout(() => {
           state.fired = true
-          onMenu(el.getBoundingClientRect())
+          onMenu(el.getBoundingClientRect(), snapshotHtml(el))
         }, delay),
       }
       ref.current = state

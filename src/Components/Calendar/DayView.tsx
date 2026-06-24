@@ -4,13 +4,14 @@ import type { CalendarEvent } from '../../Types/CalendarTypes'
 import { STATUS_META, DAY_START_HOUR, DAY_END_HOUR, HOUR_HEIGHT_PX, toLocalISOString, toDateKey } from '../../Types/CalendarTypes'
 import { useCategoryColors } from '../../Hooks/useCategoryColors'
 import { formatHour, getEventPosition, resolveOverlaps } from './timeGrid'
+import { snapshotHtml } from './menuPress'
 
 interface DayViewProps {
   date: Date
   events: CalendarEvent[]
   onSelectEvent: (id: string) => void
   onMoveEvent: (eventId: string, newStartTime: string) => void
-  onEventContextMenu?: (eventId: string, rect: DOMRect) => void
+  onEventContextMenu?: (eventId: string, rect: DOMRect, html: string) => void
   onDayContextMenu?: (dateKey: string, rect: DOMRect) => void
   /** Mobile day navigation — when provided, renders interactive header */
   onPrevDay?: () => void
@@ -231,7 +232,7 @@ export function DayView({ date, events, onSelectEvent, onMoveEvent, onEventConte
                       if (onEventContextMenu) {
                         ev.preventDefault()
                         ev.stopPropagation()
-                        onEventContextMenu(e.id, ev.currentTarget.getBoundingClientRect())
+                        onEventContextMenu(e.id, ev.currentTarget.getBoundingClientRect(), snapshotHtml(ev.currentTarget))
                       }
                     }}
                     className={`w-full text-left rounded flex items-stretch gap-1 overflow-hidden bg-primary/5 ${sm.opacity} active:scale-95 transition-all duration-200`}
@@ -316,7 +317,7 @@ export function DayView({ date, events, onSelectEvent, onMoveEvent, onEventConte
                   if (onEventContextMenu) {
                     e.preventDefault()
                     e.stopPropagation()
-                    onEventContextMenu(event.id, e.currentTarget.getBoundingClientRect())
+                    onEventContextMenu(event.id, e.currentTarget.getBoundingClientRect(), snapshotHtml(e.currentTarget))
                   }
                 }}
                 onTouchStart={(e) => handleTouchStart(event.id, top, e)}

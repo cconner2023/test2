@@ -5,7 +5,6 @@ import { SearchInput } from './SearchInput'
 import { BaseDrawer } from './BaseDrawer'
 import { PropertyPanel, type PropertyView } from './Property/PropertyPanel'
 import { ConfirmDialog } from './ConfirmDialog'
-import { SignOutSheet } from './Property/SignOutSheet'
 import { PropertyNavSheet, type PropertyNavSheetHandle } from './Property/PropertyNavSheet'
 import { EnrollScanStep } from './Property/EnrollScanStep'
 import { useIsMobile } from '../Hooks/useIsMobile'
@@ -56,7 +55,6 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
     const [searchFocused, setSearchFocused] = useState(false)
     const [selectedItem, setSelectedItem] = useState<LocalPropertyItem | null>(null)
     const [pendingDeleteItem, setPendingDeleteItem] = useState<LocalPropertyItem | null>(null)
-    const [showSignOutSheet, setShowSignOutSheet] = useState(false)
     const [enrollingItem, setEnrollingItem] = useState<LocalPropertyItem | null>(null)
     const [enrollAutoStart, setEnrollAutoStart] = useState(false)
     const [pendingEnrollNew, setPendingEnrollNew] = useState<LocalPropertyItem | null>(null)
@@ -67,6 +65,7 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
     const addItemTriggerRef = useRef<(() => void) | null>(null)
     const addLocationTriggerRef = useRef<(() => void) | null>(null)
     const openLocationsTriggerRef = useRef<(() => void) | null>(null)
+    const newDA2062TriggerRef = useRef<(() => void) | null>(null)
     const initRef = useRef(false)
 
     useEffect(() => { setSearchQuery(''); setSearchFocused(false) }, [view])
@@ -265,6 +264,7 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                         onRegisterAddItem={(t) => { addItemTriggerRef.current = t }}
                         onRegisterAddLocation={(t) => { addLocationTriggerRef.current = t }}
                         onRegisterOpenLocations={(t) => { openLocationsTriggerRef.current = t }}
+                        onRegisterNewDA2062={(t) => { newDA2062TriggerRef.current = t }}
                     />
                 ) : (
                     <PropertyPanel
@@ -283,6 +283,7 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                         onEnrollNewItem={(item) => setPendingEnrollNew(item)}
                         onRegisterAddItem={(t) => { addItemTriggerRef.current = t }}
                         onRegisterAddLocation={(t) => { addLocationTriggerRef.current = t }}
+                        onRegisterNewDA2062={(t) => { newDA2062TriggerRef.current = t }}
                     />
                 )}
 
@@ -304,7 +305,7 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                 options={[
                     { key: 'item', label: 'New Item', onAction: () => { setShowAddSheet(false); addItemTriggerRef.current?.() } },
                     { key: 'location', label: 'New Location', onAction: () => { setShowAddSheet(false); addLocationTriggerRef.current?.() } },
-                    ...(isDevRole ? [{ key: 'da2062', label: 'New DA 2062', onAction: () => { setShowAddSheet(false); setShowSignOutSheet(true) } }] : []),
+                    ...(isDevRole ? [{ key: 'da2062', label: 'New DA 2062', onAction: () => { setShowAddSheet(false); newDA2062TriggerRef.current?.() } }] : []),
                     { key: 'import-csv', label: 'Import CSV', onAction: () => { setShowAddSheet(false); setShowImportSheet(true) } },
                     { key: 'export-csv', label: 'Export CSV', onAction: () => { setShowAddSheet(false); exportPropertyCSV(items, store.locations) } },
                     { key: 'print-labels', label: 'Print labels', onAction: () => { setShowAddSheet(false); setShowLabelSheet(true) } },
@@ -350,11 +351,6 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                     setPendingEnrollNew(null)
                 }}
                 onCancel={() => setPendingEnrollNew(null)}
-            />
-
-            <SignOutSheet
-                isOpen={showSignOutSheet}
-                onClose={() => setShowSignOutSheet(false)}
             />
 
             {enrollingItem && (

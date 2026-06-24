@@ -420,6 +420,7 @@ export function PmcsSheet({ isOpen, onClose, subjectType = 'item', subjectId, cl
           onClose={() => setScannerOpen(false)}
           onComplete={(f) => { setDocFile(f); setDocError(null) }}
           formLabel="5988E"
+          containerRef={containerRef}
         />
       </>
     </PreviewOverlay>

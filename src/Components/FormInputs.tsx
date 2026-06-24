@@ -211,7 +211,7 @@ function getOptionLabel(opt: PickerOption): string {
 export const PickerInput = ({
   value,
   onChange,
-  options,
+  options = [],
   placeholder,
   required = false,
   label,
@@ -219,7 +219,7 @@ export const PickerInput = ({
 }: {
   value: string
   onChange: (val: string) => void
-  options: readonly PickerOption[]
+  options?: readonly PickerOption[]
   placeholder?: string
   required?: boolean
   label?: string

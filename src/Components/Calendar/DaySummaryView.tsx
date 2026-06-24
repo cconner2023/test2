@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight, MapPin, ListChecks, CalendarOff } from 'luci
 import type { CalendarEvent } from '../../Types/CalendarTypes'
 import { STATUS_META, toDateKey } from '../../Types/CalendarTypes'
 import { useCategoryColors } from '../../Hooks/useCategoryColors'
+import { snapshotHtml } from './menuPress'
 
 interface DaySummaryViewProps {
   date: Date
@@ -11,7 +12,7 @@ interface DaySummaryViewProps {
   /** Resolve assignee ids → display records (CalendarPanel.resolveAssigned). */
   resolveAssigned: (ids: string[]) => { id: string; name: string }[]
   onSelectEvent: (id: string) => void
-  onEventContextMenu?: (eventId: string, rect: DOMRect) => void
+  onEventContextMenu?: (eventId: string, rect: DOMRect, html: string) => void
   onDayContextMenu?: (dateKey: string, rect: DOMRect) => void
   /** Mobile day navigation — when provided, renders the interactive header (mirrors DayView). */
   onPrevDay?: () => void
@@ -80,7 +81,7 @@ export function DaySummaryView({
           if (onEventContextMenu) {
             ev.preventDefault()
             ev.stopPropagation()
-            onEventContextMenu(event.id, ev.currentTarget.getBoundingClientRect())
+            onEventContextMenu(event.id, ev.currentTarget.getBoundingClientRect(), snapshotHtml(ev.currentTarget))
           }
         }}
         className={`w-full text-left flex items-stretch gap-2.5 px-3 py-2.5 rounded-xl bg-themewhite2 active:scale-[0.99] transition-all duration-150 ${sm.opacity}`}

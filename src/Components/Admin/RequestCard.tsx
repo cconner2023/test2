@@ -98,7 +98,7 @@ export function RequestCard({
   const [approvedEmail, setApprovedEmail] = useState<string | null>(null)
 
   // ── Derived ─────────────────────────────────────────────
-  const componentRanks = component ? ranksByComponent[component as Component] : []
+  const componentRanks = (component ? ranksByComponent[component as Component] : []) ?? []
 
   const clinicOptions = useMemo(
     () => clinics.map((c) => ({ value: c.id, label: `${c.name} (${c.uics.join(', ')})` })),

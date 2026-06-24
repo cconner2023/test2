@@ -13,7 +13,8 @@
  * Security notes:
  * - Vault messages have weaker forward secrecy than real-device messages
  *   (the vault never sends replies, so the DH ratchet never advances).
- * - The vault signed pre-key is rotated on every processVaultMessages call.
+ * - The vault signed pre-key is rotated on drain, but at most once per
+ *   VAULT_SPK_ROTATION_INTERVAL_MS (periodic hygiene, not every call).
  * - PBKDF2 with 600K iterations (Web Crypto — no native Argon2).
  */
 
@@ -45,9 +46,18 @@ const logger = createLogger('VaultDevice')
 export const VAULT_DEVICE_ID = 'vault'
 const VAULT_KDF_ITERATIONS = 600_000
 const VAULT_PREKEY_BATCH_SIZE = 500
-/** Cap on retained previous signed pre-keys. Vault rotates SPK every drain;
- *  the previous N keep in-flight InitialMessages decryptable across a rotation. */
+/** Cap on retained previous signed pre-keys. The previous N keep in-flight
+ *  InitialMessages decryptable across a rotation. */
 const VAULT_PREVIOUS_SPK_RETENTION = 10
+
+/** Minimum age before the vault SPK is rotated. Rotation is periodic hygiene,
+ *  NOT a per-drain op: attempting it on every drain made concurrent same-device
+ *  logins (INITIAL_SESSION + SIGNED_IN, or the VaultUnlockBanner drain racing
+ *  the SIGNED_IN drain) collide on the vault_device_keys OCC write — the loser
+ *  logged "another device won the race" on every load, plus did wasted crypto.
+ *  It also churned SPKs far faster than needed. With RETENTION=10, weekly
+ *  rotation keeps ~10 weeks of old InitialMessages decryptable. */
+const VAULT_SPK_ROTATION_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000
 
 // ---- Types ----
 
@@ -1185,6 +1195,7 @@ export async function ackVaultDrain(): Promise<void> {
 
 /**
  * Rotate the vault signed pre-key and re-encrypt the vault blob.
+ * No-ops if the current SPK is younger than VAULT_SPK_ROTATION_INTERVAL_MS.
  */
 async function rotateVaultSignedPreKey(
   userId: string,
@@ -1192,6 +1203,13 @@ async function rotateVaultSignedPreKey(
   vaultRow: VaultDeviceKeysRow
 ): Promise<void> {
   if (!cachedVaultKey) return
+
+  // Periodic, not per-drain. Skip while the current SPK is still fresh — the
+  // common case on multi-login days — so concurrent drains don't self-race on
+  // the OCC write below. A missing/invalid createdAt (legacy vault) parses to
+  // NaN, fails the `>= 0` guard, and rotates once to stamp a real timestamp.
+  const spkAgeMs = Date.now() - Date.parse(vaultKeys.signedPreKey.createdAt)
+  if (spkAgeMs >= 0 && spkAgeMs < VAULT_SPK_ROTATION_INTERVAL_MS) return
 
   try {
     // Generate new signed pre-key

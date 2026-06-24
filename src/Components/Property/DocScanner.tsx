@@ -1,14 +1,17 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { createPortal } from 'react-dom'
 import {
-  Camera, Images, X, Check, Trash2, ChevronLeft, Loader2, ScanLine,
+  Camera, Images, Check, Trash2, ScanLine, ArrowRight,
   Crop, Wand2, Palette, Contrast, SunMedium,
 } from 'lucide-react'
 import {
   fileToCanvas, detectDocumentQuad, warpQuad, outputSizeForQuad, applyFilter,
   assembleScanPdf, type Quad, type ScanFilter, type RasterImage,
 } from '../../lib/docScan'
+import { openCamera, closeCamera } from '../../lib/vision/camera'
+import { PreviewOverlay } from '../PreviewOverlay'
 import { TextInput } from '../FormInputs'
+import { ActionButton } from '../ActionButton'
+import { PillButton } from '../HeaderPill'
 import { createLogger } from '../../Utilities/Logger'
 
 const logger = createLogger('DocScanner')
@@ -22,16 +25,27 @@ const logger = createLogger('DocScanner')
  * photo of a worksheet comes out as a clean, de-skewed, titled PDF.
  *
  * Everything is 2D-canvas (see lib/docScan) — no native scanner, no OpenCV/WASM —
- * so it works in the pure PWA on iOS Safari. It renders as its own full-screen
- * portal above the property drawer/sheets (the crop interaction needs the room a
- * 340px popover can't give), and returns a File via onComplete; the host treats
- * that File exactly like a picked attachment (nothing downstream changes).
+ * so it works in the pure PWA on iOS Safari.
  *
- * Three sub-screens, mirroring Adobe Scan:
- *  - REVIEW: the captured pages (thumbnails), a title field, Add-page, and Save.
+ * It is a NESTED PreviewOverlay — the same primitive PMCS/Dispatch/RecordPreview
+ * use — scoped to the property drawer via `containerRef`. Launched from inside the
+ * host's PreviewOverlay children, it auto-stacks above the host through
+ * OverlayStackContext (no explicit zIndex plumbing). The standard popover header
+ * carries the close X (top-right) + a back chevron on the editing steps; the
+ * footer row carries the per-stage actions (capture options left, advance/Save
+ * right). Returns a File via onComplete; the host treats it like a picked
+ * attachment (nothing downstream changes).
+ *
+ * Four sub-screens, mirroring Adobe Scan:
+ *  - REVIEW: the captured pages (thumbnails) + a title field. Footer = capture
+ *            options (Camera / Photos) left, Save right.
+ *  - CAMERA: a live getUserMedia preview with a shutter (the real camera, not the
+ *            OS file picker — works on the iOS Safari floor and desktop webcam).
  *  - CROP:   the source photo with a draggable 4-corner quad (auto-detected on
- *            capture; drag to fix skew — the "manual fallback").
+ *            capture; drag to fix skew — the "manual fallback"). Footer = Auto-
+ *            detect left, Next right.
  *  - ENHANCE: the de-skewed page with a live filter (Auto / Colour / B&W / Grey).
+ *            Footer = Add/Done right.
  */
 
 interface DocScannerProps {
@@ -41,6 +55,8 @@ interface DocScannerProps {
   onComplete: (file: File) => void
   /** Form being scanned (e.g. "5988E", "dispatch form") — seeds the title placeholder. */
   formLabel?: string
+  /** Scopes the overlay to the property drawer (matches the host PMCS/Dispatch overlay). */
+  containerRef?: React.RefObject<HTMLElement | null>
 }
 
 interface Page {
@@ -62,7 +78,7 @@ interface Draft {
   previewBase?: HTMLCanvasElement // downscaled unfiltered page for fast live filtering
 }
 
-type Stage = 'review' | 'crop' | 'enhance'
+type Stage = 'review' | 'camera' | 'crop' | 'enhance'
 
 const FILTERS: { key: ScanFilter; label: string; icon: typeof Wand2 }[] = [
   { key: 'auto', label: 'Auto', icon: Wand2 },
@@ -75,7 +91,7 @@ function newId(): string {
   try { return crypto.randomUUID() } catch { return `p-${Date.now()}-${Math.round(Math.random() * 1e6)}` }
 }
 
-export function DocScanner({ isOpen, onClose, onComplete, formLabel }: DocScannerProps) {
+export function DocScanner({ isOpen, onClose, onComplete, formLabel, containerRef }: DocScannerProps) {
   const [stage, setStage] = useState<Stage>('review')
   const [pages, setPages] = useState<Page[]>([])
   const [draft, setDraft] = useState<Draft | null>(null)
@@ -83,7 +99,6 @@ export function DocScanner({ isOpen, onClose, onComplete, formLabel }: DocScanne
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const cameraInputRef = useRef<HTMLInputElement>(null)
   const libraryInputRef = useRef<HTMLInputElement>(null)
 
   // Reset everything when the scanner closes.
@@ -114,6 +129,20 @@ export function DocScanner({ isOpen, onClose, onComplete, formLabel }: DocScanne
     ev.target.value = '' // allow re-picking the same file
     if (f) void loadFile(f)
   }
+
+  // CAMERA → CROP: a frame captured from the live preview enters the same
+  // detect-quad → crop pipeline a picked photo does.
+  const onCapture = useCallback((canvas: HTMLCanvasElement) => {
+    const src: RasterImage = { canvas, width: canvas.width, height: canvas.height }
+    const quad = detectDocumentQuad(src)
+    setDraft({ id: undefined, src, srcUrl: canvas.toDataURL('image/jpeg', 0.85), quad, filter: 'auto' })
+    setStage('crop')
+  }, [])
+
+  const onCameraError = useCallback(() => {
+    setError('Camera unavailable — use Photos instead.')
+    setStage('review')
+  }, [])
 
   // Re-open a saved page back into the crop step (keeps its source/quad/filter).
   const editPage = (p: Page) => {
@@ -153,6 +182,13 @@ export function DocScanner({ isOpen, onClose, onComplete, formLabel }: DocScanne
     setStage('review')
   }
 
+  // Header back: enhance → crop; crop/camera → review (dropping any in-flight draft).
+  const handleBack = () => {
+    if (stage === 'enhance') { setStage('crop'); return }
+    setDraft(null)
+    setStage('review')
+  }
+
   const handleSave = async () => {
     if (!pages.length || busy) return
     setBusy(true); setError(null)
@@ -168,134 +204,112 @@ export function DocScanner({ isOpen, onClose, onComplete, formLabel }: DocScanne
     }
   }
 
-  if (!isOpen) return null
+  // ── Per-stage footer slots — capture/advance options LEFT, the success/confirm
+  //    (Save / Next / Add) RIGHT. Mirrors the PMCS/dispatch footer convention. ──
+  const footer = stage === 'review' ? (
+    <div className="flex gap-1 bg-themewhite rounded-2xl px-1.5 py-1.5">
+      <ActionButton icon={Camera} label="Camera" variant={busy ? 'disabled' : 'default'} onClick={() => setStage('camera')} />
+      <ActionButton icon={Images} label="Photos" variant={busy ? 'disabled' : 'default'} onClick={() => libraryInputRef.current?.click()} />
+    </div>
+  ) : stage === 'crop' ? (
+    <div className="flex gap-1 bg-themewhite rounded-2xl px-1.5 py-1.5">
+      <ActionButton icon={Crop} label="Auto-detect" variant="default" onClick={() => draft && setDraft({ ...draft, quad: detectDocumentQuad(draft.src) })} />
+    </div>
+  ) : undefined
 
-  const hiddenInputs = (
-    <>
-      <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={onInputChange} />
-      <input ref={libraryInputRef} type="file" accept="image/*" className="hidden" onChange={onInputChange} />
-    </>
-  )
+  const rightFooter = stage === 'review' ? (
+    <div className="bg-themewhite rounded-2xl px-1.5 py-1.5">
+      <PillButton icon={Check} iconSize={16} accent="success" disabled={!pages.length || busy} onClick={handleSave} label="Save document" />
+    </div>
+  ) : stage === 'crop' ? (
+    <div className="bg-themewhite rounded-2xl px-1.5 py-1.5">
+      <PillButton icon={ArrowRight} iconSize={18} accent="info" onClick={toEnhance} label="Next" />
+    </div>
+  ) : stage === 'enhance' ? (
+    <div className="bg-themewhite rounded-2xl px-1.5 py-1.5">
+      <PillButton icon={Check} iconSize={16} accent="success" onClick={commitPage} label={draft?.id ? 'Done' : 'Add page'} />
+    </div>
+  ) : undefined
 
-  return createPortal(
-    <div className="fixed inset-0 z-[1400] bg-black/90 flex flex-col" style={{ paddingTop: 'var(--sat)', paddingBottom: 'var(--sab)' }}>
-      {hiddenInputs}
+  const stageTitle = stage === 'camera' ? 'Camera' : stage === 'crop' ? 'Crop' : stage === 'enhance' ? 'Enhance' : 'Scan'
 
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 shrink-0">
-        <button
-          type="button"
-          onClick={stage === 'review' ? onClose : () => { setStage(stage === 'enhance' ? 'crop' : 'review'); if (stage === 'crop') setDraft(null) }}
-          className="w-9 h-9 rounded-full flex items-center justify-center text-white/80 active:scale-95 transition-all"
-          aria-label={stage === 'review' ? 'Close' : 'Back'}
-        >
-          {stage === 'review' ? <X size={20} /> : <ChevronLeft size={22} />}
-        </button>
-        <span className="text-sm font-medium text-white flex items-center gap-2">
-          <ScanLine size={16} className="text-white/70" />
-          {stage === 'crop' ? 'Crop' : stage === 'enhance' ? 'Enhance' : 'Scan document'}
-        </span>
-        {/* Right slot — Save on review, advance arrows on the editing steps. */}
-        {stage === 'review' ? (
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={!pages.length || busy}
-            className="h-9 px-3.5 rounded-full flex items-center gap-1.5 text-sm font-semibold bg-themegreen text-white disabled:opacity-30 active:scale-95 transition-all"
-          >
-            {busy ? <Loader2 size={15} className="animate-spin" /> : <Check size={16} />}
-            Save
-          </button>
-        ) : stage === 'crop' ? (
-          <button
-            type="button"
-            onClick={toEnhance}
-            className="h-9 px-3.5 rounded-full flex items-center gap-1.5 text-sm font-semibold bg-white text-black active:scale-95 transition-all"
-          >
-            Next
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={commitPage}
-            className="h-9 px-3.5 rounded-full flex items-center gap-1.5 text-sm font-semibold bg-themegreen text-white active:scale-95 transition-all"
-          >
-            <Check size={16} /> {draft?.id ? 'Done' : 'Add'}
-          </button>
-        )}
-      </div>
-
-      {/* Body */}
-      <div className="flex-1 min-h-0 overflow-y-auto px-4">
+  return (
+    <PreviewOverlay
+      isOpen={isOpen}
+      onClose={onClose}
+      anchorRect={null}
+      containerRef={containerRef}
+      title={stageTitle}
+      onBack={stage === 'review' ? undefined : handleBack}
+      maxWidth={400}
+      previewMaxHeight="62dvh"
+      footer={footer}
+      rightFooter={rightFooter}
+    >
+      <>
+        <input ref={libraryInputRef} type="file" accept="image/*" className="hidden" onChange={onInputChange} />
         {stage === 'review' && (
           <ReviewView
             pages={pages}
             title={title}
             onTitle={setTitle}
             placeholder={formLabel ? formLabel : 'Document title'}
-            busy={busy}
-            onCamera={() => cameraInputRef.current?.click()}
-            onLibrary={() => libraryInputRef.current?.click()}
+            error={error}
             onEdit={editPage}
             onDelete={deletePage}
           />
         )}
+        {stage === 'camera' && (
+          <CameraView onCapture={onCapture} onError={onCameraError} />
+        )}
         {stage === 'crop' && draft && (
-          <CropView draft={draft} onQuad={(quad) => setDraft({ ...draft, quad })} onAutoDetect={() => setDraft({ ...draft, quad: detectDocumentQuad(draft.src) })} />
+          <CropView draft={draft} onQuad={(quad) => setDraft({ ...draft, quad })} />
         )}
         {stage === 'enhance' && draft?.previewBase && (
           <EnhanceView draft={draft} onFilter={(filter) => setDraft({ ...draft, filter })} />
         )}
-      </div>
-
-      {error && (
-        <div className="px-4 py-2 shrink-0">
-          <p className="text-[10pt] font-medium text-themered text-center">{error}</p>
-        </div>
-      )}
-    </div>,
-    document.body,
+      </>
+    </PreviewOverlay>
   )
 }
 
 // ── Review ────────────────────────────────────────────────────────────────────
 
 function ReviewView({
-  pages, title, onTitle, placeholder, busy, onCamera, onLibrary, onEdit, onDelete,
+  pages, title, onTitle, placeholder, error, onEdit, onDelete,
 }: {
   pages: Page[]
   title: string
   onTitle: (v: string) => void
   placeholder: string
-  busy: boolean
-  onCamera: () => void
-  onLibrary: () => void
+  error: string | null
   onEdit: (p: Page) => void
   onDelete: (id: string) => void
 }) {
   return (
-    <div className="max-w-md mx-auto py-2">
+    <div className="p-3">
       {/* Title */}
-      <div className="mb-4 bg-themewhite rounded-2xl overflow-hidden">
+      <div className="mb-3 bg-themewhite2 rounded-xl overflow-hidden">
         <TextInput value={title} onChange={onTitle} placeholder={placeholder} />
       </div>
 
+      {error && <p className="mb-3 text-[9pt] font-medium text-themeredred text-center">{error}</p>}
+
       {pages.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-white/20 py-12 px-6 flex flex-col items-center text-center">
-          <div className="w-14 h-14 rounded-2xl bg-white/10 flex items-center justify-center mb-3">
-            <ScanLine size={26} className="text-white/70" />
+        <div className="rounded-2xl border border-dashed border-tertiary/25 py-10 px-6 flex flex-col items-center text-center">
+          <div className="w-14 h-14 rounded-2xl bg-themeblue3/10 flex items-center justify-center mb-3">
+            <ScanLine size={26} className="text-themeblue2" />
           </div>
-          <p className="text-sm font-medium text-white">Capture the first page</p>
-          <p className="text-[10pt] text-white/50 mt-1">Photograph the worksheet — edges are detected automatically.</p>
+          <p className="text-sm font-medium text-primary">Capture the first page</p>
         </div>
       ) : (
         <div className="grid grid-cols-3 gap-2.5">
           {pages.map((p, i) => (
-            <div key={p.id} className="relative group">
+            <div key={p.id} className="relative">
               <button
                 type="button"
                 onClick={() => onEdit(p)}
-                className="block w-full aspect-[3/4] rounded-xl overflow-hidden bg-white/5 border border-white/10 active:scale-[0.98] transition-transform"
+                className="block w-full aspect-[3/4] rounded-xl overflow-hidden bg-themewhite2 border border-tertiary/10 active:scale-[0.98] transition-transform"
               >
                 <img src={p.thumb} alt={`Page ${i + 1}`} className="w-full h-full object-cover" />
               </button>
@@ -305,7 +319,7 @@ function ReviewView({
               <button
                 type="button"
                 onClick={() => onDelete(p.id)}
-                className="absolute -top-1.5 -right-1.5 w-6 h-6 rounded-full bg-themered text-white flex items-center justify-center shadow active:scale-90 transition-transform"
+                className="absolute -top-1.5 -right-1.5 w-6 h-6 rounded-full bg-themeredred text-white flex items-center justify-center shadow active:scale-90 transition-transform"
                 aria-label={`Delete page ${i + 1}`}
               >
                 <Trash2 size={12} />
@@ -314,27 +328,73 @@ function ReviewView({
           ))}
         </div>
       )}
+    </div>
+  )
+}
 
-      {/* Add-page actions */}
-      <div className="flex gap-2.5 mt-5">
+// ── Camera ──────────────────────────────────────────────────────────────────--
+
+/**
+ * CameraView — a live getUserMedia preview with a shutter. This is the real
+ * camera (not an `<input capture>` that desktop browsers downgrade to a file
+ * picker); it works on the iOS Safari PWA floor and the desktop webcam alike,
+ * reusing the shared vision/camera helpers. The shutter grabs the current frame
+ * to a canvas and hands it up; the parent runs it through the crop pipeline. The
+ * dark capture area fills the white card edge-to-edge (the card is overflow-hidden).
+ */
+function CameraView({ onCapture, onError }: {
+  onCapture: (canvas: HTMLCanvasElement) => void
+  onError: () => void
+}) {
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const streamRef = useRef<MediaStream | null>(null)
+  const [ready, setReady] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const stream = await openCamera('environment')
+        if (cancelled) { closeCamera(stream); return }
+        streamRef.current = stream
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream
+          await videoRef.current.play()
+          if (!cancelled) setReady(true)
+        }
+      } catch (err) {
+        logger.warn('camera open failed:', err)
+        if (!cancelled) onError()
+      }
+    })()
+    return () => {
+      cancelled = true
+      if (streamRef.current) { closeCamera(streamRef.current); streamRef.current = null }
+    }
+  }, [onError])
+
+  const shoot = () => {
+    const v = videoRef.current
+    if (!v || !v.videoWidth) return
+    const canvas = document.createElement('canvas')
+    canvas.width = v.videoWidth
+    canvas.height = v.videoHeight
+    canvas.getContext('2d')!.drawImage(v, 0, 0)
+    onCapture(canvas)
+  }
+
+  return (
+    <div className="relative w-full h-[52dvh] bg-black">
+      <video ref={videoRef} className="absolute inset-0 w-full h-full object-contain" playsInline muted />
+      {/* Shutter */}
+      <div className="absolute inset-x-0 bottom-0 flex items-center justify-center pb-5 pt-4">
         <button
           type="button"
-          onClick={onCamera}
-          disabled={busy}
-          className="flex-1 h-12 rounded-2xl bg-white text-black font-semibold text-sm flex items-center justify-center gap-2 active:scale-[0.98] transition-transform disabled:opacity-50"
-        >
-          {busy ? <Loader2 size={18} className="animate-spin" /> : <Camera size={18} />}
-          {pages.length ? 'Add page' : 'Camera'}
-        </button>
-        <button
-          type="button"
-          onClick={onLibrary}
-          disabled={busy}
-          className="w-12 h-12 rounded-2xl bg-white/10 text-white flex items-center justify-center active:scale-95 transition-transform disabled:opacity-50"
-          aria-label="Choose from photos"
-        >
-          <Images size={18} />
-        </button>
+          onClick={shoot}
+          disabled={!ready}
+          aria-label="Capture"
+          className="w-16 h-16 rounded-full bg-white ring-4 ring-white/40 active:scale-95 transition-all disabled:opacity-40"
+        />
       </div>
     </div>
   )
@@ -342,10 +402,9 @@ function ReviewView({
 
 // ── Crop ──────────────────────────────────────────────────────────────────────
 
-function CropView({ draft, onQuad, onAutoDetect }: {
+function CropView({ draft, onQuad }: {
   draft: Draft
   onQuad: (q: Quad) => void
-  onAutoDetect: () => void
 }) {
   const wrapRef = useRef<HTMLDivElement>(null)
   const dragIdx = useRef<number>(-1)
@@ -368,7 +427,7 @@ function CropView({ draft, onQuad, onAutoDetect }: {
   const points = draft.quad.map((p) => `${p.x},${p.y}`).join(' ')
 
   return (
-    <div className="max-w-md mx-auto py-2 flex flex-col items-center">
+    <div className="p-3 flex flex-col items-center">
       {/* The <img> is the sizer (intrinsic ratio, capped by max-w/max-h so it's
           never distorted); the overlay + handles sit absolutely over it, and the
           wrapper's bounding rect == the image rect so normalised coords map 1:1. */}
@@ -379,7 +438,7 @@ function CropView({ draft, onQuad, onAutoDetect }: {
         onPointerUp={onPointerUp}
         onPointerLeave={onPointerUp}
       >
-        <img src={draft.srcUrl} alt="Captured page" className="block max-w-full rounded-lg pointer-events-none" style={{ maxHeight: '62vh' }} draggable={false} />
+        <img src={draft.srcUrl} alt="Captured page" className="block max-w-full rounded-lg pointer-events-none" style={{ maxHeight: '50dvh' }} draggable={false} />
         {/* Quad outline */}
         <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 1 1" preserveAspectRatio="none">
           <polygon points={points} fill="rgba(99,179,237,0.12)" stroke="#63b3ed" strokeWidth={2} vectorEffect="non-scaling-stroke" />
@@ -396,17 +455,6 @@ function CropView({ draft, onQuad, onAutoDetect }: {
           </div>
         ))}
       </div>
-
-      <div className="flex items-center gap-2 mt-5">
-        <button
-          type="button"
-          onClick={onAutoDetect}
-          className="h-10 px-4 rounded-full bg-white/10 text-white text-sm font-medium flex items-center gap-2 active:scale-95 transition-transform"
-        >
-          <Crop size={15} /> Auto-detect
-        </button>
-      </div>
-      <p className="text-[10pt] text-white/50 mt-3 text-center">Drag the corners to the page edges.</p>
     </div>
   )
 }
@@ -429,13 +477,13 @@ function EnhanceView({ draft, onFilter }: { draft: Draft; onFilter: (f: ScanFilt
   }, [draft.previewBase, draft.filter])
 
   return (
-    <div className="max-w-md mx-auto py-2 flex flex-col items-center">
-      <div className="inline-block rounded-lg overflow-hidden bg-white">
-        <canvas ref={canvasRef} className="block" style={{ maxWidth: '100%', maxHeight: '58vh', width: 'auto', height: 'auto' }} />
+    <div className="p-3 flex flex-col items-center">
+      <div className="rounded-lg overflow-hidden bg-tertiary/5">
+        <canvas ref={canvasRef} className="block" style={{ maxWidth: '100%', maxHeight: '42dvh', width: 'auto', height: 'auto' }} />
       </div>
 
       {/* Filter chips */}
-      <div className="flex items-center gap-2 mt-5">
+      <div className="flex items-center gap-2 mt-3">
         {FILTERS.map(({ key, label, icon: Icon }) => {
           const active = draft.filter === key
           return (
@@ -444,7 +492,7 @@ function EnhanceView({ draft, onFilter }: { draft: Draft; onFilter: (f: ScanFilt
               type="button"
               onClick={() => onFilter(key)}
               className={`h-11 px-3.5 rounded-2xl flex flex-col items-center justify-center gap-0.5 text-[8.5pt] font-semibold transition-all active:scale-95 ${
-                active ? 'bg-white text-black' : 'bg-white/10 text-white/80'
+                active ? 'bg-themeblue3 text-white' : 'bg-tertiary/8 text-secondary'
               }`}
             >
               <Icon size={16} />

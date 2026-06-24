@@ -1,9 +1,13 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
-import { Clock, Users2, CalendarDays, X, Check, Pencil, Trash2, CalendarPlus, Play, CheckCircle2, Ban, CircleDashed, Move, MessageSquare, CalendarOff, Square, Columns3, ListChecks, Grid2x2, CalendarRange, Rows3, Megaphone } from 'lucide-react'
+import { Clock, Users2, CalendarDays, X, Check, Trash2, CalendarPlus, CalendarOff, Square, Columns3, ListChecks, Grid2x2, CalendarRange, Rows3, Megaphone } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
-import { type ContextMenuItem } from '../ContextMenu'
 import { ActionPill } from '../ActionPill'
 import { LiftedRowMenu } from '../LiftedRowMenu'
+import { buildEventMenuItems, buildEventStatusReactions } from './eventMenu'
+import { exportEventConop, gatherLinkedGeometry } from '../../lib/conop/exportEventConop'
+import { getTileTheme } from '../MapOverlay/ThemedTileLayer'
+import { useTheme } from '../../Utilities/ThemeContext'
+import { useMapOverlaysStore } from '../../stores/useMapOverlaysStore'
 import { useShallow } from 'zustand/react/shallow'
 import { useIsMobile } from '../../Hooks/useIsMobile'
 import { EventForm } from './EventForm'
@@ -47,21 +51,21 @@ import { getInitials } from '../../Utilities/nameUtils'
 import type { CalendarEvent, EventFormData, EventStatus, EventSubtask } from '../../Types/CalendarTypes'
 import {
   eventToFormData, toDateKey, eventFallsOnDate, generateId, createEmptyFormData,
-  PROVIDER_HUDDLE_TASK_ID, isEventEditable, isTemplateStructureMutable, toLocalISOString,
+  PROVIDER_HUDDLE_TASK_ID, isEventEditable, isTemplateStructureMutable, isUnscheduledTemplate, toLocalISOString,
 } from '../../Types/CalendarTypes'
 import { useClinicAppointmentTypes } from '../../Hooks/useClinicAppointmentTypes'
 import { useClinicCategoryColorsSync } from '../../Hooks/useClinicCategoryColors'
-import { shareCalendar, shareTroopsToTaskCsv } from '../../lib/calendarExport'
+import { shareCalendar, shareTroopsToTaskCsv, shareSingleEvent } from '../../lib/calendarExport'
 
 type PanelView = 'calendar' | 'detail' | 'form' | 'template' | 'block'
 type DayDrawerView = 'detail' | 'edit'
 
 /**
  * Normalize a pressed element's rect into a compact, on-screen anchor for the
- * LiftedRowMenu clone/raise peek. The generic clone is a fixed-size card (not a
- * faithful copy of the pressed row), so we re-center a `w`×`h` box on the press
- * point and clamp it inside the viewport — a tiny month pill and a tall day cell
- * both lift as the same tidy card.
+ * LiftedRowMenu clone/raise peek. Used by the DAY peek, whose clone is a generic
+ * date chip (the tapped element is a whole tall day column — not a meaningful row
+ * to clone), so we re-center a `w`×`h` box on the press point and clamp it inside
+ * the viewport. Events clone faithfully instead — see `eventLiftAnchor`.
  */
 function compactAnchorRect(r: DOMRect, w: number, h: number): DOMRect {
   const vw = window.innerWidth
@@ -78,68 +82,53 @@ function cloneTime(event: CalendarEvent): string {
   return `${day} · ${fmt(event.start_time)} – ${fmt(event.end_time)}`
 }
 
-/** Estimate the rendered clone height so the menu drops in just below it (the
- *  lift math anchors off anchorRect.bottom — a wrong height overlaps the two). */
-function estimateEventCloneHeight(e: CalendarEvent): number {
-  // Err slightly high — an over-estimate leaves a small gap, an under-estimate
-  // lets the menu overlap the clone (the menu anchors off anchorRect.bottom).
-  let h = 80 // p-3 padding + title (text-sm) + date/time line
-  if (e.location) h += 24
-  if (e.assigned_to.length) h += 24
-  const n = e.subtasks?.length ?? 0
-  if (n) h += 12 + n * 26 // space-y-2 gap + per-row checklist line
-  return h
+/** Per-subtask-row height used to extend the lift anchor when the tickable
+ *  checklist is appended beneath the cloned event row. */
+const CLONE_SUBTASK_ROW_H = 26
+
+/**
+ * Lift anchor for an EVENT peek. The clone is a faithful copy of the tapped row
+ * (its real on-screen size/position), so we anchor off the real rect and only
+ * clamp it on-screen. When the current user can tick subtasks we append a live
+ * checklist beneath the clone — widen to a usable min and extend the height so
+ * the menu still drops cleanly below the appended rows.
+ */
+function eventLiftAnchor(r: DOMRect, subtaskRows: number): DOMRect {
+  const vw = window.innerWidth
+  const vh = window.innerHeight
+  const hasTick = subtaskRows > 0
+  const width = hasTick ? Math.max(r.width, 240) : r.width
+  const extraH = hasTick ? 10 + subtaskRows * CLONE_SUBTASK_ROW_H : 0
+  const height = r.height + extraH
+  const rawLeft = hasTick ? r.left + r.width / 2 - width / 2 : r.left
+  const left = Math.max(12, Math.min(rawLeft, vw - width - 12))
+  const top = Math.max(12, Math.min(r.top, vh - height - 80))
+  return { x: left, y: top, left, top, width, height, right: left + width, bottom: top + height, toJSON() {} } as DOMRect
 }
 
-/** Generic lifted-row clone for an event — title, date/time, location, assigned,
- *  and the full subtask checklist. Same card regardless of which view (month
- *  pill / day card / T2T bar) was pressed. */
-function EventClone({ event, assigned, subtaskLines, onToggleSubtask }: {
-  event: CalendarEvent
-  assigned: string[]
-  subtaskLines: { id: string; label: string; done: boolean }[]
-  /** When provided, subtask rows are tappable (assignee may tick). The clone is
-   *  otherwise pointer-events-none in the lifted menu, so these rows opt back in. */
-  onToggleSubtask?: (subtaskId: string) => void
+/** Interactive subtask checklist appended beneath the lifted event clone — the
+ *  one live part of the peek, so an assignee can tick straight from it (optimistic
+ *  + batched; flushed on menu close). The clone is otherwise pointer-events-none
+ *  in the lifted menu, so these rows opt back in. */
+function CloneSubtasks({ lines, onToggle }: {
+  lines: { id: string; label: string; done: boolean }[]
+  onToggle: (subtaskId: string) => void
 }) {
   return (
-    <div className="w-full rounded-xl border border-primary/10 bg-themewhite p-3 space-y-2">
-      <div className="min-w-0 space-y-0.5">
-        <p className="text-sm font-semibold text-primary truncate">{event.title || 'Untitled event'}</p>
-        <p className="text-[10pt] text-tertiary truncate">{cloneTime(event)}</p>
-        {event.location && (
-          <p className="text-[10pt] text-tertiary truncate">{event.location}</p>
-        )}
-        {assigned.length > 0 && (
-          <p className="text-[10pt] text-tertiary truncate">{assigned.join(', ')}</p>
-        )}
-      </div>
-      {subtaskLines.length > 0 && (
-        <div className="space-y-1 pl-0.5">
-          {subtaskLines.map((t) => {
-            const box = (
-              <>
-                <span className={`shrink-0 w-4 h-4 rounded border flex items-center justify-center ${t.done ? 'bg-themeblue3 border-themeblue3' : 'border-tertiary/30'}`}>
-                  {t.done && <Check size={10} className="text-white" />}
-                </span>
-                <span className={`flex-1 min-w-0 truncate text-[10pt] text-left ${t.done ? 'text-tertiary line-through' : 'text-primary'}`}>{t.label}</span>
-              </>
-            )
-            return onToggleSubtask ? (
-              <button
-                key={t.id}
-                type="button"
-                onClick={(e) => { e.stopPropagation(); onToggleSubtask(t.id) }}
-                className="w-full flex items-center gap-2 pointer-events-auto active:scale-[0.98] transition-transform"
-              >
-                {box}
-              </button>
-            ) : (
-              <div key={t.id} className="flex items-center gap-2">{box}</div>
-            )
-          })}
-        </div>
-      )}
+    <div className="space-y-1 px-3 pt-1.5 pb-2 pointer-events-auto">
+      {lines.map((t) => (
+        <button
+          key={t.id}
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onToggle(t.id) }}
+          className="w-full flex items-center gap-2 active:scale-[0.98] transition-transform"
+        >
+          <span className={`shrink-0 w-4 h-4 rounded border flex items-center justify-center ${t.done ? 'bg-themeblue3 border-themeblue3' : 'border-tertiary/30'}`}>
+            {t.done && <Check size={10} className="text-white" />}
+          </span>
+          <span className={`flex-1 min-w-0 truncate text-[10pt] text-left ${t.done ? 'text-tertiary line-through' : 'text-primary'}`}>{t.label}</span>
+        </button>
+      ))}
     </div>
   )
 }
@@ -318,7 +307,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
   const [blockNonce, setBlockNonce] = useState(0)
 
   const [confirmDeleteEvent, setConfirmDeleteEvent] = useState<string | null>(null)
-  const [contextMenu, setContextMenu] = useState<{ eventId: string; rect: DOMRect } | null>(null)
+  const [contextMenu, setContextMenu] = useState<{ eventId: string; rect: DOMRect; html: string } | null>(null)
   const [dayContextMenu, setDayContextMenu] = useState<{ dateKey: string; rect: DOMRect } | null>(null)
   const [moveModeEventId, setMoveModeEventId] = useState<string | null>(null)
   const moveToDateRef = useRef<(eventId: string, targetDateKey: string) => void>(() => {})
@@ -390,6 +379,10 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
 
   const propertyStoreItems = usePropertyStore(s => s.items)
   const propertyStoreLocations = usePropertyStore(s => s.locations)
+  // CONOP export inputs — overlays cache (geometry source) + active tile theme.
+  // Shared with EventDetailPanel so both surfaces export an identical CONOP.
+  const overlaysCache = useMapOverlaysStore(s => s.overlays)
+  const { theme, themeName } = useTheme()
   // Subtask → display label (mirrors EventTasksCard.labelFor) for the lifted clone.
   const subtaskLabel = useCallback((sub: EventSubtask): string => {
     switch (sub.kind) {
@@ -1021,11 +1014,13 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     setContextMenu(null)
   }, [vaultUpdate, isSupervisor])
 
-  const handleEventContextMenu = useCallback((eventId: string, rect: DOMRect) => {
+  const handleEventContextMenu = useCallback((eventId: string, rect: DOMRect, html: string) => {
     const ev = useCalendarStore.getState().events.find(e => e.id === eventId)
-    const w = Math.min(Math.max(rect.width, 240), 340)
-    const h = ev ? estimateEventCloneHeight(ev) : 72
-    setContextMenu({ eventId, rect: compactAnchorRect(rect, w, h) })
+    // Faithful clone of the tapped row. Extend the anchor for the appended live
+    // checklist only when this user is assigned (the tickable case).
+    const uid = useAuthStore.getState().user?.id ?? null
+    const tickRows = ev && uid && ev.assigned_to.includes(uid) ? (ev.subtasks?.length ?? 0) : 0
+    setContextMenu({ eventId, rect: eventLiftAnchor(rect, tickRows), html })
   }, [])
 
   const handleDayContextMenu = useCallback((dateKey: string, rect: DOMRect) => {
@@ -1506,6 +1501,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                 event={dayDrawerEvent}
                 onClose={handleDayDrawerDetailBack}
                 onEdit={handleDayDrawerEdit}
+                onMove={(id) => { handleDayDrawerClose(); enterMoveMode(id) }}
                 onDelete={(id) => {
                   handleDeleteEvent(id)
                   handleDayDrawerClose()
@@ -1599,6 +1595,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                     event={selectedEvent}
                     onClose={handleDetailBack}
                     onEdit={handleEditEvent}
+                    onMove={enterMoveMode}
                     onDelete={handleDeleteEvent}
                     onCancelTemplate={handleCancelTemplate}
                     apptTypeNames={apptTypeNames}
@@ -1715,40 +1712,48 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
 
       {contextMenu && (() => {
         const ctxEvent = events.find(e => e.id === contextMenu.eventId)
-        const ctxEditable = ctxEvent ? isEventEditable(ctxEvent, isSupervisor) : false
-        const ctxDeletable = ctxEvent ? isTemplateStructureMutable(ctxEvent, isSupervisor) : false
-        // Status options as a horizontal icon strip in the top row of the menu
-        // (same affordance as message reactions). Current status is color-lit;
-        // the rest are tertiary. Editable events only. A status change fans out
-        // the WHOLE event (incl. any pending subtask ticks), so clear the dirty
-        // flag — its fanout already covers the batched subtasks (no double send).
-        const applyCloneStatus = (status: EventStatus) => { handleStatusChange(contextMenu.eventId, status); dirtyCloneEventRef.current = null }
-        const statusReactions: ContextMenuItem[] = ctxEvent && ctxEditable ? [
-          { key: 'st-pending',  label: 'Pending', node: <CircleDashed size={18} className={ctxEvent.status === 'pending'     ? 'text-themeblue3'  : 'text-tertiary'} />, onAction: () => applyCloneStatus('pending') },
-          { key: 'st-active',   label: 'Active',  node: <Play         size={18} className={ctxEvent.status === 'in_progress' ? 'text-themeblue1'  : 'text-tertiary'} />, onAction: () => applyCloneStatus('in_progress') },
-          { key: 'st-done',     label: 'Done',    node: <CheckCircle2 size={18} className={ctxEvent.status === 'completed'   ? 'text-themegreen'  : 'text-tertiary'} />, onAction: () => applyCloneStatus('completed') },
-          { key: 'st-cancel',   label: 'Cancel',  node: <Ban          size={18} className={ctxEvent.status === 'cancelled'   ? 'text-themeredred' : 'text-tertiary'} />, onAction: () => applyCloneStatus('cancelled') },
-        ] : []
-        const editItems: ContextMenuItem[] = [
-          ...(ctxEditable ? [{ key: 'edit', label: 'Edit', icon: Pencil, onAction: () => handleEditEvent(contextMenu.eventId) }] : []),
-          ...(ctxEditable ? [{ key: 'move', label: 'Move', icon: Move, onAction: () => enterMoveMode(contextMenu.eventId) }] : []),
-          // Share is read-only — available on any event regardless of edit gating.
-          // Reuses the same live-ref share as the EventDetailPanel "Share to chat".
-          { key: 'share', label: 'Share to chat', icon: MessageSquare, onAction: () => {
-            const ev = ctxEvent
-            setContextMenu(null)
-            if (ev) shareToChat(
-              { type: 'shared_ref', refKind: 'calendar-event', refId: ev.id, label: ev.title || 'Event', subLabel: cloneTime(ev) },
-              { kind: 'calendar-event', event: ev },
-            )
-          } },
-          // Delete fans out 'd' on its own — drop any pending subtask flush.
-          ...(ctxDeletable ? [{ key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => { dirtyCloneEventRef.current = null; setConfirmDeleteEvent(contextMenu.eventId) } }] : []),
-        ]
         if (!ctxEvent) return null
-        const ctxAssigned = ctxEvent.assigned_to
-          .map(id => medicLookup.get(id)?.name)
-          .filter((n): n is string => !!n)
+        const ctxEditable = isEventEditable(ctxEvent, isSupervisor)
+        const ctxDeletable = isTemplateStructureMutable(ctxEvent, isSupervisor)
+        // A status change fans out the WHOLE event (incl. any pending subtask
+        // ticks), so clear the dirty flag — its fanout already covers the batched
+        // subtasks (no double send).
+        const applyCloneStatus = (status: EventStatus) => { handleStatusChange(contextMenu.eventId, status); dirtyCloneEventRef.current = null }
+        // SHARED event-menu builder — same source of truth as EventDetailPanel's
+        // ellipsis (eventMenu.tsx) so the lifted-row peek offers the SAME actions:
+        // status strip · Edit · Move · Share to chat · Add to phone calendar ·
+        // CONOP PDF · Cancel appointment · Delete, gated by this event's caps.
+        const ctxRoomAnchor = roomAnchorFor(ctxEvent.room_id)
+        const ctxCanExportConop = gatherLinkedGeometry(ctxEvent, overlaysCache, ctxRoomAnchor).features.length > 0
+        const ctxShowCancelTemplate = ctxEvent.category === 'templated' && !isUnscheduledTemplate(ctxEvent, apptTypeNames)
+        const statusReactions = buildEventStatusReactions(
+          ctxEvent,
+          ctxEditable ? applyCloneStatus : undefined,
+        )
+        const editItems = buildEventMenuItems({
+          onEdit: ctxEditable ? () => handleEditEvent(contextMenu.eventId) : undefined,
+          onMove: ctxEditable ? () => enterMoveMode(contextMenu.eventId) : undefined,
+          // Share is read-only — available on any event. Reuses the same live-ref
+          // share as the EventDetailPanel "Share to chat".
+          onShareToChat: () => shareToChat(
+            { type: 'shared_ref', refKind: 'calendar-event', refId: ctxEvent.id, label: ctxEvent.title || 'Event', subLabel: cloneTime(ctxEvent) },
+            { kind: 'calendar-event', event: ctxEvent },
+          ),
+          onAddToPhoneCalendar: () => { shareSingleEvent(ctxEvent).catch(() => {}) },
+          onExportConop: ctxCanExportConop ? () => {
+            exportEventConop({
+              event: ctxEvent,
+              assignedNames: resolveAssigned(ctxEvent.assigned_to).map(a => a.name),
+              overlays: overlaysCache,
+              roomAnchor: ctxRoomAnchor,
+              tileTheme: getTileTheme(themeName, theme),
+              subtaskLabel,
+            }).catch(() => {})
+          } : undefined,
+          onCancelTemplate: ctxShowCancelTemplate ? () => handleCancelTemplate(contextMenu.eventId) : undefined,
+          // Delete fans out 'd' on its own — drop any pending subtask flush.
+          onDelete: ctxDeletable ? () => { dirtyCloneEventRef.current = null; setConfirmDeleteEvent(contextMenu.eventId) } : undefined,
+        })
         const ctxSubLines = [...(ctxEvent.subtasks ?? [])]
           .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
           .map(s => ({ id: s.id, label: subtaskLabel(s), done: !!s.done_at }))
@@ -1758,13 +1763,15 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
           <LiftedRowMenu
             isOpen
             anchorRect={contextMenu.rect}
+            // Faithful clone of the tapped row (its own markup), with the live
+            // tickable checklist appended only when this user is assigned.
             row={(
-              <EventClone
-                event={ctxEvent}
-                assigned={ctxAssigned}
-                subtaskLines={ctxSubLines}
-                onToggleSubtask={canTickClone ? (sid) => handleToggleCloneSubtask(cloneEventId, sid) : undefined}
-              />
+              <>
+                <div dangerouslySetInnerHTML={{ __html: contextMenu.html }} />
+                {canTickClone && ctxSubLines.length > 0 && (
+                  <CloneSubtasks lines={ctxSubLines} onToggle={(sid) => handleToggleCloneSubtask(cloneEventId, sid)} />
+                )}
+              </>
             )}
             layout="list"
             reactions={statusReactions}

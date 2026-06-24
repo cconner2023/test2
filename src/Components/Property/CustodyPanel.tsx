@@ -7,7 +7,6 @@ import {
   RotateCcw,
   ClipboardCheck,
   Route,
-  ArrowLeftRight,
   type LucideIcon,
 } from 'lucide-react'
 import type { ReceiptItem, HandReceiptData } from '../../Hooks/useHandReceipts'
@@ -24,7 +23,7 @@ function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
-/** Icon chip for a PMCS / dispatch / move activity row. */
+/** Icon chip for a PMCS / dispatch activity row. */
 function activityMeta(e: AuditEvent): { Icon: LucideIcon; tint: string } {
   switch (e.eventType) {
     case 'pmcs.clear':
@@ -33,8 +32,6 @@ function activityMeta(e: AuditEvent): { Icon: LucideIcon; tint: string } {
       return { Icon: Route, tint: 'bg-themeblue3/10 text-themeblue2' }
     case 'dispatch.closed':
       return { Icon: RotateCcw, tint: 'bg-themegreen/10 text-themegreen' }
-    case 'item.moved':
-      return { Icon: ArrowLeftRight, tint: 'bg-tertiary/12 text-secondary' }
     default:
       return { Icon: FileText, tint: 'bg-tertiary/10 text-tertiary' }
   }
@@ -64,12 +61,14 @@ interface CustodyPanelProps {
  * Custody tab — the DA 2062 accountability surface. Top: the hand receipts as
  * their own tree (groups "Signed Out" / "History"), deliberately icon-light and
  * count-free — a receipt is just recipient + date, expanding to its items +
- * Print 2062 / Sign in. Bottom: the week's activity, three collapsible groups
- * "PMCS" + "Dispatch" + "Moves" (clinic-wide pmcs.clear / dispatch.* / item.moved
- * audit events from the past week via useRecentPropertyActivity) so a glance
- * answers "which items got PMCS'd, dispatched or relocated this week". Each row
- * is the subject name + a detail line (readings / exp date / from→to with
- * quantity); tapping opens RecordPreview (view the 5988E / dispatch form, delete). SEARCH is NOT here — it lives in the
+ * Print 2062 / Sign in. Bottom: the week's activity, two collapsible groups
+ * "PMCS" + "Dispatch" (clinic-wide pmcs.clear / dispatch.* audit events from the
+ * past week via useRecentPropertyActivity) so a glance answers "which items got
+ * PMCS'd or dispatched this week". Each row is the subject name + a detail line
+ * (readings / exp date); tapping opens RecordPreview (view the 5988E / dispatch
+ * form, delete). Item moves are intentionally NOT surfaced here — current
+ * location is always one item-search away, and per-item move history lives in
+ * ItemTimeline. SEARCH is NOT here — it lives in the
  * single property header search (PropertySearchOverlay), which folds receipts in
  * as a "Sign-outs" section. Shares the reprint / sign-in lifecycle via
  * useHandReceiptActions; receipt data is supplied by the parent.
@@ -100,22 +99,20 @@ export function CustodyPanel({
   // row opens RecordPreview (view 5988E / dispatch form, delete).
   const activity = useRecentPropertyActivity(clinicId)
   const [previewEvent, setPreviewEvent] = useState<AuditEvent | null>(null)
-  const { pmcsEvents, dispatchEvents, moveEvents } = useMemo(() => {
+  const { pmcsEvents, dispatchEvents } = useMemo(() => {
     const pmcsEvents: AuditEvent[] = []
     const dispatchEvents: AuditEvent[] = []
-    const moveEvents: AuditEvent[] = []
     for (const e of activity) {
       if (e.eventType === 'pmcs.clear') pmcsEvents.push(e)
-      else if (e.eventType === 'item.moved') moveEvents.push(e)
       else dispatchEvents.push(e) // dispatch.opened / dispatch.closed
     }
-    return { pmcsEvents, dispatchEvents, moveEvents }
+    return { pmcsEvents, dispatchEvents }
   }, [activity])
 
-  // Group keys: '__signed_out__' / '__pmcs__' / '__dispatch__' / '__moves__'
-  // default expanded (the week's activity is meant to read at a glance),
-  // '__history__' collapsed, plus each receipt's handReceiptId.
-  const [expanded, setExpanded] = useState<Set<string>>(() => new Set(['__signed_out__', '__pmcs__', '__dispatch__', '__moves__']))
+  // Group keys: '__signed_out__' / '__pmcs__' / '__dispatch__' default expanded
+  // (the week's activity is meant to read at a glance), '__history__' collapsed,
+  // plus each receipt's handReceiptId.
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set(['__signed_out__', '__pmcs__', '__dispatch__']))
   const toggle = useCallback((key: string) => {
     setExpanded((prev) => {
       const next = new Set(prev)
@@ -221,18 +218,14 @@ export function CustodyPanel({
     )
   }
 
-  // Item / vehicle name a PMCS / dispatch / move event is about.
+  // Item / vehicle name a PMCS / dispatch event is about.
   const activityName = (e: AuditEvent): string =>
     e.subjectType === 'item'
       ? itemsById.get(e.subjectId)?.name ?? 'Item'
       : locationNameById.get(e.subjectId) ?? 'Vehicle'
 
-  // Location name for a move's from/to (null/unknown → "Unassigned").
-  const locName = (id: unknown): string =>
-    typeof id === 'string' && id ? locationNameById.get(id) ?? 'Unknown' : 'Unassigned'
-
   // The record detail shown on the row's second line + in RecordPreview: readings
-  // for PMCS, exp date for a dispatch, the from→to (with quantity) for a move.
+  // for PMCS, exp date for a dispatch.
   const detailOf = (e: AuditEvent): string => {
     const p = e.payload ?? {}
     switch (e.eventType) {
@@ -253,11 +246,6 @@ export function CustodyPanel({
       }
       case 'dispatch.closed':
         return 'Returned'
-      case 'item.moved': {
-        const qty = e.subjectType === 'item' ? itemsById.get(e.subjectId)?.quantity : undefined
-        const q = typeof qty === 'number' && qty > 1 ? `Qty ${qty} · ` : ''
-        return `${q}${locName(p.from_location_id)} → ${locName(p.to_location_id)}`
-      }
       default:
         return e.eventType
     }
@@ -374,7 +362,6 @@ export function CustodyPanel({
             "nothing this week" rather than going missing. */}
         {renderActivitySection('__pmcs__', 'PMCS', pmcsEvents)}
         {renderActivitySection('__dispatch__', 'Dispatch', dispatchEvents)}
-        {renderActivitySection('__moves__', 'Moves', moveEvents)}
       </div>
 
       {/* Tap an activity row → preview the record (subject name + detail; view

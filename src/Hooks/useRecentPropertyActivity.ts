@@ -5,9 +5,8 @@ import type { AuditEvent } from '../lib/auditTypes'
 import { useInvalidation } from '../stores/useInvalidationStore'
 
 /**
- * Clinic-wide recent PMCS + dispatch + move activity, newest first — the "what
- * got inspected / dispatched / relocated lately" feed for the DA 2062 custody
- * surface. Mirrors
+ * Clinic-wide recent PMCS + dispatch activity, newest first — the "what got
+ * inspected / dispatched lately" feed for the DA 2062 custody surface. Mirrors
  * useVehicleDispatches' offline-first read (local audit_log merged with the
  * server read_audit copy by id) but, instead of folding to current state, it
  * returns the raw events so the custody panel can list them and hand each one to
@@ -21,7 +20,6 @@ const ACTIVITY_EVENT_TYPES = new Set<string>([
   'pmcs.clear',
   'dispatch.opened',
   'dispatch.closed',
-  'item.moved',
 ])
 
 /** How far back the custody activity feed reaches — "this week". */

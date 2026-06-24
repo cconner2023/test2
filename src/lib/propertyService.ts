@@ -22,6 +22,8 @@ import {
   getLocalDiscrepancies,
   saveLocalDiscrepancy,
   saveLocalCustodyEntry,
+  getLocalCustodyByClinic,
+  getLocalCustodyByItem,
   getLocalLocationTags,
   getLocalLocationTagsBatch,
   saveLocalLocationTags,
@@ -41,6 +43,7 @@ import type {
   PropertyLocation,
   LocationTag,
   CustodyLedgerEntry,
+  LocalCustodyEntry,
   Discrepancy,
   LocalPropertyItem,
   LocalPropertyLocation,
@@ -1310,25 +1313,25 @@ export async function fetchLocationTags(locationId: string): Promise<LocationTag
   const pendingIds = await getPendingTagCanvasIds()
   const hasPending = pendingIds.has(locationId)
 
-  // If online and no pending local edits, reconcile with server
-  if (isOnline() && !hasPending) {
+  // Seed-only (vault-authoritative): pull the spine ONLY to bootstrap a canvas
+  // this device has never populated (empty + version 0). A non-empty / versioned
+  // local canvas was filled by the vault tag channel or a local edit and is
+  // authoritative — overwriting it from the (lagging, vault-only-geometry-missing)
+  // spine would delete that geometry. See reconcileLocationTagsWithServer.
+  if (isOnline() && !hasPending && localTags.length === 0 && (await getLocalTagCanvasVersion(locationId)) === 0) {
     try {
       const { data, error } = await supabase
         .from('location_tags')
         .select('*')
         .eq('location_id', locationId)
-      if (!error && data) {
+      if (!error && data && data.length > 0) {
         const serverTags = data as LocationTag[]
-        // Accept server state if it differs (geometry-aware). Stamp the canvas
-        // version so the vault tag channel treats this pull as authoritative.
-        if (!tagsEqual(serverTags, localTags)) {
-          await saveLocalLocationTags(locationId, serverTags)
-          await setLocalTagCanvasVersion(locationId, Date.now())
-          return serverTags
-        }
+        await saveLocalLocationTags(locationId, serverTags)
+        await setLocalTagCanvasVersion(locationId, Date.now())
+        return serverTags
       }
     } catch (err) {
-      logger.warn('Failed to reconcile location tags from server:', err)
+      logger.warn('Failed to seed location tags from server:', err)
     }
   }
 
@@ -1456,9 +1459,21 @@ async function queueTagSync(locationId: string): Promise<void> {
 }
 
 /**
- * Reconcile location tags with the server for a clinic.
- * Pulls all tags from Supabase and merges with local IDB state.
- * Server wins for canvases that have no pending local changes.
+ * Reconcile location tags with the server for a clinic — VAULT-AUTHORITATIVE.
+ *
+ * Property geometry is distributed device-to-device via the clinic-vault 'tags'
+ * channel (applyTagsCanvas), not the spine. The spine is a write-only backstop +
+ * fresh-device bootstrap. So this reconcile is SEED-ONLY: it populates a canvas
+ * that is locally empty AND never touched (version 0), but NEVER overwrites a
+ * canvas the vault or a local edit has already populated. A non-empty / versioned
+ * local canvas is authoritative.
+ *
+ * The old server-authoritative overwrite deleted any tag the spine lacked — and
+ * the spine lags (or never receives) vault-only geometry like a freshly drawn
+ * vehicle rect, so it silently wiped vault-delivered geometry on every recipient
+ * device the moment the map opened ("zone geometry doesn't persist across
+ * devices"). Same delete-local data-loss class the 2026-06-21 vault cutover
+ * retired for property item/zone ROWS; the tags channel had been left behind.
  */
 export async function reconcileLocationTagsWithServer(
   clinicId: string,
@@ -1492,58 +1507,25 @@ export async function reconcileLocationTagsWithServer(
     // Check which canvases have pending sync queue items
     const pendingCanvasIds = await getPendingTagCanvasIds()
 
-    // For each canvas: if no pending local changes, accept server state
+    // SEED-ONLY (vault-authoritative): only populate a canvas that is locally
+    // empty AND never touched (version 0) — the fresh/cold-device bootstrap case.
+    // A non-empty OR versioned local canvas was already populated by the vault
+    // tag channel (or a local edit) and is authoritative; pulling the (possibly
+    // stale, vault-only-geometry-missing) spine over it would delete that
+    // geometry. Mirrors applyTagsCanvas's seed-empty / never-reset guard.
     const localByCanvas = await getLocalLocationTagsBatch(locationIds)
-    for (const locId of locationIds) {
-      if (pendingCanvasIds.has(locId)) continue // local changes pending — keep local
-
-      const serverTags = serverByCanvas.get(locId) || []
-      const localTags = localByCanvas.get(locId) || []
-
-      // Only update if there's a difference (geometry-aware). Stamp the canvas
-      // version so the vault tag channel treats this pull as authoritative.
-      if (serverTags.length !== localTags.length || !tagsEqual(serverTags, localTags)) {
-        await saveLocalLocationTags(locId, serverTags)
-        await setLocalTagCanvasVersion(locId, Date.now())
-      }
-    }
-
-    // Seed canvases that exist on server but not locally
     for (const [locId, serverTags] of serverByCanvas) {
-      if (!localByCanvas.has(locId) || (localByCanvas.get(locId)?.length === 0 && serverTags.length > 0)) {
-        if (!pendingCanvasIds.has(locId)) {
-          await saveLocalLocationTags(locId, serverTags)
-          await setLocalTagCanvasVersion(locId, Date.now())
-        }
-      }
+      if (serverTags.length === 0) continue
+      if (pendingCanvasIds.has(locId)) continue
+      const localTags = localByCanvas.get(locId) || []
+      if (localTags.length > 0) continue
+      if ((await getLocalTagCanvasVersion(locId)) > 0) continue // vault/local already owns this canvas
+      await saveLocalLocationTags(locId, serverTags)
+      await setLocalTagCanvasVersion(locId, Date.now())
     }
   } catch (err) {
     logger.warn('Tag reconciliation error:', err)
   }
-}
-
-/** Geometry-aware equality for tag arrays. Compares each tag by id AND its
- *  placement (x/y/width/height/rects) + label/target — NOT just the id set. The
- *  old id-set-only check made a moved/resized zone (same id, new geometry) look
- *  "equal", so server↔local reconciliation silently kept stale geometry. */
-function tagsEqual(a: LocationTag[], b: LocationTag[]): boolean {
-  if (a.length !== b.length) return false
-  const aById = new Map(a.map((t) => [t.id, t]))
-  for (const t of b) {
-    const o = aById.get(t.id)
-    if (!o) return false
-    if (
-      o.x !== t.x ||
-      o.y !== t.y ||
-      (o.width ?? null) !== (t.width ?? null) ||
-      (o.height ?? null) !== (t.height ?? null) ||
-      o.label !== t.label ||
-      o.target_type !== t.target_type ||
-      o.target_id !== t.target_id ||
-      JSON.stringify(o.rects ?? null) !== JSON.stringify(t.rects ?? null)
-    ) return false
-  }
-  return true
 }
 
 // ── Name Sync (tree → canvas tags) ───────────────────────────
@@ -1662,39 +1644,61 @@ export async function recordLedgerEntry(
   }
 }
 
-export async function fetchItemLedger(itemId: string): Promise<CustodyLedgerEntry[]> {
-  if (!isOnline()) return []
+/** Append-only custody rows are immutable + keyed by id, so a bootstrap merge is a
+ *  pure insert-missing: any server row absent locally is seeded, never overwritten.
+ *  Mirrors the vault-authoritative read pattern used for items/locations. */
+function localCustody(row: CustodyLedgerEntry): LocalCustodyEntry {
+  return {
+    ...row,
+    _sync_status: 'synced',
+    _sync_retry_count: 0,
+    _last_sync_error: null,
+    _last_sync_error_message: null,
+  }
+}
+
+async function seedCustodyFromServer(
+  column: 'item_id' | 'clinic_id',
+  value: string,
+  localIds: Set<string>,
+): Promise<void> {
+  if (!isOnline()) return
   try {
     const { data, error } = await supabase
       .from('custody_ledger')
       .select('*')
-      .eq('item_id', itemId)
-      .order('recorded_at', { ascending: false })
-    if (error) throw error
-    return (data as CustodyLedgerEntry[]) ?? []
+      .eq(column, value)
+    if (error || !data) return
+    for (const row of data as CustodyLedgerEntry[]) {
+      if (localIds.has(row.id)) continue // already have it (append-only → immutable)
+      await saveLocalCustodyEntry(localCustody(row))
+    }
   } catch (err) {
-    logger.warn('Failed to fetch ledger:', err)
-    return []
+    logger.warn('Custody bootstrap read failed, using local data:', err)
   }
+}
+
+const byRecordedDesc = (a: CustodyLedgerEntry, b: CustodyLedgerEntry) =>
+  b.recorded_at.localeCompare(a.recorded_at)
+
+/** One item's custody history (newest first). Local-first: reads the IDB
+ *  projection (populated by recordLedgerEntry + the vault custody channel), with a
+ *  best-effort spine seed-merge when online. Works fully offline. */
+export async function fetchItemLedger(itemId: string): Promise<CustodyLedgerEntry[]> {
+  const local = await getLocalCustodyByItem(itemId)
+  await seedCustodyFromServer('item_id', itemId, new Set(local.map((r) => r.id)))
+  return (await getLocalCustodyByItem(itemId)).sort(byRecordedDesc)
 }
 
 /** Clinic-wide custody ledger (newest first) — feeds the DA 2062 accountability
  *  surface, which folds these rows into hand receipts by hand_receipt_id.
- *  RLS scopes to the caller's clinic; online-only (matches fetchItemLedger). */
+ *  Local-first (IDB projection + best-effort spine seed-merge), so receipts render
+ *  offline and a just-signed-out receipt shows before its spine push lands. RLS
+ *  scopes the server read to the caller's clinic + cross-cluster targets. */
 export async function fetchClinicLedger(clinicId: string): Promise<CustodyLedgerEntry[]> {
-  if (!isOnline()) return []
-  try {
-    const { data, error } = await supabase
-      .from('custody_ledger')
-      .select('*')
-      .eq('clinic_id', clinicId)
-      .order('recorded_at', { ascending: false })
-    if (error) throw error
-    return (data as CustodyLedgerEntry[]) ?? []
-  } catch (err) {
-    logger.warn('Failed to fetch clinic ledger:', err)
-    return []
-  }
+  const local = await getLocalCustodyByClinic(clinicId)
+  await seedCustodyFromServer('clinic_id', clinicId, new Set(local.map((r) => r.id)))
+  return (await getLocalCustodyByClinic(clinicId)).sort(byRecordedDesc)
 }
 
 // ── Discrepancies ────────────────────────────────────────────

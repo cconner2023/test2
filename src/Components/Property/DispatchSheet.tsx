@@ -279,6 +279,7 @@ export function DispatchSheet({ isOpen, onClose, subjectId, clinicId, containerR
       onClose={() => setScannerOpen(false)}
       onComplete={(f) => { if (current) setReturnDocFile(f); else setOpenDocFile(f); setDocError(null) }}
       formLabel={current ? 'return form' : 'dispatch form'}
+      containerRef={containerRef}
     />
   )
 

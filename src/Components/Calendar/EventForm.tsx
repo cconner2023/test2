@@ -1,6 +1,6 @@
 import { useState, useCallback, useImperativeHandle, forwardRef, useEffect } from 'react'
-import { Package } from 'lucide-react'
 import { LocationPicker } from './LocationPicker'
+import { EquipmentPicker } from './EquipmentPicker'
 import type { EventFormData, EventCategory, EventStatus } from '../../Types/CalendarTypes'
 import { EventTasksCard } from './EventTasksCard'
 import { createEmptyFormData, EVENT_CATEGORIES, MILITARY_TIME_OPTIONS, militaryToHHMM, hhmmToMilitary, CATEGORY_SWATCH_IDS, CATEGORY_SWATCHES } from '../../Types/CalendarTypes'
@@ -150,14 +150,6 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
       }))
     }, [])
 
-    const togglePropertyItem = useCallback((itemId: string) => {
-      setForm(prev => ({
-        ...prev,
-        property_item_ids: prev.property_item_ids.includes(itemId)
-          ? prev.property_item_ids.filter(id => id !== itemId)
-          : [...prev.property_item_ids, itemId]
-      }))
-    }, [])
 
     const categoryLabel = EVENT_CATEGORIES.find(c => c.value === form.category)?.label ?? ''
 
@@ -454,7 +446,7 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
             <div className="border-b border-primary/6">
               <div className="px-4 pt-3 pb-1.5">
                 <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">
-                  Personnel ({form.assigned_to.length})
+                  Personnel
                 </p>
               </div>
               {medics.map(medic => {
@@ -490,35 +482,11 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
           )}
 
           {propertyItems && propertyItems.length > 0 && (
-            <div className="border-b border-primary/6">
-              <div className="px-4 pt-3 pb-1.5">
-                <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">
-                  Equipment ({form.property_item_ids.length})
-                </p>
-              </div>
-              {propertyItems.map(item => {
-                const isSelected = form.property_item_ids.includes(item.id)
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => togglePropertyItem(item.id)}
-                    className={`w-full flex items-center text-left transition-all duration-150 active:scale-[0.98] border-b border-primary/6 last:border-b-0 ${
-                      isMobile ? 'gap-3 px-4 py-3' : 'gap-2 px-3 py-2'
-                    } ${isSelected ? 'bg-themeblue3/8' : ''}`}
-                  >
-                    <Package size={isMobile ? 16 : 14} className={isSelected ? 'text-themeblue2 shrink-0' : 'text-tertiary shrink-0'} />
-                    <div className="flex-1 min-w-0">
-                      <p className={`font-medium text-primary truncate ${isMobile ? 'text-sm' : 'text-[10pt]'}`}>{item.name}</p>
-                      {item.nsn && <p className="text-[9pt] text-tertiary truncate">{item.nsn}</p>}
-                    </div>
-                    {item.serial_number && (
-                      <span className="text-[9pt] text-tertiary shrink-0">S/N {item.serial_number}</span>
-                    )}
-                  </button>
-                )
-              })}
-            </div>
+            <EquipmentPicker
+              items={propertyItems}
+              selectedIds={form.property_item_ids}
+              onChange={ids => updateField('property_item_ids', ids)}
+            />
           )}
         </div>
 

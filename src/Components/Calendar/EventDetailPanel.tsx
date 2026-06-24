@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useMemo, type ElementType } from 'react'
-import { Pencil, X, Share2, Map as MapIcon, Copy, Check, Printer, Image, Ban, CircleDashed, Play, CheckCircle2, Clock, MessageSquare, FileText, MoreHorizontal } from 'lucide-react'
+import { X, Map as MapIcon, Copy, Check, Printer, Image, MoreHorizontal } from 'lucide-react'
 import { reverseGeocode } from '../MapOverlay/searchResolver'
 import { latLngToUTM } from '../MapOverlay/utmProjection'
 import { OverlayTilePreview } from '../MapOverlay/OverlayTilePreview'
@@ -7,18 +7,15 @@ import { useMapOverlaysStore } from '../../stores/useMapOverlaysStore'
 import { useTheme } from '../../Utilities/ThemeContext'
 import { getTileTheme } from '../MapOverlay/ThemedTileLayer'
 import { usePropertyStore } from '../../stores/usePropertyStore'
-import { renderConopMapSnapshot } from '../../lib/conop/mapSnapshot'
-import { generateConopPdf, type ConopData } from '../../lib/conop/generateConopPdf'
-import { downloadPdfBytes } from '../../Utilities/downloadUtils'
-import type { LucideIcon } from 'lucide-react'
-import type { OverlayFeature, LocalMapOverlay } from '../../Types/MapOverlayTypes'
+import { exportEventConop, gatherLinkedGeometry } from '../../lib/conop/exportEventConop'
+import type { OverlayFeature } from '../../Types/MapOverlayTypes'
 import type { CalendarEvent, EventStatus, EventSubtask } from '../../Types/CalendarTypes'
 import type { ClinicPreCombatCheck } from '../../lib/supervisorService'
 import { EventTasksCard } from './EventTasksCard'
-import { type ContextMenuItem } from '../ContextMenu'
 import { AnchoredMenu } from '../LiftedRowMenu'
+import { buildEventMenuItems, buildEventStatusReactions } from './eventMenu'
 import { SectionHeader, SectionCard } from '../Section'
-import { formatShortDayLabel, isEventEditable, isUnscheduledTemplate } from '../../Types/CalendarTypes'
+import { formatShortDayLabel, isEventEditable, isTemplateStructureMutable, isUnscheduledTemplate } from '../../Types/CalendarTypes'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { useNavigationStore } from '../../stores/useNavigationStore'
 import { HeaderPill, PillButton } from '../HeaderPill'
@@ -49,6 +46,8 @@ interface EventDetailPanelProps {
   onClose: () => void
   onEdit: (id: string) => void
   onDelete: (id: string) => void
+  /** Enter move-mode for this event (drop to month grid, next day tap relocates). Surfaced from CalendarPanel. */
+  onMove?: (id: string) => void
   /** Revert a templated event's title back to its appointment-type name (cancel without deleting). */
   onCancelTemplate?: (id: string) => void
   /** Names of the clinic's appointment types — drives unscheduled-vs-scheduled detection. */
@@ -89,14 +88,7 @@ function formatDateTime(iso: string, allDay: boolean): string {
     ' at ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
 }
 
-const STATUS_TRIGGER_ICON: Record<EventStatus, LucideIcon> = {
-  pending:     CircleDashed,
-  in_progress: Play,
-  completed:   CheckCircle2,
-  cancelled:   Ban,
-}
-
-export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, onCancelTemplate, apptTypeNames = [], canDeleteTemplate, onStatusChange, onUpdateSubtasks, checklistTemplates = [], assignedNames = [], linkedPropertyItems = [], overlayOptions, roomAnchor, inSheet }: EventDetailPanelProps) {
+export function EventDetailPanel({ event, onClose, onEdit, onDelete, onMove, onCancelTemplate, apptTypeNames = [], canDeleteTemplate, onStatusChange, onUpdateSubtasks, checklistTemplates = [], assignedNames = [], linkedPropertyItems = [], overlayOptions, roomAnchor, inSheet }: EventDetailPanelProps) {
   const isMobile = useIsMobile()
   const txt = isMobile ? 'text-sm' : 'text-[10pt]'
   const rowPad = isMobile ? 'px-4 py-3' : 'px-3 py-2.5'
@@ -129,43 +121,21 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, 
     if (exportingConop) return
     setExportingConop(true)
     try {
-      const snap = canExportConop
-        ? await renderConopMapSnapshot({
-            features: conopGeometry.features,
-            overlayIds: conopGeometry.overlayIds,
-            theme: getTileTheme(themeName, theme),
-            width: 1040,
-            height: 980,
-          })
-        : null
-
-      const sorted = [...(event.subtasks ?? [])].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
-      const data: ConopData = {
-        title: event.title || 'CONOP',
-        startTime: event.start_time,
-        endTime: event.end_time,
-        allDay: event.all_day,
-        location: event.location,
+      await exportEventConop({
+        event,
         assignedNames: assignedNames.map(a => a.name),
-        uniform: event.uniform,
-        reportTime: event.report_time,
-        notes: event.description,
-        subtasks: sorted.map(s => ({ label: subtaskLabel(s), done: !!s.done_at })),
-        mapPng: snap?.pngBytes ?? null,
-        mapW: snap?.width,
-        mapH: snap?.height,
-        generatedAt: new Date().toISOString(),
-      }
-
-      const bytes = await generateConopPdf(data)
-      const safe = (event.title || 'conop').replace(/[^\w-]+/g, '_').slice(0, 40) || 'conop'
-      downloadPdfBytes(bytes, `conop-${safe}.pdf`)
+        overlays: overlaysCache,
+        roomAnchor,
+        tileTheme: getTileTheme(themeName, theme),
+        subtaskLabel,
+      })
     } finally {
       setExportingConop(false)
     }
   }
   const showCancelTemplate = event.category === 'templated' && !!onCancelTemplate && !isUnscheduledTemplate(event, apptTypeNames)
-  const StatusIcon = STATUS_TRIGGER_ICON[event.status]
+  // Same delete gate as the main-view lifted menu — structure must be mutable.
+  const deletable = isTemplateStructureMutable(event, isSupervisor)
   const [moreMenu, setMoreMenu] = useState<{ rect: DOMRect } | null>(null)
   const moreBtnRef = useRef<HTMLDivElement>(null)
   const openMoreMenu = () => {
@@ -222,20 +192,24 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, 
   }
 
   // Header actions collapsed into a single ellipsis menu (Close stays a pill).
-  const moreItems: ContextMenuItem[] = []
-  if (onStatusChange) {
-    const statusSub: ContextMenuItem[] = []
-    if (event.status !== 'pending')     statusSub.push({ key: 'pending',    label: 'Pending', icon: Clock,        onAction: () => onStatusChange(event.id, 'pending') })
-    if (event.status !== 'in_progress') statusSub.push({ key: 'inprogress', label: 'Active',  icon: Play,         onAction: () => onStatusChange(event.id, 'in_progress') })
-    if (event.status !== 'completed')   statusSub.push({ key: 'completed',  label: 'Done',    icon: CheckCircle2, onAction: () => onStatusChange(event.id, 'completed') })
-    if (event.status !== 'cancelled')   statusSub.push({ key: 'cancelled',  label: 'Cancel',  icon: Ban,          onAction: () => onStatusChange(event.id, 'cancelled'), destructive: true })
-    moreItems.push({ key: 'status', label: 'Set status', icon: StatusIcon, submenu: statusSub })
-  }
-  moreItems.push({ key: 'share-chat', label: 'Share to chat', icon: MessageSquare, onAction: handleShareToChat })
-  moreItems.push({ key: 'share-cal', label: 'Add to phone calendar', icon: Share2, onAction: () => shareSingleEvent(event).catch(() => {}) })
-  if (showCancelTemplate) moreItems.push({ key: 'cancel-appt', label: 'Cancel appointment', icon: Ban, onAction: () => onCancelTemplate?.(event.id) })
-  if (canExportConop) moreItems.push({ key: 'conop', label: 'CONOP PDF', icon: FileText, onAction: handleExportConop })
-  if (editable) moreItems.push({ key: 'edit', label: 'Edit', icon: Pencil, onAction: () => onEdit(event.id) })
+  // Built from the SHARED event-menu builder so the detail panel offers the SAME
+  // actions as CalendarPanel's lifted-row peek (status strip · Edit · Move ·
+  // Share to chat · Add to phone calendar · CONOP PDF · Cancel appointment ·
+  // Delete), gated by this surface's capabilities.
+  const statusReactions = buildEventStatusReactions(
+    event,
+    editable && onStatusChange ? (status) => onStatusChange(event.id, status) : undefined,
+  )
+  const moreItems = buildEventMenuItems({
+    onEdit: editable ? () => onEdit(event.id) : undefined,
+    onMove: editable && onMove ? () => onMove(event.id) : undefined,
+    onShareToChat: handleShareToChat,
+    onAddToPhoneCalendar: () => { shareSingleEvent(event).catch(() => {}) },
+    onExportConop: canExportConop ? handleExportConop : undefined,
+    onCancelTemplate: showCancelTemplate ? () => onCancelTemplate?.(event.id) : undefined,
+    onDelete: deletable ? () => onDelete(event.id) : undefined,
+  })
+  const hasMenu = moreItems.length > 0 || statusReactions.length > 0
 
   // Flat on the sheet's themewhite3 (no nested card) inside the mobile Sheet;
   // the desktop side-panel keeps the SectionCard chrome.
@@ -247,7 +221,7 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, 
         {inSheet ? (
           <>
             {/* Map-feature-sheet match: ellipsis (More) on the left, Close on the right. */}
-            {moreItems.length > 0 ? (
+            {hasMenu ? (
               <HeaderPill>
                 <div ref={moreBtnRef}>
                   <PillButton icon={MoreHorizontal} iconSize={16} onClick={openMoreMenu} label="More actions" />
@@ -264,7 +238,7 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, 
           <>
             <h2 className="min-w-0 flex-1 mr-2 text-sm font-semibold text-primary truncate">{event.title}</h2>
             <HeaderPill>
-              {moreItems.length > 0 && (
+              {hasMenu && (
                 <div ref={moreBtnRef}>
                   <PillButton icon={MoreHorizontal} iconSize={16} onClick={openMoreMenu} label="More" />
                 </div>
@@ -438,7 +412,7 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, 
             {/* Equipment */}
             {linkedPropertyItems.length > 0 && (
               <div className={rowPad}>
-                <SectionHeader>Equipment ({linkedPropertyItems.length})</SectionHeader>
+                <SectionHeader>Equipment</SectionHeader>
                 <div className="space-y-1.5">
                   {linkedPropertyItems.map((item) => (
                     <div key={item.id} className="min-w-0">
@@ -520,6 +494,7 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, 
           onClose={() => setMoreMenu(null)}
           layout="list"
           align={inSheet ? 'left' : 'right'}
+          reactions={statusReactions}
           items={moreItems}
         />
       )}
@@ -527,61 +502,6 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, 
       {shareToChatPicker}
     </div>
   )
-}
-
-/**
- * Collect every overlay feature the event links — structured_location,
- * linked_overlays (whole overlays), linked_features (single features), and the
- * scheduling-zone roomAnchor — into one deduped list for the CONOP map snapshot.
- * Full geometry comes from the overlays cache (overlayOptions carries only a
- * slim projection). `overlayId` is the primary overlay whose cached tiles back
- * the offline render. "Whatever is linked": a lone feature → tight zoom; a whole
- * overlay → overlay-extent zoom (the snapshot fits bbox to this union).
- */
-function gatherLinkedGeometry(
-  event: CalendarEvent,
-  overlays: LocalMapOverlay[],
-  roomAnchor?: { overlay_id: string; overlay_feature_id: string | null },
-): { features: OverlayFeature[]; overlayId?: string; overlayIds: string[] } {
-  const byId = new Map(overlays.map(o => [o.id, o]))
-  const seen = new Set<string>()
-  const features: OverlayFeature[] = []
-  // Track every overlay that actually contributed a drawn feature — the snapshot
-  // pulls cached tiles from ALL of them. A single primary overlayId is wrong when
-  // the gathered features span overlays (or when the drawn feature's overlay
-  // differs from structured_location.overlay_id): tiles miss for the regions
-  // backed by the other overlays → blank basemap under the markers.
-  const overlayIds: string[] = []
-  const seenOverlay = new Set<string>()
-  const noteOverlay = (id?: string) => {
-    if (id && !seenOverlay.has(id)) { seenOverlay.add(id); overlayIds.push(id) }
-  }
-  const add = (f?: OverlayFeature, owner?: string) => {
-    if (f && !seen.has(f.id)) { seen.add(f.id); features.push(f); noteOverlay(owner) }
-  }
-
-  const fullIds = event.linked_overlays ?? []
-  for (const id of fullIds) byId.get(id)?.features.forEach(f => add(f, id))
-
-  for (const fa of event.linked_features ?? []) {
-    if (fullIds.includes(fa.overlay_id)) continue
-    add(byId.get(fa.overlay_id)?.features.find(x => x.id === fa.feature_id), fa.overlay_id)
-  }
-
-  const sl = event.structured_location
-  if (sl?.overlay_id && !fullIds.includes(sl.overlay_id)) {
-    const o = byId.get(sl.overlay_id)
-    if (sl.primary_waypoint_id) add(o?.features.find(x => x.id === sl.primary_waypoint_id), sl.overlay_id)
-    else o?.features.forEach(f => add(f, sl.overlay_id))
-  }
-
-  if (roomAnchor) {
-    const o = byId.get(roomAnchor.overlay_id)
-    if (roomAnchor.overlay_feature_id) add(o?.features.find(x => x.id === roomAnchor.overlay_feature_id), roomAnchor.overlay_id)
-    else o?.features.forEach(f => add(f, roomAnchor.overlay_id))
-  }
-
-  return { features, overlayId: overlayIds[0], overlayIds }
 }
 
 interface LinkedLocationRowProps {

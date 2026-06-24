@@ -186,7 +186,7 @@ export function AdminUserDetail({
     return allCerts.filter((cert) => cert.user_id === user.id)
   }, [allCerts, user])
 
-  const componentRanks = editComponent ? ranksByComponent[editComponent as Component] : []
+  const componentRanks = (editComponent ? ranksByComponent[editComponent as Component] : []) ?? []
 
   // ── Data loading ────────────────────────────────────────────────────
 
