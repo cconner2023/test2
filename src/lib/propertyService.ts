@@ -148,12 +148,18 @@ export async function fetchClinicItems(clinicId: string): Promise<LocalPropertyI
   // Load local first for instant display
   const localItems = await getLocalPropertyItems(clinicId)
 
-  // Bootstrap-only spine read (vault-authoritative). Download active server rows
-  // absent or newer locally; NEVER delete-local — the clinic-vault drain +
-  // tombstones are the sole authority for deletions, so a missing server row no
-  // longer triggers a local delete (the old resurrection/data-loss vector). The
-  // deleted_at filter + tombstone guard prevent a soft-deleted row from painting.
-  if (isOnline()) {
+  // COLD-DEVICE FLOOR ONLY — mirrors the clinic-vault drain's cold gate.
+  // processClinicVaultMessages pulls the FULL archive only when there is no
+  // snapshot (tailFloor '' ⇒ replay); a warm device with a snapshot decrypts just
+  // the tail. The durable table is the clinicvault FLOOR for cold devices, so pull
+  // it on the same signal: ONLY when local IDB is empty (cold/fresh device). A
+  // warm device is already populated by the clinic snapshot + seq tail (property
+  // rides loadSnapshotPropertyItems), so re-pulling the whole table on every
+  // init/refresh/picker-open is redundant egress against the floor.
+  // Additive only — NEVER delete-local (the clinic-vault drain + tombstones are
+  // the sole deletion authority); deleted_at filter + tombstone guard keep a
+  // soft-deleted row from painting on the cold pull.
+  if (isOnline() && localItems.length === 0) {
     try {
       const { data, error } = await supabase
         .from('property_items')
@@ -727,8 +733,11 @@ export async function fetchSubItems(parentId: string): Promise<LocalPropertyItem
 export async function fetchClinicLocations(clinicId: string): Promise<LocalPropertyLocation[]> {
   const localLocs = await getLocalPropertyLocations(clinicId)
 
-  // Bootstrap-only spine read (vault-authoritative) — no delete-local pass.
-  if (isOnline()) {
+  // COLD-DEVICE FLOOR ONLY — same cold gate as fetchClinicItems (mirrors the
+  // clinic-vault drain: pull the durable floor only when local IDB is empty).
+  // Warm devices are populated by the clinic snapshot + tail; the full pull is
+  // redundant egress otherwise. Additive only — no delete-local pass.
+  if (isOnline() && localLocs.length === 0) {
     try {
       const { data, error } = await supabase
         .from('property_locations')
