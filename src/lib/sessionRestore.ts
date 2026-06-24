@@ -28,22 +28,15 @@ export async function tryRefreshSession(): Promise<boolean> {
   }
 }
 
-/** Attempt device-credential restore via Edge Function. Returns true on success. */
-export async function tryDeviceRestore(localSession: LocalSession): Promise<boolean> {
-  try {
-    const { data, error } = await supabase.functions.invoke('device-session-restore', {
-      body: { user_id: localSession.userId, device_id: localSession.deviceId },
-    })
-    if (error || !data?.access_token || !data?.refresh_token) return false
-
-    const { error: setError } = await supabase.auth.setSession({
-      access_token: data.access_token,
-      refresh_token: data.refresh_token,
-    })
-    return !setError
-  } catch {
-    return false
-  }
+/** Attempt device-credential restore via Edge Function. Returns true on success.
+ *
+ * DISABLED: the `device-session-restore` Edge Function is not deployed on this
+ * project, so the invoke always 404s and returns false — pure wasted round-trips
+ * (and a steady stream of 404s in the edge logs) on every silent-restore attempt.
+ * Short-circuit to false until/unless the function is actually deployed; re-enable
+ * by restoring the invoke below. Tier 1 (refreshSession) remains the live path. */
+export async function tryDeviceRestore(_localSession: LocalSession): Promise<boolean> {
+  return false
 }
 
 /**

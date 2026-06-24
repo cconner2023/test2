@@ -177,6 +177,12 @@ const VAULT_KEY_DB = 'adtmc-vault-key'
 const VAULT_KEY_STORE = 'keys'
 const VAULT_KEY_ID = 'wrapping'
 
+// Separate DB for the cached vault ROW (the ~350 KB encrypted_blob), keyed by
+// version. See fetchVaultRow for the egress rationale.
+const VAULT_ROW_DB = 'adtmc-vault-row'
+const VAULT_ROW_STORE = 'rows'
+const VAULT_ROW_ID = 'current'
+
 interface StoredVaultKey {
   key: CryptoKey
   userId: string
@@ -261,6 +267,120 @@ async function restoreVaultKeyFromIdb(
   } catch {
     // IDB unavailable — fall through to the not-cached path.
   }
+}
+
+// ---- Vault row (encrypted blob) cache — egress reduction ----
+//
+// The vault row's encrypted_blob is a fixed ~350 KB: it carries the full
+// one-time pre-key batch (VAULT_PREKEY_BATCH_SIZE JWK keypairs). processVaultMessages
+// runs on EVERY login AND every PWA session resume (SIGNED_IN + INITIAL_SESSION
+// both drain — useAuthStore), so re-downloading that blob each time dominated DB
+// egress even when nothing was waiting to drain.
+//
+// Every writer of encrypted_blob (provision, SPK rotation, OTP replenish, password
+// re-encrypt) bumps `version`, so version is a COMPLETE cache key — a version match
+// guarantees a byte-identical blob. We cheap-probe `version` (a single int) on each
+// drain and download the full row only on a miss. A cross-device write bumps the
+// version too, so a stale local cache always misses the probe and refetches; this
+// can never serve the wrong blob.
+
+interface StoredVaultRow {
+  userId: string
+  version: number
+  row: VaultDeviceKeysRow
+}
+
+function openVaultRowDb(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(VAULT_ROW_DB, 1)
+    req.onupgradeneeded = () => {
+      if (!req.result.objectStoreNames.contains(VAULT_ROW_STORE)) {
+        req.result.createObjectStore(VAULT_ROW_STORE)
+      }
+    }
+    req.onsuccess = () => resolve(req.result)
+    req.onerror = () => reject(req.error)
+  })
+}
+
+async function persistVaultRowToIdb(record: StoredVaultRow): Promise<void> {
+  const db = await openVaultRowDb()
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(VAULT_ROW_STORE, 'readwrite')
+    tx.objectStore(VAULT_ROW_STORE).put(record, VAULT_ROW_ID)
+    tx.oncomplete = () => resolve()
+    tx.onerror = () => reject(tx.error)
+  })
+  db.close()
+}
+
+async function loadVaultRowFromIdb(): Promise<StoredVaultRow | null> {
+  const db = await openVaultRowDb()
+  const rec = await new Promise<StoredVaultRow | null>((resolve, reject) => {
+    const tx = db.transaction(VAULT_ROW_STORE, 'readonly')
+    const req = tx.objectStore(VAULT_ROW_STORE).get(VAULT_ROW_ID)
+    req.onsuccess = () => resolve((req.result as StoredVaultRow) ?? null)
+    req.onerror = () => reject(req.error)
+  })
+  db.close()
+  return rec
+}
+
+async function clearVaultRowFromIdb(): Promise<void> {
+  try {
+    const db = await openVaultRowDb()
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(VAULT_ROW_STORE, 'readwrite')
+      tx.objectStore(VAULT_ROW_STORE).delete(VAULT_ROW_ID)
+      tx.oncomplete = () => resolve()
+      tx.onerror = () => reject(tx.error)
+    })
+    db.close()
+  } catch {
+    // IDB unavailable — nothing to clear.
+  }
+}
+
+/**
+ * Fetch the vault row, serving the ~350 KB encrypted_blob from an IDB cache when
+ * the server-side `version` is unchanged. Returns null when no vault exists.
+ *
+ * On a cache hit the only network cost is a single-int `version` probe; the blob
+ * is downloaded only when it actually changed. Any IDB error falls through to a
+ * full fetch, so the cache can never serve a stale/wrong blob — version is bumped
+ * by every blob writer, so a version match is byte-identical.
+ */
+async function fetchVaultRow(userId: string): Promise<VaultDeviceKeysRow | null> {
+  // Cheap probe — does a vault exist, and at what version?
+  const { data: probe } = await supabase
+    .from('vault_device_keys')
+    .select('version')
+    .eq('user_id', userId)
+    .maybeSingle()
+
+  if (!probe) return null // No vault for this user.
+
+  // Serve the cached blob when the version matches.
+  try {
+    const cached = await loadVaultRowFromIdb()
+    if (cached && cached.userId === userId && cached.version === probe.version) {
+      return cached.row
+    }
+  } catch {
+    // IDB unavailable — fall through to a full fetch.
+  }
+
+  // Miss — download the full row and re-cache it.
+  const { data: row, error } = await supabase
+    .from('vault_device_keys')
+    .select('*')
+    .eq('user_id', userId)
+    .single()
+
+  if (error || !row) return null
+  void persistVaultRowToIdb({ userId, version: row.version, row: row as VaultDeviceKeysRow })
+    .catch(() => logger.warn('Failed to cache vault row to IDB'))
+  return row as VaultDeviceKeysRow
 }
 
 // ---- Pending drain ack (two-phase drain) ----
@@ -600,6 +720,9 @@ export function clearVaultKey(): void {
   // Wipe the persisted key so the next user on this device can't load it. The
   // userId tag on the record is a second guard if this fire-and-forget races.
   void clearVaultKeyFromIdb().catch(() => {})
+  // Drop the cached vault row too — a different user signing in next must never
+  // be served this user's blob (fetchVaultRow also guards on userId + version).
+  void clearVaultRowFromIdb().catch(() => {})
 }
 
 /**
@@ -745,12 +868,10 @@ export async function processVaultMessages(userId: string): Promise<number> {
   await initCalendarTombstones()
   await initOverlayTombstones()
 
-  // 1. Fetch vault_device_keys row
-  const { data: vaultRow } = await supabase
-    .from('vault_device_keys')
-    .select('*')
-    .eq('user_id', userId)
-    .single()
+  // 1. Fetch vault_device_keys row. The ~350 KB encrypted_blob is served from an
+  //    IDB cache when its version is unchanged, so repeat drains/PWA resumes cost
+  //    only a single-int version probe instead of re-downloading the blob.
+  const vaultRow = await fetchVaultRow(userId)
 
   if (!vaultRow) {
     logger.info('No vault found — skipping vault message processing')
@@ -796,6 +917,9 @@ export async function processVaultMessages(userId: string): Promise<number> {
       .eq('user_id', userId).eq('device_id', VAULT_DEVICE_ID)
     await supabase.from('user_devices').delete()
       .eq('user_id', userId).eq('device_id', VAULT_DEVICE_ID)
+    // Invalidate the cached blob — it belongs to the now-wiped identity and must
+    // not be served to the re-provisioned vault that replaces it.
+    void clearVaultRowFromIdb().catch(() => {})
     return 0
   }
 
