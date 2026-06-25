@@ -49,12 +49,13 @@ import { unseal } from './sealedSender'
 import { x3dhRespond } from './x3dh'
 import { initReceiver, ratchetDecrypt } from './ratchet'
 import { uploadKeyBundle, registerDevice } from './signalService'
-import { isCalendarEvent, routeCalendarEvent, initCalendarTombstones, publishFullReplayLiveIds, poisonFullReplayReconcile, snapshotCalendarEvents, loadSnapshotCalendarEvents } from '../calendarRouting'
-import { isMapOverlay, isMapFeature, routeMapOverlay, routeMapFeature, initOverlayTombstones, loadSnapshotOverlays, snapshotOverlays } from '../mapOverlayRouting'
+import { isCalendarEvent, routeCalendarEvent, initCalendarTombstones, publishFullReplayLiveIds, poisonFullReplayReconcile, snapshotCalendarEvents, loadSnapshotCalendarEvents, applyCalendarTombstones, getTombstones } from '../calendarRouting'
+import { isMapOverlay, isMapFeature, routeMapOverlay, routeMapFeature, initOverlayTombstones, loadSnapshotOverlays, snapshotOverlays, applyOverlayTombstones, getOverlayTombstones } from '../mapOverlayRouting'
 import {
   isPropertyEvent, routePropertyEvent, initPropertyTombstones,
   snapshotPropertyItems, snapshotPropertyZones, snapshotPropertyCustody, snapshotPropertyDiscrepancies, snapshotPropertyTags,
   loadSnapshotPropertyItems, loadSnapshotPropertyZones, loadSnapshotPropertyCustody, loadSnapshotPropertyDiscrepancies, loadSnapshotPropertyTags,
+  applyItemTombstones, applyZoneTombstones, getItemTombstones, getZoneTombstones,
   type PropertyTagsSnapshot,
 } from '../propertyEventRouting'
 import type { CalendarEventContent, MapOverlayContent, MapFeatureContent, PropertyEventContent } from './messageContent'
@@ -553,7 +554,7 @@ export interface ClinicDrainOptions {
 // the personal signal_backups model — see two-phase-vault-drain: never reap a
 // vault row until the snapshot that preserves it has landed.
 
-const CLINIC_SNAPSHOT_PAYLOAD_VERSION = 2
+const CLINIC_SNAPSHOT_PAYLOAD_VERSION = 3
 const CLINIC_SNAPSHOT_RETAIN = 3
 
 interface ClinicSnapshotPayload {
@@ -562,6 +563,19 @@ interface ClinicSnapshotPayload {
   watermark: string
   events: CalendarEvent[]
   overlays: LocalMapOverlay[]
+  // v3: durable deletion. Deletion is otherwise non-durable in the clinic vault
+  // (the 'd' tail row is reaped and the tombstone is per-device IDB only), so a
+  // fresh device rebuilding purely from the snapshot resurrected any deleted
+  // entity a prior writer still carried. Carrying tombstones here makes deletion
+  // durable in the one cross-device store, for EVERY tombstoned entity class
+  // (calendar events, map overlays, property items + zones — custody/discrepancy
+  // never absence-delete, tags are canvas-replace, so they have no tombstone
+  // store). Bounded by each entity's own tombstone GC. All default [] reading a
+  // v1/v2 snapshot.
+  tombstones?: string[]            // calendar event ids
+  overlayTombstones?: string[]     // map overlay ids
+  propertyItemTombstones?: string[]
+  propertyZoneTombstones?: string[]
   // v2: property entities (default [] when reading a v1 snapshot).
   propertyItems?: LocalPropertyItem[]
   propertyZones?: LocalPropertyLocation[]
@@ -725,6 +739,14 @@ export async function processClinicVaultMessages(
   if (snap) {
     baseVersion = snap.version
     tailFloor = snap.payload.watermark
+    // Hydrate every entity class's durable tombstones BEFORE loading the snapshot
+    // entities, so each load's tombstone guard drops any deleted id the snapshot
+    // still lists and a fresh device learns clinic-wide deletions it never
+    // received a 'd' for (calendar, overlays, property items + zones).
+    await applyCalendarTombstones(snap.payload.tombstones ?? [])
+    await applyOverlayTombstones(snap.payload.overlayTombstones ?? [])
+    await applyItemTombstones(snap.payload.propertyItemTombstones ?? [])
+    await applyZoneTombstones(snap.payload.propertyZoneTombstones ?? [])
     loadSnapshotCalendarEvents(snap.payload.events)
     await loadSnapshotOverlays(snap.payload.overlays).catch(() => {})
     await loadSnapshotPropertyItems(snap.payload.propertyItems ?? []).catch(() => {})
@@ -1100,6 +1122,10 @@ export async function processClinicVaultMessages(
         v: CLINIC_SNAPSHOT_PAYLOAD_VERSION,
         watermark: reapWatermark as string,
         events: snapshotCalendarEvents(clinicId, vaultLiveIds),
+        tombstones: Array.from(getTombstones()),
+        overlayTombstones: Array.from(getOverlayTombstones()),
+        propertyItemTombstones: Array.from(getItemTombstones()),
+        propertyZoneTombstones: Array.from(getZoneTombstones()),
         overlays: await snapshotOverlays(clinicId, overlayVaultLiveIds),
         propertyItems: await snapshotPropertyItems(clinicId, propertyItemVaultLiveIds),
         propertyZones: await snapshotPropertyZones(clinicId, propertyZoneVaultLiveIds),
@@ -1132,6 +1158,88 @@ export async function processClinicVaultMessages(
 
   logger.info(`Processed ${processedCount} clinic vault messages`)
   return processedCount
+}
+
+/**
+ * One-time remediation for a POISONED clinic snapshot: a snapshot whose events[]
+ * still lists events that were deleted but whose deletion never became durable
+ * (the 'd' tail row was reaped and the tombstone lived only in some other
+ * device's IDB). Symptom: fresh devices keep showing old deleted events while
+ * warm devices look correct (they hold the local tombstone).
+ *
+ * MUST be run from an AUTHORITATIVE device — one whose loaded calendar for the
+ * clinic is the correct, current set — and only AFTER the calendar has fully
+ * hydrated. Any event in the latest snapshot that this device no longer has is
+ * treated as deleted: it is tombstoned (durably, and now carried in the snapshot
+ * via the v3 tombstones[] field) and dropped from the rewritten snapshot. Peers
+ * pick up the deletion from the snapshot on their next drain; no 'd' re-fan.
+ *
+ * Default is a DRY RUN (apply=false) — it returns/logs what WOULD be tombstoned
+ * so you can eyeball it first. Pass { apply: true } to write the cleaned snapshot.
+ *
+ * Exposed on window.__cleanupClinicSnapshot for console invocation.
+ */
+export async function cleanupClinicSnapshot(
+  clinicId: string,
+  opts: { apply?: boolean } = {},
+): Promise<{ ok: boolean; dryRun: boolean; live: number; stale: string[]; version: number }> {
+  await initCalendarTombstones()
+  await initOverlayTombstones()
+  await initPropertyTombstones()
+  const clinicKey = clinicVaultKeys.get(clinicId)
+  if (!clinicKey) {
+    logger.warn('cleanupClinicSnapshot: clinic vault key not cached — log in to this clinic first')
+    return { ok: false, dryRun: !opts.apply, live: 0, stale: [], version: -1 }
+  }
+  const snap = await readClinicSnapshot(clinicId, clinicKey)
+  if (!snap) {
+    logger.info('cleanupClinicSnapshot: no snapshot to clean')
+    return { ok: false, dryRun: !opts.apply, live: 0, stale: [], version: -1 }
+  }
+
+  // Authoritative live set = this device's current store for the clinic, minus
+  // local tombstones (snapshotCalendarEvents already applies both filters).
+  const liveEvents = snapshotCalendarEvents(clinicId)
+  const liveIds = new Set(liveEvents.map(e => e.id))
+  const stale = snap.payload.events
+    .filter(e =>
+      (e.clinic_id === clinicId || (e.target_clinic_ids?.includes(clinicId) ?? false)) &&
+      !liveIds.has(e.id),
+    )
+    .map(e => e.id)
+
+  logger.info(
+    `cleanupClinicSnapshot ${opts.apply ? '(APPLY)' : '(dry run)'}: snapshot v${snap.version} ` +
+      `has ${snap.payload.events.length} events, this device has ${liveIds.size} live; ` +
+      `${stale.length} stale to tombstone`,
+    stale,
+  )
+
+  if (!opts.apply) {
+    return { ok: true, dryRun: true, live: liveIds.size, stale, version: snap.version }
+  }
+
+  await applyCalendarTombstones(stale)
+  const payload: ClinicSnapshotPayload = {
+    ...snap.payload,
+    v: CLINIC_SNAPSHOT_PAYLOAD_VERSION,
+    events: snapshotCalendarEvents(clinicId),
+    tombstones: Array.from(getTombstones()),
+    // Stamp the other entity classes' durable tombstones too so the rewritten
+    // v3 snapshot is complete (overlays/property events themselves are preserved
+    // as-is — this cleanup only computes the stale CALENDAR set).
+    overlayTombstones: Array.from(getOverlayTombstones()),
+    propertyItemTombstones: Array.from(getItemTombstones()),
+    propertyZoneTombstones: Array.from(getZoneTombstones()),
+  }
+  const newVersion = await writeClinicSnapshot(clinicId, payload, snap.version, clinicKey)
+  logger.info(`cleanupClinicSnapshot: tombstoned ${stale.length}, wrote snapshot v${newVersion}`)
+  return { ok: newVersion > 0, dryRun: false, live: payload.events.length, stale, version: newVersion }
+}
+
+if (typeof window !== 'undefined') {
+  ;(window as unknown as { __cleanupClinicSnapshot?: typeof cleanupClinicSnapshot }).__cleanupClinicSnapshot =
+    cleanupClinicSnapshot
 }
 
 // ---- SPK Rotation & Pre-Key Replenishment ----

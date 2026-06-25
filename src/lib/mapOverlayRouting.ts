@@ -86,6 +86,23 @@ export function routeMapOverlay(content: MapOverlayContent): Promise<void> {
   return enqueueRoute(data.id, () => applyOverlay(content))
 }
 
+/**
+ * Apply overlay-id tombstones carried inside a clinic snapshot. Mirrors the
+ * calendar fix: overlay deletion is otherwise non-durable in the clinic vault
+ * (the 'd' tail row is reaped, the tombstone is per-device IDB only), so a fresh
+ * device rebuilding from the snapshot resurrected deleted overlays. Run BEFORE
+ * loadSnapshotOverlays so the load's tombstone guard drops the deleted ids.
+ */
+export async function applyOverlayTombstones(ids: string[]): Promise<void> {
+  if (ids.length === 0) return
+  for (const id of ids) {
+    _tombstones.add(id)
+    await deleteLocalMapOverlay(id).catch(() => {})
+  }
+  await Promise.all(ids.map(id => addOverlayTombstone(id).catch(() => {})))
+  invalidate('mapOverlays')
+}
+
 async function applyOverlay(content: MapOverlayContent): Promise<void> {
   const { action, data } = content
 

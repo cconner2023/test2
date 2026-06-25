@@ -133,6 +133,35 @@ async function applyPropertyEvent(content: PropertyEventContent): Promise<void> 
   }
 }
 
+/**
+ * Apply item/zone tombstones carried inside a clinic snapshot. Mirrors the
+ * calendar fix: item/zone deletion is otherwise non-durable in the clinic vault
+ * (the 'd' tail row is reaped, the tombstone is per-device IDB only), so a fresh
+ * device rebuilding from the snapshot resurrected deleted items/zones. Run BEFORE
+ * loadSnapshotPropertyItems/Zones so the load's tombstone guard drops them.
+ * (custody/discrepancy/tags have no tombstone store — custody/discrepancy never
+ * absence-delete, tags are canvas-replace.)
+ */
+export async function applyItemTombstones(ids: string[]): Promise<void> {
+  if (ids.length === 0) return
+  for (const id of ids) {
+    _itemTombstones.add(id)
+    await deleteLocalPropertyItem(id).catch(() => {})
+  }
+  await Promise.all(ids.map(id => addItemTombstone(id).catch(() => {})))
+  invalidate('properties')
+}
+
+export async function applyZoneTombstones(ids: string[]): Promise<void> {
+  if (ids.length === 0) return
+  for (const id of ids) {
+    _zoneTombstones.add(id)
+    await deleteLocalPropertyLocation(id).catch(() => {})
+  }
+  await Promise.all(ids.map(id => addZoneTombstone(id).catch(() => {})))
+  invalidate('properties')
+}
+
 async function applyItem(content: PropertyEventContent): Promise<void> {
   const { action, data } = content
   if (action === 'delete') {

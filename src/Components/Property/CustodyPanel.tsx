@@ -9,6 +9,9 @@ import {
   Route,
   Trash2,
   Plus,
+  PackageMinus,
+  CalendarX,
+  CalendarClock,
   type LucideIcon,
 } from 'lucide-react'
 import type { ReceiptItem, HandReceiptData } from '../../Hooks/useHandReceipts'
@@ -17,7 +20,7 @@ import { useRecentPropertyActivity } from '../../Hooks/useRecentPropertyActivity
 import { RecordPreview } from './RecordPreview'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { SectionCard, SectionHeader } from '../Section'
-import type { HandReceipt } from '../../Types/PropertyTypes'
+import { expiryStatus, type HandReceipt } from '../../Types/PropertyTypes'
 import type { AuditEvent } from '../../lib/auditTypes'
 
 /** Short, human date for the receipt rows (chronological, newest first). */
@@ -25,7 +28,7 @@ function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
-/** Icon chip for a PMCS / dispatch activity row. */
+/** Icon chip for a PMCS / dispatch / usage activity row. */
 function activityMeta(e: AuditEvent): { Icon: LucideIcon; tint: string } {
   switch (e.eventType) {
     case 'pmcs.clear':
@@ -34,6 +37,8 @@ function activityMeta(e: AuditEvent): { Icon: LucideIcon; tint: string } {
       return { Icon: Route, tint: 'bg-themeblue3/10 text-themeblue2' }
     case 'dispatch.closed':
       return { Icon: RotateCcw, tint: 'bg-themegreen/10 text-themegreen' }
+    case 'item.expended':
+      return { Icon: PackageMinus, tint: 'bg-themeyellow/15 text-themeyellow' }
     default:
       return { Icon: FileText, tint: 'bg-tertiary/10 text-tertiary' }
   }
@@ -68,7 +73,10 @@ interface CustodyPanelProps {
  * headers (the tree feel — chevron + label + count) whose discrete items render
  * as an indented SectionCard stack. Top: the hand receipts under "Signed Out" /
  * "History" groups, each a card — deliberately icon-light and count-free, just
- * recipient + date, expanding to its items + Print 2062 / Sign in. Bottom: the
+ * recipient + date, expanding to its items + Print 2062 / Sign in. Middle:
+ * "Usage" (consumables expended this week — item.expended ledger events, tap to
+ * locate) + "Expired" (items lapsed or expiring within 30 days via expiry_date,
+ * red/amber, tap to locate). Bottom: the
  * week's activity under "PMCS" + "Dispatch" groups (clinic-wide pmcs.clear /
  * dispatch.* audit events from the past week via useRecentPropertyActivity) so a
  * glance answers "which items got PMCS'd or dispatched this week". Each is a card
@@ -111,21 +119,38 @@ export function CustodyPanel({
   // row opens RecordPreview (view 5988E / dispatch form, delete).
   const activity = useRecentPropertyActivity(clinicId)
   const [previewEvent, setPreviewEvent] = useState<AuditEvent | null>(null)
-  const { pmcsEvents, dispatchEvents } = useMemo(() => {
+  const { pmcsEvents, dispatchEvents, usageEvents } = useMemo(() => {
     const pmcsEvents: AuditEvent[] = []
     const dispatchEvents: AuditEvent[] = []
+    const usageEvents: AuditEvent[] = []
     for (const e of activity) {
       if (e.eventType === 'pmcs.clear') pmcsEvents.push(e)
+      else if (e.eventType === 'item.expended') usageEvents.push(e)
       else dispatchEvents.push(e) // dispatch.opened / dispatch.closed
     }
-    return { pmcsEvents, dispatchEvents }
+    return { pmcsEvents, dispatchEvents, usageEvents }
   }, [activity])
+
+  // Expiring / expired consumables — the "Expired" section. expiryStatus folds the
+  // item's expiry_date into the 30-day window (past → 'expired', within 30 days →
+  // 'expiring'); items without an expiry_date drop out. Soonest-to-lapse first.
+  const expiredItems = useMemo(() => {
+    const rows: { item: ReceiptItem; status: 'expired' | 'expiring' }[] = []
+    for (const item of itemsById.values()) {
+      const status = expiryStatus(item.expiry_date)
+      if (status) rows.push({ item, status })
+    }
+    rows.sort((a, b) => (a.item.expiry_date ?? '').localeCompare(b.item.expiry_date ?? ''))
+    return rows
+  }, [itemsById])
 
   // Expand state — holds collapsible GROUP keys ('__signed_out__' / '__pmcs__' /
   // '__dispatch__' default open, '__history__' collapsed) AND each receipt's
   // handReceiptId. The group chevrons keep the tree feel; the discrete receipts /
   // activity events inside an open group render as a card stack.
-  const [expanded, setExpanded] = useState<Set<string>>(() => new Set(['__signed_out__', '__pmcs__', '__dispatch__']))
+  const [expanded, setExpanded] = useState<Set<string>>(
+    () => new Set(['__signed_out__', '__usage__', '__expired__', '__pmcs__', '__dispatch__']),
+  )
   const toggle = useCallback((key: string) => {
     setExpanded((prev) => {
       const next = new Set(prev)
@@ -337,6 +362,10 @@ export function CustodyPanel({
       }
       case 'dispatch.closed':
         return 'Returned'
+      case 'item.expended': {
+        const qty = typeof p.quantity_delta === 'number' ? p.quantity_delta : 1
+        return `Expended ×${qty}`
+      }
       default:
         return e.eventType
     }
@@ -362,6 +391,63 @@ export function CustodyPanel({
             <p className="text-[9pt] text-tertiary mt-0.5 truncate">{detailOf(e)} · {formatDate(e.occurredAt)}</p>
           </div>
           {hasDoc(e) && <FileText size={14} className="text-themeblue2 shrink-0" />}
+        </button>
+      </SectionCard>
+    )
+  }
+
+  // A usage (expenditure) event as a card: item name + "Expended ×N · date". Tapping
+  // locates the item on the map (it still exists — expend clamps qty to 0, never
+  // deletes). No RecordPreview: item.expended is an immutable, doc-less ledger event.
+  const renderUsageCard = (e: AuditEvent) => {
+    const { Icon, tint } = activityMeta(e)
+    const item = itemsById.get(e.subjectId)
+    return (
+      <SectionCard key={e.id}>
+        <button
+          type="button"
+          onClick={() => item && onLocateItem(item)}
+          className="group w-full flex items-center gap-3 px-4 py-3 text-left active:bg-themeblue2/5"
+        >
+          <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${tint}`}>
+            <Icon size={16} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-primary truncate">{activityName(e)}</p>
+            <p className="text-[9pt] text-tertiary mt-0.5 truncate">{detailOf(e)} · {formatDate(e.occurredAt)}</p>
+          </div>
+          {item && <MapPin size={13} className="text-tertiary opacity-0 group-hover:opacity-100 shrink-0" />}
+        </button>
+      </SectionCard>
+    )
+  }
+
+  // An expiring/expired consumable as a card: item name + "Expired/Expires <date>",
+  // tinted red (lapsed) or amber (within 30 days). Tap locates it on the map.
+  const renderExpiredCard = ({ item, status }: { item: ReceiptItem; status: 'expired' | 'expiring' }) => {
+    const expired = status === 'expired'
+    const Icon = expired ? CalendarX : CalendarClock
+    const tint = expired ? 'bg-themeredred/10 text-themeredred' : 'bg-themeyellow/15 text-themeyellow'
+    // Date-only string → parse as local midnight (matches expiryStatus) so the
+    // displayed day can't drift a day earlier in negative-offset timezones.
+    const dateLabel = item.expiry_date ? formatDate(item.expiry_date + 'T00:00:00') : ''
+    return (
+      <SectionCard key={item.id}>
+        <button
+          type="button"
+          onClick={() => onLocateItem(item)}
+          className="group w-full flex items-center gap-3 px-4 py-3 text-left active:bg-themeblue2/5"
+        >
+          <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${tint}`}>
+            <Icon size={16} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-primary truncate">{item.name}</p>
+            <p className={`text-[9pt] mt-0.5 truncate ${expired ? 'text-themeredred' : 'text-tertiary'}`}>
+              {expired ? `Expired ${dateLabel}` : `Expires ${dateLabel}`}
+            </p>
+          </div>
+          <MapPin size={13} className="text-tertiary opacity-0 group-hover:opacity-100 shrink-0" />
         </button>
       </SectionCard>
     )
@@ -415,6 +501,24 @@ export function CustodyPanel({
         {/* History (returned) — hidden when empty. */}
         {history.length > 0 &&
           renderGroup('__history__', 'History', history.length, history.map(renderReceiptCard))}
+
+        {/* Usage — consumables expended this week (item.expended ledger events).
+            Always shown so an empty group reads as "nothing used" rather than missing. */}
+        {renderGroup(
+          '__usage__',
+          'Usage',
+          usageEvents.length,
+          usageEvents.length > 0 ? usageEvents.map(renderUsageCard) : emptyLine('Nothing expended this week.'),
+        )}
+
+        {/* Expired — items lapsed or expiring within 30 days (expiry_date window).
+            Always shown so an empty group reads as "nothing expiring". */}
+        {renderGroup(
+          '__expired__',
+          'Expired',
+          expiredItems.length,
+          expiredItems.length > 0 ? expiredItems.map(renderExpiredCard) : emptyLine('Nothing expiring.'),
+        )}
 
         {/* Recent maintenance + dispatch activity (this week) — "which items got
             PMCS'd or dispatched lately". Always shown so an empty group reads as

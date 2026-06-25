@@ -7,10 +7,11 @@ import { groupHandReceipts } from '../Utilities/handReceipts'
 import { useInvalidation } from '../stores/useInvalidationStore'
 import type { CustodyLedgerEntry, HandReceipt, HolderInfo, PropertyItem } from '../Types/PropertyTypes'
 
-/** Lean item row carried for receipt rendering + reprint. */
+/** Lean item row carried for receipt rendering + reprint. `expiry_date` feeds the
+ *  Custody panel's "Expired" section (30-day expiry window via expiryStatus). */
 export type ReceiptItem = Pick<
   PropertyItem,
-  'id' | 'name' | 'nomenclature' | 'nsn' | 'serial_number' | 'location_id' | 'quantity'
+  'id' | 'name' | 'nomenclature' | 'nsn' | 'serial_number' | 'location_id' | 'quantity' | 'expiry_date'
 >
 
 export interface HandReceiptData {
@@ -88,6 +89,7 @@ export function useHandReceipts(clinicId?: string | null): HandReceiptData {
           serial_number: r.serial_number,
           location_id: r.location_id,
           quantity: r.quantity,
+          expiry_date: r.expiry_date,
         })
       }
       return map

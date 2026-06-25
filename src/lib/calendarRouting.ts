@@ -127,6 +127,31 @@ export function snapshotCalendarEvents(clinicId: string, vaultLiveIds?: Set<stri
 }
 
 /**
+ * Apply a set of event-id tombstones carried inside a clinic snapshot.
+ *
+ * Deletion in the clinic-vault calendar is otherwise recorded ONLY as (a) a 'd'
+ * tail row — reaped after the next snapshot folds it in — and (b) a per-device
+ * IDB tombstone that never leaves the device that processed the delete. A fresh
+ * device has neither, so before this existed it trusted the snapshot's events[]
+ * verbatim and resurrected anything a prior snapshot writer happened to still
+ * carry (the snapshot is self-perpetuating). Persisting tombstones IN the one
+ * durable store makes deletion durable: a fresh device learns it from the
+ * snapshot, and no re-fanning peer can re-add a snapshot-tombstoned id.
+ *
+ * Must run BEFORE loadSnapshotCalendarEvents so the event load's tombstone guard
+ * drops the deleted ids; also removes any already-painted (cache-first) copies.
+ */
+export async function applyCalendarTombstones(ids: string[]): Promise<void> {
+  if (ids.length === 0) return
+  const store = useCalendarStore.getState()
+  for (const id of ids) {
+    _tombstones.add(id)
+    store.removeEvent(id)
+  }
+  await Promise.all(ids.map(id => addCalendarTombstone(id).catch(() => {})))
+}
+
+/**
  * Load a clinic snapshot's resolved events into the store as the bootstrap base
  * (before the tail is decrypted on top). Tombstone-guarded upsert — a snapshot
  * can never resurrect an event deleted locally after the snapshot was sealed.

@@ -787,56 +787,26 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
   const pendingNavRef = useRef<string | null>(null)
 
   const executeNavigation = useCallback((targetId: string) => {
-    const tag = allWorldTags.find((t) => t.target_id === targetId)
+    // Consult childZoneAutoTags too (tag-less sub-zones) so external nav can frame
+    // them — same lookup a direct canvas tap (handleZoneTap) uses.
+    const tag =
+      allWorldTags.find((t) => t.target_id === targetId) ??
+      childZoneAutoTagsRef.current.find((t) => t.target_id === targetId)
     if (!tag) return false
 
+    const prevId = store.selectedZoneId
     store.selectZone(targetId)
 
-    if (tag.location_id === rootLocationId) {
-      zoomToTag(tag)
-      return true
-    }
-
-    // Nested zone — zoom to parent for context, then scrollend-driven zoom to target
-    const parentTag = allWorldTags.find((t) => t.target_id === tag.location_id)
-    if (!parentTag) {
-      zoomToTag(tag)
-      return true
-    }
-
-    const container = scrollRef.current
-    lcaCleanupRef.current?.()
-
-    if (!container) {
-      zoomToTag(tag)
-      return true
-    }
-
-    store.setTransitionState('zooming-out')
-    zoomToTag(parentTag)
-
-    const onParentEnd = () => {
-      container.removeEventListener('scrollend', onParentEnd)
-      store.setTransitionState('zooming-in')
-      zoomToTag(tag)
-
-      const onTargetEnd = () => {
-        container.removeEventListener('scrollend', onTargetEnd)
-        lcaCleanupRef.current = null
-        store.setTransitionState('idle')
-      }
-      container.addEventListener('scrollend', onTargetEnd, { once: true })
-      lcaCleanupRef.current = () => {
-        container.removeEventListener('scrollend', onTargetEnd)
-      }
-    }
-    container.addEventListener('scrollend', onParentEnd, { once: true })
-    lcaCleanupRef.current = () => {
-      container.removeEventListener('scrollend', onParentEnd)
-    }
+    // Reuse the SAME zoom-to logic as a direct canvas zone tap (handleZoneTap):
+    // travel from the current selection to the target via their lowest common
+    // ancestor. This unifies every external nav source — rail/sheet tree, the
+    // detail-pane child rows, the breadcrumb, and search — with the map tap, so
+    // navigation animates the same way both forwards down and back up the tree.
+    if (prevId && prevId !== targetId) zoomViaLCA(prevId, targetId, tag)
+    else zoomToTag(tag)
 
     return true
-  }, [allWorldTags, rootLocationId, store, zoomToTag])
+  }, [allWorldTags, store, zoomViaLCA, zoomToTag])
 
   // ── Imperative handle for external navigation (tree clicks, breadcrumbs) ──
   // ── Floor switcher: activate a level + zoom to it once its tag is live ──
