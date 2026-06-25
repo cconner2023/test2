@@ -1,67 +1,95 @@
 import { useState, useEffect, useMemo, useCallback, useRef, type ReactNode } from 'react'
-import { ChevronRight, ChevronDown, AlertTriangle, User, Building2, Eye, Pencil, Trash2, Mail, MessageSquare } from 'lucide-react'
-import { listClinics, listAllUsers, getAllAccountRequests, deleteClinic, deleteUser } from '../../lib/adminService'
-import type { AdminUser, AdminClinic } from '../../lib/adminService'
+import { ChevronRight, ChevronDown, AlertTriangle, User, Building2, MapPin, Layers, Eye, Pencil, Trash2, Mail, MessageSquare } from 'lucide-react'
+import { listClinics, listAllUsers, listLocations, getAllAccountRequests, deleteClinic, deleteUser } from '../../lib/adminService'
+import type { AdminUser, AdminClinic, AdminLocation } from '../../lib/adminService'
+import { buildScopeIndex, clinicIdsUnderClinic, clinicIdsUnderLocation } from './adminScope'
 import { openMailto } from '../../lib/mailto'
 import { useInvalidation, invalidate } from '../../stores/useInvalidationStore'
 import { AdminSummarySkeleton } from './AdminSkeletons'
 import { EmptyState } from '../EmptyState'
-import { SearchInput } from '../SearchInput'
 import { LiftedRowMenu } from '../LiftedRowMenu'
 import { type ContextMenuItem } from '../ContextMenu'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { UI_TIMING } from '../../Utilities/constants'
+
+/** A selected Directory scope — drives the center pane's roster. `clinicIds` is
+ *  the recursive set of cluster ids under the node (null = no filter / "all";
+ *  unassigned uses the kind, not the ids). */
+export interface AdminScope {
+  kind: 'all' | 'location' | 'cluster' | 'unassigned'
+  id: string | null
+  label: string
+  clinicIds: string[] | null
+}
 
 interface AdminSummaryProps {
   onSelectClinic: (clinic: AdminClinic) => void
   onSelectUser: (user: AdminUser) => void
   onEditClinic: (clinic: AdminClinic) => void
   onEditUser: (user: AdminUser) => void
+  onSelectLocation?: (location: AdminLocation) => void
+  onEditLocation?: (location: AdminLocation) => void
   /** Open an in-app system conversation with a user. Passed only for dev role;
    *  when absent the tree context menu omits the Chat action. */
   onChatUser?: (user: AdminUser) => void
   onSelectAll: () => void
-  onSwitchTab: (tab: 'requests' | 'users' | 'clinics') => void
+  /** Stats-block shortcut (Pending Requests → requests tab). */
+  onSwitchTab?: (tab: 'requests') => void
+  /** 'navigate' (mobile main view): tap a node → open its detail; renders user
+   *  leaves + an expandable Unassigned block. 'scope' (desktop left pane): tap a
+   *  node → set the center-pane scope via onSelectScope; structure only, no leaves. */
+  mode?: 'scope' | 'navigate'
+  onSelectScope?: (scope: AdminScope) => void
+  activeScope?: AdminScope | null
+  /** Controlled search (shared with the drawer's SearchInput). Filters the tree
+   *  by location / cluster name and member name/email; matches force-expand. */
+  searchQuery?: string
+  /** Show the totals block (Users/Clusters/Pending/Unassigned) above the tree. */
+  showStats?: boolean
   activeClinicId?: string | null
   activeUserId?: string | null
+  activeLocationId?: string | null
   allSelected?: boolean
-  /** Tree-only mode for the mobile hierarchy sheet: drops the stats summary
-   *  block + per-row entity icons, rendering a clean map-overlay-style tree
-   *  (All Clusters → clusters → user leaves → an Unassigned node). */
-  treeOnly?: boolean
 }
 
-interface ClinicNode {
-  clinic: AdminClinic
-  children: ClinicNode[]
-  /** Users assigned directly to this cluster — selectable leaf rows. */
-  users: AdminUser[]
-  userCount: number
-  totalUserCount: number
-}
+// Unified tree node — locations contain sub-locations + clusters; clusters
+// contain sub-clusters + (navigate mode) user leaves.
+type TreeNode =
+  | { kind: 'location'; id: string; label: string; location: AdminLocation; children: TreeNode[]; count: number }
+  | { kind: 'clinic'; id: string; label: string; clinic: AdminClinic; children: TreeNode[]; users: AdminUser[]; count: number }
 
 export function AdminSummary({
   onSelectClinic,
   onSelectUser,
   onEditClinic,
   onEditUser,
+  onSelectLocation,
+  onEditLocation,
   onChatUser,
   onSelectAll,
   onSwitchTab,
+  mode = 'navigate',
+  onSelectScope,
+  activeScope,
+  searchQuery,
+  showStats,
   activeClinicId,
   activeUserId,
+  activeLocationId,
   allSelected,
-  treeOnly,
 }: AdminSummaryProps) {
-  const gen = useInvalidation('users', 'clinics', 'requests')
+  const gen = useInvalidation('users', 'clinics', 'requests', 'locations')
   const [clinics, setClinics] = useState<AdminClinic[]>([])
   const [users, setUsers] = useState<AdminUser[]>([])
+  const [locations, setLocations] = useState<AdminLocation[]>([])
   const [pendingCount, setPendingCount] = useState(0)
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
 
+  const scoping = mode === 'scope'
+
   // Lifted-clone context menu (right-click / long-press) + delete flow.
-  const [contextMenu, setContextMenu] = useState<{ kind: 'clinic' | 'user'; id: string; rect: DOMRect; clone: ReactNode } | null>(null)
+  const [contextMenu, setContextMenu] = useState<{ kind: 'clinic' | 'user' | 'location'; id: string; rect: DOMRect; clone: ReactNode } | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<{ kind: 'clinic' | 'user'; id: string; label: string } | null>(null)
   const [deleteProcessing, setDeleteProcessing] = useState(false)
   const [notify, setNotify] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
@@ -83,6 +111,22 @@ export function AdminSummary({
             <Building2 size={14} className="text-tertiary" />
           </span>
           <span className="flex-1 min-w-0 text-[10pt] font-medium text-primary truncate">{clinic.name}</span>
+        </div>
+      ),
+    })
+  }, [])
+
+  const openLocationMenu = useCallback((location: AdminLocation, el: HTMLElement) => {
+    setContextMenu({
+      kind: 'location',
+      id: location.id,
+      rect: el.getBoundingClientRect(),
+      clone: (
+        <div className="bg-themewhite px-4 py-2.5 flex items-center gap-2">
+          <span className="w-7 h-7 rounded-full bg-themeblue2/10 flex items-center justify-center shrink-0">
+            <MapPin size={14} className="text-themeblue2" />
+          </span>
+          <span className="flex-1 min-w-0 text-[10pt] font-medium text-primary truncate">{location.display_name}</span>
         </div>
       ),
     })
@@ -112,8 +156,6 @@ export function AdminSummary({
     setConfirmDelete(null)
     if (result.success) {
       setNotify({ type: 'success', message: `Deleted ${label}.` })
-      // A clinic delete clears its members' clinic_id; a user delete also clears
-      // their membership + any account_requests. Mirrors the list-level deletes.
       if (kind === 'clinic') invalidate('clinics', 'users')
       else invalidate('users', 'clinics', 'requests')
     } else {
@@ -123,13 +165,15 @@ export function AdminSummary({
 
   const loadData = useCallback(async () => {
     setLoading(true)
-    const [clinicData, userData, requests] = await Promise.all([
+    const [clinicData, userData, locationData, requests] = await Promise.all([
       listClinics(),
       listAllUsers(),
+      listLocations(),
       getAllAccountRequests('pending'),
     ])
     setClinics(clinicData)
     setUsers(userData)
+    setLocations(locationData)
     setPendingCount(requests.length)
     setLoading(false)
   }, [])
@@ -145,29 +189,18 @@ export function AdminSummary({
     })
   }, [])
 
-  /** Map parent_id → children, computed once via reverse lookup on parent_clinic_id. */
-  const childrenByParent = useMemo(() => {
-    const map = new Map<string, AdminClinic[]>()
-    for (const clinic of clinics) {
-      if (!clinic.parent_clinic_id) continue
-      const arr = map.get(clinic.parent_clinic_id) ?? []
-      arr.push(clinic)
-      map.set(clinic.parent_clinic_id, arr)
-    }
-    return map
-  }, [clinics])
+  const index = useMemo(() => buildScopeIndex(clinics, locations), [clinics, locations])
 
   const usersByClinic = useMemo(() => {
-    const map = new Map<string | null, number>()
+    const map = new Map<string, number>()
     for (const user of users) {
-      const key = user.clinic_id ?? null
-      map.set(key, (map.get(key) ?? 0) + 1)
+      if (!user.clinic_id) continue
+      map.set(user.clinic_id, (map.get(user.clinic_id) ?? 0) + 1)
     }
     return map
   }, [users])
 
-  /** clinic_id → its assigned users (sorted), so the tree can expand to show
-   *  individual users as selectable leaves under their cluster. */
+  /** clinic_id → its assigned users (sorted), for the navigate-mode user leaves. */
   const usersByClinicList = useMemo(() => {
     const map = new Map<string, AdminUser[]>()
     for (const user of users) {
@@ -197,68 +230,84 @@ export function AdminSummary({
   const unassignedCount = unassignedUsers.length
   const [showUnassigned, setShowUnassigned] = useState(false)
 
-  // Tree-only search (mobile hierarchy sheet). Filters clusters + user leaves
-  // by name/email; a cluster name match keeps all its users. Matching branches
-  // render force-expanded so hits are visible regardless of collapse state.
-  const [search, setSearch] = useState('')
-  const q = search.trim().toLowerCase()
-  const searching = !!treeOnly && q.length > 0
+  const q = (searchQuery ?? '').trim().toLowerCase()
+  const searching = q.length > 0
 
-  const { roots } = useMemo(() => {
-    function countTotal(clinic: AdminClinic): number {
-      let count = usersByClinic.get(clinic.id) ?? 0
-      for (const child of childrenByParent.get(clinic.id) ?? []) {
-        count += countTotal(child)
-      }
-      return count
-    }
-
-    function buildNode(clinic: AdminClinic): ClinicNode {
-      const children = (childrenByParent.get(clinic.id) ?? [])
-        .slice()
-        .sort((a, b) => a.name.localeCompare(b.name))
-        .map(buildNode)
-
+  // Build the unified node forest (locations ⊃ clusters ⊃ user leaves).
+  const roots = useMemo(() => {
+    const clinicNode = (clinic: AdminClinic): TreeNode => {
+      const children = (index.clinicChildren.get(clinic.id) ?? []).map(clinicNode)
+      const childCount = children.reduce((s, n) => s + n.count, 0)
       return {
+        kind: 'clinic',
+        id: clinic.id,
+        label: clinic.name,
         clinic,
         children,
         users: usersByClinicList.get(clinic.id) ?? [],
-        userCount: usersByClinic.get(clinic.id) ?? 0,
-        totalUserCount: countTotal(clinic),
+        count: (usersByClinic.get(clinic.id) ?? 0) + childCount,
       }
     }
+    const locationNode = (loc: AdminLocation): TreeNode => {
+      const childLocs = (index.locChildren.get(loc.id) ?? []).map(locationNode)
+      const clinicsHere = (index.clinicsByLocation.get(loc.id) ?? []).map(clinicNode)
+      const children = [...childLocs, ...clinicsHere]
+      return {
+        kind: 'location',
+        id: loc.id,
+        label: loc.display_name,
+        location: loc,
+        children,
+        count: children.reduce((s, n) => s + n.count, 0),
+      }
+    }
+    return [
+      ...index.rootLocations.map(locationNode),
+      ...index.floatingRootClinics.map(clinicNode),
+    ]
+  }, [index, usersByClinic, usersByClinicList])
 
-    const rootClinics = clinics
-      .filter(c => !c.parent_clinic_id)
-      .sort((a, b) => a.name.localeCompare(b.name))
-
-    return { roots: rootClinics.map(buildNode) }
-  }, [clinics, usersByClinic, usersByClinicList, childrenByParent])
-
-  const { displayRoots, displayUnassigned } = useMemo(() => {
-    if (!q) return { displayRoots: roots, displayUnassigned: unassignedUsers }
+  // Apply the search filter. A node survives if its own label matches, any of
+  // its (cluster) users match, or any descendant survives.
+  const displayRoots = useMemo(() => {
+    if (!q) return roots
     const userMatches = (u: AdminUser) => {
       const name = `${u.first_name ?? ''} ${u.last_name ?? ''}`.toLowerCase()
       return name.includes(q) || (u.email ?? '').toLowerCase().includes(q)
     }
-    const filterNode = (node: ClinicNode): ClinicNode | null => {
-      const selfMatch = node.clinic.name.toLowerCase().includes(q)
-      const matchedUsers = selfMatch ? node.users : node.users.filter(userMatches)
-      const matchedChildren = node.children
-        .map(filterNode)
-        .filter((n): n is ClinicNode => n !== null)
-      if (selfMatch || matchedUsers.length || matchedChildren.length) {
-        return { ...node, users: matchedUsers, children: matchedChildren }
+    const filterNode = (node: TreeNode): TreeNode | null => {
+      const selfMatch = node.label.toLowerCase().includes(q)
+      const children = node.children.map(filterNode).filter((n): n is TreeNode => n !== null)
+      if (node.kind === 'clinic') {
+        const matchedUsers = selfMatch ? node.users : node.users.filter(userMatches)
+        if (selfMatch || matchedUsers.length || children.length) {
+          return { ...node, users: matchedUsers, children }
+        }
+        return null
       }
+      if (selfMatch || children.length) return { ...node, children }
       return null
     }
-    return {
-      displayRoots: roots.map(filterNode).filter((n): n is ClinicNode => n !== null),
-      displayUnassigned: unassignedUsers.filter(userMatches),
-    }
-  }, [q, roots, unassignedUsers])
+    return roots.map(filterNode).filter((n): n is TreeNode => n !== null)
+  }, [q, roots])
 
-  // Selectable user leaf under a cluster (or unassigned) — shared row renderer.
+  const displayUnassigned = useMemo(() => {
+    if (!q) return unassignedUsers
+    return unassignedUsers.filter(u => {
+      const name = `${u.first_name ?? ''} ${u.last_name ?? ''}`.toLowerCase()
+      return name.includes(q) || (u.email ?? '').toLowerCase().includes(q)
+    })
+  }, [q, unassignedUsers])
+
+  // ── Scope helpers (scope mode) ──────────────────────────────────────────
+  const scopeLocation = useCallback((loc: AdminLocation) => {
+    onSelectScope?.({ kind: 'location', id: loc.id, label: loc.display_name, clinicIds: clinicIdsUnderLocation(index, loc.id) })
+  }, [onSelectScope, index])
+  const scopeClinic = useCallback((clinic: AdminClinic) => {
+    onSelectScope?.({ kind: 'cluster', id: clinic.id, label: clinic.name, clinicIds: clinicIdsUnderClinic(index, clinic.id) })
+  }, [onSelectScope, index])
+
+  // ── Row renderers ───────────────────────────────────────────────────────
   function renderUserLeaf(user: AdminUser, depth: number) {
     const name = [user.first_name, user.last_name].filter(Boolean).join(' ') || user.email
     return (
@@ -280,34 +329,52 @@ export function AdminSummary({
     )
   }
 
-  function renderClinicRow(node: ClinicNode, depth: number, forceExpand = false) {
-    // Expandable when it has sub-clusters OR assigned users (so the chevron can
-    // reveal individual members, not just child clusters).
-    const hasChildren = node.children.length > 0 || node.users.length > 0
-    // forceExpand (active search) overrides the collapse set so matches show.
-    const isCollapsed = !forceExpand && collapsed.has(node.clinic.id)
-    const isActive = activeClinicId === node.clinic.id
+  function renderNode(node: TreeNode, depth: number) {
+    // A node expands if it has descendant nodes, or (navigate clinics) has user
+    // leaves to reveal. Search force-expands so matches are visible.
+    const hasUsers = !scoping && node.kind === 'clinic' && node.users.length > 0
+    const expandable = node.children.length > 0 || hasUsers
+    const isCollapsed = !searching && expandable && collapsed.has(node.id)
+    const isActive = scoping
+      ? activeScope?.kind === node.kind && activeScope.id === node.id
+      : node.kind === 'clinic'
+        ? activeClinicId === node.id
+        : activeLocationId === node.id
+    const Icon = node.kind === 'location' ? MapPin : Building2
+
+    const selectNode = () => {
+      if (preventTap.current) { preventTap.current = false; return }
+      if (scoping) {
+        if (node.kind === 'location') scopeLocation(node.location)
+        else scopeClinic(node.clinic)
+      } else {
+        if (node.kind === 'location') onSelectLocation?.(node.location)
+        else onSelectClinic(node.clinic)
+      }
+    }
+    const openMenu = (el: HTMLElement) => {
+      if (node.kind === 'location') openLocationMenu(node.location, el)
+      else openClinicMenu(node.clinic, el)
+    }
 
     return (
-      <div key={node.clinic.id}>
+      <div key={node.id}>
         <div
           className={`flex items-center gap-2 py-2 pr-4 cursor-pointer transition-all active:scale-[0.98] ${
-            isActive
-              ? 'bg-themeblue3/8 border-l-2 border-l-themeblue3'
-              : 'hover:bg-secondary/5'
+            isActive ? 'bg-themeblue3/8 border-l-2 border-l-themeblue3' : 'hover:bg-secondary/5'
           }`}
           style={{ paddingLeft: `${16 + depth * 16}px` }}
-          onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); openClinicMenu(node.clinic, e.currentTarget as HTMLElement) }}
-          onTouchStart={(e) => { const el = e.currentTarget as HTMLElement; preventTap.current = false; longPressTimer.current = window.setTimeout(() => { preventTap.current = true; openClinicMenu(node.clinic, el) }, 500) }}
+          onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); openMenu(e.currentTarget as HTMLElement) }}
+          onTouchStart={(e) => { const el = e.currentTarget as HTMLElement; preventTap.current = false; longPressTimer.current = window.setTimeout(() => { preventTap.current = true; openMenu(el) }, 500) }}
           onTouchEnd={clearLongPress}
           onTouchMove={clearLongPress}
         >
-          {hasChildren ? (
+          {expandable ? (
             <button
               className="p-0.5 rounded hover:bg-secondary/10 text-tertiary shrink-0"
-              aria-label={`${isCollapsed ? 'Expand' : 'Collapse'} ${node.clinic.name}`}
+              aria-label={`${isCollapsed ? 'Expand' : 'Collapse'} ${node.label}`}
               aria-expanded={!isCollapsed}
-              onClick={(e) => { e.stopPropagation(); toggleCollapse(node.clinic.id) }}
+              onClick={(e) => { e.stopPropagation(); toggleCollapse(node.id) }}
             >
               {isCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
             </button>
@@ -315,26 +382,26 @@ export function AdminSummary({
             <span className="w-[18px] shrink-0" />
           )}
 
+          <Icon size={14} className={`shrink-0 ${node.kind === 'location' ? 'text-themeblue2' : 'text-tertiary'}`} />
+
           <div
             role="button"
             tabIndex={0}
-            aria-label={`Select cluster ${node.clinic.name}`}
+            aria-label={`${scoping ? 'Scope to' : 'Select'} ${node.label}`}
             className="flex items-center flex-1 min-w-0"
-            onClick={() => { if (preventTap.current) { preventTap.current = false; return } onSelectClinic(node.clinic) }}
-            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelectClinic(node.clinic) } }}
+            onClick={selectNode}
+            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectNode() } }}
           >
-            <span className="text-[10pt] font-medium text-primary truncate">{node.clinic.name}</span>
+            <span className="text-[10pt] font-medium text-primary truncate">{node.label}</span>
           </div>
 
-          <span className="text-[9pt] md:text-[9pt] font-normal text-tertiary tabular-nums shrink-0">
-            {node.totalUserCount}
-          </span>
+          <span className="text-[9pt] font-normal text-tertiary tabular-nums shrink-0">{node.count}</span>
         </div>
 
-        {hasChildren && !isCollapsed && (
+        {expandable && !isCollapsed && (
           <>
-            {node.users.map(user => renderUserLeaf(user, depth + 1))}
-            {node.children.map(child => renderClinicRow(child, depth + 1, forceExpand))}
+            {hasUsers && node.kind === 'clinic' && node.users.map(u => renderUserLeaf(u, depth + 1))}
+            {node.children.map(child => renderNode(child, depth + 1))}
           </>
         )}
       </div>
@@ -343,148 +410,106 @@ export function AdminSummary({
 
   if (loading) return <AdminSummarySkeleton />
 
-  if (clinics.length === 0 && users.length === 0) {
+  if (clinics.length === 0 && users.length === 0 && locations.length === 0) {
     return (
       <div className="px-4 py-4">
         <EmptyState
-          title="No users or clusters yet"
-          action={{ icon: Building2, label: 'Open clusters', onClick: () => onSwitchTab('clinics') }}
+          title="No locations, clusters, or users yet"
+          action={{ icon: Building2, label: 'Show all', onClick: onSelectAll }}
         />
       </div>
     )
   }
 
+  const allActive = scoping ? activeScope?.kind === 'all' : allSelected
+  const unassignedActive = scoping && activeScope?.kind === 'unassigned'
+
   return (
     <div className="flex flex-col h-full">
-      {/* Stats — hidden in tree-only mode (the mobile hierarchy sheet wants a
-          clean map-overlay-style tree, no summary header). */}
-      {!treeOnly && (
-      <>
-      <div className="px-4 py-3 space-y-1.5">
-        <button
-          onClick={() => onSwitchTab('users')}
-          className="flex items-center gap-2 w-full text-left active:scale-[0.98] transition-all"
-        >
-          <span className="text-[10pt] text-primary flex-1">Users</span>
-          <span className="text-[10pt] font-semibold text-primary tabular-nums">{users.length}</span>
-        </button>
+      {showStats && (
+        <>
+          <div className="px-4 py-3 space-y-1.5">
+            <div className="flex items-center gap-2 w-full text-left">
+              <span className="text-[10pt] text-primary flex-1">Users</span>
+              <span className="text-[10pt] font-semibold text-primary tabular-nums">{users.length}</span>
+            </div>
+            <div className="flex items-center gap-2 w-full text-left">
+              <span className="text-[10pt] text-primary flex-1">Clusters</span>
+              <span className="text-[10pt] font-semibold text-primary tabular-nums">{clinics.length}</span>
+            </div>
+            {pendingCount > 0 && onSwitchTab && (
+              <button
+                onClick={() => onSwitchTab('requests')}
+                className="flex items-center gap-2 w-full text-left active:scale-[0.98] transition-all"
+              >
+                <span className="text-[10pt] text-themeyellow flex-1">Pending Requests</span>
+                <span className="text-[10pt] font-semibold text-themeyellow tabular-nums">{pendingCount}</span>
+              </button>
+            )}
+          </div>
+          <div className="border-b border-primary/10 mx-4" />
+          <div className="px-4 py-2.5">
+            <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">Directory</p>
+          </div>
+        </>
+      )}
 
-        <button
-          onClick={() => onSwitchTab('clinics')}
-          className="flex items-center gap-2 w-full text-left active:scale-[0.98] transition-all"
-        >
-          <span className="text-[10pt] text-primary flex-1">Clusters</span>
-          <span className="text-[10pt] font-semibold text-primary tabular-nums">{clinics.length}</span>
-        </button>
-
-        {pendingCount > 0 && (
+      {/* Tree */}
+      <div className="flex-1 overflow-y-auto">
+        {scoping && !searching && (
           <button
-            onClick={() => onSwitchTab('requests')}
-            className="flex items-center gap-2 w-full text-left active:scale-[0.98] transition-all"
+            onClick={() => onSelectScope?.({ kind: 'all', id: null, label: 'All', clinicIds: null })}
+            aria-label="Show everything"
+            className={`flex items-center gap-2 w-full py-2 px-4 text-left cursor-pointer transition-all active:scale-[0.98] ${
+              allActive ? 'bg-themeblue3/8 border-l-2 border-l-themeblue3' : 'hover:bg-secondary/5'
+            }`}
           >
-            <span className="text-[10pt] text-themeyellow flex-1">Pending Requests</span>
-            <span className="text-[10pt] font-semibold text-themeyellow tabular-nums">{pendingCount}</span>
+            <span className="w-[18px] shrink-0" />
+            <Layers size={14} className="text-tertiary shrink-0" />
+            <span className="text-[10pt] font-medium text-primary flex-1">All</span>
+            <span className="text-[9pt] font-normal text-tertiary tabular-nums">{users.length}</span>
           </button>
         )}
 
-        {unassignedCount > 0 && (
-          <div>
+        {displayRoots.map(node => renderNode(node, 0))}
+
+        {/* Unassigned users. Scope mode: a scope row. Navigate mode: an
+            expandable inline block of selectable user leaves. */}
+        {scoping ? (
+          unassignedCount > 0 && !searching && (
             <button
-              onClick={() => setShowUnassigned(!showUnassigned)}
-              aria-expanded={showUnassigned}
-              aria-label={`${showUnassigned ? 'Hide' : 'Show'} unassigned users`}
-              className="flex items-center gap-2 w-full text-left active:scale-[0.98] transition-all"
+              onClick={() => onSelectScope?.({ kind: 'unassigned', id: null, label: 'Unassigned', clinicIds: null })}
+              aria-label="Scope to unassigned users"
+              className={`flex items-center gap-2 w-full py-2 px-4 text-left cursor-pointer transition-all active:scale-[0.98] ${
+                unassignedActive ? 'bg-themeblue3/8 border-l-2 border-l-themeblue3' : 'hover:bg-secondary/5'
+              }`}
             >
-              <span className="w-7 h-7 rounded-full bg-themeredred/10 flex items-center justify-center shrink-0">
-                <AlertTriangle size={14} className="text-themeredred" />
-              </span>
-              <span className="text-[10pt] text-themeredred flex-1">Unassigned</span>
-              <span className="text-[10pt] font-semibold text-themeredred tabular-nums mr-1">{unassignedCount}</span>
-              {showUnassigned ? <ChevronDown size={14} className="text-tertiary shrink-0" /> : <ChevronRight size={14} className="text-tertiary shrink-0" />}
+              <span className="w-[18px] shrink-0" />
+              <AlertTriangle size={14} className="text-themeredred shrink-0" />
+              <span className="text-[10pt] font-medium text-themeredred flex-1">Unassigned</span>
+              <span className="text-[9pt] font-normal text-tertiary tabular-nums">{unassignedCount}</span>
             </button>
-            {showUnassigned && (
-              <div className="mt-1 ml-9 rounded-lg border border-tertiary/10 bg-themewhite2 overflow-hidden divide-y divide-tertiary/10">
-                {unassignedUsers.map(u => (
-                  <button
-                    key={u.id}
-                    onClick={() => { if (preventTap.current) { preventTap.current = false; return } onSelectUser(u) }}
-                    onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); openUserMenu(u, e.currentTarget as HTMLElement) }}
-                    onTouchStart={(e) => { const el = e.currentTarget as HTMLElement; preventTap.current = false; longPressTimer.current = window.setTimeout(() => { preventTap.current = true; openUserMenu(u, el) }, 500) }}
-                    onTouchEnd={clearLongPress}
-                    onTouchMove={clearLongPress}
-                    className={`flex items-center gap-2 w-full px-3 py-2 text-left active:scale-95 transition-all ${
-                      activeUserId === u.id ? 'bg-themeblue3/8' : 'hover:bg-secondary/5'
-                    }`}
-                  >
-                    <span className="text-[10pt] text-primary truncate">
-                      {[u.first_name, u.last_name].filter(Boolean).join(' ') || u.email}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Divider */}
-      <div className="border-b border-primary/10 mx-4" />
-
-      {/* Hierarchy header */}
-      <div className="px-4 py-2.5">
-        <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">Hierarchy</p>
-      </div>
-      </>
-      )}
-
-      {/* Search — tree-only (mobile hierarchy sheet). */}
-      {treeOnly && (
-        <div className="shrink-0 px-4 pt-1 pb-2">
-          <SearchInput value={search} onChange={setSearch} placeholder="Search clusters or users…" />
-        </div>
-      )}
-
-      {/* Clinic tree */}
-      <div className="flex-1 overflow-y-auto">
-        {!searching && (
-        <button
-          onClick={onSelectAll}
-          onKeyDown={e => { if (e.key === 'Enter') onSelectAll() }}
-          aria-label="Show all clusters"
-          className={`flex items-center gap-2 w-full py-2 px-4 text-left cursor-pointer transition-all active:scale-[0.98] ${
-            allSelected
-              ? 'bg-themeblue3/8 border-l-2 border-l-themeblue3'
-              : 'hover:bg-secondary/5'
-          }`}
-        >
-          <span className="w-[18px] shrink-0" />
-          <span className="text-[10pt] font-medium text-primary">All Clusters</span>
-          <span className="text-[9pt] md:text-[9pt] font-normal text-tertiary tabular-nums ml-auto">{users.length}</span>
-        </button>
-        )}
-
-        {displayRoots.map(node => renderClinicRow(node, 0, searching))}
-
-        {/* Unassigned users — rendered as a tree node in tree-only mode (in
-            the stats variant these live in the summary block above). When
-            searching, force-expanded and showing only matched users. */}
-        {treeOnly && displayUnassigned.length > 0 && (
-          <div>
-            <button
-              onClick={() => setShowUnassigned(!showUnassigned)}
-              aria-expanded={searching || showUnassigned}
-              aria-label={`${showUnassigned ? 'Collapse' : 'Expand'} unassigned users`}
-              className="flex items-center gap-2 w-full py-2 pr-4 text-left cursor-pointer transition-all active:scale-[0.98] hover:bg-secondary/5"
-              style={{ paddingLeft: '16px' }}
-            >
-              <span className="p-0.5 text-tertiary shrink-0">
-                {(searching || showUnassigned) ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-              </span>
-              <span className="text-[10pt] font-medium text-tertiary italic flex-1">Unassigned</span>
-              <span className="text-[9pt] font-normal text-tertiary tabular-nums shrink-0">{displayUnassigned.length}</span>
-            </button>
-            {(searching || showUnassigned) && displayUnassigned.map(u => renderUserLeaf(u, 1))}
-          </div>
+          )
+        ) : (
+          displayUnassigned.length > 0 && (
+            <div>
+              <button
+                onClick={() => setShowUnassigned(!showUnassigned)}
+                aria-expanded={searching || showUnassigned}
+                aria-label={`${showUnassigned ? 'Collapse' : 'Expand'} unassigned users`}
+                className="flex items-center gap-2 w-full py-2 pr-4 text-left cursor-pointer transition-all active:scale-[0.98] hover:bg-secondary/5"
+                style={{ paddingLeft: '16px' }}
+              >
+                <span className="p-0.5 text-tertiary shrink-0">
+                  {(searching || showUnassigned) ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                </span>
+                <AlertTriangle size={14} className="text-themeredred shrink-0" />
+                <span className="text-[10pt] font-medium text-themeredred flex-1">Unassigned</span>
+                <span className="text-[9pt] font-normal text-tertiary tabular-nums shrink-0">{displayUnassigned.length}</span>
+              </button>
+              {(searching || showUnassigned) && displayUnassigned.map(u => renderUserLeaf(u, 1))}
+            </div>
+          )
         )}
 
         {searching && displayRoots.length === 0 && displayUnassigned.length === 0 && (
@@ -502,6 +527,14 @@ export function AdminSummary({
             { key: 'edit', label: 'Edit', icon: Pencil, onAction: () => onEditClinic(clinic) },
             { key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => setConfirmDelete({ kind: 'clinic', id: clinic.id, label: clinic.name }) },
           ]
+        } else if (contextMenu.kind === 'location') {
+          const location = locations.find(l => l.id === contextMenu.id)
+          if (!location) return null
+          items = [
+            ...(onSelectLocation ? [{ key: 'view', label: 'View', icon: Eye, onAction: () => onSelectLocation(location) }] : []),
+            ...(onEditLocation ? [{ key: 'edit', label: 'Edit', icon: Pencil, onAction: () => onEditLocation(location) }] : []),
+          ]
+          if (items.length === 0) return null
         } else {
           const user = users.find(u => u.id === contextMenu.id)
           if (!user) return null
@@ -509,8 +542,6 @@ export function AdminSummary({
           items = [
             { key: 'view', label: 'View', icon: Eye, onAction: () => onSelectUser(user) },
             { key: 'edit', label: 'Edit', icon: Pencil, onAction: () => onEditUser(user) },
-            // Chat — in-app system conversation. Dev-only (onChatUser gated by
-            // role upstream) and only once the user has a vault (last_active_at).
             ...(onChatUser && user.last_active_at ? [{
               key: 'chat', label: 'Chat', icon: MessageSquare, onAction: () => onChatUser(user),
             }] : []),

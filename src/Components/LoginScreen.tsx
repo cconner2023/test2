@@ -15,6 +15,12 @@ type View = 'main' | 'request' | 'help'
 type LoginMode = 'password' | 'qr'
 type ForgotStep = null | 'email' | 'token'
 
+/** Handoff key: a lock/re-auth screen stashes the account email here, then signs
+ *  out to surface LoginScreen, which prefills it and auto-opens the reset flow —
+ *  so "Forgot password?" everywhere drives this one canonical email→PIN→recovery
+ *  flow instead of a duplicate. */
+export const FORGOT_PREFILL_KEY = 'adtmc_forgot_prefill'
+
 /** Rendered only when mode === 'qr'. Subscribes to Realtime and shows QR. */
 function DeviceLinkQrView() {
   const { channelId, status, error, channelState, regenerate } = useLinkeeChannel()
@@ -104,6 +110,17 @@ export function LoginScreen() {
   const [helpSubmitted, setHelpSubmitted] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // A lock/re-auth screen routed here for "Forgot password?" — prefill the email
+  // it stashed and jump straight into the reset flow's email step.
+  useEffect(() => {
+    let pre: string | null = null
+    try { pre = sessionStorage.getItem(FORGOT_PREFILL_KEY) } catch { /* ignore */ }
+    if (pre === null) return
+    try { sessionStorage.removeItem(FORGOT_PREFILL_KEY) } catch { /* ignore */ }
+    setEmail(pre)
+    setForgotStep('email')
+  }, [])
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault()

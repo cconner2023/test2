@@ -241,6 +241,11 @@ export async function updateAuditEvent(
  * audit_log. Used for deleting a PMCS history entry (fault / correction / clean
  * check). Append-only was relaxed for this on 2026-06-21; the row is physically
  * removed, not tombstoned. Returns true if the local delete + enqueue succeeded.
+ *
+ * NOTE: the server delete only lands for event types in the audit_log_delete RLS
+ * allow-list. A blocked delete returns 0 rows (not an error) and the row survives
+ * server-side, so the next read-through re-cache resurrects it. The allow-list was
+ * widened on 2026-06-24 to cover the property item.* lifecycle types.
  */
 export async function deleteAuditEvent(eventId: string, userId: string): Promise<boolean> {
   try {
@@ -256,6 +261,92 @@ export async function deleteAuditEvent(eventId: string, userId: string): Promise
   } catch (err) {
     logger.error('deleteAuditEvent failed:', getErrorMessage(err, String(err)))
     return false
+  }
+}
+
+/**
+ * Cascade hard-delete EVERY audit event for a subject — used when an item is
+ * removed from accountability and the user opted to take its history with it.
+ * Enumerates the local rows AND (best-effort, when online) the server set via
+ * fetchAuditBySubject, so rows never cached on this device are still enqueued for
+ * deletion. Each row is deleted locally and a server `delete` is enqueued.
+ *
+ * Relies on the widened audit_log_delete RLS (2026-06-24, item.* lifecycle types)
+ * — otherwise the lifecycle/custody rows would silently no-op server-side and
+ * resurrect via the read-through cache. The caller must flush the queue (await
+ * the sync) before any audit refetch, for the same reason. Returns the count
+ * enqueued; never throws (item delete must not fail on an audit hiccup).
+ */
+export async function deleteAuditEventsBySubject(
+  subjectId: string,
+  userId: string,
+  opts: { clinicId?: string } = {},
+): Promise<number> {
+  try {
+    if (!isUuid(subjectId)) return 0
+    const ids = new Set<string>()
+    const local = await getLocalAuditLogsBySubject(subjectId)
+    local.forEach((r) => ids.add(r.id))
+    // Pull the server set too so uncached rows are caught. fetchAuditBySubject
+    // re-caches into IDB; we immediately delete those local rows below — net
+    // result is a clean local delete + enqueued server delete for every row.
+    try {
+      const remote = await fetchAuditBySubject(subjectId, { clinicId: opts.clinicId })
+      remote.forEach((e) => ids.add(e.id))
+    } catch {
+      // offline — fall back to the local set only; the rest flush on reconnect.
+    }
+
+    for (const id of ids) {
+      await deleteLocalAuditLog(id)
+      await addToSyncQueue({
+        user_id: userId,
+        action: 'delete',
+        table_name: 'audit_log',
+        record_id: id,
+        payload: {},
+      })
+    }
+    return ids.size
+  } catch (err) {
+    logger.error('deleteAuditEventsBySubject failed:', getErrorMessage(err, String(err)))
+    return 0
+  }
+}
+
+/**
+ * Delete the item.transferred timeline row(s) a custody/sign-out entry dual-wrote.
+ * recordLedgerEntry stamps the custody row's recorded_at and the audit event's
+ * occurred_at from the SAME `now`, so a custody row maps to its timeline entry by
+ * (subjectId = item_id, eventType = 'item.transferred', occurredAt = recorded_at).
+ * Used when a DA 2062 receipt (or one of its items) is deleted with the
+ * records+timeline scope. Local delete + enqueued server delete; never throws.
+ */
+export async function deleteTransferAuditForCustody(
+  itemId: string,
+  recordedAt: string,
+  userId: string,
+): Promise<number> {
+  try {
+    if (!isUuid(itemId)) return 0
+    const rows = await getLocalAuditLogsBySubject(itemId)
+    let n = 0
+    for (const r of rows) {
+      if (r.event_type !== 'item.transferred' || r.occurred_at !== recordedAt) continue
+      await deleteLocalAuditLog(r.id)
+      await addToSyncQueue({
+        user_id: userId,
+        action: 'delete',
+        table_name: 'audit_log',
+        record_id: r.id,
+        payload: {},
+      })
+      n++
+    }
+    return n
+  } catch (err) {
+    logger.error('deleteTransferAuditForCustody failed:', getErrorMessage(err, String(err)))
+    return 0
   }
 }
 
@@ -293,6 +384,27 @@ export async function getAuditBySubjectLocal(subjectId: string): Promise<AuditEv
 // ---- Read: server (read_audit RPC) ----
 
 /**
+ * In-flight coalescing for read_audit pulls. The property surface mounts several
+ * audit-backed hooks in one commit — useVehicleDispatches (map / list / tree /
+ * dispatch-calendar) and useRecentPropertyActivity (custody panel) all pull the
+ * SAME (clinicId, 'property') set, and dev StrictMode double-invokes each effect.
+ * Without this, each fires its own identical RPC (the millisecond-spaced bursts
+ * seen in the API logs). Concurrent reads with identical params share one network
+ * call instead. Keyed by every param that determines the result and dropped the
+ * instant the promise settles — so each `properties` invalidation still refetches
+ * fresh (no staleness window, purely a same-tick coalescer).
+ */
+const inFlightAudit = new Map<string, Promise<AuditEvent[]>>()
+
+function coalesceAudit(key: string, run: () => Promise<AuditEvent[]>): Promise<AuditEvent[]> {
+  const existing = inFlightAudit.get(key)
+  if (existing) return existing
+  const p = run().finally(() => { inFlightAudit.delete(key) })
+  inFlightAudit.set(key, p)
+  return p
+}
+
+/**
  * Fetch a subject's audit timeline from the server via read_audit.
  * Dev callers may read cross-clinic; non-dev callers must pass their own
  * clinicId (the RPC enforces this). `since` is the last seen `seq` (delta).
@@ -302,20 +414,25 @@ export async function fetchAuditBySubject(
   opts: { clinicId?: string; since?: number; limit?: number } = {},
 ): Promise<AuditEvent[]> {
   if (!isUuid(subjectId)) return []
-  const { data, error } = await supabase.rpc('read_audit', {
-    p_subject_id: subjectId,
-    p_domain: null,
-    p_clinic_id: opts.clinicId ?? null,
-    p_since: opts.since ?? 0,
-    p_limit: opts.limit ?? 500,
+  const clinicId = opts.clinicId ?? null
+  const since = opts.since ?? 0
+  const limit = opts.limit ?? 500
+  return coalesceAudit(`subject|${subjectId}|${clinicId ?? ''}|${since}|${limit}`, async () => {
+    const { data, error } = await supabase.rpc('read_audit', {
+      p_subject_id: subjectId,
+      p_domain: null,
+      p_clinic_id: clinicId,
+      p_since: since,
+      p_limit: limit,
+    })
+    if (error) {
+      logger.warn('fetchAuditBySubject failed:', error.message)
+      return []
+    }
+    const rows = (data ?? []) as AuditRow[]
+    await cacheAuditRows(rows)
+    return Promise.all(rows.map(toAuditEvent))
   })
-  if (error) {
-    logger.warn('fetchAuditBySubject failed:', error.message)
-    return []
-  }
-  const rows = (data ?? []) as AuditRow[]
-  await cacheAuditRows(rows)
-  return Promise.all(rows.map(toAuditEvent))
 }
 
 /**
@@ -328,18 +445,22 @@ export async function fetchAuditByClinicDomain(
   opts: { since?: number; limit?: number } = {},
 ): Promise<AuditEvent[]> {
   if (!isUuid(clinicId)) return []
-  const { data, error } = await supabase.rpc('read_audit', {
-    p_subject_id: null,
-    p_domain: domain,
-    p_clinic_id: clinicId,
-    p_since: opts.since ?? 0,
-    p_limit: opts.limit ?? 1000,
+  const since = opts.since ?? 0
+  const limit = opts.limit ?? 1000
+  return coalesceAudit(`domain|${clinicId}|${domain}|${since}|${limit}`, async () => {
+    const { data, error } = await supabase.rpc('read_audit', {
+      p_subject_id: null,
+      p_domain: domain,
+      p_clinic_id: clinicId,
+      p_since: since,
+      p_limit: limit,
+    })
+    if (error) {
+      logger.warn('fetchAuditByClinicDomain failed:', error.message)
+      return []
+    }
+    const rows = (data ?? []) as AuditRow[]
+    await cacheAuditRows(rows)
+    return Promise.all(rows.map(toAuditEvent))
   })
-  if (error) {
-    logger.warn('fetchAuditByClinicDomain failed:', error.message)
-    return []
-  }
-  const rows = (data ?? []) as AuditRow[]
-  await cacheAuditRows(rows)
-  return Promise.all(rows.map(toAuditEvent))
 }

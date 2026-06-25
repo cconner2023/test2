@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, memo } from 'react'
-import { X, MoreHorizontal, Check, ChevronLeft, Map as MapIcon, Camera, ClipboardList } from 'lucide-react'
+import { X, MoreHorizontal, Check, ChevronLeft, Map as MapIcon, Camera, ClipboardList, Download } from 'lucide-react'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { LiftedRowMenu } from '../LiftedRowMenu'
 import { AddFab } from '../AddFab'
@@ -9,8 +9,11 @@ import { useAuthStore } from '../../stores/useAuthStore'
 import { useShallow } from 'zustand/react/shallow'
 import { PropertyLocationTree } from './PropertyLocationTree'
 import { CustodyPanel } from './CustodyPanel'
+import { Da2062PdfView } from './Da2062PdfView'
 import { ItemScanner } from './ItemScanner'
 import { useHandReceipts, type ReceiptItem } from '../../Hooks/useHandReceipts'
+import { buildReprint2062Params } from '../../Hooks/useHandReceiptActions'
+import { useDA2062Export } from '../../Hooks/useDA2062Export'
 import { PropertyBreadcrumb } from './PropertyBreadcrumb'
 import { PropertySearchOverlay } from './PropertySearchOverlay'
 import { PropertyLocationForm, type PropertyLocationFormHandle, type PendingZoneTag } from './PropertyLocationForm'
@@ -22,10 +25,11 @@ import { Sheet } from '../Sheet'
 import { LoadingOverlay } from '../LoadingOverlay'
 import { useMinLoadTime } from '../../Hooks/useMinLoadTime'
 import { useClinicName } from '../../Hooks/useClinicNameResolver'
-import type { LocalPropertyItem, LocalPropertyLocation } from '../../Types/PropertyTypes'
+import type { LocalPropertyItem, LocalPropertyLocation, HandReceipt } from '../../Types/PropertyTypes'
 import { ROOT_LOCATION_NAME } from '../../Types/PropertyTypes'
 import { PropertyItemDetail, type PropertyItemDetailHandle } from './PropertyItemDetail'
-import { SignOutForm } from './SignOutForm'
+import { PropertyCSVImport } from './PropertyCSVImportDrawer'
+import { SignOutForm, type SignOutFormHandle } from './SignOutForm'
 import { HeaderPill, PillButton } from '../HeaderPill'
 import { SearchInput } from '../SearchInput'
 
@@ -58,6 +62,13 @@ interface PropertyPanelProps {
   /** Register a trigger to open the New DA 2062 sign-out in the detail surface
    *  (right pane on desktop / detail sheet on mobile). Fired from the add ActionSheet. */
   onRegisterNewDA2062?: (trigger: () => void) => void
+  /** Register a trigger to open CSV import in the detail surface (right pane on
+   *  desktop / detail sheet on mobile). Fired from the add ActionSheet. */
+  onRegisterImport?: (trigger: () => void) => void
+  /** Register a trigger to navigate the canvas to a zone (global-search deep-link). */
+  onRegisterNavigateZone?: (trigger: (zoneId: string) => void) => void
+  /** Register a trigger to open the Custody / DA 2062 tab (global-search deep-link). */
+  onRegisterOpenCustody?: (trigger: () => void) => void
 }
 
 export const PropertyPanel = memo(function PropertyPanel({
@@ -80,6 +91,9 @@ export const PropertyPanel = memo(function PropertyPanel({
   onEnrollNewItem,
   onOpenAddSheet,
   onRegisterNewDA2062,
+  onRegisterImport,
+  onRegisterNavigateZone,
+  onRegisterOpenCustody,
 }: PropertyPanelProps) {
   const store = usePropertyStore(
     useShallow((s) => ({
@@ -119,6 +133,17 @@ export const PropertyPanel = memo(function PropertyPanel({
     refetch: refetchReceipts,
   } = useHandReceipts(isDevRole ? store.clinicId : null)
 
+  // Reprint a hand receipt's DA 2062 INTO this panel's object-view surface (right
+  // pane desktop / detail sheet mobile) — CustodyPanel is MAIN-panel content, so its
+  // 2062 opens here as a right-pane/sheet, NOT a nested overlay. (Contrast SignOutForm,
+  // which is itself hosted in the pane/sheet and so uses the nested Da2062Preview.)
+  const { exportDA2062, da2062Preview, downloadDA2062, clearDA2062Preview } = useDA2062Export()
+  const handleReprint = useCallback(
+    (r: HandReceipt) => { void exportDA2062(buildReprint2062Params(r, receiptItemsById, receiptMembersById)) },
+    [exportDA2062, receiptItemsById, receiptMembersById],
+  )
+  const saveReprint = useCallback(() => { downloadDA2062(); clearDA2062Preview() }, [downloadDA2062, clearDA2062Preview])
+
   const visibleLocations = store.locations.filter(l => l.name !== ROOT_LOCATION_NAME)
   const hasData = visibleLocations.length > 0 || store.items.length > 0
   const showLoading = useMinLoadTime(store.isLoading) && !hasData
@@ -127,6 +152,7 @@ export const PropertyPanel = memo(function PropertyPanel({
   const mapRef = useRef<MapNavHandle>(null)
   const itemFormRef = useRef<PropertyItemFormHandle>(null)
   const locationFormRef = useRef<PropertyLocationFormHandle>(null)
+  const signOutFormRef = useRef<SignOutFormHandle>(null)
   const itemDetailRef = useRef<PropertyItemDetailHandle>(null)
   const locDetailRef = useRef<PropertyLocationDetailHandle>(null)
   // Desktop right pane — scopes the item's split/merge PreviewOverlay so it dims
@@ -176,6 +202,9 @@ export const PropertyPanel = memo(function PropertyPanel({
   // New DA 2062 sign-out, hosted in the detail surface (right pane desktop /
   // detail sheet mobile) — the same primitive item & zone selection use.
   const [signOutOpen, setSignOutOpen] = useState(false)
+  // CSV import, hosted in the SAME detail surface (right pane desktop / detail
+  // sheet mobile) — mirrors signOutOpen / da2062Preview.
+  const [importOpen, setImportOpen] = useState(false)
   // Selected-location action menu (header ellipsis) anchor + photo upload plumbing.
   const [locMenu, setLocMenu] = useState<{ rect: DOMRect } | null>(null)
   const { trigger: triggerPhoto, input: photoInput } = usePropertyPhotoUpload(
@@ -214,6 +243,23 @@ export const PropertyPanel = memo(function PropertyPanel({
     onRegisterOpenLocations?.(() => setShowLocations(true))
   }, [onRegisterOpenLocations])
 
+  // Global-search deep-links: navigate the canvas to a zone, or jump to the
+  // Custody tab. Both leave any open mobile sheet/form so the target surfaces.
+  useEffect(() => {
+    onRegisterNavigateZone?.((zoneId) => {
+      setPropertyTab('map')
+      if (isMobile) { setMobileItem(null); setMobileForm(null); setShowLocations(false) }
+      mapRef.current?.navigateToZone(zoneId)
+    })
+  }, [onRegisterNavigateZone, isMobile])
+
+  useEffect(() => {
+    onRegisterOpenCustody?.(() => {
+      if (isMobile) { setMobileItem(null); setMobileForm(null) }
+      setPropertyTab('custody')
+    })
+  }, [onRegisterOpenCustody, isMobile])
+
   // New DA 2062 opens in the detail surface — clear any open item/zone/form first
   // so the sign-out is the sole occupant of the right pane / detail sheet.
   useEffect(() => {
@@ -227,6 +273,21 @@ export const PropertyPanel = memo(function PropertyPanel({
       setSignOutOpen(true)
     })
   }, [onRegisterNewDA2062, store])
+
+  // Import opens as the sole occupant of the detail surface — clear any open
+  // item/zone/form/sign-out first (mirrors the New DA 2062 trigger).
+  useEffect(() => {
+    onRegisterImport?.(() => {
+      setMobileItem(null)
+      setMobileForm(null)
+      store.setEditingItem(null)
+      setEditLocationTarget(null)
+      setSelectedLocationId(null)
+      mapRef.current?.clearSelection()
+      setSignOutOpen(false)
+      setImportOpen(true)
+    })
+  }, [onRegisterImport, store])
 
   // Mobile: focusing the header search opens the results overlay over the canvas
   // (z1020). The Custody sheet sits above it (z1200), so leave that tab first —
@@ -460,7 +521,7 @@ export const PropertyPanel = memo(function PropertyPanel({
   // Desktop layout — left rail (location tree) · center map · right pane (detail/form),
   // mirroring MapOverlayPanel: the rail collapses while the right pane is open.
   if (!isMobile) {
-    const railCollapsed = view === 'property-form' || view === 'property-detail' || !!editLocationTarget || !!selectedLocation || signOutOpen
+    const railCollapsed = view === 'property-form' || view === 'property-detail' || !!editLocationTarget || !!selectedLocation || signOutOpen || importOpen || !!da2062Preview
     // When the rail search has a query, the results take over the CENTER pane
     // (mirrors mobile's overlay) instead of filtering the rail tree in place. The
     // rail keeps the full tree for navigation context; results route to the right pane.
@@ -533,6 +594,7 @@ export const PropertyPanel = memo(function PropertyPanel({
                 loading={receiptsLoading}
                 refetch={refetchReceipts}
                 onLocateItem={handleLocateReceiptItem}
+                onReprint={handleReprint}
               />
             ) : (
               <>
@@ -585,10 +647,11 @@ export const PropertyPanel = memo(function PropertyPanel({
                   <p className="text-sm font-medium text-primary">New DA 2062</p>
                   <HeaderPill>
                     <PillButton icon={X} iconSize={16} onClick={() => setSignOutOpen(false)} label="Close" />
+                    <PillButton icon={Check} iconSize={16} accent="success" onClick={() => signOutFormRef.current?.submit()} label="Sign out" />
                   </HeaderPill>
                 </div>
                 <div className="flex-1 min-h-0 overflow-y-auto">
-                  <SignOutForm onClose={() => setSignOutOpen(false)} />
+                  <SignOutForm ref={signOutFormRef} onClose={() => setSignOutOpen(false)} />
                 </div>
               </>
             )}
@@ -623,7 +686,6 @@ export const PropertyPanel = memo(function PropertyPanel({
                     onEdit={onEditItem}
                     onDelete={onDeleteItem ? () => onDeleteItem(selectedItem) : undefined}
                     canDelete={!!onDeleteItem}
-                    containerRef={detailPaneRef}
                     drawerRef={panelRef}
                   />
                 </div>
@@ -690,6 +752,41 @@ export const PropertyPanel = memo(function PropertyPanel({
                 </div>
               </>
             )}
+            {/* CSV import — sole occupant of the right pane (rail collapses, pane
+                opens), mirroring the sign-out / reprint surfaces. Absolute overlay
+                so it covers the pane without entangling the other branches. */}
+            {importOpen && (
+              <div className="absolute inset-0 z-10 flex flex-col bg-themewhite3">
+                <div className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-tertiary/10">
+                  <p className="text-sm font-medium text-primary truncate">Import Property CSV</p>
+                  <HeaderPill>
+                    <PillButton icon={X} iconSize={16} onClick={() => setImportOpen(false)} label="Close" />
+                  </HeaderPill>
+                </div>
+                <div className="flex-1 min-h-0 overflow-y-auto">
+                  <div className="px-4 py-4 pb-8">
+                    <PropertyCSVImport onClose={() => setImportOpen(false)} />
+                  </div>
+                </div>
+              </div>
+            )}
+            {/* Reprinted DA 2062 — the object-view surface for a Custody-tab reprint.
+                Absolute overlay so it covers the pane without entangling the other
+                branches' conditions. */}
+            {da2062Preview && (
+              <div className="absolute inset-0 z-10 flex flex-col bg-themewhite3">
+                <div className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-tertiary/10">
+                  <p className="text-sm font-medium text-primary truncate">{da2062Preview.filename}</p>
+                  <HeaderPill>
+                    <PillButton icon={Download} iconSize={16} accent="info" onClick={saveReprint} label="Save" />
+                    <PillButton icon={X} iconSize={16} onClick={clearDA2062Preview} label="Close" />
+                  </HeaderPill>
+                </div>
+                <div className="flex-1 min-h-0">
+                  <Da2062PdfView preview={da2062Preview} />
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -747,6 +844,7 @@ export const PropertyPanel = memo(function PropertyPanel({
               loading={receiptsLoading}
               refetch={refetchReceipts}
               onLocateItem={handleLocateReceiptItem}
+              onReprint={handleReprint}
             />
           </div>
         ) : (
@@ -791,10 +889,14 @@ export const PropertyPanel = memo(function PropertyPanel({
           forms NEST in the SAME sheet (height-transition) — back unwinds
           form → item/location → parent zone. No separate sheets. */}
       <Sheet
-        isOpen={(!!selectedLocation || !!mobileItem || !!mobileForm || signOutOpen) && !drawingZone}
-        onClose={() => { closeMobileForm(); setMobileItem(null); closeLocationDetail(); setSignOutOpen(false) }}
+        isOpen={(!!selectedLocation || !!mobileItem || !!mobileForm || signOutOpen || importOpen || !!da2062Preview) && !drawingZone}
+        onClose={() => { closeMobileForm(); setMobileItem(null); closeLocationDetail(); setSignOutOpen(false); setImportOpen(false); clearDA2062Preview() }}
         title={
-          signOutOpen
+          da2062Preview
+            ? da2062Preview.filename
+            : importOpen
+            ? 'Import Property CSV'
+            : signOutOpen
             ? 'New DA 2062'
             : mobileForm
               ? (mobileForm.kind === 'item'
@@ -819,12 +921,12 @@ export const PropertyPanel = memo(function PropertyPanel({
           ) : undefined
         }
         height="fit"
-        maxHeight={signOutOpen ? 85 : 60}
+        maxHeight={da2062Preview || signOutOpen || importOpen ? 85 : 60}
         // Detail/form are non-blocking like the map's mobile feature editor: the
         // canvas stays interactive and the body swaps detail↔form in the SAME sheet.
         // Sign-out is a focused task, so dim the canvas (non-dismissing) to block
         // stray taps from selecting items behind it.
-        backdrop={signOutOpen ? 'block' : 'none'}
+        backdrop={da2062Preview || signOutOpen || importOpen ? 'block' : 'none'}
         zIndex={1200}
         leftContent={
           mobileForm ? (
@@ -845,7 +947,11 @@ export const PropertyPanel = memo(function PropertyPanel({
           ) : undefined
         }
         actions={
-          mobileForm ? (
+          da2062Preview ? (
+            <PillButton icon={Download} iconSize={18} accent="info" onClick={saveReprint} label="Save" />
+          ) : signOutOpen ? (
+            <PillButton icon={Check} iconSize={18} accent="success" onClick={() => signOutFormRef.current?.submit()} label="Sign out" />
+          ) : mobileForm ? (
             <PillButton
               icon={Check}
               iconSize={18}
@@ -856,8 +962,14 @@ export const PropertyPanel = memo(function PropertyPanel({
           ) : undefined
         }
       >
-        {signOutOpen ? (
-          <SignOutForm onClose={() => setSignOutOpen(false)} />
+        {da2062Preview ? (
+          <div className="h-[70vh]">
+            <Da2062PdfView preview={da2062Preview} />
+          </div>
+        ) : importOpen ? (
+          <PropertyCSVImport onClose={() => setImportOpen(false)} />
+        ) : signOutOpen ? (
+          <SignOutForm ref={signOutFormRef} onClose={() => setSignOutOpen(false)} />
         ) : mobileForm?.kind === 'item' ? (
           <PropertyItemForm
             ref={itemFormRef}

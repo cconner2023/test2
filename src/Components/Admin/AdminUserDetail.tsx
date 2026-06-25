@@ -575,28 +575,24 @@ export function AdminUserDetail({
 
   // ── Cluster mutations ──────────────────────────────────────────────────
   // All four go through the existing dev RPCs (setUserClinic, setUserLoans)
-  // and then invalidate+reload. Promote-loan-to-home also clears the other
-  // loans via the DB trigger on profiles.clinic_id change.
+  // and then invalidate+reload. Changing home is a pure swap — the old home is
+  // dropped, never demoted to a loan.
   const refreshClusters = useCallback(async () => {
     invalidate('users', 'clinics')
     await loadData()
   }, [loadData])
 
-  // Swap semantics: setUserClinic fires a DB trigger that wipes every loan
-  // for this user. To avoid losing the old home + existing loans on a home
-  // change, capture them up front and re-apply via setUserLoans afterward
-  // (minus newId, which is now the home).
+  // Pure swap: changing home replaces the home cluster outright — the old home
+  // is dropped, NOT demoted to a loan. setUserClinic fires a DB trigger that
+  // wipes every loan, so re-apply only the user's OTHER existing loans (minus
+  // newId, which is now the home) to keep those from being lost.
   const handlePickHome = useCallback(async (newId: string) => {
     if (!user) return
     setClusterBusy(true)
-    const oldHomeId = user.clinic_id
     const preservedLoans = viewLoanClinicIds
     const r = await setUserClinic(user.id, newId)
     if (r.success) {
-      const nextLoans = [
-        ...preservedLoans.filter(id => id !== newId),
-        ...(oldHomeId && oldHomeId !== newId ? [oldHomeId] : []),
-      ]
+      const nextLoans = preservedLoans.filter(id => id !== newId)
       if (nextLoans.length > 0) await setUserLoans(user.id, nextLoans)
     }
     setClusterBusy(false)
@@ -616,17 +612,16 @@ export function AdminUserDetail({
     else setNotify({ type: 'error', message: r.error || 'Failed to end loan' })
   }, [user, viewLoanClinicIds, refreshClusters])
 
+  // Promote a loan to home — pure swap, same as handlePickHome: the loan being
+  // promoted becomes the new home, the old home is dropped (not kept as a
+  // loan), and the user's other loans are preserved across the trigger wipe.
   const handlePromoteLoan = useCallback(async (clinicId: string) => {
     if (!user) return
     setClusterBusy(true)
-    const oldHomeId = user.clinic_id
     const preservedLoans = viewLoanClinicIds
     const r = await setUserClinic(user.id, clinicId)
     if (r.success) {
-      const nextLoans = [
-        ...preservedLoans.filter(id => id !== clinicId),
-        ...(oldHomeId && oldHomeId !== clinicId ? [oldHomeId] : []),
-      ]
+      const nextLoans = preservedLoans.filter(id => id !== clinicId)
       if (nextLoans.length > 0) await setUserLoans(user.id, nextLoans)
     }
     setClusterBusy(false)

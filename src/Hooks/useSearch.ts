@@ -1,5 +1,5 @@
 // Hooks/useSearch.ts
-import { useState, useRef, useCallback, useMemo } from 'react'
+import { useState, useRef, useCallback, useMemo, useEffect } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { catData } from '../Data/CatData'
 import { medList } from '../Data/MedData'
@@ -8,10 +8,16 @@ import { kbCategories } from '../Data/KnowledgeBaseCategories'
 import { useMessagingStore } from '../stores/useMessagingStore'
 import { useCalendarStore } from '../stores/useCalendarStore'
 import { useMapOverlaysStore, useMapOverlaysCache } from '../stores/useMapOverlaysStore'
+import { useAuthStore } from '../stores/useAuthStore'
+import { useInvalidation } from '../stores/useInvalidationStore'
+import { getLocalPropertyItems, getLocalPropertyLocations } from '../lib/offlineDb'
+import { ROOT_LOCATION_NAME } from '../Types/PropertyTypes'
+import { useHandReceipts } from './useHandReceipts'
 import { useClinicMedics } from './useClinicMedics'
 import { useAuth } from './useAuth'
 import { getDisplayName } from '../Utilities/nameUtils'
 import type { SearchResultType } from '../Types/CatTypes'
+import type { LocalPropertyItem, LocalPropertyLocation } from '../Types/PropertyTypes'
 import type { ClinicMedic } from '../Types/SupervisorTestTypes'
 
 /**
@@ -36,6 +42,28 @@ export function useSearch() {
     const calendarEvents = useCalendarStore(useShallow(s => s.events))
     useMapOverlaysCache(isAuthenticated ? clinicId : null)
     const overlays = useMapOverlaysStore(useShallow(s => s.overlays))
+
+    // ── Property search inputs ───────────────────────────────────────
+    // Items + zones read straight from the IDB projection (offline-first, and
+    // store-independent so global search works before the property drawer has
+    // ever been opened — warm devices already have property in IDB via the clinic
+    // snapshot). DA 2062 receipts ride useHandReceipts, which is dev-gated to match
+    // the Custody surface (pass null when non-dev → it skips the ledger fetch).
+    const isDevRole = useAuthStore(s => s.isDevRole)
+    const propertiesGen = useInvalidation('properties')
+    const [propItems, setPropItems] = useState<LocalPropertyItem[]>([])
+    const [propLocs, setPropLocs] = useState<LocalPropertyLocation[]>([])
+    useEffect(() => {
+        if (!isAuthenticated || !clinicId) { setPropItems([]); setPropLocs([]); return }
+        let cancelled = false
+        Promise.all([getLocalPropertyItems(clinicId), getLocalPropertyLocations(clinicId)])
+            .then(([items, locs]) => { if (!cancelled) { setPropItems(items); setPropLocs(locs) } })
+            .catch(() => {})
+        return () => { cancelled = true }
+    }, [isAuthenticated, clinicId, propertiesGen])
+    const { receipts, itemsById: receiptItemsById } = useHandReceipts(
+        isAuthenticated && isDevRole ? clinicId : null,
+    )
 
     const selfMedic: ClinicMedic | null = useMemo(() => (
         userId
@@ -419,9 +447,93 @@ export function useSearch() {
         return out
     }, [searchInput, isAuthenticated, overlays])
 
+    // Property zones + items + DA 2062s. Predicates mirror the in-drawer
+    // PropertySearchOverlay so global and scoped search agree on what matches.
+    const propertyResults = useMemo<SearchResultType[]>(() => {
+        const q = searchInput.trim().toLowerCase()
+        if (!q || !isAuthenticated) return []
+
+        const locNameById = new Map<string, string>()
+        for (const l of propLocs) locNameById.set(l.id, l.name)
+
+        const out: SearchResultType[] = []
+
+        // Zones (exclude the invisible root + tombstoned)
+        for (const loc of propLocs) {
+            if (loc.deleted_at || loc.name === ROOT_LOCATION_NAME) continue
+            if (!loc.name.toLowerCase().includes(q)) continue
+            out.push({
+                type: 'property-zone',
+                id: loc.id,
+                icon: '📦',
+                text: loc.name,
+                data: { zoneId: loc.id },
+            })
+            if (out.length >= 20) break
+        }
+
+        // Items (top-level only, matching the drawer's parent_item_id filter)
+        let itemCount = 0
+        for (const item of propItems) {
+            if (itemCount >= 20) break
+            if (item.deleted_at || item.parent_item_id) continue
+            const locName = item.location_id ? locNameById.get(item.location_id) : null
+            const hit =
+                item.name.toLowerCase().includes(q) ||
+                !!item.nomenclature?.toLowerCase().includes(q) ||
+                !!item.nsn?.toLowerCase().includes(q) ||
+                !!item.lin?.toLowerCase().includes(q) ||
+                !!item.serial_number?.toLowerCase().includes(q) ||
+                !!item.notes?.toLowerCase().includes(q) ||
+                !!locName?.toLowerCase().includes(q)
+            if (!hit) continue
+            const subtitle = [
+                item.is_serialized && item.serial_number ? item.serial_number
+                    : (!item.is_serialized && item.quantity > 1 ? `Qty ${item.quantity}` : null),
+                locName,
+            ].filter(Boolean).join(' · ')
+            out.push({
+                type: 'property-item',
+                id: item.id,
+                icon: '🔧',
+                text: item.name,
+                data: { itemId: item.id, propertySubtitle: subtitle || undefined },
+            })
+            itemCount++
+        }
+
+        // DA 2062 hand receipts (dev-only; receipts is empty for non-dev). Match by
+        // recipient OR any signed-out item's name / serial / nsn.
+        let receiptCount = 0
+        for (const r of receipts) {
+            if (receiptCount >= 20) break
+            const recipientHit = r.recipientLabel.toLowerCase().includes(q)
+            const itemHit = !recipientHit && r.entries.some(e => {
+                const it = receiptItemsById.get(e.item_id)
+                return !!it?.name?.toLowerCase().includes(q)
+                    || !!it?.serial_number?.toLowerCase().includes(q)
+                    || !!it?.nsn?.toLowerCase().includes(q)
+            })
+            if (!recipientHit && !itemHit) continue
+            const date = r.recordedAt.slice(0, 10)
+            const subtitle = [r.status === 'open' ? 'Signed out' : 'Returned', date]
+                .filter(Boolean).join(' · ')
+            out.push({
+                type: 'da2062',
+                id: r.handReceiptId,
+                icon: '📋',
+                text: r.recipientLabel,
+                data: { handReceiptId: r.handReceiptId, propertySubtitle: subtitle },
+            })
+            receiptCount++
+        }
+
+        return out
+    }, [searchInput, isAuthenticated, propItems, propLocs, receipts, receiptItemsById])
+
     const searchResults = useMemo<SearchResultType[]>(
-        () => [...chatResults, ...calendarResults, ...mapResults, ...staticResults],
-        [chatResults, calendarResults, mapResults, staticResults],
+        () => [...chatResults, ...calendarResults, ...mapResults, ...propertyResults, ...staticResults],
+        [chatResults, calendarResults, mapResults, propertyResults, staticResults],
     )
 
     return {

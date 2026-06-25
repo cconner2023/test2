@@ -81,8 +81,24 @@ export const PropertyLocationDetail = forwardRef<PropertyLocationDetailHandle, P
         </div>
       )}
 
-      {/* A vehicle is property too — its own 5988 paper trail above the BII/
-          components it holds (the tree below). PMCS itself is the overlay,
+      <PropertyLocationTree
+        rootId={location.id}
+        hoverActions={!isMobile}
+        locations={locations}
+        items={items}
+        holders={holders}
+        onSelectLocation={(loc) => onNavigateZone(loc.id)}
+        onSelectItem={onSelectItem}
+        onEditLocation={onEditLocation}
+        onEditItem={onEditItem}
+        onDeleteLocation={onDeleteLocation}
+        onDeleteItem={onDeleteItem}
+        onAddChildLocation={onAddChildLocation}
+        onAddItemAtLocation={onAddItemAtLocation}
+      />
+
+      {/* A vehicle is property too — its own 5988 paper trail below the BII/
+          components it holds (the tree above). PMCS itself is the overlay,
           launched from the header ellipsis (openPmcs handle). */}
       {location.kind === 'vehicle' && (
         <div className="px-4 pt-1 pb-3 space-y-4">
@@ -115,22 +131,6 @@ export const PropertyLocationDetail = forwardRef<PropertyLocationDetailHandle, P
           containerRef={drawerRef}
         />
       )}
-
-      <PropertyLocationTree
-        rootId={location.id}
-        hoverActions={!isMobile}
-        locations={locations}
-        items={items}
-        holders={holders}
-        onSelectLocation={(loc) => onNavigateZone(loc.id)}
-        onSelectItem={onSelectItem}
-        onEditLocation={onEditLocation}
-        onEditItem={onEditItem}
-        onDeleteLocation={onDeleteLocation}
-        onDeleteItem={onDeleteItem}
-        onAddChildLocation={onAddChildLocation}
-        onAddItemAtLocation={onAddItemAtLocation}
-      />
     </div>
   )
 })

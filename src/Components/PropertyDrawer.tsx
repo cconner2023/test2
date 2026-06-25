@@ -15,7 +15,6 @@ import { useAuthStore } from '../stores/useAuthStore'
 import { useNavigationStore } from '../stores/useNavigationStore'
 import { useShallow } from 'zustand/react/shallow'
 import { exportPropertyCSV } from '../Utilities/PropertyCSV'
-import { PropertyCSVImportDrawer } from './Property/PropertyCSVImportDrawer'
 import { PdfPreviewModal } from './PdfPreviewModal'
 import { usePropertyLabelExport } from '../Hooks/usePropertyLabelExport'
 import type { LabelPresetKey } from '../Utilities/PropertyLabelExport'
@@ -38,7 +37,7 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
             enrollFingerprint: s.enrollFingerprint,
         }))
     )
-    const { navigateToPath, init, setEditingItem, removeItem, items } = store
+    const { navigateToPath, init, setEditingItem, removeItem, items, locations } = store
     const isSupervisorRole = useAuthStore(s => s.isSupervisorRole)
     const isDevRole = useAuthStore(s => s.isDevRole)
     const isMobile = useIsMobile()
@@ -59,13 +58,15 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
     const [enrollAutoStart, setEnrollAutoStart] = useState(false)
     const [pendingEnrollNew, setPendingEnrollNew] = useState<LocalPropertyItem | null>(null)
     const [showAddSheet, setShowAddSheet] = useState(false)
-    const [showImportSheet, setShowImportSheet] = useState(false)
     const [showLabelSheet, setShowLabelSheet] = useState(false)
     const { exportLabels, labelPreview, downloadLabels, clearLabelPreview } = usePropertyLabelExport()
     const addItemTriggerRef = useRef<(() => void) | null>(null)
     const addLocationTriggerRef = useRef<(() => void) | null>(null)
     const openLocationsTriggerRef = useRef<(() => void) | null>(null)
     const newDA2062TriggerRef = useRef<(() => void) | null>(null)
+    const importTriggerRef = useRef<(() => void) | null>(null)
+    const navigateZoneTriggerRef = useRef<((zoneId: string) => void) | null>(null)
+    const openCustodyTriggerRef = useRef<(() => void) | null>(null)
     const initRef = useRef(false)
 
     useEffect(() => { setSearchQuery(''); setSearchFocused(false) }, [view])
@@ -106,6 +107,38 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
             clearPropertyDrawerItemId()
         }
     }, [isVisible, propertyDrawerItemId, items, clearPropertyDrawerItemId, isMobile])
+
+    // Deep-link from global search → a zone: wait for locations to load + the
+    // panel to register its navigate trigger, then defer a frame so the canvas
+    // has mounted/measured before we pan to the zone.
+    const propertyDrawerZoneId = useNavigationStore(s => s.propertyDrawerZoneId)
+    const propertyDrawerCustody = useNavigationStore(s => s.propertyDrawerCustody)
+    const clearPropertyDeepLink = useNavigationStore(s => s.clearPropertyDeepLink)
+    useEffect(() => {
+        if (!isVisible || !propertyDrawerZoneId) return
+        if (!locations.some(l => l.id === propertyDrawerZoneId)) return
+        const id = propertyDrawerZoneId
+        let raf2 = 0
+        // Clear INSIDE the deferred callback — clearing synchronously would null the
+        // dep, re-run this effect, and cancel the rAF we just scheduled.
+        const raf1 = requestAnimationFrame(() => {
+            raf2 = requestAnimationFrame(() => {
+                navigateZoneTriggerRef.current?.(id)
+                clearPropertyDeepLink()
+            })
+        })
+        return () => { cancelAnimationFrame(raf1); cancelAnimationFrame(raf2) }
+    }, [isVisible, propertyDrawerZoneId, locations, clearPropertyDeepLink])
+
+    // Deep-link from global search → the Custody / DA 2062 tab.
+    useEffect(() => {
+        if (!isVisible || !propertyDrawerCustody) return
+        const raf = requestAnimationFrame(() => {
+            openCustodyTriggerRef.current?.()
+            clearPropertyDeepLink()
+        })
+        return () => cancelAnimationFrame(raf)
+    }, [isVisible, propertyDrawerCustody, clearPropertyDeepLink])
 
     const handleSelectItem = useCallback((item: LocalPropertyItem) => {
         setSelectedItem(item)
@@ -265,6 +298,9 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                         onRegisterAddLocation={(t) => { addLocationTriggerRef.current = t }}
                         onRegisterOpenLocations={(t) => { openLocationsTriggerRef.current = t }}
                         onRegisterNewDA2062={(t) => { newDA2062TriggerRef.current = t }}
+                        onRegisterImport={(t) => { importTriggerRef.current = t }}
+                        onRegisterNavigateZone={(t) => { navigateZoneTriggerRef.current = t }}
+                        onRegisterOpenCustody={(t) => { openCustodyTriggerRef.current = t }}
                     />
                 ) : (
                     <PropertyPanel
@@ -284,6 +320,9 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                         onRegisterAddItem={(t) => { addItemTriggerRef.current = t }}
                         onRegisterAddLocation={(t) => { addLocationTriggerRef.current = t }}
                         onRegisterNewDA2062={(t) => { newDA2062TriggerRef.current = t }}
+                        onRegisterImport={(t) => { importTriggerRef.current = t }}
+                        onRegisterNavigateZone={(t) => { navigateZoneTriggerRef.current = t }}
+                        onRegisterOpenCustody={(t) => { openCustodyTriggerRef.current = t }}
                     />
                 )}
 
@@ -306,7 +345,7 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                     { key: 'item', label: 'New Item', onAction: () => { setShowAddSheet(false); addItemTriggerRef.current?.() } },
                     { key: 'location', label: 'New Location', onAction: () => { setShowAddSheet(false); addLocationTriggerRef.current?.() } },
                     ...(isDevRole ? [{ key: 'da2062', label: 'New DA 2062', onAction: () => { setShowAddSheet(false); newDA2062TriggerRef.current?.() } }] : []),
-                    { key: 'import-csv', label: 'Import CSV', onAction: () => { setShowAddSheet(false); setShowImportSheet(true) } },
+                    { key: 'import-csv', label: 'Import CSV', onAction: () => { setShowAddSheet(false); importTriggerRef.current?.() } },
                     { key: 'export-csv', label: 'Export CSV', onAction: () => { setShowAddSheet(false); exportPropertyCSV(items, store.locations) } },
                     { key: 'print-labels', label: 'Print labels', onAction: () => { setShowAddSheet(false); setShowLabelSheet(true) } },
                 ]}
@@ -370,10 +409,6 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                     </div>
                 </div>
             )}
-            <PropertyCSVImportDrawer
-                visible={showImportSheet}
-                onClose={() => setShowImportSheet(false)}
-            />
         </BaseDrawer>
     )
 }

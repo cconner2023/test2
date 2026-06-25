@@ -17,6 +17,9 @@ interface AdminClinicsListProps {
   onEditClinic: (clinic: AdminClinic) => void
   onCreateClinic: () => void
   filterClinicId?: string | null
+  /** Scope filter — restrict to clusters whose id is in this set (the cluster ids
+   *  under the selected Directory tree node). Null/undefined = no scoping. */
+  filterClinicIds?: string[] | null
   searchQuery?: string
   /** When true, renders items without wrapper chrome (for unified search results) */
   bare?: boolean
@@ -31,6 +34,7 @@ export function AdminClinicsList({
   onEditClinic,
   onCreateClinic,
   filterClinicId,
+  filterClinicIds,
   searchQuery: searchQueryProp,
   bare,
   embedded,
@@ -74,9 +78,15 @@ export function AdminClinicsList({
     [users],
   )
 
+  const scopeIds = useMemo(
+    () => (filterClinicIds ? new Set(filterClinicIds) : null),
+    [filterClinicIds],
+  )
+
   const filteredClinics = useMemo(() => {
     return clinics.filter((c) => {
       if (filterClinicId && c.id !== filterClinicId) return false
+      if (scopeIds && !scopeIds.has(c.id)) return false
       if (!searchQuery) return true
       const q = searchQuery.toLowerCase()
       return (
@@ -85,7 +95,7 @@ export function AdminClinicsList({
         c.uics.some((uic) => uic.toLowerCase().includes(q))
       )
     })
-  }, [clinics, searchQuery, filterClinicId])
+  }, [clinics, searchQuery, filterClinicId, scopeIds])
 
   /** Parent→children map for unfiltered tree render. */
   const childrenByParent = useMemo(() => {
@@ -107,7 +117,9 @@ export function AdminClinicsList({
       .sort((a, b) => a.name.localeCompare(b.name))
   }, [filteredClinics, clinics])
 
-  const useTreeView = !searchQuery && !filterClinicId && !bare
+  // Scoped (Directory center) renders a flat list — the left tree already shows
+  // the hierarchy, so the center is a plain roster of the scoped clusters.
+  const useTreeView = !searchQuery && !filterClinicId && !filterClinicIds && !bare
 
   // ── Delete handlers ─────────────────────────────────────────
 
@@ -230,7 +242,7 @@ export function AdminClinicsList({
 
   // ── Embedded mode: labelled section inside the Directory tab ──
   if (embedded) {
-    if (filteredClinics.length === 0 && searchQuery) return null
+    if (filteredClinics.length === 0 && (searchQuery || filterClinicIds)) return null
     return (
       <section className="space-y-2">
         {title && (

@@ -95,16 +95,25 @@ export function ItemTimeline({ subjectId, clinicId, locations, holders, title = 
   const describe = (e: AuditEvent): string => {
     const p = e.payload ?? {}
     switch (e.eventType) {
-      case 'item.created':
-        return p.location_id ? `Created in ${locName(p.location_id)}` : 'Created'
+      case 'item.created': {
+        const qty = typeof p.quantity === 'number' && p.quantity > 1 ? ` ×${p.quantity}` : ''
+        return p.location_id ? `Added${qty} to ${locName(p.location_id)}` : `Added${qty}`
+      }
       case 'item.moved':
         return `Moved to ${locName(p.to_location_id)}`
       case 'item.assigned':
         return p.to_holder_id ? `Assigned to ${holderName(p.to_holder_id)}` : 'Custody cleared'
       case 'item.transferred': {
         const action = (p.action as string) || 'transferred'
-        const verb = action === 'sign_down' ? 'Signed down' : action === 'sign_up' ? 'Signed up' : 'Custody transferred'
-        return p.to_holder_id ? `${verb} to ${holderName(p.to_holder_id)}` : verb
+        const qty = typeof p.quantity_delta === 'number' && p.quantity_delta > 1 ? ` ×${p.quantity_delta}` : ''
+        // sign_up returns custody (from_holder → stock); sign_down hands it out.
+        if (action === 'sign_up') {
+          return p.from_holder_id ? `Returned${qty} from ${holderName(p.from_holder_id)}` : `Returned${qty}`
+        }
+        if (action === 'sign_down') {
+          return p.to_holder_id ? `Transferred${qty} to ${holderName(p.to_holder_id)}` : `Transferred${qty}`
+        }
+        return p.to_holder_id ? `Custody transferred to ${holderName(p.to_holder_id)}` : 'Custody transferred'
       }
       case 'item.edited': {
         const changed = Array.isArray(p.changed) ? (p.changed as string[]) : []

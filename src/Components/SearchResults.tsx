@@ -1,7 +1,9 @@
 // Components/SearchResults.tsx - COMPLETE WORKING VERSION
+import { useState, useEffect, useMemo } from 'react';
 import type { SearchResultType } from "../Types/CatTypes";
 import { LoadingSpinner } from './LoadingSpinner';
 import { useMinLoadTime } from '../Hooks/useMinLoadTime';
+import { Chip, ChipBar } from './Chip';
 
 export interface SearchResultsProps {
     results: SearchResultType[]
@@ -27,7 +29,36 @@ const BADGE_CONFIG: Record<string, { label: string; className: string }> = {
     'calendar-event': { label: 'EVENT', className: 'bg-themepurple/15 text-themepurple' },
     'map-overlay': { label: 'MAP', className: 'bg-themeyellow/15 text-themeyellow' },
     'map-feature': { label: 'MAP PIN', className: 'bg-themeyellow/15 text-themeyellow' },
+    'property-item': { label: 'ITEM', className: 'bg-themeblue2/15 text-themeblue2' },
+    'property-zone': { label: 'ZONE', className: 'bg-themeblue2/15 text-themeblue2' },
+    'da2062': { label: 'DA 2062', className: 'bg-themeblue2/15 text-themeblue2' },
 }
+
+// Result type → scope bucket for the filter chips.
+type Scope = 'all' | 'clinical' | 'comms' | 'calendar' | 'map' | 'property'
+
+const SCOPE_OF: Record<string, Exclude<Scope, 'all'>> = {
+    category: 'clinical', CC: 'clinical', DDX: 'clinical',
+    training: 'clinical', screener: 'clinical', calculator: 'clinical',
+    medication: 'clinical',
+    'chat-contact': 'comms', 'chat-group': 'comms', 'chat-message': 'comms',
+    'calendar-event': 'calendar',
+    'map-overlay': 'map', 'map-feature': 'map',
+    'property-item': 'property', 'property-zone': 'property', 'da2062': 'property',
+}
+
+// Display order + labels for the scope chips.
+const SCOPES: { key: Exclude<Scope, 'all'>; label: string }[] = [
+    { key: 'clinical', label: 'Clinical' },
+    { key: 'comms', label: 'Comms' },
+    { key: 'calendar', label: 'Calendar' },
+    { key: 'map', label: 'Map' },
+    { key: 'property', label: 'Property' },
+]
+
+// Only surface a bucket's count once it's crowded enough that its size helps the
+// user decide whether to filter into it.
+const COUNT_HINT_THRESHOLD = 10
 
 // Training type specific labels
 const TRAINING_LABELS: Record<string, string> = {
@@ -69,6 +100,26 @@ export function SearchResults({
     isSearching = false
 }: SearchResultsProps) {
     const showLoading = useMinLoadTime(isSearching)
+    const [scope, setScope] = useState<Scope>('all')
+
+    // Reset to All only when the box is emptied — not on every keystroke, so a
+    // chosen scope survives further typing.
+    useEffect(() => { if (!searchTerm.trim()) setScope('all') }, [searchTerm])
+
+    // Per-scope counts from the full result set (drives which chips render).
+    const counts = useMemo(() => {
+        const c: Record<string, number> = {}
+        for (const r of results) {
+            const s = SCOPE_OF[r.type]
+            if (s) c[s] = (c[s] ?? 0) + 1
+        }
+        return c
+    }, [results])
+
+    const visible = useMemo(
+        () => scope === 'all' ? results : results.filter(r => SCOPE_OF[r.type] === scope),
+        [results, scope],
+    )
 
     if (!searchTerm.trim()) {
         return (
@@ -97,14 +148,34 @@ export function SearchResults({
         )
     }
 
+    // Scope chips — only when there's more than one bucket to choose between.
+    const presentScopes = SCOPES.filter(s => counts[s.key] > 0)
+
     // Results state
     return (
         <div className="flex flex-col h-full">
+            {presentScopes.length >= 2 && (
+                <div className="px-3 pt-2">
+                    <ChipBar>
+                        <Chip active={scope === 'all'} onClick={() => setScope('all')}>
+                            All
+                        </Chip>
+                        {presentScopes.map(s => (
+                            <Chip key={s.key} active={scope === s.key} onClick={() => setScope(s.key)}>
+                                {s.label}
+                                {counts[s.key] >= COUNT_HINT_THRESHOLD && (
+                                    <span className="ml-1 opacity-60">{counts[s.key]}</span>
+                                )}
+                            </Chip>
+                        ))}
+                    </ChipBar>
+                </div>
+            )}
             <div className="px-3 py-2 text-[10pt] text-tertiary border-b border-themewhite2">
-                Found {results.length} result{results.length !== 1 ? 's' : ''}
+                Found {visible.length} result{visible.length !== 1 ? 's' : ''}
             </div>
             <div className="flex-1 overflow-y-auto pb-4">
-                {results.map((result, index) => (
+                {visible.map((result, index) => (
                     <div
                         key={`${result.type}-${result.id}-${result.data?.categoryId || 0}-${index}`}
                         className="px-2 py-3 w-full border-b border-themewhite2/50 hover:bg-themewhite2 cursor-pointer transition-colors"
@@ -160,6 +231,11 @@ export function SearchResults({
                                 {result.type === 'map-feature' && result.data?.featureSubtitle && (
                                     <div className="text-[9pt] text-secondary mt-1 truncate">
                                         {result.data.featureSubtitle}
+                                    </div>
+                                )}
+                                {(result.type === 'property-item' || result.type === 'da2062') && result.data?.propertySubtitle && (
+                                    <div className="text-[9pt] text-secondary mt-1 truncate">
+                                        {result.data.propertySubtitle}
                                     </div>
                                 )}
                             </div>

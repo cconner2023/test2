@@ -25,7 +25,7 @@ import { BaseDrawer } from '../BaseDrawer'
 import { Sheet } from '../Sheet'
 import { BottomIsland, IslandButton } from '../BottomIsland'
 import { AddFab } from '../AddFab'
-import { CalendarCSVImportDrawer } from './CalendarCSVImportDrawer'
+import { CalendarCSVImport } from './CalendarCSVImportDrawer'
 import { TemplateGeneratorPanel, type TemplateGeneratorHandle } from './TemplateGeneratorPanel'
 import { BlockTemplatedPanel, type BlockTemplatedHandle } from './BlockTemplatedPanel'
 import { useAuthStore } from '../../stores/useAuthStore'
@@ -57,7 +57,7 @@ import { useClinicAppointmentTypes } from '../../Hooks/useClinicAppointmentTypes
 import { useClinicCategoryColorsSync } from '../../Hooks/useClinicCategoryColors'
 import { shareCalendar, shareTroopsToTaskCsv, shareSingleEvent } from '../../lib/calendarExport'
 
-type PanelView = 'calendar' | 'detail' | 'form' | 'template' | 'block'
+type PanelView = 'calendar' | 'detail' | 'form' | 'template' | 'block' | 'import'
 type DayDrawerView = 'detail' | 'edit'
 
 /**
@@ -299,7 +299,6 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
   }, [activeClinicId, user, writeOverlay])
 
   const [showAddSheet, setShowAddSheet] = useState(false)
-  const [showImportSheet, setShowImportSheet] = useState(false)
   const isSupervisor = useAuthStore(s => s.isSupervisorRole)
   const templatePanelRef = useRef<TemplateGeneratorHandle>(null)
   const blockPanelRef = useRef<BlockTemplatedHandle>(null)
@@ -1134,7 +1133,8 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
   const showFormDrawer = isMobile && panelView === 'form'
   const showTemplateDrawer = isMobile && panelView === 'template'
   const showBlockDrawer = isMobile && panelView === 'block'
-  const showDesktopPanel = !isMobile && (panelView === 'detail' || panelView === 'form' || panelView === 'template' || panelView === 'block')
+  const showImportDrawer = isMobile && panelView === 'import'
+  const showDesktopPanel = !isMobile && (panelView === 'detail' || panelView === 'form' || panelView === 'template' || panelView === 'block' || panelView === 'import')
 
   return (
     <>
@@ -1457,6 +1457,33 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
             </BaseDrawer>
           )}
 
+          {/* Mobile CSV import drawer — mirrors the template/block sub-view drawers */}
+          {activeClinicId && user && (
+            <BaseDrawer
+              isVisible={showImportDrawer}
+              onClose={() => setPanelView('calendar')}
+              mobileOnly
+              fullHeight="85dvh"
+              zIndex="z-50"
+              header={{
+                title: 'Import Calendar CSV',
+                rightContent: (
+                  <HeaderPill>
+                    <PillButton icon={X} iconSize={18} onClick={() => setPanelView('calendar')} label="Close" />
+                  </HeaderPill>
+                ),
+                hideDefaultClose: true,
+              }}
+              contentPadding="standard"
+            >
+              <CalendarCSVImport
+                clinicId={activeClinicId}
+                userId={user.id}
+                onClose={() => setPanelView('calendar')}
+              />
+            </BaseDrawer>
+          )}
+
           {/* Mobile event detail + edit — ONE Sheet, mirroring the map feature
               editor (FeatureEditor): read and edit share a single surface and
               the header pills swap by mode, rather than the edit being a separate
@@ -1662,6 +1689,24 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                     />
                   </div>
                 </div>
+              ) : panelView === 'import' && activeClinicId && user ? (
+                <div className="relative flex flex-col flex-1 min-h-0">
+                  <div className="flex items-center justify-between px-3 py-2 border-b border-tertiary/10">
+                    <h2 className="text-sm font-semibold text-primary whitespace-nowrap">Import Calendar CSV</h2>
+                    <HeaderPill>
+                      <PillButton icon={X} iconSize={18} onClick={() => setPanelView('calendar')} label="Close" />
+                    </HeaderPill>
+                  </div>
+                  <div className="flex-1 min-h-0 overflow-y-auto">
+                    <div className="px-4 py-4 pb-8">
+                      <CalendarCSVImport
+                        clinicId={activeClinicId}
+                        userId={user.id}
+                        onClose={() => setPanelView('calendar')}
+                      />
+                    </div>
+                  </div>
+                </div>
               ) : null
             )}
           </div>
@@ -1677,22 +1722,12 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
             { key: 'template', label: 'Provider Template…', onAction: () => { setTemplateNonce(n => n + 1); setPanelView('template') } },
             { key: 'clear-templates', label: 'Clear Templates…', onAction: () => { setBlockNonce(n => n + 1); setPanelView('block') } },
           ] : []),
-          { key: 'import', label: 'Import CSV', onAction: () => setShowImportSheet(true), tourTag: 'calendar-export-import' },
+          { key: 'import', label: 'Import CSV', onAction: () => setPanelView('import'), tourTag: 'calendar-export-import' },
           { key: 'export', label: 'Export .ics', onAction: () => shareCalendar(events).catch(() => {}) },
           { key: 'export-t2t', label: 'Export Troops-to-Task .csv', onAction: () => shareTroopsToTaskCsv(events, { medics: ownClinicMedics, huddleTasks: sortedHuddleTasks }).catch(() => {}) },
         ]}
         onClose={() => setShowAddSheet(false)}
       />
-
-      {showImportSheet && activeClinicId && user && (
-        <CalendarCSVImportDrawer
-          visible={showImportSheet}
-          onClose={() => setShowImportSheet(false)}
-          clinicId={activeClinicId}
-          userId={user.id}
-        />
-      )}
-
 
       {deleteConfirmDialog}
       <ConfirmDialog

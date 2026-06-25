@@ -1357,6 +1357,14 @@ export async function getAllLocalCustody(): Promise<LocalCustodyEntry[]> {
   return db.getAll('custodyLedger')
 }
 
+/** All custody entries belonging to one DA 2062 hand receipt (sign_down + sign_up
+ *  rows). No by-receipt index — receipts are small, so filter the full store. */
+export async function getLocalCustodyByReceipt(handReceiptId: string): Promise<LocalCustodyEntry[]> {
+  const db = await getDb()
+  const all = await db.getAll('custodyLedger')
+  return all.filter((r) => r.hand_receipt_id === handReceiptId)
+}
+
 /** Upsert a custody entry (idempotent — append-only entity keyed by id). */
 export async function saveLocalCustodyEntry(entry: LocalCustodyEntry): Promise<void> {
   const db = await getDb()

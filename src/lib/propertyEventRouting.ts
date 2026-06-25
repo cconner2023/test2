@@ -42,6 +42,7 @@ import {
   saveLocalPropertyLocation,
   deleteLocalPropertyLocation,
   saveLocalCustodyEntry,
+  deleteLocalCustody,
   saveLocalDiscrepancy,
   getLocalLocationTags,
   saveLocalLocationTags,
@@ -171,9 +172,16 @@ async function applyZone(content: PropertyEventContent): Promise<void> {
 }
 
 async function applyCustody(content: PropertyEventContent): Promise<void> {
-  // Append-only: only 'create' carries data; update/delete are defensive no-ops.
-  if (content.action !== 'create') return
-  const row = content.data.data as unknown as CustodyLedgerEntry | undefined
+  const { action, data } = content
+  // A DA 2062 edit (remove item) / delete drops custody rows — propagate it.
+  if (action === 'delete') {
+    try { await deleteLocalCustody(data.id) } catch (e) { logger.warn('custody delete failed:', e) }
+    invalidate('properties')
+    return
+  }
+  // 'update' is unused for custody; only 'create' carries a row to save.
+  if (action !== 'create') return
+  const row = data.data as unknown as CustodyLedgerEntry | undefined
   if (!row) return
   try {
     await saveLocalCustodyEntry({ ...row, ...SYNC_META } as LocalCustodyEntry)

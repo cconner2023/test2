@@ -432,6 +432,27 @@ case 'mapOverlay':
       return
     }
 
+    // Property item → open the property drawer deep-linked to that item
+    if (result.type === 'property-item' && result.data?.itemId) {
+      navigation.setShowPropertyDrawer(true, result.data.itemId)
+      search.clearSearch()
+      return
+    }
+
+    // Property zone → open the property drawer and pan the canvas to the zone
+    if (result.type === 'property-zone' && result.data?.zoneId) {
+      navigation.openPropertyZone(result.data.zoneId)
+      search.clearSearch()
+      return
+    }
+
+    // DA 2062 hand receipt → open the property drawer to the Custody tab
+    if (result.type === 'da2062') {
+      navigation.openPropertyCustody()
+      search.clearSearch()
+      return
+    }
+
     // Screener / calculator → open KB to the right view
     if (result.type === 'screener' && result.data?.kbCategoryId) {
       navigation.setShowKnowledgeBase(true, 'screener', null, result.data.kbCategoryId)
@@ -447,7 +468,7 @@ case 'mapOverlay':
     // Navigation state change drives the grid column transition and Column A carousel
     navigation.handleNavigation(result)
     search.clearSearch()
-  }, [navigation.handleNavigation, search.clearSearch, navigation.setShowTrainingDrawer, navigation.isMobile, openTrainingTask, navigation.setShowKnowledgeBase, navigation.openMessagesConversation, navigation.openCalendarEvent, navigation.setShowMapOverlayDrawer])
+  }, [navigation.handleNavigation, search.clearSearch, navigation.setShowTrainingDrawer, navigation.isMobile, openTrainingTask, navigation.setShowKnowledgeBase, navigation.openMessagesConversation, navigation.openCalendarEvent, navigation.setShowMapOverlayDrawer, navigation.setShowPropertyDrawer, navigation.openPropertyZone, navigation.openPropertyCustody])
 
   const clearSearchAndCollapse = useCallback(() => {
     search.clearSearch()

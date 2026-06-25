@@ -86,6 +86,8 @@ export function useNavigation() {
         openMessagesConversation: s.openMessagesConversation,
         clearMessagesConversation: s.clearMessagesConversation,
         setShowPropertyDrawer: s.setShowPropertyDrawer,
+        openPropertyZone: s.openPropertyZone,
+        openPropertyCustody: s.openPropertyCustody,
         setShowAdminDrawer: s.setShowAdminDrawer,
         setShowSupervisorDrawer: s.setShowSupervisorDrawer,
         setShowProviderDrawer: s.setShowProviderDrawer,

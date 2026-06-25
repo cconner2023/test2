@@ -1,12 +1,11 @@
 import { useState, useCallback, useRef } from 'react'
 import { FileText, X, Wand2, Check } from 'lucide-react'
-import { Modal } from '../Modal'
 import { ActionPill } from '../ActionPill'
 import { ActionButton } from '../ActionButton'
 import { detectGeoRefFromFile, type DetectedGeoRef } from '../../lib/mapImporters/lgiParser'
 
 interface GeoPdfImportFormProps {
-  isOpen: boolean
+  /** Close the host surface (right pane / mobile sheet). */
   onClose: () => void
   onSubmit: (file: File, bounds: [number, number, number, number]) => void
 }
@@ -33,7 +32,9 @@ function parseBounds(b: BoundsForm): [number, number, number, number] | string {
   return [w, s, e, n]
 }
 
-export function GeoPdfImportForm({ isOpen, onClose, onSubmit }: GeoPdfImportFormProps) {
+/** Surfaceless geo-PDF import form, hosted in MapOverlayPanel's right pane
+ *  (desktop) / detail sheet (mobile) — the host owns the header + close. */
+export function GeoPdfImportForm({ onClose, onSubmit }: GeoPdfImportFormProps) {
   const [file, setFile] = useState<File | null>(null)
   const [bounds, setBounds] = useState<BoundsForm>(EMPTY_BOUNDS)
   const [error, setError] = useState<string | null>(null)
@@ -66,11 +67,6 @@ export function GeoPdfImportForm({ isOpen, onClose, onSubmit }: GeoPdfImportForm
       setDetecting(false)
     }
   }, [])
-
-  const handleClose = useCallback(() => {
-    reset()
-    onClose()
-  }, [onClose, reset])
 
   const handleFilePick = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0]
@@ -112,8 +108,7 @@ export function GeoPdfImportForm({ isOpen, onClose, onSubmit }: GeoPdfImportForm
     'border border-tertiary/15 bg-themewhite focus:border-themeblue3 focus:outline-none transition-colors'
 
   return (
-    <Modal isOpen={isOpen} onClose={handleClose} title="Import geo-PDF" maxWidth={420}>
-      <div className="flex flex-col gap-4 p-4">
+      <div className="flex flex-col gap-4">
         <p className="text-[10pt] text-tertiary">
           We try to auto-detect bounds from the PDF's georeference dictionary
           (PDF 1.7 /VP /Measure or Adobe /LGIDict). When that fails — usually
@@ -225,6 +220,5 @@ export function GeoPdfImportForm({ isOpen, onClose, onSubmit }: GeoPdfImportForm
           />
         </ActionPill>
       </div>
-    </Modal>
   )
 }

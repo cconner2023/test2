@@ -1,22 +1,23 @@
 import { useState, useRef, useCallback } from 'react'
-import { Upload, AlertTriangle, CheckCircle2, X } from 'lucide-react'
+import { Upload, AlertTriangle, CheckCircle2 } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
-import { BaseDrawer } from '../BaseDrawer'
-import { HeaderPill, PillButton } from '../HeaderPill'
 import { Section, SectionCard } from '../Section'
 import { LoadingSpinner } from '../LoadingSpinner'
 import { usePropertyStore } from '../../stores/usePropertyStore'
 import { parsePropertyCSV, downloadCSVTemplate, type ParsedRow } from '../../Utilities/PropertyCSV'
 import { ROOT_LOCATION_NAME } from '../../Types/PropertyTypes'
 
-interface PropertyCSVImportDrawerProps {
-  visible: boolean
+interface PropertyCSVImportProps {
+  /** Close the host surface (right pane / detail sheet). */
   onClose: () => void
 }
 
 type Step = 'pick' | 'preview' | 'importing' | 'done'
 
-export function PropertyCSVImportDrawer({ visible, onClose }: PropertyCSVImportDrawerProps) {
+/** Surfaceless CSV-import wizard body. Hosted in the Property right pane (desktop)
+ *  / detail sheet (mobile) by PropertyPanel — the same surfaces zone/item/sign-out
+ *  use. The host owns the header + close affordance. */
+export function PropertyCSVImport({ onClose }: PropertyCSVImportProps) {
   const { locations, clinicId, addItem, addLocation } = usePropertyStore(
     useShallow(s => ({
       locations: s.locations,
@@ -103,31 +104,8 @@ export function PropertyCSVImportDrawer({ visible, onClose }: PropertyCSVImportD
   const previewRows = parsedRows.slice(0, 20)
   const extraRows = parsedRows.length - 20
 
-  const headerTitle =
-    step === 'pick' ? 'Import Property CSV'
-    : step === 'preview' ? 'Preview'
-    : step === 'importing' ? 'Importing…'
-    : 'Import Complete'
-
-  const headerRightContent =
-    step === 'pick' || step === 'preview' ? (
-      <HeaderPill>
-        <PillButton icon={X} iconSize={18} onClick={handleClose} label="Close" />
-      </HeaderPill>
-    ) : undefined
-
   return (
-    <BaseDrawer
-      isVisible={visible}
-      onClose={handleClose}
-      fullHeight="85dvh"
-      header={{
-        title: headerTitle,
-        rightContent: headerRightContent,
-        hideDefaultClose: true,
-      }}
-      contentPadding="standard"
-    >
+    <>
       {step === 'pick' && (
         <div className="flex flex-col gap-4">
           <button
@@ -245,6 +223,6 @@ export function PropertyCSVImportDrawer({ visible, onClose }: PropertyCSVImportD
           </button>
         </div>
       )}
-    </BaseDrawer>
+    </>
   )
 }

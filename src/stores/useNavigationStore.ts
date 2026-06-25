@@ -79,6 +79,8 @@ const CLOSE_ALL_DRAWERS = {
     messagesInitialMessageId: null as string | null,
     showPropertyDrawer: false,
     propertyDrawerItemId: null as string | null,
+    propertyDrawerZoneId: null as string | null,
+    propertyDrawerCustody: false,
     showLoRaDrawer: false,
     showMapOverlayDrawer: false,
     mapOverlayDrawerOverlayId: null as string | null,
@@ -125,6 +127,8 @@ interface NavigationState {
     messagesInitialMessageId: string | null
     showPropertyDrawer: boolean
     propertyDrawerItemId: string | null
+    propertyDrawerZoneId: string | null
+    propertyDrawerCustody: boolean
     showLoRaDrawer: boolean
     showMapOverlayDrawer: boolean
     mapOverlayDrawerOverlayId: string | null
@@ -172,6 +176,11 @@ interface NavigationActions {
     clearMessagesInitialMessageId: () => void
     setShowPropertyDrawer: (show: boolean, itemId?: string | null) => void
     clearPropertyDrawerItemId: () => void
+    /** Open the property drawer and deep-link the canvas to a zone (search). */
+    openPropertyZone: (zoneId: string) => void
+    /** Open the property drawer straight to the Custody / DA 2062 tab (search). */
+    openPropertyCustody: () => void
+    clearPropertyDeepLink: () => void
     setShowLoRaDrawer: (show: boolean) => void
     setShowMapOverlayDrawer: (show: boolean, overlayId?: string | null, featureId?: string | null) => void
     setShowCalendarDrawer: (show: boolean, initialDate?: string | null) => void
@@ -223,6 +232,8 @@ export const useNavigationStore = create<NavigationStore>()((set, get) => ({
     messagesInitialMessageId: null,
     showPropertyDrawer: false,
     propertyDrawerItemId: null,
+    propertyDrawerZoneId: null,
+    propertyDrawerCustody: false,
     showLoRaDrawer: false,
     showMapOverlayDrawer: false,
     mapOverlayDrawerOverlayId: null,
@@ -444,9 +455,31 @@ export const useNavigationStore = create<NavigationStore>()((set, get) => ({
         ...PRESERVED_FIELDS(s),
         showPropertyDrawer: show,
         propertyDrawerItemId: show ? (itemId ?? null) : null,
+        propertyDrawerZoneId: null,
+        propertyDrawerCustody: false,
     })),
 
     clearPropertyDrawerItemId: () => set({ propertyDrawerItemId: null }),
+
+    openPropertyZone: (zoneId) => set((s) => ({
+        ...CLOSE_ALL_DRAWERS,
+        ...PRESERVED_FIELDS(s),
+        showPropertyDrawer: true,
+        propertyDrawerItemId: null,
+        propertyDrawerZoneId: zoneId,
+        propertyDrawerCustody: false,
+    })),
+
+    openPropertyCustody: () => set((s) => ({
+        ...CLOSE_ALL_DRAWERS,
+        ...PRESERVED_FIELDS(s),
+        showPropertyDrawer: true,
+        propertyDrawerItemId: null,
+        propertyDrawerZoneId: null,
+        propertyDrawerCustody: true,
+    })),
+
+    clearPropertyDeepLink: () => set({ propertyDrawerZoneId: null, propertyDrawerCustody: false }),
 
     setShowLoRaDrawer: (show) => set((s) => ({
         ...(show ? CLOSE_ALL_DRAWERS : {}),

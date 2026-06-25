@@ -969,20 +969,24 @@ export async function processClinicVaultMessages(
   }
 
   // 5d. Property entities. Serial await — IDB read-modify-write. Delete-aware for
-  // items/zones (a 'd' in this batch suppresses its paired 'c'/'u'). Custody is
-  // append-only, discrepancies are create/rectify, tags are canvas-replace — none
-  // delete, so they always apply in tail order (last-write-per-id wins).
+  // items/zones/custody (a 'd' in this batch suppresses its paired 'c'/'u'). A DA
+  // 2062 edit/delete now deletes custody rows, so custody is no longer append-only.
+  // Discrepancies are create/rectify, tags are canvas-replace — neither deletes, so
+  // they always apply in tail order (last-write-per-id wins).
   if (propertyRoutes.length > 0) {
     const deletedItemIds = new Set<string>()
     const deletedZoneIds = new Set<string>()
+    const deletedCustodyIds = new Set<string>()
     for (const { content } of propertyRoutes) {
       if (content.action === 'delete' && content.entity === 'item') deletedItemIds.add(content.data.id)
       if (content.action === 'delete' && content.entity === 'zone') deletedZoneIds.add(content.data.id)
+      if (content.action === 'delete' && content.entity === 'custody') deletedCustodyIds.add(content.data.id)
     }
     for (const { content } of propertyRoutes) {
       const suppressed =
         (content.entity === 'item' && content.action !== 'delete' && deletedItemIds.has(content.data.id)) ||
-        (content.entity === 'zone' && content.action !== 'delete' && deletedZoneIds.has(content.data.id))
+        (content.entity === 'zone' && content.action !== 'delete' && deletedZoneIds.has(content.data.id)) ||
+        (content.entity === 'custody' && content.action !== 'delete' && deletedCustodyIds.has(content.data.id))
       if (!suppressed) await routePropertyEvent(content).catch(() => {})
     }
   }
@@ -1017,8 +1021,8 @@ export async function processClinicVaultMessages(
   }
 
   // Same authoritative-set logic for each property entity (poison-snapshot guard).
-  // Items/zones: base ∪ tail creates/updates − tail deletes. Custody/discrepancy:
-  // base ∪ tail creates (append-only, never minus).
+  // Items/zones/custody: base ∪ tail creates/updates − tail deletes (custody gained
+  // delete via DA 2062 edit/delete). Discrepancy: base ∪ tail creates (never minus).
   const propertyItemVaultLiveIds = new Set<string>()
   for (const r of snap?.payload.propertyItems ?? []) propertyItemVaultLiveIds.add(r.id)
   for (const { content } of propertyRoutes) {
@@ -1036,7 +1040,9 @@ export async function processClinicVaultMessages(
   const propertyCustodyVaultLiveIds = new Set<string>()
   for (const r of snap?.payload.propertyCustody ?? []) propertyCustodyVaultLiveIds.add(r.id)
   for (const { content } of propertyRoutes) {
-    if (content.entity === 'custody') propertyCustodyVaultLiveIds.add(content.data.id)
+    if (content.entity !== 'custody') continue
+    if (content.action === 'delete') propertyCustodyVaultLiveIds.delete(content.data.id)
+    else propertyCustodyVaultLiveIds.add(content.data.id)
   }
   const propertyDiscrepancyVaultLiveIds = new Set<string>()
   for (const r of snap?.payload.propertyDiscrepancies ?? []) propertyDiscrepancyVaultLiveIds.add(r.id)

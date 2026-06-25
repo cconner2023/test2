@@ -1,7 +1,6 @@
 import { useState, useCallback, useMemo, useEffect, useRef, type ReactNode } from 'react'
-import { X, Inbox, ChevronLeft, MessageCircleQuestion, Network, Users, MapPin, Building2, List } from 'lucide-react'
+import { X, Inbox, ChevronLeft, MessageCircleQuestion, Network } from 'lucide-react'
 import { BaseDrawer, ScrollPane } from './BaseDrawer'
-import { ActionPill } from './ActionPill'
 import { Sheet } from './Sheet'
 import { BottomIsland, IslandButton } from './BottomIsland'
 import { AddFab } from './AddFab'
@@ -32,7 +31,7 @@ import { AdminClinicsList } from './Admin/AdminClinicsList'
 import { AdminClinicDetail, type ClusterCreatePrefill } from './Admin/AdminClinicDetail'
 import { AdminLocationsList } from './Admin/AdminLocationsList'
 import { AdminLocationDetail } from './Admin/AdminLocationDetail'
-import { AdminSummary } from './Admin/AdminSummary'
+import { AdminSummary, type AdminScope } from './Admin/AdminSummary'
 import { AdminFeatureVotesSection } from './Admin/AdminFeatureVotesSection'
 import { AdminSystemConversationView } from './Admin/AdminSystemConversationView'
 import { useMessagingStore } from '../stores/useMessagingStore'
@@ -47,30 +46,29 @@ export type AdminView =
     | 'admin-location-detail'
     | 'admin-system-conversation'
 
-// Island: requests · users · locations · votes. The Users tab hosts both users
-// and clusters behind an in-tab type filter (All/Users/Clusters); the cluster
-// echelon hierarchy lives in the left pane (desktop) / a Sheet (mobile) via
-// AdminSummary. 'feature-votes' keeps its slug (Settings deep-links to it) but
-// reads as "Votes" in the island. Locations + votes are dev-only.
-const ALL_TABS = ['requests', 'users', 'locations', 'feature-votes'] as const
+// Island: requests · directory · votes. The Directory tab is the unified org
+// browser — one location ⊃ cluster ⊃ user containment tree (AdminSummary). On
+// desktop it's a three-pane: tree (scopes) → scoped roster → detail. On mobile
+// it's the tree alone (tap to open). The old user/cluster/location type split
+// (a filter island + a separate Locations tab) is gone. 'feature-votes' keeps
+// its slug (Settings deep-links to it) but reads as "Votes". Whole drawer is
+// dev-gated, so every tab is always visible.
+const ALL_TABS = ['requests', 'directory', 'feature-votes'] as const
 type AdminTab = typeof ALL_TABS[number]
-
-// In-tab filter for the Users tab — the map-overlay-style "type island".
-type UserFilter = 'all' | 'users' | 'clinics'
 
 const TAB_ICONS: Record<AdminTab, typeof Inbox> = {
     requests: Inbox,
-    users: Users,
-    locations: MapPin,
+    directory: Network,
     'feature-votes': MessageCircleQuestion,
 }
 
 const TAB_LABELS: Record<AdminTab, string> = {
     requests: 'Requests',
-    users: 'Users',
-    locations: 'Locations',
+    directory: 'Directory',
     'feature-votes': 'Votes',
 }
+
+const DEFAULT_SCOPE: AdminScope = { kind: 'all', id: null, label: 'All', clinicIds: null }
 
 interface AdminDrawerProps {
     isVisible: boolean
@@ -120,11 +118,14 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
     // FAB action sheet
     const [showAddSheet, setShowAddSheet] = useState(false)
 
-    // Users-tab type filter (All/Users/Clusters). The cluster echelon hierarchy
-    // is NOT inline here — it's AdminSummary in the desktop left pane / a mobile
-    // Sheet (showTreeSheet, opened by the header Hierarchy pill).
-    const [userFilter, setUserFilter] = useState<UserFilter>('all')
-    const [showTreeSheet, setShowTreeSheet] = useState(false)
+    // Mobile nav sheet — the slide-out mirror of the desktop left pane (search +
+    // counts + directory tree). Summoned from any tab via the header rail button.
+    const [showNavSheet, setShowNavSheet] = useState(false)
+
+    // Directory scope — the tree node selected in the desktop left pane drives
+    // the center roster. Default 'all'. Mobile navigates the tree directly and
+    // ignores scope.
+    const [scope, setScope] = useState<AdminScope>(DEFAULT_SCOPE)
 
     // Discard pending changes confirmation. The pending action is held in a
     // ref so any nav path (back, tab switch, drawer close, summary jump) can
@@ -150,10 +151,8 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
             systemInboxLogger.warn('admin drawer drain failed:', e instanceof Error ? e.message : e)
         )
     }, [isVisible, isDevRole, isPageVisible])
-    const visibleTabs = useMemo<AdminTab[]>(
-        () => isDevRole ? [...ALL_TABS] : ALL_TABS.filter(t => t !== 'feature-votes' && t !== 'locations'),
-        [isDevRole]
-    )
+    // Whole drawer is dev-gated upstream, so every tab is always shown.
+    const visibleTabs = useMemo<AdminTab[]>(() => [...ALL_TABS], [])
 
     const handleSlideAnimation = useCallback((direction: 'left' | 'right') => {
         // Desktop is split-pane, not sliding — skip the animation state churn.
@@ -401,8 +400,8 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         setUserCreatePrefillClinicId(null)
         setSlideDirection('')
         setSearchQuery('')
-        setShowTreeSheet(false)
-        setUserFilter('all')
+        setScope(DEFAULT_SCOPE)
+        setShowNavSheet(false)
         clearTrail()
         clinicEdit.reset()
         userEdit.reset()
@@ -441,18 +440,11 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         view !== 'admin',
     )
 
-    // Sidebar summary handlers. When the user is mid-edit in a detail pane,
-    // jumping to a different tab discards the detail pane — route through the
-    // shared discard guard so the work is preserved unless explicitly dropped.
-    const handleSummarySwitchTab = useCallback((tab: 'requests' | 'users' | 'clinics') => {
+    // Stats-block shortcut (Pending Requests → Requests tab). Routes through the
+    // discard guard so an in-progress detail edit isn't silently dropped.
+    const handleSummarySwitchTab = useCallback((tab: 'requests') => {
         guardNav(() => {
-            // users + clinics share the Users tab, distinguished by the type filter.
-            if (tab === 'requests') {
-                setActiveTab('requests')
-            } else {
-                setActiveTab('users')
-                setUserFilter(tab === 'clinics' ? 'clinics' : 'users')
-            }
+            setActiveTab(tab)
             if (view !== 'admin') {
                 setView('admin')
                 setSelectedUser(null)
@@ -465,8 +457,30 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         })
     }, [view, guardNav, clearTrail])
 
+    // Desktop left-pane tree → set the center-pane scope. Scoping closes any open
+    // detail (back to the scoped list), guarded for pending edits.
+    const handleSelectScope = useCallback((next: AdminScope) => {
+        guardNav(() => {
+            setScope(next)
+            // The left pane is persistent across tabs — scoping always lands in
+            // the Directory roster, so a scope click from any tab is meaningful.
+            setActiveTab('directory')
+            if (view !== 'admin') {
+                setView('admin')
+                setSelectedUser(null)
+                setSelectedClinic(null)
+                setSelectedLocation(null)
+                setSelectedSystemPeerId(null)
+                setClusterCreatePrefill(null)
+                setUserCreatePrefillClinicId(null)
+                clearTrail()
+            }
+        })
+    }, [view, guardNav, clearTrail])
+
     const handleTabChange = useCallback((tab: AdminTab) => {
         setActiveTab(tab)
+        setSearchQuery('')
     }, [])
 
     // Header actions for the main list header — the drawer-wide Close. Always
@@ -478,11 +492,17 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         </HeaderPill>
     ), [handleClose])
 
-    // Mobile header-left pill (Users tab only) — opens the cluster-hierarchy Sheet.
-    const hierarchyPill = useMemo(() => (
-        <HeaderPill>
-            <PillButton icon={Network} onClick={() => setShowTreeSheet(true)} label="Hierarchy" />
-        </HeaderPill>
+    // Mobile header rail — opens the nav sheet (search + counts + directory tree)
+    // from any tab. The desktop equivalent is the always-on left pane.
+    const navRailButton = useMemo(() => (
+        <button
+            type="button"
+            onClick={() => setShowNavSheet(true)}
+            aria-label="Open directory"
+            className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-tertiary/10 text-tertiary active:scale-95 shrink-0"
+        >
+            <Network size={18} />
+        </button>
     ), [])
 
     const isUserCreateMode = view === 'admin-user-detail' && selectedUser === null
@@ -490,6 +510,10 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
     const isLocationCreateMode = view === 'admin-location-detail' && selectedLocation === null
     const isDetailView = view === 'admin-user-detail' || view === 'admin-clinic-detail' || view === 'admin-location-detail' || view === 'admin-system-conversation'
     const desktopDetailPaneOpen = !isMobile && isDetailView
+    // Left scope pane (search + counts + directory tree) is persistent across all
+    // tabs — it's the drawer's standing navigation/summary rail. It only yields
+    // when a detail pane slides in (to give the list + detail room).
+    const desktopTreeOpen = !isMobile && !desktopDetailPaneOpen
 
     const detailTitle = useMemo(() => {
         if (view === 'admin-user-detail') {
@@ -616,9 +640,9 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
             case 'admin-location-detail':
                 return {
                     title: 'Admin Panel',
-                    // Hierarchy pill (opens the cluster-tree Sheet) is always present —
-                    // the tree spans every tab, so it's not scoped to the Users tab.
-                    leftContent: hierarchyPill,
+                    // Directory tab already shows the tree inline; other tabs get
+                    // the rail button to summon the nav sheet.
+                    leftContent: activeTab !== 'directory' ? navRailButton : undefined,
                     rightContent: mainHeaderActions,
                     hideDefaultClose: !!mainHeaderActions,
                 }
@@ -631,7 +655,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                     onBack: handleBack,
                 }
         }
-    }, [isMobile, view, detailTitle, handleBack, mainHeaderActions, activeTab, hierarchyPill])
+    }, [isMobile, view, activeTab, detailTitle, handleBack, mainHeaderActions, navRailButton])
 
 
     // After creating a user, switch to view mode immediately using the
@@ -778,19 +802,18 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         return renderMainView()
     }
 
-    // ActionSheet options per tab
+    // ActionSheet options per tab. Directory creates every entity type (the FAB
+    // is the single create surface now that users/clusters/locations share one
+    // tab). Requests = approval workflow, votes = inline mgmt — no FAB.
     const addSheetOptions = useMemo(() => {
         const options: Array<{ key: string; label: string; onAction: () => void }> = []
-        // Users tab → New User + New Cluster; Locations tab (dev) → New Location.
-        // Requests = approval workflow, votes = inline mgmt — no FAB.
-        if (activeTab === 'users') {
+        if (activeTab === 'directory') {
             options.push({ key: 'user', label: 'New User', onAction: () => { setShowAddSheet(false); handleCreateUser() } })
             options.push({ key: 'clinic', label: 'New Cluster', onAction: () => { setShowAddSheet(false); handleCreateClinic() } })
-        } else if (activeTab === 'locations' && isDevRole) {
             options.push({ key: 'location', label: 'New Location', onAction: () => { setShowAddSheet(false); handleCreateLocation() } })
         }
         return options
-    }, [activeTab, isDevRole, handleCreateUser, handleCreateClinic, handleCreateLocation])
+    }, [activeTab, handleCreateUser, handleCreateClinic, handleCreateLocation])
 
     const detailSheetOpen = isMobile && (
         view === 'admin-user-detail' ||
@@ -823,13 +846,6 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         </div>
     )
 
-    // AdminSummary (the cluster-hierarchy tree) lives in the desktop left pane
-    // AND a mobile Sheet. In the sheet, any selection also closes the sheet.
-    const closeTreeThen = useCallback(<T,>(fn: (arg: T) => void) => (arg: T) => {
-        setShowTreeSheet(false)
-        fn(arg)
-    }, [])
-
     // Bottom island — tab switcher (centered) + FAB (right), matching Property/Calendar pattern
     const bottomIsland = (
         <BottomIsland
@@ -837,9 +853,9 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
             ariaLabel="Admin sections"
             glass
             fab={
-                // FAB — absolute right, aligned to island. Users (user/cluster) +
-                // Locations (dev) create entities; requests/votes don't.
-                activeTab === 'users' || (activeTab === 'locations' && isDevRole) ? (
+                // FAB — absolute right, aligned to island. Directory creates
+                // users/clusters/locations; requests/votes don't.
+                activeTab === 'directory' ? (
                     <AddFab label="Add new" onClick={() => setShowAddSheet(true)} className="absolute right-4" />
                 ) : null
             }
@@ -856,81 +872,8 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         </BottomIsland>
     )
 
-    // Users tab — flat lists behind a "type island" filter (All/Users/Clusters).
-    // Both AdminUsersList + AdminClinicsList run in embedded mode, so they filter
-    // on the shared search query and collapse empty sections. The cluster echelon
-    // hierarchy is NOT inline here — it's the AdminSummary sidebar / mobile Sheet.
-    const FILTER_OPTS: { key: UserFilter; label: string; icon: typeof Users }[] = [
-        { key: 'all', label: 'All', icon: List },
-        { key: 'users', label: 'Users', icon: Users },
-        { key: 'clinics', label: 'Clusters', icon: Building2 },
-    ]
-
-    // Floating secondary island — the All/Users/Clusters type filter, hovering
-    // just above the bottom island when the Users tab is selected (mirrors the
-    // map overlay's basemap picker floating above its control island). Mobile
-    // hides it during universal search (search bypasses the type filter).
-    const showFilterIsland = activeTab === 'users' && !(isMobile && searchQuery.trim())
-    const userFilterIsland = showFilterIsland ? (
-        <div className="absolute bottom-[4.75rem] inset-x-0 flex items-center justify-center z-20 pointer-events-none pb-[max(0rem,var(--sab,0px))]">
-            <ActionPill
-                role="tablist"
-                aria-label="Filter users and clusters"
-                className="pointer-events-auto"
-            >
-                {FILTER_OPTS.map(o => {
-                    const Icon = o.icon
-                    const active = userFilter === o.key
-                    return (
-                        <button
-                            key={o.key}
-                            type="button"
-                            role="tab"
-                            onClick={() => setUserFilter(o.key)}
-                            aria-selected={active}
-                            title={o.label}
-                            aria-label={o.label}
-                            className={`w-9 h-9 rounded-full flex items-center justify-center transition-all active:scale-95 ${
-                                active ? 'bg-themeblue3 text-white' : 'bg-themeblue2/8 text-primary'
-                            }`}
-                        >
-                            <Icon size={16} />
-                        </button>
-                    )
-                })}
-            </ActionPill>
-        </div>
-    ) : null
-
-    const renderUsersTab = () => (
-        <div className="px-3 md:px-5 pt-4 pb-24 space-y-5">
-            {/* Type filter (All/Users/Clusters) now lives in a floating secondary
-                island above the bottom island — see userFilterIsland. */}
-            {(userFilter === 'all' || userFilter === 'users') && (
-                <AdminUsersList
-                    embedded
-                    title="Users"
-                    onSelectUser={handleSelectUser}
-                    onEditUser={handleEditUser}
-                    onCreateUser={handleCreateUser}
-                    searchQuery={searchQuery}
-                />
-            )}
-            {(userFilter === 'all' || userFilter === 'clinics') && (
-                <AdminClinicsList
-                    embedded
-                    title="Clusters"
-                    onSelectClinic={handleSelectClinic}
-                    onEditClinic={handleEditClinic}
-                    onCreateClinic={handleCreateClinic}
-                    searchQuery={searchQuery}
-                />
-            )}
-        </div>
-    )
-
-    // Shared: content for the active tab.
-    const renderTabLists = () => (
+    // Queue tabs (requests / votes) — shared between mobile + desktop.
+    const renderQueueTab = () => (
         <>
             {activeTab === 'requests' && (
                 <AdminRequestsList
@@ -939,86 +882,113 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                     onSelectSystemPeer={isDevRole ? handleSelectSystemPeer : undefined}
                 />
             )}
-            {activeTab === 'users' && renderUsersTab()}
-            {activeTab === 'locations' && isDevRole && (
-                <AdminLocationsList
-                    onSelectLocation={handleSelectLocation}
-                    onEditLocation={handleEditLocation}
-                    onCreateLocation={handleCreateLocation}
-                    searchQuery={searchQuery}
-                />
-            )}
             {activeTab === 'feature-votes' && isDevRole && (
                 <AdminFeatureVotesSection />
             )}
         </>
     )
 
-    // Universal search (mobile) — when a query is active, results span EVERY
-    // section regardless of the selected bottom island, instead of filtering
-    // only the active tab. Each embedded list collapses to null on no match,
-    // so only the sections with hits render. The type-island (All/Users/
-    // Clusters) is bypassed — users + clusters both show.
-    const renderSearchResults = () => (
-        <div className="px-3 pt-4 pb-24 space-y-5">
-            <AdminRequestsList
-                embedded
-                title="Requests"
-                searchQuery={searchQuery}
-                onApproved={handleRequestApproved}
-                onSelectSystemPeer={isDevRole ? handleSelectSystemPeer : undefined}
-            />
-            <AdminUsersList
-                embedded
-                title="Users"
-                onSelectUser={handleSelectUser}
-                onEditUser={handleEditUser}
-                onCreateUser={handleCreateUser}
-                searchQuery={searchQuery}
-            />
-            <AdminClinicsList
-                embedded
-                title="Clusters"
-                onSelectClinic={handleSelectClinic}
-                onEditClinic={handleEditClinic}
-                onCreateClinic={handleCreateClinic}
-                searchQuery={searchQuery}
-            />
-            {isDevRole && (
-                <AdminLocationsList
-                    embedded
-                    title="Locations"
+    // Directory center pane (desktop) — the roster of whatever the left-pane tree
+    // has scoped: Clusters + Users sections, both recursive under the node. An
+    // active search overrides scope with cross-type results (clusters, users,
+    // locations); each embedded list collapses to null when it has no hits.
+    const scopeFilterIds = scope.kind === 'all' ? null : (scope.clinicIds ?? [])
+    const renderDirectoryCenter = () => {
+        if (searchQuery.trim()) {
+            return (
+                <div className="px-3 md:px-5 pt-4 pb-24 space-y-5">
+                    <AdminClinicsList embedded title="Clusters"
+                        onSelectClinic={handleSelectClinic} onEditClinic={handleEditClinic}
+                        onCreateClinic={handleCreateClinic} searchQuery={searchQuery} />
+                    <AdminUsersList embedded title="Users"
+                        onSelectUser={handleSelectUser} onEditUser={handleEditUser}
+                        onCreateUser={handleCreateUser} searchQuery={searchQuery} />
+                    <AdminLocationsList embedded title="Locations"
+                        onSelectLocation={handleSelectLocation} onEditLocation={handleEditLocation}
+                        onCreateLocation={handleCreateLocation} searchQuery={searchQuery} />
+                </div>
+            )
+        }
+        return (
+            <div className="px-3 md:px-5 pt-4 pb-24 space-y-5">
+                <div className="px-1">
+                    <h2 className="text-[12pt] font-semibold text-primary truncate">{scope.label}</h2>
+                </div>
+                {scope.kind === 'unassigned' ? (
+                    <AdminUsersList embedded title="Unassigned Users" unassignedOnly
+                        onSelectUser={handleSelectUser} onEditUser={handleEditUser}
+                        onCreateUser={handleCreateUser} />
+                ) : (
+                    <>
+                        <AdminClinicsList embedded title="Clusters"
+                            filterClinicIds={scopeFilterIds}
+                            onSelectClinic={handleSelectClinic} onEditClinic={handleEditClinic}
+                            onCreateClinic={handleCreateClinic} />
+                        <AdminUsersList embedded title="Users"
+                            filterClinicIds={scopeFilterIds}
+                            onSelectUser={handleSelectUser} onEditUser={handleEditUser}
+                            onCreateUser={handleCreateUser} />
+                    </>
+                )}
+            </div>
+        )
+    }
+
+    // Mobile Directory — the unified tree IS the main view (no scope/center on a
+    // phone). Tapping a node opens its detail Sheet; search filters the tree.
+    const renderMobileDirectory = () => (
+        <div className="h-full flex flex-col pt-[calc(var(--drawer-header-h,3.5rem)+0.5rem)]">
+            <div className="px-3 pb-2 shrink-0">
+                <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Search directory..." />
+            </div>
+            <div className="flex-1 min-h-0 pb-24">
+                <AdminSummary
+                    mode="navigate"
+                    showStats
+                    searchQuery={searchQuery}
+                    onSelectClinic={handleSelectClinic}
+                    onSelectUser={handleSelectUser}
+                    onEditClinic={handleEditClinic}
+                    onEditUser={handleEditUser}
                     onSelectLocation={handleSelectLocation}
                     onEditLocation={handleEditLocation}
-                    onCreateLocation={handleCreateLocation}
-                    searchQuery={searchQuery}
+                    onChatUser={isDevRole ? (u) => handleSelectSystemPeer(u.id) : undefined}
+                    onSelectAll={() => {}}
+                    onSwitchTab={handleSummarySwitchTab}
+                    activeClinicId={selectedClinic?.id}
+                    activeUserId={selectedUser?.id}
+                    activeLocationId={selectedLocation?.id}
                 />
-            )}
+            </div>
         </div>
     )
 
     const renderMainView = () => (
         isMobile ? (
-            // Mobile: search bar + list share one scroller whose top sits at the
-            // panel top (behind the glass header), so content scrolls UP behind
-            // the translucent header. Search bar's top padding clears the header.
             <div className="relative h-full">
-                <div className="h-full overflow-y-auto overscroll-y-contain">
-                    <div className="px-3 pt-[calc(var(--drawer-header-h,3.5rem)+0.5rem)] pb-2">
-                        <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Search all..." />
+                {activeTab === 'directory' ? (
+                    renderMobileDirectory()
+                ) : (
+                    // Search bar + list share one scroller whose top sits behind
+                    // the glass header; the bar's top padding clears it.
+                    <div className="h-full overflow-y-auto overscroll-y-contain">
+                        <div className="px-3 pt-[calc(var(--drawer-header-h,3.5rem)+0.5rem)] pb-2">
+                            <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Search..." />
+                        </div>
+                        {renderQueueTab()}
                     </div>
-                    {searchQuery.trim() ? renderSearchResults() : renderTabLists()}
-                </div>
-                {!detailSheetOpen && userFilterIsland}
+                )}
                 {!detailSheetOpen && bottomIsland}
             </div>
         ) : (
-            // Desktop: scrollable content + absolute-positioned island (like Property)
+            // Desktop center: active tab content only. Search + counts live in the
+            // persistent left pane (mirrored by the mobile nav sheet).
             <div className="relative h-full">
-                <div className="h-full overflow-y-auto">
-                    {renderTabLists()}
+                <div className="h-full flex flex-col">
+                    <div className="flex-1 min-h-0 overflow-y-auto">
+                        {activeTab === 'directory' ? renderDirectoryCenter() : renderQueueTab()}
+                    </div>
                 </div>
-                {!detailSheetOpen && userFilterIsland}
                 {!detailSheetOpen && bottomIsland}
             </div>
         )
@@ -1047,33 +1017,35 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                         mirrors the CalendarDrawer rightPanelOpen pattern. */}
                     {!isMobile ? (
                         <div className="flex h-full">
+                            {/* Left pane — the scope tree. Only on the Directory tab;
+                                collapses when a detail pane is open or on other tabs. */}
                             <div
-                                aria-hidden={desktopDetailPaneOpen}
+                                aria-hidden={!desktopTreeOpen}
                                 className={`shrink-0 overflow-hidden flex flex-col bg-themewhite3/50 transition-all duration-300 ease-out ${
-                                    desktopDetailPaneOpen
-                                        ? 'w-0 opacity-0 border-r-0'
-                                        : 'w-[260px] opacity-100 border-r border-tertiary/10'
+                                    desktopTreeOpen
+                                        ? 'w-[260px] opacity-100 border-r border-tertiary/10'
+                                        : 'w-0 opacity-0 border-r-0'
                                 }`}
                             >
-                                <div className="shrink-0 px-3 py-2">
-                                    <SearchInput
-                                        value={searchQuery}
-                                        onChange={setSearchQuery}
-                                        placeholder="Search..."
-                                    />
+                                <div className="shrink-0 px-3 pt-3 pb-2">
+                                    <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Search..." />
                                 </div>
                                 <div className="flex-1 min-h-0">
                                     <AdminSummary
+                                        mode="scope"
+                                        showStats
+                                        onSwitchTab={handleSummarySwitchTab}
+                                        searchQuery={searchQuery}
+                                        onSelectScope={handleSelectScope}
+                                        activeScope={scope}
                                         onSelectClinic={handleSelectClinic}
                                         onSelectUser={handleSelectUser}
                                         onEditClinic={handleEditClinic}
                                         onEditUser={handleEditUser}
+                                        onSelectLocation={handleSelectLocation}
+                                        onEditLocation={handleEditLocation}
                                         onChatUser={isDevRole ? (u) => handleSelectSystemPeer(u.id) : undefined}
-                                        onSelectAll={() => { setView('admin'); setSelectedUser(null); setSelectedClinic(null); setSelectedSystemPeerId(null); setClusterCreatePrefill(null); setUserCreatePrefillClinicId(null) }}
-                                        onSwitchTab={handleSummarySwitchTab}
-                                        activeClinicId={selectedClinic?.id}
-                                        activeUserId={selectedUser?.id}
-                                        allSelected={view === 'admin'}
+                                        onSelectAll={() => handleSelectScope(DEFAULT_SCOPE)}
                                     />
                                 </div>
                             </div>
@@ -1161,36 +1133,43 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
             </Sheet>
         )}
 
-        {/* Mobile hierarchy Sheet — the cluster echelon tree (AdminSummary, the
-            same component as the desktop left pane), opened by the header pill.
-            Selecting a cluster/user navigates to its detail Sheet + closes this
-            one (map "Layers" pattern). Fixed-height wrapper so AdminSummary's
-            h-full flex layout + internal scroll work inside the fit Sheet. */}
+        {/* Mobile nav sheet — the slide-out mirror of the desktop left pane:
+            search + counts (Users/Clusters/Pending) + the directory tree, reachable
+            from any tab via the header rail. Selecting a node closes the sheet and
+            opens that entity's detail (its own Sheet). */}
         {isMobile && (
             <Sheet
-                isOpen={showTreeSheet}
-                onClose={() => setShowTreeSheet(false)}
+                isOpen={showNavSheet}
+                onClose={() => setShowNavSheet(false)}
                 height="fit"
-                maxHeight={60}
+                maxHeight={82}
                 backdrop="dismiss"
-                title="Hierarchy"
-                // Same as the detail Sheet — clear the z-60 full-screen drawer.
+                title="Directory"
                 zIndex={1200}
             >
-                <div style={{ height: '52dvh' }} className="flex flex-col">
-                    <AdminSummary
-                        treeOnly
-                        onSelectClinic={closeTreeThen(handleSelectClinic)}
-                        onSelectUser={closeTreeThen(handleSelectUser)}
-                        onEditClinic={closeTreeThen(handleEditClinic)}
-                        onEditUser={closeTreeThen(handleEditUser)}
-                        onChatUser={isDevRole ? closeTreeThen((u: AdminUser) => handleSelectSystemPeer(u.id)) : undefined}
-                        onSelectAll={() => setShowTreeSheet(false)}
-                        onSwitchTab={closeTreeThen(handleSummarySwitchTab)}
-                        activeClinicId={selectedClinic?.id}
-                        activeUserId={selectedUser?.id}
-                        allSelected={view === 'admin'}
-                    />
+                <div className="flex flex-col" style={{ height: '72dvh' }}>
+                    <div className="px-3 pt-1 pb-2 shrink-0">
+                        <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Search..." />
+                    </div>
+                    <div className="flex-1 min-h-0">
+                        <AdminSummary
+                            mode="navigate"
+                            showStats
+                            searchQuery={searchQuery}
+                            onSelectClinic={(c) => { setShowNavSheet(false); handleSelectClinic(c) }}
+                            onSelectUser={(u) => { setShowNavSheet(false); handleSelectUser(u) }}
+                            onEditClinic={(c) => { setShowNavSheet(false); handleEditClinic(c) }}
+                            onEditUser={(u) => { setShowNavSheet(false); handleEditUser(u) }}
+                            onSelectLocation={(l) => { setShowNavSheet(false); handleSelectLocation(l) }}
+                            onEditLocation={(l) => { setShowNavSheet(false); handleEditLocation(l) }}
+                            onChatUser={isDevRole ? (u) => { setShowNavSheet(false); handleSelectSystemPeer(u.id) } : undefined}
+                            onSelectAll={() => {}}
+                            onSwitchTab={(tab) => { setShowNavSheet(false); handleSummarySwitchTab(tab) }}
+                            activeClinicId={selectedClinic?.id}
+                            activeUserId={selectedUser?.id}
+                            activeLocationId={selectedLocation?.id}
+                        />
+                    </div>
                 </div>
             </Sheet>
         )}

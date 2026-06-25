@@ -3,7 +3,7 @@ import { ChevronRight, ChevronDown, Pencil, Trash2, Eye, FolderPlus, PackagePlus
 import { type ContextMenuItem } from '../ContextMenu'
 import { LiftedRowMenu } from '../LiftedRowMenu'
 import type { LocalPropertyLocation, LocalPropertyItem, HolderInfo } from '../../Types/PropertyTypes'
-import { expiryStatus } from '../../Types/PropertyTypes'
+import { expiryStatus, itemAlert } from '../../Types/PropertyTypes'
 import { isStructuralZone } from './levelUtils'
 import { useVehicleDispatches } from '../../Hooks/useVehicleDispatches'
 import { DispatchDot } from './DispatchDot'
@@ -213,28 +213,40 @@ export function PropertyLocationTree({
   // `actionCls` toggles hover-gated vs always-visible ellipsis.
   function renderItemRow(item: LocalPropertyItem, depth: number, actionCls: string) {
     const expiry = expiryStatus(item.expiry_date ?? null)
+    // Expired / expiring (≤30d) / depleted (0 on hand) → red row + dot.
+    const alert = itemAlert(item)
+    const depleted = alert === 'depleted'
+    const expDate = expiry && item.expiry_date
+      ? new Date(item.expiry_date + 'T00:00:00').toLocaleDateString(undefined, { month: 'numeric', day: 'numeric', year: '2-digit' })
+      : null
     return (
       <div
         key={item.id}
         role="button"
         tabIndex={0}
-        className="group flex items-center gap-2 w-full py-2 pr-6 transition-colors text-left cursor-pointer border-l-2 border-l-transparent hover:bg-secondary/5"
+        className={`group flex items-center gap-2 w-full py-2 pr-6 transition-colors text-left cursor-pointer border-l-2 ${
+          alert ? 'bg-themeredred/[0.06] border-l-themeredred/60' : 'border-l-transparent hover:bg-secondary/5'
+        }`}
         style={{ paddingLeft: `${16 + depth * 20}px` }}
         data-prop-row
         onClick={() => onSelectItem(item)}
         onKeyDown={(e) => { if (e.key === 'Enter') onSelectItem(item) }}
         onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); if (onDeleteItem || onAddItemAtLocation) openRowMenu('item', item.id, e.currentTarget as HTMLElement) }}
       >
-        {/* Expiry indicator sits in the chevron slot so item names line up with sibling locations. */}
+        {/* Alert indicator sits in the chevron slot so item names line up with sibling locations. */}
         <span className="w-[18px] shrink-0 flex items-center justify-center">
-          {expiry && (
-            <span className={`w-1.5 h-1.5 rounded-full ${expiry === 'expired' ? 'bg-themeredred' : 'bg-themeyellow'}`} />
-          )}
+          {alert && <span className="w-1.5 h-1.5 rounded-full bg-themeredred" />}
         </span>
-        <span className="text-[10pt] text-primary truncate flex-1">{item.name}</span>
-        {item.quantity > 0 && (
-          <span className="text-[9pt] text-tertiary tabular-nums shrink-0">{item.quantity}</span>
+        <span className={`text-[10pt] truncate flex-1 ${alert ? 'text-themeredred' : 'text-primary'}`}>{item.name}</span>
+        {/* Expiration (when expiring/expired) + quantity (incl. red 0 when depleted) — as applicable. */}
+        {expDate && (
+          <span className="text-[9pt] text-themeredred tabular-nums shrink-0">{expDate}</span>
         )}
+        {item.quantity > 0 ? (
+          <span className="text-[9pt] text-tertiary tabular-nums shrink-0">{item.quantity}</span>
+        ) : depleted ? (
+          <span className="text-[9pt] text-themeredred font-semibold tabular-nums shrink-0">0</span>
+        ) : null}
         {(onAddItemAtLocation || onDeleteItem) && (
           <button
             onClick={(e) => { e.stopPropagation(); openRowMenu('item', item.id, (e.currentTarget as HTMLElement).closest('[data-prop-row]') as HTMLElement | null) }}

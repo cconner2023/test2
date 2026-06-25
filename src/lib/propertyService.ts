@@ -8,7 +8,7 @@ import { supabase } from './supabase'
 import { succeed, fail, type ServiceResult } from './result'
 import { createLogger } from '../Utilities/Logger'
 import { addToSyncQueue, removeSyncQueueItemsForRecord } from './offlineDb'
-import { emitAudit, updateAuditEvent, deleteAuditEvent } from './auditService'
+import { emitAudit, updateAuditEvent, deleteAuditEvent, deleteAuditEventsBySubject, deleteTransferAuditForCustody } from './auditService'
 import {
   getDb,
   getLocalPropertyItems,
@@ -22,6 +22,8 @@ import {
   getLocalDiscrepancies,
   saveLocalDiscrepancy,
   saveLocalCustodyEntry,
+  deleteLocalCustody,
+  getLocalCustodyByReceipt,
   getLocalCustodyByClinic,
   getLocalCustodyByItem,
   getLocalLocationTags,
@@ -704,16 +706,17 @@ export async function deleteItem(
       id, clinic_id: clinicId ?? undefined, target_clinic_ids: targets, originId, data: { id },
     }, [], clinicId)
 
-    // Deletes now emit an item.deleted timeline event (previously unaudited).
-    if (clinicId) {
-      await emitAudit({
-        clinicId, actorId: userId, domain: 'property',
-        eventType: 'item.deleted', subjectType: 'item', subjectId: id, occurredAt: now,
-        payload: existing ? { name: existing.name, nsn: existing.nsn, serial_number: existing.serial_number } : null,
-      }, userId)
-    }
+    // Take the item's history with it: cascade hard-delete every audit_log row
+    // for this subject (item.created/moved/assigned/transferred/edited/expended,
+    // PMCS, dispatch). We do NOT emit a trailing item.deleted event — the user's
+    // intent is for the history to disappear, not to leave a lone tombstone row
+    // that would still surface in the clinic-wide weekly activity feed.
+    await deleteAuditEventsBySubject(id, userId, { clinicId: clinicId ?? undefined })
 
-    immediateSync(userId)
+    // Await the flush so the enqueued audit deletes (and the spine soft-delete)
+    // land BEFORE the caller's invalidate → refetch re-reads audit_log; an
+    // un-awaited sync would race the read-through cache and resurrect the rows.
+    await immediateSync(userId)
     return succeed()
   } catch (err) {
     return fail(String(err))
@@ -1886,6 +1889,9 @@ export async function executeTransfer(
 
 export interface SignOutParams {
   itemIds: string[]
+  /** Per-item quantity to sign out (itemId → count). Absent/missing → 1.
+   *  Recorded on the sign_down row's quantity_delta and printed in the 2062 QTY column. */
+  quantities?: Record<string, number>
   clinicId: string
   /** Issuing hand-receipt holder (usually the current user); may be null. */
   fromHolderId: string | null
@@ -1897,15 +1903,71 @@ export interface SignOutParams {
   notes: string | null
 }
 
+type CustodyState = { signed_out_external: boolean; current_holder_id: string | null }
+
+/**
+ * CUSTODY MODEL — one canonical stack record, quantity-accounted.
+ *
+ * A non-serialized stack stays a SINGLE item whose `quantity` is the ON-HAND count
+ * (what's physically at its standing zone). Signing some out decrements on-hand and
+ * leaves a custody_ledger sign_down row (qty_delta + to_holder_id) against the SAME
+ * stack id — never a child item. So "who holds how many" is read off the open ledger
+ * rows / receipts (a stack can be split across many holders at once), the stack's own
+ * timeline shows every transfer + return in one place, and a return just adds the
+ * quantity back. The stack's current_holder_id is NOT used for non-serialized custody
+ * (one field can't name three holders) — it stays whatever it was (normally null).
+ *
+ * A SERIALIZED item is a single unit: custody is the whole thing, so it keeps the
+ * current_holder_id / signed_out_external flags (quantity stays 1, never decremented).
+ */
+
+/** Sign `signQty` of `item` OUT. Serialized → flip the holder flags in place; non-
+ *  serialized → decrement on-hand (custody lives on the ledger row, not the item). */
+async function applyOutbound(
+  item: LocalPropertyItem,
+  signQty: number,
+  custody: CustodyState,
+  userId: string,
+): Promise<void> {
+  if (item.is_serialized) {
+    await updateItem(item.id, custody, userId, { skipAudit: true })
+  } else {
+    const onHand = Math.max(0, item.quantity - Math.max(1, signQty))
+    await updateItem(item.id, { quantity: onHand }, userId, { skipAudit: true })
+  }
+}
+
+/** Return `qty` of `item` to stock. Serialized → clear the holder flags; non-
+ *  serialized → add the quantity back on-hand at its standing zone. */
+async function applyReturn(
+  item: LocalPropertyItem,
+  qty: number,
+  userId: string,
+): Promise<void> {
+  if (item.is_serialized) {
+    await updateItem(item.id, { signed_out_external: false, current_holder_id: null }, userId, { skipAudit: true })
+  } else {
+    await updateItem(item.id, { quantity: item.quantity + Math.max(1, qty) }, userId, { skipAudit: true })
+  }
+}
+
+/** The signed-out quantity a receipt's sign_down row recorded for one item (the
+ *  amount to put back on return / when the item is dropped from the receipt). */
+function signedOutQty(rows: LocalCustodyEntry[], itemId: string): number {
+  const row = rows.find((r) => r.action === 'sign_down' && r.item_id === itemId)
+  return Math.max(1, row?.quantity_delta ?? 1)
+}
+
 /**
  * Sign 1..N items out on a single DA 2062 hand receipt. Writes one append-only
- * custody_ledger row per item, all sharing a freshly minted hand_receipt_id, and
- * points each item at its new custodian:
- *   - internal → current_holder_id = toHolderId
- *   - external → signed_out_external = true (recipient name lives in the row notes,
- *     the only place a non-member recipient can be recorded without a profile id)
- * The item's location_id (its usual/home zone) is left untouched, so the
- * accountability surface can still show "where it usually lives". Returns the
+ * custody_ledger sign_down row per item (qty_delta + recipient), all sharing a
+ * freshly minted hand_receipt_id, against the CANONICAL stack id (see the CUSTODY
+ * MODEL note above applyOutbound). Then applyOutbound either:
+ *   - NON-SERIALIZED stack → decrements on-hand quantity (custody is ledger-tracked;
+ *     the stack can be split across many holders, so current_holder_id is NOT set)
+ *   - SERIALIZED unit → flips the holder flags (internal current_holder_id = toHolderId,
+ *     external signed_out_external = true; recipient name lives in the row notes)
+ * The item's location_id (its usual/home zone) is left untouched. Returns the
  * hand_receipt_id so the caller can immediately print the 2062.
  */
 export async function signOutItems(
@@ -1913,7 +1975,7 @@ export async function signOutItems(
   userId: string,
 ): Promise<ServiceResult<{ handReceiptId: string }>> {
   try {
-    const { itemIds, clinicId, fromHolderId, toHolderId, externalName, notes } = params
+    const { itemIds, quantities, clinicId, fromHolderId, toHolderId, externalName, notes } = params
     if (itemIds.length === 0) return fail('No items selected')
     const isExternal = !toHolderId
     if (isExternal && !externalName?.trim()) return fail('External recipient name required')
@@ -1925,13 +1987,29 @@ export async function signOutItems(
       ? [externalName!.trim(), notes?.trim()].filter(Boolean).join(' — ')
       : (notes?.trim() || null)
 
+    const custody: CustodyState = isExternal
+      ? { signed_out_external: true, current_holder_id: null }
+      : { signed_out_external: false, current_holder_id: toHolderId }
+    const itemsById = new Map((await getLocalPropertyItems(clinicId)).map((i) => [i.id, i]))
+
     for (const itemId of itemIds) {
+      const item = itemsById.get(itemId)
+      if (!item) return fail('Item not found')
+      // On-hand caps the signed-out count for a stack; serialized is always 1.
+      const available = item.is_serialized ? 1 : item.quantity
+      if (available <= 0) return fail(`${item.name} has none on hand`)
+      const signQty = item.is_serialized ? 1 : Math.max(1, Math.min(quantities?.[itemId] ?? 1, available))
+
+      // One row against the STACK id (never a child): the receipt + the dual-written
+      // item.transferred timeline both hang off the canonical item, so its history
+      // reads "transferred N to X" in one place and a sign-in adds the qty back.
       const ledgerResult = await recordLedgerEntry(
         {
           item_id: itemId,
           clinic_id: clinicId,
           hand_receipt_id: handReceiptId,
           action: 'sign_down',
+          quantity_delta: signQty,
           from_holder_id: fromHolderId,
           to_holder_id: toHolderId,
           condition_code: 'serviceable',
@@ -1943,16 +2021,8 @@ export async function signOutItems(
       )
       if (!ledgerResult.success) return fail(ledgerResult.error)
 
-      // Point the item at its new custodian. skipAudit — the ledger row already
-      // logged item.transferred for the timeline.
-      await updateItem(
-        itemId,
-        isExternal
-          ? { signed_out_external: true, current_holder_id: null }
-          : { signed_out_external: false, current_holder_id: toHolderId },
-        userId,
-        { skipAudit: true },
-      )
+      // Decrement on-hand (stack) or flip the holder flags (serialized).
+      await applyOutbound(item, signQty, custody, userId)
     }
 
     return succeed({ handReceiptId })
@@ -1975,13 +2045,17 @@ export async function signInReceipt(
 ): Promise<ServiceResult> {
   try {
     if (itemIds.length === 0) return fail('No items on receipt')
+    const signDowns = await getLocalCustodyByReceipt(handReceiptId)
+    const itemsById = new Map((await getLocalPropertyItems(clinicId)).map((i) => [i.id, i]))
     for (const itemId of itemIds) {
+      const qty = signedOutQty(signDowns, itemId)
       const ledgerResult = await recordLedgerEntry(
         {
           item_id: itemId,
           clinic_id: clinicId,
           hand_receipt_id: handReceiptId,
           action: 'sign_up',
+          quantity_delta: qty,
           from_holder_id: fromHolderId,
           to_holder_id: null,
           condition_code: 'serviceable',
@@ -1993,13 +2067,171 @@ export async function signInReceipt(
       )
       if (!ledgerResult.success) return fail(ledgerResult.error)
 
-      await updateItem(
-        itemId,
-        { signed_out_external: false, current_holder_id: null },
-        userId,
-        { skipAudit: true },
-      )
+      // Add the quantity back on-hand (stack) or clear the holder (serialized).
+      const item = itemsById.get(itemId)
+      if (item) await applyReturn(item, qty, userId)
     }
+    return succeed()
+  } catch (err) {
+    return fail(String(err))
+  }
+}
+
+// ── DA 2062 hand receipt — edit / delete ─────────────────────
+//
+// A hand receipt is an editable document (USR: "consider it an edited signal
+// message"): remove an item, add an item, or delete the whole 2062. Removing an
+// item / deleting a receipt purges its custody_ledger rows EVERYWHERE (local +
+// spine hard-delete + a cross-device 'd' custody envelope) and signs the affected
+// items back in (clear holder → they return to their standing zone). custody_ledger
+// is no longer append-only for these paths (custody_ledger_delete RLS + the vault
+// custody 'd' route + delete-aware snapshot live-ids back this).
+
+/**
+ * Hard-delete a set of custody rows everywhere: local IDB, the plaintext spine
+ * (drop any pending create first, then enqueue a delete), and a per-device 'd'
+ * custody envelope so peer devices drop them too. With `purgeTimeline`, also delete
+ * each row's dual-written item.transferred timeline entry (records+timeline scope).
+ */
+async function purgeCustodyRows(
+  rows: LocalCustodyEntry[],
+  clinicId: string,
+  userId: string,
+  purgeTimeline: boolean,
+): Promise<void> {
+  for (const r of rows) {
+    await deleteLocalCustody(r.id)
+    // Drop any still-pending create so it can't re-insert after the delete, then
+    // enqueue the spine hard-delete.
+    await removeSyncQueueItemsForRecord(userId, 'custody_ledger', r.id)
+    await addToSyncQueue({
+      user_id: userId,
+      action: 'delete',
+      table_name: 'custody_ledger',
+      record_id: r.id,
+      payload: {},
+    })
+
+    const targets = r.target_clinic_ids ?? [clinicId]
+    const originId = crypto.randomUUID()
+    await fanProperty(
+      userId, 'd', 'custody',
+      { id: r.id, clinic_id: r.clinic_id ?? clinicId, target_clinic_ids: targets, originId, data: { id: r.id } },
+      [], clinicId,
+    )
+    // Clean up the row's ORIGINAL create envelope too (mirrors updateItem retract).
+    if (r.originId) { for (const c of targets) await deletePropertyVaultMessages([r.originId], c) }
+
+    if (purgeTimeline) await deleteTransferAuditForCustody(r.item_id, r.recorded_at, userId)
+  }
+}
+
+/**
+ * Remove ONE item from a hand receipt (edit the 2062 to drop an item): purge that
+ * item's rows on the receipt + their timeline entries, and sign the item back in.
+ */
+export async function removeReceiptItem(
+  handReceiptId: string,
+  itemId: string,
+  clinicId: string,
+  userId: string,
+): Promise<ServiceResult> {
+  try {
+    const rows = (await getLocalCustodyByReceipt(handReceiptId)).filter((r) => r.item_id === itemId)
+    if (rows.length === 0) return fail('Item not found on receipt')
+    const qty = signedOutQty(rows, itemId)
+    await purgeCustodyRows(rows, clinicId, userId, true)
+    // No sign_up row — the receipt record is gone; just put the item back on-hand
+    // (stack) or clear its holder (serialized). Read the item AFTER purge.
+    const item = (await getLocalPropertyItems(clinicId)).find((i) => i.id === itemId)
+    if (item) await applyReturn(item, qty, userId)
+    await immediateSync(userId)
+    return succeed()
+  } catch (err) {
+    return fail(String(err))
+  }
+}
+
+/**
+ * Add items to an existing hand receipt (edit the 2062 to add an item): append a
+ * sign_down row per item carrying the receipt's hand_receipt_id + recipient, and
+ * point each item at that custodian. Recipient (internal/external) is read from the
+ * receipt's existing head row.
+ */
+export async function addReceiptItems(
+  handReceiptId: string,
+  itemIds: string[],
+  clinicId: string,
+  userId: string,
+): Promise<ServiceResult> {
+  try {
+    if (itemIds.length === 0) return fail('No items selected')
+    const existing = await getLocalCustodyByReceipt(handReceiptId)
+    const head = existing.filter((r) => r.action === 'sign_down').sort(byRecordedDesc)[0]
+    if (!head) return fail('Receipt not found')
+    const toHolderId = head.to_holder_id
+    const isExternal = !toHolderId
+    const custody: CustodyState = isExternal
+      ? { signed_out_external: true, current_holder_id: null }
+      : { signed_out_external: false, current_holder_id: toHolderId }
+    const itemsById = new Map((await getLocalPropertyItems(clinicId)).map((i) => [i.id, i]))
+
+    for (const itemId of itemIds) {
+      const item = itemsById.get(itemId)
+      if (!item) continue
+      if (!item.is_serialized && item.quantity <= 0) continue // nothing on hand to add
+      // Add-to-receipt has no quantity picker, so a non-serialized stack signs out
+      // a single unit (qty 1); use the sign-out form for a multi-count transfer.
+      const signQty = 1
+      const ledgerResult = await recordLedgerEntry(
+        {
+          item_id: itemId,
+          clinic_id: clinicId,
+          hand_receipt_id: handReceiptId,
+          action: 'sign_down',
+          quantity_delta: signQty,
+          from_holder_id: head.from_holder_id,
+          to_holder_id: toHolderId,
+          condition_code: 'serviceable',
+          sub_item_check: null,
+          notes: head.notes, // carries the external recipient name for external receipts
+          recorded_by: userId,
+        },
+        userId,
+      )
+      if (!ledgerResult.success) return fail(ledgerResult.error)
+
+      await applyOutbound(item, signQty, custody, userId)
+    }
+    await immediateSync(userId)
+    return succeed()
+  } catch (err) {
+    return fail(String(err))
+  }
+}
+
+/**
+ * Delete an ENTIRE hand receipt (delete the 2062): purge every custody row on it
+ * (sign_down + sign_up) + their timeline entries, and sign all its items back in.
+ */
+export async function deleteHandReceipt(
+  handReceiptId: string,
+  clinicId: string,
+  userId: string,
+): Promise<ServiceResult> {
+  try {
+    const rows = await getLocalCustodyByReceipt(handReceiptId)
+    if (rows.length === 0) return fail('Receipt not found')
+    const itemIds = [...new Set(rows.filter((r) => r.action === 'sign_down').map((r) => r.item_id))]
+    // Capture each item's signed-out qty BEFORE the purge wipes the rows.
+    const qtyByItem = new Map(itemIds.map((id) => [id, signedOutQty(rows, id)]))
+    await purgeCustodyRows(rows, clinicId, userId, true)
+    const itemsById = new Map((await getLocalPropertyItems(clinicId)).map((i) => [i.id, i]))
+    for (const itemId of itemIds) {
+      const item = itemsById.get(itemId)
+      if (item) await applyReturn(item, qtyByItem.get(itemId) ?? 1, userId)
+    }
+    await immediateSync(userId)
     return succeed()
   } catch (err) {
     return fail(String(err))

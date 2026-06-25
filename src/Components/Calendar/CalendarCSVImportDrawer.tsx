@@ -1,7 +1,5 @@
 import { useState, useRef } from 'react'
-import { Upload, X, CheckCircle2 } from 'lucide-react'
-import { BaseDrawer } from '../BaseDrawer'
-import { HeaderPill, PillButton } from '../HeaderPill'
+import { Upload, CheckCircle2 } from 'lucide-react'
 import { LoadingSpinner } from '../LoadingSpinner'
 import { Section, SectionCard } from '../Section'
 import { useCalendarVault } from '../../Hooks/useCalendarVault'
@@ -10,8 +8,8 @@ import { generateId } from '../../Types/CalendarTypes'
 import { parseCalendarCSV, downloadCalendarCSVTemplate } from '../../lib/calendarCSV'
 import type { ParsedCalendarRow } from '../../lib/calendarCSV'
 
-interface CalendarCSVImportDrawerProps {
-  visible: boolean
+interface CalendarCSVImportProps {
+  /** Close the host surface (right pane / mobile drawer). */
   onClose: () => void
   clinicId: string
   userId: string
@@ -19,7 +17,9 @@ interface CalendarCSVImportDrawerProps {
 
 type Step = 'pick' | 'preview' | 'importing' | 'done'
 
-export function CalendarCSVImportDrawer({ visible, onClose, clinicId, userId }: CalendarCSVImportDrawerProps) {
+/** Surfaceless CSV-import wizard body, hosted in CalendarPanel's right pane
+ *  (desktop, panelView='import') / mobile drawer — the host owns header + close. */
+export function CalendarCSVImport({ onClose, clinicId, userId }: CalendarCSVImportProps) {
   const [step, setStep] = useState<Step>('pick')
   const [parsedRows, setParsedRows] = useState<ParsedCalendarRow[]>([])
   const [parseErrors, setParseErrors] = useState<string[]>([])
@@ -94,38 +94,15 @@ export function CalendarCSVImportDrawer({ visible, onClose, clinicId, userId }: 
     setStep('done')
   }
 
-  const headerTitle =
-    step === 'pick' ? 'Import Calendar CSV'
-    : step === 'preview' ? 'Preview'
-    : step === 'importing' ? 'Importing…'
-    : 'Import Complete'
-
-  const showClose = step === 'pick' || step === 'preview'
-
   const previewRows = parsedRows.slice(0, 20)
   const extraRows = parsedRows.length - 20
   const visibleErrors = parseErrors.slice(0, 5)
   const extraErrors = parseErrors.length - 5
 
   return (
-    <BaseDrawer
-      isVisible={visible}
-      onClose={handleClose}
-      fullHeight="85dvh"
-      header={{
-        title: headerTitle,
-        rightContent: showClose ? (
-          <HeaderPill>
-            <PillButton icon={X} iconSize={18} onClick={handleClose} label="Close" />
-          </HeaderPill>
-        ) : undefined,
-        hideDefaultClose: true,
-      }}
-    >
-      <div className="flex flex-col h-full px-5 pb-6">
-
+    <>
         {step === 'pick' && (
-          <div className="flex flex-col gap-4 pt-4">
+          <div className="flex flex-col gap-4">
             <div
               className="border-2 border-dashed border-tertiary/30 rounded-2xl flex flex-col items-center justify-center gap-3 py-12 px-6 cursor-pointer active:bg-primary/5 transition-colors"
               onClick={() => fileInputRef.current?.click()}
@@ -152,7 +129,7 @@ export function CalendarCSVImportDrawer({ visible, onClose, clinicId, userId }: 
         )}
 
         {step === 'preview' && (
-          <div className="flex flex-col gap-4 pt-4 min-h-0 flex-1">
+          <div className="flex flex-col gap-4">
             {parseErrors.length > 0 && (
               <div className="bg-amber-50 border border-amber-200 rounded-xl text-[10pt] text-amber-800 p-3">
                 <p className="font-semibold mb-1">Warning — some rows were skipped:</p>
@@ -172,7 +149,7 @@ export function CalendarCSVImportDrawer({ visible, onClose, clinicId, userId }: 
             </p>
 
             {parsedRows.length > 0 && (
-              <Section title="Preview" className="flex-1 min-h-0 mb-0">
+              <Section title="Preview" className="mb-0">
                 <SectionCard>
                   <div className="overflow-y-auto max-h-[30dvh]">
                     <table className="w-full text-[10pt]">
@@ -207,7 +184,7 @@ export function CalendarCSVImportDrawer({ visible, onClose, clinicId, userId }: 
               </Section>
             )}
 
-            <div className="flex gap-3 pt-2 mt-auto">
+            <div className="flex gap-3 pt-2">
               <button
                 onClick={() => { setParsedRows([]); setParseErrors([]); setStep('pick') }}
                 className="flex-1 rounded-full px-6 py-3 text-sm font-medium bg-themewhite2 border border-tertiary/20 text-primary active:scale-95 transition-all"
@@ -227,14 +204,14 @@ export function CalendarCSVImportDrawer({ visible, onClose, clinicId, userId }: 
         )}
 
         {step === 'importing' && (
-          <div className="flex flex-col items-center justify-center flex-1 gap-4">
+          <div className="flex flex-col items-center justify-center py-16 gap-4">
             <LoadingSpinner size="md" />
             <p className="text-sm text-secondary">Importing {parsedRows.length} event{parsedRows.length !== 1 ? 's' : ''}…</p>
           </div>
         )}
 
         {step === 'done' && (
-          <div className="flex flex-col items-center justify-center flex-1 gap-4">
+          <div className="flex flex-col items-center justify-center py-16 gap-4">
             <CheckCircle2 className="w-12 h-12 text-themegreen" />
             <p className="text-sm text-primary font-medium">{importedCount} event{importedCount !== 1 ? 's' : ''} imported</p>
             <button
@@ -245,8 +222,6 @@ export function CalendarCSVImportDrawer({ visible, onClose, clinicId, userId }: 
             </button>
           </div>
         )}
-
-      </div>
-    </BaseDrawer>
+    </>
   )
 }

@@ -11,6 +11,7 @@
 import { memo } from 'react'
 import { traceCompositeOutline } from '../../lib/tagIndex'
 import type { LocationTag, LocalPropertyItem, ZoneRect } from '../../Types/PropertyTypes'
+import { itemAlert } from '../../Types/PropertyTypes'
 import { DispatchDot } from './DispatchDot'
 import type { DispatchStatus } from '../../lib/dispatchFold'
 
@@ -89,6 +90,8 @@ function ItemPin({ pin, item, onTap }: {
   item: LocalPropertyItem
   onTap: (item: LocalPropertyItem) => void
 }) {
+  // Expired / expiring (≤30d) / depleted (0 on hand) → red tag.
+  const alert = itemAlert(item)
   return (
     <div
       data-item-target={item.id}
@@ -100,10 +103,17 @@ function ItemPin({ pin, item, onTap }: {
       }}
       onClick={(e) => { e.stopPropagation(); onTap(item) }}
     >
-      <div className="px-2 py-1 rounded-full text-[9pt] font-medium bg-themewhite3/90 text-primary border border-themeblue3/30 shadow-sm backdrop-blur-sm min-h-[28px] flex items-center gap-1 active:scale-95 transition-transform">
+      <div
+        className={`px-2 py-1 rounded-full text-[9pt] font-medium shadow-sm backdrop-blur-sm min-h-[28px] flex items-center gap-1 active:scale-95 transition-transform border ${
+          alert ? 'bg-themeredred/90 text-white border-themeredred' : 'bg-themewhite3/90 text-primary border-themeblue3/30'
+        }`}
+      >
         <span className="whitespace-nowrap max-w-[90px] truncate">{item.name}</span>
-        {item.quantity > 1 && (
-          <span className="shrink-0 text-[8pt] font-semibold text-themeblue1 bg-themeblue3/15 px-1 rounded-full leading-tight">×{item.quantity}</span>
+        {/* Show the count when it's not a single unit — incl. ×0 so a depleted tag reads its emptiness. */}
+        {item.quantity !== 1 && (
+          <span className={`shrink-0 text-[8pt] font-semibold px-1 rounded-full leading-tight ${
+            alert ? 'bg-white/25 text-white' : 'text-themeblue1 bg-themeblue3/15'
+          }`}>×{item.quantity}</span>
         )}
       </div>
     </div>
@@ -160,7 +170,6 @@ export const LocationTagPhoto = memo(function LocationTagPhoto({
         const isSelected = tag.target_id === selectedZoneId
         const isComposite = tag.rects && tag.rects.length > 0
         const photo = photoMap?.get(tag.target_id)
-        const zoneItemCount = items?.filter((i) => i.location_id === tag.target_id).length ?? 0
 
         return (
           <div
@@ -200,27 +209,22 @@ export const LocationTagPhoto = memo(function LocationTagPhoto({
             {isSelected && photo && !isComposite && (
               <div className="absolute inset-0 bg-themeyellow/20 pointer-events-none" />
             )}
-            <div className="absolute inset-0 flex flex-col items-center justify-center p-1 gap-0.5 overflow-hidden">
-              <span className="flex items-center gap-1 max-w-full">
-                <span
-                  className={['text-[10pt] font-medium text-center leading-tight line-clamp-2 pointer-events-none', !photo ? 'text-primary' : ''].join(' ')}
-                  style={photo
-                    ? { color: 'white', textShadow: '0 1px 3px rgba(0,0,0,0.9), 0 0 8px rgba(0,0,0,0.6)' }
-                    : undefined}
-                >
-                  {tag.label}
+            {/* Title hidden once selected — distracting and already shown in the sheet/right pane */}
+            {!isSelected && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center p-1 gap-0.5 overflow-hidden">
+                <span className="flex items-center gap-1 max-w-full">
+                  <span
+                    className={['text-[10pt] font-medium text-center leading-tight line-clamp-2 pointer-events-none', !photo ? 'text-primary' : ''].join(' ')}
+                    style={photo
+                      ? { color: 'white', textShadow: '0 1px 3px rgba(0,0,0,0.9), 0 0 8px rgba(0,0,0,0.6)' }
+                      : undefined}
+                  >
+                    {tag.label}
+                  </span>
+                  <DispatchDot status={dispatchStatusByLocation?.get(tag.target_id)} />
                 </span>
-                <DispatchDot status={dispatchStatusByLocation?.get(tag.target_id)} />
-              </span>
-              {zoneItemCount > 0 && (
-                <span className={[
-                  'text-[9pt] px-1.5 py-0.5 rounded-full pointer-events-none',
-                  photo ? 'bg-black/40 text-white' : 'bg-black/10 text-themeblue1',
-                ].join(' ')}>
-                  {zoneItemCount} {zoneItemCount === 1 ? 'item' : 'items'}
-                </span>
-              )}
-            </div>
+              </div>
+            )}
 
           </div>
         )

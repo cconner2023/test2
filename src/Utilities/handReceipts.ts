@@ -5,14 +5,22 @@ import type { CustodyLedgerEntry, HandReceipt, HolderInfo } from '../Types/Prope
  * hand_receipt_id. Only rows that carry a hand_receipt_id participate (legacy
  * transfers and expend rows are ignored). A receipt's header comes from its
  * sign_down rows; matching sign_up rows flip it to 'returned'. Newest first.
+ *
+ * `liveItemIds`, when supplied, drops the row of any item deleted from
+ * accountability (item tombstoned + gone from the IDB projection on every
+ * device) — the same shape as editing the 2062 to remove that one item. A
+ * receipt whose every item was deleted folds to nothing and is omitted. The
+ * ledger spine itself is append-only/immutable — this is a view-time filter.
  */
 export function groupHandReceipts(
   entries: CustodyLedgerEntry[],
   holders: Map<string, HolderInfo>,
+  liveItemIds?: Set<string>,
 ): HandReceipt[] {
   const byReceipt = new Map<string, CustodyLedgerEntry[]>()
   for (const e of entries) {
     if (!e.hand_receipt_id) continue
+    if (liveItemIds && !liveItemIds.has(e.item_id)) continue // item deleted from accountability
     const arr = byReceipt.get(e.hand_receipt_id) ?? []
     arr.push(e)
     byReceipt.set(e.hand_receipt_id, arr)

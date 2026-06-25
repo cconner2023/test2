@@ -10,7 +10,7 @@ import { useEffect, useCallback, useMemo, useState, useRef } from 'react'
 import { X, Plus, RefreshCw, Check, Trash2, ChevronRight, Building2, Key, MessageSquare } from 'lucide-react'
 import { UserRow } from '../UserRow'
 import { ActionButton } from '../ActionButton'
-import { listClinics, listAllUsers, listLocations, updateClinic, createClinic, rescueClinicAssociationsByLocation, listClinicLoans, clinicHasVault, rescueClinicVault } from '../../lib/adminService'
+import { listClinics, listAllUsers, listLocations, updateClinic, createClinic, rescueClinicAssociationsByLocation, listClinicLoans, clinicHasVault, rescueClinicVault, setUserClinic } from '../../lib/adminService'
 import type { AdminUser, AdminClinic, AdminLocation } from '../../lib/adminService'
 import { formatLastActive } from './adminUtils'
 import { TextInput, UicPinInput } from '../FormInputs'
@@ -97,6 +97,9 @@ const AdminClinicDetail = ({
     | { kind: 'add-parent' | 'add-child' | 'add-assoc'; rect: DOMRect }
   const [relAction, setRelAction] = useState<RelAction | null>(null)
   const [relBusy, setRelBusy] = useState(false)
+  // Suggested-user assignment (UIC match) — id of the row currently being
+  // pulled in as a home-cluster swap, for per-row busy state.
+  const [assigningUserId, setAssigningUserId] = useState<string | null>(null)
   const parentFabRef = useRef<HTMLDivElement>(null)
   const childFabRef = useRef<HTMLDivElement>(null)
   const assocFabRef = useRef<HTMLDivElement>(null)
@@ -360,6 +363,22 @@ const AdminClinicDetail = ({
     await loadData()
   }, [loadData])
 
+  // Pull a UIC-matched user into this cluster as a pure home-cluster swap —
+  // no navigation away. setUserClinic replaces their home outright (the DB
+  // trigger wipes loans); the row then drops off the suggested list on reload.
+  const handleAssignSuggestedUser = useCallback(async (userId: string) => {
+    if (!clinic?.id) return
+    setAssigningUserId(userId)
+    const r = await setUserClinic(userId, clinic.id)
+    setAssigningUserId(null)
+    if (r.success) {
+      invalidate('users', 'clinics')
+      loadData()
+    } else {
+      setError(r.error || 'Failed to set this cluster as the user’s home')
+    }
+  }, [clinic?.id, loadData])
+
   const handleSetParent = useCallback(async (newId: string | null) => {
     if (!clinic) return
     setRelBusy(true)
@@ -539,23 +558,30 @@ const AdminClinicDetail = ({
         const uicSet = new Set(editUics)
         const suggested = users.filter(u => u.uic && uicSet.has(u.uic) && u.clinic_id !== clinic?.id)
         if (suggested.length === 0) return null
+        // With a saved clinic, tapping a row is a direct home-cluster swap
+        // (handleAssignSuggestedUser). In create mode the clinic has no id yet,
+        // so fall back to opening the user to edit their assignment manually.
+        const canAssign = !!clinic?.id
         return (
           <div className="px-4 py-3 bg-themeblue2/5 border-b border-primary/6">
             <p className="text-[9pt] text-themeblue2 font-medium mb-1">
               {suggested.length} user{suggested.length !== 1 ? 's' : ''} self-report these UICs but aren't assigned here
             </p>
             <p className="text-[9pt] text-tertiary mb-1.5">
-              Open a user to update their assigned clinic.
+              {canAssign
+                ? 'Tap a user to set this cluster as their home.'
+                : 'Open a user to update their assigned clinic.'}
             </p>
             <div className="space-y-0.5">
               {suggested.map(u => (
                 <button
                   key={u.id}
                   type="button"
-                  onClick={() => onSelectUser?.(u)}
-                  disabled={!onSelectUser}
-                  className="w-full text-left text-[9pt] text-primary hover:text-themeblue2 transition-colors disabled:cursor-default"
+                  onClick={() => canAssign ? handleAssignSuggestedUser(u.id) : onSelectUser?.(u)}
+                  disabled={canAssign ? assigningUserId !== null : !onSelectUser}
+                  className="w-full text-left text-[9pt] text-primary hover:text-themeblue2 transition-colors disabled:opacity-50 disabled:cursor-default"
                 >
+                  {assigningUserId === u.id ? 'Assigning… ' : ''}
                   {[u.rank, u.first_name, u.last_name].filter(Boolean).join(' ') || u.email}
                 </button>
               ))}

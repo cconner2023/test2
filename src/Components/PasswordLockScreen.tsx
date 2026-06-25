@@ -4,8 +4,11 @@ import { supabase } from '../lib/supabase'
 import { verifyPasswordLocally, storePasswordHash } from '../lib/authService'
 import { deriveAndStoreBackupKey } from '../lib/signal/backupService'
 import { ensureVaultExists, deriveAndCacheVaultKey, setVaultKeyReady } from '../lib/signal/vaultDevice'
+import { useAuthStore } from '../stores/useAuthStore'
 import { PasswordInput } from './FormInputs'
 import { ErrorDisplay } from './ErrorDisplay'
+import { ConfirmDialog } from './ConfirmDialog'
+import { FORGOT_PREFILL_KEY } from './LoginScreen'
 
 interface PasswordLockScreenProps {
   onUnlock: () => void
@@ -17,8 +20,10 @@ export const PasswordLockScreen = ({ onUnlock, email, reason = 'inactivity' }: P
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
-  const [resetSent, setResetSent] = useState(false)
   const [isOnline, setIsOnline] = useState(navigator.onLine)
+  const [showSwitch, setShowSwitch] = useState(false)
+  const [switchingUser, setSwitchingUser] = useState(false)
+  const signOut = useAuthStore(s => s.signOut)
 
   // Lockout state (mirrors PIN pattern: 5 failures → 30s escalating, cap 300s)
   const [failures, setFailures] = useState(0)
@@ -147,17 +152,32 @@ export const PasswordLockScreen = ({ onUnlock, email, reason = 'inactivity' }: P
     }
   }, [password, submitting, isLockedOut, email, onUnlock, recordFailure])
 
-  const handleForgotPassword = useCallback(async () => {
-    if (resetSent || !isOnline) return
+  const handleForgotPassword = useCallback(() => {
+    if (!isOnline) return
+    // Don't duplicate the reset UI here — hand the email to LoginScreen and sign
+    // out so its canonical email→8-digit-PIN→recovery flow takes over.
+    try { sessionStorage.setItem(FORGOT_PREFILL_KEY, email) } catch { /* ignore */ }
+    signOut()
+  }, [email, isOnline, signOut])
+
+  // Full logout escape — for a different user (or the same user re-logging in
+  // fresh). signOut() clears user + localSession; handleSignedOut then unmounts
+  // every lock overlay and LockGate falls through to the LoginScreen. Works
+  // offline too (scope:'local' clears the stored session without a round-trip).
+  const handleSwitchUser = useCallback(async () => {
+    setSwitchingUser(true)
     try {
-      await supabase.auth.resetPasswordForEmail(email)
-      setResetSent(true)
+      await signOut()
     } catch {
-      setError('Could not send reset email. Try again later.')
+      // signOut is best-effort internally; if it threw, drop the dialog so the
+      // user isn't stuck on a spinner.
+      setSwitchingUser(false)
+      setShowSwitch(false)
     }
-  }, [email, resetSent, isOnline])
+  }, [signOut])
 
   return (
+    <>
     <div
       className="fixed inset-0 z-30 bg-themewhite overflow-y-auto select-none"
       style={{ paddingTop: 'var(--sat)', paddingBottom: 'var(--sab)' }}
@@ -195,13 +215,6 @@ export const PasswordLockScreen = ({ onUnlock, email, reason = 'inactivity' }: P
           </div>
         )}
 
-        {/* Reset sent confirmation */}
-        {resetSent && (
-          <div className="mb-4 p-3 rounded-lg bg-themegreen/10 border border-themegreen/20 text-themegreen text-sm text-center">
-            Password reset email sent. Check your inbox.
-          </div>
-        )}
-
         {/* Password form */}
         <form onSubmit={handleSubmit}>
           <div className="rounded-2xl bg-themewhite2 overflow-hidden">
@@ -234,7 +247,7 @@ export const PasswordLockScreen = ({ onUnlock, email, reason = 'inactivity' }: P
         </form>
 
         {/* Forgot password */}
-        {isOnline && !resetSent && (
+        {isOnline && (
           <button
             onClick={handleForgotPassword}
             className="w-full mt-3 text-[10pt] text-themeblue2 hover:text-themeblue2/80 transition-colors text-center"
@@ -242,6 +255,16 @@ export const PasswordLockScreen = ({ onUnlock, email, reason = 'inactivity' }: P
             Forgot Password?
           </button>
         )}
+
+        {/* Change user — full sign-out back to the login screen. Always available
+            (works offline) for when a different person needs to sign in here. */}
+        <button
+          type="button"
+          onClick={() => setShowSwitch(true)}
+          className="w-full mt-3 text-[10pt] text-tertiary hover:text-secondary transition-colors text-center"
+        >
+          Sign in as a different user
+        </button>
 
         {/* Tip banner — only shown for inactivity/initial lock, not session-expired */}
         {reason !== 'session-expired' && (
@@ -255,5 +278,17 @@ export const PasswordLockScreen = ({ onUnlock, email, reason = 'inactivity' }: P
       </div>
       </div>
     </div>
+
+    <ConfirmDialog
+      visible={showSwitch}
+      title="Sign in as a different user?"
+      subtitle="Signs you out on this device and returns to the login screen. Your conversations are backed up and restored on next login."
+      confirmLabel="Sign Out"
+      variant="danger"
+      processing={switchingUser}
+      onConfirm={handleSwitchUser}
+      onCancel={() => setShowSwitch(false)}
+    />
+    </>
   )
 }

@@ -25,9 +25,10 @@ import type { CanvasEditHandle } from './CanvasEditOverlay'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { FloorSwitcher } from './FloorSwitcher'
 import { GlassBand } from '../GlassBand'
-import { collectSuppressedIds, findLevelContainer, getLevels, resolveActiveLevel, nextFloorOrdinal, isStructuralZone } from './levelUtils'
+import { collectSuppressedIds, findLevelContainer, getLevels, resolveActiveLevel, nextFloorOrdinal } from './levelUtils'
 import { createLogger } from '../../Utilities/Logger'
 import type { LocalPropertyItem, LocalPropertyLocation, PropertyLocation, LocationTag } from '../../Types/PropertyTypes'
+import { itemAlert } from '../../Types/PropertyTypes'
 
 const logger = createLogger('PropertyLocationMap')
 
@@ -80,6 +81,8 @@ const EditItemPin = memo(function EditItemPin({ pin, item, containerRef, onMove,
   }, [item, onTap, onMove, pin.target_id, containerRef])
 
   const isDragging = dragOffset !== null && (dragState.current?.moved ?? false)
+  // Expired / expiring (≤30d) / depleted (0 on hand) → red tag (matches view mode).
+  const alert = itemAlert(item)
 
   return (
     <div
@@ -95,10 +98,10 @@ const EditItemPin = memo(function EditItemPin({ pin, item, containerRef, onMove,
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
     >
-      <div className={['px-2 py-1 rounded-full text-[9pt] font-medium bg-themewhite3/95 text-primary border border-themeblue3/40 shadow-sm backdrop-blur-sm min-h-[28px] flex items-center gap-1 transition-transform', isDragging ? 'shadow-md scale-105' : 'active:scale-95'].join(' ')}>
+      <div className={['px-2 py-1 rounded-full text-[9pt] font-medium shadow-sm backdrop-blur-sm min-h-[28px] flex items-center gap-1 transition-transform border', alert ? 'bg-themeredred/90 text-white border-themeredred' : 'bg-themewhite3/95 text-primary border-themeblue3/40', isDragging ? 'shadow-md scale-105' : 'active:scale-95'].join(' ')}>
         <span className="whitespace-nowrap max-w-[90px] truncate">{item.name}</span>
-        {item.quantity > 1 && (
-          <span className="shrink-0 text-[8pt] font-semibold text-themeblue1 bg-themeblue3/15 px-1 rounded-full leading-tight">×{item.quantity}</span>
+        {item.quantity !== 1 && (
+          <span className={['shrink-0 text-[8pt] font-semibold px-1 rounded-full leading-tight', alert ? 'bg-white/25 text-white' : 'text-themeblue1 bg-themeblue3/15'].join(' ')}>×{item.quantity}</span>
         )}
       </div>
     </div>
@@ -1515,8 +1518,6 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
   const activeLevelId = levelContainerId
     ? resolveActiveLevel(containerLevels, store.activeLevelByContainer, levelContainerId)
     : null
-  const selectedLocForLevel = locations.find((l) => l.id === store.selectedZoneId)
-  const addFloorTarget = levelContainerId ?? (isStructuralZone(selectedLocForLevel) ? store.selectedZoneId : null)
 
   return (
     <div className="flex flex-col h-full">
@@ -1698,16 +1699,6 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
             desktop's solid header needs no offset. */}
         {!isEditing && (
           <div className={`absolute right-3 z-20 flex items-center gap-1.5 ${isMobile ? 'top-[calc(var(--drawer-header-h,3.5rem)+0.75rem)]' : 'top-3'}`}>
-            {addFloorTarget && (
-              <button
-                onClick={() => handleAddFloor(addFloorTarget)}
-                className={CTRL_BTN}
-                title="Add floor"
-                aria-label="Add floor"
-              >
-                <Plus size={16} />
-              </button>
-            )}
             <button
               onClick={() => handleEnterEdit()}
               className={CTRL_BTN}
@@ -1721,7 +1712,7 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
 
         {/* Floor switcher — Genshin-style vertical level stack, building-local.
             Pure selector: renders only once the in-scope container actually has
-            floors. Adding a floor lives in the top-right cluster above. View mode only. */}
+            floors. Adding a floor lives in the zone context menu. View mode only. */}
         {!isEditing && levelContainerId && containerLevels.length > 0 && (
           <FloorSwitcher
             levels={containerLevels}

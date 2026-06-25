@@ -11,7 +11,10 @@ export { downloadPdfBytes } from './downloadUtils'
 
 /** Only the fields the 2062 actually renders — lets both full store items and
  *  lean reprint rows satisfy the export without a cast. */
-export type DA2062Item = Pick<PropertyItem, 'name' | 'nomenclature' | 'nsn' | 'serial_number'>
+export type DA2062Item = Pick<PropertyItem, 'name' | 'nomenclature' | 'nsn' | 'serial_number'> & {
+  /** Quantity signed out for this row. Absent → 1 (legacy/serialized single units). */
+  quantity?: number
+}
 
 export interface DA2062Params {
   items: DA2062Item[]
@@ -129,13 +132,12 @@ export async function generateDA2062(params: DA2062Params): Promise<Uint8Array> 
         x: COORDS.table.cols.ui.x, y, size: sz, font, color: black,
       })
 
-      // QTY AUTH
-      page.drawText('1', {
+      // QTY AUTH + QUANTITY column A (signed-out count; defaults to 1)
+      const qtyStr = String(item.quantity ?? 1)
+      page.drawText(qtyStr, {
         x: COORDS.table.cols.qtyAuth.x, y, size: sz, font, color: black,
       })
-
-      // QUANTITY column A (on-hand)
-      page.drawText('1', {
+      page.drawText(qtyStr, {
         x: COORDS.table.cols.qtyA.x, y, size: sz, font, color: black,
       })
     })

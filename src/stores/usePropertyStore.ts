@@ -97,7 +97,7 @@ interface PropertyState {
   /** Sign 1..N items out on a single DA 2062 hand receipt. `toHolderId` set =
    *  internal cluster member; null + `externalName` = outside-cluster recipient.
    *  Resolves to the new hand_receipt_id (for immediate printing) or null. */
-  signOut: (params: { itemIds: string[]; toHolderId: string | null; externalName: string | null; notes: string | null }) => Promise<string | null>
+  signOut: (params: { itemIds: string[]; quantities?: Record<string, number>; toHolderId: string | null; externalName: string | null; notes: string | null }) => Promise<string | null>
   /** Sign a hand receipt back in — clears each item's custodian. */
   signIn: (handReceiptId: string, fromHolderId: string | null, itemIds: string[]) => Promise<boolean>
   /** Clinic-wide custody ledger (newest first) for the accountability surface. */
@@ -503,6 +503,9 @@ export const usePropertyStore = create<PropertyState>((set, get) => ({
     await get().editItem(itemId, { quantity: newQty }, { skipAudit: true })
 
     await recordExpendedEntry(itemId, quantityDelta, clinicId, user.id)
+    // Refresh subscribers (the item timeline watches the 'properties' generation
+    // so the "Expended ×N" event shows immediately).
+    invalidate('properties')
   },
 
   signOut: async (params) => {

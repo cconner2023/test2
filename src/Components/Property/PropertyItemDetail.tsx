@@ -1,14 +1,17 @@
-import { useState, useMemo, forwardRef, useImperativeHandle, type RefObject } from 'react'
-import { ScanLine, ArrowRightLeft, GitMerge, Plus, Minus, Check, MessageSquare, Pencil, Trash2, Wrench } from 'lucide-react'
+import { useState, useMemo, useEffect, forwardRef, useImperativeHandle, type RefObject } from 'react'
+import { ScanLine, ArrowRightLeft, GitMerge, Plus, Minus, Check, MessageSquare, Pencil, Trash2, Wrench, PackageMinus } from 'lucide-react'
 import { SectionCard } from '../Section'
 import { type ContextMenuItem } from '../ContextMenu'
 import { LiftedRowMenu } from '../LiftedRowMenu'
 import { Sheet } from '../Sheet'
 import { PreviewOverlay } from '../PreviewOverlay'
+import { TextInput } from '../FormInputs'
+import { PillButton } from '../HeaderPill'
 import { useIsMobile } from '../../Hooks/useIsMobile'
 import type { LocalPropertyItem, LocalPropertyLocation, HolderInfo } from '../../Types/PropertyTypes'
 import { expiryStatus } from '../../Types/PropertyTypes'
 import { usePropertyStore } from '../../stores/usePropertyStore'
+import { fetchItemLedger } from '../../lib/propertyService'
 import { useShareToChat } from '../Messages/ShareToChatPicker'
 import { ItemTimeline } from '../Timeline/ItemTimeline'
 import { PmcsSheet } from './PmcsSheet'
@@ -29,12 +32,9 @@ interface PropertyItemDetailProps {
   onEdit?: () => void
   onDelete?: () => void
   canDelete?: boolean
-  /** Desktop only — the right-pane element the split/merge PreviewOverlay scopes
-   *  to (dims/centers within the pane instead of a viewport-wide bottom drawer).
-   *  Omitted on mobile, where split/merge render as bottom Sheets. */
-  containerRef?: RefObject<HTMLElement | null>
-  /** The whole property drawer element the PMCS overlay scopes to (so it dims/
-   *  centers over the entire drawer, not just the right pane). Null on mobile. */
+  /** The whole property drawer element the desktop overlays (PMCS, split/merge)
+   *  scope to — so they dim/center over the entire drawer, not just the right
+   *  pane. Null on mobile, where those surfaces render as bottom Sheets. */
   drawerRef?: RefObject<HTMLElement | null>
 }
 
@@ -54,15 +54,18 @@ const EXPIRY_LABELS = {
 } as const
 
 export const PropertyItemDetail = forwardRef<PropertyItemDetailHandle, PropertyItemDetailProps>(
-  function PropertyItemDetail({ item, locations, holders, items, onEnroll, onEdit, onDelete, canDelete, containerRef, drawerRef }, ref) {
+  function PropertyItemDetail({ item, locations, holders, items, onEnroll, onEdit, onDelete, canDelete, drawerRef }, ref) {
   const isMobile = useIsMobile()
   const splitItem = usePropertyStore(s => s.splitItem)
   const mergeItems = usePropertyStore(s => s.mergeItems)
+  const expendItem = usePropertyStore(s => s.expendItem)
 
   const [showSplitSheet, setShowSplitSheet] = useState(false)
   const [showMergeSheet, setShowMergeSheet] = useState(false)
+  const [showExpendSheet, setShowExpendSheet] = useState(false)
   const [showPmcs, setShowPmcs] = useState(false)
   const [splitQty, setSplitQty] = useState(1)
+  const [expendQty, setExpendQty] = useState(1)
   const [splitTargetId, setSplitTargetId] = useState<string | null>(null)
   const [menuAnchor, setMenuAnchor] = useState<{ rect: DOMRect } | null>(null)
   useImperativeHandle(ref, () => ({
@@ -90,6 +93,46 @@ export const PropertyItemDetail = forwardRef<PropertyItemDetailHandle, PropertyI
     [items, item.id, item.name]
   )
 
+  // Outstanding custody for a non-serialized stack: who holds how many right now,
+  // folded from this item's open ledger receipts (Σ sign_down − Σ sign_up per
+  // recipient). A stack can be split across several holders, so this is the
+  // accountability view the single Holder row can't show. Re-runs when on-hand qty
+  // changes (a sign-out/sign-in mutates quantity → effect refetches).
+  const [outstanding, setOutstanding] = useState<{ key: string; label: string; qty: number }[]>([])
+  useEffect(() => {
+    if (item.is_serialized) { setOutstanding([]); return }
+    let cancelled = false
+    void (async () => {
+      const rows = await fetchItemLedger(item.id)
+      const byReceipt = new Map<string, typeof rows>()
+      for (const r of rows) {
+        if (!r.hand_receipt_id) continue
+        const arr = byReceipt.get(r.hand_receipt_id) ?? []
+        arr.push(r)
+        byReceipt.set(r.hand_receipt_id, arr)
+      }
+      const qtyOf = (r: (typeof rows)[number]) => Math.max(1, r.quantity_delta ?? 1)
+      const byHolder = new Map<string, { label: string; qty: number }>()
+      for (const group of byReceipt.values()) {
+        const down = group.filter((r) => r.action === 'sign_down')
+        if (down.length === 0) continue
+        const net =
+          down.reduce((s, r) => s + qtyOf(r), 0) -
+          group.filter((r) => r.action === 'sign_up').reduce((s, r) => s + qtyOf(r), 0)
+        if (net <= 0) continue
+        const head = down[0]
+        const extName = head.notes?.split(' — ')[0]?.trim() || 'External recipient'
+        const key = head.to_holder_id ?? `ext:${extName}`
+        const label = head.to_holder_id ? holders.get(head.to_holder_id)?.displayName ?? 'Member' : extName
+        const cur = byHolder.get(key) ?? { label, qty: 0 }
+        cur.qty += net
+        byHolder.set(key, cur)
+      }
+      if (!cancelled) setOutstanding([...byHolder.entries()].map(([key, v]) => ({ key, ...v })))
+    })()
+    return () => { cancelled = true }
+  }, [item.id, item.is_serialized, item.quantity, holders])
+
   const splitMergeTarget = useMemo(() =>
     splitTargetId
       ? items.find(i =>
@@ -112,6 +155,19 @@ export const PropertyItemDetail = forwardRef<PropertyItemDetailHandle, PropertyI
   const handleMerge = async (sourceId: string) => {
     setShowMergeSheet(false)
     await mergeItems(sourceId, item.id)
+  }
+
+  // Expend quantity is a free-typed number input bounded by on-hand (you can only
+  // consume what's present, not what's signed out). 0 = empty input → submit blocked.
+  const setExpendInput = (v: string) => {
+    const digits = v.replace(/[^0-9]/g, '')
+    setExpendQty(digits === '' ? 0 : Math.min(parseInt(digits, 10), item.quantity))
+  }
+  const canExpend = expendQty >= 1 && expendQty <= item.quantity
+  const handleExpend = async () => {
+    if (!canExpend) return
+    setShowExpendSheet(false)
+    await expendItem(item.id, expendQty)
   }
 
   const location = item.location_id ? locations.find(l => l.id === item.location_id) : null
@@ -172,17 +228,6 @@ export const PropertyItemDetail = forwardRef<PropertyItemDetailHandle, PropertyI
       Will merge into existing <span className="font-medium">{splitMergeTarget.name}</span> (×{splitMergeTarget.quantity}) at that location
     </p>
   ) : null
-
-  const confirmButton = (
-    <button
-      onClick={handleSplit}
-      disabled={!splitTargetId}
-      className="w-full flex items-center justify-center gap-2 rounded-2xl bg-themeblue3 text-white font-medium py-3 text-sm disabled:opacity-30 active:scale-[0.98] transition-all duration-200"
-    >
-      <ArrowRightLeft size={16} />
-      {splitQty >= item.quantity ? 'Move All' : `Move ${splitQty}`}
-    </button>
-  )
 
   const mergeIntro = (
     <p className="text-[10pt] text-secondary">
@@ -259,6 +304,24 @@ export const PropertyItemDetail = forwardRef<PropertyItemDetailHandle, PropertyI
         </div>
       </SectionCard>
 
+      {/* Signed out — who holds how many right now (non-serialized stacks split
+          across holders; the single Holder row above only covers serialized items). */}
+      {outstanding.length > 0 && (
+        <SectionCard>
+          <div className={isMobile ? 'px-4 py-2' : 'px-3 py-2'}>
+            <span className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Signed out</span>
+            <div className="mt-1">
+              {outstanding.map(o => (
+                <div key={o.key} className="flex justify-between items-baseline gap-4 py-2 border-b border-primary/5 last:border-b-0">
+                  <span className={`text-primary truncate ${isMobile ? 'text-sm' : 'text-[10pt]'}`}>{o.label}</span>
+                  <span className="text-[10pt] font-medium text-secondary shrink-0 tabular-nums">×{o.qty}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </SectionCard>
+      )}
+
       {/* Notes */}
       {item.notes && (
         <SectionCard>
@@ -321,6 +384,9 @@ export const PropertyItemDetail = forwardRef<PropertyItemDetailHandle, PropertyI
             ...(!item.is_serialized && mergeCandidates.length > 0
               ? [{ key: 'merge', label: 'Merge like items', icon: GitMerge, onAction: () => setShowMergeSheet(true) } as ContextMenuItem]
               : []),
+            ...(!item.is_serialized && item.quantity > 0
+              ? [{ key: 'expend', label: 'Expend', icon: PackageMinus, onAction: () => { setExpendQty(1); setShowExpendSheet(true) } } as ContextMenuItem]
+              : []),
             { key: 'pmcs', label: 'PMCS', icon: Wrench, onAction: () => setShowPmcs(true) },
             { key: 'share', label: 'Share to chat', icon: MessageSquare, onAction: handleShareToChat },
             { key: 'enroll', label: item.visual_fingerprint ? 'Update Visual ID' : 'Enroll Visual ID', icon: ScanLine, onAction: onEnroll },
@@ -340,6 +406,16 @@ export const PropertyItemDetail = forwardRef<PropertyItemDetailHandle, PropertyI
             height="fit"
             maxHeight={75}
             zIndex={1450}
+            actions={
+              <PillButton
+                icon={ArrowRightLeft}
+                iconSize={18}
+                accent="info"
+                disabled={!splitTargetId}
+                onClick={handleSplit}
+                label={splitQty >= item.quantity ? 'Move all' : `Move ${splitQty}`}
+              />
+            }
           >
             <div className="px-5 pt-3 pb-5 flex flex-col gap-4">
               {item.quantity > 1 && (
@@ -353,7 +429,6 @@ export const PropertyItemDetail = forwardRef<PropertyItemDetailHandle, PropertyI
                 <SectionCard>{destinationRows}</SectionCard>
               </div>
               {mergeHint}
-              {confirmButton}
             </div>
           </Sheet>
 
@@ -370,6 +445,7 @@ export const PropertyItemDetail = forwardRef<PropertyItemDetailHandle, PropertyI
               <SectionCard>{mergeRows}</SectionCard>
             </div>
           </Sheet>
+
         </>
       ) : (
         <>
@@ -377,7 +453,7 @@ export const PropertyItemDetail = forwardRef<PropertyItemDetailHandle, PropertyI
             isOpen={showSplitSheet}
             onClose={() => setShowSplitSheet(false)}
             anchorRect={null}
-            containerRef={containerRef}
+            containerRef={drawerRef}
             title={splitTitle}
             maxWidth={340}
             previewMaxHeight="34dvh"
@@ -388,7 +464,18 @@ export const PropertyItemDetail = forwardRef<PropertyItemDetailHandle, PropertyI
               </div>
             ) : undefined}
             supplemental={mergeHint ? <div className="px-1">{mergeHint}</div> : undefined}
-            footer={<div className="flex-1">{confirmButton}</div>}
+            rightFooter={
+              <div className="bg-themewhite rounded-2xl px-1.5 py-1.5">
+                <PillButton
+                  icon={ArrowRightLeft}
+                  iconSize={16}
+                  accent="info"
+                  disabled={!splitTargetId}
+                  onClick={handleSplit}
+                  label={splitQty >= item.quantity ? 'Move all' : `Move ${splitQty}`}
+                />
+              </div>
+            }
           >
             <div className="px-1.5 pb-1.5">{destinationRows}</div>
           </PreviewOverlay>
@@ -397,7 +484,7 @@ export const PropertyItemDetail = forwardRef<PropertyItemDetailHandle, PropertyI
             isOpen={showMergeSheet}
             onClose={() => setShowMergeSheet(false)}
             anchorRect={null}
-            containerRef={containerRef}
+            containerRef={drawerRef}
             title="Merge Like Items"
             maxWidth={340}
             previewMaxHeight="34dvh"
@@ -405,8 +492,51 @@ export const PropertyItemDetail = forwardRef<PropertyItemDetailHandle, PropertyI
           >
             <div className="px-1.5 pb-1.5">{mergeRows}</div>
           </PreviewOverlay>
+
         </>
       )}
+
+      {/* Expend — primitive PreviewOverlay (scoped to the drawer on desktop, centered
+          on mobile when drawerRef is null). Header title + close; a Check in the
+          header submits; the body is a numeric input bounded by on-hand. */}
+      <PreviewOverlay
+        isOpen={showExpendSheet}
+        onClose={() => setShowExpendSheet(false)}
+        anchorRect={null}
+        containerRef={drawerRef}
+        title="Expend"
+        maxWidth={320}
+        headerActions={
+          <button
+            type="button"
+            onClick={handleExpend}
+            disabled={!canExpend}
+            aria-label="Expend"
+            className={`w-8 h-8 rounded-full flex items-center justify-center active:scale-95 transition-all ${
+              canExpend ? 'bg-themegreen/15' : 'bg-tertiary/8'
+            }`}
+          >
+            <Check size={16} className={canExpend ? 'text-themegreen' : 'text-tertiary'} />
+          </button>
+        }
+      >
+        <div className="px-4 py-4">
+          <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase mb-2">Quantity to expend</p>
+          <div className="rounded-xl border border-primary/8 overflow-hidden">
+            <TextInput
+              value={expendQty ? String(expendQty) : ''}
+              onChange={setExpendInput}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleExpend() }}
+              type="text"
+              inputMode="numeric"
+              placeholder="0"
+            />
+          </div>
+          <p className="mt-2 text-[10pt] text-tertiary">
+            of {item.quantity} on hand · logs to this item’s history.
+          </p>
+        </div>
+      </PreviewOverlay>
 
       {/* PMCS — preview-overlay launched from the ellipsis menu (open faults to
           correct / clean-check / report + editable, deletable history). */}

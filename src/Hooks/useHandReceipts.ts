@@ -24,10 +24,11 @@ export interface HandReceiptData {
 }
 
 /**
- * Clinic-wide DA 2062 accountability data for the Settings surface. Folds the
- * custody ledger into hand receipts (newest first) and supplies the lookup maps
- * the panel needs to show each receipt's items + their usual location, and to
- * reprint the 2062. Refetches on `properties` invalidation (after sign-out/in).
+ * Clinic-wide DA 2062 accountability data for the property Custody surface
+ * (CustodyPanel) and the unified property search. Folds the custody ledger into
+ * hand receipts (newest first) and supplies the lookup maps needed to show each
+ * receipt's items + their usual location, and to reprint the 2062. Refetches on
+ * `properties` invalidation (after sign-out/in).
  */
 export function useHandReceipts(clinicId?: string | null): HandReceiptData {
   const propertiesGen = useInvalidation('properties')
@@ -104,7 +105,11 @@ export function useHandReceipts(clinicId?: string | null): HandReceiptData {
         setMembersById(members)
         setItemsById(items)
         setLocationNameById(locations)
-        setReceipts(groupHandReceipts(ledger as CustodyLedgerEntry[], members))
+        // `items` keys = the live (non-tombstoned) item set from the IDB
+        // projection; pass it so receipts for deleted items drop out of view.
+        setReceipts(
+          groupHandReceipts(ledger as CustodyLedgerEntry[], members, new Set(items.keys())),
+        )
       })
       .finally(() => {
         if (!cancelled) setLoading(false)

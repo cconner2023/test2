@@ -93,6 +93,17 @@ export function expiryStatus(expiry_date: string | null): 'expired' | 'expiring'
   return null
 }
 
+export type ItemAlert = 'expired' | 'expiring' | 'depleted'
+
+/** Unified "needs attention" state for an item row/tag — drives the RED treatment in
+ *  the property tree and on the map. Depleted (0 on hand) OR expired OR expiring within
+ *  30 days. null = healthy. Depletion takes precedence (no stock is the louder signal).
+ *  All three render red — only the trailing label (qty / date) differs. */
+export function itemAlert(item: { expiry_date: string | null; quantity: number }): ItemAlert | null {
+  if (item.quantity <= 0) return 'depleted'
+  return expiryStatus(item.expiry_date)
+}
+
 export interface PropertyLocation {
   id: string
   clinic_id: string

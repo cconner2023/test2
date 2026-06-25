@@ -29,6 +29,12 @@ export interface AdminUsersListProps {
   onEditUser: (user: AdminUser) => void
   onCreateUser: () => void
   filterUserId?: string | null
+  /** Scope filter — restrict to users whose clinic_id is in this set. Null/undefined
+   *  = no scoping (all users). Empty array = no users match. Used by the Directory
+   *  center pane, which scopes to the cluster ids under the selected tree node. */
+  filterClinicIds?: string[] | null
+  /** Scope to users with no cluster (clinic_id null) — the "Unassigned" tree node. */
+  unassignedOnly?: boolean
   searchQuery?: string
   /** When true, renders items without wrapper chrome (for unified search results) */
   bare?: boolean
@@ -97,6 +103,8 @@ export function AdminUsersList({
   onEditUser,
   onCreateUser,
   filterUserId,
+  filterClinicIds,
+  unassignedOnly,
   searchQuery: searchQueryProp,
   bare,
   embedded,
@@ -161,6 +169,16 @@ export function AdminUsersList({
       result = result.filter((u) => u.id === filterUserId)
     }
 
+    // Scope filters (Directory center pane). unassignedOnly wins — it's a
+    // distinct tree node. Otherwise filterClinicIds (when provided) restricts to
+    // members of the scoped clusters; an empty set legitimately matches nobody.
+    if (unassignedOnly) {
+      result = result.filter((u) => !u.clinic_id)
+    } else if (filterClinicIds) {
+      const ids = new Set(filterClinicIds)
+      result = result.filter((u) => u.clinic_id != null && ids.has(u.clinic_id))
+    }
+
     if (!searchQuery) return result
 
     const q = searchQuery.toLowerCase()
@@ -173,7 +191,7 @@ export function AdminUsersList({
         u.clinic_name?.toLowerCase().includes(q) ||
         u.surrogate_clinic_name?.toLowerCase().includes(q),
     )
-  }, [users, searchQuery, filterUserId])
+  }, [users, searchQuery, filterUserId, filterClinicIds, unassignedOnly])
 
   /** Users grouped by clinic (cluster). Used when no search/filter is active. */
   const groupedUsers = useMemo(() => {
@@ -494,7 +512,7 @@ export function AdminUsersList({
   if (embedded) {
     // Collapse to nothing when a search yields no matches, so the Directory
     // doesn't stack three "No results" cards for a single-section hit.
-    if (filteredUsers.length === 0 && searchQuery) return null
+    if (filteredUsers.length === 0 && (searchQuery || filterClinicIds || unassignedOnly)) return null
     return (
       <section className="space-y-2">
         {title && (

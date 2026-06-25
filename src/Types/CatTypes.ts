@@ -66,7 +66,7 @@ export interface differential {
 
 // Types/CatTypes.ts - Update SearchResultType
 export type SearchResultType = {
-    type: 'category' | 'CC' | 'training' | 'DDX' | 'medication' | 'screener' | 'calculator' | 'chat-contact' | 'chat-group' | 'chat-message' | 'calendar-event' | 'map-overlay' | 'map-feature';
+    type: 'category' | 'CC' | 'training' | 'DDX' | 'medication' | 'screener' | 'calculator' | 'chat-contact' | 'chat-group' | 'chat-message' | 'calendar-event' | 'map-overlay' | 'map-feature' | 'property-item' | 'property-zone' | 'da2062';
     id: number | string;
     icon: string;
     text: string;
@@ -96,6 +96,11 @@ export type SearchResultType = {
         overlayName?: string;
         featureId?: string;
         featureSubtitle?: string;
+        // Property routing (items / zones / DA 2062 hand receipts)
+        itemId?: string;
+        zoneId?: string;
+        handReceiptId?: string;
+        propertySubtitle?: string;
     };
 }
 

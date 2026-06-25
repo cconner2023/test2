@@ -2016,7 +2016,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
           {/* Desktop left pane — search/layers row + overlay tree, mirrors CalendarDrawer rail */}
           {!isMobile && (
             <div className={`shrink-0 border-r border-primary/10 bg-themewhite3 flex flex-col transition-[width,opacity] duration-300 overflow-hidden ${
-              (selectedFeature || tempPoint || tempRoute) ? 'w-0 opacity-0 border-r-0' : 'w-60 opacity-100'
+              (selectedFeature || tempPoint || tempRoute || geoPdfFormOpen) ? 'w-0 opacity-0 border-r-0' : 'w-60 opacity-100'
             }`}>
               <div className="shrink-0 flex items-center gap-1.5 px-3 pt-2 pb-1">
                 <div data-tour="map-feature-search" className="flex-1 min-w-0">
@@ -2181,11 +2181,23 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                 showGrid={showGrid}
                 onToggleGrid={() => setShowGrid(prev => !prev)}
               />
-              <GeoPdfImportForm
-                isOpen={geoPdfFormOpen}
-                onClose={() => setGeoPdfFormOpen(false)}
-                onSubmit={handleGeoPdfSubmit}
-              />
+              {/* Geo-PDF import — mobile detail sheet (desktop hosts it in the
+                  right pane above). Mirrors the feature-editor Sheet mechanic. */}
+              {isMobile && (
+                <Sheet
+                  isOpen={geoPdfFormOpen}
+                  onClose={() => setGeoPdfFormOpen(false)}
+                  title="Import geo-PDF"
+                  height="fit"
+                  maxHeight={85}
+                  backdrop="block"
+                  zIndex={1200}
+                >
+                  <div className="px-4 py-3 pb-8">
+                    <GeoPdfImportForm onClose={() => setGeoPdfFormOpen(false)} onSubmit={handleGeoPdfSubmit} />
+                  </div>
+                </Sheet>
+              )}
 
               {/* ── Mobile: overlay tree drawer. Replaces the desktop left rail —
                   layers button in the header opens it; selecting an overlay/feature
@@ -2708,8 +2720,8 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
           {/* Desktop right pane — animated slide/collapse, mirrors CalendarPanel.
               Map column is flex-1 so it reflows as this pane opens/closes. */}
           {!isMobile && (
-            <div className={`shrink-0 border-l border-primary/10 flex flex-col bg-themewhite3 transition-[width,opacity] duration-300 overflow-hidden ${
-              (selectedFeature || tempPoint || tempRoute) ? 'w-[320px] opacity-100' : 'w-0 opacity-0 border-l-0'
+            <div className={`shrink-0 border-l border-primary/10 flex flex-col bg-themewhite3 transition-[width,opacity] duration-300 overflow-hidden relative ${
+              (selectedFeature || tempPoint || tempRoute || geoPdfFormOpen) ? 'w-[320px] opacity-100' : 'w-0 opacity-0 border-l-0'
             }`}>
               {!selectedFeature && tempPoint && (
                 <div className="relative flex flex-col flex-1 min-h-0">
@@ -2813,6 +2825,24 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                       floors={floorLevels}
                       onChangeFloor={handleChangeFeatureFloor}
                     />
+                  </div>
+                </div>
+              )}
+              {/* Geo-PDF import — sole occupant of the right pane (left rail
+                  collapses, pane opens). Absolute overlay so it covers the
+                  feature/temp branches without entangling their conditions. */}
+              {geoPdfFormOpen && (
+                <div className="absolute inset-0 z-10 flex flex-col bg-themewhite3">
+                  <div className="shrink-0 flex items-center gap-1 px-3 py-2 border-b border-tertiary/10">
+                    <div className="text-[10pt] font-semibold text-primary truncate flex-1 min-w-0">Import geo-PDF</div>
+                    <HeaderPill>
+                      <PillButton icon={X} iconSize={18} onClick={() => setGeoPdfFormOpen(false)} label="Close" />
+                    </HeaderPill>
+                  </div>
+                  <div className="flex-1 min-h-0 overflow-y-auto">
+                    <div className="px-4 py-4 pb-8">
+                      <GeoPdfImportForm onClose={() => setGeoPdfFormOpen(false)} onSubmit={handleGeoPdfSubmit} />
+                    </div>
                   </div>
                 </div>
               )}
