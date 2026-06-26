@@ -27,8 +27,32 @@ const logger = createLogger('SignalInit')
 
 export interface SignalInitResult {
   deviceId: string
-  role: DeviceRole
+  /**
+   * null = registration did not confirm a role (network/RPC failure). The role
+   * is UNKNOWN, not provisional — callers must not downgrade on null. See the
+   * fallback logic in initSignalBundle.
+   */
+  role: DeviceRole | null
   hasPrimary: boolean
+}
+
+const DEVICE_ROLE_KEY = 'adtmc_device_role'
+
+/** Cache the last server-confirmed role so a flaky re-init can't fabricate a downgrade. */
+function persistDeviceRole(role: DeviceRole): void {
+  try { localStorage.setItem(DEVICE_ROLE_KEY, role) } catch { /* ignore */ }
+}
+
+function loadPersistedDeviceRole(): DeviceRole | null {
+  try {
+    const v = localStorage.getItem(DEVICE_ROLE_KEY)
+    return v === 'primary' || v === 'linked' || v === 'provisional' ? v : null
+  } catch { return null }
+}
+
+/** Clear the cached role on sign-out so a different user on this browser can't inherit it. */
+export function clearPersistedDeviceRole(): void {
+  try { localStorage.removeItem(DEVICE_ROLE_KEY) } catch { /* ignore */ }
 }
 
 /** Check whether a signed pre-key has exceeded its rotation period. */
@@ -112,8 +136,22 @@ export async function initSignalBundle(userId: string): Promise<SignalInitResult
     })(),
   ])
 
-  const role: DeviceRole = regOutcome.ok && regOutcome.data.role ? regOutcome.data.role : 'provisional'
-  const hasPrimary = regOutcome.ok ? (regOutcome.data.hasPrimary ?? false) : false
+  // Registration CONFIRMED a role → trust it (including a genuine 'provisional').
+  // Registration FAILED (network/RPC error on flaky service) → role is UNKNOWN.
+  // Falling back to 'provisional' here is what makes the "No Primary Device" modal
+  // false-fire when a real primary device has bad cell service. Instead preserve
+  // the last server-confirmed role; return null only if we've never confirmed one.
+  let role: DeviceRole | null
+  let hasPrimary: boolean
+  if (regOutcome.ok && regOutcome.data.role) {
+    role = regOutcome.data.role
+    hasPrimary = regOutcome.data.hasPrimary ?? false
+    persistDeviceRole(role)
+  } else {
+    role = loadPersistedDeviceRole()
+    hasPrimary = role === 'primary'
+    logger.warn(`Device registration unconfirmed — preserving last-known role=${role ?? 'unknown'} (no provisional downgrade)`)
+  }
 
   // 3. Fire-and-forget stale device cleanup on every login
   cleanupStaleDevices(30).catch(() => {})

@@ -12,6 +12,10 @@ export interface ContextMenuItem {
   /** Custom glyph (e.g. a themed reaction SVG). Wins over `icon` when set. */
   node?: ReactNode
   onAction?: () => void
+  /** When set, the item renders as a real `<a href>` (reliable mailto/tel launch —
+   *  see src/lib/mailto.ts). `onAction` is unnecessary; the menu still auto-closes
+   *  on select via native navigation. Ignored when the item is disabled. */
+  href?: string
   destructive?: boolean
   disabled?: boolean
   /** Explicit ActionButton variant — wins over destructive/disabled. Use for 'success' etc. */
@@ -50,6 +54,7 @@ export function MenuItemButton({ item, onSelect }: { item: ContextMenuItem; onSe
       label={item.label}
       variant={contextMenuItemVariant(item)}
       iconSize={14}
+      href={item.href}
       onClick={() => onSelect(item)}
     />
   )

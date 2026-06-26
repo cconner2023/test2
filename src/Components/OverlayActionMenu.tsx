@@ -63,6 +63,7 @@ export const OverlayActionMenu = forwardRef<HTMLDivElement, OverlayActionMenuPro
                 icon={item.icon!}
                 label={item.label}
                 variant={contextMenuItemVariant(item)}
+                href={item.href}
                 onClick={() => item.onAction?.()}
               />
             ),

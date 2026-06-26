@@ -1,9 +1,9 @@
 import { useState, useEffect, useMemo, useCallback, useRef, type ReactNode } from 'react'
-import { ChevronRight, ChevronDown, AlertTriangle, User, Building2, MapPin, Layers, Eye, Pencil, Trash2, Mail, MessageSquare } from 'lucide-react'
-import { listClinics, listAllUsers, listLocations, getAllAccountRequests, deleteClinic, deleteUser } from '../../lib/adminService'
+import { ChevronRight, ChevronDown, AlertTriangle, User, Building2, MapPin, Eye, Pencil, Trash2, Mail, MessageSquare } from 'lucide-react'
+import { listClinics, listAllUsers, listLocations, deleteClinic, deleteUser } from '../../lib/adminService'
 import type { AdminUser, AdminClinic, AdminLocation } from '../../lib/adminService'
-import { buildScopeIndex, clinicIdsUnderClinic, clinicIdsUnderLocation } from './adminScope'
-import { openMailto } from '../../lib/mailto'
+import { buildScopeIndex } from './adminScope'
+import { buildMailtoHref } from '../../lib/mailto'
 import { useInvalidation, invalidate } from '../../stores/useInvalidationStore'
 import { AdminSummarySkeleton } from './AdminSkeletons'
 import { EmptyState } from '../EmptyState'
@@ -11,16 +11,6 @@ import { LiftedRowMenu } from '../LiftedRowMenu'
 import { type ContextMenuItem } from '../ContextMenu'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { UI_TIMING } from '../../Utilities/constants'
-
-/** A selected Directory scope — drives the center pane's roster. `clinicIds` is
- *  the recursive set of cluster ids under the node (null = no filter / "all";
- *  unassigned uses the kind, not the ids). */
-export interface AdminScope {
-  kind: 'all' | 'location' | 'cluster' | 'unassigned'
-  id: string | null
-  label: string
-  clinicIds: string[] | null
-}
 
 interface AdminSummaryProps {
   onSelectClinic: (clinic: AdminClinic) => void
@@ -32,32 +22,29 @@ interface AdminSummaryProps {
   /** Open an in-app system conversation with a user. Passed only for dev role;
    *  when absent the tree context menu omits the Chat action. */
   onChatUser?: (user: AdminUser) => void
+  /** Empty-state fallback action. */
   onSelectAll: () => void
-  /** Stats-block shortcut (Pending Requests → requests tab). */
-  onSwitchTab?: (tab: 'requests') => void
-  /** 'navigate' (mobile main view): tap a node → open its detail; renders user
-   *  leaves + an expandable Unassigned block. 'scope' (desktop left pane): tap a
-   *  node → set the center-pane scope via onSelectScope; structure only, no leaves. */
-  mode?: 'scope' | 'navigate'
-  onSelectScope?: (scope: AdminScope) => void
-  activeScope?: AdminScope | null
   /** Controlled search (shared with the drawer's SearchInput). Filters the tree
    *  by location / cluster name and member name/email; matches force-expand. */
   searchQuery?: string
-  /** Show the totals block (Users/Clusters/Pending/Unassigned) above the tree. */
-  showStats?: boolean
   activeClinicId?: string | null
   activeUserId?: string | null
   activeLocationId?: string | null
-  allSelected?: boolean
 }
 
 // Unified tree node — locations contain sub-locations + clusters; clusters
-// contain sub-clusters + (navigate mode) user leaves.
+// contain sub-clusters + user leaves.
 type TreeNode =
   | { kind: 'location'; id: string; label: string; location: AdminLocation; children: TreeNode[]; count: number }
   | { kind: 'clinic'; id: string; label: string; clinic: AdminClinic; children: TreeNode[]; users: AdminUser[]; count: number }
 
+/**
+ * The Directory tree — the admin drawer's MAIN content list. A unified
+ * location ⊃ cluster ⊃ user containment forest with selectable user leaves.
+ * Tapping a node opens its detail; long-press/right-click opens View/Edit/
+ * (Delete) actions. Stats + system conversations live in the sort rail
+ * (AdminSortRail), not here — this is purely the browsable tree.
+ */
 export function AdminSummary({
   onSelectClinic,
   onSelectUser,
@@ -67,26 +54,17 @@ export function AdminSummary({
   onEditLocation,
   onChatUser,
   onSelectAll,
-  onSwitchTab,
-  mode = 'navigate',
-  onSelectScope,
-  activeScope,
   searchQuery,
-  showStats,
   activeClinicId,
   activeUserId,
   activeLocationId,
-  allSelected,
 }: AdminSummaryProps) {
-  const gen = useInvalidation('users', 'clinics', 'requests', 'locations')
+  const gen = useInvalidation('users', 'clinics', 'locations')
   const [clinics, setClinics] = useState<AdminClinic[]>([])
   const [users, setUsers] = useState<AdminUser[]>([])
   const [locations, setLocations] = useState<AdminLocation[]>([])
-  const [pendingCount, setPendingCount] = useState(0)
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
-
-  const scoping = mode === 'scope'
 
   // Lifted-clone context menu (right-click / long-press) + delete flow.
   const [contextMenu, setContextMenu] = useState<{ kind: 'clinic' | 'user' | 'location'; id: string; rect: DOMRect; clone: ReactNode } | null>(null)
@@ -165,16 +143,14 @@ export function AdminSummary({
 
   const loadData = useCallback(async () => {
     setLoading(true)
-    const [clinicData, userData, locationData, requests] = await Promise.all([
+    const [clinicData, userData, locationData] = await Promise.all([
       listClinics(),
       listAllUsers(),
       listLocations(),
-      getAllAccountRequests('pending'),
     ])
     setClinics(clinicData)
     setUsers(userData)
     setLocations(locationData)
-    setPendingCount(requests.length)
     setLoading(false)
   }, [])
 
@@ -200,7 +176,7 @@ export function AdminSummary({
     return map
   }, [users])
 
-  /** clinic_id → its assigned users (sorted), for the navigate-mode user leaves. */
+  /** clinic_id → its assigned users (sorted), for the user leaves. */
   const usersByClinicList = useMemo(() => {
     const map = new Map<string, AdminUser[]>()
     for (const user of users) {
@@ -227,7 +203,6 @@ export function AdminSummary({
     }),
     [users],
   )
-  const unassignedCount = unassignedUsers.length
   const [showUnassigned, setShowUnassigned] = useState(false)
 
   const q = (searchQuery ?? '').trim().toLowerCase()
@@ -299,14 +274,6 @@ export function AdminSummary({
     })
   }, [q, unassignedUsers])
 
-  // ── Scope helpers (scope mode) ──────────────────────────────────────────
-  const scopeLocation = useCallback((loc: AdminLocation) => {
-    onSelectScope?.({ kind: 'location', id: loc.id, label: loc.display_name, clinicIds: clinicIdsUnderLocation(index, loc.id) })
-  }, [onSelectScope, index])
-  const scopeClinic = useCallback((clinic: AdminClinic) => {
-    onSelectScope?.({ kind: 'cluster', id: clinic.id, label: clinic.name, clinicIds: clinicIdsUnderClinic(index, clinic.id) })
-  }, [onSelectScope, index])
-
   // ── Row renderers ───────────────────────────────────────────────────────
   function renderUserLeaf(user: AdminUser, depth: number) {
     const name = [user.first_name, user.last_name].filter(Boolean).join(' ') || user.email
@@ -330,27 +297,20 @@ export function AdminSummary({
   }
 
   function renderNode(node: TreeNode, depth: number) {
-    // A node expands if it has descendant nodes, or (navigate clinics) has user
-    // leaves to reveal. Search force-expands so matches are visible.
-    const hasUsers = !scoping && node.kind === 'clinic' && node.users.length > 0
+    // A node expands if it has descendant nodes, or (clinics) has user leaves to
+    // reveal. Search force-expands so matches are visible.
+    const hasUsers = node.kind === 'clinic' && node.users.length > 0
     const expandable = node.children.length > 0 || hasUsers
     const isCollapsed = !searching && expandable && collapsed.has(node.id)
-    const isActive = scoping
-      ? activeScope?.kind === node.kind && activeScope.id === node.id
-      : node.kind === 'clinic'
-        ? activeClinicId === node.id
-        : activeLocationId === node.id
+    const isActive = node.kind === 'clinic'
+      ? activeClinicId === node.id
+      : activeLocationId === node.id
     const Icon = node.kind === 'location' ? MapPin : Building2
 
     const selectNode = () => {
       if (preventTap.current) { preventTap.current = false; return }
-      if (scoping) {
-        if (node.kind === 'location') scopeLocation(node.location)
-        else scopeClinic(node.clinic)
-      } else {
-        if (node.kind === 'location') onSelectLocation?.(node.location)
-        else onSelectClinic(node.clinic)
-      }
+      if (node.kind === 'location') onSelectLocation?.(node.location)
+      else onSelectClinic(node.clinic)
     }
     const openMenu = (el: HTMLElement) => {
       if (node.kind === 'location') openLocationMenu(node.location, el)
@@ -387,7 +347,7 @@ export function AdminSummary({
           <div
             role="button"
             tabIndex={0}
-            aria-label={`${scoping ? 'Scope to' : 'Select'} ${node.label}`}
+            aria-label={`Select ${node.label}`}
             className="flex items-center flex-1 min-w-0"
             onClick={selectNode}
             onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectNode() } }}
@@ -421,95 +381,31 @@ export function AdminSummary({
     )
   }
 
-  const allActive = scoping ? activeScope?.kind === 'all' : allSelected
-  const unassignedActive = scoping && activeScope?.kind === 'unassigned'
-
   return (
     <div className="flex flex-col h-full">
-      {showStats && (
-        <>
-          <div className="px-4 py-3 space-y-1.5">
-            <div className="flex items-center gap-2 w-full text-left">
-              <span className="text-[10pt] text-primary flex-1">Users</span>
-              <span className="text-[10pt] font-semibold text-primary tabular-nums">{users.length}</span>
-            </div>
-            <div className="flex items-center gap-2 w-full text-left">
-              <span className="text-[10pt] text-primary flex-1">Clusters</span>
-              <span className="text-[10pt] font-semibold text-primary tabular-nums">{clinics.length}</span>
-            </div>
-            {pendingCount > 0 && onSwitchTab && (
-              <button
-                onClick={() => onSwitchTab('requests')}
-                className="flex items-center gap-2 w-full text-left active:scale-[0.98] transition-all"
-              >
-                <span className="text-[10pt] text-themeyellow flex-1">Pending Requests</span>
-                <span className="text-[10pt] font-semibold text-themeyellow tabular-nums">{pendingCount}</span>
-              </button>
-            )}
-          </div>
-          <div className="border-b border-primary/10 mx-4" />
-          <div className="px-4 py-2.5">
-            <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">Directory</p>
-          </div>
-        </>
-      )}
-
-      {/* Tree */}
-      <div className="flex-1 overflow-y-auto">
-        {scoping && !searching && (
-          <button
-            onClick={() => onSelectScope?.({ kind: 'all', id: null, label: 'All', clinicIds: null })}
-            aria-label="Show everything"
-            className={`flex items-center gap-2 w-full py-2 px-4 text-left cursor-pointer transition-all active:scale-[0.98] ${
-              allActive ? 'bg-themeblue3/8 border-l-2 border-l-themeblue3' : 'hover:bg-secondary/5'
-            }`}
-          >
-            <span className="w-[18px] shrink-0" />
-            <Layers size={14} className="text-tertiary shrink-0" />
-            <span className="text-[10pt] font-medium text-primary flex-1">All</span>
-            <span className="text-[9pt] font-normal text-tertiary tabular-nums">{users.length}</span>
-          </button>
-        )}
-
+      {/* Tree — pb clears the bottom island that floats over the center pane. */}
+      <div className="flex-1 overflow-y-auto pb-24">
         {displayRoots.map(node => renderNode(node, 0))}
 
-        {/* Unassigned users. Scope mode: a scope row. Navigate mode: an
-            expandable inline block of selectable user leaves. */}
-        {scoping ? (
-          unassignedCount > 0 && !searching && (
+        {/* Unassigned users — an expandable inline block of selectable leaves. */}
+        {displayUnassigned.length > 0 && (
+          <div>
             <button
-              onClick={() => onSelectScope?.({ kind: 'unassigned', id: null, label: 'Unassigned', clinicIds: null })}
-              aria-label="Scope to unassigned users"
-              className={`flex items-center gap-2 w-full py-2 px-4 text-left cursor-pointer transition-all active:scale-[0.98] ${
-                unassignedActive ? 'bg-themeblue3/8 border-l-2 border-l-themeblue3' : 'hover:bg-secondary/5'
-              }`}
+              onClick={() => setShowUnassigned(!showUnassigned)}
+              aria-expanded={searching || showUnassigned}
+              aria-label={`${showUnassigned ? 'Collapse' : 'Expand'} unassigned users`}
+              className="flex items-center gap-2 w-full py-2 pr-4 text-left cursor-pointer transition-all active:scale-[0.98] hover:bg-secondary/5"
+              style={{ paddingLeft: '16px' }}
             >
-              <span className="w-[18px] shrink-0" />
+              <span className="p-0.5 text-tertiary shrink-0">
+                {(searching || showUnassigned) ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+              </span>
               <AlertTriangle size={14} className="text-themeredred shrink-0" />
               <span className="text-[10pt] font-medium text-themeredred flex-1">Unassigned</span>
-              <span className="text-[9pt] font-normal text-tertiary tabular-nums">{unassignedCount}</span>
+              <span className="text-[9pt] font-normal text-tertiary tabular-nums shrink-0">{displayUnassigned.length}</span>
             </button>
-          )
-        ) : (
-          displayUnassigned.length > 0 && (
-            <div>
-              <button
-                onClick={() => setShowUnassigned(!showUnassigned)}
-                aria-expanded={searching || showUnassigned}
-                aria-label={`${showUnassigned ? 'Collapse' : 'Expand'} unassigned users`}
-                className="flex items-center gap-2 w-full py-2 pr-4 text-left cursor-pointer transition-all active:scale-[0.98] hover:bg-secondary/5"
-                style={{ paddingLeft: '16px' }}
-              >
-                <span className="p-0.5 text-tertiary shrink-0">
-                  {(searching || showUnassigned) ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                </span>
-                <AlertTriangle size={14} className="text-themeredred shrink-0" />
-                <span className="text-[10pt] font-medium text-themeredred flex-1">Unassigned</span>
-                <span className="text-[9pt] font-normal text-tertiary tabular-nums shrink-0">{displayUnassigned.length}</span>
-              </button>
-              {(searching || showUnassigned) && displayUnassigned.map(u => renderUserLeaf(u, 1))}
-            </div>
-          )
+            {(searching || showUnassigned) && displayUnassigned.map(u => renderUserLeaf(u, 1))}
+          </div>
         )}
 
         {searching && displayRoots.length === 0 && displayUnassigned.length === 0 && (
@@ -547,7 +443,7 @@ export function AdminSummary({
             }] : []),
             ...(user.email ? [{
               key: 'email', label: 'Email', icon: Mail,
-              onAction: () => openMailto({ to: user.email!, subject: '[inquiry] -  Medical Operations Web Application', body: `${[user.rank, user.last_name].filter(Boolean).join(' ')},\n\n` }),
+              href: buildMailtoHref({ to: user.email!, subject: '[inquiry] -  Medical Operations Web Application', body: `${[user.rank, user.last_name].filter(Boolean).join(' ')},\n\n` }),
             }] : []),
             { key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => setConfirmDelete({ kind: 'user', id: user.id, label }) },
           ]

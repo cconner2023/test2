@@ -30,6 +30,7 @@ import { isValidEmail } from '../../lib/adminService';
 import { PickerInput, PasswordInput } from '../FormInputs';
 import { ErrorDisplay } from '../ErrorDisplay';
 import { supabase } from '../../lib/supabase';
+import { reEncryptVaultKeys } from '../../lib/signal/vaultDevice';
 
 interface ProfilePageProps {
     onAvatarClick: () => void;
@@ -281,14 +282,24 @@ export const ProfilePage = ({
         }
 
         const { error: updateError } = await supabase.auth.updateUser({ password: newPw })
-        setPwSubmitting(false)
         if (updateError) {
+            setPwSubmitting(false)
             setPwError(updateError.message)
-        } else {
-            setPwSuccess(true)
-            setCurrentPw(''); setNewPw(''); setConfirmPw('')
+            return
         }
-    }, [pwValid, userEmail, currentPw, newPw])
+
+        // Preserve the personal vault across the password change. We still hold the
+        // OLD password here, so re-wrap the blob under the new password — otherwise
+        // the next login derives a key that can't decrypt the old blob and trips the
+        // destructive wipe. Best-effort: a failure here only falls back to that wipe.
+        if (user?.id) {
+            await reEncryptVaultKeys(user.id, currentPw, newPw).catch(() => {})
+        }
+
+        setPwSubmitting(false)
+        setPwSuccess(true)
+        setCurrentPw(''); setNewPw(''); setConfirmPw('')
+    }, [pwValid, userEmail, currentPw, newPw, user?.id])
 
     // Certifications popovers (inline card)
     const [certForm, setCertForm] = useState<CertFormData>(emptyCertForm)

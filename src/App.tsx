@@ -17,6 +17,7 @@ import { useMenuSlide, MENU_NAV_WIDTH_MOBILE, MENU_NAV_WIDTH_DESKTOP } from './H
 import { useMessagesSlide } from './Hooks/useMessagesSlide'
 import UpdateNotification from './Components/UpdateNotification'
 import VaultUnlockBanner from './Components/VaultUnlockBanner'
+import PasswordResetOverlay from './Components/PasswordResetOverlay'
 import InstallPrompt from './Components/InstallPrompt'
 import { ColumnA } from './Components/ColumnA'
 import { TC3DesktopLayout } from './Components/TC3/TC3DesktopLayout'
@@ -856,6 +857,7 @@ case 'mapOverlay':
         <UpdateNotification onVisibilityChange={setUpdateVisible} />
         {!updateVisible && <InstallPrompt onVisibilityChange={setInstallVisible} />}
         <VaultUnlockBanner />
+        <PasswordResetOverlay />
       </div>
       <CallOverlay />
       <OncallCallModal />

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, type ReactNode } from 'react'
-import { Trash2, Eye, Mail, Reply, MessageCircle } from 'lucide-react'
+import { Trash2, Eye, Mail, MessageCircle } from 'lucide-react'
 import { EmptyState } from '../EmptyState'
 import { SectionCard } from '../Section'
 import { LiftedRowMenu } from '../LiftedRowMenu'
@@ -9,13 +9,9 @@ import { AdminListSkeleton } from './AdminSkeletons'
 import { RequestCard } from './RequestCard'
 import { SuggestionCard } from './SuggestionCard'
 import { FeedbackCard } from './FeedbackCard'
-import { SystemConversationCard } from './SystemConversationCard'
 import { SystemMessageComposePopover } from './SystemMessageComposePopover'
 import { useMinLoadTime } from '../../Hooks/useMinLoadTime'
-import { useAdminSystemConversations, isSystemMessage, type AdminSystemConversation } from '../../Hooks/useAdminSystemConversations'
 import { useMessagesContext } from '../../Hooks/MessagesContext'
-import { useMessagingStore } from '../../stores/useMessagingStore'
-import { getDisplayName } from '../../Utilities/nameUtils'
 import {
   getAllAccountRequests,
   deleteAccountRequest,
@@ -30,7 +26,7 @@ import {
   type FeatureVoteSuggestion,
 } from '../../lib/featureVotingService'
 import { getFeedbackList, deleteFeedback, type FeedbackRow } from '../../lib/feedbackService'
-import { openMailto } from '../../lib/mailto'
+import { buildMailtoHref } from '../../lib/mailto'
 import { invalidate, useInvalidation } from '../../stores/useInvalidationStore'
 import { UI_TIMING } from '../../Utilities/constants'
 
@@ -48,13 +44,9 @@ interface AdminRequestsListProps {
     request: AccountRequest,
     configured: { roles: string[]; clinicId: string | null; warnings: string[] },
   ) => void
-  /** Open the system-conversation view for the given peer. Dev-only; required
-   * when system reply cards are rendered. AdminDrawer wires this to its
-   * admin-system-conversation view. */
-  onSelectSystemPeer?: (peerId: string) => void
 }
 
-export function AdminRequestsList({ searchQuery: searchQueryProp, bare, embedded, title, onApproved, onSelectSystemPeer }: AdminRequestsListProps) {
+export function AdminRequestsList({ searchQuery: searchQueryProp, bare, embedded, title, onApproved }: AdminRequestsListProps) {
   const searchQuery = searchQueryProp ?? ''
 
   const gen = useInvalidation('requests')
@@ -88,11 +80,7 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, embedded
   const [chatTarget, setChatTarget] = useState<{ feedback: FeedbackRow; anchorRect: DOMRect | null } | null>(null)
   const [contextMenu, setContextMenu] = useState<{ requestId: string; rect: DOMRect; clone: ReactNode } | null>(null)
   const [feedbackContextMenu, setFeedbackContextMenu] = useState<{ feedbackId: string; rect: DOMRect; clone: ReactNode } | null>(null)
-  const [systemContextMenu, setSystemContextMenu] = useState<{ peerId: string; rect: DOMRect; clone: ReactNode } | null>(null)
-  const [confirmDeleteSystemPeerId, setConfirmDeleteSystemPeerId] = useState<string | null>(null)
 
-  // System reply threads — derived from useMessagingStore via predicate.
-  const systemConversations = useAdminSystemConversations()
   const messagesCtx = useMessagesContext()
 
   // ── Data loading ────────────────────────────────────────
@@ -175,25 +163,10 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, embedded
     )
   }, [feedback, searchQuery])
 
-  const filteredSystem = useMemo(() => {
-    // System cards only render when AdminDrawer wires up the open-conversation
-    // callback. Skipping the surface entirely when undefined keeps non-dev
-    // contexts (e.g. unified search slot) clean.
-    if (!onSelectSystemPeer) return [] as AdminSystemConversation[]
-    if (!searchQuery.trim()) return systemConversations
-    const q = searchQuery.toLowerCase()
-    return systemConversations.filter((c) => {
-      const name = c.peerProfile ? getDisplayName(c.peerProfile).toLowerCase() : ''
-      const body = (c.lastMessage.plaintext ?? '').toLowerCase()
-      return name.includes(q) || body.includes(q)
-    })
-  }, [systemConversations, searchQuery, onSelectSystemPeer])
-
   type FeedItem =
     | { key: string; kind: 'request'; data: AccountRequest; date: string; pendingRank: 0 | 1 }
     | { key: string; kind: 'suggestion'; data: FeatureVoteSuggestion; date: string; pendingRank: 0 | 1 }
     | { key: string; kind: 'feedback'; data: FeedbackRow; date: string; pendingRank: 0 | 1 }
-    | { key: string; kind: 'system'; data: AdminSystemConversation; date: string; pendingRank: 0 | 1 }
 
   const feedItems: FeedItem[] = useMemo(() => {
     const req: FeedItem[] = filteredRequests.map((r) => ({
@@ -217,20 +190,11 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, embedded
       date: f.created_at,
       pendingRank: 0,
     }))
-    // System reply threads rank as pending when there are unread messages —
-    // matches the "needs attention" feel of pending account requests.
-    const sys: FeedItem[] = filteredSystem.map((c) => ({
-      key: `sys-${c.peerId}`,
-      kind: 'system',
-      data: c,
-      date: c.lastAt,
-      pendingRank: c.unreadCount > 0 ? 0 : 1,
-    }))
-    return [...req, ...sug, ...fb, ...sys].sort((a, b) => {
+    return [...req, ...sug, ...fb].sort((a, b) => {
       if (a.pendingRank !== b.pendingRank) return a.pendingRank - b.pendingRank
       return new Date(b.date).getTime() - new Date(a.date).getTime()
     })
-  }, [filteredRequests, filteredSuggestions, filteredFeedback, filteredSystem])
+  }, [filteredRequests, filteredSuggestions, filteredFeedback])
 
   // ── Delete handler ──────────────────────────────────────
   const handleDeleteRequest = useCallback(async (requestId: string) => {
@@ -274,37 +238,17 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, embedded
     setDeleteProcessing(false)
   }, [loadRequests, expandedSuggestionId])
 
-  /**
-   * Delete every system message in the peer's conversation. Personal messages
-   * (if any) keyed under the same peer stay. Uses useMessages.deleteMessages
-   * which already handles the user-direction fanout via wire-framed delete
-   * envelopes (drainSystemInbox.delete branch hard-deletes originals).
-   */
-  const handleDeleteSystemConversation = useCallback(async (peerId: string) => {
-    if (!messagesCtx) return
-    setDeleteProcessing(true)
-    const msgs = useMessagingStore.getState().conversations[peerId] ?? []
-    const systemIds = msgs.filter(isSystemMessage).map(m => m.id)
-    if (systemIds.length > 0) {
-      await messagesCtx.deleteMessages(peerId, systemIds)
-    }
-    setConfirmDeleteSystemPeerId(null)
-    setDeleteProcessing(false)
-  }, [messagesCtx])
-
   // ── Context menu items for a single request ─────────────
   const buildContextItems = (ctxRequest: AccountRequest | undefined, requestId: string) => {
     if (!ctxRequest) return []
+    const emailName = ctxRequest.request_type === 'support'
+      ? [ctxRequest.first_name, ctxRequest.last_name].filter(Boolean).join(' ')
+      : [ctxRequest.rank, ctxRequest.last_name].filter(Boolean).join(' ')
     const emailItem = ctxRequest.email ? [{
       key: 'email',
       label: 'Email',
       icon: Mail,
-      onAction: () => {
-        const name = ctxRequest.request_type === 'support'
-          ? [ctxRequest.first_name, ctxRequest.last_name].filter(Boolean).join(' ')
-          : [ctxRequest.rank, ctxRequest.last_name].filter(Boolean).join(' ')
-        openMailto({ to: ctxRequest.email, subject: '[inquiry] -  Medical Operations Web Application', body: `${name},\n\n` })
-      },
+      href: buildMailtoHref({ to: ctxRequest.email, subject: '[inquiry] -  Medical Operations Web Application', body: `${emailName},\n\n` }),
     }] : []
     const deleteLabel = ctxRequest.request_type === 'support' ? 'Dismiss' : 'Delete'
     return [
@@ -359,20 +303,10 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, embedded
     />
   )
 
-  const renderSystemCard = (c: AdminSystemConversation) => (
-    <SystemConversationCard
-      key={`sys-${c.peerId}`}
-      conversation={c}
-      onSelect={(peerId) => onSelectSystemPeer?.(peerId)}
-      setContextMenu={setSystemContextMenu}
-    />
-  )
-
   const renderFeedItem = (item: FeedItem) => {
     if (item.kind === 'request') return renderCard(item.data)
     if (item.kind === 'suggestion') return renderSuggestionCard(item.data)
-    if (item.kind === 'feedback') return renderFeedbackCard(item.data)
-    return renderSystemCard(item.data)
+    return renderFeedbackCard(item.data)
   }
 
   const renderContextMenu = () => {
@@ -391,25 +325,6 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, embedded
     )
   }
 
-  const renderSystemContextMenu = () => {
-    if (!systemContextMenu) return null
-    const peerId = systemContextMenu.peerId
-    const items = [
-      { key: 'reply', label: 'Reply', icon: Reply, onAction: () => onSelectSystemPeer?.(peerId) },
-      { key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => setConfirmDeleteSystemPeerId(peerId) },
-    ]
-    return (
-      <LiftedRowMenu
-        isOpen
-        layout="list"
-        anchorRect={systemContextMenu.rect}
-        onClose={() => setSystemContextMenu(null)}
-        items={items}
-        row={systemContextMenu.clone}
-      />
-    )
-  }
-
   const renderFeedbackContextMenu = () => {
     if (!feedbackContextMenu) return null
     const ctxFeedback = feedback.find(f => f.id === feedbackContextMenu.feedbackId)
@@ -419,10 +334,7 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, embedded
       key: 'email',
       label: 'Email',
       icon: Mail,
-      onAction: () => {
-        const name = ctxFeedback.display_name || ''
-        openMailto({ to: ctxEmail, subject: '[feedback] -  Medical Operations Web Application', body: `${name},\n\nThanks for the feedback.\n\n` })
-      },
+      href: buildMailtoHref({ to: ctxEmail, subject: '[feedback] -  Medical Operations Web Application', body: `${ctxFeedback.display_name || ''},\n\nThanks for the feedback.\n\n` }),
     }] : []
     const chatItem = (messagesCtx && ctxFeedback.user_id) ? [{
       key: 'chat',
@@ -511,20 +423,6 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, embedded
     />
   ) : null
 
-  const systemConfirmDialog = (
-    <ConfirmDialog
-      visible={!!confirmDeleteSystemPeerId}
-      title="Delete this system thread?"
-      subtitle="Removes the thread from both sides. Permanent."
-      confirmLabel="Delete"
-      variant="danger"
-      processing={deleteProcessing}
-      zIndex={confirmZ}
-      onConfirm={() => { if (confirmDeleteSystemPeerId) handleDeleteSystemConversation(confirmDeleteSystemPeerId) }}
-      onCancel={() => setConfirmDeleteSystemPeerId(null)}
-    />
-  )
-
   // ── Embedded mode: labelled section inside the unified search results ──
   if (embedded) {
     // Collapse to nothing when a search yields no matches, so the results view
@@ -549,7 +447,6 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, embedded
         )}
         {renderContextMenu()}
         {renderFeedbackContextMenu()}
-        {renderSystemContextMenu()}
         <ConfirmDialog
           visible={!!confirmDeleteId}
           title="Delete this request?"
@@ -563,7 +460,6 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, embedded
         />
         {suggestionConfirmDialog}
         {feedbackConfirmDialog}
-        {systemConfirmDialog}
         {chatComposePopover}
         {notifyDialog}
       </section>
@@ -578,7 +474,6 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, embedded
         {feedItems.map(renderFeedItem)}
         {renderContextMenu()}
         {renderFeedbackContextMenu()}
-        {renderSystemContextMenu()}
         <ConfirmDialog
           visible={!!confirmDeleteId}
           title="Delete this request?"
@@ -592,7 +487,6 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, embedded
         />
         {suggestionConfirmDialog}
         {feedbackConfirmDialog}
-        {systemConfirmDialog}
         {chatComposePopover}
         {notifyDialog}
       </>
@@ -615,7 +509,6 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, embedded
 
       {renderContextMenu()}
       {renderFeedbackContextMenu()}
-      {renderSystemContextMenu()}
 
       <ConfirmDialog
         visible={!!confirmDeleteId}
@@ -631,7 +524,6 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, embedded
 
       {suggestionConfirmDialog}
       {feedbackConfirmDialog}
-      {systemConfirmDialog}
       {chatComposePopover}
       {notifyDialog}
     </div>

@@ -4,7 +4,7 @@ import { PreviewOverlay } from '../PreviewOverlay'
 import { ActionPill } from '../ActionPill'
 import { ActionButton } from '../ActionButton'
 import type { FeedbackRow } from '../../lib/feedbackService'
-import { openMailto } from '../../lib/mailto'
+import { buildMailtoHref } from '../../lib/mailto'
 
 export interface FeedbackCardProps {
   feedback: FeedbackRow
@@ -131,10 +131,7 @@ export function FeedbackCard({
               <ActionButton
                 icon={Mail}
                 label="Email"
-                onClick={() => {
-                  const name = feedback.display_name || ''
-                  openMailto({ to: email, subject: '[feedback] -  Medical Operations Web Application', body: `${name},\n\nThanks for the feedback.\n\n` })
-                }}
+                href={buildMailtoHref({ to: email, subject: '[feedback] -  Medical Operations Web Application', body: `${feedback.display_name || ''},\n\nThanks for the feedback.\n\n` })}
               />
             )}
             {onChat && (

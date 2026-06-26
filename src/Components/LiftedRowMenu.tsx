@@ -54,15 +54,11 @@ function MenuListRow({ item, onSelect }: { item: ContextMenuItem; onSelect: (ite
   const variant = contextMenuItemVariant(item)
   const isDisabled = variant === 'disabled'
   const Icon = item.icon
-  return (
-    <button
-      disabled={item.disabled}
-      onClick={() => onSelect(item)}
-      aria-label={item.label}
-      className={`w-full flex items-center gap-3 py-2.5 px-4 text-left transition-colors ${
-        item.selected ? 'bg-themeblue3/8' : ''
-      } ${isDisabled ? 'cursor-default' : 'active:bg-black/[0.06]'}`}
-    >
+  const rowCx = `w-full flex items-center gap-3 py-2.5 px-4 text-left transition-colors ${
+    item.selected ? 'bg-themeblue3/8' : ''
+  } ${isDisabled ? 'cursor-default' : 'active:bg-black/[0.06]'}`
+  const inner = (
+    <>
       {item.node ? (
         <span className="shrink-0 flex items-center justify-center w-4 h-4">{item.node}</span>
       ) : (
@@ -71,6 +67,25 @@ function MenuListRow({ item, onSelect }: { item: ContextMenuItem; onSelect: (ite
       <span className={`text-[10pt] truncate flex-1 ${item.selected ? 'font-semibold' : 'font-medium'} ${isDisabled ? 'text-tertiary' : 'text-primary'}`}>
         {item.label}
       </span>
+    </>
+  )
+  // A real <a href> is the only form that reliably launches mailto:/tel: in the
+  // installed shell — onSelect still closes the menu. See src/lib/mailto.ts.
+  if (item.href && !isDisabled) {
+    return (
+      <a href={item.href} onClick={() => onSelect(item)} aria-label={item.label} className={rowCx}>
+        {inner}
+      </a>
+    )
+  }
+  return (
+    <button
+      disabled={item.disabled}
+      onClick={() => onSelect(item)}
+      aria-label={item.label}
+      className={rowCx}
+    >
+      {inner}
     </button>
   )
 }

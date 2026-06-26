@@ -50,7 +50,7 @@ import {
 import type { AdminUser, AdminClinic } from '../../lib/adminService'
 import { ClinicPickerInput } from './AdminPickers'
 import { fetchAllCertifications } from '../../lib/certificationService'
-import { openMailto } from '../../lib/mailto'
+import { buildMailtoHref } from '../../lib/mailto'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { UI_TIMING } from '../../Utilities/constants'
 import { invalidate } from '../../stores/useInvalidationStore'
@@ -735,9 +735,7 @@ export function AdminUserDetail({
                   key: 'email',
                   label: 'Email user',
                   icon: Mail,
-                  onAction: () => {
-                    openMailto({ to: user.email!, subject: '[inquiry] -  Medical Operations Web Application', body: `${[user.rank, user.last_name].filter(Boolean).join(' ')},\n\n` })
-                  },
+                  href: buildMailtoHref({ to: user.email!, subject: '[inquiry] -  Medical Operations Web Application', body: `${[user.rank, user.last_name].filter(Boolean).join(' ')},\n\n` }),
                 }] as ContextMenuItem[] : []),
                 ...(isDevRole && messagesCtx && onOpenConversation ? [{
                   key: 'send-msg',

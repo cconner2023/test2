@@ -25,13 +25,11 @@ const systemInboxLogger = createLogger('AdminSystemInbox')
 
 // Admin sub-components
 import { AdminRequestsList } from './Admin/AdminRequestsList'
-import { AdminUsersList } from './Admin/AdminUsersList'
 import { AdminUserDetail } from './Admin/AdminUserDetail'
-import { AdminClinicsList } from './Admin/AdminClinicsList'
 import { AdminClinicDetail, type ClusterCreatePrefill } from './Admin/AdminClinicDetail'
-import { AdminLocationsList } from './Admin/AdminLocationsList'
 import { AdminLocationDetail } from './Admin/AdminLocationDetail'
-import { AdminSummary, type AdminScope } from './Admin/AdminSummary'
+import { AdminSummary } from './Admin/AdminSummary'
+import { AdminSortRail } from './Admin/AdminSortRail'
 import { AdminFeatureVotesSection } from './Admin/AdminFeatureVotesSection'
 import { AdminSystemConversationView } from './Admin/AdminSystemConversationView'
 import { useMessagingStore } from '../stores/useMessagingStore'
@@ -46,13 +44,13 @@ export type AdminView =
     | 'admin-location-detail'
     | 'admin-system-conversation'
 
-// Island: requests · directory · votes. The Directory tab is the unified org
-// browser — one location ⊃ cluster ⊃ user containment tree (AdminSummary). On
-// desktop it's a three-pane: tree (scopes) → scoped roster → detail. On mobile
-// it's the tree alone (tap to open). The old user/cluster/location type split
-// (a filter island + a separate Locations tab) is gone. 'feature-votes' keeps
-// its slug (Settings deep-links to it) but reads as "Votes". Whole drawer is
-// dev-gated, so every tab is always visible.
+// Island: requests · directory · votes. The Directory tab IS the main content
+// list — one location ⊃ cluster ⊃ user containment tree (AdminSummary), tap a
+// node to open its detail. On desktop the left pane is the sort/summary rail
+// (AdminSortRail: counts + system conversations), NOT a second tree; the right
+// pane is detail. On mobile the tree is full-screen and the rail lives in a nav
+// sheet. 'feature-votes' keeps its slug (Settings deep-links to it) but reads as
+// "Votes". Whole drawer is dev-gated, so every tab is always visible.
 const ALL_TABS = ['requests', 'directory', 'feature-votes'] as const
 type AdminTab = typeof ALL_TABS[number]
 
@@ -67,8 +65,6 @@ const TAB_LABELS: Record<AdminTab, string> = {
     directory: 'Directory',
     'feature-votes': 'Votes',
 }
-
-const DEFAULT_SCOPE: AdminScope = { kind: 'all', id: null, label: 'All', clinicIds: null }
 
 interface AdminDrawerProps {
     isVisible: boolean
@@ -121,11 +117,6 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
     // Mobile nav sheet — the slide-out mirror of the desktop left pane (search +
     // counts + directory tree). Summoned from any tab via the header rail button.
     const [showNavSheet, setShowNavSheet] = useState(false)
-
-    // Directory scope — the tree node selected in the desktop left pane drives
-    // the center roster. Default 'all'. Mobile navigates the tree directly and
-    // ignores scope.
-    const [scope, setScope] = useState<AdminScope>(DEFAULT_SCOPE)
 
     // Discard pending changes confirmation. The pending action is held in a
     // ref so any nav path (back, tab switch, drawer close, summary jump) can
@@ -400,7 +391,6 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         setUserCreatePrefillClinicId(null)
         setSlideDirection('')
         setSearchQuery('')
-        setScope(DEFAULT_SCOPE)
         setShowNavSheet(false)
         clearTrail()
         clinicEdit.reset()
@@ -457,27 +447,6 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         })
     }, [view, guardNav, clearTrail])
 
-    // Desktop left-pane tree → set the center-pane scope. Scoping closes any open
-    // detail (back to the scoped list), guarded for pending edits.
-    const handleSelectScope = useCallback((next: AdminScope) => {
-        guardNav(() => {
-            setScope(next)
-            // The left pane is persistent across tabs — scoping always lands in
-            // the Directory roster, so a scope click from any tab is meaningful.
-            setActiveTab('directory')
-            if (view !== 'admin') {
-                setView('admin')
-                setSelectedUser(null)
-                setSelectedClinic(null)
-                setSelectedLocation(null)
-                setSelectedSystemPeerId(null)
-                setClusterCreatePrefill(null)
-                setUserCreatePrefillClinicId(null)
-                clearTrail()
-            }
-        })
-    }, [view, guardNav, clearTrail])
-
     const handleTabChange = useCallback((tab: AdminTab) => {
         setActiveTab(tab)
         setSearchQuery('')
@@ -510,9 +479,9 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
     const isLocationCreateMode = view === 'admin-location-detail' && selectedLocation === null
     const isDetailView = view === 'admin-user-detail' || view === 'admin-clinic-detail' || view === 'admin-location-detail' || view === 'admin-system-conversation'
     const desktopDetailPaneOpen = !isMobile && isDetailView
-    // Left scope pane (search + counts + directory tree) is persistent across all
-    // tabs — it's the drawer's standing navigation/summary rail. It only yields
-    // when a detail pane slides in (to give the list + detail room).
+    // Left sort rail (search + counts + system conversations) is persistent
+    // across all tabs — the drawer's standing summary surface. It only yields
+    // when a detail pane slides in (to give the tree + detail room).
     const desktopTreeOpen = !isMobile && !desktopDetailPaneOpen
 
     const detailTitle = useMemo(() => {
@@ -640,9 +609,10 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
             case 'admin-location-detail':
                 return {
                     title: 'Admin Panel',
-                    // Directory tab already shows the tree inline; other tabs get
-                    // the rail button to summon the nav sheet.
-                    leftContent: activeTab !== 'directory' ? navRailButton : undefined,
+                    // Rail button summons the sort rail (counts + system
+                    // conversations) from every tab — the tree is the Directory
+                    // tab's main view, the rail is its companion sheet.
+                    leftContent: navRailButton,
                     rightContent: mainHeaderActions,
                     hideDefaultClose: !!mainHeaderActions,
                 }
@@ -879,7 +849,6 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                 <AdminRequestsList
                     searchQuery={searchQuery}
                     onApproved={handleRequestApproved}
-                    onSelectSystemPeer={isDevRole ? handleSelectSystemPeer : undefined}
                 />
             )}
             {activeTab === 'feature-votes' && isDevRole && (
@@ -888,77 +857,35 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         </>
     )
 
-    // Directory center pane (desktop) — the roster of whatever the left-pane tree
-    // has scoped: Clusters + Users sections, both recursive under the node. An
-    // active search overrides scope with cross-type results (clusters, users,
-    // locations); each embedded list collapses to null when it has no hits.
-    const scopeFilterIds = scope.kind === 'all' ? null : (scope.clinicIds ?? [])
-    const renderDirectoryCenter = () => {
-        if (searchQuery.trim()) {
-            return (
-                <div className="px-3 md:px-5 pt-4 pb-24 space-y-5">
-                    <AdminClinicsList embedded title="Clusters"
-                        onSelectClinic={handleSelectClinic} onEditClinic={handleEditClinic}
-                        onCreateClinic={handleCreateClinic} searchQuery={searchQuery} />
-                    <AdminUsersList embedded title="Users"
-                        onSelectUser={handleSelectUser} onEditUser={handleEditUser}
-                        onCreateUser={handleCreateUser} searchQuery={searchQuery} />
-                    <AdminLocationsList embedded title="Locations"
-                        onSelectLocation={handleSelectLocation} onEditLocation={handleEditLocation}
-                        onCreateLocation={handleCreateLocation} searchQuery={searchQuery} />
-                </div>
-            )
-        }
-        return (
-            <div className="px-3 md:px-5 pt-4 pb-24 space-y-5">
-                <div className="px-1">
-                    <h2 className="text-[12pt] font-semibold text-primary truncate">{scope.label}</h2>
-                </div>
-                {scope.kind === 'unassigned' ? (
-                    <AdminUsersList embedded title="Unassigned Users" unassignedOnly
-                        onSelectUser={handleSelectUser} onEditUser={handleEditUser}
-                        onCreateUser={handleCreateUser} />
-                ) : (
-                    <>
-                        <AdminClinicsList embedded title="Clusters"
-                            filterClinicIds={scopeFilterIds}
-                            onSelectClinic={handleSelectClinic} onEditClinic={handleEditClinic}
-                            onCreateClinic={handleCreateClinic} />
-                        <AdminUsersList embedded title="Users"
-                            filterClinicIds={scopeFilterIds}
-                            onSelectUser={handleSelectUser} onEditUser={handleEditUser}
-                            onCreateUser={handleCreateUser} />
-                    </>
-                )}
-            </div>
-        )
-    }
+    // The Directory tree — the main content list. Tapping a node opens its
+    // detail (desktop right pane / mobile Sheet); search filters it. Shared by
+    // the desktop center pane and the mobile full-screen view.
+    const renderDirectoryTree = () => (
+        <AdminSummary
+            searchQuery={searchQuery}
+            onSelectClinic={handleSelectClinic}
+            onSelectUser={handleSelectUser}
+            onEditClinic={handleEditClinic}
+            onEditUser={handleEditUser}
+            onSelectLocation={handleSelectLocation}
+            onEditLocation={handleEditLocation}
+            onChatUser={isDevRole ? (u) => handleSelectSystemPeer(u.id) : undefined}
+            onSelectAll={() => {}}
+            activeClinicId={selectedClinic?.id}
+            activeUserId={selectedUser?.id}
+            activeLocationId={selectedLocation?.id}
+        />
+    )
 
-    // Mobile Directory — the unified tree IS the main view (no scope/center on a
-    // phone). Tapping a node opens its detail Sheet; search filters the tree.
+    // Mobile Directory — the tree IS the main view (the sort rail lives in the
+    // nav sheet). A search bar rides the top; the tree fills the rest.
     const renderMobileDirectory = () => (
         <div className="h-full flex flex-col pt-[calc(var(--drawer-header-h,3.5rem)+0.5rem)]">
             <div className="px-3 pb-2 shrink-0">
                 <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Search directory..." />
             </div>
-            <div className="flex-1 min-h-0 pb-24">
-                <AdminSummary
-                    mode="navigate"
-                    showStats
-                    searchQuery={searchQuery}
-                    onSelectClinic={handleSelectClinic}
-                    onSelectUser={handleSelectUser}
-                    onEditClinic={handleEditClinic}
-                    onEditUser={handleEditUser}
-                    onSelectLocation={handleSelectLocation}
-                    onEditLocation={handleEditLocation}
-                    onChatUser={isDevRole ? (u) => handleSelectSystemPeer(u.id) : undefined}
-                    onSelectAll={() => {}}
-                    onSwitchTab={handleSummarySwitchTab}
-                    activeClinicId={selectedClinic?.id}
-                    activeUserId={selectedUser?.id}
-                    activeLocationId={selectedLocation?.id}
-                />
+            <div className="flex-1 min-h-0">
+                {renderDirectoryTree()}
             </div>
         </div>
     )
@@ -981,14 +908,19 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                 {!detailSheetOpen && bottomIsland}
             </div>
         ) : (
-            // Desktop center: active tab content only. Search + counts live in the
-            // persistent left pane (mirrored by the mobile nav sheet).
+            // Desktop center: the active tab's main content. Directory = the tree
+            // (manages its own scroll); queue tabs share a single scroller. The
+            // sort rail (counts + system conversations) lives in the left pane.
             <div className="relative h-full">
-                <div className="h-full flex flex-col">
-                    <div className="flex-1 min-h-0 overflow-y-auto">
-                        {activeTab === 'directory' ? renderDirectoryCenter() : renderQueueTab()}
+                {activeTab === 'directory' ? (
+                    <div className="h-full">
+                        {renderDirectoryTree()}
                     </div>
-                </div>
+                ) : (
+                    <div className="h-full overflow-y-auto">
+                        {renderQueueTab()}
+                    </div>
+                )}
                 {!detailSheetOpen && bottomIsland}
             </div>
         )
@@ -1017,8 +949,9 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                         mirrors the CalendarDrawer rightPanelOpen pattern. */}
                     {!isMobile ? (
                         <div className="flex h-full">
-                            {/* Left pane — the scope tree. Only on the Directory tab;
-                                collapses when a detail pane is open or on other tabs. */}
+                            {/* Left pane — the sort/summary rail (counts + system
+                                conversations) + search. Persistent across tabs;
+                                collapses when a detail pane slides in. */}
                             <div
                                 aria-hidden={!desktopTreeOpen}
                                 className={`shrink-0 overflow-hidden flex flex-col bg-themewhite3/50 transition-all duration-300 ease-out ${
@@ -1031,21 +964,11 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                                     <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Search..." />
                                 </div>
                                 <div className="flex-1 min-h-0">
-                                    <AdminSummary
-                                        mode="scope"
-                                        showStats
+                                    <AdminSortRail
                                         onSwitchTab={handleSummarySwitchTab}
+                                        onSelectSystemPeer={handleSelectSystemPeer}
                                         searchQuery={searchQuery}
-                                        onSelectScope={handleSelectScope}
-                                        activeScope={scope}
-                                        onSelectClinic={handleSelectClinic}
-                                        onSelectUser={handleSelectUser}
-                                        onEditClinic={handleEditClinic}
-                                        onEditUser={handleEditUser}
-                                        onSelectLocation={handleSelectLocation}
-                                        onEditLocation={handleEditLocation}
-                                        onChatUser={isDevRole ? (u) => handleSelectSystemPeer(u.id) : undefined}
-                                        onSelectAll={() => handleSelectScope(DEFAULT_SCOPE)}
+                                        activeSystemPeerId={selectedSystemPeerId}
                                     />
                                 </div>
                             </div>
@@ -1134,9 +1057,10 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         )}
 
         {/* Mobile nav sheet — the slide-out mirror of the desktop left pane:
-            search + counts (Users/Clusters/Pending) + the directory tree, reachable
-            from any tab via the header rail. Selecting a node closes the sheet and
-            opens that entity's detail (its own Sheet). */}
+            the sort rail (counts + system conversations), reachable from any tab
+            via the header rail. The directory tree itself is the Directory tab's
+            full-screen main view, so it isn't duplicated here. Selecting a thread
+            closes the sheet and opens it. */}
         {isMobile && (
             <Sheet
                 isOpen={showNavSheet}
@@ -1144,30 +1068,19 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                 height="fit"
                 maxHeight={82}
                 backdrop="dismiss"
-                title="Directory"
+                title="Summary"
                 zIndex={1200}
             >
                 <div className="flex flex-col" style={{ height: '72dvh' }}>
                     <div className="px-3 pt-1 pb-2 shrink-0">
-                        <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Search..." />
+                        <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Search conversations..." />
                     </div>
                     <div className="flex-1 min-h-0">
-                        <AdminSummary
-                            mode="navigate"
-                            showStats
-                            searchQuery={searchQuery}
-                            onSelectClinic={(c) => { setShowNavSheet(false); handleSelectClinic(c) }}
-                            onSelectUser={(u) => { setShowNavSheet(false); handleSelectUser(u) }}
-                            onEditClinic={(c) => { setShowNavSheet(false); handleEditClinic(c) }}
-                            onEditUser={(u) => { setShowNavSheet(false); handleEditUser(u) }}
-                            onSelectLocation={(l) => { setShowNavSheet(false); handleSelectLocation(l) }}
-                            onEditLocation={(l) => { setShowNavSheet(false); handleEditLocation(l) }}
-                            onChatUser={isDevRole ? (u) => { setShowNavSheet(false); handleSelectSystemPeer(u.id) } : undefined}
-                            onSelectAll={() => {}}
+                        <AdminSortRail
                             onSwitchTab={(tab) => { setShowNavSheet(false); handleSummarySwitchTab(tab) }}
-                            activeClinicId={selectedClinic?.id}
-                            activeUserId={selectedUser?.id}
-                            activeLocationId={selectedLocation?.id}
+                            onSelectSystemPeer={(peerId) => { setShowNavSheet(false); handleSelectSystemPeer(peerId) }}
+                            searchQuery={searchQuery}
+                            activeSystemPeerId={selectedSystemPeerId}
                         />
                     </div>
                 </div>

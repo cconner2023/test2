@@ -1546,13 +1546,79 @@ async function replenishVaultPreKeys(
  * Re-encrypt vault keys with a new password.
  * Must be called atomically with the Supabase auth password update.
  */
+/**
+ * Core re-wrap: given a vault row and the OLD wrapping key that can decrypt it,
+ * decrypt the blob and re-encrypt it under a fresh new-password-derived key with a
+ * new random salt. Updates the row, the in-memory cache, and the persisted IDB key.
+ * Shared by the password-based (reEncryptVaultKeys) and cached-key-based
+ * (reEncryptVaultKeysWithCachedKey) entry points so the crypto lives in one place.
+ *
+ * A decrypt failure here throws (OperationError) — callers decide how to handle it.
+ * This NEVER wipes; it either succeeds in preserving the blob or surfaces the error.
+ */
+async function rewrapVaultBlob(
+  userId: string,
+  row: { encrypted_blob: string; iv: string; version: number },
+  oldWrappingKey: CryptoKey,
+  newPassword: string
+): Promise<Result<void>> {
+  const blob = await decryptBlob(row.encrypted_blob, row.iv, oldWrappingKey)
+
+  // Derive new wrapping key with new salt
+  const newSalt = crypto.getRandomValues(new Uint8Array(32))
+  const newIv = crypto.getRandomValues(new Uint8Array(12))
+  const newWrappingKey = await deriveWrappingKey(newPassword, newSalt, VAULT_KDF_ITERATIONS)
+
+  // Re-encrypt
+  const ptBytes = new TextEncoder().encode(JSON.stringify(blob))
+  const ciphertext = await crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv: newIv },
+    newWrappingKey,
+    ptBytes
+  )
+
+  // Update row
+  const { error } = await supabase
+    .from('vault_device_keys')
+    .update({
+      encrypted_blob: uint8ToBase64(new Uint8Array(ciphertext)),
+      salt: bytesToHex(newSalt),
+      iv: uint8ToBase64(newIv),
+      kdf_iterations: VAULT_KDF_ITERATIONS,
+      version: row.version + 1,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('user_id', userId)
+
+  if (error) return err(error.message)
+
+  // Update cached key + persisted copy (new salt/iterations so any older
+  // persisted record on another device is detected as stale on load).
+  cachedVaultKey = newWrappingKey
+  void persistVaultKeyToIdb({
+    key: newWrappingKey,
+    userId,
+    salt: bytesToHex(newSalt),
+    iterations: VAULT_KDF_ITERATIONS,
+  }).catch(() => logger.warn('Failed to persist re-encrypted vault key to IDB'))
+
+  logger.info('Vault keys re-encrypted with new password')
+  return ok(undefined)
+}
+
+/**
+ * Re-encrypt the vault blob under a new password when the OLD password is known
+ * (self-service password change). Derives the old wrapping key from oldPassword +
+ * the current salt, so it always works. Call this on any password change where the
+ * user supplied their current password — otherwise the next login derives a key
+ * that can't decrypt the old blob and trips the destructive wipe path.
+ */
 export async function reEncryptVaultKeys(
   userId: string,
   oldPassword: string,
   newPassword: string
 ): Promise<Result<void>> {
   try {
-    // Fetch vault row
     const { data: row } = await supabase
       .from('vault_device_keys')
       .select('*')
@@ -1561,53 +1627,54 @@ export async function reEncryptVaultKeys(
 
     if (!row) return ok(undefined) // No vault to re-encrypt
 
-    // Derive old wrapping key and decrypt
-    const oldSalt = hexToBytes(row.salt)
-    const oldWrappingKey = await deriveWrappingKey(oldPassword, oldSalt, row.kdf_iterations)
-    const blob = await decryptBlob(row.encrypted_blob, row.iv, oldWrappingKey)
-
-    // Derive new wrapping key with new salt
-    const newSalt = crypto.getRandomValues(new Uint8Array(32))
-    const newIv = crypto.getRandomValues(new Uint8Array(12))
-    const newWrappingKey = await deriveWrappingKey(newPassword, newSalt, VAULT_KDF_ITERATIONS)
-
-    // Re-encrypt
-    const ptBytes = new TextEncoder().encode(JSON.stringify(blob))
-    const ciphertext = await crypto.subtle.encrypt(
-      { name: 'AES-GCM', iv: newIv },
-      newWrappingKey,
-      ptBytes
-    )
-
-    // Update row
-    const { error } = await supabase
-      .from('vault_device_keys')
-      .update({
-        encrypted_blob: uint8ToBase64(new Uint8Array(ciphertext)),
-        salt: bytesToHex(newSalt),
-        iv: uint8ToBase64(newIv),
-        kdf_iterations: VAULT_KDF_ITERATIONS,
-        version: row.version + 1,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('user_id', userId)
-
-    if (error) return err(error.message)
-
-    // Update cached key + persisted copy (new salt/iterations so any older
-    // persisted record on another device is detected as stale on load).
-    cachedVaultKey = newWrappingKey
-    void persistVaultKeyToIdb({
-      key: newWrappingKey,
-      userId,
-      salt: bytesToHex(newSalt),
-      iterations: VAULT_KDF_ITERATIONS,
-    }).catch(() => logger.warn('Failed to persist re-encrypted vault key to IDB'))
-
-    logger.info('Vault keys re-encrypted with new password')
-    return ok(undefined)
+    const oldWrappingKey = await deriveWrappingKey(oldPassword, hexToBytes(row.salt), row.kdf_iterations)
+    return await rewrapVaultBlob(userId, row, oldWrappingKey, newPassword)
   } catch (e) {
     logger.error('Failed to re-encrypt vault keys:', e)
     return err(e instanceof Error ? e.message : 'Unknown error')
+  }
+}
+
+/**
+ * Best-effort vault preservation for the forgot-password RECOVERY flow, where the
+ * OLD password is NOT available. The only way to decrypt the old blob is the old
+ * wrapping key still held locally — cached in memory (the recovery-login drain
+ * already restores it on the user's usual device) or persisted in IDB (salt-gated
+ * to the not-yet-reprovisioned vault row). If neither is available (a brand-new
+ * device), the blob is cryptographically unrecoverable and we return ok(false) —
+ * the caller leaves the existing wipe-on-next-login path to re-provision cleanly.
+ *
+ * Returns ok(true) if the vault was preserved (re-wrapped under the new password),
+ * ok(false) if there was nothing to preserve or the old key wasn't available.
+ * Never wipes — a wrong/stale key just fails decrypt and yields ok(false).
+ */
+export async function reEncryptVaultKeysWithCachedKey(
+  userId: string,
+  newPassword: string
+): Promise<Result<boolean>> {
+  try {
+    const { data: row } = await supabase
+      .from('vault_device_keys')
+      .select('*')
+      .eq('user_id', userId)
+      .maybeSingle()
+
+    if (!row) return ok(false) // No vault to preserve
+
+    // Try to make the old wrapping key available without the password. Salt-gated
+    // to the current (still-old) row, so it only loads a key that can decrypt it.
+    if (!cachedVaultKey) {
+      await restoreVaultKeyFromIdb(userId, row.salt, row.kdf_iterations)
+    }
+    if (!cachedVaultKey) return ok(false) // Old key not available locally — can't preserve.
+
+    const res = await rewrapVaultBlob(userId, row, cachedVaultKey, newPassword)
+    if (!res.ok) return err(res.error)
+    return ok(true)
+  } catch (e) {
+    // Decrypt failure (stale/wrong cached key) or transient error — do NOT wipe;
+    // report not-preserved and let the normal next-login path handle it.
+    logger.warn('Recovery vault preservation skipped:', e)
+    return ok(false)
   }
 }

@@ -9,6 +9,7 @@ import { OverlayActionMenu } from '../OverlayActionMenu'
 import { intakeAction } from '../../lib/eventIntakeService'
 import { deleteMessagesByOriginId as deleteMessagesByOriginIdFromDb } from '../../lib/signal/messageStore'
 import { formatSignature } from '../../Utilities/NoteFormatter'
+import { buildMailtoHref } from '../../lib/mailto'
 import { createLogger } from '../../Utilities/Logger'
 import type { DecryptedSignalMessage } from '../../lib/signal/transportTypes'
 import type { IntakeRequestContent } from '../../lib/signal/messageContent'
@@ -73,7 +74,9 @@ export function IntakeRequestCard({ message, content, isOwn, avatar, senderName,
     deleteMessagesByOriginIdFromDb(originIds, new Date().toISOString()).catch(() => {})
   }, [])
 
-  const onEmail = useCallback(() => {
+  // A real <a href> anchor (built here, applied on the menu item) is the only form
+  // that reliably launches the mail client in the installed shell. See src/lib/mailto.ts.
+  const emailHref = useMemo(() => {
     const subject = '[event request] -  Medical Operations Web Application'
     const summary =
       `From: ${content.requester_name}${content.requester_org ? ` — ${content.requester_org}` : ''}\n`
@@ -82,12 +85,7 @@ export function IntakeRequestCard({ message, content, isOwn, avatar, senderName,
       + `Title: ${content.title}`
     const signature = profile ? formatSignature(profile) : ''
     const body = `Team member,\n\n${summary}\n\n${signature}`
-    const url = `mailto:${encodeURIComponent(content.requester_email)}`
-      + `?subject=${encodeURIComponent(subject)}`
-      + `&body=${encodeURIComponent(body)}`
-    // mailto: is non-http — assign location directly (window.open is blocked as
-    // a popup, target="_blank" opens about:blank). See src/lib/mailto.ts.
-    window.location.href = url
+    return buildMailtoHref({ to: content.requester_email, subject, body })
   }, [content, profile])
 
   const onApprove = useCallback(async () => {
@@ -223,7 +221,7 @@ export function IntakeRequestCard({ message, content, isOwn, avatar, senderName,
           {actionable && (
             <OverlayActionMenu
               items={[
-                { key: 'email', label: 'Email requester', icon: Mail, onAction: onEmail, variant: busy ? 'disabled' : 'default' },
+                { key: 'email', label: 'Email requester', icon: Mail, href: busy ? undefined : emailHref, variant: busy ? 'disabled' : 'default' },
                 { key: 'approve', label: 'Approve and create event', icon: Check, onAction: onApprove, variant: busy ? 'disabled' : 'success' },
                 { key: 'decline', label: 'Decline and remove request', icon: X, onAction: () => setConfirmDecline(true), variant: busy ? 'disabled' : 'danger' },
               ]}

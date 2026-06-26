@@ -17,7 +17,7 @@ import {
   forceLogoutUser,
 } from '../../lib/adminService'
 import type { AdminUser } from '../../lib/adminService'
-import { openMailto } from '../../lib/mailto'
+import { buildMailtoHref } from '../../lib/mailto'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { useInvalidation, invalidate } from '../../stores/useInvalidationStore'
 import { UI_TIMING } from '../../Utilities/constants'
@@ -299,7 +299,7 @@ export function AdminUsersList({
           key: 'email',
           label: 'Email User',
           icon: Mail,
-          onAction: () => { openMailto({ to: user.email!, subject: '[inquiry] -  Medical Operations Web Application', body: `${[user.rank, user.last_name].filter(Boolean).join(' ')},\n\n` }) },
+          href: buildMailtoHref({ to: user.email!, subject: '[inquiry] -  Medical Operations Web Application', body: `${[user.rank, user.last_name].filter(Boolean).join(' ')},\n\n` }),
         }] : []),
         {
           key: 'changepw',

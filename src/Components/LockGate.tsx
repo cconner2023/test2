@@ -125,7 +125,7 @@ export function LockGate({ children }: { children: ReactNode }) {
     <>
       {!shouldLoad && sessionReady && children}
       {showPostLoginLoader && <PostLoginLoader ready={sessionReady} onDone={handlePostLoginDone} />}
-      {needsAcknowledgment && !shouldLoad && (
+      {needsAcknowledgment && !shouldLoad && !isPasswordRecovery && (
         <UserAcknowledgment
           onAccept={() => setNeedsAcknowledgment(false)}
           persistent={!!user && !isGuest}
@@ -149,7 +149,10 @@ export function LockGate({ children }: { children: ReactNode }) {
       {isInactivityLocked && !isPinLocked && !isInitialPasswordLocked && (user?.email || localSession?.email) && (
         <PasswordLockScreen onUnlock={() => setIsInactivityLocked(false)} email={(user?.email ?? localSession?.email)!} reason="inactivity" />
       )}
-      {isPasswordRecovery && <SetPasswordScreen mode="recovery" />}
+      {/* Password recovery no longer renders a blocking screen here — a recovery
+          OTP is now a real login, and the reset is surfaced as the non-blocking
+          PasswordResetOverlay (mounted in App.tsx). Setup (new account) stays a
+          blocking gate. */}
       {needsPasswordSetup && !isPasswordRecovery && <SetPasswordScreen mode="setup" />}
     </>
   )

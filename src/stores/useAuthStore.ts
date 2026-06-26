@@ -16,7 +16,7 @@ import { clearServiceWorkerCaches } from '../lib/cacheService'
 import { clearPasswordVerification } from '../lib/authService'
 import { prefetchBarcodeKey, clearKeyStore } from '../lib/cryptoService'
 import { startHeartbeat, stopHeartbeat } from '../lib/activityHeartbeat'
-import { initSignalBundle } from '../lib/signal/signalInit'
+import { initSignalBundle, clearPersistedDeviceRole } from '../lib/signal/signalInit'
 import { clearSignalKeys, destroySignalKeys, getLocalDeviceId } from '../lib/signal/keyManager'
 import { clearAllSessions } from '../lib/signal/session'
 import { clearMessageStore, destroyMessageStore } from '../lib/signal/messageStore'
@@ -46,6 +46,25 @@ import type { DeviceRole } from '../lib/signal/transportTypes'
 const STORAGE_KEY = 'adtmc_user_profile'
 const LOCAL_SESSION_KEY = 'adtmc_local_session'
 const ROLES_STORAGE_KEY = 'adtmc_user_roles'
+
+/**
+ * Persisted marker for "user signed in via a recovery OTP and still owes us a
+ * new password". The PASSWORD_RECOVERY auth event is in-memory only, so without
+ * this a refresh silently drops the reset prompt and strands the user logged in
+ * on the recovery session with their old password still valid. Persisting it
+ * lets the non-blocking PasswordResetOverlay re-appear until they actually reset.
+ * Cleared on successful reset and on sign-out (handleSignedOut clears storage).
+ */
+const PW_RESET_PENDING_KEY = 'adtmc_pw_reset_pending'
+const readPwResetPending = (): boolean => {
+  try { return localStorage.getItem(PW_RESET_PENDING_KEY) === '1' } catch { return false }
+}
+const writePwResetPending = (pending: boolean): void => {
+  try {
+    if (pending) localStorage.setItem(PW_RESET_PENDING_KEY, '1')
+    else localStorage.removeItem(PW_RESET_PENDING_KEY)
+  } catch { /* ignore */ }
+}
 
 /** Cached role metadata — persisted so role-gated features work offline. */
 interface CachedRoles {
@@ -393,6 +412,10 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
     // ---- Deliberate sign-out: full destructive cleanup ----
     _userInitiatedSignOut = false
     stopHeartbeat()
+    // Drop the cached device role so a different account on this browser can't
+    // inherit a stale 'primary'. (Involuntary sign-out above returns early and
+    // keeps it — that's the flaky/offline path we want to preserve through.)
+    clearPersistedDeviceRole()
 
     // NOTE: Supabase key cleanup (unregisterDevice + deleteKeyBundle) is done
     // in signOut() BEFORE the auth token is invalidated.  By this point the
@@ -419,7 +442,9 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
       signalReady: false,
       needsReauth: false,
       vaultKeyPromptNeeded: false,
+      isPasswordRecovery: false,
     })
+    writePwResetPending(false)
     clearLocalSessionStorage()
     clearProfileStorage()
     clearRolesStorage()
@@ -528,12 +553,14 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
   }
 
   const handleSignedIn = (userId: string, session: { access_token: string }, event: string) => {
-    // Detect password recovery flow (user clicked reset-password email link)
+    // Detect password recovery flow (user verified a recovery OTP). We treat this
+    // as a REAL login — the pipeline below (shared with SIGNED_IN/INITIAL_SESSION)
+    // runs in full so sessionReady/signalReady resolve and the user lands in the
+    // app. The only extra is a persisted flag that drives the non-blocking
+    // PasswordResetOverlay; it survives refresh until the user sets a new password.
     if (event === 'PASSWORD_RECOVERY') {
+      writePwResetPending(true)
       set({ isPasswordRecovery: true })
-      // Ensure profile is fetched for recovery logins (token-based new users)
-      startHeartbeat(userId)
-      get().refreshProfile()
     }
     // Keep cleanup handler's token in sync for pagehide
     if (session.access_token) {
@@ -552,8 +579,11 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
       set({ localSession: updated })
       persistLocalSession(updated)
     }
-    // Fetch profile and initialize Signal on sign-in or session resume
-    if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
+    // Fetch profile and initialize Signal on sign-in or session resume.
+    // PASSWORD_RECOVERY runs the same pipeline so a recovery login is a full,
+    // usable session (no stuck "Loading profile…" gate) — the reset is then
+    // surfaced non-blockingly via PasswordResetOverlay, not a blocking screen.
+    if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'PASSWORD_RECOVERY') {
       const isFirstSession = !get().localSession
       startHeartbeat(userId)
       const profileP = get().refreshProfile()
@@ -563,10 +593,17 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
       // Messaging surfaces read `signalReady` to show a subtle init state.
       initSignalBundle(userId).then(async initResult => {
         if (initResult) {
-          set({ deviceRole: initResult.role, signalReady: true })
+          // role === null means registration was unconfirmed (e.g. flaky connection).
+          // Don't overwrite a known deviceRole or flip cleanup-isPrimary — doing so
+          // is what false-fired the No-Primary-Device modal on bad cell service.
+          if (initResult.role) {
+            set({ deviceRole: initResult.role, signalReady: true })
+            updateCleanupIsPrimary(initResult.role === 'primary')
+          } else {
+            set({ signalReady: true })
+          }
           startHeartbeat(userId, initResult.deviceId)
           updateCleanupDeviceId(initResult.deviceId)
-          updateCleanupIsPrimary(initResult.role === 'primary')
 
           // Create or update the persistent local session
           const ls: LocalSession = {
@@ -754,7 +791,7 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
   isDevRole: cachedRoles?.isDevRole ?? false,
   isSupervisorRole: cachedRoles?.roles.includes('supervisor') ?? false,
   isProviderRole: cachedRoles?.roles.includes('provider') ?? false,
-  isPasswordRecovery: false,
+  isPasswordRecovery: readPwResetPending(),
   needsPasswordSetup: false,
   clinicTextExpanders: [],
   clinicPlanOrderTags: null,
@@ -924,6 +961,7 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
   },
 
   setPasswordRecovery: (value) => {
+    writePwResetPending(value)
     set({ isPasswordRecovery: value })
   },
 

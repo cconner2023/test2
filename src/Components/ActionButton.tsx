@@ -5,11 +5,16 @@ export type ActionButtonVariant = 'default' | 'danger' | 'disabled' | 'success'
 export interface ActionButtonProps {
   icon: LucideIcon
   label: string
-  onClick: () => void
+  onClick?: () => void
   variant?: ActionButtonVariant
   iconSize?: number
   /** data-tour attribute for guided-tour anchoring (e.g. an ellipsis trigger). */
   dataTour?: string
+  /** When set, renders a real `<a href>` instead of a `<button>` — the only form
+   *  that reliably launches the OS handler for non-http schemes (`mailto:`/`tel:`)
+   *  in the installed PWA shell. See src/lib/mailto.ts. `onClick` still fires (e.g.
+   *  to close a menu) without blocking native navigation. Ignored when disabled. */
+  href?: string
 }
 
 const STYLES: Record<ActionButtonVariant, string> = {
@@ -19,7 +24,22 @@ const STYLES: Record<ActionButtonVariant, string> = {
   success:  'bg-themeblue2 text-white active:scale-95',
 }
 
-export function ActionButton({ icon: Icon, label, onClick, variant = 'default', iconSize = 16, dataTour }: ActionButtonProps) {
+export function ActionButton({ icon: Icon, label, onClick, variant = 'default', iconSize = 16, dataTour, href }: ActionButtonProps) {
+  const className = `w-9 h-9 rounded-full flex items-center justify-center transition-all ${STYLES[variant]}`
+  if (href && variant !== 'disabled') {
+    return (
+      <a
+        href={href}
+        onClick={onClick}
+        data-tour={dataTour}
+        aria-label={label}
+        title={label}
+        className={className}
+      >
+        <Icon size={iconSize} />
+      </a>
+    )
+  }
   return (
     <button
       disabled={variant === 'disabled'}
@@ -27,7 +47,7 @@ export function ActionButton({ icon: Icon, label, onClick, variant = 'default', 
       data-tour={dataTour}
       aria-label={label}
       title={label}
-      className={`w-9 h-9 rounded-full flex items-center justify-center transition-all ${STYLES[variant]}`}
+      className={className}
     >
       <Icon size={iconSize} />
     </button>
