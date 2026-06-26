@@ -57,6 +57,12 @@ export interface PropertyItem {
   parent_item_id: string | null   // self-FK for sub-items / components
   location_id: string | null      // FK to property_locations for placement
   current_holder_id: string | null
+  /** Ownership root. null = CLUSTER-owned (default; stays/stranded on PCS). Set = PERSONALLY
+   *  owned (travels with the owner's member-zone on PCS). Bare uuid, no FK (mirrors
+   *  current_holder_id / holder_user_id) so cross-cluster/offline owner refs never hit an FK gate.
+   *  Partition discriminator only — NOT a fan-out routing key (the zone subtree is the travel unit).
+   *  See .claude/Projects/_ideas/personal-zone-pcs-rehome.md. */
+  owner_user_id: string | null
   location_tag_id: string | null
   photo_url: string | null
   visual_fingerprint: VisualFingerprint | null

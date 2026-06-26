@@ -573,6 +573,7 @@ export const Plan = ({ orderTags, instructionTags, orderSets = [], initialText, 
                 anchorRect={fabAnchorRect}
                 maxWidth={520}
                 previewMaxHeight="200px"
+                title="Plan"
                 headerCard={
                     <>
                         {orderSets.length > 0 && (
@@ -658,13 +659,12 @@ export const Plan = ({ orderTags, instructionTags, orderSets = [], initialText, 
                         closesOnAction: false,
                         variant: 'danger' as const,
                     },
-                    {
-                        key: 'done',
-                        label: 'Done',
-                        icon: Check,
-                        onAction: () => setShowFabPopover(false),
-                    },
                 ]}
+                rightFooter={
+                    <ActionPill>
+                        <ActionButton icon={Check} label="Done" onClick={() => setShowFabPopover(false)} />
+                    </ActionPill>
+                }
             />
         </div>
     );

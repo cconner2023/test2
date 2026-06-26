@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo } from 'react'
 import { X, Check, ChevronDown } from 'lucide-react'
 import { PreviewOverlay } from '../PreviewOverlay'
+import { ActionPill } from '../ActionPill'
 import { ActionButton } from '../ActionButton'
 import type { AdminUser, AdminClinic, AdminLocation } from '../../lib/adminService'
 import { LocationBreadcrumb } from './LocationBreadcrumb'
@@ -101,11 +102,6 @@ export const ClinicPickerInput = ({
             </div>
           )
         }}
-        footer={
-          <div className="bg-themewhite rounded-2xl shadow-lg px-1.5 py-1.5">
-            <ActionButton icon={X} label="Cancel" onClick={close} />
-          </div>
-        }
       />
     </div>
   )
@@ -226,11 +222,6 @@ export const ClinicParentPickerInput = ({
             </div>
           )
         }}
-        footer={
-          <div className="bg-themewhite rounded-2xl shadow-lg px-1.5 py-1.5">
-            <ActionButton icon={X} label="Cancel" onClick={close} />
-          </div>
-        }
       />
     </div>
   )
@@ -345,10 +336,10 @@ export const ClinicMultiPickerInput = ({
             </div>
           )
         }}
-        footer={
-          <div className="bg-themewhite rounded-2xl shadow-lg px-1.5 py-1.5">
+        rightFooter={
+          <ActionPill>
             <ActionButton icon={Check} label="Done" onClick={close} />
-          </div>
+          </ActionPill>
         }
       />
     </div>
@@ -515,11 +506,6 @@ export const LocationPickerInput = ({
             </div>
           )
         }}
-        footer={
-          <div className="bg-themewhite rounded-2xl shadow-lg px-1.5 py-1.5">
-            <ActionButton icon={X} label="Cancel" onClick={close} />
-          </div>
-        }
       />
     </div>
   )

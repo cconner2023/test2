@@ -292,7 +292,7 @@ export function ChatDetailView({
     activeThreadId, setActiveThreadId, handleOpenThread,
     pendingDelete, handleContextDelete, handleConfirmDelete, closePendingDelete,
     handleSwipeAction,
-    threadReplyCounts, threadMessages, mainViewMessages,
+    threadReplyCounts, threadLastReply, threadMessages, mainViewMessages,
   } = useChatInteractions({
     conversationKey: conversationId,
     userId,
@@ -617,7 +617,7 @@ export function ChatDetailView({
             <div className="flex items-center gap-2">
               <button
                 onClick={cancelRecording}
-                className="w-10 h-10 rounded-full bg-primary/5 flex items-center justify-center active:scale-95 transition-all shrink-0"
+                className="w-10 h-10 rounded-full bg-themewhite2/90 dark:bg-themewhite3/90 flex items-center justify-center active:scale-95 transition-all shrink-0"
               >
                 <X size={18} className="text-tertiary" />
               </button>
@@ -653,7 +653,7 @@ export function ChatDetailView({
                   ref={attachBtnRef}
                   onClick={e => sendStructured ? openAttachMenu(e) : fileInputRef.current?.click()}
                   disabled={sending}
-                  className={`w-10 h-10 rounded-full bg-primary/5 flex items-center justify-center disabled:opacity-30 active:scale-95 transition-all shrink-0
+                  className={`w-10 h-10 rounded-full bg-themewhite2/90 dark:bg-themewhite3/90 flex items-center justify-center disabled:opacity-30 active:scale-95 transition-all shrink-0
                               ${attachOpen ? 'rotate-45' : ''}`}
                 >
                   <Plus size={18} className="text-tertiary" />
@@ -689,7 +689,7 @@ export function ChatDetailView({
                 <button
                   onClick={startRecording}
                   disabled={inputDisabled}
-                  className="w-10 h-10 rounded-full bg-primary/5 flex items-center justify-center disabled:opacity-30 active:scale-95 transition-all shrink-0"
+                  className="w-10 h-10 rounded-full bg-themewhite2/90 dark:bg-themewhite3/90 flex items-center justify-center disabled:opacity-30 active:scale-95 transition-all shrink-0"
                 >
                   <Mic size={18} className="text-tertiary" />
                 </button>
@@ -759,6 +759,7 @@ export function ChatDetailView({
             onSaveEdit={handleSaveEdit}
             onCancelEdit={handleCancelEdit}
             threadReplyCount={!activeThreadId ? (threadReplyCounts[msg.originId ?? ''] ?? threadReplyCounts[msg.id]) : undefined}
+            threadLastReplyAt={!activeThreadId ? (threadLastReply[msg.originId ?? ''] ?? threadLastReply[msg.id]) : undefined}
             onOpenThread={handleOpenThread}
             intakeActionable={intakeActionable}
             conversationId={conversationId}

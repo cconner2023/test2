@@ -3,6 +3,7 @@ import { Building2, Check, Pencil, Trash2, Loader2, Camera, Send, ArrowRightLeft
 import { PreviewOverlay } from '../PreviewOverlay'
 import { Z } from '../BaseOverlay'
 import { ActionButton } from '../ActionButton'
+import { ActionPill } from '../ActionPill'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { ErrorPill } from '../ErrorPill'
 import { PickerInput } from '../FormInputs'
@@ -508,15 +509,6 @@ export function MemberEditPopover({
         footer={
           isOpen && profile ? (
             <div className="flex gap-1 bg-themewhite rounded-2xl shadow-lg px-1.5 py-1.5">
-              <ActionButton
-                icon={editMode ? Check : Pencil}
-                label={editMode ? (saving ? 'Saving…' : 'Save') : 'Edit'}
-                variant={editMode ? (saving ? 'disabled' : 'success') : 'default'}
-                onClick={() => {
-                  if (editMode) handleSave()
-                  else setEditMode(true)
-                }}
-              />
               {!editMode && (
                 <ActionButton
                   icon={Send}
@@ -545,6 +537,21 @@ export function MemberEditPopover({
                 onClick={() => setConfirmDelete(true)}
               />
             </div>
+          ) : undefined
+        }
+        rightFooter={
+          isOpen && profile ? (
+            <ActionPill>
+              <ActionButton
+                icon={editMode ? Check : Pencil}
+                label={editMode ? (saving ? 'Saving…' : 'Save') : 'Edit'}
+                variant={editMode ? (saving ? 'disabled' : 'success') : 'default'}
+                onClick={() => {
+                  if (editMode) handleSave()
+                  else setEditMode(true)
+                }}
+              />
+            </ActionPill>
           ) : undefined
         }
       >
@@ -699,13 +706,19 @@ export function MemberEditPopover({
                 variant={scanning ? 'success' : 'default'}
                 onClick={handleToggleScan}
               />
+            </div>
+          ) : undefined
+        }
+        rightFooter={
+          moveMode ? (
+            <ActionPill>
               <ActionButton
                 icon={moveSaving ? Loader2 : Check}
                 label="Transfer"
                 variant={!moveCode || moveSaving ? 'disabled' : 'success'}
                 onClick={() => submitMove(moveCode)}
               />
-            </div>
+            </ActionPill>
           ) : undefined
         }
       >
@@ -803,16 +816,16 @@ export function MemberEditPopover({
         title="Loans"
         maxWidth={360}
         previewMaxHeight="60dvh"
-        footer={
+        rightFooter={
           loansMode ? (
-            <div className="flex gap-1 bg-themewhite rounded-2xl shadow-lg px-1.5 py-1.5">
+            <ActionPill>
               <ActionButton
                 icon={loansApplying ? Loader2 : Check}
                 label={overCap ? `Over limit (${postSaveCount}/4)` : 'Save'}
                 variant={overCap || loansApplying ? 'disabled' : 'success'}
                 onClick={applyLoanChanges}
               />
-            </div>
+            </ActionPill>
           ) : undefined
         }
       >

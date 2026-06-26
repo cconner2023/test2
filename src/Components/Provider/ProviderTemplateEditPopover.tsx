@@ -141,6 +141,18 @@ export function ProviderTemplateEditPopover({ state, onClose, onSave, onDelete, 
             previewMaxHeight="60dvh"
             zIndex={zIndex}
             footer={
+                isEdit ? (
+                    <ActionPill>
+                        <ActionButton
+                            icon={Trash2}
+                            label="Delete"
+                            variant="danger"
+                            onClick={() => onDelete(idRef.current)}
+                        />
+                    </ActionPill>
+                ) : undefined
+            }
+            rightFooter={
                 <ActionPill>
                     <ActionButton
                         icon={Check}
@@ -148,14 +160,6 @@ export function ProviderTemplateEditPopover({ state, onClose, onSave, onDelete, 
                         variant={canSave ? 'success' : 'disabled'}
                         onClick={handleSave}
                     />
-                    {isEdit && (
-                        <ActionButton
-                            icon={Trash2}
-                            label="Delete"
-                            variant="danger"
-                            onClick={() => onDelete(idRef.current)}
-                        />
-                    )}
                 </ActionPill>
             }
         >
@@ -199,7 +203,7 @@ export function ProviderTemplateEditPopover({ state, onClose, onSave, onDelete, 
                 title="Physical Exam"
                 maxWidth={560}
                 previewMaxHeight="60dvh"
-                footer={
+                rightFooter={
                     <ActionPill>
                         <ActionButton icon={Check} label="Done" variant="success" onClick={() => setPeOpen(null)} />
                     </ActionPill>
@@ -250,7 +254,7 @@ export function ProviderTemplateEditPopover({ state, onClose, onSave, onDelete, 
                 title="Plan"
                 maxWidth={560}
                 previewMaxHeight="60dvh"
-                footer={
+                rightFooter={
                     <ActionPill>
                         <ActionButton icon={Check} label="Done" variant="success" onClick={() => setPlanOpen(null)} />
                     </ActionPill>

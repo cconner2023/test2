@@ -4,15 +4,12 @@ import { SectionCard } from '../Section'
 import { useIsMobile } from '../../Hooks/useIsMobile'
 import type { MedevacRequest } from '../../Types/MedevacTypes'
 import {
-  MEDEVAC_PRECEDENCE_LABELS,
   MEDEVAC_EQUIPMENT_LABELS,
   MEDEVAC_SECURITY_LABELS,
   MEDEVAC_MARKING_LABELS,
   MEDEVAC_NATIONALITY_LABELS,
   MEDEVAC_NBC_LABELS,
-  MEDEVAC_STATUS_LABELS,
   medevacPatientTotal,
-  medevacHighestPrecedence,
   type MedevacNationality,
 } from '../../Types/MedevacTypes'
 
@@ -28,7 +25,6 @@ export function MedevacCard({ data, onLineClick }: MedevacCardProps) {
   const isMobile = useIsMobile()
   const isHot = data.mode !== 'peacetime' && (data.l6 === 'E' || data.l6 === 'X')
   const hasNBC = data.mode !== 'peacetime' && data.l9 !== 'N'
-  const highest = medevacHighestPrecedence(data)
   const total = medevacPatientTotal(data)
 
   const rowCx = `flex items-start justify-between gap-4 ${isMobile ? 'px-4 py-2.5' : 'px-3 py-2'} border-b border-primary/6 last:border-0${onLineClick ? ' cursor-pointer hover:bg-themewhite3/60 transition-colors' : ''}`
@@ -57,28 +53,11 @@ export function MedevacCard({ data, onLineClick }: MedevacCardProps) {
   return (
     <SectionCard className={isHot || hasNBC ? 'border-themeredred/30' : ''}>
       {/* Header */}
-      <div className={`flex items-center justify-between ${isMobile ? 'px-4 py-2.5' : 'px-3 py-2'} border-b ${
+      <div className={`flex items-center gap-1.5 ${isMobile ? 'px-4 py-2.5' : 'px-3 py-2'} border-b ${
         isHot || hasNBC ? 'border-themeredred/20 bg-themeredred/5' : 'border-primary/8 bg-themewhite3'
       }`}>
-        <div className="flex items-center gap-1.5">
-          {(isHot || hasNBC) && <AlertTriangle size={12} className="text-themeredred" />}
-          <span className="text-[9pt] font-bold tracking-widest uppercase text-themeblue2">9-Line MEDEVAC</span>
-        </div>
-        <div className="flex items-center gap-2">
-          {highest && (
-            <span className={`text-[9pt] px-2 py-0.5 rounded-full font-semibold ${
-              highest === 'A' || highest === 'B'
-                ? 'bg-themeredred/15 text-themeredred'
-                : highest === 'C'
-                  ? 'bg-themeyellow/20 text-themeyellow'
-                  : 'bg-themeblue2/10 text-themeblue2'
-            }`}>
-              {highest} — {MEDEVAC_PRECEDENCE_LABELS[highest]}
-            </span>
-          )}
-          <span className="text-[9pt] text-tertiary capitalize">{data.mode}</span>
-          <span className="text-[9pt] text-tertiary">{MEDEVAC_STATUS_LABELS[data.status]}</span>
-        </div>
+        {(isHot || hasNBC) && <AlertTriangle size={12} className="text-themeredred" />}
+        <span className="text-[9pt] font-bold tracking-widest uppercase text-tertiary">9-Line MEDEVAC</span>
       </div>
 
       {/* Line 1 */}

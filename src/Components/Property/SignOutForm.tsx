@@ -3,6 +3,7 @@ import { Check, ChevronDown, Minus, Plus } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import { TextInput } from '../FormInputs'
 import { PreviewOverlay } from '../PreviewOverlay'
+import { ConfirmDialog } from '../ConfirmDialog'
 import { Da2062Preview } from './Da2062Preview'
 import { usePropertyStore } from '../../stores/usePropertyStore'
 import { useAuthStore } from '../../stores/useAuthStore'
@@ -61,6 +62,7 @@ export const SignOutForm = forwardRef<SignOutFormHandle, SignOutFormProps>(funct
   // itemId → quantity to sign out (>= 1, capped at the item's on-hand count).
   const [quantities, setQuantities] = useState<Map<string, number>>(new Map())
   const [busy, setBusy] = useState(false)
+  const [showConfirm, setShowConfirm] = useState(false)
 
   const [recipientOpen, setRecipientOpen] = useState(false)
   const [recipientAnchor, setRecipientAnchor] = useState<DOMRect | null>(null)
@@ -199,11 +201,25 @@ export const SignOutForm = forwardRef<SignOutFormHandle, SignOutFormProps>(funct
     setBusy(false)
   }, [canSubmit, signableItems, quantities, store, mode, toHolderId, externalName, notes, profile, exportDA2062])
 
-  // Submit from the host header Check pill (no-ops until valid).
-  useImperativeHandle(ref, () => ({ submit: handleSubmit }), [handleSubmit])
+  // Host header Check pill stages a confirm (no-ops until valid); the actual
+  // sign-out runs on confirm.
+  const requestSubmit = useCallback(() => {
+    if (canSubmit) setShowConfirm(true)
+  }, [canSubmit])
+  useImperativeHandle(ref, () => ({ submit: requestSubmit }), [requestSubmit])
 
   return (
     <>
+      <ConfirmDialog
+        visible={showConfirm}
+        title="Sign these items out?"
+        confirmLabel="Sign out"
+        variant="primary"
+        zIndex={1500}
+        onConfirm={() => { setShowConfirm(false); handleSubmit() }}
+        onCancel={() => setShowConfirm(false)}
+      />
+
       <div className="px-4 py-4">
         {/* Single unified form card — stacked primitive rows with hairline
             dividers (EventForm / FeatureEditor pattern). No per-field bordered

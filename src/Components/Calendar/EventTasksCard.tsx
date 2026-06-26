@@ -231,7 +231,7 @@ export function EventTasksCard({ subtasks, onChange, templates = [], assignedIds
         preview={templatePreview}
         searchPlaceholder={templates.length > 6 ? 'Search checklists…' : undefined}
         previewMaxHeight="32dvh"
-        footer={
+        rightFooter={
           <ActionPill ref={addFabRef} shadow="lg">
             <ActionButton
               icon={Plus}
@@ -257,8 +257,8 @@ export function EventTasksCard({ subtasks, onChange, templates = [], assignedIds
           previewMaxHeight={activeKind ? '50dvh' : 'auto'}
           actions={activeKind ? [] : addActions}
           zIndex={95}
-          footer={activeKind === 'task' ? (
-            <div className="flex gap-1 bg-themewhite rounded-2xl shadow-lg px-1.5 py-1.5">
+          rightFooter={activeKind === 'task' ? (
+            <ActionPill>
               <ActionButton
                 icon={Check}
                 label="Add"
@@ -268,7 +268,7 @@ export function EventTasksCard({ subtasks, onChange, templates = [], assignedIds
                   commitNew({ kind: 'task', label: freeTextDraft.trim() })
                 }}
               />
-            </div>
+            </ActionPill>
           ) : undefined}
         >
           {!activeKind ? (

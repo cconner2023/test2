@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { Check, Loader2 } from 'lucide-react'
 import { PreviewOverlay } from '../PreviewOverlay'
 import { ActionButton } from '../ActionButton'
+import { ActionPill } from '../ActionPill'
 import { ErrorPill } from '../ErrorPill'
 import { PickerInput, UicPinInput } from '../FormInputs'
 import {
@@ -174,18 +175,18 @@ export function AddMemberPopover({
       title={mode === 'create' ? 'New user' : 'Add member'}
       maxWidth={360}
       previewMaxHeight="70dvh"
-      footer={
+      rightFooter={
         isOpen && mode === 'lookup' ? (
-          <div className="flex gap-1 bg-themewhite rounded-2xl shadow-lg px-1.5 py-1.5">
+          <ActionPill>
             <ActionButton
               icon={lookupLoading ? Loader2 : Check}
               label={lookupLoading ? 'Checking…' : 'Add'}
               variant={lookupLoading || !email.trim() ? 'disabled' : 'success'}
               onClick={handleLookup}
             />
-          </div>
+          </ActionPill>
         ) : isOpen && mode === 'create' ? (
-          <div className="flex gap-1 bg-themewhite rounded-2xl shadow-lg px-1.5 py-1.5">
+          <ActionPill>
             <ActionButton
               icon={submitting ? Loader2 : Check}
               label={submitting ? 'Creating…' : 'Create & add'}
@@ -196,7 +197,7 @@ export function AddMemberPopover({
               }
               onClick={handleCreate}
             />
-          </div>
+          </ActionPill>
         ) : undefined
       }
     >

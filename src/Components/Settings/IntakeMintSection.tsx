@@ -524,6 +524,10 @@ export function IntakeMintSection({ clinicId, oncallCount = 0, onOncallEnabledCh
               label="Random"
               onClick={fillMint}
             />
+          </ActionPill>
+        }
+        rightFooter={
+          <ActionPill>
             <ActionButton
               icon={Check}
               label="Mint"
@@ -566,6 +570,10 @@ export function IntakeMintSection({ clinicId, oncallCount = 0, onOncallEnabledCh
               label="Random"
               onClick={fillRotate}
             />
+          </ActionPill>
+        }
+        rightFooter={
+          <ActionPill>
             <ActionButton
               icon={Check}
               label="Rotate"

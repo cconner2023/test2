@@ -630,23 +630,27 @@ export function SoldierProfile({
         title={certPopover?.mode === 'new' ? 'New certification' : 'Edit certification'}
         maxWidth={380}
         footer={
-          certPopover ? (
+          certPopover?.mode === 'edit' ? (
             <div className="flex gap-1 bg-themewhite rounded-2xl shadow-lg px-1.5 py-1.5">
+              <ActionButton
+                icon={Trash2}
+                label="Delete"
+                variant="danger"
+                onClick={() => certPopover.cert && setConfirmDeleteCert(certPopover.cert)}
+              />
+            </div>
+          ) : undefined
+        }
+        rightFooter={
+          certPopover ? (
+            <ActionPill>
               <ActionButton
                 icon={certSaving ? Loader2 : Check}
                 label={certSaving ? 'Saving…' : 'Save'}
                 variant={certSaving || !certForm.title.trim() ? 'disabled' : 'success'}
                 onClick={handleSaveCert}
               />
-              {certPopover.mode === 'edit' && (
-                <ActionButton
-                  icon={Trash2}
-                  label="Delete"
-                  variant="danger"
-                  onClick={() => certPopover.cert && setConfirmDeleteCert(certPopover.cert)}
-                />
-              )}
-            </div>
+            </ActionPill>
           ) : undefined
         }
       >

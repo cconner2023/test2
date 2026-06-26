@@ -342,7 +342,7 @@ export function RequestCard({
     ? [request.first_name, request.last_name]
     : [request.rank, request.last_name]
   ).filter(Boolean).join(' ')},\n\n`
-  const mailtoHref = buildMailtoHref({ to: request.email, subject: 'Medical Operations Inquiry', body: mailtoBody })
+  const mailtoHref = buildMailtoHref({ to: request.email, subject: '[inquiry] -  Medical Operations Web Application', body: mailtoBody })
 
   // ── Icon styling ────────────────────────────────────────
   const iconBg = isSupport
@@ -377,6 +377,7 @@ export function RequestCard({
   const hasFailedSteps = stepResults.some(s => !s.ok)
   const allStepsOk = stepResults.length > 0 && !hasFailedSteps
 
+  // Footer (bottom-left) = other actions: Email + destructive Dismiss/Reject.
   const overlayFooter = (
     <ActionPill>
       <a
@@ -397,47 +398,55 @@ export function RequestCard({
         />
       )}
       {isPending && !isSupport && !accountCreated && (
-        <>
-          <ActionButton
-            icon={Trash2}
-            label="Reject"
-            variant="danger"
-            onClick={() => setConfirmReject(true)}
-          />
-          <ActionButton
-            icon={processing ? RefreshCw : Check}
-            label="Approve"
-            variant={canApprove ? 'success' : 'disabled'}
-            onClick={handleApprove}
-          />
-        </>
+        <ActionButton
+          icon={Trash2}
+          label="Reject"
+          variant="danger"
+          onClick={() => setConfirmReject(true)}
+        />
       )}
-      {isPending && !isSupport && accountCreated && hasFailedSteps && (
+    </ActionPill>
+  )
+
+  // rightFooter (bottom-right) = primary/progressive commit only.
+  const overlayRightFooter =
+    isPending && !isSupport && !accountCreated ? (
+      <ActionPill>
+        <ActionButton
+          icon={processing ? RefreshCw : Check}
+          label="Approve"
+          variant={canApprove ? 'success' : 'disabled'}
+          onClick={handleApprove}
+        />
+      </ActionPill>
+    ) : isPending && !isSupport && accountCreated && hasFailedSteps ? (
+      <ActionPill>
         <ActionButton
           icon={RefreshCw}
           label={processing ? 'Retrying…' : 'Retry failed'}
           variant={processing ? 'disabled' : 'success'}
           onClick={handleRetryFailed}
         />
-      )}
-      {isPending && !isSupport && accountCreated && allStepsOk && (
+      </ActionPill>
+    ) : isPending && !isSupport && accountCreated && allStepsOk ? (
+      <ActionPill>
         <ActionButton
           icon={Check}
           label="Done"
           variant="success"
           onClick={handleClose}
         />
-      )}
-      {isRejected && !isSupport && (
+      </ActionPill>
+    ) : isRejected && !isSupport ? (
+      <ActionPill>
         <ActionButton
           icon={processing ? RefreshCw : Check}
           label="Reopen"
           variant={processing ? 'disabled' : 'success'}
           onClick={handleReopen}
         />
-      )}
-    </ActionPill>
-  )
+      </ActionPill>
+    ) : undefined
 
   return (
     <>
@@ -519,6 +528,7 @@ export function RequestCard({
         maxWidth={420}
         previewMaxHeight="65dvh"
         footer={overlayFooter}
+        rightFooter={overlayRightFooter}
       >
         <div className={processing ? 'opacity-50 pointer-events-none' : undefined} onClick={(e) => e.stopPropagation()}>
           {error && <div className="px-4 pt-3"><ErrorDisplay message={error} /></div>}

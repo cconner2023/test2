@@ -570,6 +570,7 @@ export const VitalsForm = memo(function VitalsForm() {
           isOpen={!!editingId}
           onClose={handleClose}
           anchorRect={null}
+          title="Vital Signs"
           preview={<VitalSetPreviewContent id={editingSet.id} />}
           actions={[
             {
@@ -579,13 +580,12 @@ export const VitalsForm = memo(function VitalsForm() {
               onAction: handleRemove,
               variant: 'danger',
             },
-            {
-              key: 'done',
-              label: 'Done',
-              icon: Check,
-              onAction: handleClose,
-            },
           ]}
+          rightFooter={
+            <ActionPill>
+              <ActionButton icon={Check} label="Done" onClick={handleClose} />
+            </ActionPill>
+          }
         />
       )}
     </div>

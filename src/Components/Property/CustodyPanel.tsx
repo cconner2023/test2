@@ -103,7 +103,9 @@ export function CustodyPanel({
     pendingSignIn,
     setPendingSignIn,
     confirmSignIn,
-    removeItem,
+    pendingRemove,
+    setPendingRemove,
+    confirmRemove,
     addItems,
     pendingDelete,
     setPendingDelete,
@@ -252,7 +254,7 @@ export function CustodyPanel({
                   </button>
                   {/* Remove this item from the 2062 (deletes its record, signs it back in). */}
                   <button
-                    onClick={() => removeItem(r.handReceiptId, e.item_id)}
+                    onClick={() => setPendingRemove({ handReceiptId: r.handReceiptId, itemId: e.item_id })}
                     disabled={busyId === r.handReceiptId}
                     aria-label="Remove item from receipt"
                     className="shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-tertiary hover:text-themeredred hover:bg-themeredred/10 active:scale-95 transition disabled:opacity-40"
@@ -546,6 +548,16 @@ export function CustodyPanel({
         label={previewEvent ? `${activityName(previewEvent)} · ${detailOf(previewEvent)}` : ''}
         Icon={previewEvent ? activityMeta(previewEvent).Icon : FileText}
         tint={previewEvent ? activityMeta(previewEvent).tint : 'bg-tertiary/10 text-tertiary'}
+      />
+
+      <ConfirmDialog
+        visible={!!pendingRemove}
+        title="Remove this item from the receipt?"
+        confirmLabel="Remove"
+        variant="danger"
+        zIndex={1500}
+        onConfirm={confirmRemove}
+        onCancel={() => setPendingRemove(null)}
       />
 
       <ConfirmDialog

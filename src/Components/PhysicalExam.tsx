@@ -1195,6 +1195,7 @@ export function PhysicalExam({
                     onClose={() => setEditingIndex(null)}
                     anchorRect={popoverAnchorRect}
                     maxWidth={520}
+                    title={editingEntry.viewBlock.label}
                     searchPlaceholder="Filter findings..."
                     preview={(filter, clearFilter) => {
                         const augmented = augmentBlock(editingEntry.viewBlock, editingEntry.key);
@@ -1291,12 +1292,12 @@ export function PhysicalExam({
                         },
                         closesOnAction: false,
                         variant: 'danger',
-                    }, {
-                        key: 'done',
-                        label: 'Done',
-                        icon: Check,
-                        onAction: () => setShowBlockPicker(false),
                     }]}
+                    rightFooter={
+                        <ActionPill>
+                            <ActionButton icon={Check} label="Done" onClick={() => setShowBlockPicker(false)} />
+                        </ActionPill>
+                    }
                 />
             )}
 
@@ -1346,12 +1347,12 @@ export function PhysicalExam({
                         },
                         closesOnAction: false,
                         variant: 'danger',
-                    }, {
-                        key: 'done',
-                        label: 'Done',
-                        icon: Check,
-                        onAction: () => setShowVitalsPicker(false),
                     }]}
+                    rightFooter={vitalsView === 'lmp' ? undefined : (
+                        <ActionPill>
+                            <ActionButton icon={Check} label="Done" onClick={() => setShowVitalsPicker(false)} />
+                        </ActionPill>
+                    )}
                 />
             )}
 
@@ -1363,6 +1364,7 @@ export function PhysicalExam({
                     onClose={() => setShowAddPicker(false)}
                     anchorRect={addPickerAnchorRect}
                     maxWidth={300}
+                    title="Add System"
                     searchPlaceholder="Search systems..."
                     preview={(filter) => {
                         const lc = filter.toLowerCase();
@@ -1371,7 +1373,6 @@ export function PhysicalExam({
                             : availableToAdd;
                         return (
                             <div>
-                                <p className="text-[9pt] md:text-[9pt] font-semibold text-tertiary uppercase tracking-wider px-3 pt-2 pb-1">Add System</p>
                                 {filtered.map(block => (
                                     <button
                                         key={block.key}
@@ -1391,7 +1392,11 @@ export function PhysicalExam({
                             </div>
                         );
                     }}
-                    actions={[{ key: 'done', label: 'Done', icon: Check, onAction: () => setShowAddPicker(false) }]}
+                    rightFooter={
+                        <ActionPill>
+                            <ActionButton icon={Check} label="Done" onClick={() => setShowAddPicker(false)} />
+                        </ActionPill>
+                    }
                 />
             )}
 

@@ -471,15 +471,15 @@ export function AdminFeatureVotesSection() {
         anchorRect={newCycleAnchor}
         title="New cycle"
         maxWidth={340}
-        footer={
-          <div className="bg-themewhite rounded-2xl shadow-lg px-1.5 py-1.5">
+        rightFooter={
+          <ActionPill>
             <ActionButton
               icon={busy ? Loader2 : Check}
               label={busy ? 'Saving…' : 'Open cycle'}
               onClick={handleCreateCycle}
               variant={busy || !newCycleTitle.trim() || trimmedOptionCount === 0 ? 'disabled' : 'success'}
             />
-          </div>
+          </ActionPill>
         }
       >
         <div>
@@ -533,16 +533,16 @@ export function AdminFeatureVotesSection() {
         anchorRect={addOptionPopover?.anchor ?? null}
         title="Add option"
         maxWidth={340}
-        footer={
+        rightFooter={
           addOptionPopover ? (
-            <div className="bg-themewhite rounded-2xl shadow-lg px-1.5 py-1.5">
+            <ActionPill>
               <ActionButton
                 icon={busy ? Loader2 : Check}
                 label={busy ? 'Saving…' : 'Add option'}
                 onClick={() => handleAddOption(addOptionPopover.cycleId)}
                 variant={busy || !(optionDrafts[addOptionPopover.cycleId] ?? '').trim() ? 'disabled' : 'success'}
               />
-            </div>
+            </ActionPill>
           ) : undefined
         }
       >
@@ -568,7 +568,24 @@ export function AdminFeatureVotesSection() {
         previewMaxHeight="50dvh"
         footer={
           optionPopover ? (
-            <div className="flex gap-1 bg-themewhite rounded-2xl shadow-lg px-1.5 py-1.5">
+            <ActionPill>
+              <ActionButton
+                icon={Trash2}
+                label="Delete option"
+                variant="danger"
+                onClick={() =>
+                  setConfirmDeleteOption({
+                    cycleId: optionPopover.cycleId,
+                    candidateId: optionPopover.candidate.id,
+                  })
+                }
+              />
+            </ActionPill>
+          ) : undefined
+        }
+        rightFooter={
+          optionPopover ? (
+            <ActionPill>
               <ActionButton
                 icon={optionEditMode ? Check : Pencil}
                 label={optionEditMode ? 'Save' : 'Edit option'}
@@ -588,18 +605,7 @@ export function AdminFeatureVotesSection() {
                   }
                 }}
               />
-              <ActionButton
-                icon={Trash2}
-                label="Delete option"
-                variant="danger"
-                onClick={() =>
-                  setConfirmDeleteOption({
-                    cycleId: optionPopover.cycleId,
-                    candidateId: optionPopover.candidate.id,
-                  })
-                }
-              />
-            </div>
+            </ActionPill>
           ) : undefined
         }
       >

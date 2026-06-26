@@ -17,6 +17,7 @@ import {
   getLocalPropertyItemsByHolder,
   getLocalPropertySubItems,
   getLocalPropertyLocations,
+  getAllLocalPropertyLocations,
   saveLocalPropertyLocation,
   deleteLocalPropertyLocation,
   getLocalDiscrepancies,
@@ -66,6 +67,8 @@ function localItem(item: PropertyItem, syncStatus: SyncStatus = 'pending'): Loca
     ...item,
     // Coerce for legacy IDB rows cached before signed_out_external existed.
     signed_out_external: item.signed_out_external ?? false,
+    // Coerce legacy IDB rows cached before owner_user_id existed. null = cluster-owned.
+    owner_user_id: item.owner_user_id ?? null,
     _sync_status: syncStatus,
     _sync_retry_count: 0,
     _last_sync_error: null,
@@ -196,7 +199,7 @@ export async function fetchClinicItems(clinicId: string): Promise<LocalPropertyI
 }
 
 export async function createItem(
-  data: Omit<PropertyItem, 'id' | 'created_at' | 'updated_at' | 'signed_out_external'>,
+  data: Omit<PropertyItem, 'id' | 'created_at' | 'updated_at' | 'signed_out_external' | 'owner_user_id'>,
   userId: string,
 ): Promise<ServiceResult<{ item: LocalPropertyItem }>> {
   try {
@@ -208,6 +211,7 @@ export async function createItem(
     const item: PropertyItem = {
       ...data,
       signed_out_external: false,
+      owner_user_id: null,
       id: crypto.randomUUID(),
       created_at: now,
       updated_at: now,
@@ -267,7 +271,7 @@ export async function createItem(
  *  expend/split/merge, which pass skipAudit). */
 const AUDITED_EDIT_FIELDS: (keyof PropertyItem)[] = [
   'name', 'nomenclature', 'nsn', 'lin', 'serial_number',
-  'condition_code', 'quantity', 'expiry_date', 'notes', 'parent_item_id',
+  'condition_code', 'quantity', 'expiry_date', 'notes', 'parent_item_id', 'owner_user_id',
 ]
 
 export async function updateItem(
@@ -297,7 +301,11 @@ export async function updateItem(
     const oldOriginId = existing.originId ?? null
     const newHolder = updates.current_holder_id !== undefined ? updates.current_holder_id : existing.current_holder_id
     const holderIds = newHolder ? [newHolder] : []
-    const newTargets = await resolvePropertyTargetClinics(existing.clinic_id, holderIds)
+    // Resolve from the POST-update clinic so a clinic_id change (PCS re-home of a
+    // personal item travelling with its member-zone) re-targets to the new cluster.
+    // No-op for the common case where clinic_id is unchanged.
+    const newClinicId = updates.clinic_id !== undefined ? updates.clinic_id : existing.clinic_id
+    const newTargets = await resolvePropertyTargetClinics(newClinicId, holderIds)
     const fanUnion = Array.from(new Set([...oldTargets, ...newTargets]))
     const newOriginId = crypto.randomUUID()
 
@@ -326,9 +334,9 @@ export async function updateItem(
       for (const c of oldTargets) await deletePropertyVaultMessages([oldOriginId], c)
     }
     await fanProperty(userId, 'u', 'item', {
-      id, clinic_id: existing.clinic_id, target_clinic_ids: newTargets, originId: newOriginId,
+      id, clinic_id: newClinicId, target_clinic_ids: newTargets, originId: newOriginId,
       data: toEnvelope(updated as unknown as Record<string, unknown>),
-    }, holderIds, existing.clinic_id, fanUnion)
+    }, holderIds, newClinicId, fanUnion)
 
     // Lifecycle events for the item timeline. One updateItem can carry a move,
     // a reassign, and field edits at once → emit each that actually changed.
@@ -775,7 +783,13 @@ export async function createLocation(
   try {
     const now = new Date().toISOString()
     const originId = crypto.randomUUID()
-    const targets = data.clinic_id ? [data.clinic_id] : []
+    // A member-zone (holder_user_id set) follows its holder across clusters, so its
+    // fan-out targets = holder's [home, ...loans]. A plain physical zone (BAS, rooms;
+    // holder null) stays clinic-pinned. See personal-zone-pcs-rehome.md §3.3.
+    const holderIds = data.holder_user_id ? [data.holder_user_id] : []
+    const targets = data.holder_user_id
+      ? await resolvePropertyTargetClinics(data.clinic_id, holderIds)
+      : (data.clinic_id ? [data.clinic_id] : [])
     const location: PropertyLocation = {
       ...data,
       id: crypto.randomUUID(),
@@ -799,7 +813,7 @@ export async function createLocation(
     await fanProperty(userId, 'c', 'zone', {
       id: location.id, clinic_id: location.clinic_id, target_clinic_ids: targets, originId,
       data: toEnvelope(location as unknown as Record<string, unknown>),
-    }, [], location.clinic_id)
+    }, holderIds, location.clinic_id)
 
     immediateSync(userId)
     return succeed({ location: local })
@@ -819,13 +833,26 @@ export async function updateLocation(
     if (!existing) return fail('Location not found')
 
     const now = new Date().toISOString()
-    const targets = existing.target_clinic_ids ?? (existing.clinic_id ? [existing.clinic_id] : [])
+    // Holder/clinic-aware re-targeting (mirrors updateItem). A member-zone follows
+    // its holder; a clinic_id change (PCS re-home) re-targets to the new cluster and
+    // RETRACTS the old copies — never a 'd' (a global tombstone would poison the zone
+    // in a surviving cluster). For a plain physical zone (holder null) with no clinic
+    // change this resolves to the same [clinic_id] as before. See
+    // personal-zone-pcs-rehome.md §3.3 / §5.
+    const oldTargets = existing.target_clinic_ids ?? (existing.clinic_id ? [existing.clinic_id] : [])
     const oldOriginId = existing.originId ?? null
+    const newHolder = updates.holder_user_id !== undefined ? updates.holder_user_id : existing.holder_user_id
+    const newClinicId = updates.clinic_id !== undefined ? updates.clinic_id : existing.clinic_id
+    const holderIds = newHolder ? [newHolder] : []
+    const newTargets = newHolder
+      ? await resolvePropertyTargetClinics(newClinicId, holderIds)
+      : (newClinicId ? [newClinicId] : [])
+    const fanUnion = Array.from(new Set([...oldTargets, ...newTargets]))
     const newOriginId = crypto.randomUUID()
     const updated: LocalPropertyLocation = {
       ...existing,
       ...updates,
-      target_clinic_ids: targets,
+      target_clinic_ids: newTargets,
       originId: newOriginId,
       updated_at: now,
       _sync_status: 'pending',
@@ -838,16 +865,16 @@ export async function updateLocation(
       action: 'update',
       table_name: 'property_locations',
       record_id: id,
-      payload: toSpine({ ...updates, target_clinic_ids: targets, updated_at: now }),
+      payload: toSpine({ ...updates, target_clinic_ids: newTargets, updated_at: now }),
     })
 
     if (oldOriginId) {
-      for (const c of targets) await deletePropertyVaultMessages([oldOriginId], c)
+      for (const c of oldTargets) await deletePropertyVaultMessages([oldOriginId], c)
     }
     await fanProperty(userId, 'u', 'zone', {
-      id, clinic_id: existing.clinic_id, target_clinic_ids: targets, originId: newOriginId,
+      id, clinic_id: newClinicId, target_clinic_ids: newTargets, originId: newOriginId,
       data: toEnvelope(updated as unknown as Record<string, unknown>),
-    }, [], existing.clinic_id)
+    }, holderIds, newClinicId, fanUnion)
 
     immediateSync(userId)
     return succeed()
@@ -1011,6 +1038,83 @@ export async function cascadeDeleteLocation(
 
 // ── Member Locations ─────────────────────────────────────────
 
+/** Collect a location and all its parent_id descendants from a flat location list. */
+function collectSubtreeLocationIds(rootId: string, locs: LocalPropertyLocation[]): Set<string> {
+  const ids = new Set<string>([rootId])
+  let changed = true
+  while (changed) {
+    changed = false
+    for (const l of locs) {
+      if (l.parent_id && ids.has(l.parent_id) && !ids.has(l.id)) { ids.add(l.id); changed = true }
+    }
+  }
+  return ids
+}
+
+/**
+ * STRAND the cluster-owned items under a (departed member's) zone up to that
+ * cluster's canvas. Only owner_user_id === null (cluster property) is reassigned;
+ * personally-owned items are left in place (they travel with the zone on re-home).
+ * The zone itself is NOT deleted/tombstoned here — see ensureMemberLocations.
+ */
+async function strandClusterItemsUnder(
+  zoneRootId: string,
+  clinicId: string,
+  userId: string,
+  locs: LocalPropertyLocation[],
+): Promise<void> {
+  const subtree = collectSubtreeLocationIds(zoneRootId, locs)
+  const strandTo = locs.find(l => l.id === zoneRootId)?.parent_id ?? null
+  const items = await getLocalPropertyItems(clinicId)
+  for (const item of items) {
+    if (item.location_id && subtree.has(item.location_id) && (item.owner_user_id ?? null) === null) {
+      await updateItem(item.id, { location_id: strandTo }, userId)
+    }
+  }
+}
+
+/**
+ * RE-HOME the current user's member-zone subtree into a new cluster on PCS arrival.
+ * Re-publishes from the owner's own local copy (never a pull from the old vault):
+ *   1. STRAND cluster-owned (owner null) descendants up to the OLD canvas FIRST,
+ *      while the subtree is still resolvable in the old clinic (best-effort — the old
+ *      cluster's own ensureMemberLocations is the authoritative stranding side).
+ *   2. RE-HOME the zone (re-parented to the new canvas) + sub-zones to the new clinic;
+ *      updateLocation holder-routes + retracts the old copies (never a 'd').
+ *   3. CARRY the owner's own items into the new clinic.
+ * See personal-zone-pcs-rehome.md §5 Phase 3 / §6.
+ */
+async function rehomeMemberZone(
+  zone: LocalPropertyLocation,
+  newClinicId: string,
+  newRootId: string,
+  userId: string,
+): Promise<void> {
+  const oldClinicId = zone.clinic_id
+  const oldLocs = await getLocalPropertyLocations(oldClinicId)
+  const subtree = collectSubtreeLocationIds(zone.id, oldLocs)
+  const items = await getLocalPropertyItems(oldClinicId)
+
+  // 1) strand cluster-owned descendants (stay in the old cluster)
+  const strandTo = zone.parent_id ?? null
+  for (const item of items) {
+    if (item.location_id && subtree.has(item.location_id) && (item.owner_user_id ?? null) === null) {
+      await updateItem(item.id, { location_id: strandTo }, userId)
+    }
+  }
+  // 2) re-home the zone + sub-zones to the new cluster
+  await updateLocation(zone.id, { clinic_id: newClinicId, parent_id: newRootId }, userId)
+  for (const id of subtree) {
+    if (id !== zone.id) await updateLocation(id, { clinic_id: newClinicId }, userId)
+  }
+  // 3) carry the owner's own items
+  for (const item of items) {
+    if (item.location_id && subtree.has(item.location_id) && item.owner_user_id === userId) {
+      await updateItem(item.id, { clinic_id: newClinicId }, userId, { skipAudit: true })
+    }
+  }
+}
+
 /**
  * Eagerly ensure every clinic member has a real persisted location record.
  * Called on drawer open. Creates missing member-locations, renames stale ones,
@@ -1028,53 +1132,129 @@ export async function ensureMemberLocations(
     if (loc.holder_user_id) memberLocMap.set(loc.holder_user_id, loc)
   }
 
-  // Prune member-locations whose holder is no longer a home member of this
-  // clinic — e.g. the soldier was moved to another cluster. Their "property
-  // space" must not linger in the old cluster's property. cascade reassigns any
-  // items they still held up to the parent canvas rather than orphaning them.
-  // Guarded on a non-empty roster so a transient/failed member load can never
-  // wipe every member-location.
+  // DEDUP duplicate member-zones for the same holder. A PCS race can mint two: a
+  // placeholder created by a teammate's device while my real (content-bearing) zone
+  // re-homes in. Keep the OLDEST (the re-homed zone retains its original created_at,
+  // so it sorts before a fresh placeholder); delete EMPTY duplicates only — a throwaway
+  // id never re-homed, so its tombstone can't poison the surviving zone.
+  const byHolder = new Map<string, LocalPropertyLocation[]>()
+  for (const loc of allLocs) {
+    if (!loc.holder_user_id) continue
+    const arr = byHolder.get(loc.holder_user_id) ?? []
+    arr.push(loc)
+    byHolder.set(loc.holder_user_id, arr)
+  }
+  const dupHolders = [...byHolder].filter(([, zs]) => zs.length > 1)
+  if (dupHolders.length > 0) {
+    const clinicItems = await getLocalPropertyItems(clinicId)
+    for (const [holderId, zones] of dupHolders) {
+      const sorted = [...zones].sort((a, b) => (a.created_at ?? '').localeCompare(b.created_at ?? ''))
+      const keep = sorted[0]
+      for (const z of sorted.slice(1)) {
+        const subtree = collectSubtreeLocationIds(z.id, allLocs)
+        const hasChildZone = allLocs.some(l => l.id !== z.id && subtree.has(l.id))
+        const hasItems = clinicItems.some(i => i.location_id && subtree.has(i.location_id))
+        if (!hasChildZone && !hasItems) await cascadeDeleteLocation(z.id, userId, clinicId)
+      }
+      memberLocMap.set(holderId, keep)
+    }
+  }
+
+  // DEPARTED MEMBERS → STORAGE. A member-zone TRAVELS with its holder (re-homed from
+  // the holder's OWN device on PCS arrival), so we must NOT cascade-delete/tombstone a
+  // departed holder's zone here — a global tombstone would poison the owner's re-homed
+  // copy (no-resurrect). But it must also NOT accumulate as a visible stale location
+  // (users who never open the app at the new unit would stack zones forever). So a
+  // departed zone goes into STORAGE — a durable, owner-readable row that is INVISIBLE
+  // in this cluster: (1) STRAND its cluster-owned (owner null) items up to the root
+  // pool; (2) REMOVE its canvas tile so it leaves the map; (3) the cluster tree/list
+  // filters it out by roster (PropertyPanel visibleLocations). It rests in storage
+  // until the owner RE-HOMES it (PCS) or the account is DELETED (the only sanctioned
+  // tombstone — the user is gone for good, so no re-home can be poisoned). CONTRACT in
+  // personal-zone-pcs-rehome.md §5a. Guarded on a non-empty roster so a transient/failed
+  // member load can't sweep everyone into storage.
   if (members.length > 0) {
     const memberIds = new Set(members.map(m => m.id))
-    for (const [holderId, loc] of [...memberLocMap]) {
-      if (!memberIds.has(holderId)) {
-        await cascadeDeleteLocation(loc.id, userId, clinicId)
-        memberLocMap.delete(holderId)
+    for (const [holderId, loc] of memberLocMap) {
+      if (!memberIds.has(holderId) && loc.clinic_id === clinicId) {
+        await strandClusterItemsUnder(loc.id, clinicId, userId, allLocs)
+        // Drop the storage zone's canvas tile (placement only; tag ≠ zone identity, so
+        // this is clinic-local and safe — never touches the zone row or its vault copy).
+        const affected = await deleteLocalTagsByTarget(loc.id)
+        for (const canvasId of affected) await queueTagSync(canvasId)
       }
     }
   }
 
-  // locId → display name for newly created member-locations needing canvas zones
-  const newLocations = new Map<string, string>()
+  // SELF-HEAL orphans: a cluster-owned (owner null) item whose location no longer
+  // resolves (its zone was re-homed to another cluster) is reassigned up to the root
+  // canvas so it can't dangle invisibly. Personally-owned items are their owner's
+  // concern (they travel with the zone), so they're left alone.
+  const liveLocIds = new Set(allLocs.map(l => l.id))
+  for (const item of await getLocalPropertyItems(clinicId)) {
+    if (item.location_id && !liveLocIds.has(item.location_id) && (item.owner_user_id ?? null) === null) {
+      await updateItem(item.id, { location_id: rootLocationId }, userId)
+    }
+  }
+
+  // Every current member's zone id+name — drives canvas tiling below. Collected for
+  // existing, freshly-created, AND re-homed/adopted zones so we can HEAL a missing tile
+  // (a returning member whose tile was dropped while they were in storage re-acquires one).
+  const desiredTiles: { id: string; name: string }[] = []
 
   for (const member of members) {
     const existing = memberLocMap.get(member.id)
-    if (!existing) {
-      const result = await createLocation(
-        {
-          clinic_id: clinicId,
-          parent_id: rootLocationId,
-          name: member.displayName,
-          photo_data: null,
-          holder_user_id: member.id,
-          created_by: userId,
-        },
-        userId,
-      )
-      if (result.success) {
-        newLocations.set(result.location.id, member.displayName)
+    if (existing) {
+      if (existing.name !== member.displayName) {
+        await updateLocation(existing.id, { name: member.displayName }, userId)
       }
-    } else if (existing.name !== member.displayName) {
-      await updateLocation(existing.id, { name: member.displayName }, userId)
+      desiredTiles.push({ id: existing.id, name: member.displayName })
+      continue
+    }
+    // No member-zone for this member in THIS cluster yet.
+    if (member.id === userId) {
+      // ADOPT-NOT-RECREATE: I may already own a member-zone keyed to my previous
+      // cluster (PCS in transit). Re-home it here from my own local copy instead of
+      // minting an empty one — carrying my structure + my items, stranding cluster
+      // gear. (Cold device: not in IDB → falls through to a fresh create; the spine
+      // self-clause re-home is a later refinement.)
+      const mine = (await getAllLocalPropertyLocations()).find(
+        l => l.holder_user_id === userId && l.clinic_id !== clinicId && !l.deleted_at,
+      )
+      if (mine) {
+        await rehomeMemberZone(mine, clinicId, rootLocationId, userId)
+        desiredTiles.push({ id: mine.id, name: member.displayName })
+        continue
+      }
+    }
+    const result = await createLocation(
+      {
+        clinic_id: clinicId,
+        parent_id: rootLocationId,
+        name: member.displayName,
+        photo_data: null,
+        holder_user_id: member.id,
+        created_by: userId,
+      },
+      userId,
+    )
+    if (result.success) {
+      desiredTiles.push({ id: result.location.id, name: member.displayName })
     }
   }
 
-  if (newLocations.size === 0) return
-
-  // Place default zones on root canvas for newly created member-locations
+  // Tile any desired member-zone that lacks a root-canvas tile — covers freshly
+  // created, re-homed/adopted, AND returning-from-storage members (whose tile was
+  // dropped on departure). Steady state (all tiled) → missing is empty → no-op.
   const existingTags = await fetchLocationTags(rootLocationId)
+  const taggedTargets = new Set(
+    existingTags.filter(t => t.target_type === 'location').map(t => t.target_id),
+  )
+  const missingTiles = desiredTiles.filter(z => !taggedTargets.has(z.id))
+  if (missingTiles.length === 0) return
+
   const zoneCount = existingTags.filter(t => t.target_type === 'location').length
-  const additionalTags = Array.from(newLocations.entries()).map(([locId, name], i) => {
+  const additionalTags = missingTiles.map(({ id: locId, name }, i) => {
     const idx = zoneCount + i
     const col = idx % 4
     const row = Math.floor(idx / 4)

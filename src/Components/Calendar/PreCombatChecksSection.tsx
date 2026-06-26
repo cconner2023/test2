@@ -246,7 +246,7 @@ export function PreCombatChecksSection({ cornerItems }: PreCombatChecksSectionPr
         }
         footer={
           editor ? (
-            <div className="flex gap-1 bg-themewhite rounded-2xl shadow-lg px-1.5 py-1.5">
+            <ActionPill ref={addFabRef} shadow="sm">
               {editor.mode === 'edit' && (
                 <ActionButton
                   icon={Trash2}
@@ -261,18 +261,6 @@ export function PreCombatChecksSection({ cornerItems }: PreCombatChecksSectionPr
                 />
               )}
               <ActionButton
-                icon={saving ? Loader2 : Check}
-                label={saving ? 'Saving…' : 'Save'}
-                variant={saving || !draftName.trim() ? 'disabled' : 'success'}
-                onClick={handleSave}
-              />
-            </div>
-          ) : undefined
-        }
-        rightFooter={
-          editor ? (
-            <ActionPill ref={addFabRef} shadow="sm">
-              <ActionButton
                 icon={Plus}
                 label="Add check"
                 onClick={() => {
@@ -280,6 +268,18 @@ export function PreCombatChecksSection({ cornerItems }: PreCombatChecksSectionPr
                   if (!rect) return
                   setAddMenu({ anchor: rect, kind: null })
                 }}
+              />
+            </ActionPill>
+          ) : undefined
+        }
+        rightFooter={
+          editor ? (
+            <ActionPill>
+              <ActionButton
+                icon={saving ? Loader2 : Check}
+                label={saving ? 'Saving…' : 'Save'}
+                variant={saving || !draftName.trim() ? 'disabled' : 'success'}
+                onClick={handleSave}
               />
             </ActionPill>
           ) : undefined
@@ -328,8 +328,8 @@ export function PreCombatChecksSection({ cornerItems }: PreCombatChecksSectionPr
           previewMaxHeight={activeKind ? '50dvh' : 'auto'}
           actions={activeKind ? [] : addActions}
           zIndex={95}
-          footer={activeKind === 'task' ? (
-            <div className="flex gap-1 bg-themewhite rounded-2xl shadow-lg px-1.5 py-1.5">
+          rightFooter={activeKind === 'task' ? (
+            <ActionPill>
               <ActionButton
                 icon={Check}
                 label="Add"
@@ -339,7 +339,7 @@ export function PreCombatChecksSection({ cornerItems }: PreCombatChecksSectionPr
                   addItem({ id: crypto.randomUUID(), kind: 'task', label: freeTextDraft.trim() })
                 }}
               />
-            </div>
+            </ActionPill>
           ) : undefined}
         >
           {!activeKind ? (

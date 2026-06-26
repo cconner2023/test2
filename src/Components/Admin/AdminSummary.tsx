@@ -547,7 +547,7 @@ export function AdminSummary({
             }] : []),
             ...(user.email ? [{
               key: 'email', label: 'Email', icon: Mail,
-              onAction: () => openMailto({ to: user.email!, subject: 'Medical Operations Inquiry', body: `${[user.rank, user.last_name].filter(Boolean).join(' ')},\n\n` }),
+              onAction: () => openMailto({ to: user.email!, subject: '[inquiry] -  Medical Operations Web Application', body: `${[user.rank, user.last_name].filter(Boolean).join(' ')},\n\n` }),
             }] : []),
             { key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => setConfirmDelete({ kind: 'user', id: user.id, label }) },
           ]

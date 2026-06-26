@@ -303,7 +303,7 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, embedded
         const name = ctxRequest.request_type === 'support'
           ? [ctxRequest.first_name, ctxRequest.last_name].filter(Boolean).join(' ')
           : [ctxRequest.rank, ctxRequest.last_name].filter(Boolean).join(' ')
-        openMailto({ to: ctxRequest.email, subject: 'Medical Operations Inquiry', body: `${name},\n\n` })
+        openMailto({ to: ctxRequest.email, subject: '[inquiry] -  Medical Operations Web Application', body: `${name},\n\n` })
       },
     }] : []
     const deleteLabel = ctxRequest.request_type === 'support' ? 'Dismiss' : 'Delete'
@@ -421,7 +421,7 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, embedded
       icon: Mail,
       onAction: () => {
         const name = ctxFeedback.display_name || ''
-        openMailto({ to: ctxEmail, subject: 'Medical Operations Feedback', body: `${name},\n\nThanks for the feedback.\n\n` })
+        openMailto({ to: ctxEmail, subject: '[feedback] -  Medical Operations Web Application', body: `${name},\n\nThanks for the feedback.\n\n` })
       },
     }] : []
     const chatItem = (messagesCtx && ctxFeedback.user_id) ? [{

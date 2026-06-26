@@ -3,7 +3,7 @@ import { ChevronRight, ChevronDown, Pencil, Trash2, Eye, FolderPlus, PackagePlus
 import { type ContextMenuItem } from '../ContextMenu'
 import { LiftedRowMenu } from '../LiftedRowMenu'
 import type { LocalPropertyLocation, LocalPropertyItem, HolderInfo } from '../../Types/PropertyTypes'
-import { expiryStatus, itemAlert } from '../../Types/PropertyTypes'
+import { itemAlert } from '../../Types/PropertyTypes'
 import { isStructuralZone } from './levelUtils'
 import { useVehicleDispatches } from '../../Hooks/useVehicleDispatches'
 import { DispatchDot } from './DispatchDot'
@@ -30,6 +30,12 @@ interface PropertyLocationTreeProps {
   activeLocationId?: string | null
   onSelectAll?: () => void
   allSelected?: boolean
+  /** "My property" filter: when on, prune the tree to items the user OWNS
+   *  (`owner_user_id`) OR HOLDS by custody (`current_holder_id`), plus the zones on
+   *  their path. */
+  mineOnly?: boolean
+  /** The viewer's user id — needed to evaluate the "My property" filter. */
+  currentUserId?: string | null
   /** Open the location edit form (name + parent) — no longer an inline rename. */
   onEditLocation?: (loc: LocalPropertyLocation) => void
   /** Open the item edit form. */
@@ -61,6 +67,8 @@ export function PropertyLocationTree({
   activeLocationId,
   onSelectAll,
   allSelected,
+  mineOnly,
+  currentUserId,
   onEditLocation,
   onEditItem,
   onDeleteLocation,
@@ -156,11 +164,12 @@ export function PropertyLocationTree({
   // matching descendants). Mirrors PropertySearchOverlay's match fields.
   const q = (searchQuery ?? '').trim().toLowerCase()
   const isSearching = q.length > 0
+  const mineActive = !!currentUserId && !!mineOnly
   const { displayRoots, displayMembers, displayUnassigned, displayRootItems } = useMemo(() => {
-    if (!isSearching) return { displayRoots: roots, displayMembers: memberNodes, displayUnassigned: unassignedItems, displayRootItems: rootItems }
+    if (!isSearching && !mineActive) return { displayRoots: roots, displayMembers: memberNodes, displayUnassigned: unassignedItems, displayRootItems: rootItems }
 
     const locName = (id: string | null) => (id ? locations.find(l => l.id === id)?.name ?? null : null)
-    const itemMatches = (i: LocalPropertyItem) => {
+    const matchesSearch = (i: LocalPropertyItem) => {
       const holder = i.current_holder_id ? holders?.get(i.current_holder_id) : null
       return (
         i.name.toLowerCase().includes(q) ||
@@ -173,20 +182,30 @@ export function PropertyLocationTree({
         !!locName(i.location_id ?? null)?.toLowerCase().includes(q)
       )
     }
+    // "My property" = owned by the viewer (owner_user_id) OR held by the viewer via
+    // custody (current_holder_id).
+    const isMine = (i: LocalPropertyItem) =>
+      i.owner_user_id === currentUserId || i.current_holder_id === currentUserId
+    const showItem = (i: LocalPropertyItem) =>
+      (!isSearching || matchesSearch(i)) && (!mineActive || isMine(i))
+
     const filterNode = (node: TreeNode): TreeNode | null => {
-      if (node.location.name.toLowerCase().includes(q)) return node // name hit → keep whole subtree
+      // A location NAME hit keeps its whole subtree — but ONLY for a pure search. The
+      // "Mine" filter must never surface items the viewer doesn't own/hold just because
+      // a zone name matched, so the shortcut is disabled when mineActive.
+      if (isSearching && !mineActive && node.location.name.toLowerCase().includes(q)) return node
       const children = node.children.map(filterNode).filter((n): n is TreeNode => n !== null)
-      const nodeItems = node.items.filter(itemMatches)
+      const nodeItems = node.items.filter(showItem)
       if (children.length === 0 && nodeItems.length === 0) return null
       return { ...node, children, items: nodeItems }
     }
     return {
       displayRoots: roots.map(filterNode).filter((n): n is TreeNode => n !== null),
       displayMembers: memberNodes.map(filterNode).filter((n): n is TreeNode => n !== null),
-      displayUnassigned: unassignedItems.filter(itemMatches),
-      displayRootItems: rootItems.filter(itemMatches),
+      displayUnassigned: unassignedItems.filter(showItem),
+      displayRootItems: rootItems.filter(showItem),
     }
-  }, [isSearching, q, roots, memberNodes, unassignedItems, rootItems, locations, holders])
+  }, [isSearching, mineActive, currentUserId, q, roots, memberNodes, unassignedItems, rootItems, locations, holders])
 
   // Ellipsis button — hover-revealed in the desktop rail, always shown elsewhere.
   const actionBtnCls = `w-7 h-7 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all shrink-0 ${
@@ -201,7 +220,7 @@ export function PropertyLocationTree({
   ) {
     return (
       <div className="px-6 py-8 text-center text-[10pt] text-tertiary">
-        {isSearching ? 'No matches.' : rootId ? 'Nothing here yet' : 'No locations or items yet.'}
+        {isSearching ? 'No matches.' : mineActive ? 'Nothing owned or signed to you.' : rootId ? 'Nothing here yet' : 'No locations or items yet.'}
       </div>
     )
   }
@@ -212,13 +231,11 @@ export function PropertyLocationTree({
   // keeping every child at a parent — vehicle, zone, or item — at the same indent.
   // `actionCls` toggles hover-gated vs always-visible ellipsis.
   function renderItemRow(item: LocalPropertyItem, depth: number, actionCls: string) {
-    const expiry = expiryStatus(item.expiry_date ?? null)
     // Expired / expiring (≤30d) / depleted (0 on hand) → red row + dot.
     const alert = itemAlert(item)
-    const depleted = alert === 'depleted'
-    const expDate = expiry && item.expiry_date
-      ? new Date(item.expiry_date + 'T00:00:00').toLocaleDateString(undefined, { month: 'numeric', day: 'numeric', year: '2-digit' })
-      : null
+    // Compact warning tag riding the action slot: OUT when depleted, EXP when expiry-flagged.
+    const warnLabel = alert === 'depleted' ? 'OUT' : alert ? 'EXP' : null
+    const hasActions = !!(onAddItemAtLocation || onDeleteItem)
     return (
       <div
         key={item.id}
@@ -237,24 +254,31 @@ export function PropertyLocationTree({
         <span className="w-[18px] shrink-0 flex items-center justify-center">
           {alert && <span className="w-1.5 h-1.5 rounded-full bg-themeredred" />}
         </span>
-        <span className={`text-[10pt] truncate flex-1 ${alert ? 'text-themeredred' : 'text-primary'}`}>{item.name}</span>
-        {/* Expiration (when expiring/expired) + quantity (incl. red 0 when depleted) — as applicable. */}
-        {expDate && (
-          <span className="text-[9pt] text-themeredred tabular-nums shrink-0">{expDate}</span>
+        <span className={`text-[10pt] truncate flex-1 ${alert ? 'text-themeredred font-medium' : 'text-primary'}`}>{item.name}</span>
+        {/* Quantity — matches the title font; hidden when depleted (the OUT tag covers it). */}
+        {item.quantity > 0 && (
+          <span className="text-[10pt] text-tertiary tabular-nums shrink-0">{item.quantity}</span>
         )}
-        {item.quantity > 0 ? (
-          <span className="text-[9pt] text-tertiary tabular-nums shrink-0">{item.quantity}</span>
-        ) : depleted ? (
-          <span className="text-[9pt] text-themeredred font-semibold tabular-nums shrink-0">0</span>
-        ) : null}
-        {(onAddItemAtLocation || onDeleteItem) && (
-          <button
-            onClick={(e) => { e.stopPropagation(); openRowMenu('item', item.id, (e.currentTarget as HTMLElement).closest('[data-prop-row]') as HTMLElement | null) }}
-            aria-label="More actions"
-            className={actionCls}
-          >
-            <MoreHorizontal size={15} />
-          </button>
+        {/* Warning tag + actions share one slot: tag rides on top, ellipsis swaps in on hover. */}
+        {(warnLabel || hasActions) && (
+          <div className="relative w-7 h-7 shrink-0">
+            {warnLabel && (
+              <span className={`absolute inset-0 flex items-center justify-center text-[8pt] font-semibold text-themeredred tabular-nums pointer-events-none transition-opacity ${hasActions ? 'group-hover:opacity-0' : ''}`}>
+                {warnLabel}
+              </span>
+            )}
+            {hasActions && (
+              <button
+                onClick={(e) => { e.stopPropagation(); openRowMenu('item', item.id, (e.currentTarget as HTMLElement).closest('[data-prop-row]') as HTMLElement | null) }}
+                aria-label="More actions"
+                className={warnLabel
+                  ? 'absolute inset-0 w-7 h-7 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all opacity-0 group-hover:opacity-100 focus-visible:opacity-100'
+                  : actionCls}
+              >
+                <MoreHorizontal size={15} />
+              </button>
+            )}
+          </div>
         )}
       </div>
     )

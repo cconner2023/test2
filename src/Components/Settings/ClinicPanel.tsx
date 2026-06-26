@@ -1004,13 +1004,19 @@ export function ClinicPanel({
                 label="Upload"
                 onClick={handlePhotoUpload}
               />
+            </div>
+          ) : undefined
+        }
+        rightFooter={
+          assocPopover?.mode === 'add' ? (
+            <ActionPill>
               <ActionButton
                 icon={assocSaving ? Loader2 : Check}
                 label="Associate"
                 variant={!joinCode || assocSaving ? 'disabled' : 'success'}
                 onClick={() => redeemAssocCode(joinCode)}
               />
-            </div>
+            </ActionPill>
           ) : undefined
         }
       >

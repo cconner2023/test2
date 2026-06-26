@@ -21,6 +21,7 @@ import { useClinicMedics } from '../../Hooks/useClinicMedics'
 import { useClinicHuddleTasks } from '../../Hooks/useClinicHuddleTasks'
 import { useLongPress } from '../../Hooks/useLongPress'
 import { getDisplayName } from '../../Utilities/nameUtils'
+import { lastActivityMessage, activityPreview } from '../../Utilities/conversationActivity'
 import { UserAvatar } from '../Settings/UserAvatar'
 import { useProfileAvatar } from '../../Hooks/useProfileAvatar'
 import type { ClinicMedic } from '../../Types/SupervisorTestTypes'
@@ -188,9 +189,11 @@ function MessagesWidget({ action }: { action: WidgetActionDescriptor | null }) {
     const medicMap = new Map(medics.map(m => [m.id, m]))
     for (const [key, msgs] of Object.entries(conversations)) {
       if (groups[key]?.systemType) continue
-      const visibleMsgs = msgs.filter(m => m.messageType !== 'request-accepted' && !m.threadId)
-      if (visibleMsgs.length === 0) continue
-      const lastTime = visibleMsgs.at(-1)?.createdAt ?? ''
+      // Thread replies count as activity (bump the row), even though they stay
+      // hidden in the main message view. See conversationActivity.ts.
+      const lastMsg = lastActivityMessage(msgs)
+      if (!lastMsg) continue
+      const lastTime = lastMsg.createdAt
       if (key === localUserId) {
         const selfMedic: ClinicMedic = {
           id: key,
@@ -244,12 +247,12 @@ function MessagesWidget({ action }: { action: WidgetActionDescriptor | null }) {
       )}
       {displayed.map(entry => {
         const msgs = conversations[entry.key]
-        const lastMsg = msgs?.filter(m => m.messageType !== 'request-accepted' && !m.threadId).at(-1)
+        const lastMsg = lastActivityMessage(msgs)
         const isPinned = pinnedKeys.has(entry.key)
         const content = (
           <ConvRowContent
             entry={entry}
-            lastText={lastMsg?.plaintext}
+            lastText={activityPreview(lastMsg)}
             unread={unreadCounts[entry.key] ?? 0}
             isPinned={isPinned}
           />

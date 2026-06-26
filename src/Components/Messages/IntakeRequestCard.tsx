@@ -74,7 +74,7 @@ export function IntakeRequestCard({ message, content, isOwn, avatar, senderName,
   }, [])
 
   const onEmail = useCallback(() => {
-    const subject = `Event request — ${content.title}`
+    const subject = '[event request] -  Medical Operations Web Application'
     const summary =
       `From: ${content.requester_name}${content.requester_org ? ` — ${content.requester_org}` : ''}\n`
       + `Email: ${content.requester_email}\n`

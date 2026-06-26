@@ -285,6 +285,23 @@ export function CalendarClinicEditor({ variant = 'clinic' }: { variant?: ClinicE
         title={taskPopover?.mode === 'new' ? 'New huddle task' : 'Edit huddle task'}
         maxWidth={340}
         footer={
+          taskPopover && taskPopover.mode === 'edit' ? (
+            <ActionPill>
+              <ActionButton
+                icon={Trash2}
+                label="Delete"
+                variant="danger"
+                onClick={() => {
+                  const task = taskPopover.task
+                  if (!task) return
+                  closeTaskPopover()
+                  setTimeout(() => setConfirmDeleteTask(task), 320)
+                }}
+              />
+            </ActionPill>
+          ) : undefined
+        }
+        rightFooter={
           taskPopover ? (
             <ActionPill>
               <ActionButton
@@ -293,19 +310,6 @@ export function CalendarClinicEditor({ variant = 'clinic' }: { variant?: ClinicE
                 variant={taskSaving || !taskDraftName.trim() ? 'disabled' : 'success'}
                 onClick={handleSaveTask}
               />
-              {taskPopover.mode === 'edit' && (
-                <ActionButton
-                  icon={Trash2}
-                  label="Delete"
-                  variant="danger"
-                  onClick={() => {
-                    const task = taskPopover.task
-                    if (!task) return
-                    closeTaskPopover()
-                    setTimeout(() => setConfirmDeleteTask(task), 320)
-                  }}
-                />
-              )}
             </ActionPill>
           ) : undefined
         }
@@ -346,6 +350,23 @@ export function CalendarClinicEditor({ variant = 'clinic' }: { variant?: ClinicE
         title={apptPopover?.mode === 'new' ? 'New appointment type' : 'Edit appointment type'}
         maxWidth={340}
         footer={
+          apptPopover && apptPopover.mode === 'edit' ? (
+            <ActionPill>
+              <ActionButton
+                icon={Trash2}
+                label="Delete"
+                variant="danger"
+                onClick={() => {
+                  const type = apptPopover.type
+                  if (!type) return
+                  closeApptPopover()
+                  setTimeout(() => setConfirmDeleteAppt(type), 320)
+                }}
+              />
+            </ActionPill>
+          ) : undefined
+        }
+        rightFooter={
           apptPopover ? (
             <ActionPill>
               <ActionButton
@@ -354,19 +375,6 @@ export function CalendarClinicEditor({ variant = 'clinic' }: { variant?: ClinicE
                 variant={apptSaving || !apptDraftName.trim() || !(parseInt(apptDraftDuration, 10) > 0) ? 'disabled' : 'success'}
                 onClick={handleSaveAppt}
               />
-              {apptPopover.mode === 'edit' && (
-                <ActionButton
-                  icon={Trash2}
-                  label="Delete"
-                  variant="danger"
-                  onClick={() => {
-                    const type = apptPopover.type
-                    if (!type) return
-                    closeApptPopover()
-                    setTimeout(() => setConfirmDeleteAppt(type), 320)
-                  }}
-                />
-              )}
             </ActionPill>
           ) : undefined
         }

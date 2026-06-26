@@ -14,6 +14,7 @@ import { OverlaySnapshot } from '../MapOverlay/OverlaySnapshot'
 import type { LucideIcon } from 'lucide-react'
 import { detectFirstDate } from '../../Utilities/dateDetect'
 import { detectEncodedNote } from '../../Utilities/noteDecode'
+import { relativeShort } from '../../Utilities/conversationActivity'
 import { calendarArgsForMessage } from '../../Utilities/messageCalendar'
 import { DecodedNotePreview } from '../DecodedNotePreview'
 import { useNavigationStore } from '../../stores/useNavigationStore'
@@ -42,6 +43,8 @@ interface MessageBubbleProps {
   onCancelEdit?: () => void
   /** Number of thread replies if this message is a thread root. */
   threadReplyCount?: number
+  /** ISO timestamp of the most recent reply in this thread (for the "last reply Xm" label). */
+  threadLastReplyAt?: string
   /** Callback when user taps to open a thread (reply header or reply count badge). */
   onOpenThread?: (rootMessageId: string) => void
   /** Sender name to display above non-own bubbles in group chats. */
@@ -152,6 +155,7 @@ export function MessageBubble({
   onSaveEdit,
   onCancelEdit,
   threadReplyCount,
+  threadLastReplyAt,
   onOpenThread,
   senderName,
   intakeActionable = true,
@@ -880,16 +884,29 @@ export function MessageBubble({
               )}
             </div>
 
-            {/* Thread reply count badge */}
+            {/* Thread affordance — Slack-style flush link row (NOT a pill): branch
+                icon + blue "N replies" link + muted last-reply time + trailing
+                chevron. Replies are hidden from the main view, so this is the only
+                in-conversation entry point to the thread. Chevron is always shown
+                (not hover-gated) — iOS Safari has no hover. */}
             {!!threadReplyCount && threadReplyCount > 0 && (
               <button
                 data-tour="messages-thread-badge"
                 onClick={e => { e.stopPropagation(); onOpenThread?.(message.originId ?? message.id) }}
-                className={`flex items-center gap-1 mt-0.5 px-2 py-0.5 rounded-full text-[9pt] font-medium
-                           text-themeblue2 hover:bg-themeblue2/10 active:scale-95 transition-all
-                           ${isOwn ? 'ml-auto' : ''}`}
+                className={`flex items-center gap-1.5 mt-1 -ml-1 pl-1 pr-1.5 py-0.5 rounded-md max-w-full
+                           hover:bg-themeblue3/8 active:scale-[0.98] transition-colors
+                           ${isOwn ? 'ml-auto -mr-1' : ''}`}
               >
-                {threadReplyCount} {threadReplyCount === 1 ? 'reply' : 'replies'}
+                <Reply size={13} className="shrink-0 text-themeblue2" />
+                <span className="text-[9.5pt] font-semibold text-themeblue2 shrink-0">
+                  {threadReplyCount} {threadReplyCount === 1 ? 'reply' : 'replies'}
+                </span>
+                {threadLastReplyAt && (
+                  <span className="text-[9pt] text-tertiary truncate">
+                    Last reply {relativeShort(threadLastReplyAt)}
+                  </span>
+                )}
+                <ChevronRight size={13} className="shrink-0 text-tertiary/60 ml-auto" />
               </button>
             )}
           </div>

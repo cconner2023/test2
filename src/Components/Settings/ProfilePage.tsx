@@ -622,11 +622,11 @@ export const ProfilePage = ({
                 anchorRect={sharePopoverAnchor}
                 title="Share ID"
                 maxWidth={320}
-                footer={
+                rightFooter={
                     sharePopoverAnchor ? (
-                        <div className="flex gap-1 bg-themewhite rounded-2xl shadow-lg px-1.5 py-1.5">
+                        <ActionPill>
                             <ActionButton icon={Share2} label="Share image" onClick={handleShareImage} />
-                        </div>
+                        </ActionPill>
                     ) : undefined
                 }
             >
@@ -650,16 +650,16 @@ export const ProfilePage = ({
                 title="Request profile change"
                 maxWidth={360}
                 previewMaxHeight="70dvh"
-                footer={
+                rightFooter={
                     profileEdit && !profileSubmitted ? (
-                        <div className="flex gap-1 bg-themewhite rounded-2xl shadow-lg px-1.5 py-1.5">
+                        <ActionPill>
                             <ActionButton
                                 icon={profileSubmitting ? RefreshCw : Check}
                                 label={profileSubmitting ? 'Submitting…' : 'Submit'}
                                 variant={profileSubmitting || !profileHasChanges || !profileUicValid ? 'disabled' : 'success'}
                                 onClick={handleProfileSubmit}
                             />
-                        </div>
+                        </ActionPill>
                     ) : undefined
                 }
             >
@@ -757,16 +757,16 @@ export const ProfilePage = ({
                 anchorRect={emailAnchor}
                 title="Change email"
                 maxWidth={360}
-                footer={
+                rightFooter={
                     emailAnchor ? (
-                        <div className="flex gap-1 bg-themewhite rounded-2xl shadow-lg px-1.5 py-1.5">
+                        <ActionPill>
                             <ActionButton
                                 icon={Check}
                                 label="Save"
                                 variant={!emailChanged || !emailValid || emailSubmitting ? 'disabled' : 'success'}
                                 onClick={requestEmailConfirm}
                             />
-                        </div>
+                        </ActionPill>
                     ) : undefined
                 }
             >
@@ -814,16 +814,16 @@ export const ProfilePage = ({
                 anchorRect={pwAnchor}
                 title="Reset password"
                 maxWidth={360}
-                footer={
+                rightFooter={
                     pwAnchor && !pwSuccess ? (
-                        <div className="flex gap-1 bg-themewhite rounded-2xl shadow-lg px-1.5 py-1.5">
+                        <ActionPill>
                             <ActionButton
                                 icon={pwSubmitting ? RefreshCw : Check}
                                 label={pwSubmitting ? 'Updating…' : 'Update password'}
                                 variant={!pwValid || pwSubmitting ? 'disabled' : 'success'}
                                 onClick={doPwChange}
                             />
-                        </div>
+                        </ActionPill>
                     ) : undefined
                 }
             >
@@ -876,16 +876,16 @@ export const ProfilePage = ({
                 title="Add certification"
                 maxWidth={360}
                 previewMaxHeight="60dvh"
-                footer={
+                rightFooter={
                     certAddAnchor ? (
-                        <div className="flex gap-1 bg-themewhite rounded-2xl shadow-lg px-1.5 py-1.5">
+                        <ActionPill>
                             <ActionButton
                                 icon={certSaving ? RefreshCw : Check}
                                 label={certSaving ? 'Saving…' : 'Add'}
                                 variant={certSaving || !certForm.title.trim() ? 'disabled' : 'success'}
                                 onClick={handleCertAdd}
                             />
-                        </div>
+                        </ActionPill>
                     ) : undefined
                 }
             >
@@ -912,13 +912,19 @@ export const ProfilePage = ({
                                     setPendingDeletePrimary(editingCert.is_primary)
                                 }}
                             />
+                        </div>
+                    ) : undefined
+                }
+                rightFooter={
+                    certEdit && editingCert ? (
+                        <ActionPill>
                             <ActionButton
                                 icon={certSaving ? RefreshCw : Check}
                                 label={certSaving ? 'Saving…' : 'Save'}
                                 variant={certSaving || !certForm.title.trim() ? 'disabled' : 'success'}
                                 onClick={handleCertEdit}
                             />
-                        </div>
+                        </ActionPill>
                     ) : undefined
                 }
             >

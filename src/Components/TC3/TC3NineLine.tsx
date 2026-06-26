@@ -1,7 +1,8 @@
 import { memo, useCallback, useMemo, useState } from 'react'
+import { Copy, Check, Swords } from 'lucide-react'
 import { MedevacCard, type MedevacLine } from '../Medevac/MedevacCard'
-import { ActionPill } from '../ActionPill'
-import { ActionIconButton } from '../WriteNoteHelpers'
+import { OverlayActionMenu } from '../OverlayActionMenu'
+import type { ContextMenuItem } from '../ContextMenu'
 import { useTC3Store } from '../../stores/useTC3Store'
 import {
   deriveMedevacFromTC3Cards,
@@ -128,20 +129,30 @@ export const TC3NineLine = memo(function TC3NineLine({ card, cards, scope }: TC3
     setTimeout(() => setCopied(false), 2000)
   }
 
+  // Corner actions self-consolidate via OverlayActionMenu: solo (read-only) =
+  // inline copy tile; with the peace/war toggle = single ellipsis lifted-row menu.
+  const wartime = projection.mode === 'wartime'
+  const cornerItems: ContextMenuItem[] = [
+    { key: 'copy', label: 'Copy 9-line text', icon: copied ? Check : Copy, onAction: handleCopy, variant: copied ? 'success' : 'default' },
+  ]
+  if (!readOnly) {
+    cornerItems.push({
+      key: 'mode',
+      label: wartime ? 'Switch to peacetime' : 'Switch to wartime',
+      icon: Swords,
+      onAction: () => setMedevacOverride('mode', wartime ? 'peacetime' : 'wartime'),
+    })
+  }
+
   return (
     <div className="relative">
-      <div className="flex items-center justify-between mb-2 px-1">
-        <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">
-          {readOnly
-            ? '9-Line · This Casualty'
-            : isMascal
-              ? `9-Line · Roll-up (${sessionCards.length})`
-              : '9-Line MEDEVAC'}
-        </p>
-        <p className="text-[9pt] text-tertiary italic">
-          {readOnly ? 'Read-only — edit on Roll-up' : 'Tap any row to edit'}
-        </p>
-      </div>
+      {(readOnly || isMascal) && (
+        <div className="mb-2 px-1">
+          <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">
+            {readOnly ? '9-Line · This Casualty' : `9-Line · Roll-up (${sessionCards.length})`}
+          </p>
+        </div>
+      )}
 
       <MedevacCard data={projection} onLineClick={readOnly ? undefined : handleLineClick} />
 
@@ -175,14 +186,7 @@ export const TC3NineLine = memo(function TC3NineLine({ card, cards, scope }: TC3
         </div>
       )}
 
-      <ActionPill shadow="sm" placement="overlay">
-        <ActionIconButton
-          onClick={handleCopy}
-          status={copied ? 'done' : 'idle'}
-          variant="copy"
-          title="Copy 9-line text"
-        />
-      </ActionPill>
+      <OverlayActionMenu items={cornerItems} shadow="sm" />
 
       {!readOnly && (
         <TC3NineLineEditor

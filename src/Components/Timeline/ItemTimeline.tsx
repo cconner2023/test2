@@ -156,7 +156,7 @@ export function ItemTimeline({ subjectId, clinicId, locations, holders, title = 
   return (
     <div>
       <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase mb-2">
-        {title}{events.length > 0 && ` · ${events.length}`}
+        {title}
       </p>
       <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
         {loading ? (
@@ -168,7 +168,6 @@ export function ItemTimeline({ subjectId, clinicId, locations, holders, title = 
         ) : (
           <div className="divide-y divide-tertiary/8">
             {events.map((e) => {
-              const Icon = EVENT_ICON[e.eventType] ?? Pencil
               const open = isOpenFault(e)
               return (
                 <button
@@ -177,9 +176,6 @@ export function ItemTimeline({ subjectId, clinicId, locations, holders, title = 
                   onClick={() => setPreviewEvent(e)}
                   className="w-full text-left flex items-center gap-3 px-4 py-3 active:opacity-70 transition-opacity"
                 >
-                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${open ? 'bg-themered/10 text-themered' : 'bg-themeblue3/10 text-themeblue2'}`}>
-                    <Icon size={14} />
-                  </div>
                   <p className={`flex-1 min-w-0 text-sm font-medium truncate ${open ? 'text-themered' : 'text-primary'}`}>{describe(e)}</p>
                   <span className="text-[9pt] text-tertiary shrink-0">{fmtDate(e.occurredAt)}</span>
                 </button>

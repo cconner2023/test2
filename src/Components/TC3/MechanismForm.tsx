@@ -126,6 +126,7 @@ export const MechanismForm = memo(function MechanismForm() {
         onClose={() => setPopoverVisible(false)}
         anchorRect={anchorRect}
         maxWidth={380}
+        title="Mechanism"
         preview={
           <div className="px-4 py-3 space-y-3">
             <SectionHeader>Select All That Apply</SectionHeader>
@@ -171,13 +172,12 @@ export const MechanismForm = memo(function MechanismForm() {
             onAction: handleReset,
             variant: 'danger',
           },
-          {
-            key: 'accept',
-            label: 'Accept',
-            icon: Check,
-            onAction: handleAccept,
-          },
         ]}
+        rightFooter={
+          <ActionPill>
+            <ActionButton icon={Check} label="Accept" onClick={() => { handleAccept(); setPopoverVisible(false); }} />
+          </ActionPill>
+        }
       />
     </div>
   )

@@ -120,6 +120,33 @@ export const PropertyPanel = memo(function PropertyPanel({
   // DA 2062 hand-receipts tree section is dev-gated, mirroring the Settings surface
   // + the "New DA 2062" FAB action.
   const isDevRole = useAuthStore(s => s.isDevRole)
+  const currentUserId = useAuthStore(s => s.user?.id ?? null)
+  // "My property" filter — scope the location tree to property the viewer OWNS
+  // (owner_user_id) OR HOLDS by custody (current_holder_id). Calendar-style list-item
+  // filter panel (see CalendarDrawer category/personnel panels). personal-zone-pcs-rehome.md §8.
+  const [mineOnly, setMineOnly] = useState(false)
+  const filterRowCls = (active: boolean) =>
+    `w-full flex items-center gap-3 py-2.5 px-4 text-left transition-colors active:scale-95 ${
+      active ? 'bg-themeblue3/8 border-l-2 border-l-themeblue3' : 'hover:bg-secondary/5'
+    }`
+  // Section header matching the calendar filter-panel header (uppercase tertiary label).
+  const sectionHeader = (label: string) => (
+    <div className="shrink-0 px-4 py-2 border-t border-primary/10">
+      <p className="text-[10pt] font-medium text-tertiary uppercase tracking-wide">{label}</p>
+    </div>
+  )
+  const mineFilterPanel = currentUserId ? (
+    <div className="flex flex-col shrink-0">
+      {sectionHeader('Filter')}
+      <button className={filterRowCls(!mineOnly)} onClick={() => setMineOnly(false)}>
+        <span className="text-[10pt] font-medium text-primary truncate flex-1">All property</span>
+      </button>
+      <button className={filterRowCls(mineOnly)} onClick={() => setMineOnly(true)}>
+        <span className="text-[10pt] font-medium text-primary truncate flex-1">My property</span>
+        {mineOnly && <Check size={14} className="text-themeblue2 shrink-0" />}
+      </button>
+    </div>
+  ) : null
 
   // DA 2062 accountability data — lifted here so BOTH the Custody tab AND the unified
   // search overlay share one fetch (search folds receipts in as a "Sign-outs"
@@ -144,7 +171,17 @@ export const PropertyPanel = memo(function PropertyPanel({
   )
   const saveReprint = useCallback(() => { downloadDA2062(); clearDA2062Preview() }, [downloadDA2062, clearDA2062Preview])
 
-  const visibleLocations = store.locations.filter(l => l.name !== ROOT_LOCATION_NAME)
+  // Hide STORAGE zones: a member-zone anchored to THIS cluster whose holder is no
+  // longer on the home roster is a departed soldier's space held in storage (durable,
+  // owner-readable, re-homeable) — it must not stack as a stale visible location. Guard
+  // on a loaded roster so a transient empty-holders state never hides live zones.
+  // See personal-zone-pcs-rehome.md §5a.
+  const rosterLoaded = store.holders.size > 0
+  const visibleLocations = store.locations.filter(l => {
+    if (l.name === ROOT_LOCATION_NAME) return false
+    if (rosterLoaded && l.holder_user_id && l.clinic_id === store.clinicId && !store.holders.has(l.holder_user_id)) return false
+    return true
+  })
   const hasData = visibleLocations.length > 0 || store.items.length > 0
   const showLoading = useMinLoadTime(store.isLoading) && !hasData
   const clinicName = useClinicName(store.clinicId) || 'Cluster'
@@ -301,10 +338,16 @@ export const PropertyPanel = memo(function PropertyPanel({
     // location" — the breadcrumb then points to that zone/sub-zone. Flag the
     // programmatic selection so onSelectZone keeps the item open.
     const targetZone = item.location_id ?? null
-    if (targetZone && targetZone !== selectedLocationId) {
-      pendingItemZoneRef.current = targetZone
-      mapRef.current?.navigateToZone(targetZone)
-      setTimeout(() => { pendingItemZoneRef.current = null }, 0)
+    if (targetZone) {
+      // Flag the programmatic zone change (when the item lives elsewhere) so
+      // onSelectZone keeps the item open instead of closing it.
+      if (targetZone !== selectedLocationId) {
+        pendingItemZoneRef.current = targetZone
+        setTimeout(() => { pendingItemZoneRef.current = null }, 0)
+      }
+      // Drill the canvas in on the item itself (not just its zone) — mirrors a
+      // canvas pin tap. focusItem navigates to the zone first when needed.
+      mapRef.current?.focusItem(item.id)
     }
     // Mobile: nest the item inside the location sheet (back returns to the zone).
     if (isMobile) { setMobileItem(item); return }
@@ -456,6 +499,13 @@ export const PropertyPanel = memo(function PropertyPanel({
         // revealed it; otherwise a real zone change closes the open item/form.
         if (id && id === pendingItemZoneRef.current) return
         setMobileItem(null); setMobileForm(null)
+        // Desktop: the right-pane precedence gates the zone detail on view==='property',
+        // so an item detail/form already occupying the pane would otherwise swallow a
+        // genuine map navigation (tap another zone while an item is open). Drop it —
+        // onBack is a no-op when view is already 'property' — so the freshly-selected
+        // zone surfaces in the pane. Mobile drives its sheet off selectedLocation /
+        // mobileItem directly (cleared just above), so it needs no view reset.
+        if (!isMobile && (view === 'property-detail' || view === 'property-form')) onBack()
       }}
       onZoneDrawn={handleZoneDrawn}
       onDrawingChange={setDrawingZone}
@@ -541,6 +591,8 @@ export const PropertyPanel = memo(function PropertyPanel({
                 placeholder="Search items, serials, locations"
               />
             </div>
+            {mineFilterPanel}
+            {sectionHeader('Zones')}
             <div className="flex-1 min-h-0 overflow-y-auto">
               <PropertyLocationTree
                 locations={visibleLocations}
@@ -554,6 +606,8 @@ export const PropertyPanel = memo(function PropertyPanel({
                 onSelectItem={handleSelectItem}
                 onSelectAll={() => mapRef.current?.resetZoom()}
                 allSelected={!selectedLocationId}
+                mineOnly={mineOnly}
+                currentUserId={currentUserId}
                 onEditLocation={handleEditLocation}
                 onEditItem={handleEditItemRow}
                 onDeleteLocation={onDeleteItem ? (locId) => setPendingDeleteLocId(locId) : undefined}
@@ -566,25 +620,10 @@ export const PropertyPanel = memo(function PropertyPanel({
           </div>
 
           <div className="flex-1 min-w-0 relative">
-            {/* Search results take over the center pane (mirrors mobile's overlay);
-                otherwise the island cycles Map (canvas) ↔ Sign-outs (custody).
-                Camera is momentary and returns to the map. */}
-            {desktopSearching ? (
-              <PropertySearchOverlay
-                isVisible
-                embedded
-                value={desktopSearch}
-                items={store.items}
-                locations={visibleLocations}
-                holders={store.holders}
-                receipts={receipts}
-                receiptItemsById={receiptItemsById}
-                showReceipts={isDevRole}
-                onSelectItem={handleSelectItem}
-                onOpenLocation={(loc) => mapRef.current?.navigateToZone(loc.id)}
-                onSelectReceiptItem={handleLocateReceiptItem}
-              />
-            ) : propertyTab === 'custody' && store.clinicId ? (
+            {/* The island cycles Map (canvas) ↔ Sign-outs (custody); Camera is
+                momentary and returns to the map. Search results render as an OVERLAY
+                over the live map (below), mirroring the mobile shell. */}
+            {propertyTab === 'custody' && store.clinicId ? (
               <CustodyPanel
                 clinicId={store.clinicId}
                 receipts={receipts}
@@ -601,6 +640,28 @@ export const PropertyPanel = memo(function PropertyPanel({
                 {mapEl}
                 {addFab}
                 <LoadingOverlay visible={showLoading} />
+                {/* Search results overlay the LIVE map (mirrors mobile) — the canvas
+                    stays mounted underneath, so a result tap can actually drive it
+                    (focusItem / navigateToZone) and clearing the query reveals the
+                    navigated map. Previously the map was unmounted while searching, so
+                    mapRef was null and result taps opened the right pane but never
+                    moved the canvas. */}
+                {desktopSearching && (
+                  <PropertySearchOverlay
+                    isVisible
+                    embedded
+                    value={desktopSearch}
+                    items={store.items}
+                    locations={visibleLocations}
+                    holders={store.holders}
+                    receipts={receipts}
+                    receiptItemsById={receiptItemsById}
+                    showReceipts={isDevRole}
+                    onSelectItem={(item) => { setDesktopSearch(''); handleSelectItem(item) }}
+                    onOpenLocation={(loc) => { setDesktopSearch(''); mapRef.current?.navigateToZone(loc.id) }}
+                    onSelectReceiptItem={(item) => { setDesktopSearch(''); handleLocateReceiptItem(item) }}
+                  />
+                )}
               </>
             )}
             {!drawingZone && !desktopSearching && (
@@ -1040,12 +1101,16 @@ export const PropertyPanel = memo(function PropertyPanel({
       >
         {/* List view renders the SAME tree as the desktop rail (not cards). Opened
             from the top-left header button, reachable from any tab. */}
+        {mineFilterPanel}
+        {sectionHeader('Zones')}
         <PropertyLocationTree
           locations={visibleLocations}
           items={store.items}
           clinicName={clinicName}
           activeLocationId={selectedLocationId}
           allSelected={!selectedLocationId}
+          mineOnly={mineOnly}
+          currentUserId={currentUserId}
           onSelectAll={() => { mapRef.current?.resetZoom(); setShowLocations(false) }}
           onSelectLocation={(loc) => { mapRef.current?.navigateToZone(loc.id); setShowLocations(false) }}
           onSelectItem={(item) => { handleSelectItem(item); setShowLocations(false) }}

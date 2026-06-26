@@ -56,7 +56,7 @@ const LINE_TITLES_BASE = [
   '', // 9 — dynamic
 ]
 
-function getLineTitle(line: number, mode: 'wartime' | 'peacetime'): string {
+export function getLineTitle(line: number, mode: 'wartime' | 'peacetime'): string {
   if (line === 6) return mode === 'wartime' ? 'Security at Pickup' : 'Wound / Injury Info'
   if (line === 9) return mode === 'wartime' ? 'NBC Contamination' : 'Terrain Description'
   return LINE_TITLES_BASE[line]
@@ -378,13 +378,15 @@ function WoundListEditor({ req, update }: {
 }
 
 // ── Per-line editor ────────────────────────────────────────────────────────
-function LineEditor({
-  line, req, update, isMobile,
+export function LineEditor({
+  line, req, update, isMobile, onL3Grow,
 }: {
   line: number
   req: MedevacRequest
   update: (patch: Partial<MedevacRequest>) => void
   isMobile: boolean
+  /** Optional — fired when the L3 patient total increases (TC3 MASCAL queue-grow). */
+  onL3Grow?: (delta: number) => void
 }) {
   const [locating, setLocating] = useState(false)
 
@@ -552,7 +554,15 @@ function LineEditor({
               code={p}
               label={MEDEVAC_PRECEDENCE_LABELS[p]}
               val={req.l3[p] ?? 0}
-              onChg={n => update({ l3: { ...req.l3, [p]: n || undefined } })}
+              onChg={n => {
+                const nextL3 = { ...req.l3, [p]: n || undefined }
+                update({ l3: nextL3 })
+                if (onL3Grow) {
+                  const after = (['A','B','C','D','E'] as MedevacPrecedence[])
+                    .reduce((s, k) => s + (nextL3[k] ?? 0), 0)
+                  if (after > l3total) onL3Grow(after - l3total)
+                }
+              }}
             />
           ))}
         </div>

@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { ChevronRight, ClipboardCheck, CalendarPlus } from 'lucide-react'
 import { listAlgorithmsWithStp } from '../../../Utilities/algorithmStp'
 import { ActionButton } from '../../ActionButton'
+import { ActionPill } from '../../ActionPill'
 import { PreviewOverlay } from '../../PreviewOverlay'
 import type { AlgorithmCompetency } from './supervisorHelpers'
 
@@ -104,32 +105,34 @@ export function SoldierAlgorithmList({
         title={detail ? `${detail.comp.id} · ${detail.comp.name}` : ''}
         maxWidth={400}
         footer={
-          detail ? (
-            <div className="flex gap-1 bg-themewhite rounded-2xl shadow-lg px-1.5 py-1.5">
-              {onEvaluateAlgorithm && (
-                <ActionButton
-                  icon={ClipboardCheck}
-                  label="Evaluate"
-                  variant="success"
-                  onClick={() => {
-                    const { id, name } = detail.comp
-                    setDetail(null)
-                    onEvaluateAlgorithm(id, name)
-                  }}
-                />
-              )}
-              {onScheduleAlgorithm && (
-                <ActionButton
-                  icon={CalendarPlus}
-                  label="Schedule"
-                  onClick={() => {
-                    const { id, name } = detail.comp
-                    setDetail(null)
-                    onScheduleAlgorithm(id, name)
-                  }}
-                />
-              )}
-            </div>
+          detail && onScheduleAlgorithm ? (
+            <ActionPill>
+              <ActionButton
+                icon={CalendarPlus}
+                label="Schedule"
+                onClick={() => {
+                  const { id, name } = detail.comp
+                  setDetail(null)
+                  onScheduleAlgorithm(id, name)
+                }}
+              />
+            </ActionPill>
+          ) : undefined
+        }
+        rightFooter={
+          detail && onEvaluateAlgorithm ? (
+            <ActionPill>
+              <ActionButton
+                icon={ClipboardCheck}
+                label="Evaluate"
+                variant="success"
+                onClick={() => {
+                  const { id, name } = detail.comp
+                  setDetail(null)
+                  onEvaluateAlgorithm(id, name)
+                }}
+              />
+            </ActionPill>
           ) : undefined
         }
       >

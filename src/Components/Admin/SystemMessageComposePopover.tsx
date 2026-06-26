@@ -51,7 +51,7 @@ export function SystemMessageComposePopover({ anchorRect, title, onClose, onSend
       anchorRect={anchorRect}
       title={title}
       maxWidth={360}
-      footer={
+      rightFooter={
         anchorRect ? (
           <ActionPill shadow="sm">
             <ActionButton

@@ -192,6 +192,12 @@ const CTRL_BTN = 'w-9 h-9 rounded-lg flex items-center justify-center bg-themewh
 
 export interface MapNavHandle {
   navigateToZone: (targetId: string) => void
+  /** Frame the canvas on a single item's pin (item-level zoom) — the external
+   *  equivalent of a canvas pin tap. Navigates to the item's zone first when it
+   *  isn't the active one, then drills in once the pin renders. Used by the
+   *  right-pane / sheet / tree / search item rows so selecting an item zooms to
+   *  it, not just to its zone. */
+  focusItem: (itemId: string) => void
   resetZoom: () => void
   /** Deselect the active zone without changing zoom (used to close the right pane). */
   clearSelection: () => void
@@ -785,6 +791,11 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
 
   // ── Deferred navigation — handles cases where tags haven't loaded yet ──
   const pendingNavRef = useRef<string | null>(null)
+  // ── Deferred item focus — an external item select (right pane / sheet / tree /
+  // search) may target an item in a not-yet-selected zone, whose pin only renders
+  // after the zone selection commits. Stash the item id; a visibleTagsWithPins
+  // effect drills in once the pin is live.
+  const pendingFocusItemRef = useRef<string | null>(null)
 
   const executeNavigation = useCallback((targetId: string) => {
     // Consult childZoneAutoTags too (tag-less sub-zones) so external nav can frame
@@ -807,6 +818,23 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
 
     return true
   }, [allWorldTags, store, zoomViaLCA, zoomToTag])
+
+  // ── External item focus — the imperative equivalent of a canvas pin tap ──
+  // Mirrors handleItemTap, but reachable from PropertyPanel for selections that
+  // never touch the canvas (right-pane / sheet / tree / search item rows). When
+  // the item already lives in the active zone its pin is rendered, so focus
+  // straight away; otherwise navigate to its zone and defer the drill-in to the
+  // visibleTagsWithPins effect (the zone selection has to render the pin first).
+  const focusItemExternal = useCallback((itemId: string) => {
+    const item = itemsRef.current.find((i) => i.id === itemId)
+    const zoneId = item?.location_id ?? null
+    if (zoneId && zoneId === store.selectedZoneId && focusItemPin(itemId)) {
+      setFocusedItemId(itemId)
+      return
+    }
+    pendingFocusItemRef.current = itemId
+    if (zoneId && zoneId !== store.selectedZoneId) executeNavigation(zoneId)
+  }, [store, focusItemPin, executeNavigation])
 
   // ── Imperative handle for external navigation (tree clicks, breadcrumbs) ──
   // ── Floor switcher: activate a level + zoom to it once its tag is live ──
@@ -842,6 +870,9 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
         pendingNavRef.current = null
       }
     },
+    focusItem(itemId: string) {
+      focusItemExternal(itemId)
+    },
     resetZoom() {
       handleResetZoom()
     },
@@ -854,7 +885,7 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
     startDrawZone(parentId: string | null) {
       startDrawZoneRef.current(parentId)
     },
-  }), [executeNavigation, store, handleResetZoom, handleAddFloor])
+  }), [executeNavigation, focusItemExternal, store, handleResetZoom, handleAddFloor])
 
   // Notify the parent of zone-selection changes so it can drive the right-pane
   // location detail. Ref-indirected so the effect only depends on the selection.
@@ -875,6 +906,19 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
   useEffect(() => {
     setFocusedItemId(null)
   }, [store.selectedZoneId])
+
+  // Process a deferred external item focus once the target zone's pins render.
+  // Runs AFTER the zone-change clear above, so the focus it sets isn't clobbered.
+  // Keyed on visibleTagsWithPins so it also catches pins that land via async tag
+  // load. One-shot: clears the pending ref the moment the pin is framed.
+  useEffect(() => {
+    const pendingItem = pendingFocusItemRef.current
+    if (!pendingItem) return
+    if (focusItemPin(pendingItem)) {
+      setFocusedItemId(pendingItem)
+      pendingFocusItemRef.current = null
+    }
+  }, [visibleTagsWithPins, focusItemPin])
 
   // Process deferred navigation when tags load
   useEffect(() => {
@@ -1652,7 +1696,7 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
 
         {/* Floating zoom controls — bottom-left, mirrors MapView's stacked Plus/Minus */}
         {!isEditing && (
-          <div data-zoom-controls className="absolute bottom-3 left-3 z-20 flex flex-col gap-1.5 pb-[max(0rem,var(--sab,0px))]">
+          <div data-zoom-controls className="absolute bottom-3 left-3 z-30 flex flex-col gap-1.5 pb-[max(0rem,var(--sab,0px))]">
             <button onClick={handleZoomIn} className={CTRL_BTN} aria-label="Zoom in" title="Zoom in">
               <Plus size={16} />
             </button>

@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react'
 import { Check, Loader2, ChevronDown } from 'lucide-react'
 import { PreviewOverlay } from '../PreviewOverlay'
 import { ActionButton } from '../ActionButton'
+import { ActionPill } from '../ActionPill'
 import { ErrorPill } from '../ErrorPill'
 import {
   getClinicEncryptionKey,
@@ -202,16 +203,16 @@ export function ClinicIdentityEditPopover({
           </div>
         )
       } : undefined}
-      footer={
+      rightFooter={
         isOpen && !isPickMode ? (
-          <div className="flex gap-1 bg-themewhite rounded-2xl shadow-lg px-1.5 py-1.5">
+          <ActionPill>
             <ActionButton
               icon={saving ? Loader2 : Check}
               label={saving ? 'Saving…' : 'Save'}
               variant={saving || !name.trim() ? 'disabled' : 'success'}
               onClick={handleSave}
             />
-          </div>
+          </ActionPill>
         ) : undefined
       }
     >

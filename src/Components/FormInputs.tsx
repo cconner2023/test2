@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect, useCallback, type ReactNode } from 'react'
-import { Eye, EyeOff, ChevronDown, Check, ChevronLeft, ChevronRight, X } from 'lucide-react'
+import { Eye, EyeOff, ChevronDown, Check, ChevronLeft, ChevronRight } from 'lucide-react'
 import { PreviewOverlay } from './PreviewOverlay'
 import { ActionButton } from './ActionButton'
+import { ActionPill } from './ActionPill'
 import { useIsMobile } from '../Hooks/useIsMobile'
 
 /** Free-form 4-digit military time input (0000–2359). Borderless / transparent, matches form-row style.
@@ -261,11 +262,6 @@ export const PickerInput = ({
         anchorRect={null}
         maxWidth={280}
         title={placeholder}
-        footer={
-          <div className="bg-themewhite rounded-2xl shadow-lg px-1.5 py-1.5">
-            <ActionButton icon={X} label="Cancel" onClick={close} />
-          </div>
-        }
       >
         {header && (
           <div className="border-b border-primary/6">{header}</div>
@@ -523,11 +519,6 @@ export const DatePickerInput = ({
           onClose={close}
           anchorRect={null}
           title={placeholder ?? 'Select Date'}
-          footer={
-            <div className="bg-themewhite rounded-2xl shadow-lg px-1.5 py-1.5">
-              <ActionButton icon={X} label="Cancel" onClick={close} />
-            </div>
-          }
         >
           <DatePickerCalendar
             value={value}
@@ -828,10 +819,10 @@ export const MultiPickerInput = ({
         anchorRect={null}
         maxWidth={280}
         title={placeholder}
-        footer={
-          <div className="bg-themewhite rounded-2xl shadow-lg px-1.5 py-1.5">
+        rightFooter={
+          <ActionPill>
             <ActionButton icon={Check} label="Done" onClick={close} />
-          </div>
+          </ActionPill>
         }
       >
         <div className="max-h-60 overflow-y-auto py-1" role="listbox" aria-label={placeholder} aria-multiselectable="true">

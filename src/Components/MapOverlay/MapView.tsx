@@ -912,7 +912,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
       </PreviewOverlay>
 
       {/* Bottom-left: zoom controls */}
-      <div data-tour="map-zoom-controls" className="absolute bottom-4 left-3 z-[1000] flex flex-col gap-1.5 pointer-events-auto pb-[max(0rem,var(--sab,0px))]">
+      <div data-tour="map-zoom-controls" className="absolute bottom-4 left-3 z-[1001] flex flex-col gap-1.5 pointer-events-auto pb-[max(0rem,var(--sab,0px))]">
         <button type="button" onClick={handleZoomIn} className={CTRL_BTN} aria-label="Zoom in">
           <Plus size={16} />
         </button>

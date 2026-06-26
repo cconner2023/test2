@@ -113,6 +113,15 @@ export function useHandReceiptActions({ clinicId, itemsById, membersById, refetc
     [clinicId, afterMutate],
   )
 
+  // Confirm the item-removal via `pendingRemove` / `confirmRemove`.
+  const [pendingRemove, setPendingRemove] = useState<{ handReceiptId: string; itemId: string } | null>(null)
+
+  const confirmRemove = useCallback(() => {
+    const r = pendingRemove
+    setPendingRemove(null)
+    if (r) removeItem(r.handReceiptId, r.itemId)
+  }, [pendingRemove, removeItem])
+
   /** Add items to an existing receipt. */
   const addItems = useCallback(
     async (handReceiptId: string, itemIds: string[]) => {
@@ -173,6 +182,9 @@ export function useHandReceiptActions({ clinicId, itemsById, membersById, refetc
     confirmSignIn,
     // edit / delete
     removeItem,
+    pendingRemove,
+    setPendingRemove,
+    confirmRemove,
     addItems,
     pendingDelete,
     setPendingDelete,

@@ -23,6 +23,7 @@ import { useCallActions } from '../../Hooks/CallContext'
 import { useAvatar } from '../../Utilities/AvatarContext'
 import type { ContextMenuItem } from '../ContextMenu'
 import { LiftedRowMenu } from '../LiftedRowMenu'
+import { ConfirmDialog } from '../ConfirmDialog'
 import { TextInput } from '../FormInputs'
 import { useClinicGroupedMedics } from '../../Hooks/useClinicGroupedMedics'
 import { usePeerAvailability, type UnavailableReason } from '../../Hooks/usePeerAvailability'
@@ -38,6 +39,7 @@ import { useBarcodeScanner } from '../../Hooks/useBarcodeScanner'
 import { fetchProfileById } from '../../lib/peerLookup'
 import { SYSTEM_USER_ID } from '../../lib/signal/systemIdentity'
 import { isSystemMessage, isOutsideOriginCard } from '../../Hooks/useAdminSystemConversations'
+import { lastActivityMessage, activityPreview } from '../../Utilities/conversationActivity'
 import { CallsPane } from './CallsPane'
 import { useCallHistory, type CallHistoryEntry } from '../../Hooks/useCallHistory'
 
@@ -197,6 +199,7 @@ function ConversationPane({
   const pinnedKeys = useMemo(() => new Set(pinnedKeysArr), [pinnedKeysArr])
   const togglePinConversation = useMessagingStore(s => s.togglePinConversation)
   const [liftedMenu, setLiftedMenu] = useState<{ rect: DOMRect; row: ReactNode; items: ContextMenuItem[] } | null>(null)
+  const [pendingDelete, setPendingDelete] = useState<PreviewTarget | null>(null)
   const showLoading = useMinLoadTime(loading ?? false)
 
   const closeMenu = useCallback(() => setLiftedMenu(null), [])
@@ -208,8 +211,8 @@ function ConversationPane({
       else if (target.type === 'contact' && target.medic) onSelectPeer(target.medic)
     },
     onTogglePin: () => togglePinConversation(target.key),
-    onDelete: () => deleteConversation(target.key),
-  }), [onSelectGroup, onSelectPeer, togglePinConversation, deleteConversation])
+    onDelete: () => setPendingDelete(target),
+  }), [onSelectGroup, onSelectPeer, togglePinConversation])
 
   // Open the lifted-row context menu, cloning the pressed row for the float.
   const openMenu = useCallback((rect: DOMRect, row: ReactNode, target: PreviewTarget) => {
@@ -247,9 +250,11 @@ function ConversationPane({
     const medicMap = new Map(medics.map(m => [m.id, m]))
     for (const [key, msgs] of Object.entries(conversations)) {
       if (key === userId) continue
-      const visibleMsgs = msgs.filter(m => m.messageType !== 'request-accepted' && !m.threadId)
-      if (visibleMsgs.length === 0) continue
-      const lastTime = visibleMsgs.at(-1)?.createdAt ?? ''
+      // Thread replies count as activity for sort/preview (a fresh reply bumps the
+      // conversation up the list), even though they stay hidden in the main view.
+      const lastMsg = lastActivityMessage(msgs)
+      if (!lastMsg) continue
+      const lastTime = lastMsg.createdAt
       if (groups[key]) {
         entries.push({ key, type: 'group', lastMessageTime: lastTime, group: groups[key] })
       } else {
@@ -336,7 +341,7 @@ function ConversationPane({
                   <GroupListItem
                     key={group.groupId}
                     group={group}
-                    lastMessage={conversations[group.groupId]?.filter(m => !m.threadId).at(-1)?.plaintext}
+                    lastMessage={activityPreview(lastActivityMessage(conversations[group.groupId]))}
                     unreadCount={unreadCounts[group.groupId] ?? 0}
                     onClick={() => { onSearchClear(); onSelectGroup(group) }}
                   />
@@ -350,7 +355,7 @@ function ConversationPane({
                   <ContactListItem
                     key={medic.id}
                     medic={medic}
-                    lastMessage={conversations[medic.id]?.filter(m => !m.threadId).at(-1)?.plaintext}
+                    lastMessage={activityPreview(lastActivityMessage(conversations[medic.id]))}
                     unreadCount={unreadCounts[medic.id] ?? 0}
                     unavailable={unavailableIds.has(medic.id)}
                     unavailableReason={unavailableIds.get(medic.id)}
@@ -404,7 +409,7 @@ function ConversationPane({
             {/* Conversations section */}
             {selfMedic && (() => {
               const selfTarget: PreviewTarget = { key: userId!, type: 'contact', medic: selfMedic, hasConversation: !!conversations[userId!]?.length, isPinned: false }
-              const selfItem = <ContactListItem medic={selfMedic} lastMessage={conversations[userId!]?.filter(m => !m.threadId).at(-1)?.plaintext} unreadCount={0} onClick={() => {}} />
+              const selfItem = <ContactListItem medic={selfMedic} lastMessage={activityPreview(lastActivityMessage(conversations[userId!]))} unreadCount={0} onClick={() => {}} />
               return (
                 <div data-tour={tourVariant ? 'messages-self-notes' : undefined}>
                   {isMobile ? (
@@ -431,7 +436,7 @@ function ConversationPane({
                 <p className="text-[10pt] text-tertiary px-3 mb-1 mt-1 uppercase tracking-wider font-semibold">Recent</p>
                 {recentEntries.map(entry => {
                   const msgs = conversations[entry.key]
-                  const lastMsg = msgs?.filter(m => m.messageType !== 'request-accepted' && !m.threadId).at(-1)
+                  const lastMsg = lastActivityMessage(msgs)
                   const isPinned = pinnedKeys.has(entry.key)
 
                   const handleTap = () => {
@@ -442,14 +447,14 @@ function ConversationPane({
                   const listItem = entry.type === 'group' && entry.group ? (
                     <GroupListItem
                       group={entry.group}
-                      lastMessage={lastMsg?.plaintext}
+                      lastMessage={activityPreview(lastMsg)}
                       unreadCount={unreadCounts[entry.key] ?? 0}
                       onClick={() => {}}
                     />
                   ) : entry.type === 'contact' && entry.medic ? (
                     <ContactListItem
                       medic={entry.medic}
-                      lastMessage={lastMsg?.plaintext}
+                      lastMessage={activityPreview(lastMsg)}
                       unreadCount={unreadCounts[entry.key] ?? 0}
                       unavailable={unavailableIds.has(entry.key)}
                       unavailableReason={unavailableIds.get(entry.key)}
@@ -602,6 +607,18 @@ function ConversationPane({
         items={liftedMenu?.items ?? []}
         onClose={closeMenu}
         layout="list"
+      />
+
+      <ConfirmDialog
+        visible={!!pendingDelete}
+        title="Delete this conversation?"
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={() => {
+          if (pendingDelete) deleteConversation(pendingDelete.key)
+          setPendingDelete(null)
+        }}
+        onCancel={() => setPendingDelete(null)}
       />
     </div>
   )

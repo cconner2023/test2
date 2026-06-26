@@ -83,7 +83,7 @@ interface PropertyState {
   setTransitionState: (state: 'idle' | 'zooming-in' | 'zooming-out') => void
 
   init: () => Promise<void>
-  addItem: (data: Omit<PropertyItem, 'id' | 'created_at' | 'updated_at' | 'signed_out_external'>) => Promise<LocalPropertyItem | null>
+  addItem: (data: Omit<PropertyItem, 'id' | 'created_at' | 'updated_at' | 'signed_out_external' | 'owner_user_id'>) => Promise<LocalPropertyItem | null>
   editItem: (id: string, updates: Partial<PropertyItem>, opts?: { skipAudit?: boolean }) => Promise<void>
   removeItem: (id: string) => Promise<void>
   addLocation: (data: Omit<PropertyLocation, 'id' | 'created_at' | 'updated_at'>) => Promise<{ success: boolean; location?: LocalPropertyLocation }>

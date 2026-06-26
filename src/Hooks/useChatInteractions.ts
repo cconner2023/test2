@@ -93,6 +93,7 @@ export interface ChatInteractionsResult {
 
   // ── Derived values ──
   threadReplyCounts: Record<string, number>
+  threadLastReply: Record<string, string>
   threadMessages: DecryptedSignalMessage[]
   mainViewMessages: DecryptedSignalMessage[]
 }
@@ -135,6 +136,18 @@ export function useChatInteractions({
       }
     }
     return counts
+  }, [messages])
+
+  // Most recent reply timestamp per thread root — drives the "last reply Xm"
+  // label on the thread affordance (Slack-style).
+  const threadLastReply = useMemo(() => {
+    const last: Record<string, string> = {}
+    for (const m of messages) {
+      if (m.threadId && (!last[m.threadId] || m.createdAt > last[m.threadId])) {
+        last[m.threadId] = m.createdAt
+      }
+    }
+    return last
   }, [messages])
 
   const threadMessages = useMemo(() => {
@@ -315,6 +328,7 @@ export function useChatInteractions({
     handleSwipeAction,
     // Derived values
     threadReplyCounts,
+    threadLastReply,
     threadMessages,
     mainViewMessages,
   }

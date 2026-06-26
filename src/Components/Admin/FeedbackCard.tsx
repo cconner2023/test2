@@ -133,7 +133,7 @@ export function FeedbackCard({
                 label="Email"
                 onClick={() => {
                   const name = feedback.display_name || ''
-                  openMailto({ to: email, subject: 'Medical Operations Feedback', body: `${name},\n\nThanks for the feedback.\n\n` })
+                  openMailto({ to: email, subject: '[feedback] -  Medical Operations Web Application', body: `${name},\n\nThanks for the feedback.\n\n` })
                 }}
               />
             )}

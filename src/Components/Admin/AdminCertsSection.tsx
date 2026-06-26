@@ -150,7 +150,7 @@ export function AdminCertsSection({ userId, certs, onChanged }: AdminCertsSectio
         title="Add certification"
         maxWidth={360}
         previewMaxHeight="60dvh"
-        footer={
+        rightFooter={
           addAnchor ? (
             <ActionPill>
               <ActionButton
@@ -186,6 +186,12 @@ export function AdminCertsSection({ userId, certs, onChanged }: AdminCertsSectio
                   setPendingDeletePrimary(editingCert.is_primary)
                 }}
               />
+            </ActionPill>
+          ) : undefined
+        }
+        rightFooter={
+          editTarget && editingCert ? (
+            <ActionPill>
               <ActionButton
                 icon={saving ? RefreshCw : Check}
                 label={saving ? 'Saving…' : 'Save'}

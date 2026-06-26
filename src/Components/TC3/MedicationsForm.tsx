@@ -561,6 +561,10 @@ export const MedicationsForm = memo(function MedicationsForm() {
       : [{ key: 'remove', label: 'Remove', icon: X, onAction: handleRemoveBlood, variant: 'danger' }, { key: 'done', label: 'Done', icon: Check, onAction: handleDoneBlood }]
   }
 
+  // Terminal Done rides bottom-right; Remove (when present) stays bottom-left.
+  const currentDoneAction = currentActions.find(a => a.key === 'done')
+  const currentLeftActions = currentActions.filter(a => a.key !== 'done')
+
   // --- Check for content in each group ---
   const hasIV = ivAccess.length > 0
   const hasMeds = medications.length > 0
@@ -725,8 +729,14 @@ export const MedicationsForm = memo(function MedicationsForm() {
         isOpen={popoverType !== null}
         onClose={closePopover}
         anchorRect={anchorRect}
+        title={popoverType === 'iv' ? 'IV Access' : popoverType === 'med' ? 'Medication' : popoverType === 'fluid' ? 'Fluid' : popoverType === 'blood' ? 'Blood Product' : ''}
         preview={currentPreview}
-        actions={currentActions}
+        actions={currentLeftActions}
+        rightFooter={currentDoneAction ? (
+          <ActionPill>
+            <ActionButton icon={currentDoneAction.icon} label={currentDoneAction.label} onClick={currentDoneAction.onAction} />
+          </ActionPill>
+        ) : undefined}
       />
     </div>
   )

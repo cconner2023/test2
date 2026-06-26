@@ -6,6 +6,7 @@ import { ExpandableInput } from '../ExpandableInput';
 import { PhysicalExam } from '../PhysicalExam';
 import { Plan } from '../Plan';
 import { ActionPill } from '../ActionPill';
+import { ActionButton } from '../ActionButton';
 import { EmptyState } from '../EmptyState';
 import { PreviewOverlay } from '../PreviewOverlay';
 import { useMergedNoteContent } from '../../Hooks/useMergedNoteContent';
@@ -112,14 +113,12 @@ function TextSectionCard({ addLabel, value, onChange, expanders, placeholder, da
             onAction: () => onChange(''),
             closesOnAction: false,
           },
-          {
-            key: 'done',
-            label: 'Done',
-            icon: Check,
-            onAction: () => setIsOpen(false),
-            closesOnAction: false,
-          },
         ]}
+        rightFooter={
+          <ActionPill>
+            <ActionButton icon={Check} label="Done" onClick={() => setIsOpen(false)} />
+          </ActionPill>
+        }
       >
         <ExpandableInput
           value={value}

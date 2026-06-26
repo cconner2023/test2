@@ -9,13 +9,15 @@ import { PreviewOverlay } from '../PreviewOverlay';
 import { SearchInput } from '../SearchInput';
 import { TextInput } from '../FormInputs';
 import { ActionButton } from '../ActionButton';
-import { PlanAllBlocksPreview, CategoryPicker } from '../PlanBlockPreview';
+import { PlanAllBlocksPreview } from '../PlanBlockPreview';
 import { CATEGORY_META, PlanTagManager } from './PlanTagManager';
 import { OrderSetManager } from './OrderSetManager';
 import { useClusterEditItem } from './ClusterEditPicker';
 import { useNoteBlocksTransferItems } from './NoteBlocksTransferMenu';
 import { useNoteBlocksTransfer } from '../../Hooks/useNoteBlocksTransfer';
 import { ActionPill } from '../ActionPill'
+import { OverlayHeaderMenu } from '../OverlayHeaderMenu';
+import type { ContextMenuItem } from '../ContextMenu';
 
 const ALL_KEYS: PlanBlockKey[] = [...PLAN_ORDER_CATEGORIES, 'instructions'];
 const EMPTY_TAGS: PlanOrderTags = { referral: [], meds: [], radiology: [], lab: [], followUp: [] };
@@ -337,6 +339,35 @@ function TagEditPopover({ state, onClose, isSupervisorRole, hasClinic, onSubmitN
     const placeholder = isEdit ? editMeta?.label ?? 'Tag' : CATEGORY_META[category].label;
     const editTitle = isEdit ? `Edit ${editMeta?.label ?? ''} tag` : 'New tag';
 
+    // Modifiers (category + scope) → header ellipsis; only on new (category/scope
+    // are fixed when editing). Footer carries the primary commit (Save, right).
+    const modifierItems: ContextMenuItem[] = [];
+    if (!isEdit) {
+        modifierItems.push({
+            key: 'category',
+            label: CATEGORY_META[category].label,
+            icon: CATEGORY_META[category].icon,
+            submenu: ALL_KEYS.map(k => ({
+                key: k,
+                label: CATEGORY_META[k].label,
+                icon: CATEGORY_META[k].icon,
+                selected: k === category,
+                onAction: () => setCategory(k),
+            })),
+        });
+        if (supervisorScopeAvailable) {
+            modifierItems.push({
+                key: 'scope',
+                label: scope === 'clinic' ? 'Cluster' : 'Personal',
+                icon: scope === 'clinic' ? Building2 : User,
+                submenu: [
+                    { key: 'personal', label: 'Personal', icon: User, selected: scope === 'personal', onAction: () => setScope('personal') },
+                    { key: 'clinic', label: 'Cluster', icon: Building2, selected: scope === 'clinic', onAction: () => setScope('clinic') },
+                ],
+            });
+        }
+    }
+
     return (
         <PreviewOverlay
             isOpen={isOpen}
@@ -344,7 +375,8 @@ function TagEditPopover({ state, onClose, isSupervisorRole, hasClinic, onSubmitN
             anchorRect={state?.anchor ?? null}
             title={editTitle}
             maxWidth={360}
-            footer={
+            headerActions={<OverlayHeaderMenu items={modifierItems} />}
+            rightFooter={
                 <ActionPill>
                     <ActionButton
                         icon={Check}
@@ -354,29 +386,6 @@ function TagEditPopover({ state, onClose, isSupervisorRole, hasClinic, onSubmitN
                     />
                 </ActionPill>
             }
-            rightFooter={!isEdit ? (
-                <ActionPill>
-                    <CategoryPicker
-                        value={category}
-                        variant="icon"
-                        categories={ALL_KEYS.map(k => ({
-                            key: k,
-                            label: CATEGORY_META[k].label,
-                            icon: CATEGORY_META[k].icon,
-                            color: CATEGORY_META[k].color,
-                            bg: CATEGORY_META[k].bg,
-                        }))}
-                        onChange={(k) => k && setCategory(k as PlanBlockKey)}
-                    />
-                    {supervisorScopeAvailable && (
-                        <ActionButton
-                            icon={scope === 'clinic' ? Building2 : User}
-                            label={scope === 'clinic' ? 'Cluster' : 'Personal'}
-                            onClick={() => setScope(s => s === 'personal' ? 'clinic' : 'personal')}
-                        />
-                    )}
-                </ActionPill>
-            ) : undefined}
         >
             <div className="flex items-center gap-2 px-3 py-2">
                 {isEdit && editMeta && (
@@ -482,6 +491,21 @@ function OrderSetEditPopover({
 
     const osTitle = isEdit ? 'Edit order set' : 'New order set';
 
+    // Scope modifier → header ellipsis (new + supervisor only). Primary commit
+    // (Save) rides the bottom-right footer.
+    const modifierItems: ContextMenuItem[] = [];
+    if (!isEdit && supervisorScopeAvailable) {
+        modifierItems.push({
+            key: 'scope',
+            label: scope === 'clinic' ? 'Cluster' : 'Personal',
+            icon: scope === 'clinic' ? Building2 : User,
+            submenu: [
+                { key: 'personal', label: 'Personal', icon: User, selected: scope === 'personal', onAction: () => setScope('personal') },
+                { key: 'clinic', label: 'Cluster', icon: Building2, selected: scope === 'clinic', onAction: () => setScope('clinic') },
+            ],
+        });
+    }
+
     return (
         <PreviewOverlay
             isOpen={isOpen}
@@ -531,24 +555,17 @@ function OrderSetEditPopover({
                     />
                 </div>
             )}
-            rightFooter={!isEdit && supervisorScopeAvailable ? (
+            headerActions={<OverlayHeaderMenu items={modifierItems} />}
+            rightFooter={
                 <ActionPill>
                     <ActionButton
-                        icon={scope === 'clinic' ? Building2 : User}
-                        label={scope === 'clinic' ? 'Cluster' : 'Personal'}
-                        onClick={() => setScope(s => s === 'personal' ? 'clinic' : 'personal')}
+                        icon={Check}
+                        label="Save"
+                        variant={canSave ? 'success' : 'disabled'}
+                        onClick={handleSave}
                     />
                 </ActionPill>
-            ) : undefined}
-            actions={[
-                {
-                    key: 'save',
-                    label: 'Save',
-                    icon: Check,
-                    onAction: handleSave,
-                    variant: canSave ? ('default' as const) : ('disabled' as const),
-                },
-            ]}
+            }
         />
     );
 }

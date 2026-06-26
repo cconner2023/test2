@@ -111,25 +111,19 @@ export function PropertySearchOverlay({
   const formatReceiptDate = (iso: string) =>
     new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
 
-  const renderItemIcon = (item: LocalPropertyItem) => {
-    if (item.photo_url) {
-      return <img src={item.photo_url} alt="" className="w-10 h-10 rounded-xl object-cover shrink-0" />
-    }
-    return (
-      <div className="w-10 h-10 rounded-xl bg-themeblue3/10 flex items-center justify-center shrink-0">
-        <span className="text-[10pt] font-semibold text-themeblue2">{itemInitials(item.name)}</span>
-      </div>
-    )
-  }
+  const formatExpiryDate = (iso: string) =>
+    new Date(iso + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: '2-digit' })
 
-  const renderExpiryChip = (expiry: 'expired' | 'expiring' | null) => {
-    if (!expiry) return null
+  /** Left icon encodes WHERE the item lives: held by a person (ownership) → User,
+   *  otherwise placed at a location → MapPin. Healthy/grey unless held. */
+  const renderItemIcon = (item: LocalPropertyItem) => {
+    const held = !!item.current_holder_id
     return (
-      <span className={`text-[9pt] font-medium px-1.5 py-0.5 rounded-full shrink-0 ${
-        expiry === 'expired' ? 'bg-themeredred/10 text-themeredred' : 'bg-themeyellow/15 text-themeyellow'
-      }`}>
-        {expiry === 'expired' ? 'Expired' : 'Expiring'}
-      </span>
+      <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${held ? 'bg-themeblue3/10' : 'bg-tertiary/8'}`}>
+        {held
+          ? <User size={18} className="text-themeblue2" />
+          : <MapPin size={18} className="text-tertiary" />}
+      </div>
     )
   }
 
@@ -178,17 +172,24 @@ export function PropertySearchOverlay({
             )}
 
             {itemResults.length > 0 && (
-              <Section title="Items" count={itemResults.length}>
+              <Section title="Items">
                 <SectionCard>
                   {itemResults.map((item, i) => {
-                    const locName = item.location_id ? locationNameMap.get(item.location_id) : null
-                    const holder = item.current_holder_id ? holders?.get(item.current_holder_id) : null
-                    const expiry = expiryStatus(item.expiry_date ?? null)
-                    const subtitle = [
-                      item.is_serialized && item.serial_number ? item.serial_number : (!item.is_serialized && item.quantity > 1 ? `Qty ${item.quantity}` : null),
-                      locName,
-                      holder?.displayName,
-                    ].filter(Boolean).join(' · ')
+                    const exp = expiryStatus(item.expiry_date ?? null)
+                    const meta: { text: string; className?: string }[] = []
+                    if (item.nsn) meta.push({ text: `NSN ${item.nsn}` })
+                    if (item.lin) meta.push({ text: `LIN ${item.lin}` })
+                    meta.push({ text: `Qty ${item.quantity}` })
+                    if (item.expiry_date) {
+                      meta.push({
+                        text: `Exp ${formatExpiryDate(item.expiry_date)}`,
+                        className: exp === 'expired'
+                          ? 'text-themeredred font-medium'
+                          : exp === 'expiring'
+                            ? 'text-themeyellow font-medium'
+                            : undefined,
+                      })
+                    }
                     return (
                       <button
                         key={item.id}
@@ -200,12 +201,23 @@ export function PropertySearchOverlay({
                       >
                         {renderItemIcon(item)}
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-primary truncate">{item.name}</p>
-                          {subtitle && (
-                            <p className="text-[10pt] text-secondary truncate mt-0.5">{subtitle}</p>
+                          <p className="text-sm text-primary truncate">
+                            <span className="font-medium">{item.name}</span>
+                            {item.nomenclature && (
+                              <span className="text-secondary font-normal"> {item.nomenclature}</span>
+                            )}
+                          </p>
+                          {meta.length > 0 && (
+                            <p className="text-[10pt] text-secondary truncate mt-0.5">
+                              {meta.map((m, idx) => (
+                                <span key={idx} className={m.className}>
+                                  {idx > 0 && <span className="mx-1 text-tertiary/50 font-normal">·</span>}
+                                  {m.text}
+                                </span>
+                              ))}
+                            </p>
                           )}
                         </div>
-                        {renderExpiryChip(expiry)}
                       </button>
                     )
                   })}

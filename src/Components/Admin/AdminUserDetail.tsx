@@ -8,7 +8,7 @@
  */
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
-import { KeyRound, LogOut, Building2, ChevronRight, Mail, Check, RefreshCw, X, Trash2, Home, Plus, ArrowRightLeft, MessageSquare } from 'lucide-react'
+import { KeyRound, LogOut, Building2, ChevronRight, Mail, Check, RefreshCw, Trash2, Home, Plus, ArrowRightLeft, MessageSquare } from 'lucide-react'
 import type { Certification } from '../../Data/User'
 import { credentials, components, ranksByComponent } from '../../Data/User'
 import type { Component } from '../../Data/User'
@@ -736,7 +736,7 @@ export function AdminUserDetail({
                   label: 'Email user',
                   icon: Mail,
                   onAction: () => {
-                    openMailto({ to: user.email!, subject: 'Medical Operations Inquiry', body: `${[user.rank, user.last_name].filter(Boolean).join(' ')},\n\n` })
+                    openMailto({ to: user.email!, subject: '[inquiry] -  Medical Operations Web Application', body: `${[user.rank, user.last_name].filter(Boolean).join(' ')},\n\n` })
                   },
                 }] as ContextMenuItem[] : []),
                 ...(isDevRole && messagesCtx && onOpenConversation ? [{
@@ -781,7 +781,7 @@ export function AdminUserDetail({
         anchorRect={resetPwAnchor}
         title="Reset password"
         maxWidth={340}
-        footer={
+        rightFooter={
           resetPwAnchor && user ? (
             <ActionPill shadow="sm">
               <ActionButton
@@ -822,16 +822,20 @@ export function AdminUserDetail({
         maxWidth={400}
         previewMaxHeight="70dvh"
         footer={
+          editAnchor && user && !overlayPending && onRequestDelete && currentUserId !== user.id ? (
+            <ActionPill shadow="sm">
+              <ActionButton
+                icon={Trash2}
+                label="Delete user"
+                variant="danger"
+                onClick={onRequestDelete}
+              />
+            </ActionPill>
+          ) : undefined
+        }
+        rightFooter={
           editAnchor && user && !overlayPending ? (
             <ActionPill shadow="sm">
-              {onRequestDelete && currentUserId !== user.id && (
-                <ActionButton
-                  icon={Trash2}
-                  label="Delete user"
-                  variant="danger"
-                  onClick={onRequestDelete}
-                />
-              )}
               <ActionButton
                 icon={stepResults.some(s => !s.ok) ? RefreshCw : Check}
                 label={stepResults.some(s => !s.ok) ? 'Retry failed' : 'Save'}
@@ -1107,11 +1111,6 @@ export function AdminUserDetail({
             </div>
           )
         }}
-        footer={
-          <div className="bg-themewhite rounded-2xl shadow-lg px-1.5 py-1.5">
-            <ActionButton icon={X} label="Cancel" onClick={() => setClusterAction(null)} />
-          </div>
-        }
       />
 
       {/* Add-loan picker — section "+" → pick a clinic to loan to. Excludes
@@ -1163,11 +1162,6 @@ export function AdminUserDetail({
             </div>
           )
         }}
-        footer={
-          <div className="bg-themewhite rounded-2xl shadow-lg px-1.5 py-1.5">
-            <ActionButton icon={X} label="Cancel" onClick={() => setClusterAction(null)} />
-          </div>
-        }
       />
 
       {!isCreateMode && (

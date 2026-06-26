@@ -9,6 +9,8 @@ import { FieldTextEditor } from './FieldTextEditor';
 import { ActionButton } from '../ActionButton';
 import { PreviewOverlay } from '../PreviewOverlay';
 import { ActionPill } from '../ActionPill'
+import { OverlayHeaderMenu } from '../OverlayHeaderMenu';
+import type { ContextMenuItem } from '../ContextMenu';
 import { TextInput } from '../FormInputs';
 
 export type ExpanderScope = 'personal' | 'clinic';
@@ -125,6 +127,30 @@ export const TextExpanderEditPopover = ({
         ? (mode === 'template' ? 'New template' : 'New shortcut')
         : (mode === 'template' ? 'Edit template' : 'Edit shortcut');
 
+    // Modifiers (scope + type) live in the header ellipsis — lifted-row submenus,
+    // not footer toggles. Footer stays focused on the primary commit (Save, right).
+    const modifierItems: ContextMenuItem[] = [];
+    if (isSupervisorRole) {
+        modifierItems.push({
+            key: 'scope',
+            label: source === 'clinic' ? 'Cluster' : 'Personal',
+            icon: source === 'clinic' ? Building2 : User,
+            submenu: [
+                { key: 'personal', label: 'Personal', icon: User, selected: source === 'personal', onAction: () => setSource('personal') },
+                { key: 'clinic', label: 'Cluster', icon: Building2, selected: source === 'clinic', onAction: () => setSource('clinic') },
+            ],
+        });
+    }
+    modifierItems.push({
+        key: 'type',
+        label: mode === 'template' ? 'Template' : 'Simple',
+        icon: mode === 'template' ? Layers : TextCursorInput,
+        submenu: [
+            { key: 'simple', label: 'Simple', icon: TextCursorInput, selected: mode === 'simple', onAction: () => setMode('simple') },
+            { key: 'template', label: 'Template', icon: Layers, selected: mode === 'template', onAction: () => setMode('template') },
+        ],
+    });
+
     return (
         <PreviewOverlay
             isOpen={isOpen}
@@ -133,54 +159,15 @@ export const TextExpanderEditPopover = ({
             title={titleText}
             maxWidth={560}
             previewMaxHeight="60dvh"
-            footer={
-                <div data-tour="expander-edit-accept" className="flex gap-1 bg-themewhite rounded-2xl shadow-lg px-1.5 py-1.5">
+            headerActions={<OverlayHeaderMenu items={modifierItems} />}
+            rightFooter={
+                <ActionPill data-tour="expander-edit-accept">
                     <ActionButton
                         icon={Check}
                         label="Save"
                         variant={saveDisabled ? 'disabled' : 'success'}
                         onClick={saveDisabled ? () => {} : handleSave}
                     />
-                </div>
-            }
-            rightFooter={
-                <ActionPill>
-                    {isSupervisorRole && (() => {
-                        const isClinic = source === 'clinic';
-                        const ScopeIcon = isClinic ? Building2 : User;
-                        return (
-                            <button
-                                type="button"
-                                onClick={() => setSource(isClinic ? 'personal' : 'clinic')}
-                                aria-label={isClinic ? 'Cluster shortcut — tap for personal' : 'Personal shortcut — tap for cluster'}
-                                className={`w-9 h-9 rounded-full flex items-center justify-center transition-all active:scale-95 ${
-                                    isClinic ? 'bg-themeblue2 text-white' : 'bg-themeblue2/8 text-primary'
-                                }`}
-                            >
-                                <ScopeIcon size={14} />
-                            </button>
-                        );
-                    })()}
-                    <button
-                        type="button"
-                        onClick={() => setMode('simple')}
-                        aria-label="Simple shortcut"
-                        className={`w-9 h-9 rounded-full flex items-center justify-center transition-all active:scale-95 ${
-                            mode === 'simple' ? 'bg-themeblue2 text-white' : 'bg-themeblue2/8 text-primary'
-                        }`}
-                    >
-                        <TextCursorInput size={14} />
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => setMode('template')}
-                        aria-label="Template shortcut"
-                        className={`w-9 h-9 rounded-full flex items-center justify-center transition-all active:scale-95 ${
-                            mode === 'template' ? 'bg-themeblue2 text-white' : 'bg-themeblue2/8 text-primary'
-                        }`}
-                    >
-                        <Layers size={14} />
-                    </button>
                 </ActionPill>
             }
         >

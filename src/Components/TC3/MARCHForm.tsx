@@ -805,6 +805,11 @@ export const MARCHForm = memo(function MARCHForm() {
     popoverActions = [{ key: 'done', label: 'Done', icon: Check, onAction: handleDoneBlood }]
   }
 
+  // Split the computed actions: the terminal Done rides bottom-right, everything
+  // else (Remove) stays bottom-left. Every branch ends with a key:'done' action.
+  const popoverDoneAction = popoverActions.find(a => a.key === 'done')
+  const popoverLeftActions = popoverActions.filter(a => a.key !== 'done')
+
   const isPopoverOpen = editing !== null || addMenuPopover !== null
 
   // --- Filter add menu to hide already-active airway/breathing toggles ---
@@ -926,6 +931,7 @@ export const MARCHForm = memo(function MARCHForm() {
         isOpen={showAddMenu}
         onClose={closeAll}
         anchorRect={anchorRef.current}
+        title="Add Intervention"
         preview={
           <div className="py-1">
             {(['H', 'A', 'B', 'C'] as MarchCat[]).map(cat => {
@@ -964,8 +970,14 @@ export const MARCHForm = memo(function MARCHForm() {
         isOpen={isPopoverOpen}
         onClose={closeAll}
         anchorRect={anchorRef.current}
+        title="Intervention"
         preview={popoverPreview}
-        actions={popoverActions}
+        actions={popoverLeftActions}
+        rightFooter={popoverDoneAction ? (
+          <ActionPill>
+            <ActionButton icon={popoverDoneAction.icon} label={popoverDoneAction.label} onClick={popoverDoneAction.onAction} />
+          </ActionPill>
+        ) : undefined}
         previewMaxHeight="65dvh"
       />
     </div>

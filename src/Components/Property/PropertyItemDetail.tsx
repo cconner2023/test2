@@ -1,16 +1,16 @@
 import { useState, useMemo, useEffect, forwardRef, useImperativeHandle, type RefObject } from 'react'
-import { ScanLine, ArrowRightLeft, GitMerge, Plus, Minus, Check, MessageSquare, Pencil, Trash2, Wrench, PackageMinus } from 'lucide-react'
+import { ScanLine, ArrowRightLeft, GitMerge, Check, MessageSquare, Pencil, Trash2, Wrench, PackageMinus, UserCheck, Users, AlertTriangle } from 'lucide-react'
 import { SectionCard } from '../Section'
 import { type ContextMenuItem } from '../ContextMenu'
 import { LiftedRowMenu } from '../LiftedRowMenu'
-import { Sheet } from '../Sheet'
 import { PreviewOverlay } from '../PreviewOverlay'
-import { TextInput } from '../FormInputs'
+import { TextInput, PickerInput } from '../FormInputs'
 import { PillButton } from '../HeaderPill'
 import { useIsMobile } from '../../Hooks/useIsMobile'
 import type { LocalPropertyItem, LocalPropertyLocation, HolderInfo } from '../../Types/PropertyTypes'
 import { expiryStatus } from '../../Types/PropertyTypes'
 import { usePropertyStore } from '../../stores/usePropertyStore'
+import { useAuthStore } from '../../stores/useAuthStore'
 import { fetchItemLedger } from '../../lib/propertyService'
 import { useShareToChat } from '../Messages/ShareToChatPicker'
 import { ItemTimeline } from '../Timeline/ItemTimeline'
@@ -43,7 +43,35 @@ function DetailRow({ label, value }: { label: string; value: string | null | und
   return (
     <div className="flex justify-between items-baseline gap-4 py-2 border-b border-primary/5 last:border-b-0">
       <span className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase shrink-0">{label}</span>
-      <span className="text-[10pt] text-primary text-right truncate">{value}</span>
+      <span className="text-[10pt] text-primary text-right min-w-0 break-words">{value}</span>
+    </div>
+  )
+}
+
+/** Quantity entry shared by Expend and Split/Move: a primitive numeric TextInput
+ *  with an identical "of N" cap to its right. */
+function QtyField({
+  value, onChange, total, placeholder, onKeyDown,
+}: {
+  value: number
+  onChange: (v: string) => void
+  total: number
+  placeholder: string
+  onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void
+}) {
+  return (
+    <div className="flex items-center gap-3">
+      <div className="flex-1 min-w-0">
+        <TextInput
+          value={value ? String(value) : ''}
+          onChange={onChange}
+          onKeyDown={onKeyDown}
+          type="text"
+          inputMode="numeric"
+          placeholder={placeholder}
+        />
+      </div>
+      <span className="text-[10pt] text-tertiary shrink-0">of {total}</span>
     </div>
   )
 }
@@ -53,12 +81,26 @@ const EXPIRY_LABELS = {
   expiring: { label: 'EXPIRING SOON', dot: 'bg-themeyellow', text: 'text-themeyellow' },
 } as const
 
+/** Loud, unmissable status flag riding the top-right edge of the details card
+ *  (depleted stock / expired). Solid red so it reads at a glance, unlike the
+ *  quiet inline Expires row it replaces. */
+function WarnBadge({ label }: { label: string }) {
+  return (
+    <span className="flex items-center gap-1 text-[9pt] font-semibold tracking-wide uppercase px-2 py-1 rounded-full bg-themeredred text-themewhite shadow-sm">
+      <AlertTriangle size={11} className="shrink-0" />
+      {label}
+    </span>
+  )
+}
+
 export const PropertyItemDetail = forwardRef<PropertyItemDetailHandle, PropertyItemDetailProps>(
   function PropertyItemDetail({ item, locations, holders, items, onEnroll, onEdit, onDelete, canDelete, drawerRef }, ref) {
   const isMobile = useIsMobile()
   const splitItem = usePropertyStore(s => s.splitItem)
   const mergeItems = usePropertyStore(s => s.mergeItems)
   const expendItem = usePropertyStore(s => s.expendItem)
+  const editItem = usePropertyStore(s => s.editItem)
+  const currentUserId = useAuthStore(s => s.user?.id ?? null)
 
   const [showSplitSheet, setShowSplitSheet] = useState(false)
   const [showMergeSheet, setShowMergeSheet] = useState(false)
@@ -172,56 +214,35 @@ export const PropertyItemDetail = forwardRef<PropertyItemDetailHandle, PropertyI
 
   const location = item.location_id ? locations.find(l => l.id === item.location_id) : null
   const holder = item.current_holder_id ? holders.get(item.current_holder_id) : null
+
+  // Ownership (personal vs cluster). null owner = cluster-owned (default). Set =
+  // personally owned; it travels with the owner's member-zone on PCS. The toggle
+  // flips between "mine" (current user) and cluster — owning for someone else is
+  // not an affordance here. See personal-zone-pcs-rehome.md.
+  const isMine = !!currentUserId && item.owner_user_id === currentUserId
+  const ownerLabel = item.owner_user_id
+    ? (isMine ? 'You' : holders.get(item.owner_user_id)?.displayName ?? 'Personal')
+    : null
+  const toggleOwnership = () =>
+    void editItem(item.id, { owner_user_id: isMine ? null : currentUserId })
   const parentItem = item.parent_item_id ? items.find(i => i.id === item.parent_item_id) : null
   const subItems = items.filter(i => i.parent_item_id === item.id)
   const isMissing = item.condition_code === 'missing'
   const expiry = expiryStatus(item.expiry_date ?? null)
-  const expiryLabel = expiry ? EXPIRY_LABELS[expiry] : null
+  const isExpired = expiry === 'expired'
+  const isDepleted = !item.is_serialized && item.quantity <= 0
 
-  // ── Shared split/move + merge body pieces. Rendered inside a bottom Sheet on
-  //    mobile and a pane-scoped PreviewOverlay on desktop — bare rows so each
-  //    primitive supplies its own card chrome. ────────────────────────────────
+  // ── Shared split/move + merge body pieces. Rendered in a single primitive
+  //    PreviewOverlay card (matching the Expend overlay) — primitive TextInput
+  //    quantity + primitive PickerInput destination. ───────────────────────────
   const splitTitle = item.quantity > 1 ? 'Split / Move' : 'Move to Location'
   const otherLocations = locations.filter(l => l.id !== item.location_id)
 
-  const qtyStepper = (
-    <div className="flex items-center gap-4">
-      <button
-        onClick={() => setSplitQty(q => Math.max(1, q - 1))}
-        className="w-10 h-10 rounded-full border border-tertiary/20 flex items-center justify-center text-secondary active:scale-95 transition-all"
-      >
-        <Minus size={16} />
-      </button>
-      <span className="text-2xl font-semibold text-primary w-12 text-center">{splitQty}</span>
-      <button
-        onClick={() => setSplitQty(q => Math.min(item.quantity, q + 1))}
-        className="w-10 h-10 rounded-full border border-tertiary/20 flex items-center justify-center text-secondary active:scale-95 transition-all"
-      >
-        <Plus size={16} />
-      </button>
-      <span className="text-[10pt] text-tertiary">of {item.quantity}</span>
-    </div>
-  )
-
-  const destinationRows = (
-    <>
-      {otherLocations.map(loc => (
-        <button
-          key={loc.id}
-          onClick={() => setSplitTargetId(loc.id === splitTargetId ? null : loc.id)}
-          className={`w-full flex items-center justify-between px-4 py-3 text-left border-b border-primary/5 last:border-b-0 transition-colors ${
-            splitTargetId === loc.id ? 'bg-themeblue3/10' : 'active:bg-secondary/5'
-          }`}
-        >
-          <span className="text-sm text-primary">{loc.name}</span>
-          {splitTargetId === loc.id && <Check size={16} className="text-themeblue2 shrink-0" />}
-        </button>
-      ))}
-      {otherLocations.length === 0 && (
-        <p className="text-[10pt] text-tertiary px-4 py-3">No other locations</p>
-      )}
-    </>
-  )
+  // Quantity to move is a free-typed number bounded by on-hand, like Expend.
+  const setSplitInput = (v: string) => {
+    const digits = v.replace(/[^0-9]/g, '')
+    setSplitQty(digits === '' ? 0 : Math.min(Math.max(parseInt(digits, 10), 1), item.quantity))
+  }
 
   const mergeHint = splitMergeTarget ? (
     <p className="text-[10pt] text-secondary">
@@ -260,49 +281,54 @@ export const PropertyItemDetail = forwardRef<PropertyItemDetailHandle, PropertyI
 
   return (
     <div className={`flex flex-col h-full ${isMobile ? 'px-4 py-4 space-y-4' : 'px-3 py-3 space-y-3'}`}>
-      {/* Main info card */}
-      <SectionCard>
-        <div className={isMobile ? 'p-4 space-y-1' : 'p-3 space-y-1'}>
+      {/* Details card — title lives in the host header, so here we lead with the
+          accountability flag + description, then the identity fields. The relative
+          wrapper hosts the warning badge(s) riding the top-right edge (SectionCard
+          is overflow-hidden, so the badge must be a lifted sibling). */}
+      <div className="relative">
+        {(isDepleted || isExpired) && (
+          <div className="absolute top-0 right-3 -translate-y-1/2 z-10 flex items-center gap-1.5">
+            {isDepleted && <WarnBadge label="Depleted" />}
+            {isExpired && <WarnBadge label="Expired" />}
+          </div>
+        )}
+        <SectionCard>
+        <div className={isMobile ? 'px-4 py-2' : 'px-3 py-2'}>
           {/* Accountability flag only — health/serviceability now lives in PMCS. */}
           {isMissing && (
-            <div className="flex items-center gap-2 mb-2">
+            <div className="flex items-center gap-2 py-2 border-b border-primary/5">
               <span className="h-2 w-2 rounded-full bg-themeredred" />
               <span className="text-[9pt] font-semibold text-themeredred tracking-widest uppercase">Missing</span>
             </div>
           )}
-
-          <h2 className={`font-bold text-primary ${isMobile ? 'text-lg' : 'text-sm'}`}>{item.name}</h2>
-
           {item.nomenclature && (
-            <p className={`text-secondary ${isMobile ? 'text-sm' : 'text-[10pt]'}`}>{item.nomenclature}</p>
+            <p className={`py-2 border-b border-primary/5 text-primary ${isMobile ? 'text-sm' : 'text-[10pt]'}`}>{item.nomenclature}</p>
           )}
-        </div>
-      </SectionCard>
-
-      {/* Details card */}
-      <SectionCard>
-        <div className={isMobile ? 'px-4 py-2' : 'px-3 py-2'}>
           <DetailRow label="NSN" value={item.nsn} />
           <DetailRow label="LIN" value={item.lin} />
           <DetailRow label="Serial" value={item.serial_number} />
           <DetailRow label="Qty" value={item.quantity > 1 ? String(item.quantity) : null} />
           <DetailRow label="Location" value={location?.name} />
           <DetailRow label="Holder" value={holder?.displayName} />
+          <DetailRow label="Owner" value={ownerLabel} />
           <DetailRow label="Parent" value={parentItem?.name} />
           {item.expiry_date && (
             <div className="flex justify-between items-baseline gap-4 py-2 border-b border-primary/5 last:border-b-0">
               <span className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase shrink-0">Expires</span>
               <div className="flex items-center gap-1.5">
-                {expiryLabel && <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${expiryLabel.dot}`} />}
-                <span className={`text-[10pt] text-right truncate ${expiryLabel ? expiryLabel.text : 'text-primary'}`}>
+                {/* Expired alarm now lives in the top-right badge; here we keep only the
+                    quieter "expiring soon" inline cue. */}
+                {expiry === 'expiring' && <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${EXPIRY_LABELS.expiring.dot}`} />}
+                <span className={`text-[10pt] text-right truncate ${expiry === 'expiring' ? EXPIRY_LABELS.expiring.text : 'text-primary'}`}>
                   {item.expiry_date}
-                  {expiryLabel && ` · ${expiryLabel.label}`}
+                  {expiry === 'expiring' && ` · ${EXPIRY_LABELS.expiring.label}`}
                 </span>
               </div>
             </div>
           )}
         </div>
-      </SectionCard>
+        </SectionCard>
+      </div>
 
       {/* Signed out — who holds how many right now (non-serialized stacks split
           across holders; the single Holder row above only covers serialized items). */}
@@ -375,6 +401,12 @@ export const PropertyItemDetail = forwardRef<PropertyItemDetailHandle, PropertyI
           align="right"
           items={[
             ...(onEdit ? [{ key: 'edit', label: 'Edit', icon: Pencil, onAction: onEdit } as ContextMenuItem] : []),
+            ...(currentUserId ? [{
+              key: 'ownership',
+              label: isMine ? 'Mark as cluster property' : 'Mark as mine',
+              icon: isMine ? Users : UserCheck,
+              onAction: toggleOwnership,
+            } as ContextMenuItem] : []),
             ...(!item.is_serialized ? [{
               key: 'move',
               label: item.quantity > 1 ? 'Split / Move' : 'Move to location',
@@ -395,110 +427,61 @@ export const PropertyItemDetail = forwardRef<PropertyItemDetailHandle, PropertyI
         />
       )}
 
-      {/* Split / Move + Merge — bottom Sheet on mobile, pane-scoped PreviewOverlay
-          on desktop (so it surfaces within the right pane, not a viewport drawer). */}
-      {isMobile ? (
-        <>
-          <Sheet
-            isOpen={showSplitSheet}
-            onClose={() => setShowSplitSheet(false)}
-            title={splitTitle}
-            height="fit"
-            maxHeight={75}
-            zIndex={1450}
-            actions={
-              <PillButton
-                icon={ArrowRightLeft}
-                iconSize={18}
-                accent="info"
-                disabled={!splitTargetId}
-                onClick={handleSplit}
-                label={splitQty >= item.quantity ? 'Move all' : `Move ${splitQty}`}
-              />
-            }
-          >
-            <div className="px-5 pt-3 pb-5 flex flex-col gap-4">
-              {item.quantity > 1 && (
-                <div>
-                  <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase mb-2">Quantity to move</p>
-                  {qtyStepper}
-                </div>
-              )}
-              <div>
-                <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase mb-2">Destination</p>
-                <SectionCard>{destinationRows}</SectionCard>
-              </div>
-              {mergeHint}
-            </div>
-          </Sheet>
+      {/* Split / Move — single primitive PreviewOverlay card matching Expend:
+          primitive TextInput quantity ("of N") + primitive PickerInput destination,
+          Move in the action footer. Drawer-scoped on desktop, centered on mobile. */}
+      <PreviewOverlay
+        isOpen={showSplitSheet}
+        onClose={() => setShowSplitSheet(false)}
+        anchorRect={null}
+        containerRef={drawerRef}
+        title={splitTitle}
+        maxWidth={320}
+        rightFooter={
+          <div className="bg-themewhite rounded-2xl px-1.5 py-1.5">
+            <PillButton
+              icon={ArrowRightLeft}
+              iconSize={16}
+              accent="info"
+              disabled={!splitTargetId}
+              onClick={handleSplit}
+              label={splitQty >= item.quantity ? 'Move all' : `Move ${splitQty}`}
+            />
+          </div>
+        }
+      >
+        <div className="px-4 py-3 space-y-3">
+          {item.quantity > 1 && (
+            <QtyField value={splitQty} onChange={setSplitInput} total={item.quantity} placeholder="1" />
+          )}
+          <PickerInput
+            value={splitTargetId ?? ''}
+            onChange={setSplitTargetId}
+            options={otherLocations.map(l => ({ value: l.id, label: l.name }))}
+            placeholder="Destination"
+          />
+          {mergeHint}
+        </div>
+      </PreviewOverlay>
 
-          <Sheet
-            isOpen={showMergeSheet}
-            onClose={() => setShowMergeSheet(false)}
-            title="Merge Like Items"
-            height="fit"
-            maxHeight={60}
-            zIndex={1450}
-          >
-            <div className="px-5 pt-3 pb-5 flex flex-col gap-4">
-              {mergeIntro}
-              <SectionCard>{mergeRows}</SectionCard>
-            </div>
-          </Sheet>
+      {/* Merge Like Items — single primitive PreviewOverlay card. */}
+      <PreviewOverlay
+        isOpen={showMergeSheet}
+        onClose={() => setShowMergeSheet(false)}
+        anchorRect={null}
+        containerRef={drawerRef}
+        title="Merge Like Items"
+        maxWidth={320}
+      >
+        <div className="px-4 py-3 space-y-3">
+          {mergeIntro}
+          <SectionCard>{mergeRows}</SectionCard>
+        </div>
+      </PreviewOverlay>
 
-        </>
-      ) : (
-        <>
-          <PreviewOverlay
-            isOpen={showSplitSheet}
-            onClose={() => setShowSplitSheet(false)}
-            anchorRect={null}
-            containerRef={drawerRef}
-            title={splitTitle}
-            maxWidth={340}
-            previewMaxHeight="34dvh"
-            headerCard={item.quantity > 1 ? (
-              <div className="bg-themewhite rounded-2xl px-4 py-3">
-                <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase mb-2">Quantity to move</p>
-                {qtyStepper}
-              </div>
-            ) : undefined}
-            supplemental={mergeHint ? <div className="px-1">{mergeHint}</div> : undefined}
-            rightFooter={
-              <div className="bg-themewhite rounded-2xl px-1.5 py-1.5">
-                <PillButton
-                  icon={ArrowRightLeft}
-                  iconSize={16}
-                  accent="info"
-                  disabled={!splitTargetId}
-                  onClick={handleSplit}
-                  label={splitQty >= item.quantity ? 'Move all' : `Move ${splitQty}`}
-                />
-              </div>
-            }
-          >
-            <div className="px-1.5 pb-1.5">{destinationRows}</div>
-          </PreviewOverlay>
-
-          <PreviewOverlay
-            isOpen={showMergeSheet}
-            onClose={() => setShowMergeSheet(false)}
-            anchorRect={null}
-            containerRef={drawerRef}
-            title="Merge Like Items"
-            maxWidth={340}
-            previewMaxHeight="34dvh"
-            headerCard={<div className="bg-themewhite rounded-2xl px-4 py-3">{mergeIntro}</div>}
-          >
-            <div className="px-1.5 pb-1.5">{mergeRows}</div>
-          </PreviewOverlay>
-
-        </>
-      )}
-
-      {/* Expend — primitive PreviewOverlay (scoped to the drawer on desktop, centered
-          on mobile when drawerRef is null). Header title + close; a Check in the
-          header submits; the body is a numeric input bounded by on-hand. */}
+      {/* Expend — single primitive PreviewOverlay card: title + close (top-right),
+          the primitive TextInput quantity in the body, and a Check submit in the
+          action footer (rightFooter, bottom-right). */}
       <PreviewOverlay
         isOpen={showExpendSheet}
         onClose={() => setShowExpendSheet(false)}
@@ -506,35 +489,27 @@ export const PropertyItemDetail = forwardRef<PropertyItemDetailHandle, PropertyI
         containerRef={drawerRef}
         title="Expend"
         maxWidth={320}
-        headerActions={
-          <button
-            type="button"
-            onClick={handleExpend}
-            disabled={!canExpend}
-            aria-label="Expend"
-            className={`w-8 h-8 rounded-full flex items-center justify-center active:scale-95 transition-all ${
-              canExpend ? 'bg-themegreen/15' : 'bg-tertiary/8'
-            }`}
-          >
-            <Check size={16} className={canExpend ? 'text-themegreen' : 'text-tertiary'} />
-          </button>
-        }
-      >
-        <div className="px-4 py-4">
-          <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase mb-2">Quantity to expend</p>
-          <div className="rounded-xl border border-primary/8 overflow-hidden">
-            <TextInput
-              value={expendQty ? String(expendQty) : ''}
-              onChange={setExpendInput}
-              onKeyDown={(e) => { if (e.key === 'Enter') handleExpend() }}
-              type="text"
-              inputMode="numeric"
-              placeholder="0"
+        rightFooter={
+          <div className="bg-themewhite rounded-2xl px-1.5 py-1.5">
+            <PillButton
+              icon={Check}
+              iconSize={16}
+              accent="success"
+              disabled={!canExpend}
+              onClick={handleExpend}
+              label="Expend"
             />
           </div>
-          <p className="mt-2 text-[10pt] text-tertiary">
-            of {item.quantity} on hand · logs to this item’s history.
-          </p>
+        }
+      >
+        <div className="px-4 py-3">
+          <QtyField
+            value={expendQty}
+            onChange={setExpendInput}
+            total={item.quantity}
+            placeholder="0"
+            onKeyDown={(e) => { if (e.key === 'Enter') handleExpend() }}
+          />
         </div>
       </PreviewOverlay>
 

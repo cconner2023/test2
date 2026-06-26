@@ -415,11 +415,6 @@ function CountryPickerRow({ value, onChange }: { value: string; onChange: (code:
             </div>
           )
         }}
-        footer={
-          <div className="bg-themewhite rounded-2xl shadow-lg px-1.5 py-1.5">
-            <ActionButton icon={X} label="Cancel" onClick={() => setOpen(false)} />
-          </div>
-        }
       />
     </div>
   )
@@ -488,11 +483,6 @@ function SubdivisionPickerRow({
             </div>
           )
         }}
-        footer={
-          <div className="bg-themewhite rounded-2xl shadow-lg px-1.5 py-1.5">
-            <ActionButton icon={X} label="Cancel" onClick={() => setOpen(false)} />
-          </div>
-        }
       />
     </div>
   )
@@ -559,11 +549,6 @@ function CommandPickerRow({
               </button>
             </div>
           )}
-          footer={
-            <div className="bg-themewhite rounded-2xl shadow-lg px-1.5 py-1.5">
-              <ActionButton icon={X} label="Cancel" onClick={() => setOpen(false)} />
-            </div>
-          }
         />
       </div>
       {isOther && (

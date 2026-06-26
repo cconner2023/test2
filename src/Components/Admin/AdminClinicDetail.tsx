@@ -705,16 +705,20 @@ const AdminClinicDetail = ({
         maxWidth={400}
         previewMaxHeight="70dvh"
         footer={
+          editAnchor && clinic && onRequestDelete ? (
+            <ActionPill shadow="sm">
+              <ActionButton
+                icon={Trash2}
+                label="Delete cluster"
+                variant="danger"
+                onClick={() => { setEditAnchor(null); onRequestDelete() }}
+              />
+            </ActionPill>
+          ) : undefined
+        }
+        rightFooter={
           editAnchor && clinic ? (
             <ActionPill shadow="sm">
-              {onRequestDelete && (
-                <ActionButton
-                  icon={Trash2}
-                  label="Delete cluster"
-                  variant="danger"
-                  onClick={() => { setEditAnchor(null); onRequestDelete() }}
-                />
-              )}
               <ActionButton
                 icon={saving ? RefreshCw : Check}
                 label={saving ? 'Saving…' : 'Save'}
@@ -1099,7 +1103,6 @@ const AdminClinicDetail = ({
                 }}
               />
             )}
-            <ActionButton icon={X} label="Cancel" onClick={() => setRelAction(null)} />
           </div>
         }
       />

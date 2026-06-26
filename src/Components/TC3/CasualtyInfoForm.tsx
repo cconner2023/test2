@@ -205,6 +205,7 @@ export const CasualtyInfoForm = memo(function CasualtyInfoForm() {
         onClose={() => setPopoverVisible(false)}
         anchorRect={anchorRect}
         maxWidth={380}
+        title="Casualty Info"
         preview={
           <div>
             {/* EVAC Priority */}
@@ -388,13 +389,12 @@ export const CasualtyInfoForm = memo(function CasualtyInfoForm() {
             onAction: handleReset,
             variant: 'danger',
           },
-          {
-            key: 'accept',
-            label: 'Accept',
-            icon: Check,
-            onAction: handleAccept,
-          },
         ]}
+        rightFooter={
+          <ActionPill>
+            <ActionButton icon={Check} label="Accept" onClick={() => { handleAccept(); setPopoverVisible(false); }} />
+          </ActionPill>
+        }
       />
     </div>
   )

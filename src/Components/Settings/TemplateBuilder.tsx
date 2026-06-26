@@ -106,6 +106,11 @@ const NodeEditor = ({
     const footer = (
         <ActionPill>
             <ActionButton icon={Trash2} label="Delete" variant="danger" onClick={() => { onDelete(); onClose(); }} />
+        </ActionPill>
+    );
+
+    const rightFooter = (
+        <ActionPill>
             <ActionButton icon={Check} label="Done" variant="success" onClick={onClose} />
         </ActionPill>
     );
@@ -119,6 +124,7 @@ const NodeEditor = ({
             maxWidth={520}
             previewMaxHeight="60dvh"
             footer={footer}
+            rightFooter={rightFooter}
         >
             {node.type === 'text' && (
                 <div>
@@ -326,7 +332,7 @@ const BranchEditorBody = ({
                     title={`Path: ${drillOption.key}`}
                     maxWidth={520}
                     previewMaxHeight="60dvh"
-                    footer={
+                    rightFooter={
                         <ActionPill>
                             <ActionButton icon={Check} label="Done" variant="success" onClick={() => setDrillOption(null)} />
                         </ActionPill>
