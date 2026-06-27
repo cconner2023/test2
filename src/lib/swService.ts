@@ -15,6 +15,16 @@ function stampBuildId(): void {
   try { localStorage.setItem('appBuildId', __BUILD_ID__) } catch { /* storage unavailable */ }
 }
 
+/**
+ * Silent (non-optional) update: stamp a flag so the index.html splash can show
+ * "Installing update…" on the imminent reload — otherwise an unprompted reload
+ * reads as a glitch. The splash script clears the flag after reading it.
+ */
+function silentApply(update: (reloadPage?: boolean) => Promise<void>): void {
+  try { localStorage.setItem('updateReloadPending', '1') } catch { /* storage unavailable */ }
+  update(true).catch(() => {})
+}
+
 export interface SWState {
   updateAvailable: boolean
   offlineReady: boolean
@@ -71,7 +81,7 @@ export function checkForUpdate(): void {
 async function applyOrPrompt(update: (reloadPage?: boolean) => Promise<void>) {
   if (isForcedUpdate()) {
     logger.info('No build ID — pre-auth build detected, force applying update')
-    update(true).catch(() => {})
+    silentApply(update)
     return
   }
 
@@ -84,7 +94,7 @@ async function applyOrPrompt(update: (reloadPage?: boolean) => Promise<void>) {
 
     if (!user && !localSession) {
       logger.info('No active session — applying update silently')
-      update(true).catch(() => {})
+      silentApply(update)
     } else {
       logger.info('Active session — showing update prompt')
       patch({ updateAvailable: true })
@@ -113,7 +123,7 @@ async function applyOrPrompt(update: (reloadPage?: boolean) => Promise<void>) {
     const { user, localSession } = useAuthStore.getState()
     if (!user && !localSession) {
       logger.info('Auth timeout — no session found, applying update silently')
-      update(true).catch(() => {})
+      silentApply(update)
     } else {
       logger.warn('Auth timeout — showing update prompt conservatively')
       patch({ updateAvailable: true })
@@ -137,7 +147,7 @@ export function initSW(): void {
         const { version: newVersion } = await res.json()
         if (newVersion === __APP_VERSION__) {
           logger.info('Same version, applying silently')
-          await update(true)
+          silentApply(update)
           return
         }
         logger.info(`New version ${newVersion} (current: ${__APP_VERSION__})`)

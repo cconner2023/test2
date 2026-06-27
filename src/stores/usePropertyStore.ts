@@ -97,9 +97,10 @@ interface PropertyState {
   /** Sign 1..N items out on a single DA 2062 hand receipt. `toHolderId` set =
    *  internal cluster member; null + `externalName` = outside-cluster recipient.
    *  Resolves to the new hand_receipt_id (for immediate printing) or null. */
-  signOut: (params: { itemIds: string[]; quantities?: Record<string, number>; toHolderId: string | null; externalName: string | null; notes: string | null }) => Promise<string | null>
-  /** Sign a hand receipt back in — clears each item's custodian. */
-  signIn: (handReceiptId: string, fromHolderId: string | null, itemIds: string[]) => Promise<boolean>
+  signOut: (params: { itemIds: string[]; quantities?: Record<string, number>; toHolderId: string | null; externalName: string | null; notes: string | null; moveToZone?: boolean }) => Promise<string | null>
+  /** Sign a hand receipt back in — clears each item's custodian. `toLocationId`
+   *  re-places the returned items at the chosen zone (absent = leave as-is). */
+  signIn: (handReceiptId: string, fromHolderId: string | null, itemIds: string[], toLocationId?: string | null) => Promise<boolean>
   /** Clinic-wide custody ledger (newest first) for the accountability surface. */
   fetchLedger: () => Promise<CustodyLedgerEntry[]>
   splitItem: (itemId: string, qty: number, targetLocationId: string | null) => Promise<void>
@@ -525,12 +526,12 @@ export const usePropertyStore = create<PropertyState>((set, get) => ({
     return result.handReceiptId
   },
 
-  signIn: async (handReceiptId, fromHolderId, itemIds) => {
+  signIn: async (handReceiptId, fromHolderId, itemIds, toLocationId) => {
     const user = useAuthStore.getState().user
     const { clinicId } = get()
     if (!user || !clinicId) return false
 
-    const result = await signInReceipt(handReceiptId, clinicId, fromHolderId, itemIds, user.id)
+    const result = await signInReceipt(handReceiptId, clinicId, fromHolderId, itemIds, user.id, toLocationId)
     if (!result.success) return false
 
     invalidate('properties')

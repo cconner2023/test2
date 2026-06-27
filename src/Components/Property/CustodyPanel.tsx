@@ -7,18 +7,14 @@ import {
   RotateCcw,
   ClipboardCheck,
   Route,
-  Trash2,
-  Plus,
   PackageMinus,
   CalendarX,
   CalendarClock,
   type LucideIcon,
 } from 'lucide-react'
 import type { ReceiptItem, HandReceiptData } from '../../Hooks/useHandReceipts'
-import { useHandReceiptActions } from '../../Hooks/useHandReceiptActions'
 import { useRecentPropertyActivity } from '../../Hooks/useRecentPropertyActivity'
-import { RecordPreview } from './RecordPreview'
-import { ConfirmDialog } from '../ConfirmDialog'
+import type { SelectedRecord } from './PropertyRecordDetail'
 import { SectionCard, SectionHeader } from '../Section'
 import { expiryStatus, type HandReceipt } from '../../Types/PropertyTypes'
 import type { AuditEvent } from '../../lib/auditTypes'
@@ -57,70 +53,47 @@ interface CustodyPanelProps {
   receipts: HandReceiptData['receipts']
   itemsById: HandReceiptData['itemsById']
   locationNameById: HandReceiptData['locationNameById']
-  membersById: HandReceiptData['membersById']
   loading: HandReceiptData['loading']
-  refetch: HandReceiptData['refetch']
-  /** Fly the map to a signed-out item's usual zone and surface it ("target the equipment"). */
+  /** Fly the map to a signed-out / used / expiring item's usual zone and surface it. */
   onLocateItem: (item: ReceiptItem) => void
-  /** Reprint a receipt's DA 2062. The PDF opens in the host's object-view surface
-   *  (right pane desktop / detail sheet mobile) — this panel is MAIN-panel content,
-   *  so the preview is NOT a nested overlay here. */
-  onReprint: (r: HandReceipt) => void
+  /** Open a hand receipt's detail in the host pane (right pane desktop / sheet mobile). */
+  onSelectReceipt: (r: HandReceipt) => void
+  /** Open a PMCS / dispatch record's detail in the host pane. */
+  onSelectRecord: (record: SelectedRecord) => void
+  /** Currently-open receipt / record — for the selected-row highlight (desktop). */
+  selectedReceiptId?: string | null
+  selectedRecordId?: string | null
 }
 
 /**
- * Custody tab — the DA 2062 accountability surface. A hybrid: collapsible GROUP
- * headers (the tree feel — chevron + label + count) whose discrete items render
- * as an indented SectionCard stack. Top: the hand receipts under "Signed Out" /
- * "History" groups, each a card — deliberately icon-light and count-free, just
- * recipient + date, expanding to its items + Print 2062 / Sign in. Middle:
- * "Usage" (consumables expended this week — item.expended ledger events, tap to
- * locate) + "Expired" (items lapsed or expiring within 30 days via expiry_date,
- * red/amber, tap to locate). Bottom: the
- * week's activity under "PMCS" + "Dispatch" groups (clinic-wide pmcs.clear /
- * dispatch.* audit events from the past week via useRecentPropertyActivity) so a
- * glance answers "which items got PMCS'd or dispatched this week". Each is a card
- * with the subject name + a detail line (readings / exp date); tapping opens
- * RecordPreview (view the 5988E / dispatch form, delete). Item moves are intentionally NOT surfaced here — current
- * location is always one item-search away, and per-item move history lives in
- * ItemTimeline. SEARCH is NOT here — it lives in the
- * single property header search (PropertySearchOverlay), which folds receipts in
- * as a "Sign-outs" section. Shares the reprint / sign-in lifecycle via
- * useHandReceiptActions; receipt data is supplied by the parent.
+ * Custody tab — the DA 2062 accountability surface, a ROSTER of cards. Collapsible
+ * GROUP headers (chevron + label + count) whose discrete items render as an indented
+ * SectionCard stack. Top: the hand receipts under "Signed Out" / "History" groups —
+ * each card is recipient + date, tapping OPENS the receipt's detail in the host pane
+ * (right pane desktop / sheet mobile, like an item/zone). Middle: "Usage" (consumables
+ * expended this week) + "Expired" (items lapsed or expiring within 30 days), tap to
+ * locate the item. Bottom: the week's "PMCS" + "Dispatch" activity (clinic-wide
+ * audit events from the past week via useRecentPropertyActivity) — each card opens
+ * the record's detail in the host pane (view the 5988E / dispatch form, delete).
+ * Every selectable card follows the same "main-content card → pane/sheet detail"
+ * primitive; the panel itself holds NO inline expansion. Search lives in the single
+ * property header search (PropertySearchOverlay).
  */
 export function CustodyPanel({
   clinicId,
   receipts,
   itemsById,
   locationNameById,
-  membersById,
   loading,
-  refetch,
   onLocateItem,
-  onReprint,
+  onSelectReceipt,
+  onSelectRecord,
+  selectedReceiptId,
+  selectedRecordId,
 }: CustodyPanelProps) {
-  const {
-    pendingSignIn,
-    setPendingSignIn,
-    confirmSignIn,
-    pendingRemove,
-    setPendingRemove,
-    confirmRemove,
-    addItems,
-    pendingDelete,
-    setPendingDelete,
-    confirmDelete,
-    busyId,
-  } = useHandReceiptActions({ clinicId, itemsById, membersById, refetch })
-
-  // Which receipt's "add item" picker is open (one at a time).
-  const [addingFor, setAddingFor] = useState<string | null>(null)
-
   // Clinic-wide PMCS + dispatch activity for the past week — the "what got
-  // inspected / dispatched lately" feed living below the hand receipts. A tapped
-  // row opens RecordPreview (view 5988E / dispatch form, delete).
+  // inspected / dispatched lately" feed living below the hand receipts.
   const activity = useRecentPropertyActivity(clinicId)
-  const [previewEvent, setPreviewEvent] = useState<AuditEvent | null>(null)
   const { pmcsEvents, dispatchEvents, usageEvents } = useMemo(() => {
     const pmcsEvents: AuditEvent[] = []
     const dispatchEvents: AuditEvent[] = []
@@ -146,10 +119,8 @@ export function CustodyPanel({
     return rows
   }, [itemsById])
 
-  // Expand state — holds collapsible GROUP keys ('__signed_out__' / '__pmcs__' /
-  // '__dispatch__' default open, '__history__' collapsed) AND each receipt's
-  // handReceiptId. The group chevrons keep the tree feel; the discrete receipts /
-  // activity events inside an open group render as a card stack.
+  // Expand state — collapsible GROUP keys ('__signed_out__' etc.). The discrete
+  // receipts / activity events inside an open group render as a card stack.
   const [expanded, setExpanded] = useState<Set<string>>(
     () => new Set(['__signed_out__', '__usage__', '__expired__', '__pmcs__', '__dispatch__']),
   )
@@ -171,167 +142,20 @@ export function CustodyPanel({
     return { outstanding, history }
   }, [receipts])
 
-  // Items currently signed out on an OPEN receipt — excluded from the add-item
-  // picker so an item can't be double-signed-out across two 2062s.
-  const signedOutItemIds = useMemo(() => {
-    const s = new Set<string>()
-    for (const r of outstanding) for (const e of r.entries) s.add(e.item_id)
-    return s
-  }, [outstanding])
-
-  // Add-item candidates: clinic items not already on this receipt and not signed
-  // out elsewhere.
-  const availableItems = useCallback(
-    (r: HandReceipt) => {
-      const onReceipt = new Set(r.entries.map((e) => e.item_id))
-      return [...itemsById.values()].filter((it) => !onReceipt.has(it.id) && !signedOutItemIds.has(it.id))
-    },
-    [itemsById, signedOutItemIds],
-  )
-
-  // A hand receipt as a card in the stack. Header is recipient + date only (icon-
-  // light, count-free per USR); expanding reveals its items (tap → locate) + the
-  // Print 2062 / Sign in actions.
+  // A hand receipt as a card in the stack — recipient + date only (icon-light,
+  // count-free per USR). Tapping opens its detail in the host pane (right pane / sheet).
   const renderReceiptCard = (r: HandReceipt) => {
-    const open = expanded.has(r.handReceiptId)
-    const returned = r.status === 'returned'
+    const active = selectedReceiptId === r.handReceiptId
     return (
       <SectionCard key={r.handReceiptId}>
-        {/* Header row — recipient + date only (no icon, no count). */}
         <button
-          onClick={() => toggle(r.handReceiptId)}
-          className="w-full flex items-center gap-3 px-4 py-3 text-left active:bg-themeblue2/5"
+          onClick={() => onSelectReceipt(r)}
+          className={`w-full flex items-center gap-3 px-4 py-3 text-left active:bg-themeblue2/5 ${active ? 'bg-themeblue2/8' : ''}`}
         >
           <span className="flex-1 min-w-0 text-sm font-medium text-primary truncate">{r.recipientLabel}</span>
           <span className="text-[9pt] text-tertiary shrink-0">{formatDate(r.recordedAt)}</span>
-          {open ? (
-            <ChevronDown size={16} className="text-tertiary shrink-0" />
-          ) : (
-            <ChevronRight size={16} className="text-tertiary shrink-0" />
-          )}
+          <ChevronRight size={16} className="text-tertiary shrink-0" />
         </button>
-
-        {/* Items + actions when expanded */}
-        {open && (
-          <div className="border-t border-primary/6">
-            {r.entries.map((e) => {
-              const item = itemsById.get(e.item_id)
-              const loc = item?.location_id ? locationNameById.get(item.location_id) : null
-              return (
-                <div
-                  key={e.id}
-                  className="group flex items-center gap-1 px-4 py-2.5 border-b border-primary/6 last:border-b-0"
-                >
-                  <button
-                    onClick={() => item && onLocateItem(item)}
-                    className="flex-1 min-w-0 flex items-center gap-2 text-left active:opacity-70"
-                  >
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm text-primary truncate">
-                        {item?.name ?? 'Unknown item'}
-                        {(e.quantity_delta ?? 1) > 1 && (
-                          <span className="ml-1.5 text-[10pt] font-medium text-tertiary tabular-nums">×{e.quantity_delta}</span>
-                        )}
-                      </p>
-                      <p className="text-[9pt] text-tertiary mt-0.5 flex items-center gap-1 truncate">
-                        {item?.serial_number
-                          ? `S/N ${item.serial_number}`
-                          : item?.nsn
-                            ? `NSN ${item.nsn}`
-                            : 'No NSN'}
-                        {loc && (
-                          <>
-                            <span className="text-tertiary/50">·</span>
-                            <MapPin size={11} className="text-tertiary shrink-0" />
-                            usually {loc}
-                          </>
-                        )}
-                      </p>
-                    </div>
-                    {item && (
-                      <MapPin size={13} className="text-tertiary opacity-0 group-hover:opacity-100 shrink-0" />
-                    )}
-                  </button>
-                  {/* Remove this item from the 2062 (deletes its record, signs it back in). */}
-                  <button
-                    onClick={() => setPendingRemove({ handReceiptId: r.handReceiptId, itemId: e.item_id })}
-                    disabled={busyId === r.handReceiptId}
-                    aria-label="Remove item from receipt"
-                    className="shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-tertiary hover:text-themeredred hover:bg-themeredred/10 active:scale-95 transition disabled:opacity-40"
-                  >
-                    <Trash2 size={13} />
-                  </button>
-                </div>
-              )
-            })}
-
-            {/* Receipt actions — Print 2062, Sign in / Add item (open only), Delete */}
-            <div className="flex items-center gap-2 px-4 py-3 flex-wrap">
-              <button
-                onClick={() => onReprint(r)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-themeblue3/10 text-themeblue3 text-[10pt] font-medium active:scale-95 transition-transform"
-              >
-                <FileText size={14} />
-                Print 2062
-              </button>
-              {!returned && (
-                <button
-                  onClick={() => setPendingSignIn(r)}
-                  disabled={busyId === r.handReceiptId}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-tertiary/10 text-secondary text-[10pt] font-medium active:scale-95 transition-transform"
-                >
-                  <RotateCcw size={14} />
-                  Sign in
-                </button>
-              )}
-              {!returned && (
-                <button
-                  onClick={() => setAddingFor(addingFor === r.handReceiptId ? null : r.handReceiptId)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-themeblue3/10 text-themeblue3 text-[10pt] font-medium active:scale-95 transition-transform"
-                >
-                  <Plus size={14} />
-                  Add item
-                </button>
-              )}
-              <span className="flex-1" />
-              <button
-                onClick={() => setPendingDelete(r)}
-                disabled={busyId === r.handReceiptId}
-                aria-label="Delete hand receipt"
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-themeredred/8 text-themeredred text-[10pt] font-medium active:scale-95 transition-transform disabled:opacity-40"
-              >
-                <Trash2 size={14} />
-                Delete
-              </button>
-            </div>
-
-            {/* Add-item picker — clinic items not already on this receipt. */}
-            {addingFor === r.handReceiptId && (
-              <div className="border-t border-primary/6 max-h-56 overflow-y-auto bg-themeblue2/3">
-                {availableItems(r).length === 0 ? (
-                  <p className="text-[9pt] text-tertiary italic px-4 py-3">No other items to add.</p>
-                ) : (
-                  availableItems(r).map((it) => (
-                    <button
-                      key={it.id}
-                      onClick={() => addItems(r.handReceiptId, [it.id])}
-                      disabled={busyId === r.handReceiptId}
-                      className="w-full flex items-center gap-2 px-4 py-2.5 text-left border-b border-primary/6 last:border-b-0 active:bg-themeblue2/5 disabled:opacity-40"
-                    >
-                      <Plus size={13} className="text-themeblue3 shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm text-primary truncate">{it.name}</p>
-                        <p className="text-[9pt] text-tertiary truncate">
-                          {it.serial_number ? `S/N ${it.serial_number}` : it.nsn ? `NSN ${it.nsn}` : 'No NSN'}
-                        </p>
-                      </div>
-                    </button>
-                  ))
-                )}
-              </div>
-            )}
-          </div>
-        )}
       </SectionCard>
     )
   }
@@ -342,7 +166,7 @@ export function CustodyPanel({
       ? itemsById.get(e.subjectId)?.name ?? 'Item'
       : locationNameById.get(e.subjectId) ?? 'Vehicle'
 
-  // The record detail shown on the row's second line + in RecordPreview: readings
+  // The record detail shown on the row's second line + in the record detail: readings
   // for PMCS, exp date for a dispatch.
   const detailOf = (e: AuditEvent): string => {
     const p = e.payload ?? {}
@@ -373,17 +197,18 @@ export function CustodyPanel({
     }
   }
 
-  // A PMCS / dispatch activity event as a card: subject name + detail·date, icon
-  // chip matching its RecordPreview tint, doc indicator when a form is attached.
-  // Tap opens RecordPreview (view 5988E / dispatch form, delete).
+  // A PMCS / dispatch activity event as a card: subject name + detail·date, icon chip,
+  // doc indicator when a form is attached. Tapping opens the record detail in the host
+  // pane (view 5988E / dispatch form, delete).
   const renderActivityCard = (e: AuditEvent) => {
     const { Icon, tint } = activityMeta(e)
+    const active = selectedRecordId === e.id
     return (
       <SectionCard key={e.id}>
         <button
           type="button"
-          onClick={() => setPreviewEvent(e)}
-          className="group w-full flex items-center gap-3 px-4 py-3 text-left active:bg-themeblue2/5"
+          onClick={() => onSelectRecord({ event: e, label: activityName(e), Icon, tint, detail: detailOf(e) })}
+          className={`group w-full flex items-center gap-3 px-4 py-3 text-left active:bg-themeblue2/5 ${active ? 'bg-themeblue2/8' : ''}`}
         >
           <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${tint}`}>
             <Icon size={16} />
@@ -400,7 +225,7 @@ export function CustodyPanel({
 
   // A usage (expenditure) event as a card: item name + "Expended ×N · date". Tapping
   // locates the item on the map (it still exists — expend clamps qty to 0, never
-  // deletes). No RecordPreview: item.expended is an immutable, doc-less ledger event.
+  // deletes). No detail: item.expended is an immutable, doc-less ledger event.
   const renderUsageCard = (e: AuditEvent) => {
     const { Icon, tint } = activityMeta(e)
     const item = itemsById.get(e.subjectId)
@@ -539,52 +364,6 @@ export function CustodyPanel({
           dispatchEvents.length > 0 ? dispatchEvents.map(renderActivityCard) : emptyLine('Nothing this week.'),
         )}
       </div>
-
-      {/* Tap an activity row → preview the record (subject name + detail; view
-          5988E / dispatch form; delete). */}
-      <RecordPreview
-        event={previewEvent}
-        onClose={() => setPreviewEvent(null)}
-        label={previewEvent ? `${activityName(previewEvent)} · ${detailOf(previewEvent)}` : ''}
-        Icon={previewEvent ? activityMeta(previewEvent).Icon : FileText}
-        tint={previewEvent ? activityMeta(previewEvent).tint : 'bg-tertiary/10 text-tertiary'}
-      />
-
-      <ConfirmDialog
-        visible={!!pendingRemove}
-        title="Remove this item from the receipt?"
-        confirmLabel="Remove"
-        variant="danger"
-        zIndex={1500}
-        onConfirm={confirmRemove}
-        onCancel={() => setPendingRemove(null)}
-      />
-
-      <ConfirmDialog
-        visible={!!pendingSignIn}
-        title="Sign this hand receipt back in?"
-        subtitle={pendingSignIn ? `${pendingSignIn.entries.length} item(s) return to the property book.` : ''}
-        confirmLabel="Sign in"
-        variant="primary"
-        zIndex={1500}
-        onConfirm={confirmSignIn}
-        onCancel={() => setPendingSignIn(null)}
-      />
-
-      <ConfirmDialog
-        visible={!!pendingDelete}
-        title="Delete this hand receipt?"
-        subtitle={
-          pendingDelete
-            ? `Removes the 2062 and all ${pendingDelete.entries.length} item record(s) + their timeline entries. Items return to the property book.`
-            : ''
-        }
-        confirmLabel="Delete"
-        variant="danger"
-        zIndex={1500}
-        onConfirm={confirmDelete}
-        onCancel={() => setPendingDelete(null)}
-      />
     </div>
   )
 }

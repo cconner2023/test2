@@ -99,6 +99,13 @@
       animation: splashPulse 1.2s ease-in-out infinite
     }
 
+    .splash-subtitle {
+      margin-top: 24px;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      font-size: 14px;
+      color: rgba(0, 66, 92, 0.65)
+    }
+
     @keyframes splashPulse {
       0% {
         transform: translateX(-100%)
@@ -129,6 +136,10 @@
     .splash.splash-dark .splash-bar-track {
       background: rgba(0, 66, 92, 0.25)
     }
+
+    .splash.splash-dark .splash-subtitle {
+      color: rgba(129, 161, 181, 0.8)
+    }
   </style>
   <div id="splash" class="splash">
     <script>
@@ -136,6 +147,17 @@
         var t; try { t = localStorage.getItem('theme') } catch (e) { }
         if (t !== 'light' && t !== 'dark') t = window.matchMedia('(prefers-color-scheme:dark)').matches ? 'dark' : 'light';
         if (t === 'dark') document.getElementById('splash').classList.add('splash-dark');
+        // Update reload: skipWaiting() stamps postUpdateNav; silent/non-optional
+        // updates stamp updateReloadPending. Either way, surface it so the reload
+        // reads as an intentional patch, not a glitch. The silent flag has no other
+        // consumer, so clear it here (postUpdateNav is cleared by App.tsx).
+        try {
+          if (localStorage.getItem('postUpdateNav') || localStorage.getItem('updateReloadPending')) {
+            var st = document.getElementById('splash-subtitle');
+            if (st) st.textContent = 'Installing update…';
+          }
+          localStorage.removeItem('updateReloadPending');
+        } catch (e) { }
       })();
     </script>
     <svg class="splash-sol" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -149,6 +171,7 @@
     <div class="splash-bar-track">
       <div class="splash-bar-fill"></div>
     </div>
+    <div class="splash-subtitle" id="splash-subtitle"></div>
   </div>
   <div id="root"></div>
   <script type="module" src="/src/main.tsx"></script>

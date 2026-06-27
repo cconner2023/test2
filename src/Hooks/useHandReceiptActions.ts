@@ -155,7 +155,9 @@ export function useHandReceiptActions({ clinicId, itemsById, membersById, refetc
     if (result.success) afterMutate()
   }, [pendingDelete, clinicId, afterMutate])
 
-  const confirmSignIn = useCallback(async () => {
+  // `toLocationId` re-places the returned items at the chosen zone (the sign-in
+  // picker's pick); undefined → leave each item's location as-is.
+  const confirmSignIn = useCallback(async (toLocationId?: string | null) => {
     const r = pendingSignIn
     if (!r || !clinicId) {
       setPendingSignIn(null)
@@ -174,6 +176,7 @@ export function useHandReceiptActions({ clinicId, itemsById, membersById, refetc
       r.toHolderId,
       r.entries.map((e) => e.item_id),
       userId,
+      toLocationId,
     )
     setBusyId(null)
     if (result.success) {

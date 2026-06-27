@@ -28,13 +28,15 @@ import { useClinicName } from '../../Hooks/useClinicNameResolver'
 import type { LocalPropertyItem, LocalPropertyLocation, HandReceipt } from '../../Types/PropertyTypes'
 import { ROOT_LOCATION_NAME } from '../../Types/PropertyTypes'
 import { PropertyItemDetail, type PropertyItemDetailHandle } from './PropertyItemDetail'
+import { Da2062Detail, da2062DetailSubtitle, type Da2062DetailHandle } from './Da2062Detail'
+import { PropertyRecordDetail, type PropertyRecordDetailHandle, type SelectedRecord } from './PropertyRecordDetail'
 import { PropertyCSVImport } from './PropertyCSVImportDrawer'
 import { SignOutForm, type SignOutFormHandle } from './SignOutForm'
 import { HeaderPill, PillButton } from '../HeaderPill'
 import { SearchInput } from '../SearchInput'
 import { PersonnelZoneCarousel } from './PersonnelZoneCarousel'
 import { useSubClusters } from '../../Hooks/useSubClusters'
-import { effectiveSubClusters, passesSubClusterFilter, type SubClusterFilter } from '../../Utilities/subCluster'
+import { effectiveSubClusters, passesSubClusterFilter, itemPassesLens, type SubClusterFilter } from '../../Utilities/subCluster'
 
 export type PropertyView = 'property' | 'property-detail' | 'property-form'
 
@@ -130,14 +132,18 @@ export const PropertyPanel = memo(function PropertyPanel({
   // Property FILTER — collapsed into the existing Locations sheet / desktop rail (one
   // entry point shares the filter + the tree), NOT a separate gear. No chips. Two scopes
   // via the calendar list-item filter primitive: (1) sub-unit (platoon/squad) → which
-  // personnel the carousel + tree show (default = viewer's own squad via the null lens);
-  // (2) "My property" → canvas/tree items the viewer owns/holds. Render-only.
+  // personnel the carousel + tree show AND which items the map/tree narrow to (via
+  // itemPassesLens; default = viewer's own squad via the null lens); (2) "My property"
+  // → canvas/tree items the viewer owns/holds. Both render-only.
   const [mineOnly, setMineOnly] = useState(false)
   const [subClusterFilter, setSubClusterFilter] = useState<SubClusterFilter>(null)
   const subClusterLens = effectiveSubClusters(subClusterFilter, viewerSubClusterId)
   const subActive = Array.isArray(subClusterLens)
   const subClusterShowingAll = subClusterLens === null
-  const subClusterActiveSet = new Set(subClusterLens ?? subClusters.map(s => s.id))
+  // Showing-all = NONE individually selected (empty set), so the first tap on a
+  // sub-unit ISOLATES to it rather than deselecting it from an implicit all-set.
+  // Highlighting reads this too, but is guarded by !subClusterShowingAll above.
+  const subClusterActiveSet = new Set(subClusterLens ?? [])
   const toggleSubCluster = (id: string) => {
     const next = new Set(subClusterActiveSet)
     if (next.has(id)) next.delete(id)
@@ -251,14 +257,19 @@ export const PropertyPanel = memo(function PropertyPanel({
     })
   }, [visibleLocations, subActive, subClusterLens, viewerPrimaryClinicId, currentUserId, store.holders])
 
-  // "My property" item scope for the canvas + tree — viewer-owned (owner_user_id) or
-  // held-by-custody (current_holder_id). Off → the full set.
-  const displayItems = useMemo(
-    () => (mineOnly && currentUserId
-      ? store.items.filter(i => i.owner_user_id === currentUserId || i.current_holder_id === currentUserId)
-      : store.items),
-    [mineOnly, currentUserId, store.items],
-  )
+  // Item scope for the canvas + tree — the SINGLE source both surfaces read, so map
+  // and tree can't drift. Two render-only narrowings stack:
+  //   • "My property" → viewer-owned (owner_user_id) or held (current_holder_id)
+  //   • sub-unit lens → itemPassesLens (HQ/common + cross-cluster + owned/held bypass)
+  // Off on both → the full set.
+  const displayItems = useMemo(() => {
+    let items = store.items
+    if (mineOnly && currentUserId)
+      items = items.filter(i => i.owner_user_id === currentUserId || i.current_holder_id === currentUserId)
+    if (subActive)
+      items = items.filter(i => itemPassesLens(i, { lens: subClusterLens, primaryClinicId: viewerPrimaryClinicId, currentUserId }))
+    return items
+  }, [mineOnly, currentUserId, subActive, subClusterLens, viewerPrimaryClinicId, store.items])
 
   // The TREE (rail + Locations sheet) lists physical/shared zones PLUS the filtered
   // personnel zones (the same set the carousel shows) — so the one Locations entry
@@ -273,6 +284,8 @@ export const PropertyPanel = memo(function PropertyPanel({
   const signOutFormRef = useRef<SignOutFormHandle>(null)
   const itemDetailRef = useRef<PropertyItemDetailHandle>(null)
   const locDetailRef = useRef<PropertyLocationDetailHandle>(null)
+  const da2062DetailRef = useRef<Da2062DetailHandle>(null)
+  const recordDetailRef = useRef<PropertyRecordDetailHandle>(null)
   // Desktop right pane — scopes the item's split/merge PreviewOverlay so it dims
   // and centers within the pane rather than spanning the whole viewport.
   const detailPaneRef = useRef<HTMLDivElement>(null)
@@ -323,6 +336,12 @@ export const PropertyPanel = memo(function PropertyPanel({
   // CSV import, hosted in the SAME detail surface (right pane desktop / detail
   // sheet mobile) — mirrors signOutOpen / da2062Preview.
   const [importOpen, setImportOpen] = useState(false)
+  // A Custody-roster card opened into the detail surface (right pane desktop /
+  // sheet mobile): a DA 2062 hand receipt OR a PMCS/dispatch record. Same "main-
+  // content card → pane/sheet detail" primitive the item/zone rows use; mutually
+  // exclusive (selecting one clears the other).
+  const [selectedReceiptId, setSelectedReceiptId] = useState<string | null>(null)
+  const [selectedRecord, setSelectedRecord] = useState<SelectedRecord | null>(null)
   // Selected-location action menu (header ellipsis) anchor + photo upload plumbing.
   const [locMenu, setLocMenu] = useState<{ rect: DOMRect } | null>(null)
   const { trigger: triggerPhoto, input: photoInput } = usePropertyPhotoUpload(
@@ -440,12 +459,52 @@ export const PropertyPanel = memo(function PropertyPanel({
   // canvas (navigate + select, like any item tap). On mobile, dismiss the Locations
   // sheet so the map is revealed — "target the signed-out equipment".
   const handleLocateReceiptItem = useCallback((receiptItem: ReceiptItem) => {
+    // Close any open roster detail first so the item detail isn't masked by the
+    // (earlier-precedence) receipt/record pane.
+    setSelectedReceiptId(null)
+    setSelectedRecord(null)
     const full = store.items.find(i => i.id === receiptItem.id)
     if (full) handleSelectItem(full)
     else if (receiptItem.location_id) mapRef.current?.navigateToZone(receiptItem.location_id)
     // Leave the sign-outs tab and surface the map (desktop center pane / mobile canvas).
     setPropertyTab('map')
   }, [store.items, handleSelectItem])
+
+  // Open a Custody-roster card's detail in the host surface (right pane desktop /
+  // sheet mobile). Clears the other card kind + any open item/zone/form so the detail
+  // is the sole occupant (mirrors handleSelectPersonnelZone's view reset on desktop).
+  const handleSelectReceipt = useCallback((r: HandReceipt) => {
+    setSelectedRecord(null)
+    setMobileItem(null); setMobileForm(null)
+    if (!isMobile && (view === 'property-detail' || view === 'property-form')) onBack()
+    closeLocationDetail()
+    setSelectedReceiptId(r.handReceiptId)
+  }, [isMobile, view, onBack, closeLocationDetail])
+
+  const handleSelectRecord = useCallback((record: SelectedRecord) => {
+    setSelectedReceiptId(null)
+    setMobileItem(null); setMobileForm(null)
+    if (!isMobile && (view === 'property-detail' || view === 'property-form')) onBack()
+    closeLocationDetail()
+    setSelectedRecord(record)
+  }, [isMobile, view, onBack, closeLocationDetail])
+
+  const closeRosterDetail = useCallback(() => {
+    setSelectedReceiptId(null)
+    setSelectedRecord(null)
+  }, [])
+
+  // Drop the open receipt when it's deleted (vanishes from the refetched list); a
+  // sign-in keeps it (still present, now 'returned' → moves to the History group).
+  useEffect(() => {
+    if (selectedReceiptId && !receipts.some(r => r.handReceiptId === selectedReceiptId)) {
+      setSelectedReceiptId(null)
+    }
+  }, [receipts, selectedReceiptId])
+
+  const selectedReceipt = selectedReceiptId
+    ? receipts.find(r => r.handReceiptId === selectedReceiptId) ?? null
+    : null
 
   // Scan match → surface the item on the map ("target it"). Camera is momentary:
   // close the overlay and return to the map tab targeting the match (both platforms).
@@ -667,14 +726,14 @@ export const PropertyPanel = memo(function PropertyPanel({
   // the scanner overlay, which returns to the map). The location tree is NOT a tab.
   const renderTabs = () => (
     <>
-      <IslandButton role="tab" active={propertyTab === 'map'} onClick={() => setPropertyTab('map')} label="Map" tour="property-tab-map">
+      <IslandButton role="tab" active={propertyTab === 'map'} onClick={() => { closeRosterDetail(); setPropertyTab('map') }} label="Map" tour="property-tab-map">
         <MapIcon className="w-5 h-5" />
       </IslandButton>
       <IslandButton role="tab" onClick={() => setShowScanner(true)} label="Camera" tour="property-tab-scan">
         <Camera className="w-5 h-5" />
       </IslandButton>
       {isDevRole && (
-        <IslandButton role="tab" active={propertyTab === 'custody'} onClick={() => { setMobileItem(null); setMobileForm(null); closeLocationDetail(); setPropertyTab('custody') }} label="Sign-outs" tour="property-tab-custody">
+        <IslandButton role="tab" active={propertyTab === 'custody'} onClick={() => { setMobileItem(null); setMobileForm(null); closeLocationDetail(); closeRosterDetail(); setPropertyTab('custody') }} label="Sign-outs" tour="property-tab-custody">
           <ClipboardList className="w-5 h-5" />
         </IslandButton>
       )}
@@ -684,7 +743,7 @@ export const PropertyPanel = memo(function PropertyPanel({
   // Desktop layout — left rail (location tree) · center map · right pane (detail/form),
   // mirroring MapOverlayPanel: the rail collapses while the right pane is open.
   if (!isMobile) {
-    const railCollapsed = view === 'property-form' || view === 'property-detail' || !!editLocationTarget || !!selectedLocation || signOutOpen || importOpen || !!da2062Preview
+    const railCollapsed = view === 'property-form' || view === 'property-detail' || !!editLocationTarget || !!selectedLocation || signOutOpen || importOpen || !!da2062Preview || !!selectedReceipt || !!selectedRecord
     // When the rail search has a query, the results take over the CENTER pane
     // (mirrors mobile's overlay) instead of filtering the rail tree in place. The
     // rail keeps the full tree for navigation context; results route to the right pane.
@@ -742,11 +801,12 @@ export const PropertyPanel = memo(function PropertyPanel({
                 receipts={receipts}
                 itemsById={receiptItemsById}
                 locationNameById={receiptLocationNameById}
-                membersById={receiptMembersById}
                 loading={receiptsLoading}
-                refetch={refetchReceipts}
                 onLocateItem={handleLocateReceiptItem}
-                onReprint={handleReprint}
+                onSelectReceipt={handleSelectReceipt}
+                onSelectRecord={handleSelectRecord}
+                selectedReceiptId={selectedReceiptId}
+                selectedRecordId={selectedRecord?.event.id ?? null}
               />
             ) : (
               <>
@@ -836,7 +896,7 @@ export const PropertyPanel = memo(function PropertyPanel({
                 </div>
               </>
             )}
-            {!editLocationTarget && !signOutOpen && view === 'property-detail' && selectedItem && (
+            {!editLocationTarget && !signOutOpen && !selectedReceipt && !selectedRecord && view === 'property-detail' && selectedItem && (
               <>
                 <div className="shrink-0 flex items-center gap-2 px-4 py-3 border-b border-tertiary/10">
                   <div className="flex-1 min-w-0">
@@ -872,7 +932,7 @@ export const PropertyPanel = memo(function PropertyPanel({
                 </div>
               </>
             )}
-            {!editLocationTarget && !signOutOpen && view === 'property-form' && (
+            {!editLocationTarget && !signOutOpen && !selectedReceipt && !selectedRecord && view === 'property-form' && (
               <>
                 <div className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-tertiary/10">
                   <p className="text-sm font-medium text-primary">
@@ -893,7 +953,7 @@ export const PropertyPanel = memo(function PropertyPanel({
                 </div>
               </>
             )}
-            {!editLocationTarget && !signOutOpen && view === 'property' && selectedLocation && (
+            {!editLocationTarget && !signOutOpen && !selectedReceipt && !selectedRecord && view === 'property' && selectedLocation && (
               <>
                 <div className="shrink-0 flex items-center gap-2 px-4 py-3 border-b border-tertiary/10">
                   <div className="flex-1 min-w-0">
@@ -929,6 +989,64 @@ export const PropertyPanel = memo(function PropertyPanel({
                     onAddChildLocation={handleAddChildLocation}
                     onAddItemAtLocation={handleAddItemAtLocation}
                     drawerRef={panelRef}
+                  />
+                </div>
+              </>
+            )}
+            {/* DA 2062 hand receipt — opened from a Custody-roster card. Header
+                mirrors the item detail (recipient + status·date, More menu, Close);
+                body is the receipt's item rows. */}
+            {!editLocationTarget && !signOutOpen && selectedReceipt && (
+              <>
+                <div className="shrink-0 flex items-center gap-2 px-4 py-3 border-b border-tertiary/10">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[9pt] text-tertiary mb-0.5">{da2062DetailSubtitle(selectedReceipt)}</p>
+                    <p className="truncate text-sm font-medium text-primary">{selectedReceipt.recipientLabel}</p>
+                  </div>
+                  <HeaderPill>
+                    <span className="inline-flex" onClick={(e) => da2062DetailRef.current?.openMenu((e.currentTarget as HTMLElement).getBoundingClientRect())}>
+                      <PillButton icon={MoreHorizontal} iconSize={16} onClick={() => {}} label="More actions" />
+                    </span>
+                    <PillButton icon={X} iconSize={16} onClick={closeRosterDetail} label="Close" />
+                  </HeaderPill>
+                </div>
+                <div className="flex-1 min-h-0 overflow-y-auto">
+                  <Da2062Detail
+                    ref={da2062DetailRef}
+                    receipt={selectedReceipt}
+                    clinicId={store.clinicId!}
+                    itemsById={receiptItemsById}
+                    locationNameById={receiptLocationNameById}
+                    membersById={receiptMembersById}
+                    refetch={refetchReceipts}
+                    receipts={receipts}
+                    onLocateItem={handleLocateReceiptItem}
+                    onReprint={handleReprint}
+                    drawerRef={panelRef}
+                  />
+                </div>
+              </>
+            )}
+            {/* PMCS / dispatch record — opened from a Custody-roster card. */}
+            {!editLocationTarget && !signOutOpen && !selectedReceipt && selectedRecord && (
+              <>
+                <div className="shrink-0 flex items-center gap-2 px-4 py-3 border-b border-tertiary/10">
+                  <div className="flex-1 min-w-0">
+                    <p className="truncate text-sm font-medium text-primary">{selectedRecord.label}</p>
+                    <p className="truncate text-[9pt] text-tertiary mt-0.5">{selectedRecord.detail}</p>
+                  </div>
+                  <HeaderPill>
+                    <span className="inline-flex" onClick={(e) => recordDetailRef.current?.openMenu((e.currentTarget as HTMLElement).getBoundingClientRect())}>
+                      <PillButton icon={MoreHorizontal} iconSize={16} onClick={() => {}} label="More actions" />
+                    </span>
+                    <PillButton icon={X} iconSize={16} onClick={closeRosterDetail} label="Close" />
+                  </HeaderPill>
+                </div>
+                <div className="flex-1 min-h-0 overflow-y-auto">
+                  <PropertyRecordDetail
+                    ref={recordDetailRef}
+                    record={selectedRecord}
+                    onDeleted={closeRosterDetail}
                   />
                 </div>
               </>
@@ -1021,11 +1139,12 @@ export const PropertyPanel = memo(function PropertyPanel({
               receipts={receipts}
               itemsById={receiptItemsById}
               locationNameById={receiptLocationNameById}
-              membersById={receiptMembersById}
               loading={receiptsLoading}
-              refetch={refetchReceipts}
               onLocateItem={handleLocateReceiptItem}
-              onReprint={handleReprint}
+              onSelectReceipt={handleSelectReceipt}
+              onSelectRecord={handleSelectRecord}
+              selectedReceiptId={selectedReceiptId}
+              selectedRecordId={selectedRecord?.event.id ?? null}
             />
           </div>
         ) : (
@@ -1080,8 +1199,8 @@ export const PropertyPanel = memo(function PropertyPanel({
           forms NEST in the SAME sheet (height-transition) — back unwinds
           form → item/location → parent zone. No separate sheets. */}
       <Sheet
-        isOpen={(!!selectedLocation || !!mobileItem || !!mobileForm || signOutOpen || importOpen || !!da2062Preview) && !drawingZone}
-        onClose={() => { closeMobileForm(); setMobileItem(null); closeLocationDetail(); setSignOutOpen(false); setImportOpen(false); clearDA2062Preview() }}
+        isOpen={(!!selectedLocation || !!mobileItem || !!mobileForm || !!selectedReceipt || !!selectedRecord || signOutOpen || importOpen || !!da2062Preview) && !drawingZone}
+        onClose={() => { closeMobileForm(); setMobileItem(null); closeLocationDetail(); closeRosterDetail(); setSignOutOpen(false); setImportOpen(false); clearDA2062Preview() }}
         title={
           da2062Preview
             ? da2062Preview.filename
@@ -1089,6 +1208,10 @@ export const PropertyPanel = memo(function PropertyPanel({
             ? 'Import Property CSV'
             : signOutOpen
             ? 'New DA 2062'
+            : selectedReceipt
+            ? selectedReceipt.recipientLabel
+            : selectedRecord
+            ? selectedRecord.label
             : mobileForm
               ? (mobileForm.kind === 'item'
                   ? (store.editingItem ? 'Edit Item' : 'New Item')
@@ -1096,7 +1219,17 @@ export const PropertyPanel = memo(function PropertyPanel({
               : mobileItem ? mobileItem.name : (selectedLocation?.name ?? '')
         }
         titleNode={
-          !mobileForm && (mobileItem || selectedLocation) ? (
+          selectedReceipt ? (
+            <div className="min-w-0">
+              <span className="block text-[9pt] text-tertiary mb-0.5">{da2062DetailSubtitle(selectedReceipt)}</span>
+              <span className="block truncate text-[13pt] font-semibold text-primary">{selectedReceipt.recipientLabel}</span>
+            </div>
+          ) : selectedRecord ? (
+            <div className="min-w-0">
+              <span className="block truncate text-[13pt] font-semibold text-primary">{selectedRecord.label}</span>
+              <span className="block truncate text-[9pt] text-tertiary mt-0.5">{selectedRecord.detail}</span>
+            </div>
+          ) : !mobileForm && (mobileItem || selectedLocation) ? (
             <div className="min-w-0">
               <PropertyBreadcrumb
                 parentId={mobileItem ? (mobileItem.location_id ?? null) : (selectedLocation?.parent_id ?? null)}
@@ -1124,13 +1257,19 @@ export const PropertyPanel = memo(function PropertyPanel({
             <button onClick={closeMobileForm} aria-label="Cancel" className="w-9 h-9 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all">
               <ChevronLeft size={20} />
             </button>
-          ) : (mobileItem || selectedLocation) ? (
+          ) : (mobileItem || selectedLocation || selectedReceipt || selectedRecord) ? (
             <HeaderPill>
               <span
                 className="inline-flex"
-                onClick={mobileItem
-                  ? (e) => itemDetailRef.current?.openMenu((e.currentTarget as HTMLElement).getBoundingClientRect())
-                  : openLocMenu}
+                onClick={
+                  selectedReceipt
+                    ? (e) => da2062DetailRef.current?.openMenu((e.currentTarget as HTMLElement).getBoundingClientRect())
+                    : selectedRecord
+                    ? (e) => recordDetailRef.current?.openMenu((e.currentTarget as HTMLElement).getBoundingClientRect())
+                    : mobileItem
+                    ? (e) => itemDetailRef.current?.openMenu((e.currentTarget as HTMLElement).getBoundingClientRect())
+                    : openLocMenu
+                }
               >
                 <PillButton icon={MoreHorizontal} iconSize={18} onClick={() => {}} label="More actions" />
               </span>
@@ -1161,6 +1300,26 @@ export const PropertyPanel = memo(function PropertyPanel({
           <PropertyCSVImport onClose={() => setImportOpen(false)} />
         ) : signOutOpen ? (
           <SignOutForm ref={signOutFormRef} onClose={() => setSignOutOpen(false)} />
+        ) : selectedReceipt ? (
+          <Da2062Detail
+            ref={da2062DetailRef}
+            receipt={selectedReceipt}
+            clinicId={store.clinicId!}
+            itemsById={receiptItemsById}
+            locationNameById={receiptLocationNameById}
+            membersById={receiptMembersById}
+            refetch={refetchReceipts}
+            receipts={receipts}
+            onLocateItem={handleLocateReceiptItem}
+            onReprint={handleReprint}
+            drawerRef={panelRef}
+          />
+        ) : selectedRecord ? (
+          <PropertyRecordDetail
+            ref={recordDetailRef}
+            record={selectedRecord}
+            onDeleted={closeRosterDetail}
+          />
         ) : mobileForm?.kind === 'item' ? (
           <PropertyItemForm
             ref={itemFormRef}

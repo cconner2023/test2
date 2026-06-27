@@ -2081,6 +2081,12 @@ export interface SignOutParams {
   externalName: string | null
   /** Optional free-text added to the receipt. */
   notes: string | null
+  /** A "real" sign-out (item physically leaves) vs. a sign-over / sign-for (custody
+   *  only). When true AND the recipient is an internal member, each item is relocated
+   *  to that member's member-zone on the map; when false the item's location_id is
+   *  left untouched (the existing sign-over behaviour). No-op for external recipients
+   *  (they have no member-zone). */
+  moveToZone?: boolean
 }
 
 type CustodyState = { signed_out_external: boolean; current_holder_id: string | null }
@@ -2108,26 +2114,37 @@ async function applyOutbound(
   signQty: number,
   custody: CustodyState,
   userId: string,
+  moveToLocationId?: string | null,
 ): Promise<void> {
+  // A "real" sign-out relocates the item to the recipient's member-zone; a sign-
+  // over (custody only) leaves location_id untouched. moveToLocationId is the
+  // resolved member-zone (null when signing over / external / no zone).
+  const locationPatch =
+    moveToLocationId && moveToLocationId !== item.location_id ? { location_id: moveToLocationId } : {}
   if (item.is_serialized) {
-    await updateItem(item.id, custody, userId, { skipAudit: true })
+    await updateItem(item.id, { ...custody, ...locationPatch }, userId, { skipAudit: true })
   } else {
     const onHand = Math.max(0, item.quantity - Math.max(1, signQty))
-    await updateItem(item.id, { quantity: onHand }, userId, { skipAudit: true })
+    await updateItem(item.id, { quantity: onHand, ...locationPatch }, userId, { skipAudit: true })
   }
 }
 
 /** Return `qty` of `item` to stock. Serialized → clear the holder flags; non-
- *  serialized → add the quantity back on-hand at its standing zone. */
+ *  serialized → add the quantity back on-hand. Optionally re-place the item at a
+ *  chosen zone (sign-in lets the user pick where it lands now — there is NO original-
+ *  location tracking). moveToLocationId null/absent → leave location_id as-is. */
 async function applyReturn(
   item: LocalPropertyItem,
   qty: number,
   userId: string,
+  moveToLocationId?: string | null,
 ): Promise<void> {
+  const locationPatch =
+    moveToLocationId && moveToLocationId !== item.location_id ? { location_id: moveToLocationId } : {}
   if (item.is_serialized) {
-    await updateItem(item.id, { signed_out_external: false, current_holder_id: null }, userId, { skipAudit: true })
+    await updateItem(item.id, { signed_out_external: false, current_holder_id: null, ...locationPatch }, userId, { skipAudit: true })
   } else {
-    await updateItem(item.id, { quantity: item.quantity + Math.max(1, qty) }, userId, { skipAudit: true })
+    await updateItem(item.id, { quantity: item.quantity + Math.max(1, qty), ...locationPatch }, userId, { skipAudit: true })
   }
 }
 
@@ -2136,6 +2153,22 @@ async function applyReturn(
 function signedOutQty(rows: LocalCustodyEntry[], itemId: string): number {
   const row = rows.find((r) => r.action === 'sign_down' && r.item_id === itemId)
   return Math.max(1, row?.quantity_delta ?? 1)
+}
+
+/** Net quantity an item is STILL OUT on a receipt = Σ sign_down − Σ sign_up, clamped
+ *  ≥ 0. Zero for a receipt already signed in (returned). Drives delete: a returned
+ *  receipt's items are already back on-hand / holder-cleared, so deleting that
+ *  historical 2062 must NOT return stock again (double-count) or re-clear a holder the
+ *  serialized item may now legitimately have on a NEWER open receipt — it only purges
+ *  the document + timeline. An OPEN receipt nets to its outstanding qty (returned). */
+function netOutstandingQty(rows: LocalCustodyEntry[], itemId: string): number {
+  let net = 0
+  for (const r of rows) {
+    if (r.item_id !== itemId) continue
+    if (r.action === 'sign_down') net += Math.max(1, r.quantity_delta ?? 1)
+    else if (r.action === 'sign_up') net -= Math.max(1, r.quantity_delta ?? 1)
+  }
+  return Math.max(0, net)
 }
 
 /**
@@ -2147,8 +2180,10 @@ function signedOutQty(rows: LocalCustodyEntry[], itemId: string): number {
  *     the stack can be split across many holders, so current_holder_id is NOT set)
  *   - SERIALIZED unit → flips the holder flags (internal current_holder_id = toHolderId,
  *     external signed_out_external = true; recipient name lives in the row notes)
- * The item's location_id (its usual/home zone) is left untouched. Returns the
- * hand_receipt_id so the caller can immediately print the 2062.
+ * A sign-over (default) leaves location_id untouched (custody transfer only); a "real"
+ * sign-out (params.moveToZone, internal recipient) ALSO relocates each item to the
+ * recipient's member-zone. Returns the hand_receipt_id so the caller can immediately
+ * print the 2062.
  */
 export async function signOutItems(
   params: SignOutParams,
@@ -2171,6 +2206,15 @@ export async function signOutItems(
       ? { signed_out_external: true, current_holder_id: null }
       : { signed_out_external: false, current_holder_id: toHolderId }
     const itemsById = new Map((await getLocalPropertyItems(clinicId)).map((i) => [i.id, i]))
+
+    // "Real" sign-out (moveToZone) relocates each item to the recipient's member-zone
+    // (property_locations.holder_user_id === toHolderId). External recipients have no
+    // member-zone, so the move is internal-only; a sign-over leaves location untouched.
+    let memberZoneId: string | null = null
+    if (params.moveToZone && toHolderId) {
+      const locs = await getLocalPropertyLocations(clinicId)
+      memberZoneId = locs.find((l) => l.holder_user_id === toHolderId && !l.deleted_at)?.id ?? null
+    }
 
     for (const itemId of itemIds) {
       const item = itemsById.get(itemId)
@@ -2201,8 +2245,9 @@ export async function signOutItems(
       )
       if (!ledgerResult.success) return fail(ledgerResult.error)
 
-      // Decrement on-hand (stack) or flip the holder flags (serialized).
-      await applyOutbound(item, signQty, custody, userId)
+      // Decrement on-hand (stack) or flip the holder flags (serialized), and on a
+      // "real" sign-out relocate it to the recipient's member-zone.
+      await applyOutbound(item, signQty, custody, userId, memberZoneId)
     }
 
     return succeed({ handReceiptId })
@@ -2214,7 +2259,9 @@ export async function signOutItems(
 /**
  * Sign a hand receipt back in: append a sign_up row per item (sharing the original
  * hand_receipt_id so the receipt folds to status 'returned') and clear each item's
- * custodian. The item returns to its standing zone (location_id was never moved).
+ * custodian. `toLocationId` re-places every returned item at the chosen zone (the
+ * user picks where it lands now — there is no original-location restore); null/absent
+ * leaves location_id as-is (e.g. for a sign-over that never moved it).
  */
 export async function signInReceipt(
   handReceiptId: string,
@@ -2222,6 +2269,7 @@ export async function signInReceipt(
   fromHolderId: string | null,
   itemIds: string[],
   userId: string,
+  toLocationId?: string | null,
 ): Promise<ServiceResult> {
   try {
     if (itemIds.length === 0) return fail('No items on receipt')
@@ -2247,9 +2295,10 @@ export async function signInReceipt(
       )
       if (!ledgerResult.success) return fail(ledgerResult.error)
 
-      // Add the quantity back on-hand (stack) or clear the holder (serialized).
+      // Add the quantity back on-hand (stack) or clear the holder (serialized), and
+      // re-place at the chosen destination zone when one was picked.
       const item = itemsById.get(itemId)
-      if (item) await applyReturn(item, qty, userId)
+      if (item) await applyReturn(item, qty, userId, toLocationId)
     }
     return succeed()
   } catch (err) {
@@ -2392,7 +2441,10 @@ export async function addReceiptItems(
 
 /**
  * Delete an ENTIRE hand receipt (delete the 2062): purge every custody row on it
- * (sign_down + sign_up) + their timeline entries, and sign all its items back in.
+ * (sign_down + sign_up) + their timeline entries, and sign its STILL-OUTSTANDING
+ * items back in. A RETURNED receipt's items are already back (signInReceipt ran), so
+ * deleting that historical 2062 returns nothing to stock and clears no holder — it
+ * only purges the document + timeline (netOutstandingQty == 0).
  */
 export async function deleteHandReceipt(
   handReceiptId: string,
@@ -2403,13 +2455,16 @@ export async function deleteHandReceipt(
     const rows = await getLocalCustodyByReceipt(handReceiptId)
     if (rows.length === 0) return fail('Receipt not found')
     const itemIds = [...new Set(rows.filter((r) => r.action === 'sign_down').map((r) => r.item_id))]
-    // Capture each item's signed-out qty BEFORE the purge wipes the rows.
-    const qtyByItem = new Map(itemIds.map((id) => [id, signedOutQty(rows, id)]))
+    // Net qty STILL OUT per item, captured BEFORE the purge wipes the rows. Returned
+    // receipts net to 0 → their delete is a pure document/timeline purge.
+    const qtyByItem = new Map(itemIds.map((id) => [id, netOutstandingQty(rows, id)]))
     await purgeCustodyRows(rows, clinicId, userId, true)
     const itemsById = new Map((await getLocalPropertyItems(clinicId)).map((i) => [i.id, i]))
     for (const itemId of itemIds) {
+      const out = qtyByItem.get(itemId) ?? 0
+      if (out <= 0) continue // already signed in — don't re-return stock / re-clear holder
       const item = itemsById.get(itemId)
-      if (item) await applyReturn(item, qtyByItem.get(itemId) ?? 1, userId)
+      if (item) await applyReturn(item, out, userId)
     }
     await immediateSync(userId)
     return succeed()

@@ -16,7 +16,8 @@ export const Z = {
   SHEET: 50,    // bottom drawer / action sheet
   MODAL: 70,    // centered card modals
   POPOVER: 80,  // anchor-based pickers (above modals so they nest)
-  TOUR: 90,     // tour spotlight, top-most
+  TOUR: 90,     // tour spotlight
+  CALL: 100,    // full-screen call UI — above everything (publishes its own ceiling so in-call dialogs stack)
 } as const
 
 /** Headroom an overlay reserves above its backdrop z for its own card content.

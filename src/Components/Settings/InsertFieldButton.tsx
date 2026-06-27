@@ -1,6 +1,7 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useContext } from 'react';
 import { createPortal } from 'react-dom';
 import { TextCursor, ChevronDown, Check, X } from 'lucide-react';
+import { Z, OverlayStackContext } from '../BaseOverlay';
 import type { FieldInfo } from '../../Utilities/templateParser';
 
 interface InsertFieldButtonProps {
@@ -77,11 +78,15 @@ export const InsertFieldButton = ({ onInsert }: InsertFieldButtonProps) => {
     const INPUT =
         'w-full text-sm px-3 py-2 rounded-lg border border-tertiary/10 bg-themewhite outline-none focus:border-themeblue2/30 text-primary placeholder:text-tertiary';
 
+    // Anchor-popover z: ride the overlay stack (floors above the host overlay if any).
+    const ceiling = useContext(OverlayStackContext);
+    const z = Math.max(Z.POPOVER, ceiling);
+
     const popover = open && createPortal(
         <div
             ref={popoverRef}
-            className="fixed z-[9999]"
-            style={{ top: pos.top, left: pos.left, transform: 'translateY(-100%) translateY(-8px)' }}
+            className="fixed"
+            style={{ top: pos.top, left: pos.left, transform: 'translateY(-100%) translateY(-8px)', zIndex: z }}
         >
             <div className="rounded-xl bg-themewhite2 border border-tertiary/15 shadow-lg min-w-[220px] overflow-hidden">
                 {mode === 'pick' && (

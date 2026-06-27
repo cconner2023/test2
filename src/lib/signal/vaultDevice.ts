@@ -1104,6 +1104,21 @@ export async function processVaultMessages(userId: string): Promise<number> {
           }
         } catch { /* not a read-sync, proceed as normal sync */ }
         const sync = JSON.parse(plaintext) as SyncMessagePayload
+        // Conversation-deleted sync (own-device conversation delete fanned through
+        // the vault). The marker is nested INSIDE sync.serialized — not top-level —
+        // so the read-sync check above misses it. Apply the tombstone out-of-band
+        // (mirror useMessages.handleIncomingMessage) and NEVER surface it as a
+        // bubble; falling through to saveMessage/addMessage resurrects the deleted
+        // conversation as a raw "[conversation-deleted]" JSON row.
+        try {
+          const innerSync = JSON.parse(sync.serialized) as Record<string, unknown>
+          if (innerSync.__syncType === 'conversation-deleted') {
+            await useMessagingStore.getState().deleteConversation(innerSync.conversationKey as string)
+            processedIds.push(row.id)
+            processedCount++
+            continue
+          }
+        } catch { /* serialized isn't a control envelope — proceed as normal sync */ }
         const { plaintext: syncText, content: syncContent, replyTo: syncReply } = parseMessageContent(sync.serialized)
         const syncMsg: DecryptedSignalMessage = {
           id: sync.originalMessageId,

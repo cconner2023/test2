@@ -4,6 +4,7 @@ import { useTC3Store } from '../../stores/useTC3Store'
 import { PreviewOverlay } from '../PreviewOverlay'
 import { ActionButton } from '../ActionButton'
 import { ActionPill } from '../ActionPill'
+import { TextInput } from '../FormInputs'
 import type { TC3Medication, TC3IVAccess, MedRoute, MedCategory } from '../../Types/TC3Types'
 
 // ---------------------------------------------------------------------------
@@ -11,6 +12,11 @@ import type { TC3Medication, TC3IVAccess, MedRoute, MedCategory } from '../../Ty
 // ---------------------------------------------------------------------------
 
 const MED_ROUTES: MedRoute[] = ['IV', 'IM', 'IO', 'PO', 'IN', 'PR', 'topical']
+
+// Shared field styling for the med/fluid/blood popover text fields (routed through
+// TextInput `bare` + inputClassName — the kit pattern for dense embeds; rounded-md, not a pill).
+const medFieldCx = 'w-full text-base px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none focus:border-themeredred/40 text-tertiary'
+const medFieldFlexCx = 'flex-1 text-base px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none focus:border-themeredred/40 text-tertiary'
 
 const CATEGORIZED_MEDS: { category: MedCategory; label: string; meds: { name: string; dose: string; route: MedRoute }[] }[] = [
   {
@@ -296,20 +302,20 @@ export const MedicationsForm = memo(function MedicationsForm() {
             {ROUTE_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
           </select>
         </div>
-        <input
-          type="text"
+        <TextInput
+          bare
           value={draftIV.site}
-          onChange={(e) => setDraftIV(d => ({ ...d, site: e.target.value }))}
+          onChange={(val) => setDraftIV(d => ({ ...d, site: val }))}
           placeholder="Site (e.g. R AC)"
-          className="w-full text-base px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none focus:border-themeredred/40 text-tertiary"
+          inputClassName={medFieldCx}
           autoFocus
         />
-        <input
-          type="text"
+        <TextInput
+          bare
           value={draftIV.gauge}
-          onChange={(e) => setDraftIV(d => ({ ...d, gauge: e.target.value }))}
+          onChange={(val) => setDraftIV(d => ({ ...d, gauge: val }))}
           placeholder="Gauge (e.g. 18g)"
-          className="w-full text-base px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none focus:border-themeredred/40 text-tertiary"
+          inputClassName={medFieldCx}
         />
       </div>
     </div>
@@ -335,20 +341,20 @@ export const MedicationsForm = memo(function MedicationsForm() {
       ))}
       <div className="border-t border-tertiary/10 pt-3 space-y-2">
         <p className="text-[9pt] md:text-[9pt] font-semibold text-tertiary tracking-wider uppercase">Custom</p>
-        <input
-          type="text"
+        <TextInput
+          bare
           value={draftMed.name}
-          onChange={(e) => setDraftMed(d => ({ ...d, name: e.target.value }))}
+          onChange={(val) => setDraftMed(d => ({ ...d, name: val }))}
           placeholder="Medication name"
-          className="w-full text-base px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none focus:border-themeredred/40 text-tertiary"
+          inputClassName={medFieldCx}
         />
         <div className="flex gap-2">
-          <input
-            type="text"
+          <TextInput
+            bare
             value={draftMed.dose}
-            onChange={(e) => setDraftMed(d => ({ ...d, dose: e.target.value }))}
+            onChange={(val) => setDraftMed(d => ({ ...d, dose: val }))}
             placeholder="Dose"
-            className="flex-1 text-base px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none focus:border-themeredred/40 text-tertiary"
+            inputClassName={medFieldFlexCx}
           />
           <select
             value={draftMed.route}
@@ -373,21 +379,21 @@ export const MedicationsForm = memo(function MedicationsForm() {
 
   const medEditPopoverPreview = (
     <div className="p-4 space-y-2">
-      <input
-        type="text"
+      <TextInput
+        bare
         value={draftMed.name}
-        onChange={(e) => setDraftMed(d => ({ ...d, name: e.target.value }))}
+        onChange={(val) => setDraftMed(d => ({ ...d, name: val }))}
         placeholder="Medication name"
-        className="w-full text-base px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none focus:border-themeredred/40 text-tertiary"
+        inputClassName={medFieldCx}
         autoFocus
       />
       <div className="flex gap-2">
-        <input
-          type="text"
+        <TextInput
+          bare
           value={draftMed.dose}
-          onChange={(e) => setDraftMed(d => ({ ...d, dose: e.target.value }))}
+          onChange={(val) => setDraftMed(d => ({ ...d, dose: val }))}
           placeholder="Dose"
-          className="flex-1 text-base px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none focus:border-themeredred/40 text-tertiary"
+          inputClassName={medFieldFlexCx}
         />
         <select
           value={draftMed.route}
@@ -406,12 +412,12 @@ export const MedicationsForm = memo(function MedicationsForm() {
         <option value="Antibiotic">Antibiotic</option>
         <option value="Other">Other</option>
       </select>
-      <input
-        type="text"
+      <TextInput
+        bare
         value={draftMed.time}
-        onChange={(e) => setDraftMed(d => ({ ...d, time: e.target.value }))}
+        onChange={(val) => setDraftMed(d => ({ ...d, time: val }))}
         placeholder="Time (HH:MM)"
-        className="w-full text-base px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none focus:border-themeredred/40 text-tertiary"
+        inputClassName={medFieldCx}
       />
     </div>
   )
@@ -432,19 +438,19 @@ export const MedicationsForm = memo(function MedicationsForm() {
       </div>
       <div className="border-t border-tertiary/10 pt-3 space-y-2">
         <p className="text-[9pt] md:text-[9pt] font-semibold text-tertiary tracking-wider uppercase">Custom</p>
-        <input
-          type="text"
+        <TextInput
+          bare
           value={draftFluid.type}
-          onChange={(e) => setDraftFluid(d => ({ ...d, type: e.target.value }))}
+          onChange={(val) => setDraftFluid(d => ({ ...d, type: val }))}
           placeholder="Fluid type"
-          className="w-full text-base px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none focus:border-themeredred/40 text-tertiary"
+          inputClassName={medFieldCx}
         />
-        <input
-          type="text"
+        <TextInput
+          bare
           value={draftFluid.volume}
-          onChange={(e) => setDraftFluid(d => ({ ...d, volume: e.target.value }))}
+          onChange={(val) => setDraftFluid(d => ({ ...d, volume: val }))}
           placeholder="Volume"
-          className="w-full text-base px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none focus:border-themeredred/40 text-tertiary"
+          inputClassName={medFieldCx}
         />
       </div>
     </div>
@@ -452,20 +458,20 @@ export const MedicationsForm = memo(function MedicationsForm() {
 
   const fluidEditPopoverPreview = (
     <div className="p-4 space-y-2">
-      <input
-        type="text"
+      <TextInput
+        bare
         value={draftFluid.type}
-        onChange={(e) => setDraftFluid(d => ({ ...d, type: e.target.value }))}
+        onChange={(val) => setDraftFluid(d => ({ ...d, type: val }))}
         placeholder="Fluid type"
-        className="w-full text-base px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none focus:border-themeredred/40 text-tertiary"
+        inputClassName={medFieldCx}
         autoFocus
       />
-      <input
-        type="text"
+      <TextInput
+        bare
         value={draftFluid.volume}
-        onChange={(e) => setDraftFluid(d => ({ ...d, volume: e.target.value }))}
+        onChange={(val) => setDraftFluid(d => ({ ...d, volume: val }))}
         placeholder="Volume"
-        className="w-full text-base px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none focus:border-themeredred/40 text-tertiary"
+        inputClassName={medFieldCx}
       />
       <select
         value={draftFluid.route}
@@ -474,12 +480,12 @@ export const MedicationsForm = memo(function MedicationsForm() {
       >
         {MED_ROUTES.map(r => <option key={r} value={r}>{r}</option>)}
       </select>
-      <input
-        type="text"
+      <TextInput
+        bare
         value={draftFluid.time}
-        onChange={(e) => setDraftFluid(d => ({ ...d, time: e.target.value }))}
+        onChange={(val) => setDraftFluid(d => ({ ...d, time: val }))}
         placeholder="Time (HH:MM)"
-        className="w-full text-base px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none focus:border-themeredred/40 text-tertiary"
+        inputClassName={medFieldCx}
       />
     </div>
   )
@@ -503,20 +509,20 @@ export const MedicationsForm = memo(function MedicationsForm() {
 
   const bloodEditPopoverPreview = (
     <div className="p-4 space-y-2">
-      <input
-        type="text"
+      <TextInput
+        bare
         value={draftBlood.type}
-        onChange={(e) => setDraftBlood(d => ({ ...d, type: e.target.value }))}
+        onChange={(val) => setDraftBlood(d => ({ ...d, type: val }))}
         placeholder="Blood product type"
-        className="w-full text-base px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none focus:border-themeredred/40 text-tertiary"
+        inputClassName={medFieldCx}
         autoFocus
       />
-      <input
-        type="text"
+      <TextInput
+        bare
         value={draftBlood.volume}
-        onChange={(e) => setDraftBlood(d => ({ ...d, volume: e.target.value }))}
+        onChange={(val) => setDraftBlood(d => ({ ...d, volume: val }))}
         placeholder="Volume"
-        className="w-full text-base px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none focus:border-themeredred/40 text-tertiary"
+        inputClassName={medFieldCx}
       />
       <select
         value={draftBlood.route}
@@ -525,12 +531,12 @@ export const MedicationsForm = memo(function MedicationsForm() {
       >
         {MED_ROUTES.map(r => <option key={r} value={r}>{r}</option>)}
       </select>
-      <input
-        type="text"
+      <TextInput
+        bare
         value={draftBlood.time}
-        onChange={(e) => setDraftBlood(d => ({ ...d, time: e.target.value }))}
+        onChange={(val) => setDraftBlood(d => ({ ...d, time: val }))}
         placeholder="Time (HH:MM)"
-        className="w-full text-base px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none focus:border-themeredred/40 text-tertiary"
+        inputClassName={medFieldCx}
       />
     </div>
   )

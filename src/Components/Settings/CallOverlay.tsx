@@ -1,16 +1,17 @@
 /**
  * CallOverlay — Full-screen call UI (audio & video).
  *
- * Renders above all drawers at z-[100].
+ * Renders above all drawers at Z.CALL (publishes its own OverlayStackContext ceiling).
  * Audio mode: avatar initial, peer name, timer, controls.
  * Video mode: remote video full-area, local PiP overlay, controls overlaid.
  */
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useContext } from 'react'
 import { Phone, PhoneOff, Mic, MicOff, Video, VideoOff } from 'lucide-react'
 import { useCallStore, selectShowCallUI, selectCanLeaveVoicemail } from '../../stores/useCallStore'
 import { useCallActions } from '../../Hooks/CallContext'
 import { CallVoicemailControls } from './CallVoicemailControls'
+import { Z, STACK_BUMP, OverlayStackContext } from '../BaseOverlay'
 
 function formatElapsed(ms: number): string {
   const totalSeconds = Math.floor(ms / 1000)
@@ -87,8 +88,14 @@ export function CallOverlay() {
   const isActive = status === 'connected' || status === 'connecting'
   const isVideo = callMode === 'video'
 
+  // Full-screen call surface: floor above any ancestor overlay, then publish our
+  // own ceiling so in-call dialogs (e.g. voicemail/confirm) stack above us.
+  const parentCeiling = useContext(OverlayStackContext)
+  const callZ = Math.max(Z.CALL, parentCeiling)
+
   return (
-    <div className="fixed inset-0 z-[100] bg-black/95 flex flex-col items-center justify-between py-20 px-6">
+    <OverlayStackContext.Provider value={callZ + STACK_BUMP}>
+    <div className="fixed inset-0 bg-black/95 flex flex-col items-center justify-between py-20 px-6" style={{ zIndex: callZ }}>
       {/* Video: remote stream full-area background */}
       {isVideo && isActive && (
         <div className="absolute inset-0 z-0">
@@ -205,5 +212,6 @@ export function CallOverlay() {
         )}
       </div>
     </div>
+    </OverlayStackContext.Provider>
   )
 }

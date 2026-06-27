@@ -1,7 +1,8 @@
-import { useRef, useEffect, useCallback, useState } from 'react';
+import { useRef, useEffect, useCallback, useState, useContext } from 'react';
 import { createPortal } from 'react-dom';
 import { TextCursor, ChevronDown, Trash2 } from 'lucide-react';
 import { InsertFieldButton } from './InsertFieldButton';
+import { Z, OverlayStackContext } from '../BaseOverlay';
 import type { FieldInfo } from '../../Utilities/templateParser';
 
 // ─── Segment helpers ─────────────────────────────────────────────────
@@ -453,6 +454,9 @@ interface FieldEditPopoverProps {
 
 const FieldEditPopover = ({ label, field, rect, onDelete, onSetDefault, onClose }: FieldEditPopoverProps) => {
     const ref = useRef<HTMLDivElement>(null);
+    // Anchor-popover z: ride the overlay stack (floors above the host overlay if any).
+    const ceiling = useContext(OverlayStackContext);
+    const z = Math.max(Z.POPOVER, ceiling);
 
     useEffect(() => {
         const handle = (e: MouseEvent) => {
@@ -465,8 +469,8 @@ const FieldEditPopover = ({ label, field, rect, onDelete, onSetDefault, onClose 
     return (
         <div
             ref={ref}
-            className="fixed z-[9999] rounded-xl bg-themewhite2 border border-tertiary/15 shadow-lg min-w-[180px] overflow-hidden"
-            style={{ top: rect.bottom + 6, left: rect.left }}
+            className="fixed rounded-xl bg-themewhite2 border border-tertiary/15 shadow-lg min-w-[180px] overflow-hidden"
+            style={{ top: rect.bottom + 6, left: rect.left, zIndex: z }}
         >
             <div className="p-2.5 space-y-2">
                 <div className="flex items-center gap-2">

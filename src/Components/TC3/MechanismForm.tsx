@@ -6,6 +6,7 @@ import { SectionHeader } from '../Section'
 import { ActionButton } from '../ActionButton'
 import { ActionPill } from '../ActionPill'
 import { EmptyState } from '../EmptyState'
+import { TextInput } from '../FormInputs'
 import type { MechanismType } from '../../Types/TC3Types'
 
 const MECHANISM_OPTIONS: { type: MechanismType; label: string }[] = [
@@ -153,12 +154,12 @@ export const MechanismForm = memo(function MechanismForm() {
             {draftTypes.includes('Other') && (
               <div className="space-y-1 pt-1">
                 <span className="text-[10pt] font-medium text-tertiary uppercase tracking-wide">Describe Other</span>
-                <input
-                  type="text"
+                <TextInput
+                  bare
                   value={draftOther}
-                  onChange={(e) => setDraftOther(e.target.value)}
+                  onChange={setDraftOther}
                   placeholder="Describe mechanism..."
-                  className="w-full px-4 py-2.5 rounded-full text-sm bg-themewhite border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none transition-all duration-300 placeholder:text-tertiary"
+                  inputClassName="w-full px-4 py-2.5 rounded-xl text-sm bg-themewhite border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none transition-all duration-300 placeholder:text-tertiary"
                 />
               </div>
             )}

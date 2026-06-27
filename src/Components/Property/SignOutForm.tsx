@@ -1,8 +1,9 @@
 import { useState, useMemo, useCallback, forwardRef, useImperativeHandle } from 'react'
-import { Check, ChevronDown, Minus, Plus } from 'lucide-react'
+import { Check, ChevronDown, MapPin, Minus, Plus } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import { TextInput } from '../FormInputs'
 import { PreviewOverlay } from '../PreviewOverlay'
+import { ToggleSwitch } from '../Settings/ToggleSwitch'
 import { SignaturePad } from '../SignaturePad'
 import { Da2062Preview } from './Da2062Preview'
 import { usePropertyStore } from '../../stores/usePropertyStore'
@@ -59,6 +60,10 @@ export const SignOutForm = forwardRef<SignOutFormHandle, SignOutFormProps>(funct
   const [toHolderId, setToHolderId] = useState<string | null>(null)
   const [externalName, setExternalName] = useState('')
   const [notes, setNotes] = useState('')
+  // "Real" sign-out (item physically leaves → relocate to the member's zone) vs. a
+  // sign-over / sign-for (custody only, location unchanged — the default). Member-zone
+  // only exists for internal recipients, so this is meaningless in external mode.
+  const [moveToZone, setMoveToZone] = useState(false)
   // itemId → quantity to sign out (>= 1, capped at the item's on-hand count).
   const [quantities, setQuantities] = useState<Map<string, number>>(new Map())
   const [busy, setBusy] = useState(false)
@@ -156,6 +161,8 @@ export const SignOutForm = forwardRef<SignOutFormHandle, SignOutFormProps>(funct
       toHolderId: mode === 'member' ? toHolderId : null,
       externalName: mode === 'external' ? externalName.trim() : null,
       notes: notes.trim() || null,
+      // Relocate to the recipient's member-zone only on a "real" internal sign-out.
+      moveToZone: mode === 'member' && moveToZone,
     })
     if (!handReceiptId) {
       setBusy(false)
@@ -203,7 +210,7 @@ export const SignOutForm = forwardRef<SignOutFormHandle, SignOutFormProps>(funct
       signature: { printedName: toHolder.displayName, date: ymd, image: signatureImage },
     })
     setBusy(false)
-  }, [canSubmit, signableItems, quantities, store, mode, toHolderId, externalName, notes, profile, exportDA2062])
+  }, [canSubmit, signableItems, quantities, store, mode, toHolderId, externalName, notes, moveToZone, profile, exportDA2062])
 
   // Host header Check pill opens the signature pad (no-ops until valid); the
   // recipient signs to acknowledge, which both confirms and stamps the 2062.
@@ -256,6 +263,24 @@ export const SignOutForm = forwardRef<SignOutFormHandle, SignOutFormProps>(funct
               <ChevronDown size={16} className="shrink-0 text-tertiary" />
             </button>
           </div>
+
+          {/* Sign-out kind — toggle a "real" sign-out (item leaves → relocate to the
+              member's zone) vs. a sign-over (custody only). Internal-only: an external
+              recipient has no member-zone, so the row is hidden in external mode. */}
+          {mode === 'member' && (
+            <button
+              type="button"
+              onClick={() => setMoveToZone((v) => !v)}
+              className="w-full flex items-center gap-3 px-4 py-3 text-left border-b border-primary/6 last:border-b-0"
+            >
+              <MapPin size={16} className="shrink-0 text-tertiary" />
+              <span className="flex-1 min-w-0">
+                <span className="block text-base md:text-sm text-primary">Move to recipient's zone</span>
+                <span className="block text-[10pt] text-tertiary">Item physically leaves its location (vs. sign-over)</span>
+              </span>
+              <ToggleSwitch checked={moveToZone} />
+            </button>
+          )}
 
           {/* Notes — standard TextInput primitive (last row drops its border). */}
           <TextInput value={notes} onChange={setNotes} placeholder="Notes (optional)" />

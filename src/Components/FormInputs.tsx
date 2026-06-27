@@ -69,6 +69,8 @@ export const TextInput = ({
   bare = false,
   inputRef,
   onKeyDown,
+  inputClassName,
+  autoFocus,
 }: {
   label?: string
   value: string
@@ -85,6 +87,9 @@ export const TextInput = ({
   bare?: boolean
   inputRef?: React.Ref<HTMLInputElement>
   onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void
+  /** Override the input className for dense embeds (mirrors BloodPressureInput). Pair with `bare`. */
+  inputClassName?: string
+  autoFocus?: boolean
 }) => {
   const input = (
     <input
@@ -95,10 +100,11 @@ export const TextInput = ({
       onChange={(e) => onChange(e.target.value)}
       onBlur={onBlur}
       onKeyDown={onKeyDown}
+      autoFocus={autoFocus}
       placeholder={placeholder ?? label}
       maxLength={maxLength}
       required={required}
-      className="w-full bg-transparent px-4 py-3 text-base md:text-sm text-primary placeholder:text-tertiary focus:outline-none"
+      className={inputClassName ?? 'w-full bg-transparent px-4 py-3 text-base md:text-sm text-primary placeholder:text-tertiary focus:outline-none'}
     />
   )
 
