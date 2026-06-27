@@ -157,7 +157,10 @@ export function SubClusterFilterPanel() {
   const effective = effectiveSubClusters(subClusterFilter, profile.subClusterId)
   // Showing everything (no narrowing) ⇢ "All Sub-units" is the active row.
   const showingAll = effective === null
-  const activeSet = new Set(effective ?? allIds)
+  // Showing-all = NONE individually selected (empty set), so the first tap on a
+  // sub-unit ISOLATES to it rather than deselecting it from an implicit all-set.
+  // Row highlight reads this too, but is guarded by !showingAll below.
+  const activeSet = new Set(effective ?? [])
 
   const toggle = (id: string) => {
     const next = new Set(activeSet)

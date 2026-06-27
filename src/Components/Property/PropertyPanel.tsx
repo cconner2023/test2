@@ -473,6 +473,11 @@ export const PropertyPanel = memo(function PropertyPanel({
   // Open a Custody-roster card's detail in the host surface (right pane desktop /
   // sheet mobile). Clears the other card kind + any open item/zone/form so the detail
   // is the sole occupant (mirrors handleSelectPersonnelZone's view reset on desktop).
+  const closeLocationDetail = useCallback(() => {
+    setSelectedLocationId(null)
+    mapRef.current?.clearSelection()
+  }, [])
+
   const handleSelectReceipt = useCallback((r: HandReceipt) => {
     setSelectedRecord(null)
     setMobileItem(null); setMobileForm(null)
@@ -599,11 +604,6 @@ export const PropertyPanel = memo(function PropertyPanel({
 
   const openLocMenu = useCallback((e: React.MouseEvent) => {
     setLocMenu({ rect: e.currentTarget.getBoundingClientRect() })
-  }, [])
-
-  const closeLocationDetail = useCallback(() => {
-    setSelectedLocationId(null)
-    mapRef.current?.clearSelection()
   }, [])
 
   // Breadcrumb (in the detail header) → navigate the canvas to an ancestor zone,
