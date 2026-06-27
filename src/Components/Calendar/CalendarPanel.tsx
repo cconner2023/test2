@@ -609,6 +609,23 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     return dispatchCalEvents.length ? [...out, ...dispatchCalEvents] : out
   }, [events, personnelFilter, categoryFilter, clusterFilter, subClusterFilter, profile.subClusterId, clinicId, reachableClinicIds, userId, dispatchCalEvents])
 
+  // Troops-to-Task roster narrowed by the active sub-unit lens — mirrors the
+  // event lens above and property's personnelZones so the "who" the grid shows
+  // tracks the sub-cluster filter, not just the events. Self, foreign-clinic
+  // (loaned-in) medics, and HQ/common (null sub_cluster) always pass; default
+  // (unset) lens = viewer's own squad; HQ viewers (null subCluster) see everyone.
+  // NOT applied to medicList (the EventForm assignee picker) — assignment must
+  // still reach the whole clinic regardless of the view filter.
+  const scopedMedics = useMemo(() => {
+    const effSub = effectiveSubClusters(subClusterFilter, profile.subClusterId)
+    if (effSub === null) return ownClinicMedics
+    return ownClinicMedics.filter(m =>
+      m.id === userId ||
+      (m.clinicId != null && m.clinicId !== clinicId) ||
+      passesSubClusterFilter(m.subClusterId ?? null, effSub)
+    )
+  }, [ownClinicMedics, subClusterFilter, profile.subClusterId, userId, clinicId])
+
   const dayEvents = useMemo(() =>
     filteredEvents
       .filter(e => eventFallsOnDate(e, selectedDateKey))
@@ -1274,7 +1291,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                 key={`t2t-${t2tZoom}`}
                 date={selectedDate}
                 events={filteredEvents}
-                medics={ownClinicMedics}
+                medics={scopedMedics}
                 huddleTasks={sortedHuddleTasks}
                 zoom={t2tZoom}
                 huddleOnly={t2tHuddleOnly}

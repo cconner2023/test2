@@ -64,13 +64,16 @@ const COORDS = {
     },
   },
 
-  // Vertical recipient-signature stamp, drawn in QUANTITY column B (x 644–669)
-  // running downward below the last item. Rotated 270° → reads top-to-bottom.
+  // Vertical recipient-signature stamp, drawn in QUANTITY column A (x 620–644),
+  // a single "name | date | signature" line rotated 90° → reads bottom-to-top.
+  // The line END (the drawn signature) lands in the cell beneath the last item;
+  // the name/date trail downward into the empty column below.
   signature: {
-    colX: 652,          // baseline x of the rotated text (column B)
+    textX: 636,         // baseline x of the rotated (90°) text, centered in column A (cx 632)
+    imageX: 641,        // anchor x of the rotated (90°) signature image → center 632 (632 + thickness/2)
     fontSize: 7,
-    startGap: 8,        // gap below the last item before the stamp begins
-    gap: 6,             // gap between name / date / drawn-signature segments
+    endGap: 8,          // gap below the last item where the line's END (top) sits
+    sep: ' | ',         // separator between name | date | signature
     image: { length: 46, thickness: 18 }, // pre-rotation w×h of the drawn signature
   },
 
@@ -172,36 +175,42 @@ export async function generateDA2062(params: DA2062Params): Promise<Uint8Array> 
       drawCentered(page, qtyStr, cols.qtyCols.A, y, sz)
     })
 
-    // ── Recipient signature: vertical stamp in column B, below the last item ──
-    // Only on the last page (where the final item sits).
+    // ── Recipient signature: vertical stamp in column A, ending beneath the last item ──
+    // Only on the last page (where the final item sits). A single
+    // "name | date | signature" line rotated 90° reads bottom-to-top, so its END
+    // (the drawn signature) sits in the cell beneath the last item; the printed
+    // name/date trail downward into the empty column below.
     const sig = params.signature
     if (sig && pageIdx === totalPages - 1 && pageItems.length > 0) {
       const S = COORDS.signature
       const lastItemY = COORDS.table.firstRowY - (pageItems.length - 1) * COORDS.table.rowHeight
-      let cursorY = lastItemY - S.startGap   // top of the stamp; segments march downward
+      const endY = lastItemY - S.endGap   // top (END) of the line — the cell beneath the last item
 
-      // rotate 270° → text reads top-to-bottom; advances in −y by its width.
-      const drawVText = (text: string) => {
-        page.drawText(text, {
-          x: S.colX, y: cursorY, size: S.fontSize, font, color: black,
-          rotate: degrees(270),
-        })
-        cursorY -= font.widthOfTextAtSize(text, S.fontSize) + S.gap
-      }
+      // "name | date | " — trailing separator when a drawn signature follows.
+      const textLine = sigImage
+        ? `${sig.printedName}${S.sep}${sig.date}${S.sep}`
+        : `${sig.printedName}${S.sep}${sig.date}`
+      const textWidth = font.widthOfTextAtSize(textLine, S.fontSize)
+      const imageLen = sigImage ? S.image.length : 0
+      const baseY = endY - (textWidth + imageLen)   // bottom anchor; line reads upward to endY
 
-      drawVText(sig.printedName)
-      drawVText(sig.date)
+      // rotate 90° → reads bottom-to-top; text body advances in +y by its width.
+      page.drawText(textLine, {
+        x: S.textX, y: baseY, size: S.fontSize, font, color: black,
+        rotate: degrees(90),
+      })
 
       if (sigImage) {
         const { length, thickness } = S.image
-        // rotate 270° image: occupies x∈[x, x+thickness], y∈[y−length, y].
-        // Center the thickness across column B (center ≈ 656).
+        // rotate 90° image: occupies x∈[x−thickness, x], y∈[y, y+length].
+        // Center the thickness across column A (center ≈ 632); the image caps the
+        // line top, ending at endY directly above the text.
         page.drawImage(sigImage, {
-          x: cols.qtyCols.B - thickness / 2,
-          y: cursorY,
+          x: S.imageX,
+          y: baseY + textWidth,
           width: length,
           height: thickness,
-          rotate: degrees(270),
+          rotate: degrees(90),
         })
       }
     }

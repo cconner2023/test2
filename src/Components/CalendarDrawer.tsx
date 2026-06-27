@@ -17,6 +17,7 @@ import { UserAvatar } from './Settings/UserAvatar'
 import { getDisplayName } from '../Utilities/nameUtils'
 import { CalendarClinicEditor } from './Calendar/CalendarClinicEditor'
 import { SupervisorClinicFilterPanel, ClusterFilterPanel, SubClusterFilterPanel } from './SupervisorClinicSwitcher'
+import { effectiveSubClusters, passesSubClusterFilter } from '../Utilities/subCluster'
 import type { EventCategory } from '../Types/CalendarTypes'
 
 const CATEGORY_GROUPS: { key: 'huddle' | 'calendar'; label: string; categories: EventCategory[] }[] = [
@@ -32,7 +33,7 @@ interface CalendarDrawerProps {
 
 export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
     const isMobile = useIsMobile()
-    const { isSupervisorRole } = useAuth()
+    const { isSupervisorRole, profile, user, clinicId } = useAuth()
 
     const {
         events, personnelFilter, togglePersonnelFilter, clearPersonnelFilter,
@@ -40,6 +41,7 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
         selectedDate, setSelectedDate,
         hideWeekends,
         categoryFilter, setCategoryFilter,
+        subClusterFilter,
     } = useCalendarStore(useShallow(s => ({
         events: s.events,
         personnelFilter: s.personnelFilter,
@@ -54,6 +56,7 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
         hideWeekends: s.hideWeekends,
         categoryFilter: s.categoryFilter,
         setCategoryFilter: s.setCategoryFilter,
+        subClusterFilter: s.subClusterFilter,
     })))
 
     // The category filter only splits Huddle vs Calendar. With no huddle-band
@@ -147,6 +150,18 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
 
     const { medics } = useClinicMedics()
     const { ownClinicMedics } = useClinicGroupedMedics(medics)
+    // Personnel-filter roster narrowed by the active sub-unit lens — mirrors the
+    // Troops-to-Task roster (CalendarPanel scopedMedics) so the picker only lists
+    // the sub-unit you've scoped into. Self, foreign-clinic (loaned-in), and
+    // HQ/common (null sub_cluster) medics always pass; default lens = own squad.
+    const effSub = effectiveSubClusters(subClusterFilter, profile.subClusterId)
+    const scopedMedics = effSub === null
+        ? ownClinicMedics
+        : ownClinicMedics.filter(m =>
+            m.id === user?.id ||
+            (m.clinicId != null && m.clinicId !== clinicId) ||
+            passesSubClusterFilter(m.subClusterId ?? null, effSub),
+        )
 
     const handleMobileDateSelect = useCallback((dateKey: string) => {
         setSelectedDate(dateKey)
@@ -227,7 +242,7 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
 
             {/* Personnel list */}
             <div>
-                {ownClinicMedics
+                {scopedMedics
                     .filter(medic => {
                         const q = rosterSearchQuery.trim().toLowerCase()
                         if (!q) return true
