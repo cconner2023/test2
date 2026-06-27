@@ -1,5 +1,6 @@
 import { base64ToBytes, bytesToBase64 } from './base64Utils'
 import { createLogger } from '../Utilities/Logger'
+import { dbName } from './idbEnv'
 
 const logger = createLogger('SecureStorage')
 
@@ -122,7 +123,7 @@ function getDb(): Promise<IDBDatabase> {
   if (dbInstance) return Promise.resolve(dbInstance)
 
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION)
+    const request = indexedDB.open(dbName(DB_NAME), DB_VERSION)
     request.onupgradeneeded = () => {
       const db = request.result
       if (!db.objectStoreNames.contains(STORE_NAME)) {
@@ -342,7 +343,7 @@ export async function destroySecureStore(): Promise<void> {
       dbInstance = null
     }
     await new Promise<void>((resolve) => {
-      const req = indexedDB.deleteDatabase(DB_NAME)
+      const req = indexedDB.deleteDatabase(dbName(DB_NAME))
       req.onsuccess = () => resolve()
       req.onerror = () => resolve()
       req.onblocked = () => resolve()

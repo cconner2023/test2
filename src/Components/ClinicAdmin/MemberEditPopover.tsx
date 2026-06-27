@@ -24,6 +24,8 @@ import {
 } from '../../lib/supervisorService'
 import { isValidEmail } from '../../lib/adminService'
 import { getAssociatedClinicCode } from '../../lib/clinicAssociationService'
+import { setMemberSubCluster } from '../../lib/subClusterService'
+import { useSubClusters } from '../../Hooks/useSubClusters'
 import { supabase } from '../../lib/supabase'
 import { useResetPasswordFlow } from '../../Hooks/useResetPasswordFlow'
 import { useBarcodeScanner } from '../../Hooks/useBarcodeScanner'
@@ -105,6 +107,24 @@ export function MemberEditPopover({
   const [error, setError] = useState<string | null>(null)
   const [ranksByComponent, setRanksByComponent] = useState<Record<string, string[]> | null>(null)
 
+  // Sub-cluster (platoon/squad) section. '' = HQ / Unassigned. Sub-clusters are
+  // PRIMARY-clinic-scoped, so the picker only applies when editing a member whose
+  // home clinic is the supervisor's own primary clinic. See v2/supervisor.
+  const { subClusters } = useSubClusters()
+  const primaryClinicId = useAuthStore((s) => s.clinicId)
+  const [sectionId, setSectionId] = useState('')
+  const [origSectionId, setOrigSectionId] = useState('')
+  useEffect(() => {
+    if (!isOpen || !memberId) { setSectionId(''); setOrigSectionId(''); return }
+    let cancelled = false
+    supabase.from('profiles').select('sub_cluster_id').eq('id', memberId).single().then(({ data }) => {
+      if (cancelled) return
+      const v = (data?.sub_cluster_id as string | null) ?? ''
+      setSectionId(v); setOrigSectionId(v)
+    })
+    return () => { cancelled = true }
+  }, [isOpen, memberId])
+
   // Lazy-load rank tables on first open
   useEffect(() => {
     if (isOpen && !ranksByComponent) {
@@ -157,6 +177,11 @@ export function MemberEditPopover({
     })
   }, [isOpen, memberId, fallbackProfile])
 
+  // Only offer the section picker when the member's home clinic IS the
+  // supervisor's primary clinic (setMemberSubCluster is primary-clinic-scoped).
+  const memberHomeClinic = profile?.homeClinicId ?? (loanState === 'loaned-in' ? null : clinicId)
+  const sectionApplicable = !!primaryClinicId && memberHomeClinic === primaryClinicId && subClusters.length > 0
+
   const handleClose = useCallback(() => {
     setEditMode(false)
     setSaving(false)
@@ -208,12 +233,20 @@ export function MemberEditPopover({
         return
       }
     }
+    if (sectionApplicable && sectionId !== origSectionId) {
+      const r = await setMemberSubCluster(memberId, sectionId || null)
+      if (!r.success) {
+        setSaving(false)
+        setError(r.error)
+        return
+      }
+    }
 
     invalidate('users', 'clinics')
     setSaving(false)
     onChanged()
     handleClose()
-  }, [memberId, profile, rank, roles, editEmail, onChanged, handleClose])
+  }, [memberId, profile, rank, roles, editEmail, sectionApplicable, sectionId, origSectionId, onChanged, handleClose])
 
   const handleConfirmDelete = useCallback(async () => {
     if (!memberId) return
@@ -646,6 +679,27 @@ export function MemberEditPopover({
                   </span>
                 )}
               </div>
+
+              {/* Section (platoon/squad) — own-clinic members only; '' = HQ */}
+              {sectionApplicable && (
+                <div className="flex items-center justify-between gap-3 border-t border-primary/6 px-4 py-3">
+                  <span className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest w-20 shrink-0">Section</span>
+                  {editMode ? (
+                    <div className="flex-1 min-w-0 max-w-[200px]">
+                      <PickerInput
+                        value={sectionId}
+                        onChange={setSectionId}
+                        options={[{ value: '', label: 'HQ / Unassigned' }, ...subClusters.map((s) => ({ value: s.id, label: s.name }))]}
+                        placeholder="HQ / Unassigned"
+                      />
+                    </div>
+                  ) : (
+                    <span className="text-sm text-primary truncate">
+                      {subClusters.find((s) => s.id === sectionId)?.name ?? 'HQ / Unassigned'}
+                    </span>
+                  )}
+                </div>
+              )}
 
               {error && (
                 <div className="px-4 py-2">

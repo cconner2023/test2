@@ -88,6 +88,7 @@ export interface TileMetadata {
   sourceId?: string
 }
 import { createLogger } from '../Utilities/Logger'
+import { dbName } from './idbEnv'
 import { encryptString, decryptString } from './secureStorage'
 import type { AuditDomain, AuditSubjectType } from './auditTypes'
 
@@ -399,7 +400,7 @@ let dbInstance: IDBPDatabase<PackageBackEndDB> | null = null
 export async function getDb(): Promise<IDBPDatabase<PackageBackEndDB>> {
   if (dbInstance) return dbInstance
 
-  dbInstance = await openDB<PackageBackEndDB>(DB_NAME, DB_VERSION, {
+  dbInstance = await openDB<PackageBackEndDB>(dbName(DB_NAME), DB_VERSION, {
     upgrade(db, oldVersion, _newVersion, transaction) {
       // ---- Legacy notes store (no longer used, kept for schema compat) ----
       if (oldVersion < 1) {

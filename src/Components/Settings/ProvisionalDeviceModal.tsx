@@ -45,12 +45,13 @@ export function ProvisionalDeviceModal() {
         </div>
 
         <p className="text-[10pt] text-tertiary leading-relaxed">
-          You're using a browser tab without a primary device. Your encryption keys
-          and messages will be <strong>lost when this tab closes</strong>.
+          No primary device detected. You can still message from this browser tab, and
+          your encrypted data is held in a <strong>Vault</strong> until your return — or
+          until a primary device is detected.
         </p>
 
         <p className="text-[10pt] text-tertiary leading-relaxed">
-          For persistent messaging, install the app as a PWA (Add to Home Screen).
+          For persistent, real-time messaging, install the app as a PWA (Add to Home Screen).
         </p>
 
         <button

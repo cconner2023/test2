@@ -50,6 +50,8 @@ import {
 import type { AdminUser, AdminClinic } from '../../lib/adminService'
 import { ClinicPickerInput } from './AdminPickers'
 import { fetchAllCertifications } from '../../lib/certificationService'
+import { fetchClinicSubClusters, adminSetMemberSubCluster } from '../../lib/subClusterService'
+import { supabase } from '../../lib/supabase'
 import { buildMailtoHref } from '../../lib/mailto'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { UI_TIMING } from '../../Utilities/constants'
@@ -156,6 +158,18 @@ export function AdminUserDetail({
   const [clusterAction, setClusterAction] = useState<ClusterAction | null>(null)
   const [clusterBusy, setClusterBusy] = useState(false)
 
+  // Sub-cluster (platoon/squad) section — dev-side assignment. Options come from
+  // the user's HOME clinic; current value read from the user's profile. Render-only.
+  const [sectionOpts, setSectionOpts] = useState<{ value: string; label: string }[]>([])
+  const [currentSection, setCurrentSection] = useState('')
+  // Editable section value while the edit overlay is open (Position is a user
+  // attribute, edited alongside rank/roles — mirrors the supervisor member card).
+  const [editSection, setEditSection] = useState('')
+  // Until the dev actually picks a section, keep editSection synced to the loaded
+  // value — guards the race where the overlay opens before the profile read lands
+  // (otherwise a quick Save would clear the section to HQ).
+  const sectionDirtyRef = useRef(false)
+
   // ── Edit state ──────────────────────────────────────────────────────
   const [editEmail, setEditEmail] = useState('')
   const [editFirstName, setEditFirstName] = useState('')
@@ -217,6 +231,29 @@ export function AdminUserDetail({
 
   useEffect(() => { loadData() }, [loadData])
 
+  // Load the user's home-clinic sub-clusters + their current section (dev console).
+  const userClinicId = user?.clinic_id ?? null
+  const userIdForSection = user?.id ?? null
+  useEffect(() => {
+    if (!userClinicId || !userIdForSection) { setSectionOpts([]); setCurrentSection(''); return }
+    let cancelled = false
+    void (async () => {
+      const [listRes, profRes] = await Promise.all([
+        fetchClinicSubClusters(userClinicId),
+        supabase.from('profiles').select('sub_cluster_id').eq('id', userIdForSection).single(),
+      ])
+      if (cancelled) return
+      setSectionOpts(listRes.ok ? listRes.data.map(s => ({ value: s.id, label: s.name })) : [])
+      setCurrentSection((profRes.data?.sub_cluster_id as string | null) ?? '')
+    })()
+    return () => { cancelled = true }
+  }, [userClinicId, userIdForSection])
+
+  // Keep the editable value pinned to the loaded section until the dev edits it.
+  useEffect(() => {
+    if (editing && !sectionDirtyRef.current) setEditSection(currentSection)
+  }, [currentSection, editing])
+
   // ── Edit overlay ↔ editing prop sync ─────────────────────────────────
   // External editing=true (e.g. legacy header pencil path, still wired for
   // create flow until Phase 3) opens the overlay; editing=false closes it.
@@ -263,6 +300,8 @@ export function AdminUserDetail({
       // "Create user"); existing-user edit keeps the current assignment.
       setEditClinicId(user?.clinic_id || (user === null ? (prefillClinicId || '') : ''))
       setEditRoles(user?.roles?.filter(r => AVAILABLE_ROLES.includes(r as typeof AVAILABLE_ROLES[number])) ?? ['medic'])
+      sectionDirtyRef.current = false
+      setEditSection(currentSection)
       // Hydrate current loans for the multi-select. Goes through the dev
       // RPC so loans show even when caller doesn't share a clinic with target.
       if (user?.id) {
@@ -300,9 +339,10 @@ export function AdminUserDetail({
       || editClinicId !== (user?.clinic_id || '')
       || !sameLoans
       || !sameStringSet(editRoles, user?.roles ?? ['medic'])
+      || editSection !== currentSection
 
     onPendingChangesChange?.(changed)
-  }, [editing, editEmail, editFirstName, editLastName, editMiddleInitial, editCredential, editComponent, editRank, editUic, editClinicId, editLoanClinicIds, originalLoanClinicIds, editRoles, user, onPendingChangesChange])
+  }, [editing, editEmail, editFirstName, editLastName, editMiddleInitial, editCredential, editComponent, editRank, editUic, editClinicId, editLoanClinicIds, originalLoanClinicIds, editRoles, editSection, currentSection, user, onPendingChangesChange])
 
   // ── Handlers ────────────────────────────────────────────────────────
 
@@ -369,6 +409,7 @@ export function AdminUserDetail({
           roles: chosenRoles,
           clinic_id: editClinicId || null,
           clinic_name: clinicName,
+          sub_cluster_id: null,
           surrogate_clinic_id: null,
           surrogate_clinic_name: null,
           created_at: new Date().toISOString(),
@@ -511,6 +552,18 @@ export function AdminUserDetail({
       })
     }
 
+    // Section (platoon/squad) — runs after clinic so the section's clinic matches.
+    if (editSection !== currentSection && !alreadyOk('section')) {
+      const r = await adminSetMemberSubCluster(user.id, editSection || null)
+      if (r.success) setCurrentSection(editSection)
+      upsert({
+        key: 'section',
+        label: editSection ? 'Section updated' : 'Section cleared (HQ)',
+        ok: r.success,
+        error: r.success ? undefined : (r.error || 'Failed to update section'),
+      })
+    }
+
     invalidate('users', 'clinics')
 
     const anyFailed = next.some(s => !s.ok)
@@ -528,7 +581,7 @@ export function AdminUserDetail({
     setSaving(false)
     // Partial failure — overlay reverts from modal mode to form+steps so the
     // admin can adjust and retry. The alreadyOk() guard skips the successes.
-  }, [user, editEmail, editFirstName, editLastName, editMiddleInitial, editCredential, editComponent, editRank, editUic, editClinicId, editLoanClinicIds, originalLoanClinicIds, editRoles, onEditingChange, loadData, isCreateMode, createEmail, createPassword, onCreated, stepResults])
+  }, [user, editEmail, editFirstName, editLastName, editMiddleInitial, editCredential, editComponent, editRank, editUic, editClinicId, editLoanClinicIds, originalLoanClinicIds, editRoles, editSection, currentSection, onEditingChange, loadData, isCreateMode, createEmail, createPassword, onCreated, stepResults])
 
   // ── Save requested trigger ───────────────────────────────────────────
   useEffect(() => {
@@ -903,6 +956,15 @@ export function AdminUserDetail({
               placeholder="Roles *"
               required
             />
+            {/* Section (platoon/squad) — only when the user's home clinic has sub-units. */}
+            {sectionOpts.length > 0 && (
+              <PickerInput
+                value={editSection}
+                onChange={(v) => { sectionDirtyRef.current = true; setEditSection(v) }}
+                options={[{ value: '', label: 'HQ / Unassigned' }, ...sectionOpts]}
+                placeholder="Section"
+              />
+            )}
               </>
             )}
           </div>

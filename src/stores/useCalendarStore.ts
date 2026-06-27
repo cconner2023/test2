@@ -1,5 +1,6 @@
 import { create, type StateCreator } from 'zustand'
 import type { CalendarEvent, EventCategory, CategoryColorMap } from '../Types/CalendarTypes'
+import type { SubClusterFilter } from '../Utilities/subCluster'
 import { putCalendarEvent, deleteCalendarEvent, addCalendarTombstone } from '../lib/calendarEventStore'
 import { createLogger } from '../Utilities/Logger'
 
@@ -70,6 +71,10 @@ interface CalendarState {
   // Distinct from supervisingClinicId (operating-as) — this never changes
   // derived scope, it only narrows which events the calendar shows.
   clusterFilter: string[] | null
+  // Render-only intra-clinic sub-cluster (platoon/squad) filter. Three-state:
+  // null = unset (fall back to viewer's default squad lens), 'all' = show every
+  // sub-cluster, string[] = explicit subset. See Utilities/subCluster.ts.
+  subClusterFilter: SubClusterFilter
   events: CalendarEvent[]
   rosterSearchQuery: string
   showRosterMobile: boolean
@@ -113,6 +118,7 @@ interface CalendarActions {
   setShowEventForm: (show: boolean) => void
   setCategoryFilter: (categories: EventCategory[] | null) => void
   setClusterFilter: (clinicIds: string[] | null) => void
+  setSubClusterFilter: (filter: SubClusterFilter) => void
   addEvent: (event: CalendarEvent) => void
   updateEvent: (id: string, updates: Partial<CalendarEvent>) => void
   removeEvent: (id: string) => void
@@ -205,6 +211,7 @@ export const useCalendarStore = create<CalendarStore>()(calendarPersist((set) =>
   showEventForm: false,
   categoryFilter: null,
   clusterFilter: null,
+  subClusterFilter: null,
   events: [],
   rosterSearchQuery: '',
   showRosterMobile: false,
@@ -227,6 +234,7 @@ export const useCalendarStore = create<CalendarStore>()(calendarPersist((set) =>
   setShowEventForm: (show) => set({ showEventForm: show, editingEventId: show ? undefined : null }),
   setCategoryFilter: (categories) => set({ categoryFilter: categories }),
   setClusterFilter: (clinicIds) => set({ clusterFilter: clinicIds }),
+  setSubClusterFilter: (filter) => set({ subClusterFilter: filter }),
   setRosterSearchQuery: (query) => set({ rosterSearchQuery: query }),
   setShowRosterMobile: (show) => set({ showRosterMobile: show }),
 

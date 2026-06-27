@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react'
-import { Bell, Mail, Code, Info, Volume2, Plus, Trash2, Wifi, WifiOff, CalendarClock } from 'lucide-react'
+import { Bell, Code, Info, Volume2, CalendarClock } from 'lucide-react'
 import { usePushNotifications } from '../../Hooks/usePushNotifications'
 import { useUserProfile } from '../../Hooks/useUserProfile'
 import { useAuth } from '../../Hooks/useAuth'
@@ -105,18 +105,19 @@ export const NotificationSettingsPanel = () => {
         {isSupported && isAuthenticated && (
           <div className={`rounded-xl border overflow-hidden transition-all ${loading ? 'opacity-50 pointer-events-none' : ''} border-tertiary/15 bg-themewhite2`}>
 
-            {/* Subscription Status */}
-            <div className="flex items-center gap-3 px-4 py-3.5">
-              <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${isSubscribed ? 'bg-themegreen/15' : 'bg-tertiary/10'}`}>
-                {isSubscribed
-                  ? <Wifi size={18} className="text-themegreen" />
-                  : <WifiOff size={18} className="text-tertiary" />
-                }
+            {/* Master toggle — the device subscription on/off */}
+            <div
+              onClick={isSubscribed ? handleUnsubscribe : handleSubscribe}
+              className="flex items-center gap-3 px-4 py-3.5 cursor-pointer transition-all active:scale-95 hover:bg-themeblue2/5"
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); isSubscribed ? handleUnsubscribe() : handleSubscribe() } }}
+            >
+              <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${isSubscribed ? 'bg-themeblue2/15' : 'bg-tertiary/10'}`}>
+                <Bell size={18} className={isSubscribed ? 'text-themeblue2' : 'text-tertiary'} />
               </div>
               <div className="flex-1 min-w-0">
-                <p className={`text-sm font-medium ${isSubscribed ? 'text-primary' : 'text-tertiary'}`}>
-                  {isSubscribed ? 'Active Subscription' : 'No Subscription'}
-                </p>
+                <p className={`text-sm font-medium ${isSubscribed ? 'text-primary' : 'text-tertiary'}`}>Push Notifications</p>
                 <p className="text-[9pt] text-tertiary mt-0.5 truncate">
                   {isSubscribed && subscriptionInfo
                     ? subscriptionInfo.provider
@@ -124,37 +125,20 @@ export const NotificationSettingsPanel = () => {
                   }
                 </p>
               </div>
-              {isSubscribed ? (
-                <button
-                  onClick={handleUnsubscribe}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10pt] font-medium text-themeredred bg-themeredred/10 active:scale-95 transition-all"
-                >
-                  <Trash2 size={14} />
-                  Remove
-                </button>
-              ) : (
-                <button
-                  onClick={handleSubscribe}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10pt] font-medium text-themeblue2 bg-themeblue2/10 active:scale-95 transition-all"
-                >
-                  <Plus size={14} />
-                  Add
-                </button>
-              )}
+              <ToggleSwitch checked={isSubscribed} />
             </div>
 
-            {/* Toggles — only when subscribed */}
+            {/* Per-category toggles — only when subscribed */}
             {isSubscribed && (
-              <div className="border-t border-tertiary/10 px-4 py-3 space-y-2">
-
-                {/* Messages Toggle */}
+              <>
+                {/* Message Sounds */}
                 <div
                   onClick={() => {
                     const next = !soundsEnabled
                     setMessageSoundsEnabled(next)
                     setSoundsEnabled(next)
                   }}
-                  className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-tertiary/15 bg-themewhite transition-all cursor-pointer"
+                  className="flex items-center gap-3 px-4 py-3.5 border-t border-tertiary/10 cursor-pointer transition-all active:scale-95 hover:bg-themeblue2/5"
                   role="button"
                   tabIndex={0}
                   onKeyDown={(e) => {
@@ -176,10 +160,10 @@ export const NotificationSettingsPanel = () => {
                   <ToggleSwitch checked={soundsEnabled} />
                 </div>
 
-                {/* Calendar Assignment Toggle — all users */}
+                {/* Event Assignments — all users */}
                 <div
                   onClick={() => handleCalendarAssignToggle(!calendarAssignments)}
-                  className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-tertiary/15 bg-themewhite transition-all cursor-pointer"
+                  className="flex items-center gap-3 px-4 py-3.5 border-t border-tertiary/10 cursor-pointer transition-all active:scale-95 hover:bg-themeblue2/5"
                   role="button"
                   tabIndex={0}
                   onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleCalendarAssignToggle(!calendarAssignments); } }}
@@ -194,11 +178,11 @@ export const NotificationSettingsPanel = () => {
                   <ToggleSwitch checked={calendarAssignments} />
                 </div>
 
-                {/* Dev Alerts Toggle — dev users only */}
+                {/* Dev Alerts — dev users only */}
                 {isDevRole && (
                   <div
                     onClick={() => handleDevAlertToggle(!devAlerts)}
-                    className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-tertiary/15 bg-themewhite transition-all cursor-pointer"
+                    className="flex items-center gap-3 px-4 py-3.5 border-t border-tertiary/10 cursor-pointer transition-all active:scale-95 hover:bg-themeblue2/5"
                     role="button"
                     tabIndex={0}
                     onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleDevAlertToggle(!devAlerts); } }}
@@ -213,7 +197,7 @@ export const NotificationSettingsPanel = () => {
                     <ToggleSwitch checked={devAlerts} />
                   </div>
                 )}
-              </div>
+              </>
             )}
           </div>
         )}

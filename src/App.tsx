@@ -16,7 +16,6 @@ import { useSwipeNavigation } from './Hooks/useSwipeNavigation'
 import { useMenuSlide, MENU_NAV_WIDTH_MOBILE, MENU_NAV_WIDTH_DESKTOP } from './Hooks/useMenuSlide'
 import { useMessagesSlide } from './Hooks/useMessagesSlide'
 import UpdateNotification from './Components/UpdateNotification'
-import VaultUnlockBanner from './Components/VaultUnlockBanner'
 import PasswordResetOverlay from './Components/PasswordResetOverlay'
 import InstallPrompt from './Components/InstallPrompt'
 import { ColumnA } from './Components/ColumnA'
@@ -856,7 +855,6 @@ case 'mapOverlay':
         )}
         <UpdateNotification onVisibilityChange={setUpdateVisible} />
         {!updateVisible && <InstallPrompt onVisibilityChange={setInstallVisible} />}
-        <VaultUnlockBanner />
         <PasswordResetOverlay />
       </div>
       <CallOverlay />

@@ -5,6 +5,7 @@ import { LiftedRowMenu } from '../LiftedRowMenu'
 import type { LocalPropertyLocation, LocalPropertyItem, HolderInfo } from '../../Types/PropertyTypes'
 import { itemAlert } from '../../Types/PropertyTypes'
 import { isStructuralZone } from './levelUtils'
+import { itemPassesLens } from '../../Utilities/subCluster'
 import { useVehicleDispatches } from '../../Hooks/useVehicleDispatches'
 import { DispatchDot } from './DispatchDot'
 
@@ -36,6 +37,13 @@ interface PropertyLocationTreeProps {
   mineOnly?: boolean
   /** The viewer's user id — needed to evaluate the "My property" filter. */
   currentUserId?: string | null
+  /** Pre-resolved sub-cluster (platoon/squad) lens: an array narrows the tree to
+   *  items in those sub-clusters (HQ/common items always pass); null/undefined =
+   *  no narrowing. Render-only; see Utilities/subCluster.ts + v2/supervisor. */
+  subClusterLens?: string[] | null
+  /** Viewer's PRIMARY clinic id — the squad lens only narrows items in this clinic;
+   *  cross-cluster (followed) items bypass it. */
+  primaryClinicId?: string | null
   /** Open the location edit form (name + parent) — no longer an inline rename. */
   onEditLocation?: (loc: LocalPropertyLocation) => void
   /** Open the item edit form. */
@@ -69,6 +77,8 @@ export function PropertyLocationTree({
   allSelected,
   mineOnly,
   currentUserId,
+  subClusterLens,
+  primaryClinicId,
   onEditLocation,
   onEditItem,
   onDeleteLocation,
@@ -165,8 +175,10 @@ export function PropertyLocationTree({
   const q = (searchQuery ?? '').trim().toLowerCase()
   const isSearching = q.length > 0
   const mineActive = !!currentUserId && !!mineOnly
+  // Sub-cluster (platoon/squad) lens: an array narrows; null/undefined = show all.
+  const subActive = Array.isArray(subClusterLens)
   const { displayRoots, displayMembers, displayUnassigned, displayRootItems } = useMemo(() => {
-    if (!isSearching && !mineActive) return { displayRoots: roots, displayMembers: memberNodes, displayUnassigned: unassignedItems, displayRootItems: rootItems }
+    if (!isSearching && !mineActive && !subActive) return { displayRoots: roots, displayMembers: memberNodes, displayUnassigned: unassignedItems, displayRootItems: rootItems }
 
     const locName = (id: string | null) => (id ? locations.find(l => l.id === id)?.name ?? null : null)
     const matchesSearch = (i: LocalPropertyItem) => {
@@ -186,14 +198,19 @@ export function PropertyLocationTree({
     // custody (current_holder_id).
     const isMine = (i: LocalPropertyItem) =>
       i.owner_user_id === currentUserId || i.current_holder_id === currentUserId
+    // Squad lens — shared with the map canvas via itemPassesLens so the two surfaces
+    // can't drift. Cross-cluster (foreign clinic_id), viewer-owned/held, and HQ/common
+    // (sub_cluster_id == null) items always bypass; null lens = no narrowing.
+    const inSubLens = (i: LocalPropertyItem) =>
+      itemPassesLens(i, { lens: subClusterLens, primaryClinicId, currentUserId })
     const showItem = (i: LocalPropertyItem) =>
-      (!isSearching || matchesSearch(i)) && (!mineActive || isMine(i))
+      (!isSearching || matchesSearch(i)) && (!mineActive || isMine(i)) && inSubLens(i)
 
     const filterNode = (node: TreeNode): TreeNode | null => {
       // A location NAME hit keeps its whole subtree — but ONLY for a pure search. The
       // "Mine" filter must never surface items the viewer doesn't own/hold just because
       // a zone name matched, so the shortcut is disabled when mineActive.
-      if (isSearching && !mineActive && node.location.name.toLowerCase().includes(q)) return node
+      if (isSearching && !mineActive && !subActive && node.location.name.toLowerCase().includes(q)) return node
       const children = node.children.map(filterNode).filter((n): n is TreeNode => n !== null)
       const nodeItems = node.items.filter(showItem)
       if (children.length === 0 && nodeItems.length === 0) return null
@@ -205,7 +222,7 @@ export function PropertyLocationTree({
       displayUnassigned: unassignedItems.filter(showItem),
       displayRootItems: rootItems.filter(showItem),
     }
-  }, [isSearching, mineActive, currentUserId, q, roots, memberNodes, unassignedItems, rootItems, locations, holders])
+  }, [isSearching, mineActive, subActive, subClusterLens, primaryClinicId, currentUserId, q, roots, memberNodes, unassignedItems, rootItems, locations, holders])
 
   // Ellipsis button — hover-revealed in the desktop rail, always shown elsewhere.
   const actionBtnCls = `w-7 h-7 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all shrink-0 ${

@@ -15,10 +15,13 @@
 
 import { base64ToBytes } from '../base64Utils'
 import { aesGcmDecrypt } from '../aesGcm'
+import { dbName } from '../idbEnv'
 
-const QUEUE_DB = 'adtmc-outbound-queue'
+// Environment-scoped names — must match what the main app opens (see idbEnv).
+// In a production build the suffix is empty, so these equal the bare names.
+const QUEUE_DB = dbName('adtmc-outbound-queue')
 const QUEUE_VERSION = 1
-const SECURE_DB = 'adtmc-secure-store'
+const SECURE_DB = dbName('adtmc-secure-store')
 const SECURE_VERSION = 1
 const SENC_PREFIX = 'senc:'
 

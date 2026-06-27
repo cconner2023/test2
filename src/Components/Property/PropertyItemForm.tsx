@@ -2,6 +2,8 @@ import { useState, useMemo, useCallback, forwardRef, useImperativeHandle } from 
 import { X, Square, CheckSquare, Plus } from 'lucide-react'
 import { TextInput, PickerInput, DatePickerInput } from '../FormInputs'
 import { usePropertyStore } from '../../stores/usePropertyStore'
+import { useAuthStore } from '../../stores/useAuthStore'
+import { useSubClusters } from '../../Hooks/useSubClusters'
 import { useShallow } from 'zustand/react/shallow'
 import type { LocalPropertyItem } from '../../Types/PropertyTypes'
 import { ROOT_LOCATION_NAME } from '../../Types/PropertyTypes'
@@ -41,6 +43,15 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
     }))
   )
 
+  // Author's sub-cluster (platoon/squad) — new items default into this squad's
+  // lens. HQ authors (null) → common/HQ item. Render-only; see v2/supervisor.
+  const authorSubClusterId = useAuthStore(s => s.profile.subClusterId ?? null)
+  // Sub-clusters are primary-clinic-scoped; only offer the picker when the
+  // property panel is on the user's primary clinic.
+  const primaryClinicId = useAuthStore(s => s.clinicId)
+  const { subClusters } = useSubClusters()
+  const sectionApplicable = clinicId === primaryClinicId && subClusters.length > 0
+
   const isEdit = !!editingItem
 
   const [name, setName] = useState(editingItem?.name ?? '')
@@ -64,6 +75,11 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
   // whatever's there (e.g. 'missing' set by the transfer accountability check).
   const [conditionCode] = useState<'serviceable' | 'unserviceable' | 'damaged' | 'missing'>(
     editingItem?.condition_code ?? 'serviceable'
+  )
+  // Sub-unit (platoon/squad) section. '' = HQ / common. New items default to the
+  // author's squad; edits preserve the item's current section. Render-only.
+  const [sectionId, setSectionId] = useState(
+    isEdit ? (editingItem?.sub_cluster_id ?? '') : (authorSubClusterId ?? '')
   )
 
   const updateSerial = useCallback((idx: number, value: string) => {
@@ -131,6 +147,7 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
       if (isEdit && editingItem) {
         await editItem(editingItem.id, {
           ...sharedPayload,
+          sub_cluster_id: sectionApplicable ? (sectionId || null) : (editingItem.sub_cluster_id ?? null),
           serial_number: isSerialized ? (serialNumbers[0]?.trim() || null) : null,
           quantity: isSerialized ? 1 : Math.max(1, parseInt(quantity) || 1),
         })
@@ -138,6 +155,7 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
       } else if (!isSerialized) {
         const created = await addItem({
           clinic_id: clinicId,
+          sub_cluster_id: sectionApplicable ? (sectionId || null) : null,
           ...sharedPayload,
           serial_number: null,
           quantity: Math.max(1, parseInt(quantity) || 1),
@@ -154,6 +172,7 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
           // Single item — preserve enrollment flow
           const created = await addItem({
             clinic_id: clinicId,
+            sub_cluster_id: sectionApplicable ? (sectionId || null) : null,
             ...sharedPayload,
             serial_number: validSerials[0] ?? null,
             quantity: 1,
@@ -168,6 +187,7 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
           for (const serial of validSerials) {
             await addItem({
               clinic_id: clinicId,
+              sub_cluster_id: sectionApplicable ? (sectionId || null) : null,
               ...sharedPayload,
               serial_number: serial,
               quantity: 1,
@@ -188,6 +208,7 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
     name, nomenclature, nsn, lin, serialNumbers, quantity,
     locationId, holderId, parentItemId, notes, expiryDate, isSerialized,
     isEdit, editingItem, clinicId, addItem, editItem, onClose, onEnrollNew, conditionCode,
+    sectionId, sectionApplicable,
   ])
 
   useImperativeHandle(ref, () => ({ submit: handleSave }), [handleSave])
@@ -285,6 +306,15 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
           onChange={setParentItemId}
           options={parentItemOptions}
           placeholder="Parent item (top-level)"
+        />
+      )}
+      {/* Sub-unit (platoon/squad) section — '' = HQ / common. Primary-clinic-scoped. */}
+      {sectionApplicable && (
+        <PickerInput
+          value={sectionId}
+          onChange={setSectionId}
+          options={[{ value: '', label: 'HQ / Common' }, ...subClusters.map(s => ({ value: s.id, label: s.name }))]}
+          placeholder="Sub-unit"
         />
       )}
 

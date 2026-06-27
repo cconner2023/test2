@@ -22,6 +22,7 @@ import { createLogger } from '../../Utilities/Logger'
 import { uint8ToBase64, base64ToUint8 } from '../../Utilities/textCodec'
 import { bytesToHex, hexToBytes } from '../cryptoUtils'
 import { supabase } from '../supabase'
+import { dbName } from '../idbEnv'
 import { SIGNAL } from '../constants'
 import { ok, err, type Result } from '../result'
 import { unseal } from './sealedSender'
@@ -192,7 +193,7 @@ interface StoredVaultKey {
 
 function openVaultKeyDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open(VAULT_KEY_DB, 1)
+    const req = indexedDB.open(dbName(VAULT_KEY_DB), 1)
     req.onupgradeneeded = () => {
       if (!req.result.objectStoreNames.contains(VAULT_KEY_STORE)) {
         req.result.createObjectStore(VAULT_KEY_STORE)
@@ -292,7 +293,7 @@ interface StoredVaultRow {
 
 function openVaultRowDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open(VAULT_ROW_DB, 1)
+    const req = indexedDB.open(dbName(VAULT_ROW_DB), 1)
     req.onupgradeneeded = () => {
       if (!req.result.objectStoreNames.contains(VAULT_ROW_STORE)) {
         req.result.createObjectStore(VAULT_ROW_STORE)
@@ -1120,19 +1121,49 @@ export async function processVaultMessages(userId: string): Promise<number> {
         const syncConversationKey = sync.forGroupId ?? sync.forPeerId
         const syncTombstoneAt = await getTombstone(syncConversationKey)
         if (!syncTombstoneAt || sync.originalTimestamp >= syncTombstoneAt) {
-          await saveMessage(syncMsg, userId)
-          // Push to live store so UI reflects drained messages without a reload.
-          // addMessage dedupes by id + originId so realtime/catch-up races are safe.
-          useMessagingStore.getState().addMessage(syncMsg)
-          if (isCalendarEvent(syncContent)) calendarRoutes.push(syncContent)
-          else if (isMapOverlay(syncContent)) overlayRoutes.push(syncContent)
-          else if (isMapFeature(syncContent)) featureRoutes.push(syncContent)
+          if (syncContent?.type === 'reaction') {
+            // Own-device reaction synced through the vault. Fold it onto the
+            // target (out-of-band, like the live path's handleIncomingMessage)
+            // instead of surfacing it as a bubble. The reactor is this user.
+            const { targetId, emoji, remove } = syncContent
+            const store = useMessagingStore.getState()
+            store.applyReaction(syncConversationKey, targetId, emoji, senderUuid, !!remove)
+            const updated = store.conversations[syncConversationKey]?.find(
+              m => m.id === targetId || m.originId === targetId,
+            )
+            if (updated) await saveMessage(updated, userId).catch(() => {})
+          } else {
+            await saveMessage(syncMsg, userId)
+            // Push to live store so UI reflects drained messages without a reload.
+            // addMessage dedupes by id + originId so realtime/catch-up races are safe.
+            useMessagingStore.getState().addMessage(syncMsg)
+            if (isCalendarEvent(syncContent)) calendarRoutes.push(syncContent)
+            else if (isMapOverlay(syncContent)) overlayRoutes.push(syncContent)
+            else if (isMapFeature(syncContent)) featureRoutes.push(syncContent)
+          }
         }
       } else if (row.message_type === 'delete') {
         try {
           const { originIds } = JSON.parse(plaintext) as { originIds: string[] }
           await deleteMessagesByOriginId(originIds)
         } catch { /* ignore parse errors */ }
+      } else if (content?.type === 'reaction') {
+        // Emoji reactions fold onto the target message (out-of-band, like the
+        // live path's handleIncomingMessage) — they are NEVER a bubble. A vault
+        // replay of an add/remove reaction must mutate the target's `reactions`
+        // map and persist it, not surface a stray "[reaction]" row. The reactor
+        // identity is the reaction message's sender.
+        const { targetId, emoji, remove } = content
+        const conversationKey = row.group_id ?? (senderUuid === userId ? row.recipient_id : senderUuid)
+        const tombstoneAt = await getTombstone(conversationKey)
+        if (!tombstoneAt || row.created_at >= tombstoneAt) {
+          const store = useMessagingStore.getState()
+          store.applyReaction(conversationKey, targetId, emoji, senderUuid, !!remove)
+          const updated = store.conversations[conversationKey]?.find(
+            m => m.id === targetId || m.originId === targetId,
+          )
+          if (updated) await saveMessage(updated, userId).catch(() => {})
+        }
       } else {
         const isCalEvent = isCalendarEvent(content)
         const isOverlay = isMapOverlay(content)

@@ -122,6 +122,13 @@ export interface UserTypes {
     /** Clinics the user is currently loaned to (up to 4). Empty when home-only. */
     surrogateClinics?: { id: string; name: string }[];
     /**
+     * Intra-clinic sub-cluster (platoon/squad) this user sits in. null = HQ /
+     * parent bucket (unassigned). Render-only grouping within the SAME clinicVault
+     * — drives the default squad-vs-all lens for calendar/property/training.
+     * Never an access boundary (see v2/supervisor sub-cluster drawer).
+     */
+    subClusterId?: string | null;
+    /**
      * Clinics whose note content (text templates / order sets / plan tags) this
      * user merges into note-writing, chosen from {home} ∪ surrogateClinics.
      * null = never configured → defaults to home only (loans are opt-in). The

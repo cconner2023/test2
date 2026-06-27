@@ -11,6 +11,7 @@ import { UserAvatar } from '../Settings/UserAvatar'
 import { useIsMobile } from '../../Hooks/useIsMobile'
 import { MedevacForm } from '../Medevac/MedevacForm'
 import { emptyMedevacRequest } from '../../Types/MedevacTypes'
+import { useSubClusters } from '../../Hooks/useSubClusters'
 
 
 const STATUS_OPTIONS: { value: EventStatus; label: string }[] = [
@@ -85,12 +86,16 @@ interface EventFormProps {
   onCreateOverlay?: (name: string) => Promise<string | null>
   /** Reports the live title up to the host so the drawer/sheet header can mirror it (map-overlay-style header title). Fires on mount + every change. */
   onTitleChange?: (title: string) => void
+  /** True when this event lives in the user's PRIMARY clinic, so the Sub-unit
+   *  (platoon/squad) picker applies. Sub-clusters are primary-clinic-scoped. */
+  subClusterApplicable?: boolean
 }
 
 export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
-  function EventForm({ initialData, onSave, isEditing, medics, propertyItems, overlayOptions, roomOptions, huddleTaskOptions, clinicOptions, checklistTemplates, onCreateOverlay, onTitleChange }, ref) {
+  function EventForm({ initialData, onSave, isEditing, medics, propertyItems, overlayOptions, roomOptions, huddleTaskOptions, clinicOptions, checklistTemplates, onCreateOverlay, onTitleChange, subClusterApplicable }, ref) {
     const isMobile = useIsMobile()
     const { resolve: resolveCategoryColor } = useCategoryColors()
+    const { subClusters } = useSubClusters()
     const [form, setForm] = useState<EventFormData>(initialData ?? createEmptyFormData())
     const [errors, setErrors] = useState<Record<string, string>>({})
 
@@ -237,6 +242,19 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
                 options={EVENT_CATEGORIES.filter(c => !c.hidden).map(c => c.label)}
                 placeholder="Category *"
                 required
+              />
+            </div>
+          )}
+
+          {/* Sub-unit (platoon/squad) picker — defaults to the author's squad;
+              '' = HQ / common (visible to every sub-unit). Primary-clinic-scoped. */}
+          {subClusterApplicable && subClusters.length > 0 && (
+            <div data-tour="event-form-sub-cluster">
+              <PickerInput
+                value={form.sub_cluster_id ?? ''}
+                onChange={v => updateField('sub_cluster_id', v || null)}
+                options={[{ value: '', label: 'HQ / Common' }, ...subClusters.map(s => ({ value: s.id, label: s.name }))]}
+                placeholder="Sub-unit"
               />
             </div>
           )}

@@ -51,12 +51,19 @@ export function buildReprint2062Params(
     lastName: null,
     displayName: r.recipientLabel,
   }
+  const signedAt = new Date(r.recordedAt)
+  const ymd = Number.isNaN(signedAt.getTime())
+    ? ''
+    : `${signedAt.getFullYear()}${String(signedAt.getMonth() + 1).padStart(2, '0')}${String(signedAt.getDate()).padStart(2, '0')}`
   return {
     items,
     fromHolder,
     toHolder,
     handReceiptNumber: `HR-${r.handReceiptId.slice(0, 8).toUpperCase()}`,
     date: formatReceiptDate(r.recordedAt),
+    // Reprint shows the recipient acknowledgement block (name + date); the drawn
+    // signature image isn't persisted yet (see "save to drafts" follow-up).
+    signature: { printedName: r.recipientLabel, date: ymd },
   }
 }
 

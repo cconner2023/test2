@@ -24,13 +24,13 @@ import { createLogger } from '../Utilities/Logger'
 const systemInboxLogger = createLogger('AdminSystemInbox')
 
 // Admin sub-components
-import { AdminRequestsList } from './Admin/AdminRequestsList'
 import { AdminUserDetail } from './Admin/AdminUserDetail'
 import { AdminClinicDetail, type ClusterCreatePrefill } from './Admin/AdminClinicDetail'
 import { AdminLocationDetail } from './Admin/AdminLocationDetail'
 import { AdminSummary } from './Admin/AdminSummary'
 import { AdminSortRail } from './Admin/AdminSortRail'
 import { AdminFeatureVotesSection } from './Admin/AdminFeatureVotesSection'
+import { AdminSettingsContent } from './Admin/AdminSettingsContent'
 import { AdminSystemConversationView } from './Admin/AdminSystemConversationView'
 import { useMessagingStore } from '../stores/useMessagingStore'
 import { getDisplayName } from '../Utilities/nameUtils'
@@ -42,26 +42,28 @@ export type AdminView =
     | 'admin-user-detail'
     | 'admin-clinic-detail'
     | 'admin-location-detail'
+    | 'admin-settings'
     | 'admin-system-conversation'
 
-// Island: requests · directory · votes. The Directory tab IS the main content
-// list — one location ⊃ cluster ⊃ user containment tree (AdminSummary), tap a
-// node to open its detail. On desktop the left pane is the sort/summary rail
-// (AdminSortRail: counts + system conversations), NOT a second tree; the right
-// pane is detail. On mobile the tree is full-screen and the rail lives in a nav
-// sheet. 'feature-votes' keeps its slug (Settings deep-links to it) but reads as
-// "Votes". Whole drawer is dev-gated, so every tab is always visible.
-const ALL_TABS = ['requests', 'directory', 'feature-votes'] as const
+// Island: directory · votes. The Directory tab IS the main content list — an
+// org-rooted cluster ⊃ sub-cluster ⊃ user tree (AdminSummary) with location
+// shown as a per-cluster chip (locations themselves are managed in the Settings
+// sheet). Tap a node to open its detail. Requests/feedback/messages moved to rail
+// (AdminSortRail), so the island narrows to two: Directory + the feature-vote
+// cycle manager. On desktop the left pane is the rail (settings + counts +
+// triage queues); the right pane is detail. On mobile the tree is full-screen
+// and the rail lives in a nav sheet. 'feature-votes' keeps its slug (Settings
+// deep-links to it) but reads as "Votes". Whole drawer is dev-gated, so every
+// tab is always visible.
+const ALL_TABS = ['directory', 'feature-votes'] as const
 type AdminTab = typeof ALL_TABS[number]
 
 const TAB_ICONS: Record<AdminTab, typeof Inbox> = {
-    requests: Inbox,
     directory: Network,
     'feature-votes': MessageCircleQuestion,
 }
 
 const TAB_LABELS: Record<AdminTab, string> = {
-    requests: 'Requests',
     directory: 'Directory',
     'feature-votes': 'Votes',
 }
@@ -73,7 +75,7 @@ interface AdminDrawerProps {
 
 export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
     const [view, setView] = useState<AdminView>('admin')
-    const [activeTab, setActiveTab] = useState<AdminTab>('requests')
+    const [activeTab, setActiveTab] = useState<AdminTab>('directory')
     const [slideDirection, setSlideDirection] = useState<'left' | 'right' | ''>('')
 
     // Selected entity for detail views (null = create mode)
@@ -243,6 +245,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
             roles: configured.roles,
             clinic_id: configured.clinicId,
             clinic_name: null,
+            sub_cluster_id: null,
             surrogate_clinic_id: null,
             surrogate_clinic_name: null,
             created_at: new Date().toISOString(),
@@ -322,15 +325,6 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         setView('admin-location-detail')
     }, [handleSlideAnimation, locationEdit, clearTrail])
 
-    const handleEditLocation = useCallback((loc: AdminLocation) => {
-        clearTrail()
-        setSelectedLocation(loc)
-        locationEdit.setEditing(true)
-        locationEdit.setHasPending(false)
-        handleSlideAnimation('left')
-        setView('admin-location-detail')
-    }, [handleSlideAnimation, locationEdit, clearTrail])
-
     const navigateBack = useCallback(() => {
         clinicEdit.reset()
         userEdit.reset()
@@ -368,6 +362,21 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         guardNav(navigateBack)
     }, [guardNav, navigateBack])
 
+    // Open the settings surface (locations management) — a detail view, so it
+    // rides the responsive detail pane (desktop) / sheet (mobile) like the
+    // entity details. Guarded so an in-progress edit isn't silently dropped.
+    const handleOpenSettings = useCallback(() => {
+        guardNav(() => {
+            clearTrail()
+            setSelectedUser(null)
+            setSelectedClinic(null)
+            setSelectedLocation(null)
+            setSelectedSystemPeerId(null)
+            handleSlideAnimation('left')
+            setView('admin-settings')
+        })
+    }, [guardNav, clearTrail, handleSlideAnimation])
+
     const handleDiscardConfirmed = useCallback(() => {
         setConfirmDiscard(false)
         const action = pendingActionRef.current ?? navigateBack
@@ -382,7 +391,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
 
     const doClose = useCallback(() => {
         setView('admin')
-        setActiveTab('requests')
+        setActiveTab('directory')
         setSelectedUser(null)
         setSelectedClinic(null)
         setSelectedLocation(null)
@@ -430,23 +439,6 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         view !== 'admin',
     )
 
-    // Stats-block shortcut (Pending Requests → Requests tab). Routes through the
-    // discard guard so an in-progress detail edit isn't silently dropped.
-    const handleSummarySwitchTab = useCallback((tab: 'requests') => {
-        guardNav(() => {
-            setActiveTab(tab)
-            if (view !== 'admin') {
-                setView('admin')
-                setSelectedUser(null)
-                setSelectedClinic(null)
-                setSelectedSystemPeerId(null)
-                setClusterCreatePrefill(null)
-                setUserCreatePrefillClinicId(null)
-                clearTrail()
-            }
-        })
-    }, [view, guardNav, clearTrail])
-
     const handleTabChange = useCallback((tab: AdminTab) => {
         setActiveTab(tab)
         setSearchQuery('')
@@ -467,7 +459,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         <button
             type="button"
             onClick={() => setShowNavSheet(true)}
-            aria-label="Open directory"
+            aria-label="Open inbox"
             className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-tertiary/10 text-tertiary active:scale-95 shrink-0"
         >
             <Network size={18} />
@@ -477,11 +469,11 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
     const isUserCreateMode = view === 'admin-user-detail' && selectedUser === null
     const isClinicCreateMode = view === 'admin-clinic-detail' && selectedClinic === null
     const isLocationCreateMode = view === 'admin-location-detail' && selectedLocation === null
-    const isDetailView = view === 'admin-user-detail' || view === 'admin-clinic-detail' || view === 'admin-location-detail' || view === 'admin-system-conversation'
+    const isDetailView = view === 'admin-user-detail' || view === 'admin-clinic-detail' || view === 'admin-location-detail' || view === 'admin-settings' || view === 'admin-system-conversation'
     const desktopDetailPaneOpen = !isMobile && isDetailView
-    // Left sort rail (search + counts + system conversations) is persistent
-    // across all tabs — the drawer's standing summary surface. It only yields
-    // when a detail pane slides in (to give the tree + detail room).
+    // Left inbox rail (search + settings + counts + requests/feedback/messages)
+    // is persistent across all tabs — the drawer's standing triage surface. It
+    // only yields when a detail pane slides in (to give the tree + detail room).
     const desktopTreeOpen = !isMobile && !desktopDetailPaneOpen
 
     const detailTitle = useMemo(() => {
@@ -495,6 +487,9 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         }
         if (view === 'admin-location-detail') {
             return selectedLocation?.display_name || 'New Location'
+        }
+        if (view === 'admin-settings') {
+            return 'Settings'
         }
         if (view === 'admin-system-conversation') {
             return systemPeerProfile ? getDisplayName(systemPeerProfile) : 'System thread'
@@ -607,6 +602,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
             case 'admin-user-detail':
             case 'admin-clinic-detail':
             case 'admin-location-detail':
+            case 'admin-settings':
                 return {
                     title: 'Admin Panel',
                     // Rail button summons the sort rail (counts + system
@@ -746,6 +742,19 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                     inSheet ? 'px-4 pt-1 pb-8' : 'px-5 pb-8',
             )
         }
+        if (view === 'admin-settings') {
+            // Full-bleed rows (their own px-4) — wrapper carries vertical padding
+            // only, so it doesn't double up the horizontal inset.
+            const settings = (
+                <AdminSettingsContent
+                    onSelectLocation={handleSelectLocation}
+                    onCreateLocation={handleCreateLocation}
+                />
+            )
+            return inSheet
+                ? <div className="pt-1 pb-8">{settings}</div>
+                : <ScrollPane className="py-3 pb-8">{settings}</ScrollPane>
+        }
         if (view === 'admin-system-conversation' && selectedSystemPeerId) {
             // ChatDetailView owns its own scroll; do NOT wrap in ScrollPane.
             // On mobile the glass header floats over the top — offset the chat
@@ -772,23 +781,23 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         return renderMainView()
     }
 
-    // ActionSheet options per tab. Directory creates every entity type (the FAB
-    // is the single create surface now that users/clusters/locations share one
-    // tab). Requests = approval workflow, votes = inline mgmt — no FAB.
+    // ActionSheet options per tab. Directory creates users + clusters (the org-
+    // rooted tree's two entity types). Locations are created from the Settings
+    // sheet now, not here. Votes = inline mgmt — no FAB.
     const addSheetOptions = useMemo(() => {
         const options: Array<{ key: string; label: string; onAction: () => void }> = []
         if (activeTab === 'directory') {
             options.push({ key: 'user', label: 'New User', onAction: () => { setShowAddSheet(false); handleCreateUser() } })
             options.push({ key: 'clinic', label: 'New Cluster', onAction: () => { setShowAddSheet(false); handleCreateClinic() } })
-            options.push({ key: 'location', label: 'New Location', onAction: () => { setShowAddSheet(false); handleCreateLocation() } })
         }
         return options
-    }, [activeTab, handleCreateUser, handleCreateClinic, handleCreateLocation])
+    }, [activeTab, handleCreateUser, handleCreateClinic])
 
     const detailSheetOpen = isMobile && (
         view === 'admin-user-detail' ||
         view === 'admin-clinic-detail' ||
-        view === 'admin-location-detail'
+        view === 'admin-location-detail' ||
+        view === 'admin-settings'
     )
 
     // Mobile detail-Sheet breadcrumb: the lateral trail as clickable crumbs
@@ -842,15 +851,10 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         </BottomIsland>
     )
 
-    // Queue tabs (requests / votes) — shared between mobile + desktop.
+    // Votes tab — the feature-vote cycle manager. Requests/feedback/messages now
+    // live in the left-pane rail, so this is the only non-directory tab.
     const renderQueueTab = () => (
         <>
-            {activeTab === 'requests' && (
-                <AdminRequestsList
-                    searchQuery={searchQuery}
-                    onApproved={handleRequestApproved}
-                />
-            )}
             {activeTab === 'feature-votes' && isDevRole && (
                 <AdminFeatureVotesSection />
             )}
@@ -867,13 +871,10 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
             onSelectUser={handleSelectUser}
             onEditClinic={handleEditClinic}
             onEditUser={handleEditUser}
-            onSelectLocation={handleSelectLocation}
-            onEditLocation={handleEditLocation}
             onChatUser={isDevRole ? (u) => handleSelectSystemPeer(u.id) : undefined}
             onSelectAll={() => {}}
             activeClinicId={selectedClinic?.id}
             activeUserId={selectedUser?.id}
-            activeLocationId={selectedLocation?.id}
         />
     )
 
@@ -909,8 +910,8 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
             </div>
         ) : (
             // Desktop center: the active tab's main content. Directory = the tree
-            // (manages its own scroll); queue tabs share a single scroller. The
-            // sort rail (counts + system conversations) lives in the left pane.
+            // (manages its own scroll); the Votes tab shares a single scroller. The
+            // inbox rail (settings + counts + triage queues) lives in the left pane.
             <div className="relative h-full">
                 {activeTab === 'directory' ? (
                     <div className="h-full">
@@ -949,9 +950,9 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                         mirrors the CalendarDrawer rightPanelOpen pattern. */}
                     {!isMobile ? (
                         <div className="flex h-full">
-                            {/* Left pane — the sort/summary rail (counts + system
-                                conversations) + search. Persistent across tabs;
-                                collapses when a detail pane slides in. */}
+                            {/* Left pane — the inbox rail (settings + counts +
+                                requests/feedback/messages) + search. Persistent
+                                across tabs; collapses when a detail pane slides in. */}
                             <div
                                 aria-hidden={!desktopTreeOpen}
                                 className={`shrink-0 overflow-hidden flex flex-col bg-themewhite3/50 transition-all duration-300 ease-out ${
@@ -965,8 +966,9 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                                 </div>
                                 <div className="flex-1 min-h-0">
                                     <AdminSortRail
-                                        onSwitchTab={handleSummarySwitchTab}
+                                        onOpenSettings={handleOpenSettings}
                                         onSelectSystemPeer={handleSelectSystemPeer}
+                                        onApproved={handleRequestApproved}
                                         searchQuery={searchQuery}
                                         activeSystemPeerId={selectedSystemPeerId}
                                     />
@@ -1057,10 +1059,10 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         )}
 
         {/* Mobile nav sheet — the slide-out mirror of the desktop left pane:
-            the sort rail (counts + system conversations), reachable from any tab
-            via the header rail. The directory tree itself is the Directory tab's
-            full-screen main view, so it isn't duplicated here. Selecting a thread
-            closes the sheet and opens it. */}
+            the inbox rail (settings + counts + requests/feedback/messages),
+            reachable from any tab via the header rail. The directory tree itself
+            is the Directory tab's full-screen main view, so it isn't duplicated
+            here. Selecting a row closes the sheet and opens its detail. */}
         {isMobile && (
             <Sheet
                 isOpen={showNavSheet}
@@ -1068,17 +1070,18 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                 height="fit"
                 maxHeight={82}
                 backdrop="dismiss"
-                title="Summary"
+                title="Inbox"
                 zIndex={1200}
             >
                 <div className="flex flex-col" style={{ height: '72dvh' }}>
                     <div className="px-3 pt-1 pb-2 shrink-0">
-                        <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Search conversations..." />
+                        <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Search..." />
                     </div>
                     <div className="flex-1 min-h-0">
                         <AdminSortRail
-                            onSwitchTab={(tab) => { setShowNavSheet(false); handleSummarySwitchTab(tab) }}
+                            onOpenSettings={() => { setShowNavSheet(false); handleOpenSettings() }}
                             onSelectSystemPeer={(peerId) => { setShowNavSheet(false); handleSelectSystemPeer(peerId) }}
+                            onApproved={(userId, request, configured) => { setShowNavSheet(false); handleRequestApproved(userId, request, configured) }}
                             searchQuery={searchQuery}
                             activeSystemPeerId={selectedSystemPeerId}
                         />

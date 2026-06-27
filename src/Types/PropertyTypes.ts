@@ -82,6 +82,14 @@ export interface PropertyItem {
    * the visibility filter. Absent on legacy rows → treated as [clinic_id].
    */
   target_clinic_ids?: string[]
+  /**
+   * Intra-clinic sub-cluster (platoon/squad) that OWNS this item. null/absent =
+   * HQ / common (always visible to every sub-cluster). Render-only grouping tag —
+   * NOT in RLS, NOT a fan-out routing key. Orthogonal to target_clinic_ids
+   * (cross-cluster following): changing squads is a value update, not a re-home.
+   * See v2/supervisor sub-cluster drawer.
+   */
+  sub_cluster_id?: string | null
   /** Origin id of the latest vault fan-out for this item (hard-delete resolution). */
   originId?: string
 }
@@ -298,4 +306,10 @@ export interface HolderInfo {
   firstName: string | null
   lastName: string | null
   displayName: string
+  /** Intra-clinic sub-cluster (platoon/squad) this member belongs to. null = HQ /
+   *  unassigned (always visible). Drives the squad lens for member personnel zones
+   *  on the map — render-only grouping, never an access boundary. See v2/supervisor.
+   *  Optional: only the clinic-roster fetch (usePropertyStore) populates it; the
+   *  display-only hand-receipt/DA 2062 holder literals omit it. */
+  subClusterId?: string | null
 }

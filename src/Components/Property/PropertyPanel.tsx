@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, memo } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo, memo } from 'react'
 import { X, MoreHorizontal, Check, ChevronLeft, Map as MapIcon, Camera, ClipboardList, Download } from 'lucide-react'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { LiftedRowMenu } from '../LiftedRowMenu'
@@ -32,6 +32,9 @@ import { PropertyCSVImport } from './PropertyCSVImportDrawer'
 import { SignOutForm, type SignOutFormHandle } from './SignOutForm'
 import { HeaderPill, PillButton } from '../HeaderPill'
 import { SearchInput } from '../SearchInput'
+import { PersonnelZoneCarousel } from './PersonnelZoneCarousel'
+import { useSubClusters } from '../../Hooks/useSubClusters'
+import { effectiveSubClusters, passesSubClusterFilter, type SubClusterFilter } from '../../Utilities/subCluster'
 
 export type PropertyView = 'property' | 'property-detail' | 'property-form'
 
@@ -121,10 +124,27 @@ export const PropertyPanel = memo(function PropertyPanel({
   // + the "New DA 2062" FAB action.
   const isDevRole = useAuthStore(s => s.isDevRole)
   const currentUserId = useAuthStore(s => s.user?.id ?? null)
-  // "My property" filter — scope the location tree to property the viewer OWNS
-  // (owner_user_id) OR HOLDS by custody (current_holder_id). Calendar-style list-item
-  // filter panel (see CalendarDrawer category/personnel panels). personal-zone-pcs-rehome.md §8.
+  const viewerSubClusterId = useAuthStore(s => s.profile.subClusterId ?? null)
+  const viewerPrimaryClinicId = useAuthStore(s => s.clinicId)
+  const { subClusters } = useSubClusters()
+  // Property FILTER — collapsed into the existing Locations sheet / desktop rail (one
+  // entry point shares the filter + the tree), NOT a separate gear. No chips. Two scopes
+  // via the calendar list-item filter primitive: (1) sub-unit (platoon/squad) → which
+  // personnel the carousel + tree show (default = viewer's own squad via the null lens);
+  // (2) "My property" → canvas/tree items the viewer owns/holds. Render-only.
   const [mineOnly, setMineOnly] = useState(false)
+  const [subClusterFilter, setSubClusterFilter] = useState<SubClusterFilter>(null)
+  const subClusterLens = effectiveSubClusters(subClusterFilter, viewerSubClusterId)
+  const subActive = Array.isArray(subClusterLens)
+  const subClusterShowingAll = subClusterLens === null
+  const subClusterActiveSet = new Set(subClusterLens ?? subClusters.map(s => s.id))
+  const toggleSubCluster = (id: string) => {
+    const next = new Set(subClusterActiveSet)
+    if (next.has(id)) next.delete(id)
+    else next.add(id)
+    const arr = subClusters.map(s => s.id).filter(c => next.has(c))
+    setSubClusterFilter(arr.length === 0 || arr.length === subClusters.length ? 'all' : arr)
+  }
   const filterRowCls = (active: boolean) =>
     `w-full flex items-center gap-3 py-2.5 px-4 text-left transition-colors active:scale-95 ${
       active ? 'bg-themeblue3/8 border-l-2 border-l-themeblue3' : 'hover:bg-secondary/5'
@@ -135,18 +155,38 @@ export const PropertyPanel = memo(function PropertyPanel({
       <p className="text-[10pt] font-medium text-tertiary uppercase tracking-wide">{label}</p>
     </div>
   )
-  const mineFilterPanel = currentUserId ? (
-    <div className="flex flex-col shrink-0">
-      {sectionHeader('Filter')}
+  // The property filter panel — the calendar list-item filter primitive (All/My property
+  // rows + sub-unit rows). Lives at the top of the Locations sheet (mobile) / rail
+  // (desktop), above the tree — one entry point shares the filter + the tree.
+  const propertyFilterPanel = (
+    <div className="flex flex-col">
+      {sectionHeader('My property')}
       <button className={filterRowCls(!mineOnly)} onClick={() => setMineOnly(false)}>
         <span className="text-[10pt] font-medium text-primary truncate flex-1">All property</span>
       </button>
       <button className={filterRowCls(mineOnly)} onClick={() => setMineOnly(true)}>
-        <span className="text-[10pt] font-medium text-primary truncate flex-1">My property</span>
+        <span className="text-[10pt] font-medium text-primary truncate flex-1">My property only</span>
         {mineOnly && <Check size={14} className="text-themeblue2 shrink-0" />}
       </button>
+      {subClusters.length > 0 && (
+        <>
+          {sectionHeader('Personnel — sub-unit')}
+          <button className={filterRowCls(subClusterShowingAll)} onClick={() => setSubClusterFilter('all')}>
+            <span className="text-[10pt] font-medium text-primary truncate flex-1">All sub-units</span>
+          </button>
+          {subClusters.map(c => {
+            const active = !subClusterShowingAll && subClusterActiveSet.has(c.id)
+            return (
+              <button key={c.id} className={filterRowCls(active)} onClick={() => toggleSubCluster(c.id)}>
+                <span className="text-[10pt] font-medium text-primary truncate flex-1">{c.name}</span>
+                {active && <Check size={14} className="text-themeblue2 shrink-0" />}
+              </button>
+            )
+          })}
+        </>
+      )}
     </div>
-  ) : null
+  )
 
   // DA 2062 accountability data — lifted here so BOTH the Custody tab AND the unified
   // search overlay share one fetch (search folds receipts in as a "Sign-outs"
@@ -184,6 +224,47 @@ export const PropertyPanel = memo(function PropertyPanel({
   })
   const hasData = visibleLocations.length > 0 || store.items.length > 0
   const showLoading = useMinLoadTime(store.isLoading) && !hasData
+
+  // The TREE (rail/sheet) lists physical/shared zones ONLY — personnel live solely in
+  // the top carousel. The MAP still receives the full location/item set (member zones
+  // stay in its tag index so navigateToZone can zoom INTO a personnel zone and pin its
+  // items); the map itself hides personnel tiles at the overview (see PropertyLocationMap
+  // memberZoneIds). Store keeps full data for writes.
+  const physicalLocations = useMemo(() => visibleLocations.filter(l => !l.holder_user_id), [visibleLocations])
+
+  // Personnel zones for the top carousel — member (root) zones gated by the sub-unit
+  // filter (default = viewer's own squad). Own zone, foreign-clinic zones, and
+  // HQ/unassigned holders always pass. Sorted by holder name; the carousel scrolls.
+  const personnelZones = useMemo(() => {
+    const members = visibleLocations.filter(l => !!l.holder_user_id)
+    const scoped = subActive
+      ? members.filter(l =>
+          (viewerPrimaryClinicId != null && l.clinic_id !== viewerPrimaryClinicId) ||
+          l.holder_user_id === currentUserId ||
+          passesSubClusterFilter(store.holders.get(l.holder_user_id!)?.subClusterId ?? null, subClusterLens),
+        )
+      : members
+    return scoped.slice().sort((a, b) => {
+      const an = store.holders.get(a.holder_user_id!)?.displayName || a.name
+      const bn = store.holders.get(b.holder_user_id!)?.displayName || b.name
+      return an.localeCompare(bn)
+    })
+  }, [visibleLocations, subActive, subClusterLens, viewerPrimaryClinicId, currentUserId, store.holders])
+
+  // "My property" item scope for the canvas + tree — viewer-owned (owner_user_id) or
+  // held-by-custody (current_holder_id). Off → the full set.
+  const displayItems = useMemo(
+    () => (mineOnly && currentUserId
+      ? store.items.filter(i => i.owner_user_id === currentUserId || i.current_holder_id === currentUserId)
+      : store.items),
+    [mineOnly, currentUserId, store.items],
+  )
+
+  // The TREE (rail + Locations sheet) lists physical/shared zones PLUS the filtered
+  // personnel zones (the same set the carousel shows) — so the one Locations entry
+  // point covers both, gated by the same filter. (The MAP overview still hides personnel
+  // tiles → carousel only.)
+  const treeLocations = useMemo(() => [...physicalLocations, ...personnelZones], [physicalLocations, personnelZones])
   const clinicName = useClinicName(store.clinicId) || 'Cluster'
 
   const mapRef = useRef<MapNavHandle>(null)
@@ -279,6 +360,7 @@ export const PropertyPanel = memo(function PropertyPanel({
   useEffect(() => {
     onRegisterOpenLocations?.(() => setShowLocations(true))
   }, [onRegisterOpenLocations])
+
 
   // Global-search deep-links: navigate the canvas to a zone, or jump to the
   // Custody tab. Both leave any open mobile sheet/form so the target surfaces.
@@ -442,6 +524,20 @@ export const PropertyPanel = memo(function PropertyPanel({
     else mapRef.current?.navigateToZone(loc.id)
   }, [selectedLocationId])
 
+  // Personnel carousel tap → open that member zone's detail directly. Personnel zones
+  // aren't on the canvas anymore, so we DON'T navigate the map — we surface the zone in
+  // the detail pane (desktop) / sheet (mobile). Re-tap the active card to close. Mirrors
+  // the map's onSelectZone view-reset so the detail isn't swallowed by an open item/form.
+  const handleSelectPersonnelZone = useCallback((loc: LocalPropertyLocation) => {
+    // Re-tap the active card → back to the company overview. Otherwise ZOOM into that
+    // person's zone: navigateToZone selects + frames it, the map un-hides that one
+    // personnel tile and pins its items, and onSelectZone surfaces its detail.
+    if (selectedLocationId === loc.id) { mapRef.current?.resetZoom(); return }
+    setMobileItem(null); setMobileForm(null)
+    if (!isMobile && (view === 'property-detail' || view === 'property-form')) onBack()
+    mapRef.current?.navigateToZone(loc.id)
+  }, [selectedLocationId, isMobile, view, onBack])
+
   const openLocMenu = useCallback((e: React.MouseEvent) => {
     setLocMenu({ rect: e.currentTarget.getBoundingClientRect() })
   }, [])
@@ -486,7 +582,7 @@ export const PropertyPanel = memo(function PropertyPanel({
       clinicId={store.clinicId}
       clinicName={clinicName}
       locations={visibleLocations}
-      items={store.items}
+      items={displayItems}
       onCreateLocation={store.addLocation}
       onDeleteLocation={store.removeLocation}
       onEditItem={(id, updates) => store.editItem(id, updates)}
@@ -530,6 +626,23 @@ export const PropertyPanel = memo(function PropertyPanel({
     onPmcs: () => locDetailRef.current?.openPmcs(),
     onDispatch: () => locDetailRef.current?.openDispatch(),
   })
+
+  // The property TOP BAR — the personnel-zone carousel (standard zone tiles), shown only
+  // at the root overview. No filter control here: the filter lives in the Locations
+  // sheet / rail. Tapping a card zooms the canvas into that person's zone
+  // (handleSelectPersonnelZone). pointer-events: the carousel re-enables on its own root
+  // so the empty strip never blocks canvas drag.
+  const renderTopBar = () => (
+    <div className="pointer-events-none">
+      <PersonnelZoneCarousel
+        zones={personnelZones}
+        holders={store.holders}
+        items={store.items}
+        activeId={selectedLocationId}
+        onSelect={handleSelectPersonnelZone}
+      />
+    </div>
+  )
 
   // Trayed FAB in a positioning wrapper — matches Calendar/Admin's add FAB
   // (bordered translucent tray, md size). The SAB padding rides the wrapper.
@@ -591,12 +704,14 @@ export const PropertyPanel = memo(function PropertyPanel({
                 placeholder="Search items, serials, locations"
               />
             </div>
-            {mineFilterPanel}
+            {/* Filter + tree share this rail (the desktop equivalent of the mobile
+                Locations sheet) — one entry point for both. */}
+            {propertyFilterPanel}
             {sectionHeader('Zones')}
             <div className="flex-1 min-h-0 overflow-y-auto">
               <PropertyLocationTree
-                locations={visibleLocations}
-                items={store.items}
+                locations={treeLocations}
+                items={displayItems}
                 clinicName={clinicName}
                 holders={store.holders}
                 searchQuery=""
@@ -606,8 +721,6 @@ export const PropertyPanel = memo(function PropertyPanel({
                 onSelectItem={handleSelectItem}
                 onSelectAll={() => mapRef.current?.resetZoom()}
                 allSelected={!selectedLocationId}
-                mineOnly={mineOnly}
-                currentUserId={currentUserId}
                 onEditLocation={handleEditLocation}
                 onEditItem={handleEditItemRow}
                 onDeleteLocation={onDeleteItem ? (locId) => setPendingDeleteLocId(locId) : undefined}
@@ -639,6 +752,13 @@ export const PropertyPanel = memo(function PropertyPanel({
               <>
                 {mapEl}
                 {addFab}
+                {/* Personnel carousel — only at the ROOT overview; collapses on zone
+                    select (rely on the existing breadcrumb/back nav to return to root). */}
+                {!desktopSearching && !drawingZone && !selectedLocationId && (
+                  <div className="absolute top-0 inset-x-0 z-20 px-3 pt-2 pointer-events-none">
+                    {renderTopBar()}
+                  </div>
+                )}
                 <LoadingOverlay visible={showLoading} />
                 {/* Search results overlay the LIVE map (mirrors mobile) — the canvas
                     stays mounted underneath, so a result tap can actually drive it
@@ -914,6 +1034,16 @@ export const PropertyPanel = memo(function PropertyPanel({
             <LoadingOverlay visible={showLoading} />
           </>
         )}
+        {/* Personnel carousel — only at the ROOT overview; collapses on zone select.
+            Offset below the floating drawer header (rides the canvas top). */}
+        {propertyTab !== 'custody' && !searchFocused && !drawingZone && !selectedLocationId && (
+          <div
+            className="absolute inset-x-0 z-20 px-3 pointer-events-none"
+            style={{ top: 'calc(var(--drawer-header-h, 3.5rem) + 0.25rem)' }}
+          >
+            {renderTopBar()}
+          </div>
+        )}
         {/* Search results page — mirrors the map overlay's MapSearchOverlay:
             focusing the header search reveals this over the full-screen canvas. */}
         <PropertySearchOverlay
@@ -1099,18 +1229,16 @@ export const PropertyPanel = memo(function PropertyPanel({
         maxHeight={70}
         zIndex={1200}
       >
-        {/* List view renders the SAME tree as the desktop rail (not cards). Opened
-            from the top-left header button, reachable from any tab. */}
-        {mineFilterPanel}
+        {/* One entry point: the filter + the tree share this sheet. The tree includes
+            personnel zones gated by the filter (same set the carousel shows). */}
+        {propertyFilterPanel}
         {sectionHeader('Zones')}
         <PropertyLocationTree
-          locations={visibleLocations}
-          items={store.items}
+          locations={treeLocations}
+          items={displayItems}
           clinicName={clinicName}
           activeLocationId={selectedLocationId}
           allSelected={!selectedLocationId}
-          mineOnly={mineOnly}
-          currentUserId={currentUserId}
           onSelectAll={() => { mapRef.current?.resetZoom(); setShowLocations(false) }}
           onSelectLocation={(loc) => { mapRef.current?.navigateToZone(loc.id); setShowLocations(false) }}
           onSelectItem={(item) => { handleSelectItem(item); setShowLocations(false) }}

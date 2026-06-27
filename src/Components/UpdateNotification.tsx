@@ -1,13 +1,11 @@
 /* Modal tokens: bg-themewhite rounded-2xl shadow-2xl border-tertiary/10 z-70. Ref: ProvisionalDeviceModal */
 import React, { useEffect, useState } from 'react';
-import { X, Download, Wifi, RefreshCw } from 'lucide-react';
+import { X, Download, RefreshCw } from 'lucide-react';
 import { useServiceWorker } from '../Hooks/useServiceWorker';
-import { UI_TIMING } from '../Utilities/constants';
 
 const UpdateNotification: React.FC<{ onVisibilityChange?: (visible: boolean) => void }> = ({ onVisibilityChange }) => {
     const {
         updateAvailable,
-        offlineReady,
         skipWaiting,
         dismissUpdate,
         isUpdating,
@@ -16,7 +14,6 @@ const UpdateNotification: React.FC<{ onVisibilityChange?: (visible: boolean) => 
 
     const [isVisible, setIsVisible] = useState(false);
     const [dismissed, setDismissed] = useState(false);
-    const [showOfflineToast, setShowOfflineToast] = useState(false);
 
     useEffect(() => {
         // Load dismissed state from localStorage (timestamp-based, 1-hour expiry)
@@ -49,15 +46,6 @@ const UpdateNotification: React.FC<{ onVisibilityChange?: (visible: boolean) => 
         onVisibilityChange?.(isVisible);
     }, [isVisible, onVisibilityChange]);
 
-    useEffect(() => {
-        // Show offline ready toast briefly
-        if (offlineReady) {
-            setShowOfflineToast(true);
-            const timer = setTimeout(() => setShowOfflineToast(false), UI_TIMING.OFFLINE_TOAST_DURATION);
-            return () => clearTimeout(timer);
-        }
-    }, [offlineReady]);
-
     const handleUpdate = () => {
         skipWaiting();
     };
@@ -67,23 +55,6 @@ const UpdateNotification: React.FC<{ onVisibilityChange?: (visible: boolean) => 
         setDismissed(true);
         dismissUpdate();
     };
-
-    // Offline ready toast - theme-responsive
-    if (showOfflineToast && !isVisible) {
-        return (
-            <div className="fixed inset-x-0 bottom-0 z-50 flex justify-center p-4 pointer-events-none animate-slideInUp">
-                <div className="bg-themewhite rounded-2xl shadow-2xl border border-tertiary/10 px-6 py-4 flex items-center gap-3 pointer-events-auto backdrop-blur-xl">
-                    <div className="w-10 h-10 rounded-full bg-themegreen/15 flex items-center justify-center flex-shrink-0">
-                        <Wifi className="h-5 w-5 text-themegreen" />
-                    </div>
-                    <div>
-                        <p className="text-sm font-medium text-primary">Offline Ready</p>
-                        <p className="text-[10pt] text-tertiary">All data cached locally.</p>
-                    </div>
-                </div>
-            </div>
-        );
-    }
 
     if (!isVisible) return null;
 

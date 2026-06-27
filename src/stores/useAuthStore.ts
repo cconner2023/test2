@@ -21,6 +21,7 @@ import { clearSignalKeys, destroySignalKeys, getLocalDeviceId } from '../lib/sig
 import { clearAllSessions } from '../lib/signal/session'
 import { clearMessageStore, destroyMessageStore } from '../lib/signal/messageStore'
 import { clearClinicUsersCache } from '../lib/clinicUsersCache'
+import { dbName } from '../lib/idbEnv'
 import { useCallStore } from './useCallStore'
 import { unregisterDevice, deleteKeyBundle, primaryLogoutAll, initLoRaMesh } from '../lib/signal/signalService'
 import { secureSet, secureGet, secureRemove, persistSupabaseAuth, destroySecureStore } from '../lib/secureStorage'
@@ -122,7 +123,8 @@ interface AuthState {
   /**
    * True when the vault drain bailed because the password-derived wrapping key
    * wasn't cached (live-session resume with no persisted key) AND messages are
-   * actually waiting. Drives the non-blocking VaultUnlockBanner re-auth prompt.
+   * actually waiting. Drives the blocking PasswordLockScreen reason="vault" re-auth
+   * gate in LockGate.
    */
   vaultKeyPromptNeeded: boolean
 }
@@ -270,7 +272,7 @@ async function fetchProfileFromSupabase(userId: string): Promise<{ profile: User
   // Disambiguate the embedded clinic relation by FK name — profiles now has
   // two FKs to clinics (clinic_id + surrogate_clinic_id) and PostgREST
   // refuses to resolve `clinics(name)` when multiple FKs target the same table.
-  const PROFILE_SELECT = 'first_name, last_name, middle_initial, credential, component, rank, uic, roles, clinic_id, surrogate_clinic_id, clinic:clinics!profiles_clinic_id_fkey(name), pin_hash, pin_salt, notify_dev_alerts, notify_calendar_assignments, text_expanders, plan_order_tags, plan_instruction_tags, plan_order_sets, needs_password_setup, favorite_medications, provider_note_templates, overview_widgets, theme, swipe_actions, allow_calls, avatar_id, avatar_blob'
+  const PROFILE_SELECT = 'first_name, last_name, middle_initial, credential, component, rank, uic, roles, clinic_id, surrogate_clinic_id, sub_cluster_id, clinic:clinics!profiles_clinic_id_fkey(name), pin_hash, pin_salt, notify_dev_alerts, notify_calendar_assignments, text_expanders, plan_order_tags, plan_instruction_tags, plan_order_sets, needs_password_setup, favorite_medications, provider_note_templates, overview_widgets, theme, swipe_actions, allow_calls, avatar_id, avatar_blob'
   const { data, error: fetchError } = await supabase
     .from('profiles')
     .select(PROFILE_SELECT)
@@ -294,6 +296,8 @@ async function fetchProfileFromSupabase(userId: string): Promise<{ profile: User
     profile.rank = data.rank ?? undefined
     profile.uic = data.uic ?? undefined
     profile.clinicName = clinicRow?.name ?? undefined
+    // Intra-clinic sub-cluster (platoon/squad). null = HQ bucket. Render-only lens.
+    profile.subClusterId = ((data as Record<string, unknown>).sub_cluster_id as string | null) ?? null
     // Avatar lives on the same row. Map with ?? null (not undefined) so a loaded
     // profile with no avatar is distinguishable from "not loaded yet" (undefined).
     profile.avatarId = ((data as Record<string, unknown>).avatar_id as string | null) ?? null
@@ -507,7 +511,7 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
         const dbNames = ['adtmc-signal-store', 'adtmc-message-store', 'adtmc-outbound-queue', 'adtmc-secure-store', 'adtmc-clinic-signal-store']
         results.forEach((r, i) => {
           if (r.status === 'rejected') {
-            try { indexedDB.deleteDatabase(dbNames[i]) } catch { /* last resort */ }
+            try { indexedDB.deleteDatabase(dbName(dbNames[i])) } catch { /* last resort */ }
           }
         })
       } else {
@@ -523,7 +527,7 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
         const dbNames = ['adtmc-signal-store', 'adtmc-message-store', 'adtmc-outbound-queue', 'adtmc-clinic-signal-store']
         results.forEach((r, i) => {
           if (r.status === 'rejected') {
-            try { indexedDB.deleteDatabase(dbNames[i]) } catch { /* last resort */ }
+            try { indexedDB.deleteDatabase(dbName(dbNames[i])) } catch { /* last resort */ }
           }
         })
       }
@@ -741,9 +745,9 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
                 // The drain bailed because the wrapping key wasn't cached — a
                 // live-session resume (e.g. post-SW-update reload) that never ran
                 // the password sign-in path and had no persisted key to restore.
-                // If messages are actually waiting, surface a NON-blocking prompt
-                // to re-enter the password and drain without a full re-login.
-                // (VaultUnlockBanner reads this flag.)
+                // If messages are actually waiting, surface the blocking vault
+                // re-auth gate (LockGate → PasswordLockScreen reason="vault") to
+                // re-enter the password and drain without a full re-login.
                 if (await hasPendingVaultMessages(userId)) {
                   set({ vaultKeyPromptNeeded: true })
                 }

@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo, useCallback, useRef, type ReactNode } from 'react'
-import { ChevronRight, ChevronDown, AlertTriangle, User, Building2, MapPin, Eye, Pencil, Trash2, Mail, MessageSquare } from 'lucide-react'
+import { ChevronRight, ChevronDown, AlertTriangle, User, Users, Building2, MapPin, Eye, Pencil, Trash2, Mail, MessageSquare } from 'lucide-react'
 import { listClinics, listAllUsers, listLocations, deleteClinic, deleteUser } from '../../lib/adminService'
 import type { AdminUser, AdminClinic, AdminLocation } from '../../lib/adminService'
+import { fetchAllSubClusters, type SubCluster } from '../../lib/subClusterService'
 import { buildScopeIndex } from './adminScope'
 import { buildMailtoHref } from '../../lib/mailto'
 import { useInvalidation, invalidate } from '../../stores/useInvalidationStore'
@@ -17,57 +18,61 @@ interface AdminSummaryProps {
   onSelectUser: (user: AdminUser) => void
   onEditClinic: (clinic: AdminClinic) => void
   onEditUser: (user: AdminUser) => void
-  onSelectLocation?: (location: AdminLocation) => void
-  onEditLocation?: (location: AdminLocation) => void
   /** Open an in-app system conversation with a user. Passed only for dev role;
    *  when absent the tree context menu omits the Chat action. */
   onChatUser?: (user: AdminUser) => void
   /** Empty-state fallback action. */
   onSelectAll: () => void
   /** Controlled search (shared with the drawer's SearchInput). Filters the tree
-   *  by location / cluster name and member name/email; matches force-expand. */
+   *  by cluster name, its location chip, and member name/email; matches
+   *  force-expand. */
   searchQuery?: string
   activeClinicId?: string | null
   activeUserId?: string | null
-  activeLocationId?: string | null
 }
 
-// Unified tree node — locations contain sub-locations + clusters; clusters
-// contain sub-clusters + user leaves.
+// Tree node — the org IS the tree: a root cluster ⊃ child clusters ⊃ user leaves.
+// `locationLabel` is the cluster's location shown as a chip (not a parent node),
+// so a cluster in a different location than its parent reads honestly.
+//
+// `subUnits` is an intra-clinic render-only grouping layer (platoon/squad) that
+// sits BETWEEN a cluster and its direct users: when a clinic has sub-units, its
+// roster nests under sub-unit grouping nodes, and `users` holds only the HQ /
+// ungrouped remainder. Sub-units are NOT access boundaries and have no detail
+// pane — their rows only expand/collapse. See Utilities/subCluster.ts.
+type SubUnitNode = { id: string; name: string; users: AdminUser[] }
 type TreeNode =
-  | { kind: 'location'; id: string; label: string; location: AdminLocation; children: TreeNode[]; count: number }
-  | { kind: 'clinic'; id: string; label: string; clinic: AdminClinic; children: TreeNode[]; users: AdminUser[]; count: number }
+  { kind: 'clinic'; id: string; label: string; clinic: AdminClinic; children: TreeNode[]; subUnits: SubUnitNode[]; users: AdminUser[]; count: number; locationLabel: string | null }
 
 /**
- * The Directory tree — the admin drawer's MAIN content list. A unified
- * location ⊃ cluster ⊃ user containment forest with selectable user leaves.
- * Tapping a node opens its detail; long-press/right-click opens View/Edit/
- * (Delete) actions. Stats + system conversations live in the sort rail
- * (AdminSortRail), not here — this is purely the browsable tree.
+ * The Directory tree — the admin drawer's MAIN content list. An ORG-rooted
+ * cluster ⊃ sub-cluster ⊃ user containment forest with selectable user leaves;
+ * each cluster shows its location as a chip. Tapping a node opens its detail;
+ * long-press/right-click opens View/Edit/(Delete) actions. Locations are managed
+ * in the Settings sheet, not here. Stats + triage queues live in the sort rail
+ * (AdminSortRail) — this is purely the browsable tree.
  */
 export function AdminSummary({
   onSelectClinic,
   onSelectUser,
   onEditClinic,
   onEditUser,
-  onSelectLocation,
-  onEditLocation,
   onChatUser,
   onSelectAll,
   searchQuery,
   activeClinicId,
   activeUserId,
-  activeLocationId,
 }: AdminSummaryProps) {
-  const gen = useInvalidation('users', 'clinics', 'locations')
+  const gen = useInvalidation('users', 'clinics', 'locations', 'subClusters')
   const [clinics, setClinics] = useState<AdminClinic[]>([])
   const [users, setUsers] = useState<AdminUser[]>([])
   const [locations, setLocations] = useState<AdminLocation[]>([])
+  const [subClusters, setSubClusters] = useState<SubCluster[]>([])
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
 
   // Lifted-clone context menu (right-click / long-press) + delete flow.
-  const [contextMenu, setContextMenu] = useState<{ kind: 'clinic' | 'user' | 'location'; id: string; rect: DOMRect; clone: ReactNode } | null>(null)
+  const [contextMenu, setContextMenu] = useState<{ kind: 'clinic' | 'user'; id: string; rect: DOMRect; clone: ReactNode } | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<{ kind: 'clinic' | 'user'; id: string; label: string } | null>(null)
   const [deleteProcessing, setDeleteProcessing] = useState(false)
   const [notify, setNotify] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
@@ -89,22 +94,6 @@ export function AdminSummary({
             <Building2 size={14} className="text-tertiary" />
           </span>
           <span className="flex-1 min-w-0 text-[10pt] font-medium text-primary truncate">{clinic.name}</span>
-        </div>
-      ),
-    })
-  }, [])
-
-  const openLocationMenu = useCallback((location: AdminLocation, el: HTMLElement) => {
-    setContextMenu({
-      kind: 'location',
-      id: location.id,
-      rect: el.getBoundingClientRect(),
-      clone: (
-        <div className="bg-themewhite px-4 py-2.5 flex items-center gap-2">
-          <span className="w-7 h-7 rounded-full bg-themeblue2/10 flex items-center justify-center shrink-0">
-            <MapPin size={14} className="text-themeblue2" />
-          </span>
-          <span className="flex-1 min-w-0 text-[10pt] font-medium text-primary truncate">{location.display_name}</span>
         </div>
       ),
     })
@@ -143,14 +132,16 @@ export function AdminSummary({
 
   const loadData = useCallback(async () => {
     setLoading(true)
-    const [clinicData, userData, locationData] = await Promise.all([
+    const [clinicData, userData, locationData, subClusterRes] = await Promise.all([
       listClinics(),
       listAllUsers(),
       listLocations(),
+      fetchAllSubClusters(),
     ])
     setClinics(clinicData)
     setUsers(userData)
     setLocations(locationData)
+    setSubClusters(subClusterRes.ok ? subClusterRes.data : [])
     setLoading(false)
   }, [])
 
@@ -166,6 +157,19 @@ export function AdminSummary({
   }, [])
 
   const index = useMemo(() => buildScopeIndex(clinics, locations), [clinics, locations])
+
+  const locationsById = useMemo(() => new Map(locations.map(l => [l.id, l])), [locations])
+
+  /** clinic_id → its sub-units (platoon/squad), in fetch (name) order. */
+  const subClustersByClinic = useMemo(() => {
+    const map = new Map<string, SubCluster[]>()
+    for (const sc of subClusters) {
+      const arr = map.get(sc.clinic_id)
+      if (arr) arr.push(sc)
+      else map.set(sc.clinic_id, [sc])
+    }
+    return map
+  }, [subClusters])
 
   const usersByClinic = useMemo(() => {
     const map = new Map<string, number>()
@@ -208,39 +212,56 @@ export function AdminSummary({
   const q = (searchQuery ?? '').trim().toLowerCase()
   const searching = q.length > 0
 
-  // Build the unified node forest (locations ⊃ clusters ⊃ user leaves).
+  // Build the org-rooted node forest (root cluster ⊃ sub-clusters ⊃ user leaves).
+  // Location is resolved to a chip label per cluster, not a parent node. The chip
+  // shows on roots, and on sub-clusters ONLY when their location differs from the
+  // parent's — surfacing exactly the "org in a different location than its parent"
+  // case without spamming a chip on every same-location descendant.
   const roots = useMemo(() => {
-    const clinicNode = (clinic: AdminClinic): TreeNode => {
-      const children = (index.clinicChildren.get(clinic.id) ?? []).map(clinicNode)
+    const clinicNode = (clinic: AdminClinic, parentLocId: string | null): TreeNode => {
+      const ownLocId = clinic.location_id ?? null
+      const children = (index.clinicChildren.get(clinic.id) ?? []).map(c => clinicNode(c, ownLocId))
       const childCount = children.reduce((s, n) => s + n.count, 0)
+      const loc = ownLocId ? locationsById.get(ownLocId) : undefined
+      const showChip = !!loc && ownLocId !== parentLocId
+
+      // Sub-unit grouping: when this clinic has sub-units, nest its roster under
+      // them. Every sub-unit renders (even empty) so the structure is visible;
+      // members with no — or a now-deleted — sub_cluster_id stay as HQ leaves
+      // directly under the clinic. No sub-units → flat roster (subUnits = []).
+      const clinicUsers = usersByClinicList.get(clinic.id) ?? []
+      const units = subClustersByClinic.get(clinic.id) ?? []
+      let subUnits: SubUnitNode[] = []
+      let directUsers = clinicUsers
+      if (units.length > 0) {
+        const known = new Set(units.map(u => u.id))
+        const byUnit = new Map<string, AdminUser[]>()
+        const hq: AdminUser[] = []
+        for (const u of clinicUsers) {
+          if (u.sub_cluster_id && known.has(u.sub_cluster_id)) {
+            const arr = byUnit.get(u.sub_cluster_id)
+            if (arr) arr.push(u)
+            else byUnit.set(u.sub_cluster_id, [u])
+          } else hq.push(u)
+        }
+        subUnits = units.map(u => ({ id: u.id, name: u.name, users: byUnit.get(u.id) ?? [] }))
+        directUsers = hq
+      }
+
       return {
         kind: 'clinic',
         id: clinic.id,
         label: clinic.name,
         clinic,
         children,
-        users: usersByClinicList.get(clinic.id) ?? [],
+        subUnits,
+        users: directUsers,
         count: (usersByClinic.get(clinic.id) ?? 0) + childCount,
+        locationLabel: showChip ? loc!.display_name : null,
       }
     }
-    const locationNode = (loc: AdminLocation): TreeNode => {
-      const childLocs = (index.locChildren.get(loc.id) ?? []).map(locationNode)
-      const clinicsHere = (index.clinicsByLocation.get(loc.id) ?? []).map(clinicNode)
-      const children = [...childLocs, ...clinicsHere]
-      return {
-        kind: 'location',
-        id: loc.id,
-        label: loc.display_name,
-        location: loc,
-        children,
-        count: children.reduce((s, n) => s + n.count, 0),
-      }
-    }
-    return [
-      ...index.rootLocations.map(locationNode),
-      ...index.floatingRootClinics.map(clinicNode),
-    ]
-  }, [index, usersByClinic, usersByClinicList])
+    return index.rootClinics.map(c => clinicNode(c, null))
+  }, [index, usersByClinic, usersByClinicList, locationsById, subClustersByClinic])
 
   // Apply the search filter. A node survives if its own label matches, any of
   // its (cluster) users match, or any descendant survives.
@@ -252,15 +273,21 @@ export function AdminSummary({
     }
     const filterNode = (node: TreeNode): TreeNode | null => {
       const selfMatch = node.label.toLowerCase().includes(q)
+        || (node.locationLabel?.toLowerCase().includes(q) ?? false)
       const children = node.children.map(filterNode).filter((n): n is TreeNode => n !== null)
-      if (node.kind === 'clinic') {
-        const matchedUsers = selfMatch ? node.users : node.users.filter(userMatches)
-        if (selfMatch || matchedUsers.length || children.length) {
-          return { ...node, users: matchedUsers, children }
-        }
-        return null
+      const matchedUsers = selfMatch ? node.users : node.users.filter(userMatches)
+      // A sub-unit survives if its name matches (keep all its members) or any of
+      // its members match (keep just those). Clinic self-match keeps everything.
+      const subUnits = selfMatch
+        ? node.subUnits
+        : node.subUnits
+            .map(su => su.name.toLowerCase().includes(q)
+              ? su
+              : { ...su, users: su.users.filter(userMatches) })
+            .filter(su => su.name.toLowerCase().includes(q) || su.users.length > 0)
+      if (selfMatch || matchedUsers.length || subUnits.length || children.length) {
+        return { ...node, users: matchedUsers, subUnits, children }
       }
-      if (selfMatch || children.length) return { ...node, children }
       return null
     }
     return roots.map(filterNode).filter((n): n is TreeNode => n !== null)
@@ -296,26 +323,49 @@ export function AdminSummary({
     )
   }
 
+  // Sub-unit (platoon/squad) grouping row — a render-only node with no detail
+  // pane, so the whole row just expands/collapses to reveal its member leaves.
+  function renderSubUnit(su: SubUnitNode, depth: number) {
+    const expandable = su.users.length > 0
+    const isCollapsed = !searching && expandable && collapsed.has(su.id)
+    return (
+      <div key={su.id}>
+        <div
+          className="flex items-center gap-2 py-1.5 pr-4 cursor-pointer transition-all active:scale-[0.98] hover:bg-secondary/5"
+          style={{ paddingLeft: `${16 + depth * 16}px` }}
+          onClick={() => { if (expandable) toggleCollapse(su.id) }}
+          role={expandable ? 'button' : undefined}
+          aria-expanded={expandable ? !isCollapsed : undefined}
+        >
+          {expandable ? (
+            <span className="p-0.5 text-tertiary shrink-0">
+              {isCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+            </span>
+          ) : (
+            <span className="w-[18px] shrink-0" />
+          )}
+          <Users size={13} className="shrink-0 text-tertiary" />
+          <span className="flex-1 min-w-0 text-[9.5pt] font-medium text-secondary truncate">{su.name}</span>
+          <span className="text-[9pt] font-normal text-tertiary tabular-nums shrink-0">{su.users.length}</span>
+        </div>
+        {expandable && !isCollapsed && su.users.map(u => renderUserLeaf(u, depth + 1))}
+      </div>
+    )
+  }
+
   function renderNode(node: TreeNode, depth: number) {
-    // A node expands if it has descendant nodes, or (clinics) has user leaves to
-    // reveal. Search force-expands so matches are visible.
-    const hasUsers = node.kind === 'clinic' && node.users.length > 0
-    const expandable = node.children.length > 0 || hasUsers
+    // A cluster expands if it has sub-units, child clusters, or user leaves.
+    // Search force-expands so matches are visible.
+    const hasUsers = node.users.length > 0
+    const expandable = node.children.length > 0 || node.subUnits.length > 0 || hasUsers
     const isCollapsed = !searching && expandable && collapsed.has(node.id)
-    const isActive = node.kind === 'clinic'
-      ? activeClinicId === node.id
-      : activeLocationId === node.id
-    const Icon = node.kind === 'location' ? MapPin : Building2
+    const isActive = activeClinicId === node.id
 
     const selectNode = () => {
       if (preventTap.current) { preventTap.current = false; return }
-      if (node.kind === 'location') onSelectLocation?.(node.location)
-      else onSelectClinic(node.clinic)
+      onSelectClinic(node.clinic)
     }
-    const openMenu = (el: HTMLElement) => {
-      if (node.kind === 'location') openLocationMenu(node.location, el)
-      else openClinicMenu(node.clinic, el)
-    }
+    const openMenu = (el: HTMLElement) => openClinicMenu(node.clinic, el)
 
     return (
       <div key={node.id}>
@@ -342,17 +392,23 @@ export function AdminSummary({
             <span className="w-[18px] shrink-0" />
           )}
 
-          <Icon size={14} className={`shrink-0 ${node.kind === 'location' ? 'text-themeblue2' : 'text-tertiary'}`} />
+          <Building2 size={14} className="shrink-0 text-tertiary" />
 
           <div
             role="button"
             tabIndex={0}
             aria-label={`Select ${node.label}`}
-            className="flex items-center flex-1 min-w-0"
+            className="flex items-center gap-1.5 flex-1 min-w-0"
             onClick={selectNode}
             onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectNode() } }}
           >
             <span className="text-[10pt] font-medium text-primary truncate">{node.label}</span>
+            {node.locationLabel && (
+              <span className="inline-flex items-center gap-0.5 text-[8.5pt] text-themeblue2 bg-themeblue2/10 rounded-full pl-1 pr-1.5 py-0.5 shrink min-w-0 max-w-[45%]">
+                <MapPin size={9} className="shrink-0" />
+                <span className="truncate">{node.locationLabel}</span>
+              </span>
+            )}
           </div>
 
           <span className="text-[9pt] font-normal text-tertiary tabular-nums shrink-0">{node.count}</span>
@@ -360,7 +416,8 @@ export function AdminSummary({
 
         {expandable && !isCollapsed && (
           <>
-            {hasUsers && node.kind === 'clinic' && node.users.map(u => renderUserLeaf(u, depth + 1))}
+            {node.subUnits.map(su => renderSubUnit(su, depth + 1))}
+            {hasUsers && node.users.map(u => renderUserLeaf(u, depth + 1))}
             {node.children.map(child => renderNode(child, depth + 1))}
           </>
         )}
@@ -370,11 +427,11 @@ export function AdminSummary({
 
   if (loading) return <AdminSummarySkeleton />
 
-  if (clinics.length === 0 && users.length === 0 && locations.length === 0) {
+  if (clinics.length === 0 && users.length === 0) {
     return (
       <div className="px-4 py-4">
         <EmptyState
-          title="No locations, clusters, or users yet"
+          title="No clusters or users yet"
           action={{ icon: Building2, label: 'Show all', onClick: onSelectAll }}
         />
       </div>
@@ -423,14 +480,6 @@ export function AdminSummary({
             { key: 'edit', label: 'Edit', icon: Pencil, onAction: () => onEditClinic(clinic) },
             { key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => setConfirmDelete({ kind: 'clinic', id: clinic.id, label: clinic.name }) },
           ]
-        } else if (contextMenu.kind === 'location') {
-          const location = locations.find(l => l.id === contextMenu.id)
-          if (!location) return null
-          items = [
-            ...(onSelectLocation ? [{ key: 'view', label: 'View', icon: Eye, onAction: () => onSelectLocation(location) }] : []),
-            ...(onEditLocation ? [{ key: 'edit', label: 'Edit', icon: Pencil, onAction: () => onEditLocation(location) }] : []),
-          ]
-          if (items.length === 0) return null
         } else {
           const user = users.find(u => u.id === contextMenu.id)
           if (!user) return null

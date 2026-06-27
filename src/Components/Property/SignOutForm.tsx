@@ -3,7 +3,7 @@ import { Check, ChevronDown, Minus, Plus } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import { TextInput } from '../FormInputs'
 import { PreviewOverlay } from '../PreviewOverlay'
-import { ConfirmDialog } from '../ConfirmDialog'
+import { SignaturePad } from '../SignaturePad'
 import { Da2062Preview } from './Da2062Preview'
 import { usePropertyStore } from '../../stores/usePropertyStore'
 import { useAuthStore } from '../../stores/useAuthStore'
@@ -62,7 +62,7 @@ export const SignOutForm = forwardRef<SignOutFormHandle, SignOutFormProps>(funct
   // itemId → quantity to sign out (>= 1, capped at the item's on-hand count).
   const [quantities, setQuantities] = useState<Map<string, number>>(new Map())
   const [busy, setBusy] = useState(false)
-  const [showConfirm, setShowConfirm] = useState(false)
+  const [showSignature, setShowSignature] = useState(false)
 
   const [recipientOpen, setRecipientOpen] = useState(false)
   const [recipientAnchor, setRecipientAnchor] = useState<DOMRect | null>(null)
@@ -144,7 +144,7 @@ export const SignOutForm = forwardRef<SignOutFormHandle, SignOutFormProps>(funct
   const recipientReady = mode === 'member' ? !!toHolderId : !!externalName.trim()
   const canSubmit = recipientReady && quantities.size > 0 && !busy
 
-  const handleSubmit = useCallback(async () => {
+  const handleSubmit = useCallback(async (signatureImage?: string) => {
     if (!canSubmit) return
     setBusy(true)
     const chosen = signableItems.filter((i) => quantities.has(i.id))
@@ -191,33 +191,36 @@ export const SignOutForm = forwardRef<SignOutFormHandle, SignOutFormProps>(funct
       serial_number: i.serial_number,
       quantity: quantities.get(i.id) ?? 1,
     }))
+    const now = new Date()
+    const ymd = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`
     await exportDA2062({
       items,
       fromHolder,
       toHolder,
       handReceiptNumber: `HR-${handReceiptId.slice(0, 8).toUpperCase()}`,
-      date: new Date().toLocaleDateString(),
+      date: now.toLocaleDateString(),
+      // Recipient acknowledgement, stamped vertically in QUANTITY column B.
+      signature: { printedName: toHolder.displayName, date: ymd, image: signatureImage },
     })
     setBusy(false)
   }, [canSubmit, signableItems, quantities, store, mode, toHolderId, externalName, notes, profile, exportDA2062])
 
-  // Host header Check pill stages a confirm (no-ops until valid); the actual
-  // sign-out runs on confirm.
+  // Host header Check pill opens the signature pad (no-ops until valid); the
+  // recipient signs to acknowledge, which both confirms and stamps the 2062.
   const requestSubmit = useCallback(() => {
-    if (canSubmit) setShowConfirm(true)
+    if (canSubmit) setShowSignature(true)
   }, [canSubmit])
   useImperativeHandle(ref, () => ({ submit: requestSubmit }), [requestSubmit])
 
   return (
     <>
-      <ConfirmDialog
-        visible={showConfirm}
-        title="Sign these items out?"
-        confirmLabel="Sign out"
-        variant="primary"
+      <SignaturePad
+        isOpen={showSignature}
         zIndex={1500}
-        onConfirm={() => { setShowConfirm(false); handleSubmit() }}
-        onCancel={() => setShowConfirm(false)}
+        title="Recipient signature"
+        subtitle={recipientLabel ? `${recipientLabel} — sign to acknowledge receipt` : 'Sign to acknowledge receipt'}
+        onClose={() => setShowSignature(false)}
+        onComplete={(img) => { setShowSignature(false); handleSubmit(img) }}
       />
 
       <div className="px-4 py-4">

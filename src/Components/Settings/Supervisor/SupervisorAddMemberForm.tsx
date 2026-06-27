@@ -10,6 +10,10 @@ import {
   createClinicUser,
   type UserLookupResult,
 } from '../../../lib/supervisorService'
+import { setMemberSubCluster } from '../../../lib/subClusterService'
+import { useSubClusters } from '../../../Hooks/useSubClusters'
+import { invalidate } from '../../../stores/useInvalidationStore'
+import { useAuthStore } from '../../../stores/useAuthStore'
 
 interface SupervisorAddMemberFormProps {
   clinicId: string
@@ -34,6 +38,22 @@ export function SupervisorAddMemberForm({ clinicId, onBack, onSaved }: Superviso
   const [tempPassword, setTempPassword] = useState('')
   const [isSupervisor, setIsSupervisor] = useState(false)
   const [isProvider, setIsProvider] = useState(false)
+  // Sub-cluster (platoon/squad) section. '' = HQ / Unassigned (default). Render-only.
+  const [subClusterId, setSubClusterId] = useState('')
+
+  const { subClusters } = useSubClusters()
+  // Sub-cluster RPCs/list are scoped to the supervisor's PRIMARY clinic
+  // (get_current_user_clinic_id). Only offer the section picker when adding to
+  // that clinic — for a surrogate/loaned clinic the list wouldn't apply.
+  const primaryClinicId = useAuthStore(s => s.clinicId)
+  const sectionApplicable = clinicId === primaryClinicId && subClusters.length > 0
+  const sectionOptions = [
+    { value: '', label: 'HQ / Unassigned' },
+    ...subClusters.map(s => ({ value: s.id, label: s.name })),
+  ]
+  const sectionPicker = sectionApplicable ? (
+    <PickerInput value={subClusterId} onChange={setSubClusterId} options={sectionOptions} placeholder="Sub-unit (section)" />
+  ) : null
 
   // ── UI state ──────────────────────────────────────────────────────────
   const [submitting, setSubmitting] = useState(false)
@@ -75,14 +95,19 @@ export function SupervisorAddMemberForm({ clinicId, onBack, onSaved }: Superviso
     setError(null)
 
     const result = await addClinicMember(clinicId, lookupResult.user_id)
+    if (result.success && subClusterId) {
+      // Reassign resets section to HQ server-side; set the chosen one if any.
+      await setMemberSubCluster(lookupResult.user_id, subClusterId)
+    }
     setSubmitting(false)
 
     if (result.success) {
+      invalidate('users')
       onSaved()
     } else {
       setError(result.error)
     }
-  }, [clinicId, lookupResult, onSaved])
+  }, [clinicId, lookupResult, subClusterId, onSaved])
 
   // ─── Create New User ────────────────────────────────────────────────
 
@@ -116,14 +141,19 @@ export function SupervisorAddMemberForm({ clinicId, onBack, onSaved }: Superviso
       roles,
     })
 
+    if (result.success && subClusterId && result.userId) {
+      await setMemberSubCluster(result.userId, subClusterId)
+    }
+
     setSubmitting(false)
 
     if (result.success) {
+      invalidate('users')
       onSaved()
     } else {
       setError(result.error)
     }
-  }, [clinicId, email, tempPassword, firstName, lastName, middleInitial, credential, component, rank, isSupervisor, isProvider, onSaved])
+  }, [clinicId, email, tempPassword, firstName, lastName, middleInitial, credential, component, rank, isSupervisor, isProvider, subClusterId, onSaved])
 
   const handleComponentChange = useCallback((val: string) => {
     setComponent(val)
@@ -185,6 +215,12 @@ export function SupervisorAddMemberForm({ clinicId, onBack, onSaved }: Superviso
             </p>
           )}
 
+          {sectionPicker && (
+            <div className="rounded-2xl bg-themewhite overflow-hidden">
+              {sectionPicker}
+            </div>
+          )}
+
           <button
             onClick={handleAddExisting}
             disabled={submitting}
@@ -231,6 +267,7 @@ export function SupervisorAddMemberForm({ clinicId, onBack, onSaved }: Superviso
             <PickerInput value={credential} onChange={setCredential} options={credentials} placeholder="Credential" />
             <PickerInput value={component} onChange={handleComponentChange} options={components} placeholder="Component" />
             {component && <PickerInput value={rank} onChange={setRank} options={componentRanks} placeholder="Rank" />}
+            {sectionPicker}
 
             {/* ── Role Toggles ──────────────────────────────────────── */}
             <div className="px-4 py-3">

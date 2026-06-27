@@ -30,10 +30,19 @@ import { buildMailtoHref } from '../../lib/mailto'
 import { invalidate, useInvalidation } from '../../stores/useInvalidationStore'
 import { UI_TIMING } from '../../Utilities/constants'
 
+type FeedKind = 'request' | 'suggestion' | 'feedback'
+
 interface AdminRequestsListProps {
   searchQuery?: string
   /** When true, renders items without wrapper chrome (for unified search results) */
   bare?: boolean
+  /** Restrict to specific item kinds. Omit for all. The admin rail renders one
+   *  instance scoped to ['request'] (Requests section) and another scoped to
+   *  ['suggestion','feedback'] (Feedback section) so like items group together. */
+  kinds?: ReadonlyArray<FeedKind>
+  /** Bare mode only: render this muted line when there are no items, instead of
+   *  collapsing to null. Keeps a labelled rail section reading intentionally. */
+  bareEmptyText?: string
   /** When true, renders as a labelled section inside the unified search results:
    *  page-padding-free, collapses to null on an empty search. */
   embedded?: boolean
@@ -46,7 +55,7 @@ interface AdminRequestsListProps {
   ) => void
 }
 
-export function AdminRequestsList({ searchQuery: searchQueryProp, bare, embedded, title, onApproved }: AdminRequestsListProps) {
+export function AdminRequestsList({ searchQuery: searchQueryProp, bare, embedded, title, kinds, bareEmptyText, onApproved }: AdminRequestsListProps) {
   const searchQuery = searchQueryProp ?? ''
 
   const gen = useInvalidation('requests')
@@ -169,21 +178,22 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, embedded
     | { key: string; kind: 'feedback'; data: FeedbackRow; date: string; pendingRank: 0 | 1 }
 
   const feedItems: FeedItem[] = useMemo(() => {
-    const req: FeedItem[] = filteredRequests.map((r) => ({
+    const allow = kinds ? new Set(kinds) : null
+    const req: FeedItem[] = (allow && !allow.has('request') ? [] : filteredRequests).map((r) => ({
       key: `req-${r.id}`,
       kind: 'request',
       data: r,
       date: r.requested_at,
       pendingRank: r.status === 'pending' ? 0 : 1,
     }))
-    const sug: FeedItem[] = filteredSuggestions.map((s) => ({
+    const sug: FeedItem[] = (allow && !allow.has('suggestion') ? [] : filteredSuggestions).map((s) => ({
       key: `sug-${s.id}`,
       kind: 'suggestion',
       data: s,
       date: s.createdAt,
       pendingRank: 0,
     }))
-    const fb: FeedItem[] = filteredFeedback.map((f) => ({
+    const fb: FeedItem[] = (allow && !allow.has('feedback') ? [] : filteredFeedback).map((f) => ({
       key: `fb-${f.id}`,
       kind: 'feedback',
       data: f,
@@ -194,7 +204,7 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, embedded
       if (a.pendingRank !== b.pendingRank) return a.pendingRank - b.pendingRank
       return new Date(b.date).getTime() - new Date(a.date).getTime()
     })
-  }, [filteredRequests, filteredSuggestions, filteredFeedback])
+  }, [filteredRequests, filteredSuggestions, filteredFeedback, kinds])
 
   // ── Delete handler ──────────────────────────────────────
   const handleDeleteRequest = useCallback(async (requestId: string) => {
@@ -468,7 +478,12 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, embedded
 
   // ── Bare mode: just the items (no wrapper chrome) ──────
   if (bare) {
-    if (feedItems.length === 0) return null
+    if (feedItems.length === 0) {
+      if (!bareEmptyText) return null
+      return (
+        <p className="px-4 py-2.5 text-[9.5pt] text-tertiary">{bareEmptyText}</p>
+      )
+    }
     return (
       <>
         {feedItems.map(renderFeedItem)}

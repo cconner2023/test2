@@ -117,6 +117,7 @@ export type Database = {
           seq: number
           subject_id: string
           subject_type: string
+          updated_at: string | null
         }
         Insert: {
           actor_id?: string | null
@@ -130,6 +131,7 @@ export type Database = {
           seq?: never
           subject_id: string
           subject_type: string
+          updated_at?: string | null
         }
         Update: {
           actor_id?: string | null
@@ -143,6 +145,7 @@ export type Database = {
           seq?: never
           subject_id?: string
           subject_type?: string
+          updated_at?: string | null
         }
         Relationships: [
           {
@@ -374,6 +377,7 @@ export type Database = {
           clinic_id: string
           condition_code: Database["public"]["Enums"]["property_condition"]
           from_holder_id: string | null
+          hand_receipt_id: string | null
           id: string
           item_id: string
           notes: string | null
@@ -389,6 +393,7 @@ export type Database = {
           clinic_id: string
           condition_code: Database["public"]["Enums"]["property_condition"]
           from_holder_id?: string | null
+          hand_receipt_id?: string | null
           id?: string
           item_id: string
           notes?: string | null
@@ -404,6 +409,7 @@ export type Database = {
           clinic_id?: string
           condition_code?: Database["public"]["Enums"]["property_condition"]
           from_holder_id?: string | null
+          hand_receipt_id?: string | null
           id?: string
           item_id?: string
           notes?: string | null
@@ -1160,6 +1166,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          allow_calls: boolean
           avatar_blob: Json | null
           avatar_id: string | null
           clinic_id: string | null
@@ -1189,10 +1196,10 @@ export type Database = {
           provider_note_templates: Json | null
           rank: string | null
           roles: Database["public"]["Enums"]["user_role"][] | null
+          sub_cluster_id: string | null
           supervisor_created: boolean
           surrogate_clinic_id: string | null
           swipe_actions: Json | null
-          allow_calls: boolean
           text_expanders: Json | null
           theme: string | null
           uic: string | null
@@ -1200,6 +1207,7 @@ export type Database = {
           voicemail_greeting: Json | null
         }
         Insert: {
+          allow_calls?: boolean
           avatar_blob?: Json | null
           avatar_id?: string | null
           clinic_id?: string | null
@@ -1229,10 +1237,10 @@ export type Database = {
           provider_note_templates?: Json | null
           rank?: string | null
           roles?: Database["public"]["Enums"]["user_role"][] | null
+          sub_cluster_id?: string | null
           supervisor_created?: boolean
           surrogate_clinic_id?: string | null
           swipe_actions?: Json | null
-          allow_calls?: boolean
           text_expanders?: Json | null
           theme?: string | null
           uic?: string | null
@@ -1240,6 +1248,7 @@ export type Database = {
           voicemail_greeting?: Json | null
         }
         Update: {
+          allow_calls?: boolean
           avatar_blob?: Json | null
           avatar_id?: string | null
           clinic_id?: string | null
@@ -1269,10 +1278,10 @@ export type Database = {
           provider_note_templates?: Json | null
           rank?: string | null
           roles?: Database["public"]["Enums"]["user_role"][] | null
+          sub_cluster_id?: string | null
           supervisor_created?: boolean
           surrogate_clinic_id?: string | null
           swipe_actions?: Json | null
-          allow_calls?: boolean
           text_expanders?: Json | null
           theme?: string | null
           uic?: string | null
@@ -1285,6 +1294,13 @@ export type Database = {
             columns: ["clinic_id"]
             isOneToOne: false
             referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_sub_cluster_id_fkey"
+            columns: ["sub_cluster_id"]
+            isOneToOne: false
+            referencedRelation: "sub_clusters"
             referencedColumns: ["id"]
           },
           {
@@ -1313,10 +1329,13 @@ export type Database = {
           nomenclature: string | null
           notes: string | null
           nsn: string | null
+          owner_user_id: string | null
           parent_item_id: string | null
           photo_url: string | null
           quantity: number
           serial_number: string | null
+          signed_out_external: boolean
+          sub_cluster_id: string | null
           target_clinic_ids: string[]
           updated_at: string
           visual_fingerprint: Json | null
@@ -1337,10 +1356,13 @@ export type Database = {
           nomenclature?: string | null
           notes?: string | null
           nsn?: string | null
+          owner_user_id?: string | null
           parent_item_id?: string | null
           photo_url?: string | null
           quantity?: number
           serial_number?: string | null
+          signed_out_external?: boolean
+          sub_cluster_id?: string | null
           target_clinic_ids?: string[]
           updated_at?: string
           visual_fingerprint?: Json | null
@@ -1361,10 +1383,13 @@ export type Database = {
           nomenclature?: string | null
           notes?: string | null
           nsn?: string | null
+          owner_user_id?: string | null
           parent_item_id?: string | null
           photo_url?: string | null
           quantity?: number
           serial_number?: string | null
+          signed_out_external?: boolean
+          sub_cluster_id?: string | null
           target_clinic_ids?: string[]
           updated_at?: string
           visual_fingerprint?: Json | null
@@ -1696,6 +1721,35 @@ export type Database = {
         }
         Relationships: []
       }
+      sub_clusters: {
+        Row: {
+          clinic_id: string
+          created_at: string
+          id: string
+          name: string
+        }
+        Insert: {
+          clinic_id: string
+          created_at?: string
+          id?: string
+          name: string
+        }
+        Update: {
+          clinic_id?: string
+          created_at?: string
+          id?: string
+          name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sub_clusters_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       system_identity_shared: {
         Row: {
           created_at: string
@@ -1850,6 +1904,21 @@ export type Database = {
         Args: { p_group_id: string; p_user_id: string }
         Returns: undefined
       }
+      admin_create_sub_cluster: {
+        Args: { p_clinic_id: string; p_name: string }
+        Returns: {
+          clinic_id: string
+          created_at: string
+          id: string
+          name: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "sub_clusters"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       admin_create_user: {
         Args: {
           p_component?: string
@@ -1865,6 +1934,7 @@ export type Database = {
         }
         Returns: Json
       }
+      admin_delete_sub_cluster: { Args: { p_id: string }; Returns: undefined }
       admin_delete_user: { Args: { p_target_user_id: string }; Returns: Json }
       admin_force_logout: { Args: { p_target_user_id: string }; Returns: Json }
       admin_list_clinic_loans: {
@@ -1900,6 +1970,21 @@ export type Database = {
         }
         Returns: Json
       }
+      admin_rename_sub_cluster: {
+        Args: { p_id: string; p_name: string }
+        Returns: {
+          clinic_id: string
+          created_at: string
+          id: string
+          name: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "sub_clusters"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       admin_rescue_clinic_associations_by_location: {
         Args: { p_location_id: string }
         Returns: number
@@ -1911,6 +1996,10 @@ export type Database = {
       admin_set_clinic: {
         Args: { p_clinic_id: string; p_target_user_id: string }
         Returns: Json
+      }
+      admin_set_sub_cluster: {
+        Args: { p_sub_cluster_id: string; p_user_id: string }
+        Returns: undefined
       }
       admin_set_user_loans: {
         Args: { p_clinic_ids: string[]; p_user_id: string }
@@ -1968,6 +2057,21 @@ export type Database = {
         Args: { p_member_ids: string[]; p_name: string }
         Returns: Json
       }
+      create_sub_cluster: {
+        Args: { p_name: string }
+        Returns: {
+          clinic_id: string
+          created_at: string
+          id: string
+          name: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "sub_clusters"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       dblink: { Args: { "": string }; Returns: Record<string, unknown>[] }
       dblink_cancel_query: { Args: { "": string }; Returns: string }
       dblink_close: { Args: { "": string }; Returns: string }
@@ -2002,6 +2106,7 @@ export type Database = {
         Returns: Record<string, unknown>[]
       }
       dblink_is_busy: { Args: { "": string }; Returns: number }
+      delete_sub_cluster: { Args: { p_id: string }; Returns: undefined }
       demote_group_member: {
         Args: { p_group_id: string; p_user_id: string }
         Returns: undefined
@@ -2101,6 +2206,7 @@ export type Database = {
           middle_initial: string
           rank: string
           roles: Database["public"]["Enums"]["user_role"][]
+          sub_cluster_id: string
           surrogate_clinic_id: string
         }[]
       }
@@ -2233,6 +2339,7 @@ export type Database = {
           seq: number
           subject_id: string
           subject_type: string
+          updated_at: string | null
         }[]
         SetofOptions: {
           from: "*"
@@ -2278,6 +2385,21 @@ export type Database = {
       rename_message_group: {
         Args: { p_group_id: string; p_name: string }
         Returns: undefined
+      }
+      rename_sub_cluster: {
+        Args: { p_id: string; p_name: string }
+        Returns: {
+          clinic_id: string
+          created_at: string
+          id: string
+          name: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "sub_clusters"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       request_oncall: {
         Args: {
@@ -2488,6 +2610,10 @@ export type Database = {
       supervisor_reset_password: {
         Args: { p_new_password: string; p_target_user_id: string }
         Returns: Json
+      }
+      supervisor_set_sub_cluster: {
+        Args: { p_sub_cluster_id: string; p_user_id: string }
+        Returns: undefined
       }
       supervisor_transfer_user: {
         Args: { p_target_clinic_code: string; p_user_id: string }

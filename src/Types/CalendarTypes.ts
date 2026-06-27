@@ -62,6 +62,13 @@ export interface CalendarEvent {
    * [clinic_id] (single-clinic, pre-cross-cluster behavior).
    */
   target_clinic_ids?: string[]
+  /**
+   * Intra-clinic sub-cluster (platoon/squad) this event belongs to. null/absent =
+   * HQ / common (always visible to every sub-cluster). Render-only grouping value
+   * — NOT a tombstone/delete class, so it rides the existing clinic-vault snapshot
+   * with no version bump. See v2/supervisor sub-cluster drawer.
+   */
+  sub_cluster_id?: string | null
   /** Last-known field positions for mission participants — keyed by user_id. Updated via location publisher; rides the normal event edit fan-out. */
   field_positions?: Record<string, FieldPosition> | null
   /** 9-line MEDEVAC request data — present when category is 'medevac' or when a mission event includes a MEDEVAC request. */
@@ -156,6 +163,10 @@ export interface EventFormData {
    * edit path we don't carry it (clinic_id is immutable on existing events).
    */
   clinic_id?: string | null
+  /** Intra-clinic sub-cluster (platoon/squad) the event belongs to. null/'' = HQ /
+   *  common (visible to every sub-unit). Defaults to the author's squad on create;
+   *  the author may override via the Sub-unit picker. Render-only. */
+  sub_cluster_id?: string | null
   /** Per-event to-do list (seeded from a Checklist and/or custom items). */
   subtasks?: EventSubtask[] | null
   /** ADTMC algorithm id (e.g. "A-1") when this event is an algorithm encounter/training. */
@@ -323,6 +334,7 @@ export function eventToFormData(event: CalendarEvent): EventFormData {
     medevac_data: event.medevac_data ?? null,
     subtasks: event.subtasks ?? [],
     encounter_algorithm_id: event.encounter_algorithm_id ?? null,
+    sub_cluster_id: event.sub_cluster_id ?? null,
   }
 }
 

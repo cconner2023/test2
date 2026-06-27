@@ -1,5 +1,5 @@
-import { useState, useCallback, useEffect, type ReactNode } from 'react'
-import { isPinEnabled, isAppLockEnabled, isSessionUnlocked, clearSessionUnlocked, initPinService } from '../lib/pinService'
+import { useState, useCallback, useEffect, useRef, type ReactNode } from 'react'
+import { isPinEnabled, isAppLockEnabled, isSessionUnlocked, setSessionUnlocked, clearSessionUnlocked, initPinService } from '../lib/pinService'
 import { useInactivityTimer } from '../Hooks/useInactivityTimer'
 import { useAuth } from '../Hooks/useAuth'
 import { useAuthStore } from '../stores/useAuthStore'
@@ -45,8 +45,12 @@ export function LockGate({ children }: { children: ReactNode }) {
   const isPasswordRecovery = useAuthStore(s => s.isPasswordRecovery)
   const needsPasswordSetup = useAuthStore(s => s.needsPasswordSetup)
   const needsReauth = useAuthStore(s => s.needsReauth)
+  const vaultKeyPromptNeeded = useAuthStore(s => s.vaultKeyPromptNeeded)
+  const setVaultKeyPromptNeeded = useAuthStore(s => s.setVaultKeyPromptNeeded)
   const [isPinLocked, setIsPinLocked] = useState(() => isPinEnabled() && isAppLockEnabled() && !isSessionUnlocked())
-  const [isInactivityLocked, setIsInactivityLocked] = useState(false)
+  // Password lock overlay. 'inactivity' = idle timeout with no PIN; 'locked' =
+  // App Lock (tab-switch / relaunch) with no PIN — both unlock with the password.
+  const [pwLock, setPwLock] = useState<'inactivity' | 'locked' | null>(null)
   const [isInitialPasswordLocked, setIsInitialPasswordLocked] = useState(false)
   const [pinServiceReady, setPinServiceReady] = useState(false)
   // Check both sessionStorage and localStorage on init so returning authenticated
@@ -72,6 +76,39 @@ export function LockGate({ children }: { children: ReactNode }) {
     })
   }, [])
 
+  // App Lock at relaunch with NO PIN: lock to the password screen. Runs once
+  // after the PIN service hydrates and auth settles (needs an email to verify).
+  // Gated on startedWithSession so a *fresh* interactive login isn't immediately
+  // re-prompted for the password — only a returning/restored session re-locks.
+  // (PIN users are handled by the isPinLocked initializer + pinService effect.)
+  const initAppLockDone = useRef(false)
+  const startedWithSession = useRef(!!useAuthStore.getState().localSession || !!useAuthStore.getState().user)
+  useEffect(() => {
+    if (initAppLockDone.current) return
+    if (!pinServiceReady || shouldLoad) return
+    if (isGuest || (!user && !localSession)) return
+    initAppLockDone.current = true
+    if (!startedWithSession.current) return
+    if (!isAppLockEnabled() || isSessionUnlocked() || isPinEnabled()) return
+    setPwLock('locked')
+  }, [pinServiceReady, shouldLoad, isGuest, user, localSession])
+
+  // Tab-switch lock (immediate): the instant the app is backgrounded, drop the
+  // session-unlocked flag and raise the lock so the gate is already up on return.
+  // App Lock is independent of PIN — PIN screen if one exists, else password.
+  useEffect(() => {
+    if (isGuest || (!user && !localSession)) return
+    const onHidden = () => {
+      if (document.visibilityState !== 'hidden') return
+      if (!isAppLockEnabled()) return
+      clearSessionUnlocked()
+      if (isPinEnabled()) setIsPinLocked(true)
+      else setPwLock('locked')
+    }
+    document.addEventListener('visibilitychange', onHidden)
+    return () => document.removeEventListener('visibilitychange', onHidden)
+  }, [user, localSession, isGuest])
+
   // Initial open: require password for authenticated (non-guest) users without PIN
   // Must wait for pinServiceReady so isPinEnabled() reflects the actual stored state
   // Disabled for now — kept wired for future use
@@ -83,20 +120,20 @@ export function LockGate({ children }: { children: ReactNode }) {
 
   const handlePinUnlock = useCallback(() => {
     setIsPinLocked(false)
-    setIsInactivityLocked(false)
+    setPwLock(null)
   }, [])
 
   const handleInactivityTimeout = useCallback(() => {
-    if (isPinEnabled() && isAppLockEnabled()) {
-      clearSessionUnlocked()
+    clearSessionUnlocked()
+    if (isPinEnabled()) {
       setIsPinLocked(true)
     } else {
-      setIsInactivityLocked(true)
+      setPwLock('inactivity')
     }
   }, [])
 
   useInactivityTimer({
-    enabled: (!!user || !!localSession) && !isGuest && !isPinLocked && !isInactivityLocked && !isInitialPasswordLocked,
+    enabled: (!!user || !!localSession) && !isGuest && !isPinLocked && !pwLock && !isInitialPasswordLocked,
     onTimeout: handleInactivityTimeout,
   })
 
@@ -146,8 +183,19 @@ export function LockGate({ children }: { children: ReactNode }) {
           reason="initial"
         />
       )}
-      {isInactivityLocked && !isPinLocked && !isInitialPasswordLocked && (user?.email || localSession?.email) && (
-        <PasswordLockScreen onUnlock={() => setIsInactivityLocked(false)} email={(user?.email ?? localSession?.email)!} reason="inactivity" />
+      {pwLock && !isPinLocked && !isInitialPasswordLocked && (user?.email || localSession?.email) && (
+        <PasswordLockScreen
+          onUnlock={() => { setSessionUnlocked(); setPwLock(null) }}
+          email={(user?.email ?? localSession?.email)!}
+          reason={pwLock}
+        />
+      )}
+      {/* Vault re-auth: live session resumed but the password-derived wrapping key
+          isn't cached and vault messages are waiting. Blocking re-entry (replaces the
+          old non-blocking VaultUnlockBanner) — verify→derive→cache→drain happens inside
+          PasswordLockScreen's reason="vault" path. */}
+      {vaultKeyPromptNeeded && !shouldLoad && !isPinLocked && !pwLock && !isInitialPasswordLocked && !needsReauth && (user?.email || localSession?.email) && (
+        <PasswordLockScreen onUnlock={() => setVaultKeyPromptNeeded(false)} email={(user?.email ?? localSession?.email)!} reason="vault" />
       )}
       {/* Password recovery no longer renders a blocking screen here — a recovery
           OTP is now a real login, and the reset is surfaced as the non-blocking

@@ -14,6 +14,7 @@
 
 import { deflateRaw, inflateRaw } from 'pako'
 import { supabase } from '../supabase'
+import { dbName } from '../idbEnv'
 import { SIGNAL } from '../constants'
 import { createLogger } from '../../Utilities/Logger'
 import { base64ToBytes, bytesToBase64 } from '../base64Utils'
@@ -111,7 +112,7 @@ const BACKUP_KEY_LEGACY_ID = 'master-legacy'
 
 function openKeyDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open(BACKUP_KEY_DB, 1)
+    const req = indexedDB.open(dbName(BACKUP_KEY_DB), 1)
     req.onupgradeneeded = () => {
       if (!req.result.objectStoreNames.contains(BACKUP_KEY_STORE)) {
         req.result.createObjectStore(BACKUP_KEY_STORE)

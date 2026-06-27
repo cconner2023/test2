@@ -58,6 +58,9 @@ export interface AdminUser {
   roles: string[]
   clinic_id: string | null
   clinic_name: string | null
+  /** Intra-clinic sub-unit (platoon/squad) id; null = HQ / unassigned. Render-
+   *  only grouping — never an access boundary. See Utilities/subCluster.ts. */
+  sub_cluster_id: string | null
   surrogate_clinic_id: string | null
   surrogate_clinic_name: string | null
   created_at: string
@@ -431,7 +434,12 @@ interface AdminUserDelta extends AdminUser {
   updated_at: string
 }
 
-const USER_CACHE_KEY = 'user:all'
+// `:v2` bump (2026-06-26): admin_list_users gained the sub_cluster_id column.
+// Delta caches don't re-pull a row whose updated_at hasn't advanced, so an
+// existing base persisted before the column existed would serve rows missing
+// sub_cluster_id forever (roster/tree sub-unit grouping silently falls back to
+// HQ). Changing the key orphans the old base and forces one cold full read.
+const USER_CACHE_KEY = 'user:all:v2'
 
 const userCacheCfg: DeltaCacheConfig<AdminUser, AdminUserDelta> = {
   key: USER_CACHE_KEY,

@@ -1,9 +1,10 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
-import { Lock, Lightbulb, X, Check, RefreshCw } from 'lucide-react'
+import { Lock, Lightbulb, X, Check, RefreshCw, ScanFace } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { verifyPasswordLocally, storePasswordHash } from '../lib/authService'
-import { deriveAndStoreBackupKey } from '../lib/signal/backupService'
-import { ensureVaultExists, deriveAndCacheVaultKey, setVaultKeyReady } from '../lib/signal/vaultDevice'
+import { isBiometricAvailable, isBiometricEnrolled, verifyBiometric } from '../lib/biometricService'
+import { deriveAndStoreBackupKey, createBackup } from '../lib/signal/backupService'
+import { ensureVaultExists, deriveAndCacheVaultKey, setVaultKeyReady, processVaultMessages, ackVaultDrain } from '../lib/signal/vaultDevice'
 import { useAuthStore } from '../stores/useAuthStore'
 import { PasswordInput } from './FormInputs'
 import { ErrorDisplay } from './ErrorDisplay'
@@ -13,10 +14,11 @@ import { FORGOT_PREFILL_KEY } from './LoginScreen'
 interface PasswordLockScreenProps {
   onUnlock: () => void
   email: string
-  reason?: 'inactivity' | 'initial' | 'session-expired'
+  reason?: 'inactivity' | 'initial' | 'session-expired' | 'vault' | 'locked'
 }
 
 export const PasswordLockScreen = ({ onUnlock, email, reason = 'inactivity' }: PasswordLockScreenProps) => {
+  const storeUserId = useAuthStore(s => s.user?.id ?? s.localSession?.userId ?? '')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -31,6 +33,14 @@ export const PasswordLockScreen = ({ onUnlock, email, reason = 'inactivity' }: P
   const [lockoutRemaining, setLockoutRemaining] = useState(0)
   const lockoutTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+
+  // Biometric unlock is a pure gate-release: it proves device possession but
+  // can't derive the password (vault key) or re-auth a dead Supabase session.
+  // So it's offered ONLY for the app-lock gates that the PIN screen also gates
+  // without the password — 'locked' (tab-switch/relaunch) and 'inactivity'.
+  const biometricAllowed = reason === 'locked' || reason === 'inactivity'
+  const [biometricReady, setBiometricReady] = useState(false)
+  const biometricAttempted = useRef(false)
 
   // Track online status
   useEffect(() => {
@@ -70,6 +80,38 @@ export const PasswordLockScreen = ({ onUnlock, email, reason = 'inactivity' }: P
     inputRef.current?.focus()
   }, [])
 
+  const handleBiometric = useCallback(async () => {
+    try {
+      const ok = await verifyBiometric()
+      if (ok) {
+        setFailures(0)
+        onUnlock()
+      }
+    } catch {
+      // Cancelled or failed — fall back to the password form
+    }
+  }, [onUnlock])
+
+  // Check biometric availability on mount (only for the app-lock gates)
+  useEffect(() => {
+    if (!biometricAllowed) return
+    let cancelled = false
+    async function check() {
+      if (!isBiometricEnrolled()) return
+      const available = await isBiometricAvailable()
+      if (!cancelled && available) setBiometricReady(true)
+    }
+    check()
+    return () => { cancelled = true }
+  }, [biometricAllowed])
+
+  // Auto-trigger biometric once it's ready (mirrors PinLockScreen)
+  useEffect(() => {
+    if (!biometricReady || biometricAttempted.current) return
+    biometricAttempted.current = true
+    handleBiometric()
+  }, [biometricReady, handleBiometric])
+
   const recordFailure = useCallback(() => {
     setFailures(prev => {
       const next = prev + 1
@@ -98,15 +140,26 @@ export const PasswordLockScreen = ({ onUnlock, email, reason = 'inactivity' }: P
       if (!authError) {
         // Success — update local hash for future offline use
         storePasswordHash(password).catch(() => { })
-        deriveAndStoreBackupKey(password, authData.user?.id ?? '').catch(() => { })
+        const uid = authData.user?.id || storeUserId
+        deriveAndStoreBackupKey(password, uid).catch(() => { })
         // Re-cache vault wrapping key (cleared on page reload) so processVaultMessages
         // can run after the SIGNED_IN event fires from this re-auth.
-        const uid = authData.user?.id ?? ''
         if (uid) {
           const vaultKeyP = ensureVaultExists(uid, password)
             .then(() => deriveAndCacheVaultKey(password, uid))
             .catch(() => {})
           setVaultKeyReady(vaultKeyP)
+          // reason==='vault': messages were waiting and the wrapping key was missing.
+          // The SIGNED_IN event's drain RACES this slow PBKDF2 derivation and bails
+          // if it wins, so drain explicitly once the key is cached. Idempotent: rows
+          // stay unread until ackVaultDrain; createBackup dedupes by id.
+          if (reason === 'vault') {
+            await vaultKeyP
+            try {
+              const drained = await processVaultMessages(uid)
+              if (drained > 0 && await createBackup(uid)) await ackVaultDrain()
+            } catch { /* next online drain retries */ }
+          }
         }
         setFailures(0)
         onUnlock()
@@ -123,6 +176,14 @@ export const PasswordLockScreen = ({ onUnlock, email, reason = 'inactivity' }: P
         // Offline fallback: local hash verification
         const localValid = await verifyPasswordLocally(password)
         if (localValid) {
+          // Can't fetch/drain offline, but cache the wrapping key now so the next
+          // online drain succeeds for the vault re-auth case.
+          if (reason === 'vault' && storeUserId) {
+            const vaultKeyP = ensureVaultExists(storeUserId, password)
+              .then(() => deriveAndCacheVaultKey(password, storeUserId))
+              .catch(() => {})
+            setVaultKeyReady(vaultKeyP)
+          }
           setFailures(0)
           onUnlock()
           return
@@ -139,6 +200,12 @@ export const PasswordLockScreen = ({ onUnlock, email, reason = 'inactivity' }: P
       try {
         const localValid = await verifyPasswordLocally(password)
         if (localValid) {
+          if (reason === 'vault' && storeUserId) {
+            const vaultKeyP = ensureVaultExists(storeUserId, password)
+              .then(() => deriveAndCacheVaultKey(password, storeUserId))
+              .catch(() => {})
+            setVaultKeyReady(vaultKeyP)
+          }
           setFailures(0)
           onUnlock()
           return
@@ -150,7 +217,7 @@ export const PasswordLockScreen = ({ onUnlock, email, reason = 'inactivity' }: P
       setSubmitting(false)
       setPassword('')
     }
-  }, [password, submitting, isLockedOut, email, onUnlock, recordFailure])
+  }, [password, submitting, isLockedOut, email, onUnlock, recordFailure, reason, storeUserId])
 
   const handleForgotPassword = useCallback(() => {
     if (!isOnline) return
@@ -195,6 +262,10 @@ export const PasswordLockScreen = ({ onUnlock, email, reason = 'inactivity' }: P
               ? 'Enter your password to continue'
               : reason === 'session-expired'
               ? 'Your session has expired. Re-enter your password to continue.'
+              : reason === 'vault'
+              ? 'Encrypted messages are waiting. Re-enter your password to unlock them.'
+              : reason === 'locked'
+              ? 'Locked — enter your password to continue'
               : 'Session locked due to inactivity'}
           </p>
         </div>
@@ -246,6 +317,18 @@ export const PasswordLockScreen = ({ onUnlock, email, reason = 'inactivity' }: P
           </div>
         </form>
 
+        {/* Biometric unlock — available without a PIN for app-lock gates */}
+        {biometricReady && !isLockedOut && (
+          <button
+            type="button"
+            onClick={handleBiometric}
+            className="w-full mt-3 flex items-center justify-center gap-2 py-3 rounded-2xl bg-themeblue2/10 text-themeblue2 text-sm font-medium active:scale-95 transition-all"
+          >
+            <ScanFace size={18} />
+            Unlock with Face ID / Touch ID
+          </button>
+        )}
+
         {/* Forgot password */}
         {isOnline && (
           <button
@@ -266,8 +349,8 @@ export const PasswordLockScreen = ({ onUnlock, email, reason = 'inactivity' }: P
           Sign in as a different user
         </button>
 
-        {/* Tip banner — only shown for inactivity/initial lock, not session-expired */}
-        {reason !== 'session-expired' && (
+        {/* Tip banner — only shown for inactivity/initial lock, not session-expired/vault */}
+        {reason !== 'session-expired' && reason !== 'vault' && (
           <div className="mt-8 flex items-start gap-2.5 p-3 rounded-lg bg-themeblue2/5 border border-themeblue2/10">
             <Lightbulb size={16} className="text-themeblue2 shrink-0 mt-0.5" />
             <p className="text-[10pt] text-tertiary leading-relaxed">

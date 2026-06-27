@@ -54,6 +54,8 @@ export interface ClinicMedic {
   clinicName?: string
   /** Surrogate clinic id when the medic is loaned to another clinic (their second key ring). */
   surrogateClinicId?: string | null
+  /** Intra-clinic sub-cluster (platoon/squad). null/undefined = HQ bucket. Render-only grouping. */
+  subClusterId?: string | null
   /** True when the medic's assigned clinic is outside the caller's reach but their surrogate matches one of the caller's clinics. */
   isLoanedIn?: boolean
 }

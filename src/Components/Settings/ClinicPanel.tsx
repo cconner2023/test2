@@ -29,6 +29,9 @@ import { getAssociatedClinicCode } from '../../lib/clinicAssociationService'
 // it lives in adminService for now but is safe for any signed-in caller.
 import { listLocations, type AdminLocation } from '../../lib/adminService'
 import { invalidate } from '../../stores/useInvalidationStore'
+import { SubClusterManager } from '../SubClusterManager'
+import { useSubClusters } from '../../Hooks/useSubClusters'
+import { createSubCluster, renameSubCluster, deleteSubCluster } from '../../lib/subClusterService'
 import { ErrorDisplay } from '../ErrorDisplay'
 import { UserAvatar } from './UserAvatar'
 import { IntakeMintSection } from './IntakeMintSection'
@@ -208,6 +211,10 @@ export function ClinicPanel({
   // dual-written into profiles.surrogate_clinic_id.
   const { medics, loading: medicsLoading, refresh: refreshMedics } = useClinicMedics()
   const { medics: loanedInRaw } = useClinicLoans(clinicId)
+  // Sub-cluster (platoon/squad) management — own primary clinic only. The
+  // create/rename/delete RPCs target the caller's primary clinic, so this is
+  // hidden in a surrogate (loaned) context. See v2/supervisor sub-cluster drawer.
+  const { subClusters } = useSubClusters()
   const assignedMembers = useMemo(
     () => medics.filter((m) => !m.clinicId || m.clinicId === clinicId),
     [medics, clinicId],
@@ -818,6 +825,33 @@ export function ClinicPanel({
             </ActionPill>
           </div>
         </section>
+
+        {/* ── Sub-units (platoon/squad) — own clinic, supervisor/dev ─────── */}
+        {isSupervisorRole && clinicId && !isSurrogateContext && (
+          <section data-tour="clinic-sub-units">
+            <div className="pb-2 flex items-center gap-2">
+              <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Sub-units</p>
+            </div>
+            <SubClusterManager
+              subClusters={subClusters}
+              onCreate={async (name) => {
+                const r = await createSubCluster(name)
+                if (r.success) invalidate('subClusters')
+                return r.success
+              }}
+              onRename={async (id, name) => {
+                const r = await renameSubCluster(id, name)
+                if (r.success) invalidate('subClusters')
+                return r.success
+              }}
+              onDelete={async (id) => {
+                const r = await deleteSubCluster(id)
+                if (r.success) invalidate('subClusters', 'users')
+                return r.success
+              }}
+            />
+          </section>
+        )}
 
         {/* ── Outside contact (event intake + allow calls/messaging, dev-wrapped) ── */}
         {clinicId && (

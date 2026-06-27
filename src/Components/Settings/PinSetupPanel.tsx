@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react'
-import { Lock, KeyRound, ScanFace, Timer, Activity, Camera, MapPin } from 'lucide-react'
+import { Lock, KeyRound, ScanFace, Timer, Activity, Camera, MapPin, ChevronRight } from 'lucide-react'
 import { ErrorDisplay } from '../ErrorDisplay'
 import { ToggleSwitch } from './ToggleSwitch'
 import { PinKeypad } from '../PinKeypad'
@@ -31,7 +31,6 @@ import {
   removeBiometric,
 } from '../../lib/biometricService'
 import { usePinLockoutTimer } from '../../Hooks/usePinLockoutTimer'
-import { VoicemailGreetingSection } from './VoicemailGreetingSection'
 
 type PinView = 'status' | 'set-new' | 'confirm-new' | 'verify-current' | 'change-new' | 'change-confirm'
 type PendingAction = 'change' | 'remove' | null
@@ -48,8 +47,6 @@ export const PinSetupPanel = () => {
   const { lockout, setLockout, error, setError } = usePinLockoutTimer()
   const [success, setSuccess] = useState('')
   const [pendingAction, setPendingAction] = useState<PendingAction>(null)
-  // When true, enabling app lock is deferred until after a new PIN is set
-  const [pendingEnableLock, setPendingEnableLock] = useState(false)
 
   // Activity tracking state
   const [activityTracking, setActivityTracking] = useState(isActivityTrackingEnabled)
@@ -98,7 +95,6 @@ export const PinSetupPanel = () => {
     setError('')
     setSuccess('')
     setPendingAction(null)
-    setPendingEnableLock(false)
   }, [setError])
 
   // Escape key to cancel PIN entry
@@ -168,10 +164,6 @@ export const PinSetupPanel = () => {
           if (stored) syncPinToCloud(stored.hash, stored.salt)
           resetLockout()
           setPinEnabled(true)
-          if (pendingEnableLock) {
-            setAppLockEnabled(true)
-            setAppLockOn(true)
-          }
           setSuccess('PIN enabled')
           setTimeout(() => { resetState(); setView('status') }, 1200)
         } else {
@@ -188,10 +180,7 @@ export const PinSetupPanel = () => {
           } else if (pendingAction === 'remove') {
             removePin()
             clearPinFromCloud()
-            removeBiometric()
             setPinEnabled(false)
-            setAppLockOn(false)
-            setBioEnrolled(false)
             setSuccess('PIN removed')
             setTimeout(() => { resetState(); setView('status') }, 1200)
           }
@@ -222,7 +211,7 @@ export const PinSetupPanel = () => {
         }
         break
     }
-  }, [view, firstPin, pendingAction, pendingEnableLock, resetState, setError, setLockout])
+  }, [view, firstPin, pendingAction, resetState, setError, setLockout])
 
   const viewLabels: Record<string, string> = {
     'set-new': 'Create a 4-digit PIN',
@@ -236,20 +225,21 @@ export const PinSetupPanel = () => {
   if (view === 'status') {
     const timeoutEnabled = timeoutMs > 0
 
+    // App Lock is a behavior, independent of the PIN. Off→on / on→off, nothing
+    // else. With a PIN it locks to the PIN screen; without one, the password.
     const handleAppLockToggle = () => {
-      if (appLockOn) {
-        // Disable app lock — keep the PIN
-        setAppLockEnabled(false)
-        setAppLockOn(false)
-      } else if (pinEnabled) {
-        // PIN exists — just enable app lock
-        setAppLockEnabled(true)
-        setAppLockOn(true)
+      const next = !appLockOn
+      setAppLockEnabled(next)
+      setAppLockOn(next)
+    }
+
+    // PIN is a credential. Off→on collects a new PIN; on→off verifies, then
+    // removes (same path as the explicit Remove PIN action row below).
+    const handlePinToggle = () => {
+      if (pinEnabled) {
+        resetState(); setPendingAction('remove'); setView('verify-current')
       } else {
-        // No PIN yet — collect one, then enable app lock
-        resetState()
-        setPendingEnableLock(true)  // after resetState so it isn't cleared
-        setView('set-new')
+        resetState(); setView('set-new')
       }
     }
 
@@ -267,66 +257,92 @@ export const PinSetupPanel = () => {
             </div>
             <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
 
-              <div
-                className="flex items-center gap-3 px-4 py-3.5 cursor-pointer transition-all active:scale-95 hover:bg-themeblue2/5"
-                onClick={handleAppLockToggle}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleAppLockToggle() } }}
-              >
-                <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${appLockOn ? 'bg-themeblue2/15' : 'bg-tertiary/10'}`}>
-                  <Lock size={18} className={appLockOn ? 'text-themeblue2' : 'text-tertiary'} />
+              {/* App Lock — the behavior: lock the instant you switch away */}
+              {isAuthenticated && (
+                <div
+                  className="flex items-center gap-3 px-4 py-3.5 cursor-pointer transition-all active:scale-95 hover:bg-themeblue2/5"
+                  onClick={handleAppLockToggle}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleAppLockToggle() } }}
+                >
+                  <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${appLockOn ? 'bg-themeblue2/15' : 'bg-tertiary/10'}`}>
+                    <Lock size={18} className={appLockOn ? 'text-themeblue2' : 'text-tertiary'} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-sm font-medium ${appLockOn ? 'text-primary' : 'text-tertiary'}`}>App Lock</p>
+                    <p className="text-[9pt] text-tertiary mt-0.5">
+                      {appLockOn
+                        ? (pinEnabled
+                            ? 'Locks the instant you switch away — PIN to return'
+                            : 'Locks the instant you switch away — password to return')
+                        : 'Lock the app the moment you switch away'}
+                    </p>
+                  </div>
+                  <ToggleSwitch checked={appLockOn} />
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className={`text-sm font-medium ${appLockOn ? 'text-primary' : 'text-tertiary'}`}>App Lock</p>
-                  <p className="text-[9pt] text-tertiary mt-0.5">Lock when switching away or after inactivity</p>
-                </div>
-                <ToggleSwitch checked={appLockOn} />
-              </div>
+              )}
 
-              {pinEnabled && (
-                <>
-                  {bioAvailable && (
-                    <div
-                      onClick={bioLoading ? undefined : handleBiometricToggle}
-                      className={`flex items-center gap-3 pl-16 pr-4 py-3 bg-tertiary/5 transition-all ${bioLoading ? 'opacity-50' : 'cursor-pointer hover:bg-themeblue2/5 active:scale-95'}`}
-                      role="button"
-                      tabIndex={0}
-                      onKeyDown={(e) => { if (!bioLoading && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); handleBiometricToggle() } }}
-                    >
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${bioEnrolled ? 'bg-themeblue2/15' : 'bg-tertiary/10'}`}>
-                        <ScanFace size={16} className={bioEnrolled ? 'text-themeblue2' : 'text-tertiary'} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className={`text-sm font-medium ${bioEnrolled ? 'text-primary' : 'text-tertiary'}`}>
-                          {bioLoading ? 'Setting up...' : 'Face ID / Touch ID'}
-                        </p>
-                        <p className="text-[9pt] text-tertiary mt-0.5">Use biometrics instead of PIN</p>
-                      </div>
-                      <ToggleSwitch checked={bioEnrolled} />
-                    </div>
-                  )}
-                  <div
-                    className="flex items-center gap-3 pl-16 pr-4 py-3 bg-tertiary/5 cursor-pointer transition-all hover:bg-themeblue2/5 active:scale-95"
-                    onClick={() => { resetState(); setPendingAction('change'); setView('verify-current') }}
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); resetState(); setPendingAction('change'); setView('verify-current') } }}
-                  >
-                    <KeyRound size={16} className="text-themeblue2 shrink-0" />
-                    <span className="text-sm font-medium text-themeblue2">Change PIN</span>
+              {/* PIN — the credential */}
+              {isAuthenticated && (
+                <div
+                  className="flex items-center gap-3 px-4 py-3.5 cursor-pointer transition-all active:scale-95 hover:bg-themeblue2/5"
+                  onClick={handlePinToggle}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handlePinToggle() } }}
+                >
+                  <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${pinEnabled ? 'bg-themeblue2/15' : 'bg-tertiary/10'}`}>
+                    <KeyRound size={18} className={pinEnabled ? 'text-themeblue2' : 'text-tertiary'} />
                   </div>
-                  <div
-                    className="flex items-center gap-3 pl-16 pr-4 py-3 bg-tertiary/5 cursor-pointer transition-all hover:bg-themeblue2/5 active:scale-95"
-                    onClick={() => { resetState(); setPendingAction('remove'); setView('verify-current') }}
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); resetState(); setPendingAction('remove'); setView('verify-current') } }}
-                  >
-                    <KeyRound size={16} className="text-themered shrink-0" />
-                    <span className="text-sm font-medium text-themered">Remove PIN</span>
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-sm font-medium ${pinEnabled ? 'text-primary' : 'text-tertiary'}`}>PIN</p>
+                    <p className="text-[9pt] text-tertiary mt-0.5">A 4-digit code for quicker unlocking than your password</p>
                   </div>
-                </>
+                  <ToggleSwitch checked={pinEnabled} />
+                </div>
+              )}
+
+              {/* Change PIN — only relevant while a PIN exists. Removing a PIN is
+                  the PIN toggle itself (off → verify → delete), so no separate row. */}
+              {isAuthenticated && pinEnabled && (
+                <div
+                  className="flex items-center gap-3 pl-16 pr-4 py-3 bg-tertiary/5 cursor-pointer transition-all hover:bg-themeblue2/5 active:scale-95"
+                  onClick={() => { resetState(); setPendingAction('change'); setView('verify-current') }}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); resetState(); setPendingAction('change'); setView('verify-current') } }}
+                >
+                  <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 bg-themeblue2/15">
+                    <KeyRound size={16} className="text-themeblue2" />
+                  </div>
+                  <span className="flex-1 min-w-0 text-sm font-medium text-primary">Change PIN</span>
+                  <ChevronRight size={16} className="text-tertiary shrink-0" />
+                </div>
+              )}
+
+              {/* Face ID / Touch ID — its own unlock credential, independent of the
+                  PIN. With or without a PIN it unlocks App Lock; password is the
+                  fallback. */}
+              {isAuthenticated && bioAvailable && (
+                <div
+                  onClick={bioLoading ? undefined : handleBiometricToggle}
+                  className={`flex items-center gap-3 px-4 py-3.5 transition-all ${bioLoading ? 'opacity-50' : 'cursor-pointer hover:bg-themeblue2/5 active:scale-95'}`}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => { if (!bioLoading && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); handleBiometricToggle() } }}
+                >
+                  <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${bioEnrolled ? 'bg-themeblue2/15' : 'bg-tertiary/10'}`}>
+                    <ScanFace size={18} className={bioEnrolled ? 'text-themeblue2' : 'text-tertiary'} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-sm font-medium ${bioEnrolled ? 'text-primary' : 'text-tertiary'}`}>
+                      {bioLoading ? 'Setting up...' : 'Face ID / Touch ID'}
+                    </p>
+                    <p className="text-[9pt] text-tertiary mt-0.5">Unlock with your face or fingerprint</p>
+                  </div>
+                  <ToggleSwitch checked={bioEnrolled} />
+                </div>
               )}
 
               {isAuthenticated && (
@@ -354,9 +370,9 @@ export const PinSetupPanel = () => {
                   <div className="flex-1 min-w-0">
                     <p className={`text-sm font-medium ${timeoutEnabled ? 'text-primary' : 'text-tertiary'}`}>Inactivity Timeout</p>
                     <p className="text-[9pt] text-tertiary mt-0.5">
-                      {appLockOn
-                        ? 'Lock to PIN screen after 20 min'
-                        : 'Require password re-entry after 20 min'}
+                      {pinEnabled
+                        ? 'Lock to PIN screen after 20 min idle'
+                        : 'Require password re-entry after 20 min idle'}
                     </p>
                   </div>
                   <ToggleSwitch checked={timeoutEnabled} />
@@ -366,56 +382,44 @@ export const PinSetupPanel = () => {
             </div>
           </div>
 
-          {/* ── Session ──────────────────────────────────────────── */}
-          {isAuthenticated && (
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">Session</p>
-              </div>
-              <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
-
-                <div
-                  className="flex items-center gap-3 px-4 py-3.5 cursor-pointer transition-all active:scale-95 hover:bg-themeblue2/5"
-                  onClick={() => {
-                    const next = !activityTracking
-                    setActivityTrackingEnabled(next)
-                    setActivityTracking(next)
-                  }}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault()
-                      const next = !activityTracking
-                      setActivityTrackingEnabled(next)
-                      setActivityTracking(next)
-                    }
-                  }}
-                >
-                  <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${activityTracking ? 'bg-themeblue2/15' : 'bg-tertiary/10'}`}>
-                    <Activity size={18} className={activityTracking ? 'text-themeblue2' : 'text-tertiary'} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className={`text-sm font-medium ${activityTracking ? 'text-primary' : 'text-tertiary'}`}>Activity Tracking</p>
-                    <p className="text-[9pt] text-tertiary mt-0.5">Background heartbeat keeps your account active and powers session tracking. Disabling may lead to account hibernation after 90 days.</p>
-                  </div>
-                  <ToggleSwitch checked={activityTracking} />
-                </div>
-
-              </div>
-            </div>
-          )}
-
-          {/* ── Voicemail ────────────────────────────────────────── */}
-          <VoicemailGreetingSection />
-
           {/* ── Permissions ──────────────────────────────────────── */}
-          {(cameraPermission !== 'unsupported' || locationPermission !== 'unsupported') && (
+          {(isAuthenticated || cameraPermission !== 'unsupported' || locationPermission !== 'unsupported') && (
             <div>
               <div className="flex items-center gap-2 mb-2">
                 <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">Permissions</p>
               </div>
               <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+
+                {/* Activity Tracking — a permission: background heartbeat. */}
+                {isAuthenticated && (
+                  <div
+                    className="flex items-center gap-3 px-4 py-3.5 cursor-pointer transition-all active:scale-95 hover:bg-themeblue2/5"
+                    onClick={() => {
+                      const next = !activityTracking
+                      setActivityTrackingEnabled(next)
+                      setActivityTracking(next)
+                    }}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        const next = !activityTracking
+                        setActivityTrackingEnabled(next)
+                        setActivityTracking(next)
+                      }
+                    }}
+                  >
+                    <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${activityTracking ? 'bg-themeblue2/15' : 'bg-tertiary/10'}`}>
+                      <Activity size={18} className={activityTracking ? 'text-themeblue2' : 'text-tertiary'} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-sm font-medium ${activityTracking ? 'text-primary' : 'text-tertiary'}`}>Activity Tracking</p>
+                      <p className="text-[9pt] text-tertiary mt-0.5">Background heartbeat keeps your account active and powers session tracking. Disabling may lead to account hibernation after 90 days.</p>
+                    </div>
+                    <ToggleSwitch checked={activityTracking} />
+                  </div>
+                )}
 
                 {cameraPermission !== 'unsupported' && (() => {
                   const granted = cameraPermission === 'granted'

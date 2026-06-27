@@ -327,6 +327,15 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
 
   // ── Suppressed locations — every inactive level + its subtree (floor switcher) ──
   // Geometry-free: derived from the parent_id tree + kind/ordinal + active-level map.
+  // Personnel (member) zones — never tiled on the company overview. They live in the
+  // top personnel carousel; tapping a card navigates (zooms) into one, at which point
+  // its tile + items render. Kept in the tag index (so navigateToZone can frame them
+  // and their items pin inside), just filtered out of the overview render.
+  const memberZoneIds = useMemo(
+    () => new Set(locations.filter(l => !!l.holder_user_id).map(l => l.id)),
+    [locations],
+  )
+
   const suppressedIds = useMemo(
     () => collectSuppressedIds(locations, store.activeLevelByContainer, rootLocationId),
     [locations, store.activeLevelByContainer, rootLocationId],
@@ -386,6 +395,9 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
     }
 
     return allWorldTags.filter((tag) => {
+      // Personnel zones never tile the overview — shown only once navigated into (the
+      // carousel selects them); their items then render via the LOD/auto-pin path.
+      if (memberZoneIds.has(tag.target_id) && tag.target_id !== selectedId && !ancestorIds.has(tag.target_id)) return false
       const depth = depthOf.get(tag.target_id) ?? 0
       // Top-level zones (and root-canvas items) always visible
       if (depth === 0) return true
@@ -400,7 +412,7 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
       const parentFill = Math.max((parent.width ?? 0), (parent.height ?? 0)) * canvasScale
       return parentFill >= LOD_FILL_THRESHOLD
     })
-  }, [allWorldTags, rootLocationId, canvasScale, store.selectedZoneId])
+  }, [allWorldTags, rootLocationId, canvasScale, store.selectedZoneId, memberZoneIds])
 
   // ── Item pins: only for selected zone, deduplicated against stale persisted pins ──
   // Stale pins arise when an item moves zones but its old pin persists in the old zone's

@@ -44,6 +44,7 @@ import { useCalendarSync } from '../../Hooks/useCalendarSync'
 import { useCalendarWrite } from '../../Hooks/useCalendarWrite'
 import { LoadingOverlay } from '../LoadingOverlay'
 import { useAuth } from '../../Hooks/useAuth'
+import { effectiveSubClusters, passesSubClusterFilter } from '../../Utilities/subCluster'
 import { getOverlays } from '../../lib/mapOverlayService'
 import { useMapOverlayWrite } from '../../Hooks/useMapOverlayWrite'
 import type { OverlayOption, RoomOption, HuddleTaskOption } from './EventForm'
@@ -429,6 +430,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     t2tHuddleOnly, setT2THuddleOnly,
     categoryFilter, setCategoryFilter,
     clusterFilter,
+    subClusterFilter,
   } = useCalendarStore(useShallow(s => ({
     viewMode: s.currentView,
     setViewMode: s.setView,
@@ -455,6 +457,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     categoryFilter: s.categoryFilter,
     setCategoryFilter: s.setCategoryFilter,
     clusterFilter: s.clusterFilter,
+    subClusterFilter: s.subClusterFilter,
   })))
 
   const handleEventStatusChange = useCallback(async (id: string, next: import('../../Types/CalendarTypes').EventStatus) => {
@@ -577,6 +580,22 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
         (e.target_clinic_ids?.some(c => clusterFilter.includes(c)) ?? false)
       )
     }
+    // Render-only intra-clinic sub-cluster (platoon/squad) narrowing. Default
+    // (unset) lens = viewer's own squad; HQ users (no sub_cluster) see all.
+    // The squad lens is PRIMARY-CLINIC-scoped: sub_cluster ids are only meaningful
+    // within the viewer's own clinic, so cross-cluster / loan events (foreign
+    // clinic_id, fanned via target_clinic_ids) ALWAYS bypass it — otherwise a
+    // squad-lensed viewer would lose events synced in from a loan clinic. Events
+    // assigned to the viewer also always show ("tasked to me"). HQ/common events
+    // (sub_cluster_id == null) are always visible.
+    const effSub = effectiveSubClusters(subClusterFilter, profile.subClusterId)
+    if (effSub !== null) {
+      out = out.filter(e =>
+        e.clinic_id !== clinicId ||
+        (userId !== null && e.assigned_to.includes(userId)) ||
+        passesSubClusterFilter(e.sub_cluster_id, effSub)
+      )
+    }
     if (personnelFilter.length > 0) {
       out = out.filter(e =>
         e.assigned_to.length === 0 || e.assigned_to.some(id => personnelFilter.includes(id))
@@ -588,7 +607,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     // Append derived dispatch-expiry entries last so they always show regardless
     // of personnel/cluster/category filters (ops-critical, not assignable).
     return dispatchCalEvents.length ? [...out, ...dispatchCalEvents] : out
-  }, [events, personnelFilter, categoryFilter, clusterFilter, reachableClinicIds, userId, dispatchCalEvents])
+  }, [events, personnelFilter, categoryFilter, clusterFilter, subClusterFilter, profile.subClusterId, clinicId, reachableClinicIds, userId, dispatchCalEvents])
 
   const dayEvents = useMemo(() =>
     filteredEvents
@@ -789,7 +808,11 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
    *  loaned medic creating an event lands it in the cluster they're currently
    *  viewing. EventForm picker may override per-event on dual-membership users. */
   const newEventInitialData = useMemo(() => {
-    let base = { ...createEmptyFormData(newEventDateKey), clinic_id: activeClinicId ?? null, room_id: null }
+    // Default the event's sub-cluster to the author's squad ONLY when the event
+    // lands in the user's primary clinic (sub-clusters are primary-clinic-scoped).
+    // A surrogate/loaned-clinic event starts HQ/common (null) — the picker is hidden there.
+    const defaultSubCluster = (activeClinicId ?? clinicId) === clinicId ? (profile.subClusterId ?? null) : null
+    let base = { ...createEmptyFormData(newEventDateKey), clinic_id: activeClinicId ?? null, room_id: null, sub_cluster_id: defaultSubCluster }
     // Prefill from a deep-link (e.g. a detected date in a message). Seeds the
     // title and pins start_time to the parsed datetime; end defaults to +1h.
     if (newEventPrefill) {
@@ -816,7 +839,12 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
       return { ...base, category: 'huddle' as const, huddle_task_id: newEventHuddleTaskId, room_id: defaultRoomId }
     }
     return base
-  }, [newEventDateKey, newEventHuddleTaskId, newEventPrefill, activeClinicId, defaultRoomId])
+  }, [newEventDateKey, newEventHuddleTaskId, newEventPrefill, activeClinicId, clinicId, defaultRoomId, profile.subClusterId])
+
+  // Sub-cluster (platoon/squad) picker applies only when the event lives in the
+  // user's PRIMARY clinic (sub-clusters are primary-clinic-scoped). For a new
+  // event that's the operating-as clinic; for an edit it's the event's clinic.
+  const subClusterApplicable = (editingEvent ? editingEvent.clinic_id : (activeClinicId ?? clinicId)) === clinicId
 
   // Force EventForm to remount whenever the form session changes. EventForm
   // seeds its internal state from initialData ONCE (useState), so a prefill that
@@ -863,6 +891,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
           room_id: data.room_id ?? null,
           huddle_task_id: data.category === 'huddle' ? (data.huddle_task_id ?? null) : null,
           subtasks: data.subtasks ?? [],
+          sub_cluster_id: data.sub_cluster_id ?? null,
           updated_at: now,
         }
         await writeEvent(updatedEvent)
@@ -872,6 +901,9 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
           // Form supplies clinic_id when the user has a surrogate (picker shown);
           // otherwise falls back to the active operating-as clinic.
           clinic_id: data.clinic_id ?? activeClinicId ?? '',
+          // Sub-cluster from the form (Sub-unit picker) — defaults to the author's
+          // squad, author may retarget or set HQ/common (null). Render-only.
+          sub_cluster_id: data.sub_cluster_id ?? null,
           title: data.title,
           description: data.description || null,
           category: data.category,
@@ -907,7 +939,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     // If this form was opened from a chat message (detected date), hop back to
     // that message; no-op otherwise.
     returnFromCalendar()
-  }, [editingEvent, writeEvent, activeClinicId, user, returnFromCalendar])
+  }, [editingEvent, writeEvent, activeClinicId, user, profile.subClusterId, returnFromCalendar])
 
   const handleMoveEvent = useCallback((eventId: string, newStartTime: string) => {
     const events = useCalendarStore.getState().events
@@ -1367,6 +1399,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                 initialData={editingEvent ? eventToFormData(editingEvent) : newEventInitialData}
                 onSave={handleSaveEvent}
                 isEditing={!!editingEvent}
+                subClusterApplicable={subClusterApplicable}
                 medics={medicList}
                 propertyItems={propertyItems}
                 overlayOptions={overlayOptions}
@@ -1553,6 +1586,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                   initialData={eventToFormData(editingEvent)}
                   onSave={handleDayDrawerSave}
                   isEditing
+                  subClusterApplicable={subClusterApplicable}
                   medics={medicList}
                   propertyItems={propertyItems}
                   overlayOptions={overlayOptions}
@@ -1603,6 +1637,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                       initialData={editingEvent ? eventToFormData(editingEvent) : newEventInitialData}
                       onSave={handleSaveEvent}
                       isEditing={!!editingEvent}
+                      subClusterApplicable={subClusterApplicable}
                       medics={medicList}
                       propertyItems={propertyItems}
                       overlayOptions={overlayOptions}

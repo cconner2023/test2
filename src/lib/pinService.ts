@@ -149,7 +149,8 @@ export function removePin(): void {
     sessionStorage.removeItem(STORAGE_KEYS.unlocked)
     resetLockout()
     clearPinPermanentLock()
-    setAppLockEnabled(false)
+    // App Lock is an independent behavior — removing the PIN does NOT turn it
+    // off; it simply falls back to password unlock. Leave appLockEnabled alone.
   } catch {
     // fail silently
   }

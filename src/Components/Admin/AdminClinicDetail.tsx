@@ -28,6 +28,15 @@ import { useMessagesContext } from '../../Hooks/MessagesContext'
 import { SystemMessageComposePopover } from './SystemMessageComposePopover'
 import { drainSystemInbox } from '../../lib/signal/systemIdentity'
 import { createLogger } from '../../Utilities/Logger'
+import { SubClusterManager } from '../SubClusterManager'
+import { HQ_BUCKET } from '../../Utilities/subCluster'
+import {
+  fetchClinicSubClusters,
+  adminCreateSubCluster,
+  adminRenameSubCluster,
+  adminDeleteSubCluster,
+  type SubCluster,
+} from '../../lib/subClusterService'
 
 const systemInboxLogger = createLogger('AdminClinicSystemInbox')
 
@@ -89,6 +98,18 @@ const AdminClinicDetail = ({
   /** user_id -> loan target clinic_ids (only for users whose home is this clinic) */
   const [loanedOutMap, setLoanedOutMap] = useState<Map<string, string[]>>(new Map())
   const usersGen = useInvalidation('users')
+
+  // Intra-clinic sub-units (platoons/squads) for THIS clinic — dev-managed via
+  // clinic-targeted RPCs. NOTE: distinct from the "Sub-clusters" section below,
+  // which is the clinic-to-clinic CHILD-CLINIC hierarchy (parent_clinic_id).
+  const [subUnits, setSubUnits] = useState<SubCluster[]>([])
+  const clinicIdForSubUnits = clinic?.id ?? null
+  const loadSubUnits = useCallback(async () => {
+    if (!clinicIdForSubUnits) { setSubUnits([]); return }
+    const res = await fetchClinicSubClusters(clinicIdForSubUnits)
+    if (res.ok) setSubUnits(res.data)
+  }, [clinicIdForSubUnits])
+  useEffect(() => { void loadSubUnits() }, [loadSubUnits])
 
   // Relationship sections — row tap opens a no-clone AnchoredMenu anchored to
   // the row rect; section FAB opens a PreviewOverlay picker (needs search).
@@ -424,6 +445,32 @@ const AdminClinicDetail = ({
     [users, clinic?.id, isCreateMode],
   )
 
+  /**
+   * Assigned roster bucketed by sub-unit (platoon/squad) — render-only grouping,
+   * NOT an access boundary. `null` when this clinic has no sub-units (caller
+   * renders the flat list). Otherwise: named sub-units in their fetch order
+   * (only those with members), then an HQ / Unassigned bucket last for members
+   * with no — or a now-deleted — sub_cluster_id. See Utilities/subCluster.ts.
+   */
+  const groupedAssigned = useMemo(() => {
+    if (subUnits.length === 0) return null
+    const byKey = new Map<string, AdminUser[]>()
+    const known = new Set(subUnits.map((s) => s.id))
+    for (const u of assignedUsers) {
+      const key = u.sub_cluster_id && known.has(u.sub_cluster_id) ? u.sub_cluster_id : HQ_BUCKET
+      const arr = byKey.get(key)
+      if (arr) arr.push(u)
+      else byKey.set(key, [u])
+    }
+    // Every named sub-unit gets a section (even empty) so the division is always
+    // visible; HQ / Unassigned only appears when it actually holds members.
+    const groups: { id: string; name: string; members: AdminUser[] }[] =
+      subUnits.map((s) => ({ id: s.id, name: s.name, members: byKey.get(s.id) ?? [] }))
+    const hq = byKey.get(HQ_BUCKET)
+    if (hq?.length) groups.push({ id: HQ_BUCKET, name: 'HQ / Unassigned', members: hq })
+    return groups
+  }, [subUnits, assignedUsers])
+
   /** Single parent resolved from parent_clinic_id (null = root). */
   const parentClinic = useMemo(() => {
     if (isCreateMode || !clinic?.parent_clinic_id) return null
@@ -733,15 +780,30 @@ const AdminClinicDetail = ({
       </PreviewOverlay>
 
       {/* Assigned Users — always rendered (when not in create mode) so the
-          "Create user" FAB has a home even when the cluster is empty. */}
+          header "Create user" button has a home even when the cluster is empty.
+          When this clinic has sub-units (platoons/squads) the roster groups by
+          them (named sub-units, then HQ / Unassigned); otherwise it's a flat
+          list. Grouping is render-only — every row is still this one clinic's
+          member. The header + button replaces the overlay ActionPill so the add
+          affordance doesn't collide with the first group's label. */}
       {!isCreateMode && clinic && (
         <section className="mt-4">
-          <div className="pb-2">
-            <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">
+          <div className="flex items-center gap-2 pb-2">
+            <p className="flex-1 text-[9pt] font-semibold text-primary uppercase tracking-wider">
               Assigned Users ({assignedUsers.length})
             </p>
+            {onCreateUserInCluster && (
+              <button
+                type="button"
+                onClick={() => onCreateUserInCluster(clinic.id)}
+                aria-label="Create user"
+                className="w-9 h-9 rounded-full flex items-center justify-center bg-themeblue3 text-white active:scale-95 transition-all shrink-0"
+              >
+                <Plus size={16} />
+              </button>
+            )}
           </div>
-          <div className="relative">
+          {groupedAssigned === null ? (
             <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden divide-y divide-tertiary/10">
               {assignedUsers.length === 0 ? (
                 <div className="px-4 py-3.5 text-[10pt] text-tertiary">No users assigned.</div>
@@ -749,16 +811,55 @@ const AdminClinicDetail = ({
                 assignedUsers.map(renderUserRow)
               )}
             </div>
-            {onCreateUserInCluster && (
-              <ActionPill shadow="sm" placement="overlay">
-                <ActionButton
-                  icon={Plus}
-                  label="Create user"
-                  onClick={() => onCreateUserInCluster(clinic.id)}
-                />
-              </ActionPill>
-            )}
+          ) : (
+            <div className="space-y-3">
+              {groupedAssigned.map((g) => (
+                <div key={g.id}>
+                  <p className="px-1 pb-1 text-[8.5pt] font-semibold text-tertiary uppercase tracking-wider">
+                    {g.name} ({g.members.length})
+                  </p>
+                  <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden divide-y divide-tertiary/10">
+                    {g.members.length === 0 ? (
+                      <div className="px-4 py-3 text-[9.5pt] text-tertiary/70">No members</div>
+                    ) : (
+                      g.members.map(renderUserRow)
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* Sub-units (platoons/squads) — intra-clinic render grouping for THIS
+          clinic. Distinct from the "Sub-clusters" (child-clinic) section below. */}
+      {!isCreateMode && !editing && clinic && (
+        <section className="mt-4">
+          <div className="pb-2">
+            <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">Sub-units (platoon / squad)</p>
           </div>
+          <SubClusterManager
+            subClusters={subUnits}
+            onCreate={async (name) => {
+              const r = await adminCreateSubCluster(clinic.id, name)
+              if (r.success) { await loadSubUnits(); invalidate('subClusters') }
+              else setError(r.error)
+              return r.success
+            }}
+            onRename={async (id, name) => {
+              const r = await adminRenameSubCluster(id, name)
+              if (r.success) { await loadSubUnits(); invalidate('subClusters') }
+              else setError(r.error)
+              return r.success
+            }}
+            onDelete={async (id) => {
+              const r = await adminDeleteSubCluster(id)
+              if (r.success) { await loadSubUnits(); invalidate('subClusters', 'users') }
+              else setError(r.error)
+              return r.success
+            }}
+          />
         </section>
       )}
 

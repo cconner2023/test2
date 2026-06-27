@@ -5,6 +5,7 @@
  * Does NOT expose payloads — counts only.
  */
 import { getDb } from './offlineDb'
+import { dbName } from './idbEnv'
 
 export interface StorageStats {
   syncQueue: { pending: number; synced: number; failed: number }
@@ -15,9 +16,9 @@ export interface StorageStats {
 }
 
 /** Count all records in a named store within any IDB database. */
-async function countIdbStore(dbName: string, storeName: string): Promise<number> {
+async function countIdbStore(name: string, storeName: string): Promise<number> {
   return new Promise((resolve) => {
-    const req = indexedDB.open(dbName)
+    const req = indexedDB.open(name)
     req.onsuccess = () => {
       const db = req.result
       if (!db.objectStoreNames.contains(storeName)) {
@@ -57,11 +58,11 @@ export async function getStorageStats(): Promise<StorageStats> {
 
   // Calendar and messaging — raw counts (separate IDB databases)
   const [events, tombstones, pendingVaultSends, messages, outboundPending] = await Promise.all([
-    countIdbStore('adtmc-calendar-events', 'events'),
-    countIdbStore('adtmc-calendar-events', 'tombstones'),
-    countIdbStore('adtmc-calendar-events', 'pendingVaultSends'),
-    countIdbStore('adtmc-message-store', 'messages'),
-    countIdbStore('adtmc-outbound-queue', 'queue'),
+    countIdbStore(dbName('adtmc-calendar-events'), 'events'),
+    countIdbStore(dbName('adtmc-calendar-events'), 'tombstones'),
+    countIdbStore(dbName('adtmc-calendar-events'), 'pendingVaultSends'),
+    countIdbStore(dbName('adtmc-message-store'), 'messages'),
+    countIdbStore(dbName('adtmc-outbound-queue'), 'queue'),
   ])
 
   return {

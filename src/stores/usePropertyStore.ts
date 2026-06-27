@@ -193,7 +193,7 @@ export const usePropertyStore = create<PropertyState>((set, get) => ({
         fetchClinicLocations(clinicId),
         supabase
           .from('profiles')
-          .select('id, rank, first_name, last_name')
+          .select('id, rank, first_name, last_name, sub_cluster_id')
           .eq('clinic_id', clinicId),
       ])
 
@@ -207,6 +207,7 @@ export const usePropertyStore = create<PropertyState>((set, get) => ({
             firstName: p.first_name,
             lastName: p.last_name,
             displayName: [p.rank, p.last_name, p.first_name].filter(Boolean).join(' '),
+            subClusterId: p.sub_cluster_id ?? null,
           }
           holderMap.set(p.id, info)
           memberList.push(info)

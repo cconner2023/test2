@@ -11,6 +11,12 @@ import type { AdminClinic, AdminLocation } from '../../lib/adminService'
  * (location_id), else floats at the tree root. A sub-cluster's own location_id
  * is IGNORED for placement — it lives under its parent. Scope resolution uses
  * the SAME rule so "what's under this node" matches what the tree renders.
+ *
+ * NOTE: as of 2026-06-26 the Directory tree is ORG-ROOTED (it iterates
+ * `rootClinics`, not `rootLocations`) — location is shown as a per-cluster chip,
+ * not a tree parent, since an org can sit in a different location than its
+ * parent. The location-rooted fields (clinicsByLocation / rootLocations /
+ * floatingRootClinics) remain for the scope helpers below.
  */
 export interface ScopeIndex {
   /** parent_clinic_id → child clusters (sorted by name). */
@@ -23,6 +29,9 @@ export interface ScopeIndex {
   rootLocations: AdminLocation[]
   /** Root clusters with no resolvable location — float at the tree root. */
   floatingRootClinics: AdminClinic[]
+  /** Every root cluster (no/dangling parent_clinic_id), sorted by name —
+   *  regardless of location. The roots of the org-rooted Directory tree. */
+  rootClinics: AdminClinic[]
 }
 
 const byName = (a: AdminClinic, b: AdminClinic) => a.name.localeCompare(b.name)
@@ -55,12 +64,17 @@ export function buildScopeIndex(
 
   // Root clusters only (sub-clusters are placed under their parent). A root
   // cluster lands in its location_id bucket if that location exists, else floats.
+  // `rootClinics` collects every root cluster regardless of location — the org-
+  // rooted Directory tree iterates that; the by-location split feeds the scope
+  // helpers.
   const clinicsByLocation = new Map<string, AdminClinic[]>()
   const floatingRootClinics: AdminClinic[] = []
+  const rootClinics: AdminClinic[] = []
   const clinicById = new Map(clinics.map(c => [c.id, c]))
   for (const c of clinics) {
     const isRoot = !c.parent_clinic_id || !clinicById.has(c.parent_clinic_id)
     if (!isRoot) continue
+    rootClinics.push(c)
     if (c.location_id && locById.has(c.location_id)) {
       const arr = clinicsByLocation.get(c.location_id)
       if (arr) arr.push(c)
@@ -71,12 +85,13 @@ export function buildScopeIndex(
   }
   for (const arr of clinicsByLocation.values()) arr.sort(byName)
   floatingRootClinics.sort(byName)
+  rootClinics.sort(byName)
 
   const rootLocations = locations
     .filter(l => !l.parent_id || !locById.has(l.parent_id))
     .sort(byDisplay)
 
-  return { clinicChildren, locChildren, clinicsByLocation, rootLocations, floatingRootClinics }
+  return { clinicChildren, locChildren, clinicsByLocation, rootLocations, floatingRootClinics, rootClinics }
 }
 
 /** Self + all cluster descendants (parent_clinic_id chain), as a flat id list. */

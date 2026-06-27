@@ -11,6 +11,7 @@
 
 import { openDB, type DBSchema, type IDBPDatabase, type OpenDBCallbacks } from 'idb'
 import { createLogger } from '../Utilities/Logger'
+import { dbName } from './idbEnv'
 
 const logger = createLogger('IdbFactory')
 
@@ -47,10 +48,14 @@ export function createIdbSingleton<T extends DBSchema>(
   callbacks: OpenDBCallbacks<T>,
 ): IdbSingleton<T> {
   let instance: IDBPDatabase<T> | null = null
+  // Environment-scoped actual database name — see idbEnv.dbName. Callers pass a
+  // bare base name; open AND delete both go through the scoped name so a dev
+  // session can never share a database with prod (or another dev backend).
+  const scopedName = dbName(name)
 
   async function getDb(): Promise<IDBPDatabase<T>> {
     if (instance) return instance
-    instance = await openDB<T>(name, version, callbacks)
+    instance = await openDB<T>(scopedName, version, callbacks)
     return instance
   }
 
@@ -61,12 +66,12 @@ export function createIdbSingleton<T extends DBSchema>(
         instance = null
       }
       await new Promise<void>((resolve) => {
-        const req = indexedDB.deleteDatabase(name)
+        const req = indexedDB.deleteDatabase(scopedName)
         req.onsuccess = () => resolve()
         req.onerror = () => resolve()   // best effort
         req.onblocked = () => resolve()
       })
-      logger.info(`Destroyed IDB database: ${name}`)
+      logger.info(`Destroyed IDB database: ${scopedName}`)
     } catch (err) {
       logger.warn(`Failed to destroy IDB database ${name}:`, err)
     }

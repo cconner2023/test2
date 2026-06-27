@@ -19,6 +19,8 @@ import { useShallow } from 'zustand/react/shallow'
 import { ArrowLeftRight, Check } from 'lucide-react'
 import { useAuth } from '../Hooks/useAuth'
 import { useCalendarStore } from '../stores/useCalendarStore'
+import { useSubClusters } from '../Hooks/useSubClusters'
+import { effectiveSubClusters } from '../Utilities/subCluster'
 import { ActionButton } from './ActionButton'
 import { PreviewOverlay } from './PreviewOverlay'
 
@@ -115,6 +117,76 @@ export function ClusterFilterPanel() {
 
       {options.map(c => {
         const active = activeSet.has(c.id)
+        return (
+          <button
+            key={c.id}
+            onClick={() => toggle(c.id)}
+            className={`w-full flex items-center gap-3 py-2.5 px-4 text-left transition-colors active:scale-95 ${
+              active
+                ? 'bg-themeblue3/8 border-l-2 border-l-themeblue3'
+                : 'hover:bg-secondary/5'
+            }`}
+          >
+            <span className="text-[10pt] font-medium text-primary truncate flex-1">{c.name}</span>
+            {active && <Check size={14} className="text-themeblue2 shrink-0" />}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+/**
+ * Render-only intra-clinic SUB-CLUSTER (platoon/squad) filter — narrows which
+ * sub-cluster's events the calendar shows, one level below ClusterFilterPanel.
+ * Three-state (Utilities/subCluster.ts): default (unset) = viewer's own squad
+ * lens; "All Sub-units" = show every sub-cluster; toggling rows builds a subset.
+ * HQ/common events (sub_cluster_id == null) are always shown regardless.
+ * Renders only when the clinic actually has sub-clusters defined.
+ */
+export function SubClusterFilterPanel() {
+  const { subClusters } = useSubClusters()
+  const { profile } = useAuth()
+  const { subClusterFilter, setSubClusterFilter } = useCalendarStore(useShallow(s => ({
+    subClusterFilter: s.subClusterFilter,
+    setSubClusterFilter: s.setSubClusterFilter,
+  })))
+  if (subClusters.length === 0) return null
+
+  const allIds = subClusters.map(s => s.id)
+  const effective = effectiveSubClusters(subClusterFilter, profile.subClusterId)
+  // Showing everything (no narrowing) ⇢ "All Sub-units" is the active row.
+  const showingAll = effective === null
+  const activeSet = new Set(effective ?? allIds)
+
+  const toggle = (id: string) => {
+    const next = new Set(activeSet)
+    if (next.has(id)) next.delete(id)
+    else next.add(id)
+    const arr = allIds.filter(c => next.has(c))
+    // Empty or full selection collapses to the explicit "show all" sentinel.
+    setSubClusterFilter(arr.length === 0 || arr.length === allIds.length ? 'all' : arr)
+  }
+
+  return (
+    <div data-tour="sub-cluster-filter" className="flex flex-col min-h-0">
+      <div className="shrink-0 px-4 py-3 border-t border-primary/10">
+        <p className="text-[10pt] font-medium text-tertiary uppercase tracking-wide">Filter Sub-unit</p>
+      </div>
+
+      <button
+        onClick={() => setSubClusterFilter('all')}
+        className={`w-full flex items-center gap-3 py-2.5 px-4 text-left transition-colors active:scale-95 ${
+          showingAll
+            ? 'bg-themeblue3/8 border-l-2 border-l-themeblue3'
+            : 'hover:bg-secondary/5'
+        }`}
+      >
+        <span className="text-[10pt] font-medium text-primary truncate flex-1">All Sub-units</span>
+      </button>
+
+      {subClusters.map(c => {
+        const active = !showingAll && activeSet.has(c.id)
         return (
           <button
             key={c.id}

@@ -16,7 +16,7 @@ import { useClinicGroupedMedics } from '../Hooks/useClinicGroupedMedics'
 import { UserAvatar } from './Settings/UserAvatar'
 import { getDisplayName } from '../Utilities/nameUtils'
 import { CalendarClinicEditor } from './Calendar/CalendarClinicEditor'
-import { SupervisorClinicFilterPanel, ClusterFilterPanel } from './SupervisorClinicSwitcher'
+import { SupervisorClinicFilterPanel, ClusterFilterPanel, SubClusterFilterPanel } from './SupervisorClinicSwitcher'
 import type { EventCategory } from '../Types/CalendarTypes'
 
 const CATEGORY_GROUPS: { key: 'huddle' | 'calendar'; label: string; categories: EventCategory[] }[] = [
@@ -343,6 +343,7 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
                             <div className="flex-1 min-h-0 overflow-y-auto">
                                 <SupervisorClinicFilterPanel />
                                 <ClusterFilterPanel />
+                                <SubClusterFilterPanel />
                                 {hasHuddleEvents && categoryFilterPanel}
                                 {personnelFilterPanel}
                             </div>
@@ -393,6 +394,7 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
                             {layoutSection}
                             <SupervisorClinicFilterPanel />
                             <ClusterFilterPanel />
+                            <SubClusterFilterPanel />
                             {hasHuddleEvents && categoryFilterPanel}
                             {personnelFilterPanel}
                         </div>
