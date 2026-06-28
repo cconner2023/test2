@@ -38,9 +38,9 @@
   <meta name="msapplication-starturl" content="/test2/">
   <meta name="msapplication-config" content="/test2/browserconfig.xml">
 
-  <script type="module" crossorigin src="/test2/assets/main-gUMO43dg.js"></script>
+  <script type="module" crossorigin src="/test2/assets/main-C7VahfbS.js"></script>
   <link rel="modulepreload" crossorigin href="/test2/assets/outsideSeal-Ck8Khe-n.js">
-  <link rel="stylesheet" crossorigin href="/test2/assets/main-BJjGJj_6.css">
+  <link rel="stylesheet" crossorigin href="/test2/assets/main-C2nssTTG.css">
 <link rel="manifest" href="/test2/manifest.webmanifest"></head>
 
 <body>
@@ -73,7 +73,7 @@
     .splash-sol {
       width: 64px;
       height: 64px;
-      animation: solSpin 2s linear infinite
+      animation: solPulse 1.2s ease-in-out infinite
     }
 
     .splash-title {
@@ -118,13 +118,22 @@
       }
     }
 
-    @keyframes solSpin {
-      from {
-        transform: rotate(0deg)
+    /* Star of Life stands still and gently pulses. Mirrored in src/App.css. */
+    @keyframes solPulse {
+      0%, 100% {
+        opacity: 0.62;
+        transform: scale(0.99)
       }
+      50% {
+        opacity: 1;
+        transform: scale(1.015)
+      }
+    }
 
-      to {
-        transform: rotate(360deg)
+    @media (prefers-reduced-motion: reduce) {
+      .splash-sol {
+        animation: none;
+        opacity: 1
       }
     }
 
