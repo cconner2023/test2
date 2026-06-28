@@ -47,9 +47,6 @@ export function FeedbackCard({
             <span className="flex-1 min-w-0 text-sm font-medium text-primary truncate">
               {feedback.display_name || 'Anonymous'}
             </span>
-            <span className="text-[9pt] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full border shrink-0 bg-themeblue2/10 text-themeblue2 border-themeblue2/30">
-              Feedback
-            </span>
           </div>
         </div>
       ),
@@ -108,9 +105,6 @@ export function FeedbackCard({
               </div>
             )}
           </div>
-          <span className="text-[9pt] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full border shrink-0 bg-themeblue2/10 text-themeblue2 border-themeblue2/30">
-            Feedback
-          </span>
         </div>
 
         {summary && (

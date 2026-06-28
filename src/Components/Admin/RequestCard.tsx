@@ -28,15 +28,6 @@ import { invalidate } from '../../stores/useInvalidationStore'
 
 const AVAILABLE_ROLES = ['medic', 'supervisor', 'dev', 'provider'] as const
 
-export function getRequestStatusColor(status: string): string {
-  switch (status) {
-    case 'pending':  return 'bg-themeyellow/10 text-themeyellow border-themeyellow/30'
-    case 'approved': return 'bg-themegreen/10 text-themegreen border-themegreen/30'
-    case 'rejected': return 'bg-themeredred/10 text-themeredred border-themeredred/30'
-    default:         return 'bg-tertiary/10 text-tertiary border-tertiary/30'
-  }
-}
-
 export interface RequestCardProps {
   request: AccountRequest
   expandedId: string | null
@@ -318,9 +309,6 @@ export function RequestCard({
                 {isSupport ? request.email : [request.credential, request.email].filter(Boolean).join(' · ')}
               </p>
             </div>
-            <span className={`text-[9pt] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full border shrink-0 ${getRequestStatusColor(request.status)}`}>
-              {isSupport ? 'Help' : request.status}
-            </span>
           </div>
         </div>
       ),
@@ -483,9 +471,6 @@ export function RequestCard({
                 : [request.credential, request.email].filter(Boolean).join(' · ')}
             </p>
           </div>
-          <span className={`text-[9pt] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full border shrink-0 ${getRequestStatusColor(request.status)}`}>
-            {isSupport ? 'Help' : request.status}
-          </span>
         </div>
 
         {/* Row 2: UIC + clinic */}

@@ -69,6 +69,8 @@ function localItem(item: PropertyItem, syncStatus: SyncStatus = 'pending'): Loca
     signed_out_external: item.signed_out_external ?? false,
     // Coerce legacy IDB rows cached before owner_user_id existed. null = cluster-owned.
     owner_user_id: item.owner_user_id ?? null,
+    // Coerce legacy IDB rows cached before quantity_authorized existed. null = not tracked.
+    quantity_authorized: item.quantity_authorized ?? null,
     _sync_status: syncStatus,
     _sync_retry_count: 0,
     _last_sync_error: null,
@@ -199,7 +201,8 @@ export async function fetchClinicItems(clinicId: string): Promise<LocalPropertyI
 }
 
 export async function createItem(
-  data: Omit<PropertyItem, 'id' | 'created_at' | 'updated_at' | 'signed_out_external' | 'owner_user_id'>,
+  data: Omit<PropertyItem, 'id' | 'created_at' | 'updated_at' | 'signed_out_external' | 'owner_user_id' | 'quantity_authorized'>
+    & { quantity_authorized?: number | null },
   userId: string,
 ): Promise<ServiceResult<{ item: LocalPropertyItem }>> {
   try {
@@ -212,6 +215,7 @@ export async function createItem(
       ...data,
       signed_out_external: false,
       owner_user_id: null,
+      quantity_authorized: data.quantity_authorized ?? null,
       id: crypto.randomUUID(),
       created_at: now,
       updated_at: now,
@@ -272,6 +276,7 @@ export async function createItem(
 const AUDITED_EDIT_FIELDS: (keyof PropertyItem)[] = [
   'name', 'nomenclature', 'nsn', 'lin', 'serial_number',
   'condition_code', 'quantity', 'expiry_date', 'notes', 'parent_item_id', 'owner_user_id',
+  'quantity_authorized',
 ]
 
 export async function updateItem(

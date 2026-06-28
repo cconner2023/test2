@@ -46,9 +46,6 @@ export function SystemConversationCard({ conversation, onSelect, setContextMenu 
               className="w-9 h-9"
             />
             <span className="flex-1 min-w-0 text-sm font-medium text-primary truncate">{displayName}</span>
-            <span className="text-[9pt] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full border shrink-0 bg-themeblue2/10 text-themeblue2 border-themeblue2/30">
-              System
-            </span>
           </div>
         </div>
       ),
@@ -106,12 +103,7 @@ export function SystemConversationCard({ conversation, onSelect, setContextMenu 
             <p className="text-[10pt] text-tertiary truncate mt-0.5">{previewText}</p>
           )}
         </div>
-        <div className="flex flex-col items-end gap-1 shrink-0">
-          <span className="text-[9pt] text-tertiary">{formatTimestamp(lastMessage.createdAt)}</span>
-          <span className="text-[9pt] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full border bg-themeblue2/10 text-themeblue2 border-themeblue2/30">
-            System
-          </span>
-        </div>
+        <span className="text-[9pt] text-tertiary shrink-0">{formatTimestamp(lastMessage.createdAt)}</span>
       </div>
     </div>
   )

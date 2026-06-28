@@ -70,6 +70,12 @@ export interface PropertyItem {
   /** True when signed out on a DA 2062 to a recipient OUTSIDE the cluster (no profile
    *  id exists for them — recipient name lives in the hand receipt's ledger notes). */
   signed_out_external: boolean
+  /** Authorized (BOM/MTOE) quantity for this line — the "supposed to have" count, kept
+   *  separate from `quantity` (on-hand/present). null = not authorization-tracked (legacy
+   *  rows, loose pool); never contributes a shortage. On a component child = the BOM-required
+   *  qty within its SKO. Additive nullable column (same flow as signed_out_external); shortage
+   *  = authorized − present is a pure client fold. See qty-auth-shortage-annex idea doc. */
+  quantity_authorized: number | null
   notes: string | null
   created_at: string
   updated_at: string

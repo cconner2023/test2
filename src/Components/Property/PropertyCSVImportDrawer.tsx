@@ -4,7 +4,12 @@ import { useShallow } from 'zustand/react/shallow'
 import { Section, SectionCard } from '../Section'
 import { LoadingSpinner } from '../LoadingSpinner'
 import { usePropertyStore } from '../../stores/usePropertyStore'
-import { parsePropertyCSV, downloadCSVTemplate, type ParsedRow } from '../../Utilities/PropertyCSV'
+import {
+  parsePropertyCSV,
+  downloadCSVTemplate,
+  reconcileImport,
+  type ReconcilePlan,
+} from '../../Utilities/PropertyCSV'
 import { ROOT_LOCATION_NAME } from '../../Types/PropertyTypes'
 
 interface PropertyCSVImportProps {
@@ -14,51 +19,63 @@ interface PropertyCSVImportProps {
 
 type Step = 'pick' | 'preview' | 'importing' | 'done'
 
+const EMPTY_PLAN: ReconcilePlan = { creates: [], authUpdates: [], deauthorizes: [] }
+
 /** Surfaceless CSV-import wizard body. Hosted in the Property right pane (desktop)
  *  / detail sheet (mobile) by PropertyPanel — the same surfaces zone/item/sign-out
- *  use. The host owns the header + close affordance. */
+ *  use. The host owns the header + close affordance.
+ *
+ *  Re-import is NON-DESTRUCTIVE: a row that matches an existing item (by serial → NSN
+ *  → LIN → name) only ever adjusts its authorized qty; present stock/custody/location
+ *  are never touched, and items dropped from the BOM are de-authorized (kept on hand),
+ *  never deleted. See reconcileImport. */
 export function PropertyCSVImport({ onClose }: PropertyCSVImportProps) {
-  const { locations, clinicId, addItem, addLocation } = usePropertyStore(
+  const { locations, items, clinicId, addItem, editItem, addLocation } = usePropertyStore(
     useShallow(s => ({
       locations: s.locations,
+      items: s.items,
       clinicId: s.clinicId,
       addItem: s.addItem,
+      editItem: s.editItem,
       addLocation: s.addLocation,
     }))
   )
 
   const [step, setStep] = useState<Step>('pick')
-  const [parsedRows, setParsedRows] = useState<ParsedRow[]>([])
+  const [plan, setPlan] = useState<ReconcilePlan>(EMPTY_PLAN)
   const [parseErrors, setParseErrors] = useState<string[]>([])
-  const [importedCount, setImportedCount] = useState(0)
+  const [appliedCount, setAppliedCount] = useState(0)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleClose = useCallback(() => {
     setStep('pick')
-    setParsedRows([])
+    setPlan(EMPTY_PLAN)
     setParseErrors([])
-    setImportedCount(0)
+    setAppliedCount(0)
     onClose()
   }, [onClose])
 
   const handleFileChange = useCallback(async (file: File | null | undefined) => {
     if (!file) return
     const result = await parsePropertyCSV(file)
-    setParsedRows(result.rows)
+    setPlan(reconcileImport(result.rows, items))
     setParseErrors(result.errors)
     setStep('preview')
-  }, [])
+  }, [items])
+
+  const totalOps = plan.creates.length + plan.authUpdates.length + plan.deauthorizes.length
 
   async function handleImport() {
-    if (!clinicId || parsedRows.length === 0) return
+    if (!clinicId || totalOps === 0) return
     setStep('importing')
 
+    // Locations are only needed for the rows we're creating.
     const visibleLocs = locations.filter(l => l.name !== ROOT_LOCATION_NAME)
     const locMap = new Map<string, string>()
     for (const l of visibleLocs) locMap.set(l.name.toLowerCase(), l.id)
 
     const neededNames = [...new Set(
-      parsedRows
+      plan.creates
         .map(r => r.location.trim())
         .filter(n => n !== '' && !locMap.has(n.toLowerCase()))
     )]
@@ -77,7 +94,8 @@ export function PropertyCSVImport({ onClose }: PropertyCSVImportProps) {
       }
     }
 
-    for (const row of parsedRows) {
+    // New items: present qty + authorized in one create.
+    for (const row of plan.creates) {
       const locationId = row.location.trim()
         ? locMap.get(row.location.trim().toLowerCase()) ?? null
         : null
@@ -87,22 +105,37 @@ export function PropertyCSVImport({ onClose }: PropertyCSVImportProps) {
         nomenclature: row.nomenclature || null,
         nsn: row.nsn || null,
         lin: row.lin || null,
-        quantity: row.quantity,
+        condition_code: 'serviceable',
         location_id: locationId,
-        serial_number: null,
-        photo_data: null,
+        current_holder_id: null,
         parent_item_id: null,
-        holder_user_id: null,
-        barcode_fingerprint: null,
+        expiry_date: null,
+        notes: null,
+        is_serialized: false,
+        serial_number: row.serialNumber || null,
+        quantity: row.quantity,
+        location_tag_id: null,
+        photo_url: null,
+        visual_fingerprint: null,
+        sub_cluster_id: null,
+        quantity_authorized: row.quantityAuthorized,
       })
     }
 
-    setImportedCount(parsedRows.length)
+    // Authorization layer only — present stock is never touched here.
+    for (const u of plan.authUpdates) {
+      await editItem(u.itemId, { quantity_authorized: u.newAuth })
+    }
+    for (const d of plan.deauthorizes) {
+      await editItem(d.itemId, { quantity_authorized: null })
+    }
+
+    setAppliedCount(totalOps)
     setStep('done')
   }
 
-  const previewRows = parsedRows.slice(0, 20)
-  const extraRows = parsedRows.length - 20
+  const previewCreates = plan.creates.slice(0, 20)
+  const extraCreates = plan.creates.length - previewCreates.length
 
   return (
     <>
@@ -151,37 +184,48 @@ export function PropertyCSVImport({ onClose }: PropertyCSVImportProps) {
             </div>
           )}
 
-          <p className="text-sm text-secondary">{parsedRows.length} items to import</p>
+          {/* Reconcile diff — re-import is an upsert, never a wipe. */}
+          <div className="flex flex-col gap-1 text-sm">
+            <span className="text-primary font-medium">{plan.creates.length} new {plan.creates.length === 1 ? 'item' : 'items'}</span>
+            <span className="text-secondary">{plan.authUpdates.length} authorized {plan.authUpdates.length === 1 ? 'change' : 'changes'} (present stock untouched)</span>
+            {plan.deauthorizes.length > 0 && (
+              <span className="text-amber-700">{plan.deauthorizes.length} dropped from BOM — de-authorized, still on hand</span>
+            )}
+          </div>
 
-          <Section title="Preview">
-            <SectionCard>
-              <table className="w-full text-[10pt]">
-                <thead>
-                  <tr className="border-b border-themeblue3/10">
-                    <th className="text-left px-3 py-2 text-tertiary font-medium">Name</th>
-                    <th className="text-left px-3 py-2 text-tertiary font-medium">Qty</th>
-                    <th className="text-left px-3 py-2 text-tertiary font-medium">Location</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {previewRows.map((row, i) => (
-                    <tr key={i} className="border-b border-themeblue3/10 last:border-b-0">
-                      <td className="px-3 py-2 text-primary truncate max-w-[140px]">{row.name}</td>
-                      <td className="px-3 py-2 text-secondary">{row.quantity}</td>
-                      <td className="px-3 py-2 text-secondary truncate max-w-[100px]">{row.location || '—'}</td>
+          {plan.creates.length > 0 && (
+            <Section title="New items">
+              <SectionCard>
+                <table className="w-full text-[10pt]">
+                  <thead>
+                    <tr className="border-b border-themeblue3/10">
+                      <th className="text-left px-3 py-2 text-tertiary font-medium">Name</th>
+                      <th className="text-left px-3 py-2 text-tertiary font-medium">Qty</th>
+                      <th className="text-left px-3 py-2 text-tertiary font-medium">Auth</th>
+                      <th className="text-left px-3 py-2 text-tertiary font-medium">Location</th>
                     </tr>
-                  ))}
-                  {extraRows > 0 && (
-                    <tr>
-                      <td colSpan={3} className="px-3 py-2 text-tertiary text-center">
-                        + {extraRows} more items
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </SectionCard>
-          </Section>
+                  </thead>
+                  <tbody>
+                    {previewCreates.map((row, i) => (
+                      <tr key={i} className="border-b border-themeblue3/10 last:border-b-0">
+                        <td className="px-3 py-2 text-primary truncate max-w-[140px]">{row.name}</td>
+                        <td className="px-3 py-2 text-secondary">{row.quantity}</td>
+                        <td className="px-3 py-2 text-secondary">{row.quantityAuthorized ?? '—'}</td>
+                        <td className="px-3 py-2 text-secondary truncate max-w-[100px]">{row.location || '—'}</td>
+                      </tr>
+                    ))}
+                    {extraCreates > 0 && (
+                      <tr>
+                        <td colSpan={4} className="px-3 py-2 text-tertiary text-center">
+                          + {extraCreates} more
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </SectionCard>
+            </Section>
+          )}
 
           <div className="flex gap-3">
             <button
@@ -194,10 +238,10 @@ export function PropertyCSVImport({ onClose }: PropertyCSVImportProps) {
             <button
               type="button"
               onClick={handleImport}
-              disabled={parsedRows.length === 0}
+              disabled={totalOps === 0}
               className="flex-1 rounded-full px-6 py-3 text-sm font-medium bg-themeblue3 text-white disabled:opacity-40"
             >
-              Import {parsedRows.length} items
+              Apply {totalOps} {totalOps === 1 ? 'change' : 'changes'}
             </button>
           </div>
         </div>
@@ -206,14 +250,14 @@ export function PropertyCSVImport({ onClose }: PropertyCSVImportProps) {
       {step === 'importing' && (
         <div className="flex flex-col items-center justify-center gap-4 py-16">
           <LoadingSpinner />
-          <p className="text-sm text-secondary">Importing {parsedRows.length} items…</p>
+          <p className="text-sm text-secondary">Applying {totalOps} changes…</p>
         </div>
       )}
 
       {step === 'done' && (
         <div className="flex flex-col items-center justify-center gap-4 py-16">
           <CheckCircle2 className="w-12 h-12 text-themegreen" />
-          <p className="text-sm text-secondary">{importedCount} items imported</p>
+          <p className="text-sm text-secondary">{appliedCount} changes applied</p>
           <button
             type="button"
             onClick={handleClose}

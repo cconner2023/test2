@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, type ReactNode } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Settings, ChevronRight } from 'lucide-react'
 import { listClinics, listAllUsers } from '../../lib/adminService'
 import { useInvalidation } from '../../stores/useInvalidationStore'
@@ -27,15 +27,6 @@ interface AdminSortRailProps {
 // feedItems memo on every rail render.
 const REQUEST_KINDS = ['request'] as const
 const FEEDBACK_KINDS = ['suggestion', 'feedback'] as const
-
-/** Section header — the conversation-panel label treatment (uppercase, tracked). */
-function SectionLabel({ children }: { children: ReactNode }) {
-  return (
-    <div className="px-4 pt-3 pb-1.5">
-      <p className="text-[9pt] font-semibold text-tertiary uppercase tracking-wider">{children}</p>
-    </div>
-  )
-}
 
 /**
  * The admin drawer's standing inbox (desktop left pane + mobile nav sheet).
@@ -80,45 +71,36 @@ export function AdminSortRail({
 
         <div className="border-b border-primary/10 mx-4" />
 
-        {/* Standing counts */}
-        <div className="px-4 py-3 space-y-1.5">
-          <div className="flex items-center gap-2 w-full text-left">
-            <span className="text-[10pt] text-primary flex-1">Users</span>
-            <span className="text-[10pt] font-semibold text-primary tabular-nums">{userCount}</span>
-          </div>
-          <div className="flex items-center gap-2 w-full text-left">
-            <span className="text-[10pt] text-primary flex-1">Clusters</span>
-            <span className="text-[10pt] font-semibold text-primary tabular-nums">{clinicCount}</span>
-          </div>
-        </div>
+        {/* Standing counts — one muted line. The conversation list has no such
+            block, so keep it to a single glance instead of a stacked header. */}
+        <p className="px-4 py-2 text-[9.5pt] text-tertiary tabular-nums">
+          {userCount} users · {clinicCount} clusters
+        </p>
 
         <div className="border-b border-primary/10 mx-4" />
 
-        {/* Requests — pending account requests (bare rows, conversation visual). */}
-        <SectionLabel>Requests</SectionLabel>
+        {/* The three triage queues. Each section self-labels and renders nothing
+            (label included) when empty — so the rail only shows what's there. */}
         <AdminRequestsList
           bare
+          bareLabel="Requests"
           kinds={REQUEST_KINDS}
-          bareEmptyText="No pending requests"
           searchQuery={searchQuery}
           onApproved={onApproved}
         />
 
-        {/* Feedback — user suggestions + feedback submissions. */}
-        <SectionLabel>Feedback</SectionLabel>
         <AdminRequestsList
           bare
+          bareLabel="Feedback"
           kinds={FEEDBACK_KINDS}
-          bareEmptyText="No feedback"
           searchQuery={searchQuery}
         />
 
-        {/* Messages — dev↔user system conversation threads. */}
-        <SectionLabel>Messages</SectionLabel>
         <AdminSystemConversationsList
           onSelectSystemPeer={onSelectSystemPeer}
           searchQuery={searchQuery}
           activePeerId={activeSystemPeerId}
+          label="Messages"
         />
       </div>
     </div>

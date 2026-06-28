@@ -456,14 +456,9 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
     // Mobile header rail — opens the nav sheet (search + counts + directory tree)
     // from any tab. The desktop equivalent is the always-on left pane.
     const navRailButton = useMemo(() => (
-        <button
-            type="button"
-            onClick={() => setShowNavSheet(true)}
-            aria-label="Open inbox"
-            className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-tertiary/10 text-tertiary active:scale-95 shrink-0"
-        >
-            <Network size={18} />
-        </button>
+        <HeaderPill>
+            <PillButton icon={Network} onClick={() => setShowNavSheet(true)} label="Open inbox" />
+        </HeaderPill>
     ), [])
 
     const isUserCreateMode = view === 'admin-user-detail' && selectedUser === null

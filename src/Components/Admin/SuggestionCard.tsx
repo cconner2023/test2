@@ -44,9 +44,6 @@ export function SuggestionCard({
             <p className="text-sm font-medium text-primary truncate">{suggestion.title}</p>
             <p className="text-[9pt] text-tertiary mt-0.5 truncate">Feature suggestion</p>
           </div>
-          <span className="text-[9pt] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full border shrink-0 bg-themeyellow/10 text-themeyellow border-themeyellow/30">
-            Idea
-          </span>
         </div>
 
         {suggestion.description && (

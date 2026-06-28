@@ -16,6 +16,9 @@ interface AdminSystemConversationsListProps {
   searchQuery?: string
   /** Highlights the currently-open thread (desktop right-pane selection). */
   activePeerId?: string | null
+  /** Section label rendered ABOVE the threads — only when there are threads, so
+   *  an empty Messages section (and its label) vanishes like an empty list. */
+  label?: string
 }
 
 /**
@@ -24,7 +27,7 @@ interface AdminSystemConversationsListProps {
  * standing home in the left pane / nav sheet rather than mixing into the
  * Requests inbox. Long-press / right-click opens Reply / Delete.
  */
-export function AdminSystemConversationsList({ onSelectSystemPeer, searchQuery, activePeerId }: AdminSystemConversationsListProps) {
+export function AdminSystemConversationsList({ onSelectSystemPeer, searchQuery, activePeerId, label }: AdminSystemConversationsListProps) {
   const systemConversations = useAdminSystemConversations()
   const messagesCtx = useMessagesContext()
 
@@ -78,28 +81,31 @@ export function AdminSystemConversationsList({ onSelectSystemPeer, searchQuery, 
     )
   }
 
+  // Empty Messages section vanishes entirely — no label, no placeholder — so the
+  // rail reads like a conversation list with nothing to show.
+  if (filtered.length === 0) return null
+
   return (
     <div className="flex flex-col min-h-0">
-      {filtered.length === 0 ? (
-        <p className="px-4 py-5 text-center text-[9.5pt] text-tertiary">
-          {searchQuery?.trim() ? 'No matching threads' : 'No system conversations'}
-        </p>
-      ) : (
-        <div className="divide-y divide-themeblue3/10">
-          {filtered.map((c) => (
-            <div
-              key={`sys-${c.peerId}`}
-              className={activePeerId === c.peerId ? 'bg-themeblue3/8 border-l-2 border-l-themeblue3' : ''}
-            >
-              <SystemConversationCard
-                conversation={c}
-                onSelect={onSelectSystemPeer}
-                setContextMenu={setContextMenu}
-              />
-            </div>
-          ))}
+      {label && (
+        <div className="px-4 pt-3 pb-1.5">
+          <p className="text-[10pt] font-semibold text-tertiary uppercase tracking-wider">{label}</p>
         </div>
       )}
+      <div className="divide-y divide-themeblue3/10">
+        {filtered.map((c) => (
+          <div
+            key={`sys-${c.peerId}`}
+            className={activePeerId === c.peerId ? 'bg-themeblue3/8 border-l-2 border-l-themeblue3' : ''}
+          >
+            <SystemConversationCard
+              conversation={c}
+              onSelect={onSelectSystemPeer}
+              setContextMenu={setContextMenu}
+            />
+          </div>
+        ))}
+      </div>
 
       {renderContextMenu()}
 

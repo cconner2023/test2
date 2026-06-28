@@ -40,9 +40,10 @@ interface AdminRequestsListProps {
    *  instance scoped to ['request'] (Requests section) and another scoped to
    *  ['suggestion','feedback'] (Feedback section) so like items group together. */
   kinds?: ReadonlyArray<FeedKind>
-  /** Bare mode only: render this muted line when there are no items, instead of
-   *  collapsing to null. Keeps a labelled rail section reading intentionally. */
-  bareEmptyText?: string
+  /** Bare mode only: section label rendered ABOVE the items — and only when the
+   *  section has items, so an empty queue (and its label) vanishes entirely,
+   *  the way an empty conversation list shows no header. */
+  bareLabel?: string
   /** When true, renders as a labelled section inside the unified search results:
    *  page-padding-free, collapses to null on an empty search. */
   embedded?: boolean
@@ -55,7 +56,7 @@ interface AdminRequestsListProps {
   ) => void
 }
 
-export function AdminRequestsList({ searchQuery: searchQueryProp, bare, embedded, title, kinds, bareEmptyText, onApproved }: AdminRequestsListProps) {
+export function AdminRequestsList({ searchQuery: searchQueryProp, bare, embedded, title, kinds, bareLabel, onApproved }: AdminRequestsListProps) {
   const searchQuery = searchQueryProp ?? ''
 
   const gen = useInvalidation('requests')
@@ -476,16 +477,18 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, bare, embedded
     )
   }
 
-  // ── Bare mode: just the items (no wrapper chrome) ──────
+  // ── Bare mode: just the items (no wrapper chrome). The section label rides
+  //    here so it only renders when the section has items — an empty queue and
+  //    its label vanish entirely, matching the conversation list. ──────
   if (bare) {
-    if (feedItems.length === 0) {
-      if (!bareEmptyText) return null
-      return (
-        <p className="px-4 py-2.5 text-[9.5pt] text-tertiary">{bareEmptyText}</p>
-      )
-    }
+    if (feedItems.length === 0) return null
     return (
       <>
+        {bareLabel && (
+          <div className="px-4 pt-3 pb-1.5">
+            <p className="text-[10pt] font-semibold text-tertiary uppercase tracking-wider">{bareLabel}</p>
+          </div>
+        )}
         {feedItems.map(renderFeedItem)}
         {renderContextMenu()}
         {renderFeedbackContextMenu()}

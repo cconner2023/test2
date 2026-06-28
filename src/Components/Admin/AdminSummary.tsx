@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef, type ReactNode } from 'react'
-import { ChevronRight, ChevronDown, AlertTriangle, User, Users, Building2, MapPin, Eye, Pencil, Trash2, Mail, MessageSquare } from 'lucide-react'
+import { ChevronRight, ChevronDown, AlertTriangle, Building2, Eye, Pencil, Trash2, Mail, MessageSquare } from 'lucide-react'
 import { listClinics, listAllUsers, listLocations, deleteClinic, deleteUser } from '../../lib/adminService'
 import type { AdminUser, AdminClinic, AdminLocation } from '../../lib/adminService'
 import { fetchAllSubClusters, type SubCluster } from '../../lib/subClusterService'
@@ -90,9 +90,6 @@ export function AdminSummary({
       rect: el.getBoundingClientRect(),
       clone: (
         <div className="bg-themewhite px-4 py-2.5 flex items-center gap-2">
-          <span className="w-7 h-7 rounded-full bg-tertiary/10 flex items-center justify-center shrink-0">
-            <Building2 size={14} className="text-tertiary" />
-          </span>
           <span className="flex-1 min-w-0 text-[10pt] font-medium text-primary truncate">{clinic.name}</span>
         </div>
       ),
@@ -107,7 +104,6 @@ export function AdminSummary({
       rect: el.getBoundingClientRect(),
       clone: (
         <div className="bg-themewhite px-3 py-2 flex items-center gap-2">
-          <User size={14} className="text-tertiary shrink-0" />
           <span className="flex-1 min-w-0 text-[10pt] text-primary truncate">{name}</span>
         </div>
       ),
@@ -344,7 +340,6 @@ export function AdminSummary({
           ) : (
             <span className="w-[18px] shrink-0" />
           )}
-          <Users size={13} className="shrink-0 text-tertiary" />
           <span className="flex-1 min-w-0 text-[9.5pt] font-medium text-secondary truncate">{su.name}</span>
           <span className="text-[9pt] font-normal text-tertiary tabular-nums shrink-0">{su.users.length}</span>
         </div>
@@ -392,8 +387,6 @@ export function AdminSummary({
             <span className="w-[18px] shrink-0" />
           )}
 
-          <Building2 size={14} className="shrink-0 text-tertiary" />
-
           <div
             role="button"
             tabIndex={0}
@@ -404,8 +397,7 @@ export function AdminSummary({
           >
             <span className="text-[10pt] font-medium text-primary truncate">{node.label}</span>
             {node.locationLabel && (
-              <span className="inline-flex items-center gap-0.5 text-[8.5pt] text-themeblue2 bg-themeblue2/10 rounded-full pl-1 pr-1.5 py-0.5 shrink min-w-0 max-w-[45%]">
-                <MapPin size={9} className="shrink-0" />
+              <span className="inline-flex items-center text-[8.5pt] text-themeblue2 bg-themeblue2/10 rounded-full px-1.5 py-0.5 shrink min-w-0 max-w-[45%]">
                 <span className="truncate">{node.locationLabel}</span>
               </span>
             )}
