@@ -78,8 +78,12 @@ createRoot(document.getElementById('root')!).render(
 )
 
 // Expose splash dismissal for React (called by LockGate when auth settles)
-// Enforce a minimum display time so fast auth doesn't cause a flash
-const SPLASH_MIN_MS = 800
+// Enforce a minimum display time so fast auth doesn't cause a flash.
+// Patch reloads hold longer so the "Applying patch…" splash (set by the
+// index.html inline script, which flagged window.__patchReload) is visible
+// long enough to read as intentional rather than a glitch.
+const PATCH_RELOAD = (window as unknown as { __patchReload?: boolean }).__patchReload === true
+const SPLASH_MIN_MS = PATCH_RELOAD ? 2200 : 800
 const splashStart = performance.now()
 ;(window as unknown as { dismissSplash: () => void }).dismissSplash = () => {
   const splashEl = document.getElementById('splash')

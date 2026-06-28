@@ -162,8 +162,11 @@
         // consumer, so clear it here (postUpdateNav is cleared by App.tsx).
         try {
           if (localStorage.getItem('postUpdateNav') || localStorage.getItem('updateReloadPending')) {
+            // Flag for main.tsx so the splash holds longer on a patch reload —
+            // a sub-second flash reads as a glitch, not an intentional update.
+            window.__patchReload = true;
             var st = document.getElementById('splash-subtitle');
-            if (st) st.textContent = 'Installing update…';
+            if (st) st.textContent = 'Applying patch…';
           }
           localStorage.removeItem('updateReloadPending');
         } catch (e) { }
