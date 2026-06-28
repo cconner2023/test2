@@ -228,9 +228,10 @@ export async function approveAccountRequest(
  */
 export async function sendApprovalEmail(email: string): Promise<ServiceResult> {
   try {
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: { shouldCreateUser: false },
+    // send-auth-email mints a 24h magic link (GoTrue) and delivers it via Resend,
+    // with .mil relay routing. Replaces the old GoTrue signInWithOtp magic-link send.
+    const { error } = await supabase.functions.invoke('send-auth-email', {
+      body: { kind: 'magiclink', email },
     })
     if (error) {
       logger.warn('Approval notification email failed:', error)

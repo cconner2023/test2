@@ -935,6 +935,24 @@ input, select, textarea {
   100% { background-color: transparent; }
 }
 
+/* ── Loading — Star of Life stands still and gently pulses (no spin, no glow).
+   DUPLICATED in index.html <style> for the pre-React splash. Keep both in sync. ── */
+@keyframes solPulse {
+  0%, 100% { opacity: 0.62; transform: scale(0.99); }
+  50%      { opacity: 1;    transform: scale(1.015); }
+}
+
+/* Mark pulses (used everywhere the Star of Life loads).
+   1.2s matches the loading bar's splashPulse so they stay phase-locked. */
+.sol-breathe {
+  animation: solPulse 1.2s ease-in-out infinite;
+}
+
+/* Accessibility / battery — hold the mark steady, no motion */
+@media (prefers-reduced-motion: reduce) {
+  .sol-breathe { animation: none; opacity: 1; }
+}
+
 /* ── Leaflet Map Overlay — fix Tailwind 4 preflight conflicts ── */
 
 .leaflet-container {

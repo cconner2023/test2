@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useMemo, useCallback } from 'react'
 import { Upload, AlertTriangle, CheckCircle2 } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import { Section, SectionCard } from '../Section'
@@ -8,7 +8,8 @@ import {
   parsePropertyCSV,
   downloadCSVTemplate,
   reconcileImport,
-  type ReconcilePlan,
+  type ParsedRow,
+  type MergeMode,
 } from '../../Utilities/PropertyCSV'
 import { ROOT_LOCATION_NAME } from '../../Types/PropertyTypes'
 
@@ -19,16 +20,15 @@ interface PropertyCSVImportProps {
 
 type Step = 'pick' | 'preview' | 'importing' | 'done'
 
-const EMPTY_PLAN: ReconcilePlan = { creates: [], authUpdates: [], deauthorizes: [] }
-
 /** Surfaceless CSV-import wizard body. Hosted in the Property right pane (desktop)
  *  / detail sheet (mobile) by PropertyPanel — the same surfaces zone/item/sign-out
  *  use. The host owns the header + close affordance.
  *
- *  Re-import is NON-DESTRUCTIVE: a row that matches an existing item (by serial → NSN
- *  → LIN → name) only ever adjusts its authorized qty; present stock/custody/location
- *  are never touched, and items dropped from the BOM are de-authorized (kept on hand),
- *  never deleted. See reconcileImport. */
+ *  An upload is additive-or-merge: a row with no existing match adds a new item; a row
+ *  matching an existing item (serial when present, else NSN → LIN → name) MERGES into it.
+ *  Merge mode decides present qty — 'set' (inventory snapshot, idempotent) or 'add'
+ *  (received stock). Authorized qty always tracks the CSV; items dropped from the BOM are
+ *  de-authorized (kept on hand), never deleted. See reconcileImport. */
 export function PropertyCSVImport({ onClose }: PropertyCSVImportProps) {
   const { locations, items, clinicId, addItem, editItem, addLocation } = usePropertyStore(
     useShallow(s => ({
@@ -42,15 +42,23 @@ export function PropertyCSVImport({ onClose }: PropertyCSVImportProps) {
   )
 
   const [step, setStep] = useState<Step>('pick')
-  const [plan, setPlan] = useState<ReconcilePlan>(EMPTY_PLAN)
+  const [parsedRows, setParsedRows] = useState<ParsedRow[]>([])
   const [parseErrors, setParseErrors] = useState<string[]>([])
+  const [mergeMode, setMergeMode] = useState<MergeMode>('set')
   const [appliedCount, setAppliedCount] = useState(0)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  const plan = useMemo(
+    () => reconcileImport(parsedRows, items, { mergeMode }),
+    [parsedRows, items, mergeMode],
+  )
+  const totalOps = plan.creates.length + plan.merges.length + plan.deauthorizes.length
+
   const handleClose = useCallback(() => {
     setStep('pick')
-    setPlan(EMPTY_PLAN)
+    setParsedRows([])
     setParseErrors([])
+    setMergeMode('set')
     setAppliedCount(0)
     onClose()
   }, [onClose])
@@ -58,12 +66,10 @@ export function PropertyCSVImport({ onClose }: PropertyCSVImportProps) {
   const handleFileChange = useCallback(async (file: File | null | undefined) => {
     if (!file) return
     const result = await parsePropertyCSV(file)
-    setPlan(reconcileImport(result.rows, items))
+    setParsedRows(result.rows)
     setParseErrors(result.errors)
     setStep('preview')
-  }, [items])
-
-  const totalOps = plan.creates.length + plan.authUpdates.length + plan.deauthorizes.length
+  }, [])
 
   async function handleImport() {
     if (!clinicId || totalOps === 0) return
@@ -122,10 +128,14 @@ export function PropertyCSVImport({ onClose }: PropertyCSVImportProps) {
       })
     }
 
-    // Authorization layer only — present stock is never touched here.
-    for (const u of plan.authUpdates) {
-      await editItem(u.itemId, { quantity_authorized: u.newAuth })
+    // Merges: write only what changed (present qty per merge mode, authorized always tracks CSV).
+    for (const m of plan.merges) {
+      await editItem(m.itemId, {
+        ...(m.qtyChanged ? { quantity: m.newQty } : {}),
+        ...(m.authChanged ? { quantity_authorized: m.newAuth } : {}),
+      })
     }
+    // De-authorize dropped-from-BOM items; present stock untouched.
     for (const d of plan.deauthorizes) {
       await editItem(d.itemId, { quantity_authorized: null })
     }
@@ -184,10 +194,42 @@ export function PropertyCSVImport({ onClose }: PropertyCSVImportProps) {
             </div>
           )}
 
-          {/* Reconcile diff — re-import is an upsert, never a wipe. */}
+          {/* Merge mode — what a match does to present quantity. Only matters when rows merge. */}
+          {plan.merges.length > 0 && (
+            <Section title="Quantity for merged items">
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setMergeMode('set')}
+                  className={`rounded-xl px-3 py-2.5 text-[10pt] font-medium border transition-colors ${
+                    mergeMode === 'set'
+                      ? 'bg-themeblue3 text-white border-themeblue3'
+                      : 'bg-themewhite2 text-secondary border-tertiary/20'
+                  }`}
+                >
+                  Inventory count
+                  <span className="block text-[9pt] font-normal opacity-80">set to CSV qty</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMergeMode('add')}
+                  className={`rounded-xl px-3 py-2.5 text-[10pt] font-medium border transition-colors ${
+                    mergeMode === 'add'
+                      ? 'bg-themeblue3 text-white border-themeblue3'
+                      : 'bg-themewhite2 text-secondary border-tertiary/20'
+                  }`}
+                >
+                  Received
+                  <span className="block text-[9pt] font-normal opacity-80">add to on-hand</span>
+                </button>
+              </div>
+            </Section>
+          )}
+
+          {/* Reconcile diff — an upload is an upsert, never a wipe. */}
           <div className="flex flex-col gap-1 text-sm">
             <span className="text-primary font-medium">{plan.creates.length} new {plan.creates.length === 1 ? 'item' : 'items'}</span>
-            <span className="text-secondary">{plan.authUpdates.length} authorized {plan.authUpdates.length === 1 ? 'change' : 'changes'} (present stock untouched)</span>
+            <span className="text-secondary">{plan.merges.length} merged into existing {plan.merges.length === 1 ? 'item' : 'items'}</span>
             {plan.deauthorizes.length > 0 && (
               <span className="text-amber-700">{plan.deauthorizes.length} dropped from BOM — de-authorized, still on hand</span>
             )}

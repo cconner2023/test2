@@ -23,7 +23,7 @@ export function PostLoginLoader({ ready, onDone }: { ready: boolean; onDone: () 
       className="fixed inset-0 z-[9998] flex flex-col items-center justify-center bg-themewhite2"
       style={{ opacity, transition: 'opacity 0.5s ease-out', pointerEvents: opacity === 0 ? 'none' : 'auto' }}
     >
-      <svg className="w-16 h-16" viewBox="0 0 40 40" fill="none" style={{ animation: 'solSpin 2s linear infinite' }}>
+      <svg className="w-16 h-16 sol-breathe" viewBox="0 0 40 40" fill="none">
         <g transform="translate(20,20)">
           <rect x="-3" y="-11" width="6" height="22" rx="1.5" className="fill-themeblue3 dark:fill-themeblue1" />
           <rect x="-3" y="-11" width="6" height="22" rx="1.5" className="fill-themeblue3 dark:fill-themeblue1" transform="rotate(60)" />

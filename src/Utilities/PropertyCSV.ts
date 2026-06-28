@@ -1,4 +1,5 @@
 import type { LocalPropertyItem, LocalPropertyLocation } from '../Types/PropertyTypes'
+import type { OrderLine } from './propertyShortage'
 
 // ── CSV Escaping ────────────────────────────────────────────
 
@@ -233,25 +234,37 @@ function parseCSVRow(line: string): string[] {
   return fields
 }
 
-// ── Non-destructive reconcile (re-import / baseline upload) ──
+// ── Reconcile (additive-or-merge import) ────────────────────
 //
-// The importer must NEVER duplicate the book on a re-upload, and must NEVER touch
-// present stock when it adjusts the authorization layer. A reconcile matches each CSV
-// row into the existing tree by key precedence (serial → NSN → LIN → name, lowercased)
-// and produces three buckets:
-//   - creates:   rows with no existing match → new item (present qty + authorized).
-//   - authUpdates: matched rows whose authorized qty differs → updateItem(quantity_authorized)
-//     ONLY. Present quantity, holder, location, serial are left untouched.
-//   - deauthorizes: authorization-tracked items NOT present in the upload → set
-//     quantity_authorized = null (still on hand as excess; NEVER deleted).
-// Matches are consumed so two CSV lines sharing an NSN map to two different existing rows.
+// An upload NEVER duplicates the book: each row either ADDS a new item or MERGES into an
+// existing one. Matching:
+//   - A row WITH a serial number is DISTINCT — matched by serial only (50 serialized items
+//     never collapse into one NSN pool). No serial match → create.
+//   - A row WITHOUT a serial is FUNGIBLE — matched into the bulk pool by NSN → LIN → name.
+//     Serial-bearing / serialized existing items are excluded from that pool.
+//   - No match → create (additive).
+// Matches are consumed so two CSV rows sharing an NSN map to two different existing items.
+//
+// On a merge, present `quantity` is reconciled per mergeMode:
+//   - 'set' — present qty becomes the CSV value (inventory snapshot; re-upload idempotent).
+//   - 'add' — CSV qty is added to what's on hand (received shipment; re-upload accumulates).
+// Authorized qty always tracks the CSV row. Authorization-tracked items absent from the
+// upload are DE-AUTHORIZED (quantity_authorized → null, kept on hand), never deleted, and
+// their present stock is never touched.
 
-/** An authorized-qty change on an already-tracked item. */
-export interface AuthUpdate {
+/** How a merge reconciles present quantity. */
+export type MergeMode = 'set' | 'add'
+
+/** A merge into an existing item — present qty and/or authorized qty change. */
+export interface MergeUpdate {
   itemId: string
   name: string
+  oldQty: number
+  newQty: number
   oldAuth: number | null
   newAuth: number | null
+  qtyChanged: boolean
+  authChanged: boolean
 }
 
 /** An item dropped from the BOM — de-authorized but kept on hand. */
@@ -263,7 +276,7 @@ export interface Deauthorize {
 
 export interface ReconcilePlan {
   creates: ParsedRow[]
-  authUpdates: AuthUpdate[]
+  merges: MergeUpdate[]
   deauthorizes: Deauthorize[]
 }
 
@@ -281,18 +294,25 @@ function pushKey(map: Map<string, LocalPropertyItem[]>, key: string, item: Local
 export function reconcileImport(
   rows: ParsedRow[],
   existing: LocalPropertyItem[],
+  opts: { mergeMode: MergeMode } = { mergeMode: 'set' },
 ): ReconcilePlan {
   const live = existing.filter((it) => !it.deleted_at)
 
+  // Distinct (serial-bearing/serialized) items are matchable ONLY by serial; fungible
+  // items populate the NSN/LIN/name bulk pool.
   const bySerial = new Map<string, LocalPropertyItem[]>()
   const byNsn = new Map<string, LocalPropertyItem[]>()
   const byLin = new Map<string, LocalPropertyItem[]>()
   const byName = new Map<string, LocalPropertyItem[]>()
   for (const it of live) {
-    pushKey(bySerial, norm(it.serial_number), it)
-    pushKey(byNsn, norm(it.nsn), it)
-    pushKey(byLin, norm(it.lin), it)
-    pushKey(byName, norm(it.name), it)
+    const isDistinct = it.is_serialized || !!norm(it.serial_number)
+    if (isDistinct) {
+      pushKey(bySerial, norm(it.serial_number), it)
+    } else {
+      pushKey(byNsn, norm(it.nsn), it)
+      pushKey(byLin, norm(it.lin), it)
+      pushKey(byName, norm(it.name), it)
+    }
   }
 
   const consumed = new Set<string>()
@@ -305,14 +325,14 @@ export function reconcileImport(
   }
 
   const creates: ParsedRow[] = []
-  const authUpdates: AuthUpdate[] = []
+  const merges: MergeUpdate[] = []
 
   for (const row of rows) {
-    const match =
-      takeFirst(bySerial, norm(row.serialNumber)) ??
-      takeFirst(byNsn, norm(row.nsn)) ??
-      takeFirst(byLin, norm(row.lin)) ??
-      takeFirst(byName, norm(row.name))
+    const match = norm(row.serialNumber)
+      ? takeFirst(bySerial, norm(row.serialNumber))
+      : takeFirst(byNsn, norm(row.nsn)) ??
+        takeFirst(byLin, norm(row.lin)) ??
+        takeFirst(byName, norm(row.name))
 
     if (!match) {
       creates.push(row)
@@ -320,11 +340,15 @@ export function reconcileImport(
     }
 
     consumed.add(match.id)
+    const oldQty = match.quantity
+    const newQty = opts.mergeMode === 'add' ? oldQty + row.quantity : row.quantity
     const oldAuth = match.quantity_authorized ?? null
-    if (oldAuth !== row.quantityAuthorized) {
-      authUpdates.push({ itemId: match.id, name: match.name, oldAuth, newAuth: row.quantityAuthorized })
+    const newAuth = row.quantityAuthorized
+    const qtyChanged = newQty !== oldQty
+    const authChanged = oldAuth !== newAuth
+    if (qtyChanged || authChanged) {
+      merges.push({ itemId: match.id, name: match.name, oldQty, newQty, oldAuth, newAuth, qtyChanged, authChanged })
     }
-    // Matched with no auth change → nothing to write; present stock left untouched.
   }
 
   // Authorization-tracked items absent from the upload are de-authorized, not deleted.
@@ -335,7 +359,25 @@ export function reconcileImport(
     }
   }
 
-  return { creates, authUpdates, deauthorizes }
+  return { creates, merges, deauthorizes }
+}
+
+// ── Shortage order-list export ──────────────────────────────
+
+/** Export the cluster requisition list (aggregate-by-NSN shortfalls) as a CSV — the
+ *  actionable "what to order" sheet. Mirrors exportPropertyCSV's download path. */
+export function exportShortageCSV(orders: OrderLine[]): void {
+  const headers = ['NSN', 'LIN', 'Name', 'Authorized', 'On Hand', 'Order'] as const
+  const rows = orders.map((o) => [
+    escapeCSVField(o.nsn ?? ''),
+    escapeCSVField(o.lin ?? ''),
+    escapeCSVField(o.name),
+    String(o.authorized),
+    String(o.onHand),
+    String(o.order),
+  ])
+  const csv = [headers.join(','), ...rows.map((r) => r.join(','))].join('\r\n')
+  downloadCSVString(csv, `shortage-order-${new Date().toISOString().slice(0, 10)}.csv`)
 }
 
 // ── Download helper ─────────────────────────────────────────

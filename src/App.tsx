@@ -35,6 +35,7 @@ import { useProfileAvatar } from './Hooks/useProfileAvatar'
 import { useProfileRealtime } from './Hooks/useProfileRealtime'
 import { useAuth } from './Hooks/useAuth'
 import { useAuthStore } from './stores/useAuthStore'
+import { supabase } from './lib/supabase'
 import { LockGate } from './Components/LockGate'
 import { ErrorBoundary } from './Components/ErrorBoundary'
 import { MessagesProvider, useMessagesContext } from './Hooks/MessagesContext'
@@ -71,6 +72,21 @@ const _initialViewParam = (() => {
     window.history.replaceState({}, '', window.location.pathname)
   }
   return view
+})()
+
+// Auth-email landing: the password-reset / account-approval email links here with
+// a GoTrue token_hash in the query (send-auth-email emails our own branded link,
+// not the supabase.co verify URL). Exchange it once at load — verifyOtp fires
+// PASSWORD_RECOVERY (recovery) or SIGNED_IN (magiclink), which useAuthStore already
+// handles (→ PasswordResetOverlay). detectSessionInUrl does not cover token_hash.
+void (() => {
+  const params = new URLSearchParams(window.location.search)
+  const tokenHash = params.get('token_hash')
+  const type = params.get('type')
+  if (!tokenHash || (type !== 'recovery' && type !== 'magiclink')) return
+  // Strip the one-time token from the address bar/history before render.
+  window.history.replaceState({}, '', window.location.pathname)
+  void supabase.auth.verifyOtp({ token_hash: tokenHash, type })
 })()
 
 // Post-update navigation: capture and clear the flag set before reload

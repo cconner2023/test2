@@ -31,6 +31,7 @@ import { PropertyItemDetail, type PropertyItemDetailHandle } from './PropertyIte
 import { Da2062Detail, da2062DetailSubtitle, type Da2062DetailHandle } from './Da2062Detail'
 import { PropertyRecordDetail, type PropertyRecordDetailHandle, type SelectedRecord } from './PropertyRecordDetail'
 import { PropertyCSVImport } from './PropertyCSVImportDrawer'
+import { PropertyShortagePanel } from './PropertyShortagePanel'
 import { SignOutForm, type SignOutFormHandle } from './SignOutForm'
 import { HeaderPill, PillButton } from '../HeaderPill'
 import { SearchInput } from '../SearchInput'
@@ -69,6 +70,9 @@ interface PropertyPanelProps {
   /** Register a trigger to open CSV import in the detail surface (right pane on
    *  desktop / detail sheet on mobile). Fired from the add ActionSheet. */
   onRegisterImport?: (trigger: () => void) => void
+  /** Register a trigger to open the Shortages / requisition report in the detail
+   *  surface. Fired from the add ActionSheet (dev-gated, like New DA 2062). */
+  onRegisterShortages?: (trigger: () => void) => void
   /** Register a trigger to navigate the canvas to a zone (global-search deep-link). */
   onRegisterNavigateZone?: (trigger: (zoneId: string) => void) => void
   /** Register a trigger to open the Custody / DA 2062 tab (global-search deep-link). */
@@ -96,6 +100,7 @@ export const PropertyPanel = memo(function PropertyPanel({
   onOpenAddSheet,
   onRegisterNewDA2062,
   onRegisterImport,
+  onRegisterShortages,
   onRegisterNavigateZone,
   onRegisterOpenCustody,
 }: PropertyPanelProps) {
@@ -335,6 +340,7 @@ export const PropertyPanel = memo(function PropertyPanel({
   // CSV import, hosted in the SAME detail surface (right pane desktop / detail
   // sheet mobile) — mirrors signOutOpen / da2062Preview.
   const [importOpen, setImportOpen] = useState(false)
+  const [shortageOpen, setShortageOpen] = useState(false)
   // A Custody-roster card opened into the detail surface (right pane desktop /
   // sheet mobile): a DA 2062 hand receipt OR a PMCS/dispatch record. Same "main-
   // content card → pane/sheet detail" primitive the item/zone rows use; mutually
@@ -422,9 +428,25 @@ export const PropertyPanel = memo(function PropertyPanel({
       setSelectedLocationId(null)
       mapRef.current?.clearSelection()
       setSignOutOpen(false)
+      setShortageOpen(false)
       setImportOpen(true)
     })
   }, [onRegisterImport, store])
+
+  // Shortages report opens as the sole occupant of the detail surface (mirrors Import).
+  useEffect(() => {
+    onRegisterShortages?.(() => {
+      setMobileItem(null)
+      setMobileForm(null)
+      store.setEditingItem(null)
+      setEditLocationTarget(null)
+      setSelectedLocationId(null)
+      mapRef.current?.clearSelection()
+      setSignOutOpen(false)
+      setImportOpen(false)
+      setShortageOpen(true)
+    })
+  }, [onRegisterShortages, store])
 
   // Mobile: focusing the header search opens the results overlay over the canvas
   // (z1020). The Custody sheet sits above it (z1200), so leave that tab first —
@@ -711,7 +733,7 @@ export const PropertyPanel = memo(function PropertyPanel({
   // Desktop layout — left rail (location tree) · center map · right pane (detail/form),
   // mirroring MapOverlayPanel: the rail collapses while the right pane is open.
   if (!isMobile) {
-    const railCollapsed = view === 'property-form' || view === 'property-detail' || !!editLocationTarget || !!selectedLocation || signOutOpen || importOpen || !!da2062Preview || !!selectedReceipt || !!selectedRecord
+    const railCollapsed = view === 'property-form' || view === 'property-detail' || !!editLocationTarget || !!selectedLocation || signOutOpen || importOpen || shortageOpen || !!da2062Preview || !!selectedReceipt || !!selectedRecord
     // When the rail search has a query, the results take over the CENTER pane
     // (mirrors mobile's overlay) instead of filtering the rail tree in place. The
     // rail keeps the full tree for navigation context; results route to the right pane.
@@ -1030,6 +1052,23 @@ export const PropertyPanel = memo(function PropertyPanel({
                 </div>
               </div>
             )}
+            {/* Shortages / requisition report — sole occupant of the right pane, same
+                overlay treatment as CSV import. */}
+            {shortageOpen && (
+              <div className="absolute inset-0 z-10 flex flex-col bg-themewhite3">
+                <div className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-tertiary/10">
+                  <p className="text-sm font-medium text-primary truncate">Shortages</p>
+                  <HeaderPill>
+                    <PillButton icon={X} iconSize={16} onClick={() => setShortageOpen(false)} label="Close" />
+                  </HeaderPill>
+                </div>
+                <div className="flex-1 min-h-0 overflow-y-auto">
+                  <div className="px-4 py-4 pb-8">
+                    <PropertyShortagePanel onClose={() => setShortageOpen(false)} />
+                  </div>
+                </div>
+              </div>
+            )}
             {/* Reprinted DA 2062 — the object-view surface for a Custody-tab reprint.
                 Absolute overlay so it covers the pane without entangling the other
                 branches' conditions. */}
@@ -1152,13 +1191,15 @@ export const PropertyPanel = memo(function PropertyPanel({
           forms NEST in the SAME sheet (height-transition) — back unwinds
           form → item/location → parent zone. No separate sheets. */}
       <Sheet
-        isOpen={(!!selectedLocation || !!mobileItem || !!mobileForm || !!selectedReceipt || !!selectedRecord || signOutOpen || importOpen || !!da2062Preview) && !drawingZone}
-        onClose={() => { closeMobileForm(); setMobileItem(null); closeLocationDetail(); closeRosterDetail(); setSignOutOpen(false); setImportOpen(false); clearDA2062Preview() }}
+        isOpen={(!!selectedLocation || !!mobileItem || !!mobileForm || !!selectedReceipt || !!selectedRecord || signOutOpen || importOpen || shortageOpen || !!da2062Preview) && !drawingZone}
+        onClose={() => { closeMobileForm(); setMobileItem(null); closeLocationDetail(); closeRosterDetail(); setSignOutOpen(false); setImportOpen(false); setShortageOpen(false); clearDA2062Preview() }}
         title={
           da2062Preview
             ? da2062Preview.filename
             : importOpen
             ? 'Import Property CSV'
+            : shortageOpen
+            ? 'Shortages'
             : signOutOpen
             ? 'New DA 2062'
             : selectedReceipt
@@ -1198,12 +1239,12 @@ export const PropertyPanel = memo(function PropertyPanel({
           ) : undefined
         }
         height="fit"
-        maxHeight={da2062Preview || signOutOpen || importOpen ? 85 : 60}
+        maxHeight={da2062Preview || signOutOpen || importOpen || shortageOpen ? 85 : 60}
         // Detail/form are non-blocking like the map's mobile feature editor: the
         // canvas stays interactive and the body swaps detail↔form in the SAME sheet.
         // Sign-out is a focused task, so dim the canvas (non-dismissing) to block
         // stray taps from selecting items behind it.
-        backdrop={da2062Preview || signOutOpen || importOpen ? 'block' : 'none'}
+        backdrop={da2062Preview || signOutOpen || importOpen || shortageOpen ? 'block' : 'none'}
         zIndex={1200}
         leftContent={
           mobileForm ? (
@@ -1251,6 +1292,8 @@ export const PropertyPanel = memo(function PropertyPanel({
           </div>
         ) : importOpen ? (
           <PropertyCSVImport onClose={() => setImportOpen(false)} />
+        ) : shortageOpen ? (
+          <PropertyShortagePanel onClose={() => setShortageOpen(false)} />
         ) : signOutOpen ? (
           <SignOutForm ref={signOutFormRef} onClose={() => setSignOutOpen(false)} />
         ) : selectedReceipt ? (

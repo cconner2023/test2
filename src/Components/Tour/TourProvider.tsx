@@ -1157,7 +1157,7 @@ function TourProviderInner({ children, onboardingBlocked }: { children: React.Re
         }`}
         style={{ background: isDark ? 'rgba(25,35,45,1)' : 'rgba(240,242,245,1)' }}
       >
-        <svg className="w-16 h-16" viewBox="0 0 40 40" fill="none" style={{ animation: 'solSpin 2s linear infinite' }}>
+        <svg className="w-16 h-16 sol-breathe" viewBox="0 0 40 40" fill="none">
           <g transform="translate(20,20)">
             <rect x="-3" y="-11" width="6" height="22" rx="1.5" fill={isDark ? 'rgba(129,161,181,1)' : 'rgba(0,66,92,1)'} />
             <rect x="-3" y="-11" width="6" height="22" rx="1.5" fill={isDark ? 'rgba(129,161,181,1)' : 'rgba(0,66,92,1)'} transform="rotate(60)" />

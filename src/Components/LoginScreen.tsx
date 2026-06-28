@@ -7,13 +7,13 @@ import { useAuthStore } from '../stores/useAuthStore'
 import { signIn } from '../lib/authService'
 import { supabase } from '../lib/supabase'
 import { ErrorDisplay } from './ErrorDisplay'
-import { TextInput, PasswordInput, PinCodeInput } from './FormInputs'
+import { TextInput, PasswordInput } from './FormInputs'
 import { AccountRequestForm } from './Settings/AccountRequestForm'
 import { submitSupportRequest } from '../lib/accountRequestService'
 
 type View = 'main' | 'request' | 'help'
 type LoginMode = 'password' | 'qr'
-type ForgotStep = null | 'email' | 'token'
+type ForgotStep = null | 'email' | 'sent'
 
 /** Handoff key: a lock/re-auth screen stashes the account email here, then signs
  *  out to surface LoginScreen, which prefills it and auto-opens the reset flow —
@@ -132,29 +132,23 @@ export function LoginScreen() {
     setLoading(false)
   }
 
-  const handleTokenSubmit = useCallback(async (token: string) => {
-    if (!email.trim() || loading) return
-    setLoading(true)
-    setError(null)
-    const { error: otpError } = await supabase.auth.verifyOtp({
-      email, token, type: 'recovery',
-    })
-    if (otpError) setError(otpError.message)
-    setLoading(false)
-  }, [email, loading])
-
-  const handleSendResetToken = async () => {
+  const handleSendResetLink = async () => {
     if (!email.trim()) {
       setError('Enter your email address first.')
       return
     }
     setLoading(true)
     setError(null)
-    const { error: resetError } = await supabase.auth.resetPasswordForEmail(email)
-    if (resetError) {
-      setError(resetError.message)
+    // send-auth-email mints a 24h single-use recovery link (GoTrue) and delivers
+    // it (Resend, with .mil relay routing). Always resolves generic success, so we
+    // advance to the confirmation step regardless of whether the account exists.
+    const { error: sendError } = await supabase.functions.invoke('send-auth-email', {
+      body: { kind: 'recovery', email: email.trim() },
+    })
+    if (sendError) {
+      setError('Could not send the reset link. Please try again.')
     } else {
-      setForgotStep('token')
+      setForgotStep('sent')
     }
     setLoading(false)
   }
@@ -328,7 +322,7 @@ export function LoginScreen() {
                           : 'absolute inset-x-0 top-0 opacity-0 -translate-x-3 pointer-events-none'
                         }`}>
                           <p className="px-4 pt-3 pb-2 text-[10pt] text-secondary leading-relaxed border-b border-primary/6">
-                            Enter your email - if an account exists you'll receive an 8 digit password reset pin.
+                            Enter your email - if an account exists you'll receive a password reset link. Open it on this device to set a new password.
                           </p>
                           <TextInput
                             value={email}
@@ -346,7 +340,7 @@ export function LoginScreen() {
                             </button>
                             <button
                               type="button"
-                              onClick={handleSendResetToken}
+                              onClick={handleSendResetLink}
                               disabled={loading}
                               className={`shrink-0 h-9 rounded-full flex items-center justify-center bg-themeblue3 text-white overflow-hidden transition-all duration-300 ease-out active:scale-95 ${email.trim() ? 'w-9 opacity-100' : 'w-0 opacity-0 pointer-events-none'}`}
                             >
@@ -355,23 +349,15 @@ export function LoginScreen() {
                           </div>
                         </div>
 
-                        {/* Step 2 — token entry */}
-                        <div className={`transition-all duration-300 ease-out ${forgotStep === 'token'
+                        {/* Step 2 — link sent confirmation */}
+                        <div className={`transition-all duration-300 ease-out ${forgotStep === 'sent'
                           ? 'relative opacity-100 translate-x-0'
                           : 'absolute inset-x-0 top-0 opacity-0 translate-x-3 pointer-events-none'
                         }`}>
-                          <p className="px-4 pt-3 pb-2 text-[10pt] text-secondary leading-relaxed border-b border-primary/6">
-                            Check <span className="font-medium text-primary">{email}</span> for an 8-digit reset token and enter it below.
+                          <p className="px-4 pt-3 pb-3 text-[10pt] text-secondary leading-relaxed border-b border-primary/6">
+                            If an account exists for <span className="font-medium text-primary">{email}</span>, a password reset link is on its way. Open it on this device to set a new password — the link expires in 24 hours.
                           </p>
-                          <PinCodeInput
-                            length={8}
-                            onSubmit={handleTokenSubmit}
-                            placeholder="Reset code"
-                            label={loading ? 'Verifying...' : undefined}
-                            error={error ?? undefined}
-                            disabled={loading}
-                          />
-                          <div className="flex items-center justify-end gap-2 px-3 py-2">
+                          <div className="flex items-center justify-between gap-2 px-3 py-2">
                             <button
                               type="button"
                               onClick={closeForgot}
@@ -381,11 +367,12 @@ export function LoginScreen() {
                             </button>
                             <button
                               type="button"
-                              onClick={handleSendResetToken}
+                              onClick={handleSendResetLink}
                               disabled={loading}
-                              className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center bg-themeblue3 text-white disabled:opacity-30 active:scale-95 transition-all"
+                              className="shrink-0 flex items-center gap-1.5 h-9 px-3 rounded-full text-[9pt] font-medium text-tertiary disabled:opacity-30 active:scale-95 transition-all"
                             >
-                              <RefreshCw size={14} />
+                              <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
+                              Resend
                             </button>
                           </div>
                         </div>

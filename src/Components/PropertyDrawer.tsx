@@ -65,6 +65,7 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
     const openLocationsTriggerRef = useRef<(() => void) | null>(null)
     const newDA2062TriggerRef = useRef<(() => void) | null>(null)
     const importTriggerRef = useRef<(() => void) | null>(null)
+    const shortagesTriggerRef = useRef<(() => void) | null>(null)
     const navigateZoneTriggerRef = useRef<((zoneId: string) => void) | null>(null)
     const openCustodyTriggerRef = useRef<(() => void) | null>(null)
     const initRef = useRef(false)
@@ -299,6 +300,7 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                         onRegisterOpenLocations={(t) => { openLocationsTriggerRef.current = t }}
                         onRegisterNewDA2062={(t) => { newDA2062TriggerRef.current = t }}
                         onRegisterImport={(t) => { importTriggerRef.current = t }}
+                        onRegisterShortages={(t) => { shortagesTriggerRef.current = t }}
                         onRegisterNavigateZone={(t) => { navigateZoneTriggerRef.current = t }}
                         onRegisterOpenCustody={(t) => { openCustodyTriggerRef.current = t }}
                     />
@@ -321,6 +323,7 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                         onRegisterAddLocation={(t) => { addLocationTriggerRef.current = t }}
                         onRegisterNewDA2062={(t) => { newDA2062TriggerRef.current = t }}
                         onRegisterImport={(t) => { importTriggerRef.current = t }}
+                        onRegisterShortages={(t) => { shortagesTriggerRef.current = t }}
                         onRegisterNavigateZone={(t) => { navigateZoneTriggerRef.current = t }}
                         onRegisterOpenCustody={(t) => { openCustodyTriggerRef.current = t }}
                     />
@@ -346,6 +349,7 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                     { key: 'location', label: 'New Location', onAction: () => { setShowAddSheet(false); addLocationTriggerRef.current?.() } },
                     ...(isDevRole ? [{ key: 'da2062', label: 'New DA 2062', onAction: () => { setShowAddSheet(false); newDA2062TriggerRef.current?.() } }] : []),
                     { key: 'import-csv', label: 'Import CSV', onAction: () => { setShowAddSheet(false); importTriggerRef.current?.() } },
+                    ...(isDevRole ? [{ key: 'shortages', label: 'Shortages', onAction: () => { setShowAddSheet(false); shortagesTriggerRef.current?.() } }] : []),
                     { key: 'export-csv', label: 'Export CSV', onAction: () => { setShowAddSheet(false); exportPropertyCSV(items, store.locations) } },
                     { key: 'print-labels', label: 'Print labels', onAction: () => { setShowAddSheet(false); setShowLabelSheet(true) } },
                 ]}
