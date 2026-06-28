@@ -254,6 +254,9 @@ export const AccountRequestForm = ({ onBack }: AccountRequestFormProps) => {
             <p className="text-[10pt] text-secondary">
               An administrator will review your request shortly.
             </p>
+            <p className="text-[9pt] text-secondary">
+              Approval arrives by email — if you don't see it, check your junk or spam folder.
+            </p>
 
             {statusCheckToken && (
               <div className="pt-2 border-t border-tertiary/10 space-y-1.5">

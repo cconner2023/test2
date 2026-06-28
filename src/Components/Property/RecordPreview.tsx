@@ -41,6 +41,9 @@ interface RecordPreviewProps {
   tint: string
   /** Scopes the overlay to a container (the property drawer). Null → floats fixed. */
   containerRef?: React.RefObject<HTMLElement | null>
+  /** Which mode to open in — a lifted-row menu routes straight to 'edit' or
+   *  'delete' (confirm), skipping the view→footer hop. Defaults to 'view'. */
+  initialAction?: 'view' | 'edit' | 'delete'
 }
 
 const str = (v: unknown): string => (typeof v === 'string' ? v : '')
@@ -50,7 +53,7 @@ function docOf(e: AuditEvent | null): PmcsDoc | null {
   return d && typeof d === 'object' && typeof (d as PmcsDoc).path === 'string' ? (d as PmcsDoc) : null
 }
 
-export function RecordPreview({ event, onClose, label, Icon, tint, containerRef }: RecordPreviewProps) {
+export function RecordPreview({ event, onClose, label, Icon, tint, containerRef, initialAction = 'view' }: RecordPreviewProps) {
   const [mode, setMode] = useState<'view' | 'edit'>('view')
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [editText, setEditText] = useState('')
@@ -63,16 +66,19 @@ export function RecordPreview({ event, onClose, label, Icon, tint, containerRef 
   const editable = event?.eventType === 'fault.opened' || event?.eventType === 'fault.corrected'
   const doc = docOf(event)
 
-  // Seed the edit field + reset to view each time a record opens.
+  // Seed the edit field + set the opening mode each time a record opens. A
+  // lifted-row menu can route straight to edit/delete via initialAction; edit is
+  // honored only for the text-carrying fault rows.
   useEffect(() => {
     if (!event) return
-    setMode('view')
-    setConfirmOpen(false)
+    const canEdit = event.eventType === 'fault.opened' || event.eventType === 'fault.corrected'
+    setMode(initialAction === 'edit' && canEdit ? 'edit' : 'view')
+    setConfirmOpen(initialAction === 'delete')
     setBusy(false)
     setEditText(
       event.eventType === 'fault.opened' ? str(event.payload?.description) : str(event.payload?.note),
     )
-  }, [event])
+  }, [event, initialAction])
 
   const saveEdit = async () => {
     if (!event || busy) return

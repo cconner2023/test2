@@ -1,10 +1,13 @@
-import { useEffect, useState } from 'react'
-import { Plus, ArrowRightLeft, UserCheck, Pencil, Minus, AlertTriangle, Wrench, ClipboardCheck, Loader2, type LucideIcon } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Plus, ArrowRightLeft, UserCheck, Pencil, Minus, AlertTriangle, Wrench, ClipboardCheck, Loader2, Eye, Trash2, type LucideIcon } from 'lucide-react'
 import { getAuditBySubjectLocal, fetchAuditBySubject } from '../../lib/auditService'
 import { useInvalidation } from '../../stores/useInvalidationStore'
 import type { AuditEvent } from '../../lib/auditTypes'
 import type { LocalPropertyLocation, HolderInfo } from '../../Types/PropertyTypes'
 import { RecordPreview } from '../Property/RecordPreview'
+import { LiftedRowMenu } from '../LiftedRowMenu'
+import { liftPressHandlers, type LiftPressState } from '../liftPress'
+import type { ContextMenuItem } from '../ContextMenu'
 import { createLogger } from '../../Utilities/Logger'
 
 const logger = createLogger('ItemTimeline')
@@ -61,8 +64,18 @@ const FIELD_LABELS: Record<string, string> = {
 export function ItemTimeline({ subjectId, clinicId, locations, holders, title = 'History' }: ItemTimelineProps) {
   const [events, setEvents] = useState<AuditEvent[]>([])
   const [loading, setLoading] = useState(true)
-  const [previewEvent, setPreviewEvent] = useState<AuditEvent | null>(null)
+  const [preview, setPreview] = useState<{ event: AuditEvent; action: 'view' | 'edit' | 'delete' } | null>(null)
+  const [lifted, setLifted] = useState<{ event: AuditEvent; rect: DOMRect; html: string } | null>(null)
+  const pressRef = useRef<LiftPressState | null>(null)
   const propGen = useInvalidation('properties')
+
+  // Long-press / right-click a history row → lift it and drop a View/Edit/Delete
+  // menu beneath (the shared LiftedRowMenu peek). A plain factory, loop-safe in
+  // the .map; the parent owns one press-ref. Tap still opens the view preview.
+  const makeHandlers = useCallback(
+    (e: AuditEvent) => liftPressHandlers((snap) => setLifted({ event: e, ...snap }), pressRef),
+    [],
+  )
 
   useEffect(() => {
     let cancelled = false
@@ -173,7 +186,8 @@ export function ItemTimeline({ subjectId, clinicId, locations, holders, title = 
                 <button
                   key={e.id}
                   type="button"
-                  onClick={() => setPreviewEvent(e)}
+                  {...makeHandlers(e)}
+                  onClick={() => { if (pressRef.current?.fired) return; setPreview({ event: e, action: 'view' }) }}
                   className="w-full text-left flex items-center gap-3 px-4 py-3 active:opacity-70 transition-opacity"
                 >
                   <p className={`flex-1 min-w-0 text-sm font-medium truncate ${open ? 'text-themered' : 'text-primary'}`}>{describe(e)}</p>
@@ -185,15 +199,39 @@ export function ItemTimeline({ subjectId, clinicId, locations, holders, title = 
         )}
       </div>
 
+      {/* Lifted-row menu — long-press/right-click a history row peeks it up and
+          drops View/Edit/Delete beneath. Each item routes into RecordPreview at
+          the right mode; Edit is offered only for the text-carrying fault rows. */}
+      {lifted && (() => {
+        const e = lifted.event
+        const editable = e.eventType === 'fault.opened' || e.eventType === 'fault.corrected'
+        const items: ContextMenuItem[] = [
+          { key: 'view', label: 'View', icon: Eye, onAction: () => setPreview({ event: e, action: 'view' }) },
+          ...(editable ? [{ key: 'edit', label: 'Edit', icon: Pencil, onAction: () => setPreview({ event: e, action: 'edit' }) }] : []),
+          { key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => setPreview({ event: e, action: 'delete' }) },
+        ]
+        return (
+          <LiftedRowMenu
+            isOpen
+            layout="list"
+            anchorRect={lifted.rect}
+            onClose={() => setLifted(null)}
+            items={items}
+            row={<div dangerouslySetInnerHTML={{ __html: lifted.html }} />}
+          />
+        )
+      })()}
+
       {/* Tap a row → RecordPreview: view its attached form (PMCS/dispatch),
           edit fault text, or delete the record. The store delete bumps the
           `properties` generation so this list refetches. */}
       <RecordPreview
-        event={previewEvent}
-        onClose={() => setPreviewEvent(null)}
-        label={previewEvent ? describe(previewEvent) : ''}
-        Icon={previewEvent ? (EVENT_ICON[previewEvent.eventType] ?? Pencil) : Pencil}
-        tint={previewEvent && isOpenFault(previewEvent) ? 'bg-themered/10 text-themered' : 'bg-themeblue3/10 text-themeblue2'}
+        event={preview?.event ?? null}
+        initialAction={preview?.action}
+        onClose={() => setPreview(null)}
+        label={preview ? describe(preview.event) : ''}
+        Icon={preview ? (EVENT_ICON[preview.event.eventType] ?? Pencil) : Pencil}
+        tint={preview && isOpenFault(preview.event) ? 'bg-themered/10 text-themered' : 'bg-themeblue3/10 text-themeblue2'}
       />
     </div>
   )
