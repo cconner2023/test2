@@ -1166,6 +1166,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          ack_version_accepted: number | null
           allow_calls: boolean
           avatar_blob: Json | null
           avatar_id: string | null
@@ -1207,6 +1208,7 @@ export type Database = {
           voicemail_greeting: Json | null
         }
         Insert: {
+          ack_version_accepted?: number | null
           allow_calls?: boolean
           avatar_blob?: Json | null
           avatar_id?: string | null
@@ -1248,6 +1250,7 @@ export type Database = {
           voicemail_greeting?: Json | null
         }
         Update: {
+          ack_version_accepted?: number | null
           allow_calls?: boolean
           avatar_blob?: Json | null
           avatar_id?: string | null

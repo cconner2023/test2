@@ -2,8 +2,37 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
-import { writeFileSync, mkdirSync } from 'fs'
+import { writeFileSync, mkdirSync, readFileSync } from 'fs'
+import { createHash } from 'crypto'
 import { resolve } from 'path'
+import { hudSplashMarkup } from './src/lib/hudGeometry'
+
+// Extract the per-theme --color-* vars the splash needs from App.css (the single
+// source) so the pre-React splash matches the user's selected theme at first
+// paint. Only pulls the handful the splash uses; App.css stays authoritative.
+function splashThemeVars(): string {
+  let css: string
+  try {
+    css = readFileSync(resolve('src/App.css'), 'utf8')
+  } catch {
+    return ''
+  }
+  const wanted = ['themeblue1', 'themeblue2', 'themeblue3', 'themewhite2']
+  const blockRe = /\[data-theme="([^"]+)"\]\s*\{([^}]*)\}/g
+  const blocks: string[] = []
+  let m: RegExpExecArray | null
+  while ((m = blockRe.exec(css))) {
+    const [, id, body] = m
+    const vars = wanted
+      .map(name => {
+        const v = new RegExp(`--color-${name}\\s*:\\s*([^;]+);`).exec(body)
+        return v ? `--color-${name}:${v[1].trim()}` : null
+      })
+      .filter(Boolean)
+    if (vars.length) blocks.push(`[data-theme="${id}"]{${vars.join(';')}}`)
+  }
+  return blocks.length ? `<style id="splash-theme-vars">${blocks.join('')}</style>` : ''
+}
 const APP_VERSION = '2.6.9'
 const BUILD_ID = 'A1'
 
@@ -43,13 +72,30 @@ export default defineConfig({
       name: 'html-version',
       transformIndexHtml(html, ctx) {
         let result = html.replace(/%APP_VERSION%/, APP_VERSION)
+        // Bake the HUD splash from the shared geometry module (runs in dev +
+        // build) so the pre-React splash never drifts from HudLoader.tsx.
+        result = result.replace('<!--HUD_SPLASH-->', hudSplashMarkup())
+        // Inject per-theme --color-* vars so the splash matches the selected theme.
+        result = result.replace('<!--THEME_VARS-->', splashThemeVars())
         // Inject CSP only in production builds (inline scripts break CSP in dev)
         if (ctx.bundle) {
           // Branch by filename so the public intake bundle gets a narrower
           // CSP than the main app (no map tiles, no Firebase, no Google APIs,
           // no blob workers — only Supabase). Rev6.1.
           const isIntake = ctx.filename?.endsWith('intake.html')
-          const mainCsp = `<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-IoO04fA0xDAJTYe4e+tKEyMXDyKwqiDsNW+UfGrB+qs='; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://*.supabase.co https://*.tile.openstreetmap.org https://*.tile.opentopomap.org https://server.arcgisonline.com https://basemap.nationalmap.gov; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://nominatim.openstreetmap.org https://*.googleapis.com https://*.firebaseio.com https://*.firebaseinstallations.googleapis.com wss://*.firebaseio.com https://fcmregistrations.googleapis.com; media-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self';">`
+          // Hash the inline splash script from the transformed HTML so the CSP
+          // self-maintains — any edit to that script (or the injected splash)
+          // can't break it. Computed from `result` (post HUD/THEME injection).
+          const inlineScript = result.match(/<script>([\s\S]*?)<\/script>/)
+          // Hash both the raw (CRLF) and LF-normalized script so the CSP matches
+          // whether or not the build normalizes line endings (Windows safety).
+          const variants = inlineScript
+            ? [...new Set([inlineScript[1], inlineScript[1].replace(/\r\n/g, '\n')])]
+            : []
+          const scriptHash = variants
+            .map(s => `'sha256-${createHash('sha256').update(s).digest('base64')}'`)
+            .join(' ')
+          const mainCsp = `<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' ${scriptHash}; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://*.supabase.co https://*.tile.openstreetmap.org https://*.tile.opentopomap.org https://server.arcgisonline.com https://basemap.nationalmap.gov; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://nominatim.openstreetmap.org https://*.googleapis.com https://*.firebaseio.com https://*.firebaseinstallations.googleapis.com wss://*.firebaseio.com https://fcmregistrations.googleapis.com; media-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self';">`
           const intakeCsp = `<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://*.supabase.co wss://*.supabase.co; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self';">`
           result = result.replace('<!--CSP_PLACEHOLDER-->', isIntake ? intakeCsp : mainCsp)
         } else {

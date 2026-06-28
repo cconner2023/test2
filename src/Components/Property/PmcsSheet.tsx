@@ -9,7 +9,7 @@ import { PMCS_EVENT_TYPES, foldOpenFaults, summarizePmcs } from '../../lib/pmcsF
 import { usePropertyStore } from '../../stores/usePropertyStore'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { useInvalidation } from '../../stores/useInvalidationStore'
-import { TextInput, PickerInput } from '../FormInputs'
+import { TextInput, PickerInput, FuelMeter } from '../FormInputs'
 import { OverlayStack, type StackNav } from '../OverlayStack'
 import { useRecordPreview } from './RecordPreview'
 import { DocScanner } from './DocScanner'
@@ -394,6 +394,7 @@ export function PmcsSheet({ isOpen, onClose, subjectType = 'item', subjectId, cl
     detail: previewEvent ? summarizePmcs(previewEvent).readings : undefined,
     Icon: previewMeta.Icon,
     tint: previewMeta.tint,
+    containerRef,
   })
 
   // Three morph screens (check ⇄ history → record) — one card whose body morphs
@@ -457,9 +458,12 @@ export function PmcsSheet({ isOpen, onClose, subjectType = 'item', subjectId, cl
       render: () => historyBody,
     },
     record: {
-      // No title — the back chevron + X ride the header; the body carries the label.
+      // The tapped check opens directly in its editable form ("PMCS" title); the
+      // back chevron + X ride the header.
+      title: recordView.title ?? undefined,
       onBack: (nav: StackNav) => { nav.pop(); setPreviewEvent(null) },
       footer: recordView.footer,
+      rightFooter: recordView.rightFooter,
       render: () => <>{recordView.body}{recordView.confirm}</>,
     },
   }
@@ -475,49 +479,6 @@ export function PmcsSheet({ isOpen, onClose, subjectType = 'item', subjectId, cl
       maxWidth={360}
       previewMaxHeight="60dvh"
     />
-  )
-}
-
-/**
- * FuelMeter — a fuel-gauge intake: E ▮▮▮▯▯ F. Ten tappable segments set the level
- * in increments of 10 (10–100%); the "E" cap sets empty (0). null = not yet read.
- */
-function FuelMeter({ value, onChange }: { value: number | null; onChange: (v: number) => void }) {
-  const segments = Array.from({ length: 10 }, (_, i) => (i + 1) * 10)
-  return (
-    <div className="px-4 py-3">
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-sm font-medium text-secondary">Fuel level</span>
-        <span className="text-sm font-semibold text-primary tabular-nums">
-          {value == null ? '—' : `${value}%`}
-        </span>
-      </div>
-      <div className="flex items-center gap-1.5">
-        <button
-          type="button"
-          onClick={() => onChange(0)}
-          aria-label="Fuel empty"
-          className="w-3.5 shrink-0 text-[9pt] font-bold text-tertiary active:scale-90 transition-transform"
-        >
-          E
-        </button>
-        <div className="flex-1 flex items-center gap-1">
-          {segments.map((lvl) => {
-            const filled = value != null && value >= lvl
-            return (
-              <button
-                key={lvl}
-                type="button"
-                onClick={() => onChange(lvl)}
-                aria-label={`Fuel ${lvl} percent`}
-                className={`h-6 flex-1 rounded-md active:scale-95 transition-all ${filled ? 'bg-themeblue3' : 'bg-tertiary/12'}`}
-              />
-            )
-          })}
-        </div>
-        <span className="w-3.5 shrink-0 text-[9pt] font-bold text-tertiary text-right">F</span>
-      </div>
-    </div>
   )
 }
 

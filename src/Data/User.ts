@@ -136,6 +136,14 @@ export interface UserTypes {
      * for an ended loan is harmless. Personal blocks are always merged regardless.
      */
     noteTemplateClinicIds?: string[] | null;
+    /**
+     * Highest UserAcknowledgment version this user has accepted. Server-persisted
+     * (profiles.ack_version_accepted) so the one-time PHI disclosure survives
+     * browser-storage eviction and never re-fires for authenticated users.
+     * Compared against ACK_VERSION; a bump re-prompts once. Guests are not gated
+     * on this (they see the disclosure every open).
+     */
+    ackVersionAccepted?: number | null;
     /** Dev-only: login alerts, account requests, feedback */
     notifyDevAlerts?: boolean;
     /** Opt-in: push when assigned to a calendar event */

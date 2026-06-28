@@ -129,6 +129,9 @@ interface CalendarActions {
   setRosterSearchQuery: (query: string) => void
   setShowRosterMobile: (show: boolean) => void
   togglePersonnelFilter: (userId: string) => void
+  /** Bulk toggle a sub-cluster group: if every member is already selected, remove
+   *  them all; otherwise add the missing ones. Powers the grouped personnel tree. */
+  togglePersonnelGroup: (userIds: string[]) => void
   clearPersonnelFilter: () => void
   setMonthLabel: (label: string) => void
   setHydrated: (h: boolean) => void
@@ -288,6 +291,14 @@ export const useCalendarStore = create<CalendarStore>()(calendarPersist((set) =>
       ? s.personnelFilter.filter(id => id !== userId)
       : [...s.personnelFilter, userId],
   })),
+  togglePersonnelGroup: (userIds) => set((s) => {
+    const allOn = userIds.length > 0 && userIds.every(id => s.personnelFilter.includes(id))
+    if (allOn) {
+      const remove = new Set(userIds)
+      return { personnelFilter: s.personnelFilter.filter(id => !remove.has(id)) }
+    }
+    return { personnelFilter: [...new Set([...s.personnelFilter, ...userIds])] }
+  }),
   clearPersonnelFilter: () => set({ personnelFilter: [] }),
   setMonthLabel: (label) => set({ monthLabel: label }),
   setHydrated: (h) => set({ hydrated: h }),

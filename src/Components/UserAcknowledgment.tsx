@@ -3,42 +3,14 @@ import { ShieldCheck, Activity, EyeOff, FileText, Scale } from 'lucide-react'
 import { SectionCard } from './Section'
 
 /**
- * Bump this when the acknowledgment content changes materially.
- * Users who accepted a previous version will be prompted again.
+ * Bump this when the acknowledgment content changes materially. Authenticated
+ * users who accepted a previous version will be re-prompted once (their
+ * profiles.ack_version_accepted is below this number). See LockGate for the gate.
  */
 export const ACK_VERSION = 1
-const ACK_STORAGE_KEY = `adtmc_user_ack_v${ACK_VERSION}`
-
-/**
- * Check whether the user has already accepted this version of the acknowledgment.
- * @param checkPersistent  When true, also checks localStorage (for authenticated
- *                         users whose acceptance persists across sessions).
- */
-export function hasAcceptedAcknowledgment(checkPersistent = false): boolean {
-  try {
-    if (checkPersistent && localStorage.getItem(ACK_STORAGE_KEY) === 'true') return true
-    return sessionStorage.getItem(ACK_STORAGE_KEY) === 'true'
-  } catch {
-    return false
-  }
-}
-
-/**
- * Record that the user accepted the acknowledgment.
- * Always writes to sessionStorage. When `persistent` is true (authenticated users),
- * also writes to localStorage so it survives across sessions.
- */
-export function recordAcknowledgment(persistent = false): void {
-  try {
-    sessionStorage.setItem(ACK_STORAGE_KEY, 'true')
-    if (persistent) localStorage.setItem(ACK_STORAGE_KEY, 'true')
-  } catch { /* ignore */ }
-}
 
 interface UserAcknowledgmentProps {
   onAccept: () => void
-  /** When true, acceptance is persisted to localStorage (for authenticated users). */
-  persistent?: boolean
 }
 
 const AckRow = ({ icon, children }: { icon: React.ReactNode; children: React.ReactNode }) => (
@@ -50,12 +22,11 @@ const AckRow = ({ icon, children }: { icon: React.ReactNode; children: React.Rea
   </div>
 )
 
-export const UserAcknowledgment = ({ onAccept, persistent }: UserAcknowledgmentProps) => {
+export const UserAcknowledgment = ({ onAccept }: UserAcknowledgmentProps) => {
   const [checked, setChecked] = useState(false)
 
   const handleAccept = () => {
     if (!checked) return
-    recordAcknowledgment(persistent)
     onAccept()
   }
 

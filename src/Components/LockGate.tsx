@@ -7,7 +7,8 @@ import { PinLockScreen } from './PinLockScreen'
 import { PasswordLockScreen } from './PasswordLockScreen'
 import { SetPasswordScreen } from './SetPasswordScreen'
 import { SessionReauthScreen } from './SessionReauthScreen'
-import { UserAcknowledgment, hasAcceptedAcknowledgment, recordAcknowledgment } from './UserAcknowledgment'
+import { UserAcknowledgment, ACK_VERSION } from './UserAcknowledgment'
+import { supabase } from '../lib/supabase'
 import { LoginScreen } from './LoginScreen'
 import { PostLoginLoader } from './PostLoginLoader'
 const INITIAL_PW_UNLOCKED_KEY = 'adtmc_initial_pw_unlocked'
@@ -53,19 +54,30 @@ export function LockGate({ children }: { children: ReactNode }) {
   const [pwLock, setPwLock] = useState<'inactivity' | 'locked' | null>(null)
   const [isInitialPasswordLocked, setIsInitialPasswordLocked] = useState(false)
   const [pinServiceReady, setPinServiceReady] = useState(false)
-  // Check both sessionStorage and localStorage on init so returning authenticated
-  // users who already accepted this version skip the gate immediately.
-  const [needsAcknowledgment, setNeedsAcknowledgment] = useState(() => !hasAcceptedAcknowledgment(true))
+  // PHI-disclosure acknowledgment.
+  // - Authenticated users: one-time ever, persisted server-side on the profile
+  //   (ackVersionAccepted >= ACK_VERSION). Survives browser-storage eviction, so
+  //   it never re-fires; a content change bumps ACK_VERSION to re-prompt once.
+  // - Guests: shown every open (no account to persist to); ackDismissed only
+  //   suppresses re-render within the current mount after they accept.
+  const ackVersionAccepted = useAuthStore(s => s.profile?.ackVersionAccepted)
+  const patchProfile = useAuthStore(s => s.patchProfile)
+  const [ackDismissed, setAckDismissed] = useState(false)
+  const needsAcknowledgment = isGuest
+    ? !ackDismissed
+    : !!user && sessionReady && (ackVersionAccepted ?? 0) < ACK_VERSION
 
-  // Once auth settles: if an authenticated user already accepted (even just in
-  // sessionStorage from before login), promote to localStorage and dismiss.
-  useEffect(() => {
-    if (loading) return
-    if (user && !isGuest && hasAcceptedAcknowledgment(true)) {
-      recordAcknowledgment(true) // ensure persisted
-      setNeedsAcknowledgment(false)
+  const handleAcceptAck = useCallback(() => {
+    if (user && !isGuest) {
+      // Server is the source of truth; patch in-memory (flips the gate
+      // immediately) then fire-and-forget the persist.
+      patchProfile({ ackVersionAccepted: ACK_VERSION })
+      supabase.from('profiles').update({ ack_version_accepted: ACK_VERSION }).eq('id', user.id)
+        .then(({ error }) => { if (error) console.warn('[LockGate] ack persist failed', error) })
+    } else {
+      setAckDismissed(true)
     }
-  }, [loading, user, isGuest])
+  }, [user, isGuest, patchProfile])
 
   useEffect(() => {
     initPinService().then(() => {
@@ -151,7 +163,7 @@ export function LockGate({ children }: { children: ReactNode }) {
   // 1. children (app) — deferred until auth settles AND session ready
   //    └─ CallOverlay (z-100) lives here — covered by auth screens via DOM order, not z-index
   // 2. post-login loader (z-9998) — first-time login: covers app until Signal + profile resolve
-  // 3. user acknowledgment (z-100) — PHI disclosure (persistent for authed users, per-session for guests)
+  // 3. user acknowledgment (z-100) — PHI disclosure (server-persisted one-time for authed users, every open for guests)
   // 4. login screen (z-90) — when not authenticated
   // 5. session reauth (z-100) — dead Supabase session with valid localSession (iOS kill, token expiry)
   // 6. PIN lock (z-100)
@@ -163,10 +175,7 @@ export function LockGate({ children }: { children: ReactNode }) {
       {!shouldLoad && sessionReady && children}
       {showPostLoginLoader && <PostLoginLoader ready={sessionReady} onDone={handlePostLoginDone} />}
       {needsAcknowledgment && !shouldLoad && !isPasswordRecovery && (
-        <UserAcknowledgment
-          onAccept={() => setNeedsAcknowledgment(false)}
-          persistent={!!user && !isGuest}
-        />
+        <UserAcknowledgment onAccept={handleAcceptAck} />
       )}
       {showLogin && <LoginScreen />}
       {needsReauth && !shouldLoad && !user && localSession && (

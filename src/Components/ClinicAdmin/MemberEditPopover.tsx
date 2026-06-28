@@ -1,7 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { Building2, Check, Pencil, Trash2, Loader2, Camera, Send, ArrowRightLeft, KeyRound, AlertCircle, Home } from 'lucide-react'
-import { PreviewOverlay } from '../PreviewOverlay'
-import { Z } from '../BaseOverlay'
+import { OverlayStack, type StackNav } from '../OverlayStack'
 import { ActionButton } from '../ActionButton'
 import { ActionPill } from '../ActionPill'
 import { ConfirmDialog } from '../ConfirmDialog'
@@ -106,6 +105,9 @@ export function MemberEditPopover({
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [ranksByComponent, setRanksByComponent] = useState<Record<string, string[]> | null>(null)
+  // Live stack nav — sub-screens (loans / transfer / reset) drill off the detail
+  // root; handlers that navigate outside a render closure use this.
+  const navRef = useRef<StackNav | null>(null)
 
   // Sub-cluster (platoon/squad) section. '' = HQ / Unassigned. Sub-clusters are
   // PRIMARY-clinic-scoped, so the picker only applies when editing a member whose
@@ -186,6 +188,10 @@ export function MemberEditPopover({
     setEditMode(false)
     setSaving(false)
     setError(null)
+    // Reset the sub-screen flags so a reopen starts on the detail root.
+    setLoansMode(false)
+    setMoveMode(null)
+    setResetMode(false)
     onClose()
   }, [onClose])
 
@@ -433,6 +439,7 @@ export function MemberEditPopover({
       return
     }
     closeReset()
+    navRef.current?.pop()
   }, [resetPw, closeReset])
 
   // ─── Loan / Transfer ─────────────────────────────────────────────────
@@ -530,71 +537,66 @@ export function MemberEditPopover({
     return `${profile.rank ? profile.rank + ' ' : ''}${last}, ${first}${mi}`
   })()
 
-  return (
+  // Detail root + three drill screens (loans / transfer / reset) on ONE morph
+  // stack — were four sibling z-stacked PreviewOverlays. Each screen's destructive
+  // ConfirmDialog stays a z-stacked INTERRUPT, rendered inside its screen body so
+  // OverlayStackContext floors it above the card. Back clears the screen's flag and
+  // pops; the header X closes the whole stack (handleClose resets all flags).
+  const detailFooter = profile ? (
+    <div className="flex gap-1 bg-themewhite rounded-2xl shadow-lg px-1.5 py-1.5">
+      {!editMode && (
+        <ActionButton
+          icon={Send}
+          label={activeLoans.length > 0 ? `Loans (${activeLoans.length}/4)` : 'Loans'}
+          onClick={() => { setLoansMode(true); navRef.current?.push('loans') }}
+        />
+      )}
+      {loanState !== 'loaned-in' && !editMode && (
+        <ActionButton icon={ArrowRightLeft} label="Transfer" onClick={() => { setMoveMode('transfer'); navRef.current?.push('transfer') }} />
+      )}
+      {!editMode && (
+        <ActionButton
+          icon={KeyRound}
+          label="Reset password"
+          onClick={() => {
+            resetPw.reset()
+            setResetError(null)
+            setResetMode(true)
+            navRef.current?.push('reset')
+          }}
+        />
+      )}
+      <ActionButton
+        icon={Trash2}
+        label={removeLabel}
+        variant="danger"
+        onClick={() => setConfirmDelete(true)}
+      />
+    </div>
+  ) : undefined
+
+  const detailRightFooter = profile ? (
+    <ActionPill>
+      <ActionButton
+        icon={editMode ? Check : Pencil}
+        label={editMode ? (saving ? 'Saving…' : 'Save') : 'Edit'}
+        variant={editMode ? (saving ? 'disabled' : 'success') : 'default'}
+        onClick={() => {
+          if (editMode) handleSave()
+          else setEditMode(true)
+        }}
+      />
+    </ActionPill>
+  ) : undefined
+
+  const detailBody = (
     <>
-      <PreviewOverlay
-        isOpen={isOpen}
-        onClose={handleClose}
-        anchorRect={anchorRect}
-        title={title}
-        maxWidth={360}
-        previewMaxHeight="55dvh"
-        footer={
-          isOpen && profile ? (
-            <div className="flex gap-1 bg-themewhite rounded-2xl shadow-lg px-1.5 py-1.5">
-              {!editMode && (
-                <ActionButton
-                  icon={Send}
-                  label={activeLoans.length > 0 ? `Loans (${activeLoans.length}/4)` : 'Loans'}
-                  onClick={() => setLoansMode(true)}
-                />
-              )}
-              {loanState !== 'loaned-in' && !editMode && (
-                <ActionButton icon={ArrowRightLeft} label="Transfer" onClick={() => setMoveMode('transfer')} />
-              )}
-              {!editMode && (
-                <ActionButton
-                  icon={KeyRound}
-                  label="Reset password"
-                  onClick={() => {
-                    resetPw.reset()
-                    setResetError(null)
-                    setResetMode(true)
-                  }}
-                />
-              )}
-              <ActionButton
-                icon={Trash2}
-                label={removeLabel}
-                variant="danger"
-                onClick={() => setConfirmDelete(true)}
-              />
-            </div>
-          ) : undefined
-        }
-        rightFooter={
-          isOpen && profile ? (
-            <ActionPill>
-              <ActionButton
-                icon={editMode ? Check : Pencil}
-                label={editMode ? (saving ? 'Saving…' : 'Save') : 'Edit'}
-                variant={editMode ? (saving ? 'disabled' : 'success') : 'default'}
-                onClick={() => {
-                  if (editMode) handleSave()
-                  else setEditMode(true)
-                }}
-              />
-            </ActionPill>
-          ) : undefined
-        }
-      >
-        {isOpen && (
-          loading || !profile ? (
-            <div className="flex items-center justify-center py-4 text-tertiary">
-              <Loader2 size={14} className="animate-spin mr-2" />
-              <span className="text-[10pt]">Loading…</span>
-            </div>
-          ) : (
+      {loading || !profile ? (
+        <div className="flex items-center justify-center py-4 text-tertiary">
+          <Loader2 size={14} className="animate-spin mr-2" />
+          <span className="text-[10pt]">Loading…</span>
+        </div>
+      ) : (
             <div>
               {[
                 { label: 'Credential', value: profile.credential || '—' },
@@ -707,76 +709,11 @@ export function MemberEditPopover({
                 </div>
               )}
             </div>
-          )
-        )}
-      </PreviewOverlay>
+          )}
+    </>
+  )
 
-      <ConfirmDialog
-        visible={confirmDelete}
-        title={`${removeLabel}?`}
-        subtitle={removeSubtitle}
-        confirmLabel={removeLabel}
-        variant="danger"
-        processing={saving}
-        onConfirm={handleConfirmDelete}
-        onCancel={() => setConfirmDelete(false)}
-        zIndex={Z.POPOVER + 30}
-      />
-
-      <ConfirmDialog
-        visible={!!promoteTarget}
-        title={promoteTarget ? `Make ${promoteTarget.clinicName} the home cluster?` : ''}
-        subtitle={
-          promoteError
-            ? promoteError
-            : `${homeClinicName ?? 'The current home'} becomes a loan; other active loans stay in place.`
-        }
-        confirmLabel="Make home"
-        processing={promoting}
-        onConfirm={confirmPromote}
-        onCancel={() => {
-          if (promoting) return
-          setPromoteError(null)
-          setPromoteTarget(null)
-        }}
-        zIndex={Z.POPOVER + 30}
-      />
-
-      {/* Transfer — code + scan, mirrors clinic-association flow. Home-clinic
-          change; trigger ends every active loan automatically. */}
-      <PreviewOverlay
-        isOpen={moveMode === 'transfer'}
-        onClose={closeMove}
-        anchorRect={anchorRect}
-        title="Transfer to cluster"
-        maxWidth={360}
-        previewMaxHeight="60dvh"
-        footer={
-          moveMode ? (
-            <div className="flex gap-1 bg-themewhite rounded-2xl shadow-lg px-1.5 py-1.5">
-              <ActionButton
-                icon={Camera}
-                label={scanning ? 'Stop scan' : 'Scan QR'}
-                variant={scanning ? 'success' : 'default'}
-                onClick={handleToggleScan}
-              />
-            </div>
-          ) : undefined
-        }
-        rightFooter={
-          moveMode ? (
-            <ActionPill>
-              <ActionButton
-                icon={moveSaving ? Loader2 : Check}
-                label="Transfer"
-                variant={!moveCode || moveSaving ? 'disabled' : 'success'}
-                onClick={() => submitMove(moveCode)}
-              />
-            </ActionPill>
-          ) : undefined
-        }
-      >
-        {moveMode && (
+  const transferBody = (
           <div>
             {associatedClinics && associatedClinics.length > 0 && (
               <div className="border-b border-primary/6">
@@ -857,33 +794,9 @@ export function MemberEditPopover({
               Enter or scan the destination cluster’s code. The soldier’s home cluster changes and every active loan ends.
             </p>
           </div>
-        )}
-      </PreviewOverlay>
+  )
 
-      {/* Loans — unified multi-select. Toggle associated/current rows + an
-          ad-hoc code field. Save commits the diff one-by-one with per-row
-          progress; loaned-in supervisors can only flip their own clinic row. */}
-      <PreviewOverlay
-        isOpen={loansMode}
-        onClose={() => { if (!loansApplying) setLoansMode(false) }}
-        anchorRect={anchorRect}
-        title="Loans"
-        maxWidth={360}
-        previewMaxHeight="60dvh"
-        rightFooter={
-          loansMode ? (
-            <ActionPill>
-              <ActionButton
-                icon={loansApplying ? Loader2 : Check}
-                label={overCap ? `Over limit (${postSaveCount}/4)` : 'Save'}
-                variant={overCap || loansApplying ? 'disabled' : 'success'}
-                onClick={applyLoanChanges}
-              />
-            </ActionPill>
-          ) : undefined
-        }
-      >
-        {loansMode && (
+  const loansBody = (
           <div>
             <p className="px-4 pt-3 pb-1 text-[9pt] font-semibold text-tertiary uppercase tracking-widest">
               {`Loans (${postSaveCount}/4)`}
@@ -996,18 +909,9 @@ export function MemberEditPopover({
                 : 'Toggle a row to add or end a loan. Save applies changes one at a time; failed rows show their error.'}
             </p>
           </div>
-        )}
-      </PreviewOverlay>
+  )
 
-      {/* Reset password — sibling overlay, mirrors loan/transfer pattern */}
-      <PreviewOverlay
-        isOpen={resetMode}
-        onClose={closeReset}
-        anchorRect={anchorRect}
-        title="Reset password"
-        maxWidth={380}
-      >
-        {resetMode && memberId && (
+  const resetBody = memberId ? (
           <div>
             <ResetPasswordForm
               value={resetPw.value}
@@ -1025,20 +929,124 @@ export function MemberEditPopover({
               The new password takes effect immediately. The user is not notified.
             </p>
           </div>
-        )}
-      </PreviewOverlay>
+  ) : null
 
-      <ConfirmDialog
-        visible={!!resetPw.confirmingUserId}
-        title={`Reset password for ${title || 'this user'}?`}
-        subtitle="The new password takes effect immediately. The user is not notified."
-        confirmLabel="Reset"
-        variant="danger"
-        processing={resetPw.processing}
-        onConfirm={handleResetSubmit}
-        onCancel={resetPw.cancelConfirm}
-        zIndex={Z.POPOVER + 30}
-      />
-    </>
+  const screens = {
+    detail: {
+      title,
+      footer: detailFooter,
+      rightFooter: detailRightFooter,
+      render: () => (
+        <>
+          {detailBody}
+          <ConfirmDialog
+            visible={confirmDelete}
+            title={`${removeLabel}?`}
+            subtitle={removeSubtitle}
+            confirmLabel={removeLabel}
+            variant="danger"
+            processing={saving}
+            onConfirm={handleConfirmDelete}
+            onCancel={() => setConfirmDelete(false)}
+          />
+        </>
+      ),
+    },
+    loans: {
+      title: 'Loans',
+      previewMaxHeight: '60dvh',
+      onBack: (nav: StackNav) => { if (!loansApplying) { setLoansMode(false); nav.pop() } },
+      rightFooter: (
+        <ActionPill>
+          <ActionButton
+            icon={loansApplying ? Loader2 : Check}
+            label={overCap ? `Over limit (${postSaveCount}/4)` : 'Save'}
+            variant={overCap || loansApplying ? 'disabled' : 'success'}
+            onClick={applyLoanChanges}
+          />
+        </ActionPill>
+      ),
+      render: () => (
+        <>
+          {loansBody}
+          <ConfirmDialog
+            visible={!!promoteTarget}
+            title={promoteTarget ? `Make ${promoteTarget.clinicName} the home cluster?` : ''}
+            subtitle={
+              promoteError
+                ? promoteError
+                : `${homeClinicName ?? 'The current home'} becomes a loan; other active loans stay in place.`
+            }
+            confirmLabel="Make home"
+            processing={promoting}
+            onConfirm={confirmPromote}
+            onCancel={() => {
+              if (promoting) return
+              setPromoteError(null)
+              setPromoteTarget(null)
+            }}
+          />
+        </>
+      ),
+    },
+    transfer: {
+      title: 'Transfer to cluster',
+      previewMaxHeight: '60dvh',
+      onBack: (nav: StackNav) => { closeMove(); nav.pop() },
+      footer: (
+        <div className="flex gap-1 bg-themewhite rounded-2xl shadow-lg px-1.5 py-1.5">
+          <ActionButton
+            icon={Camera}
+            label={scanning ? 'Stop scan' : 'Scan QR'}
+            variant={scanning ? 'success' : 'default'}
+            onClick={handleToggleScan}
+          />
+        </div>
+      ),
+      rightFooter: (
+        <ActionPill>
+          <ActionButton
+            icon={moveSaving ? Loader2 : Check}
+            label="Transfer"
+            variant={!moveCode || moveSaving ? 'disabled' : 'success'}
+            onClick={() => submitMove(moveCode)}
+          />
+        </ActionPill>
+      ),
+      render: () => transferBody,
+    },
+    reset: {
+      title: 'Reset password',
+      maxWidth: 380,
+      onBack: (nav: StackNav) => { closeReset(); nav.pop() },
+      render: () => (
+        <>
+          {resetBody}
+          <ConfirmDialog
+            visible={!!resetPw.confirmingUserId}
+            title={`Reset password for ${title || 'this user'}?`}
+            subtitle="The new password takes effect immediately. The user is not notified."
+            confirmLabel="Reset"
+            variant="danger"
+            processing={resetPw.processing}
+            onConfirm={handleResetSubmit}
+            onCancel={resetPw.cancelConfirm}
+          />
+        </>
+      ),
+    },
+  }
+
+  return (
+    <OverlayStack
+      isOpen={isOpen}
+      onClose={handleClose}
+      anchorRect={anchorRect}
+      navRef={navRef}
+      initial={{ key: 'detail' }}
+      screens={screens}
+      maxWidth={360}
+      previewMaxHeight="55dvh"
+    />
   )
 }

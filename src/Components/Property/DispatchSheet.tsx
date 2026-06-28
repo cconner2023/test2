@@ -289,6 +289,7 @@ export function DispatchSheet({ isOpen, onClose, subjectId, clinicId, containerR
     detail: recordParts?.detail,
     Icon: previewEvent?.eventType === 'dispatch.opened' ? Route : RotateCcw,
     tint: previewEvent?.eventType === 'dispatch.opened' ? 'bg-themeblue3/10 text-themeblue2' : 'bg-themegreen/10 text-themegreen',
+    containerRef,
   })
 
   // Three morph screens (current ⇄ history → record) — one card whose body morphs
@@ -344,9 +345,12 @@ export function DispatchSheet({ isOpen, onClose, subjectId, clinicId, containerR
       render: () => historyBody,
     },
     record: {
-      // No title — the back chevron + X ride the header; the body carries the label.
+      // The tapped dispatch opens directly in its editable form ("Dispatch" title);
+      // the back chevron + X ride the header.
+      title: recordView.title ?? undefined,
       onBack: (nav: StackNav) => { nav.pop(); setPreviewEvent(null) },
       footer: recordView.footer,
+      rightFooter: recordView.rightFooter,
       render: () => <>{recordView.body}{recordView.confirm}</>,
     },
   }

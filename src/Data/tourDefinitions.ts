@@ -944,7 +944,7 @@ const calendarTour: TourDefinition = {
     },
     {
       target: 'calendar-personnel-filter',
-      text: 'Toggle personnel to scope the view. All Personnel resets the filter.',
+      text: 'Toggle a person — or a sub-unit header to scope the whole group. All Personnel resets the filter.',
       placement: 'top',
       duration: 5000,
       pausePoint: true,
@@ -953,7 +953,7 @@ const calendarTour: TourDefinition = {
     },
     {
       target: 'calendar-personnel-filter',
-      text: 'Toggle personnel to scope the view. All Personnel resets the filter.',
+      text: 'Toggle a person — or a sub-unit header to scope the whole group. All Personnel resets the filter.',
       placement: 'right',
       duration: 5000,
       pausePoint: true,

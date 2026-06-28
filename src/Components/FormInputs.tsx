@@ -1,9 +1,10 @@
-import { useState, useRef, useEffect, useCallback, type ReactNode } from 'react'
+import { useState, useRef, useEffect, useCallback, useContext, type ReactNode } from 'react'
 import { Eye, EyeOff, ChevronDown, Check, ChevronLeft, ChevronRight } from 'lucide-react'
 import { PreviewOverlay } from './PreviewOverlay'
 import { ActionButton } from './ActionButton'
 import { ActionPill } from './ActionPill'
 import { useIsMobile } from '../Hooks/useIsMobile'
+import { StackNavContext } from './stackNav'
 
 /** Free-form 4-digit military time input (0000–2359). Borderless / transparent, matches form-row style.
  *  Current selected value is shown as the placeholder hint, not the input value, so users can type fresh
@@ -215,6 +216,42 @@ function getOptionLabel(opt: PickerOption): string {
   return typeof opt === 'string' ? opt : opt.label
 }
 
+/**
+ * Shared option-row list for PickerInput / MultiPickerInput / the morphed-in
+ * stack screens — single source so the nested-overlay fallback and the drill-down
+ * screen render byte-identical rows.
+ */
+const PickerRows = ({ options, isSelected, onSelect, ariaLabel, multi }: {
+  options: readonly PickerOption[]
+  isSelected: (val: string) => boolean
+  onSelect: (opt: PickerOption) => void
+  ariaLabel?: string
+  multi?: boolean
+}) => (
+  <div className="max-h-60 overflow-y-auto py-1" role="listbox" aria-label={ariaLabel} aria-multiselectable={multi || undefined}>
+    {options.map((opt) => {
+      const optVal = getOptionValue(opt)
+      const optLbl = getOptionLabel(opt)
+      const selected = isSelected(optVal)
+      return (
+        <button
+          key={optVal}
+          type="button"
+          role="option"
+          aria-selected={selected}
+          onClick={() => onSelect(opt)}
+          className={`w-full text-left px-3.5 py-2 text-sm hover:bg-primary/5 active:bg-primary/10 transition-colors flex items-center justify-between ${
+            selected ? 'text-themeblue2 font-medium' : 'text-primary'
+          }`}
+        >
+          {optLbl}
+          {selected && <Check size={16} className="shrink-0 text-themeblue2" />}
+        </button>
+      )
+    })}
+  </div>
+)
+
 export const PickerInput = ({
   value,
   onChange,
@@ -232,23 +269,39 @@ export const PickerInput = ({
   label?: string
   header?: ReactNode
 }) => {
+  // Inside an OverlayStack, drill down (morph the card) instead of stacking our own
+  // overlay; outside one, fall back to the nested PreviewOverlay below.
+  const stackNav = useContext(StackNavContext)
   const [visible, setVisible] = useState(false)
   const close = useCallback(() => setVisible(false), [])
 
   const displayValue = options.find((o) => getOptionValue(o) === value)
   const displayLabel = displayValue ? getOptionLabel(displayValue) : ''
 
-  const handleSelect = useCallback((opt: PickerOption) => {
-    onChange(getOptionValue(opt))
-    close()
-  }, [onChange, close])
+  const list = (onSelect: (opt: PickerOption) => void) => (
+    <>
+      {header && <div className="border-b border-primary/6">{header}</div>}
+      <PickerRows options={options} isSelected={(v) => v === value} onSelect={onSelect} ariaLabel={placeholder} />
+    </>
+  )
+
+  const open = () => {
+    if (stackNav) {
+      stackNav.pushScreen({
+        title: placeholder,
+        render: (_p, nav) => list((opt) => { onChange(getOptionValue(opt)); nav.pop() }),
+      })
+    } else {
+      setVisible(true)
+    }
+  }
 
   return (
     <div className="block border-b border-primary/6 last:border-b-0">
       <div className="relative">
         <button
           type="button"
-          onClick={() => setVisible(true)}
+          onClick={open}
           className={`w-full bg-transparent px-4 py-3 text-left text-base md:text-sm
                      flex items-center justify-between gap-3 focus:outline-none ${
                        value ? 'text-primary' : 'text-tertiary'
@@ -262,39 +315,17 @@ export const PickerInput = ({
         )}
       </div>
 
-      <PreviewOverlay
-        isOpen={visible}
-        onClose={close}
-        anchorRect={null}
-        maxWidth={280}
-        title={placeholder}
-      >
-        {header && (
-          <div className="border-b border-primary/6">{header}</div>
-        )}
-        <div className="max-h-60 overflow-y-auto py-1" role="listbox" aria-label={placeholder}>
-          {options.map((opt) => {
-            const optVal = getOptionValue(opt)
-            const optLbl = getOptionLabel(opt)
-            const selected = optVal === value
-            return (
-              <button
-                key={optVal}
-                type="button"
-                role="option"
-                aria-selected={selected}
-                onClick={() => handleSelect(opt)}
-                className={`w-full text-left px-3.5 py-2 text-sm hover:bg-primary/5 active:bg-primary/10 transition-colors flex items-center justify-between ${
-                  selected ? 'text-themeblue2 font-medium' : 'text-primary'
-                }`}
-              >
-                {optLbl}
-                {selected && <Check size={16} className="shrink-0 text-themeblue2" />}
-              </button>
-            )
-          })}
-        </div>
-      </PreviewOverlay>
+      {!stackNav && (
+        <PreviewOverlay
+          isOpen={visible}
+          onClose={close}
+          anchorRect={null}
+          maxWidth={280}
+          title={placeholder}
+        >
+          {list((opt) => { onChange(getOptionValue(opt)); close() })}
+        </PreviewOverlay>
+      )}
     </div>
   )
 }
@@ -500,17 +531,31 @@ export const DatePickerInput = ({
   minDate?: string
   maxDate?: string
 }) => {
+  const stackNav = useContext(StackNavContext)
   const [visible, setVisible] = useState(false)
   const close = () => setVisible(false)
 
   const display = formatDisplay(value)
+
+  const open = () => {
+    if (stackNav) {
+      stackNav.pushScreen({
+        title: placeholder ?? 'Select Date',
+        render: (_p, nav) => (
+          <DatePickerCalendar value={value} onChange={onChange} onClose={nav.pop} minDate={minDate} maxDate={maxDate} />
+        ),
+      })
+    } else {
+      setVisible(true)
+    }
+  }
 
   return (
     <div className="block border-b border-primary/6 last:border-b-0">
       <div className="relative">
         <button
           type="button"
-          onClick={() => setVisible(true)}
+          onClick={open}
           className={`w-full bg-transparent px-4 py-3 text-left text-base md:text-sm
                      flex items-center justify-between gap-3 focus:outline-none ${
                        display ? 'text-primary' : 'text-tertiary'
@@ -520,20 +565,22 @@ export const DatePickerInput = ({
           <ChevronDown size={16} className="shrink-0 text-tertiary" />
         </button>
 
-        <PreviewOverlay
-          isOpen={visible}
-          onClose={close}
-          anchorRect={null}
-          title={placeholder ?? 'Select Date'}
-        >
-          <DatePickerCalendar
-            value={value}
-            onChange={onChange}
+        {!stackNav && (
+          <PreviewOverlay
+            isOpen={visible}
             onClose={close}
-            minDate={minDate}
-            maxDate={maxDate}
-          />
-        </PreviewOverlay>
+            anchorRect={null}
+            title={placeholder ?? 'Select Date'}
+          >
+            <DatePickerCalendar
+              value={value}
+              onChange={onChange}
+              onClose={close}
+              minDate={minDate}
+              maxDate={maxDate}
+            />
+          </PreviewOverlay>
+        )}
       </div>
     </div>
   )
@@ -766,6 +813,28 @@ export const PasswordInput = ({
 
 /* ── Multi-Select Picker (modal with checkmarks) ── */
 
+/**
+ * The drill-down body for MultiPickerInput. A pushed stack screen is frozen at push
+ * time, so it can't read the host's live `value` for checkmarks — instead it owns a
+ * local selection seeded from `initial` and commits every toggle through `onChange`
+ * (which stays in sync with the host). Done = pop, handled by the screen's footer.
+ */
+function MultiSelectScreen({ options, initial, onChange, placeholder }: {
+  options: readonly PickerOption[]
+  initial: string[]
+  onChange: (val: string[]) => void
+  placeholder?: string
+}) {
+  const [sel, setSel] = useState<string[]>(initial)
+  const toggle = (opt: PickerOption) => {
+    const v = getOptionValue(opt)
+    const next = sel.includes(v) ? sel.filter(x => x !== v) : [...sel, v]
+    setSel(next)
+    onChange(next)
+  }
+  return <PickerRows options={options} isSelected={(v) => sel.includes(v)} onSelect={toggle} ariaLabel={placeholder} multi />
+}
+
 export const MultiPickerInput = ({
   value,
   onChange,
@@ -781,6 +850,7 @@ export const MultiPickerInput = ({
   required?: boolean
   label?: string
 }) => {
+  const stackNav = useContext(StackNavContext)
   const [visible, setVisible] = useState(false)
   const close = useCallback(() => setVisible(false), [])
 
@@ -800,12 +870,28 @@ export const MultiPickerInput = ({
     }
   }, [value, onChange])
 
+  const open = () => {
+    if (stackNav) {
+      stackNav.pushScreen({
+        title: placeholder,
+        rightFooter: (_p, nav) => (
+          <ActionPill>
+            <ActionButton icon={Check} label="Done" onClick={nav.pop} />
+          </ActionPill>
+        ),
+        render: () => <MultiSelectScreen options={options} initial={value} onChange={onChange} placeholder={placeholder} />,
+      })
+    } else {
+      setVisible(true)
+    }
+  }
+
   return (
     <div className="block border-b border-primary/6 last:border-b-0">
       <div className="relative">
         <button
           type="button"
-          onClick={() => setVisible(true)}
+          onClick={open}
           className={`w-full bg-transparent px-4 py-3 text-left text-base md:text-sm
                      flex items-center justify-between gap-3 focus:outline-none ${
                        value.length > 0 ? 'text-primary' : 'text-tertiary'
@@ -819,41 +905,68 @@ export const MultiPickerInput = ({
         )}
       </div>
 
-      <PreviewOverlay
-        isOpen={visible}
-        onClose={close}
-        anchorRect={null}
-        maxWidth={280}
-        title={placeholder}
-        rightFooter={
-          <ActionPill>
-            <ActionButton icon={Check} label="Done" onClick={close} />
-          </ActionPill>
-        }
-      >
-        <div className="max-h-60 overflow-y-auto py-1" role="listbox" aria-label={placeholder} aria-multiselectable="true">
-          {options.map((opt) => {
-            const optVal = getOptionValue(opt)
-            const optLbl = getOptionLabel(opt)
-            const selected = value.includes(optVal)
+      {!stackNav && (
+        <PreviewOverlay
+          isOpen={visible}
+          onClose={close}
+          anchorRect={null}
+          maxWidth={280}
+          title={placeholder}
+          rightFooter={
+            <ActionPill>
+              <ActionButton icon={Check} label="Done" onClick={close} />
+            </ActionPill>
+          }
+        >
+          <PickerRows options={options} isSelected={(v) => value.includes(v)} onSelect={toggleOption} ariaLabel={placeholder} multi />
+        </PreviewOverlay>
+      )}
+    </div>
+  )
+}
+
+/* ── Fuel Meter (vehicle fuel-level intake) ── */
+
+/**
+ * FuelMeter — a fuel-gauge intake: E ▮▮▮▯▯ F. Ten tappable segments set the level
+ * in increments of 10 (10–100%); the "E" cap sets empty (0). null = not yet read.
+ * Shared by the PMCS intake (PmcsSheet) and the PMCS record edit form (RecordPreview).
+ */
+export function FuelMeter({ value, onChange }: { value: number | null; onChange: (v: number) => void }) {
+  const segments = Array.from({ length: 10 }, (_, i) => (i + 1) * 10)
+  return (
+    <div className="px-4 py-3">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-sm font-medium text-secondary">Fuel level</span>
+        <span className="text-sm font-semibold text-primary tabular-nums">
+          {value == null ? '—' : `${value}%`}
+        </span>
+      </div>
+      <div className="flex items-center gap-1.5">
+        <button
+          type="button"
+          onClick={() => onChange(0)}
+          aria-label="Fuel empty"
+          className="w-3.5 shrink-0 text-[9pt] font-bold text-tertiary active:scale-90 transition-transform"
+        >
+          E
+        </button>
+        <div className="flex-1 flex items-center gap-1">
+          {segments.map((lvl) => {
+            const filled = value != null && value >= lvl
             return (
               <button
-                key={optVal}
+                key={lvl}
                 type="button"
-                role="option"
-                aria-selected={selected}
-                onClick={() => toggleOption(opt)}
-                className={`w-full text-left px-3.5 py-2 text-sm hover:bg-primary/5 active:bg-primary/10 transition-colors flex items-center justify-between ${
-                  selected ? 'text-themeblue2 font-medium' : 'text-primary'
-                }`}
-              >
-                {optLbl}
-                {selected && <Check size={16} className="shrink-0 text-themeblue2" />}
-              </button>
+                onClick={() => onChange(lvl)}
+                aria-label={`Fuel ${lvl} percent`}
+                className={`h-6 flex-1 rounded-md active:scale-95 transition-all ${filled ? 'bg-themeblue3' : 'bg-tertiary/12'}`}
+              />
             )
           })}
         </div>
-      </PreviewOverlay>
+        <span className="w-3.5 shrink-0 text-[9pt] font-bold text-tertiary text-right">F</span>
+      </div>
     </div>
   )
 }

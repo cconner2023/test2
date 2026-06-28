@@ -1,34 +1,30 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { Plus, Trash2, Type, TextCursor, ChevronDown, GitBranch, Check, ChevronRight } from 'lucide-react';
 import type { ContextMenuAction } from '../PreviewOverlay';
 import type { TemplateNode, TextNode, StepNode, ChoiceNode, BranchNode } from '../../Data/TemplateTypes';
 import { getChoiceLabels, findChoiceByLabel } from '../../Utilities/templateEngine';
 import { PreviewOverlay } from '../PreviewOverlay';
-import { OverlayStack, type StackNav } from '../OverlayStack';
+import { OverlayStack, type StackNav, type StackScreen } from '../OverlayStack';
 import { ActionButton } from '../ActionButton';
 import { ActionPill } from '../ActionPill';
 import { TextInput, PickerInput } from '../FormInputs';
 
 /**
- * TemplateBuilder — the recursive note-template authoring tree (text / step /
- * choice / branch nodes; branches nest sub-trees per option). The node LIST at the
- * top level renders INLINE (inside the host TextExpanderEditPopover card). Editing
- * is an OverlayStack drill-down (the morph primitive): ONE card whose body morphs
- * across screens instead of z-stacking a fresh anchored PreviewOverlay per level.
+ * TemplateBuilder — the note-template authoring tree (text / step / choice / branch
+ * nodes; branches nest sub-trees per option), as a DRILL-DOWN morph rather than the
+ * old recursive nested overlays.
  *
- * REDESIGNED 2026-06-28 (was recursive nested PreviewOverlays). The recursion is
- * gone from the React tree — there is exactly one OverlayStack. Depth lives in the
- * stack as a path into the tree:
- *  - `editor` screen — edit a node at (path,index). A branch node's per-option rows
- *    push a `list` screen for that option's sub-tree.
- *  - `list` screen — the node list at a branch-option path. A row pushes an `editor`.
- * Back walks the path out; "Done" pops one level (or closes at the root editor).
- * All mutations go through path-based get/setList on the root `nodes`, bubbling a
- * single onChange — no per-level onChange threading.
- *
- * The add type-picker is a small INTERRUPT popover (anchored to the FAB), rendered
- * as a descendant of whichever surface launched it so OverlayStackContext floors it
- * above (root list → above the inline card; list screen → above the morph card).
+ * This module exports REUSABLE PIECES so a host can fold template editing into its
+ * OWN OverlayStack (no overlay-on-overlay):
+ *  - `makeTemplateScreens` — the `tpl-node` (per-node editor) + `tpl-list` (a branch
+ *    sub-tree list) StackScreens, keyed by a PATH into the node tree. Spread into the
+ *    host stack's screens.
+ *  - `TemplateNodeList` — the inline node list (rows + FAB) for the host's root body.
+ *  - `TemplateAddPicker` — the anchored add type-picker (an interrupt popover).
+ *  - path helpers `getList` / `setList` / `makeNode` / `addTemplateNode`.
+ * `TextExpanderEditPopover` uses these to host the shortcut editor + template nodes
+ * in ONE stack. The standalone `TemplateBuilder` below wires the same pieces to its
+ * own stack (the node editor is the stack root; back at root closes it).
  */
 
 const CHOICE_SUGGESTIONS: Record<string, string[]> = {
@@ -38,18 +34,13 @@ const CHOICE_SUGGESTIONS: Record<string, string[]> = {
     quality: ['sharp', 'dull', 'aching', 'burning'],
 };
 
-interface TemplateBuilderProps {
-    nodes: TemplateNode[];
-    onChange: (nodes: TemplateNode[]) => void;
-}
-
 // ─── Path into the nested tree ─────────────────────────────────────────
 // A list is reached by descending nodes[seg.index].branches[seg.option] per seg.
 // Root list = []. A node is (ListPath, index).
-type Seg = { index: number; option: string };
-type ListPath = Seg[];
+export type Seg = { index: number; option: string };
+export type ListPath = Seg[];
 
-const getList = (root: TemplateNode[], path: ListPath): TemplateNode[] => {
+export const getList = (root: TemplateNode[], path: ListPath): TemplateNode[] => {
     let nodes = root;
     for (const seg of path) {
         const n = nodes[seg.index];
@@ -59,7 +50,7 @@ const getList = (root: TemplateNode[], path: ListPath): TemplateNode[] => {
     return nodes;
 };
 
-const setList = (root: TemplateNode[], path: ListPath, next: TemplateNode[]): TemplateNode[] => {
+export const setList = (root: TemplateNode[], path: ListPath, next: TemplateNode[]): TemplateNode[] => {
     if (path.length === 0) return next;
     const [seg, ...rest] = path;
     const n = root[seg.index];
@@ -71,7 +62,7 @@ const setList = (root: TemplateNode[], path: ListPath, next: TemplateNode[]): Te
     return out;
 };
 
-const makeNode = (type: TemplateNode['type']): TemplateNode => {
+export const makeNode = (type: TemplateNode['type']): TemplateNode => {
     switch (type) {
         case 'text':   return { type: 'text', content: '' } satisfies TextNode;
         case 'step':   return { type: 'step', label: '' } satisfies StepNode;
@@ -79,6 +70,21 @@ const makeNode = (type: TemplateNode['type']): TemplateNode => {
         case 'branch': return { type: 'branch', triggerField: '', branches: {} } satisfies BranchNode;
     }
 };
+
+/** Append a fresh node to the list at `path`; returns the new node's index. */
+export const addTemplateNode = (
+    root: TemplateNode[],
+    onChange: (nodes: TemplateNode[]) => void,
+    path: ListPath,
+    type: TemplateNode['type'],
+): number => {
+    const list = getList(root, path);
+    onChange(setList(root, path, [...list, makeNode(type)]));
+    return list.length;
+};
+
+export const pathEq = (a: ListPath, b: ListPath): boolean =>
+    a.length === b.length && a.every((seg, i) => seg.index === b[i].index && seg.option === b[i].option);
 
 const nodeIcon = (type: TemplateNode['type']) => {
     switch (type) {
@@ -147,7 +153,7 @@ const RowTextarea = ({
     </label>
 );
 
-// ─── A tappable node row (shared by the inline root list + the `list` screen) ──
+// ─── A tappable node row (shared by the inline root list + the `tpl-list` screen) ──
 const NodeRow = ({ node, onClick }: { node: TemplateNode; onClick: () => void }) => {
     const Icon = nodeIcon(node.type);
     return (
@@ -257,8 +263,8 @@ const ChoiceEditorBody = ({
 };
 
 // ─── Branch node body ──────────────────────────────────────────────────
-// Per-option rows DRILL into a `list` screen (onDrill) instead of opening a
-// nested overlay — the OverlayStack owns the navigation.
+// Per-option rows DRILL into a `tpl-list` screen (onDrill) instead of opening a
+// nested overlay — the host's OverlayStack owns the navigation.
 const BranchEditorBody = ({
     node, onChange, root, onDrill,
 }: {
@@ -339,7 +345,7 @@ const BranchEditorBody = ({
                 />
             )}
 
-            {/* Per-option drill-in rows — push a `list` screen for that sub-tree */}
+            {/* Per-option drill-in rows — push a `tpl-list` screen for that sub-tree */}
             {Object.keys(node.branches).length > 0 && (
                 <div>
                     {Object.entries(node.branches).map(([optVal, optNodes]) => (
@@ -367,75 +373,113 @@ const BranchEditorBody = ({
     );
 };
 
-// ─── Main TemplateBuilder ──────────────────────────────────────────────
-export const TemplateBuilder = ({ nodes, onChange }: TemplateBuilderProps) => {
-    // The node being edited opens the stack; null = stack closed. Deeper navigation
-    // is handled inside the stack via navRef (push/pop).
-    const [entry, setEntry] = useState<{ path: ListPath; index: number } | null>(null);
-    // The add type-picker target (which list to append to) + its anchor.
-    const [addMenu, setAddMenu] = useState<{ path: ListPath; anchor: DOMRect | null } | null>(null);
-    const navRef = useRef<StackNav | null>(null);
-    const fabRef = useRef<HTMLDivElement>(null);
-    // Only one `list` screen is mounted at a time (morph shows the top screen), so
-    // a single ref serves the sublist FAB's add-picker anchor.
-    const listFabRef = useRef<HTMLDivElement>(null);
+// ─── Add type-picker (an interrupt popover, anchored to the FAB) ──────────────
+export type AddMenuState = { path: ListPath; anchor: DOMRect | null } | null;
 
+export function TemplateAddPicker({
+    addMenu, forPath, onClose, onPick,
+}: {
+    addMenu: AddMenuState;
+    /** Only render when addMenu targets this path (so it sits in the right surface). */
+    forPath: ListPath;
+    onClose: () => void;
+    onPick: (type: TemplateNode['type']) => void;
+}) {
+    if (!addMenu || !pathEq(addMenu.path, forPath)) return null;
+    const actions: ContextMenuAction[] = [
+        { key: 'text',   icon: Type,        label: 'Add text',   onAction: () => onPick('text'),   closesOnAction: false },
+        { key: 'step',   icon: TextCursor,  label: 'Add step',   onAction: () => onPick('step'),   closesOnAction: false },
+        { key: 'choice', icon: ChevronDown, label: 'Add choice', onAction: () => onPick('choice'), closesOnAction: false },
+        { key: 'branch', icon: GitBranch,   label: 'Add branch', onAction: () => onPick('branch'), closesOnAction: false },
+    ];
+    return (
+        <PreviewOverlay
+            isOpen
+            onClose={onClose}
+            anchorRect={addMenu.anchor}
+            title="Add step"
+            maxWidth={280}
+            previewMaxHeight="auto"
+            actions={actions}
+        >
+            <div className="px-4 pb-3 text-[10pt] text-tertiary">
+                Choose a step type to add to the template.
+            </div>
+        </PreviewOverlay>
+    );
+}
+
+// ─── Inline node list (host root-screen body): rows + FAB ─────────────────────
+export function TemplateNodeList({
+    nodes, emptyHint = 'No template steps yet — tap + to add one.', onEdit, onAdd,
+}: {
+    nodes: TemplateNode[];
+    emptyHint?: string;
+    onEdit: (index: number) => void;
+    onAdd: (anchor: DOMRect | null) => void;
+}) {
+    const fabRef = useRef<HTMLDivElement>(null);
+    return (
+        <div>
+            {nodes.length === 0 ? (
+                <p className="text-[9pt] text-tertiary text-center py-6">{emptyHint}</p>
+            ) : (
+                <div>
+                    {nodes.map((node, i) => (
+                        <NodeRow key={i} node={node} onClick={() => onEdit(i)} />
+                    ))}
+                </div>
+            )}
+            <div className="flex justify-end pt-3 px-2">
+                <ActionPill ref={fabRef} shadow="sm">
+                    <ActionButton
+                        icon={Plus}
+                        label="Add step"
+                        onClick={() => onAdd(fabRef.current?.getBoundingClientRect() ?? null)}
+                    />
+                </ActionPill>
+            </div>
+        </div>
+    );
+}
+
+// ─── The two drill screens (tpl-node editor + tpl-list sublist) ───────────────
+// Spread into any host OverlayStack. `editorKey`/`listKey` namespace them so they
+// can coexist with the host's own root screen (e.g. TextExpander's 'shortcut').
+export function makeTemplateScreens({
+    nodes, onChange, navRef, addMenu, setAddMenu,
+    editorKey = 'tpl-node', listKey = 'tpl-list', onExitRoot,
+}: {
+    nodes: TemplateNode[];
+    onChange: (nodes: TemplateNode[]) => void;
+    navRef: React.MutableRefObject<StackNav | null>;
+    addMenu: AddMenuState;
+    setAddMenu: (s: AddMenuState) => void;
+    editorKey?: string;
+    listKey?: string;
+    /** Called when "Done"/back is pressed at the stack root (standalone use). */
+    onExitRoot?: () => void;
+}): Record<string, StackScreen> {
     const updateNode = (path: ListPath, index: number, updated: TemplateNode) => {
         const list = getList(nodes, path);
         const next = [...list];
         next[index] = updated;
         onChange(setList(nodes, path, next));
     };
-
     const deleteNode = (path: ListPath, index: number) => {
         const list = getList(nodes, path);
         onChange(setList(nodes, path, list.filter((_, i) => i !== index)));
     };
-
-    // Append a node to a list, then open/drill into its editor.
-    const handleAdd = (type: TemplateNode['type']) => {
-        if (!addMenu) return;
-        const { path } = addMenu;
-        const list = getList(nodes, path);
-        onChange(setList(nodes, path, [...list, makeNode(type)]));
-        const index = list.length;
+    const upOrClose = (nav: StackNav) => { if (nav.depth > 1) nav.pop(); else onExitRoot?.(); };
+    // Add-from-sublist: append + drill into the new node (the stack is already open).
+    const handleAddAt = (path: ListPath, type: TemplateNode['type']) => {
+        const index = addTemplateNode(nodes, onChange, path, type);
         setAddMenu(null);
-        if (path.length === 0) setEntry({ path, index });   // root → open the stack
-        else navRef.current?.push('editor', { path, index }); // sublist → drill in
+        navRef.current?.push(editorKey, { path, index });
     };
 
-    const addActions: ContextMenuAction[] = [
-        { key: 'text',   icon: Type,        label: 'Add text',   onAction: () => handleAdd('text'),   closesOnAction: false },
-        { key: 'step',   icon: TextCursor,  label: 'Add step',   onAction: () => handleAdd('step'),   closesOnAction: false },
-        { key: 'choice', icon: ChevronDown, label: 'Add choice', onAction: () => handleAdd('choice'), closesOnAction: false },
-        { key: 'branch', icon: GitBranch,   label: 'Add branch', onAction: () => handleAdd('branch'), closesOnAction: false },
-    ];
-
-    // "Done" / back: pop one level, or close the stack at the root editor.
-    const upOrClose = (nav: StackNav) => { if (nav.depth > 1) nav.pop(); else setEntry(null); };
-
-    // The add type-picker popover — rendered as a descendant of whichever surface
-    // launched it (so it auto-stacks above), keyed by the active path.
-    const addPicker = (forPath: ListPath) => (
-        addMenu && pathEq(addMenu.path, forPath) ? (
-            <PreviewOverlay
-                isOpen
-                onClose={() => setAddMenu(null)}
-                anchorRect={addMenu.anchor}
-                title="Add step"
-                maxWidth={280}
-                previewMaxHeight="auto"
-                actions={addActions}
-            >
-                <div className="px-4 pb-3 text-[10pt] text-tertiary">
-                    Choose a step type to add to the template.
-                </div>
-            </PreviewOverlay>
-        ) : null
-    );
-
-    const screens = {
-        editor: {
+    return {
+        [editorKey]: {
             title: (p: { path: ListPath; index: number }) => {
                 const node = getList(nodes, p.path)[p.index];
                 return node ? `Edit ${nodeTypeLabel(node.type)}` : 'Edit';
@@ -458,19 +502,19 @@ export const TemplateBuilder = ({ nodes, onChange }: TemplateBuilderProps) => {
                         node={node}
                         onChange={(n) => updateNode(p.path, p.index, n)}
                         root={nodes}
-                        onDrill={(option) => nav.push('list', { path: [...p.path, { index: p.index, option }] })}
+                        onDrill={(option) => nav.push(listKey, { path: [...p.path, { index: p.index, option }] })}
                     />
                 );
             },
         },
-        list: {
+        [listKey]: {
             title: (p: { path: ListPath }) => {
                 const last = p.path[p.path.length - 1];
                 return last ? `Path: ${last.option}` : 'Path';
             },
             rightFooter: (_: { path: ListPath }, nav: StackNav) => (
                 <ActionPill>
-                    <ActionButton icon={Check} label="Done" variant="success" onClick={() => upOrClose(nav)} />
+                    <ActionButton icon={Check} label="Done" variant="success" onClick={() => nav.pop()} />
                 </ActionPill>
             ),
             render: (p: { path: ListPath }, nav: StackNav) => {
@@ -481,61 +525,73 @@ export const TemplateBuilder = ({ nodes, onChange }: TemplateBuilderProps) => {
                             <p className="text-[9pt] text-tertiary text-center py-6">Empty path — tap + to add a step.</p>
                         ) : (
                             list.map((node, i) => (
-                                <NodeRow key={i} node={node} onClick={() => nav.push('editor', { path: p.path, index: i })} />
+                                <NodeRow key={i} node={node} onClick={() => nav.push(editorKey, { path: p.path, index: i })} />
                             ))
                         )}
                         <div className="flex justify-end pt-3 px-2">
-                            <ActionPill ref={listFabRef} shadow="sm">
+                            <ActionPill shadow="sm">
                                 <ActionButton
                                     icon={Plus}
                                     label="Add step"
-                                    onClick={() => setAddMenu({ path: p.path, anchor: listFabRef.current?.getBoundingClientRect() ?? null })}
+                                    onClick={(/* anchor via the picker's own centering */) => setAddMenu({ path: p.path, anchor: null })}
                                 />
                             </ActionPill>
                         </div>
-                        {/* Add picker for this sublist — descendant of the morph card. */}
-                        {addPicker(p.path)}
+                        <TemplateAddPicker
+                            addMenu={addMenu}
+                            forPath={p.path}
+                            onClose={() => setAddMenu(null)}
+                            onPick={(type) => handleAddAt(p.path, type)}
+                        />
                     </div>
                 );
             },
         },
     };
+}
+
+// ─── Standalone TemplateBuilder ──────────────────────────────────────────────
+// Inline root list + its own OverlayStack (node editor is the stack root). Used
+// where there is no host stack to fold into.
+interface TemplateBuilderProps {
+    nodes: TemplateNode[];
+    onChange: (nodes: TemplateNode[]) => void;
+}
+
+export const TemplateBuilder = ({ nodes, onChange }: TemplateBuilderProps) => {
+    const [entry, setEntry] = useState<{ path: ListPath; index: number } | null>(null);
+    const [addMenu, setAddMenu] = useState<AddMenuState>(null);
+    const navRef = useRef<StackNav | null>(null);
+
+    const screens = makeTemplateScreens({
+        nodes, onChange, navRef, addMenu, setAddMenu, onExitRoot: () => setEntry(null),
+    });
 
     return (
         <div>
-            {/* Inline root node list */}
-            {nodes.length === 0 ? (
-                <p className="text-[9pt] text-tertiary text-center py-6">
-                    No template steps yet — tap + to add one.
-                </p>
-            ) : (
-                <div>
-                    {nodes.map((node, i) => (
-                        <NodeRow key={i} node={node} onClick={() => setEntry({ path: [], index: i })} />
-                    ))}
-                </div>
+            <TemplateNodeList
+                nodes={nodes}
+                onEdit={(index) => setEntry({ path: [], index })}
+                onAdd={(anchor) => setAddMenu({ path: [], anchor })}
+            />
+            {/* Root add-picker (stack closed): opens the new node's editor. */}
+            {entry == null && (
+                <TemplateAddPicker
+                    addMenu={addMenu}
+                    forPath={[]}
+                    onClose={() => setAddMenu(null)}
+                    onPick={(type) => {
+                        const index = addTemplateNode(nodes, onChange, [], type);
+                        setAddMenu(null);
+                        setEntry({ path: [], index });
+                    }}
+                />
             )}
-
-            {/* FAB — opens the type-picker for the root list */}
-            <div className="flex justify-end pt-3 px-2">
-                <ActionPill ref={fabRef} shadow="sm">
-                    <ActionButton
-                        icon={Plus}
-                        label="Add step"
-                        onClick={() => setAddMenu({ path: [], anchor: fabRef.current?.getBoundingClientRect() ?? null })}
-                    />
-                </ActionPill>
-            </div>
-
-            {/* Add picker for the root list (stack closed) */}
-            {entry == null && addPicker([])}
-
-            {/* The editing stack — one morphing card; auto-stacks above the host card */}
             <OverlayStack
                 isOpen={entry != null}
                 onClose={() => setEntry(null)}
                 navRef={navRef}
-                initial={entry ? { key: 'editor', params: entry } : { key: 'editor', params: { path: [], index: 0 } }}
+                initial={entry ? { key: 'tpl-node', params: entry } : { key: 'tpl-node', params: { path: [], index: 0 } }}
                 screens={screens}
                 maxWidth={520}
                 previewMaxHeight="60dvh"
@@ -543,6 +599,3 @@ export const TemplateBuilder = ({ nodes, onChange }: TemplateBuilderProps) => {
         </div>
     );
 };
-
-const pathEq = (a: ListPath, b: ListPath): boolean =>
-    a.length === b.length && a.every((seg, i) => seg.index === b[i].index && seg.option === b[i].option);

@@ -1,13 +1,19 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { Check, User, Building2, TextCursorInput, Layers } from 'lucide-react';
 import type { TextExpander } from '../../Data/User';
 import type { TemplateNode } from '../../Data/TemplateTypes';
 import type { FieldInfo } from '../../Utilities/templateParser';
 import { templateNodesToFieldText, parseFieldText, isFlatTemplate } from '../../Utilities/templateParser';
-import { TemplateBuilder } from './TemplateBuilder';
+import {
+    TemplateNodeList,
+    TemplateAddPicker,
+    makeTemplateScreens,
+    makeNode,
+    type AddMenuState,
+} from './TemplateBuilder';
 import { FieldTextEditor } from './FieldTextEditor';
 import { ActionButton } from '../ActionButton';
-import { PreviewOverlay } from '../PreviewOverlay';
+import { OverlayStack, type StackNav } from '../OverlayStack';
 import { ActionPill } from '../ActionPill'
 import { OverlayHeaderMenu } from '../OverlayHeaderMenu';
 import type { ContextMenuItem } from '../ContextMenu';
@@ -35,6 +41,14 @@ const initialModeFromState = (state: TextExpanderEditState | null): 'simple' | '
     return 'simple';
 };
 
+/**
+ * TextExpanderEditPopover — the shortcut/template authoring surface. ONE OverlayStack
+ * (the drill-down/morph primitive): the `shortcut` root screen holds the abbreviation
+ * + the content editor (simple FieldTextEditor, or — in template mode — the inline
+ * template node list). Tapping a template node DRILLS into the shared template screens
+ * (`tpl-node` / `tpl-list`) on the SAME stack, instead of stacking a second overlay
+ * over this one. See makeTemplateScreens in TemplateBuilder.
+ */
 export const TextExpanderEditPopover = ({
     state, existingAbbrs, isSupervisorRole = false, onClose, onSave,
 }: Props) => {
@@ -50,6 +64,11 @@ export const TextExpanderEditPopover = ({
     const [fields, setFields] = useState<Record<string, FieldInfo>>({});
     const [templateNodes, setTemplateNodes] = useState<TemplateNode[]>([]);
     const [abbrError, setAbbrError] = useState('');
+
+    // Template drill-down: the stack nav (for async/handler-driven push) + the add
+    // type-picker target. The node editor screens push onto this same stack.
+    const navRef = useRef<StackNav | null>(null);
+    const [addMenu, setAddMenu] = useState<AddMenuState>(null);
 
     // Re-seed every time the popover opens with a new state
     useEffect(() => {
@@ -67,6 +86,7 @@ export const TextExpanderEditPopover = ({
         setFields(flatResult?.fields ?? {});
         setTemplateNodes(seed.template ?? []);
         setAbbrError('');
+        setAddMenu(null);
     }, [state]);
 
     // Tour: progressively fill expansion + fields when build events arrive
@@ -151,16 +171,27 @@ export const TextExpanderEditPopover = ({
         ],
     });
 
-    return (
-        <PreviewOverlay
-            isOpen={isOpen}
-            onClose={onClose}
-            anchorRect={state?.anchor ?? null}
-            title={titleText}
-            maxWidth={560}
-            previewMaxHeight="60dvh"
-            headerActions={<OverlayHeaderMenu items={modifierItems} />}
-            rightFooter={
+    // Add a node at the root of the template, then drill into its editor. The
+    // append is functional (atomic); the new node lands at the current length.
+    const handleAddRoot = useCallback((type: TemplateNode['type']) => {
+        setTemplateNodes(prev => [...prev, makeNode(type)]);
+        setAddMenu(null);
+        navRef.current?.push('tpl-node', { path: [], index: templateNodes.length });
+    }, [templateNodes.length]);
+
+    const templateScreens = makeTemplateScreens({
+        nodes: templateNodes,
+        onChange: setTemplateNodes,
+        navRef,
+        addMenu,
+        setAddMenu,
+    });
+
+    const screens = {
+        shortcut: {
+            title: titleText,
+            headerActions: <OverlayHeaderMenu items={modifierItems} />,
+            rightFooter: (
                 <ActionPill data-tour="expander-edit-accept">
                     <ActionButton
                         icon={Check}
@@ -169,36 +200,56 @@ export const TextExpanderEditPopover = ({
                         onClick={saveDisabled ? () => {} : handleSave}
                     />
                 </ActionPill>
-            }
-        >
-            <div data-tour="expander-edit-card" className="px-4 pb-3 space-y-3">
-                {/* ── Title input ── */}
-                <TextInput
-                    value={abbr}
-                    onChange={(v) => { setAbbr(v); setAbbrError(''); }}
-                    placeholder="e.g. htn, sob, cva"
-                    hint={abbrError || null}
-                />
-
-
-                {/* ── Content editor ── */}
-                {mode === 'simple' ? (
-                    <div className="rounded-xl bg-themewhite2 px-3 py-2.5">
-                        <FieldTextEditor
-                            value={expansion}
-                            onChange={setExpansion}
-                            fields={fields}
-                            onFieldsChange={setFields}
-                            placeholder="Text that replaces the shortcut..."
-                        />
-                    </div>
-                ) : (
-                    <TemplateBuilder
-                        nodes={templateNodes}
-                        onChange={setTemplateNodes}
+            ),
+            render: (_: unknown, nav: StackNav) => (
+                <div data-tour="expander-edit-card" className="px-4 pb-3 space-y-3">
+                    <TextInput
+                        value={abbr}
+                        onChange={(v) => { setAbbr(v); setAbbrError(''); }}
+                        placeholder="e.g. htn, sob, cva"
+                        hint={abbrError || null}
                     />
-                )}
-            </div>
-        </PreviewOverlay>
+
+                    {mode === 'simple' ? (
+                        <div className="rounded-xl bg-themewhite2 px-3 py-2.5">
+                            <FieldTextEditor
+                                value={expansion}
+                                onChange={setExpansion}
+                                fields={fields}
+                                onFieldsChange={setFields}
+                                placeholder="Text that replaces the shortcut..."
+                            />
+                        </div>
+                    ) : (
+                        <>
+                            <TemplateNodeList
+                                nodes={templateNodes}
+                                onEdit={(index) => nav.push('tpl-node', { path: [], index })}
+                                onAdd={(anchor) => setAddMenu({ path: [], anchor })}
+                            />
+                            <TemplateAddPicker
+                                addMenu={addMenu}
+                                forPath={[]}
+                                onClose={() => setAddMenu(null)}
+                                onPick={handleAddRoot}
+                            />
+                        </>
+                    )}
+                </div>
+            ),
+        },
+        ...templateScreens,
+    };
+
+    return (
+        <OverlayStack
+            isOpen={isOpen}
+            onClose={onClose}
+            anchorRect={state?.anchor ?? null}
+            initial={{ key: 'shortcut' }}
+            screens={screens}
+            maxWidth={560}
+            previewMaxHeight="60dvh"
+        />
     );
 };

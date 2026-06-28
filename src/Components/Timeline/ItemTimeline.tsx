@@ -195,16 +195,23 @@ export function ItemTimeline({ subjectId, clinicId, locations, holders, title = 
       </div>
 
       {/* Lifted-row menu — long-press/right-click a history row peeks it up and
-          drops View/Edit/Delete beneath. Each item routes into RecordPreview at
-          the right mode; Edit is offered only for the text-carrying fault rows. */}
+          drops its actions beneath. A PMCS check / dispatch opens straight into its
+          editable form (Edit + Delete); other rows view, with Edit offered only for
+          the legacy text-carrying fault rows. */}
       {lifted && (() => {
         const e = lifted.event
-        const editable = e.eventType === 'fault.opened' || e.eventType === 'fault.corrected'
-        const items: ContextMenuItem[] = [
-          { key: 'view', label: 'View', icon: Eye, onAction: () => setPreview({ event: e, action: 'view' }) },
-          ...(editable ? [{ key: 'edit', label: 'Edit', icon: Pencil, onAction: () => setPreview({ event: e, action: 'edit' }) }] : []),
-          { key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => setPreview({ event: e, action: 'delete' }) },
-        ]
+        const isForm = e.eventType === 'pmcs.clear' || e.eventType === 'dispatch.opened' || e.eventType === 'dispatch.closed'
+        const editableText = e.eventType === 'fault.opened' || e.eventType === 'fault.corrected'
+        const items: ContextMenuItem[] = isForm
+          ? [
+              { key: 'edit', label: 'Edit', icon: Pencil, onAction: () => setPreview({ event: e, action: 'edit' }) },
+              { key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => setPreview({ event: e, action: 'delete' }) },
+            ]
+          : [
+              { key: 'view', label: 'View', icon: Eye, onAction: () => setPreview({ event: e, action: 'view' }) },
+              ...(editableText ? [{ key: 'edit', label: 'Edit', icon: Pencil, onAction: () => setPreview({ event: e, action: 'edit' }) }] : []),
+              { key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => setPreview({ event: e, action: 'delete' }) },
+            ]
         return (
           <LiftedRowMenu
             isOpen

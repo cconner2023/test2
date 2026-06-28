@@ -44,7 +44,6 @@ import { useCalendarSync } from '../../Hooks/useCalendarSync'
 import { useCalendarWrite } from '../../Hooks/useCalendarWrite'
 import { LoadingOverlay } from '../LoadingOverlay'
 import { useAuth } from '../../Hooks/useAuth'
-import { effectiveSubClusters, passesSubClusterFilter } from '../../Utilities/subCluster'
 import { getOverlays } from '../../lib/mapOverlayService'
 import { useMapOverlayWrite } from '../../Hooks/useMapOverlayWrite'
 import type { OverlayOption, RoomOption, HuddleTaskOption } from './EventForm'
@@ -430,7 +429,6 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     t2tHuddleOnly, setT2THuddleOnly,
     categoryFilter, setCategoryFilter,
     clusterFilter,
-    subClusterFilter,
   } = useCalendarStore(useShallow(s => ({
     viewMode: s.currentView,
     setViewMode: s.setView,
@@ -457,7 +455,6 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     categoryFilter: s.categoryFilter,
     setCategoryFilter: s.setCategoryFilter,
     clusterFilter: s.clusterFilter,
-    subClusterFilter: s.subClusterFilter,
   })))
 
   const handleEventStatusChange = useCallback(async (id: string, next: import('../../Types/CalendarTypes').EventStatus) => {
@@ -580,22 +577,9 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
         (e.target_clinic_ids?.some(c => clusterFilter.includes(c)) ?? false)
       )
     }
-    // Render-only intra-clinic sub-cluster (platoon/squad) narrowing. Default
-    // (unset) lens = viewer's own squad; HQ users (no sub_cluster) see all.
-    // The squad lens is PRIMARY-CLINIC-scoped: sub_cluster ids are only meaningful
-    // within the viewer's own clinic, so cross-cluster / loan events (foreign
-    // clinic_id, fanned via target_clinic_ids) ALWAYS bypass it — otherwise a
-    // squad-lensed viewer would lose events synced in from a loan clinic. Events
-    // assigned to the viewer also always show ("tasked to me"). HQ/common events
-    // (sub_cluster_id == null) are always visible.
-    const effSub = effectiveSubClusters(subClusterFilter, profile.subClusterId)
-    if (effSub !== null) {
-      out = out.filter(e =>
-        e.clinic_id !== clinicId ||
-        (userId !== null && e.assigned_to.includes(userId)) ||
-        passesSubClusterFilter(e.sub_cluster_id, effSub)
-      )
-    }
+    // Sub-cluster (platoon/squad) narrowing is now driven entirely by the grouped
+    // personnel tree → personnelFilter (tapping a sub-unit header selects all its
+    // members). The old standalone subClusterFilter lens was removed as a duplicate.
     if (personnelFilter.length > 0) {
       out = out.filter(e =>
         e.assigned_to.length === 0 || e.assigned_to.some(id => personnelFilter.includes(id))
@@ -607,24 +591,18 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     // Append derived dispatch-expiry entries last so they always show regardless
     // of personnel/cluster/category filters (ops-critical, not assignable).
     return dispatchCalEvents.length ? [...out, ...dispatchCalEvents] : out
-  }, [events, personnelFilter, categoryFilter, clusterFilter, subClusterFilter, profile.subClusterId, clinicId, reachableClinicIds, userId, dispatchCalEvents])
+  }, [events, personnelFilter, categoryFilter, clusterFilter, clinicId, reachableClinicIds, userId, ownClinicMedics, dispatchCalEvents])
 
-  // Troops-to-Task roster narrowed by the active sub-unit lens — mirrors the
-  // event lens above and property's personnelZones so the "who" the grid shows
-  // tracks the sub-cluster filter, not just the events. Self, foreign-clinic
-  // (loaned-in) medics, and HQ/common (null sub_cluster) always pass; default
-  // (unset) lens = viewer's own squad; HQ viewers (null subCluster) see everyone.
-  // NOT applied to medicList (the EventForm assignee picker) — assignment must
-  // still reach the whole clinic regardless of the view filter.
+  // Troops-to-Task roster tracks the grouped personnel tree: with an active
+  // personnel filter the grid shows exactly the selected people (the viewer is
+  // always kept so they never lose their own lane); otherwise the full clinic
+  // roster. NOT applied to medicList (the EventForm assignee picker) — assignment
+  // must still reach the whole clinic regardless of the view filter.
   const scopedMedics = useMemo(() => {
-    const effSub = effectiveSubClusters(subClusterFilter, profile.subClusterId)
-    if (effSub === null) return ownClinicMedics
-    return ownClinicMedics.filter(m =>
-      m.id === userId ||
-      (m.clinicId != null && m.clinicId !== clinicId) ||
-      passesSubClusterFilter(m.subClusterId ?? null, effSub)
-    )
-  }, [ownClinicMedics, subClusterFilter, profile.subClusterId, userId, clinicId])
+    if (personnelFilter.length === 0) return ownClinicMedics
+    const sel = new Set(personnelFilter)
+    return ownClinicMedics.filter(m => sel.has(m.id) || m.id === userId)
+  }, [ownClinicMedics, personnelFilter, userId])
 
   const dayEvents = useMemo(() =>
     filteredEvents

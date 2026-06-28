@@ -83,7 +83,7 @@ export const hooks = {
 
   // ─── PWA / Platform ────────────────────────────────────────────
   useServiceWorker:       { path: 'Hooks/useServiceWorker.ts',       stores: [], services: [], purpose: 'SW registration, periodic updates, skip-waiting' },
-  useInstallPrompt:       { path: 'Hooks/useInstallPrompt.ts',       stores: [], services: [], purpose: 'PWA install prompt with iOS detection' },
+  useInstallCapability:   { path: 'Hooks/useInstallPrompt.ts',       stores: [], services: [], purpose: 'PWA install affordance (canInstall/install/isIOS) — surfaced by ProvisionalDeviceModal' },
   usePageVisibility:      { path: 'Hooks/usePageVisibility.ts',      stores: [], services: [], purpose: 'Track page visibility via document.visibilityState' },
   useGeolocation:         { path: 'Hooks/useGeolocation.ts',         stores: [], services: [], purpose: 'Browser geolocation with MGRS grid conversion' },
   useImagePaste:          { path: 'Hooks/useImagePaste.ts',          stores: [], services: [], purpose: 'Clipboard paste listener for image files' },

@@ -1,5 +1,8 @@
 import { useState, useRef, useMemo, useLayoutEffect, type ReactNode } from 'react'
 import { PreviewOverlay } from './PreviewOverlay'
+import { StackNavContext, type StackNav, type StackScreen } from './stackNav'
+
+export type { StackNav, StackScreen } from './stackNav'
 
 /**
  * OverlayStack — a navigation-stack ("morph") overlay primitive.
@@ -31,39 +34,10 @@ import { PreviewOverlay } from './PreviewOverlay'
  * path into the node tree).
  */
 
-export interface StackNav {
-  /** Push a deeper screen. */
-  push: (key: string, params?: unknown) => void
-  /** Swap the top screen in place (back skips it — e.g. camera → crop). */
-  replace: (key: string, params?: unknown) => void
-  /** Pop one level. No-op at the root. */
-  pop: () => void
-  /** Pop all the way back to the root screen. */
-  reset: () => void
-  /** Current depth (1 = root). */
-  depth: number
-}
-
-export interface StackScreen {
-  /** Header title — a string or a fn of this screen's params. */
-  title?: string | ((params: any) => string)
-  /** The body content. */
-  render: (params: any, nav: StackNav) => ReactNode
-  /** Footer left-pill slot (mirrors PreviewOverlay.footer). */
-  footer?: ReactNode | ((params: any, nav: StackNav) => ReactNode)
-  /** Footer right-pill slot — the success/confirm action (mirrors rightFooter). */
-  rightFooter?: ReactNode | ((params: any, nav: StackNav) => ReactNode)
-  /** Header overflow slot left of the X (mirrors headerActions). */
-  headerActions?: ReactNode | ((params: any, nav: StackNav) => ReactNode)
-  /** Override the default back (default: pop when depth>1, hidden at root). */
-  onBack?: (nav: StackNav) => void
-  /** Per-screen card width override (else the OverlayStack-level value). */
-  maxWidth?: number | string
-  /** Per-screen scroll height override (else the OverlayStack-level value). */
-  previewMaxHeight?: string
-}
-
-interface Frame { key: string; params: unknown }
+/** A frame may carry its OWN screen (ad-hoc, via nav.pushScreen) — when present it
+ *  wins over the host-declared `screens[key]` lookup so leaves can drill without the
+ *  host pre-declaring them. */
+interface Frame { key: string; params: unknown; screen?: StackScreen }
 
 interface OverlayStackProps {
   isOpen: boolean
@@ -89,6 +63,7 @@ export function OverlayStack({
 }: OverlayStackProps) {
   const [stack, setStack] = useState<Frame[]>([{ key: initial.key, params: initial.params }])
   const [dir, setDir] = useState<1 | -1>(1)
+  const adHocId = useRef(0)
 
   // Restore the root screen whenever the overlay (re)opens — the host's own
   // open/close state owns lifecycle, the stack just resets to its entry point.
@@ -102,6 +77,10 @@ export function OverlayStack({
   const nav: StackNav = useMemo(() => ({
     push: (key, params) => { setDir(1); setStack(s => [...s, { key, params }]) },
     replace: (key, params) => { setDir(1); setStack(s => [...s.slice(0, -1), { key, params }]) },
+    pushScreen: (screen, params) => {
+      const key = `__adhoc_${++adHocId.current}`
+      setDir(1); setStack(s => [...s, { key, params, screen }])
+    },
     pop: () => { setDir(-1); setStack(s => (s.length > 1 ? s.slice(0, -1) : s)) },
     reset: () => { setDir(-1); setStack(s => (s.length > 1 ? [s[0]] : s)) },
     depth: stack.length,
@@ -113,7 +92,7 @@ export function OverlayStack({
   }, [navRef, nav])
 
   const top = stack[stack.length - 1]
-  const screen = screens[top.key]
+  const screen = top.screen ?? screens[top.key]
   if (!screen) return null
 
   const resolve = <T,>(v: T | ((p: any, n: StackNav) => T)): T =>
@@ -130,24 +109,26 @@ export function OverlayStack({
     : (canBack ? nav.pop : undefined)
 
   return (
-    <PreviewOverlay
-      isOpen={isOpen}
-      onClose={onClose}
-      anchorRect={anchorRect}
-      containerRef={containerRef}
-      title={title}
-      onBack={onBack}
-      headerActions={headerActions}
-      footer={footer}
-      rightFooter={rightFooter}
-      maxWidth={screen.maxWidth ?? maxWidth}
-      previewMaxHeight={screen.previewMaxHeight ?? previewMaxHeight}
-      zIndex={zIndex}
-    >
-      <StackBody screenKey={top.key} dir={dir}>
-        {screen.render(top.params, nav)}
-      </StackBody>
-    </PreviewOverlay>
+    <StackNavContext.Provider value={nav}>
+      <PreviewOverlay
+        isOpen={isOpen}
+        onClose={onClose}
+        anchorRect={anchorRect}
+        containerRef={containerRef}
+        title={title}
+        onBack={onBack}
+        headerActions={headerActions}
+        footer={footer}
+        rightFooter={rightFooter}
+        maxWidth={screen.maxWidth ?? maxWidth}
+        previewMaxHeight={screen.previewMaxHeight ?? previewMaxHeight}
+        zIndex={zIndex}
+      >
+        <StackBody screenKey={top.key} dir={dir}>
+          {screen.render(top.params, nav)}
+        </StackBody>
+      </PreviewOverlay>
+    </StackNavContext.Provider>
   )
 }
 

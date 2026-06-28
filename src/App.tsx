@@ -17,7 +17,6 @@ import { useMenuSlide, MENU_NAV_WIDTH_MOBILE, MENU_NAV_WIDTH_DESKTOP } from './H
 import { useMessagesSlide } from './Hooks/useMessagesSlide'
 import UpdateNotification from './Components/UpdateNotification'
 import PasswordResetOverlay from './Components/PasswordResetOverlay'
-import InstallPrompt from './Components/InstallPrompt'
 import { ColumnA } from './Components/ColumnA'
 import { TC3DesktopLayout } from './Components/TC3/TC3DesktopLayout'
 import { TC3MobileWizard } from './Components/TC3/TC3MobileWizard'
@@ -156,7 +155,6 @@ function AppContent() {
     onClose: handleMessagesClose,
   })
   const [updateVisible, setUpdateVisible] = useState(false)
-  const [installVisible, setInstallVisible] = useState(false)
   const [postUpdatePending, setPostUpdatePending] = useState(!!_postUpdateNav)
   const [importPreview, setImportPreview] = useState<ImportPreview | null>(null)
   const { importFromBarcode } = useNoteImport()
@@ -530,7 +528,7 @@ case 'mapOverlay':
 
   return (
     <AvatarProvider value={avatarState}>
-    <TourProvider onboardingBlocked={updateVisible || installVisible || postUpdatePending}>
+    <TourProvider onboardingBlocked={updateVisible || postUpdatePending}>
     <MessagesProvider>
     <CallProvider>
     <div className='h-screen bg-themewhite md:bg-themewhite2 items-center flex justify-center overflow-hidden'>
@@ -870,7 +868,6 @@ case 'mapOverlay':
           </ErrorBoundary>
         )}
         <UpdateNotification onVisibilityChange={setUpdateVisible} />
-        {!updateVisible && <InstallPrompt onVisibilityChange={setInstallVisible} />}
         <PasswordResetOverlay />
       </div>
       <CallOverlay />

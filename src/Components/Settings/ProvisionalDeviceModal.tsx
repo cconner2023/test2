@@ -1,19 +1,26 @@
 /**
- * ProvisionalDeviceModal — Warning shown when no primary device exists.
+ * ProvisionalDeviceModal — the single "No Primary Device" / install surface.
  *
  * Appears when deviceRole === 'provisional' (browser tab without a PWA primary).
- * Warns that messages will be lost when the tab closes.
+ * Replaces the standalone InstallPrompt: warns that data lives in the Vault until
+ * a primary returns, then conditionally renders the install affordance —
+ *   • desktop / Android (beforeinstallprompt captured) → one-tap Install button
+ *   • iOS                                              → Add-to-Home-Screen hint
+ *   • neither                                          → generic PWA-install copy
  * Dismissible once per session (sessionStorage).
  */
 
 import { useState, useCallback, useEffect } from 'react'
+import { Download, Share } from 'lucide-react'
 import { useAuthStore } from '../../stores/useAuthStore'
+import { useInstallCapability } from '../../Hooks/useInstallPrompt'
 import { Modal } from '../Modal'
 
 const DISMISS_KEY = '_provisional_modal_dismissed'
 
 export function ProvisionalDeviceModal() {
   const deviceRole = useAuthStore(s => s.deviceRole)
+  const { isIOS, canInstall, install, isInstalling } = useInstallCapability()
 
   const [dismissed, setDismissed] = useState(() => {
     try { return sessionStorage.getItem(DISMISS_KEY) === '1' } catch { return false }
@@ -31,6 +38,11 @@ export function ProvisionalDeviceModal() {
     window.addEventListener('tour:messaging-dismiss-provisional', dismiss)
     return () => window.removeEventListener('tour:messaging-dismiss-provisional', dismiss)
   }, [dismiss])
+
+  const handleInstall = useCallback(async () => {
+    await install()
+    dismiss()
+  }, [install, dismiss])
 
   return (
     <Modal isOpen={isOpen} onClose={dismiss} hideClose maxWidth={400}>
@@ -50,16 +62,51 @@ export function ProvisionalDeviceModal() {
           until a primary device is detected.
         </p>
 
-        <p className="text-[10pt] text-tertiary leading-relaxed">
-          For persistent, real-time messaging, install the app as a PWA (Add to Home Screen).
-        </p>
+        {/* Install affordance — conditional on platform / install support */}
+        {canInstall ? (
+          <p className="text-[10pt] text-tertiary leading-relaxed">
+            Install the app for persistent, real-time messaging on this device.
+          </p>
+        ) : isIOS ? (
+          <p className="text-[10pt] text-tertiary leading-relaxed">
+            For persistent, real-time messaging, install the app: tap{' '}
+            <Share className="inline h-3.5 w-3.5 text-themeblue2 -mt-0.5" /> in your browser
+            toolbar, then <span className="font-medium text-primary">Add to Home Screen</span>.
+          </p>
+        ) : (
+          <p className="text-[10pt] text-tertiary leading-relaxed">
+            For persistent, real-time messaging, install the app as a PWA (Add to Home Screen).
+          </p>
+        )}
 
-        <button
-          onClick={dismiss}
-          className="mt-1 w-full py-2 rounded-full bg-primary text-themewhite text-sm font-medium hover:opacity-90 transition-opacity"
-        >
-          I understand
-        </button>
+        {canInstall ? (
+          <div className="flex items-center gap-2.5 mt-1">
+            <button
+              onClick={dismiss}
+              className="flex-1 py-2 rounded-full bg-themewhite2 text-tertiary text-sm font-medium hover:bg-themegray1/40 transition-colors"
+            >
+              Not now
+            </button>
+            <button
+              onClick={handleInstall}
+              disabled={isInstalling}
+              className="flex-1 py-2 rounded-full bg-primary text-themewhite text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {isInstalling ? (
+                <><Download className="h-3.5 w-3.5 animate-bounce" /> Installing…</>
+              ) : (
+                <><Download className="h-3.5 w-3.5" /> Install</>
+              )}
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={dismiss}
+            className="mt-1 w-full py-2 rounded-full bg-primary text-themewhite text-sm font-medium hover:opacity-90 transition-opacity"
+          >
+            I understand
+          </button>
+        )}
       </div>
     </Modal>
   )

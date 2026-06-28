@@ -6,9 +6,6 @@ interface BeforeInstallPromptEvent extends Event {
     userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
 }
 
-const DISMISSED_KEY = 'installPromptDismissed';
-const DISMISS_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
-
 // ─── Module-level capture ────────────────────────────────────
 // beforeinstallprompt can fire before React mounts (especially on
 // desktop where Chrome doesn't gate it behind a user-engagement
@@ -25,79 +22,38 @@ if (typeof window !== 'undefined') {
 }
 
 /**
- * Manages the PWA install prompt lifecycle: captures the beforeinstallprompt event,
- * handles iOS detection, dismissal with 7-day cooldown, and the install flow.
+ * useInstallCapability — exposes the PWA install affordance without any of its
+ * own surfacing/cooldown logic. The consumer (ProvisionalDeviceModal) owns when
+ * to show; this hook only answers "can we install, and how":
+ *  - isIOS / isStandalone: platform facts for choosing copy.
+ *  - canInstall: a beforeinstallprompt was captured → a one-tap Install button
+ *    is possible (desktop / Android). iOS never sets this (manual Add-to-Home).
+ *  - install(): triggers the native prompt.
  */
-const MOUNT_DELAY_MS = 2000;
-
-export function useInstallPrompt() {
-    const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
-    const [showPrompt, setShowPrompt] = useState(false);
+export function useInstallCapability() {
+    const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(_capturedPrompt);
     const [isInstalling, setIsInstalling] = useState(false);
-    const [isIOS, setIsIOS] = useState(false);
-    const [mountReady, setMountReady] = useState(false);
 
-    // Delay mount readiness so SW registration + update check can complete first
+    const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
+    const isIOS = /iPad|iPhone|iPod/.test(ua) && !(typeof window !== 'undefined' && (window as any).MSStream);
+    const isStandalone = typeof window !== 'undefined' && (
+        window.matchMedia('(display-mode: standalone)').matches
+        || (navigator as any).standalone === true
+    );
+
+    // Subscribe for events that fire after mount; consume any already captured.
     useEffect(() => {
-        const timer = setTimeout(() => setMountReady(true), MOUNT_DELAY_MS);
-        return () => clearTimeout(timer);
+        const handler = (e: BeforeInstallPromptEvent) => setDeferredPrompt(e);
+        _listeners.add(handler);
+        if (_capturedPrompt) setDeferredPrompt(_capturedPrompt);
+        return () => { _listeners.delete(handler); };
     }, []);
 
+    // Clear once the app is actually installed.
     useEffect(() => {
-        if (!mountReady) return;
-
-        // Detect iOS (no beforeinstallprompt support)
-        const ua = navigator.userAgent;
-        const ios = /iPad|iPhone|iPod/.test(ua) && !(window as any).MSStream;
-        setIsIOS(ios);
-
-        // Check if already installed (standalone mode)
-        const isStandalone = window.matchMedia('(display-mode: standalone)').matches
-            || (navigator as any).standalone === true;
-        if (isStandalone) return;
-
-        // Check if user previously dismissed
-        try {
-            const dismissed = localStorage.getItem(DISMISSED_KEY);
-            if (dismissed) {
-                const dismissedAt = parseInt(dismissed, 10);
-                // Re-show after 7 days
-                if (Date.now() - dismissedAt < DISMISS_COOLDOWN_MS) return;
-                localStorage.removeItem(DISMISSED_KEY);
-            }
-        } catch { /* storage unavailable */ }
-
-        // Show iOS manual install hint
-        if (ios) {
-            setShowPrompt(true);
-            return;
-        }
-
-        // If the event already fired before this effect ran, consume it now
-        if (_capturedPrompt) {
-            setDeferredPrompt(_capturedPrompt);
-            setShowPrompt(true);
-            return;
-        }
-
-        // Otherwise subscribe for future events
-        const handler = (e: BeforeInstallPromptEvent) => {
-            setDeferredPrompt(e);
-            setShowPrompt(true);
-        };
-        _listeners.add(handler);
-        return () => { _listeners.delete(handler); };
-    }, [mountReady]);
-
-    // Hide prompt if app gets installed
-    useEffect(() => {
-        const handler = () => {
-            setShowPrompt(false);
-            setDeferredPrompt(null);
-            _capturedPrompt = null;
-        };
-        window.addEventListener('appinstalled', handler);
-        return () => window.removeEventListener('appinstalled', handler);
+        const onInstalled = () => { setDeferredPrompt(null); _capturedPrompt = null; };
+        window.addEventListener('appinstalled', onInstalled);
+        return () => window.removeEventListener('appinstalled', onInstalled);
     }, []);
 
     const install = useCallback(async () => {
@@ -105,18 +61,9 @@ export function useInstallPrompt() {
         setIsInstalling(true);
         deferredPrompt.prompt();
         const { outcome } = await deferredPrompt.userChoice;
-        if (outcome === 'accepted') {
-            setShowPrompt(false);
-        }
-        setDeferredPrompt(null);
-        _capturedPrompt = null;
+        if (outcome === 'accepted') { setDeferredPrompt(null); _capturedPrompt = null; }
         setIsInstalling(false);
     }, [deferredPrompt]);
 
-    const dismiss = useCallback(() => {
-        setShowPrompt(false);
-        try { localStorage.setItem(DISMISSED_KEY, Date.now().toString()); } catch { /* storage unavailable */ }
-    }, []);
-
-    return { showPrompt, install, dismiss, isInstalling, isIOS };
+    return { isIOS, isStandalone, canInstall: !!deferredPrompt, install, isInstalling };
 }
