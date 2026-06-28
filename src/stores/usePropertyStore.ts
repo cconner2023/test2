@@ -28,8 +28,6 @@ import {
   reconcileLocationsFromTags,
   updateFingerprint,
   recordExpendedEntry,
-  raiseFault as raiseFaultSvc,
-  correctFault as correctFaultSvc,
   recordPmcs as recordPmcsSvc,
   editPmcsEntry as editPmcsEntrySvc,
   deletePmcsEntry as deletePmcsEntrySvc,
@@ -105,14 +103,11 @@ interface PropertyState {
   fetchLedger: () => Promise<CustodyLedgerEntry[]>
   splitItem: (itemId: string, qty: number, targetLocationId: string | null) => Promise<void>
   mergeItems: (sourceId: string, targetId: string) => Promise<void>
-  /** Raise a maintenance fault on a property subject (item or vehicle/location);
-   *  resolves to the fault id (the fault.opened event id) or null. Faults live in
-   *  audit_log, not subject state. */
-  raiseFault: (subjectType: 'item' | 'location', subjectId: string, description: string) => Promise<string | null>
-  /** Mark a raised fault corrected (faultId = the fault.opened event id). */
-  correctFault: (subjectType: 'item' | 'location', subjectId: string, faultId: string, note?: string) => Promise<boolean>
-  /** Record a PMCS check. `readings` carries the vehicle intake (mileage, fuel
-   *  level); omit for a non-vehicle clean-check paper-trail entry. */
+  /** Record a PMCS check — the whole check in one event. `readings` carries the
+   *  vehicle intake (mileage, fuel), who did it, an optional 5988E, and the faults
+   *  the check found/corrected (faultsOpened/faultsCorrected); omit for a
+   *  non-vehicle clean-check paper-trail entry. Faults live in the audit row, not
+   *  subject state. */
   recordPmcs: (subjectType: 'item' | 'location', subjectId: string, readings?: PmcsReadings) => Promise<boolean>
   /** Edit a PMCS history entry in place — `payload` is the full new event payload
    *  ({ description } for a fault, { corrects, note } for a correction). */
@@ -297,26 +292,6 @@ export const usePropertyStore = create<PropertyState>((set, get) => ({
     if (result.success) {
       set({ items: get().items.map(i => i.id === id ? result.item : i) })
     }
-  },
-
-  raiseFault: async (subjectType, subjectId, description) => {
-    const user = useAuthStore.getState().user
-    const clinicId = get().clinicId
-    if (!user || !clinicId) return null
-
-    const result = await raiseFaultSvc(subjectType, subjectId, clinicId, description, user.id)
-    if (result.success) invalidate('properties')
-    return result.success ? result.faultId : null
-  },
-
-  correctFault: async (subjectType, subjectId, faultId, note) => {
-    const user = useAuthStore.getState().user
-    const clinicId = get().clinicId
-    if (!user || !clinicId) return false
-
-    const result = await correctFaultSvc(subjectType, subjectId, clinicId, faultId, user.id, note)
-    if (result.success) invalidate('properties')
-    return result.success
   },
 
   recordPmcs: async (subjectType, subjectId, readings) => {

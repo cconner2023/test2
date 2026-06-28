@@ -6,6 +6,8 @@ import {
   FileText,
   RotateCcw,
   ClipboardCheck,
+  AlertTriangle,
+  Wrench,
   Route,
   PackageMinus,
   CalendarX,
@@ -14,6 +16,7 @@ import {
 } from 'lucide-react'
 import type { ReceiptItem, HandReceiptData } from '../../Hooks/useHandReceipts'
 import { useRecentPropertyActivity } from '../../Hooks/useRecentPropertyActivity'
+import { summarizePmcs } from '../../lib/pmcsFold'
 import type { SelectedRecord } from './PropertyRecordDetail'
 import { SectionCard, SectionHeader } from '../Section'
 import { expiryStatus, type HandReceipt } from '../../Types/PropertyTypes'
@@ -27,8 +30,14 @@ function formatDate(iso: string): string {
 /** Icon chip for a PMCS / dispatch / usage activity row. */
 function activityMeta(e: AuditEvent): { Icon: LucideIcon; tint: string } {
   switch (e.eventType) {
-    case 'pmcs.clear':
+    case 'pmcs.clear': {
+      // Mirror the PMCS history chip: red when this check found a fault, wrench
+      // when it only corrected one, clipboard for a clean check.
+      const s = summarizePmcs(e)
+      if (s.foundFault) return { Icon: AlertTriangle, tint: 'bg-themered/10 text-themered' }
+      if (s.correctedFault) return { Icon: Wrench, tint: 'bg-themeblue3/10 text-themeblue2' }
       return { Icon: ClipboardCheck, tint: 'bg-themeblue3/10 text-themeblue2' }
+    }
     case 'dispatch.opened':
       return { Icon: Route, tint: 'bg-themeblue3/10 text-themeblue2' }
     case 'dispatch.closed':
@@ -172,12 +181,10 @@ export function CustodyPanel({
     const p = e.payload ?? {}
     switch (e.eventType) {
       case 'pmcs.clear': {
-        const parts: string[] = []
-        if (typeof p.mileage === 'number') parts.push(`${p.mileage.toLocaleString()} mi`)
-        if (typeof p.fuelLevel === 'number') parts.push(`Fuel ${p.fuelLevel}%`)
-        if (typeof p.operator === 'string' && p.operator) parts.push(p.operator)
-        if (typeof p.mechanic === 'string' && p.mechanic) parts.push(`Mech ${p.mechanic}`)
-        return parts.length ? `PMCS · ${parts.join(' · ')}` : 'PMCS — no new faults'
+        // Outcome (no new faults / new fault: X / corrected: Y) + readings; the
+        // PMCS group header already names the form, so drop the "PMCS" prefix.
+        const s = summarizePmcs(e)
+        return [s.outcome, s.readings].filter(Boolean).join(' · ')
       }
       case 'dispatch.opened': {
         const op = typeof p.operator === 'string' && p.operator ? ` · ${p.operator}` : ''

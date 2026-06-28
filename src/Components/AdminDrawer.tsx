@@ -31,6 +31,7 @@ import { AdminSummary } from './Admin/AdminSummary'
 import { AdminSortRail } from './Admin/AdminSortRail'
 import { AdminFeatureVotesSection } from './Admin/AdminFeatureVotesSection'
 import { AdminSettingsContent } from './Admin/AdminSettingsContent'
+import { HudLoader } from './HudLoader' // TEMP: HUD-loader preview in Settings sheet
 import { AdminSystemConversationView } from './Admin/AdminSystemConversationView'
 import { useMessagingStore } from '../stores/useMessagingStore'
 import { getDisplayName } from '../Utilities/nameUtils'
@@ -738,13 +739,20 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
             )
         }
         if (view === 'admin-settings') {
-            // Full-bleed rows (their own px-4) — wrapper carries vertical padding
-            // only, so it doesn't double up the horizontal inset.
             const settings = (
-                <AdminSettingsContent
-                    onSelectLocation={handleSelectLocation}
-                    onCreateLocation={handleCreateLocation}
-                />
+                <>
+                    {/* TEMP HUD-LOADER PREVIEW — dev-only. Rides the top of the
+                        Settings sheet so we can iterate on the loader live without
+                        a reload. Remove this <div> + the HudLoader import to drop. */}
+                    <div className="flex flex-col items-center justify-center gap-5 py-10 mb-4 bg-themewhite2 rounded-2xl mx-3">
+                        <HudLoader size={260} />
+                        <div className="hud-breathe text-[11pt] tracking-[0.25em] text-themeblue2/80 font-semibold">LOADING</div>
+                    </div>
+                    <AdminSettingsContent
+                        onSelectLocation={handleSelectLocation}
+                        onCreateLocation={handleCreateLocation}
+                    />
+                </>
             )
             return inSheet
                 ? <div className="pt-1 pb-8">{settings}</div>

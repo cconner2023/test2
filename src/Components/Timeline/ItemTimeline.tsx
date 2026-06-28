@@ -3,6 +3,7 @@ import { Plus, ArrowRightLeft, UserCheck, Pencil, Minus, AlertTriangle, Wrench, 
 import { getAuditBySubjectLocal, fetchAuditBySubject } from '../../lib/auditService'
 import { useInvalidation } from '../../stores/useInvalidationStore'
 import type { AuditEvent } from '../../lib/auditTypes'
+import { foldOpenFaults, pmcsOpened, summarizePmcs } from '../../lib/pmcsFold'
 import type { LocalPropertyLocation, HolderInfo } from '../../Types/PropertyTypes'
 import { RecordPreview } from '../Property/RecordPreview'
 import { LiftedRowMenu } from '../LiftedRowMenu'
@@ -136,35 +137,29 @@ export function ItemTimeline({ subjectId, clinicId, locations, holders, title = 
       }
       case 'item.expended':
         return `Expended${p.quantity_delta ? ` ×${p.quantity_delta}` : ''}`
+      // Legacy standalone fault rows (pre-bundle data); new faults ride inside the
+      // pmcs.clear that found/corrected them, so no new rows of these types appear.
       case 'fault.opened':
         return typeof p.description === 'string' && p.description
           ? `Fault: ${p.description}` : 'Fault reported'
       case 'fault.corrected':
         return typeof p.note === 'string' && p.note
           ? `Fault corrected — ${p.note}` : 'Fault corrected'
-      case 'pmcs.clear': {
-        const parts: string[] = []
-        if (typeof p.mileage === 'number') parts.push(`${p.mileage.toLocaleString()} mi`)
-        if (typeof p.fuelLevel === 'number') parts.push(`Fuel ${p.fuelLevel}%`)
-        if (typeof p.operator === 'string' && p.operator) parts.push(p.operator)
-        if (typeof p.mechanic === 'string' && p.mechanic) parts.push(`Mech ${p.mechanic}`)
-        return parts.length ? `PMCS · ${parts.join(' · ')}` : 'PMCS — no new faults'
-      }
+      case 'pmcs.clear':
+        return summarizePmcs(e).title
       default:
         return e.eventType
     }
   }
 
-  // Fold faults: a fault.opened is still OPEN unless some fault.corrected points
-  // back at it via payload.corrects. Open faults get a red accent in the list.
-  const correctedFaultIds = new Set(
-    events
-      .filter((e) => e.eventType === 'fault.corrected')
-      .map((e) => e.payload?.corrects)
-      .filter((id): id is string => typeof id === 'string'),
-  )
-  const isOpenFault = (e: AuditEvent) =>
-    e.eventType === 'fault.opened' && !correctedFaultIds.has(e.id)
+  // Fold open faults (bundled pmcs.clear payloads + any legacy fault events): a row
+  // that holds a still-open fault gets the red "unresolved" accent.
+  const openIds = new Set(foldOpenFaults(events).map((f) => f.id))
+  const isOpenFault = (e: AuditEvent) => {
+    if (e.eventType === 'fault.opened') return openIds.has(e.id)
+    if (e.eventType === 'pmcs.clear') return pmcsOpened(e).some((o) => openIds.has(o.id))
+    return false
+  }
 
   return (
     <div>

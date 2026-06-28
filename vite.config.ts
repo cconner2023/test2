@@ -24,6 +24,9 @@ export default defineConfig({
   server: {
     // Explicit HMR WebSocket — Windows often fails with default auto-detection
     hmr: true,
+    // Accept Cloudflare quick-tunnel hosts so an iOS device can reach this dev
+    // server over HTTPS (needed for secure-context WebCrypto/Signal). Dev-only.
+    allowedHosts: ['.trycloudflare.com'],
     watch: {
       // Use polling on Windows for reliable file-change detection
       usePolling: true,

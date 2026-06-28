@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import {
   Route, RotateCcw, Loader2, FileText, Paperclip, X,
   History, CalendarClock, Check,
@@ -9,8 +9,8 @@ import { usePropertyStore } from '../../stores/usePropertyStore'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { useInvalidation } from '../../stores/useInvalidationStore'
 import { TextInput, DatePickerInput } from '../FormInputs'
-import { PreviewOverlay } from '../PreviewOverlay'
-import { RecordPreview } from './RecordPreview'
+import { OverlayStack, type StackNav } from '../OverlayStack'
+import { useRecordPreview } from './RecordPreview'
 import { DocScanner } from './DocScanner'
 import { ActionButton } from '../ActionButton'
 import { PillButton } from '../HeaderPill'
@@ -30,15 +30,19 @@ const logger = createLogger('DispatchSheet')
  * dispatch.opened with no close, folded client-side (see lib/dispatchFold). No
  * PHI — exp date / odometer / dispatch form ride in the encrypted payload.
  *
- * Two views inside one PreviewOverlay (close-in-header, primary action in footer),
- * the same shape as PmcsSheet — both scoped to the property drawer:
- *  - CURRENT (default): if on dispatch, the active card (exp date + status +
+ * An OverlayStack (the drill-down/morph primitive) — one card whose body morphs
+ * across three screens instead of toggling a `view` flag + z-stacking a nested
+ * RecordPreview. The same shape as PmcsSheet, scoped to the property drawer:
+ *  - CURRENT (root): if on dispatch, the active card (exp date + status +
  *    odometer-out + dispatch doc) and a Return form (return date, odometer-in,
  *    optional return doc); the footer action returns the vehicle. If NOT on
  *    dispatch, the open intake (exp date, odometer-out, attach dispatch doc); the
  *    footer Dispatch action is present always but DISABLED until an exp date is set.
- *  - HISTORY: every dispatch event as a section card — tap to view its dispatch
- *    form, with a per-card delete.
+ *    The Scan action opens DocScanner as a nested overlay on top.
+ *  - HISTORY: every dispatch event as a section card — tap one to drill into…
+ *  - RECORD: the tapped event's detail (view dispatch form / delete), shared with
+ *    the timeline via the headless useRecordPreview hook; its delete confirm is a
+ *    z-stacked interrupt. Back pops history → current.
  *
  * Deleting the open dispatch.opened event removes the vehicle from the open-dispatch
  * fold, so its derived (render-only) calendar exp-date entry disappears too — the
@@ -60,8 +64,9 @@ export function DispatchSheet({ isOpen, onClose, subjectId, clinicId, containerR
   const [events, setEvents] = useState<AuditEvent[]>([])
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
-  const [view, setView] = useState<'current' | 'history'>('current')
   const [previewEvent, setPreviewEvent] = useState<AuditEvent | null>(null)
+  // Live stack nav (history → record drill-down is async from row taps).
+  const navRef = useRef<StackNav | null>(null)
 
   // Open-intake form state.
   const [expDate, setExpDate] = useState('')
@@ -86,7 +91,7 @@ export function DispatchSheet({ isOpen, onClose, subjectId, clinicId, containerR
   // Reset transient UI when the overlay closes.
   useEffect(() => {
     if (!isOpen) {
-      setView('current'); setPreviewEvent(null); setDocError(null)
+      setPreviewEvent(null); setDocError(null)
       setExpDate(''); setOdoOut(''); setOperator(''); setTc(''); setOpenNote(''); setOpenDocFile(null)
       setReturnDate(''); setOdoIn(''); setReturnNote(''); setReturnDocFile(null)
       setScannerOpen(false)
@@ -242,21 +247,23 @@ export function DispatchSheet({ isOpen, onClose, subjectId, clinicId, containerR
             const doc = docOf(e)
             const opened = e.eventType === 'dispatch.opened'
             const Icon = opened ? Route : RotateCcw
+            const parts = dispatchParts(e)
+            const sub = [parts.detail, fmtDate(e.occurredAt)].filter(Boolean).join(' · ')
             return (
               <SectionCard key={e.id}>
                 {/* Tap the card → RecordPreview (view dispatch form / delete). The
                     per-row trash is gone; the overlay owns it. */}
                 <button
                   type="button"
-                  onClick={() => setPreviewEvent(e)}
+                  onClick={() => { setPreviewEvent(e); navRef.current?.push('record') }}
                   className="w-full flex items-center gap-3 px-3 py-2.5 text-left active:opacity-70 transition-opacity"
                 >
                   <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${opened ? 'bg-themeblue3/10 text-themeblue2' : 'bg-themegreen/10 text-themegreen'}`}>
                     <Icon size={14} />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-primary truncate">{describe(e)}</p>
-                    <p className="text-[9pt] text-tertiary">{fmtDate(e.occurredAt)}</p>
+                    <p className="text-sm font-medium text-primary truncate">{parts.label}</p>
+                    <p className="text-[9pt] text-tertiary truncate">{sub}</p>
                   </div>
                   {doc && <FileText size={14} className="text-themeblue2 shrink-0" />}
                 </button>
@@ -268,75 +275,93 @@ export function DispatchSheet({ isOpen, onClose, subjectId, clinicId, containerR
     </div>
   )
 
-  const body = view === 'history' ? historyBody : currentBody
-
   // The footer Scan action opens the DocScanner; its finished PDF routes to the
   // active doc (the return doc when on dispatch, else the open doc).
   const activeDoc = current ? returnDocFile : openDocFile
-  const docScanner = (
-    <DocScanner
-      isOpen={scannerOpen}
-      onClose={() => setScannerOpen(false)}
-      onComplete={(f) => { if (current) setReturnDocFile(f); else setOpenDocFile(f); setDocError(null) }}
-      formLabel={current ? 'return form' : 'dispatch form'}
-      containerRef={containerRef}
-    />
-  )
 
-  // Footer actions (current view only) — Attach on the LEFT, the success/confirm
-  // (Return / Dispatch) on the RIGHT (rightFooter). Per the explicit footer-action
-  // directive the confirm is present always but DISABLED (not hidden) until usable:
-  // Dispatch needs an exp date; Return defaults today so it's always ready.
-  const footer = view === 'current' ? (
-    <div className="flex gap-1 bg-themewhite rounded-2xl px-1.5 py-1.5">
-      <ActionButton
-        icon={activeDoc ? FileText : Paperclip}
-        label={activeDoc ? 'Replace form' : (current ? 'Scan return form' : 'Scan dispatch form')}
-        variant="default"
-        onClick={() => setScannerOpen(true)}
-      />
-      <ActionButton
-        icon={History}
-        label={events.length > 0 ? `History · ${events.length}` : 'History'}
-        variant="default"
-        onClick={() => setView('history')}
-      />
-    </div>
-  ) : undefined
-  const rightFooter = view === 'current' ? (
-    <div className="bg-themewhite rounded-2xl px-1.5 py-1.5">
-      {current
-        ? <PillButton icon={Check} iconSize={16} accent="success" onClick={handleReturn} label="Return" />
-        : <PillButton icon={Check} iconSize={16} accent="success" disabled={!expDate} onClick={handleOpen} label="Dispatch" />}
-    </div>
-  ) : undefined
+  // The history → record drill-down screen, shared with the timeline via the
+  // headless hook. Closing (back, or after edit/delete) pops to history.
+  const recordParts = previewEvent ? dispatchParts(previewEvent) : null
+  const recordView = useRecordPreview({
+    event: previewEvent,
+    onClose: () => { navRef.current?.pop(); setPreviewEvent(null) },
+    label: recordParts?.label ?? '',
+    detail: recordParts?.detail,
+    Icon: previewEvent?.eventType === 'dispatch.opened' ? Route : RotateCcw,
+    tint: previewEvent?.eventType === 'dispatch.opened' ? 'bg-themeblue3/10 text-themeblue2' : 'bg-themegreen/10 text-themegreen',
+  })
+
+  // Three morph screens (current ⇄ history → record) — one card whose body morphs
+  // instead of toggling a `view` flag + z-stacking a nested RecordPreview. The
+  // stack owns the back chevron; DocScanner stays a nested overlay launched on top
+  // (its own self-contained capture flow), and the delete ConfirmDialog stays a
+  // z-stacked INTERRUPT inside the record screen.
+  const screens = {
+    current: {
+      title: 'Dispatch',
+      // Scan options LEFT, the success/confirm (Return / Dispatch) RIGHT. The
+      // confirm is present always but DISABLED until usable (Dispatch needs an exp
+      // date; Return defaults today so it's always ready).
+      footer: (_: unknown, nav: StackNav) => (
+        <div className="flex gap-1 bg-themewhite rounded-2xl px-1.5 py-1.5">
+          <ActionButton
+            icon={activeDoc ? FileText : Paperclip}
+            label={activeDoc ? 'Replace form' : (current ? 'Scan return form' : 'Scan dispatch form')}
+            variant="default"
+            onClick={() => setScannerOpen(true)}
+          />
+          <ActionButton
+            icon={History}
+            label={events.length > 0 ? `History · ${events.length}` : 'History'}
+            variant="default"
+            onClick={() => nav.push('history')}
+          />
+        </div>
+      ),
+      rightFooter: (
+        <div className="bg-themewhite rounded-2xl px-1.5 py-1.5">
+          {current
+            ? <PillButton icon={Check} iconSize={16} accent="success" onClick={handleReturn} label="Return" />
+            : <PillButton icon={Check} iconSize={16} accent="success" disabled={!expDate} onClick={handleOpen} label="Dispatch" />}
+        </div>
+      ),
+      render: () => (
+        <>
+          {currentBody}
+          {/* Nested capture overlay — auto-stacks above this card via context. */}
+          <DocScanner
+            isOpen={scannerOpen}
+            onClose={() => setScannerOpen(false)}
+            onComplete={(f) => { if (current) setReturnDocFile(f); else setOpenDocFile(f); setDocError(null) }}
+            formLabel={current ? 'return form' : 'dispatch form'}
+            containerRef={containerRef}
+          />
+        </>
+      ),
+    },
+    history: {
+      title: 'Dispatch history',
+      render: () => historyBody,
+    },
+    record: {
+      // No title — the back chevron + X ride the header; the body carries the label.
+      onBack: (nav: StackNav) => { nav.pop(); setPreviewEvent(null) },
+      footer: recordView.footer,
+      render: () => <>{recordView.body}{recordView.confirm}</>,
+    },
+  }
 
   return (
-    <PreviewOverlay
+    <OverlayStack
       isOpen={isOpen}
       onClose={onClose}
-      anchorRect={null}
       containerRef={containerRef}
-      title={view === 'history' ? 'Dispatch history' : 'Dispatch'}
-      onBack={view === 'history' ? () => { setView('current'); setPreviewEvent(null) } : undefined}
+      navRef={navRef}
+      initial={{ key: 'current' }}
+      screens={screens}
       maxWidth={360}
       previewMaxHeight="60dvh"
-      footer={footer}
-      rightFooter={rightFooter}
-    >
-      <>
-        {body as ReactNode}
-        {docScanner}
-        <RecordPreview
-          event={previewEvent}
-          onClose={() => setPreviewEvent(null)}
-          label={previewEvent ? describe(previewEvent) : ''}
-          Icon={previewEvent?.eventType === 'dispatch.opened' ? Route : RotateCcw}
-          tint={previewEvent?.eventType === 'dispatch.opened' ? 'bg-themeblue3/10 text-themeblue2' : 'bg-themegreen/10 text-themegreen'}
-          containerRef={containerRef}
-        />
-      </>
-    </PreviewOverlay>
+    />
   )
 }
 
@@ -372,21 +397,24 @@ function statusBg(s: DispatchStatus): string {
   return s === 'active' ? 'bg-themegreen/10 text-themegreen' : 'bg-themered/10 text-themered'
 }
 
-function describe(e: AuditEvent): string {
+/** A dispatch event split into a card headline + meta line (mirrors PMCS's
+ *  summarizePmcs split): label = "Dispatched"/"Returned", detail = the readings. */
+function dispatchParts(e: AuditEvent): { label: string; detail: string } {
   const p = e.payload ?? {}
   if (e.eventType === 'dispatch.opened') {
-    const exp = typeof p.exp_date === 'string' ? fmtDate(p.exp_date) : '—'
-    const odo = typeof p.odo_out === 'number' ? ` · out ${p.odo_out.toLocaleString()} mi` : ''
-    const op = typeof p.operator === 'string' && p.operator ? ` · ${p.operator}` : ''
-    const tc = typeof p.tc === 'string' && p.tc ? ` · TC ${p.tc}` : ''
-    return `Dispatched · exp ${exp}${odo}${op}${tc}`
+    const bits: string[] = []
+    if (typeof p.exp_date === 'string') bits.push(`exp ${fmtDate(p.exp_date)}`)
+    if (typeof p.odo_out === 'number') bits.push(`out ${p.odo_out.toLocaleString()} mi`)
+    if (typeof p.operator === 'string' && p.operator) bits.push(p.operator)
+    if (typeof p.tc === 'string' && p.tc) bits.push(`TC ${p.tc}`)
+    return { label: 'Dispatched', detail: bits.join(' · ') }
   }
   if (e.eventType === 'dispatch.closed') {
-    const ret = typeof p.returned_at === 'string' ? fmtDate(p.returned_at) : fmtDate(e.occurredAt)
-    const odo = typeof p.odo_in === 'number' ? ` · in ${p.odo_in.toLocaleString()} mi` : ''
-    return `Returned ${ret}${odo}`
+    const bits: string[] = [typeof p.returned_at === 'string' ? fmtDate(p.returned_at) : fmtDate(e.occurredAt)]
+    if (typeof p.odo_in === 'number') bits.push(`in ${p.odo_in.toLocaleString()} mi`)
+    return { label: 'Returned', detail: bits.join(' · ') }
   }
-  return e.eventType
+  return { label: e.eventType, detail: '' }
 }
 
 function fmtDate(iso: string): string {

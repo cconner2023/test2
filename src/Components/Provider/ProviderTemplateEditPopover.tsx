@@ -8,7 +8,7 @@ import { PLAN_ORDER_LABELS } from '../../Data/User';
 import type { ProviderNoteTemplate, PlanOrderSet } from '../../Data/User';
 import { ActionPill } from '../ActionPill';
 import { ActionButton } from '../ActionButton';
-import { PreviewOverlay } from '../PreviewOverlay';
+import { OverlayStack, type StackNav } from '../OverlayStack';
 import { TextInput } from '../FormInputs';
 import { EmptyState } from '../EmptyState';
 
@@ -67,13 +67,6 @@ export function ProviderTemplateEditPopover({ state, onClose, onSave, onDelete, 
     const [planText, setPlanText] = useState('');
     const idRef = useRef<string>('');
 
-    const [peOpen, setPeOpen] = useState<DOMRect | null>(null);
-    const [planOpen, setPlanOpen] = useState<DOMRect | null>(null);
-
-    // Auto-open the block picker when PE drill opens with no blocks selected.
-    const [pePickerSignal, setPePickerSignal] = useState(0);
-    const [pePickerAnchor, setPePickerAnchor] = useState<DOMRect | null>(null);
-
     useEffect(() => {
         if (!state) return;
         if (state.mode === 'edit') {
@@ -92,8 +85,6 @@ export function ProviderTemplateEditPopover({ state, onClose, onSave, onDelete, 
             setAssessText('');
             setPlanText('');
         }
-        setPeOpen(null);
-        setPlanOpen(null);
     }, [state, orderSets]);
 
     const trimmedName = name.trim();
@@ -114,152 +105,79 @@ export function ProviderTemplateEditPopover({ state, onClose, onSave, onDelete, 
     const peColors = useMemo(() => getColorClasses('routine'), []);
     const planLineCount = planText.trim() ? planText.split('\n').filter(l => l.trim()).length : 0;
 
-    const openPeDrill = (rect: DOMRect) => {
-        setPeOpen(rect);
-    };
-
-    // Auto-open the block picker in a post-mount effect so PhysicalExam's
-    // lastPickerSignalRef captures the OLD signal value on mount, then sees a
-    // genuine change when we bump on the next render.
-    useEffect(() => {
-        if (!peOpen) return;
-        if (peBlockKeys.length > 0) return;
-        setPePickerAnchor(peOpen);
-        setPePickerSignal(s => s + 1);
-        // Intentionally only react to peOpen identity; peBlockKeys re-bumps are
-        // user-driven via the explicit Add system button.
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [peOpen]);
-
-    return (
-        <PreviewOverlay
-            isOpen={isOpen}
-            onClose={onClose}
-            anchorRect={state?.anchor ?? null}
-            title={isEdit ? 'Edit template' : 'New template'}
-            maxWidth={520}
-            previewMaxHeight="60dvh"
-            zIndex={zIndex}
-            footer={
-                isEdit ? (
-                    <ActionPill>
-                        <ActionButton
-                            icon={Trash2}
-                            label="Delete"
-                            variant="danger"
-                            onClick={() => onDelete(idRef.current)}
-                        />
-                    </ActionPill>
-                ) : undefined
-            }
-            rightFooter={
+    // PE + Plan are drill-down screens of the same editor card (was two nested
+    // z-stacked PreviewOverlays) — the stack morphs between them; back pops to the
+    // editor. The PE block-picker auto-opens via PeTemplateScreen's own mount, which
+    // remounts on each navigation into the screen.
+    const screens = {
+        editor: {
+            title: isEdit ? 'Edit template' : 'New template',
+            footer: isEdit ? (
                 <ActionPill>
-                    <ActionButton
-                        icon={Check}
-                        label="Save"
-                        variant={canSave ? 'success' : 'disabled'}
-                        onClick={handleSave}
-                    />
+                    <ActionButton icon={Trash2} label="Delete" variant="danger" onClick={() => onDelete(idRef.current)} />
                 </ActionPill>
-            }
-        >
-            <div>
-                <TextInput
-                    value={name}
-                    onChange={setName}
-                    placeholder="Template name"
-                />
-                <RowTextarea
-                    label="HPI"
-                    value={hpiText}
-                    onChange={setHpiText}
-                    placeholder="Chief complaint, onset, duration, character…"
-                />
-                <DrillRow
-                    icon={Stethoscope}
-                    label="Physical Exam"
-                    preview={peBlockKeys.length > 0 ? `${peBlockKeys.length} block${peBlockKeys.length === 1 ? '' : 's'}` : 'No blocks selected'}
-                    onTap={openPeDrill}
-                />
-                <RowTextarea
-                    label="Assessment"
-                    value={assessText}
-                    onChange={setAssessText}
-                    placeholder="Clinical assessment, diagnosis, differential…"
-                />
-                <DrillRow
-                    icon={ListChecks}
-                    label="Plan"
-                    preview={planLineCount > 0 ? `${planLineCount} line${planLineCount === 1 ? '' : 's'}` : 'No plan content'}
-                    onTap={(rect) => setPlanOpen(rect)}
-                />
-            </div>
-
-            {/* ── Nested: Physical Exam ── */}
-            <PreviewOverlay
-                isOpen={!!peOpen}
-                onClose={() => setPeOpen(null)}
-                anchorRect={peOpen}
-                title="Physical Exam"
-                maxWidth={560}
-                previewMaxHeight="60dvh"
-                rightFooter={
-                    <ActionPill>
-                        <ActionButton icon={Check} label="Done" variant="success" onClick={() => setPeOpen(null)} />
-                    </ActionPill>
-                }
-            >
-                <div className="px-3 py-3">
-                    {/* Always-mounted PE — visibility-toggled so the picker stays alive
-                        across the empty→populated transition. */}
-                    <div
-                        style={peBlockKeys.length > 0 ? undefined : { display: 'none' }}
-                        aria-hidden={peBlockKeys.length === 0}
-                    >
-                        <PhysicalExam
-                            key={`pe-${idRef.current}`}
-                            initialText=""
-                            initialState={null}
-                            onChange={() => { /* template persists blockKeys only */ }}
-                            colors={peColors}
-                            symptomCode="A-1"
-                            mode="template"
-                            templateBlockKeys={peBlockKeys}
-                            onBlockKeysChange={setPeBlockKeys}
-                            pickerOpenSignal={pePickerSignal}
-                            pickerOpenAnchor={pePickerAnchor}
-                        />
-                    </div>
-                    {peBlockKeys.length === 0 && (
-                        <EmptyState
-                            title="No systems selected"
-                            action={{
-                                icon: Plus,
-                                label: 'Add system',
-                                onClick: (anchor) => {
-                                    setPePickerAnchor(anchor.getBoundingClientRect());
-                                    setPePickerSignal(s => s + 1);
-                                },
-                            }}
-                        />
-                    )}
+            ) : undefined,
+            rightFooter: (
+                <ActionPill>
+                    <ActionButton icon={Check} label="Save" variant={canSave ? 'success' : 'disabled'} onClick={handleSave} />
+                </ActionPill>
+            ),
+            render: (_: unknown, nav: StackNav) => (
+                <div>
+                    <TextInput value={name} onChange={setName} placeholder="Template name" />
+                    <RowTextarea
+                        label="HPI"
+                        value={hpiText}
+                        onChange={setHpiText}
+                        placeholder="Chief complaint, onset, duration, character…"
+                    />
+                    <DrillRow
+                        icon={Stethoscope}
+                        label="Physical Exam"
+                        preview={peBlockKeys.length > 0 ? `${peBlockKeys.length} block${peBlockKeys.length === 1 ? '' : 's'}` : 'No blocks selected'}
+                        onTap={() => nav.push('pe')}
+                    />
+                    <RowTextarea
+                        label="Assessment"
+                        value={assessText}
+                        onChange={setAssessText}
+                        placeholder="Clinical assessment, diagnosis, differential…"
+                    />
+                    <DrillRow
+                        icon={ListChecks}
+                        label="Plan"
+                        preview={planLineCount > 0 ? `${planLineCount} line${planLineCount === 1 ? '' : 's'}` : 'No plan content'}
+                        onTap={() => nav.push('plan')}
+                    />
                 </div>
-            </PreviewOverlay>
-
-            {/* ── Nested: Plan ── */}
-            <PreviewOverlay
-                isOpen={!!planOpen}
-                onClose={() => setPlanOpen(null)}
-                anchorRect={planOpen}
-                title="Plan"
-                maxWidth={560}
-                previewMaxHeight="60dvh"
-                rightFooter={
-                    <ActionPill>
-                        <ActionButton icon={Check} label="Done" variant="success" onClick={() => setPlanOpen(null)} />
-                    </ActionPill>
-                }
-            >
+            ),
+        },
+        pe: {
+            title: 'Physical Exam',
+            maxWidth: 560,
+            rightFooter: (_: unknown, nav: StackNav) => (
+                <ActionPill>
+                    <ActionButton icon={Check} label="Done" variant="success" onClick={() => nav.pop()} />
+                </ActionPill>
+            ),
+            render: () => (
+                <PeTemplateScreen
+                    templateId={idRef.current}
+                    colors={peColors}
+                    blockKeys={peBlockKeys}
+                    onBlockKeysChange={setPeBlockKeys}
+                />
+            ),
+        },
+        plan: {
+            title: 'Plan',
+            maxWidth: 560,
+            rightFooter: (_: unknown, nav: StackNav) => (
+                <ActionPill>
+                    <ActionButton icon={Check} label="Done" variant="success" onClick={() => nav.pop()} />
+                </ActionPill>
+            ),
+            render: () => (
                 <div className="px-3 py-3">
                     <Plan
                         key={`plan-${idRef.current}`}
@@ -270,8 +188,81 @@ export function ProviderTemplateEditPopover({ state, onClose, onSave, onDelete, 
                         onChange={setPlanText}
                     />
                 </div>
-            </PreviewOverlay>
-        </PreviewOverlay>
+            ),
+        },
+    };
+
+    return (
+        <OverlayStack
+            isOpen={isOpen}
+            onClose={onClose}
+            initial={{ key: 'editor' }}
+            screens={screens}
+            maxWidth={520}
+            previewMaxHeight="60dvh"
+            zIndex={zIndex}
+        />
+    );
+}
+
+// ── Physical-Exam drill screen ───────────────────────────────────────────────
+// Owns the block-picker auto-open: mounting fresh on each navigation into the PE
+// screen (StackBody keys content by screen), it bumps pickerOpenSignal in a
+// post-mount effect — so PhysicalExam captures the OLD signal on mount, then sees
+// a genuine change and opens the picker when no blocks are selected yet.
+function PeTemplateScreen({
+    templateId, colors, blockKeys, onBlockKeysChange,
+}: {
+    templateId: string;
+    colors: ReturnType<typeof getColorClasses>;
+    blockKeys: string[];
+    onBlockKeysChange: (keys: string[]) => void;
+}) {
+    const [pickerSignal, setPickerSignal] = useState(0);
+    const [pickerAnchor, setPickerAnchor] = useState<DOMRect | null>(null);
+
+    useEffect(() => {
+        if (blockKeys.length === 0) setPickerSignal(s => s + 1);
+        // Mount-only: a fresh mount per navigation into this screen.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    return (
+        <div className="px-3 py-3">
+            {/* Always-mounted PE — visibility-toggled so the picker stays alive
+                across the empty→populated transition. */}
+            <div
+                style={blockKeys.length > 0 ? undefined : { display: 'none' }}
+                aria-hidden={blockKeys.length === 0}
+            >
+                <PhysicalExam
+                    key={`pe-${templateId}`}
+                    initialText=""
+                    initialState={null}
+                    onChange={() => { /* template persists blockKeys only */ }}
+                    colors={colors}
+                    symptomCode="A-1"
+                    mode="template"
+                    templateBlockKeys={blockKeys}
+                    onBlockKeysChange={onBlockKeysChange}
+                    pickerOpenSignal={pickerSignal}
+                    pickerOpenAnchor={pickerAnchor}
+                />
+            </div>
+            {blockKeys.length === 0 && (
+                <EmptyState
+                    title="No systems selected"
+                    action={{
+                        icon: Plus,
+                        label: 'Add system',
+                        onClick: (anchor) => {
+                            setPickerAnchor(anchor.getBoundingClientRect());
+                            setPickerSignal(s => s + 1);
+                        },
+                    }}
+                />
+            )}
+        </div>
     );
 }
 
@@ -306,12 +297,12 @@ function DrillRow({
     icon: React.ComponentType<{ size?: number; className?: string }>;
     label: string;
     preview: string;
-    onTap: (rect: DOMRect) => void;
+    onTap: () => void;
 }) {
     return (
         <button
             type="button"
-            onClick={(e) => onTap(e.currentTarget.getBoundingClientRect())}
+            onClick={onTap}
             className="w-full flex items-center gap-3 px-4 py-3 text-left border-b border-primary/6 last:border-b-0 active:bg-themeblue3/5 transition-colors"
         >
             <span className="w-7 h-7 rounded-full bg-themeblue2/15 text-themeblue2 flex items-center justify-center shrink-0">

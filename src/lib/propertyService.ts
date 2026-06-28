@@ -9,6 +9,7 @@ import { succeed, fail, type ServiceResult } from './result'
 import { createLogger } from '../Utilities/Logger'
 import { addToSyncQueue, removeSyncQueueItemsForRecord } from './offlineDb'
 import { emitAudit, updateAuditEvent, deleteAuditEvent, deleteAuditEventsBySubject, deleteTransferAuditForCustody } from './auditService'
+import type { PmcsFaultOpened, PmcsFaultCorrected } from './pmcsFold'
 import {
   getDb,
   getLocalPropertyItems,
@@ -401,72 +402,6 @@ export async function updateItem(
 export type PropertyFaultSubject = 'item' | 'location'
 
 /**
- * Raise a maintenance fault against any property subject — a stock item (vehicle
- * 5988 fault, broken med fridge, unserviceable monitor) OR a property location
- * (a vehicle's own 5988). Emits an append-only `fault.opened` event; it never
- * mutates the subject. The free-text description rides in the encrypted payload
- * so no PHI touches the cleartext spine. Returns the event id so a later
- * correction can point back at it. clinicId is the subject's clinic (the caller
- * has it; the active property clinic).
- */
-export async function raiseFault(
-  subjectType: PropertyFaultSubject,
-  subjectId: string,
-  clinicId: string,
-  description: string,
-  userId: string,
-): Promise<ServiceResult<{ faultId: string }>> {
-  try {
-    const event = await emitAudit(
-      {
-        clinicId, actorId: userId, domain: 'property',
-        eventType: 'fault.opened', subjectType, subjectId,
-        payload: { description },
-      },
-      userId,
-    )
-    if (!event) return fail('Could not record fault')
-
-    immediateSync(userId)
-    return succeed({ faultId: event.id })
-  } catch (err) {
-    return fail(String(err))
-  }
-}
-
-/**
- * Mark a previously-raised fault corrected. Emits an append-only
- * `fault.corrected` event whose payload points back at the opened event's id
- * (`corrects`) so the timeline pairs found→fixed. The opened event is left
- * intact — the full history stays visible ("found 02 JUN, corrected 14 JUN").
- */
-export async function correctFault(
-  subjectType: PropertyFaultSubject,
-  subjectId: string,
-  clinicId: string,
-  faultId: string,
-  userId: string,
-  note?: string,
-): Promise<ServiceResult> {
-  try {
-    const event = await emitAudit(
-      {
-        clinicId, actorId: userId, domain: 'property',
-        eventType: 'fault.corrected', subjectType, subjectId,
-        payload: note ? { corrects: faultId, note } : { corrects: faultId },
-      },
-      userId,
-    )
-    if (!event) return fail('Could not record correction')
-
-    immediateSync(userId)
-    return succeed()
-  } catch (err) {
-    return fail(String(err))
-  }
-}
-
-/**
  * An attached 5988E worksheet. The file is encrypted client-side into the
  * message-attachments bucket via uploadEncryptedAttachment; `key` is the random
  * AES key the recipient needs to decrypt it (rides in the encrypted payload, so
@@ -480,10 +415,13 @@ export interface PmcsDoc {
 }
 
 /**
- * What a PMCS check submits beyond its separately-emitted faults: vehicle intake
- * readings (mileage, fuel), the operator who performed it + the optional mechanic
- * who serviced it (so we can see who did what), and/or an attached 5988E
- * worksheet. All optional; no PHI (operational vocabulary only).
+ * What a PMCS check submits — the whole check in one shot. Vehicle intake readings
+ * (mileage, fuel), the operator who performed it + the optional mechanic who
+ * serviced it, an optional 5988E worksheet, AND the faults this check found
+ * (`faultsOpened`) or corrected (`faultsCorrected`). Faults are bundled INTO the
+ * check (not separate fault.opened/fault.corrected events) so one PMCS = one audit
+ * row that states its own outcome. All optional; no PHI (operational vocabulary
+ * only — fault text is equipment maintenance, ridden encrypted).
  */
 export interface PmcsReadings {
   mileage?: number
@@ -491,6 +429,8 @@ export interface PmcsReadings {
   operator?: string
   mechanic?: string
   doc?: PmcsDoc
+  faultsOpened?: PmcsFaultOpened[]
+  faultsCorrected?: PmcsFaultCorrected[]
 }
 
 /**
@@ -519,12 +459,15 @@ export interface DispatchCloseInput {
 }
 
 /**
- * Record a PMCS (preventive-maintenance check). This is the intake-submit path:
- * faults found are raised separately via raiseFault; this logs that the check
- * happened and carries the vehicle readings (mileage, fuel level) in the
- * encrypted payload — they're operational, no PHI on the cleartext spine. With
- * no readings (a non-vehicle item) the event is spine-only (payload null), so it
- * never defers on a missing clinic key — the original clean-check behaviour.
+ * Record a PMCS (preventive-maintenance check) — the whole check as ONE event. It
+ * carries the vehicle readings, an optional 5988E, AND the faults the check found
+ * or corrected (bundled in the payload, not separate fault events) so a single row
+ * states its outcome ("no new faults" / "new fault: X" / "corrected: Y"). Open
+ * faults fold across checks: a faultsCorrected id closes an earlier faultsOpened
+ * (or a legacy fault.opened) so it drops off the open list. Everything operational
+ * (no PHI) rides the clinic-key-encrypted payload. With NOTHING present (a clean
+ * check on a non-vehicle item) the event is spine-only (payload null), so it never
+ * defers on a missing clinic key — the original clean-check behaviour.
  */
 export async function recordPmcs(
   subjectType: PropertyFaultSubject,
@@ -534,13 +477,16 @@ export async function recordPmcs(
   readings?: PmcsReadings,
 ): Promise<ServiceResult> {
   try {
-    // Drop undefined keys so a reading-less, doc-less check stays truly spine-only.
+    // Drop empty keys so a reading-less, fault-less, doc-less check stays truly
+    // spine-only (payload null → never defers on a missing clinic key).
     const payload: PmcsReadings = {}
     if (readings?.mileage != null) payload.mileage = readings.mileage
     if (readings?.fuelLevel != null) payload.fuelLevel = readings.fuelLevel
     if (readings?.operator) payload.operator = readings.operator
     if (readings?.mechanic) payload.mechanic = readings.mechanic
     if (readings?.doc) payload.doc = readings.doc
+    if (readings?.faultsOpened?.length) payload.faultsOpened = readings.faultsOpened
+    if (readings?.faultsCorrected?.length) payload.faultsCorrected = readings.faultsCorrected
     const hasContent = Object.keys(payload).length > 0
 
     const event = await emitAudit(

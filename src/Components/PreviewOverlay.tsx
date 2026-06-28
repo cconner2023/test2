@@ -242,9 +242,13 @@ export function PreviewOverlay({
                 {/* Optional content above inner card */}
                 {headerCard}
 
-                {/* Inner white card — title + search + scrollable preview */}
+                {/* Inner white card — title + search + scrollable preview. The
+                    header also appears for a back chevron / header actions alone
+                    (e.g. an OverlayStack drill-down screen with no title). */}
                 <div className="bg-themewhite rounded-2xl overflow-hidden min-h-0">
-                  {title && <PopoverHeader title={title} onClose={onClose} onBack={onBack} headerActions={headerActions} />}
+                  {(title || onBack || headerActions) && (
+                    <PopoverHeader title={title ?? ''} onClose={onClose} onBack={onBack} headerActions={headerActions} />
+                  )}
                   {searchPlaceholder && preview && (
                     <div className="border-b border-tertiary/10 px-2 py-1.5 flex items-center gap-1.5">
                       {searchPrefix}
@@ -330,10 +334,11 @@ export function PreviewOverlay({
                     <div />
                   )}
 
-                  {/* Right slot — rightFooter wins, otherwise dismiss X (omitted when title provides its own X) */}
+                  {/* Right slot — rightFooter wins, otherwise dismiss X (omitted
+                      when the header already provides its own X) */}
                   {rightFooter ? (
                     rightFooter
-                  ) : !title ? (
+                  ) : !(title || onBack || headerActions) ? (
                     <button
                       onClick={onClose}
                       className="w-9 h-9 rounded-full flex items-center justify-center bg-themewhite text-tertiary hover:text-tertiary active:scale-95 transition-all"

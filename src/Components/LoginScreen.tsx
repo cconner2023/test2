@@ -23,8 +23,9 @@ export const FORGOT_PREFILL_KEY = 'adtmc_forgot_prefill'
 
 /** Rendered only when mode === 'qr'. Subscribes to Realtime and shows QR. */
 function DeviceLinkQrView() {
-  const { channelId, status, error, channelState, regenerate } = useLinkeeChannel()
-  const ready = channelState === 'ready'
+  const { channelId, status, error, channelState, regenerate, handoffPublicKey } = useLinkeeChannel()
+  // Wait for the handoff public key too, so the QR always carries a seal target.
+  const ready = channelState === 'ready' && !!handoffPublicKey
 
   // Once the channel is ready, flip `reveal` on the next frame so the QR panel
   // expands + fades up via CSS transition instead of snapping in after load.
@@ -36,18 +37,20 @@ function DeviceLinkQrView() {
   }, [ready])
 
   const qrCanvasRef = useCallback((canvas: HTMLCanvasElement | null) => {
-    if (!canvas || !channelId) return
+    if (!canvas || !channelId || !handoffPublicKey) return
     try {
       bwipjs.toCanvas(canvas, {
         bcid: 'qrcode',
-        text: channelId,
+        // Device-link payload (Option A): channelId + the linkee's ephemeral handoff
+        // public key. The scanner (SessionsDevicesPanel) parses this JSON.
+        text: JSON.stringify({ v: 1, c: channelId, k: handoffPublicKey }),
         scale: 4,
         padding: 3,
       })
     } catch {
       // non-critical
     }
-  }, [channelId])
+  }, [channelId, handoffPublicKey])
 
   return (
     <div className="relative">
@@ -120,6 +123,24 @@ export function LoginScreen() {
     try { sessionStorage.removeItem(FORGOT_PREFILL_KEY) } catch { /* ignore */ }
     setEmail(pre)
     setForgotStep('email')
+  }, [])
+
+  // DEV-only: the dev tunnel's QR can carry a test account's credentials in the
+  // URL hash (#dev-login=<base64url of {e,p}>) so scanning it on a phone PREFILLS
+  // this form without typing. Guarded by import.meta.env.DEV so the code is inert
+  // and tree-shaken from production builds. Never auto-submits — you tap sign-in.
+  useEffect(() => {
+    if (!import.meta.env.DEV) return
+    const m = window.location.hash.match(/dev-login=([^&]+)/)
+    if (!m) return
+    try {
+      const b64 = decodeURIComponent(m[1]).replace(/-/g, '+').replace(/_/g, '/')
+      const { e, p } = JSON.parse(decodeURIComponent(escape(atob(b64))))
+      if (e) setEmail(e)
+      if (p) setPassword(p)
+    } catch { /* malformed payload — ignore */ }
+    // Strip the secret from the URL bar / history immediately.
+    try { history.replaceState(null, '', window.location.pathname + window.location.search) } catch { /* ignore */ }
   }, [])
 
   const handleSignIn = async (e: React.FormEvent) => {

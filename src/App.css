@@ -953,6 +953,15 @@ input, select, textarea {
   .sol-breathe { animation: none; opacity: 1; }
 }
 
+/* HUD loader — opacity-only breathe (no scale), shared by the mark + label so
+   they stay phase-locked. */
+/* 1.2s matches solPulse (sol-breathe) so HUD elements breathe in phase. */
+@keyframes hudBreathe { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
+.hud-breathe { animation: hudBreathe 1.2s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .hud-breathe { animation: none; opacity: 1; }
+}
+
 /* ── Leaflet Map Overlay — fix Tailwind 4 preflight conflicts ── */
 
 .leaflet-container {

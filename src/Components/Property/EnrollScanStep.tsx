@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { Camera, X, CheckCircle2 } from 'lucide-react'
+import { HudLoader } from '../HudLoader'
 import { openCamera, closeCamera, captureFrame } from '../../lib/vision/camera'
 import { extractFingerprint } from '../../lib/vision/fingerprint'
 import type { VisualFingerprint } from '../../Types/PropertyTypes'
@@ -150,18 +151,7 @@ export function EnrollScanStep({ itemName, onEnrolled, onSkip, autoStart }: Enro
   if (phase === 'processing') {
     return (
       <div className="flex flex-col items-center gap-3 px-4 py-8">
-        <svg
-          className="w-8 h-8 animate-spin text-themeblue2"
-          style={{ animationDuration: '1s' }}
-          viewBox="0 0 40 40"
-          fill="none"
-        >
-          <g transform="translate(20,20)">
-            <rect x="-3" y="-11" width="6" height="22" rx="1.5" fill="currentColor" />
-            <rect x="-3" y="-11" width="6" height="22" rx="1.5" fill="currentColor" transform="rotate(60)" />
-            <rect x="-3" y="-11" width="6" height="22" rx="1.5" fill="currentColor" transform="rotate(120)" />
-          </g>
-        </svg>
+        <HudLoader size={72} />
         <p className="text-sm text-secondary">Analyzing...</p>
       </div>
     )

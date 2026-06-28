@@ -1,6 +1,6 @@
 import { useState, forwardRef, useImperativeHandle } from 'react'
 import { FileText, Trash2, type LucideIcon } from 'lucide-react'
-import { SectionCard } from '../Section'
+import { RecordSummaryCard } from './RecordPreview'
 import { LiftedRowMenu } from '../LiftedRowMenu'
 import { type ContextMenuItem } from '../ContextMenu'
 import { ConfirmDialog } from '../ConfirmDialog'
@@ -28,10 +28,6 @@ export interface SelectedRecord {
   tint: string
   /** Detail meta line (readings / exp date). */
   detail: string
-}
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
 function docOf(e: AuditEvent): PmcsDoc | null {
@@ -94,17 +90,7 @@ export const PropertyRecordDetail = forwardRef<PropertyRecordDetailHandle, Prope
 
     return (
       <div className="flex flex-col h-full px-3 py-3 space-y-3">
-        <SectionCard>
-          <div className="flex items-center gap-3 px-4 py-3">
-            <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${tint}`}>
-              <Icon size={16} />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-primary truncate">{label}</p>
-              <p className="text-[9pt] text-tertiary mt-0.5 truncate">{detail} · {formatDate(event.occurredAt)}</p>
-            </div>
-          </div>
-        </SectionCard>
+        <RecordSummaryCard Icon={Icon} tint={tint} label={label} detail={detail} occurredAt={event.occurredAt} />
 
         {doc && (
           <button

@@ -1,20 +1,22 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import {
   AlertTriangle, Plus, Check, ClipboardCheck, Loader2, Wrench,
   X, History, Paperclip, FileText,
 } from 'lucide-react'
 import { getAuditBySubjectLocal, fetchAuditBySubject } from '../../lib/auditService'
 import type { AuditEvent } from '../../lib/auditTypes'
+import { PMCS_EVENT_TYPES, foldOpenFaults, summarizePmcs } from '../../lib/pmcsFold'
 import { usePropertyStore } from '../../stores/usePropertyStore'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { useInvalidation } from '../../stores/useInvalidationStore'
 import { TextInput, PickerInput } from '../FormInputs'
-import { PreviewOverlay } from '../PreviewOverlay'
-import { RecordPreview } from './RecordPreview'
+import { OverlayStack, type StackNav } from '../OverlayStack'
+import { useRecordPreview } from './RecordPreview'
 import { DocScanner } from './DocScanner'
 import { ActionButton } from '../ActionButton'
 import { PillButton } from '../HeaderPill'
 import { SectionCard } from '../Section'
+import { ConfirmDialog } from '../ConfirmDialog'
 import { useClinicMedics } from '../../Hooks/useClinicMedics'
 import { uploadEncryptedAttachment } from '../../lib/signal'
 import type { PmcsDoc } from '../../lib/propertyService'
@@ -25,29 +27,29 @@ const logger = createLogger('PmcsSheet')
 /**
  * PmcsSheet — the PMCS (preventive-maintenance checks & services) surface for a
  * property subject (a stock item, or a vehicle location with its own 5988). Its
- * ops twin is the DispatchSheet; both are PreviewOverlays (NOT a mobile Sheet)
- * scoped to the whole property drawer, launched from the host's ellipsis menu.
- * Two views inside one overlay:
+ * ops twin is the DispatchSheet; both are OverlayStacks (the drill-down/morph
+ * primitive, NOT a mobile Sheet) scoped to the whole property drawer, launched
+ * from the host's ellipsis menu. One card whose body morphs across three screens:
  *
- *  - CHECK (default): the standard PMCS intake — mileage + fuel-level readings
- *    (vehicle subjects only), the open faults to Correct or leave, an inline-add
- *    to report a new fault, and an optional 5988E attachment. The footer carries
- *    the "Record PMCS" action (present always; disabled until the intake is
- *    complete). Corrections / new faults emit immediately as their own audit
- *    events; the footer action logs the inspection (with readings in the
- *    pmcs.clear payload).
- *  - HISTORY: every PMCS event as a section card — tap to view its 5988E, with
- *    per-card edit (faults/corrections carry text) and delete. audit_log gained
- *    UPDATE/DELETE on 2026-06-21 so these are real edits/hard-deletes, routed
- *    through the store (which bumps the `properties` generation so this overlay
- *    AND the inline ItemTimeline refetch in sync).
+ *  - CHECK (root): the standard PMCS intake — mileage + fuel-level readings
+ *    (vehicle subjects only), who did it, the open faults to Correct or leave, an
+ *    inline-add to report a new fault, and an optional 5988E attachment. THE WHOLE
+ *    CHECK COMMITS AS ONE EVENT: marking a correction or reporting a fault is local
+ *    UI state until the footer's "Record PMCS" fires — that single pmcs.clear event
+ *    carries the readings AND the faults found/corrected (see lib/pmcsFold). One
+ *    PMCS = one history row that states its own outcome; faults are NOT separate
+ *    fault.opened/fault.corrected rows. The Scan action opens DocScanner nested.
+ *  - HISTORY: every PMCS as a section card stating its outcome (no new faults / new
+ *    fault: X / corrected: Y) + readings — tap one to drill into…
+ *  - RECORD: the tapped event's detail (view 5988E / delete), shared with the
+ *    timeline via the headless useRecordPreview hook; its delete confirm is a
+ *    z-stacked interrupt. Back pops record → history → check.
  *
- * Reads the same append-only-in-spirit audit_log the timeline does and folds it:
- * a fault.opened is OPEN unless a fault.corrected points back at it via
- * payload.corrects.
+ * Open faults fold across checks (foldOpenFaults): a fault opened by one PMCS stays
+ * OPEN until a later PMCS lists its id in faultsCorrected. Legacy standalone fault
+ * events (pre-bundle) still fold for open-state, so an old open fault can be
+ * corrected by a new check.
  */
-
-const PMCS_EVENT_TYPES = new Set(['fault.opened', 'fault.corrected', 'pmcs.clear'])
 
 interface PmcsSheetProps {
   isOpen: boolean
@@ -60,19 +62,14 @@ interface PmcsSheetProps {
   containerRef?: React.RefObject<HTMLElement | null>
 }
 
-interface OpenFault {
-  id: string
-  description: string
-  occurredAt: string
-}
-
 export function PmcsSheet({ isOpen, onClose, subjectType = 'item', subjectId, clinicId, containerRef }: PmcsSheetProps) {
   const [events, setEvents] = useState<AuditEvent[]>([])
   const [loading, setLoading] = useState(true)
   const [desc, setDesc] = useState('')
   const [busy, setBusy] = useState(false)
-  const [view, setView] = useState<'check' | 'history'>('check')
   const [previewEvent, setPreviewEvent] = useState<AuditEvent | null>(null)
+  // Live stack nav (history → record drill-down is async from row taps).
+  const navRef = useRef<StackNav | null>(null)
   const [mileage, setMileage] = useState('')
   const [fuelLevel, setFuelLevel] = useState<number | null>(null)
   const [operator, setOperator] = useState('')
@@ -80,6 +77,13 @@ export function PmcsSheet({ isOpen, onClose, subjectType = 'item', subjectId, cl
   const [docFile, setDocFile] = useState<File | null>(null)
   const [docError, setDocError] = useState<string | null>(null)
   const [scannerOpen, setScannerOpen] = useState(false)
+  // Faults staged on THIS check — committed into the pmcs.clear event on Record,
+  // not emitted live. `newFaults` = faults found now; `markedCorrect` = prior open
+  // faults this check is closing (toggleable until Record).
+  const [newFaults, setNewFaults] = useState<{ id: string; description: string }[]>([])
+  const [markedCorrect, setMarkedCorrect] = useState<Set<string>>(new Set())
+  // The open fault awaiting a "mark corrected?" confirm (null = none).
+  const [confirmCorrectId, setConfirmCorrectId] = useState<string | null>(null)
 
   const userId = useAuthStore((s) => s.user?.id)
   const { medics } = useClinicMedics()
@@ -100,17 +104,16 @@ export function PmcsSheet({ isOpen, onClose, subjectType = 'item', subjectId, cl
   // fault check + a clean-check log.
   const isVehicle = subjectType === 'location'
 
-  const raiseFault = usePropertyStore((s) => s.raiseFault)
-  const correctFault = usePropertyStore((s) => s.correctFault)
   const recordPmcs = usePropertyStore((s) => s.recordPmcs)
   const propGen = useInvalidation('properties')
 
   // Reset transient UI when the overlay closes.
   useEffect(() => {
     if (!isOpen) {
-      setView('check'); setPreviewEvent(null); setDesc('')
+      setPreviewEvent(null); setDesc('')
       setMileage(''); setFuelLevel(null); setOperator(''); setMechanic('')
       setDocFile(null); setDocError(null); setScannerOpen(false)
+      setNewFaults([]); setMarkedCorrect(new Set()); setConfirmCorrectId(null)
     }
   }, [isOpen])
 
@@ -140,35 +143,28 @@ export function PmcsSheet({ isOpen, onClose, subjectType = 'item', subjectId, cl
     return () => { cancelled = true }
   }, [isOpen, subjectId, clinicId, propGen])
 
-  const correctedIds = new Set(
-    events
-      .filter((e) => e.eventType === 'fault.corrected')
-      .map((e) => e.payload?.corrects)
-      .filter((id): id is string => typeof id === 'string'),
-  )
-  const openFaults: OpenFault[] = events
-    .filter((e) => e.eventType === 'fault.opened' && !correctedIds.has(e.id))
-    .map((e) => ({
-      id: e.id,
-      description: typeof e.payload?.description === 'string' ? e.payload.description : 'Fault',
-      occurredAt: e.occurredAt,
-    }))
+  // Open faults carried from prior checks (folds both bundled + legacy events).
+  const openFaults = foldOpenFaults(events)
+  // History list — one card per PMCS (faults are folded INTO these, not separate).
+  const pmcsEvents = events.filter((e) => e.eventType === 'pmcs.clear')
 
-  const handleReport = async () => {
+  const addFault = () => {
     const text = desc.trim()
-    if (!text || busy) return
-    setBusy(true)
+    if (!text) return
+    setNewFaults((prev) => [...prev, { id: crypto.randomUUID(), description: text }])
     setDesc('')
-    await raiseFault(subjectType, subjectId, text)
-    setBusy(false)
   }
 
-  const handleCorrect = async (faultId: string) => {
-    if (busy) return
-    setBusy(true)
-    await correctFault(subjectType, subjectId, faultId)
-    setBusy(false)
-  }
+  const removeNewFault = (id: string) =>
+    setNewFaults((prev) => prev.filter((f) => f.id !== id))
+
+  const toggleCorrect = (faultId: string) =>
+    setMarkedCorrect((prev) => {
+      const next = new Set(prev)
+      if (next.has(faultId)) next.delete(faultId)
+      else next.add(faultId)
+      return next
+    })
 
   // Most recent recorded mileage — shown as the "Current" hint so the inspector
   // updates from the last reading rather than guessing. events are newest-first.
@@ -180,7 +176,7 @@ export function PmcsSheet({ isOpen, onClose, subjectType = 'item', subjectId, cl
   })()
 
   // A vehicle intake needs both readings; a stock item's PMCS is always submittable
-  // (it logs a clean check / the faults reported during it).
+  // (it logs a clean check / the faults found-or-corrected during it).
   const canSubmit = !isVehicle || (mileage.trim() !== '' && fuelLevel != null)
 
   const handleRecord = async () => {
@@ -204,6 +200,11 @@ export function PmcsSheet({ isOpen, onClose, subjectType = 'item', subjectId, cl
     }
 
     const miles = parseInt(mileage, 10)
+    // Corrections committed this check — denormalize the description so the history
+    // row reads "Corrected: X" without resolving the originating check.
+    const correctedList = openFaults
+      .filter((f) => markedCorrect.has(f.id))
+      .map((f) => ({ id: f.id, description: f.description }))
     const readings = {
       ...(isVehicle ? {
         mileage: Number.isFinite(miles) ? miles : undefined,
@@ -212,6 +213,8 @@ export function PmcsSheet({ isOpen, onClose, subjectType = 'item', subjectId, cl
       ...(operator.trim() ? { operator: operator.trim() } : {}),
       ...(mechanic.trim() ? { mechanic: mechanic.trim() } : {}),
       ...(doc ? { doc } : {}),
+      ...(newFaults.length ? { faultsOpened: newFaults } : {}),
+      ...(correctedList.length ? { faultsCorrected: correctedList } : {}),
     }
     const ok = await recordPmcs(subjectType, subjectId, Object.keys(readings).length ? readings : undefined)
     setBusy(false)
@@ -254,24 +257,6 @@ export function PmcsSheet({ isOpen, onClose, subjectType = 'item', subjectId, cl
       />
       <TextInput value={mechanic} onChange={setMechanic} placeholder="Mechanic (optional)" />
 
-      {/* Faults — previously-unclosed faults render to Correct or leave; empty if
-          none. The inline-add reports a fault found during this check. */}
-      {openFaults.map((f) => (
-        <div key={f.id} className="flex items-center gap-3 px-4 py-3">
-          <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-themered/10 text-themered">
-            <AlertTriangle size={14} />
-          </div>
-          <p className="flex-1 min-w-0 text-sm font-medium text-themered truncate">{f.description}</p>
-          <button
-            type="button"
-            onClick={() => handleCorrect(f.id)}
-            disabled={busy}
-            className="shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-full bg-themegreen/10 text-themegreen text-[9pt] font-semibold active:scale-95 transition-all disabled:opacity-40"
-          >
-            <Check size={12} /> Correct
-          </button>
-        </div>
-      ))}
       {/* Inline add — report a new fault (TextInput + circular Plus). */}
       <div className="flex items-center gap-2 px-4 py-3">
         <div className="flex-1 min-w-0">
@@ -279,13 +264,49 @@ export function PmcsSheet({ isOpen, onClose, subjectType = 'item', subjectId, cl
         </div>
         <button
           type="button"
-          onClick={handleReport}
-          disabled={!desc.trim() || busy}
+          onClick={addFault}
+          disabled={!desc.trim()}
           className="shrink-0 w-9 h-9 rounded-full bg-themeblue3 text-white flex items-center justify-center disabled:opacity-30 active:scale-95 transition-all"
         >
           <Plus size={18} />
         </button>
       </div>
+
+      {/* New faults found on THIS check (commit on Record; removable until then).
+          No icon chip — just the text + a remove X. */}
+      {newFaults.map((f) => (
+        <div key={f.id} className="flex items-center gap-3 px-4 py-3">
+          <p className="flex-1 min-w-0 text-sm font-medium text-themered truncate">{f.description}</p>
+          <button
+            type="button"
+            onClick={() => removeNewFault(f.id)}
+            className="shrink-0 w-8 h-8 rounded-full bg-tertiary/8 flex items-center justify-center active:scale-95 transition-all"
+            aria-label="Remove fault"
+          >
+            <X size={14} className="text-tertiary" />
+          </button>
+        </div>
+      ))}
+
+      {/* Current (open) faults from prior checks, listed BELOW the report input. No
+          icon chip; the close (X) corrects one — it asks to confirm first, then
+          stages it (green + struck). A corrected row's X reverts the staged fix. */}
+      {openFaults.map((f) => {
+        const marked = markedCorrect.has(f.id)
+        return (
+          <div key={f.id} className="flex items-center gap-3 px-4 py-3">
+            <p className={`flex-1 min-w-0 text-sm font-medium truncate ${marked ? 'text-themegreen line-through' : 'text-themered'}`}>{f.description}</p>
+            <button
+              type="button"
+              onClick={() => (marked ? toggleCorrect(f.id) : setConfirmCorrectId(f.id))}
+              className="shrink-0 w-8 h-8 rounded-full bg-tertiary/8 flex items-center justify-center active:scale-95 transition-all"
+              aria-label={marked ? 'Undo correction' : 'Correct fault'}
+            >
+              <X size={14} className={marked ? 'text-themegreen' : 'text-tertiary'} />
+            </button>
+          </div>
+        )
+      })}
 
       {/* Attach a 5988E worksheet — the TRIGGER lives in the footer (Scan is a
           footer action) and opens the DocScanner (capture → crop → enhance →
@@ -313,38 +334,38 @@ export function PmcsSheet({ isOpen, onClose, subjectType = 'item', subjectId, cl
     </div>
   )
 
-  // ── HISTORY view body — every PMCS event as a section card. The back chevron
-  //    lives in the overlay HEADER (onBack), not an in-body row. ───────────────
+  // ── HISTORY view body — every PMCS as a section card stating its outcome. The
+  //    back chevron lives in the overlay HEADER (onBack), not an in-body row. ──
   const historyBody = (
     <div className="px-3 pt-2 pb-3">
       {loading ? (
         <div className="flex items-center justify-center py-6">
           <Loader2 size={16} className="animate-spin text-tertiary" />
         </div>
-      ) : events.length === 0 ? (
+      ) : pmcsEvents.length === 0 ? (
         <p className="text-[10pt] text-tertiary px-1 py-4">No PMCS history yet</p>
       ) : (
         <div className="space-y-2">
-          {events.map((e) => {
-            const open = e.eventType === 'fault.opened' && !correctedIds.has(e.id)
+          {pmcsEvents.map((e) => {
+            const s = summarizePmcs(e)
             const doc = docOf(e)
-            const Icon = e.eventType === 'fault.opened' ? AlertTriangle
-              : e.eventType === 'fault.corrected' ? Wrench : ClipboardCheck
+            const Icon = s.foundFault ? AlertTriangle : s.correctedFault ? Wrench : ClipboardCheck
+            const tint = s.foundFault ? 'bg-themered/10 text-themered' : 'bg-themeblue3/10 text-themeblue2'
+            const sub = [s.readings, fmtDate(e.occurredAt)].filter(Boolean).join(' · ')
             return (
               <SectionCard key={e.id}>
-                {/* Tap the card → RecordPreview (view 5988E / edit / delete). The
-                    per-row pencil + trash are gone; the overlay owns those. */}
+                {/* Tap the card → RecordPreview (view 5988E / delete). */}
                 <button
                   type="button"
-                  onClick={() => setPreviewEvent(e)}
+                  onClick={() => { setPreviewEvent(e); navRef.current?.push('record') }}
                   className="w-full flex items-center gap-3 px-3 py-2.5 text-left active:opacity-70 transition-opacity"
                 >
-                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${open ? 'bg-themered/10 text-themered' : 'bg-themeblue3/10 text-themeblue2'}`}>
+                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${tint}`}>
                     <Icon size={14} />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className={`text-sm font-medium truncate ${open ? 'text-themered' : 'text-primary'}`}>{describe(e)}</p>
-                    <p className="text-[9pt] text-tertiary">{fmtDate(e.occurredAt)}</p>
+                    <p className={`text-sm font-medium truncate ${s.foundFault ? 'text-themered' : 'text-primary'}`}>{s.title}</p>
+                    <p className="text-[9pt] text-tertiary truncate">{sub}</p>
                   </div>
                   {doc && <FileText size={14} className="text-themeblue2 shrink-0" />}
                 </button>
@@ -356,95 +377,105 @@ export function PmcsSheet({ isOpen, onClose, subjectType = 'item', subjectId, cl
     </div>
   )
 
-  const body = view === 'history' ? historyBody : checkBody
-
   // Icon + tint for the previewed record, mirroring its history-row chip.
   const previewMeta = (() => {
-    const e = previewEvent
-    const open = e?.eventType === 'fault.opened' && !correctedIds.has(e.id)
-    const Icon = e?.eventType === 'fault.opened' ? AlertTriangle
-      : e?.eventType === 'fault.corrected' ? Wrench : ClipboardCheck
-    return { Icon, tint: open ? 'bg-themered/10 text-themered' : 'bg-themeblue3/10 text-themeblue2' }
+    if (!previewEvent) return { Icon: ClipboardCheck, tint: 'bg-themeblue3/10 text-themeblue2' }
+    const s = summarizePmcs(previewEvent)
+    const Icon = s.foundFault ? AlertTriangle : s.correctedFault ? Wrench : ClipboardCheck
+    return { Icon, tint: s.foundFault ? 'bg-themered/10 text-themered' : 'bg-themeblue3/10 text-themeblue2' }
   })()
 
-  // Footer actions (check view only) — Attach on the LEFT, the success/confirm
-  // (Record PMCS) on the RIGHT (rightFooter). Per the explicit footer-action
-  // directive Record is present always but DISABLED until the intake is complete.
-  const footer = view === 'check' ? (
-    <div className="flex gap-1 bg-themewhite rounded-2xl px-1.5 py-1.5">
-      <ActionButton
-        icon={docFile ? FileText : Paperclip}
-        label={docFile ? 'Replace 5988E' : 'Scan 5988E'}
-        variant="default"
-        onClick={() => setScannerOpen(true)}
-      />
-      <ActionButton
-        icon={History}
-        label={events.length > 0 ? `History · ${events.length}` : 'History'}
-        variant="default"
-        onClick={() => setView('history')}
-      />
-    </div>
-  ) : undefined
-  const rightFooter = view === 'check' ? (
-    <div className="bg-themewhite rounded-2xl px-1.5 py-1.5">
-      <PillButton icon={Check} iconSize={16} accent="success" disabled={!canSubmit} onClick={handleRecord} label="Record PMCS" />
-    </div>
-  ) : undefined
+  // The history → record drill-down screen, shared with the timeline via the
+  // headless hook. Closing (back, or after delete) pops to history.
+  const recordView = useRecordPreview({
+    event: previewEvent,
+    onClose: () => { navRef.current?.pop(); setPreviewEvent(null) },
+    label: previewEvent ? summarizePmcs(previewEvent).title : '',
+    detail: previewEvent ? summarizePmcs(previewEvent).readings : undefined,
+    Icon: previewMeta.Icon,
+    tint: previewMeta.tint,
+  })
+
+  // Three morph screens (check ⇄ history → record) — one card whose body morphs
+  // instead of toggling a `view` flag + z-stacking a nested RecordPreview. The
+  // stack owns the back chevron; DocScanner stays a nested overlay launched on top
+  // (its own self-contained capture flow), and the delete ConfirmDialog stays a
+  // z-stacked INTERRUPT inside the record screen.
+  const screens = {
+    check: {
+      title: 'PMCS',
+      // Scan/Attach + History LEFT, the success/confirm (Record PMCS) RIGHT —
+      // present always but DISABLED until the intake is complete.
+      footer: (_: unknown, nav: StackNav) => (
+        <div className="flex gap-1 bg-themewhite rounded-2xl px-1.5 py-1.5">
+          <ActionButton
+            icon={docFile ? FileText : Paperclip}
+            label={docFile ? 'Replace 5988E' : 'Scan 5988E'}
+            variant="default"
+            onClick={() => setScannerOpen(true)}
+          />
+          <ActionButton
+            icon={History}
+            label={pmcsEvents.length > 0 ? `History · ${pmcsEvents.length}` : 'History'}
+            variant="default"
+            onClick={() => nav.push('history')}
+          />
+        </div>
+      ),
+      rightFooter: (
+        <div className="bg-themewhite rounded-2xl px-1.5 py-1.5">
+          <PillButton icon={Check} iconSize={16} accent="success" disabled={!canSubmit} onClick={handleRecord} label="Record PMCS" />
+        </div>
+      ),
+      render: () => (
+        <>
+          {checkBody}
+          {/* Nested capture overlay — auto-stacks above this card via context. */}
+          <DocScanner
+            isOpen={scannerOpen}
+            onClose={() => setScannerOpen(false)}
+            onComplete={(f) => { setDocFile(f); setDocError(null) }}
+            formLabel="5988E"
+            containerRef={containerRef}
+          />
+          {/* Correct-a-fault confirm — staged (commits with the check), z-stacked
+              INTERRUPT like the record-screen delete. */}
+          <ConfirmDialog
+            visible={!!confirmCorrectId}
+            title="Mark this fault corrected?"
+            subtitle={openFaults.find((f) => f.id === confirmCorrectId)?.description}
+            confirmLabel="Correct"
+            variant="success"
+            onConfirm={() => { if (confirmCorrectId) toggleCorrect(confirmCorrectId); setConfirmCorrectId(null) }}
+            onCancel={() => setConfirmCorrectId(null)}
+          />
+        </>
+      ),
+    },
+    history: {
+      title: 'PMCS history',
+      render: () => historyBody,
+    },
+    record: {
+      // No title — the back chevron + X ride the header; the body carries the label.
+      onBack: (nav: StackNav) => { nav.pop(); setPreviewEvent(null) },
+      footer: recordView.footer,
+      render: () => <>{recordView.body}{recordView.confirm}</>,
+    },
+  }
 
   return (
-    <PreviewOverlay
+    <OverlayStack
       isOpen={isOpen}
       onClose={onClose}
-      anchorRect={null}
       containerRef={containerRef}
-      title={view === 'history' ? 'PMCS history' : 'PMCS'}
-      onBack={view === 'history' ? () => { setView('check'); setPreviewEvent(null) } : undefined}
+      navRef={navRef}
+      initial={{ key: 'check' }}
+      screens={screens}
       maxWidth={360}
       previewMaxHeight="60dvh"
-      footer={footer}
-      rightFooter={rightFooter}
-    >
-      <>
-        {body as ReactNode}
-        <RecordPreview
-          event={previewEvent}
-          onClose={() => setPreviewEvent(null)}
-          label={previewEvent ? describe(previewEvent) : ''}
-          Icon={previewMeta.Icon}
-          tint={previewMeta.tint}
-          containerRef={containerRef}
-        />
-        <DocScanner
-          isOpen={scannerOpen}
-          onClose={() => setScannerOpen(false)}
-          onComplete={(f) => { setDocFile(f); setDocError(null) }}
-          formLabel="5988E"
-          containerRef={containerRef}
-        />
-      </>
-    </PreviewOverlay>
+    />
   )
-}
-
-function describe(e: AuditEvent): string {
-  const p = e.payload ?? {}
-  switch (e.eventType) {
-    case 'fault.opened':
-      return typeof p.description === 'string' && p.description ? p.description : 'Fault reported'
-    case 'fault.corrected':
-      return typeof p.note === 'string' && p.note ? `Corrected — ${p.note}` : 'Fault corrected'
-    case 'pmcs.clear': {
-      const parts: string[] = []
-      if (typeof p.mileage === 'number') parts.push(`${p.mileage.toLocaleString()} mi`)
-      if (typeof p.fuelLevel === 'number') parts.push(`Fuel ${p.fuelLevel}%`)
-      if (typeof p.operator === 'string' && p.operator) parts.push(p.operator)
-      if (typeof p.mechanic === 'string' && p.mechanic) parts.push(`Mech ${p.mechanic}`)
-      return parts.length ? `PMCS · ${parts.join(' · ')}` : 'PMCS — no new faults'
-    }
-    default:
-      return e.eventType
-  }
 }
 
 /**

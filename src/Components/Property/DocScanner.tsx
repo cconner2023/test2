@@ -8,7 +8,7 @@ import {
   assembleScanPdf, type Quad, type ScanFilter, type RasterImage,
 } from '../../lib/docScan'
 import { openCamera, closeCamera } from '../../lib/vision/camera'
-import { PreviewOverlay } from '../PreviewOverlay'
+import { OverlayStack, type StackNav } from '../OverlayStack'
 import { TextInput } from '../FormInputs'
 import { ActionButton } from '../ActionButton'
 import { PillButton } from '../HeaderPill'
@@ -27,16 +27,20 @@ const logger = createLogger('DocScanner')
  * Everything is 2D-canvas (see lib/docScan) — no native scanner, no OpenCV/WASM —
  * so it works in the pure PWA on iOS Safari.
  *
- * It is a NESTED PreviewOverlay — the same primitive PMCS/Dispatch/RecordPreview
- * use — scoped to the property drawer via `containerRef`. Launched from inside the
- * host's PreviewOverlay children, it auto-stacks above the host through
- * OverlayStackContext (no explicit zIndex plumbing). The standard popover header
- * carries the close X (top-right) + a back chevron on the editing steps; the
- * footer row carries the per-stage actions (capture options left, advance/Save
- * right). Returns a File via onComplete; the host treats it like a picked
- * attachment (nothing downstream changes).
+ * Its four stages are an OverlayStack (the drill-down/"morph" primitive): one
+ * card whose body morphs between screens instead of pushing a fresh overlay per
+ * step. The stack owns the back chevron (review = root, no back) and resets to
+ * review on open; navigation between stages is push/replace/pop/reset via the
+ * `navRef`. The whole card is still a NESTED overlay — OverlayStack builds on
+ * PreviewOverlay, so launched from inside the host PMCS/Dispatch overlay's
+ * children it auto-stacks above the host through OverlayStackContext (no explicit
+ * zIndex plumbing), scoped to the property drawer via `containerRef`. The popover
+ * header carries the close X (top-right); the footer carries the per-stage actions
+ * (capture options left, advance/Save right). Returns a File via onComplete; the
+ * host treats it like a picked attachment (nothing downstream changes).
  *
- * Four sub-screens, mirroring Adobe Scan:
+ * Four screens, mirroring Adobe Scan (stack flow: review → camera ⇒replace⇒ crop
+ * → enhance ⇒reset⇒ review; Photos/edit-page push straight to crop):
  *  - REVIEW: the captured pages (thumbnails) + a title field. Footer = capture
  *            options (Camera / Photos) left, Save right.
  *  - CAMERA: a live getUserMedia preview with a shutter (the real camera, not the
@@ -78,8 +82,6 @@ interface Draft {
   previewBase?: HTMLCanvasElement // downscaled unfiltered page for fast live filtering
 }
 
-type Stage = 'review' | 'camera' | 'crop' | 'enhance'
-
 const FILTERS: { key: ScanFilter; label: string; icon: typeof Wand2 }[] = [
   { key: 'auto', label: 'Auto', icon: Wand2 },
   { key: 'color', label: 'Colour', icon: Palette },
@@ -92,7 +94,6 @@ function newId(): string {
 }
 
 export function DocScanner({ isOpen, onClose, onComplete, formLabel, containerRef }: DocScannerProps) {
-  const [stage, setStage] = useState<Stage>('review')
   const [pages, setPages] = useState<Page[]>([])
   const [draft, setDraft] = useState<Draft | null>(null)
   const [title, setTitle] = useState('')
@@ -100,11 +101,15 @@ export function DocScanner({ isOpen, onClose, onComplete, formLabel, containerRe
   const [error, setError] = useState<string | null>(null)
 
   const libraryInputRef = useRef<HTMLInputElement>(null)
+  // The live nav, for the async/handler-driven steps below. OverlayStack resets
+  // its own stack to 'review' whenever isOpen flips, so the data reset here only
+  // clears the captured pages/draft.
+  const navRef = useRef<StackNav | null>(null)
 
-  // Reset everything when the scanner closes.
+  // Reset captured data when the scanner closes (stack position is OverlayStack's).
   useEffect(() => {
     if (!isOpen) {
-      setStage('review'); setPages([]); setDraft(null)
+      setPages([]); setDraft(null)
       setTitle(''); setBusy(false); setError(null)
     }
   }, [isOpen])
@@ -115,7 +120,7 @@ export function DocScanner({ isOpen, onClose, onComplete, formLabel, containerRe
       const src = await fileToCanvas(file)
       const quad = detectDocumentQuad(src)
       setDraft({ id: undefined, src, srcUrl: src.canvas.toDataURL('image/jpeg', 0.85), quad, filter: 'auto' })
-      setStage('crop')
+      navRef.current?.push('crop')
     } catch (err) {
       logger.warn('image load failed:', err)
       setError('Could not read that image — try another.')
@@ -131,23 +136,24 @@ export function DocScanner({ isOpen, onClose, onComplete, formLabel, containerRe
   }
 
   // CAMERA → CROP: a frame captured from the live preview enters the same
-  // detect-quad → crop pipeline a picked photo does.
+  // detect-quad → crop pipeline a picked photo does. `replace` swaps camera for
+  // crop so the crop step's back returns to review, not the live camera.
   const onCapture = useCallback((canvas: HTMLCanvasElement) => {
     const src: RasterImage = { canvas, width: canvas.width, height: canvas.height }
     const quad = detectDocumentQuad(src)
     setDraft({ id: undefined, src, srcUrl: canvas.toDataURL('image/jpeg', 0.85), quad, filter: 'auto' })
-    setStage('crop')
+    navRef.current?.replace('crop')
   }, [])
 
   const onCameraError = useCallback(() => {
     setError('Camera unavailable — use Photos instead.')
-    setStage('review')
+    navRef.current?.pop()
   }, [])
 
   // Re-open a saved page back into the crop step (keeps its source/quad/filter).
   const editPage = (p: Page) => {
     setDraft({ id: p.id, src: p.src, srcUrl: p.src.canvas.toDataURL('image/jpeg', 0.85), quad: p.quad, filter: p.filter })
-    setStage('crop')
+    navRef.current?.push('crop')
   }
 
   const deletePage = (id: string) => setPages((prev) => prev.filter((p) => p.id !== id))
@@ -160,7 +166,7 @@ export function DocScanner({ isOpen, onClose, onComplete, formLabel, containerRe
     const warped = warpQuad(draft.src, draft.quad, w, h)
     const previewBase = downscale(warped, 900)
     setDraft({ ...draft, warped, previewBase })
-    setStage('enhance')
+    navRef.current?.push('enhance')
   }
 
   // ENHANCE → REVIEW: render the final warped + filtered page and upsert it.
@@ -179,14 +185,7 @@ export function DocScanner({ isOpen, onClose, onComplete, formLabel, containerRe
       return [...prev, page]
     })
     setDraft(null)
-    setStage('review')
-  }
-
-  // Header back: enhance → crop; crop/camera → review (dropping any in-flight draft).
-  const handleBack = () => {
-    if (stage === 'enhance') { setStage('crop'); return }
-    setDraft(null)
-    setStage('review')
+    navRef.current?.reset()
   }
 
   const handleSave = async () => {
@@ -204,51 +203,27 @@ export function DocScanner({ isOpen, onClose, onComplete, formLabel, containerRe
     }
   }
 
-  // ── Per-stage footer slots — capture/advance options LEFT, the success/confirm
-  //    (Save / Next / Add) RIGHT. Mirrors the PMCS/dispatch footer convention. ──
-  const footer = stage === 'review' ? (
-    <div className="flex gap-1 bg-themewhite rounded-2xl px-1.5 py-1.5">
-      <ActionButton icon={Camera} label="Camera" variant={busy ? 'disabled' : 'default'} onClick={() => setStage('camera')} />
-      <ActionButton icon={Images} label="Photos" variant={busy ? 'disabled' : 'default'} onClick={() => libraryInputRef.current?.click()} />
-    </div>
-  ) : stage === 'crop' ? (
-    <div className="flex gap-1 bg-themewhite rounded-2xl px-1.5 py-1.5">
-      <ActionButton icon={Crop} label="Auto-detect" variant="default" onClick={() => draft && setDraft({ ...draft, quad: detectDocumentQuad(draft.src) })} />
-    </div>
-  ) : undefined
-
-  const rightFooter = stage === 'review' ? (
-    <div className="bg-themewhite rounded-2xl px-1.5 py-1.5">
-      <PillButton icon={Check} iconSize={16} accent="success" disabled={!pages.length || busy} onClick={handleSave} label="Save document" />
-    </div>
-  ) : stage === 'crop' ? (
-    <div className="bg-themewhite rounded-2xl px-1.5 py-1.5">
-      <PillButton icon={ArrowRight} iconSize={18} accent="info" onClick={toEnhance} label="Next" />
-    </div>
-  ) : stage === 'enhance' ? (
-    <div className="bg-themewhite rounded-2xl px-1.5 py-1.5">
-      <PillButton icon={Check} iconSize={16} accent="success" onClick={commitPage} label={draft?.id ? 'Done' : 'Add page'} />
-    </div>
-  ) : undefined
-
-  const stageTitle = stage === 'camera' ? 'Camera' : stage === 'crop' ? 'Crop' : stage === 'enhance' ? 'Enhance' : 'Scan'
-
-  return (
-    <PreviewOverlay
-      isOpen={isOpen}
-      onClose={onClose}
-      anchorRect={null}
-      containerRef={containerRef}
-      title={stageTitle}
-      onBack={stage === 'review' ? undefined : handleBack}
-      maxWidth={400}
-      previewMaxHeight="62dvh"
-      footer={footer}
-      rightFooter={rightFooter}
-    >
-      <>
-        <input ref={libraryInputRef} type="file" accept="image/*" className="hidden" onChange={onInputChange} />
-        {stage === 'review' && (
+  // Four screens, mirroring Adobe Scan — the stack owns navigation + the back
+  // chevron; each screen's chrome (title/footer/rightFooter) reads live component
+  // state, so capture/advance options sit LEFT and the success/confirm (Save /
+  // Next / Add) sits RIGHT, matching the PMCS/dispatch footer convention.
+  const screens = {
+    review: {
+      title: 'Scan',
+      footer: (_: unknown, nav: StackNav) => (
+        <div className="flex gap-1 bg-themewhite rounded-2xl px-1.5 py-1.5">
+          <ActionButton icon={Camera} label="Camera" variant={busy ? 'disabled' : 'default'} onClick={() => nav.push('camera')} />
+          <ActionButton icon={Images} label="Photos" variant={busy ? 'disabled' : 'default'} onClick={() => libraryInputRef.current?.click()} />
+        </div>
+      ),
+      rightFooter: (
+        <div className="bg-themewhite rounded-2xl px-1.5 py-1.5">
+          <PillButton icon={Check} iconSize={16} accent="success" disabled={!pages.length || busy} onClick={handleSave} label="Save document" />
+        </div>
+      ),
+      render: () => (
+        <>
+          <input ref={libraryInputRef} type="file" accept="image/*" className="hidden" onChange={onInputChange} />
           <ReviewView
             pages={pages}
             title={title}
@@ -258,18 +233,53 @@ export function DocScanner({ isOpen, onClose, onComplete, formLabel, containerRe
             onEdit={editPage}
             onDelete={deletePage}
           />
-        )}
-        {stage === 'camera' && (
-          <CameraView onCapture={onCapture} onError={onCameraError} />
-        )}
-        {stage === 'crop' && draft && (
-          <CropView draft={draft} onQuad={(quad) => setDraft({ ...draft, quad })} />
-        )}
-        {stage === 'enhance' && draft?.previewBase && (
-          <EnhanceView draft={draft} onFilter={(filter) => setDraft({ ...draft, filter })} />
-        )}
-      </>
-    </PreviewOverlay>
+        </>
+      ),
+    },
+    camera: {
+      title: 'Camera',
+      // Back (→ review) is the default pop; camera teardown rides CameraView unmount.
+      render: () => <CameraView onCapture={onCapture} onError={onCameraError} />,
+    },
+    crop: {
+      title: 'Crop',
+      // Back drops the in-flight draft before returning to review.
+      onBack: (nav: StackNav) => { setDraft(null); nav.pop() },
+      footer: (
+        <div className="flex gap-1 bg-themewhite rounded-2xl px-1.5 py-1.5">
+          <ActionButton icon={Crop} label="Auto-detect" variant="default" onClick={() => draft && setDraft({ ...draft, quad: detectDocumentQuad(draft.src) })} />
+        </div>
+      ),
+      rightFooter: (
+        <div className="bg-themewhite rounded-2xl px-1.5 py-1.5">
+          <PillButton icon={ArrowRight} iconSize={18} accent="info" onClick={toEnhance} label="Next" />
+        </div>
+      ),
+      render: () => draft ? <CropView draft={draft} onQuad={(quad) => setDraft({ ...draft, quad })} /> : null,
+    },
+    enhance: {
+      title: 'Enhance',
+      // Back (→ crop) keeps the draft, so the default pop is right.
+      rightFooter: (
+        <div className="bg-themewhite rounded-2xl px-1.5 py-1.5">
+          <PillButton icon={Check} iconSize={16} accent="success" onClick={commitPage} label={draft?.id ? 'Done' : 'Add page'} />
+        </div>
+      ),
+      render: () => draft?.previewBase ? <EnhanceView draft={draft} onFilter={(filter) => setDraft({ ...draft, filter })} /> : null,
+    },
+  }
+
+  return (
+    <OverlayStack
+      isOpen={isOpen}
+      onClose={onClose}
+      containerRef={containerRef}
+      navRef={navRef}
+      initial={{ key: 'review' }}
+      screens={screens}
+      maxWidth={400}
+      previewMaxHeight="62dvh"
+    />
   )
 }
 

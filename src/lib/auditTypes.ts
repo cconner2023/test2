@@ -46,28 +46,34 @@ export type AuditEventType =
   | 'item.assigned'
   | 'item.edited'
   | 'item.deleted'
-  // property faults — a fault can belong to ANY property item (vehicle 5988
-  // faults, a broken med fridge, an unserviceable monitor). Append-only:
-  // correcting never removes the opened event, so the full found→fixed history
-  // stays in the item timeline. Free-text lives in the encrypted payload.
+  // property faults — LEGACY standalone fault events (pre-2026-06-28). Faults are
+  // now bundled INTO the pmcs.clear that found/corrected them (see pmcs.clear
+  // below + lib/pmcsFold); these two types are no longer emitted but still read
+  // for open-fault fold + history of older data. Free-text was encrypted.
   //  opened:    { description }
   //  corrected: { corrects, note? }   // `corrects` = the fault.opened event id
   | 'fault.opened'
   | 'fault.corrected'
-  // property PMCS — a preventive-maintenance check was performed. The standard
-  // intake captures readings in the (encrypted) payload; faults found during the
-  // same check are separate fault.opened events. Logged so every PMCS leaves a
-  // paper-trail entry (proof the subject was inspected on this date).
-  //  payload: { mileage?, fuelLevel?, operator?, mechanic?, doc? }  — vehicle
-  //           intake readings + who did it: `operator` (the soldier who performed
-  //           the check, picked from the clinic roster) + `mechanic` (optional
-  //           free-text name of who serviced it). No PHI (operational names only).
-  //           Optionally an attached 5988E worksheet. `doc` = { path, key, mime?,
-  //           name? }: the worksheet is encrypted client-side into the
-  //           message-attachments bucket (random AES key) and the decryption key
-  //           rides inside this (clinic-key-encrypted) payload — server never
-  //           sees the file plaintext.
-  //  payload = null                     — clean check on a non-vehicle item, no doc.
+  // property PMCS — a preventive-maintenance check, recorded as ONE event that
+  // states its whole outcome. The (encrypted) payload carries the readings AND the
+  // faults this check found/corrected, so one row = one check (no separate fault
+  // rows). Open faults fold across checks: a faultsCorrected id closes an earlier
+  // faultsOpened (or a legacy fault.opened) — see lib/pmcsFold.
+  //  payload: { mileage?, fuelLevel?, operator?, mechanic?, doc?,
+  //             faultsOpened?, faultsCorrected? }
+  //    · mileage/fuelLevel — vehicle intake readings.
+  //    · operator (soldier from the clinic roster who performed it) + mechanic
+  //      (optional free-text name of who serviced it). No PHI (operational names).
+  //    · doc = { path, key, mime?, name? } — an attached 5988E worksheet, encrypted
+  //      client-side into the message-attachments bucket (random AES key); the
+  //      decryption key rides inside this (clinic-key-encrypted) payload, so the
+  //      server never sees the file plaintext.
+  //    · faultsOpened = [{ id, description }] — faults FOUND this check (id is a
+  //      client uuid so a later check can correct it). Equipment text, no PHI.
+  //    · faultsCorrected = [{ id, description, note? }] — faults CLOSED this check
+  //      (id = the faultsOpened/legacy-fault.opened id; description denormalized).
+  //  payload = null  — a truly empty clean check (no readings, faults or doc) on a
+  //           non-vehicle item; stays spine-only so it never defers on a missing key.
   | 'pmcs.clear'
   // property DISPATCH — a vehicle (kind='vehicle' location) was put on dispatch
   // (DA 5982/5987 motor-equipment dispatch). subjectType is ALWAYS 'location'

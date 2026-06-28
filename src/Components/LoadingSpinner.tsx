@@ -1,7 +1,8 @@
 import { memo } from 'react'
+import { HudLoader } from './HudLoader'
 
 interface LoadingSpinnerProps {
-  /** 'sm' = 20px, 'md' = 32px, 'lg' = 64px */
+  /** 'sm' = 28px, 'md' = 44px, 'lg' = 72px */
   size?: 'sm' | 'md' | 'lg'
   /** Optional label shown below the spinner */
   label?: string
@@ -9,20 +10,15 @@ interface LoadingSpinnerProps {
   className?: string
 }
 
-const sizes = { sm: 'w-5 h-5', md: 'w-8 h-8', lg: 'w-16 h-16' }
+// HUD loader needs room to read — bump the legacy 20/32/64 px floors slightly.
+const sizes = { sm: 28, md: 44, lg: 72 }
 
-/** Pulsing Star of Life — shared loading indicator. Stands still and pulses
- *  (not spins); rotation is wrong for a fixed-orientation medical symbol. */
+/** Shared loading indicator — the sci-fi HUD loader (Star of Life at center).
+ *  Stands still and breathes (no spin on the mark); the orbits/sweeps rotate. */
 export const LoadingSpinner = memo(function LoadingSpinner({ size = 'md', label, className = '' }: LoadingSpinnerProps) {
   return (
     <div className={`flex flex-col items-center justify-center ${className}`}>
-      <svg className={`${sizes[size]} sol-breathe`} viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <g transform="translate(20,20)">
-          <rect x="-3" y="-11" width="6" height="22" rx="1.5" fill="currentColor" />
-          <rect x="-3" y="-11" width="6" height="22" rx="1.5" fill="currentColor" transform="rotate(60)" />
-          <rect x="-3" y="-11" width="6" height="22" rx="1.5" fill="currentColor" transform="rotate(120)" />
-        </g>
-      </svg>
+      <HudLoader size={sizes[size]} />
       {label && <p className="mt-2 text-[10pt] text-tertiary">{label}</p>}
     </div>
   )

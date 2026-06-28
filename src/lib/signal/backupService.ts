@@ -552,6 +552,27 @@ async function doCreateBackup(userId: string): Promise<boolean> {
   }
 }
 
+/**
+ * DEVICE-HANDOFF (Option A) — read-only gather of this device's decrypted history
+ * (messages + both tombstone sets) in the same shape `doCreateBackup` serializes,
+ * so an existing unlocked device can hand it to a newly-provisioning one
+ * (src/lib/deviceHandoff.ts). The linkee re-applies it via the normal restore path
+ * (P3). No encryption, no upload, no IDB writes, no `_restoreCompleted` gate touch.
+ */
+export async function exportHistoryForHandoff(): Promise<{
+  messages: StoredMessage[]
+  tombstones: Record<string, string>
+  originTombstones: Record<string, string>
+}> {
+  let messages = await loadRawMessages()
+  if (messages.length > SIGNAL.BACKUP_MAX_MESSAGES) {
+    messages = messages.slice(0, SIGNAL.BACKUP_MAX_MESSAGES)
+  }
+  const tombstones = await getAllTombstones()
+  const originTombstones = await getAllOriginTombstones()
+  return { messages, tombstones, originTombstones }
+}
+
 /** Hard cap on restoreBackup wall-clock time. If any internal await hangs
  *  (network stall, wedged IDB transaction, never-resolving PBKDF2), the gate
  *  still opens after this so the device can back up new activity. */
@@ -801,6 +822,77 @@ export async function restoreBackup(userId: string): Promise<void> {
     createBackup(userId).catch(() => {})
     clearLegacyKeyFromIdb().catch(() => {})
   }
+}
+
+/**
+ * DEVICE-HANDOFF (Option A) — apply history handed off from an existing device
+ * (src/lib/deviceHandoff.ts) into this device's IDB. The bundle was sealed
+ * device→device, so no server backup key is involved — we apply the plaintext
+ * {messages, tombstones} directly.
+ *
+ * The apply logic is DELIBERATELY DUPLICATED from restoreBackup's apply block
+ * (lines ~736-807) rather than extracted, to keep the login-critical restoreBackup
+ * byte-for-byte untouched. KEEP THE TWO IN SYNC if the apply/routing logic changes:
+ * tombstones FIRST (so saveMessage guards fire), then messages with delete-pre-scan
+ * + calendar/overlay/feature routing, reactions skipped, read-state preserved.
+ * Does NOT touch the _restoreCompleted gate (restoreBackup at recovery login already
+ * opened it). Returns the number of messages applied.
+ */
+export async function applyHistoryFromHandoff(
+  userId: string,
+  history: { messages: StoredMessage[]; tombstones: Record<string, string>; originTombstones: Record<string, string> }
+): Promise<number> {
+  // Tombstones first so the saveMessage tombstone guards fire correctly.
+  for (const [conversationKey, deletedAt] of Object.entries(history.tombstones)) {
+    await saveTombstone(conversationKey, deletedAt)
+  }
+  const byDeletedAt = new Map<string, string[]>()
+  for (const [originId, deletedAt] of Object.entries(history.originTombstones)) {
+    const bucket = byDeletedAt.get(deletedAt) ?? []
+    bucket.push(originId)
+    byDeletedAt.set(deletedAt, bucket)
+  }
+  for (const [deletedAt, originIds] of byDeletedAt) {
+    await saveOriginTombstones(originIds, deletedAt)
+  }
+
+  // Pre-scan deletes so earlier create messages don't resurrect deleted entities.
+  const deletedEventIds = new Set<string>()
+  const deletedOverlayIds = new Set<string>()
+  const deletedFeatureKeys = new Set<string>()
+  for (const msg of history.messages) {
+    if (isCalendarEvent(msg.content) && msg.content.action === 'delete') {
+      deletedEventIds.add(msg.content.data.id)
+    } else if (isMapOverlay(msg.content) && msg.content.action === 'delete') {
+      deletedOverlayIds.add(msg.content.data.id)
+    } else if (isMapFeature(msg.content) && msg.content.action === 'delete') {
+      deletedFeatureKeys.add(`${msg.content.data.overlay_id}::${msg.content.data.feature.id}`)
+    }
+  }
+
+  let applied = 0
+  for (const msg of history.messages) {
+    if (msg.content?.type === 'reaction' || msg.plaintext === '[reaction]') continue
+    await saveMessage(msg, userId, { preserveReadAt: true })
+    if (isCalendarEvent(msg.content)) {
+      if (msg.content.action === 'delete' || !deletedEventIds.has(msg.content.data.id)) {
+        routeCalendarEvent(msg.content)
+      }
+    } else if (isMapOverlay(msg.content)) {
+      if (msg.content.action === 'delete' || !deletedOverlayIds.has(msg.content.data.id)) {
+        await routeMapOverlay(msg.content).catch(() => {})
+      }
+    } else if (isMapFeature(msg.content)) {
+      const key = `${msg.content.data.overlay_id}::${msg.content.data.feature.id}`
+      if (msg.content.action === 'delete' || !deletedFeatureKeys.has(key)) {
+        await routeMapFeature(msg.content).catch(() => {})
+      }
+    }
+    applied++
+  }
+  if (applied > 0) window.dispatchEvent(new CustomEvent('backup-restored'))
+  logger.info(`Applied ${applied} messages from device handoff`)
+  return applied
 }
 
 /** Delete the backup row for a user. */

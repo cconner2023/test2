@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "tunnel": "node scripts/tunnel.mjs",
+    "kill-tunnel": "node scripts/kill-tunnel.mjs",
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",

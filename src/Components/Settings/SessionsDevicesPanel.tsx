@@ -42,6 +42,8 @@ export function SessionsDevicesPanel() {
 
   const [addPhase, setAddPhase] = useState<'idle' | 'scanning' | 'confirm' | 'sending'>('idle')
   const [pendingChannelId, setPendingChannelId] = useState<string | null>(null)
+  // Linkee's ephemeral handoff public key, parsed from the QR alongside the channel.
+  const [pendingLinkeePub, setPendingLinkeePub] = useState<string | null>(null)
   const qrVideoRef = useRef<HTMLVideoElement>(null)
 
   // Clear status banner after a delay
@@ -134,8 +136,17 @@ export function SessionsDevicesPanel() {
   useEffect(() => {
     if (!qrScanResult || addPhase !== 'scanning') return
     const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-    if (uuidPattern.test(qrScanResult.trim())) {
-      setPendingChannelId(qrScanResult.trim())
+    // Device-link QR payload (Option A): { v, c: channelId, k: linkee handoff pubkey }.
+    let channel: string | null = null
+    let linkeePub: string | null = null
+    try {
+      const parsed = JSON.parse(qrScanResult.trim()) as { c?: unknown; k?: unknown }
+      if (typeof parsed.c === 'string') channel = parsed.c
+      if (typeof parsed.k === 'string') linkeePub = parsed.k
+    } catch { /* not JSON — treat as invalid below */ }
+    if (channel && uuidPattern.test(channel)) {
+      setPendingChannelId(channel)
+      setPendingLinkeePub(linkeePub)
       setAddPhase('confirm')
     } else {
       setStatus({ type: 'error', message: 'Invalid QR code' })
@@ -149,6 +160,7 @@ export function SessionsDevicesPanel() {
       setStatus({ type: 'success', message: 'Device linked successfully' })
       setAddPhase('idle')
       setPendingChannelId(null)
+      setPendingLinkeePub(null)
       qrClearResult()
     }
   }, [linkSent, qrClearResult])
@@ -158,6 +170,7 @@ export function SessionsDevicesPanel() {
       setStatus({ type: 'error', message: broadcastError })
       setAddPhase('idle')
       setPendingChannelId(null)
+      setPendingLinkeePub(null)
       qrClearResult()
     }
   }, [broadcastError, qrClearResult])
@@ -385,9 +398,9 @@ export function SessionsDevicesPanel() {
         onConfirm={async () => {
           if (!pendingChannelId) return
           setAddPhase('sending')
-          await broadcast(pendingChannelId)
+          await broadcast(pendingChannelId, pendingLinkeePub ?? undefined)
         }}
-        onCancel={() => { setAddPhase('idle'); setPendingChannelId(null); qrClearResult() }}
+        onCancel={() => { setAddPhase('idle'); setPendingChannelId(null); setPendingLinkeePub(null); qrClearResult() }}
       />
 
       {/* Confirm remove dialog */}
