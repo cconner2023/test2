@@ -10,11 +10,7 @@
   <meta name="format-detection" content="telephone=no">
 
   <!-- CSP injected at build time by vite plugin (not in dev — breaks HMR) -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-j9DoeHZSXlhJ9lpzMK2WFvon0udjS8W42AOGiZVlkMY=' 'sha256-zNkmFttR0jUmn6nILpQIycdAAOZo798bcm1D3XpKmAE='; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://*.supabase.co https://*.tile.openstreetmap.org https://*.tile.opentopomap.org https://server.arcgisonline.com https://basemap.nationalmap.gov; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://nominatim.openstreetmap.org https://*.googleapis.com https://*.firebaseio.com https://*.firebaseinstallations.googleapis.com wss://*.firebaseio.com https://fcmregistrations.googleapis.com; media-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self';">
-
-  <!-- Per-theme --color-* vars for the splash, extracted from App.css by the
-       vite plugin so the pre-React splash matches the user's selected theme. -->
-  <style id="splash-theme-vars">[data-theme="default-light"]{--color-themeblue1:rgba(129,161,181,1);--color-themeblue2:rgba(21, 142, 172,1);--color-themeblue3:rgba(0,66,92,1);--color-themewhite2:rgba(240,242,245,1)}[data-theme="default-dark"]{--color-themeblue1:rgba(129, 161, 181, 1);--color-themeblue2:rgba(21, 142, 172, 1);--color-themeblue3:rgba(0, 66, 92, 1);--color-themewhite2:rgba(25, 35, 45, 1)}[data-theme="ironclad-dark"]{--color-themeblue1:rgba(250, 189, 47, 1);--color-themeblue2:rgba(254, 128, 25, 1);--color-themeblue3:rgba(214, 93, 14, 1);--color-themewhite2:rgba(40, 40, 40, 1)}[data-theme="ironclad-light"]{--color-themeblue1:rgba(181, 118, 20, 1);--color-themeblue2:rgba(175, 58, 3, 1);--color-themeblue3:rgba(146, 95, 10, 1);--color-themewhite2:rgba(246, 240, 228, 1)}[data-theme="forest-dark"]{--color-themeblue1:rgba(94, 196, 160, 1);--color-themeblue2:rgba(52, 162, 124, 1);--color-themeblue3:rgba(24, 98, 74, 1);--color-themewhite2:rgba(22, 24, 22, 1)}[data-theme="forest-light"]{--color-themeblue1:rgba(40, 146, 112, 1);--color-themeblue2:rgba(22, 110, 82, 1);--color-themeblue3:rgba(10, 68, 50, 1);--color-themewhite2:rgba(242, 243, 240, 1)}[data-theme="void-dark"]{--color-themeblue1:rgba(0, 212, 232, 1);--color-themeblue2:rgba(0, 164, 190, 1);--color-themeblue3:rgba(0, 88, 118, 1);--color-themewhite2:rgba(16, 18, 22, 1)}[data-theme="void-light"]{--color-themeblue1:rgba(0, 152, 180, 1);--color-themeblue2:rgba(0, 110, 148, 1);--color-themeblue3:rgba(0, 60, 96, 1);--color-themewhite2:rgba(232, 234, 238, 1)}[data-theme="slipstream-dark"]{--color-themeblue1:rgba(136, 184, 172, 1);--color-themeblue2:rgba(84, 136, 124, 1);--color-themeblue3:rgba(36, 80, 72, 1);--color-themewhite2:rgba(20, 26, 32, 1)}[data-theme="slipstream-light"]{--color-themeblue1:rgba(76, 132, 120, 1);--color-themeblue2:rgba(48, 100, 88, 1);--color-themeblue3:rgba(20, 58, 50, 1);--color-themewhite2:rgba(236, 232, 222, 1)}[data-theme="urban-dark"]{--color-themeblue1:rgba(172, 136, 112, 1);--color-themeblue2:rgba(132, 100, 78, 1);--color-themeblue3:rgba(80, 56, 38, 1);--color-themewhite2:rgba(22, 20, 18, 1)}[data-theme="urban-light"]{--color-themeblue1:rgba(120, 92, 72, 1);--color-themeblue2:rgba(90, 66, 48, 1);--color-themeblue3:rgba(54, 36, 22, 1);--color-themewhite2:rgba(224, 218, 206, 1)}[data-theme="topo-dark"]{--color-themeblue1:rgba(204, 188, 112, 1);--color-themeblue2:rgba(164, 148, 76, 1);--color-themeblue3:rgba(96, 84, 36, 1);--color-themewhite2:rgba(20, 26, 16, 1)}[data-theme="topo-light"]{--color-themeblue1:rgba(132, 120, 56, 1);--color-themeblue2:rgba(96, 88, 36, 1);--color-themeblue3:rgba(58, 52, 18, 1);--color-themewhite2:rgba(231, 222, 196, 1)}</style>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-w3h91bgBxa2C4V3QOgdkIjvuwXPu5vaDDQDIyEA09O0=' 'sha256-8AobUvqqOouaUT/ze6K32o/93A4n0ZGmCE4NIgKlF6U='; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://*.supabase.co https://*.tile.openstreetmap.org https://*.tile.opentopomap.org https://server.arcgisonline.com https://basemap.nationalmap.gov; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://nominatim.openstreetmap.org https://*.googleapis.com https://*.firebaseio.com https://*.firebaseinstallations.googleapis.com wss://*.firebaseio.com https://fcmregistrations.googleapis.com; media-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self';">
 
   <title>V2.6.9</title>
 
@@ -42,9 +38,9 @@
   <meta name="msapplication-starturl" content="/test2/">
   <meta name="msapplication-config" content="/test2/browserconfig.xml">
 
-  <script type="module" crossorigin src="/test2/assets/main-DjSgGoE7.js"></script>
+  <script type="module" crossorigin src="/test2/assets/main-ByD78yjJ.js"></script>
   <link rel="modulepreload" crossorigin href="/test2/assets/outsideSeal-Ck8Khe-n.js">
-  <link rel="stylesheet" crossorigin href="/test2/assets/main-F2-rvaSA.css">
+  <link rel="stylesheet" crossorigin href="/test2/assets/main-CzrCqp85.css">
 <link rel="manifest" href="/test2/manifest.webmanifest"></head>
 
 <body>
@@ -56,10 +52,10 @@
       padding: 0
     }
 
-    /* Splash colors track the SELECTED theme via --color-* vars (made available
-       at first paint by the <style id="splash-theme-vars"> the vite plugin
-       extracts from App.css + the inline script setting data-theme). rgba
-       fallbacks = default-light, used only if a var is somehow missing. */
+    /* Splash colors are baked binary light/dark (default-* theme values) so the
+       pre-React splash paints correctly on the very first frame — no dependency
+       on build-injected theme vars (that caused a white flash on cold start).
+       Dark is applied via the .splash-dark class set by the inline script. */
     .splash {
       position: fixed;
       inset: 0;
@@ -68,9 +64,13 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      background: var(--color-themewhite2, rgba(240, 242, 245, 1));
+      background: rgba(240, 242, 245, 1);
       overflow: hidden;
       transition: opacity 0.5s ease-out
+    }
+
+    .splash.splash-dark {
+      background: rgba(25, 35, 45, 1)
     }
 
     .splash.splash-out {
@@ -84,7 +84,7 @@
       font-size: 18px;
       font-weight: 600;
       letter-spacing: 2px;
-      color: var(--color-themeblue3, rgba(0, 66, 92, 1))
+      color: rgba(0, 66, 92, 1)
     }
 
     .splash-bar-track {
@@ -99,7 +99,7 @@
     .splash-bar-fill {
       height: 100%;
       width: 30%;
-      background: var(--color-themeblue2, rgba(21, 142, 172, 1));
+      background: rgba(21, 142, 172, 1);
       border-radius: 2px;
       animation: splashPulse 1.2s ease-in-out infinite
     }
@@ -120,26 +120,27 @@
       }
     }
 
-    /* Dark-mode legacy text/track tweaks (HUD handles its own dark swap below). */
-    [data-theme$="-dark"] .splash-title { color: var(--color-themeblue1, rgba(129, 161, 181, 1)) }
-    [data-theme$="-dark"] .splash-bar-track { background: rgba(255, 255, 255, 0.15) }
-    [data-theme$="-dark"] .splash-subtitle { color: var(--color-themeblue1, rgba(129, 161, 181, 0.8)) }
+    /* Dark-mode text/track tweaks (applied via .splash-dark, set by inline script). */
+    .splash-dark .splash-title { color: rgba(129, 161, 181, 1) }
+    .splash-dark .splash-bar-track { background: rgba(255, 255, 255, 0.15) }
+    .splash-dark .splash-subtitle { color: rgba(129, 161, 181, 0.8) }
 
     /* ── HUD loader. Geometry + structural styles are injected from
-       src/lib/hudGeometry.ts; colors resolve theme vars here so the splash
-       matches the user's selected theme. ── */
+       src/lib/hudGeometry.ts; colors are baked binary light/dark here (the
+       themeblue1/2/3 values are identical across default light & dark — only
+       the star flips for contrast on the dark background). ── */
     .splash-hud { width: 150px; height: 150px; }
     @keyframes hudCW { to { transform: rotate(360deg); } }
     @keyframes hudCCW { to { transform: rotate(-360deg); } }
     @keyframes hudBreathe { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
     .splash-hud g.hud-spin,
     .splash-hud .hud-breathe { transform-box: view-box; transform-origin: 100px 100px; }
-    .splash-hud .hud-dim { stroke: var(--color-themeblue1, rgba(129, 161, 181, 1)); }
-    .splash-hud .hud-bri { stroke: var(--color-themeblue2, rgba(21, 142, 172, 1)); }
-    .splash-hud .hud-sweep { fill: var(--color-themeblue2, rgba(21, 142, 172, 1)); }
-    .splash-hud .hud-glow-stop { stop-color: var(--color-themeblue2, rgba(21, 142, 172, 1)); }
-    .splash-hud .hud-star { fill: var(--color-themeblue3, rgba(0, 66, 92, 1)); }
-    [data-theme$="-dark"] .splash-hud .hud-star { fill: var(--color-themeblue1, rgba(129, 161, 181, 1)); }
+    .splash-hud .hud-dim { stroke: rgba(129, 161, 181, 1); }
+    .splash-hud .hud-bri { stroke: rgba(21, 142, 172, 1); }
+    .splash-hud .hud-sweep { fill: rgba(21, 142, 172, 1); }
+    .splash-hud .hud-glow-stop { stop-color: rgba(21, 142, 172, 1); }
+    .splash-hud .hud-star { fill: rgba(0, 66, 92, 1); }
+    .splash-dark .splash-hud .hud-star { fill: rgba(129, 161, 181, 1); }
     .splash-hud .hud-breathe { animation: hudBreathe 1.2s ease-in-out infinite; }
     @media (prefers-reduced-motion: reduce) {
       .splash-hud g.hud-spin { animation: none !important; }
@@ -150,16 +151,17 @@
     <script>
       (function () {
         var t; try { t = localStorage.getItem('theme') } catch (e) { }
-        // Resolve to a full theme id (name-mode). Migrate legacy 'light'/'dark',
-        // fall back to default + system mode. Setting data-theme before the
-        // splash paints lets it use the selected theme's --color-* vars (the
-        // splash-theme-vars <style> the build injects provides them this early).
-        if (t === 'light') t = 'default-light';
-        else if (t === 'dark') t = 'default-dark';
-        if (!t || !/-(light|dark)$/.test(t)) {
-          t = window.matchMedia('(prefers-color-scheme:dark)').matches ? 'default-dark' : 'default-light';
-        }
-        document.documentElement.setAttribute('data-theme', t);
+        // Binary dark/light only — derive the mode from the stored theme id's
+        // suffix (e.g. 'ironclad-dark' -> dark), honor legacy 'light'/'dark',
+        // and fall back to system preference. Add .splash-dark so the baked
+        // dark colors paint on the very first frame (no build-injected vars).
+        var dark;
+        if (t === 'dark') dark = true;
+        else if (t === 'light') dark = false;
+        else if (/-dark$/.test(t)) dark = true;
+        else if (/-light$/.test(t)) dark = false;
+        else dark = window.matchMedia('(prefers-color-scheme:dark)').matches;
+        if (dark) document.getElementById('splash').classList.add('splash-dark');
         // Update reload: skipWaiting() stamps postUpdateNav; silent/non-optional
         // updates stamp updateReloadPending. Either way, surface it so the reload
         // reads as an intentional patch, not a glitch. The silent flag has no other
