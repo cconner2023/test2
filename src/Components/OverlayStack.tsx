@@ -56,10 +56,14 @@ interface OverlayStackProps {
   /** Override the z-tier (forwarded to the underlying PreviewOverlay) — bump above
    *  a host Sheet/portal when the stack is launched from inside one. */
   zIndex?: number
+  /** OPT-IN loading morph (forwarded to PreviewOverlay) — HUD puck grows into the
+   *  shell while the root screen's data loads. */
+  loading?: boolean
+  hudSize?: number
 }
 
 export function OverlayStack({
-  isOpen, onClose, initial, screens, containerRef, anchorRect = null, navRef, maxWidth, previewMaxHeight, zIndex,
+  isOpen, onClose, initial, screens, containerRef, anchorRect = null, navRef, maxWidth, previewMaxHeight, zIndex, loading, hudSize,
 }: OverlayStackProps) {
   const [stack, setStack] = useState<Frame[]>([{ key: initial.key, params: initial.params }])
   const [dir, setDir] = useState<1 | -1>(1)
@@ -123,6 +127,8 @@ export function OverlayStack({
         maxWidth={screen.maxWidth ?? maxWidth}
         previewMaxHeight={screen.previewMaxHeight ?? previewMaxHeight}
         zIndex={zIndex}
+        loading={loading}
+        hudSize={hudSize}
       >
         <StackBody screenKey={top.key} dir={dir}>
           {screen.render(top.params, nav)}

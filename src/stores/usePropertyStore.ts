@@ -36,6 +36,9 @@ import {
   signOutItems,
   signInReceipt,
   fetchClinicLedger,
+  stageTurnIn as stageTurnInSvc,
+  verifyTurnIn as verifyTurnInSvc,
+  unstageTurnInItem as unstageTurnInItemSvc,
 } from '../lib/propertyService'
 import type { CustodyLedgerEntry } from '../Types/PropertyTypes'
 import type { PmcsReadings, DispatchOpenInput, DispatchCloseInput } from '../lib/propertyService'
@@ -81,7 +84,7 @@ interface PropertyState {
   setTransitionState: (state: 'idle' | 'zooming-in' | 'zooming-out') => void
 
   init: () => Promise<void>
-  addItem: (data: Omit<PropertyItem, 'id' | 'created_at' | 'updated_at' | 'signed_out_external' | 'owner_user_id' | 'quantity_authorized'> & { quantity_authorized?: number | null }) => Promise<LocalPropertyItem | null>
+  addItem: (data: Omit<PropertyItem, 'id' | 'created_at' | 'updated_at' | 'signed_out_external' | 'owner_user_id' | 'quantity_authorized' | 'turned_in_at'> & { quantity_authorized?: number | null }) => Promise<LocalPropertyItem | null>
   editItem: (id: string, updates: Partial<PropertyItem>, opts?: { skipAudit?: boolean }) => Promise<void>
   removeItem: (id: string) => Promise<void>
   addLocation: (data: Omit<PropertyLocation, 'id' | 'created_at' | 'updated_at'>) => Promise<{ success: boolean; location?: LocalPropertyLocation }>
@@ -99,6 +102,12 @@ interface PropertyState {
   /** Sign a hand receipt back in — clears each item's custodian. `toLocationId`
    *  re-places the returned items at the chosen zone (absent = leave as-is). */
   signIn: (handReceiptId: string, fromHolderId: string | null, itemIds: string[], toLocationId?: string | null) => Promise<boolean>
+  /** Stage items for turn-in (rolling pending bucket; reversible). Returns the doc id. */
+  stageTurnIn: (itemIds: string[], notes?: string | null) => Promise<string | null>
+  /** Verify a staged turn-in (depot accepted) → the items leave the active book. `itemIds` = a subset. */
+  verifyTurnIn: (turnInDocId: string, itemIds?: string[]) => Promise<boolean>
+  /** Drop one item from a pending turn-in before the depot run. */
+  unstageTurnInItem: (turnInDocId: string, itemId: string) => Promise<boolean>
   /** Clinic-wide custody ledger (newest first) for the accountability surface. */
   fetchLedger: () => Promise<CustodyLedgerEntry[]>
   splitItem: (itemId: string, qty: number, targetLocationId: string | null) => Promise<void>
@@ -518,6 +527,45 @@ export const usePropertyStore = create<PropertyState>((set, get) => ({
     const { clinicId } = get()
     if (!clinicId) return []
     return fetchClinicLedger(clinicId)
+  },
+
+  stageTurnIn: async (itemIds, notes) => {
+    const user = useAuthStore.getState().user
+    const { clinicId } = get()
+    if (!user || !clinicId) return null
+
+    const result = await stageTurnInSvc({ itemIds, clinicId, fromHolderId: user.id, notes: notes ?? null }, user.id)
+    if (!result.success) return null
+
+    invalidate('properties')
+    await get().refreshItems()
+    return result.turnInDocId
+  },
+
+  verifyTurnIn: async (turnInDocId, itemIds) => {
+    const user = useAuthStore.getState().user
+    const { clinicId } = get()
+    if (!user || !clinicId) return false
+
+    const result = await verifyTurnInSvc(turnInDocId, clinicId, user.id, itemIds)
+    if (!result.success) return false
+
+    invalidate('properties')
+    await get().refreshItems()
+    return true
+  },
+
+  unstageTurnInItem: async (turnInDocId, itemId) => {
+    const user = useAuthStore.getState().user
+    const { clinicId } = get()
+    if (!user || !clinicId) return false
+
+    const result = await unstageTurnInItemSvc(turnInDocId, itemId, clinicId, user.id)
+    if (!result.success) return false
+
+    invalidate('properties')
+    await get().refreshItems()
+    return true
   },
 
   splitItem: async (itemId, qty, targetLocationId) => {

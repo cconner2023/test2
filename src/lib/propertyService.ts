@@ -72,6 +72,8 @@ function localItem(item: PropertyItem, syncStatus: SyncStatus = 'pending'): Loca
     owner_user_id: item.owner_user_id ?? null,
     // Coerce legacy IDB rows cached before quantity_authorized existed. null = not tracked.
     quantity_authorized: item.quantity_authorized ?? null,
+    // Coerce legacy IDB rows cached before turned_in_at existed. null = active/on the books.
+    turned_in_at: item.turned_in_at ?? null,
     _sync_status: syncStatus,
     _sync_retry_count: 0,
     _last_sync_error: null,
@@ -202,7 +204,7 @@ export async function fetchClinicItems(clinicId: string): Promise<LocalPropertyI
 }
 
 export async function createItem(
-  data: Omit<PropertyItem, 'id' | 'created_at' | 'updated_at' | 'signed_out_external' | 'owner_user_id' | 'quantity_authorized'>
+  data: Omit<PropertyItem, 'id' | 'created_at' | 'updated_at' | 'signed_out_external' | 'owner_user_id' | 'quantity_authorized' | 'turned_in_at'>
     & { quantity_authorized?: number | null },
   userId: string,
 ): Promise<ServiceResult<{ item: LocalPropertyItem }>> {
@@ -217,6 +219,7 @@ export async function createItem(
       signed_out_external: false,
       owner_user_id: null,
       quantity_authorized: data.quantity_authorized ?? null,
+      turned_in_at: null,
       id: crypto.randomUUID(),
       created_at: now,
       updated_at: now,
@@ -2099,6 +2102,26 @@ async function applyReturn(
   }
 }
 
+/** Apply a VERIFIED turn-in of `qty` of `item` — terminal (no return path, unlike
+ *  applyReturn). Serialized unit → leaves the active book (turned_in_at set; custody
+ *  flags cleared — it's gone). Non-serialized stack → a partial turn-in PERMANENTLY
+ *  decrements on-hand (the stack stays active with the remainder); a full turn-in sets
+ *  turned_in_at and LEAVES quantity as the manifest count (no nuke — quantity records
+ *  how many were turned in). turned_in_at drops it from the active book + anchors the
+ *  ~180d reap. */
+async function applyTurnIn(item: LocalPropertyItem, qty: number, userId: string, at: string): Promise<void> {
+  if (item.is_serialized) {
+    await updateItem(item.id, { turned_in_at: at, current_holder_id: null, signed_out_external: false }, userId, { skipAudit: true })
+    return
+  }
+  const remaining = item.quantity - Math.max(1, qty)
+  if (remaining <= 0) {
+    await updateItem(item.id, { turned_in_at: at }, userId, { skipAudit: true }) // whole stack out; keep qty as manifest
+  } else {
+    await updateItem(item.id, { quantity: remaining }, userId, { skipAudit: true }) // partial — stack stays active
+  }
+}
+
 /** The signed-out quantity a receipt's sign_down row recorded for one item (the
  *  amount to put back on return / when the item is dropped from the receipt). */
 function signedOutQty(rows: LocalCustodyEntry[], itemId: string): number {
@@ -2120,6 +2143,59 @@ function netOutstandingQty(rows: LocalCustodyEntry[], itemId: string): number {
     else if (r.action === 'sign_up') net -= Math.max(1, r.quantity_delta ?? 1)
   }
   return Math.max(0, net)
+}
+
+// ── SKO subtree = the accountability atom (settles the DA 2062 parent_id question;
+//    see .claude/Projects/_ideas/accountability-reorder-loop.md DECISION 2026-06-28) ──
+//
+// A custody event (sign-out / turn-in) on a parent end-item CASCADES to its entire
+// component subtree — "components ride their parent" is now true in DATA, not just a
+// SignOutForm UI claim. Acting on a single component WITHOUT its parent first DETACHES
+// it from the SKO (parent_item_id → null) so the kit reads a shortage (computeShortages
+// = authorized − present). owner_user_id + signed_out_external inherit from the parent;
+// location cascades only on a "real" sign-out (moveToZone).
+
+/** Expand a selection to its SKO subtree atom(s): each id PLUS every descendant via
+ *  parent_item_id, deduped, parent-before-child order (so the 2062 lists the kit then
+ *  its contents). */
+function expandSubtrees(rootIds: string[], allItems: LocalPropertyItem[]): string[] {
+  const childrenByParent = new Map<string, LocalPropertyItem[]>()
+  for (const i of allItems) {
+    if (!i.parent_item_id) continue
+    const arr = childrenByParent.get(i.parent_item_id)
+    if (arr) arr.push(i)
+    else childrenByParent.set(i.parent_item_id, [i])
+  }
+  const out: string[] = []
+  const seen = new Set<string>()
+  const visit = (id: string) => {
+    if (seen.has(id)) return
+    seen.add(id)
+    out.push(id)
+    for (const c of childrenByParent.get(id) ?? []) visit(c.id)
+  }
+  for (const id of rootIds) visit(id)
+  return out
+}
+
+/** Auto-detach: any selected component whose SKO parent is NOT also in the selection
+ *  leaves its kit (parent_item_id → null) before being actioned — the gap becomes an
+ *  open shortage line. parent_item_id is audited, so this logs item.edited as the
+ *  accountability event. Patches `itemsById` in place so the caller's later expansion
+ *  sees the detached state (won't re-pull the ex-parent's other children). */
+async function detachLooseComponents(
+  selectedIds: string[],
+  itemsById: Map<string, LocalPropertyItem>,
+  userId: string,
+): Promise<void> {
+  const selected = new Set(selectedIds)
+  for (const id of selectedIds) {
+    const it = itemsById.get(id)
+    if (it?.parent_item_id && !selected.has(it.parent_item_id)) {
+      await updateItem(id, { parent_item_id: null }, userId)
+      itemsById.set(id, { ...it, parent_item_id: null })
+    }
+  }
 }
 
 /**
@@ -2158,6 +2234,14 @@ export async function signOutItems(
       : { signed_out_external: false, current_holder_id: toHolderId }
     const itemsById = new Map((await getLocalPropertyItems(clinicId)).map((i) => [i.id, i]))
 
+    // SKO subtree atom: a selected component without its parent detaches first (kit
+    // shows a shortage), then each selection expands to its whole component subtree —
+    // signing out a kit takes its contents. The cascaded children ride the SAME
+    // receipt, so sign-in / delete / reprint cover them with no extra plumbing.
+    await detachLooseComponents(itemIds, itemsById, userId)
+    const originallySelected = new Set(itemIds)
+    const expandedIds = expandSubtrees(itemIds, [...itemsById.values()])
+
     // "Real" sign-out (moveToZone) relocates each item to the recipient's member-zone
     // (property_locations.holder_user_id === toHolderId). External recipients have no
     // member-zone, so the move is internal-only; a sign-over leaves location untouched.
@@ -2167,13 +2251,23 @@ export async function signOutItems(
       memberZoneId = locs.find((l) => l.holder_user_id === toHolderId && !l.deleted_at)?.id ?? null
     }
 
-    for (const itemId of itemIds) {
+    for (const itemId of expandedIds) {
       const item = itemsById.get(itemId)
       if (!item) return fail('Item not found')
+      const cascaded = !originallySelected.has(itemId)
       // On-hand caps the signed-out count for a stack; serialized is always 1.
       const available = item.is_serialized ? 1 : item.quantity
-      if (available <= 0) return fail(`${item.name} has none on hand`)
-      const signQty = item.is_serialized ? 1 : Math.max(1, Math.min(quantities?.[itemId] ?? 1, available))
+      if (available <= 0) {
+        if (cascaded) continue // empty component slot in the kit — nothing to ride along
+        return fail(`${item.name} has none on hand`)
+      }
+      // A cascaded component rides WHOLE with its kit (full on-hand); a directly
+      // selected stack honors the picker quantity.
+      const signQty = item.is_serialized
+        ? 1
+        : cascaded
+          ? available
+          : Math.max(1, Math.min(quantities?.[itemId] ?? 1, available))
 
       // One row against the STACK id (never a child): the receipt + the dual-written
       // item.transferred timeline both hang off the canonical item, so its history
@@ -2252,6 +2346,194 @@ export async function signInReceipt(
       if (item) await applyReturn(item, qty, userId, toLocationId)
     }
     return succeed()
+  } catch (err) {
+    return fail(String(err))
+  }
+}
+
+// ── DA 3161 turn-in ──────────────────────────────────────────
+//
+// A turn-in is the DA 3161 "Turn-In" mode (back to supply). It rides custody_ledger
+// exactly like the 2062 — `turn_in` rows grouped by a doc id (the hand_receipt_id
+// column reused as a generic document id; the 2062 fold ignores non-sign_down rows so
+// the two never mix). Unlike a sign-out, turn-in is TERMINAL: applyTurnIn drops the
+// item from the active book (turned_in_at) or permanently decrements a partial stack —
+// there is no sign-back-in. The SKO subtree atom applies (cascade + auto-detach), so
+// turning in a kit takes its contents and turning in a loose component leaves a
+// shortage. Staging (the rolling pending-turn-in bucket) + the 3161 PDF + the ~180d
+// reap are separate layers; this is the verified-completion write.
+
+export interface TurnInParams {
+  itemIds: string[]
+  clinicId: string
+  /** Who is turning the property in (the holder/HRH); recorded on the ledger row. */
+  fromHolderId: string | null
+  notes?: string | null
+}
+
+// Turn-in is FULL-LINE (the whole item/stack) — there is no row-level "verified" flag
+// on custody_ledger, so a partial that left a non-turned_in item in a doc would break
+// open-doc detection + risk a double-apply on verify. Whole-line keeps turned_in_at a
+// clean per-item "verified" marker. (Partial-stack turn-in is a later refinement.)
+
+/** Write `turn_in` rows for a selection into `docId` — STAGE only, no apply. Applies the
+ *  SKO subtree atom (detach loose components → shortage; expand each selection to its
+ *  subtree). Skips ids in `skipIds` (already staged in this doc). `itemsById` is mutated
+ *  by detach. */
+async function writeTurnInRows(
+  docId: string,
+  itemIds: string[],
+  clinicId: string,
+  fromHolderId: string | null,
+  rowNotes: string | null,
+  itemsById: Map<string, LocalPropertyItem>,
+  userId: string,
+  skipIds: Set<string>,
+): Promise<ServiceResult> {
+  await detachLooseComponents(itemIds, itemsById, userId)
+  const originallySelected = new Set(itemIds)
+  for (const itemId of expandSubtrees(itemIds, [...itemsById.values()])) {
+    if (skipIds.has(itemId)) continue
+    const item = itemsById.get(itemId)
+    if (!item) return fail('Item not found')
+    const cascaded = !originallySelected.has(itemId)
+    const qty = item.is_serialized ? 1 : item.quantity
+    if (qty <= 0) {
+      if (cascaded) continue // empty component slot — nothing to turn in
+      return fail(`${item.name} has none on hand`)
+    }
+    const ledgerResult = await recordLedgerEntry(
+      {
+        item_id: itemId,
+        clinic_id: clinicId,
+        hand_receipt_id: docId, // generic doc id (reused column; 2062 fold ignores turn_in rows)
+        action: 'turn_in',
+        quantity_delta: qty,
+        from_holder_id: fromHolderId,
+        to_holder_id: null, // back to supply — no member recipient
+        condition_code: item.condition_code, // carries serviceable/unserviceable for the 3161
+        sub_item_check: null,
+        notes: rowNotes,
+        recorded_by: userId,
+      },
+      userId,
+    )
+    if (!ledgerResult.success) return fail(ledgerResult.error)
+  }
+  return succeed()
+}
+
+/** Apply (verify) the staged turn_in rows of `docId`: for each still-active item, applyTurnIn
+ *  with the staged qty. `onlyItemIds` verifies a subset (independent sub-cluster runs). */
+async function applyTurnInDoc(
+  docId: string,
+  clinicId: string,
+  userId: string,
+  onlyItemIds?: Set<string>,
+): Promise<ServiceResult<{ verified: number }>> {
+  const rows = (await getLocalCustodyByReceipt(docId)).filter((r) => r.action === 'turn_in')
+  const itemsById = new Map((await getLocalPropertyItems(clinicId)).map((i) => [i.id, i]))
+  const at = new Date().toISOString()
+  let verified = 0
+  for (const row of rows) {
+    if (onlyItemIds && !onlyItemIds.has(row.item_id)) continue
+    const item = itemsById.get(row.item_id)
+    if (!item || item.turned_in_at) continue // gone or already verified
+    await applyTurnIn(item, Math.max(1, row.quantity_delta ?? 1), userId, at)
+    verified++
+  }
+  return succeed({ verified })
+}
+
+/** Find the clinic's OPEN turn-in accumulator doc — a turn_in doc with ≥1 item still
+ *  active (not yet verified). Staging appends to it ("bring everything on one trip");
+ *  null ⇒ none open, mint fresh. */
+async function findOpenTurnInDocId(
+  clinicId: string,
+  itemsById: Map<string, LocalPropertyItem>,
+): Promise<string | null> {
+  const byDoc = new Map<string, LocalCustodyEntry[]>()
+  for (const r of await getLocalCustodyByClinic(clinicId)) {
+    if (r.action !== 'turn_in' || !r.hand_receipt_id) continue
+    const arr = byDoc.get(r.hand_receipt_id) ?? []
+    arr.push(r)
+    byDoc.set(r.hand_receipt_id, arr)
+  }
+  for (const [docId, rows] of byDoc) {
+    if (rows.some((r) => { const it = itemsById.get(r.item_id); return it && !it.turned_in_at })) return docId
+  }
+  return null
+}
+
+/**
+ * STAGE items for turn-in (the rolling pending bucket). Appends turn_in rows to the
+ * clinic's open accumulator doc (one per depot trip; created on demand) WITHOUT applying
+ * — items stay on-hand + accountable, just earmarked, fully reversible
+ * (unstageTurnInItem). Cascades the SKO subtree + auto-detaches a loose component.
+ */
+export async function stageTurnIn(params: TurnInParams, userId: string): Promise<ServiceResult<{ turnInDocId: string }>> {
+  try {
+    const { itemIds, clinicId, fromHolderId, notes } = params
+    if (itemIds.length === 0) return fail('No items selected')
+    const itemsById = new Map((await getLocalPropertyItems(clinicId)).map((i) => [i.id, i]))
+    const docId = (await findOpenTurnInDocId(clinicId, itemsById)) ?? crypto.randomUUID()
+    // Skip ids already staged in this doc (re-stage idempotent; cascade overlap can't dup).
+    const already = new Set((await getLocalCustodyByReceipt(docId)).filter((r) => r.action === 'turn_in').map((r) => r.item_id))
+    const result = await writeTurnInRows(docId, itemIds, clinicId, fromHolderId, notes?.trim() || null, itemsById, userId, already)
+    if (!result.success) return fail(result.error)
+    return succeed({ turnInDocId: docId })
+  } catch (err) {
+    return fail(String(err))
+  }
+}
+
+/** VERIFY a staged turn-in (the depot accepted it): apply the doc's staged items so they
+ *  leave the active book. `itemIds` verifies a subset (independent sub-cluster runs). */
+export async function verifyTurnIn(
+  turnInDocId: string,
+  clinicId: string,
+  userId: string,
+  itemIds?: string[],
+): Promise<ServiceResult<{ verified: number }>> {
+  try {
+    return await applyTurnInDoc(turnInDocId, clinicId, userId, itemIds ? new Set(itemIds) : undefined)
+  } catch (err) {
+    return fail(String(err))
+  }
+}
+
+/** UNSTAGE one item from a pending turn-in (changed your mind before the depot run): purge
+ *  its staged turn_in rows. The item is untouched (never applied) → it just drops out of
+ *  the pending bucket. */
+export async function unstageTurnInItem(
+  turnInDocId: string,
+  itemId: string,
+  clinicId: string,
+  userId: string,
+): Promise<ServiceResult> {
+  try {
+    const rows = (await getLocalCustodyByReceipt(turnInDocId)).filter((r) => r.action === 'turn_in' && r.item_id === itemId)
+    if (rows.length === 0) return succeed()
+    await purgeCustodyRows(rows, clinicId, userId, true)
+    await immediateSync(userId)
+    return succeed()
+  } catch (err) {
+    return fail(String(err))
+  }
+}
+
+/** One-shot turn-in (turn in NOW, no staging): fresh doc, write rows, verify immediately. */
+export async function completeTurnIn(params: TurnInParams, userId: string): Promise<ServiceResult<{ turnInDocId: string }>> {
+  try {
+    const { itemIds, clinicId, fromHolderId, notes } = params
+    if (itemIds.length === 0) return fail('No items selected')
+    const turnInDocId = crypto.randomUUID()
+    const itemsById = new Map((await getLocalPropertyItems(clinicId)).map((i) => [i.id, i]))
+    const written = await writeTurnInRows(turnInDocId, itemIds, clinicId, fromHolderId, notes?.trim() || null, itemsById, userId, new Set())
+    if (!written.success) return fail(written.error)
+    const verify = await applyTurnInDoc(turnInDocId, clinicId, userId)
+    if (!verify.success) return fail(verify.error)
+    return succeed({ turnInDocId })
   } catch (err) {
     return fail(String(err))
   }
@@ -2356,13 +2638,22 @@ export async function addReceiptItems(
       : { signed_out_external: false, current_holder_id: toHolderId }
     const itemsById = new Map((await getLocalPropertyItems(clinicId)).map((i) => [i.id, i]))
 
-    for (const itemId of itemIds) {
+    // Same SKO subtree atom as the sign-out path: detach loose components, then expand
+    // each added item to its component subtree. Skip ids already on this receipt so a
+    // cascade that overlaps an existing line can't double sign_down.
+    await detachLooseComponents(itemIds, itemsById, userId)
+    const originallySelected = new Set(itemIds)
+    const alreadyOnReceipt = new Set(existing.filter((r) => r.action === 'sign_down').map((r) => r.item_id))
+    const expandedIds = expandSubtrees(itemIds, [...itemsById.values()]).filter((id) => !alreadyOnReceipt.has(id))
+
+    for (const itemId of expandedIds) {
       const item = itemsById.get(itemId)
       if (!item) continue
       if (!item.is_serialized && item.quantity <= 0) continue // nothing on hand to add
-      // Add-to-receipt has no quantity picker, so a non-serialized stack signs out
-      // a single unit (qty 1); use the sign-out form for a multi-count transfer.
-      const signQty = 1
+      // Add-to-receipt has no quantity picker, so a directly-added non-serialized stack
+      // signs out a single unit (qty 1; use the sign-out form for a multi-count
+      // transfer); a cascaded component rides WHOLE with its kit (full on-hand).
+      const signQty = item.is_serialized || originallySelected.has(itemId) ? 1 : item.quantity
       const ledgerResult = await recordLedgerEntry(
         {
           item_id: itemId,

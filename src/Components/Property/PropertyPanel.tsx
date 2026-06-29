@@ -12,8 +12,11 @@ import { CustodyPanel } from './CustodyPanel'
 import { Da2062PdfView } from './Da2062PdfView'
 import { ItemScanner } from './ItemScanner'
 import { useHandReceipts, type ReceiptItem } from '../../Hooks/useHandReceipts'
-import { buildReprint2062Params } from '../../Hooks/useHandReceiptActions'
+import { buildReprint2062Params, useHandReceiptActions } from '../../Hooks/useHandReceiptActions'
+import type { AuditEvent } from '../../lib/auditTypes'
 import { useDA2062Export } from '../../Hooks/useDA2062Export'
+import { useDA3161Export } from '../../Hooks/useDA3161Export'
+import type { TurnInDoc } from '../../Types/PropertyTypes'
 import { PropertyBreadcrumb } from './PropertyBreadcrumb'
 import { PropertySearchOverlay } from './PropertySearchOverlay'
 import { PropertyLocationForm, type PropertyLocationFormHandle, type PendingZoneTag } from './PropertyLocationForm'
@@ -36,7 +39,7 @@ import { SignOutForm, type SignOutFormHandle } from './SignOutForm'
 import { HeaderPill, PillButton } from '../HeaderPill'
 import { SearchInput } from '../SearchInput'
 import { useSubClusters } from '../../Hooks/useSubClusters'
-import { effectiveSubClusters, passesSubClusterFilter, itemPassesLens, type SubClusterFilter } from '../../Utilities/subCluster'
+import { effectiveSubClusters, passesSubClusterFilter, itemPassesLens, HQ_BUCKET, type SubClusterFilter } from '../../Utilities/subCluster'
 
 export type PropertyView = 'property' | 'property-detail' | 'property-form'
 
@@ -119,6 +122,10 @@ export const PropertyPanel = memo(function PropertyPanel({
       editItem: s.editItem,
       removeItem: s.removeItem,
       expendItem: s.expendItem,
+      deletePmcsEntry: s.deletePmcsEntry,
+      stageTurnIn: s.stageTurnIn,
+      verifyTurnIn: s.verifyTurnIn,
+      unstageTurnInItem: s.unstageTurnInItem,
       holders: s.holders,
       clinicMembers: s.clinicMembers,
       rootLocationId: s.rootLocationId,
@@ -148,12 +155,18 @@ export const PropertyPanel = memo(function PropertyPanel({
   // sub-unit ISOLATES to it rather than deselecting it from an implicit all-set.
   // Highlighting reads this too, but is guarded by !subClusterShowingAll above.
   const subClusterActiveSet = new Set(subClusterLens ?? [])
+  // The selectable cluster rows = the HQ/common bucket + the real sub-clusters.
+  // HQ is a first-class toggle now: selecting it alone narrows to the common pool
+  // (squad items carry a sub_cluster_id not in the lens → hidden; HQ items are
+  // null-tagged → pass the itemPassesLens/passesSubClusterFilter bypass). Including
+  // it in the toggle universe keeps the "select-all collapses to 'all'" math right.
+  const clusterRows = [{ id: HQ_BUCKET, name: 'HQ' }, ...subClusters]
   const toggleSubCluster = (id: string) => {
     const next = new Set(subClusterActiveSet)
     if (next.has(id)) next.delete(id)
     else next.add(id)
-    const arr = subClusters.map(s => s.id).filter(c => next.has(c))
-    setSubClusterFilter(arr.length === 0 || arr.length === subClusters.length ? 'all' : arr)
+    const arr = clusterRows.map(c => c.id).filter(c => next.has(c))
+    setSubClusterFilter(arr.length === 0 || arr.length === clusterRows.length ? 'all' : arr)
   }
   const filterRowCls = (active: boolean) =>
     `w-full flex items-center gap-3 py-2.5 px-4 text-left transition-colors active:scale-95 ${
@@ -180,11 +193,11 @@ export const PropertyPanel = memo(function PropertyPanel({
       </button>
       {subClusters.length > 0 && (
         <>
-          {sectionHeader('Personnel — sub-unit')}
+          {sectionHeader('Cluster')}
           <button className={filterRowCls(subClusterShowingAll)} onClick={() => setSubClusterFilter('all')}>
-            <span className="text-[10pt] font-medium text-primary truncate flex-1">All sub-units</span>
+            <span className="text-[10pt] font-medium text-primary truncate flex-1">All clusters</span>
           </button>
-          {subClusters.map(c => {
+          {clusterRows.map(c => {
             const active = !subClusterShowingAll && subClusterActiveSet.has(c.id)
             return (
               <button key={c.id} className={filterRowCls(active)} onClick={() => toggleSubCluster(c.id)}>
@@ -203,12 +216,49 @@ export const PropertyPanel = memo(function PropertyPanel({
   // section). Dev-gated: passing null when non-dev skips the fetch entirely.
   const {
     receipts,
+    turnIns,
     itemsById: receiptItemsById,
     locationNameById: receiptLocationNameById,
     membersById: receiptMembersById,
     loading: receiptsLoading,
     refetch: refetchReceipts,
   } = useHandReceipts(isDevRole ? store.clinicId : null)
+
+  // DA 3161 turn-in: stage an item (+ its SKO subtree) into the rolling pending bucket,
+  // verify a staged doc (depot accepted), or unstage a pending line.
+  const handleStageTurnIn = useCallback((item: LocalPropertyItem) => { void store.stageTurnIn([item.id]) }, [store])
+  const handleVerifyTurnIn = useCallback((docId: string, itemIds?: string[]) => { void store.verifyTurnIn(docId, itemIds) }, [store])
+  const handleUnstageTurnInItem = useCallback((docId: string, itemId: string) => { void store.unstageTurnInItem(docId, itemId) }, [store])
+
+  // Open / print the DA 3161 for a completed turn-in doc (Beacon emits the document to
+  // hand-jam into the SoR; it is not the SoR). Items/holder resolve from the lifted maps.
+  const { exportDA3161 } = useDA3161Export()
+  const handleViewTurnIn = useCallback((doc: TurnInDoc) => {
+    const d = new Date(doc.recordedAt)
+    const ymd = Number.isNaN(d.getTime())
+      ? ''
+      : `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`
+    const fromHolder = receiptMembersById.get(doc.recordedBy) ?? {
+      id: doc.recordedBy, rank: null, firstName: null, lastName: null, displayName: 'Turn-In',
+    }
+    const items = doc.entries.map((e) => {
+      const it = receiptItemsById.get(e.item_id)
+      return {
+        name: it?.name ?? 'Item',
+        nomenclature: it?.nomenclature ?? null,
+        nsn: it?.nsn ?? null,
+        serial_number: it?.serial_number ?? null,
+        quantity: Math.max(1, e.quantity_delta ?? 1),
+      }
+    })
+    void exportDA3161({ items, fromHolder, requestNo: `TI-${doc.turnInDocId.slice(0, 8).toUpperCase()}`, date: ymd })
+  }, [exportDA3161, receiptMembersById, receiptItemsById])
+
+  // Receipt mutate-actions hosted here too (alongside Da2062Detail's own copy) so the
+  // Custody card context menu can delete a hand receipt directly — same delete →
+  // invalidate → refetch path, confirmed via the ConfirmDialog wired below.
+  const { pendingDelete: pendingDeleteReceipt, setPendingDelete: setPendingDeleteReceipt, confirmDelete: confirmDeleteReceipt } =
+    useHandReceiptActions({ clinicId: store.clinicId, itemsById: receiptItemsById, membersById: receiptMembersById, refetch: refetchReceipts })
 
   // Reprint a hand receipt's DA 2062 INTO this panel's object-view surface (right
   // pane desktop / detail sheet mobile) — CustodyPanel is MAIN-panel content, so its
@@ -267,7 +317,9 @@ export const PropertyPanel = memo(function PropertyPanel({
   //   • sub-unit lens → itemPassesLens (HQ/common + cross-cluster + owned/held bypass)
   // Off on both → the full set.
   const displayItems = useMemo(() => {
-    let items = store.items
+    // Turned-in items (turned_in_at set) have left the books — they drop out of the
+    // active book (canvas + tree) and live only in the Turn-In history.
+    let items = store.items.filter(i => !i.turned_in_at)
     if (mineOnly && currentUserId)
       items = items.filter(i => i.owner_user_id === currentUserId || i.current_holder_id === currentUserId)
     if (subActive)
@@ -628,6 +680,34 @@ export const PropertyPanel = memo(function PropertyPanel({
     setPendingDeleteItem(null)
   }, [pendingDeleteItem, store])
 
+  // ── Custody card context-menu actions ──
+  // The cards carry the lean ReceiptItem; resolve the full store item so View/Edit/
+  // Delete reuse the same flows as the tree/map (handleSelectItem / handleEditItemRow /
+  // pendingDeleteItem). Locate is the existing handleLocateReceiptItem.
+  const resolveStoreItem = useCallback(
+    (ri: ReceiptItem) => store.items.find((i) => i.id === ri.id) ?? null,
+    [store.items],
+  )
+  const handleEditReceiptItem = useCallback((ri: ReceiptItem) => {
+    const full = resolveStoreItem(ri)
+    if (full) handleEditItemRow(full)
+  }, [resolveStoreItem, handleEditItemRow])
+  const handleDeleteReceiptItem = useCallback((ri: ReceiptItem) => {
+    const full = resolveStoreItem(ri)
+    if (full) setPendingDeleteItem(full)
+  }, [resolveStoreItem])
+
+  // Delete a PMCS/dispatch audit record — hard-removes the row through the store
+  // (same path as PropertyRecordDetail), confirmed via the ConfirmDialog below.
+  const [pendingDeleteRecord, setPendingDeleteRecord] = useState<AuditEvent | null>(null)
+  const handleConfirmDeleteRecord = useCallback(async () => {
+    const ev = pendingDeleteRecord
+    setPendingDeleteRecord(null)
+    if (!ev) return
+    await store.deletePmcsEntry(ev.id)
+    if (selectedRecord?.event.id === ev.id) closeRosterDetail()
+  }, [pendingDeleteRecord, store, selectedRecord, closeRosterDetail])
+
   const handleConfirmDeleteLocation = useCallback(async () => {
     if (!pendingDeleteLocId) return
     await store.removeLocation(pendingDeleteLocId)
@@ -796,6 +876,14 @@ export const PropertyPanel = memo(function PropertyPanel({
                 onLocateItem={handleLocateReceiptItem}
                 onSelectReceipt={handleSelectReceipt}
                 onSelectRecord={handleSelectRecord}
+                onEditItem={handleEditReceiptItem}
+                onDeleteItem={onDeleteItem ? handleDeleteReceiptItem : undefined}
+                onDeleteReceipt={onDeleteItem ? setPendingDeleteReceipt : undefined}
+                onDeleteRecord={onDeleteItem ? setPendingDeleteRecord : undefined}
+                turnIns={turnIns}
+                onVerifyTurnIn={onDeleteItem ? handleVerifyTurnIn : undefined}
+                onUnstageTurnInItem={onDeleteItem ? handleUnstageTurnInItem : undefined}
+                onViewTurnIn={handleViewTurnIn}
                 selectedReceiptId={selectedReceiptId}
                 selectedRecordId={selectedRecord?.event.id ?? null}
               />
@@ -911,6 +999,7 @@ export const PropertyPanel = memo(function PropertyPanel({
                     onEdit={onEditItem}
                     onDelete={onDeleteItem ? () => onDeleteItem(selectedItem) : undefined}
                     canDelete={!!onDeleteItem}
+                    onStageTurnIn={onDeleteItem ? () => handleStageTurnIn(selectedItem) : undefined}
                     drawerRef={panelRef}
                   />
                 </div>
@@ -1118,6 +1207,22 @@ export const PropertyPanel = memo(function PropertyPanel({
           onConfirm={handleConfirmDeleteLocation}
           onCancel={() => setPendingDeleteLocId(null)}
         />
+        <ConfirmDialog
+          visible={!!pendingDeleteReceipt}
+          title="Delete this hand receipt? The items return to the property book."
+          confirmLabel="Delete"
+          variant="danger"
+          onConfirm={confirmDeleteReceipt}
+          onCancel={() => setPendingDeleteReceipt(null)}
+        />
+        <ConfirmDialog
+          visible={!!pendingDeleteRecord}
+          title="Delete this record? This cannot be undone."
+          confirmLabel="Delete"
+          variant="danger"
+          onConfirm={handleConfirmDeleteRecord}
+          onCancel={() => setPendingDeleteRecord(null)}
+        />
         {scannerEl}
       </>
     )
@@ -1145,6 +1250,14 @@ export const PropertyPanel = memo(function PropertyPanel({
               onLocateItem={handleLocateReceiptItem}
               onSelectReceipt={handleSelectReceipt}
               onSelectRecord={handleSelectRecord}
+              onEditItem={handleEditReceiptItem}
+              onDeleteItem={onDeleteItem ? handleDeleteReceiptItem : undefined}
+              onDeleteReceipt={onDeleteItem ? setPendingDeleteReceipt : undefined}
+              onDeleteRecord={onDeleteItem ? setPendingDeleteRecord : undefined}
+              turnIns={turnIns}
+              onVerifyTurnIn={onDeleteItem ? handleVerifyTurnIn : undefined}
+              onUnstageTurnInItem={onDeleteItem ? handleUnstageTurnInItem : undefined}
+              onViewTurnIn={handleViewTurnIn}
               selectedReceiptId={selectedReceiptId}
               selectedRecordId={selectedRecord?.event.id ?? null}
             />
@@ -1344,6 +1457,7 @@ export const PropertyPanel = memo(function PropertyPanel({
             onEdit={() => openMobileItemForm(mobileItem, mobileItem.location_id ?? null)}
             onDelete={onDeleteItem ? () => setPendingDeleteItem(mobileItem) : undefined}
             canDelete={!!onDeleteItem}
+            onStageTurnIn={onDeleteItem ? () => handleStageTurnIn(mobileItem) : undefined}
             drawerRef={panelRef}
           />
         ) : selectedLocation ? (
@@ -1426,6 +1540,24 @@ export const PropertyPanel = memo(function PropertyPanel({
         zIndex={1500}
         onConfirm={handleConfirmDeleteLocation}
         onCancel={() => setPendingDeleteLocId(null)}
+      />
+      <ConfirmDialog
+        visible={!!pendingDeleteReceipt}
+        title="Delete this hand receipt? The items return to the property book."
+        confirmLabel="Delete"
+        variant="danger"
+        zIndex={1500}
+        onConfirm={confirmDeleteReceipt}
+        onCancel={() => setPendingDeleteReceipt(null)}
+      />
+      <ConfirmDialog
+        visible={!!pendingDeleteRecord}
+        title="Delete this record? This cannot be undone."
+        confirmLabel="Delete"
+        variant="danger"
+        zIndex={1500}
+        onConfirm={handleConfirmDeleteRecord}
+        onCancel={() => setPendingDeleteRecord(null)}
       />
       {scannerEl}
     </>

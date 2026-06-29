@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useEffect, useRef, type ReactNode } from 'react'
+import { useState, useCallback, useMemo, useEffect, useLayoutEffect, useRef, type ReactNode } from 'react'
 import { X, Inbox, ChevronLeft, MessageCircleQuestion, Network } from 'lucide-react'
 import { BaseDrawer, ScrollPane } from './BaseDrawer'
 import { Sheet } from './Sheet'
@@ -31,7 +31,6 @@ import { AdminSummary } from './Admin/AdminSummary'
 import { AdminSortRail } from './Admin/AdminSortRail'
 import { AdminFeatureVotesSection } from './Admin/AdminFeatureVotesSection'
 import { AdminSettingsContent } from './Admin/AdminSettingsContent'
-import { HudLoader } from './HudLoader' // TEMP: HUD-loader preview in Settings sheet
 import { AdminSystemConversationView } from './Admin/AdminSystemConversationView'
 import { useMessagingStore } from '../stores/useMessagingStore'
 import { getDisplayName } from '../Utilities/nameUtils'
@@ -740,19 +739,10 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         }
         if (view === 'admin-settings') {
             const settings = (
-                <>
-                    {/* TEMP HUD-LOADER PREVIEW — dev-only. Rides the top of the
-                        Settings sheet so we can iterate on the loader live without
-                        a reload. Remove this <div> + the HudLoader import to drop. */}
-                    <div className="flex flex-col items-center justify-center gap-5 py-10 mb-4 bg-themewhite2 rounded-2xl mx-3">
-                        <HudLoader size={260} />
-                        <div className="hud-breathe text-[11pt] tracking-[0.25em] text-themeblue2/80 font-semibold">LOADING</div>
-                    </div>
-                    <AdminSettingsContent
-                        onSelectLocation={handleSelectLocation}
-                        onCreateLocation={handleCreateLocation}
-                    />
-                </>
+                <AdminSettingsContent
+                    onSelectLocation={handleSelectLocation}
+                    onCreateLocation={handleCreateLocation}
+                />
             )
             return inSheet
                 ? <div className="pt-1 pb-8">{settings}</div>
@@ -802,6 +792,17 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         view === 'admin-location-detail' ||
         view === 'admin-settings'
     )
+
+    // TEMP test harness — replay the Sheet loading→morph each time the mobile
+    // Settings sheet opens, so we can iterate on the puck→sheet animation.
+    // Remove this state + effect + the `loading` prop on the detail Sheet to drop.
+    const [settingsLoadTest, setSettingsLoadTest] = useState(false)
+    useLayoutEffect(() => {
+        if (!(detailSheetOpen && view === 'admin-settings')) { setSettingsLoadTest(false); return }
+        setSettingsLoadTest(true)
+        const t = setTimeout(() => setSettingsLoadTest(false), 1400)
+        return () => clearTimeout(t)
+    }, [detailSheetOpen, view])
 
     // Mobile detail-Sheet breadcrumb: the lateral trail as clickable crumbs
     // stacked above the current entity name. Replaces the panel-push back
@@ -1056,6 +1057,8 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                 // Portals to body — must clear the mobileFullScreen drawer
                 // (z-60). Matches the overlay-sheet convention (Property/Map).
                 zIndex={1200}
+                // TEMP — drive the puck→sheet loading morph for Settings only.
+                loading={view === 'admin-settings' ? settingsLoadTest : undefined}
             >
                 {renderDetailContent(true)}
             </Sheet>

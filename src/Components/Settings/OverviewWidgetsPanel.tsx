@@ -57,7 +57,7 @@ export function OverviewWidgetsPanel() {
                     Choose up to 3 widgets shown in the mission overview. Hiding it removes the panel from the home screen.
                 </p>
 
-                <div className="rounded-2xl border border-themeblue3/10 overflow-hidden" data-tour="mission-overview-toggle">
+                <div className="rounded-2xl overflow-hidden" data-tour="mission-overview-toggle">
                     <SettingsToggleRow
                         icon={LayoutDashboard}
                         label="Show Mission Overview"
@@ -73,7 +73,7 @@ export function OverviewWidgetsPanel() {
                             <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">Widgets</p>
                             <p className="text-[9pt] text-tertiary">{active.length} / 3</p>
                         </div>
-                        <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden" data-tour="mission-overview-widget-list">
+                        <div className="rounded-2xl bg-themewhite2 overflow-hidden" data-tour="mission-overview-widget-list">
                             {WIDGET_ORDER.map((id, idx) => {
                                 const meta = OVERVIEW_WIDGET_META[id]
                                 const Icon = WIDGET_ICONS[id]

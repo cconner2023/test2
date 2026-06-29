@@ -105,7 +105,7 @@ function DirectionRow({ dir, label, side, swipe, onSelect }: DirectionRowProps) 
     }))
 
   return (
-    <div className="relative rounded-2xl border border-themeblue3/10 bg-themewhite2 p-3">
+    <div className="relative rounded-2xl bg-themewhite2 p-3">
       <div className="mb-2.5 min-w-0">
         <p className="text-sm font-medium text-primary">{label}</p>
         <p className="text-[9pt] text-tertiary">{d.label}</p>

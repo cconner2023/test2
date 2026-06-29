@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useRef } from 'react'
-import { Building2, ChevronRight, ClipboardList, Calendar, Plus, Check, Trash2, Loader2 } from 'lucide-react'
+import { ChevronRight, ClipboardList, Plus, Check, Trash2, Loader2 } from 'lucide-react'
 import { ActionButton } from '../../ActionButton'
 import { ConfirmDialog } from '../../ConfirmDialog'
 import { PreviewOverlay } from '../../PreviewOverlay'
@@ -20,11 +20,9 @@ import type { FlatTask } from './supervisorHelpers'
 import type { ClinicMedic } from '../../../Types/SupervisorTestTypes'
 import type { Certification } from '../../../Data/User'
 import type { TrainingCompletionUI } from '../../../lib/trainingService'
-import type { CalendarEvent } from '../../../Types/CalendarTypes'
 import { createLogger } from '../../../Utilities/Logger'
 import { ActionPill } from '../../ActionPill'
-import { UserTimeline, type TimelineCalendarEntry } from '../../Timeline/UserTimeline'
-import { useAuthStore } from '../../../stores/useAuthStore'
+import { UserTimeline, type TimelineRowData } from '../../Timeline/UserTimeline'
 
 const logger = createLogger('SoldierProfile')
 
@@ -51,15 +49,17 @@ interface SoldierProfileProps {
   onRemoveTest: (testId: string) => void
   testableTaskMap: Map<string, FlatTask[]>
   onNavigateToArea?: (areaName: string) => void
-  calendarEvents: CalendarEvent[]
-  /** Algorithm encounter records for this soldier (full history, newest first). */
-  encounterEvents: CalendarEvent[]
-  onOpenCalendar: () => void
-  onOpenEvent: (eventId: string) => void
+  /** Timeline rows for this soldier — fetched once by the host (SupervisorDrawer)
+   *  and shared with the timeline pane, so the card preview doesn't re-fetch. */
+  timelineRows: TimelineRowData[]
+  timelineLoading: boolean
   /** When provided, the soldier card becomes tap-to-edit (rank/roles/delete via popover) */
   onEditMember?: (memberId: string, anchorRect: DOMRect) => void
   /** Drill into the grouped per-algorithm competency list for this soldier. */
   onOpenAlgorithms?: () => void
+  /** Desktop only: open the full timeline in the supervisor's third pane. When
+   *  absent (mobile), the timeline falls back to its own bottom Sheet. */
+  onViewAllTimeline?: () => void
 }
 
 export function SoldierProfile({
@@ -77,35 +77,15 @@ export function SoldierProfile({
   onRemoveTest,
   testableTaskMap,
   onNavigateToArea,
-  calendarEvents,
-  encounterEvents,
-  onOpenCalendar,
-  onOpenEvent,
+  timelineRows,
+  timelineLoading,
   onEditMember,
   onOpenAlgorithms,
+  onViewAllTimeline,
 }: SoldierProfileProps) {
   const isMobile = useIsMobile()
-  const viewerClinicId = useAuthStore(s => s.clinicId)
-  const now = useMemo(() => new Date(), [])
   const [expandedTestId, setExpandedTestId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
-
-  // Schedule (upcoming calendar events) + Encounter Log (logged algorithm
-  // completions) are folded into the one Timeline as calendar-sourced rows.
-  // The timeline's now-divider gives "schedule above / history below" for free.
-  const timelineCalendarEntries = useMemo<TimelineCalendarEntry[]>(() => {
-    const byId = new Map<string, TimelineCalendarEntry>()
-    for (const e of calendarEvents) {
-      if (new Date(e.end_time) >= now) {
-        byId.set(e.id, { id: e.id, occurredAt: e.start_time, title: e.title, kind: 'scheduled' })
-      }
-    }
-    // Encounters are past, logged events; they win on any id collision.
-    for (const e of encounterEvents) {
-      byId.set(e.id, { id: e.id, occurredAt: e.start_time, title: e.title, kind: 'encounter' })
-    }
-    return [...byId.values()]
-  }, [calendarEvents, encounterEvents, now])
 
   // ─── Cert popover state (tap-to-edit, immediate save) ────────────────
   const certFabRef = useRef<HTMLDivElement | null>(null)
@@ -286,48 +266,33 @@ export function SoldierProfile({
         className="w-full text-left rounded-xl bg-themewhite2 px-4 py-3 enabled:hover:bg-secondary/5 enabled:active:scale-[0.99] disabled:cursor-default transition-all"
       >
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
-            <Building2 size={16} className="text-tertiary" />
-          </div>
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-1.5 min-w-0">
-              <p className="text-sm font-semibold text-primary truncate">{formatMedicName(soldier)}</p>
+            <p className="text-sm font-semibold text-primary truncate">{formatMedicName(soldier)}</p>
+            <p className="text-[9pt] text-tertiary truncate">
+              {validCertCount}/{certs.length} certs valid
               {loanState === 'loaned-in' && (
-                <span
-                  className="shrink-0 text-[8pt] px-1 py-0.5 rounded bg-themeblue2/10 text-themeblue2 font-medium border border-themeblue2/30"
-                  title={`Loaned in from ${soldier.clinicName ?? 'another clinic'}`}
-                >
-                  Loan
-                </span>
+                <span className="text-themeblue2"> · Loaned in{soldier.clinicName ? ` from ${soldier.clinicName}` : ''}</span>
               )}
               {loanState === 'loaned-out' && (
-                <span
-                  className="shrink-0 text-[8pt] px-1 py-0.5 rounded bg-themeyellow/15 text-themeyellow font-medium border border-themeyellow/30"
-                  title="Loaned out"
-                >
-                  Out
-                </span>
+                <span className="text-themeyellow"> · Loaned out</span>
               )}
-            </div>
-            <p className="text-[9pt] text-tertiary">
-              {soldier.credential ?? 'No credential'} · {validCertCount}/{certs.length} certs valid
             </p>
           </div>
-        </div>
-        <div className="flex flex-col gap-1.5 mt-2 ml-11">
-          <div className="flex items-center gap-2">
-            <span className="text-[9pt] text-tertiary w-18 shrink-0">Readiness</span>
-            <div className="flex-1 h-1.5 rounded-full bg-tertiary/10 overflow-hidden">
-              <div className={`h-full rounded-full ${readinessColor(readinessPercent)}`} style={{ width: `${readinessPercent}%` }} />
+          <div className="shrink-0 w-48 flex flex-col gap-1.5">
+            <div className="flex items-center gap-2">
+              <span className="text-[9pt] text-tertiary w-18 shrink-0">Readiness</span>
+              <div className="flex-1 h-1.5 rounded-full bg-tertiary/10 overflow-hidden">
+                <div className={`h-full rounded-full ${readinessColor(readinessPercent)}`} style={{ width: `${readinessPercent}%` }} />
+              </div>
+              <span className={`text-[9pt] font-medium w-8 text-right ${readinessTextColor(readinessPercent)}`}>{readinessPercent}%</span>
             </div>
-            <span className={`text-[9pt] font-medium w-8 text-right ${readinessTextColor(readinessPercent)}`}>{readinessPercent}%</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-[9pt] text-tertiary w-18 shrink-0">Compliance</span>
-            <div className="flex-1 h-1.5 rounded-full bg-tertiary/10 overflow-hidden">
-              <div className={`h-full rounded-full ${readinessColor(compliancePercent)}`} style={{ width: `${compliancePercent}%` }} />
+            <div className="flex items-center gap-2">
+              <span className="text-[9pt] text-tertiary w-18 shrink-0">Compliance</span>
+              <div className="flex-1 h-1.5 rounded-full bg-tertiary/10 overflow-hidden">
+                <div className={`h-full rounded-full ${readinessColor(compliancePercent)}`} style={{ width: `${compliancePercent}%` }} />
+              </div>
+              <span className={`text-[9pt] font-medium w-8 text-right ${readinessTextColor(compliancePercent)}`}>{compliancePercent}%</span>
             </div>
-            <span className={`text-[9pt] font-medium w-8 text-right ${readinessTextColor(compliancePercent)}`}>{compliancePercent}%</span>
           </div>
         </div>
       </button>
@@ -338,7 +303,7 @@ export function SoldierProfile({
           <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">
             Assignments
           </p>
-          <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+          <div className="rounded-2xl bg-themewhite2 overflow-hidden">
             {assignments.map((a) => {
               const taskTitle = getTaskData(a.trainingItemId)?.title ?? a.trainingItemId
               const isCompleted = !!a.completedAt
@@ -391,22 +356,18 @@ export function SoldierProfile({
           certs) merged with calendar-sourced rows — upcoming events (the old
           "Schedule") above the now-divider, logged algorithm encounters (the
           old "Encounter Log") below. */}
-      {viewerClinicId && (
-        <UserTimeline
-          subjectId={soldier.id}
-          clinicId={viewerClinicId}
-          calendarEntries={timelineCalendarEntries}
-          onOpenEvent={onOpenEvent}
-          actions={<ActionButton icon={Calendar} label="View in calendar" onClick={onOpenCalendar} />}
-        />
-      )}
+      <UserTimeline
+        rows={timelineRows}
+        rowsLoading={timelineLoading}
+        onViewAll={onViewAllTimeline}
+      />
 
       {/* Certifications */}
       <div>
         <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">
           Certifications
         </p>
-        <div className="relative"><div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+        <div className="relative"><div className="rounded-2xl bg-themewhite2 overflow-hidden">
           {certs.length === 0 ? (
             <div className="px-4 py-4">
               <p className="text-sm text-tertiary">No certifications on file</p>
@@ -422,13 +383,9 @@ export function SoldierProfile({
                     className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-themeblue2/5 active:scale-95 transition-all"
                   >
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-medium text-primary truncate">{cert.title}</p>
-                        {cert.is_primary && (
-                          <span className="text-[9pt] md:text-[9pt] font-medium text-themeblue2 bg-themeblue2/10 px-1.5 py-0.5 rounded uppercase tracking-wide shrink-0">Primary</span>
-                        )}
-                      </div>
+                      <p className="text-sm font-medium text-primary truncate">{cert.title}</p>
                       <div className="flex items-center gap-3 mt-0.5 text-[10pt] text-tertiary">
+                        {cert.is_primary && <span className="text-themeblue2 font-medium">Primary</span>}
                         {cert.cert_number && <span>#{cert.cert_number}</span>}
                         {cert.exp_date && <span>Exp: {new Date(cert.exp_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>}
                       </div>
@@ -456,11 +413,11 @@ export function SoldierProfile({
           Training Competency
         </p>
         {categoryCompetency.length === 0 && algorithmCompetency.length === 0 ? (
-          <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden px-4 py-4">
+          <div className="rounded-2xl bg-themewhite2 overflow-hidden px-4 py-4">
             <p className="text-sm text-tertiary">No testable tasks available</p>
           </div>
         ) : (
-          <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+          <div className="rounded-2xl bg-themewhite2 overflow-hidden">
             {categoryCompetency.map((cat) => (
               <button
                 key={cat.areaName}
@@ -522,11 +479,11 @@ export function SoldierProfile({
           Training History
         </p>
         {tests.length === 0 ? (
-          <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden px-4 py-4">
+          <div className="rounded-2xl bg-themewhite2 overflow-hidden px-4 py-4">
             <p className="text-[10pt] text-tertiary">No test records yet</p>
           </div>
         ) : (
-          <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+          <div className="rounded-2xl bg-themewhite2 overflow-hidden">
             {sortedTests.map((record) => {
               const isExpanded = expandedTestId === record.id
               const taskTitle = getTaskData(record.trainingItemId)?.title ?? record.trainingItemId

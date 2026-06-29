@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import {
-  Route, RotateCcw, Loader2, FileText, Paperclip, X,
+  Route, RotateCcw, FileText, Paperclip, X,
   History, CalendarClock, Check,
 } from 'lucide-react'
 import { getAuditBySubjectLocal, fetchAuditBySubject } from '../../lib/auditService'
@@ -189,11 +189,8 @@ export function DispatchSheet({ isOpen, onClose, subjectId, clinicId, containerR
   }
 
   // ── CURRENT view ────────────────────────────────────────────────────────────
-  const currentBody = loading ? (
-    <div className="flex items-center justify-center px-4 py-6">
-      <Loader2 size={16} className="animate-spin text-tertiary" />
-    </div>
-  ) : current ? (
+  const currentBody = (
+    current ? (
     <div className="divide-y divide-tertiary/8">
       {/* Active dispatch — exp date + status. */}
       <div className="flex items-center gap-3 px-4 py-3">
@@ -229,17 +226,14 @@ export function DispatchSheet({ isOpen, onClose, subjectId, clinicId, containerR
       {openDocFile && <FileChip file={openDocFile} onRemove={() => setOpenDocFile(null)} busy={busy} />}
       {docError && <p className="px-4 pb-2 text-[9pt] font-medium text-themered">{docError}</p>}
     </div>
+    )
   )
 
   // ── HISTORY view — every dispatch event as a section card. The back chevron
   //    lives in the overlay HEADER (onBack), not an in-body row. ───────────────
   const historyBody = (
     <div className="px-3 pt-2 pb-3">
-      {loading ? (
-        <div className="flex items-center justify-center py-6">
-          <Loader2 size={16} className="animate-spin text-tertiary" />
-        </div>
-      ) : events.length === 0 ? (
+      {events.length === 0 ? (
         <p className="text-[10pt] text-tertiary px-1 py-4">No dispatch history yet</p>
       ) : (
         <div className="space-y-2">
@@ -365,6 +359,7 @@ export function DispatchSheet({ isOpen, onClose, subjectId, clinicId, containerR
       screens={screens}
       maxWidth={360}
       previewMaxHeight="60dvh"
+      loading={loading}
     />
   )
 }

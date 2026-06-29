@@ -1,10 +1,12 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
+import { useSpring, animated } from '@react-spring/web'
 import { Plus, Check, X, ChevronLeft } from 'lucide-react'
 import type { ReactNode } from 'react'
 import type { LucideIcon } from 'lucide-react'
 import { SearchInput } from './SearchInput'
 import { BaseOverlay, Z } from './BaseOverlay'
 import { ActionButton } from './ActionButton'
+import { HudLoader } from './HudLoader'
 import { TextInput } from './FormInputs'
 
 export interface ContextMenuAction {
@@ -96,6 +98,12 @@ interface PreviewOverlayProps {
   /** Override the z-index tier. Backdrop sits at this value, content at `zIndex + 15`.
    *  Bump above Z.POPOVER (80) when nesting a popover inside another popover. */
   zIndex?: number
+  /** OPT-IN loading morph. While true the card is a HUD puck; on false it grows
+   *  (container-transform) into the full popover shell as the HUD dissolves and
+   *  content fades in. Omit entirely to keep the classic (non-morph) behavior. */
+  loading?: boolean
+  /** HUD diameter for the loading puck. Default 88. */
+  hudSize?: number
 }
 
 
@@ -123,6 +131,8 @@ export function PreviewOverlay({
   rightFooter,
   anchored = false,
   zIndex = Z.POPOVER,
+  loading,
+  hudSize = 88,
 }: PreviewOverlayProps) {
   const [filter, setFilter] = useState('')
   const [addOpen, setAddOpen] = useState(false)
@@ -155,6 +165,44 @@ export function PreviewOverlay({
 
   const scoped = !!containerRef?.current
   const posClass = scoped ? 'absolute' : 'fixed'
+
+  // ── LOADING MORPH (opt-in) — HUD puck grows into the popover shell ──────────
+  // Mirrors the Sheet loading morph. `loading === undefined` ⇒ classic path only.
+  const cardW = typeof maxWidth === 'number' ? maxWidth : 340
+  const opted = loading !== undefined
+  const [settled, setSettled] = useState(() => !loading)
+  useEffect(() => { if (loading) setSettled(false) }, [loading])
+  const morphActive = opted && (!!loading || !settled)
+  const PUCK_W = 140
+  const PUCK_H = hudSize + 56
+  const shellRef = useRef<HTMLDivElement>(null)
+  const [shellH, setShellH] = useState(0)
+  useEffect(() => {
+    if (!morphActive) return
+    const measure = () => { if (shellRef.current) setShellH(shellRef.current.scrollHeight) }
+    measure()
+    const ro = new ResizeObserver(measure)
+    if (shellRef.current) ro.observe(shellRef.current)
+    return () => ro.disconnect()
+  }, [morphActive])
+  const morphCfg = { tension: 210, friction: 24 }
+  const morph = useSpring({
+    width: loading ? PUCK_W : cardW,
+    height: loading ? PUCK_H : (shellH || PUCK_H),
+    config: morphCfg,
+    onRest: () => { if (!loading) setSettled(true) },
+  })
+  const hudFade = useSpring({
+    from: { opacity: 0, scale: 1 },
+    opacity: loading ? 1 : 0,
+    scale: loading ? 1 : 1.08,
+    config: morphCfg,
+  })
+  const contentFade = useSpring({
+    opacity: loading ? 0 : 1,
+    delay: loading ? 0 : 90,
+    config: morphCfg,
+  })
 
   const resolvedContent = preview
     ? (typeof preview === 'function' ? preview(filter, clearFilter) : preview)
@@ -236,8 +284,17 @@ export function PreviewOverlay({
                 transition: 'transform 300ms cubic-bezier(0.34, 1.56, 0.64, 1), opacity 200ms ease-out',
               }}
             >
-              {/* Outer shell */}
-              <div className="flex flex-col gap-2 min-h-0">
+              {/* Outer shell — wrapped for the optional loading morph (puck→shell).
+                  Wrappers are transparent passthrough when not morphing. */}
+              <animated.div
+                className={morphActive ? 'relative bg-themewhite rounded-2xl overflow-hidden mx-auto' : ''}
+                style={morphActive ? { width: morph.width, height: morph.height } : undefined}
+              >
+                <animated.div
+                  ref={shellRef}
+                  style={morphActive ? { opacity: contentFade.opacity, width: cardW } : undefined}
+                >
+                  <div className="flex flex-col gap-2 min-h-0">
 
                 {/* Optional content above inner card */}
                 {headerCard}
@@ -349,7 +406,17 @@ export function PreviewOverlay({
                   ) : null}
                 </div>
 
-              </div>
+                </div>
+                </animated.div>
+                {morphActive && (
+                  <animated.div
+                    className="absolute inset-0 flex items-center justify-center"
+                    style={{ opacity: hudFade.opacity, transform: hudFade.scale.to((s) => `scale(${s})`), pointerEvents: loading ? 'auto' : 'none' }}
+                  >
+                    <HudLoader size={hudSize} />
+                  </animated.div>
+                )}
+              </animated.div>
             </div>
           </div>
         )

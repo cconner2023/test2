@@ -25,6 +25,8 @@ import { clearClinicVaultKey } from './signal/clinicVaultDevice'
 import { deleteCalendarEventsForClinic } from './calendarEventStore'
 import { purgeClinicScopedData } from './offlineDb'
 import { clearClinicUsersCache } from './clinicUsersCache'
+import { clearSubClusterCache } from './subClusterCache'
+import { clearSubClusterSnapshots } from '../Hooks/useSubClusters'
 import { useCalendarStore } from '../stores/useCalendarStore'
 import { useMapOverlaysStore } from '../stores/useMapOverlaysStore'
 import { usePropertyStore } from '../stores/usePropertyStore'
@@ -72,10 +74,12 @@ export async function evictClinicData(clinicId: string): Promise<void> {
     })
   }
 
-  // 4. Roster cache is a flat contact list spanning reachable clinics — clear it
+  // 4. Roster + sub-cluster caches span reachable clinics — clear them
   //    wholesale; the next RLS-scoped fetch repopulates only reachable clinics.
   await clearClinicUsersCache().catch(() => {})
+  await clearSubClusterCache().catch(() => {})
+  clearSubClusterSnapshots()
 
   // 5. Nudge every clinic-scoped view to refetch against the new reach.
-  invalidate('calendar', 'mapOverlays', 'properties', 'users', 'clinics')
+  invalidate('calendar', 'mapOverlays', 'properties', 'users', 'clinics', 'subClusters')
 }

@@ -8,6 +8,7 @@ import { useTheme } from '../../Utilities/ThemeContext'
 import { GUIDED_TOURS_ENABLED } from '../../lib/featureFlags'
 import { useOnboardingReady } from '../../Hooks/useOnboardingReady'
 import { useNavPreferencesStore } from '../../stores/useNavPreferencesStore'
+import { HudLoader } from '../HudLoader'
 
 const TourOverlay = lazy(() => import('./TourOverlay').then(m => ({ default: m.TourOverlay })))
 const GettingStartedScene = lazy(() => import('./scenes/GettingStartedScene'))
@@ -1157,13 +1158,7 @@ function TourProviderInner({ children, onboardingBlocked }: { children: React.Re
         }`}
         style={{ background: isDark ? 'rgba(25,35,45,1)' : 'rgba(240,242,245,1)' }}
       >
-        <svg className="w-16 h-16 sol-breathe" viewBox="0 0 40 40" fill="none">
-          <g transform="translate(20,20)">
-            <rect x="-3" y="-11" width="6" height="22" rx="1.5" fill={isDark ? 'rgba(129,161,181,1)' : 'rgba(0,66,92,1)'} />
-            <rect x="-3" y="-11" width="6" height="22" rx="1.5" fill={isDark ? 'rgba(129,161,181,1)' : 'rgba(0,66,92,1)'} transform="rotate(60)" />
-            <rect x="-3" y="-11" width="6" height="22" rx="1.5" fill={isDark ? 'rgba(129,161,181,1)' : 'rgba(0,66,92,1)'} transform="rotate(120)" />
-          </g>
-        </svg>
+        <HudLoader size={96} />
         <div
           className="mt-3.5 w-[140px] h-[3px] rounded-sm overflow-hidden"
           style={{ background: isDark ? 'rgba(0,66,92,0.25)' : 'rgba(0,66,92,0.1)' }}

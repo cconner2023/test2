@@ -14,6 +14,8 @@ interface SupervisorTreeProps {
   medics: ClinicMedic[]
   selection: TreeSelection
   onSelect: (selection: TreeSelection) => void
+  /** Left-pane search — filters the personnel list by name. */
+  searchQuery?: string
 }
 
 /** HQ / unassigned grouping bucket — sorts first. */
@@ -23,6 +25,7 @@ export function SupervisorTree({
   medics,
   selection,
   onSelect,
+  searchQuery = '',
 }: SupervisorTreeProps) {
   const [personnelCollapsed, setPersonnelCollapsed] = useState(false)
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
@@ -40,9 +43,10 @@ export function SupervisorTree({
       ? 'bg-themeblue3/8 border-l-2 border-l-themeblue3'
       : 'hover:bg-secondary/5'
 
-  const sortedMedics = [...medics].sort((a, b) =>
-    formatMedicName(a).localeCompare(formatMedicName(b))
-  )
+  const q = searchQuery.trim().toLowerCase()
+  const sortedMedics = [...medics]
+    .filter(m => !q || formatMedicName(m).toLowerCase().includes(q))
+    .sort((a, b) => formatMedicName(a).localeCompare(formatMedicName(b)))
 
   // Group medics by sub-cluster. Unknown/stale ids and null fall to the HQ bucket.
   // Read-only: sub-unit management lives in ClinicPanel / Admin; per-soldier
@@ -60,7 +64,11 @@ export function SupervisorTree({
   // Only show the HQ bucket header when there ARE other sub-clusters (otherwise
   // it's a single flat list — no grouping to show).
   const grouped = subClusters.length > 0
-  const visibleGroups = grouped ? groups.filter(g => g.id !== HQ_GROUP_ID || g.medics.length > 0) : groups
+  const visibleGroups = grouped
+    // While searching, drop any group with no matching medics. Otherwise keep
+    // every sub-cluster header (HQ only when it actually holds people).
+    ? groups.filter(g => (q ? g.medics.length > 0 : g.id !== HQ_GROUP_ID || g.medics.length > 0))
+    : groups
 
   const toggleGroup = (id: string) => {
     setCollapsedGroups(prev => {

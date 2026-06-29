@@ -41,7 +41,7 @@ export const NoteContentPanel = ({ onNavigate }: NoteContentPanelProps) => {
                     Configure your note sections.
                 </p>
 
-                <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+                <div className="rounded-2xl bg-themewhite2 overflow-hidden">
                     {sections.map((section) => {
                         const Icon = section.icon;
                         return (

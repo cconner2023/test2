@@ -89,7 +89,7 @@ export function AlgorithmCoverageView({
       <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">
         Personnel
       </p>
-      <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+      <div className="rounded-2xl bg-themewhite2 overflow-hidden">
         {soldierStatuses.map(({ soldier, pct, status }) => {
           const cfg = statusConfig[status]
           return (

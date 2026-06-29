@@ -172,7 +172,7 @@ export function CoverageTasksView({
         <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">
           Personnel
         </p>
-        <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+        <div className="rounded-2xl bg-themewhite2 overflow-hidden">
           {soldierStatuses.map(({ soldier, status }) => {
             const cfg = statusConfig[status]
             return (
@@ -219,7 +219,7 @@ export function CoverageTasksView({
         <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">
           {areaName} <span className="font-normal text-tertiary">({tasks.length})</span>
         </p>
-        <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+        <div className="rounded-2xl bg-themewhite2 overflow-hidden">
           {tasks.map((task, index) => {
             const testable = isTaskTestable(task.taskId)
             const badge = skillLevelLabels[task.levelName] ?? task.levelName
@@ -285,7 +285,7 @@ export function CoverageTasksView({
       <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">
         {areaName}
       </p>
-      <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+      <div className="rounded-2xl bg-themewhite2 overflow-hidden">
         {tasks.map((task) => {
           const testable = isTaskTestable(task.taskId)
           const badge = skillLevelLabels[task.levelName] ?? task.levelName

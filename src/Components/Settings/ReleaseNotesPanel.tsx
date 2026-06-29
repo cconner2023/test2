@@ -79,7 +79,7 @@ const VersionStatusCard = () => {
     };
 
     return (
-        <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+        <div className="rounded-2xl bg-themewhite2 overflow-hidden">
             <div className="px-4 py-3.5 flex items-center gap-3">
                 <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${updateAvailable ? 'bg-themeblue2/15' : 'bg-themegreen/15'}`}>
                     {updateAvailable
@@ -148,7 +148,7 @@ const FeatureVotesCard = ({ onOpen }: { onOpen: () => void }) => {
             </div>
             <button
                 onClick={onOpen}
-                className="w-full rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden active:scale-[0.99] hover:bg-themeblue2/5 transition-all text-left"
+                className="w-full rounded-2xl bg-themewhite2 overflow-hidden active:scale-[0.99] hover:bg-themeblue2/5 transition-all text-left"
             >
                 <div className="px-4 py-3.5 flex items-center gap-3">
                     <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${hasVoted ? 'bg-themegreen/15' : 'bg-themeblue2/15'}`}>
@@ -218,7 +218,7 @@ export const ReleaseNotesPanel = ({ onOpenFeatureVotes }: ReleaseNotesPanelProps
                                     </span>
                                 )}
                             </div>
-                            <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+                            <div className="rounded-2xl bg-themewhite2 overflow-hidden">
                                 {notes.map((note, noteIndex) => (
                                     <ReleaseNoteItem
                                         key={`${version}-${noteIndex}`}

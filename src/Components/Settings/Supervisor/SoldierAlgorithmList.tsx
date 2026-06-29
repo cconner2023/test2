@@ -59,7 +59,7 @@ export function SoldierAlgorithmList({
   return (
     <div>
       {categories.length === 0 ? (
-        <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden px-4 py-4">
+        <div className="rounded-2xl bg-themewhite2 overflow-hidden px-4 py-4">
           <p className="text-[10pt] text-tertiary">No algorithms map to STP tasks</p>
         </div>
       ) : (
@@ -68,7 +68,7 @@ export function SoldierAlgorithmList({
             <p className="text-[8pt] font-semibold text-tertiary uppercase tracking-wider mb-1.5">
               {category}
             </p>
-            <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+            <div className="rounded-2xl bg-themewhite2 overflow-hidden">
               {items.map((a, idx) => (
                 <button
                   key={a.id}

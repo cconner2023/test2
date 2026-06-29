@@ -510,6 +510,7 @@ describe('logout purge completeness', () => {
     'clearOutboundQueue',
     'clearBackupKey',
     'clearClinicUsersCache',
+    'clearSubClusterCache',
   ]
 
   it('all required cleanup functions are documented', () => {

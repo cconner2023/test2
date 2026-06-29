@@ -3,6 +3,7 @@ import type { CalendarEvent } from '../../Types/CalendarTypes'
 import type { ResourceAllocation } from '../../Types/MissionTypes'
 import { useMissionBoard } from '../../Hooks/useMissionBoard'
 import { AllocationPanel } from './AllocationPanel'
+import { LoadingOverlay } from '../LoadingOverlay'
 import { usePropertyStore } from '../../stores/usePropertyStore'
 import { useIsMobile } from '../../Hooks/useIsMobile'
 
@@ -66,13 +67,7 @@ export function MissionBoard({ event, medics, onClose, onSave }: MissionBoardPro
       </div>
 
       {/* Body */}
-      <div className="flex-1 min-h-0 overflow-y-auto">
-        {loading && (
-          <div className="flex items-center justify-center h-32">
-            <div className="w-5 h-5 rounded-full border-2 border-themeblue3/30 border-t-themeblue3 animate-spin" />
-          </div>
-        )}
-
+      <div className="relative flex-1 min-h-0 overflow-y-auto">
         {!loading && error && (
           <div className="flex flex-col items-center justify-center gap-2 h-32 px-4 text-center">
             <span className={`text-themeredred font-medium ${textSize}`}>
@@ -105,6 +100,7 @@ export function MissionBoard({ event, medics, onClose, onSave }: MissionBoardPro
             onUpdateAllocation={updateAllocation}
           />
         )}
+        <LoadingOverlay visible={loading} size={120} />
       </div>
     </div>
   )

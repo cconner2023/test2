@@ -3,19 +3,22 @@ import { supabase } from '../lib/supabase'
 import { fetchClinicLedger } from '../lib/propertyService'
 import { getLocalPropertyItems, getLocalPropertyLocations } from '../lib/offlineDb'
 import { usePropertyStore } from '../stores/usePropertyStore'
-import { groupHandReceipts } from '../Utilities/handReceipts'
+import { groupHandReceipts, groupTurnIns, type TurnInFold } from '../Utilities/handReceipts'
 import { useInvalidation } from '../stores/useInvalidationStore'
 import type { CustodyLedgerEntry, HandReceipt, HolderInfo, PropertyItem } from '../Types/PropertyTypes'
 
 /** Lean item row carried for receipt rendering + reprint. `expiry_date` feeds the
- *  Custody panel's "Expired" section (30-day expiry window via expiryStatus). */
+ *  Custody panel's "Expired" section (30-day expiry window via expiryStatus);
+ *  `turned_in_at` + `sub_cluster_id` drive the DA 3161 turn-in fold + grouping. */
 export type ReceiptItem = Pick<
   PropertyItem,
-  'id' | 'name' | 'nomenclature' | 'nsn' | 'serial_number' | 'location_id' | 'quantity' | 'expiry_date'
+  'id' | 'name' | 'nomenclature' | 'nsn' | 'serial_number' | 'location_id' | 'quantity' | 'expiry_date' | 'turned_in_at' | 'sub_cluster_id'
 >
 
 export interface HandReceiptData {
   receipts: HandReceipt[]
+  /** DA 3161 turn-in: staged-pending rows + completed docs. */
+  turnIns: TurnInFold
   itemsById: Map<string, ReceiptItem>
   /** location id → display name (the item's usual/home zone). */
   locationNameById: Map<string, string>
@@ -34,6 +37,7 @@ export interface HandReceiptData {
 export function useHandReceipts(clinicId?: string | null): HandReceiptData {
   const propertiesGen = useInvalidation('properties')
   const [receipts, setReceipts] = useState<HandReceipt[]>([])
+  const [turnIns, setTurnIns] = useState<TurnInFold>({ pending: [], history: [] })
   const [itemsById, setItemsById] = useState<Map<string, ReceiptItem>>(new Map())
   const [locationNameById, setLocationNameById] = useState<Map<string, string>>(new Map())
   const [membersById, setMembersById] = useState<Map<string, HolderInfo>>(new Map())
@@ -44,6 +48,7 @@ export function useHandReceipts(clinicId?: string | null): HandReceiptData {
   useEffect(() => {
     if (!clinicId) {
       setReceipts([])
+      setTurnIns({ pending: [], history: [] })
       setItemsById(new Map())
       setLocationNameById(new Map())
       setMembersById(new Map())
@@ -90,6 +95,8 @@ export function useHandReceipts(clinicId?: string | null): HandReceiptData {
           location_id: r.location_id,
           quantity: r.quantity,
           expiry_date: r.expiry_date,
+          turned_in_at: r.turned_in_at ?? null,
+          sub_cluster_id: r.sub_cluster_id ?? null,
         })
       }
       return map
@@ -109,9 +116,12 @@ export function useHandReceipts(clinicId?: string | null): HandReceiptData {
         setLocationNameById(locations)
         // `items` keys = the live (non-tombstoned) item set from the IDB
         // projection; pass it so receipts for deleted items drop out of view.
-        setReceipts(
-          groupHandReceipts(ledger as CustodyLedgerEntry[], members, new Set(items.keys())),
-        )
+        const liveIds = new Set(items.keys())
+        setReceipts(groupHandReceipts(ledger as CustodyLedgerEntry[], members, liveIds))
+        // Turn-in fold: an item is verified-turned-in once it carries turned_in_at.
+        const turnedInIds = new Set<string>()
+        for (const [id, it] of items) if (it.turned_in_at) turnedInIds.add(id)
+        setTurnIns(groupTurnIns(ledger as CustodyLedgerEntry[], turnedInIds, liveIds))
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -122,5 +132,5 @@ export function useHandReceipts(clinicId?: string | null): HandReceiptData {
     }
   }, [clinicId, propertiesGen, tick])
 
-  return { receipts, itemsById, locationNameById, membersById, loading, refetch }
+  return { receipts, turnIns, itemsById, locationNameById, membersById, loading, refetch }
 }

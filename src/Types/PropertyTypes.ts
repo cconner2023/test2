@@ -76,6 +76,13 @@ export interface PropertyItem {
    *  qty within its SKO. Additive nullable column (same flow as signed_out_external); shortage
    *  = authorized − present is a pure client fold. See qty-auth-shortage-annex idea doc. */
   quantity_authorized: number | null
+  /** DA 3161 turn-in lifecycle. null = active / on the books. Set = VERIFIED turned in
+   *  (back to supply): the item drops out of the ACTIVE book (canvas/tree/shortage) but
+   *  stays browsable in Turn-In history, and the timestamp is the reap anchor (client-
+   *  driven, snapshot-gated, ~180d — mirrors the calendar tombstone TTL family). Its own
+   *  lifecycle axis, distinct from deleted_at (a turned-in item is NOT deleted). Additive
+   *  nullable, same fan-out path as signed_out_external. See accountability-reorder-loop.md. */
+  turned_in_at: string | null
   notes: string | null
   created_at: string
   updated_at: string
@@ -302,6 +309,19 @@ export interface HandReceipt {
   /** ISO timestamp of the return, when status === 'returned'. */
   returnedAt: string | null
   /** The per-item sign-out ledger rows that make up this receipt, newest first. */
+  entries: CustodyLedgerEntry[]
+}
+
+/** A completed DA 3161 turn-in document — turn_in ledger rows (action 'turn_in')
+ *  grouped by their shared doc id (the reused hand_receipt_id column), whose items
+ *  have been VERIFIED (turned_in_at set). Parallels HandReceipt. */
+export interface TurnInDoc {
+  turnInDocId: string
+  /** ISO timestamp of the doc (recorded_at of its newest turn_in row). */
+  recordedAt: string
+  recordedBy: string
+  notes: string | null
+  /** The verified per-item turn_in ledger rows, newest first. */
   entries: CustodyLedgerEntry[]
 }
 

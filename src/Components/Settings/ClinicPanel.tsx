@@ -18,6 +18,7 @@ import { useClinicInvites } from '../../Hooks/useClinicInvites'
 import { useBarcodeScanner } from '../../Hooks/useBarcodeScanner'
 import { useClinicMedics } from '../../Hooks/useClinicMedics'
 import { useClinicLoans } from '../../Hooks/useClinicLoans'
+import { LoadingOverlay } from '../LoadingOverlay'
 import {
   updateSupervisorClinic,
   disassociateClinic,
@@ -690,7 +691,7 @@ export function ClinicPanel({
           <div className="pb-2 flex items-center gap-2">
             <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Cluster</p>
           </div>
-          <div className="relative"><div ref={clinicCardRef} className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+          <div className="relative"><div ref={clinicCardRef} className="rounded-2xl bg-themewhite2 overflow-hidden">
             <button
               type="button"
               disabled={!isSupervisorRole}
@@ -782,6 +783,15 @@ export function ClinicPanel({
           </div>
         </section>
 
+        {/* ── Outside contact (event intake + allow calls/messaging, dev-wrapped) ── */}
+        {clinicId && (
+          <IntakeMintSection
+            clinicId={clinicId}
+            oncallCount={oncall.length}
+            onOncallEnabledChange={setOncallRosterShown}
+          />
+        )}
+
         {/* ── Associated ─────────────────────────────────────────── */}
         <section data-tour="clinic-associated">
           <div className="pb-2 flex items-center gap-2">
@@ -853,15 +863,6 @@ export function ClinicPanel({
           </section>
         )}
 
-        {/* ── Outside contact (event intake + allow calls/messaging, dev-wrapped) ── */}
-        {clinicId && (
-          <IntakeMintSection
-            clinicId={clinicId}
-            oncallCount={oncall.length}
-            onOncallEnabledChange={setOncallRosterShown}
-          />
-        )}
-
         {/* ── Users (supervisor-gated) ───────────────────────────── */}
         {isSupervisorRole && clinicId && (
           <section data-tour="clinic-personnel">
@@ -869,13 +870,9 @@ export function ClinicPanel({
               <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Users</p>
             </div>
 
-            <div className="relative"><div className="rounded-xl bg-themewhite2 overflow-hidden">
+            <div className="relative"><div className="relative rounded-xl bg-themewhite2 overflow-hidden">
               <div className="px-4 py-3">
-                {medicsLoading ? (
-                  <div className="flex items-center justify-center py-6">
-                    <div className="w-4 h-4 border-2 border-themeblue3 border-t-transparent rounded-full animate-spin" />
-                  </div>
-                ) : members.length > 0 ? (
+                {members.length > 0 ? (
                   <div className="space-y-3">
                     {assignedMembers.length > 0 && (
                       <div className="space-y-1">
@@ -911,6 +908,7 @@ export function ClinicPanel({
                   <p className="text-[10pt] text-tertiary py-4 text-center">No members assigned</p>
                 )}
               </div>
+              <LoadingOverlay visible={medicsLoading} size={120} className="rounded-xl" />
               </div>
               <ActionPill ref={addMemberFabRef} data-tour="clinic-add-member" shadow="sm" placement="overlay">
                 <ActionButton icon={Plus} label="Add member" onClick={openAddMemberPopover} />

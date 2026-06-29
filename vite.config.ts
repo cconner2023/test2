@@ -2,37 +2,11 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
-import { writeFileSync, mkdirSync, readFileSync } from 'fs'
+import { writeFileSync, mkdirSync } from 'fs'
 import { createHash } from 'crypto'
 import { resolve } from 'path'
 import { hudSplashMarkup } from './src/lib/hudGeometry'
 
-// Extract the per-theme --color-* vars the splash needs from App.css (the single
-// source) so the pre-React splash matches the user's selected theme at first
-// paint. Only pulls the handful the splash uses; App.css stays authoritative.
-function splashThemeVars(): string {
-  let css: string
-  try {
-    css = readFileSync(resolve('src/App.css'), 'utf8')
-  } catch {
-    return ''
-  }
-  const wanted = ['themeblue1', 'themeblue2', 'themeblue3', 'themewhite2']
-  const blockRe = /\[data-theme="([^"]+)"\]\s*\{([^}]*)\}/g
-  const blocks: string[] = []
-  let m: RegExpExecArray | null
-  while ((m = blockRe.exec(css))) {
-    const [, id, body] = m
-    const vars = wanted
-      .map(name => {
-        const v = new RegExp(`--color-${name}\\s*:\\s*([^;]+);`).exec(body)
-        return v ? `--color-${name}:${v[1].trim()}` : null
-      })
-      .filter(Boolean)
-    if (vars.length) blocks.push(`[data-theme="${id}"]{${vars.join(';')}}`)
-  }
-  return blocks.length ? `<style id="splash-theme-vars">${blocks.join('')}</style>` : ''
-}
 const APP_VERSION = '2.6.9'
 const BUILD_ID = 'A1'
 
@@ -75,8 +49,6 @@ export default defineConfig({
         // Bake the HUD splash from the shared geometry module (runs in dev +
         // build) so the pre-React splash never drifts from HudLoader.tsx.
         result = result.replace('<!--HUD_SPLASH-->', hudSplashMarkup())
-        // Inject per-theme --color-* vars so the splash matches the selected theme.
-        result = result.replace('<!--THEME_VARS-->', splashThemeVars())
         // Inject CSP only in production builds (inline scripts break CSP in dev)
         if (ctx.bundle) {
           // Branch by filename so the public intake bundle gets a narrower

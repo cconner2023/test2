@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import {
-  AlertTriangle, Plus, Check, ClipboardCheck, Loader2, Wrench,
+  AlertTriangle, Plus, Check, ClipboardCheck, Wrench,
   X, History, Paperclip, FileText,
 } from 'lucide-react'
 import { getAuditBySubjectLocal, fetchAuditBySubject } from '../../lib/auditService'
@@ -229,11 +229,7 @@ export function PmcsSheet({ isOpen, onClose, subjectType = 'item', subjectId, cl
   }
 
   // ── CHECK view body — the standard PMCS intake form ─────────────────────────
-  const checkBody = loading ? (
-    <div className="flex items-center justify-center px-4 py-6">
-      <Loader2 size={16} className="animate-spin text-tertiary" />
-    </div>
-  ) : (
+  const checkBody = (
     <div className="divide-y divide-tertiary/8">
       {/* Vehicle readings — mileage + fuel level. Hidden for non-vehicle items. */}
       {isVehicle && (
@@ -338,11 +334,7 @@ export function PmcsSheet({ isOpen, onClose, subjectType = 'item', subjectId, cl
   //    back chevron lives in the overlay HEADER (onBack), not an in-body row. ──
   const historyBody = (
     <div className="px-3 pt-2 pb-3">
-      {loading ? (
-        <div className="flex items-center justify-center py-6">
-          <Loader2 size={16} className="animate-spin text-tertiary" />
-        </div>
-      ) : pmcsEvents.length === 0 ? (
+      {pmcsEvents.length === 0 ? (
         <p className="text-[10pt] text-tertiary px-1 py-4">No PMCS history yet</p>
       ) : (
         <div className="space-y-2">
@@ -478,6 +470,7 @@ export function PmcsSheet({ isOpen, onClose, subjectType = 'item', subjectId, cl
       screens={screens}
       maxWidth={360}
       previewMaxHeight="60dvh"
+      loading={loading}
     />
   )
 }

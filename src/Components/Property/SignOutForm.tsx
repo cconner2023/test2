@@ -81,9 +81,10 @@ export const SignOutForm = forwardRef<SignOutFormHandle, SignOutFormProps>(funct
     [store.locations],
   )
 
-  // Only top-level items are signable (components ride their parent).
+  // Only top-level items are signable (components ride their parent). Turned-in items
+  // have left the books, so they're never signable.
   const signableItems = useMemo(
-    () => store.items.filter((i) => !i.parent_item_id),
+    () => store.items.filter((i) => !i.parent_item_id && !i.turned_in_at),
     [store.items],
   )
 

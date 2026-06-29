@@ -1,34 +1,15 @@
 import { useMemo, useRef } from 'react'
-import { AlertTriangle, Building2, Calendar, ChevronRight, Plus } from 'lucide-react'
+import { AlertTriangle, Building2, ChevronRight, Plus } from 'lucide-react'
 import { formatMedicName } from './supervisorHelpers'
 import type { ClinicMedic } from '../../../Types/SupervisorTestTypes'
 import type { TeamMetrics } from './supervisorHelpers'
-import type { CalendarEvent } from '../../../Types/CalendarTypes'
 import { ActionButton } from '../../ActionButton'
 import { ActionPill } from '../../ActionPill'
 import { SupervisorClinicCardAction } from '../../SupervisorClinicSwitcher'
 
-function formatEventDate(evt: CalendarEvent): string {
-  const start = new Date(evt.start_time)
-  const today = new Date(); today.setHours(0, 0, 0, 0)
-  const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1)
-  const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1)
-  const eventDay = new Date(start); eventDay.setHours(0, 0, 0, 0)
-
-  let dayLabel: string
-  if (eventDay.getTime() === today.getTime()) dayLabel = 'Today'
-  else if (eventDay.getTime() === yesterday.getTime()) dayLabel = 'Yesterday'
-  else if (eventDay.getTime() === tomorrow.getTime()) dayLabel = 'Tomorrow'
-  else dayLabel = start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-
-  if (evt.all_day) return dayLabel
-  return `${dayLabel} · ${start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`
-}
-
 interface TeamReportingProps {
   metrics: TeamMetrics
   medics: ClinicMedic[]
-  resolveName: (id: string | null) => string
   onViewSoldier: (soldier: ClinicMedic) => void
   testableTaskMap: Map<string, { taskId: string }[]>
   onNavigateToTask?: (taskId: string) => void
@@ -37,11 +18,6 @@ interface TeamReportingProps {
    *  list is too long to inline, so "Algorithms" is one Coverage-Gaps row. */
   onNavigateToAlgorithmList?: () => void
   clinicName?: string | null
-  teamEvents: CalendarEvent[]
-  /** Per-soldier count of logged algorithm encounters (full history). */
-  encounterCountBySoldier?: Map<string, number>
-  onOpenCalendar: () => void
-  onOpenEvent: (eventId: string) => void
   /** When provided, the clinic-overview card becomes tap-to-edit (supervisor surface) */
   onEditClinic?: (anchorRect: DOMRect) => void
   /** When provided, an Add-member pill appears in the Soldier Readiness header */
@@ -66,30 +42,17 @@ function metricTextColor(pct: number): string {
 export function TeamReporting({
   metrics,
   medics,
-  resolveName,
   onViewSoldier,
   testableTaskMap,
   onNavigateToTask,
   onNavigateToArea,
   onNavigateToAlgorithmList,
   clinicName,
-  teamEvents,
-  encounterCountBySoldier,
-  onOpenCalendar,
-  onOpenEvent,
   onEditClinic,
   onAddMember,
   showClusterSwitch = false,
 }: TeamReportingProps) {
-  const now = useMemo(() => new Date(), [])
   const addMemberPillRef = useRef<HTMLDivElement>(null)
-  const upcomingTeamEvents = useMemo(
-    () => teamEvents.filter(e => new Date(e.end_time) >= now),
-    [teamEvents, now],
-  )
-  const SCHEDULE_LIMIT = 5
-  const scheduleHidden = Math.max(0, upcomingTeamEvents.length - SCHEDULE_LIMIT)
-  const scheduleShown = upcomingTeamEvents.slice(0, SCHEDULE_LIMIT)
   const sortedSoldiers = useMemo(() => {
     return [...metrics.soldierReadiness].sort((a, b) => a.readinessPercent - b.readinessPercent)
   }, [metrics.soldierReadiness])
@@ -161,57 +124,6 @@ export function TeamReporting({
         )}
       </div>
 
-      {/* Team Schedule */}
-      <div>
-        <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">
-          Team Schedule
-        </p>
-        <div className="relative">
-          <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
-            {scheduleShown.length === 0 ? (
-              <p className="text-sm text-tertiary px-4 py-3">No upcoming events in the next 14 days</p>
-            ) : (
-              <>
-                {scheduleShown.map((evt, idx) => {
-                  return (
-                    <button
-                      type="button"
-                      key={evt.id}
-                      onClick={() => onOpenEvent(evt.id)}
-                      className={`w-full text-left flex items-center gap-3 px-4 py-3 transition-colors hover:bg-themeblue3/5 ${idx > 0 ? 'border-t border-tertiary/8' : ''}`}
-                    >
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-primary truncate">{evt.title}</p>
-                        <p className="text-[9pt] text-tertiary">{formatEventDate(evt)}</p>
-                      </div>
-                      {evt.assigned_to.length > 0 && (
-                        <span className="text-[9pt] text-tertiary shrink-0">
-                          {evt.assigned_to.length === 1
-                            ? resolveName(evt.assigned_to[0])
-                            : `${evt.assigned_to.length} assigned`}
-                        </span>
-                      )}
-                    </button>
-                  )
-                })}
-                {scheduleHidden > 0 && (
-                  <button
-                    type="button"
-                    onClick={onOpenCalendar}
-                    className="w-full text-left text-[9pt] text-tertiary px-4 py-2 border-t border-tertiary/8 hover:bg-themeblue3/5"
-                  >
-                    +{scheduleHidden} more in calendar
-                  </button>
-                )}
-              </>
-            )}
-          </div>
-          <ActionPill shadow="sm" placement="overlay">
-            <ActionButton icon={Calendar} label="Open full calendar" onClick={onOpenCalendar} />
-          </ActionPill>
-        </div>
-      </div>
-
       {/* Soldier Readiness */}
       <div data-tour="supervisor-soldier-readiness">
         <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">
@@ -230,7 +142,7 @@ export function TeamReporting({
               />
             </ActionPill>
           )}
-          <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+          <div className="rounded-2xl bg-themewhite2 overflow-hidden">
           {sortedSoldiers.map((entry, index) => {
             const soldier = medics.find(m => m.id === entry.soldierId)
             if (!soldier) return null
@@ -241,20 +153,23 @@ export function TeamReporting({
                 className="w-full flex items-center gap-3 px-4 py-3 hover:bg-themeblue2/5 text-left active:scale-95 transition-all"
                 {...(index === 0 && { 'data-tour': 'supervisor-first-soldier' })}
               >
-                <span className="text-sm text-primary min-w-0 truncate shrink-0 w-36 flex items-center gap-1.5">
-                  <span className="truncate">{formatMedicName(soldier)}</span>
-                  {soldier.isLoanedIn && (
-                    <span className="shrink-0 text-[8pt] px-1 py-0.5 rounded bg-themeblue2/10 text-themeblue2 font-medium border border-themeblue2/30" title={`Loaned in from ${soldier.clinicName ?? 'another clinic'}`}>
-                      Loan
-                    </span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-primary truncate">{formatMedicName(soldier)}</p>
+                  {(soldier.isLoanedIn || soldier.surrogateClinicId || entry.overdueCount > 0) && (
+                    <p className="text-[9pt] truncate">
+                      {soldier.isLoanedIn && (
+                        <span className="text-themeblue2">Loaned in{soldier.clinicName ? ` from ${soldier.clinicName}` : ''}</span>
+                      )}
+                      {!soldier.isLoanedIn && soldier.surrogateClinicId && (
+                        <span className="text-themeyellow">Loaned out</span>
+                      )}
+                      {entry.overdueCount > 0 && (
+                        <span className="text-themeredred">{(soldier.isLoanedIn || soldier.surrogateClinicId) ? ' · ' : ''}{entry.overdueCount} overdue</span>
+                      )}
+                    </p>
                   )}
-                  {!soldier.isLoanedIn && soldier.surrogateClinicId && (
-                    <span className="shrink-0 text-[8pt] px-1 py-0.5 rounded bg-themeyellow/15 text-themeyellow font-medium border border-themeyellow/30" title="Loaned out">
-                      Out
-                    </span>
-                  )}
-                </span>
-                <div className="flex-1 min-w-0 flex flex-col gap-1.5">
+                </div>
+                <div className="shrink-0 w-48 flex flex-col gap-1.5">
                   <div className="flex items-center gap-2">
                     <span className="text-[9pt] text-tertiary w-18 shrink-0">Readiness</span>
                     <div className="flex-1 h-1.5 rounded-full bg-tertiary/10 overflow-hidden">
@@ -280,22 +195,6 @@ export function TeamReporting({
                     </span>
                   </div>
                 </div>
-                {(() => {
-                  const encCount = encounterCountBySoldier?.get(entry.soldierId) ?? 0
-                  return encCount > 0 ? (
-                    <span
-                      className="text-[9pt] font-medium text-themeblue2 bg-themeblue3/10 px-1.5 py-0.5 rounded-full flex-shrink-0"
-                      title={`${encCount} algorithm encounter${encCount === 1 ? '' : 's'} logged`}
-                    >
-                      {encCount} enc
-                    </span>
-                  ) : null
-                })()}
-                {entry.overdueCount > 0 && (
-                  <span className="text-[9pt] font-medium text-themeredred bg-themeredred/10 px-1.5 py-0.5 rounded-full flex-shrink-0">
-                    {entry.overdueCount}
-                  </span>
-                )}
               </button>
             )
           })}
@@ -308,7 +207,7 @@ export function TeamReporting({
         <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">
           Coverage Gaps
         </p>
-        <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+        <div className="rounded-2xl bg-themewhite2 overflow-hidden">
           {sortedGaps.map((gap, index) => (
             <button
               key={gap.areaName}

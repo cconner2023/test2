@@ -1,4 +1,4 @@
-import type { CustodyLedgerEntry, HandReceipt, HolderInfo } from '../Types/PropertyTypes'
+import type { CustodyLedgerEntry, HandReceipt, HolderInfo, TurnInDoc } from '../Types/PropertyTypes'
 
 /**
  * Fold clinic custody-ledger rows into DA 2062 hand receipts, grouped by
@@ -62,4 +62,49 @@ export function groupHandReceipts(
 
   receipts.sort((a, b) => b.recordedAt.localeCompare(a.recordedAt))
   return receipts
+}
+
+export interface TurnInFold {
+  /** Staged turn_in rows still pending the depot run (item NOT yet turned_in_at). */
+  pending: CustodyLedgerEntry[]
+  /** Completed turn-in documents (have ≥1 verified item), newest first. */
+  history: TurnInDoc[]
+}
+
+/**
+ * Fold the custody ledger's `turn_in` rows (DA 3161 turn-in) into pending vs completed.
+ * A row is PENDING while its item is still on the books (id absent from
+ * `turnedInItemIds`); once verified (turned_in_at set → id present) the row belongs to a
+ * COMPLETED doc. Rows whose item left the IDB projection entirely (`liveItemIds`) are
+ * dropped. Mirrors groupHandReceipts; the 2062 fold ignores these rows (action !=
+ * sign_down) so the two surfaces never mix on the shared doc-id column.
+ */
+export function groupTurnIns(
+  entries: CustodyLedgerEntry[],
+  turnedInItemIds: Set<string>,
+  liveItemIds: Set<string>,
+): TurnInFold {
+  const pending: CustodyLedgerEntry[] = []
+  const byDoc = new Map<string, CustodyLedgerEntry[]>()
+  for (const e of entries) {
+    if (e.action !== 'turn_in' || !e.hand_receipt_id) continue
+    if (!liveItemIds.has(e.item_id)) continue
+    if (turnedInItemIds.has(e.item_id)) {
+      const arr = byDoc.get(e.hand_receipt_id) ?? []
+      arr.push(e)
+      byDoc.set(e.hand_receipt_id, arr)
+    } else {
+      pending.push(e)
+    }
+  }
+  pending.sort((a, b) => b.recorded_at.localeCompare(a.recorded_at))
+
+  const history: TurnInDoc[] = []
+  for (const [turnInDocId, rows] of byDoc) {
+    rows.sort((a, b) => b.recorded_at.localeCompare(a.recorded_at))
+    const head = rows[0]
+    history.push({ turnInDocId, recordedAt: head.recorded_at, recordedBy: head.recorded_by, notes: head.notes, entries: rows })
+  }
+  history.sort((a, b) => b.recordedAt.localeCompare(a.recordedAt))
+  return { pending, history }
 }

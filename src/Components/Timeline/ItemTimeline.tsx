@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Plus, ArrowRightLeft, UserCheck, Pencil, Minus, AlertTriangle, Wrench, ClipboardCheck, Loader2, Eye, Trash2, type LucideIcon } from 'lucide-react'
+import { Plus, ArrowRightLeft, UserCheck, Pencil, Minus, AlertTriangle, Wrench, ClipboardCheck, Eye, Trash2, type LucideIcon } from 'lucide-react'
+import { SkeletonRows } from '../Skeleton'
 import { getAuditBySubjectLocal, fetchAuditBySubject } from '../../lib/auditService'
 import { useInvalidation } from '../../stores/useInvalidationStore'
 import type { AuditEvent } from '../../lib/auditTypes'
@@ -127,6 +128,9 @@ export function ItemTimeline({ subjectId, clinicId, locations, holders, title = 
         if (action === 'sign_down') {
           return p.to_holder_id ? `Transferred${qty} to ${holderName(p.to_holder_id)}` : `Transferred${qty}`
         }
+        if (action === 'turn_in') {
+          return `Pending Turn-In${qty}`
+        }
         return p.to_holder_id ? `Custody transferred to ${holderName(p.to_holder_id)}` : 'Custody transferred'
       }
       case 'item.edited': {
@@ -166,11 +170,9 @@ export function ItemTimeline({ subjectId, clinicId, locations, holders, title = 
       <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase mb-2">
         {title}
       </p>
-      <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
-        {loading ? (
-          <div className="flex items-center justify-center px-4 py-6">
-            <Loader2 size={16} className="animate-spin text-tertiary" />
-          </div>
+      <div className="relative rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+        {loading && events.length === 0 ? (
+          <SkeletonRows count={3} />
         ) : events.length === 0 ? (
           <p className="text-[10pt] text-tertiary px-4 py-4">No history yet</p>
         ) : (

@@ -108,7 +108,7 @@ function AssignmentsSection({
                 </p>
                 <span className="text-[9pt] text-tertiary">{assignments.length}</span>
             </div>
-            <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+            <div className="rounded-2xl bg-themewhite2 overflow-hidden">
                 {assignments.map((a, idx) => {
                     const taskData = getTaskData(a.trainingItemId)
                     const title = taskData?.title ?? a.trainingItemId
@@ -339,7 +339,7 @@ function TrainingList({
                             </p>
                             <span className="text-[9pt] text-tertiary">{tasks.length}</span>
                         </div>
-                        <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+                        <div className="rounded-2xl bg-themewhite2 overflow-hidden">
                             {tasks.map((task, idx) => (
                                 <div key={task.taskId} className={idx > 0 ? 'border-t border-tertiary/8' : ''}>
                                     <TaskRow

@@ -342,7 +342,7 @@ export function IntakeMintSection({ clinicId, oncallCount = 0, onOncallEnabledCh
         <div className="relative">
           <div
             ref={cardRef}
-            className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden"
+            className="rounded-2xl bg-themewhite2 overflow-hidden"
           >
             <div className="px-4 py-4">
               <div className="flex items-center gap-4">

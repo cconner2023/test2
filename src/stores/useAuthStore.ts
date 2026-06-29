@@ -21,6 +21,9 @@ import { clearSignalKeys, destroySignalKeys, getLocalDeviceId } from '../lib/sig
 import { clearAllSessions } from '../lib/signal/session'
 import { clearMessageStore, destroyMessageStore } from '../lib/signal/messageStore'
 import { clearClinicUsersCache } from '../lib/clinicUsersCache'
+import { clearSubClusterCache } from '../lib/subClusterCache'
+import { clearDeviceCache } from '../lib/signal/deviceCache'
+import { clearSubClusterSnapshots } from '../Hooks/useSubClusters'
 import { dbName } from '../lib/idbEnv'
 import { useCallStore } from './useCallStore'
 import { unregisterDevice, deleteKeyBundle, primaryLogoutAll, initLoRaMesh } from '../lib/signal/signalService'
@@ -538,6 +541,9 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
       import('../lib/lora/loraDb').then(m => m.clearLoraDb()).catch(() => {})
     }
     clearClinicUsersCache().catch(() => {})
+    clearSubClusterCache().catch(() => {})
+    clearDeviceCache()
+    clearSubClusterSnapshots()
     useCallStore.getState().reset()
     useCalendarStore.setState({ events: [], hydrated: false, vaultReplayDone: false })
 

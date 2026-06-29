@@ -100,11 +100,13 @@ export function MemberEditPopover({
   const [editMode, setEditMode] = useState(false)
   const [saving, setSaving] = useState(false)
   const [rank, setRank] = useState('')
+  const [component, setComponent] = useState('')
   const [roles, setRoles] = useState<Role[]>(['medic'])
   const [editEmail, setEditEmail] = useState('')
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [ranksByComponent, setRanksByComponent] = useState<Record<string, string[]> | null>(null)
+  const [componentOptions, setComponentOptions] = useState<string[]>([])
   // Live stack nav — sub-screens (loans / transfer / reset) drill off the detail
   // root; handlers that navigate outside a render closure use this.
   const navRef = useRef<StackNav | null>(null)
@@ -127,10 +129,13 @@ export function MemberEditPopover({
     return () => { cancelled = true }
   }, [isOpen, memberId])
 
-  // Lazy-load rank tables on first open
+  // Lazy-load rank + component tables on first open
   useEffect(() => {
     if (isOpen && !ranksByComponent) {
-      import('../../Data/User').then((mod) => setRanksByComponent(mod.ranksByComponent))
+      import('../../Data/User').then((mod) => {
+        setRanksByComponent(mod.ranksByComponent)
+        setComponentOptions(mod.components)
+      })
     }
   }, [isOpen, ranksByComponent])
 
@@ -173,6 +178,7 @@ export function MemberEditPopover({
           })
       setProfile(next)
       setRank(next.rank ?? '')
+      setComponent(next.component ?? '')
       setRoles((next.roles ?? ['medic']) as Role[])
       setEditEmail(next.email ?? '')
       setLoading(false)
@@ -200,6 +206,7 @@ export function MemberEditPopover({
     setSaving(true)
     setError(null)
 
+    const componentChanged = (component || null) !== (profile.component ?? null)
     const rankChanged = (rank || null) !== (profile.rank ?? null)
     const origRoles = (profile.roles ?? ['medic']).slice().sort().join(',')
     const currRoles = roles.slice().sort().join(',')
@@ -223,8 +230,11 @@ export function MemberEditPopover({
         return
       }
     }
-    if (rankChanged) {
-      const r = await updateMemberProfile(memberId, { rank: rank || undefined })
+    if (componentChanged || rankChanged) {
+      const r = await updateMemberProfile(memberId, {
+        component: componentChanged ? (component || undefined) : undefined,
+        rank: rankChanged ? (rank || undefined) : undefined,
+      })
       if (!r.success) {
         setSaving(false)
         setError(r.error)
@@ -252,7 +262,7 @@ export function MemberEditPopover({
     setSaving(false)
     onChanged()
     handleClose()
-  }, [memberId, profile, rank, roles, editEmail, sectionApplicable, sectionId, origSectionId, onChanged, handleClose])
+  }, [memberId, profile, component, rank, roles, editEmail, sectionApplicable, sectionId, origSectionId, onChanged, handleClose])
 
   const handleConfirmDelete = useCallback(async () => {
     if (!memberId) return
@@ -591,16 +601,10 @@ export function MemberEditPopover({
 
   const detailBody = (
     <>
-      {loading || !profile ? (
-        <div className="flex items-center justify-center py-4 text-tertiary">
-          <Loader2 size={14} className="animate-spin mr-2" />
-          <span className="text-[10pt]">Loading…</span>
-        </div>
-      ) : (
+      {!profile ? null : (
             <div>
               {[
                 { label: 'Credential', value: profile.credential || '—' },
-                { label: 'Component', value: profile.component || '—' },
                 { label: 'UIC', value: profile.uic || '—' },
               ].map((row) => (
                 <div key={row.label} className="flex items-center justify-between border-b border-primary/6 px-4 py-3">
@@ -628,16 +632,37 @@ export function MemberEditPopover({
                 )}
               </div>
 
-              {/* Rank — editable in edit mode */}
+              {/* Component — editable in edit mode (rank depends on it) */}
+              <div className="flex items-center justify-between gap-3 border-b border-primary/6 px-4 py-3">
+                <span className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest w-20 shrink-0">Component</span>
+                {editMode ? (
+                  <div className="flex-1 min-w-0 max-w-[200px]">
+                    <PickerInput
+                      value={component}
+                      onChange={(val) => {
+                        setComponent(val)
+                        // Drop the rank if it doesn't belong to the new component.
+                        if (rank && !(ranksByComponent?.[val]?.includes(rank))) setRank('')
+                      }}
+                      options={componentOptions}
+                      placeholder="Component"
+                    />
+                  </div>
+                ) : (
+                  <span className="text-sm text-primary truncate">{profile.component || '—'}</span>
+                )}
+              </div>
+
+              {/* Rank — editable in edit mode (depends on the selected component) */}
               <div className="flex items-center justify-between gap-3 border-b border-primary/6 px-4 py-3">
                 <span className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest w-20 shrink-0">Rank</span>
                 {editMode ? (
-                  profile.component && ranksByComponent ? (
+                  component && ranksByComponent ? (
                     <div className="flex-1 min-w-0 max-w-[200px]">
                       <PickerInput
                         value={rank}
                         onChange={setRank}
-                        options={ranksByComponent[profile.component] ?? []}
+                        options={ranksByComponent[component] ?? []}
                         placeholder="Rank"
                       />
                     </div>
@@ -1047,6 +1072,7 @@ export function MemberEditPopover({
       screens={screens}
       maxWidth={360}
       previewMaxHeight="55dvh"
+      loading={loading || !profile}
     />
   )
 }

@@ -1,8 +1,11 @@
-import { useState, useMemo, useCallback, type ReactNode } from 'react'
+import { useState, useMemo, useCallback, useRef, type ReactNode } from 'react'
 import {
   ChevronRight,
   ChevronDown,
-  MapPin,
+  MoreHorizontal,
+  Eye,
+  Pencil,
+  Trash2,
   FileText,
   RotateCcw,
   ClipboardCheck,
@@ -13,12 +16,72 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import type { ReceiptItem, HandReceiptData } from '../../Hooks/useHandReceipts'
+import type { TurnInFold } from '../../Utilities/handReceipts'
 import { useRecentPropertyActivity } from '../../Hooks/useRecentPropertyActivity'
+import { useLongPress } from '../../Hooks/useLongPress'
 import { summarizePmcs, pmcsOpened } from '../../lib/pmcsFold'
 import type { SelectedRecord } from './PropertyRecordDetail'
 import { SectionCard, SectionHeader } from '../Section'
-import { expiryStatus, type HandReceipt } from '../../Types/PropertyTypes'
+import { AnchoredMenu } from '../LiftedRowMenu'
+import type { ContextMenuItem } from '../ContextMenu'
+import { expiryStatus, type HandReceipt, type CustodyLedgerEntry, type TurnInDoc } from '../../Types/PropertyTypes'
 import type { AuditEvent } from '../../lib/auditTypes'
+
+/**
+ * One Custody-roster card — the borderless SectionCard row shared by every section
+ * (receipts / usage / expired / PMCS / dispatch). A short tap runs the primary
+ * action (`onTap`); the trailing ellipsis, a right-click, or a long-press all open
+ * the SAME object context menu (`menuItems`) via the AnchoredMenu the parent hosts.
+ * The card never builds its own item list — the parent passes the adaptive set so
+ * each entity offers only the actions that apply (calendar eventMenu pattern).
+ */
+function CustodyCard({
+  active,
+  onTap,
+  menuItems,
+  openMenu,
+  trailing,
+  children,
+}: {
+  active?: boolean
+  onTap: () => void
+  menuItems: ContextMenuItem[]
+  openMenu: (rect: DOMRect, items: ContextMenuItem[]) => void
+  trailing?: ReactNode
+  children: ReactNode
+}) {
+  const rowRef = useRef<HTMLDivElement>(null)
+  const hasMenu = menuItems.length > 0
+  const openFromRow = useCallback(() => {
+    if (hasMenu && rowRef.current) openMenu(rowRef.current.getBoundingClientRect(), menuItems)
+  }, [hasMenu, openMenu, menuItems])
+  const { isPressing, ...longPress } = useLongPress(openFromRow)
+  return (
+    <SectionCard>
+      <div
+        ref={rowRef}
+        onContextMenu={hasMenu ? (e) => { e.preventDefault(); e.stopPropagation(); openFromRow() } : undefined}
+        {...(hasMenu ? longPress : {})}
+        className={`w-full flex items-center gap-3 px-4 py-3 transition-colors ${isPressing ? 'opacity-60' : ''} ${active ? 'bg-themeblue2/8' : ''}`}
+      >
+        <button onClick={onTap} className="flex-1 min-w-0 text-left active:opacity-70">
+          {children}
+        </button>
+        {trailing}
+        {hasMenu && (
+          <button
+            type="button"
+            aria-label="More actions"
+            onClick={(e) => { e.stopPropagation(); openMenu((e.currentTarget as HTMLElement).getBoundingClientRect(), menuItems) }}
+            className="shrink-0 -mr-1 p-1 text-tertiary active:scale-90 transition-transform"
+          >
+            <MoreHorizontal size={16} />
+          </button>
+        )}
+      </div>
+    </SectionCard>
+  )
+}
 
 /** Short, human date for the receipt rows (chronological, newest first). */
 function formatDate(iso: string): string {
@@ -63,12 +126,32 @@ interface CustodyPanelProps {
   /** Roster lookup (actor id → display name) for the Usage "who did it" line. */
   membersById: HandReceiptData['membersById']
   loading: HandReceiptData['loading']
-  /** Fly the map to a signed-out / used / expiring item's usual zone and surface it. */
+  /** Fly the map to a signed-out / used / expiring item's usual zone and surface it.
+   *  Doubles as the "Navigate to" menu action for item- and receipt-backed cards. */
   onLocateItem: (item: ReceiptItem) => void
   /** Open a hand receipt's detail in the host pane (right pane desktop / sheet mobile). */
   onSelectReceipt: (r: HandReceipt) => void
   /** Open a PMCS / dispatch record's detail in the host pane. */
   onSelectRecord: (record: SelectedRecord) => void
+  /** Object context-menu actions (ellipsis / right-click / long-press). Every card's
+   *  menu opens with View (== the card's left click, kept so a right click reaches it);
+   *  these add the mutations: items get Edit + Delete, receipts + records get Delete.
+   *  Each is OPTIONAL so read-only viewers see View alone. The item handlers resolve the
+   *  full store item from the lean ReceiptItem upstream. */
+  onEditItem?: (item: ReceiptItem) => void
+  onDeleteItem?: (item: ReceiptItem) => void
+  /** Delete the whole hand receipt (confirmed upstream). */
+  onDeleteReceipt?: (r: HandReceipt) => void
+  /** Delete a PMCS/dispatch audit record (confirmed upstream). */
+  onDeleteRecord?: (e: AuditEvent) => void
+  /** DA 3161 turn-in: staged-pending rows + completed docs. */
+  turnIns: TurnInFold
+  /** Verify a staged turn-in (depot accepted) — whole doc, or a subset of itemIds. */
+  onVerifyTurnIn?: (turnInDocId: string, itemIds?: string[]) => void
+  /** Drop one item from a pending turn-in (before the depot run). */
+  onUnstageTurnInItem?: (turnInDocId: string, itemId: string) => void
+  /** Open / print the DA 3161 for a completed turn-in doc. */
+  onViewTurnIn?: (doc: TurnInDoc) => void
   /** Currently-open receipt / record — for the selected-row highlight (desktop). */
   selectedReceiptId?: string | null
   selectedRecordId?: string | null
@@ -99,9 +182,37 @@ export function CustodyPanel({
   onLocateItem,
   onSelectReceipt,
   onSelectRecord,
+  onEditItem,
+  onDeleteItem,
+  onDeleteReceipt,
+  onDeleteRecord,
+  turnIns,
+  onVerifyTurnIn,
+  onUnstageTurnInItem,
+  onViewTurnIn,
   selectedReceiptId,
   selectedRecordId,
 }: CustodyPanelProps) {
+  // The single object context menu shared by every card — opened from the trailing
+  // ellipsis, a right-click, or a long-press. Clone-less list layout (the convention
+  // for ellipsis-anchored menus); the parent passes the adaptive item set per card.
+  const [menu, setMenu] = useState<{ rect: DOMRect; items: ContextMenuItem[] } | null>(null)
+  const openMenu = useCallback((rect: DOMRect, items: ContextMenuItem[]) => setMenu({ rect, items }), [])
+
+  // Build the adaptive menu for an item-backed card (Usage / Expired). View == the
+  // card's left click (locate + surface the item) — kept in the menu so a right click
+  // reaches it too. Navigate folded into View (same action). Edit + Delete follow,
+  // each present only when its handler was supplied.
+  const itemMenu = useCallback(
+    (item: ReceiptItem | undefined): ContextMenuItem[] => {
+      if (!item) return []
+      const items: ContextMenuItem[] = [{ key: 'view', label: 'View', icon: Eye, onAction: () => onLocateItem(item) }]
+      if (onEditItem) items.push({ key: 'edit', label: 'Edit', icon: Pencil, onAction: () => onEditItem(item) })
+      if (onDeleteItem) items.push({ key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => onDeleteItem(item) })
+      return items
+    },
+    [onLocateItem, onEditItem, onDeleteItem],
+  )
   // Clinic-wide PMCS + dispatch activity for the past week — the "what got
   // inspected / dispatched lately" feed living below the hand receipts.
   const activity = useRecentPropertyActivity(clinicId)
@@ -133,7 +244,7 @@ export function CustodyPanel({
   // Expand state — collapsible GROUP keys ('__signed_out__' etc.). The discrete
   // receipts / activity events inside an open group render as a card stack.
   const [expanded, setExpanded] = useState<Set<string>>(
-    () => new Set(['__signed_out__', '__usage__', '__expired__', '__pmcs__', '__dispatch__']),
+    () => new Set(['__signed_out__', '__turnin__', '__usage__', '__expired__', '__pmcs__', '__dispatch__']),
   )
   const toggle = useCallback((key: string) => {
     setExpanded((prev) => {
@@ -165,19 +276,16 @@ export function CustodyPanel({
     const more = r.entries.length - 1
     const itemLine =
       `${firstName}${firstQty > 1 ? ` ×${firstQty}` : ''}` + (more > 0 ? ` · +${more} more` : '')
+    // View (open the 2062) == the card's left click — kept in the menu so a right
+    // click reaches it too. Then Delete (drop the whole receipt). Receipts aren't a
+    // single editable item, so no Edit.
+    const items: ContextMenuItem[] = [{ key: 'view', label: 'View', icon: Eye, onAction: () => onSelectReceipt(r) }]
+    if (onDeleteReceipt) items.push({ key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => onDeleteReceipt(r) })
     return (
-      <SectionCard key={r.handReceiptId}>
-        <button
-          onClick={() => onSelectReceipt(r)}
-          className={`w-full flex items-center gap-3 px-4 py-3 text-left active:bg-themeblue2/5 ${active ? 'bg-themeblue2/8' : ''}`}
-        >
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-primary truncate">{itemLine}</p>
-            <p className="text-[9pt] text-tertiary mt-0.5 truncate">{r.recipientLabel}</p>
-          </div>
-          <ChevronRight size={16} className="text-tertiary shrink-0" />
-        </button>
-      </SectionCard>
+      <CustodyCard key={r.handReceiptId} active={active} onTap={() => onSelectReceipt(r)} menuItems={items} openMenu={openMenu}>
+        <p className="text-sm font-medium text-primary truncate">{itemLine}</p>
+        <p className="text-[9pt] text-tertiary mt-0.5 truncate">{r.recipientLabel}</p>
+      </CustodyCard>
     )
   }
 
@@ -226,21 +334,24 @@ export function CustodyPanel({
   const renderActivityCard = (e: AuditEvent) => {
     const { Icon, tint } = activityMeta(e)
     const active = selectedRecordId === e.id
+    const open = () => onSelectRecord({ event: e, label: activityName(e), Icon, tint, detail: detailOf(e) })
+    // View (the record's 5988E/dispatch form) == the card's left click — kept in the
+    // menu so a right click reaches it too. Then Delete (drop the audit row). Records
+    // aren't editable, so no Edit.
+    const items: ContextMenuItem[] = [{ key: 'view', label: 'View', icon: Eye, onAction: open }]
+    if (onDeleteRecord) items.push({ key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => onDeleteRecord(e) })
     return (
-      <SectionCard key={e.id}>
-        <button
-          type="button"
-          onClick={() => onSelectRecord({ event: e, label: activityName(e), Icon, tint, detail: detailOf(e) })}
-          className={`group w-full flex items-center gap-3 px-4 py-3 text-left active:bg-themeblue2/5 ${active ? 'bg-themeblue2/8' : ''}`}
-        >
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-primary truncate">{activityName(e)}</p>
-            <p className="text-[9pt] text-tertiary mt-0.5 truncate">{detailOf(e)}</p>
-          </div>
-          {hasDoc(e) && <FileText size={14} className="text-themeblue2 shrink-0" />}
-          <ChevronRight size={16} className="text-tertiary shrink-0" />
-        </button>
-      </SectionCard>
+      <CustodyCard
+        key={e.id}
+        active={active}
+        onTap={open}
+        menuItems={items}
+        openMenu={openMenu}
+        trailing={hasDoc(e) ? <FileText size={14} className="text-themeblue2 shrink-0" /> : undefined}
+      >
+        <p className="text-sm font-medium text-primary truncate">{activityName(e)}</p>
+        <p className="text-[9pt] text-tertiary mt-0.5 truncate">{detailOf(e)}</p>
+      </CustodyCard>
     )
   }
 
@@ -250,19 +361,15 @@ export function CustodyPanel({
   const renderUsageCard = (e: AuditEvent) => {
     const item = itemsById.get(e.subjectId)
     return (
-      <SectionCard key={e.id}>
-        <button
-          type="button"
-          onClick={() => item && onLocateItem(item)}
-          className="group w-full flex items-center gap-3 px-4 py-3 text-left active:bg-themeblue2/5"
-        >
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-primary truncate">{activityName(e)}</p>
-            <p className="text-[9pt] text-tertiary mt-0.5 truncate">{detailOf(e)}</p>
-          </div>
-          {item && <MapPin size={13} className="text-tertiary opacity-0 group-hover:opacity-100 shrink-0" />}
-        </button>
-      </SectionCard>
+      <CustodyCard
+        key={e.id}
+        onTap={() => item && onLocateItem(item)}
+        menuItems={itemMenu(item)}
+        openMenu={openMenu}
+      >
+        <p className="text-sm font-medium text-primary truncate">{activityName(e)}</p>
+        <p className="text-[9pt] text-tertiary mt-0.5 truncate">{detailOf(e)}</p>
+      </CustodyCard>
     )
   }
 
@@ -274,23 +381,59 @@ export function CustodyPanel({
     // displayed day can't drift a day earlier in negative-offset timezones.
     const dateLabel = item.expiry_date ? formatDate(item.expiry_date + 'T00:00:00') : ''
     return (
-      <SectionCard key={item.id}>
-        <button
-          type="button"
-          onClick={() => onLocateItem(item)}
-          className="group w-full flex items-center gap-3 px-4 py-3 text-left active:bg-themeblue2/5"
-        >
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-primary truncate">{item.name}</p>
-            <p className={`text-[9pt] mt-0.5 truncate ${expired ? 'text-themeredred' : 'text-tertiary'}`}>
-              {expired ? `Expired ${dateLabel}` : `Expires ${dateLabel}`}
-            </p>
-          </div>
-          <MapPin size={13} className="text-tertiary opacity-0 group-hover:opacity-100 shrink-0" />
-        </button>
-      </SectionCard>
+      <CustodyCard key={item.id} onTap={() => onLocateItem(item)} menuItems={itemMenu(item)} openMenu={openMenu}>
+        <p className="text-sm font-medium text-primary truncate">{item.name}</p>
+        <p className={`text-[9pt] mt-0.5 truncate ${expired ? 'text-themeredred' : 'text-tertiary'}`}>
+          {expired ? `Expired ${dateLabel}` : `Expires ${dateLabel}`}
+        </p>
+      </CustodyCard>
     )
   }
+
+  // A STAGED turn-in line (pending the depot run) — item name + "Pending turn-in ·
+  // <condition>". Tap locates it; the menu completes (verify this line) or unstages it.
+  // The whole pending bucket can be completed at once via the section action below.
+  const renderPendingTurnInCard = (entry: CustodyLedgerEntry) => {
+    const item = itemsById.get(entry.item_id)
+    const docId = entry.hand_receipt_id
+    const items: ContextMenuItem[] = []
+    if (docId && onVerifyTurnIn) items.push({ key: 'verify', label: 'Complete turn-in', icon: PackageMinus, onAction: () => onVerifyTurnIn(docId, [entry.item_id]) })
+    if (docId && onUnstageTurnInItem) items.push({ key: 'unstage', label: 'Unstage', icon: RotateCcw, onAction: () => onUnstageTurnInItem(docId, entry.item_id) })
+    return (
+      <CustodyCard key={entry.id} onTap={() => item && onLocateItem(item)} menuItems={items} openMenu={openMenu}>
+        <p className="text-sm font-medium text-primary truncate">{item?.name ?? 'Item'}</p>
+        <p className="text-[9pt] text-tertiary mt-0.5 truncate">Pending turn-in · {entry.condition_code}</p>
+      </CustodyCard>
+    )
+  }
+
+  // A COMPLETED DA 3161 turn-in doc — first item (+N more) over "Turned in · <date>".
+  // (Tap / view → the 3161 PDF is the next slice.)
+  const renderTurnInDocCard = (doc: TurnInDoc) => {
+    const first = doc.entries[0]
+    const firstName = first ? itemsById.get(first.item_id)?.name ?? 'Item' : 'Item'
+    const more = doc.entries.length - 1
+    const items: ContextMenuItem[] = onViewTurnIn
+      ? [{ key: 'view', label: 'Open DA 3161', icon: FileText, onAction: () => onViewTurnIn(doc) }]
+      : []
+    return (
+      <CustodyCard key={doc.turnInDocId} onTap={() => onViewTurnIn?.(doc)} menuItems={items} openMenu={openMenu}>
+        <p className="text-sm font-medium text-primary truncate">{firstName}{more > 0 ? ` · +${more} more` : ''}</p>
+        <p className="text-[9pt] text-tertiary mt-0.5 truncate">Turned in · {formatDate(doc.recordedAt)}</p>
+      </CustodyCard>
+    )
+  }
+
+  // "Complete turn-in · N" — verifies the WHOLE pending bucket (every open doc) in one
+  // action ("I brought everything on the depot run"). Per-line verify lives in each
+  // card's menu for independent sub-cluster runs.
+  const pendingDocIds = useMemo(
+    () => [...new Set(turnIns.pending.map((p) => p.hand_receipt_id).filter((id): id is string => !!id))],
+    [turnIns.pending],
+  )
+  const completeAllTurnIns = useCallback(() => {
+    if (onVerifyTurnIn) for (const id of pendingDocIds) onVerifyTurnIn(id)
+  }, [onVerifyTurnIn, pendingDocIds])
 
   // Light muted line for an empty group (keeps the group from going missing).
   const emptyLine = (text: string) => (
@@ -335,6 +478,29 @@ export function CustodyPanel({
             : emptyLine(loading ? 'Loading…' : 'Nothing signed out.'),
         )}
 
+        {/* Turn-In (DA 3161) — ONE list, marked pending vs completed by the card's text
+            line (no badge): staged lines read "Pending turn-in", verified docs read
+            "Turned in · <date>". Hidden only when both are empty. */}
+        {(turnIns.pending.length > 0 || turnIns.history.length > 0) &&
+          renderGroup(
+            '__turnin__',
+            'Turn-In',
+            <>
+              {turnIns.pending.length > 0 && onVerifyTurnIn && (
+                <button
+                  type="button"
+                  onClick={completeAllTurnIns}
+                  className="w-full flex items-center gap-2 px-4 py-2.5 text-left text-themeblue2 active:opacity-70"
+                >
+                  <PackageMinus size={16} className="shrink-0" />
+                  <span className="text-[10pt] font-medium">Complete turn-in · {turnIns.pending.length}</span>
+                </button>
+              )}
+              {turnIns.pending.map(renderPendingTurnInCard)}
+              {turnIns.history.map(renderTurnInDocCard)}
+            </>,
+          )}
+
         {/* History (returned) — hidden when empty. */}
         {history.length > 0 &&
           renderGroup('__history__', 'History', history.map(renderReceiptCard))}
@@ -370,6 +536,16 @@ export function CustodyPanel({
           dispatchEvents.length > 0 ? dispatchEvents.map(renderActivityCard) : emptyLine('Nothing this week.'),
         )}
       </div>
+
+      {/* Shared object context menu — ellipsis / right-click / long-press on any card. */}
+      <AnchoredMenu
+        isOpen={!!menu}
+        anchorRect={menu?.rect ?? null}
+        items={menu?.items ?? []}
+        layout="list"
+        align="right"
+        onClose={() => setMenu(null)}
+      />
     </div>
   )
 }

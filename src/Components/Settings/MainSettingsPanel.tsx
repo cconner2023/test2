@@ -59,7 +59,7 @@ export const MainSettingsPanel = ({
         <div className="h-full overflow-y-auto">
             <div className="px-5 pb-4 space-y-5 pt-[calc(var(--drawer-header-h,3.5rem)+0.75rem)]">
                 {/* Profile card */}
-                <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+                <div className="rounded-2xl bg-themewhite2 overflow-hidden">
                     <div
                         data-tour="settings-profile"
                         onClick={onProfileClick}
@@ -92,7 +92,7 @@ export const MainSettingsPanel = ({
 
                 {/* Top row items (before first header, if any) */}
                 {topItems.length > 0 && (
-                    <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+                    <div className="rounded-2xl bg-themewhite2 overflow-hidden">
                         {topItems.map((item, idx) => (
                             <button
                                 key={item.id}
@@ -132,7 +132,7 @@ export const MainSettingsPanel = ({
                         <div className="flex items-center gap-2 mb-2">
                             <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">{section.label}</p>
                         </div>
-                        <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+                        <div className="rounded-2xl bg-themewhite2 overflow-hidden">
                             {section.items.map((item, idx) => (
                                 <button
                                     key={item.id}

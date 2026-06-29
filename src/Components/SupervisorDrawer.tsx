@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useEffect } from 'react'
-import { Ban, X } from 'lucide-react'
+import { Ban, X, Settings } from 'lucide-react'
 import { BaseDrawer, ScrollPane } from './BaseDrawer'
 import { ContentWrapper } from './ContentWrapper'
 import { HeaderPill, PillButton } from './HeaderPill'
@@ -16,6 +16,7 @@ import { useNavigationStore } from '../stores/useNavigationStore'
 import { useSupervisorData } from './Settings/Supervisor/useSupervisorData'
 import { isEncounterEvent, buildAlgorithmCompetency } from './Settings/Supervisor/supervisorHelpers'
 import { SoldierProfile } from './Settings/Supervisor/SoldierProfile'
+import { TimelineFullView, useSubjectTimelineRows, buildTimelineCalendarEntries } from './Timeline/UserTimeline'
 import { EvaluateFlow } from './Settings/Supervisor/EvaluateFlow'
 import { AlgorithmEvaluateFlow } from './Settings/Supervisor/AlgorithmEvaluateFlow'
 import { AssignTaskFlow } from './Settings/Supervisor/AssignTaskFlow'
@@ -25,7 +26,7 @@ import { AlgorithmCoverageView } from './Settings/Supervisor/AlgorithmCoverageVi
 import { AlgorithmGapList } from './Settings/Supervisor/AlgorithmGapList'
 import { SoldierAlgorithmList } from './Settings/Supervisor/SoldierAlgorithmList'
 import { SupervisorTree, type TreeSelection } from './Settings/Supervisor/SupervisorTree'
-import { LoadingSpinner } from './LoadingSpinner'
+import { LoadingOverlay } from './LoadingOverlay'
 import { useMinLoadTime } from '../Hooks/useMinLoadTime'
 import { ClinicIdentityEditPopover } from './ClinicAdmin/ClinicIdentityEditPopover'
 import { MemberEditPopover } from './ClinicAdmin/MemberEditPopover'
@@ -62,9 +63,17 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
 
   const [slideDirection, setSlideDirection] = useState<'left' | 'right' | ''>('')
   const [taskSearchQuery, setTaskSearchQuery] = useState('')
+  // Desktop left-pane personnel filter (mobile has its own scroll-reveal search).
+  const [treeSearch, setTreeSearch] = useState('')
+  // Desktop third pane: the selected soldier's full timeline. Mobile uses the
+  // timeline's own bottom Sheet instead (UserTimeline falls back when no host).
+  const [timelinePaneOpen, setTimelinePaneOpen] = useState(false)
 
   // Clear search when navigating between views (e.g., clicking a search result)
   useEffect(() => { setTaskSearchQuery('') }, [view.screen])
+
+  // Close the timeline pane whenever the selected person changes.
+  useEffect(() => { setTimelinePaneOpen(false) }, [treeSelection])
 
   // Tour: guided tour navigation events
   useEffect(() => {
@@ -86,9 +95,11 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
   // The supervisor toggle picks which clinic this drawer administers.
   // Defaults to the assigned clinic for single-clinic users.
   const clinicId = useAuthStore(s => s.supervisingClinicId ?? s.clinicId)
+  // Viewer's own clinic scopes audit decryption — mirrors SoldierProfile's
+  // UserTimeline clinicId so the third-pane timeline reads identically.
+  const authClinicId = useAuthStore(s => s.clinicId)
   const clinicNameFromAuth = useAuthStore(s => s.profile.clinicName)
   const calendarEvents = useCalendarStore(s => s.events)
-  const setShowCalendarDrawer = useNavigationStore(s => s.setShowCalendarDrawer)
   const openCalendarEvent = useNavigationStore(s => s.openCalendarEvent)
   const requestNewCalendarEvent = useNavigationStore(s => s.requestNewCalendarEvent)
   const { refresh: refreshMedics } = useClinicMedics()
@@ -195,14 +206,6 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
       .filter(e => isEncounterEvent(e) && e.status !== 'cancelled')
       .sort((a, b) => b.start_time.localeCompare(a.start_time))
   }, [calendarEvents])
-
-  const encounterCountBySoldier = useMemo(() => {
-    const counts = new Map<string, number>()
-    for (const e of encounterEvents) {
-      for (const uid of e.assigned_to) counts.set(uid, (counts.get(uid) ?? 0) + 1)
-    }
-    return counts
-  }, [encounterEvents])
 
   // Tour: navigate into first coverage area programmatically
   useEffect(() => {
@@ -431,14 +434,10 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
     setClinicEditAnchor(null)
     setMemberEdit(null)
     setAddMemberAnchor(null)
+    setTimelinePaneOpen(false)
 
     onClose()
   }, [onClose])
-
-  const handleOpenCalendar = useCallback(() => {
-    handleClose()
-    setShowCalendarDrawer(true)
-  }, [handleClose, setShowCalendarDrawer])
 
   const handleScheduleAlgorithm = useCallback((soldier: ClinicMedic, algorithmId: string, algorithmName: string) => {
     requestNewCalendarEvent({
@@ -454,6 +453,29 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
     handleClose()
     openCalendarEvent(eventId)
   }, [handleClose, openCalendarEvent])
+
+  // ── Timeline data (shared) ─────────────────────────────────────────────────
+  // Fetched ONCE per selected soldier (audit delta is already IDB-backed) and
+  // shared by the soldier-card preview AND the timeline pane — no per-surface
+  // re-fetch. A falsy subjectId skips the fetch (no soldier selected).
+  const timelineSubjectId = treeSelection.type === 'soldier' ? treeSelection.soldierId : ''
+  const timelineEntries = useMemo(() => (
+    timelineSubjectId
+      ? buildTimelineCalendarEntries(
+          windowedEvents.filter(e => e.assigned_to.includes(timelineSubjectId)),
+          encounterEvents.filter(e => e.assigned_to.includes(timelineSubjectId)),
+        )
+      : []
+  ), [timelineSubjectId, windowedEvents, encounterEvents])
+  const { allRows: timelineRows, loading: timelineLoading } = useSubjectTimelineRows({
+    subjectId: timelineSubjectId,
+    clinicId: authClinicId ?? '',
+    calendarEntries: timelineEntries,
+    onOpenEvent: handleOpenEvent,
+  })
+  // Desktop three-pane: when the timeline opens, the left rail collapses and this
+  // pane opens (the established rail-closes/right-pane-opens convention).
+  const timelinePaneVisible = !isMobile && timelinePaneOpen && view.screen === 'main' && treeSelection.type === 'soldier'
 
   const handleTreeSelect = useCallback((selection: TreeSelection) => {
     setTreeSelection(selection)
@@ -630,16 +652,11 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
             <TeamReporting
               metrics={teamMetrics}
               medics={medics}
-              resolveName={resolveName}
               onViewSoldier={handleViewProfile}
               testableTaskMap={testableTaskMap}
               clinicName={clinicName}
               onNavigateToArea={handleNavigateToArea}
               onNavigateToAlgorithmList={handleNavigateToAlgorithmList}
-              teamEvents={windowedEvents}
-              encounterCountBySoldier={encounterCountBySoldier}
-              onOpenCalendar={handleOpenCalendar}
-              onOpenEvent={handleOpenEvent}
               onEditClinic={isSupervisor && clinicId ? setClinicEditAnchor : undefined}
               onAddMember={isSupervisor && clinicId ? setAddMemberAnchor : undefined}
               showClusterSwitch={isMobile}
@@ -669,14 +686,13 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
               handleSlideAnimation('left')
               setView({ screen: 'coverage-tasks', areaName, soldier })
             }}
-            calendarEvents={windowedEvents.filter(e => e.assigned_to.includes(soldier.id))}
-            encounterEvents={encounterEvents.filter(e => e.assigned_to.includes(soldier.id))}
-            onOpenCalendar={handleOpenCalendar}
-            onOpenEvent={handleOpenEvent}
+            timelineRows={timelineRows}
+            timelineLoading={timelineLoading}
             onEditMember={isSupervisor && clinicId
               ? (memberId, anchor) => setMemberEdit({ memberId, anchor })
               : undefined}
             onOpenAlgorithms={() => handleOpenSoldierAlgorithms(soldier)}
+            onViewAllTimeline={!isMobile ? () => setTimelinePaneOpen(true) : undefined}
           />
         )
       }
@@ -694,7 +710,11 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
   const renderContent = () => {
     // Loading state
     if (loading) {
-      return <LoadingSpinner className="h-full text-tertiary" />
+      return (
+        <div className="relative h-full">
+          <LoadingOverlay visible size={140} />
+        </div>
+      )
     }
 
     // Auth guard
@@ -906,17 +926,56 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
             {/* Desktop: split pane layout */}
             {!isMobile && !loading && isSupervisor ? (
               <div className="flex h-full">
-                <div className="w-65 shrink-0 border-r border-tertiary/10 flex flex-col bg-themewhite3/50">
+                <div className={`shrink-0 border-r border-tertiary/10 flex flex-col bg-themewhite3/50 transition-all duration-300 ${
+                  timelinePaneVisible ? 'w-0 opacity-0 overflow-hidden border-r-0' : 'w-65 opacity-100'
+                }`}>
+                  <div className="shrink-0 flex items-center gap-1.5 px-3 py-2 border-b border-primary/10">
+                    <div className="flex-1 min-w-0">
+                      <SearchInput
+                        value={treeSearch}
+                        onChange={setTreeSearch}
+                        placeholder="Search personnel..."
+                      />
+                    </div>
+                    <button
+                      onClick={() => {}}
+                      className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center transition-colors active:scale-95 text-tertiary hover:text-primary"
+                      aria-label="Supervisor settings"
+                      title="Supervisor settings"
+                    >
+                      <Settings className="w-4 h-4" />
+                    </button>
+                  </div>
                   <div className="flex-1 min-h-0">
                     <SupervisorTree
                       medics={medics}
                       selection={treeSelection}
                       onSelect={handleTreeSelect}
+                      searchQuery={treeSearch}
                     />
                   </div>
                 </div>
                 <div className="flex-1 min-w-0 overflow-y-auto">
                   {renderContent()}
+                </div>
+                {/* Third pane — the selected soldier's full timeline. Opens as the
+                    left rail collapses (rail-closes / right-pane-opens convention). */}
+                <div className={`shrink-0 border-l border-tertiary/10 flex flex-col bg-themewhite3/30 transition-all duration-300 ${
+                  timelinePaneVisible ? 'w-96 opacity-100' : 'w-0 opacity-0 overflow-hidden border-l-0'
+                }`}>
+                  <div className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-primary/10">
+                    <p className="text-[10pt] font-medium text-tertiary uppercase tracking-wide">Timeline</p>
+                    <button
+                      onClick={() => setTimelinePaneOpen(false)}
+                      className="w-8 h-8 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all"
+                      aria-label="Close timeline"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+                  <div className="flex-1 min-h-0 overflow-y-auto">
+                    {timelinePaneVisible && <TimelineFullView rows={timelineRows} loading={timelineLoading} />}
+                  </div>
                 </div>
               </div>
             ) : (

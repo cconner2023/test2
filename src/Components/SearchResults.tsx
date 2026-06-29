@@ -1,7 +1,7 @@
 // Components/SearchResults.tsx - COMPLETE WORKING VERSION
 import { useState, useEffect, useMemo } from 'react';
 import type { SearchResultType } from "../Types/CatTypes";
-import { LoadingSpinner } from './LoadingSpinner';
+import { Skeleton } from './Skeleton';
 import { useMinLoadTime } from '../Hooks/useMinLoadTime';
 import { Chip, ChipBar } from './Chip';
 
@@ -129,10 +129,23 @@ export function SearchResults({
         )
     }
 
-    // Searching state
+    // Searching state — quiet skeleton rows matching the result-row shape (badge
+    // + text lines). Leaf-level: no HUD inside the already-open search surface.
     if (showLoading) {
         return (
-            <LoadingSpinner size="md" label={`Searching for "${searchTerm}"...`} className="h-full w-full text-tertiary" />
+            <div className="flex flex-col h-full overflow-hidden pt-2" aria-hidden="true">
+                {Array.from({ length: 7 }).map((_, i) => (
+                    <div key={i} className="px-2 py-3 border-b border-themewhite2/50">
+                        <div className="flex items-start gap-3">
+                            <Skeleton className="w-9 h-9 rounded-lg shrink-0" />
+                            <div className="flex-1 min-w-0 space-y-2">
+                                <Skeleton className="h-3.5 w-3/4 rounded-full" />
+                                <Skeleton className="h-2.5 w-1/3 rounded-full" />
+                            </div>
+                        </div>
+                    </div>
+                ))}
+            </div>
         )
     }
 

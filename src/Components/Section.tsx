@@ -40,11 +40,11 @@ export function Section({ title, count, children, className = 'mb-5' }: SectionP
 
 /**
  * Standard card container used for roster lists and grouped content.
- * Matches the pattern: rounded-2xl, subtle border, themewhite2 background.
+ * Matches the pattern: rounded-2xl, themewhite2 background (borderless).
  */
 export function SectionCard({ children, className }: { children: ReactNode; className?: string }) {
     return (
-        <div className={`rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden ${className ?? ''}`}>
+        <div className={`rounded-2xl bg-themewhite2 overflow-hidden ${className ?? ''}`}>
             {children}
         </div>
     )

@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback, memo, useImperativeHandle, forwardRef, useMemo } from 'react'
 import type { ReactNode } from 'react'
-import { Trash2, Headset, Play, MessageSquare, Info, ChevronLeft, Pin, Users, Check, QrCode, Mail, Send, Plus, Hash, Settings } from 'lucide-react'
+import { Trash2, Headset, Play, MessageSquare, Info, ChevronLeft, ChevronRight, ChevronDown, Pin, Users, Check, QrCode, Mail, Send, Plus, Hash, Settings } from 'lucide-react'
 import { useSpring, animated } from '@react-spring/web'
 import { SearchInput } from '../SearchInput'
 import { HeaderPill, PillButton } from '../HeaderPill'
@@ -26,6 +26,7 @@ import { LiftedRowMenu } from '../LiftedRowMenu'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { TextInput } from '../FormInputs'
 import { useClinicGroupedMedics } from '../../Hooks/useClinicGroupedMedics'
+import { useSubClusters } from '../../Hooks/useSubClusters'
 import { usePeerAvailability, type UnavailableReason } from '../../Hooks/usePeerAvailability'
 import { ChatDetailView, type ParticipantStatus } from '../ChatDetailView'
 import { PreviewOverlay } from '../PreviewOverlay'
@@ -47,6 +48,8 @@ export type MessagesView = 'messages' | 'messages-chat' | 'messages-group-chat'
 
 /** Messaging surface lens — conversations (Chat) vs call history (Calls). */
 export type MessagingLens = 'chat' | 'calls'
+
+const HQ_GROUP_ID = '__hq__'
 
 export interface MessagesPanelHandle {
   openNew: () => void
@@ -194,11 +197,23 @@ function ConversationPane({
   const signalReady = useAuthStore(s => s.signalReady)
   const { currentAvatar } = useAvatar()
   const { ownClinicMedics, nearbyByClinic, nearbyClinicNames } = useClinicGroupedMedics(medics)
+  const { subClusters } = useSubClusters()
   const isMobile = useIsMobile()
   const pinnedKeysArr = useMessagingStore(s => s.pinnedConversationKeys)
   const pinnedKeys = useMemo(() => new Set(pinnedKeysArr), [pinnedKeysArr])
   const togglePinConversation = useMessagingStore(s => s.togglePinConversation)
   const [liftedMenu, setLiftedMenu] = useState<{ rect: DOMRect; row: ReactNode; items: ContextMenuItem[] } | null>(null)
+  // Collapsed roster groups (sub-cluster ids / HQ bucket / `clinic:<name>`).
+  // Default expanded.
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
+  const toggleGroupCollapse = useCallback((id: string) => {
+    setCollapsedGroups(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }, [])
   const [pendingDelete, setPendingDelete] = useState<PreviewTarget | null>(null)
   const showLoading = useMinLoadTime(loading ?? false)
 
@@ -218,6 +233,51 @@ function ConversationPane({
   const openMenu = useCallback((rect: DOMRect, row: ReactNode, target: PreviewTarget) => {
     setLiftedMenu({ rect, row, items: menuItemsFor(target) })
   }, [menuItemsFor])
+
+  // A start-new contact row (no conversation yet). Mobile gets long-press → the
+  // lifted-row menu; desktop opens the chat on click. Shared by every roster group.
+  const renderContactRow = useCallback((medic: ClinicMedic) => {
+    const item = <ContactListItem medic={medic} unreadCount={0} unavailable={unavailableIds.has(medic.id)} unavailableReason={unavailableIds.get(medic.id)} onClick={() => {}} />
+    const target: PreviewTarget = { key: medic.id, type: 'contact', medic, hasConversation: false, isPinned: false }
+    return isMobile ? (
+      <LongPressRow
+        key={medic.id}
+        onClick={() => onSelectPeer(medic)}
+        onLongPress={(rect) => openMenu(rect, item, target)}
+      >
+        {item}
+      </LongPressRow>
+    ) : (
+      <ContactListItem
+        key={medic.id}
+        medic={medic}
+        unreadCount={0}
+        unavailable={unavailableIds.has(medic.id)}
+        unavailableReason={unavailableIds.get(medic.id)}
+        onClick={() => onSelectPeer(medic)}
+      />
+    )
+  }, [isMobile, unavailableIds, onSelectPeer, openMenu])
+
+  // A collapsible roster group — header (chevron + name + count) that toggles
+  // collapse, with the contact rows beneath. Mirrors the calendar cluster tree.
+  const renderRosterGroup = useCallback((id: string, name: string, groupMedics: ClinicMedic[]) => {
+    if (groupMedics.length === 0) return null
+    const collapsed = collapsedGroups.has(id)
+    return (
+      <div key={id}>
+        <button
+          onClick={() => toggleGroupCollapse(id)}
+          className="w-full flex items-center gap-2 py-2 px-4 bg-secondary/5 border-y border-primary/5 text-left active:scale-[0.99] transition-transform"
+          aria-label={collapsed ? `Expand ${name}` : `Collapse ${name}`}
+        >
+          {collapsed ? <ChevronRight size={14} className="text-tertiary shrink-0" /> : <ChevronDown size={14} className="text-tertiary shrink-0" />}
+          <span className="text-[9pt] font-medium text-tertiary uppercase tracking-wide truncate flex-1">{name}</span>
+        </button>
+        {!collapsed && groupMedics.map(renderContactRow)}
+      </div>
+    )
+  }, [collapsedGroups, toggleGroupCollapse, renderContactRow])
 
   // Self-notes entry
   const selfMedic: ClinicMedic | null = userId
@@ -273,6 +333,29 @@ function ConversationPane({
     })
     return entries
   }, [conversations, medics, groups, userId, pinnedKeys])
+
+  // Own-clinic roster grouped by sub-cluster (platoon/squad) — mirrors the
+  // calendar/supervisor cluster tree. Start-new contacts only (exclude self +
+  // anyone already in Recent). Null/stale sub-cluster ids fall to HQ/Unassigned.
+  // Flat list when the clinic defines no sub-clusters.
+  const ownFiltered = useMemo(
+    () => ownClinicMedics.filter(m => m.id !== userId && !activeConversationIds.has(m.id)),
+    [ownClinicMedics, userId, activeConversationIds],
+  )
+  const ownGroups = useMemo(() => {
+    const knownSubIds = new Set(subClusters.map(s => s.id))
+    const order: { id: string; name: string }[] = [
+      { id: HQ_GROUP_ID, name: 'HQ / Unassigned' },
+      ...subClusters.map(s => ({ id: s.id, name: s.name })),
+    ]
+    const buckets = new Map<string, ClinicMedic[]>(order.map(g => [g.id, []]))
+    for (const m of ownFiltered) {
+      const key = m.subClusterId && knownSubIds.has(m.subClusterId) ? m.subClusterId : HQ_GROUP_ID
+      buckets.get(key)!.push(m)
+    }
+    return order.map(g => ({ ...g, medics: buckets.get(g.id)! })).filter(g => g.medics.length > 0)
+  }, [ownFiltered, subClusters])
+  const ownGrouped = subClusters.length > 0
 
   // Search
   const searchResults = useMemo(() => {
@@ -491,73 +574,25 @@ function ConversationPane({
             <div data-tour={tourVariant ? 'messages-roster' : undefined}>
               <div className="mx-3 my-2 border-b border-primary/10" />
 
-              {/* Contacts: My Clinic (exclude those already in Recent conversations) */}
-              {(() => {
-                const filtered = ownClinicMedics.filter(m => m.id !== userId && !activeConversationIds.has(m.id))
-                return filtered.length > 0 ? (
-                  <>
-                    <div className="flex items-center gap-1.5 px-3 py-1.5">
-                      <p className="text-[10pt] text-tertiary uppercase tracking-wider font-semibold">My Cluster</p>
-                    </div>
-                    {filtered.map(medic => {
-                      const item = <ContactListItem medic={medic} unreadCount={0} unavailable={unavailableIds.has(medic.id)} unavailableReason={unavailableIds.get(medic.id)} onClick={() => {}} />
-                      const target: PreviewTarget = { key: medic.id, type: 'contact', medic, hasConversation: false, isPinned: false }
-                      return isMobile ? (
-                        <LongPressRow
-                          key={medic.id}
-                          onClick={() => onSelectPeer(medic)}
-                          onLongPress={(rect) => openMenu(rect, item, target)}
-                        >
-                          {item}
-                        </LongPressRow>
-                      ) : (
-                        <ContactListItem
-                          key={medic.id}
-                          medic={medic}
-                          unreadCount={0}
-                          unavailable={unavailableIds.has(medic.id)}
-                          unavailableReason={unavailableIds.get(medic.id)}
-                          onClick={() => onSelectPeer(medic)}
-                        />
-                      )
-                    })}
-                  </>
-                ) : null
-              })()}
+              {/* My Cluster — own clinic, grouped by sub-cluster into collapsible
+                  groups (HQ/Unassigned bucket for null/stale sub-cluster ids).
+                  Flat list when the clinic defines no sub-clusters. */}
+              {ownFiltered.length > 0 && (
+                <>
+                  <div className="flex items-center gap-1.5 px-3 py-1.5">
+                    <p className="text-[10pt] text-tertiary uppercase tracking-wider font-semibold">My Cluster</p>
+                  </div>
+                  {ownGrouped
+                    ? ownGroups.map(g => renderRosterGroup(g.id, g.name, g.medics))
+                    : ownFiltered.map(renderContactRow)}
+                </>
+              )}
 
-              {/* Contacts: Nearby clinics (exclude those already in Recent conversations) */}
+              {/* Nearby clinics — each cluster a collapsible group. */}
               {nearbyClinicNames.map(clinicName => {
                 const filtered = nearbyByClinic[clinicName].filter(m => !activeConversationIds.has(m.id))
                 if (filtered.length === 0) return null
-                return (
-                  <div key={clinicName}>
-                    <div className="flex items-center gap-1.5 px-3 py-1.5">
-                      <p className="text-[10pt] text-tertiary uppercase tracking-wider font-semibold">{clinicName}</p>
-                    </div>
-                    {filtered.map(medic => {
-                      const item = <ContactListItem medic={medic} unreadCount={0} unavailable={unavailableIds.has(medic.id)} unavailableReason={unavailableIds.get(medic.id)} onClick={() => {}} />
-                      const target: PreviewTarget = { key: medic.id, type: 'contact', medic, hasConversation: false, isPinned: false }
-                      return isMobile ? (
-                        <LongPressRow
-                          key={medic.id}
-                          onClick={() => onSelectPeer(medic)}
-                          onLongPress={(rect) => openMenu(rect, item, target)}
-                        >
-                          {item}
-                        </LongPressRow>
-                      ) : (
-                        <ContactListItem
-                          key={medic.id}
-                          medic={medic}
-                          unreadCount={0}
-                          unavailable={unavailableIds.has(medic.id)}
-                          unavailableReason={unavailableIds.get(medic.id)}
-                          onClick={() => onSelectPeer(medic)}
-                        />
-                      )
-                    })}
-                  </div>
-                )
+                return renderRosterGroup(`clinic:${clinicName}`, clinicName, filtered)
               })}
             </div>
 

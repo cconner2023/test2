@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { Check, Loader2 } from 'lucide-react'
-import { PreviewOverlay } from '../PreviewOverlay'
+import { OverlayStack, type StackScreen, type StackNav } from '../OverlayStack'
 import { ActionButton } from '../ActionButton'
 import { ActionPill } from '../ActionPill'
 import { ErrorPill } from '../ErrorPill'
@@ -14,7 +14,6 @@ import { invalidate } from '../../stores/useInvalidationStore'
 import { useAuthStore } from '../../stores/useAuthStore'
 
 type Role = 'medic' | 'supervisor' | 'provider'
-type Mode = 'lookup' | 'create'
 
 interface AddMemberPopoverProps {
   isOpen: boolean
@@ -34,7 +33,6 @@ export function AddMemberPopover({
 }: AddMemberPopoverProps) {
   const profile = useAuthStore((s) => s.profile)
 
-  const [mode, setMode] = useState<Mode>('lookup')
   const [email, setEmail] = useState('')
   const [lookupLoading, setLookupLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -53,6 +51,8 @@ export function AddMemberPopover({
   const [feedback, setFeedback] = useState<{ type: 'error' | 'success'; message: string } | null>(null)
   const feedbackTimer = useRef<ReturnType<typeof setTimeout>>(null)
   const emailRef = useRef<HTMLInputElement>(null)
+  // Live nav of the morph stack — handlers push the create screen on it.
+  const navRef = useRef<StackNav | null>(null)
 
   const showFeedback = useCallback((type: 'error' | 'success', message: string) => {
     if (feedbackTimer.current) clearTimeout(feedbackTimer.current)
@@ -61,7 +61,6 @@ export function AddMemberPopover({
   }, [])
 
   const reset = useCallback(() => {
-    setMode('lookup')
     setEmail('')
     setFirstName('')
     setLastName('')
@@ -80,17 +79,18 @@ export function AddMemberPopover({
     if (isOpen) reset()
   }, [isOpen, reset])
 
-  // Focus email input when entering lookup mode
+  // Focus the email input when the overlay opens.
   useEffect(() => {
-    if (isOpen && mode === 'lookup') {
+    if (isOpen) {
       requestAnimationFrame(() => emailRef.current?.focus())
     }
-  }, [isOpen, mode])
+  }, [isOpen])
 
   const handleClose = useCallback(() => {
     reset()
     onClose()
   }, [reset, onClose])
+
 
   const handleLookup = useCallback(async () => {
     if (!email.trim() || !clinicId) return
@@ -115,7 +115,7 @@ export function AddMemberPopover({
     } else {
       setLookupLoading(false)
       if (profile?.component) setComponent(profile.component)
-      setMode('create')
+      navRef.current?.push('create')
     }
   }, [email, clinicId, profile?.component, showFeedback, onAdded, handleClose])
 
@@ -167,41 +167,24 @@ export function AddMemberPopover({
     credential, component, rank, uic, roles, showFeedback, onAdded, handleClose,
   ])
 
-  return (
-    <PreviewOverlay
-      isOpen={isOpen}
-      onClose={handleClose}
-      anchorRect={anchorRect}
-      title={mode === 'create' ? 'New user' : 'Add member'}
-      maxWidth={360}
-      previewMaxHeight="70dvh"
-      rightFooter={
-        isOpen && mode === 'lookup' ? (
-          <ActionPill>
-            <ActionButton
-              icon={lookupLoading ? Loader2 : Check}
-              label={lookupLoading ? 'Checking…' : 'Add'}
-              variant={lookupLoading || !email.trim() ? 'disabled' : 'success'}
-              onClick={handleLookup}
-            />
-          </ActionPill>
-        ) : isOpen && mode === 'create' ? (
-          <ActionPill>
-            <ActionButton
-              icon={submitting ? Loader2 : Check}
-              label={submitting ? 'Creating…' : 'Create & add'}
-              variant={
-                submitting || !firstName.trim() || !lastName.trim() || tempPassword.length < 12
-                  ? 'disabled'
-                  : 'success'
-              }
-              onClick={handleCreate}
-            />
-          </ActionPill>
-        ) : undefined
-      }
-    >
-      {isOpen && mode === 'lookup' && (
+  // Two morph screens on one card: email lookup → create form. The create
+  // screen is a DRILL-DOWN (lookup no longer needed once we're filling the
+  // form), so it morphs in place rather than stacking a second overlay. The
+  // credential/rank PickerInputs read StackNavContext and morph here too.
+  const screens: Record<string, StackScreen> = {
+    lookup: {
+      title: 'Add member',
+      rightFooter: (
+        <ActionPill>
+          <ActionButton
+            icon={lookupLoading ? Loader2 : Check}
+            label={lookupLoading ? 'Checking…' : 'Add'}
+            variant={lookupLoading || !email.trim() ? 'disabled' : 'success'}
+            onClick={handleLookup}
+          />
+        </ActionPill>
+      ),
+      render: () => (
         <div>
           <div className="flex items-center border-b border-primary/6 px-4 py-3">
             <span className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest w-20 shrink-0">Email</span>
@@ -226,8 +209,26 @@ export function AddMemberPopover({
             If no account exists for this email, you'll be prompted to create one.
           </p>
         </div>
-      )}
-      {isOpen && mode === 'create' && (
+      ),
+    },
+    create: {
+      title: 'New user',
+      onBack: (nav) => { setFeedback(null); nav.pop() },
+      rightFooter: (
+        <ActionPill>
+          <ActionButton
+            icon={submitting ? Loader2 : Check}
+            label={submitting ? 'Creating…' : 'Create & add'}
+            variant={
+              submitting || !firstName.trim() || !lastName.trim() || tempPassword.length < 12
+                ? 'disabled'
+                : 'success'
+            }
+            onClick={handleCreate}
+          />
+        </ActionPill>
+      ),
+      render: () => (
         <div>
           <div className="flex items-center border-b border-primary/6 px-4 py-3">
             <span className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest w-20 shrink-0">Email</span>
@@ -255,8 +256,21 @@ export function AddMemberPopover({
             roles={roles} onRoles={setRoles}
           />
         </div>
-      )}
-    </PreviewOverlay>
+      ),
+    },
+  }
+
+  return (
+    <OverlayStack
+      isOpen={isOpen}
+      onClose={handleClose}
+      anchorRect={anchorRect}
+      initial={{ key: 'lookup' }}
+      screens={screens}
+      navRef={navRef}
+      maxWidth={360}
+      previewMaxHeight="70dvh"
+    />
   )
 }
 
@@ -364,13 +378,25 @@ function CreateForm(props: CreateFormProps) {
       </div>
 
       <div className="flex items-center gap-2 border-b border-primary/6 px-4 py-3">
+        <span className={labelCx}>Component</span>
+        <div className="flex-1 min-w-0">
+          <PickerInput
+            value={props.component}
+            onChange={props.onComponent}
+            options={userData.components}
+            placeholder="Component"
+          />
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2 border-b border-primary/6 px-4 py-3">
         <span className={labelCx}>Rank</span>
         <div className="flex-1 min-w-0">
           <PickerInput
             value={props.rank}
             onChange={props.onRank}
             options={componentRanks}
-            placeholder="Rank"
+            placeholder={props.component ? 'Rank' : 'Select component first'}
           />
         </div>
       </div>

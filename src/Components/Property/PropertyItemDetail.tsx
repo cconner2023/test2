@@ -32,6 +32,8 @@ interface PropertyItemDetailProps {
   onEdit?: () => void
   onDelete?: () => void
   canDelete?: boolean
+  /** Stage this item (+ its SKO subtree) for turn-in — the rolling DA 3161 bucket. */
+  onStageTurnIn?: () => void
   /** The whole property drawer element the desktop overlays (PMCS, split/merge)
    *  scope to — so they dim/center over the entire drawer, not just the right
    *  pane. Null on mobile, where those surfaces render as bottom Sheets. */
@@ -94,7 +96,7 @@ function WarnBadge({ label }: { label: string }) {
 }
 
 export const PropertyItemDetail = forwardRef<PropertyItemDetailHandle, PropertyItemDetailProps>(
-  function PropertyItemDetail({ item, locations, holders, items, onEnroll, onEdit, onDelete, canDelete, drawerRef }, ref) {
+  function PropertyItemDetail({ item, locations, holders, items, onEnroll, onEdit, onDelete, canDelete, onStageTurnIn, drawerRef }, ref) {
   const isMobile = useIsMobile()
   const splitItem = usePropertyStore(s => s.splitItem)
   const mergeItems = usePropertyStore(s => s.mergeItems)
@@ -422,6 +424,7 @@ export const PropertyItemDetail = forwardRef<PropertyItemDetailHandle, PropertyI
             { key: 'pmcs', label: 'PMCS', icon: Wrench, onAction: () => setShowPmcs(true) },
             { key: 'share', label: 'Share to chat', icon: MessageSquare, onAction: handleShareToChat },
             { key: 'enroll', label: item.visual_fingerprint ? 'Update Visual ID' : 'Enroll Visual ID', icon: ScanLine, onAction: onEnroll },
+            ...(onStageTurnIn ? [{ key: 'turnin', label: 'Stage for turn-in', icon: PackageMinus, onAction: onStageTurnIn } as ContextMenuItem] : []),
             ...(onDelete && canDelete ? [{ key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: onDelete } as ContextMenuItem] : []),
           ]}
         />

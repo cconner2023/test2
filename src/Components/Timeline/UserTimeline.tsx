@@ -1,7 +1,9 @@
 import { useEffect, useState, useMemo, type ReactNode } from 'react'
-import { Building2, Package, ClipboardCheck, Award, Activity, Calendar, History, Loader2 } from 'lucide-react'
+import { Building2, Package, ClipboardCheck, Award, Activity, Calendar, History } from 'lucide-react'
+import { SkeletonRows } from '../Skeleton'
 import { getAuditBySubjectLocal, fetchAuditBySubject } from '../../lib/auditService'
 import type { AuditEvent, AuditDomain } from '../../lib/auditTypes'
+import type { CalendarEvent } from '../../Types/CalendarTypes'
 import { createLogger } from '../../Utilities/Logger'
 import { ActionPill } from '../ActionPill'
 import { ActionButton } from '../ActionButton'
@@ -40,10 +42,11 @@ export interface TimelineCalendarEntry {
 }
 
 interface UserTimelineProps {
-  /** The user this timeline is about (soldier / member). */
-  subjectId: string
+  /** The user this timeline is about (soldier / member). Required for the
+   *  self-fetch path; omit when passing pre-fetched `rows`. */
+  subjectId?: string
   /** Caller's clinic — scopes the server read + payload decryption. */
-  clinicId: string
+  clinicId?: string
   /** Optional synthetic events to seed the spine (e.g. a "joined" marker from
    *  profiles.created_at, which is not itself an audit event). */
   seedEvents?: AuditEvent[]
@@ -56,10 +59,20 @@ interface UserTimelineProps {
   previewCount?: number
   /** Extra action button(s) folded into the timeline's action pill (e.g. "View in calendar"). */
   actions?: ReactNode
+  /** When provided, "View all" calls this instead of opening the bottom Sheet —
+   *  lets a desktop host render the full timeline in a side pane. Falls back to
+   *  the Sheet when absent (mobile + admin). */
+  onViewAll?: () => void
+  /** Pre-fetched rows (host-owned). When provided the component is presentational
+   *  and does NOT fetch — lets a host share one fetch across surfaces (the
+   *  supervisor three-pane: soldier-card preview + timeline pane read one source).
+   *  Supplied via useSubjectTimelineRows + buildTimelineCalendarEntries. */
+  rows?: TimelineRowData[]
+  rowsLoading?: boolean
 }
 
 /** Normalized row rendered by the timeline — from an audit event or a calendar entry. */
-interface TimelineRowData {
+export interface TimelineRowData {
   id: string
   occurredAt: string
   seq: number | null
@@ -138,12 +151,8 @@ function calendarToRow(c: TimelineCalendarEntry, onOpenEvent?: (id: string) => v
 }
 
 function TimelineRow({ row, future }: { row: TimelineRowData; future: boolean }) {
-  const { Icon } = row
   const body = (
     <>
-      <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${row.tint}`}>
-        <Icon size={14} />
-      </div>
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-primary truncate">{row.label}</p>
         <p className="text-[9pt] text-tertiary capitalize">{row.sublabel}</p>
@@ -184,13 +193,92 @@ function arrange(rows: TimelineRowData[]): {
   return { future, past }
 }
 
-export function UserTimeline({ subjectId, clinicId, seedEvents, calendarEntries, onOpenEvent, title = 'Timeline', previewCount = 5, actions }: UserTimelineProps) {
+export function UserTimeline({ subjectId, clinicId, seedEvents, calendarEntries, onOpenEvent, title = 'Timeline', previewCount = 5, actions, onViewAll, rows, rowsLoading }: UserTimelineProps) {
+  const [showAll, setShowAll] = useState(false)
+  // Presentational when `rows` are supplied (host already fetched); otherwise
+  // self-fetch. Passing an empty subjectId keeps the hook from fetching.
+  const self = useSubjectTimelineRows({ subjectId: rows ? '' : (subjectId ?? ''), clinicId: clinicId ?? '', seedEvents, calendarEntries, onOpenEvent })
+  const allRows = rows ?? self.allRows
+  const loading = rows ? !!rowsLoading : self.loading
+
+  const total = allRows.length
+
+  // Preview = the events nearest to "now" (a few upcoming + recent past), so the
+  // card surfaces what matters rather than the farthest-future scheduled rows.
+  const previewRows = useMemo(() => {
+    if (allRows.length <= previewCount) return allRows
+    const now = Date.now()
+    return [...allRows]
+      .sort((a, b) => Math.abs(new Date(a.occurredAt).getTime() - now) - Math.abs(new Date(b.occurredAt).getTime() - now))
+      .slice(0, previewCount)
+  }, [allRows, previewCount])
+
+  const preview = useMemo(() => arrange(previewRows), [previewRows])
+
+  return (
+    <div>
+      <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">
+        {title}
+      </p>
+      {/* relative wraps ONLY the card so the overlay pill rides the card's top
+          edge (canonical EmptyState/ActionPill primitive), not the heading. */}
+      <div className="relative">
+        <div className="relative rounded-2xl bg-themewhite2 overflow-hidden">
+          {loading && total === 0 ? (
+            <SkeletonRows count={3} />
+          ) : total === 0 ? (
+            <p className="text-[10pt] text-tertiary px-4 py-4">No timeline events yet</p>
+          ) : (
+            <div className="divide-y divide-tertiary/8">
+              {preview.future.map((r) => (
+                <TimelineRow key={r.id} row={r} future />
+              ))}
+              <NowDivider />
+              {preview.past.map((r) => (
+                <TimelineRow key={r.id} row={r} future={false} />
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Action pill — "View all" opens the full searchable timeline; callers
+            can fold extra actions (e.g. "View in calendar") into the same pill. */}
+        {(total > 0 || actions) && (
+          <ActionPill shadow="sm" placement="overlay">
+            {total > 0 && (
+              <ActionButton icon={History} label="View all" onClick={() => (onViewAll ? onViewAll() : setShowAll(true))} />
+            )}
+            {actions}
+          </ActionPill>
+        )}
+      </div>
+
+      {/* Mobile / fallback: the full searchable timeline opens in a bottom Sheet.
+          A desktop host can pass `onViewAll` to render it in a side pane instead
+          (the supervisor three-pane), in which case this Sheet never opens.
+          zIndex 1200 clears the host BaseDrawer's z-60 stacking context. */}
+      <Sheet isOpen={showAll} onClose={() => setShowAll(false)} title={title} maxHeight={90} zIndex={1200}>
+        <TimelineFullView rows={allRows} loading={loading} />
+      </Sheet>
+    </div>
+  )
+}
+
+/** Shared data layer — fetch the subject's audit spine (local + server, merged)
+ *  and fold in calendar-sourced rows. A falsy `subjectId` skips the fetch, so a
+ *  host can call this unconditionally and only "arm" it when its pane is open. */
+export function useSubjectTimelineRows({ subjectId, clinicId, seedEvents, calendarEntries, onOpenEvent }: {
+  subjectId: string
+  clinicId: string
+  seedEvents?: AuditEvent[]
+  calendarEntries?: TimelineCalendarEntry[]
+  onOpenEvent?: (eventId: string) => void
+}) {
   const [events, setEvents] = useState<AuditEvent[]>([])
   const [loading, setLoading] = useState(true)
-  const [showAll, setShowAll] = useState(false)
-  const [query, setQuery] = useState('')
 
   useEffect(() => {
+    if (!subjectId) { setEvents([]); setLoading(false); return }
     let cancelled = false
     setLoading(true)
     ;(async () => {
@@ -218,97 +306,63 @@ export function UserTimeline({ subjectId, clinicId, seedEvents, calendarEntries,
     return [...byId.values()]
   }, [events, calendarEntries, onOpenEvent])
 
-  const total = allRows.length
+  return { allRows, loading }
+}
 
-  // Preview = the events nearest to "now" (a few upcoming + recent past), so the
-  // card surfaces what matters rather than the farthest-future scheduled rows.
-  const previewRows = useMemo(() => {
-    if (allRows.length <= previewCount) return allRows
-    const now = Date.now()
-    return [...allRows]
-      .sort((a, b) => Math.abs(new Date(a.occurredAt).getTime() - now) - Math.abs(new Date(b.occurredAt).getTime() - now))
-      .slice(0, previewCount)
-  }, [allRows, previewCount])
+/** The full, searchable timeline body — past/future split around the now-divider.
+ *  Presentational: rows are pre-built (see useSubjectTimelineRows). Shared by the
+ *  mobile Sheet and the desktop side pane. */
+export function TimelineFullView({ rows, loading = false }: { rows: TimelineRowData[]; loading?: boolean }) {
+  const [query, setQuery] = useState('')
 
-  const preview = useMemo(() => arrange(previewRows), [previewRows])
-
-  // Full (searchable) list behind "View all".
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
-    if (!q) return allRows
-    return allRows.filter((r) =>
+    if (!q) return rows
+    return rows.filter((r) =>
       r.label.toLowerCase().includes(q) ||
       r.sublabel.toLowerCase().includes(q) ||
       fmtDate(r.occurredAt).toLowerCase().includes(q),
     )
-  }, [allRows, query])
+  }, [rows, query])
 
-  const full = useMemo(() => arrange(filtered), [filtered])
-
-  const closeAll = () => { setShowAll(false); setQuery('') }
+  const { future, past } = useMemo(() => arrange(filtered), [filtered])
 
   return (
-    <div>
-      <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">
-        {title}{total > 0 && ` · ${total}`}
-      </p>
-      {/* relative wraps ONLY the card so the overlay pill rides the card's top
-          edge (canonical EmptyState/ActionPill primitive), not the heading. */}
-      <div className="relative">
-        <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
-          {loading ? (
-            <div className="flex items-center justify-center px-4 py-6">
-              <Loader2 size={16} className="animate-spin text-tertiary" />
-            </div>
-          ) : total === 0 ? (
-            <p className="text-[10pt] text-tertiary px-4 py-4">No timeline events yet</p>
-          ) : (
-            <div className="divide-y divide-tertiary/8">
-              {preview.future.map((r) => (
-                <TimelineRow key={r.id} row={r} future />
-              ))}
-              <NowDivider />
-              {preview.past.map((r) => (
-                <TimelineRow key={r.id} row={r} future={false} />
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Action pill — "View all" opens the full searchable timeline; callers
-            can fold extra actions (e.g. "View in calendar") into the same pill. */}
-        {(total > 0 || actions) && (
-          <ActionPill shadow="sm" placement="overlay">
-            {total > 0 && (
-              <ActionButton icon={History} label="View all" onClick={() => setShowAll(true)} />
-            )}
-            {actions}
-          </ActionPill>
-        )}
+    <div className="relative min-h-full">
+      <div className="px-4 pt-1 pb-2">
+        <SearchInput value={query} onChange={setQuery} placeholder="Search timeline…" />
       </div>
-
-      {/* zIndex 1200 — UserTimeline is hosted inside BaseDrawers (SupervisorDrawer,
-          AdminDrawer/AdminUserDetail) whose z-60 stacking context would otherwise
-          trap this fit-Sheet underneath. Matches the overlay-sheet convention
-          (AdminDrawer detail/tree sheets, Property/Map). */}
-      <Sheet isOpen={showAll} onClose={closeAll} title={title} maxHeight={90} zIndex={1200}>
-        <div className="px-4 pt-1 pb-2">
-          <SearchInput value={query} onChange={setQuery} placeholder="Search timeline…" />
+      {future.length === 0 && past.length === 0 ? (
+        <p className="text-[10pt] text-tertiary px-4 py-8 text-center">No matching events</p>
+      ) : (
+        <div className="divide-y divide-tertiary/8 pb-2">
+          {future.map((r) => (
+            <TimelineRow key={r.id} row={r} future />
+          ))}
+          <NowDivider />
+          {past.map((r) => (
+            <TimelineRow key={r.id} row={r} future={false} />
+          ))}
         </div>
-        {full.future.length === 0 && full.past.length === 0 ? (
-          <p className="text-[10pt] text-tertiary px-4 py-8 text-center">No matching events</p>
-        ) : (
-          <div className="divide-y divide-tertiary/8 pb-2">
-            {full.future.map((r) => (
-              <TimelineRow key={r.id} row={r} future />
-            ))}
-            <NowDivider />
-            {full.past.map((r) => (
-              <TimelineRow key={r.id} row={r} future={false} />
-            ))}
-          </div>
-        )}
-      </Sheet>
+      )}
+      <LoadingOverlay visible={loading} size={120} />
     </div>
   )
+}
+
+/** Build calendar-sourced timeline rows: upcoming events become "scheduled" rows,
+ *  logged encounters become "encounter" rows (encounters win id collisions).
+ *  Shared by the soldier card preview and the supervisor timeline pane. */
+export function buildTimelineCalendarEntries(scheduled: CalendarEvent[], encounters: CalendarEvent[]): TimelineCalendarEntry[] {
+  const byId = new Map<string, TimelineCalendarEntry>()
+  const now = Date.now()
+  for (const e of scheduled) {
+    if (new Date(e.end_time).getTime() >= now) {
+      byId.set(e.id, { id: e.id, occurredAt: e.start_time, title: e.title, kind: 'scheduled' })
+    }
+  }
+  for (const e of encounters) {
+    byId.set(e.id, { id: e.id, occurredAt: e.start_time, title: e.title, kind: 'encounter' })
+  }
+  return [...byId.values()]
 }

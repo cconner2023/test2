@@ -64,7 +64,7 @@ function SelectTaskForAssignment({
                 {categoryName} <span className="font-normal text-tertiary">({tasks.length})</span>
               </p>
 
-              <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+              <div className="rounded-2xl bg-themewhite2 overflow-hidden">
                 {tasks.map((task, idx) => {
                   const hasData = !!getTaskData(task.taskId)
                   const badge = skillLevelLabels[task.levelName] ?? task.levelName

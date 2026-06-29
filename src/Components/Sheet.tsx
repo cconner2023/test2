@@ -15,12 +15,20 @@
 //              ported SubDrawer behavior — proven on iOS, do not reintroduce
 //              continuous finger-tracked height (it fought the inner scroll).
 //
+// LOADING MORPH (opt-in, fit only) — pass `loading`. While loading the card is a
+// small HUD puck; when it flips false the puck grows (container-transform) into
+// the full sheet, the HUD dissolves and the content fades in — the HUD reads as
+// BECOMING the sheet. Consumers that never pass `loading` are byte-identical to
+// before (the morph path is gated on the prop being present).
+//
 // Always portals to document.body so it escapes a parent drawer's transformed,
 // glass-header-isolated stacking context (the original reason SubDrawer existed).
 import { useEffect, useRef, useState, useCallback, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import { useSpring, animated } from '@react-spring/web';
 import { X, ChevronUp, ChevronDown } from 'lucide-react';
 import { HeaderPill, PillButton } from './HeaderPill';
+import { HudLoader } from './HudLoader';
 import { DRAWER_TIMING } from '../Utilities/constants';
 import { Z, OverlayStackContext, STACK_BUMP } from './BaseOverlay';
 
@@ -66,6 +74,13 @@ interface SheetProps {
     draggable?: boolean;
     /** Base z-index. Default Z.SHEET. */
     zIndex?: number;
+
+    /** OPT-IN loading morph (fit only). While true the card is a HUD puck; on
+     *  false it grows into the full sheet as the HUD dissolves into the content.
+     *  Omit entirely to keep the classic (non-morph) behavior. */
+    loading?: boolean;
+    /** HUD diameter for the loading puck. Default 88. */
+    hudSize?: number;
 }
 
 export function Sheet({
@@ -89,6 +104,8 @@ export function Sheet({
     // around z-[1010]) — default high so they aren't trapped underneath. Fit
     // sheets live in the numeric Z token world (action sheets, cards).
     zIndex = height === 'snap' ? 1200 : Z.SHEET,
+    loading,
+    hudSize = 88,
 }: SheetProps) {
     const isSnap = height === 'snap';
 
@@ -208,6 +225,59 @@ export function Sheet({
         return () => ro.disconnect();
     }, [isSnap, isMounted, isOpen]);
 
+    // ── LOADING MORPH (opt-in, fit only) ────────────────────────────────────
+    // `loading === undefined` ⇒ consumer didn't opt in ⇒ classic path only.
+    const opted = loading !== undefined;
+    const [settled, setSettled] = useState(() => !loading);
+    useEffect(() => { if (loading) setSettled(false); }, [loading]);
+    // Active while the puck is showing OR still growing into the sheet.
+    const morphActive = !isSnap && opted && (!!loading || !settled);
+
+    const PUCK_W = 140;
+    const PUCK_H = hudSize + 56;
+
+    // Measure the wrapper width (target full width) + the real content height we
+    // grow into. Live (ResizeObserver) so async content still lands correctly.
+    const wrapRef = useRef<HTMLDivElement>(null);
+    const morphContentRef = useRef<HTMLDivElement>(null);
+    const [wrapW, setWrapW] = useState(0);
+    const [fullH, setFullH] = useState(0);
+    useEffect(() => {
+        if (!morphActive) return;
+        const measure = () => {
+            if (wrapRef.current) setWrapW(wrapRef.current.offsetWidth);
+            if (morphContentRef.current) {
+                const capPx = Math.min((maxHeight / 100) * window.innerHeight, window.innerHeight - 24);
+                setFullH(Math.min(morphContentRef.current.scrollHeight, capPx));
+            }
+        };
+        measure();
+        const ro = new ResizeObserver(measure);
+        if (morphContentRef.current) ro.observe(morphContentRef.current);
+        return () => ro.disconnect();
+    }, [morphActive, maxHeight, isMounted]);
+
+    const morphCfg = { tension: 210, friction: 24 };
+    const morph = useSpring({
+        width: loading ? PUCK_W : (wrapW || PUCK_W),
+        height: loading ? PUCK_H : (fullH || PUCK_H),
+        config: morphCfg,
+        onRest: () => { if (!loading) setSettled(true); },
+    });
+    // HUD fades IN on mount, then expands slightly as it dissolves outward.
+    const hudFade = useSpring({
+        from: { opacity: 0, scale: 1 },
+        opacity: loading ? 1 : 0,
+        scale: loading ? 1 : 1.08,
+        config: morphCfg,
+    });
+    // Content emerges a beat after the HUD starts leaving.
+    const contentFade = useSpring({
+        opacity: loading ? 0 : 1,
+        delay: loading ? 0 : 90,
+        config: morphCfg,
+    });
+
     // Unified touch handlers: snap mode feeds overscroll; fit mode tracks a
     // dismiss drag started from the handle.
     const onTouchStart = useCallback((e: React.TouchEvent) => {
@@ -257,6 +327,55 @@ export function Sheet({
         ? (fitDraggable && dragY ? `translateY(${dragY}px)` : 'translateY(0)')
         : 'translateY(calc(100% + 1rem))';
 
+    // ── Reusable 'fit' chrome + body (shared by classic + morph paths) ──────
+    const fitChrome = (
+        <div ref={fitChromeRef} className="shrink-0">
+            {/* Plain in-flow header. Drag handle (optional) is the drag-zone; the
+                title row appears only if it has content. */}
+            {draggable && (
+                <div
+                    className="flex justify-center pt-2 pb-1"
+                    data-drag-zone
+                    style={{ touchAction: 'none' }}
+                    onTouchStart={onTouchStart}
+                    onTouchMove={onTouchMove}
+                    onTouchEnd={onTouchEnd}
+                >
+                    <div className="w-9 h-1 rounded-full bg-tertiary/25" />
+                </div>
+            )}
+            {(title || titleNode || leftContent || rightContent || actions || !hideClose) && (
+                <div className="flex items-center justify-between gap-2 px-4 pt-1 pb-2 border-b border-primary/6">
+                    <div className="flex items-center gap-2 min-w-0">
+                        {leftContent && <div className="shrink-0">{leftContent}</div>}
+                        {titleNode
+                            ? <div className="min-w-0 flex-1">{titleNode}</div>
+                            : title && <span className="truncate text-[13pt] font-semibold text-primary min-w-0">{title}</span>}
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                        {rightContent}
+                        {!hideClose && (
+                            <HeaderPill>
+                                {actions}
+                                <PillButton icon={X} onClick={handleClose} label="Close" />
+                            </HeaderPill>
+                        )}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+    // Explicit cap (card cap minus chrome) so iOS Safari makes this a real scroll
+    // region instead of clipping the tail.
+    const fitBody = (
+        <div
+            className="min-h-0 overflow-y-auto overscroll-y-contain"
+            style={{ maxHeight: `calc(min(${maxHeight}dvh, 100dvh - 1.5rem) - ${fitChromeH}px)` }}
+        >
+            {children}
+        </div>
+    );
+
     return createPortal(
         // Publish a stack ceiling so pickers / modals / confirm dialogs opened
         // INSIDE the sheet (PreviewOverlay, BaseOverlay-based) auto-stack above
@@ -276,134 +395,133 @@ export function Sheet({
                 />
             )}
 
-            {/* Sheet card — floating inset card on mobile: side margins, a
-                bottom gap (safe-area aware), and ALL FOUR corners rounded so it
-                reads as a card rather than a flush-to-edge drawer. Snap: fixed
-                dvh height that animates between peek/full. Fit: no height —
-                hugs content, capped by maxHeight, then scrolls. */}
-            <div
-                className={`fixed left-2 right-2 bg-themewhite3 text-primary flex flex-col overflow-hidden ${
-                    isDragging ? '' : 'transition-[transform,height] duration-300 ease-out'
-                }`}
-                style={{
-                    zIndex: zIndex + 1,
-                    bottom: 'max(0.5rem, calc(var(--sab, 0px) + 0.5rem))',
-                    height: isSnap ? `${heightDvh}dvh` : undefined,
-                    maxHeight: isSnap ? undefined : `min(${maxHeight}dvh, calc(100dvh - 1.5rem))`,
-                    transform: translate,
-                    borderRadius: '1.5rem',
-                    boxShadow: '0 4px 30px rgba(0, 0, 0, 0.12)',
-                }}
-                role="dialog"
-                aria-modal="true"
-                aria-label={title}
-            >
-                {isSnap ? (
-                    <>
-                        {/* Glass header — floats as a blurred translucent overlay;
-                            content scrolls up behind it (iOS large-title style). */}
-                        <div
-                            ref={headerRef}
-                            className="absolute top-0 inset-x-0 z-10 backdrop-blur-[2px] bg-themewhite3/15"
+            {morphActive ? (
+                // ── Loading morph: a HUD puck that grows into the full sheet ──
+                // The wrapper spans the sheet's full footprint and slides; the
+                // card inside springs its width/height from puck → full so it
+                // container-transforms. HUD ↔ content crossfade rides the grow.
+                <div
+                    ref={wrapRef}
+                    className="fixed left-2 right-2 flex justify-center transition-transform duration-300 ease-out"
+                    style={{
+                        zIndex: zIndex + 1,
+                        bottom: 'max(0.5rem, calc(var(--sab, 0px) + 0.5rem))',
+                        transform: translate,
+                    }}
+                >
+                    <animated.div
+                        className="relative bg-themewhite3 text-primary overflow-hidden"
+                        style={{
+                            width: morph.width,
+                            height: morph.height,
+                            borderRadius: '1.5rem',
+                            boxShadow: '0 4px 30px rgba(0, 0, 0, 0.12)',
+                        }}
+                        role="dialog"
+                        aria-modal="true"
+                        aria-label={title}
+                    >
+                        {/* Real chrome + body, measured + faded (becomes the sheet). */}
+                        <animated.div ref={morphContentRef} style={{ opacity: contentFade.opacity }}>
+                            {fitChrome}
+                            {fitBody}
+                        </animated.div>
+                        {/* HUD layer — transparent, centered, dissolves outward. */}
+                        <animated.div
+                            className="absolute inset-0 flex items-center justify-center"
+                            style={{
+                                opacity: hudFade.opacity,
+                                transform: hudFade.scale.to((s) => `scale(${s})`),
+                                pointerEvents: loading ? 'auto' : 'none',
+                            }}
                         >
-                            <button
-                                type="button"
-                                onClick={toggleExpanded}
-                                disabled={!canToggle}
-                                aria-label={canToggle ? (isFull ? 'Minimize' : 'Expand') : undefined}
-                                className="w-full flex items-center justify-center gap-1.5 pt-1.5 pb-1 disabled:cursor-default"
-                                style={{ touchAction: 'manipulation' }}
+                            <HudLoader size={hudSize} />
+                        </animated.div>
+                    </animated.div>
+                </div>
+            ) : (
+                // ── Classic card (snap, or settled/non-opted fit) ──
+                <div
+                    className={`fixed left-2 right-2 bg-themewhite3 text-primary flex flex-col overflow-hidden ${
+                        isDragging ? '' : 'transition-[transform,height] duration-300 ease-out'
+                    }`}
+                    style={{
+                        zIndex: zIndex + 1,
+                        bottom: 'max(0.5rem, calc(var(--sab, 0px) + 0.5rem))',
+                        height: isSnap ? `${heightDvh}dvh` : undefined,
+                        maxHeight: isSnap ? undefined : `min(${maxHeight}dvh, calc(100dvh - 1.5rem))`,
+                        transform: translate,
+                        borderRadius: '1.5rem',
+                        boxShadow: '0 4px 30px rgba(0, 0, 0, 0.12)',
+                    }}
+                    role="dialog"
+                    aria-modal="true"
+                    aria-label={title}
+                >
+                    {isSnap ? (
+                        <>
+                            {/* Glass header — floats as a blurred translucent overlay;
+                                content scrolls up behind it (iOS large-title style). */}
+                            <div
+                                ref={headerRef}
+                                className="absolute top-0 inset-x-0 z-10 backdrop-blur-[2px] bg-themewhite3/15"
                             >
-                                <div className="w-9 h-1 rounded-full bg-tertiary/25" />
-                                {canToggle && (
-                                    isFull
-                                        ? <ChevronDown size={12} className="text-tertiary/50" />
-                                        : <ChevronUp size={12} className="text-tertiary/50" />
-                                )}
-                            </button>
-                            <div className="px-4 pb-2">
-                                <div className="flex items-center justify-between gap-2">
-                                    <div className="flex items-center gap-2 min-w-0">
-                                        {leftContent && <div className="shrink-0">{leftContent}</div>}
-                                        {titleNode
-                                            ? <div className="min-w-0 flex-1">{titleNode}</div>
-                                            : <h2 className="truncate text-[13pt] font-semibold text-primary min-w-0">{title}</h2>}
-                                    </div>
-                                    <div className="flex items-center gap-2 shrink-0">
-                                        {rightContent}
-                                        {!hideClose && (
-                                            <HeaderPill>
-                                                {actions}
-                                                <PillButton icon={X} onClick={handleClose} label="Close" />
-                                            </HeaderPill>
-                                        )}
+                                <button
+                                    type="button"
+                                    onClick={toggleExpanded}
+                                    disabled={!canToggle}
+                                    aria-label={canToggle ? (isFull ? 'Minimize' : 'Expand') : undefined}
+                                    className="w-full flex items-center justify-center gap-1.5 pt-1.5 pb-1 disabled:cursor-default"
+                                    style={{ touchAction: 'manipulation' }}
+                                >
+                                    <div className="w-9 h-1 rounded-full bg-tertiary/25" />
+                                    {canToggle && (
+                                        isFull
+                                            ? <ChevronDown size={12} className="text-tertiary/50" />
+                                            : <ChevronUp size={12} className="text-tertiary/50" />
+                                    )}
+                                </button>
+                                <div className="px-4 pb-2">
+                                    <div className="flex items-center justify-between gap-2">
+                                        <div className="flex items-center gap-2 min-w-0">
+                                            {leftContent && <div className="shrink-0">{leftContent}</div>}
+                                            {titleNode
+                                                ? <div className="min-w-0 flex-1">{titleNode}</div>
+                                                : <h2 className="truncate text-[13pt] font-semibold text-primary min-w-0">{title}</h2>}
+                                        </div>
+                                        <div className="flex items-center gap-2 shrink-0">
+                                            {rightContent}
+                                            {!hideClose && (
+                                                <HeaderPill>
+                                                    {actions}
+                                                    <PillButton icon={X} onClick={handleClose} label="Close" />
+                                                </HeaderPill>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
                             </div>
-                        </div>
-                        {/* Scroll body — fills the sheet behind the glass header. */}
-                        <div
-                            ref={scrollRef}
-                            onTouchStart={onTouchStart}
-                            onTouchMove={onTouchMove}
-                            onTouchEnd={onTouchEnd}
-                            onWheel={onWheel}
-                            className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain isolate"
-                            style={{ paddingTop: headerHeight }}
-                        >
-                            {children}
-                        </div>
-                    </>
-                ) : (
-                    <>
-                        {/* Non-scrolling chrome (handle + header), measured so the
-                            body below can take an explicit max-height. */}
-                        <div ref={fitChromeRef} className="shrink-0">
-                            {/* Plain in-flow header. Drag handle (optional) is the
-                                drag-zone; the title row appears only if it has content. */}
-                            {draggable && (
-                                <div
-                                    className="flex justify-center pt-2 pb-1"
-                                    data-drag-zone
-                                    style={{ touchAction: 'none' }}
-                                    onTouchStart={onTouchStart}
-                                    onTouchMove={onTouchMove}
-                                    onTouchEnd={onTouchEnd}
-                                >
-                                    <div className="w-9 h-1 rounded-full bg-tertiary/25" />
-                                </div>
-                            )}
-                            {(title || titleNode || leftContent || rightContent || actions || !hideClose) && (
-                                <div className="flex items-center justify-between gap-2 px-4 pt-1 pb-2 border-b border-primary/6">
-                                    <div className="flex items-center gap-2 min-w-0">
-                                        {leftContent && <div className="shrink-0">{leftContent}</div>}
-                                        {titleNode
-                                            ? <div className="min-w-0 flex-1">{titleNode}</div>
-                                            : title && <span className="truncate text-[13pt] font-semibold text-primary min-w-0">{title}</span>}
-                                    </div>
-                                    <div className="flex items-center gap-2 shrink-0">
-                                        {rightContent}
-                                        {!hideClose && (
-                                            <HeaderPill>
-                                                {actions}
-                                                <PillButton icon={X} onClick={handleClose} label="Close" />
-                                            </HeaderPill>
-                                        )}
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                        {/* Explicit cap (card cap minus chrome) so iOS Safari makes
-                            this a real scroll region instead of clipping the tail. */}
-                        <div
-                            className="min-h-0 overflow-y-auto overscroll-y-contain"
-                            style={{ maxHeight: `calc(min(${maxHeight}dvh, 100dvh - 1.5rem) - ${fitChromeH}px)` }}
-                        >
-                            {children}
-                        </div>
-                    </>
-                )}
-            </div>
+                            {/* Scroll body — fills the sheet behind the glass header. */}
+                            <div
+                                ref={scrollRef}
+                                onTouchStart={onTouchStart}
+                                onTouchMove={onTouchMove}
+                                onTouchEnd={onTouchEnd}
+                                onWheel={onWheel}
+                                className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain isolate"
+                                style={{ paddingTop: headerHeight }}
+                            >
+                                {children}
+                            </div>
+                        </>
+                    ) : (
+                        <>
+                            {fitChrome}
+                            {fitBody}
+                        </>
+                    )}
+                </div>
+            )}
         </OverlayStackContext.Provider>,
         document.body,
     );

@@ -55,7 +55,9 @@ function keyOf(it: { nsn: string | null; lin: string | null; name: string }): st
 }
 
 export function computeShortages(items: LocalPropertyItem[]): ShortageReport {
-  const live = items.filter((it) => !it.deleted_at)
+  // Turned-in items (turned_in_at set) have left the books — exclude them so a
+  // turned-in line can't count as on-hand and mask a real shortage.
+  const live = items.filter((it) => !it.deleted_at && !it.turned_in_at)
   const nameById = new Map(live.map((it) => [it.id, it.name]))
   const tracked = live.filter((it) => it.quantity_authorized != null)
 

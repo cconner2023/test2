@@ -255,7 +255,7 @@ export const PinSetupPanel = () => {
             <div className="flex items-center gap-2 mb-2">
               <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">Lock</p>
             </div>
-            <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+            <div className="rounded-2xl bg-themewhite2 overflow-hidden">
 
               {/* App Lock — the behavior: lock the instant you switch away */}
               {isAuthenticated && (
@@ -388,7 +388,7 @@ export const PinSetupPanel = () => {
               <div className="flex items-center gap-2 mb-2">
                 <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">Permissions</p>
               </div>
-              <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+              <div className="rounded-2xl bg-themewhite2 overflow-hidden">
 
                 {/* Activity Tracking — a permission: background heartbeat. */}
                 {isAuthenticated && (

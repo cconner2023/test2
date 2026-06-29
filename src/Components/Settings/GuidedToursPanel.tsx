@@ -44,7 +44,7 @@ export function GuidedToursPanel({ onClose }: { onClose: () => void }) {
               <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">
                 {category.label}
               </p>
-              <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+              <div className="rounded-2xl bg-themewhite2 overflow-hidden">
                 {tours.map(t => {
                   const completed = isCompleted(t.id)
                   return (

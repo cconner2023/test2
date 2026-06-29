@@ -5,7 +5,6 @@ import { useAuth } from '../../Hooks/useAuth';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useNavigationStore } from '../../stores/useNavigationStore';
 import { useCertifications } from '../../Hooks/useCertifications';
-import { useMinLoadTime } from '../../Hooks/useMinLoadTime';
 import { useIsMobile } from '../../Hooks/useIsMobile';
 import type { Component } from '../../Data/User';
 import { credentials, components, ranksByComponent } from '../../Data/User';
@@ -18,7 +17,7 @@ import { ActionButton } from '../ActionButton';
 import { OverlayActionMenu } from '../OverlayActionMenu';
 import { PreviewOverlay } from '../PreviewOverlay';
 import { ActionPill } from '../ActionPill'
-import { LoadingSpinner } from '../LoadingSpinner';
+import { SkeletonRows } from '../Skeleton';
 import { CertificationRow } from '../Certifications/CertificationRow';
 import { CertOverlayFields } from '../Certifications/CertOverlayFields';
 import { emptyCertForm } from '../Certifications/certHelpers';
@@ -50,7 +49,6 @@ export const ProfilePage = ({
     const deviceRole = useAuthStore(s => s.deviceRole);
 
     const { certs, loading: certsLoading, addCert, updateCert, removeCert } = useCertifications();
-    const showCertsLoading = useMinLoadTime(certsLoading);
 
     // Sign out / delete dialogs
     const [showSignOut, setShowSignOut] = useState(false);
@@ -112,12 +110,9 @@ export const ProfilePage = ({
         }, 'image/png')
     }, [])
 
-    const [idCopied, setIdCopied] = useState(false)
     const handleCopyId = useCallback(async () => {
         if (!user?.id) return
         await navigator.clipboard.writeText(user.id)
-        setIdCopied(true)
-        setTimeout(() => setIdCopied(false), 2000)
     }, [user?.id])
 
     // Profile change-request popover (anchored to the corner pill — the pencil
@@ -349,7 +344,7 @@ export const ProfilePage = ({
 
     const editingCert = certEdit ? certs.find(c => c.id === certEdit.certId) : null
     const pendingDeleteCert = pendingDeleteCertId ? certs.find(c => c.id === pendingDeleteCertId) : null
-    const certFields = <CertOverlayFields form={certForm} setForm={setCertForm} isMobile={isMobile} />
+    const certFields = <CertOverlayFields form={certForm} setForm={setCertForm} isMobile={isMobile} datalistId="profile-cert-credentials" />
 
     // Identity card display strings
     const displayName = profile.lastName
@@ -411,7 +406,7 @@ export const ProfilePage = ({
                         <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Profile</p>
                     </div>
                     <div className="relative">
-                <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+                <div className="rounded-2xl bg-themewhite2 overflow-hidden">
                     <div className="flex items-center gap-4 px-4 py-4">
                         <div className="flex flex-col items-center shrink-0">
                             <button
@@ -463,19 +458,7 @@ export const ProfilePage = ({
                             ref={toolbarRef}
                             shadow="sm"
                             items={[
-                                { key: 'copy', label: 'Copy user ID', render: () => (
-                                    <button
-                                        type="button"
-                                        onClick={handleCopyId}
-                                        aria-label="Copy user ID"
-                                        title="Copy user ID"
-                                        className={`w-9 h-9 rounded-full flex items-center justify-center transition-all active:scale-95 ${
-                                            idCopied ? 'bg-themegreen/8 text-themegreen' : 'bg-themeblue2/8 text-primary'
-                                        }`}
-                                    >
-                                        {idCopied ? <Check size={16} /> : <Copy size={16} />}
-                                    </button>
-                                ) },
+                                { key: 'copy', label: 'Copy user ID', icon: Copy, onAction: handleCopyId },
                                 { key: 'qr', label: 'Share ID QR', icon: QrCode, onAction: openShare },
                                 { key: 'edit', label: 'Request profile change', icon: Pencil, onAction: openProfileEdit },
                             ]}
@@ -489,9 +472,9 @@ export const ProfilePage = ({
                     <div className="pb-2 flex items-center gap-2">
                         <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Certifications</p>
                     </div>
-                    <div className="relative"><div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
-                    {showCertsLoading ? (
-                        <LoadingSpinner label="Loading certifications..." className="py-12 text-tertiary" />
+                    <div className="relative"><div className="rounded-2xl bg-themewhite2 overflow-hidden">
+                    {certsLoading && certs.length === 0 ? (
+                        <SkeletonRows count={2} />
                     ) : certs.length === 0 ? (
                         <p className="text-sm text-tertiary py-6 text-center">No certifications</p>
                     ) : (
@@ -526,7 +509,7 @@ export const ProfilePage = ({
 
 
                 {/* Account Actions */}
-                <div className="rounded-2xl border border-themeredred/10 bg-themewhite2 overflow-hidden">
+                <div className="rounded-2xl bg-themewhite2 overflow-hidden">
                     {deletePhase === 'pin' ? (
                         <div className="px-4 py-5 flex flex-col items-center">
                             <PinKeypad

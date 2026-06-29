@@ -35,7 +35,7 @@ export const PrivacyPolicyPanel = () => (
       {/* ── Data Collection ── */}
       <div>
         <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">Data Collection</p>
-        <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+        <div className="rounded-2xl bg-themewhite2 overflow-hidden">
           <Row icon={<EyeOff size={18} className="text-themeblue2" />} title="No Patient Data Collected" border={false}>
             <p>This application does <strong className="text-primary">not</strong> collect, store, or transmit Protected Health Information (PHI) or patients' Personally Identifiable Information (PII). No patient data is recorded on or sent to our servers.</p>
           </Row>
@@ -60,7 +60,7 @@ export const PrivacyPolicyPanel = () => (
       {/* ── Usage & Storage ── */}
       <div>
         <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">Usage & Storage</p>
-        <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+        <div className="rounded-2xl bg-themewhite2 overflow-hidden">
           <Row icon={<UserCheck size={18} className="text-themeblue2" />} title="How We Use Your Information" border={false}>
             <p>Your information is used solely for:</p>
             <ul className="list-disc list-outside ml-4 space-y-0.5">
@@ -86,7 +86,7 @@ export const PrivacyPolicyPanel = () => (
       {/* ── Access & Control ── */}
       <div>
         <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">Access & Control</p>
-        <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+        <div className="rounded-2xl bg-themewhite2 overflow-hidden">
           <Row icon={<ShieldCheck size={18} className="text-themeblue2" />} title="Data Access" border={false}>
             <p>Your profile data is accessible only to:</p>
             <ul className="list-disc list-outside ml-4 space-y-0.5">

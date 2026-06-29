@@ -62,7 +62,7 @@ export function SelectTaskStep({
               </p>
 
               {/* Card container */}
-              <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+              <div className="rounded-2xl bg-themewhite2 overflow-hidden">
                 {tasks.map((task, index) => {
                   const testable = isTaskTestable(task.taskId)
                   const badge = skillLevelLabels[task.levelName] ?? task.levelName

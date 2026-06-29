@@ -12,16 +12,16 @@ import { EmptyState } from '../EmptyState'
 import { ActionPill } from '../ActionPill'
 import { ActionButton } from '../ActionButton'
 import { ConfirmDialog } from '../ConfirmDialog'
+import { SkeletonRows } from '../Skeleton'
 import { useBarcodeScanner } from '../../Hooks/useBarcodeScanner'
 import { useLinkerBroadcast } from '../../Hooks/useDeviceLink'
-import { LoadingSpinner } from '../LoadingSpinner'
-import { useMinLoadTime } from '../../Hooks/useMinLoadTime'
 import { useAuth } from '../../Hooks/useAuth'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { getLocalDeviceId } from '../../lib/signal/keyManager'
 import { VAULT_DEVICE_ID } from '../../lib/signal/vaultDevice'
 import { unregisterDevice, deleteKeyBundle, primaryLogoutAll } from '../../lib/signal/signalService'
 import { fetchOwnDevicesWithRole, type DeviceWithRole } from '../../lib/signal/deviceService'
+import { loadCachedDevices, saveCachedDevices } from '../../lib/signal/deviceCache'
 import { ErrorDisplay } from '../ErrorDisplay'
 import { UI_TIMING } from '../../Utilities/constants'
 
@@ -29,10 +29,13 @@ export function SessionsDevicesPanel() {
   const { user } = useAuth()
   const deviceRole = useAuthStore((s) => s.deviceRole)
 
-  const [devices, setDevices] = useState<DeviceWithRole[]>([])
+  // Seed from the cached list so a re-open paints instantly — the background
+  // fetch below reconciles. Only cold (no cache) shows a loader.
+  const [devices, setDevices] = useState<DeviceWithRole[]>(() =>
+    user?.id ? loadCachedDevices(user.id) : []
+  )
   const [localDeviceId, setLocalDeviceId] = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
-  const showLoading = useMinLoadTime(loading)
+  const [loading, setLoading] = useState(() => !(user?.id && loadCachedDevices(user.id).length > 0))
   const [error, setError] = useState<string | null>(null)
   const [status, setStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
   const [confirmLogoutAll, setConfirmLogoutAll] = useState(false)
@@ -56,7 +59,7 @@ export function SessionsDevicesPanel() {
   // Load devices on mount
   const loadDevices = useCallback(async () => {
     if (!user?.id) return
-    setLoading(true)
+    // Background reconcile — never blank the cached list (no mid-refresh spinner).
     setError(null)
 
     const [deviceIdResult, devicesResult] = await Promise.all([
@@ -67,7 +70,12 @@ export function SessionsDevicesPanel() {
     setLocalDeviceId(deviceIdResult)
 
     if (!devicesResult.ok) {
-      setError(devicesResult.error)
+      // A failed refresh keeps the cached list on screen; surface the error only
+      // when we have nothing to show.
+      setDevices((prev) => {
+        if (prev.length === 0) setError(devicesResult.error)
+        return prev
+      })
       setLoading(false)
       return
     }
@@ -82,6 +90,7 @@ export function SessionsDevicesPanel() {
     })
 
     setDevices(sorted)
+    saveCachedDevices(user.id, sorted)
     setLoading(false)
   }, [user?.id])
 
@@ -189,17 +198,8 @@ export function SessionsDevicesPanel() {
   const isPrimary = deviceRole === 'primary'
   const otherDevicesExist = devices.some((d) => d.deviceId !== localDeviceId)
 
-  // --- Loading state ---
-  if (showLoading) {
-    return (
-      <div className="h-full flex items-center justify-center">
-        <LoadingSpinner className="text-tertiary" />
-      </div>
-    )
-  }
-
-  // --- Error state ---
-  if (error) {
+  // --- Error state (only when we have nothing cached to show) ---
+  if (error && devices.length === 0) {
     return (
       <div className="px-5 py-4">
         <ErrorDisplay type="error" message={error} />
@@ -207,8 +207,19 @@ export function SessionsDevicesPanel() {
     )
   }
 
+  // --- Cold load (no cache yet): quiet skeleton rows, not a full-screen loader ---
+  if (loading && devices.length === 0) {
+    return (
+      <div className="px-5 pb-4 space-y-3 pt-[calc(var(--drawer-header-h,3.5rem)+0.75rem)]">
+        <div className="rounded-2xl bg-themewhite2 overflow-hidden">
+          <SkeletonRows count={3} />
+        </div>
+      </div>
+    )
+  }
+
   // --- Empty state ---
-  if (devices.length === 0) {
+  if (!loading && devices.length === 0) {
     return <EmptyState title="No devices registered" className="h-full" />
   }
 
@@ -224,7 +235,7 @@ export function SessionsDevicesPanel() {
       <div className="px-5 pb-4 space-y-3 pt-[calc(var(--drawer-header-h,3.5rem)+0.75rem)]">
 
         {addPhase === 'scanning' && (
-          <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+          <div className="rounded-2xl bg-themewhite2 overflow-hidden">
             <div className="px-4 py-3 space-y-2">
               <p className="text-[10pt] text-tertiary">
                 Scan the QR code shown on the new device's login screen.
@@ -264,7 +275,7 @@ export function SessionsDevicesPanel() {
             role="button"
             tabIndex={0}
             onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); startScan() } }}
-            className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden cursor-pointer transition-all active:scale-95 hover:bg-themeblue2/5"
+            className="rounded-2xl bg-themewhite2 overflow-hidden cursor-pointer transition-all active:scale-95 hover:bg-themeblue2/5"
           >
             <div className="px-4 py-3.5 flex items-center gap-3">
               <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-themeblue2/10">
@@ -280,7 +291,7 @@ export function SessionsDevicesPanel() {
 
         {/* Device list — Sign Out All corner pill rides the top edge (primary only) */}
         <div className="relative">
-        <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+        <div className="rounded-2xl bg-themewhite2 overflow-hidden">
           {devices.map((device) => {
             const isCurrent = device.deviceId === localDeviceId
             const isVault = device.deviceId === VAULT_DEVICE_ID
@@ -321,24 +332,25 @@ export function SessionsDevicesPanel() {
                   </div>
 
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className={`text-sm font-medium ${isVault ? 'text-tertiary' : 'text-primary'}`}>
-                        {device.deviceLabel || 'Unknown'}
-                      </span>
-                      {isCurrent && (
-                        <span className="text-[9pt] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-themeblue2/15 text-themeblue2">
-                          This device
-                        </span>
-                      )}
-                      {isVault && (
-                        <span className="text-[9pt] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-tertiary/10 text-tertiary">
-                          Vault
-                        </span>
-                      )}
-                    </div>
+                    <span className={`block text-sm font-medium truncate ${isVault ? 'text-tertiary' : 'text-primary'}`}>
+                      {device.deviceLabel || 'Unknown'}
+                    </span>
+                    {/* No badges — current/vault/primary read as plain meta text. */}
                     <div className="flex items-center gap-2 mt-0.5">
                       <span className={`inline-block w-1.5 h-1.5 rounded-full ${activity.color}`} />
                       <span className="text-[9pt] text-tertiary">{activity.label}</span>
+                      {isCurrent && (
+                        <>
+                          <span className="text-[9pt] text-tertiary">&middot;</span>
+                          <span className="text-[9pt] font-medium text-themeblue2">This device</span>
+                        </>
+                      )}
+                      {isVault && (
+                        <>
+                          <span className="text-[9pt] text-tertiary">&middot;</span>
+                          <span className="text-[9pt] text-tertiary">Vault</span>
+                        </>
+                      )}
                       {device.isPrimary && (
                         <>
                           <span className="text-[9pt] text-tertiary">&middot;</span>

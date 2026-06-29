@@ -10,6 +10,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { Check, Loader2, MessageCircleQuestion, MessageSquare } from 'lucide-react'
+import { LoadingOverlay } from '../LoadingOverlay'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { useFeatureVotesStore, OTHER_CANDIDATE_ID } from '../../stores/useFeatureVotesStore'
 import { ErrorDisplay } from '../ErrorDisplay'
@@ -77,11 +78,8 @@ export const FeatureVotesPanel = ({ onOpenFeedback }: Props) => {
 
   if (loading && !activeCycle) {
     return (
-      <div className="h-full overflow-y-auto">
-        <div className="px-5 pb-8 flex items-center justify-center text-tertiary pt-[calc(var(--drawer-header-h,3.5rem)+0.75rem)]">
-          <Loader2 size={18} className="animate-spin mr-2" />
-          <span className="text-sm">Loading voting cycle…</span>
-        </div>
+      <div className="relative h-full overflow-y-auto">
+        <LoadingOverlay visible size={140} label="LOADING" />
       </div>
     )
   }
@@ -118,7 +116,7 @@ export const FeatureVotesPanel = ({ onOpenFeedback }: Props) => {
             )}
           </div>
 
-          <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden divide-y divide-themeblue3/10">
+          <div className="rounded-2xl bg-themewhite2 overflow-hidden divide-y divide-themeblue3/10">
             {candidates.map((c) => {
               const voteCount = tally[c.id] ?? 0
               const pct = hasVoted && totalVotes > 0 ? Math.round((voteCount / totalVotes) * 100) : 0

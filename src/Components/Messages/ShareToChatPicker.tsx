@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Check, Send, MessageSquare, X, Plus, Globe } from 'lucide-react'
 import { PreviewOverlay } from '../PreviewOverlay'
+import { HudLoader } from '../HudLoader'
 import { UserAvatar } from '../Settings/UserAvatar'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { useClinicMedics } from '../../Hooks/useClinicMedics'
@@ -305,11 +306,11 @@ export function ShareToChatPicker({ isOpen, content, bundleSource, onClose, zInd
   }
 
   const sendingView = (
-    <div className="px-6 py-10 flex flex-col items-center gap-3">
-      <div className="w-10 h-10 rounded-full border-2 border-themeblue2/30 border-t-themeblue2 animate-spin" />
-      <p className="text-[10pt] text-tertiary">
+    <div className="flex flex-col items-center justify-center gap-4 px-6 py-12">
+      <HudLoader size={96} />
+      <div className="hud-breathe text-[10pt] tracking-[0.2em] text-themeblue2/80 font-semibold uppercase">
         Sending to {selected.size} {selected.size === 1 ? 'recipient' : 'recipients'}…
-      </p>
+      </div>
     </div>
   )
 
