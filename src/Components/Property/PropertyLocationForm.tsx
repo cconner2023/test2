@@ -86,7 +86,7 @@ export const PropertyLocationForm = forwardRef<PropertyLocationFormHandle, Prope
       }
     }
     return store.locations
-      .filter((l) => l.name !== ROOT_LOCATION_NAME && !l.holder_user_id && !excluded.has(l.id))
+      .filter((l) => l.name !== ROOT_LOCATION_NAME && !l.holder_user_id && !l.is_turn_in_zone && !excluded.has(l.id))
       .sort((a, b) => a.name.localeCompare(b.name))
       .map((l) => ({ value: l.id, label: l.name }))
   }, [store.locations, editingLocation])

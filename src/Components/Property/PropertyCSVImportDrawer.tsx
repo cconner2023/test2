@@ -76,7 +76,7 @@ export function PropertyCSVImport({ onClose }: PropertyCSVImportProps) {
     setStep('importing')
 
     // Locations are only needed for the rows we're creating.
-    const visibleLocs = locations.filter(l => l.name !== ROOT_LOCATION_NAME)
+    const visibleLocs = locations.filter(l => l.name !== ROOT_LOCATION_NAME && !l.is_turn_in_zone)
     const locMap = new Map<string, string>()
     for (const l of visibleLocs) locMap.set(l.name.toLowerCase(), l.id)
 

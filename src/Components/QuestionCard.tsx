@@ -131,6 +131,10 @@ export const QuestionCard = memo(function QuestionCard({
                     const isDeferredContinue = card.actionStatus === 'deferred-continue';
                     const isDeferredStop = card.actionStatus === 'deferred-stop';
                     const isDeferred = isDeferredPending || isDeferredContinue || isDeferredStop;
+                    // An action revealed by initial visibility (no pendingAfter) gates no
+                    // downstream chain, so STOP/CONTINUE is meaningless — Deferred is a simple
+                    // terminal "not indicated" toggle that records straight to a serialized state.
+                    const gatesChain = card.pendingAfter !== undefined;
 
                     return (
                         <div key={card.index} className={`flex flex-col items-center ${idx > 0 ? 'animate-cardAppearIn' : ''}`}>
@@ -163,8 +167,8 @@ export const QuestionCard = memo(function QuestionCard({
                                     </div>
                                 )}
 
-                                {/* Stop / Continue answer row — shown whenever the card is in any deferred-* state */}
-                                {isDeferred && (
+                                {/* Stop / Continue answer row — only when the action gates a downstream chain */}
+                                {isDeferred && gatesChain && (
                                     <div className="relative flex w-full h-10 bg-themewhite2 border-t border-themered/20">
                                         <div className={`
                                             absolute top-0 left-0 h-full w-1/2
@@ -214,10 +218,13 @@ export const QuestionCard = memo(function QuestionCard({
                                     <button
                                         type="button"
                                         onClick={() => {
-                                            // Only transition to pending if the user is actively switching off
-                                            // a non-deferred state. If already deferred-* (pending/stop/continue),
-                                            // ignore — they can switch between STOP/CONTINUE via the slider.
-                                            if (!isDeferred) onActionStatus?.(card.index, 'deferred-pending');
+                                            // Only transition off a non-deferred state. For a chain-gating action
+                                            // go to 'deferred-pending' so the medic resolves STOP/CONTINUE; for a
+                                            // no-chain action land directly on a stable, serialized deferred state
+                                            // (deferred-pending is transient and never serialized).
+                                            if (!isDeferred) {
+                                                onActionStatus?.(card.index, gatesChain ? 'deferred-pending' : 'deferred-continue');
+                                            }
                                         }}
                                         disabled={isTransitioning}
                                         aria-label="Deferred / Not Indicated"

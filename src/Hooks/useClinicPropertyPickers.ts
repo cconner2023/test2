@@ -40,12 +40,13 @@ export function useClinicPropertyPickers(clinicId?: string | null) {
 
     const loadLocations = supabase
       .from('property_locations')
-      .select('id, name')
+      .select('id, name, is_turn_in_zone')
       .eq('clinic_id', clinicId)
       .then(({ data, error }) => {
         if (cancelled || error) return
-        const rows = (data ?? []) as Pick<PropertyLocation, 'id' | 'name'>[]
-        setLocations(rows.filter(r => r.name !== ROOT_LOCATION_NAME))
+        // Filter out the system staging zone so it's never a pickable location.
+        const rows = (data ?? []) as Pick<PropertyLocation, 'id' | 'name' | 'is_turn_in_zone'>[]
+        setLocations(rows.filter(r => r.name !== ROOT_LOCATION_NAME && !r.is_turn_in_zone))
       })
 
     void Promise.all([loadItems, loadLocations])

@@ -25,6 +25,7 @@ import {
   ensureRootLocation,
   ensureMemberLocations,
   ensureDefaultClusterZone,
+  ensureTurnInZone,
   reconcileLocationsFromTags,
   updateFingerprint,
   recordExpendedEntry,
@@ -39,6 +40,7 @@ import {
   stageTurnIn as stageTurnInSvc,
   verifyTurnIn as verifyTurnInSvc,
   unstageTurnInItem as unstageTurnInItemSvc,
+  deleteTurnInDoc as deleteTurnInDocSvc,
 } from '../lib/propertyService'
 import type { CustodyLedgerEntry } from '../Types/PropertyTypes'
 import type { PmcsReadings, DispatchOpenInput, DispatchCloseInput } from '../lib/propertyService'
@@ -108,6 +110,8 @@ interface PropertyState {
   verifyTurnIn: (turnInDocId: string, itemIds?: string[]) => Promise<boolean>
   /** Drop one item from a pending turn-in before the depot run. */
   unstageTurnInItem: (turnInDocId: string, itemId: string) => Promise<boolean>
+  /** Delete a submitted DA 3161 record — does NOT restore equipment (items stay turned in). */
+  deleteTurnInDoc: (turnInDocId: string) => Promise<boolean>
   /** Clinic-wide custody ledger (newest first) for the accountability surface. */
   fetchLedger: () => Promise<CustodyLedgerEntry[]>
   splitItem: (itemId: string, qty: number, targetLocationId: string | null) => Promise<void>
@@ -242,6 +246,8 @@ export const usePropertyStore = create<PropertyState>((set, get) => ({
       await ensureMemberLocations(clinicId, user.id, memberList, rootLoc.id)
       // Ensure the cluster's default zone (BAS) exists as the standing calendar room
       await ensureDefaultClusterZone(clinicId, user.id, rootLoc.id)
+      // Ensure the cluster's DA 3161 turn-in staging zone exists (conditionally rendered)
+      await ensureTurnInZone(clinicId, user.id)
       const freshLocations = await fetchClinicLocations(clinicId)
       set({ locations: freshLocations, isLoading: false })
 
@@ -422,8 +428,9 @@ export const usePropertyStore = create<PropertyState>((set, get) => ({
     // target) and never let it ride along as a descendant of another delete.
     // This is the single chokepoint for every delete path (row menus + the
     // canvas editor's merge/delete), so the guard belongs here.
-    if (allLocs.find(l => l.id === id)?.is_default_zone) return
-    const defaultZoneIds = new Set(allLocs.filter(l => l.is_default_zone).map(l => l.id))
+    // The turn-in staging zone is likewise a standing, auto-provisioned concept — never deletable.
+    if (allLocs.find(l => l.id === id)?.is_default_zone || allLocs.find(l => l.id === id)?.is_turn_in_zone) return
+    const defaultZoneIds = new Set(allLocs.filter(l => l.is_default_zone || l.is_turn_in_zone).map(l => l.id))
 
     const descendantIds = collectDescendants(id, allLocs)
     const allRemovedIds = new Set([id, ...descendantIds])
@@ -539,6 +546,7 @@ export const usePropertyStore = create<PropertyState>((set, get) => ({
 
     invalidate('properties')
     await get().refreshItems()
+    get().bumpTagVersion() // the staging-zone tile may have just appeared on the map
     return result.turnInDocId
   },
 
@@ -552,6 +560,7 @@ export const usePropertyStore = create<PropertyState>((set, get) => ({
 
     invalidate('properties')
     await get().refreshItems()
+    get().bumpTagVersion() // the staging zone may have emptied → tile dropped
     return true
   },
 
@@ -565,6 +574,19 @@ export const usePropertyStore = create<PropertyState>((set, get) => ({
 
     invalidate('properties')
     await get().refreshItems()
+    get().bumpTagVersion() // the staging zone may have emptied → tile dropped
+    return true
+  },
+
+  deleteTurnInDoc: async (turnInDocId) => {
+    const user = useAuthStore.getState().user
+    const { clinicId } = get()
+    if (!user || !clinicId) return false
+
+    const result = await deleteTurnInDocSvc(turnInDocId, clinicId, user.id)
+    if (!result.success) return false
+
+    invalidate('properties') // drops the doc from the Turn-In history fold; items untouched
     return true
   },
 

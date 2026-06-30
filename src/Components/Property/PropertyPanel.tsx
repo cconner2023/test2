@@ -14,6 +14,7 @@ import { ItemScanner } from './ItemScanner'
 import { useHandReceipts, type ReceiptItem } from '../../Hooks/useHandReceipts'
 import { buildReprint2062Params, useHandReceiptActions } from '../../Hooks/useHandReceiptActions'
 import type { AuditEvent } from '../../lib/auditTypes'
+import { useFeatureGate } from '../../lib/featureGate'
 import { useDA2062Export } from '../../Hooks/useDA2062Export'
 import { useDA3161Export } from '../../Hooks/useDA3161Export'
 import type { TurnInDoc } from '../../Types/PropertyTypes'
@@ -33,6 +34,7 @@ import { ROOT_LOCATION_NAME } from '../../Types/PropertyTypes'
 import { PropertyItemDetail, type PropertyItemDetailHandle } from './PropertyItemDetail'
 import { Da2062Detail, da2062DetailSubtitle, type Da2062DetailHandle } from './Da2062Detail'
 import { PropertyRecordDetail, type PropertyRecordDetailHandle, type SelectedRecord } from './PropertyRecordDetail'
+import { PropertyTurnInDetail, type PropertyTurnInDetailHandle, type PendingTurnIn } from './PropertyTurnInDetail'
 import { PropertyCSVImport } from './PropertyCSVImportDrawer'
 import { PropertyShortagePanel } from './PropertyShortagePanel'
 import { SignOutForm, type SignOutFormHandle } from './SignOutForm'
@@ -133,9 +135,12 @@ export const PropertyPanel = memo(function PropertyPanel({
     })),
   )
 
-  // DA 2062 hand-receipts tree section is dev-gated, mirroring the Settings surface
-  // + the "New DA 2062" FAB action.
-  const isDevRole = useAuthStore(s => s.isDevRole)
+  // The property accountability suite (DA 2062 hand receipts, DA 3161 turn-in, shortage
+  // annex) rides the staged rollout gate: dev → single-cluster pilot → release. Gates
+  // the custody tab, the Turn-In tree node, the hand-receipt fetch, and the search
+  // sign-outs section together. PropertyDrawer's "New DA 2062"/"Shortages" FAB use the
+  // same gate. See src/lib/featureGate.ts.
+  const showAccountability = useFeatureGate('propertyAccountability')
   const currentUserId = useAuthStore(s => s.user?.id ?? null)
   const viewerSubClusterId = useAuthStore(s => s.profile.subClusterId ?? null)
   const viewerPrimaryClinicId = useAuthStore(s => s.clinicId)
@@ -222,7 +227,11 @@ export const PropertyPanel = memo(function PropertyPanel({
     membersById: receiptMembersById,
     loading: receiptsLoading,
     refetch: refetchReceipts,
-  } = useHandReceipts(isDevRole ? store.clinicId : null)
+  } = useHandReceipts(showAccountability ? store.clinicId : null)
+
+  // Item ids staged/pending DA 3161 turn-in — the tree pulls these out of their
+  // physical zone and re-homes them under the Turn-In node.
+  const turnInItemIds = useMemo(() => new Set(turnIns.pending.map((e) => e.item_id)), [turnIns.pending])
 
   // DA 3161 turn-in: stage an item (+ its SKO subtree) into the rolling pending bucket,
   // verify a staged doc (depot accepted), or unstage a pending line.
@@ -342,6 +351,7 @@ export const PropertyPanel = memo(function PropertyPanel({
   const locDetailRef = useRef<PropertyLocationDetailHandle>(null)
   const da2062DetailRef = useRef<Da2062DetailHandle>(null)
   const recordDetailRef = useRef<PropertyRecordDetailHandle>(null)
+  const turnInDetailRef = useRef<PropertyTurnInDetailHandle>(null)
   // Desktop right pane — scopes the item's split/merge PreviewOverlay so it dims
   // and centers within the pane rather than spanning the whole viewport.
   const detailPaneRef = useRef<HTMLDivElement>(null)
@@ -386,6 +396,7 @@ export const PropertyPanel = memo(function PropertyPanel({
   const [editLocationTarget, setEditLocationTarget] = useState<{ loc: LocalPropertyLocation | null; parentId: string | null; pendingTag?: PendingZoneTag | null } | null>(null)
   const [pendingDeleteItem, setPendingDeleteItem] = useState<LocalPropertyItem | null>(null)
   const [pendingDeleteLocId, setPendingDeleteLocId] = useState<string | null>(null)
+  const [pendingDeleteTurnIn, setPendingDeleteTurnIn] = useState<TurnInDoc | null>(null)
   // New DA 2062 sign-out, hosted in the detail surface (right pane desktop /
   // detail sheet mobile) — the same primitive item & zone selection use.
   const [signOutOpen, setSignOutOpen] = useState(false)
@@ -399,6 +410,10 @@ export const PropertyPanel = memo(function PropertyPanel({
   // exclusive (selecting one clears the other).
   const [selectedReceiptId, setSelectedReceiptId] = useState<string | null>(null)
   const [selectedRecord, setSelectedRecord] = useState<SelectedRecord | null>(null)
+  // A pending DA 3161 turn-in opened into the same detail surface — tracked by doc id
+  // so it re-derives live from the pending fold (curating an item shrinks it; the pane
+  // auto-closes when the turn-in empties / completes).
+  const [selectedTurnInId, setSelectedTurnInId] = useState<string | null>(null)
   // Selected-location action menu (header ellipsis) anchor + photo upload plumbing.
   const [locMenu, setLocMenu] = useState<{ rect: DOMRect } | null>(null)
   const { trigger: triggerPhoto, input: photoInput } = usePropertyPhotoUpload(
@@ -561,15 +576,38 @@ export const PropertyPanel = memo(function PropertyPanel({
 
   const handleSelectRecord = useCallback((record: SelectedRecord) => {
     setSelectedReceiptId(null)
+    setSelectedTurnInId(null)
     setMobileItem(null); setMobileForm(null)
     if (!isMobile && (view === 'property-detail' || view === 'property-form')) onBack()
     closeLocationDetail()
     setSelectedRecord(record)
   }, [isMobile, view, onBack, closeLocationDetail])
 
+  // Open a PENDING turn-in's detail in the host surface AND surface its first item on
+  // the map + switch to the map view (per USR: tapping the card does both). focusItem
+  // navigates the canvas; the turn-in pane takes render precedence over the zone detail
+  // that the resulting onSelectZone sets underneath (closeRosterDetail clears it).
+  const handleSelectTurnIn = useCallback((turnIn: PendingTurnIn) => {
+    setSelectedReceiptId(null)
+    setSelectedRecord(null)
+    setMobileItem(null); setMobileForm(null)
+    if (!isMobile && (view === 'property-detail' || view === 'property-form')) onBack()
+    setSelectedTurnInId(turnIn.turnInDocId)
+    const first = turnIn.entries[0]
+    const full = first ? store.items.find((i) => i.id === first.item_id) : null
+    if (full?.location_id) mapRef.current?.focusItem(full.id)
+    setPropertyTab('map')
+  }, [isMobile, view, onBack, store.items])
+
   const closeRosterDetail = useCallback(() => {
     setSelectedReceiptId(null)
     setSelectedRecord(null)
+    setSelectedTurnInId(null)
+    // A turn-in tap navigated the canvas (setting a zone selection underneath); clear it
+    // so closing the pane returns to a clean map rather than popping the zone detail.
+    // No-op for receipt/record details (they open with the zone selection already cleared).
+    setSelectedLocationId(null)
+    mapRef.current?.clearSelection()
   }, [])
 
   // Drop the open receipt when it's deleted (vanishes from the refetched list); a
@@ -583,6 +621,33 @@ export const PropertyPanel = memo(function PropertyPanel({
   const selectedReceipt = selectedReceiptId
     ? receipts.find(r => r.handReceiptId === selectedReceiptId) ?? null
     : null
+
+  // The open pending turn-in, re-derived live from the pending fold so curating an
+  // item shrinks it in place. Null (→ pane auto-closes) once its rows are all
+  // un-staged or verified (depot completed) and leave the pending set.
+  const selectedTurnIn = useMemo<PendingTurnIn | null>(() => {
+    if (!selectedTurnInId) return null
+    const entries = turnIns.pending.filter(e => e.hand_receipt_id === selectedTurnInId)
+    return entries.length ? { turnInDocId: selectedTurnInId, entries } : null
+  }, [selectedTurnInId, turnIns.pending])
+  useEffect(() => {
+    if (selectedTurnInId && !turnIns.pending.some(e => e.hand_receipt_id === selectedTurnInId)) {
+      setSelectedTurnInId(null)
+    }
+  }, [turnIns.pending, selectedTurnInId])
+
+  // Drop the WHOLE pending turn-in back onto the books — un-stage every staged item.
+  const handleRemoveTurnIn = useCallback((turnIn: PendingTurnIn) => {
+    for (const e of turnIn.entries) void store.unstageTurnInItem(turnIn.turnInDocId, e.item_id)
+  }, [store])
+
+  // Host-header label for an open turn-in — mirrors the card's "first item (+N more)".
+  const turnInLabel = useCallback((t: PendingTurnIn) => {
+    const first = t.entries[0]
+    const name = first ? receiptItemsById.get(first.item_id)?.name ?? 'Item' : 'Item'
+    const more = t.entries.length - 1
+    return more > 0 ? `${name} · +${more} more` : name
+  }, [receiptItemsById])
 
   // Scan match → surface the item on the map ("target it"). Camera is momentary:
   // close the overlay and return to the map tab targeting the match (both platforms).
@@ -679,6 +744,12 @@ export const PropertyPanel = memo(function PropertyPanel({
     await store.removeItem(pendingDeleteItem.id)
     setPendingDeleteItem(null)
   }, [pendingDeleteItem, store])
+
+  const handleConfirmDeleteTurnIn = useCallback(async () => {
+    if (!pendingDeleteTurnIn) return
+    await store.deleteTurnInDoc(pendingDeleteTurnIn.turnInDocId)
+    setPendingDeleteTurnIn(null)
+  }, [pendingDeleteTurnIn, store])
 
   // ── Custody card context-menu actions ──
   // The cards carry the lean ReceiptItem; resolve the full store item so View/Edit/
@@ -802,7 +873,7 @@ export const PropertyPanel = memo(function PropertyPanel({
       <IslandButton role="tab" onClick={() => setShowScanner(true)} label="Camera" tour="property-tab-scan">
         <Camera className="w-5 h-5" />
       </IslandButton>
-      {isDevRole && (
+      {showAccountability && (
         <IslandButton role="tab" active={propertyTab === 'custody'} onClick={() => { setMobileItem(null); setMobileForm(null); closeLocationDetail(); closeRosterDetail(); setPropertyTab('custody') }} label="Sign-outs" tour="property-tab-custody">
           <ClipboardList className="w-5 h-5" />
         </IslandButton>
@@ -813,7 +884,7 @@ export const PropertyPanel = memo(function PropertyPanel({
   // Desktop layout — left rail (location tree) · center map · right pane (detail/form),
   // mirroring MapOverlayPanel: the rail collapses while the right pane is open.
   if (!isMobile) {
-    const railCollapsed = view === 'property-form' || view === 'property-detail' || !!editLocationTarget || !!selectedLocation || signOutOpen || importOpen || shortageOpen || !!da2062Preview || !!selectedReceipt || !!selectedRecord
+    const railCollapsed = view === 'property-form' || view === 'property-detail' || !!editLocationTarget || !!selectedLocation || signOutOpen || importOpen || shortageOpen || !!da2062Preview || !!selectedReceipt || !!selectedRecord || !!selectedTurnIn
     // When the rail search has a query, the results take over the CENTER pane
     // (mirrors mobile's overlay) instead of filtering the rail tree in place. The
     // rail keeps the full tree for navigation context; results route to the right pane.
@@ -834,10 +905,13 @@ export const PropertyPanel = memo(function PropertyPanel({
               />
             </div>
             {/* Filter + tree share this rail (the desktop equivalent of the mobile
-                Locations sheet) — one entry point for both. */}
-            {propertyFilterPanel}
-            {sectionHeader('Zones')}
+                Locations sheet) — one entry point for both. Both live in ONE scroll
+                region (mirrors the calendar sidebar: only search + picker stay pinned),
+                so the filter rows scroll WITH the tree instead of pinning the rail and
+                starving the tree's scroll window. */}
             <div className="flex-1 min-h-0 overflow-y-auto">
+              {propertyFilterPanel}
+              {sectionHeader('Zones')}
               <PropertyLocationTree
                 locations={treeLocations}
                 items={displayItems}
@@ -881,9 +955,10 @@ export const PropertyPanel = memo(function PropertyPanel({
                 onDeleteReceipt={onDeleteItem ? setPendingDeleteReceipt : undefined}
                 onDeleteRecord={onDeleteItem ? setPendingDeleteRecord : undefined}
                 turnIns={turnIns}
-                onVerifyTurnIn={onDeleteItem ? handleVerifyTurnIn : undefined}
-                onUnstageTurnInItem={onDeleteItem ? handleUnstageTurnInItem : undefined}
+                onSelectTurnIn={onDeleteItem ? handleSelectTurnIn : undefined}
                 onViewTurnIn={handleViewTurnIn}
+                onDeleteTurnIn={onDeleteItem ? setPendingDeleteTurnIn : undefined}
+                selectedTurnInId={selectedTurnInId}
                 selectedReceiptId={selectedReceiptId}
                 selectedRecordId={selectedRecord?.event.id ?? null}
               />
@@ -908,7 +983,7 @@ export const PropertyPanel = memo(function PropertyPanel({
                     holders={store.holders}
                     receipts={receipts}
                     receiptItemsById={receiptItemsById}
-                    showReceipts={isDevRole}
+                    showReceipts={showAccountability}
                     onSelectItem={(item) => { setDesktopSearch(''); handleSelectItem(item) }}
                     onOpenLocation={(loc) => { setDesktopSearch(''); mapRef.current?.navigateToZone(loc.id) }}
                     onSelectReceiptItem={(item) => { setDesktopSearch(''); handleLocateReceiptItem(item) }}
@@ -968,7 +1043,7 @@ export const PropertyPanel = memo(function PropertyPanel({
                 </div>
               </>
             )}
-            {!editLocationTarget && !signOutOpen && !selectedReceipt && !selectedRecord && view === 'property-detail' && selectedItem && (
+            {!editLocationTarget && !signOutOpen && !selectedReceipt && !selectedRecord && !selectedTurnIn && view === 'property-detail' && selectedItem && (
               <>
                 <div className="shrink-0 flex items-center gap-2 px-4 py-3 border-b border-tertiary/10">
                   <div className="flex-1 min-w-0">
@@ -1005,7 +1080,7 @@ export const PropertyPanel = memo(function PropertyPanel({
                 </div>
               </>
             )}
-            {!editLocationTarget && !signOutOpen && !selectedReceipt && !selectedRecord && view === 'property-form' && (
+            {!editLocationTarget && !signOutOpen && !selectedReceipt && !selectedRecord && !selectedTurnIn && view === 'property-form' && (
               <>
                 <div className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-tertiary/10">
                   <p className="text-sm font-medium text-primary">
@@ -1026,7 +1101,7 @@ export const PropertyPanel = memo(function PropertyPanel({
                 </div>
               </>
             )}
-            {!editLocationTarget && !signOutOpen && !selectedReceipt && !selectedRecord && view === 'property' && selectedLocation && (
+            {!editLocationTarget && !signOutOpen && !selectedReceipt && !selectedRecord && !selectedTurnIn && view === 'property' && selectedLocation && (
               <>
                 <div className="shrink-0 flex items-center gap-2 px-4 py-3 border-b border-tertiary/10">
                   <div className="flex-1 min-w-0">
@@ -1124,6 +1199,36 @@ export const PropertyPanel = memo(function PropertyPanel({
                 </div>
               </>
             )}
+            {/* Pending DA 3161 turn-in — opened from a Custody-roster Turn-In card. Header
+                mirrors the record detail (first item + "Pending turn-in", More menu, Close);
+                body is the turn-in's item rows with curate / complete / remove. */}
+            {!editLocationTarget && !signOutOpen && !selectedReceipt && !selectedRecord && selectedTurnIn && (
+              <>
+                <div className="shrink-0 flex items-center gap-2 px-4 py-3 border-b border-tertiary/10">
+                  <div className="flex-1 min-w-0">
+                    <p className="truncate text-sm font-medium text-primary">{turnInLabel(selectedTurnIn)}</p>
+                    <p className="truncate text-[9pt] text-tertiary mt-0.5">Pending turn-in</p>
+                  </div>
+                  <HeaderPill>
+                    <span className="inline-flex" onClick={(e) => turnInDetailRef.current?.openMenu((e.currentTarget as HTMLElement).getBoundingClientRect())}>
+                      <PillButton icon={MoreHorizontal} iconSize={16} onClick={() => {}} label="More actions" />
+                    </span>
+                    <PillButton icon={X} iconSize={16} onClick={closeRosterDetail} label="Close" />
+                  </HeaderPill>
+                </div>
+                <div className="flex-1 min-h-0 overflow-y-auto">
+                  <PropertyTurnInDetail
+                    ref={turnInDetailRef}
+                    turnIn={selectedTurnIn}
+                    itemsById={receiptItemsById}
+                    onUnstageItem={(itemId) => handleUnstageTurnInItem(selectedTurnIn.turnInDocId, itemId)}
+                    onComplete={() => handleVerifyTurnIn(selectedTurnIn.turnInDocId)}
+                    onRemove={() => handleRemoveTurnIn(selectedTurnIn)}
+                    onClose={closeRosterDetail}
+                  />
+                </div>
+              </>
+            )}
             {/* CSV import — sole occupant of the right pane (rail collapses, pane
                 opens), mirroring the sign-out / reprint surfaces. Absolute overlay
                 so it covers the pane without entangling the other branches. */}
@@ -1154,7 +1259,7 @@ export const PropertyPanel = memo(function PropertyPanel({
                 </div>
                 <div className="flex-1 min-h-0 overflow-y-auto">
                   <div className="px-4 py-4 pb-8">
-                    <PropertyShortagePanel onClose={() => setShortageOpen(false)} />
+                    <PropertyShortagePanel onClose={() => setShortageOpen(false)} stagedTurnInIds={turnInItemIds} />
                   </div>
                 </div>
               </div>
@@ -1216,6 +1321,14 @@ export const PropertyPanel = memo(function PropertyPanel({
           onCancel={() => setPendingDeleteReceipt(null)}
         />
         <ConfirmDialog
+          visible={!!pendingDeleteTurnIn}
+          title="Delete this DA 3161? The record is removed; the turned-in equipment is not restored."
+          confirmLabel="Delete"
+          variant="danger"
+          onConfirm={handleConfirmDeleteTurnIn}
+          onCancel={() => setPendingDeleteTurnIn(null)}
+        />
+        <ConfirmDialog
           visible={!!pendingDeleteRecord}
           title="Delete this record? This cannot be undone."
           confirmLabel="Delete"
@@ -1255,9 +1368,10 @@ export const PropertyPanel = memo(function PropertyPanel({
               onDeleteReceipt={onDeleteItem ? setPendingDeleteReceipt : undefined}
               onDeleteRecord={onDeleteItem ? setPendingDeleteRecord : undefined}
               turnIns={turnIns}
-              onVerifyTurnIn={onDeleteItem ? handleVerifyTurnIn : undefined}
-              onUnstageTurnInItem={onDeleteItem ? handleUnstageTurnInItem : undefined}
+              onSelectTurnIn={onDeleteItem ? handleSelectTurnIn : undefined}
               onViewTurnIn={handleViewTurnIn}
+              onDeleteTurnIn={onDeleteItem ? setPendingDeleteTurnIn : undefined}
+              selectedTurnInId={selectedTurnInId}
               selectedReceiptId={selectedReceiptId}
               selectedRecordId={selectedRecord?.event.id ?? null}
             />
@@ -1280,7 +1394,7 @@ export const PropertyPanel = memo(function PropertyPanel({
           holders={store.holders}
           receipts={receipts}
           receiptItemsById={receiptItemsById}
-          showReceipts={isDevRole}
+          showReceipts={showAccountability}
           onSelectItem={(item) => { handleSelectItem(item); onSearchChange?.(''); onSearchFocusChange?.(false) }}
           onOpenLocation={(loc) => { mapRef.current?.navigateToZone(loc.id); onSearchChange?.(''); onSearchFocusChange?.(false) }}
           onSelectReceiptItem={(item) => { handleLocateReceiptItem(item); onSearchChange?.(''); onSearchFocusChange?.(false) }}
@@ -1306,7 +1420,7 @@ export const PropertyPanel = memo(function PropertyPanel({
           forms NEST in the SAME sheet (height-transition) — back unwinds
           form → item/location → parent zone. No separate sheets. */}
       <Sheet
-        isOpen={(!!selectedLocation || !!mobileItem || !!mobileForm || !!selectedReceipt || !!selectedRecord || signOutOpen || importOpen || shortageOpen || !!da2062Preview) && !drawingZone}
+        isOpen={(!!selectedLocation || !!mobileItem || !!mobileForm || !!selectedReceipt || !!selectedRecord || !!selectedTurnIn || signOutOpen || importOpen || shortageOpen || !!da2062Preview) && !drawingZone}
         onClose={() => { closeMobileForm(); setMobileItem(null); closeLocationDetail(); closeRosterDetail(); setSignOutOpen(false); setImportOpen(false); setShortageOpen(false); clearDA2062Preview() }}
         title={
           da2062Preview
@@ -1321,6 +1435,8 @@ export const PropertyPanel = memo(function PropertyPanel({
             ? selectedReceipt.recipientLabel
             : selectedRecord
             ? selectedRecord.label
+            : selectedTurnIn
+            ? turnInLabel(selectedTurnIn)
             : mobileForm
               ? (mobileForm.kind === 'item'
                   ? (store.editingItem ? 'Edit Item' : 'New Item')
@@ -1337,6 +1453,11 @@ export const PropertyPanel = memo(function PropertyPanel({
             <div className="min-w-0">
               <span className="block truncate text-[13pt] font-semibold text-primary">{selectedRecord.label}</span>
               <span className="block truncate text-[9pt] text-tertiary mt-0.5">{selectedRecord.detail}</span>
+            </div>
+          ) : selectedTurnIn ? (
+            <div className="min-w-0">
+              <span className="block truncate text-[13pt] font-semibold text-primary">{turnInLabel(selectedTurnIn)}</span>
+              <span className="block truncate text-[9pt] text-tertiary mt-0.5">Pending turn-in</span>
             </div>
           ) : !mobileForm && (mobileItem || selectedLocation) ? (
             <div className="min-w-0">
@@ -1366,7 +1487,7 @@ export const PropertyPanel = memo(function PropertyPanel({
             <button onClick={closeMobileForm} aria-label="Cancel" className="w-9 h-9 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all">
               <ChevronLeft size={20} />
             </button>
-          ) : (mobileItem || selectedLocation || selectedReceipt || selectedRecord) ? (
+          ) : (mobileItem || selectedLocation || selectedReceipt || selectedRecord || selectedTurnIn) ? (
             <HeaderPill>
               <span
                 className="inline-flex"
@@ -1375,6 +1496,8 @@ export const PropertyPanel = memo(function PropertyPanel({
                     ? (e) => da2062DetailRef.current?.openMenu((e.currentTarget as HTMLElement).getBoundingClientRect())
                     : selectedRecord
                     ? (e) => recordDetailRef.current?.openMenu((e.currentTarget as HTMLElement).getBoundingClientRect())
+                    : selectedTurnIn
+                    ? (e) => turnInDetailRef.current?.openMenu((e.currentTarget as HTMLElement).getBoundingClientRect())
                     : mobileItem
                     ? (e) => itemDetailRef.current?.openMenu((e.currentTarget as HTMLElement).getBoundingClientRect())
                     : openLocMenu
@@ -1408,7 +1531,7 @@ export const PropertyPanel = memo(function PropertyPanel({
         ) : importOpen ? (
           <PropertyCSVImport onClose={() => setImportOpen(false)} />
         ) : shortageOpen ? (
-          <PropertyShortagePanel onClose={() => setShortageOpen(false)} />
+          <PropertyShortagePanel onClose={() => setShortageOpen(false)} stagedTurnInIds={turnInItemIds} />
         ) : signOutOpen ? (
           <SignOutForm ref={signOutFormRef} onClose={() => setSignOutOpen(false)} />
         ) : selectedReceipt ? (
@@ -1430,6 +1553,16 @@ export const PropertyPanel = memo(function PropertyPanel({
             ref={recordDetailRef}
             record={selectedRecord}
             onDeleted={closeRosterDetail}
+          />
+        ) : selectedTurnIn ? (
+          <PropertyTurnInDetail
+            ref={turnInDetailRef}
+            turnIn={selectedTurnIn}
+            itemsById={receiptItemsById}
+            onUnstageItem={(itemId) => handleUnstageTurnInItem(selectedTurnIn.turnInDocId, itemId)}
+            onComplete={() => handleVerifyTurnIn(selectedTurnIn.turnInDocId)}
+            onRemove={() => handleRemoveTurnIn(selectedTurnIn)}
+            onClose={closeRosterDetail}
           />
         ) : mobileForm?.kind === 'item' ? (
           <PropertyItemForm
@@ -1549,6 +1682,15 @@ export const PropertyPanel = memo(function PropertyPanel({
         zIndex={1500}
         onConfirm={confirmDeleteReceipt}
         onCancel={() => setPendingDeleteReceipt(null)}
+      />
+      <ConfirmDialog
+        visible={!!pendingDeleteTurnIn}
+        title="Delete this DA 3161? The record is removed; the turned-in equipment is not restored."
+        confirmLabel="Delete"
+        variant="danger"
+        zIndex={1500}
+        onConfirm={handleConfirmDeleteTurnIn}
+        onCancel={() => setPendingDeleteTurnIn(null)}
       />
       <ConfirmDialog
         visible={!!pendingDeleteRecord}

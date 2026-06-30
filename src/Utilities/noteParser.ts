@@ -3,6 +3,7 @@
 
 import { compressText, decompressText, bitmaskToIndices, indicesToBitmask } from './textCodec';
 import { decodePECompact, encodePEState } from './peCodec';
+import { applyRedFlagFloor } from './dispositionSeverity';
 import { logError } from './ErrorHandler';
 
 import type { PEState } from '../Types/PETypes';
@@ -817,7 +818,14 @@ export function reconstructCardStates(
         }
     }
 
-    return { cardStates, disposition: lastDisposition };
+    // Red flags floor the disposition at the bound initial card's "yes" severity (e.g. CAT I),
+    // matching the live engine (useAlgorithm) so an imported/previewed note shows the same
+    // sticky disposition a later, lower-severity answer would otherwise have downgraded.
+    const disposition = applyRedFlagFloor(
+        algorithmOptions, initialIndex, parsed.rfSelections.length > 0, lastDisposition,
+    );
+
+    return { cardStates, disposition };
 }
 
 // ---------------------------------------------------------------------------

@@ -74,6 +74,8 @@ function localItem(item: PropertyItem, syncStatus: SyncStatus = 'pending'): Loca
     quantity_authorized: item.quantity_authorized ?? null,
     // Coerce legacy IDB rows cached before turned_in_at existed. null = active/on the books.
     turned_in_at: item.turned_in_at ?? null,
+    // Coerce legacy rows cached before turn_in_origin_location_id existed.
+    turn_in_origin_location_id: item.turn_in_origin_location_id ?? null,
     _sync_status: syncStatus,
     _sync_retry_count: 0,
     _last_sync_error: null,
@@ -1290,6 +1292,79 @@ export async function ensureDefaultClusterZone(
 }
 
 /**
+ * Ensure the cluster's DA 3161 turn-in staging zone exists (one per clinic; mirrors
+ * ensureDefaultClusterZone/BAS): a standing, non-deletable property_location that items
+ * relocate INTO when staged for turn-in. NO canvas tag is placed here — the tile is
+ * toggled on the root canvas by {@link syncTurnInZoneTag} so the zone shows on the map
+ * only while it holds staged items (conditionally rendered, like a personnel zone).
+ * Idempotent; returns the zone id (null only if creation failed).
+ */
+export async function ensureTurnInZone(clinicId: string, userId: string): Promise<string | null> {
+  const allLocs = await getLocalPropertyLocations(clinicId)
+  const existing = allLocs.find(l => l.is_turn_in_zone)
+  if (existing) {
+    // Self-heal: the bucket is a top-level zone (parent_id null) like BAS so the tree /
+    // list / sheet treat it as a root. Re-home legacy rows nested under the root id.
+    if ((existing.parent_id ?? null) !== null) {
+      await updateLocation(existing.id, { parent_id: null }, userId)
+    }
+    return existing.id
+  }
+  const result = await createLocation(
+    {
+      clinic_id: clinicId,
+      parent_id: null,
+      name: TURN_IN_ZONE_NAME,
+      photo_data: null,
+      holder_user_id: null,
+      is_turn_in_zone: true,
+      created_by: userId,
+    },
+    userId,
+  )
+  return result.success ? result.location.id : null
+}
+
+/**
+ * Toggle the turn-in zone's tile on the root canvas to match its populated state: a
+ * root-canvas tag exists IFF the zone holds ≥1 staged (active, not-yet-verified) item, so
+ * the map renders the staging zone only while pending. Call after every stage / unstage /
+ * verify. No-op when the cluster has no turn-in zone or no root yet.
+ */
+async function syncTurnInZoneTag(clinicId: string, userId: string): Promise<void> {
+  const locs = await getLocalPropertyLocations(clinicId)
+  const zone = locs.find(l => l.is_turn_in_zone)
+  if (!zone) return
+  const root = locs.find(l => l.name === ROOT_LOCATION_NAME && (l.parent_id ?? null) === null)
+  if (!root) return
+  const items = await getLocalPropertyItems(clinicId)
+  const populated = items.some(i => i.location_id === zone.id && !i.deleted_at && !i.turned_in_at)
+  const tags = await fetchLocationTags(root.id)
+  const hasTag = tags.some(t => t.target_type === 'location' && t.target_id === zone.id)
+  if (populated && !hasTag) {
+    const zoneCount = tags.filter(t => t.target_type === 'location').length
+    const col = zoneCount % 4
+    const row = Math.floor(zoneCount / 4)
+    await upsertLocationTags(root.id, [
+      ...tags,
+      {
+        id: crypto.randomUUID(),
+        location_id: root.id,
+        target_type: 'location' as const,
+        target_id: zone.id,
+        x: 0.05 + col * 0.23,
+        y: 0.05 + row * 0.18,
+        width: 0.2,
+        height: 0.14,
+        label: TURN_IN_ZONE_NAME,
+      },
+    ])
+  } else if (!populated && hasTag) {
+    await upsertLocationTags(root.id, tags.filter(t => !(t.target_type === 'location' && t.target_id === zone.id)))
+  }
+}
+
+/**
  * Create a full-size "level" sub-zone (e.g. a building floor) under `parentId`.
  *
  * Unlike "New area" (a drawn rect), a level occupies its parent's WHOLE footprint:
@@ -1398,7 +1473,7 @@ export async function reconcileLocationsFromTags(
 
 // ── Root Location (invisible canvas host) ────────────────────
 
-import { ROOT_LOCATION_NAME, DEFAULT_CLUSTER_ZONE_NAME } from '../Types/PropertyTypes'
+import { ROOT_LOCATION_NAME, DEFAULT_CLUSTER_ZONE_NAME, TURN_IN_ZONE_NAME } from '../Types/PropertyTypes'
 
 /**
  * Ensure the invisible root location exists for the clinic.
@@ -2110,13 +2185,15 @@ async function applyReturn(
  *  how many were turned in). turned_in_at drops it from the active book + anchors the
  *  ~180d reap. */
 async function applyTurnIn(item: LocalPropertyItem, qty: number, userId: string, at: string): Promise<void> {
+  // A full turn-in leaves the active book AND vacates the staging zone (location_id null,
+  // origin cleared — it's gone for good), so the zone empties and its tile drops.
   if (item.is_serialized) {
-    await updateItem(item.id, { turned_in_at: at, current_holder_id: null, signed_out_external: false }, userId, { skipAudit: true })
+    await updateItem(item.id, { turned_in_at: at, current_holder_id: null, signed_out_external: false, location_id: null, turn_in_origin_location_id: null }, userId, { skipAudit: true })
     return
   }
   const remaining = item.quantity - Math.max(1, qty)
   if (remaining <= 0) {
-    await updateItem(item.id, { turned_in_at: at }, userId, { skipAudit: true }) // whole stack out; keep qty as manifest
+    await updateItem(item.id, { turned_in_at: at, location_id: null, turn_in_origin_location_id: null }, userId, { skipAudit: true }) // whole stack out; keep qty as manifest
   } else {
     await updateItem(item.id, { quantity: remaining }, userId, { skipAudit: true }) // partial — stack stays active
   }
@@ -2389,6 +2466,8 @@ async function writeTurnInRows(
   itemsById: Map<string, LocalPropertyItem>,
   userId: string,
   skipIds: Set<string>,
+  /** The cluster's turn-in staging zone — items relocate INTO it when staged. */
+  turnInZoneId: string,
 ): Promise<ServiceResult> {
   await detachLooseComponents(itemIds, itemsById, userId)
   const originallySelected = new Set(itemIds)
@@ -2402,9 +2481,62 @@ async function writeTurnInRows(
       if (cascaded) continue // empty component slot — nothing to turn in
       return fail(`${item.name} has none on hand`)
     }
+    // "Move to the turn-in staging zone", split by MTOE authorization:
+    //  - AUTHORIZED (quantity_authorized != null): act as if moved/expended — the BOM line
+    //    STAYS PUT, zeroed, as a shortage anchor (authorized−0 = short the instant staged),
+    //    and a NEW item carrying the on-hand qty (+ serial + attrs) relocates INTO the
+    //    turn-in zone with the marker. A serialized source is demoted to a serial-less qty-0
+    //    placeholder (the serial travels with the child).
+    //  - UNAUTHORIZED (null): FULL MOVE — the whole item's location_id becomes the turn-in
+    //    zone; turn_in_origin_location_id remembers where it was so un-stage restores it.
+    // Cascaded SKO components ride their parent kit (nested by parent_item_id) — marker only.
+    let ledgerItemId = itemId
+    if (!cascaded && item.quantity_authorized != null) {
+      const child = await createItem(
+        {
+          clinic_id: item.clinic_id,
+          name: item.name,
+          nomenclature: item.nomenclature,
+          nsn: item.nsn,
+          lin: item.lin,
+          serial_number: item.serial_number, // the physical stock keeps its serial
+          quantity: qty,
+          is_serialized: item.is_serialized,
+          condition_code: item.condition_code,
+          parent_item_id: item.parent_item_id,
+          location_id: turnInZoneId, // relocate into the staging zone
+          current_holder_id: item.current_holder_id,
+          location_tag_id: null,
+          photo_url: item.photo_url,
+          visual_fingerprint: null,
+          expiry_date: item.expiry_date,
+          notes: item.notes,
+          sub_cluster_id: item.sub_cluster_id ?? null,
+          quantity_authorized: null, // the moved stock is never itself a shortage line
+        },
+        userId,
+      )
+      if (!child.success) return fail(child.error)
+      const zeroed = await updateItem(
+        item.id,
+        item.is_serialized ? { quantity: 0, serial_number: null, is_serialized: false } : { quantity: 0 },
+        userId,
+        { skipAudit: true },
+      )
+      if (!zeroed.success) return fail(zeroed.error)
+      ledgerItemId = child.item.id
+    } else if (!cascaded) {
+      const moved = await updateItem(
+        item.id,
+        { location_id: turnInZoneId, turn_in_origin_location_id: item.location_id ?? null },
+        userId,
+        { skipAudit: true },
+      )
+      if (!moved.success) return fail(moved.error)
+    }
     const ledgerResult = await recordLedgerEntry(
       {
-        item_id: itemId,
+        item_id: ledgerItemId,
         clinic_id: clinicId,
         hand_receipt_id: docId, // generic doc id (reused column; 2062 fold ignores turn_in rows)
         action: 'turn_in',
@@ -2442,6 +2574,7 @@ async function applyTurnInDoc(
     await applyTurnIn(item, Math.max(1, row.quantity_delta ?? 1), userId, at)
     verified++
   }
+  if (verified > 0) await syncTurnInZoneTag(clinicId, userId) // emptied → drop the zone tile
   return succeed({ verified })
 }
 
@@ -2475,12 +2608,15 @@ export async function stageTurnIn(params: TurnInParams, userId: string): Promise
   try {
     const { itemIds, clinicId, fromHolderId, notes } = params
     if (itemIds.length === 0) return fail('No items selected')
+    const turnInZoneId = await ensureTurnInZone(clinicId, userId)
+    if (!turnInZoneId) return fail('Could not resolve the turn-in zone')
     const itemsById = new Map((await getLocalPropertyItems(clinicId)).map((i) => [i.id, i]))
     const docId = (await findOpenTurnInDocId(clinicId, itemsById)) ?? crypto.randomUUID()
     // Skip ids already staged in this doc (re-stage idempotent; cascade overlap can't dup).
     const already = new Set((await getLocalCustodyByReceipt(docId)).filter((r) => r.action === 'turn_in').map((r) => r.item_id))
-    const result = await writeTurnInRows(docId, itemIds, clinicId, fromHolderId, notes?.trim() || null, itemsById, userId, already)
+    const result = await writeTurnInRows(docId, itemIds, clinicId, fromHolderId, notes?.trim() || null, itemsById, userId, already, turnInZoneId)
     if (!result.success) return fail(result.error)
+    await syncTurnInZoneTag(clinicId, userId) // populated → show the zone tile on the map
     return succeed({ turnInDocId: docId })
   } catch (err) {
     return fail(String(err))
@@ -2515,6 +2651,72 @@ export async function unstageTurnInItem(
     const rows = (await getLocalCustodyByReceipt(turnInDocId)).filter((r) => r.action === 'turn_in' && r.item_id === itemId)
     if (rows.length === 0) return succeed()
     await purgeCustodyRows(rows, clinicId, userId, true)
+
+    // Reverse the stage (see writeTurnInRows) so the item leaves the staging zone:
+    //  - FULL-MOVED (auth-null) item carries turn_in_origin_location_id → move it back to
+    //    that exact zone and clear the origin.
+    //  - AUTHORIZED child (untracked, relocated into the zone, split off a zeroed BOM source)
+    //    → merge its qty (+ serial, for a serialized line) back into the source and delete
+    //    the child, so the shortage clears.
+    //  - anything else (legacy) → just dropping the marker is the whole unstage.
+    const items = await getLocalPropertyItems(clinicId)
+    const staged = items.find((i) => i.id === itemId)
+    if (staged && !staged.turned_in_at) {
+      if (staged.turn_in_origin_location_id != null) {
+        await updateItem(
+          staged.id,
+          { location_id: staged.turn_in_origin_location_id ?? null, turn_in_origin_location_id: null },
+          userId,
+          { skipAudit: true },
+        )
+      } else {
+        // Untracked stock sitting in the zone = an authorized child; find its zeroed source.
+        const norm = (s: string | null) => (s ?? '').trim().toLowerCase()
+        const source = items.find((i) =>
+          i.id !== staged.id &&
+          i.quantity_authorized != null &&
+          !i.turned_in_at &&
+          norm(i.name) === norm(staged.name) &&
+          (staged.nsn ? i.nsn === staged.nsn : !i.nsn)
+        )
+        if (source) {
+          await updateItem(
+            source.id,
+            staged.is_serialized
+              ? { quantity: source.quantity + staged.quantity, serial_number: staged.serial_number, is_serialized: true }
+              : { quantity: source.quantity + staged.quantity },
+            userId,
+            { skipAudit: true },
+          )
+          await deleteItem(staged.id, userId)
+        }
+      }
+    }
+    await syncTurnInZoneTag(clinicId, userId) // maybe emptied → drop the zone tile
+    await immediateSync(userId)
+    return succeed()
+  } catch (err) {
+    return fail(String(err))
+  }
+}
+
+/** DELETE a submitted DA 3161 turn-in document (record removal). Purges the doc's
+ *  VERIFIED turn_in ledger rows so it drops out of the Turn-In history. This is NOT an
+ *  undo: the turned-in items keep their turned_in_at marker (gone for good) — the
+ *  equipment is NOT restored to the book. Any still-pending rows of a subset-verified
+ *  doc are left alone (unstage handles those + restores their staged stock). */
+export async function deleteTurnInDoc(
+  turnInDocId: string,
+  clinicId: string,
+  userId: string,
+): Promise<ServiceResult> {
+  try {
+    const allRows = (await getLocalCustodyByReceipt(turnInDocId)).filter((r) => r.action === 'turn_in')
+    if (allRows.length === 0) return succeed()
+    const itemsById = new Map((await getLocalPropertyItems(clinicId)).map((i) => [i.id, i]))
+    const rows = allRows.filter((r) => itemsById.get(r.item_id)?.turned_in_at)
+    if (rows.length === 0) return succeed()
+    await purgeCustodyRows(rows, clinicId, userId, true)
     await immediateSync(userId)
     return succeed()
   } catch (err) {
@@ -2528,8 +2730,10 @@ export async function completeTurnIn(params: TurnInParams, userId: string): Prom
     const { itemIds, clinicId, fromHolderId, notes } = params
     if (itemIds.length === 0) return fail('No items selected')
     const turnInDocId = crypto.randomUUID()
+    const turnInZoneId = await ensureTurnInZone(clinicId, userId)
+    if (!turnInZoneId) return fail('Could not resolve the turn-in zone')
     const itemsById = new Map((await getLocalPropertyItems(clinicId)).map((i) => [i.id, i]))
-    const written = await writeTurnInRows(turnInDocId, itemIds, clinicId, fromHolderId, notes?.trim() || null, itemsById, userId, new Set())
+    const written = await writeTurnInRows(turnInDocId, itemIds, clinicId, fromHolderId, notes?.trim() || null, itemsById, userId, new Set(), turnInZoneId)
     if (!written.success) return fail(written.error)
     const verify = await applyTurnInDoc(turnInDocId, clinicId, userId)
     if (!verify.success) return fail(verify.error)

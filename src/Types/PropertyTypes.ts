@@ -83,6 +83,10 @@ export interface PropertyItem {
    *  lifecycle axis, distinct from deleted_at (a turned-in item is NOT deleted). Additive
    *  nullable, same fan-out path as signed_out_external. See accountability-reorder-loop.md. */
   turned_in_at: string | null
+  /** Pre-move location of a FULL-MOVED (auth-null) item staged for turn-in — the zone it
+   *  left to enter the turn-in staging zone. Restored verbatim on un-stage; cleared on
+   *  verify (gone for good). null = not a full-moved staged item. Bare uuid, no FK. */
+  turn_in_origin_location_id?: string | null
   notes: string | null
   created_at: string
   updated_at: string
@@ -156,6 +160,10 @@ export interface PropertyLocation {
   overlay_id?: string | null
   /** True on the single auto-provisioned cluster default zone (BAS / aid station) per clinic. */
   is_default_zone?: boolean
+  /** True on the single auto-provisioned, non-deletable DA 3161 turn-in staging zone per
+   *  clinic. Items relocate INTO it when staged for turn-in; it renders on the map/tree
+   *  only while it holds ≥1 staged item (conditionally rendered, like a personnel zone). */
+  is_turn_in_zone?: boolean
   created_by: string
   created_at: string
   updated_at: string
@@ -172,6 +180,9 @@ export const ROOT_LOCATION_NAME = '__root__'
 
 /** Display name for the auto-provisioned default cluster zone (battalion aid station). */
 export const DEFAULT_CLUSTER_ZONE_NAME = 'BAS'
+
+/** Display name for the auto-provisioned, non-deletable DA 3161 turn-in staging zone. */
+export const TURN_IN_ZONE_NAME = 'Pending Turn-In'
 
 /** A single rectangle within a composite zone shape, normalised 0..1 within the zone bounding box. */
 export interface ZoneRect {

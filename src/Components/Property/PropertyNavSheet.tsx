@@ -64,7 +64,7 @@ export const PropertyNavSheet = forwardRef<PropertyNavSheetHandle, PropertyNavSh
         setDefaultLocationId: s.setDefaultLocationId,
       })),
     )
-    const visibleLocations = store.locations.filter((l) => l.name !== ROOT_LOCATION_NAME)
+    const visibleLocations = store.locations.filter((l) => l.name !== ROOT_LOCATION_NAME && !l.is_turn_in_zone)
     const clinicName = useClinicName(usePropertyStore((s) => s.clinicId)) || 'Cluster'
 
     const itemFormRef = useRef<PropertyItemFormHandle>(null)

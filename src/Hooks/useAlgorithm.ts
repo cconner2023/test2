@@ -1,6 +1,7 @@
 // hooks/useAlgorithm.ts
 import { useState, useCallback, useMemo, useRef } from 'react';
 import type { AlgorithmOptions, answerOptions, dispositionType } from '../Types/AlgorithmTypes';
+import { applyRedFlagFloor } from '../Utilities/dispositionSeverity';
 
 export interface CardState {
     index: number;
@@ -294,7 +295,10 @@ export const useAlgorithm = (algorithmOptions: AlgorithmOptions[], initialCardSt
         // Update card with answer selection
         let newCardStates = [...currentStates];
 
-        // Handle initial card specially (affects both its own options and RF cards)
+        // Handle initial card specially (affects both its own options and RF cards).
+        // "Yes" pre-selects every red flag (all-present default); the medic then
+        // independently de-selects the ones that don't apply on the RF card (each
+        // option toggles on its own via handleQuestionOption). "No" clears them all.
         if (question.type === 'initial') {
             const isYesAnswer = answer.text === question.answerOptions[0].text;
             const [selectedOpts, count] = selectAllOrNone(question, isYesAnswer);
@@ -449,6 +453,17 @@ export const useAlgorithm = (algorithmOptions: AlgorithmOptions[], initialCardSt
             if (cardIndex < 0 || cardIndex >= prev.length) return prev;
             let newStates = [...prev];
             const prevStatus = newStates[cardIndex].actionStatus;
+
+            // An action revealed by INITIAL VISIBILITY (it sits at/before initialCardIndex) rather
+            // than by a reveal chain has no `pendingAfter` — it gates nothing downstream. Recording
+            // its Performed/Deferred status must NOT reset/hide the already-open cards that follow it
+            // (e.g. a "Pregnancy Test" before the main question), nor halt the flow with a Refer
+            // override. Just record the status and leave the rest of the flow untouched.
+            if (newStates[cardIndex].pendingAfter === undefined) {
+                newStates[cardIndex] = { ...newStates[cardIndex], actionStatus: status };
+                return newStates;
+            }
+
             const chain = newStates[cardIndex].pendingAfter ?? [];
 
             // Reset all downstream non-RF cards whenever the decision changes —
@@ -493,9 +508,21 @@ export const useAlgorithm = (algorithmOptions: AlgorithmOptions[], initialCardSt
         });
     }, [algorithmOptions, rfCardIndices]);
 
+    // Red flags floor the displayed disposition at the bound initial card's "yes"
+    // disposition (Provider Now / CAT I). Selecting any red flag keeps that severity in
+    // effect no matter what lower-severity answer a later card sets — highest severity
+    // (lowest CAT number) wins. With no red flag selected this is a no-op (returns the raw
+    // flow disposition), so non-RF algorithms and the no-red-flag path are unaffected.
+    const anyRedFlagSelected = rfCardIndices.some(
+        i => (cardStates[i]?.selectedOptions.length ?? 0) > 0,
+    );
+    const effectiveDisposition = applyRedFlagFloor(
+        algorithmOptions, initialCardIndex, anyRedFlagSelected, currentDisposition,
+    );
+
     return {
         cardStates,
-        currentDisposition,
+        currentDisposition: effectiveDisposition,
         handleQuestionOption,
         handleAnswer,
         getVisibleCards,

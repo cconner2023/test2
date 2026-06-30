@@ -1,5 +1,6 @@
-import { useState, useRef, useMemo, useLayoutEffect, type ReactNode } from 'react'
+import { useState, useRef, useMemo, useLayoutEffect } from 'react'
 import { PreviewOverlay } from './PreviewOverlay'
+import { StackBody } from './StackBody'
 import { StackNavContext, type StackNav, type StackScreen } from './stackNav'
 
 export type { StackNav, StackScreen } from './stackNav'
@@ -135,49 +136,5 @@ export function OverlayStack({
         </StackBody>
       </PreviewOverlay>
     </StackNavContext.Provider>
-  )
-}
-
-/**
- * The morph layer — animates the card body when the active screen changes:
- *  - height transitions old→new (driven by a ResizeObserver, so it also tracks
- *    in-screen content growth), and
- *  - the incoming content fades + slides in from the nav direction (push = from
- *    the right, pop = from the left) via the Web Animations API.
- * Same-screen re-renders (drag, filter change, page add) keep the same `screenKey`
- * so they don't re-trigger the slide — only height tracks.
- */
-function StackBody({ screenKey, dir, children }: { screenKey: string; dir: 1 | -1; children: ReactNode }) {
-  const wrapRef = useRef<HTMLDivElement>(null)
-  const innerRef = useRef<HTMLDivElement>(null)
-
-  useLayoutEffect(() => {
-    const inner = innerRef.current
-    const wrap = wrapRef.current
-    if (!inner || !wrap) return
-    const apply = () => { wrap.style.height = `${inner.offsetHeight}px` }
-    apply()
-    const ro = new ResizeObserver(apply)
-    ro.observe(inner)
-    // Slide + fade the new screen's content in from the nav direction.
-    inner.animate(
-      [
-        { opacity: 0, transform: `translateX(${dir * 14}px)` },
-        { opacity: 1, transform: 'translateX(0)' },
-      ],
-      { duration: 220, easing: 'ease-out' },
-    )
-    return () => ro.disconnect()
-  }, [screenKey, dir])
-
-  return (
-    <div
-      ref={wrapRef}
-      style={{ overflow: 'hidden', transition: 'height 260ms cubic-bezier(0.22, 0.61, 0.36, 1)' }}
-    >
-      <div ref={innerRef} key={screenKey}>
-        {children}
-      </div>
-    </div>
   )
 }

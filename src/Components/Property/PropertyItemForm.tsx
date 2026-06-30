@@ -101,7 +101,7 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
   const locationOptions = useMemo(
     () =>
       locations
-        .filter((l) => l.name !== ROOT_LOCATION_NAME)
+        .filter((l) => l.name !== ROOT_LOCATION_NAME && !l.is_turn_in_zone)
         .sort((a, b) => a.name.localeCompare(b.name))
         .map((l) => ({ value: l.id, label: l.name })),
     [locations]

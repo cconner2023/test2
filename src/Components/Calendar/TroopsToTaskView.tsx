@@ -1,5 +1,6 @@
-import { useMemo, useCallback, useRef, useEffect, useState } from 'react'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { useMemo, useCallback, useRef, useEffect, useState, Fragment } from 'react'
+import { ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react'
+import { useSubClusters } from '../../Hooks/useSubClusters'
 import type { CalendarEvent } from '../../Types/CalendarTypes'
 import type { CalendarT2TZoom } from '../../stores/useCalendarStore'
 import { PROVIDER_HUDDLE_TASK_ID, toDateKey, formatShortDayLabel, STATUS_META } from '../../Types/CalendarTypes'
@@ -66,7 +67,11 @@ const LANE_HEIGHT_HUDDLE = 32
 const LANE_GAP = 2
 const ROW_PAD = 4 // top + bottom padding inside row
 const TIME_HEADER_HEIGHT = 28 // px — used to offset the sticky huddle band
+const GROUP_HEADER_HEIGHT = 28 // px — collapsible sub-cluster header row (expanded state)
 const MS_PER_DAY = 24 * 60 * 60 * 1000
+
+/** HQ / unassigned bucket — medics with no (or a stale) sub-cluster id sort here. */
+const HQ_GROUP_ID = '__hq__'
 
 /**
  * Per-zoom geometry. All three modes share the same continuous time→px axis and
@@ -303,6 +308,63 @@ export function TroopsToTaskView({ date, events, medics, huddleTasks, onSelectEv
     [nonHuddleEvents, days, cfg]
   )
 
+  // ── Sub-cluster grouping — collapsible personnel tree (mirrors SupervisorTree) ──
+  const { subClusters } = useSubClusters()
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
+  const toggleGroup = useCallback((id: string) => {
+    setCollapsedGroups(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }, [])
+
+  // Only group when the clinic actually defines sub-clusters; otherwise the view
+  // stays a flat personnel list (unchanged behavior). Medics keep their incoming
+  // order within each bucket — no alphabetical re-sort.
+  const grouped = subClusters.length > 0
+  const medicGroups = useMemo(() => {
+    const knownIds = new Set(subClusters.map(s => s.id))
+    const groups: { id: string; name: string; medics: ClinicMedic[] }[] = [
+      { id: HQ_GROUP_ID, name: 'HQ / Unassigned', medics: [] },
+      ...subClusters.map(s => ({ id: s.id, name: s.name, medics: [] as ClinicMedic[] })),
+    ]
+    const byId = new Map(groups.map(g => [g.id, g]))
+    for (const m of medics) {
+      const key = m.subClusterId && knownIds.has(m.subClusterId) ? m.subClusterId : HQ_GROUP_ID
+      byId.get(key)!.medics.push(m)
+    }
+    // Drop the HQ bucket header when empty; keep every real sub-cluster header.
+    return groups.filter(g => g.id !== HQ_GROUP_ID || g.medics.length > 0)
+  }, [medics, subClusters])
+
+  // Roll a collapsed group's members up into one lane-stacked summary bar so the
+  // cluster's commitments stay visible at a glance even while its rows are hidden.
+  // An event assigned to several members of the same group renders once (deduped).
+  const groupRollupLanes = useMemo(() => {
+    const map = new Map<string, PositionedEvent[]>()
+    for (const g of medicGroups) {
+      const memberIds = new Set(g.medics.map(m => m.id))
+      const seen = new Set<string>()
+      const evts: CalendarEvent[] = []
+      for (const e of nonHuddleEvents) {
+        if (seen.has(e.id)) continue
+        if (e.assigned_to.some(id => memberIds.has(id))) { seen.add(e.id); evts.push(e) }
+      }
+      map.set(g.id, assignLanes(evts, days, cfg))
+    }
+    return map
+  }, [medicGroups, nonHuddleEvents, days, cfg])
+
+  // Number of personnel grid tracks (group headers + visible medic rows + unassigned),
+  // so the trailing 1fr footer stays last and the now-line's `1 / -2` span is correct.
+  const personnelTrackCount = huddleOnly
+    ? 0
+    : (grouped
+        ? medicGroups.reduce((n, g) => n + 1 + (collapsedGroups.has(g.id) ? 0 : g.medics.length), 0)
+        : medics.length) + (unassignedLanes.length > 0 ? 1 : 0)
+
   // ── Huddle band — sectioned: providers row(s) + one row per supervisor-defined task ──
 
   /**
@@ -365,6 +427,23 @@ export function TroopsToTaskView({ date, events, medics, huddleTasks, onSelectEv
   const orphanHuddleLanes = useMemo(
     () => assignLanes(orphanHuddleEvents, days, cfg),
     [orphanHuddleEvents, days, cfg],
+  )
+
+  // ── Collapsible huddle band ──
+  const [huddleCollapsed, setHuddleCollapsed] = useState(false)
+
+  /** True when the band would render any row (provider / task / orphan / drop-target). */
+  const huddleDropTarget = !!armedMedicId && !!onAssignMedicToHuddle
+  const huddleVisible =
+    huddleDropTarget ||
+    providerLanesAll.length > 0 ||
+    orphanHuddleLanes.length > 0 ||
+    huddleTasks.some(t => (taskLanes.get(t.id)?.length ?? 0) > 0)
+
+  /** Collapsed-band summary — every huddle/templated event rolled into one lane bar. */
+  const huddleRollupLanes = useMemo(
+    () => assignLanes([...providerEvents, ...taskEvents, ...orphanHuddleEvents], days, cfg),
+    [providerEvents, taskEvents, orphanHuddleEvents, days, cfg],
   )
 
   const medicById = useMemo(() => {
@@ -544,6 +623,133 @@ export function TroopsToTaskView({ date, events, medics, huddleTasks, onSelectEv
     else dayMarkerRefs.current.delete(key)
   }, [])
 
+  const renderMedicRow = (medic: ClinicMedic) => {
+    const positioned = medicLanes.get(medic.id) ?? []
+    const laneCount = positioned.length > 0 ? Math.max(...positioned.map(p => p.lane)) + 1 : 1
+    const rowHeight = Math.max(ROW_PAD * 2 + laneCount * (LANE_HEIGHT + LANE_GAP), 52)
+    const isArmed = armedMedicId === medic.id
+    const canArm = !!onAssignMedicToHuddle
+    return (
+      <div key={medic.id} className="relative flex border-b border-primary/5" style={{ height: rowHeight }}>
+        <div
+          className={`sticky left-0 z-[5] shrink-0 flex items-center border-r border-primary/10 transition-colors ${isMobile ? 'gap-3 px-3' : 'gap-2 px-2'} ${
+            isArmed ? 'bg-themeblue3/20 ring-1 ring-inset ring-themeblue3' : 'bg-themewhite3'
+          } ${canArm ? 'cursor-pointer' : ''}`}
+          style={{ width: NAME_COL_WIDTH }}
+          onClick={canArm ? () => setArmedMedicId(prev => prev === medic.id ? null : medic.id) : undefined}
+          role={canArm ? 'button' : undefined}
+          title={canArm ? (isArmed ? 'Tap a huddle row to assign — Esc to cancel' : 'Tap, then tap a huddle row to assign') : undefined}
+        >
+          <UserAvatar avatarId={medic.avatarId} avatarBlob={medic.avatarBlob} userId={medic.id} firstName={medic.firstName} lastName={medic.lastName} className={isMobile ? 'w-10 h-10' : 'w-7 h-7'} />
+          <div className="min-w-0">
+            <p className={`font-medium text-primary truncate ${isMobile ? 'text-sm' : 'text-[10pt]'}`}>{getDisplayName(medic)}</p>
+            {activeProviderIdsForVisibleDay.has(medic.id) ? (
+              <p className="text-[9pt] text-themeblue3 font-medium truncate">Provider</p>
+            ) : medic.credential ? (
+              <p className="text-[9pt] text-tertiary truncate">{medic.credential}</p>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="flex-1 relative">
+          {/* Hour grid lines with day dividers */}
+          <DayGrid days={days} ticks={ticks} dayWidth={cfg.dayWidth} />
+
+          {/* Event blocks — stacked in lanes */}
+          {positioned.map(({ event, left, width, lane }) => {
+            return (
+              <button
+                key={event.id}
+                onClick={() => onSelectEvent(event.id)}
+                onContextMenu={eventContextHandler(event.id)}
+                className="absolute rounded text-left overflow-hidden transition-all duration-150 active:scale-[0.98] bg-primary/5 flex items-stretch gap-1"
+                style={{
+                  left,
+                  width,
+                  top: ROW_PAD + lane * (LANE_HEIGHT + LANE_GAP),
+                  height: LANE_HEIGHT,
+                }}
+              >
+                <div className={`w-0.5 shrink-0 rounded-full ${resolveCategoryColor(event.category, event.color).solid}`} />
+                <p
+                  className="absolute inset-y-0 right-0 text-[9pt] font-normal truncate text-primary pr-1.5"
+                  style={{
+                    left: `clamp(2px, calc(var(--sl, 0) * 1px - ${left}px), ${Math.max(2, width - 40)}px)`,
+                    lineHeight: `${LANE_HEIGHT}px`,
+                    paddingLeft: 6,
+                  }}
+                >
+                  {event.title}
+                  {width > 80 && (
+                    <span className="text-[9pt] md:text-[9pt] text-tertiary ml-1.5">
+                      {new Date(event.start_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
+                    </span>
+                  )}
+                </p>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+    )
+  }
+
+  /** Collapsible sub-cluster header row. Collapsed → rolls members' events up into one summary lane. */
+  const renderGroupHeader = (group: { id: string; name: string; medics: ClinicMedic[] }) => {
+    const collapsed = collapsedGroups.has(group.id)
+    const rollup = collapsed ? (groupRollupLanes.get(group.id) ?? []) : []
+    const laneCount = rollup.length > 0 ? Math.max(...rollup.map(p => p.lane)) + 1 : 1
+    const rowHeight = collapsed
+      ? Math.max(ROW_PAD * 2 + laneCount * (LANE_HEIGHT + LANE_GAP), GROUP_HEADER_HEIGHT)
+      : GROUP_HEADER_HEIGHT
+    return (
+      <div key={group.id} className="relative flex border-b border-primary/10 bg-secondary/5" style={{ height: rowHeight }}>
+        <button
+          type="button"
+          onClick={() => toggleGroup(group.id)}
+          className="sticky left-0 z-[6] shrink-0 flex items-center gap-1.5 border-r border-primary/10 bg-themewhite3 px-2 text-left hover:bg-secondary/5 transition-colors"
+          style={{ width: NAME_COL_WIDTH }}
+          title={collapsed ? `Expand ${group.name}` : `Collapse ${group.name}`}
+        >
+          {collapsed ? <ChevronRight className="w-3.5 h-3.5 shrink-0 text-tertiary" /> : <ChevronDown className="w-3.5 h-3.5 shrink-0 text-tertiary" />}
+          <span className="text-[9pt] font-semibold uppercase tracking-wider text-tertiary truncate flex-1">{group.name}</span>
+          <span className="text-[9pt] text-tertiary tabular-nums">{group.medics.length}</span>
+        </button>
+        <div className="flex-1 relative">
+          <DayGrid days={days} ticks={ticks} dayWidth={cfg.dayWidth} />
+          {/* Rolled-up commitment bars while collapsed */}
+          {rollup.map(({ event, left, width, lane }) => (
+            <button
+              key={event.id}
+              type="button"
+              onClick={() => onSelectEvent(event.id)}
+              onContextMenu={eventContextHandler(event.id)}
+              className="absolute rounded text-left overflow-hidden transition-all duration-150 active:scale-[0.98] bg-primary/10 flex items-stretch gap-1"
+              style={{
+                left,
+                width,
+                top: ROW_PAD + lane * (LANE_HEIGHT + LANE_GAP),
+                height: LANE_HEIGHT,
+              }}
+            >
+              <div className={`w-0.5 shrink-0 rounded-full ${resolveCategoryColor(event.category, event.color).solid}`} />
+              <p
+                className="absolute inset-y-0 right-0 text-[9pt] font-normal truncate text-primary pr-1.5"
+                style={{
+                  left: `clamp(2px, calc(var(--sl, 0) * 1px - ${left}px), ${Math.max(2, width - 40)}px)`,
+                  lineHeight: `${LANE_HEIGHT}px`,
+                  paddingLeft: 6,
+                }}
+              >
+                {event.title}
+              </p>
+            </button>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div
       data-tour="calendar-troops-view"
@@ -551,7 +757,7 @@ export function TroopsToTaskView({ date, events, medics, huddleTasks, onSelectEv
       className="touch-pan-xy h-full min-h-0 min-w-0 overflow-auto overscroll-contain"
       onScroll={handleScroll}
     >
-      <div className="relative" style={{ minWidth: totalWidth, display: 'grid', gridTemplateRows: `auto auto repeat(${huddleOnly ? 0 : medics.length + (unassignedLanes.length > 0 ? 1 : 0)}, auto) 1fr` }}>
+      <div className="relative" style={{ minWidth: totalWidth, display: 'grid', gridTemplateRows: `auto auto repeat(${personnelTrackCount}, auto) 1fr` }}>
         {/* Current time indicator — vertical red line spanning content rows (excludes trailing 1fr footer) */}
         {nowLineX !== null && (
           <div
@@ -605,6 +811,52 @@ export function TroopsToTaskView({ date, events, medics, huddleTasks, onSelectEv
           data-tour="calendar-huddle-band"
           className="flex flex-col border-b border-themeblue3/20 bg-themewhite3"
         >
+          {/* Band collapse header — toggles the whole huddle section; collapsed → rolls all
+              huddle/templated events into one summary lane so scheduled huddles stay visible. */}
+          {huddleVisible && (() => {
+            const rollup = huddleCollapsed ? huddleRollupLanes : []
+            const laneCount = rollup.length > 0 ? Math.max(...rollup.map(p => p.lane)) + 1 : 1
+            const rowHeight = huddleCollapsed
+              ? Math.max(ROW_PAD * 2 + laneCount * (LANE_HEIGHT_HUDDLE + LANE_GAP), GROUP_HEADER_HEIGHT)
+              : GROUP_HEADER_HEIGHT
+            return (
+              <div className="relative flex border-b border-themeblue3/10 bg-secondary/5" style={{ height: rowHeight }}>
+                <button
+                  type="button"
+                  onClick={() => setHuddleCollapsed(c => !c)}
+                  className="sticky left-0 z-[7] shrink-0 flex items-center gap-1.5 border-r border-primary/10 bg-themewhite3 px-2 text-left hover:bg-secondary/5 transition-colors"
+                  style={{ width: NAME_COL_WIDTH }}
+                  title={huddleCollapsed ? 'Expand huddle' : 'Collapse huddle'}
+                >
+                  {huddleCollapsed ? <ChevronRight className="w-3.5 h-3.5 shrink-0 text-tertiary" /> : <ChevronDown className="w-3.5 h-3.5 shrink-0 text-tertiary" />}
+                  <span className="text-[9pt] font-semibold uppercase tracking-wider text-tertiary truncate flex-1">Huddle</span>
+                  <span className="text-[9pt] text-tertiary tabular-nums">{huddleRollupLanes.length}</span>
+                </button>
+                <div className="flex-1 relative">
+                  <DayGrid days={days} ticks={ticks} dayWidth={cfg.dayWidth} />
+                  {rollup.map(({ event, left, width, lane }) => (
+                    <button
+                      key={event.id}
+                      type="button"
+                      onClick={() => onSelectEvent(event.id)}
+                      onContextMenu={eventContextHandler(event.id)}
+                      className="absolute rounded-md bg-themeblue3/15 border border-themeblue3/40 hover:bg-themeblue3/25 transition-colors text-left overflow-hidden"
+                      style={{ left, width, top: ROW_PAD + lane * (LANE_HEIGHT_HUDDLE + LANE_GAP), height: LANE_HEIGHT_HUDDLE }}
+                    >
+                      <p
+                        className="absolute inset-y-0 right-0 text-[9pt] text-primary truncate px-1.5"
+                        style={{ left: `clamp(2px, calc(var(--sl, 0) * 1px - ${left}px), ${Math.max(2, width - 40)}px)`, lineHeight: `${LANE_HEIGHT_HUDDLE}px` }}
+                      >
+                        {event.title || 'Huddle'}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )
+          })()}
+
+          {!huddleCollapsed && (<>
           {/* Provider row — single "PROVIDER" lane that expands height with all on-shift provider huddle events. */}
           {(() => {
             const positioned = providerLanesAll
@@ -802,79 +1054,20 @@ export function TroopsToTaskView({ date, events, medics, huddleTasks, onSelectEv
               </div>
             )
           })()}
+          </>)}
         </div>
 
-        {/* Personnel rows — hidden in huddle-only mode (band is the whole view) */}
-        {!huddleOnly && medics.map(medic => {
-          const positioned = medicLanes.get(medic.id) ?? []
-          const laneCount = positioned.length > 0 ? Math.max(...positioned.map(p => p.lane)) + 1 : 1
-          const rowHeight = Math.max(ROW_PAD * 2 + laneCount * (LANE_HEIGHT + LANE_GAP), 52)
-          const isArmed = armedMedicId === medic.id
-          const canArm = !!onAssignMedicToHuddle
-          return (
-            <div key={medic.id} className="relative flex border-b border-primary/5" style={{ height: rowHeight }}>
-              <div
-                className={`sticky left-0 z-[5] shrink-0 flex items-center border-r border-primary/10 transition-colors ${isMobile ? 'gap-3 px-3' : 'gap-2 px-2'} ${
-                  isArmed ? 'bg-themeblue3/20 ring-1 ring-inset ring-themeblue3' : 'bg-themewhite3'
-                } ${canArm ? 'cursor-pointer' : ''}`}
-                style={{ width: NAME_COL_WIDTH }}
-                onClick={canArm ? () => setArmedMedicId(prev => prev === medic.id ? null : medic.id) : undefined}
-                role={canArm ? 'button' : undefined}
-                title={canArm ? (isArmed ? 'Tap a huddle row to assign — Esc to cancel' : 'Tap, then tap a huddle row to assign') : undefined}
-              >
-                <UserAvatar avatarId={medic.avatarId} avatarBlob={medic.avatarBlob} userId={medic.id} firstName={medic.firstName} lastName={medic.lastName} className={isMobile ? 'w-10 h-10' : 'w-7 h-7'} />
-                <div className="min-w-0">
-                  <p className={`font-medium text-primary truncate ${isMobile ? 'text-sm' : 'text-[10pt]'}`}>{getDisplayName(medic)}</p>
-                  {activeProviderIdsForVisibleDay.has(medic.id) ? (
-                    <p className="text-[9pt] text-themeblue3 font-medium truncate">Provider</p>
-                  ) : medic.credential ? (
-                    <p className="text-[9pt] text-tertiary truncate">{medic.credential}</p>
-                  ) : null}
-                </div>
-              </div>
-
-              <div className="flex-1 relative">
-                {/* Hour grid lines with day dividers */}
-                <DayGrid days={days} ticks={ticks} dayWidth={cfg.dayWidth} />
-
-                {/* Event blocks — stacked in lanes */}
-                {positioned.map(({ event, left, width, lane }) => {
-                  return (
-                    <button
-                      key={event.id}
-                      onClick={() => onSelectEvent(event.id)}
-                      onContextMenu={eventContextHandler(event.id)}
-                      className="absolute rounded text-left overflow-hidden transition-all duration-150 active:scale-[0.98] bg-primary/5 flex items-stretch gap-1"
-                      style={{
-                        left,
-                        width,
-                        top: ROW_PAD + lane * (LANE_HEIGHT + LANE_GAP),
-                        height: LANE_HEIGHT,
-                      }}
-                    >
-                      <div className={`w-0.5 shrink-0 rounded-full ${resolveCategoryColor(event.category, event.color).solid}`} />
-                      <p
-                        className="absolute inset-y-0 right-0 text-[9pt] font-normal truncate text-primary pr-1.5"
-                        style={{
-                          left: `clamp(2px, calc(var(--sl, 0) * 1px - ${left}px), ${Math.max(2, width - 40)}px)`,
-                          lineHeight: `${LANE_HEIGHT}px`,
-                          paddingLeft: 6,
-                        }}
-                      >
-                        {event.title}
-                        {width > 80 && (
-                          <span className="text-[9pt] md:text-[9pt] text-tertiary ml-1.5">
-                            {new Date(event.start_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
-                          </span>
-                        )}
-                      </p>
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-          )
-        })}
+        {/* Personnel rows — hidden in huddle-only mode (band is the whole view).
+            Grouped into collapsible sub-cluster sections when the clinic defines any. */}
+        {!huddleOnly && (grouped
+          ? medicGroups.map(group => (
+              <Fragment key={group.id}>
+                {renderGroupHeader(group)}
+                {!collapsedGroups.has(group.id) && group.medics.map(renderMedicRow)}
+              </Fragment>
+            ))
+          : medics.map(renderMedicRow)
+        )}
 
         {/* Unassigned events row */}
         {!huddleOnly && unassignedLanes.length > 0 && (() => {

@@ -212,20 +212,32 @@ const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
         }
 
         // PREFERENCES section
+        // Guests get Appearance only — the rest of Preferences (App Content, Mission
+        // Overview, Security, Notifications) is an authenticated-only surface. Keeping
+        // the guest menu thin nudges toward signing in. See palace v2/auth guest-mode
+        // invariant: guest view is a strict subset; default-gate new surfaces OFF.
         items.push(
             { type: 'header', label: 'Preferences' },
             opt(PANEL.TOGGLE_THEME, <Palette size={20} />, 'Appearance', themeName.charAt(0).toUpperCase() + themeName.slice(1)),
-            opt(PANEL.NOTE_CONTENT, <Stethoscope size={20} />, 'App Content', 'Exam blocks, templates, order sets, checklists'),
-            opt(PANEL.OVERVIEW_WIDGETS, <LayoutDashboard size={20} />, 'Mission Overview', 'Widgets shown on the home screen'),
-            opt(PANEL.PIN_SETUP, <Lock size={20} />, 'Security', 'App lock, biometrics, permissions'),
-            opt(PANEL.NOTIFICATION_SETTINGS, <Bell size={20} />, 'Notifications', 'Push subscriptions and alerts'),
         );
+        if (isAuthenticated) {
+            items.push(
+                opt(PANEL.NOTE_CONTENT, <Stethoscope size={20} />, 'App Content', 'Exam blocks, templates, order sets, checklists'),
+                opt(PANEL.OVERVIEW_WIDGETS, <LayoutDashboard size={20} />, 'Mission Overview', 'Widgets shown on the home screen'),
+                opt(PANEL.PIN_SETUP, <Lock size={20} />, 'Security', 'App lock, biometrics, permissions'),
+                opt(PANEL.NOTIFICATION_SETTINGS, <Bell size={20} />, 'Notifications', 'Push subscriptions and alerts'),
+            );
+        }
 
-        // ABOUT section
+        // ABOUT section — guests get Feedback + Privacy only (no Release Notes / Guided Tours).
+        items.push({ type: 'header', label: 'About' });
+        if (isAuthenticated) {
+            items.push(
+                ...(GUIDED_TOURS_ENABLED ? [opt(PANEL.GUIDED_TOURS, <Compass size={20} />, 'Guided Tours', 'Interactive feature walkthroughs')] : []),
+                opt(PANEL.RELEASE_NOTES, <Shield size={20} />, 'Release Notes', 'What\'s new in this version', hasUnvotedCycle ? { dot: true } : undefined),
+            );
+        }
         items.push(
-            { type: 'header', label: 'About' },
-            ...(GUIDED_TOURS_ENABLED ? [opt(PANEL.GUIDED_TOURS, <Compass size={20} />, 'Guided Tours', 'Interactive feature walkthroughs')] : []),
-            opt(PANEL.RELEASE_NOTES, <Shield size={20} />, 'Release Notes', 'What\'s new in this version', hasUnvotedCycle ? { dot: true } : undefined),
             opt(PANEL.FEEDBACK, <MessageSquare size={20} />, 'Feedback', 'Report issues or suggestions'),
             opt(PANEL.PRIVACY_POLICY, <Scale size={20} />, 'Privacy', 'Data handling and policy'),
         );
@@ -425,9 +437,18 @@ const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
                                             ? (profile.credential
                                                 ? `${profile.credential}${profile.component ? ' \u00b7 ' + profile.component : ''}`
                                                 : 'Tap to set up')
-                                            : 'Tap to sign in'
+                                            : 'Tap to log out'
                                     }
-                                    onAvatarClick={() => handleItemClick(PANEL.AVATAR_PICKER, handleClose)}
+                                    onAvatarClick={() => {
+                                        // Guests have no profile to personalize \u2014 the whole card
+                                        // (avatar included) is a logout affordance, not a setup path.
+                                        if (!isAuthenticated) {
+                                            useAuthStore.setState({ isGuest: false });
+                                            handleClose();
+                                        } else {
+                                            handleItemClick(PANEL.AVATAR_PICKER, handleClose);
+                                        }
+                                    }}
                                     onProfileClick={() => {
                                         if (!isAuthenticated) {
                                             // Exit guest mode to show the LoginScreen

@@ -947,6 +947,34 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: []
             },
             {
+                text: "Are red flags present?",
+                type: "initial",
+                questionOptions: [],
+                answerOptions: [
+                    {
+                        text: "Yes",
+                        disposition: [
+                            Disposition[0]
+                        ],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: ['volume depletion'],
+                                text: 'If the Soldier presents with any of the red flags, immediately disposition the Soldier as Provider Now. Orthostatic hypotension is a sign of volume depletion and can represent a significant amount of blood loss.'
+                            }
+                        ],
+                        next: [2, 3],
+                        selectAll: true
+                    },
+                    {
+                        text: "No",
+                        disposition: [],
+                        next: [2, 3],
+                        selectAll: false
+                    }
+                ]
+            },
+            {
                 text: "Stop the bleeding using the following methods:",
                 type: "action",
                 questionOptions: [
@@ -959,7 +987,7 @@ export const Algorithm: AlgorithmType[] = [
             },
             {
                 text: "Is the bleeding Controlled?",
-                type: "initial",
+                type: "choice",
                 questionOptions: [],
                 answerOptions: [
                     {
@@ -970,8 +998,8 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: ['volume depletion', 'mucosal trauma', 'posterior nosebleed'],
-                                text: 'If the Soldier presents with any of the red flags, immediately disposition the Soldier as Provider Now. Orthostatic hypotension is a sign of volume depletion and can represent a significant amount of blood loss. Nosebleeds normally result from the rupture of small blood vessels inside the nose related to mucosal trauma (nose picking) or irritation (dry climate, blowing nose). 90% occur in the front of septum in the nose and can be controlled by applying external pressure. If the bleeding does not stop, then the nosebleed likely is coming from the back of the nose and needs to be controlled by a privileged provider.'
+                                ddx: ['mucosal trauma', 'posterior nosebleed'],
+                                text: 'Nosebleeds normally result from the rupture of small blood vessels inside the nose related to mucosal trauma (nose picking) or irritation (dry climate, blowing nose). 90% occur in the front of septum in the nose and can be controlled by applying external pressure. If the bleeding does not stop, then the nosebleed likely is coming from the back of the nose and needs to be controlled by a privileged provider.'
                             }
                         ],
                         next: null,
@@ -980,7 +1008,7 @@ export const Algorithm: AlgorithmType[] = [
                     {
                         text: "Yes",
                         disposition: [],
-                        next: 3,
+                        next: [4],
                         selectAll: false
                     }
                 ]
@@ -1042,7 +1070,7 @@ export const Algorithm: AlgorithmType[] = [
                             }
                         ],
                         disposition: [],
-                        next: 4,
+                        next: [5],
                         selectAll: false
                     }
                 ]

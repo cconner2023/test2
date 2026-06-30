@@ -1437,6 +1437,7 @@ export type Database = {
           holder_user_id: string | null
           id: string
           is_default_zone: boolean
+          is_turn_in_zone: boolean
           kind: string
           name: string
           ordinal: number
@@ -1455,6 +1456,7 @@ export type Database = {
           holder_user_id?: string | null
           id?: string
           is_default_zone?: boolean
+          is_turn_in_zone?: boolean
           kind?: string
           name: string
           ordinal?: number
@@ -1473,6 +1475,7 @@ export type Database = {
           holder_user_id?: string | null
           id?: string
           is_default_zone?: boolean
+          is_turn_in_zone?: boolean
           kind?: string
           name?: string
           ordinal?: number

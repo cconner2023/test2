@@ -14,6 +14,9 @@ interface PropertyShortagePanelProps {
   /** Present for host-call symmetry with the other pane bodies; the host owns the
    *  close affordance, so this body never needs to call it. */
   onClose?: () => void
+  /** Items staged for turn-in (open pending marker) — counted as on-hand 0 so a staged
+   *  line surfaces its shortage immediately. Lifted in PropertyPanel from useHandReceipts. */
+  stagedTurnInIds?: Set<string>
 }
 
 /** A synthetic holder for the annex header (no real recipient — this is a unit
@@ -26,11 +29,11 @@ function annexHolder(displayName: string): HolderInfo {
  *  (desktop) / detail sheet (mobile) by PropertyPanel — the host owns the header +
  *  close affordance. Shortage = authorized − on-hand, a pure client fold over the
  *  already-loaded items (see computeShortages). */
-export function PropertyShortagePanel(_props: PropertyShortagePanelProps) {
+export function PropertyShortagePanel({ stagedTurnInIds }: PropertyShortagePanelProps) {
   const items = usePropertyStore(useShallow(s => s.items))
   const { exportDA2062, da2062Preview, downloadDA2062, clearDA2062Preview } = useDA2062Export()
 
-  const report = useMemo(() => computeShortages(items), [items])
+  const report = useMemo(() => computeShortages(items, stagedTurnInIds), [items, stagedTurnInIds])
 
   const exportAnnex = () => {
     const params: DA2062Params = {

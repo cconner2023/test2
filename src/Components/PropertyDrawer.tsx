@@ -12,6 +12,7 @@ import type { LocalPropertyItem } from '../Types/PropertyTypes'
 import { ActionSheet } from './ActionSheet'
 import { usePropertyStore } from '../stores/usePropertyStore'
 import { useAuthStore } from '../stores/useAuthStore'
+import { useFeatureGate } from '../lib/featureGate'
 import { useNavigationStore } from '../stores/useNavigationStore'
 import { useShallow } from 'zustand/react/shallow'
 import { exportPropertyCSV } from '../Utilities/PropertyCSV'
@@ -39,7 +40,9 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
     )
     const { navigateToPath, init, setEditingItem, removeItem, items, locations } = store
     const isSupervisorRole = useAuthStore(s => s.isSupervisorRole)
-    const isDevRole = useAuthStore(s => s.isDevRole)
+    // "New DA 2062" + "Shortages" FAB actions ride the staged rollout gate (dev →
+    // single-cluster pilot → release), same as the custody surface in PropertyPanel.
+    const showAccountability = useFeatureGate('propertyAccountability')
     const isMobile = useIsMobile()
 
     // Drain any property fan-outs queued while offline (re-resolves cross-cluster
@@ -347,9 +350,9 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                 options={[
                     { key: 'item', label: 'New Item', onAction: () => { setShowAddSheet(false); addItemTriggerRef.current?.() } },
                     { key: 'location', label: 'New Location', onAction: () => { setShowAddSheet(false); addLocationTriggerRef.current?.() } },
-                    ...(isDevRole ? [{ key: 'da2062', label: 'New DA 2062', onAction: () => { setShowAddSheet(false); newDA2062TriggerRef.current?.() } }] : []),
+                    ...(showAccountability ? [{ key: 'da2062', label: 'New DA 2062', onAction: () => { setShowAddSheet(false); newDA2062TriggerRef.current?.() } }] : []),
                     { key: 'import-csv', label: 'Import CSV', onAction: () => { setShowAddSheet(false); importTriggerRef.current?.() } },
-                    ...(isDevRole ? [{ key: 'shortages', label: 'Shortages', onAction: () => { setShowAddSheet(false); shortagesTriggerRef.current?.() } }] : []),
+                    ...(showAccountability ? [{ key: 'shortages', label: 'Shortages', onAction: () => { setShowAddSheet(false); shortagesTriggerRef.current?.() } }] : []),
                     { key: 'export-csv', label: 'Export CSV', onAction: () => { setShowAddSheet(false); exportPropertyCSV(items, store.locations) } },
                     { key: 'print-labels', label: 'Print labels', onAction: () => { setShowAddSheet(false); setShowLabelSheet(true) } },
                 ]}
@@ -388,6 +391,7 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                 confirmLabel="Enroll"
                 cancelLabel="Skip"
                 variant="primary"
+                zIndex={1500}
                 onConfirm={() => {
                     setEnrollingItem(pendingEnrollNew)
                     setEnrollAutoStart(true)
@@ -397,7 +401,7 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
             />
 
             {enrollingItem && (
-                <div className="fixed inset-0 z-50 bg-black/50 flex items-end justify-center pb-8">
+                <div className="fixed inset-0 bg-black/50 flex items-end justify-center pb-8" style={{ zIndex: 1500 }}>
                     <div className="w-full max-w-md bg-themewhite rounded-3xl p-6 mx-4">
                         <EnrollScanStep
                             itemId={enrollingItem.id}

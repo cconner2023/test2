@@ -61,7 +61,7 @@ interface SideNavProps {
 
 export function SideNav({ onClose, onMenuItemClick, isMobile = true }: SideNavProps) {
   const { currentAvatar, customImage, isCustom, isInitials } = useAvatar()
-  const { profile } = useAuth()
+  const { profile, isAuthenticated } = useAuth()
   const tc3Mode = useAuthStore((s) => s.profile.tc3Mode) ?? false
   const totalUnread = useTotalUnread()
   const hasUnvotedCycle = useFeatureVotesStore(selectHasUnvotedActiveCycle)
@@ -99,7 +99,16 @@ export function SideNav({ onClose, onMenuItemClick, isMobile = true }: SideNavPr
       {/* User profile card */}
       <button
         data-tour="sidenav-profile"
-        onClick={() => handleItemClick('settings-profile')}
+        onClick={() => {
+          // Guests have no profile — this card is a logout affordance, matching the
+          // settings drawer's guest profile card. Exit guest mode → LoginScreen.
+          if (!isAuthenticated) {
+            useAuthStore.setState({ isGuest: false })
+            onClose()
+            return
+          }
+          handleItemClick('settings-profile')
+        }}
         className={`flex items-center gap-3 mx-3 mt-3 mb-2 px-4 ${isMobile ? 'py-3.5' : 'py-2.5'} rounded-xl hover:bg-themewhite2/60 active:scale-95 transform-gpu transition-colors text-left`}
       >
         <div className={`${isMobile ? 'w-11 h-11' : 'w-9 h-9'} rounded-full overflow-hidden shrink-0`}>

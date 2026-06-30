@@ -21,6 +21,7 @@ import { useRecentPropertyActivity } from '../../Hooks/useRecentPropertyActivity
 import { useLongPress } from '../../Hooks/useLongPress'
 import { summarizePmcs, pmcsOpened } from '../../lib/pmcsFold'
 import type { SelectedRecord } from './PropertyRecordDetail'
+import type { PendingTurnIn } from './PropertyTurnInDetail'
 import { SectionCard, SectionHeader } from '../Section'
 import { AnchoredMenu } from '../LiftedRowMenu'
 import type { ContextMenuItem } from '../ContextMenu'
@@ -146,12 +147,15 @@ interface CustodyPanelProps {
   onDeleteRecord?: (e: AuditEvent) => void
   /** DA 3161 turn-in: staged-pending rows + completed docs. */
   turnIns: TurnInFold
-  /** Verify a staged turn-in (depot accepted) — whole doc, or a subset of itemIds. */
-  onVerifyTurnIn?: (turnInDocId: string, itemIds?: string[]) => void
-  /** Drop one item from a pending turn-in (before the depot run). */
-  onUnstageTurnInItem?: (turnInDocId: string, itemId: string) => void
+  /** Open a PENDING turn-in's detail in the host pane (curate / complete / remove).
+   *  Locating the first item on the map + the view switch happen host-side. */
+  onSelectTurnIn?: (turnIn: PendingTurnIn) => void
   /** Open / print the DA 3161 for a completed turn-in doc. */
   onViewTurnIn?: (doc: TurnInDoc) => void
+  /** Delete a submitted DA 3161 record — does NOT restore equipment (items stay turned in). */
+  onDeleteTurnIn?: (doc: TurnInDoc) => void
+  /** The open pending turn-in (doc id) — for the selected-row highlight (desktop). */
+  selectedTurnInId?: string | null
   /** Currently-open receipt / record — for the selected-row highlight (desktop). */
   selectedReceiptId?: string | null
   selectedRecordId?: string | null
@@ -187,9 +191,10 @@ export function CustodyPanel({
   onDeleteReceipt,
   onDeleteRecord,
   turnIns,
-  onVerifyTurnIn,
-  onUnstageTurnInItem,
+  onSelectTurnIn,
   onViewTurnIn,
+  onDeleteTurnIn,
+  selectedTurnInId,
   selectedReceiptId,
   selectedRecordId,
 }: CustodyPanelProps) {
@@ -255,14 +260,9 @@ export function CustodyPanel({
     })
   }, [])
 
-  const { outstanding, history } = useMemo(() => {
-    const outstanding: HandReceipt[] = []
-    const history: HandReceipt[] = []
-    for (const r of receipts) {
-      ;(r.status === 'returned' ? history : outstanding).push(r)
-    }
-    return { outstanding, history }
-  }, [receipts])
+  // Only OPEN hand receipts live in the Signed Out section. Returned receipts are
+  // per-item history (surfaced in the item's own detail), not a sign-outs-tab group.
+  const outstanding = useMemo(() => receipts.filter((r) => r.status !== 'returned'), [receipts])
 
   // A hand receipt as a card in the stack — the ITEM (first signed-out item + its
   // quantity, with "+N more" when the receipt covers several) on line 1, the
@@ -390,19 +390,38 @@ export function CustodyPanel({
     )
   }
 
-  // A STAGED turn-in line (pending the depot run) — item name + "Pending turn-in ·
-  // <condition>". Tap locates it; the menu completes (verify this line) or unstages it.
-  // The whole pending bucket can be completed at once via the section action below.
-  const renderPendingTurnInCard = (entry: CustodyLedgerEntry) => {
-    const item = itemsById.get(entry.item_id)
-    const docId = entry.hand_receipt_id
-    const items: ContextMenuItem[] = []
-    if (docId && onVerifyTurnIn) items.push({ key: 'verify', label: 'Complete turn-in', icon: PackageMinus, onAction: () => onVerifyTurnIn(docId, [entry.item_id]) })
-    if (docId && onUnstageTurnInItem) items.push({ key: 'unstage', label: 'Unstage', icon: RotateCcw, onAction: () => onUnstageTurnInItem(docId, entry.item_id) })
+  // Pending turn-ins grouped by their shared doc id — ONE card per turn-in (not per
+  // item), mirroring the completed-doc + hand-receipt cards. turnIns.pending is already
+  // newest-first, so the Map preserves that order.
+  const pendingTurnIns = useMemo<PendingTurnIn[]>(() => {
+    const byDoc = new Map<string, CustodyLedgerEntry[]>()
+    for (const e of turnIns.pending) {
+      if (!e.hand_receipt_id) continue
+      const arr = byDoc.get(e.hand_receipt_id) ?? []
+      arr.push(e)
+      byDoc.set(e.hand_receipt_id, arr)
+    }
+    return [...byDoc.entries()].map(([turnInDocId, entries]) => ({ turnInDocId, entries }))
+  }, [turnIns.pending])
+
+  // A PENDING turn-in as a card — first staged item (+N more) over "Pending turn-in".
+  // Tapping opens its detail in the host pane (curate / complete / remove) AND locates
+  // the first item on the map + switches the view (both host-side via onSelectTurnIn).
+  const renderPendingTurnInCard = (turnIn: PendingTurnIn) => {
+    const first = turnIn.entries[0]
+    const firstName = first ? itemsById.get(first.item_id)?.name ?? 'Item' : 'Item'
+    const more = turnIn.entries.length - 1
+    const active = selectedTurnInId === turnIn.turnInDocId
     return (
-      <CustodyCard key={entry.id} onTap={() => item && onLocateItem(item)} menuItems={items} openMenu={openMenu}>
-        <p className="text-sm font-medium text-primary truncate">{item?.name ?? 'Item'}</p>
-        <p className="text-[9pt] text-tertiary mt-0.5 truncate">Pending turn-in · {entry.condition_code}</p>
+      <CustodyCard
+        key={turnIn.turnInDocId}
+        active={active}
+        onTap={() => onSelectTurnIn?.(turnIn)}
+        menuItems={[]}
+        openMenu={openMenu}
+      >
+        <p className="text-sm font-medium text-primary truncate">{firstName}{more > 0 ? ` · +${more} more` : ''}</p>
+        <p className="text-[9pt] text-tertiary mt-0.5 truncate">Pending turn-in</p>
       </CustodyCard>
     )
   }
@@ -413,9 +432,10 @@ export function CustodyPanel({
     const first = doc.entries[0]
     const firstName = first ? itemsById.get(first.item_id)?.name ?? 'Item' : 'Item'
     const more = doc.entries.length - 1
-    const items: ContextMenuItem[] = onViewTurnIn
-      ? [{ key: 'view', label: 'Open DA 3161', icon: FileText, onAction: () => onViewTurnIn(doc) }]
-      : []
+    const items: ContextMenuItem[] = [
+      ...(onViewTurnIn ? [{ key: 'view', label: 'Open DA 3161', icon: FileText, onAction: () => onViewTurnIn(doc) }] : []),
+      ...(onDeleteTurnIn ? [{ key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => onDeleteTurnIn(doc) }] : []),
+    ]
     return (
       <CustodyCard key={doc.turnInDocId} onTap={() => onViewTurnIn?.(doc)} menuItems={items} openMenu={openMenu}>
         <p className="text-sm font-medium text-primary truncate">{firstName}{more > 0 ? ` · +${more} more` : ''}</p>
@@ -423,17 +443,6 @@ export function CustodyPanel({
       </CustodyCard>
     )
   }
-
-  // "Complete turn-in · N" — verifies the WHOLE pending bucket (every open doc) in one
-  // action ("I brought everything on the depot run"). Per-line verify lives in each
-  // card's menu for independent sub-cluster runs.
-  const pendingDocIds = useMemo(
-    () => [...new Set(turnIns.pending.map((p) => p.hand_receipt_id).filter((id): id is string => !!id))],
-    [turnIns.pending],
-  )
-  const completeAllTurnIns = useCallback(() => {
-    if (onVerifyTurnIn) for (const id of pendingDocIds) onVerifyTurnIn(id)
-  }, [onVerifyTurnIn, pendingDocIds])
 
   // Light muted line for an empty group (keeps the group from going missing).
   const emptyLine = (text: string) => (
@@ -469,6 +478,23 @@ export function CustodyPanel({
   return (
     <div className="flex flex-col h-full">
       <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4 space-y-4">
+        {/* Section order (USR): Dispatch · PMCS · Signed Out · Turn-In · Expired · Usage. */}
+
+        {/* Dispatch activity (this week). Always shown so an empty group reads as
+            "nothing this week" rather than going missing. */}
+        {renderGroup(
+          '__dispatch__',
+          'Dispatch',
+          dispatchEvents.length > 0 ? dispatchEvents.map(renderActivityCard) : emptyLine('Nothing this week.'),
+        )}
+
+        {/* PMCS / maintenance activity (this week). */}
+        {renderGroup(
+          '__pmcs__',
+          'PMCS',
+          pmcsEvents.length > 0 ? pmcsEvents.map(renderActivityCard) : emptyLine('Nothing this week.'),
+        )}
+
         {/* Signed Out — always shown so an empty list reads as "all in". */}
         {renderGroup(
           '__signed_out__',
@@ -478,40 +504,18 @@ export function CustodyPanel({
             : emptyLine(loading ? 'Loading…' : 'Nothing signed out.'),
         )}
 
-        {/* Turn-In (DA 3161) — ONE list, marked pending vs completed by the card's text
-            line (no badge): staged lines read "Pending turn-in", verified docs read
-            "Turned in · <date>". Hidden only when both are empty. */}
-        {(turnIns.pending.length > 0 || turnIns.history.length > 0) &&
+        {/* Turn-In (DA 3161) — ONE card per turn-in: pending cards open their detail
+            (curate / complete / remove), completed docs read "Turned in · <date>" and
+            open the DA 3161. Hidden only when both are empty. */}
+        {(pendingTurnIns.length > 0 || turnIns.history.length > 0) &&
           renderGroup(
             '__turnin__',
             'Turn-In',
             <>
-              {turnIns.pending.length > 0 && onVerifyTurnIn && (
-                <button
-                  type="button"
-                  onClick={completeAllTurnIns}
-                  className="w-full flex items-center gap-2 px-4 py-2.5 text-left text-themeblue2 active:opacity-70"
-                >
-                  <PackageMinus size={16} className="shrink-0" />
-                  <span className="text-[10pt] font-medium">Complete turn-in · {turnIns.pending.length}</span>
-                </button>
-              )}
-              {turnIns.pending.map(renderPendingTurnInCard)}
+              {pendingTurnIns.map(renderPendingTurnInCard)}
               {turnIns.history.map(renderTurnInDocCard)}
             </>,
           )}
-
-        {/* History (returned) — hidden when empty. */}
-        {history.length > 0 &&
-          renderGroup('__history__', 'History', history.map(renderReceiptCard))}
-
-        {/* Usage — consumables expended this week (item.expended ledger events).
-            Always shown so an empty group reads as "nothing used" rather than missing. */}
-        {renderGroup(
-          '__usage__',
-          'Usage',
-          usageEvents.length > 0 ? usageEvents.map(renderUsageCard) : emptyLine('Nothing expended this week.'),
-        )}
 
         {/* Expired — items lapsed or expiring within 30 days (expiry_date window).
             Always shown so an empty group reads as "nothing expiring". */}
@@ -521,19 +525,12 @@ export function CustodyPanel({
           expiredItems.length > 0 ? expiredItems.map(renderExpiredCard) : emptyLine('Nothing expiring.'),
         )}
 
-        {/* Recent maintenance + dispatch activity (this week) — "which items got
-            PMCS'd or dispatched lately". Always shown so an empty group reads as
-            "nothing this week" rather than going missing. */}
+        {/* Usage — consumables expended this week (item.expended ledger events).
+            Always shown so an empty group reads as "nothing used" rather than missing. */}
         {renderGroup(
-          '__pmcs__',
-          'PMCS',
-          pmcsEvents.length > 0 ? pmcsEvents.map(renderActivityCard) : emptyLine('Nothing this week.'),
-        )}
-
-        {renderGroup(
-          '__dispatch__',
-          'Dispatch',
-          dispatchEvents.length > 0 ? dispatchEvents.map(renderActivityCard) : emptyLine('Nothing this week.'),
+          '__usage__',
+          'Usage',
+          usageEvents.length > 0 ? usageEvents.map(renderUsageCard) : emptyLine('Nothing expended this week.'),
         )}
       </div>
 

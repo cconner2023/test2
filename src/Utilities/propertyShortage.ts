@@ -54,18 +54,27 @@ function keyOf(it: { nsn: string | null; lin: string | null; name: string }): st
   return 'name:' + it.name.trim().toLowerCase()
 }
 
-export function computeShortages(items: LocalPropertyItem[]): ShortageReport {
+export function computeShortages(
+  items: LocalPropertyItem[],
+  /** Items STAGED for turn-in (open pending turn_in marker) — counted as on-hand 0 so
+   *  staging surfaces the shortage immediately (the turned-in stock has left the line,
+   *  even though it isn't verified/turned_in_at yet). A staged authorization-tracked line
+   *  still appears as short; a staged loose stack just drops out of the on-hand sum. */
+  stagedTurnInIds: Set<string> = new Set(),
+): ShortageReport {
   // Turned-in items (turned_in_at set) have left the books — exclude them so a
   // turned-in line can't count as on-hand and mask a real shortage.
   const live = items.filter((it) => !it.deleted_at && !it.turned_in_at)
   const nameById = new Map(live.map((it) => [it.id, it.name]))
   const tracked = live.filter((it) => it.quantity_authorized != null)
+  // Effective on-hand: staged-for-turn-in stock counts as 0 (it's leaving for supply).
+  const onHandOf = (it: LocalPropertyItem) => (stagedTurnInIds.has(it.id) ? 0 : it.quantity)
 
   // Per-line shortfalls.
   const lines: ShortageLine[] = []
   for (const it of tracked) {
     const authorized = it.quantity_authorized as number
-    const onHand = it.quantity
+    const onHand = onHandOf(it)
     const short = Math.max(0, authorized - onHand)
     if (short > 0) {
       lines.push({
@@ -96,7 +105,7 @@ export function computeShortages(items: LocalPropertyItem[]): ShortageReport {
     }
     return a
   }
-  for (const it of live) ensure(it).onHand += it.quantity
+  for (const it of live) ensure(it).onHand += onHandOf(it)
   for (const it of tracked) ensure(it).authorized += it.quantity_authorized as number
 
   const orders: OrderLine[] = []

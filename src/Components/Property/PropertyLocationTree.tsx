@@ -155,11 +155,15 @@ export function PropertyLocationTree({
         items: (itemsByLocation.get(loc.id) ?? []).sort((a, b) => a.name.localeCompare(b.name)),
       }))
 
-    // Physical root locations = no parent AND no holder_user_id
+    // Physical root locations = no parent AND no holder_user_id. The turn-in staging zone
+    // is a standing root but CONDITIONALLY RENDERED: hide it unless it currently holds
+    // staged items (like a personnel zone — it only appears when populated).
     const rootLocations = locations
       .filter(l => !l.holder_user_id && (l.parent_id ?? null) === null)
       .sort((a, b) => a.name.localeCompare(b.name))
-    const roots = rootLocations.map(buildNode)
+    const roots = rootLocations
+      .map(buildNode)
+      .filter(n => !(n.location.is_turn_in_zone && n.children.length === 0 && n.items.length === 0))
 
     // Unassigned = no location at all
     const unassignedItems = items
@@ -303,6 +307,8 @@ export function PropertyLocationTree({
 
   function renderNode(node: TreeNode, depth: number) {
     const isMember = !!node.location.holder_user_id
+    // The turn-in staging zone is system-managed — no row actions / context menu.
+    const isSystemZone = !!node.location.is_turn_in_zone
     const hasChildren = node.children.length > 0 || node.items.length > 0
     // Searching force-expands so matches deep in the tree stay visible.
     const isCollapsed = !isSearching && collapsed.has(node.location.id)
@@ -319,7 +325,7 @@ export function PropertyLocationTree({
           }`}
           style={{ paddingLeft: `${16 + depth * 20}px` }}
           data-prop-row
-          onContextMenu={!isMember ? (e) => { e.preventDefault(); e.stopPropagation(); if (onEditLocation || onDeleteLocation || onAddChildLocation || onAddItemAtLocation) openRowMenu('location', node.location.id, e.currentTarget as HTMLElement) } : undefined}
+          onContextMenu={!isMember && !isSystemZone ? (e) => { e.preventDefault(); e.stopPropagation(); if (onEditLocation || onDeleteLocation || onAddChildLocation || onAddItemAtLocation) openRowMenu('location', node.location.id, e.currentTarget as HTMLElement) } : undefined}
         >
           {/* Chevron */}
           {hasChildren ? (
@@ -348,7 +354,7 @@ export function PropertyLocationTree({
           </div>
 
           {/* Row actions — ellipsis menu */}
-          {!isMember && (onEditLocation || onDeleteLocation || onAddChildLocation || onAddItemAtLocation) && (
+          {!isMember && !isSystemZone && (onEditLocation || onDeleteLocation || onAddChildLocation || onAddItemAtLocation) && (
             <button
               onClick={(e) => { e.stopPropagation(); openRowMenu('location', node.location.id, (e.currentTarget as HTMLElement).closest('[data-prop-row]') as HTMLElement | null) }}
               aria-label="More actions"
@@ -431,7 +437,8 @@ export function PropertyLocationTree({
       {contextMenu && (() => {
         if (contextMenu.kind === 'location') {
           const loc = locations.find(l => l.id === contextMenu.id)
-          if (!loc || loc.holder_user_id) return null
+          // The turn-in staging zone is system-managed — no add/edit/delete actions.
+          if (!loc || loc.holder_user_id || loc.is_turn_in_zone) return null
           const menuItems: ContextMenuItem[] = [
             ...(onAddChildLocation ? [{ key: 'add-area', label: 'New Area', icon: FolderPlus, onAction: () => onAddChildLocation(loc.id) }] : []),
             ...(onAddLevel && isStructuralZone(loc) ? [{ key: 'add-level', label: 'Add level', icon: Layers, onAction: () => onAddLevel(loc.id) }] : []),
