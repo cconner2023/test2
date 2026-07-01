@@ -28,6 +28,7 @@ import {
   getLocalCustodyByReceipt,
   getLocalCustodyByClinic,
   getLocalCustodyByItem,
+  getAllLocalCustody,
   getLocalLocationTags,
   getLocalLocationTagsBatch,
   saveLocalLocationTags,
@@ -384,11 +385,16 @@ export async function updateItem(
         )
       }
       if (changedFields.length > 0) {
+        // `changed` (keys) drives the timeline label; `changes` (before/after)
+        // makes the edit REVERSIBLE — undoLastEvent restores each field to `from`.
+        // All AUDITED_EDIT_FIELDS are equipment/accountability vocab (no PHI).
+        const changes: Record<string, { from: unknown; to: unknown }> = {}
+        for (const f of changedFields) changes[f] = { from: existing[f] ?? null, to: updates[f] ?? null }
         await emitAudit(
           {
             clinicId: existing.clinic_id, actorId: userId, domain: 'property',
             eventType: 'item.edited', subjectType: 'item', subjectId: id, occurredAt: now,
-            payload: { changed: changedFields },
+            payload: { changed: changedFields, changes },
           },
           userId,
         )
@@ -1907,7 +1913,14 @@ const byRecordedDesc = (a: CustodyLedgerEntry, b: CustodyLedgerEntry) =>
  *  best-effort spine seed-merge when online. Works fully offline. */
 export async function fetchItemLedger(itemId: string): Promise<CustodyLedgerEntry[]> {
   const local = await getLocalCustodyByItem(itemId)
-  await seedCustodyFromServer('item_id', itemId, new Set(local.map((r) => r.id)))
+  // COLD-DEVICE FLOOR — custody rides the clinic-vault snapshot + tail (append-only,
+  // routed via applyCustody, which fires 'properties' invalidation on arrival), so a
+  // warm device already holds every ledger row. Only backstop-pull the durable table
+  // when this device holds NO custody at all (cold/fresh) — checked clinic-wide so a
+  // never-signed-out item doesn't re-pull on every timeline open. Mirrors fetchClinicItems.
+  if (local.length === 0 && (await getAllLocalCustody()).length === 0) {
+    await seedCustodyFromServer('item_id', itemId, new Set())
+  }
   return (await getLocalCustodyByItem(itemId)).sort(byRecordedDesc)
 }
 
@@ -1918,7 +1931,14 @@ export async function fetchItemLedger(itemId: string): Promise<CustodyLedgerEntr
  *  scopes the server read to the caller's clinic + cross-cluster targets. */
 export async function fetchClinicLedger(clinicId: string): Promise<CustodyLedgerEntry[]> {
   const local = await getLocalCustodyByClinic(clinicId)
-  await seedCustodyFromServer('clinic_id', clinicId, new Set(local.map((r) => r.id)))
+  // COLD-DEVICE FLOOR — see fetchItemLedger. Custody arrives via snapshot + tail; a
+  // warm device refetches from IDB on the 'properties' invalidation applyCustody fires
+  // when a remote sign-out/in lands, so it never needs the durable pull. Gating on the
+  // empty clinic projection stops the full custody_ledger re-pull on EVERY 'properties'
+  // invalidation — the always-mounted master-search egress (useHandReceipts).
+  if (local.length === 0) {
+    await seedCustodyFromServer('clinic_id', clinicId, new Set())
+  }
   return (await getLocalCustodyByClinic(clinicId)).sort(byRecordedDesc)
 }
 
@@ -3025,6 +3045,51 @@ export async function recordExpendedEntry(
   } catch (err) {
     return fail(String(err))
   }
+}
+
+// ── Split / Merge audit events ───────────────────────────────
+
+/** A portion branched off `sourceItemId` into `toItemId` (the moved portion).
+ *  Spine/audit-only (the quantity rebalance rides the item updates). REVERSIBLE:
+ *  undoLastEvent merges the portion back. A whole-quantity move is an item.moved,
+ *  not a split — see usePropertyStore.splitItem. */
+export async function recordItemSplit(
+  sourceItemId: string,
+  toItemId: string,
+  quantity: number,
+  clinicId: string,
+  userId: string,
+): Promise<void> {
+  await emitAudit(
+    {
+      clinicId, actorId: userId, domain: 'property',
+      eventType: 'item.split', subjectType: 'item', subjectId: sourceItemId,
+      occurredAt: new Date().toISOString(),
+      payload: { to_item_id: toItemId, quantity },
+    },
+    userId,
+  )
+}
+
+/** `targetItemId` absorbed a source stack (`fromName` ×`quantity`). Emitted on the
+ *  surviving TARGET so its timeline reads "Absorbed ×N from X". TERMINAL — the
+ *  source row is deleted and its history ceases; this is NOT undoable. */
+export async function recordItemMerge(
+  targetItemId: string,
+  fromName: string,
+  quantity: number,
+  clinicId: string,
+  userId: string,
+): Promise<void> {
+  await emitAudit(
+    {
+      clinicId, actorId: userId, domain: 'property',
+      eventType: 'item.merged', subjectType: 'item', subjectId: targetItemId,
+      occurredAt: new Date().toISOString(),
+      payload: { from_name: fromName, quantity },
+    },
+    userId,
+  )
 }
 
 // ── Search ───────────────────────────────────────────────────

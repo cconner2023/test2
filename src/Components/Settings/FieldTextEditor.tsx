@@ -1,8 +1,10 @@
-import { useRef, useEffect, useCallback, useState, useContext } from 'react';
+import { useRef, useEffect, useCallback, useState, useContext, useImperativeHandle, forwardRef } from 'react';
 import { createPortal } from 'react-dom';
-import { TextCursor, ChevronDown, Trash2 } from 'lucide-react';
-import { InsertFieldButton } from './InsertFieldButton';
+import { TextCursor, ChevronDown, Trash2, Check } from 'lucide-react';
 import { Z, OverlayStackContext } from '../BaseOverlay';
+import { StackNavContext } from '../stackNav';
+import { ActionButton } from '../ActionButton';
+import { ActionPill } from '../ActionPill';
 import type { FieldInfo } from '../../Utilities/templateParser';
 
 // ─── Segment helpers ─────────────────────────────────────────────────
@@ -115,16 +117,28 @@ interface FieldTextEditorProps {
     onFieldsChange: (fields: Record<string, FieldInfo>) => void;
     placeholder?: string;
     autoFocus?: boolean;
+    /** CSS-hide (display:none) the editor while an in-card insert panel shows — keeps
+     *  it MOUNTED so the saved caret Range survives until insertField runs. */
+    hidden?: boolean;
 }
 
-export const FieldTextEditor = ({
-    value, onChange, fields, onFieldsChange, placeholder, autoFocus,
-}: FieldTextEditorProps) => {
+/** Imperative handle: the host commits an insert (built in its rightFooter) through
+ *  this, after un-hiding the editor, so the pill lands at the preserved caret. */
+export interface FieldEditorHandle {
+    insertField: (label: string, field: FieldInfo) => void;
+}
+
+export const FieldTextEditor = forwardRef<FieldEditorHandle, FieldTextEditorProps>(({
+    value, onChange, fields, onFieldsChange, placeholder, autoFocus, hidden = false,
+}, ref) => {
     const editorRef = useRef<HTMLDivElement>(null);
     const lastSyncedRef = useRef({ value, fields });
     const skipNextSync = useRef(false);
     const savedRangeRef = useRef<Range | null>(null);
     const [editingField, setEditingField] = useState<{ label: string; rect: DOMRect } | null>(null);
+    // Inside an OverlayStack, tapping a pill DRILLS the card (morph); outside one it
+    // falls back to the anchored FieldEditPopover below.
+    const stackNav = useContext(StackNavContext);
 
     // ── Save selection whenever cursor moves inside the editor ──
     useEffect(() => {
@@ -341,45 +355,39 @@ export const FieldTextEditor = ({
         onFieldsChange(newFields);
     }, [fields, onChange, onFieldsChange]);
 
-    // ── Pill tap → edit popover ──
-    const handleClick = useCallback((e: React.MouseEvent) => {
-        const target = e.target as HTMLElement;
-        const pill = target.closest('[data-field]') as HTMLElement | null;
-        if (pill && editorRef.current?.contains(pill)) {
-            e.preventDefault();
-            const label = pill.getAttribute('data-field')!;
-            setEditingField({ label, rect: pill.getBoundingClientRect() });
-        } else {
-            setEditingField(null);
-        }
-    }, []);
+    // Host commits an insert through this (after un-hiding the editor).
+    useImperativeHandle(ref, () => ({ insertField: handleInsert }), [handleInsert]);
 
-    // ── Delete field from editor ──
+    // ── Delete field — DOM path when mounted, string path when the editor has been
+    //    unmounted by a drill (editorRef is null; operate on the value string). ──
     const handleDeleteField = useCallback((label: string) => {
         const el = editorRef.current;
-        if (!el) return;
-
-        const pill = el.querySelector(`[data-field="${CSS.escape(label)}"]`);
-        if (pill) pill.remove();
-
         const newFields = { ...fields };
         delete newFields[label];
 
-        const { value: newValue } = readEditorDOM(el, newFields);
+        let newValue: string;
+        if (el) {
+            const pill = el.querySelector(`[data-field="${CSS.escape(label)}"]`);
+            if (pill) pill.remove();
+            newValue = readEditorDOM(el, newFields).value;
+        } else {
+            newValue = value.split(`[${label}]`).join('');
+        }
+
         lastSyncedRef.current = { value: newValue, fields: newFields };
         skipNextSync.current = true;
         onChange(newValue);
         onFieldsChange(newFields);
         setEditingField(null);
-        el.focus();
-    }, [fields, onChange, onFieldsChange]);
+        el?.focus();
+    }, [fields, value, onChange, onFieldsChange]);
 
-    // ── Update default for a dropdown ──
+    // ── Update default for a dropdown — same mounted/unmounted split. When drilled,
+    //    the pill re-renders with the new default on remount (from `fields`). ──
     const handleSetDefault = useCallback((label: string, defaultValue: string) => {
         const newField = { ...fields[label], defaultValue };
         const newFields = { ...fields, [label]: newField };
 
-        // Re-render pill in DOM
         const el = editorRef.current;
         if (el) {
             const pill = el.querySelector(`[data-field="${CSS.escape(label)}"]`);
@@ -390,12 +398,49 @@ export const FieldTextEditor = ({
         skipNextSync.current = true;
         onFieldsChange(newFields);
 
-        // Keep the popover open with updated rect
-        const newPill = el?.querySelector(`[data-field="${CSS.escape(label)}"]`);
-        if (newPill) {
-            setEditingField({ label, rect: newPill.getBoundingClientRect() });
+        // Fallback popover only: keep it open with the refreshed rect.
+        if (el) {
+            const newPill = el.querySelector(`[data-field="${CSS.escape(label)}"]`);
+            if (newPill) setEditingField({ label, rect: newPill.getBoundingClientRect() });
         }
     }, [fields, onFieldsChange]);
+
+    // ── Drill screen for editing a placed pill (default + delete) ──
+    const openEditScreen = useCallback((label: string, field: FieldInfo) => {
+        if (!stackNav) return;
+        stackNav.pushScreen({
+            title: label,
+            footer: (_p, nav) => (
+                <ActionPill>
+                    <ActionButton icon={Trash2} label="Delete" variant="danger" onClick={() => { handleDeleteField(label); nav.pop(); }} />
+                </ActionPill>
+            ),
+            rightFooter: (_p, nav) => (
+                <ActionPill>
+                    <ActionButton icon={Check} label="Done" variant="success" onClick={() => nav.pop()} />
+                </ActionPill>
+            ),
+            render: () => (
+                <PillEditBody label={label} field={field} onSetDefault={(v) => handleSetDefault(label, v)} />
+            ),
+        });
+    }, [stackNav, handleDeleteField, handleSetDefault]);
+
+    // ── Pill tap → drill (in-stack) or anchored popover (fallback) ──
+    const handleClick = useCallback((e: React.MouseEvent) => {
+        const target = e.target as HTMLElement;
+        const pill = target.closest('[data-field]') as HTMLElement | null;
+        if (pill && editorRef.current?.contains(pill)) {
+            e.preventDefault();
+            const label = pill.getAttribute('data-field')!;
+            const field = fields[label];
+            if (!field) return;
+            if (stackNav) openEditScreen(label, field);
+            else setEditingField({ label, rect: pill.getBoundingClientRect() });
+        } else {
+            setEditingField(null);
+        }
+    }, [fields, stackNav, openEditScreen]);
 
     // ── Popover portal ──
     const popover = editingField && fields[editingField.label] && createPortal(
@@ -413,7 +458,7 @@ export const FieldTextEditor = ({
     const showPlaceholder = !value;
 
     return (
-        <div className="space-y-2">
+        <div className={`space-y-2${hidden ? ' hidden' : ''}`}>
             <div className="relative">
                 <div
                     ref={editorRef}
@@ -433,10 +478,45 @@ export const FieldTextEditor = ({
                     </div>
                 )}
             </div>
-            <div className="flex items-center gap-1.5">
-                <InsertFieldButton onInsert={handleInsert} />
-            </div>
             {popover}
+        </div>
+    );
+});
+FieldTextEditor.displayName = 'FieldTextEditor';
+
+// ─── Pill edit drill body (default selector; delete rides the screen footer) ──
+const PillEditBody = ({
+    label, field, onSetDefault,
+}: {
+    label: string;
+    field: FieldInfo;
+    onSetDefault: (val: string) => void;
+}) => {
+    const [def, setDef] = useState(field.defaultValue ?? field.options?.[0] ?? '');
+
+    if (field.type !== 'dropdown' || !field.options?.length) {
+        return <p className="px-4 py-3 text-[9pt] text-tertiary">"{label}" — free text typed in at runtime.</p>;
+    }
+
+    return (
+        <div className="px-4 py-3 space-y-1">
+            <p className="text-[9pt] text-tertiary uppercase tracking-wider">Default</p>
+            <div className="flex flex-wrap gap-1">
+                {field.options.map(opt => (
+                    <button
+                        key={opt}
+                        type="button"
+                        onClick={() => { setDef(opt); onSetDefault(opt); }}
+                        className={`text-[9pt] px-2 py-1 rounded-full transition-all active:scale-95 ${
+                            opt === def
+                                ? 'bg-themeblue3 text-white'
+                                : 'bg-tertiary/8 text-tertiary hover:bg-tertiary/12'
+                        }`}
+                    >
+                        {opt}
+                    </button>
+                ))}
+            </div>
         </div>
     );
 };

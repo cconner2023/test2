@@ -33,10 +33,26 @@ function DeviceLinkQrView({ onSettledChange }: { onSettledChange?: (settled: boo
   // Wait for the handoff public key too, so the QR always carries a seal target.
   const ready = channelState === 'ready' && !!handoffPublicKey
 
-  // Tell the host when there's something to reveal — the QR is up, or it errored
+  // Bound the connection wait. A relay that never comes up would park the HUD
+  // forever, so if we haven't gone ready (or errored) within the window, treat it
+  // as a failure and surface the SAME "try again" affordance a channel error does
+  // — no password fallback, no inline error. Tapping retry regenerates + clears it.
+  const [timedOut, setTimedOut] = useState(false)
+  const LINK_CONNECT_TIMEOUT_MS = 5000
+  useEffect(() => {
+    if (ready || channelState === 'error' || timedOut) return
+    const t = window.setTimeout(() => setTimedOut(true), LINK_CONNECT_TIMEOUT_MS)
+    return () => window.clearTimeout(t)
+  }, [ready, channelState, timedOut])
+  const retry = useCallback(() => { setTimedOut(false); regenerate() }, [regenerate])
+
+  // Failure = the channel errored, or the connection window elapsed.
+  const failed = channelState === 'error' || timedOut
+
+  // Tell the host when there's something to reveal — the QR is up, or it failed
   // into a retry. The HUD morph parks until this flips so we never expand onto the
   // bare "Connecting…" state.
-  const settled = ready || channelState === 'error'
+  const settled = ready || failed
   useEffect(() => { onSettledChange?.(settled) }, [settled, onSettledChange])
 
   // Once the channel is ready, flip `reveal` on the next frame so the QR panel
@@ -67,20 +83,24 @@ function DeviceLinkQrView({ onSettledChange }: { onSettledChange?: (settled: boo
 
   return (
     <div className="relative">
-      {/* Connecting / error placeholder — fades out as the QR reveals */}
+      {/* Connecting / try-again placeholder — fades out as the QR reveals. While
+          connecting it spins; on failure (error or timeout) it becomes a bare
+          tap-to-try-again (no inline error copy). */}
       <div
         className={`flex flex-col items-center justify-center gap-2 transition-opacity duration-300 ease-out ${
           ready ? 'absolute inset-0 opacity-0 pointer-events-none' : 'py-4 opacity-100'
         }`}
       >
-        <LoadingSpinner className="text-tertiary" />
-        {channelState === 'error' && (
+        {failed ? (
           <button
-            onClick={regenerate}
-            className="text-[10pt] text-tertiary active:opacity-70 transition-opacity"
+            onClick={retry}
+            className="flex flex-col items-center gap-2 text-[10pt] text-tertiary active:opacity-70 transition-opacity"
           >
-            Tap to retry
+            <RefreshCw size={20} />
+            Tap to try again
           </button>
+        ) : (
+          <LoadingSpinner className="text-tertiary" />
         )}
       </div>
 
@@ -558,21 +578,40 @@ function HudCardMorph({ morphKey, ready = true, children }: { morphKey: string; 
   const [fullW, setFullW] = useState(0)
   const [contentH, setContentH] = useState(0)
 
-  // Kick off a morph when the key changes: snapshot the full width, collapse to puck.
+  // The settled HUD holds for a minimum dwell so it reads as a deliberate shape,
+  // not a flicker — matches the admin Sheet puck (1400ms). The clock restarts on
+  // every collapse; the password side (ready at once) still settles the full beat.
+  const HUD_MIN_DWELL_MS = 1400
+  const [dwellDone, setDwellDone] = useState(false)
+
+  // Kick off a morph when the key changes: snapshot the full width, collapse to
+  // puck, and reset the dwell clock IN THE SAME BATCH as the collapse. If the
+  // reset lived in a separate [collapsed] effect, the release effect below would
+  // read a stale dwellDone=true left from the prior morph and expand instantly —
+  // that was the reverse-to-password "no animation" bug.
   useEffect(() => {
     if (morphKey === shownKey.current) return
     shownKey.current = morphKey
     setFullW(rootRef.current?.offsetWidth ?? 0)
     setActive(true)
     setCollapsed(true)
+    setDwellDone(false)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [morphKey])
 
-  // Release the puck once the incoming content is ready (password is ready at once;
-  // the QR side parks here until its channel hands over a scannable code or errors).
+  // Start the minimum-dwell clock whenever we're collapsed at the puck.
   useEffect(() => {
-    if (collapsed && ready) setCollapsed(false)
-  }, [collapsed, ready])
+    if (!collapsed) return
+    const t = window.setTimeout(() => setDwellDone(true), HUD_MIN_DWELL_MS)
+    return () => window.clearTimeout(t)
+  }, [collapsed])
+
+  // Release the puck once the incoming content is ready AND the HUD has held its
+  // minimum dwell (password is ready at once; the QR side also parks until its
+  // channel hands over a scannable code or fails). Expand fires at the later of the two.
+  useEffect(() => {
+    if (collapsed && ready && dwellDone) setCollapsed(false)
+  }, [collapsed, ready, dwellDone])
 
   // Track the content's natural height while morphing so the expand target — and
   // any in-content growth (the QR reveal) — is always the real size.
@@ -602,8 +641,12 @@ function HudCardMorph({ morphKey, ready = true, children }: { morphKey: string; 
     scale: collapsed ? 1 : 1.08,
     config: cfg,
   })
+  // Hiding is instant (the HUD overlay covers the swap); only the reveal animates.
+  // Matches the admin Sheet fix — a spring-driven fade-OUT let the outgoing card
+  // bleed through the collapse for a frame.
   const contentFade = useSpring({
     opacity: collapsed ? 0 : 1,
+    immediate: collapsed,
     delay: collapsed ? 0 : 90,
     config: cfg,
   })

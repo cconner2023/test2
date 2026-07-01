@@ -39,12 +39,23 @@ export type AuditEventType =
   //  created:  { name, nsn?, serial_number?, quantity?, is_serialized?, condition_code?, location_id?, parent_item_id? }
   //  moved:    { from_location_id, to_location_id }
   //  assigned: { from_holder_id, to_holder_id }
-  //  edited:   { changed: string[] }
+  //  edited:   { changed: string[], changes?: { [field]: { from, to } } }
+  //            `changed` = the changed field keys (label source); `changes` adds
+  //            the before/after values so a field edit (incl. detach/reparent via
+  //            parent_item_id) is REVERSIBLE by the undo dispatcher. Legacy rows
+  //            carry `changed` only → display-able but not undoable.
+  //  split:    { to_item_id, quantity }   // a portion branched off this stack to
+  //            another row (the moved portion). Reversible: undo merges it back.
+  //            A WHOLE-quantity move is an item.moved, not a split.
+  //  merged:   { from_name, quantity }   // emitted on the TARGET that absorbed a
+  //            source stack. TERMINAL — the source's history ceases; not undoable.
   //  deleted:  { name?, nsn?, serial_number? }   // item removed from accountability
   | 'item.created'
   | 'item.moved'
   | 'item.assigned'
   | 'item.edited'
+  | 'item.split'
+  | 'item.merged'
   | 'item.deleted'
   // property faults — LEGACY standalone fault events (pre-2026-06-28). Faults are
   // now bundled INTO the pmcs.clear that found/corrected them (see pmcs.clear

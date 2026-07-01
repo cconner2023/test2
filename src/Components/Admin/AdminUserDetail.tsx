@@ -810,6 +810,16 @@ export function AdminUserDetail({
                   variant: forceLogoutProcessing ? 'disabled' : 'default',
                   onAction: () => setConfirmForceLogout(true),
                 },
+                // Delete — parity with the Directory tree's user menu, which
+                // carries Delete as its lifecycle action. Header/edit-overlay
+                // Delete still exist; this just mirrors the tree.
+                ...(onRequestDelete ? [{
+                  key: 'delete',
+                  label: 'Delete',
+                  icon: Trash2,
+                  destructive: true,
+                  onAction: onRequestDelete,
+                }] as ContextMenuItem[] : []),
               ]}
             />
           </div>

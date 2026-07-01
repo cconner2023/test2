@@ -5,6 +5,7 @@ import { BaseDrawer } from './BaseDrawer'
 import { BottomIsland, IslandButton } from './BottomIsland'
 import { HeaderPill, PillButton } from './HeaderPill'
 import { PreviewOverlay } from './PreviewOverlay'
+import { Sheet } from './Sheet'
 import { VoicemailGreetingSection } from './Settings/VoicemailGreetingSection'
 import { IncomingCallsSection } from './Settings/IncomingCallsSection'
 import { MessagingOncallSettings } from './Settings/MessagingOncallSettings'
@@ -217,12 +218,32 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
         }
     }, [view, selectedPeerId, selectedGroupId, selectedPeerName, handleBack, handleClose, callActions])
 
-    // Messaging settings — PreviewOverlay popover on both mobile + desktop
-    // (mirrors MapSettingsDrawer, which is overlay-only). Layout matches Calendar
-    // Settings: text-tertiary section headers + themewhite2 cards. On-call roster
-    // is open to all cluster members; the Outside-contact card self-gates to
-    // supervisor/dev inside MessagingOncallSettings.
-    const settingsSurface = (
+    // Messaging settings — mobile Sheet + desktop PreviewOverlay, both share
+    // content (mirrors the map-settings standard for mobile settings icons:
+    // settings icon → bottom Sheet on mobile, popover on desktop). Layout matches
+    // Calendar Settings: text-tertiary section headers + themewhite2 cards.
+    // On-call roster is open to all cluster members; the Outside-contact card
+    // self-gates to supervisor/dev inside MessagingOncallSettings.
+    const settingsContent = (
+        <div className="px-5 py-4 space-y-6">
+            <MessagingOncallSettings />
+            <SwipeActionsSection />
+            <IncomingCallsSection />
+            <VoicemailGreetingSection />
+        </div>
+    )
+    const settingsSurface = isMobile ? (
+        <Sheet
+            isOpen={showSettings}
+            onClose={() => setShowSettings(false)}
+            title="Messaging settings"
+            height="fit"
+            maxHeight={60}
+            zIndex={1200}
+        >
+            {settingsContent}
+        </Sheet>
+    ) : (
         <PreviewOverlay
             isOpen={showSettings}
             onClose={() => setShowSettings(false)}
@@ -231,12 +252,7 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
             maxWidth={360}
             previewMaxHeight="70dvh"
         >
-            <div className="px-5 py-4 space-y-6">
-                <MessagingOncallSettings />
-                <SwipeActionsSection />
-                <IncomingCallsSection />
-                <VoicemailGreetingSection />
-            </div>
+            {settingsContent}
         </PreviewOverlay>
     )
 

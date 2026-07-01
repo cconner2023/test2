@@ -6,12 +6,14 @@ import type { FieldInfo } from '../../Utilities/templateParser';
 import { templateNodesToFieldText, parseFieldText, isFlatTemplate } from '../../Utilities/templateParser';
 import {
     TemplateNodeList,
-    TemplateAddPicker,
+    AddStepFooter,
     makeTemplateScreens,
     makeNode,
+    pathEq,
     type AddMenuState,
 } from './TemplateBuilder';
-import { FieldTextEditor } from './FieldTextEditor';
+import { FieldTextEditor, type FieldEditorHandle } from './FieldTextEditor';
+import { InsertFieldForm, FieldInsertFooter, buildFieldInfo, emptyInsertDraft, type InsertDraft, type FieldType } from './InsertFieldButton';
 import { ActionButton } from '../ActionButton';
 import { OverlayStack, type StackNav } from '../OverlayStack';
 import { ActionPill } from '../ActionPill'
@@ -70,6 +72,26 @@ export const TextExpanderEditPopover = ({
     const navRef = useRef<StackNav | null>(null);
     const [addMenu, setAddMenu] = useState<AddMenuState>(null);
 
+    // Simple-mode field insert: an IN-CARD panel (not an overlay, not a drill). The
+    // editor stays mounted (CSS-hidden) so its caret survives; commit rides rightFooter.
+    // The TYPE is chosen in the footer (FieldInsertFooter). Stages: idle → picking
+    // (insertOpen, type=null, editor still shown) → form (type set, editor CSS-hidden).
+    const fieldEditorRef = useRef<FieldEditorHandle>(null);
+    const [insertOpen, setInsertOpen] = useState(false);
+    const [insertDraft, setInsertDraft] = useState<InsertDraft>(emptyInsertDraft);
+    const insertFormStage = insertOpen && insertDraft.type !== null;
+    const openInsert = useCallback(() => { setInsertDraft(emptyInsertDraft); setInsertOpen(true); }, []);
+    const pickInsertType = useCallback((t: FieldType) => setInsertDraft(d => ({ ...d, type: t })), []);
+    const closeInsert = useCallback(() => { setInsertOpen(false); setInsertDraft(emptyInsertDraft); }, []);
+    const commitInsert = useCallback(() => {
+        const built = buildFieldInfo(insertDraft);
+        if (!built) return;
+        closeInsert();
+        // Un-hide the editor first (closeInsert re-shows it), then place the pill on
+        // the preserved caret on the next frame.
+        requestAnimationFrame(() => fieldEditorRef.current?.insertField(built.label, built.field));
+    }, [insertDraft, closeInsert]);
+
     // Re-seed every time the popover opens with a new state
     useEffect(() => {
         if (!state) return;
@@ -87,6 +109,8 @@ export const TextExpanderEditPopover = ({
         setTemplateNodes(seed.template ?? []);
         setAbbrError('');
         setAddMenu(null);
+        setInsertOpen(false);
+        setInsertDraft(emptyInsertDraft);
     }, [state]);
 
     // Tour: progressively fill expansion + fields when build events arrive
@@ -187,11 +211,53 @@ export const TextExpanderEditPopover = ({
         setAddMenu,
     });
 
+    const insertValid = !!buildFieldInfo(insertDraft);
+
     const screens = {
         shortcut: {
-            title: titleText,
-            headerActions: <OverlayHeaderMenu items={modifierItems} />,
-            rightFooter: (
+            // Insert flow (simple mode): tapping the footer `[ ]` engages type-PICKING
+            // (editor still shown); picking a type enters the FORM stage — the whole
+            // screen becomes "Insert field", ellipsis suppressed, Save→Insert, editor
+            // CSS-hidden (never unmounted, so the caret survives). Back cancels.
+            title: insertFormStage ? 'Insert field' : titleText,
+            headerActions: insertOpen ? undefined : <OverlayHeaderMenu items={modifierItems} />,
+            onBack: insertOpen ? () => closeInsert() : undefined,
+            // Footer-LEFT: template Add / simple insert `[ ]` — both morph into their
+            // type options in place (no overlay).
+            footer: insertOpen ? (
+                <FieldInsertFooter
+                    open
+                    type={insertDraft.type}
+                    onStart={openInsert}
+                    onPick={pickInsertType}
+                    onCancel={closeInsert}
+                />
+            ) : mode === 'template' ? (
+                <AddStepFooter
+                    adding={!!addMenu && pathEq(addMenu.path, [])}
+                    onStart={() => setAddMenu({ path: [] })}
+                    onCancel={() => setAddMenu(null)}
+                    onPick={handleAddRoot}
+                />
+            ) : (
+                <FieldInsertFooter
+                    open={false}
+                    type={null}
+                    onStart={openInsert}
+                    onPick={pickInsertType}
+                    onCancel={closeInsert}
+                />
+            ),
+            rightFooter: insertFormStage ? (
+                <ActionPill>
+                    <ActionButton
+                        icon={Check}
+                        label="Insert"
+                        variant={insertValid ? 'success' : 'disabled'}
+                        onClick={insertValid ? commitInsert : () => {}}
+                    />
+                </ActionPill>
+            ) : (
                 <ActionPill data-tour="expander-edit-accept">
                     <ActionButton
                         icon={Check}
@@ -203,37 +269,40 @@ export const TextExpanderEditPopover = ({
             ),
             render: (_: unknown, nav: StackNav) => (
                 <div data-tour="expander-edit-card" className="px-4 pb-3 space-y-3">
-                    <TextInput
-                        value={abbr}
-                        onChange={(v) => { setAbbr(v); setAbbrError(''); }}
-                        placeholder="e.g. htn, sob, cva"
-                        hint={abbrError || null}
-                    />
+                    <div className={insertFormStage ? 'hidden' : ''}>
+                        <TextInput
+                            value={abbr}
+                            onChange={(v) => { setAbbr(v); setAbbrError(''); }}
+                            placeholder="e.g. htn, sob, cva"
+                            hint={abbrError || null}
+                        />
+                    </div>
 
                     {mode === 'simple' ? (
-                        <div className="rounded-xl bg-themewhite2 px-3 py-2.5">
-                            <FieldTextEditor
-                                value={expansion}
-                                onChange={setExpansion}
-                                fields={fields}
-                                onFieldsChange={setFields}
-                                placeholder="Text that replaces the shortcut..."
-                            />
-                        </div>
-                    ) : (
                         <>
-                            <TemplateNodeList
-                                nodes={templateNodes}
-                                onEdit={(index) => nav.push('tpl-node', { path: [], index })}
-                                onAdd={(anchor) => setAddMenu({ path: [], anchor })}
-                            />
-                            <TemplateAddPicker
-                                addMenu={addMenu}
-                                forPath={[]}
-                                onClose={() => setAddMenu(null)}
-                                onPick={handleAddRoot}
-                            />
+                            <div className={`rounded-xl bg-themewhite2 px-3 py-2.5${insertFormStage ? ' hidden' : ''}`}>
+                                <FieldTextEditor
+                                    ref={fieldEditorRef}
+                                    hidden={insertFormStage}
+                                    value={expansion}
+                                    onChange={setExpansion}
+                                    fields={fields}
+                                    onFieldsChange={setFields}
+                                    placeholder="Text that replaces the shortcut..."
+                                />
+                            </div>
+                            {insertFormStage && (
+                                <InsertFieldForm draft={insertDraft} onChange={setInsertDraft} />
+                            )}
                         </>
+                    ) : (
+                        <TemplateNodeList
+                            nodes={templateNodes}
+                            showFab={false}
+                            emptyHint="No template steps yet — add one below."
+                            onEdit={(index) => nav.push('tpl-node', { path: [], index })}
+                            onAdd={() => setAddMenu({ path: [] })}
+                        />
                     )}
                 </div>
             ),

@@ -204,7 +204,8 @@ function ConversationPane({
   const togglePinConversation = useMessagingStore(s => s.togglePinConversation)
   const [liftedMenu, setLiftedMenu] = useState<{ rect: DOMRect; row: ReactNode; items: ContextMenuItem[] } | null>(null)
   // Collapsed roster groups (sub-cluster ids / HQ bucket / `clinic:<name>`).
-  // Default expanded.
+  // Own-cluster sub-groups default expanded; nearby clinics default collapsed
+  // (seeded once below) to keep the list quiet when there are many associations.
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
   const toggleGroupCollapse = useCallback((id: string) => {
     setCollapsedGroups(prev => {
@@ -214,6 +215,21 @@ function ConversationPane({
       return next
     })
   }, [])
+  // Seed each nearby clinic collapsed the first time it appears. Tracked via a
+  // ref so a user's later expand isn't undone when the clinic list re-emits.
+  const seededCollapseRef = useRef<Set<string>>(new Set())
+  useEffect(() => {
+    const unseeded = nearbyClinicNames
+      .map(name => `clinic:${name}`)
+      .filter(id => !seededCollapseRef.current.has(id))
+    if (unseeded.length === 0) return
+    unseeded.forEach(id => seededCollapseRef.current.add(id))
+    setCollapsedGroups(prev => {
+      const next = new Set(prev)
+      unseeded.forEach(id => next.add(id))
+      return next
+    })
+  }, [nearbyClinicNames])
   const [pendingDelete, setPendingDelete] = useState<PreviewTarget | null>(null)
   const showLoading = useMinLoadTime(loading ?? false)
 

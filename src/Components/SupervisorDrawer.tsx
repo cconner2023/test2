@@ -8,9 +8,7 @@ import { useSwipeBack } from '../Hooks/useSwipeBack'
 import { useIsMobile } from '../Hooks/useIsMobile'
 import { UI_TIMING } from '../Utilities/constants'
 import { useTrainingCompletions } from '../Hooks/useTrainingCompletions'
-import { useCalendarWrite } from '../Hooks/useCalendarWrite'
 import { useCalendarStore } from '../stores/useCalendarStore'
-import { updateAssignmentCalendarOriginId } from '../lib/trainingService'
 import { useAuthStore } from '../stores/useAuthStore'
 import { useNavigationStore } from '../stores/useNavigationStore'
 import { useSupervisorData } from './Settings/Supervisor/useSupervisorData'
@@ -19,7 +17,6 @@ import { SoldierProfile } from './Settings/Supervisor/SoldierProfile'
 import { TimelineFullView, useSubjectTimelineRows, buildTimelineCalendarEntries } from './Timeline/UserTimeline'
 import { EvaluateFlow } from './Settings/Supervisor/EvaluateFlow'
 import { AlgorithmEvaluateFlow } from './Settings/Supervisor/AlgorithmEvaluateFlow'
-import { AssignTaskFlow } from './Settings/Supervisor/AssignTaskFlow'
 import { TeamReporting } from './Settings/Supervisor/TeamReporting'
 import { CoverageTasksView } from './Settings/Supervisor/CoverageTasksView'
 import { AlgorithmCoverageView } from './Settings/Supervisor/AlgorithmCoverageView'
@@ -36,7 +33,6 @@ import { getClinicDetails } from '../lib/supervisorService'
 import { listLocations, type AdminLocation } from '../lib/adminService'
 import type { ClinicMedic } from '../Types/SupervisorTestTypes'
 import type { StepResult } from '../Types/SupervisorTestTypes'
-import type { CalendarEvent } from '../Types/CalendarTypes'
 
 // ─── State Machine ───────────────────────────────────────────────────────────
 
@@ -50,7 +46,6 @@ type SupervisorView =
   | { screen: 'coverage-algorithm-list' }
   | { screen: 'coverage-algorithm'; algorithmId: string; algorithmName: string }
   | { screen: 'soldier-algorithm-list'; soldier: ClinicMedic }
-  | { screen: 'assign-task'; soldier: ClinicMedic; preSelectedTask?: { id: string; title: string } }
 
 interface SupervisorDrawerProps {
   isVisible: boolean
@@ -89,9 +84,7 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
 
   // ── Data ───────────────────────────────────────────────────────────────────
 
-  const { submitTestEvaluation, assignTask } = useTrainingCompletions()
-  const { writeEvent } = useCalendarWrite()
-  const user = useAuthStore(s => s.user)
+  const { submitTestEvaluation } = useTrainingCompletions()
   // The supervisor toggle picks which clinic this drawer administers.
   // Defaults to the assigned clinic for single-clinic users.
   const clinicId = useAuthStore(s => s.supervisingClinicId ?? s.clinicId)
@@ -172,7 +165,6 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
     removeTest,
     addCert,
     removeCert,
-    addAssignment,
     refreshData,
     teamMetrics,
     testableTaskMap,
@@ -248,61 +240,6 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
     setView({ screen: 'evaluate-select-task', soldier })
   }, [handleSlideAnimation])
 
-  const handleAssign = useCallback((soldier: ClinicMedic) => {
-    handleSlideAnimation('left')
-    setView({ screen: 'assign-task', soldier })
-  }, [handleSlideAnimation])
-
-  const handleSubmitAssignment = useCallback(async (taskId: string, taskTitle: string, dueDate: string, notes: string) => {
-    if (view.screen !== 'assign-task') return
-
-    const saved = await assignTask({
-      medicUserId: view.soldier.id,
-      trainingItemId: taskId,
-      dueDate,
-      notes: notes || undefined,
-    })
-
-    // Create calendar event for the assignment
-    if (user) {
-      const now = new Date().toISOString()
-      const calendarEvent = {
-        id: crypto.randomUUID(),
-        clinic_id: view.soldier.clinicId || '',
-        title: `Training: ${taskTitle}`,
-        description: notes || '',
-        category: 'training' as const,
-        status: 'pending' as const,
-        start_time: `${dueDate}T00:00`,
-        end_time: `${dueDate}T23:59`,
-        all_day: true,
-        location: '',
-        opord_notes: '',
-        uniform: '',
-        report_time: '',
-        assigned_to: [view.soldier.id],
-        property_item_ids: [],
-        created_by: user.id,
-        created_at: now,
-        updated_at: now,
-      }
-
-      await writeEvent(calendarEvent as CalendarEvent)
-      // Link vault originId back to the assignment after write completes
-      const storedEvent = useCalendarStore.getState().events.find(e => e.id === calendarEvent.id)
-      if (saved && storedEvent?.originId) {
-        updateAssignmentCalendarOriginId(saved.id, user.id, storedEvent.originId).catch(() => {})
-      }
-    }
-
-    if (saved) {
-      addAssignment(saved)
-    }
-    refreshData()
-    setView({ screen: 'main' })
-    setTreeSelection({ type: 'soldier', soldierId: view.soldier.id })
-  }, [view, assignTask, addAssignment, refreshData, writeEvent, user])
-
   const handleSelectTask = useCallback((taskNumber: string, taskTitle: string) => {
     if (view.screen !== 'evaluate-select-task') return
     setTaskSearchQuery('')
@@ -335,11 +272,6 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
     handleSlideAnimation('left')
     setView({ screen: 'coverage-task-evaluate', areaName: view.areaName, soldier, taskNumber: taskId, taskTitle })
   }, [view, handleSlideAnimation])
-
-  const handleCoverageAssign = useCallback((soldier: ClinicMedic, taskId: string, taskTitle: string) => {
-    handleSlideAnimation('left')
-    setView({ screen: 'assign-task', soldier, preSelectedTask: { id: taskId, title: taskTitle } })
-  }, [handleSlideAnimation])
 
   const handleSubmitEvaluation = useCallback(async (stepResults: StepResult[], notes: string) => {
     if (view.screen !== 'evaluate-go-nogo' && view.screen !== 'coverage-task-evaluate') return
@@ -412,11 +344,6 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
       const soldierId = view.soldier.id
       setView({ screen: 'main' })
       setTreeSelection({ type: 'soldier', soldierId })
-    } else if (view.screen === 'assign-task') {
-      handleSlideAnimation('right')
-      setTaskSearchQuery('')
-      setView({ screen: 'main' })
-      setTreeSelection({ type: 'soldier', soldierId: view.soldier.id })
     } else if (view.screen !== 'main') {
       handleSlideAnimation('right')
       setTaskSearchQuery('')
@@ -445,6 +372,20 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
       category: 'training',
       encounterAlgorithmId: algorithmId,
       assignedTo: [soldier.id],
+    })
+    handleClose()
+  }, [requestNewCalendarEvent, handleClose])
+
+  // Assigning a task opens the real calendar compose (same pathway as scheduling
+  // an algorithm) with the soldier + STP task prefilled — no hand-rolled due-date
+  // step. The calendar SAVE mints the linked training assignment (keyed by the
+  // trainingItemId prefill), so desktop and mobile route identically.
+  const handleCoverageAssign = useCallback((soldier: ClinicMedic, taskId: string, taskTitle: string) => {
+    requestNewCalendarEvent({
+      title: `Training: ${taskTitle}`,
+      category: 'training',
+      assignedTo: [soldier.id],
+      trainingItemId: taskId,
     })
     handleClose()
   }, [requestNewCalendarEvent, handleClose])
@@ -617,18 +558,6 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
       case 'soldier-algorithm-list':
         return {
           title: 'Algorithms',
-          showBack: true,
-          onBack: handleBack,
-          rightContent: (
-            <HeaderPill>
-              <PillButton icon={X} onClick={handleClose} label="Close" />
-            </HeaderPill>
-          ),
-          hideDefaultClose: true,
-        }
-      case 'assign-task':
-        return {
-          title: 'Assign Training',
           showBack: true,
           onBack: handleBack,
           rightContent: (
@@ -852,29 +781,6 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
           </ScrollPane>
         )
       }
-
-      case 'assign-task':
-        return (
-          <div className="h-full flex flex-col">
-            <div className={isMobile ? 'shrink-0 px-3 pt-[calc(var(--drawer-header-h,3.5rem)+0.5rem)] pb-2' : 'shrink-0 px-3 py-2'}>
-              <SearchInput
-                value={taskSearchQuery}
-                onChange={setTaskSearchQuery}
-                placeholder="Search tasks to assign..."
-              />
-            </div>
-            <div className="flex-1 min-h-0 overflow-y-auto">
-              <div className="px-4 py-3 md:p-5 pb-8 min-h-full">
-                <AssignTaskFlow
-                  soldier={view.soldier}
-                  searchQuery={taskSearchQuery}
-                  preSelectedTask={view.preSelectedTask}
-                  onSubmit={handleSubmitAssignment}
-                />
-              </div>
-            </div>
-          </div>
-        )
 
       case 'main':
       default:

@@ -41,8 +41,11 @@ import {
   verifyTurnIn as verifyTurnInSvc,
   unstageTurnInItem as unstageTurnInItemSvc,
   deleteTurnInDoc as deleteTurnInDocSvc,
+  recordItemSplit,
+  recordItemMerge,
 } from '../lib/propertyService'
 import type { CustodyLedgerEntry } from '../Types/PropertyTypes'
+import type { AuditEvent } from '../lib/auditTypes'
 import type { PmcsReadings, DispatchOpenInput, DispatchCloseInput } from '../lib/propertyService'
 import { setupConnectivityListeners, healStuckPendingRecords } from '../lib/syncService'
 import { getLocalPropertyItems, getLocalPropertyLocations } from '../lib/offlineDb'
@@ -116,6 +119,10 @@ interface PropertyState {
   fetchLedger: () => Promise<CustodyLedgerEntry[]>
   splitItem: (itemId: string, qty: number, targetLocationId: string | null) => Promise<void>
   mergeItems: (sourceId: string, targetId: string) => Promise<void>
+  /** Reverse the most recent (head) timeline event of an item. Caller passes the
+   *  head event it is displaying. Only move/assign/edit/split heads are undoable
+   *  (terminal merge/turn-in/delete and custody have their own flows). */
+  undoLastEvent: (itemId: string, head: AuditEvent) => Promise<void>
   /** Record a PMCS check — the whole check in one event. `readings` carries the
    *  vehicle intake (mileage, fuel), who did it, an optional 5988E, and the faults
    *  the check found/corrected (faultsOpened/faultsCorrected); omit for a
@@ -599,6 +606,7 @@ export const usePropertyStore = create<PropertyState>((set, get) => ({
     if (!source || source.is_serialized) return
 
     const clampedQty = Math.max(1, Math.min(qty, source.quantity))
+    const isFull = clampedQty >= source.quantity
 
     // Check if target already has a matching non-serialized item (same name + nsn)
     const match = items.find(i =>
@@ -609,10 +617,33 @@ export const usePropertyStore = create<PropertyState>((set, get) => ({
       (source.nsn ? i.nsn === source.nsn : !i.nsn)
     )
 
+    // WHOLE quantity to an empty target = a MOVE, not a split — the same stack
+    // relocates (reversible item.moved), no new row and no orphan delete.
+    if (isFull && !match) {
+      await get().editItem(itemId, { location_id: targetLocationId })
+      return
+    }
+
+    // WHOLE quantity onto an identical stack = a MERGE (terminal): the source
+    // ceases and the target becomes the tracked entity. Not undoable.
+    if (isFull && match) {
+      await get().editItem(match.id, { quantity: match.quantity + source.quantity }, { skipAudit: true })
+      await recordItemMerge(match.id, source.name, source.quantity, source.clinic_id, user.id)
+      await get().removeItem(itemId)
+      invalidate('properties')
+      return
+    }
+
+    // PARTIAL = a real split (a branch). The moved portion lands in the matching
+    // stack if one exists, else a fresh row; the source keeps the remainder. The
+    // split is recorded on the source so it is visible AND reversible (undo
+    // merges the portion back).
+    let destId: string
     if (match) {
       await get().editItem(match.id, { quantity: match.quantity + clampedQty }, { skipAudit: true })
+      destId = match.id
     } else {
-      await get().addItem({
+      const created = await get().addItem({
         clinic_id: source.clinic_id,
         name: source.name,
         nomenclature: source.nomenclature,
@@ -631,22 +662,82 @@ export const usePropertyStore = create<PropertyState>((set, get) => ({
         expiry_date: source.expiry_date,
         notes: source.notes,
       })
+      if (!created) return
+      destId = created.id
     }
-
-    if (clampedQty >= source.quantity) {
-      await get().removeItem(itemId)
-    } else {
-      await get().editItem(itemId, { quantity: source.quantity - clampedQty }, { skipAudit: true })
-    }
+    await get().editItem(itemId, { quantity: source.quantity - clampedQty }, { skipAudit: true })
+    await recordItemSplit(itemId, destId, clampedQty, source.clinic_id, user.id)
+    invalidate('properties')
   },
 
   mergeItems: async (sourceId, targetId) => {
+    const user = useAuthStore.getState().user
+    if (!user) return
     const { items } = get()
     const source = items.find(i => i.id === sourceId)
     const target = items.find(i => i.id === targetId)
     if (!source || !target || source.is_serialized || target.is_serialized) return
 
+    // TERMINAL merge: target absorbs the source's quantity and is the tracked
+    // entity; the source row is deleted and its history ceases. The item.merged
+    // event on the target records the absorption ("Absorbed ×N from X").
     await get().editItem(targetId, { quantity: target.quantity + source.quantity }, { skipAudit: true })
+    await recordItemMerge(targetId, source.name, source.quantity, target.clinic_id, user.id)
     await get().removeItem(sourceId)
+    invalidate('properties')
+  },
+
+  undoLastEvent: async (itemId, head) => {
+    const user = useAuthStore.getState().user
+    if (!user) return
+    const p = head.payload ?? {}
+
+    switch (head.eventType) {
+      case 'item.moved':
+        // Reverse a relocation: put it back where it was.
+        await get().editItem(itemId, { location_id: (p.from_location_id as string | null) ?? null })
+        break
+      case 'item.assigned':
+        // Reverse a holder reassignment (NOT a custody sign-out — that has its
+        // own sign-in flow).
+        await get().editItem(itemId, { current_holder_id: (p.from_holder_id as string | null) ?? null })
+        break
+      case 'item.edited': {
+        // Restore each changed field to its `from` value. Legacy rows lack the
+        // before/after map → not undoable.
+        const changes = p.changes as Record<string, { from: unknown }> | undefined
+        if (!changes) return
+        const updates: Record<string, unknown> = {}
+        for (const [field, v] of Object.entries(changes)) updates[field] = v.from
+        await get().editItem(itemId, updates as Partial<PropertyItem>)
+        break
+      }
+      case 'item.split': {
+        // Merge the branched portion back into the source. If the destination is
+        // left empty it is removed.
+        const destId = p.to_item_id as string | undefined
+        const qty = typeof p.quantity === 'number' ? p.quantity : 0
+        if (!destId || qty <= 0) return
+        const { items } = get()
+        const source = items.find(i => i.id === itemId)
+        const dest = items.find(i => i.id === destId)
+        if (!source) return
+        await get().editItem(itemId, { quantity: source.quantity + qty }, { skipAudit: true })
+        if (dest) {
+          if (dest.quantity - qty <= 0) await get().removeItem(destId)
+          else await get().editItem(destId, { quantity: dest.quantity - qty }, { skipAudit: true })
+        }
+        // Record the pull-back as a (terminal) merge on the source so the head is
+        // no longer the now-reversed split — otherwise a second Undo would re-add
+        // the quantity. Terminal heads are not undoable.
+        await recordItemMerge(itemId, dest?.name ?? source.name, qty, source.clinic_id, user.id)
+        break
+      }
+      default:
+        // Terminal (merge/turn-in/delete), custody, expend, created, faults/PMCS
+        // are not undoable here — the affordance is hidden for those heads.
+        return
+    }
+    invalidate('properties')
   },
 }))

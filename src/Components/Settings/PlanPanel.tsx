@@ -337,7 +337,11 @@ function TagEditPopover({ state, onClose, isSupervisorRole, hasClinic, onSubmitN
 
     const editMeta = isEdit ? CATEGORY_META[(state as Extract<TagPopover, { mode: 'edit' }>).key] : null;
     const placeholder = isEdit ? editMeta?.label ?? 'Tag' : CATEGORY_META[category].label;
-    const editTitle = isEdit ? `Edit ${editMeta?.label ?? ''} tag` : 'New tag';
+    const scopeLabel = scope === 'clinic' ? 'Cluster' : 'Personal';
+    const newTitle = supervisorScopeAvailable
+        ? `New ${scopeLabel} ${CATEGORY_META[category].label}`
+        : `New ${CATEGORY_META[category].label}`;
+    const editTitle = isEdit ? `Edit ${editMeta?.label ?? ''} tag` : newTitle;
 
     // Modifiers (category + scope) → header ellipsis; only on new (category/scope
     // are fixed when editing). Footer carries the primary commit (Save, right).

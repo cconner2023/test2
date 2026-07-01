@@ -4,7 +4,6 @@ import {
   ChevronDown,
   MoreHorizontal,
   Eye,
-  Pencil,
   Trash2,
   FileText,
   RotateCcw,
@@ -39,23 +38,31 @@ import type { AuditEvent } from '../../lib/auditTypes'
 function CustodyCard({
   active,
   onTap,
-  menuItems,
+  menuItems = [],
   openMenu,
+  onOpenMenu,
   trailing,
   children,
 }: {
   active?: boolean
   onTap: () => void
-  menuItems: ContextMenuItem[]
-  openMenu: (rect: DOMRect, items: ContextMenuItem[]) => void
+  /** Inline menu items (receipts / records / turn-in docs), opened via `openMenu`. */
+  menuItems?: ContextMenuItem[]
+  openMenu?: (rect: DOMRect, items: ContextMenuItem[]) => void
+  /** Item-backed cards (Usage / Expired) instead delegate to the panel-hosted shared
+   *  item menu — this opens it anchored to the card. Takes precedence over menuItems. */
+  onOpenMenu?: (rect: DOMRect) => void
   trailing?: ReactNode
   children: ReactNode
 }) {
   const rowRef = useRef<HTMLDivElement>(null)
-  const hasMenu = menuItems.length > 0
+  const hasMenu = !!onOpenMenu || menuItems.length > 0
   const openFromRow = useCallback(() => {
-    if (hasMenu && rowRef.current) openMenu(rowRef.current.getBoundingClientRect(), menuItems)
-  }, [hasMenu, openMenu, menuItems])
+    if (!rowRef.current) return
+    const rect = rowRef.current.getBoundingClientRect()
+    if (onOpenMenu) onOpenMenu(rect)
+    else if (menuItems.length && openMenu) openMenu(rect, menuItems)
+  }, [onOpenMenu, openMenu, menuItems])
   const { isPressing, ...longPress } = useLongPress(openFromRow)
   return (
     <SectionCard>
@@ -73,7 +80,12 @@ function CustodyCard({
           <button
             type="button"
             aria-label="More actions"
-            onClick={(e) => { e.stopPropagation(); openMenu((e.currentTarget as HTMLElement).getBoundingClientRect(), menuItems) }}
+            onClick={(e) => {
+              e.stopPropagation()
+              const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+              if (onOpenMenu) onOpenMenu(rect)
+              else if (openMenu) openMenu(rect, menuItems)
+            }}
             className="shrink-0 -mr-1 p-1 text-tertiary active:scale-90 transition-transform"
           >
             <MoreHorizontal size={16} />
@@ -134,13 +146,11 @@ interface CustodyPanelProps {
   onSelectReceipt: (r: HandReceipt) => void
   /** Open a PMCS / dispatch record's detail in the host pane. */
   onSelectRecord: (record: SelectedRecord) => void
-  /** Object context-menu actions (ellipsis / right-click / long-press). Every card's
-   *  menu opens with View (== the card's left click, kept so a right click reaches it);
-   *  these add the mutations: items get Edit + Delete, receipts + records get Delete.
-   *  Each is OPTIONAL so read-only viewers see View alone. The item handlers resolve the
-   *  full store item from the lean ReceiptItem upstream. */
-  onEditItem?: (item: ReceiptItem) => void
-  onDeleteItem?: (item: ReceiptItem) => void
+  /** Open the panel-hosted shared item menu for an item-backed card (Usage / Expired) —
+   *  the full item action set (View · Edit · Split/Merge · Expend · … · Delete). The
+   *  panel resolves the full store item from the lean ReceiptItem. Receipts / records /
+   *  turn-in cards keep their own inline menus below. */
+  onOpenItemMenu?: (item: ReceiptItem, rect: DOMRect) => void
   /** Delete the whole hand receipt (confirmed upstream). */
   onDeleteReceipt?: (r: HandReceipt) => void
   /** Delete a PMCS/dispatch audit record (confirmed upstream). */
@@ -186,8 +196,7 @@ export function CustodyPanel({
   onLocateItem,
   onSelectReceipt,
   onSelectRecord,
-  onEditItem,
-  onDeleteItem,
+  onOpenItemMenu,
   onDeleteReceipt,
   onDeleteRecord,
   turnIns,
@@ -204,19 +213,13 @@ export function CustodyPanel({
   const [menu, setMenu] = useState<{ rect: DOMRect; items: ContextMenuItem[] } | null>(null)
   const openMenu = useCallback((rect: DOMRect, items: ContextMenuItem[]) => setMenu({ rect, items }), [])
 
-  // Build the adaptive menu for an item-backed card (Usage / Expired). View == the
-  // card's left click (locate + surface the item) — kept in the menu so a right click
-  // reaches it too. Navigate folded into View (same action). Edit + Delete follow,
-  // each present only when its handler was supplied.
-  const itemMenu = useCallback(
-    (item: ReceiptItem | undefined): ContextMenuItem[] => {
-      if (!item) return []
-      const items: ContextMenuItem[] = [{ key: 'view', label: 'View', icon: Eye, onAction: () => onLocateItem(item) }]
-      if (onEditItem) items.push({ key: 'edit', label: 'Edit', icon: Pencil, onAction: () => onEditItem(item) })
-      if (onDeleteItem) items.push({ key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => onDeleteItem(item) })
-      return items
-    },
-    [onLocateItem, onEditItem, onDeleteItem],
+  // Item-backed cards (Usage / Expired) open the panel-hosted shared item menu anchored
+  // to the card — the same full menu the tree + item detail use. Only when a full store
+  // item resolves (onOpenItemMenu supplied); otherwise the card is tap-only.
+  const openItemMenu = useCallback(
+    (item: ReceiptItem | undefined): ((rect: DOMRect) => void) | undefined =>
+      item && onOpenItemMenu ? (rect) => onOpenItemMenu(item, rect) : undefined,
+    [onOpenItemMenu],
   )
   // Clinic-wide PMCS + dispatch activity for the past week — the "what got
   // inspected / dispatched lately" feed living below the hand receipts.
@@ -364,8 +367,7 @@ export function CustodyPanel({
       <CustodyCard
         key={e.id}
         onTap={() => item && onLocateItem(item)}
-        menuItems={itemMenu(item)}
-        openMenu={openMenu}
+        onOpenMenu={openItemMenu(item)}
       >
         <p className="text-sm font-medium text-primary truncate">{activityName(e)}</p>
         <p className="text-[9pt] text-tertiary mt-0.5 truncate">{detailOf(e)}</p>
@@ -381,7 +383,7 @@ export function CustodyPanel({
     // displayed day can't drift a day earlier in negative-offset timezones.
     const dateLabel = item.expiry_date ? formatDate(item.expiry_date + 'T00:00:00') : ''
     return (
-      <CustodyCard key={item.id} onTap={() => onLocateItem(item)} menuItems={itemMenu(item)} openMenu={openMenu}>
+      <CustodyCard key={item.id} onTap={() => onLocateItem(item)} onOpenMenu={openItemMenu(item)}>
         <p className="text-sm font-medium text-primary truncate">{item.name}</p>
         <p className={`text-[9pt] mt-0.5 truncate ${expired ? 'text-themeredred' : 'text-tertiary'}`}>
           {expired ? `Expired ${dateLabel}` : `Expires ${dateLabel}`}

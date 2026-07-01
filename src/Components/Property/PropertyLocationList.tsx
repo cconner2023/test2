@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useRef, forwardRef, useImperativeHandle } from 'react'
-import { ChevronRight, Pencil, Trash2, Map as MapIcon, FolderPlus, PackagePlus, FolderClosed, User, MoreHorizontal, Eye } from 'lucide-react'
+import { ChevronRight, Pencil, Trash2, Map as MapIcon, FolderPlus, PackagePlus, FolderClosed, User, MoreHorizontal } from 'lucide-react'
 import { EmptyState } from '../EmptyState'
 import { Section, SectionCard } from '../Section'
 import { type ContextMenuItem } from '../ContextMenu'
@@ -38,10 +38,9 @@ interface PropertyLocationListProps {
   onSelectItem: (item: LocalPropertyItem) => void
   /** Open the location edit form (name + parent) — no longer an inline rename. */
   onEditLocation?: (loc: LocalPropertyLocation) => void
-  /** Open the item edit form. */
-  onEditItem?: (item: LocalPropertyItem) => void
+  /** Open the shared item action menu for an item row (nav-sheet hosted). */
+  onOpenItemMenu?: (item: LocalPropertyItem, rect: DOMRect) => void
   onDeleteLocation?: (locId: string) => void
-  onDeleteItem?: (item: LocalPropertyItem) => void
   onViewOnMap?: (locationId: string) => void
   onDrilldownChange?: (path: DrilldownSegment[]) => void
   onAddChildLocation?: (parentId: string | null) => void
@@ -62,9 +61,8 @@ export const PropertyLocationList = forwardRef<PropertyLocationListHandle, Prope
   searchQuery = '',
   onSelectItem,
   onEditLocation,
-  onEditItem,
+  onOpenItemMenu,
   onDeleteLocation,
-  onDeleteItem,
   onViewOnMap,
   onDrilldownChange,
   onAddChildLocation,
@@ -210,15 +208,22 @@ export const PropertyLocationList = forwardRef<PropertyLocationListHandle, Prope
     if (anchor) setContextMenu({ kind, id, rect: anchor.getBoundingClientRect() })
   }, [])
 
-  // Long-press to open the lifted menu (mobile equivalent of right-click)
+  // Long-press to open the lifted menu (mobile equivalent of right-click). Item rows
+  // delegate to the nav-sheet-hosted shared menu; location rows use the inline menu.
   const handleTouchStart = useCallback((kind: 'location' | 'item', id: string, e: React.TouchEvent, isVirtual?: boolean) => {
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
     longPressPreventTap.current = false
     longPressRef.current = window.setTimeout(() => {
       longPressPreventTap.current = true
-      if (!isVirtual) setContextMenu({ kind, id, rect })
+      if (isVirtual) return
+      if (kind === 'item') {
+        const item = items.find((i) => i.id === id)
+        if (item) onOpenItemMenu?.(item, rect)
+      } else {
+        setContextMenu({ kind, id, rect })
+      }
     }, 500)
-  }, [])
+  }, [items, onOpenItemMenu])
 
   const handleTouchEnd = useCallback(() => {
     if (longPressRef.current) {
@@ -360,10 +365,10 @@ export const PropertyLocationList = forwardRef<PropertyLocationListHandle, Prope
         key={item.id}
         data-prop-row
         className={`flex items-center gap-3 px-4 py-3 ${!isLast ? 'border-b border-tertiary/8' : ''}`}
-        onContextMenu={(onAddItemAtLocation || onDeleteItem) ? (e) => { e.preventDefault(); e.stopPropagation(); openRowMenu('item', item.id, e.currentTarget as HTMLElement) } : undefined}
-        onTouchStart={(onAddItemAtLocation || onDeleteItem) ? (e) => handleTouchStart('item', item.id, e) : undefined}
-        onTouchEnd={(onAddItemAtLocation || onDeleteItem) ? handleTouchEnd : undefined}
-        onTouchMove={(onAddItemAtLocation || onDeleteItem) ? handleTouchMove : undefined}
+        onContextMenu={onOpenItemMenu ? (e) => { e.preventDefault(); e.stopPropagation(); onOpenItemMenu(item, (e.currentTarget as HTMLElement).getBoundingClientRect()) } : undefined}
+        onTouchStart={onOpenItemMenu ? (e) => handleTouchStart('item', item.id, e) : undefined}
+        onTouchEnd={onOpenItemMenu ? handleTouchEnd : undefined}
+        onTouchMove={onOpenItemMenu ? handleTouchMove : undefined}
       >
         <button
           onClick={() => onSelectItem(item)}
@@ -378,9 +383,9 @@ export const PropertyLocationList = forwardRef<PropertyLocationListHandle, Prope
           </div>
           {renderExpiryChip(expiry)}
         </button>
-        {(onAddItemAtLocation || onDeleteItem) && (
+        {onOpenItemMenu && (
           <button
-            onClick={(e) => { e.stopPropagation(); openRowMenu('item', item.id, (e.currentTarget as HTMLElement).closest('[data-prop-row]') as HTMLElement | null) }}
+            onClick={(e) => { e.stopPropagation(); const row = (e.currentTarget as HTMLElement).closest('[data-prop-row]') as HTMLElement | null; if (row) onOpenItemMenu(item, row.getBoundingClientRect()) }}
             aria-label="More actions"
             className="w-8 h-8 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all shrink-0"
           >
@@ -561,29 +566,9 @@ export const PropertyLocationList = forwardRef<PropertyLocationListHandle, Prope
             />
           )
         }
-        const item = items.find((i) => i.id === contextMenu.id)
-        if (!item) return null
-        const menuItems: ContextMenuItem[] = [
-          { key: 'view', label: 'View', icon: Eye, onAction: () => onSelectItem(item) },
-          ...(onEditItem ? [{ key: 'edit', label: 'Edit', icon: Pencil, onAction: () => onEditItem(item) }] : []),
-          ...(onAddItemAtLocation ? [{ key: 'add-item', label: 'New Item', icon: PackagePlus, onAction: () => onAddItemAtLocation(item.location_id ?? currentParentId) }] : []),
-          ...(onDeleteItem ? [{ key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => onDeleteItem(item) }] : []),
-        ]
-        return (
-          <LiftedRowMenu
-            isOpen
-            layout="list"
-            anchorRect={contextMenu.rect}
-            onClose={() => setContextMenu(null)}
-            items={menuItems}
-            row={(
-              <div className="flex items-center gap-3 px-4 py-3 bg-themewhite">
-                {renderItemIcon(item)}
-                <span className="flex-1 min-w-0 text-sm font-medium text-primary truncate">{item.name}</span>
-              </div>
-            )}
-          />
-        )
+        // Item rows delegate to the nav-sheet-hosted shared menu (onOpenItemMenu);
+        // only location rows use this inline menu.
+        return null
       })()}
     </div>
   )

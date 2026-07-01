@@ -1,43 +1,18 @@
-import { useState, useMemo, useEffect, forwardRef, useImperativeHandle, type RefObject } from 'react'
-import { ScanLine, ArrowRightLeft, GitMerge, Check, MessageSquare, Pencil, Trash2, Wrench, PackageMinus, UserCheck, Users, AlertTriangle } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { AlertTriangle } from 'lucide-react'
 import { SectionCard } from '../Section'
-import { type ContextMenuItem } from '../ContextMenu'
-import { LiftedRowMenu } from '../LiftedRowMenu'
-import { PreviewOverlay } from '../PreviewOverlay'
-import { TextInput, PickerInput } from '../FormInputs'
-import { PillButton } from '../HeaderPill'
 import { useIsMobile } from '../../Hooks/useIsMobile'
 import type { LocalPropertyItem, LocalPropertyLocation, HolderInfo } from '../../Types/PropertyTypes'
 import { expiryStatus } from '../../Types/PropertyTypes'
-import { usePropertyStore } from '../../stores/usePropertyStore'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { fetchItemLedger } from '../../lib/propertyService'
-import { useShareToChat } from '../Messages/ShareToChatPicker'
 import { ItemTimeline } from '../Timeline/ItemTimeline'
-import { PmcsSheet } from './PmcsSheet'
-
-export interface PropertyItemDetailHandle {
-  /** Open the action menu (Edit / Move / Merge / Share / Enroll / Delete) anchored to the
-   *  host header's ellipsis button. Hosts render the trigger; the menu lives here so its
-   *  Move/Merge/Share sheets stay co-located. */
-  openMenu: (anchor: DOMRect) => void
-}
 
 interface PropertyItemDetailProps {
   item: LocalPropertyItem
   locations: LocalPropertyLocation[]
   holders: Map<string, HolderInfo>
   items: LocalPropertyItem[]
-  onEnroll: () => void
-  onEdit?: () => void
-  onDelete?: () => void
-  canDelete?: boolean
-  /** Stage this item (+ its SKO subtree) for turn-in — the rolling DA 3161 bucket. */
-  onStageTurnIn?: () => void
-  /** The whole property drawer element the desktop overlays (PMCS, split/merge)
-   *  scope to — so they dim/center over the entire drawer, not just the right
-   *  pane. Null on mobile, where those surfaces render as bottom Sheets. */
-  drawerRef?: RefObject<HTMLElement | null>
 }
 
 function DetailRow({ label, value }: { label: string; value: string | null | undefined }) {
@@ -46,34 +21,6 @@ function DetailRow({ label, value }: { label: string; value: string | null | und
     <div className="flex justify-between items-baseline gap-4 py-2 border-b border-primary/5 last:border-b-0">
       <span className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase shrink-0">{label}</span>
       <span className="text-[10pt] text-primary text-right min-w-0 break-words">{value}</span>
-    </div>
-  )
-}
-
-/** Quantity entry shared by Expend and Split/Move: a primitive numeric TextInput
- *  with an identical "of N" cap to its right. */
-function QtyField({
-  value, onChange, total, placeholder, onKeyDown,
-}: {
-  value: number
-  onChange: (v: string) => void
-  total: number
-  placeholder: string
-  onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void
-}) {
-  return (
-    <div className="flex items-center gap-3">
-      <div className="flex-1 min-w-0">
-        <TextInput
-          value={value ? String(value) : ''}
-          onChange={onChange}
-          onKeyDown={onKeyDown}
-          type="text"
-          inputMode="numeric"
-          placeholder={placeholder}
-        />
-      </div>
-      <span className="text-[10pt] text-tertiary shrink-0">of {total}</span>
     </div>
   )
 }
@@ -95,47 +42,15 @@ function WarnBadge({ label }: { label: string }) {
   )
 }
 
-export const PropertyItemDetail = forwardRef<PropertyItemDetailHandle, PropertyItemDetailProps>(
-  function PropertyItemDetail({ item, locations, holders, items, onEnroll, onEdit, onDelete, canDelete, onStageTurnIn, drawerRef }, ref) {
+/**
+ * The item detail BODY — info only. All item actions live in the shared
+ * ItemActionMenu (mounted by PropertyPanel, opened from the header ellipsis); this
+ * surface just reads the item: identity fields, the split-across-holders "Signed
+ * out" fold, notes, components, and the lifecycle timeline.
+ */
+export function PropertyItemDetail({ item, locations, holders, items }: PropertyItemDetailProps) {
   const isMobile = useIsMobile()
-  const splitItem = usePropertyStore(s => s.splitItem)
-  const mergeItems = usePropertyStore(s => s.mergeItems)
-  const expendItem = usePropertyStore(s => s.expendItem)
-  const editItem = usePropertyStore(s => s.editItem)
   const currentUserId = useAuthStore(s => s.user?.id ?? null)
-
-  const [showSplitSheet, setShowSplitSheet] = useState(false)
-  const [showMergeSheet, setShowMergeSheet] = useState(false)
-  const [showExpendSheet, setShowExpendSheet] = useState(false)
-  const [showPmcs, setShowPmcs] = useState(false)
-  const [splitQty, setSplitQty] = useState(1)
-  const [expendQty, setExpendQty] = useState(1)
-  const [splitTargetId, setSplitTargetId] = useState<string | null>(null)
-  const [menuAnchor, setMenuAnchor] = useState<{ rect: DOMRect } | null>(null)
-  useImperativeHandle(ref, () => ({
-    openMenu: (anchor: DOMRect) => setMenuAnchor({ rect: anchor }),
-  }), [])
-
-  const { share: shareToChat, picker: shareToChatPicker } = useShareToChat()
-  const handleShareToChat = () => {
-    const qty = item.is_serialized ? (item.serial_number ? `SN ${item.serial_number}` : 'Serialized') : `Qty ${item.quantity}`
-    shareToChat({
-      type: 'shared_ref',
-      refKind: 'property-item',
-      refId: item.id,
-      label: item.name || item.nomenclature || 'Item',
-      subLabel: item.nsn ? `${qty} · NSN ${item.nsn}` : qty,
-    })
-  }
-
-  const mergeCandidates = useMemo(() =>
-    items.filter(i =>
-      i.id !== item.id &&
-      !i.is_serialized &&
-      i.name.toLowerCase() === item.name.toLowerCase()
-    ),
-    [items, item.id, item.name]
-  )
 
   // Outstanding custody for a non-serialized stack: who holds how many right now,
   // folded from this item's open ledger receipts (Σ sign_down − Σ sign_up per
@@ -177,109 +92,21 @@ export const PropertyItemDetail = forwardRef<PropertyItemDetailHandle, PropertyI
     return () => { cancelled = true }
   }, [item.id, item.is_serialized, item.quantity, holders])
 
-  const splitMergeTarget = useMemo(() =>
-    splitTargetId
-      ? items.find(i =>
-          i.id !== item.id &&
-          !i.is_serialized &&
-          i.location_id === splitTargetId &&
-          i.name.toLowerCase() === item.name.toLowerCase() &&
-          (item.nsn ? i.nsn === item.nsn : !i.nsn)
-        ) ?? null
-      : null,
-    [splitTargetId, items, item.id, item.name, item.nsn]
-  )
-
-  const handleSplit = async () => {
-    if (!splitTargetId) return
-    setShowSplitSheet(false)
-    await splitItem(item.id, splitQty, splitTargetId)
-  }
-
-  const handleMerge = async (sourceId: string) => {
-    setShowMergeSheet(false)
-    await mergeItems(sourceId, item.id)
-  }
-
-  // Expend quantity is a free-typed number input bounded by on-hand (you can only
-  // consume what's present, not what's signed out). 0 = empty input → submit blocked.
-  const setExpendInput = (v: string) => {
-    const digits = v.replace(/[^0-9]/g, '')
-    setExpendQty(digits === '' ? 0 : Math.min(parseInt(digits, 10), item.quantity))
-  }
-  const canExpend = expendQty >= 1 && expendQty <= item.quantity
-  const handleExpend = async () => {
-    if (!canExpend) return
-    setShowExpendSheet(false)
-    await expendItem(item.id, expendQty)
-  }
-
   const location = item.location_id ? locations.find(l => l.id === item.location_id) : null
   const holder = item.current_holder_id ? holders.get(item.current_holder_id) : null
 
-  // Ownership (personal vs cluster). null owner = cluster-owned (default). Set =
-  // personally owned; it travels with the owner's member-zone on PCS. The toggle
-  // flips between "mine" (current user) and cluster — owning for someone else is
-  // not an affordance here. See personal-zone-pcs-rehome.md.
+  // Ownership (personal vs cluster) — read-only here for the Owner row; the toggle
+  // lives in the shared ItemActionMenu. See personal-zone-pcs-rehome.md.
   const isMine = !!currentUserId && item.owner_user_id === currentUserId
   const ownerLabel = item.owner_user_id
     ? (isMine ? 'You' : holders.get(item.owner_user_id)?.displayName ?? 'Personal')
     : null
-  const toggleOwnership = () =>
-    void editItem(item.id, { owner_user_id: isMine ? null : currentUserId })
   const parentItem = item.parent_item_id ? items.find(i => i.id === item.parent_item_id) : null
   const subItems = items.filter(i => i.parent_item_id === item.id)
   const isMissing = item.condition_code === 'missing'
   const expiry = expiryStatus(item.expiry_date ?? null)
   const isExpired = expiry === 'expired'
   const isDepleted = !item.is_serialized && item.quantity <= 0
-
-  // ── Shared split/move + merge body pieces. Rendered in a single primitive
-  //    PreviewOverlay card (matching the Expend overlay) — primitive TextInput
-  //    quantity + primitive PickerInput destination. ───────────────────────────
-  const splitTitle = item.quantity > 1 ? 'Split / Move' : 'Move to Location'
-  const otherLocations = locations.filter(l => l.id !== item.location_id)
-
-  // Quantity to move is a free-typed number bounded by on-hand, like Expend.
-  const setSplitInput = (v: string) => {
-    const digits = v.replace(/[^0-9]/g, '')
-    setSplitQty(digits === '' ? 0 : Math.min(Math.max(parseInt(digits, 10), 1), item.quantity))
-  }
-
-  const mergeHint = splitMergeTarget ? (
-    <p className="text-[10pt] text-secondary">
-      Will merge into existing <span className="font-medium">{splitMergeTarget.name}</span> (×{splitMergeTarget.quantity}) at that location
-    </p>
-  ) : null
-
-  const mergeIntro = (
-    <p className="text-[10pt] text-secondary">
-      Select an item to absorb into <span className="font-medium">{item.name}</span> (×{item.quantity}). The selected item will be deleted.
-    </p>
-  )
-
-  const mergeRows = (
-    <>
-      {mergeCandidates.map(candidate => {
-        const candidateLoc = candidate.location_id ? locations.find(l => l.id === candidate.location_id) : null
-        return (
-          <button
-            key={candidate.id}
-            onClick={() => handleMerge(candidate.id)}
-            className="w-full flex items-center justify-between px-4 py-3 text-left border-b border-primary/5 last:border-b-0 active:bg-secondary/5 transition-colors"
-          >
-            <div>
-              <p className="text-sm text-primary">{candidate.name}</p>
-              {candidateLoc && <p className="text-[10pt] text-tertiary">{candidateLoc.name}</p>}
-            </div>
-            <span className="text-sm font-medium px-2 py-1 rounded-full bg-tertiary/10 text-tertiary shrink-0 ml-2">
-              ×{candidate.quantity}
-            </span>
-          </button>
-        )
-      })}
-    </>
-  )
 
   return (
     <div className={`flex flex-col h-full ${isMobile ? 'px-4 py-4 space-y-4' : 'px-3 py-3 space-y-3'}`}>
@@ -391,142 +218,6 @@ export const PropertyItemDetail = forwardRef<PropertyItemDetailHandle, PropertyI
       />
 
       <div className={isMobile ? 'h-16 shrink-0' : 'h-8 shrink-0'} />
-
-      {/* Action menu — opened from the host header ellipsis (openMenu handle).
-          All item actions live here so Move/Merge/Share sheets stay co-located. */}
-      {menuAnchor && (
-        <LiftedRowMenu
-          isOpen
-          anchorRect={menuAnchor.rect}
-          onClose={() => setMenuAnchor(null)}
-          layout="list"
-          align="right"
-          items={[
-            ...(onEdit ? [{ key: 'edit', label: 'Edit', icon: Pencil, onAction: onEdit } as ContextMenuItem] : []),
-            ...(currentUserId ? [{
-              key: 'ownership',
-              label: isMine ? 'Mark as cluster property' : 'Mark as mine',
-              icon: isMine ? Users : UserCheck,
-              onAction: toggleOwnership,
-            } as ContextMenuItem] : []),
-            ...(!item.is_serialized ? [{
-              key: 'move',
-              label: item.quantity > 1 ? 'Split / Move' : 'Move to location',
-              icon: ArrowRightLeft,
-              onAction: () => { setSplitQty(1); setSplitTargetId(null); setShowSplitSheet(true) },
-            } as ContextMenuItem] : []),
-            ...(!item.is_serialized && mergeCandidates.length > 0
-              ? [{ key: 'merge', label: 'Merge like items', icon: GitMerge, onAction: () => setShowMergeSheet(true) } as ContextMenuItem]
-              : []),
-            ...(!item.is_serialized && item.quantity > 0
-              ? [{ key: 'expend', label: 'Expend', icon: PackageMinus, onAction: () => { setExpendQty(1); setShowExpendSheet(true) } } as ContextMenuItem]
-              : []),
-            { key: 'pmcs', label: 'PMCS', icon: Wrench, onAction: () => setShowPmcs(true) },
-            { key: 'share', label: 'Share to chat', icon: MessageSquare, onAction: handleShareToChat },
-            { key: 'enroll', label: item.visual_fingerprint ? 'Update Visual ID' : 'Enroll Visual ID', icon: ScanLine, onAction: onEnroll },
-            ...(onStageTurnIn ? [{ key: 'turnin', label: 'Stage for turn-in', icon: PackageMinus, onAction: onStageTurnIn } as ContextMenuItem] : []),
-            ...(onDelete && canDelete ? [{ key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: onDelete } as ContextMenuItem] : []),
-          ]}
-        />
-      )}
-
-      {/* Split / Move — single primitive PreviewOverlay card matching Expend:
-          primitive TextInput quantity ("of N") + primitive PickerInput destination,
-          Move in the action footer. Drawer-scoped on desktop, centered on mobile. */}
-      <PreviewOverlay
-        isOpen={showSplitSheet}
-        onClose={() => setShowSplitSheet(false)}
-        anchorRect={null}
-        containerRef={drawerRef}
-        title={splitTitle}
-        maxWidth={320}
-        rightFooter={
-          <div className="bg-themewhite rounded-2xl px-1.5 py-1.5">
-            <PillButton
-              icon={ArrowRightLeft}
-              iconSize={16}
-              accent="info"
-              disabled={!splitTargetId}
-              onClick={handleSplit}
-              label={splitQty >= item.quantity ? 'Move all' : `Move ${splitQty}`}
-            />
-          </div>
-        }
-      >
-        <div className="px-4 py-3 space-y-3">
-          {item.quantity > 1 && (
-            <QtyField value={splitQty} onChange={setSplitInput} total={item.quantity} placeholder="1" />
-          )}
-          <PickerInput
-            value={splitTargetId ?? ''}
-            onChange={setSplitTargetId}
-            options={otherLocations.map(l => ({ value: l.id, label: l.name }))}
-            placeholder="Destination"
-          />
-          {mergeHint}
-        </div>
-      </PreviewOverlay>
-
-      {/* Merge Like Items — single primitive PreviewOverlay card. */}
-      <PreviewOverlay
-        isOpen={showMergeSheet}
-        onClose={() => setShowMergeSheet(false)}
-        anchorRect={null}
-        containerRef={drawerRef}
-        title="Merge Like Items"
-        maxWidth={320}
-      >
-        <div className="px-4 py-3 space-y-3">
-          {mergeIntro}
-          <SectionCard>{mergeRows}</SectionCard>
-        </div>
-      </PreviewOverlay>
-
-      {/* Expend — single primitive PreviewOverlay card: title + close (top-right),
-          the primitive TextInput quantity in the body, and a Check submit in the
-          action footer (rightFooter, bottom-right). */}
-      <PreviewOverlay
-        isOpen={showExpendSheet}
-        onClose={() => setShowExpendSheet(false)}
-        anchorRect={null}
-        containerRef={drawerRef}
-        title="Expend"
-        maxWidth={320}
-        rightFooter={
-          <div className="bg-themewhite rounded-2xl px-1.5 py-1.5">
-            <PillButton
-              icon={Check}
-              iconSize={16}
-              accent="success"
-              disabled={!canExpend}
-              onClick={handleExpend}
-              label="Expend"
-            />
-          </div>
-        }
-      >
-        <div className="px-4 py-3">
-          <QtyField
-            value={expendQty}
-            onChange={setExpendInput}
-            total={item.quantity}
-            placeholder="0"
-            onKeyDown={(e) => { if (e.key === 'Enter') handleExpend() }}
-          />
-        </div>
-      </PreviewOverlay>
-
-      {/* PMCS — preview-overlay launched from the ellipsis menu (open faults to
-          correct / clean-check / report + editable, deletable history). */}
-      <PmcsSheet
-        isOpen={showPmcs}
-        onClose={() => setShowPmcs(false)}
-        subjectId={item.id}
-        clinicId={item.clinic_id}
-        containerRef={drawerRef}
-      />
-
-      {shareToChatPicker}
     </div>
   )
-})
+}

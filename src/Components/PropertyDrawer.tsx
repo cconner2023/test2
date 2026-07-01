@@ -292,7 +292,6 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                         selectedItem={selectedItem}
                         onSelectItem={(item) => navSheetRef.current?.openItem(item)}
                         onOpenAddSheet={() => setShowAddSheet(true)}
-                        onEditItem={handleEditItem}
                         onDeleteItem={isSupervisorRole ? handleDeleteItem : undefined}
                         onAddItem={handleAddItem}
                         onBack={handleBack}
@@ -316,7 +315,6 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                         onSearchChange={setSearchQuery}
                         onSelectItem={handleSelectItem}
                         onOpenAddSheet={() => setShowAddSheet(true)}
-                        onEditItem={handleEditItem}
                         onDeleteItem={handleDeleteItem}
                         onAddItem={handleAddItem}
                         onBack={handleBack}

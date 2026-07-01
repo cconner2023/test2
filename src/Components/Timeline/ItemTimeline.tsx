@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Plus, ArrowRightLeft, UserCheck, Pencil, Minus, AlertTriangle, Wrench, ClipboardCheck, Eye, Trash2, type LucideIcon } from 'lucide-react'
+import { Plus, ArrowRightLeft, UserCheck, Pencil, Minus, AlertTriangle, Wrench, ClipboardCheck, Eye, Trash2, Split, Merge, Undo2, type LucideIcon } from 'lucide-react'
 import { SkeletonRows } from '../Skeleton'
 import { getAuditBySubjectLocal, fetchAuditBySubject } from '../../lib/auditService'
 import { useInvalidation } from '../../stores/useInvalidationStore'
+import { usePropertyStore } from '../../stores/usePropertyStore'
 import type { AuditEvent } from '../../lib/auditTypes'
 import { foldOpenFaults, pmcsOpened, summarizePmcs } from '../../lib/pmcsFold'
 import type { LocalPropertyLocation, HolderInfo } from '../../Types/PropertyTypes'
@@ -43,6 +44,8 @@ const EVENT_ICON: Record<string, LucideIcon> = {
   'item.assigned': UserCheck,
   'item.transferred': UserCheck,
   'item.edited': Pencil,
+  'item.split': Split,
+  'item.merged': Merge,
   'item.expended': Minus,
   'fault.opened': AlertTriangle,
   'fault.corrected': Wrench,
@@ -61,6 +64,23 @@ const FIELD_LABELS: Record<string, string> = {
   expiry_date: 'expiry',
   notes: 'notes',
   parent_item_id: 'parent',
+  owner_user_id: 'owner',
+  quantity_authorized: 'authorized qty',
+}
+
+/** Head events the undo dispatcher can reverse. Custody/turn-in have their own
+ *  flows; merge/delete are terminal; an item.edited needs the before/after map. */
+function isUndoableHead(e: AuditEvent): boolean {
+  switch (e.eventType) {
+    case 'item.moved':
+    case 'item.assigned':
+    case 'item.split':
+      return true
+    case 'item.edited':
+      return !!(e.payload && (e.payload as Record<string, unknown>).changes)
+    default:
+      return false
+  }
 }
 
 export function ItemTimeline({ subjectId, clinicId, locations, holders, title = 'History' }: ItemTimelineProps) {
@@ -70,6 +90,7 @@ export function ItemTimeline({ subjectId, clinicId, locations, holders, title = 
   const [lifted, setLifted] = useState<{ event: AuditEvent; rect: DOMRect; html: string } | null>(null)
   const pressRef = useRef<LiftPressState | null>(null)
   const propGen = useInvalidation('properties')
+  const undoLastEvent = usePropertyStore((s) => s.undoLastEvent)
 
   // Long-press / right-click a history row → lift it and drop a View/Edit/Delete
   // menu beneath (the shared LiftedRowMenu peek). A plain factory, loop-safe in
@@ -139,6 +160,15 @@ export function ItemTimeline({ subjectId, clinicId, locations, holders, title = 
         const labels = changed.map((f) => FIELD_LABELS[f] ?? f)
         return `Updated ${labels.join(', ')}`
       }
+      case 'item.split': {
+        const qty = typeof p.quantity === 'number' && p.quantity > 1 ? ` ×${p.quantity}` : ''
+        return `Split${qty} off`
+      }
+      case 'item.merged': {
+        const qty = typeof p.quantity === 'number' && p.quantity > 1 ? ` ×${p.quantity}` : ''
+        return typeof p.from_name === 'string' && p.from_name
+          ? `Absorbed${qty} from ${p.from_name}` : `Absorbed${qty}`
+      }
       case 'item.expended':
         return `Expended${p.quantity_delta ? ` ×${p.quantity_delta}` : ''}`
       // Legacy standalone fault rows (pre-bundle data); new faults ride inside the
@@ -177,7 +207,9 @@ export function ItemTimeline({ subjectId, clinicId, locations, holders, title = 
           <p className="text-[10pt] text-tertiary px-4 py-4">No history yet</p>
         ) : (
           <div className="divide-y divide-tertiary/8">
-            {events.map((e) => {
+            {/* Rolling last-10 window — the item's active history horizon (older
+                rows still exist for the fault fold above + reap at 180d). */}
+            {events.slice(0, 10).map((e) => {
               const open = isOpenFault(e)
               return (
                 <button
@@ -204,12 +236,20 @@ export function ItemTimeline({ subjectId, clinicId, locations, holders, title = 
         const e = lifted.event
         const isForm = e.eventType === 'pmcs.clear' || e.eventType === 'dispatch.opened' || e.eventType === 'dispatch.closed'
         const editableText = e.eventType === 'fault.opened' || e.eventType === 'fault.corrected'
+        // Undo is offered ONLY on the head (most recent) row and only for
+        // reversible event types — "undo my last action".
+        const canUndo = e.id === events[0]?.id && isUndoableHead(e)
+        const undoItem: ContextMenuItem[] = canUndo
+          ? [{ key: 'undo', label: 'Undo', icon: Undo2, onAction: () => { void undoLastEvent(subjectId, e); setLifted(null) } }]
+          : []
         const items: ContextMenuItem[] = isForm
           ? [
+              ...undoItem,
               { key: 'edit', label: 'Edit', icon: Pencil, onAction: () => setPreview({ event: e, action: 'edit' }) },
               { key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => setPreview({ event: e, action: 'delete' }) },
             ]
           : [
+              ...undoItem,
               { key: 'view', label: 'View', icon: Eye, onAction: () => setPreview({ event: e, action: 'view' }) },
               ...(editableText ? [{ key: 'edit', label: 'Edit', icon: Pencil, onAction: () => setPreview({ event: e, action: 'edit' }) }] : []),
               { key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => setPreview({ event: e, action: 'delete' }) },

@@ -31,7 +31,8 @@ import { useMinLoadTime } from '../../Hooks/useMinLoadTime'
 import { useClinicName } from '../../Hooks/useClinicNameResolver'
 import type { LocalPropertyItem, LocalPropertyLocation, HandReceipt } from '../../Types/PropertyTypes'
 import { ROOT_LOCATION_NAME } from '../../Types/PropertyTypes'
-import { PropertyItemDetail, type PropertyItemDetailHandle } from './PropertyItemDetail'
+import { PropertyItemDetail } from './PropertyItemDetail'
+import { ItemActionMenu, type ItemActionMenuHandle } from './ItemActionMenu'
 import { Da2062Detail, da2062DetailSubtitle, type Da2062DetailHandle } from './Da2062Detail'
 import { PropertyRecordDetail, type PropertyRecordDetailHandle, type SelectedRecord } from './PropertyRecordDetail'
 import { PropertyTurnInDetail, type PropertyTurnInDetailHandle, type PendingTurnIn } from './PropertyTurnInDetail'
@@ -50,7 +51,6 @@ interface PropertyPanelProps {
   searchQuery?: string
   selectedItem?: LocalPropertyItem | null
   onSelectItem: (item: LocalPropertyItem) => void
-  onEditItem: () => void
   onDeleteItem?: (item: LocalPropertyItem) => void
   onAddItem: () => void
   onBack: () => void
@@ -89,7 +89,6 @@ export const PropertyPanel = memo(function PropertyPanel({
   searchQuery = '',
   selectedItem = null,
   onSelectItem,
-  onEditItem,
   onDeleteItem,
   onAddItem,
   onBack,
@@ -347,7 +346,7 @@ export const PropertyPanel = memo(function PropertyPanel({
   const itemFormRef = useRef<PropertyItemFormHandle>(null)
   const locationFormRef = useRef<PropertyLocationFormHandle>(null)
   const signOutFormRef = useRef<SignOutFormHandle>(null)
-  const itemDetailRef = useRef<PropertyItemDetailHandle>(null)
+  const itemActionRef = useRef<ItemActionMenuHandle>(null)
   const locDetailRef = useRef<PropertyLocationDetailHandle>(null)
   const da2062DetailRef = useRef<Da2062DetailHandle>(null)
   const recordDetailRef = useRef<PropertyRecordDetailHandle>(null)
@@ -751,22 +750,27 @@ export const PropertyPanel = memo(function PropertyPanel({
     setPendingDeleteTurnIn(null)
   }, [pendingDeleteTurnIn, store])
 
-  // ── Custody card context-menu actions ──
-  // The cards carry the lean ReceiptItem; resolve the full store item so View/Edit/
-  // Delete reuse the same flows as the tree/map (handleSelectItem / handleEditItemRow /
-  // pendingDeleteItem). Locate is the existing handleLocateReceiptItem.
+  // ── Shared item action menu ──
+  // The single item context menu (View · Edit · Split/Merge · Expend · PMCS · Visual
+  // ID · Share · Stage turn-in · Delete) + its co-located sheets live in ItemActionMenu,
+  // mounted once per layout below and opened imperatively from every surface (tree rows,
+  // Custody item cards, item detail header). `view` gates the leading "View" row — on
+  // for surfaces not already showing the item, off on the item detail itself.
+  const openItemMenu = useCallback(
+    (item: LocalPropertyItem, rect: DOMRect, opts?: { view?: boolean }) =>
+      itemActionRef.current?.openMenu(item, rect, opts),
+    [],
+  )
+  // Custody cards carry the lean ReceiptItem; resolve the full store item before
+  // opening the shared menu (which operates on LocalPropertyItem).
   const resolveStoreItem = useCallback(
     (ri: ReceiptItem) => store.items.find((i) => i.id === ri.id) ?? null,
     [store.items],
   )
-  const handleEditReceiptItem = useCallback((ri: ReceiptItem) => {
+  const openReceiptItemMenu = useCallback((ri: ReceiptItem, rect: DOMRect) => {
     const full = resolveStoreItem(ri)
-    if (full) handleEditItemRow(full)
-  }, [resolveStoreItem, handleEditItemRow])
-  const handleDeleteReceiptItem = useCallback((ri: ReceiptItem) => {
-    const full = resolveStoreItem(ri)
-    if (full) setPendingDeleteItem(full)
-  }, [resolveStoreItem])
+    if (full) openItemMenu(full, rect, { view: true })
+  }, [resolveStoreItem, openItemMenu])
 
   // Delete a PMCS/dispatch audit record — hard-removes the row through the store
   // (same path as PropertyRecordDetail), confirmed via the ConfirmDialog below.
@@ -862,6 +866,25 @@ export const PropertyPanel = memo(function PropertyPanel({
     <AddFab tour="property-add-fab" label="Add" onClick={onOpenAddSheet} className="absolute right-4" />
   ) : null
 
+  // The one shared item action menu + its co-located sheets — mounted once per layout
+  // (desktop / mobile) below and opened from the tree, Custody item cards, and the item
+  // detail header via openItemMenu. Host actions reuse the existing item flows; the
+  // self-contained actions (mark-as-mine, split/merge, expend, PMCS, share) live inside.
+  const itemActionMenuEl = (
+    <ItemActionMenu
+      ref={itemActionRef}
+      items={store.items}
+      locations={visibleLocations}
+      containerRef={panelRef}
+      onView={handleSelectItem}
+      onEdit={handleEditItemRow}
+      onDelete={onDeleteItem ? (it) => setPendingDeleteItem(it) : undefined}
+      canDelete={!!onDeleteItem}
+      onEnroll={onEnrollItem ? (it) => onEnrollItem(it) : undefined}
+      onStageTurnIn={onDeleteItem ? (it) => handleStageTurnIn(it) : undefined}
+    />
+  )
+
   // The bottom-island tabs (Map · Camera · Sign-outs) — identical on both platforms.
   // Map/Sign-outs are persistent tabs (drive propertyTab); Camera is momentary (opens
   // the scanner overlay, which returns to the map). The location tree is NOT a tab.
@@ -925,9 +948,8 @@ export const PropertyPanel = memo(function PropertyPanel({
                 onSelectAll={() => mapRef.current?.resetZoom()}
                 allSelected={!selectedLocationId}
                 onEditLocation={handleEditLocation}
-                onEditItem={handleEditItemRow}
+                onOpenItemMenu={(item, rect) => openItemMenu(item, rect, { view: true })}
                 onDeleteLocation={onDeleteItem ? (locId) => setPendingDeleteLocId(locId) : undefined}
-                onDeleteItem={onDeleteItem ? (item) => setPendingDeleteItem(item) : undefined}
                 onAddChildLocation={handleAddChildLocation}
                 onAddLevel={(id) => mapRef.current?.addFloorTo(id)}
                 onAddItemAtLocation={handleAddItemAtLocation}
@@ -950,8 +972,7 @@ export const PropertyPanel = memo(function PropertyPanel({
                 onLocateItem={handleLocateReceiptItem}
                 onSelectReceipt={handleSelectReceipt}
                 onSelectRecord={handleSelectRecord}
-                onEditItem={handleEditReceiptItem}
-                onDeleteItem={onDeleteItem ? handleDeleteReceiptItem : undefined}
+                onOpenItemMenu={openReceiptItemMenu}
                 onDeleteReceipt={onDeleteItem ? setPendingDeleteReceipt : undefined}
                 onDeleteRecord={onDeleteItem ? setPendingDeleteRecord : undefined}
                 turnIns={turnIns}
@@ -1057,7 +1078,7 @@ export const PropertyPanel = memo(function PropertyPanel({
                     <p className="truncate text-sm font-medium text-primary">{selectedItem.name}</p>
                   </div>
                   <HeaderPill>
-                    <span className="inline-flex" onClick={(e) => itemDetailRef.current?.openMenu((e.currentTarget as HTMLElement).getBoundingClientRect())}>
+                    <span className="inline-flex" onClick={(e) => openItemMenu(selectedItem, (e.currentTarget as HTMLElement).getBoundingClientRect())}>
                       <PillButton icon={MoreHorizontal} iconSize={16} onClick={() => {}} label="More actions" />
                     </span>
                     <PillButton icon={X} iconSize={16} onClick={() => { onBack(); closeLocationDetail() }} label="Close" />
@@ -1065,17 +1086,10 @@ export const PropertyPanel = memo(function PropertyPanel({
                 </div>
                 <div className="flex-1 min-h-0 overflow-y-auto">
                   <PropertyItemDetail
-                    ref={itemDetailRef}
                     item={selectedItem}
                     locations={visibleLocations}
                     holders={store.holders}
                     items={store.items}
-                    onEnroll={() => onEnrollItem?.(selectedItem)}
-                    onEdit={onEditItem}
-                    onDelete={onDeleteItem ? () => onDeleteItem(selectedItem) : undefined}
-                    canDelete={!!onDeleteItem}
-                    onStageTurnIn={onDeleteItem ? () => handleStageTurnIn(selectedItem) : undefined}
-                    drawerRef={panelRef}
                   />
                 </div>
               </>
@@ -1131,9 +1145,8 @@ export const PropertyPanel = memo(function PropertyPanel({
                     onNavigateZone={(id) => mapRef.current?.navigateToZone(id)}
                     onSelectItem={handleSelectItem}
                     onEditLocation={handleEditLocation}
-                    onEditItem={handleEditItemRow}
+                    onOpenItemMenu={(item, rect) => openItemMenu(item, rect, { view: true })}
                     onDeleteLocation={onDeleteItem ? (locId) => setPendingDeleteLocId(locId) : undefined}
-                    onDeleteItem={onDeleteItem ? (item) => setPendingDeleteItem(item) : undefined}
                     onAddChildLocation={handleAddChildLocation}
                     onAddItemAtLocation={handleAddItemAtLocation}
                     drawerRef={panelRef}
@@ -1294,6 +1307,7 @@ export const PropertyPanel = memo(function PropertyPanel({
             items={locMenuItems(selectedLocation)}
           />
         )}
+        {itemActionMenuEl}
         {photoInput}
 
         <ConfirmDialog
@@ -1363,8 +1377,7 @@ export const PropertyPanel = memo(function PropertyPanel({
               onLocateItem={handleLocateReceiptItem}
               onSelectReceipt={handleSelectReceipt}
               onSelectRecord={handleSelectRecord}
-              onEditItem={handleEditReceiptItem}
-              onDeleteItem={onDeleteItem ? handleDeleteReceiptItem : undefined}
+              onOpenItemMenu={openReceiptItemMenu}
               onDeleteReceipt={onDeleteItem ? setPendingDeleteReceipt : undefined}
               onDeleteRecord={onDeleteItem ? setPendingDeleteRecord : undefined}
               turnIns={turnIns}
@@ -1499,7 +1512,7 @@ export const PropertyPanel = memo(function PropertyPanel({
                     : selectedTurnIn
                     ? (e) => turnInDetailRef.current?.openMenu((e.currentTarget as HTMLElement).getBoundingClientRect())
                     : mobileItem
-                    ? (e) => itemDetailRef.current?.openMenu((e.currentTarget as HTMLElement).getBoundingClientRect())
+                    ? (e) => openItemMenu(mobileItem, (e.currentTarget as HTMLElement).getBoundingClientRect())
                     : openLocMenu
                 }
               >
@@ -1581,17 +1594,10 @@ export const PropertyPanel = memo(function PropertyPanel({
           />
         ) : mobileItem ? (
           <PropertyItemDetail
-            ref={itemDetailRef}
             item={mobileItem}
             locations={visibleLocations}
             holders={store.holders}
             items={store.items}
-            onEnroll={() => onEnrollItem?.(mobileItem)}
-            onEdit={() => openMobileItemForm(mobileItem, mobileItem.location_id ?? null)}
-            onDelete={onDeleteItem ? () => setPendingDeleteItem(mobileItem) : undefined}
-            canDelete={!!onDeleteItem}
-            onStageTurnIn={onDeleteItem ? () => handleStageTurnIn(mobileItem) : undefined}
-            drawerRef={panelRef}
           />
         ) : selectedLocation ? (
           <PropertyLocationDetail
@@ -1603,9 +1609,8 @@ export const PropertyPanel = memo(function PropertyPanel({
             onNavigateZone={(id) => mapRef.current?.navigateToZone(id)}
             onSelectItem={handleSelectItem}
             onEditLocation={handleEditLocation}
-            onEditItem={handleEditItemRow}
+            onOpenItemMenu={(item, rect) => openItemMenu(item, rect, { view: true })}
             onDeleteLocation={onDeleteItem ? (locId) => setPendingDeleteLocId(locId) : undefined}
-            onDeleteItem={onDeleteItem ? (item) => setPendingDeleteItem(item) : undefined}
             onAddChildLocation={handleAddChildLocation}
             onAddItemAtLocation={handleAddItemAtLocation}
             drawerRef={panelRef}
@@ -1623,6 +1628,7 @@ export const PropertyPanel = memo(function PropertyPanel({
           items={locMenuItems(selectedLocation)}
         />
       )}
+      {itemActionMenuEl}
       {photoInput}
 
       <Sheet
@@ -1647,9 +1653,8 @@ export const PropertyPanel = memo(function PropertyPanel({
           onSelectLocation={(loc) => { mapRef.current?.navigateToZone(loc.id); setShowLocations(false) }}
           onSelectItem={(item) => { handleSelectItem(item); setShowLocations(false) }}
           onEditLocation={handleEditLocation}
-          onEditItem={handleEditItemRow}
+          onOpenItemMenu={(item, rect) => openItemMenu(item, rect, { view: true })}
           onDeleteLocation={onDeleteItem ? (locId) => setPendingDeleteLocId(locId) : undefined}
-          onDeleteItem={onDeleteItem ? (item) => setPendingDeleteItem(item) : undefined}
           onAddChildLocation={handleAddChildLocation}
           onAddLevel={(id) => mapRef.current?.addFloorTo(id)}
           onAddItemAtLocation={handleAddItemAtLocation}

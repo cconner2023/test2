@@ -4,7 +4,8 @@ import { Sheet } from '../Sheet'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { PillButton } from '../HeaderPill'
 import { PropertyLocationList } from './PropertyLocationList'
-import { PropertyItemDetail, type PropertyItemDetailHandle } from './PropertyItemDetail'
+import { PropertyItemDetail } from './PropertyItemDetail'
+import { ItemActionMenu, type ItemActionMenuHandle } from './ItemActionMenu'
 import { PropertyItemForm, type PropertyItemFormHandle } from './PropertyItemForm'
 import { PropertyLocationForm, type PropertyLocationFormHandle } from './PropertyLocationForm'
 import { usePropertyStore } from '../../stores/usePropertyStore'
@@ -60,6 +61,7 @@ export const PropertyNavSheet = forwardRef<PropertyNavSheetHandle, PropertyNavSh
         editingItem: s.editingItem,
         removeLocation: s.removeLocation,
         removeItem: s.removeItem,
+        stageTurnIn: s.stageTurnIn,
         setEditingItem: s.setEditingItem,
         setDefaultLocationId: s.setDefaultLocationId,
       })),
@@ -69,7 +71,7 @@ export const PropertyNavSheet = forwardRef<PropertyNavSheetHandle, PropertyNavSh
 
     const itemFormRef = useRef<PropertyItemFormHandle>(null)
     const locationFormRef = useRef<PropertyLocationFormHandle>(null)
-    const itemDetailRef = useRef<PropertyItemDetailHandle>(null)
+    const itemActionRef = useRef<ItemActionMenuHandle>(null)
     const [stack, setStack] = useState<NavScreen[]>([])
     const [pendingDeleteItem, setPendingDeleteItem] = useState<LocalPropertyItem | null>(null)
     const [pendingDeleteLocId, setPendingDeleteLocId] = useState<string | null>(null)
@@ -104,6 +106,15 @@ export const PropertyNavSheet = forwardRef<PropertyNavSheetHandle, PropertyNavSh
     }, [pushScreen])
     useImperativeHandle(ref, () => ({ openLocation, openItem, openForm, openItemForm, openLocationForm }),
       [openLocation, openItem, openForm, openItemForm, openLocationForm])
+
+    // The shared item action menu (mounted below) — opened from the location list rows
+    // (with a leading "View" that pushes the item screen) and the item screen header
+    // (View omitted, already focused).
+    const openItemMenu = useCallback(
+      (item: LocalPropertyItem, rect: DOMRect, opts?: { view?: boolean }) =>
+        itemActionRef.current?.openMenu(item, rect, opts),
+      [],
+    )
 
     // Keep the item screen live as the store mutates; pop it if the item vanishes.
     const itemScreenId = top?.kind === 'item' ? top.id : null
@@ -149,7 +160,7 @@ export const PropertyNavSheet = forwardRef<PropertyNavSheetHandle, PropertyNavSh
     ) : undefined
 
     const itemActions = top?.kind === 'item' && liveItem ? (
-      <span className="inline-flex" onClick={(e) => itemDetailRef.current?.openMenu((e.currentTarget as HTMLElement).getBoundingClientRect())}>
+      <span className="inline-flex" onClick={(e) => openItemMenu(liveItem, (e.currentTarget as HTMLElement).getBoundingClientRect())}>
         <PillButton icon={MoreHorizontal} iconSize={16} onClick={() => {}} label="More actions" />
       </span>
     ) : top?.kind === 'item-form' ? (
@@ -180,9 +191,8 @@ export const PropertyNavSheet = forwardRef<PropertyNavSheetHandle, PropertyNavSh
               onOpenLocation={openLocation}
               onSelectItem={openItem}
               onEditLocation={(loc) => openLocationForm(loc)}
-              onEditItem={openItemForm}
+              onOpenItemMenu={(item, rect) => openItemMenu(item, rect, { view: true })}
               onDeleteLocation={canDelete ? (locId) => setPendingDeleteLocId(locId) : undefined}
-              onDeleteItem={canDelete ? (item) => setPendingDeleteItem(item) : undefined}
               onAddChildLocation={(parentId) => openLocationForm(null, parentId)}
               onAddItemAtLocation={(locId) => openForm(locId)}
             />
@@ -190,15 +200,10 @@ export const PropertyNavSheet = forwardRef<PropertyNavSheetHandle, PropertyNavSh
 
           {top?.kind === 'item' && liveItem && (
             <PropertyItemDetail
-              ref={itemDetailRef}
               item={liveItem}
               locations={visibleLocations}
               holders={store.holders}
               items={store.items}
-              onEnroll={() => onEnrollItem?.(liveItem)}
-              onEdit={() => openItemForm(liveItem)}
-              onDelete={() => setPendingDeleteItem(liveItem)}
-              canDelete={canDelete}
             />
           )}
 
@@ -220,6 +225,21 @@ export const PropertyNavSheet = forwardRef<PropertyNavSheetHandle, PropertyNavSh
             />
           )}
         </Sheet>
+
+        {/* The shared item action menu + its co-located sheets — opened from the item
+            screen header and the location-list item rows. No drawer ref on this mobile
+            surface, so the overlays center fixed above the sheet. */}
+        <ItemActionMenu
+          ref={itemActionRef}
+          items={store.items}
+          locations={visibleLocations}
+          onView={openItem}
+          onEdit={openItemForm}
+          onDelete={(it) => setPendingDeleteItem(it)}
+          canDelete={canDelete}
+          onEnroll={onEnrollItem ? (it) => onEnrollItem(it) : undefined}
+          onStageTurnIn={canDelete ? (it) => store.stageTurnIn([it.id]) : undefined}
+        />
 
         <ConfirmDialog
           visible={!!pendingDeleteItem}

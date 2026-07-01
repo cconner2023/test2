@@ -1,9 +1,10 @@
 import { useState, useRef, useCallback } from 'react'
-import { Upload, AlertTriangle, CheckCircle2, X, User, Building2, Variable } from 'lucide-react'
-import { BaseDrawer } from '../BaseDrawer'
-import { HeaderPill, PillButton } from '../HeaderPill'
+import { Upload, AlertTriangle, CheckCircle2, User, Building2, Variable } from 'lucide-react'
+import { Sheet } from '../Sheet'
+import { PreviewOverlay } from '../PreviewOverlay'
 import { Section, SectionCard } from '../Section'
 import { LoadingSpinner } from '../LoadingSpinner'
+import { useIsMobile } from '../../Hooks/useIsMobile'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { useNoteBlocksCsvImport } from '../../Hooks/useNoteBlocksCsvImport'
 import type { IngestScope } from '../../Hooks/useNoteBlocksIngest'
@@ -30,6 +31,7 @@ const NOUN: Record<NoteBlocksCSVKind, string> = {
 }
 
 export function NoteBlocksCSVImportDrawer({ visible, onClose, kind }: Props) {
+  const isMobile = useIsMobile()
   const clinicName = useAuthStore(s => s.user?.clinicName ?? null)
   const { ctx, canImport, scopeSelectable, importParsed } = useNoteBlocksCsvImport()
 
@@ -76,21 +78,11 @@ export function NoteBlocksCSVImportDrawer({ visible, onClose, kind }: Props) {
     : step === 'importing' ? 'Importing…'
     : 'Import Complete'
 
-  const headerRightContent =
-    step === 'pick' || step === 'preview' ? (
-      <HeaderPill>
-        <PillButton icon={X} iconSize={18} onClick={handleClose} label="Close" />
-      </HeaderPill>
-    ) : undefined
-
-  return (
-    <BaseDrawer
-      isVisible={visible}
-      onClose={handleClose}
-      fullHeight="85dvh"
-      header={{ title: headerTitle, rightContent: headerRightContent, hideDefaultClose: true }}
-      contentPadding="standard"
-    >
+  // Small step-machine: an overlay popover on desktop, a fit sheet on mobile
+  // (mirrors the map/messaging settings standard). A full BaseDrawer here nested
+  // wrong inside the Settings drawer — this is a light import surface, not a page.
+  const body = (
+    <div className="px-4 py-4">
       {step === 'pick' && (
         <div className="flex flex-col gap-4">
           {!canImport(kind) ? (
@@ -238,6 +230,30 @@ export function NoteBlocksCSVImportDrawer({ visible, onClose, kind }: Props) {
           </button>
         </div>
       )}
-    </BaseDrawer>
+    </div>
+  )
+
+  return isMobile ? (
+    <Sheet
+      isOpen={visible}
+      onClose={handleClose}
+      title={headerTitle}
+      height="fit"
+      maxHeight={85}
+      zIndex={1200}
+    >
+      {body}
+    </Sheet>
+  ) : (
+    <PreviewOverlay
+      isOpen={visible}
+      onClose={handleClose}
+      anchorRect={null}
+      title={headerTitle}
+      maxWidth={420}
+      previewMaxHeight="70dvh"
+    >
+      {body}
+    </PreviewOverlay>
   )
 }

@@ -31,9 +31,9 @@ interface PropertyLocationDetailProps {
   onSelectItem: (item: LocalPropertyItem) => void
   // Tree row actions — edit, delete, add (mirror the rail/list tree).
   onEditLocation?: (loc: LocalPropertyLocation) => void
-  onEditItem?: (item: LocalPropertyItem) => void
+  /** Open the shared item action menu for a tree item row (panel-hosted). */
+  onOpenItemMenu?: (item: LocalPropertyItem, rect: DOMRect) => void
   onDeleteLocation?: (locId: string) => void
-  onDeleteItem?: (item: LocalPropertyItem) => void
   onAddChildLocation?: (parentId: string | null) => void
   onAddItemAtLocation?: (locationId: string | null) => void
   /** The whole property drawer element the vehicle PMCS / Dispatch PreviewOverlays
@@ -58,9 +58,8 @@ export const PropertyLocationDetail = forwardRef<PropertyLocationDetailHandle, P
   onNavigateZone,
   onSelectItem,
   onEditLocation,
-  onEditItem,
+  onOpenItemMenu,
   onDeleteLocation,
-  onDeleteItem,
   onAddChildLocation,
   onAddItemAtLocation,
   drawerRef,
@@ -90,9 +89,8 @@ export const PropertyLocationDetail = forwardRef<PropertyLocationDetailHandle, P
         onSelectLocation={(loc) => onNavigateZone(loc.id)}
         onSelectItem={onSelectItem}
         onEditLocation={onEditLocation}
-        onEditItem={onEditItem}
+        onOpenItemMenu={onOpenItemMenu}
         onDeleteLocation={onDeleteLocation}
-        onDeleteItem={onDeleteItem}
         onAddChildLocation={onAddChildLocation}
         onAddItemAtLocation={onAddItemAtLocation}
       />

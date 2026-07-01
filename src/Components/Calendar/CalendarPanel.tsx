@@ -31,6 +31,7 @@ import { BlockTemplatedPanel, type BlockTemplatedHandle } from './BlockTemplated
 import { useAuthStore } from '../../stores/useAuthStore'
 import { HeaderPill, PillButton } from '../HeaderPill'
 import { useCalendarStore } from '../../stores/useCalendarStore'
+import { createAssignment, updateAssignmentCalendarOriginId } from '../../lib/trainingService'
 import { useDispatchCalendarEvents, DISPATCH_CAL_ID_PREFIX } from '../../Hooks/useDispatchCalendarEvents'
 import { useNavigationStore } from '../../stores/useNavigationStore'
 import type { CalendarPrefill } from '../../stores/useNavigationStore'
@@ -251,6 +252,12 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
   const apptTypeNames = useMemo(() => apptTypes.map(t => t.name), [apptTypes])
   useClinicCategoryColorsSync(activeClinicId)
   const [isFormPending, setIsFormPending] = useState(false)
+  // Re-entrancy guard for the save handlers. The Save pill lives in the drawer/
+  // sheet header on mobile — OUTSIDE the LoadingOverlay's relative container —
+  // so the opaque HUD doesn't cover it and a second tap during the awaited vault
+  // fanout would mint a duplicate event (new events use a fresh generateId).
+  // A synchronous ref (state is a render behind) makes any re-entry a no-op.
+  const savingRef = useRef(false)
 
   // Kick off IDB hydration + vault subscription
   useCalendarSync()
@@ -813,6 +820,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     if (newEventPrefill) {
       if (newEventPrefill.title) base = { ...base, title: newEventPrefill.title }
       if (newEventPrefill.category) base = { ...base, category: newEventPrefill.category }
+      if (newEventPrefill.notes) base = { ...base, description: newEventPrefill.notes }
       // Tag the scheduled event with its ADTMC algorithm so it rolls up as an
       // algorithm encounter (no STP cascade — completion logs the algorithm only).
       if (newEventPrefill.encounterAlgorithmId) {
@@ -828,6 +836,14 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
           end.setHours(end.getHours() + 1)
           base = { ...base, start_time: toLocalISOString(start), end_time: toLocalISOString(end) }
         }
+      }
+      // A supervisor task-assignment is due-date shaped: pin it all-day so it
+      // reads like homework, not a timed block (the save path derives the
+      // assignment dueDate from start_time — the supervisor sets the real date
+      // in the calendar). Defaults to the form's date; wins over startISO.
+      if (newEventPrefill.trainingItemId) {
+        const day = (newEventPrefill.startISO?.slice(0, 10)) ?? base.start_time.slice(0, 10)
+        base = { ...base, all_day: true, start_time: `${day}T00:00`, end_time: `${day}T23:59` }
       }
     }
     if (newEventHuddleTaskId !== null) {
@@ -850,7 +866,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
   // changes when a new session opens, so it never clobbers in-progress edits.
   const formKey = editingEvent
     ? `edit-${editingEvent.id}`
-    : `new-${newEventDateKey ?? ''}-${newEventHuddleTaskId ?? ''}-${newEventPrefill?.startISO ?? ''}-${newEventPrefill?.title ?? ''}-${newEventPrefill?.encounterAlgorithmId ?? ''}`
+    : `new-${newEventDateKey ?? ''}-${newEventHuddleTaskId ?? ''}-${newEventPrefill?.startISO ?? ''}-${newEventPrefill?.title ?? ''}-${newEventPrefill?.encounterAlgorithmId ?? ''}-${newEventPrefill?.trainingItemId ?? ''}`
 
   const handleEditEvent = useCallback((id: string) => {
     const event = events.find(e => e.id === id)
@@ -861,6 +877,8 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
   }, [events, isSupervisor])
 
   const handleSaveEvent = useCallback(async (data: EventFormData) => {
+    if (savingRef.current) return
+    savingRef.current = true
     const now = new Date().toISOString()
     setIsFormPending(true)
     try {
@@ -925,16 +943,40 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
           updated_at: now,
         }
         await writeEvent(newEvent)
+
+        // Supervisor task-assignment handoff (from the Supervisor drawer): the
+        // prefill carries the STP task id, so the SAVE — not the drawer — mints
+        // the training assignment row(s) and links each to this event's vault
+        // origin. One assignment per assignee, dueDate derived from the event's
+        // (possibly edited) start. Keeps desktop + mobile on one pathway.
+        const trainingItemId = newEventPrefill?.trainingItemId
+        if (trainingItemId && user && data.assigned_to.length > 0) {
+          const stored = useCalendarStore.getState().events.find(e => e.id === newEvent.id)
+          const dueDate = data.start_time.slice(0, 10)
+          for (const medicId of data.assigned_to) {
+            const saved = await createAssignment({
+              medicUserId: medicId,
+              trainingItemId,
+              supervisorId: user.id,
+              dueDate,
+              supervisorNotes: data.description || undefined,
+            }).catch(() => null)
+            if (saved && stored?.originId) {
+              await updateAssignmentCalendarOriginId(saved.id, user.id, stored.originId).catch(() => {})
+            }
+          }
+        }
       }
     } finally {
       setIsFormPending(false)
+      savingRef.current = false
     }
     setEditingEvent(null)
     setPanelView('calendar')
     // If this form was opened from a chat message (detected date), hop back to
     // that message; no-op otherwise.
     returnFromCalendar()
-  }, [editingEvent, writeEvent, activeClinicId, user, profile.subClusterId, returnFromCalendar])
+  }, [editingEvent, writeEvent, activeClinicId, user, profile.subClusterId, returnFromCalendar, newEventPrefill])
 
   const handleMoveEvent = useCallback((eventId: string, newStartTime: string) => {
     const events = useCalendarStore.getState().events
@@ -1079,6 +1121,8 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
 
   const handleDayDrawerSave = useCallback(async (data: EventFormData) => {
     if (!editingEvent) return
+    if (savingRef.current) return
+    savingRef.current = true
     const now = new Date().toISOString()
     const updatedEvent: CalendarEvent = {
       ...editingEvent,
@@ -1106,6 +1150,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
       await writeEvent(updatedEvent)
     } finally {
       setIsFormPending(false)
+      savingRef.current = false
     }
     setEditingEvent(null)
     setDayDrawerView('detail')
@@ -1536,6 +1581,12 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
             zIndex={1200}
             hideClose
             draggable={dayDrawerView === 'detail'}
+            // Save-in-flight uses the Sheet's native loading morph (collapse to a
+            // HUD puck, hold through the vault write, expand into the updated
+            // detail view) — the sheet counterpart to the drawer/panel
+            // LoadingOverlay. Gated to edit mode so a detail-mode status write
+            // (which also flips isWriting) can't collapse the read view.
+            loading={dayDrawerView === 'edit' && (isFormPending || isWriting || isDeleting)}
             title={dayDrawerView === 'edit' ? (formTitle.trim() || 'Edit Event') : undefined}
             rightContent={dayDrawerView === 'edit' && editingEvent ? (
               <HeaderPill>
@@ -1575,25 +1626,22 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
               />
             )}
             {dayDrawerView === 'edit' && editingEvent && (
-              <div className="relative">
-                <EventForm
-                  ref={eventFormRef}
-                  initialData={eventToFormData(editingEvent)}
-                  onSave={handleDayDrawerSave}
-                  isEditing
-                  subClusterApplicable={subClusterApplicable}
-                  medics={medicList}
-                  propertyItems={propertyItems}
-                  overlayOptions={overlayOptions}
-                  roomOptions={roomFormOptions}
-                  huddleTaskOptions={huddleTaskFormOptions}
-                  checklistTemplates={sortedPccTemplates}
-                  clinicOptions={clinicFormOptions}
-                  onCreateOverlay={handleCreateOverlayForEvent}
-                  onTitleChange={setFormTitle}
-                />
-                <LoadingOverlay visible={isFormPending || isWriting || isDeleting} className="rounded-xl" />
-              </div>
+              <EventForm
+                ref={eventFormRef}
+                initialData={eventToFormData(editingEvent)}
+                onSave={handleDayDrawerSave}
+                isEditing
+                subClusterApplicable={subClusterApplicable}
+                medics={medicList}
+                propertyItems={propertyItems}
+                overlayOptions={overlayOptions}
+                roomOptions={roomFormOptions}
+                huddleTaskOptions={huddleTaskFormOptions}
+                checklistTemplates={sortedPccTemplates}
+                clinicOptions={clinicFormOptions}
+                onCreateOverlay={handleCreateOverlayForEvent}
+                onTitleChange={setFormTitle}
+              />
             )}
           </Sheet>
 

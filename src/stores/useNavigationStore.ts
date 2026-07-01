@@ -25,6 +25,12 @@ export interface CalendarPrefill {
     encounterAlgorithmId?: string
     /** Pre-assign the event to these user ids (e.g. the soldier a supervisor is scheduling for). */
     assignedTo?: string[]
+    /** STP task id for a supervisor task-assignment — the calendar SAVE creates the
+     *  linked training assignment row(s) (one per assignee) so both platforms route
+     *  the same "assign task" flow through the real calendar compose. */
+    trainingItemId?: string
+    /** Seed the event description / assignment notes. */
+    notes?: string
 }
 
 /** Where to send the user back to after a deep-linked calendar event is saved

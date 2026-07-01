@@ -274,6 +274,7 @@ export type Database = {
       }
       clinics: {
         Row: {
+          app_content_version: number
           appointment_types: Json
           associated_clinic_ids: string[]
           calendar_category_colors: Json
@@ -301,6 +302,7 @@ export type Database = {
           workouts: Json
         }
         Insert: {
+          app_content_version?: number
           appointment_types?: Json
           associated_clinic_ids?: string[]
           calendar_category_colors?: Json
@@ -328,6 +330,7 @@ export type Database = {
           workouts?: Json
         }
         Update: {
+          app_content_version?: number
           appointment_types?: Json
           associated_clinic_ids?: string[]
           calendar_category_colors?: Json
@@ -1167,6 +1170,7 @@ export type Database = {
       profiles: {
         Row: {
           ack_version_accepted: number | null
+          app_content_version: number
           allow_calls: boolean
           avatar_blob: Json | null
           avatar_id: string | null
@@ -1209,6 +1213,7 @@ export type Database = {
         }
         Insert: {
           ack_version_accepted?: number | null
+          app_content_version?: number
           allow_calls?: boolean
           avatar_blob?: Json | null
           avatar_id?: string | null
@@ -1251,6 +1256,7 @@ export type Database = {
         }
         Update: {
           ack_version_accepted?: number | null
+          app_content_version?: number
           allow_calls?: boolean
           avatar_blob?: Json | null
           avatar_id?: string | null

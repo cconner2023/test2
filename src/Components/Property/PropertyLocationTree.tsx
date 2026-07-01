@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from 'react'
-import { ChevronRight, ChevronDown, Pencil, Trash2, Eye, FolderPlus, PackagePlus, MoreHorizontal, FolderClosed, Layers } from 'lucide-react'
+import { ChevronRight, ChevronDown, Pencil, Trash2, FolderPlus, PackagePlus, MoreHorizontal, FolderClosed, Layers } from 'lucide-react'
 import { type ContextMenuItem } from '../ContextMenu'
 import { LiftedRowMenu } from '../LiftedRowMenu'
 import type { LocalPropertyLocation, LocalPropertyItem, HolderInfo } from '../../Types/PropertyTypes'
@@ -46,10 +46,10 @@ interface PropertyLocationTreeProps {
   primaryClinicId?: string | null
   /** Open the location edit form (name + parent) — no longer an inline rename. */
   onEditLocation?: (loc: LocalPropertyLocation) => void
-  /** Open the item edit form. */
-  onEditItem?: (item: LocalPropertyItem) => void
+  /** Open the shared item action menu (View · Edit · Split/Merge · Expend · … ·
+   *  Delete) anchored to the row — the panel hosts the menu + its sheets. */
+  onOpenItemMenu?: (item: LocalPropertyItem, rect: DOMRect) => void
   onDeleteLocation?: (locId: string) => void
-  onDeleteItem?: (item: LocalPropertyItem) => void
   onAddChildLocation?: (parentId: string | null) => void
   /** Add a building floor (kind='level') to a structural zone. */
   onAddLevel?: (containerId: string) => void
@@ -80,9 +80,8 @@ export function PropertyLocationTree({
   subClusterLens,
   primaryClinicId,
   onEditLocation,
-  onEditItem,
+  onOpenItemMenu,
   onDeleteLocation,
-  onDeleteItem,
   onAddChildLocation,
   onAddLevel,
   onAddItemAtLocation,
@@ -256,7 +255,7 @@ export function PropertyLocationTree({
     const alert = itemAlert(item)
     // Compact warning tag riding the action slot: OUT when depleted, EXP when expiry-flagged.
     const warnLabel = alert === 'depleted' ? 'OUT' : alert ? 'EXP' : null
-    const hasActions = !!(onAddItemAtLocation || onDeleteItem)
+    const hasActions = !!onOpenItemMenu
     return (
       <div
         key={item.id}
@@ -269,7 +268,7 @@ export function PropertyLocationTree({
         data-prop-row
         onClick={() => onSelectItem(item)}
         onKeyDown={(e) => { if (e.key === 'Enter') onSelectItem(item) }}
-        onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); if (onDeleteItem || onAddItemAtLocation) openRowMenu('item', item.id, e.currentTarget as HTMLElement) }}
+        onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); onOpenItemMenu?.(item, (e.currentTarget as HTMLElement).getBoundingClientRect()) }}
       >
         {/* Alert indicator sits in the chevron slot so item names line up with sibling locations. */}
         <span className="w-[18px] shrink-0 flex items-center justify-center">
@@ -290,7 +289,7 @@ export function PropertyLocationTree({
             )}
             {hasActions && (
               <button
-                onClick={(e) => { e.stopPropagation(); openRowMenu('item', item.id, (e.currentTarget as HTMLElement).closest('[data-prop-row]') as HTMLElement | null) }}
+                onClick={(e) => { e.stopPropagation(); const row = (e.currentTarget as HTMLElement).closest('[data-prop-row]') as HTMLElement | null; if (row) onOpenItemMenu?.(item, row.getBoundingClientRect()) }}
                 aria-label="More actions"
                 className={warnLabel
                   ? 'absolute inset-0 w-7 h-7 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all opacity-0 group-hover:opacity-100 focus-visible:opacity-100'
@@ -463,28 +462,9 @@ export function PropertyLocationTree({
             />
           )
         }
-        const item = items.find(i => i.id === contextMenu.id)
-        if (!item) return null
-        const menuItems: ContextMenuItem[] = [
-          { key: 'view', label: 'View', icon: Eye, onAction: () => onSelectItem(item) },
-          ...(onEditItem ? [{ key: 'edit', label: 'Edit', icon: Pencil, onAction: () => onEditItem(item) }] : []),
-          ...(onAddItemAtLocation ? [{ key: 'add-item', label: 'New Item', icon: PackagePlus, onAction: () => onAddItemAtLocation(item.location_id ?? null) }] : []),
-          ...(onDeleteItem ? [{ key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => onDeleteItem(item) }] : []),
-        ]
-        return (
-          <LiftedRowMenu
-            isOpen
-            layout="list"
-            anchorRect={contextMenu.rect}
-            onClose={() => setContextMenu(null)}
-            items={menuItems}
-            row={(
-              <div className="flex items-center gap-2 px-3 py-2 bg-themewhite">
-                <span className="flex-1 min-w-0 text-[10pt] text-primary truncate">{item.name}</span>
-              </div>
-            )}
-          />
-        )
+        // Item rows delegate to the panel-hosted shared menu (onOpenItemMenu); only
+        // location rows open this inline menu.
+        return null
       })()}
     </div>
   )

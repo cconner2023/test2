@@ -4,6 +4,7 @@ import { X, Settings as SettingsIcon, Check, ChevronLeft, ChevronRight, ChevronD
 import { BaseDrawer } from './BaseDrawer'
 import { HeaderPill, PillButton } from './HeaderPill'
 import { PreviewOverlay } from './PreviewOverlay'
+import { Sheet } from './Sheet'
 import { CalendarPanel } from './Calendar/CalendarPanel'
 import { MiniCalendar } from './Calendar/MiniCalendar'
 import { SearchInput } from './SearchInput'
@@ -441,16 +442,16 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
                     </div>
                 </PreviewOverlay>
 
-                {/* Calendar settings — mobile drawer + desktop popover, both share content */}
+                {/* Calendar settings — mobile Sheet + desktop popover, both share
+                    content (map-settings standard for mobile settings icons). */}
                 {isMobile ? (
-                    <BaseDrawer
-                        isVisible={showSettings}
+                    <Sheet
+                        isOpen={showSettings}
                         onClose={() => setShowSettings(false)}
-                        mobileOnly
-                        fullHeight="75dvh"
-                        zIndex="z-50"
-                        glassHeader
-                        header={{ title: 'Calendar Settings', hideDefaultClose: false }}
+                        title="Calendar Settings"
+                        height="fit"
+                        maxHeight={60}
+                        zIndex={1200}
                     >
                         <div data-tour="calendar-controls-drawer" className="pb-[max(1rem,var(--sab,0px))]">
                             {layoutSection}
@@ -459,7 +460,7 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
                             {hasHuddleEvents && categoryFilterPanel}
                             {personnelFilterPanel}
                         </div>
-                    </BaseDrawer>
+                    </Sheet>
                 ) : (
                     <PreviewOverlay
                         isOpen={showSettings}

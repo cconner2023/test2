@@ -1,16 +1,19 @@
 import { useState, useEffect, useMemo, useCallback, useRef, type ReactNode } from 'react'
-import { ChevronRight, ChevronDown, AlertTriangle, Building2, Eye, Pencil, Trash2, Mail, MessageSquare } from 'lucide-react'
+import { ChevronRight, ChevronDown, AlertTriangle, Building2, Eye, Pencil, Trash2 } from 'lucide-react'
 import { listClinics, listAllUsers, listLocations, deleteClinic, deleteUser } from '../../lib/adminService'
 import type { AdminUser, AdminClinic, AdminLocation } from '../../lib/adminService'
 import { fetchAllSubClusters, type SubCluster } from '../../lib/subClusterService'
 import { buildScopeIndex } from './adminScope'
-import { buildMailtoHref } from '../../lib/mailto'
 import { useInvalidation, invalidate } from '../../stores/useInvalidationStore'
-import { AdminSummarySkeleton } from './AdminSkeletons'
+import { useAuthStore } from '../../stores/useAuthStore'
+import { LoadingOverlay } from '../LoadingOverlay'
+import { useMinLoadTime } from '../../Hooks/useMinLoadTime'
 import { EmptyState } from '../EmptyState'
 import { LiftedRowMenu } from '../LiftedRowMenu'
 import { type ContextMenuItem } from '../ContextMenu'
 import { ConfirmDialog } from '../ConfirmDialog'
+import { formatLastActive, lastActiveColor } from './adminUtils'
+import { useUserActions } from './useUserActions'
 import { UI_TIMING } from '../../Utilities/constants'
 
 interface AdminSummaryProps {
@@ -78,6 +81,17 @@ export function AdminSummary({
   const [notify, setNotify] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
   const longPressTimer = useRef<number | null>(null)
   const preventTap = useRef(false)
+
+  // Shared user action menu — identical items to AdminUserDetail's corner menu
+  // (parity by construction). onOpenConversation adapts the tree's user-shaped
+  // onChatUser to the hook's userId-shaped callback.
+  const currentUserId = useAuthStore(s => s.user?.id ?? null)
+  const { buildItems: buildUserMenuItems, overlays: userActionOverlays } = useUserActions({
+    currentUserId,
+    onOpenConversation: onChatUser
+      ? (userId) => { const u = users.find(x => x.id === userId); if (u) onChatUser(u) }
+      : undefined,
+  })
 
   const clearLongPress = useCallback(() => {
     if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null }
@@ -313,8 +327,17 @@ export function AdminSummary({
           activeUserId === user.id ? 'bg-themeblue3/8 border-l-2 border-l-themeblue3' : 'hover:bg-secondary/5'
         }`}
       >
+        {/* No avatar icon — a last-on dot stands in for presence. Its title
+            surfaces the relative time; UIC trails the name. */}
         <span className="w-[18px] shrink-0" />
-        <span className="text-[9.5pt] text-primary truncate">{name}</span>
+        <span
+          className={`w-1.5 h-1.5 rounded-full shrink-0 ${lastActiveColor(user.last_active_at)}`}
+          title={`Last active: ${formatLastActive(user.last_active_at)}`}
+        />
+        <span className="flex-1 min-w-0 text-[9.5pt] text-primary truncate">{name}</span>
+        {user.uic && (
+          <span className="text-[8pt] font-medium text-tertiary tabular-nums shrink-0">{user.uic}</span>
+        )}
       </button>
     )
   }
@@ -417,9 +440,12 @@ export function AdminSummary({
     )
   }
 
-  if (loading) return <AdminSummarySkeleton />
+  // Main-load treatment is the pre-defined HUD (mirrors PropertyPanel), NOT a
+  // skeleton — the tree fades in under it. useMinLoadTime holds the HUD ≥500ms
+  // so a fast cached load doesn't flash it.
+  const showLoading = useMinLoadTime(loading)
 
-  if (clinics.length === 0 && users.length === 0) {
+  if (!showLoading && clinics.length === 0 && users.length === 0) {
     return (
       <div className="px-4 py-4">
         <EmptyState
@@ -431,7 +457,8 @@ export function AdminSummary({
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="relative flex flex-col h-full">
+      <LoadingOverlay visible={showLoading} />
       {/* Tree — pb clears the bottom island that floats over the center pane. */}
       <div className="flex-1 overflow-y-auto pb-24">
         {displayRoots.map(node => renderNode(node, 0))}
@@ -476,18 +503,15 @@ export function AdminSummary({
           const user = users.find(u => u.id === contextMenu.id)
           if (!user) return null
           const label = [user.first_name, user.last_name].filter(Boolean).join(' ') || user.email || 'user'
-          items = [
-            { key: 'view', label: 'View', icon: Eye, onAction: () => onSelectUser(user) },
-            { key: 'edit', label: 'Edit', icon: Pencil, onAction: () => onEditUser(user) },
-            ...(onChatUser && user.last_active_at ? [{
-              key: 'chat', label: 'Chat', icon: MessageSquare, onAction: () => onChatUser(user),
-            }] : []),
-            ...(user.email ? [{
-              key: 'email', label: 'Email', icon: Mail,
-              href: buildMailtoHref({ to: user.email!, subject: '[inquiry] -  Medical Operations Web Application', body: `${[user.rank, user.last_name].filter(Boolean).join(' ')},\n\n` }),
-            }] : []),
-            { key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => setConfirmDelete({ kind: 'user', id: user.id, label }) },
-          ]
+          // Same items as the user detail's corner menu (View/Edit/Delete are the
+          // tree's list-nav extras; the reset-pw popover anchors to the row rect).
+          items = buildUserMenuItems(user, {
+            resetAnchor: () => contextMenu.rect,
+            onView: onSelectUser,
+            onEdit: onEditUser,
+            onDelete: (u) => setConfirmDelete({ kind: 'user', id: u.id, label }),
+          })
+          if (items.length === 0) return null
         }
         return (
           <LiftedRowMenu
@@ -500,6 +524,10 @@ export function AdminSummary({
           />
         )
       })()}
+
+      {/* Reset-password popover + force-logout / vault / notify dialogs, shared
+          verbatim with the user detail so both menus behave identically. */}
+      {userActionOverlays}
 
       <ConfirmDialog
         visible={!!confirmDelete}

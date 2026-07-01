@@ -1,261 +1,139 @@
-import { useState, useRef, useEffect, useCallback, useContext } from 'react';
-import { createPortal } from 'react-dom';
-import { TextCursor, ChevronDown, Check, X } from 'lucide-react';
-import { Z, OverlayStackContext } from '../BaseOverlay';
+import { TextCursor, ChevronDown, X } from 'lucide-react';
+import { ActionButton } from '../ActionButton';
+import { ActionPill } from '../ActionPill';
 import type { FieldInfo } from '../../Utilities/templateParser';
 
-interface InsertFieldButtonProps {
-    onInsert: (label: string, field: FieldInfo) => void;
+/**
+ * Insert-field UI for the simple shortcut editor. NO overlay. The TYPE is chosen in
+ * the ACTION FOOTER (FieldInsertFooter — mirrors template's AddStepFooter): the `[ ]`
+ * trigger morphs in place into [X][Variable][Dropdown]. Picking a type reveals the
+ * in-card <InsertFieldForm> (label / options) while the mounted-but-CSS-hidden editor
+ * preserves the caret; commit rides the host's rightFooter Insert.
+ */
+
+export type FieldType = 'variable' | 'dropdown';
+
+export type InsertDraft = {
+    /** null while the user is still picking a type in the footer. */
+    type: FieldType | null;
+    label: string;
+    options: string;
+    defaultValue: string;
+};
+
+export const emptyInsertDraft: InsertDraft = { type: null, label: '', options: '', defaultValue: '' };
+
+/** Build the FieldInfo (and trimmed label) from a draft, or null when incomplete. */
+export function buildFieldInfo(d: InsertDraft): { label: string; field: FieldInfo } | null {
+    if (!d.type) return null;
+    const label = d.label.trim();
+    if (!label) return null;
+    if (d.type === 'variable') return { label, field: { type: 'variable' } };
+    const opts = d.options.split('\n').map(o => o.trim()).filter(Boolean);
+    if (opts.length === 0) return null;
+    const def = d.defaultValue.trim();
+    return {
+        label,
+        field: { type: 'dropdown', options: opts, defaultValue: def && opts.includes(def) ? def : opts[0] },
+    };
 }
 
-export const InsertFieldButton = ({ onInsert }: InsertFieldButtonProps) => {
-    const [open, setOpen] = useState(false);
-    const [mode, setMode] = useState<'pick' | 'variable' | 'dropdown'>('pick');
-    const [label, setLabel] = useState('');
-    const [options, setOptions] = useState('');
-    const [defaultValue, setDefaultValue] = useState('');
-    const triggerRef = useRef<HTMLButtonElement>(null);
-    const popoverRef = useRef<HTMLDivElement>(null);
-    const [pos, setPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
-
-    // Position the portal popover above the trigger button
-    const updatePosition = useCallback(() => {
-        if (!triggerRef.current) return;
-        const rect = triggerRef.current.getBoundingClientRect();
-        setPos({ top: rect.top + window.scrollY, left: rect.left + window.scrollX });
-    }, []);
-
-    useEffect(() => {
-        if (!open) return;
-        updatePosition();
-
-        const handle = (e: MouseEvent) => {
-            const target = e.target as Node;
-            if (
-                popoverRef.current && !popoverRef.current.contains(target) &&
-                triggerRef.current && !triggerRef.current.contains(target)
-            ) {
-                handleClose();
-            }
-        };
-        document.addEventListener('mousedown', handle);
-        window.addEventListener('scroll', updatePosition, true);
-        window.addEventListener('resize', updatePosition);
-        return () => {
-            document.removeEventListener('mousedown', handle);
-            window.removeEventListener('scroll', updatePosition, true);
-            window.removeEventListener('resize', updatePosition);
-        };
-    }, [open, updatePosition]);
-
-    const handleClose = () => {
-        setOpen(false);
-        setMode('pick');
-        setLabel('');
-        setOptions('');
-        setDefaultValue('');
-    };
-
-    const handleConfirm = () => {
-        const trimmed = label.trim();
-        if (!trimmed) return;
-
-        if (mode === 'variable') {
-            onInsert(trimmed, { type: 'variable' });
-        } else if (mode === 'dropdown') {
-            const opts = options.split('\n').map(o => o.trim()).filter(Boolean);
-            if (opts.length === 0) return;
-            const def = defaultValue.trim();
-            onInsert(trimmed, {
-                type: 'dropdown',
-                options: opts,
-                defaultValue: def && opts.includes(def) ? def : opts[0],
-            });
-        }
-        handleClose();
-    };
-
-    const INPUT =
-        'w-full text-sm px-3 py-2 rounded-lg border border-tertiary/10 bg-themewhite outline-none focus:border-themeblue2/30 text-primary placeholder:text-tertiary';
-
-    // Anchor-popover z: ride the overlay stack (floors above the host overlay if any).
-    const ceiling = useContext(OverlayStackContext);
-    const z = Math.max(Z.POPOVER, ceiling);
-
-    const popover = open && createPortal(
-        <div
-            ref={popoverRef}
-            className="fixed"
-            style={{ top: pos.top, left: pos.left, transform: 'translateY(-100%) translateY(-8px)', zIndex: z }}
-        >
-            <div className="rounded-xl bg-themewhite2 border border-tertiary/15 shadow-lg min-w-[220px] overflow-hidden">
-                {mode === 'pick' && (
-                    <div className="p-2 space-y-1">
-                        <p className="text-[9pt] md:text-[9pt] text-tertiary uppercase tracking-wider px-2 py-1">
-                            Insert field
-                        </p>
-                        <button
-                            type="button"
-                            onClick={() => setMode('variable')}
-                            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg hover:bg-themeblue2/8 active:scale-95 transition-all text-left"
-                        >
-                            <div className="w-7 h-7 rounded-lg bg-themeblue2/15 flex items-center justify-center shrink-0">
-                                <TextCursor size={13} className="text-themeblue2" />
-                            </div>
-                            <div>
-                                <p className="text-sm font-medium text-primary">Variable</p>
-                                <p className="text-[9pt] text-tertiary">Free text input at runtime</p>
-                            </div>
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setMode('dropdown')}
-                            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg hover:bg-themeblue2/8 active:scale-95 transition-all text-left"
-                        >
-                            <div className="w-7 h-7 rounded-lg bg-themeblue2/15 flex items-center justify-center shrink-0">
-                                <ChevronDown size={13} className="text-themeblue2" />
-                            </div>
-                            <div>
-                                <p className="text-sm font-medium text-primary">Dropdown</p>
-                                <p className="text-[9pt] text-tertiary">Pick from preset options</p>
-                            </div>
-                        </button>
-                    </div>
-                )}
-
-                {mode === 'variable' && (
-                    <div className="p-3 space-y-2.5">
-                        <p className="text-[9pt] font-semibold text-themeblue2 uppercase tracking-wider">
-                            Variable
-                        </p>
-                        <input
-                            type="text"
-                            value={label}
-                            onChange={(e) => setLabel(e.target.value)}
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter') { e.preventDefault(); handleConfirm(); }
-                                if (e.key === 'Escape') { e.preventDefault(); handleClose(); }
-                            }}
-                            placeholder="Field label (e.g. chief complaint)"
-                            className={INPUT}
-                            autoFocus
-                        />
-                        <div className="flex justify-end gap-1.5">
-                            <button
-                                type="button"
-                                onClick={handleClose}
-                                className="w-8 h-8 rounded-full flex items-center justify-center text-tertiary hover:bg-tertiary/10 active:scale-95 transition-all"
-                            >
-                                <X size={14} />
-                            </button>
-                            <button
-                                type="button"
-                                onClick={handleConfirm}
-                                disabled={!label.trim()}
-                                className="w-8 h-8 rounded-full flex items-center justify-center bg-themeblue3 text-white disabled:opacity-40 active:scale-95 transition-all"
-                            >
-                                <Check size={14} />
-                            </button>
-                        </div>
-                    </div>
-                )}
-
-                {mode === 'dropdown' && (
-                    <div className="p-3 space-y-2.5">
-                        <p className="text-[9pt] font-semibold text-themeblue2 uppercase tracking-wider">
-                            Dropdown
-                        </p>
-                        <input
-                            type="text"
-                            value={label}
-                            onChange={(e) => setLabel(e.target.value)}
-                            onKeyDown={(e) => {
-                                if (e.key === 'Escape') { e.preventDefault(); handleClose(); }
-                            }}
-                            placeholder="Field label (e.g. severity)"
-                            className={INPUT}
-                            autoFocus
-                        />
-                        <textarea
-                            value={options}
-                            onChange={(e) => { setOptions(e.target.value); setDefaultValue(''); }}
-                            onKeyDown={(e) => {
-                                if (e.key === 'Escape') { e.preventDefault(); handleClose(); }
-                            }}
-                            placeholder={"Options (one per line)\nmild\nmoderate\nsevere"}
-                            className={`${INPUT} min-h-[4rem] resize-none leading-5 font-mono`}
-                        />
-                        {/* Default selector — tap an option to mark as default */}
-                        {(() => {
-                            const opts = options.split('\n').map(o => o.trim()).filter(Boolean);
-                            if (opts.length === 0) return null;
-                            const def = defaultValue || opts[0];
-                            return (
-                                <div className="space-y-1">
-                                    <p className="text-[9pt] md:text-[9pt] text-tertiary uppercase tracking-wider">
-                                        Default
-                                    </p>
-                                    <div className="flex flex-wrap gap-1">
-                                        {opts.map(opt => (
-                                            <button
-                                                key={opt}
-                                                type="button"
-                                                onClick={() => setDefaultValue(opt)}
-                                                className={`text-[9pt] px-2 py-1 rounded-full transition-all active:scale-95 ${
-                                                    opt === def
-                                                        ? 'bg-themeblue3 text-white'
-                                                        : 'bg-tertiary/8 text-tertiary hover:bg-tertiary/12'
-                                                }`}
-                                            >
-                                                {opt}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-                            );
-                        })()}
-                        <div className="flex justify-end gap-1.5">
-                            <button
-                                type="button"
-                                onClick={handleClose}
-                                className="w-8 h-8 rounded-full flex items-center justify-center text-tertiary hover:bg-tertiary/10 active:scale-95 transition-all"
-                            >
-                                <X size={14} />
-                            </button>
-                            <button
-                                type="button"
-                                onClick={handleConfirm}
-                                disabled={!label.trim() || !options.split('\n').some(o => o.trim())}
-                                className="w-8 h-8 rounded-full flex items-center justify-center bg-themeblue3 text-white disabled:opacity-40 active:scale-95 transition-all"
-                            >
-                                <Check size={14} />
-                            </button>
-                        </div>
-                    </div>
-                )}
-            </div>
-        </div>,
-        document.body,
+/** Footer-LEFT insert control. Off = the `[ ]` trigger; engaged = the type options in
+ *  place. onMouseDown-preventDefault on the trigger keeps the editor caret intact. */
+export function FieldInsertFooter({
+    open, type, onStart, onPick, onCancel,
+}: {
+    open: boolean;
+    type: FieldType | null;
+    onStart: () => void;
+    onPick: (t: FieldType) => void;
+    onCancel: () => void;
+}) {
+    if (!open) {
+        return (
+            <ActionPill>
+                <button
+                    type="button"
+                    data-tour="expander-insert-field"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={onStart}
+                    title="Insert field"
+                    aria-label="Insert field"
+                    className="w-9 h-9 rounded-full flex items-center justify-center bg-themeblue2/8 text-themeblue2 active:scale-95 transition-all"
+                >
+                    <span className="font-mono text-[10pt] font-semibold">[ ]</span>
+                </button>
+            </ActionPill>
+        );
+    }
+    return (
+        <ActionPill>
+            <ActionButton icon={X} label="Cancel" onClick={onCancel} />
+            <ActionButton icon={TextCursor} label="Variable" variant={type === 'variable' ? 'success' : 'default'} onClick={() => onPick('variable')} />
+            <ActionButton icon={ChevronDown} label="Dropdown" variant={type === 'dropdown' ? 'success' : 'default'} onClick={() => onPick('dropdown')} />
+        </ActionPill>
     );
+}
+
+/** In-card form body (label + dropdown extras). Type is chosen in the footer, so this
+ *  only renders once draft.type is set. */
+export function InsertFieldForm({
+    draft, onChange,
+}: {
+    draft: InsertDraft;
+    onChange: (d: InsertDraft) => void;
+}) {
+    const opts = draft.options.split('\n').map(o => o.trim()).filter(Boolean);
+    const chosenDefault = draft.defaultValue || opts[0];
 
     return (
-        <>
-            <button
-                ref={triggerRef}
-                type="button"
-                data-tour="expander-insert-field"
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => { setOpen(!open); setMode('pick'); }}
-                className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[9pt] font-semibold tracking-wide transition-all active:scale-95 ${
-                    open
-                        ? 'bg-themeblue2/15 text-themeblue2'
-                        : 'bg-tertiary/8 text-tertiary hover:bg-tertiary/12'
-                }`}
-                title="Insert field"
-            >
-                <span className="font-mono text-[10pt]">[ ]</span>
-            </button>
-            {popover}
-        </>
+        <div className="pb-1">
+            <label className="block border-b border-primary/6">
+                <input
+                    type="text"
+                    value={draft.label}
+                    onChange={(e) => onChange({ ...draft, label: e.target.value })}
+                    placeholder={draft.type === 'dropdown' ? 'Field label (e.g. severity)' : 'Field label (e.g. chief complaint)'}
+                    autoFocus
+                    className="w-full bg-transparent px-4 py-3 text-base md:text-sm text-primary placeholder:text-tertiary focus:outline-none"
+                />
+            </label>
+
+            {draft.type === 'variable' ? (
+                <p className="px-4 py-3 text-[9pt] text-tertiary">Free text typed in at runtime.</p>
+            ) : (
+                <>
+                    <label className="block border-b border-primary/6">
+                        <textarea
+                            value={draft.options}
+                            onChange={(e) => onChange({ ...draft, options: e.target.value, defaultValue: '' })}
+                            placeholder={'Options (one per line)\nmild\nmoderate\nsevere'}
+                            className="w-full bg-transparent px-4 py-3 text-base md:text-sm text-primary placeholder:text-tertiary focus:outline-none resize-none min-h-[4rem] leading-5 font-mono"
+                        />
+                    </label>
+                    {opts.length > 0 && (
+                        <div className="px-4 py-3 space-y-1">
+                            <p className="text-[9pt] text-tertiary uppercase tracking-wider">Default</p>
+                            <div className="flex flex-wrap gap-1">
+                                {opts.map(opt => (
+                                    <button
+                                        key={opt}
+                                        type="button"
+                                        onClick={() => onChange({ ...draft, defaultValue: opt })}
+                                        className={`text-[9pt] px-2 py-1 rounded-full transition-all active:scale-95 ${
+                                            opt === chosenDefault
+                                                ? 'bg-themeblue3 text-white'
+                                                : 'bg-tertiary/8 text-tertiary hover:bg-tertiary/12'
+                                        }`}
+                                    >
+                                        {opt}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </>
+            )}
+        </div>
     );
-};
+}

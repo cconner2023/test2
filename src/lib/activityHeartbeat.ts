@@ -8,6 +8,16 @@
  *
  * Users can opt out of activity tracking in Security settings.
  * Accounts with no activity for 90+ days may be deactivated.
+ *
+ * EGRESS: piggybacks a gated stale-clinic-device reap on the heartbeat.
+ * Clinic-vault fan-out targets = every user_devices row for the clinic
+ * (fetch_peer_devices is unfiltered), and staleness is otherwise only
+ * cleaned at login. On a long-lived session, devices that go dark after
+ * login keep drawing a full sealed envelope per edit until the next login.
+ * Firing cleanup_stale_clinic_devices on a 30-min gate (matching its TTL)
+ * sweeps the roster mid-session, shrinking fan-out. The reap RPC is tiny
+ * and idempotent; culled clinic devices rebuild from the vault snapshot on
+ * return, so this is a timing change only — same safe op login already runs.
  */
 
 import { supabase } from './supabase'
@@ -17,11 +27,14 @@ const logger = createLogger('ActivityHeartbeat')
 
 const HEARTBEAT_INTERVAL_MS = 5 * 60 * 1000 // 5 minutes
 const MIN_ELAPSED_MS = 4 * 60 * 1000        // guard against double-fires
+const REAP_INTERVAL_MS = 30 * 60 * 1000     // stale-clinic-device reap gate (matches the 30-min TTL)
 
 const ACTIVITY_TRACKING_KEY = 'adtmc_activity_tracking_enabled'
 
 let intervalId: ReturnType<typeof setInterval> | null = null
 let lastSentAt = 0
+/** Last time the stale-clinic-device reap fired (ms). Gated to REAP_INTERVAL_MS. */
+let lastReapAt = 0
 let currentUserId: string | null = null
 let currentDeviceId: string | null = null
 /** clinicId → clinicDeviceId. Multi-entry to support dual-clinic membership (surrogate). */
@@ -96,6 +109,21 @@ async function sendHeartbeat() {
           if (clinicErr) logger.warn(`Clinic device heartbeat update failed (${clinicId}):`, clinicErr.message)
         })
     }
+
+    // Gated stale-clinic-device reap (this device's row was just refreshed
+    // above, so it is never the target). Shrinks the clinic-vault fan-out set
+    // mid-session; gate matches the reaper's 30-min TTL so the added egress is
+    // one tiny idempotent RPC per clinic per half hour. Set lastReapAt before
+    // firing so a slow import can't double-trigger on the next tick.
+    if (currentClinicDevices.size > 0 && now - lastReapAt >= REAP_INTERVAL_MS) {
+      lastReapAt = now
+      const clinicIds = Array.from(currentClinicDevices.keys())
+      import('./signal/signalService')
+        .then(({ cleanupStaleClinicDevices }) => {
+          for (const cId of clinicIds) cleanupStaleClinicDevices(cId).catch(() => {})
+        })
+        .catch(() => {})
+    }
   } catch {
     // Network error — silently skip, will retry next interval
   }
@@ -113,6 +141,10 @@ export function startHeartbeat(userId: string, deviceId?: string) {
   currentUserId = userId
   currentDeviceId = deviceId ?? null
   lastSentAt = 0
+  // Login already ran cleanupStaleClinicDevices per clinic, so the roster is
+  // fresh — arm the gate to now so the first heartbeat reap is ~30 min out,
+  // not a redundant immediate call.
+  lastReapAt = Date.now()
 
   // Immediate first heartbeat
   sendHeartbeat()
@@ -133,4 +165,5 @@ export function stopHeartbeat() {
   currentUserId = null
   currentDeviceId = null
   currentClinicDevices.clear()
+  lastReapAt = 0
 }

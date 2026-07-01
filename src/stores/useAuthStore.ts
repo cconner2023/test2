@@ -219,6 +219,59 @@ function clearProfileStorage() {
   try { localStorage.removeItem(STORAGE_KEY) } catch { /* ignore */ }
 }
 
+// ---- App-content (note-blocks) egress cache ----
+//
+// The note-blocks JSONB (text expanders / plan tags / order sets / provider
+// templates) is large and rarely changes between sessions, but was refetched in
+// full on every session-init. We now version-gate it: profiles/clinics carry an
+// `app_content_version` bumped ONLY when those columns change (DB trigger). The
+// client caches the last-seen version + blob here (plain localStorage — this is
+// operational, non-PHI text, already exported as plaintext elsewhere) and skips
+// the heavy column fetch when the server version matches. Wiped on signout by
+// the blanket localStorage.clear().
+const APP_CONTENT_CACHE_KEY = 'adtmc_app_content'
+
+interface ProfileAppContent {
+  ver: number
+  textExpanders: TextExpander[] | null
+  planOrderTags: UserTypes['planOrderTags'] | null
+  planInstructionTags: string[] | null
+  planOrderSets: UserTypes['planOrderSets'] | null
+  providerNoteTemplates: UserTypes['providerNoteTemplates'] | null
+}
+interface ClinicAppContent {
+  ver: number
+  textExpanders: TextExpander[] | null
+  planOrderTags: UserTypes['planOrderTags'] | null
+  planInstructionTags: string[] | null
+  planOrderSets: UserTypes['planOrderSets'] | null
+}
+interface AppContentCache {
+  profile?: ProfileAppContent
+  clinics?: Record<string, ClinicAppContent>
+}
+
+function loadAppContentCache(): AppContentCache {
+  try {
+    const raw = localStorage.getItem(APP_CONTENT_CACHE_KEY)
+    if (raw) return JSON.parse(raw) as AppContentCache
+  } catch { /* ignore */ }
+  return {}
+}
+function saveAppContentCache(cache: AppContentCache) {
+  try { localStorage.setItem(APP_CONTENT_CACHE_KEY, JSON.stringify(cache)) } catch { /* ignore */ }
+}
+
+/** Assign cached note-blocks onto a profile, mirroring the `!= null` guards of
+ *  the live parse (a null field means "none stored", leave it undefined). */
+function applyProfileAppContent(p: UserTypes, c: ProfileAppContent) {
+  if (c.textExpanders != null) p.textExpanders = c.textExpanders
+  if (c.planOrderTags != null) p.planOrderTags = c.planOrderTags
+  if (c.planInstructionTags != null) p.planInstructionTags = c.planInstructionTags
+  if (c.planOrderSets != null) p.planOrderSets = c.planOrderSets
+  if (c.providerNoteTemplates != null) p.providerNoteTemplates = c.providerNoteTemplates
+}
+
 // ---- Roles helpers ----
 
 /** Sync load from localStorage for instant hydration of role-gated features. */
@@ -271,11 +324,19 @@ async function fetchProfileFromSupabase(userId: string): Promise<{ profile: User
   let clinicPlanInstructionTags: string[] | null = null
   let clinicPlanOrderSets: UserTypes['planOrderSets'] | null = null
 
+  // Version-gated app-content cache (see helpers above). Loaded once; the heavy
+  // note-blocks columns are fetched only when the server version diverges.
+  const appCache = loadAppContentCache()
+  let appCacheDirty = false
+
   // Fetch core profile + clinic name.
   // Disambiguate the embedded clinic relation by FK name — profiles now has
   // two FKs to clinics (clinic_id + surrogate_clinic_id) and PostgREST
   // refuses to resolve `clinics(name)` when multiple FKs target the same table.
-  const PROFILE_SELECT = 'first_name, last_name, middle_initial, credential, component, rank, uic, roles, clinic_id, surrogate_clinic_id, sub_cluster_id, clinic:clinics!profiles_clinic_id_fkey(name), pin_hash, pin_salt, ack_version_accepted, notify_dev_alerts, notify_calendar_assignments, text_expanders, plan_order_tags, plan_instruction_tags, plan_order_sets, needs_password_setup, favorite_medications, provider_note_templates, overview_widgets, theme, swipe_actions, allow_calls, avatar_id, avatar_blob'
+  // Note-blocks columns (text_expanders / plan_* / provider_note_templates) are
+  // intentionally NOT selected here — they're version-gated below via
+  // app_content_version so the large JSONB only rides the wire when it changed.
+  const PROFILE_SELECT = 'first_name, last_name, middle_initial, credential, component, rank, uic, roles, clinic_id, surrogate_clinic_id, sub_cluster_id, clinic:clinics!profiles_clinic_id_fkey(name), pin_hash, pin_salt, ack_version_accepted, notify_dev_alerts, notify_calendar_assignments, app_content_version, needs_password_setup, favorite_medications, overview_widgets, theme, swipe_actions, allow_calls, avatar_id, avatar_blob'
   const { data, error: fetchError } = await supabase
     .from('profiles')
     .select(PROFILE_SELECT)
@@ -351,34 +412,97 @@ async function fetchProfileFromSupabase(userId: string): Promise<{ profile: User
     if (sec.ack_version_accepted != null) profile.ackVersionAccepted = sec.ack_version_accepted as number
     if (sec.notify_dev_alerts != null) profile.notifyDevAlerts = sec.notify_dev_alerts as boolean
     if (sec.notify_calendar_assignments != null) profile.notifyCalendarAssignments = sec.notify_calendar_assignments as boolean
-    if (sec.text_expanders != null) profile.textExpanders = sec.text_expanders as TextExpander[]
-    if (sec.plan_order_tags != null) profile.planOrderTags = sec.plan_order_tags as UserTypes['planOrderTags']
-    if (sec.plan_instruction_tags != null) profile.planInstructionTags = sec.plan_instruction_tags as string[]
-    if (sec.plan_order_sets != null) profile.planOrderSets = sec.plan_order_sets as UserTypes['planOrderSets']
     if (sec.favorite_medications != null) profile.favoriteMedications = sec.favorite_medications as string[]
-    if (sec.provider_note_templates != null) profile.providerNoteTemplates = sec.provider_note_templates as UserTypes['providerNoteTemplates']
     if ('overview_widgets' in sec) profile.overviewWidgets = sec.overview_widgets as UserTypes['overviewWidgets']
     if (typeof sec.theme === 'string') profile.theme = sec.theme
     if (sec.swipe_actions != null) profile.swipeActions = sec.swipe_actions as UserTypes['swipeActions']
     profile.allowCalls = sec.allow_calls !== false // default true when null/undefined
     if (sec.needs_password_setup === true) needsPasswordSetup = true
-  }
 
-  // Fetch clinic-level note content
-  if (clinicId) {
-    const { data: clinicData } = await supabase
-      .from('clinics')
-      .select('text_expanders, plan_order_tags, plan_instruction_tags, plan_order_sets')
-      .eq('id', clinicId)
-      .single()
-
-    if (clinicData) {
-      if (clinicData.text_expanders != null) clinicTextExpanders = clinicData.text_expanders as TextExpander[]
-      if (clinicData.plan_order_tags != null) clinicPlanOrderTags = clinicData.plan_order_tags as UserTypes['planOrderTags']
-      if (clinicData.plan_instruction_tags != null) clinicPlanInstructionTags = clinicData.plan_instruction_tags as string[]
-      if (clinicData.plan_order_sets != null) clinicPlanOrderSets = clinicData.plan_order_sets as UserTypes['planOrderSets']
+    // ── Personal note-blocks (version-gated) ──────────────────────────────
+    // The version rode in on the main select (no extra round trip). Fetch the
+    // heavy columns only when it diverges from the cache; else serve cached.
+    const profileVer = (sec.app_content_version as number | null) ?? 0
+    const cachedP = appCache.profile
+    if (cachedP && cachedP.ver === profileVer) {
+      applyProfileAppContent(profile, cachedP)
+    } else {
+      const { data: acData, error: acError } = await supabase
+        .from('profiles')
+        .select('text_expanders, plan_order_tags, plan_instruction_tags, plan_order_sets, provider_note_templates')
+        .eq('id', userId)
+        .single()
+      if (acData && !acError) {
+        const ac = acData as Record<string, unknown>
+        const next: ProfileAppContent = {
+          ver: profileVer,
+          textExpanders: (ac.text_expanders as TextExpander[] | null) ?? null,
+          planOrderTags: (ac.plan_order_tags as UserTypes['planOrderTags']) ?? null,
+          planInstructionTags: (ac.plan_instruction_tags as string[] | null) ?? null,
+          planOrderSets: (ac.plan_order_sets as UserTypes['planOrderSets']) ?? null,
+          providerNoteTemplates: (ac.provider_note_templates as UserTypes['providerNoteTemplates']) ?? null,
+        }
+        applyProfileAppContent(profile, next)
+        appCache.profile = next
+        appCacheDirty = true
+      } else if (cachedP) {
+        // Fetch failed — fall back to (stale) cache rather than blank the fields.
+        applyProfileAppContent(profile, cachedP)
+      }
     }
   }
+
+  // ── Clinic-level note-blocks (version-gated) ────────────────────────────
+  // Cheap version probe first; the heavy columns only on a cache miss. This also
+  // adds cross-session caching for clinic content, which was refetched every init.
+  if (clinicId) {
+    const { data: verRow } = await supabase
+      .from('clinics')
+      .select('app_content_version')
+      .eq('id', clinicId)
+      .single()
+    const clinicVer = ((verRow as Record<string, unknown> | null)?.app_content_version as number | null) ?? 0
+    const cachedC = appCache.clinics?.[clinicId]
+
+    if (cachedC && cachedC.ver === clinicVer) {
+      clinicTextExpanders = cachedC.textExpanders
+      clinicPlanOrderTags = cachedC.planOrderTags
+      clinicPlanInstructionTags = cachedC.planInstructionTags
+      clinicPlanOrderSets = cachedC.planOrderSets
+    } else {
+      const { data: clinicData, error: clinicError } = await supabase
+        .from('clinics')
+        .select('text_expanders, plan_order_tags, plan_instruction_tags, plan_order_sets')
+        .eq('id', clinicId)
+        .single()
+
+      if (clinicData && !clinicError) {
+        if (clinicData.text_expanders != null) clinicTextExpanders = clinicData.text_expanders as TextExpander[]
+        if (clinicData.plan_order_tags != null) clinicPlanOrderTags = clinicData.plan_order_tags as UserTypes['planOrderTags']
+        if (clinicData.plan_instruction_tags != null) clinicPlanInstructionTags = clinicData.plan_instruction_tags as string[]
+        if (clinicData.plan_order_sets != null) clinicPlanOrderSets = clinicData.plan_order_sets as UserTypes['planOrderSets']
+        appCache.clinics = {
+          ...(appCache.clinics ?? {}),
+          [clinicId]: {
+            ver: clinicVer,
+            textExpanders: clinicTextExpanders,
+            planOrderTags: clinicPlanOrderTags,
+            planInstructionTags: clinicPlanInstructionTags,
+            planOrderSets: clinicPlanOrderSets,
+          },
+        }
+        appCacheDirty = true
+      } else if (cachedC) {
+        // Fetch failed — fall back to (stale) cache.
+        clinicTextExpanders = cachedC.textExpanders
+        clinicPlanOrderTags = cachedC.planOrderTags
+        clinicPlanInstructionTags = cachedC.planInstructionTags
+        clinicPlanOrderSets = cachedC.planOrderSets
+      }
+    }
+  }
+
+  if (appCacheDirty) saveAppContentCache(appCache)
 
   // Template-source subscriptions (loaned users pick which clinics' note content
   // they merge). Read in isolation + error-tolerant so it stays a no-op until the
