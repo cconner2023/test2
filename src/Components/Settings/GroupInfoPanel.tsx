@@ -63,6 +63,8 @@ export function GroupInfoPanel({
   const [lookupLoading, setLookupLoading] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
   const [confirmPurge, setConfirmPurge] = useState(false)
+  const [confirmLeave, setConfirmLeave] = useState(false)
+  const [pendingRemove, setPendingRemove] = useState<string | null>(null)
 
   const isPrimary = members.some(m => m.userId === userId && m.role === 'admin')
   const primaryCount = members.filter(m => m.role === 'admin').length
@@ -196,7 +198,8 @@ export function GroupInfoPanel({
           label: 'Leave',
           icon: LogOut,
           variant: 'danger' as const,
-          onAction: () => onLeave(group.groupId),
+          closesOnAction: false,
+          onAction: () => setConfirmLeave(true),
         },
       ]}
       preview={
@@ -365,7 +368,7 @@ export function GroupInfoPanel({
                   )}
                   {member.userId !== userId && (
                     <button
-                      onClick={() => handleRemoveMember(member.userId)}
+                      onClick={() => setPendingRemove(member.userId)}
                       title="Remove from group"
                       className="p-1.5 rounded-full hover:bg-themeredred/10 active:scale-95 transition-all"
                     >
@@ -386,6 +389,26 @@ export function GroupInfoPanel({
             variant="danger"
             onConfirm={handlePurge}
             onCancel={() => setConfirmPurge(false)}
+          />
+
+          <ConfirmDialog
+            visible={confirmLeave}
+            title="Leave this group?"
+            subtitle="You'll stop receiving its messages. Rejoining needs another member to add you back."
+            confirmLabel="Leave"
+            variant="danger"
+            onConfirm={() => { setConfirmLeave(false); onLeave(group.groupId) }}
+            onCancel={() => setConfirmLeave(false)}
+          />
+
+          <ConfirmDialog
+            visible={!!pendingRemove}
+            title="Remove this member?"
+            subtitle="They lose access to the group and its messages."
+            confirmLabel="Remove"
+            variant="danger"
+            onConfirm={() => { const id = pendingRemove; setPendingRemove(null); if (id) handleRemoveMember(id) }}
+            onCancel={() => setPendingRemove(null)}
           />
         </div>
       }

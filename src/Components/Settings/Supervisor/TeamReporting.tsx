@@ -5,6 +5,7 @@ import type { ClinicMedic } from '../../../Types/SupervisorTestTypes'
 import type { TeamMetrics } from './supervisorHelpers'
 import { ActionButton } from '../../ActionButton'
 import { ActionPill } from '../../ActionPill'
+import { SwipeToDeleteRow } from '../../SwipeToDeleteRow'
 import { SupervisorClinicCardAction } from '../../SupervisorClinicSwitcher'
 
 interface TeamReportingProps {
@@ -26,6 +27,11 @@ interface TeamReportingProps {
    *  Desktop supervisor surfaces already expose this via SupervisorTree's
    *  SupervisorClinicFilterPanel, so we gate to avoid redundancy. */
   showClusterSwitch?: boolean
+  /** When provided, soldier rows gain a swipe-left-to-remove gesture. The caller
+   *  owns the ConfirmDialog + removal (loaned-in → end loan, else remove). */
+  onRemoveSoldier?: (soldier: ClinicMedic) => void
+  /** The viewer's own id — their row is never swipe-removable. */
+  currentUserId?: string
 }
 
 // Readiness/compliance/coverage use a two-tone scheme: faded operating-clinic
@@ -51,6 +57,8 @@ export function TeamReporting({
   onEditClinic,
   onAddMember,
   showClusterSwitch = false,
+  onRemoveSoldier,
+  currentUserId,
 }: TeamReportingProps) {
   const addMemberPillRef = useRef<HTMLDivElement>(null)
   const sortedSoldiers = useMemo(() => {
@@ -147,8 +155,12 @@ export function TeamReporting({
             const soldier = medics.find(m => m.id === entry.soldierId)
             if (!soldier) return null
             return (
-              <button
+              <SwipeToDeleteRow
                 key={entry.soldierId}
+                onDelete={() => onRemoveSoldier?.(soldier)}
+                disabled={!onRemoveSoldier || soldier.id === currentUserId}
+              >
+              <button
                 onClick={() => onViewSoldier(soldier)}
                 className="w-full flex items-center gap-3 px-4 py-3 hover:bg-themeblue2/5 text-left active:scale-95 transition-all"
                 {...(index === 0 && { 'data-tour': 'supervisor-first-soldier' })}
@@ -196,6 +208,7 @@ export function TeamReporting({
                   </div>
                 </div>
               </button>
+              </SwipeToDeleteRow>
             )
           })}
           </div>

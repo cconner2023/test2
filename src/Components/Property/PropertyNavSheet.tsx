@@ -175,7 +175,7 @@ export const PropertyNavSheet = forwardRef<PropertyNavSheetHandle, PropertyNavSh
           isOpen={stack.length > 0}
           onClose={closeAll}
           height="fit"
-          maxHeight={top?.kind === 'item-form' || top?.kind === 'location-form' ? 85 : 60}
+          maxHeight={top?.kind === 'item-form' || top?.kind === 'location-form' ? 85 : 50}
           zIndex={1200}
           title={title}
           leftContent={back}

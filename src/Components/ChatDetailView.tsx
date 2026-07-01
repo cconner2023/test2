@@ -4,6 +4,7 @@ import { ConfirmDialog } from './ConfirmDialog'
 import { GlassBand } from './GlassBand'
 import { MessageBubble } from './Settings/MessageBubble'
 import { SharedObjectPicker } from './Messages/SharedObjectPicker'
+import { ImageEditor } from './ImageEditor'
 import { PreviewOverlay } from './PreviewOverlay'
 import type { MessageContent, SharedBundleContent } from '../lib/signal/messageContent'
 import { packBundle, bundleSourceToBundle, type BundleSource } from '../lib/objectBundle'
@@ -242,6 +243,8 @@ export function ChatDetailView({
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  // A picked/pasted image awaiting the zoom/crop review step before it's sent.
+  const [editFile, setEditFile] = useState<File | null>(null)
   const conversationRef = useRef<HTMLDivElement>(null)
   const [attachOpen, setAttachOpen] = useState(false)
   const [attachAnchorRect, setAttachAnchorRect] = useState<DOMRect | null>(null)
@@ -449,12 +452,18 @@ export function ChatDetailView({
     return () => registerThreadBack(null)
   }, [registerThreadBack, activeThreadId, handleCloseThread])
 
-  // Image paste
-  const handlePastedImage = useCallback(async (file: File) => {
-    const success = await sendImage(conversationId, file)
+  // Image paste — route into the zoom/crop review step (not an immediate send).
+  const handlePastedImage = useCallback((file: File) => {
+    setEditFile(file)
+  }, [])
+  useImagePaste(!sending && !hideImageUpload, handlePastedImage)
+
+  // Review step confirmed: send the cropped image through the unchanged pipeline.
+  const handleEditedImage = useCallback(async (edited: File) => {
+    setEditFile(null)
+    const success = await sendImage(conversationId, edited)
     if (success) playSendSound()
   }, [sendImage, conversationId])
-  useImagePaste(!sending && !hideImageUpload, handlePastedImage)
 
   const handleSend = useCallback(async () => {
     const trimmed = text.trim()
@@ -493,14 +502,11 @@ export function ChatDetailView({
     })
   }, [text])
 
-  const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (file) {
-      const success = await sendImage(conversationId, file)
-      if (success) playSendSound()
-    }
+    if (file) setEditFile(file)
     e.target.value = ''
-  }, [sendImage, conversationId])
+  }, [])
 
   const handleSendVoice = useCallback(async () => {
     const result = await stopRecording()
@@ -848,6 +854,13 @@ export function ChatDetailView({
           onPickBundle={handleShareBundle}
         />
       )}
+      {/* Zoom/crop review step between picking an image and sending it. */}
+      <ImageEditor
+        file={editFile}
+        onCancel={() => setEditFile(null)}
+        onConfirm={handleEditedImage}
+        containerRef={conversationRef}
+      />
       {!showThread && blockedReason && (
         <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex justify-center px-6 pointer-events-none">
           <p className="text-[10pt] text-tertiary text-center max-w-[90%]">

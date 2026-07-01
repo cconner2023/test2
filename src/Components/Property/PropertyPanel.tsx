@@ -399,6 +399,10 @@ export const PropertyPanel = memo(function PropertyPanel({
   // New DA 2062 sign-out, hosted in the detail surface (right pane desktop /
   // detail sheet mobile) — the same primitive item & zone selection use.
   const [signOutOpen, setSignOutOpen] = useState(false)
+  // Save-in-flight for any hosted form (item / location / sign-out) — drives the
+  // HUD loader (pane LoadingOverlay desktop / Sheet loading morph mobile). Delete
+  // is the ConfirmDialog; save is the HUD (consistent across all 4 domains).
+  const [formSaving, setFormSaving] = useState(false)
   // CSV import, hosted in the SAME detail surface (right pane desktop / detail
   // sheet mobile) — mirrors signOutOpen / da2062Preview.
   const [importOpen, setImportOpen] = useState(false)
@@ -1028,6 +1032,7 @@ export const PropertyPanel = memo(function PropertyPanel({
           <div ref={detailPaneRef} className={`shrink-0 border-l border-primary/10 flex flex-col bg-themewhite3 transition-all duration-300 relative ${
             railCollapsed ? 'w-[380px] opacity-100' : 'w-0 opacity-0 overflow-hidden border-l-0'
           }`}>
+            <LoadingOverlay visible={formSaving} />
             {editLocationTarget && (
               <>
                 <div className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-tertiary/10">
@@ -1046,6 +1051,7 @@ export const PropertyPanel = memo(function PropertyPanel({
                     defaultParentId={editLocationTarget.parentId}
                     pendingTag={editLocationTarget.pendingTag}
                     onClose={() => setEditLocationTarget(null)}
+                    onSavingChange={setFormSaving}
                   />
                 </div>
               </>
@@ -1060,7 +1066,7 @@ export const PropertyPanel = memo(function PropertyPanel({
                   </HeaderPill>
                 </div>
                 <div className="flex-1 min-h-0 overflow-y-auto">
-                  <SignOutForm ref={signOutFormRef} onClose={() => setSignOutOpen(false)} />
+                  <SignOutForm ref={signOutFormRef} onClose={() => setSignOutOpen(false)} onSavingChange={setFormSaving} />
                 </div>
               </>
             )}
@@ -1111,6 +1117,7 @@ export const PropertyPanel = memo(function PropertyPanel({
                     editingItem={store.editingItem}
                     onClose={() => { store.setEditingItem(null); onBack() }}
                     onEnrollNew={onEnrollNewItem}
+                    onSavingChange={setFormSaving}
                   />
                 </div>
               </>
@@ -1433,6 +1440,7 @@ export const PropertyPanel = memo(function PropertyPanel({
           forms NEST in the SAME sheet (height-transition) — back unwinds
           form → item/location → parent zone. No separate sheets. */}
       <Sheet
+        loading={formSaving}
         isOpen={(!!selectedLocation || !!mobileItem || !!mobileForm || !!selectedReceipt || !!selectedRecord || !!selectedTurnIn || signOutOpen || importOpen || shortageOpen || !!da2062Preview) && !drawingZone}
         onClose={() => { closeMobileForm(); setMobileItem(null); closeLocationDetail(); closeRosterDetail(); setSignOutOpen(false); setImportOpen(false); setShortageOpen(false); clearDA2062Preview() }}
         title={
@@ -1488,7 +1496,10 @@ export const PropertyPanel = memo(function PropertyPanel({
           ) : undefined
         }
         height="fit"
-        maxHeight={da2062Preview || signOutOpen || importOpen || shortageOpen ? 85 : 60}
+        // Detail views (item / zone / receipt / record / turn-in) stay compact so
+        // the sheet doesn't dominate the map — the timeline-heavy item view no longer
+        // balloons to fill the cap. Editing (forms) + focused tasks expand to 85.
+        maxHeight={da2062Preview || signOutOpen || importOpen || shortageOpen || mobileForm ? 85 : 50}
         // Detail/form are non-blocking like the map's mobile feature editor: the
         // canvas stays interactive and the body swaps detail↔form in the SAME sheet.
         // Sign-out is a focused task, so dim the canvas (non-dismissing) to block
@@ -1546,7 +1557,7 @@ export const PropertyPanel = memo(function PropertyPanel({
         ) : shortageOpen ? (
           <PropertyShortagePanel onClose={() => setShortageOpen(false)} stagedTurnInIds={turnInItemIds} />
         ) : signOutOpen ? (
-          <SignOutForm ref={signOutFormRef} onClose={() => setSignOutOpen(false)} />
+          <SignOutForm ref={signOutFormRef} onClose={() => setSignOutOpen(false)} onSavingChange={setFormSaving} />
         ) : selectedReceipt ? (
           <Da2062Detail
             ref={da2062DetailRef}
@@ -1583,6 +1594,7 @@ export const PropertyPanel = memo(function PropertyPanel({
             editingItem={store.editingItem}
             onClose={closeMobileForm}
             onEnrollNew={onEnrollNewItem}
+            onSavingChange={setFormSaving}
           />
         ) : mobileForm?.kind === 'location' ? (
           <PropertyLocationForm
@@ -1591,6 +1603,7 @@ export const PropertyPanel = memo(function PropertyPanel({
             defaultParentId={mobileForm.parentId}
             pendingTag={mobileForm.pendingTag}
             onClose={() => setMobileForm(null)}
+            onSavingChange={setFormSaving}
           />
         ) : mobileItem ? (
           <PropertyItemDetail

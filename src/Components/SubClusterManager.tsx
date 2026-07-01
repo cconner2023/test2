@@ -6,6 +6,7 @@ import { ActionPill } from './ActionPill'
 import { ActionButton } from './ActionButton'
 import { PreviewOverlay } from './PreviewOverlay'
 import { ConfirmDialog } from './ConfirmDialog'
+import { SwipeToDeleteRow } from './SwipeToDeleteRow'
 import type { SubCluster } from '../lib/subClusterService'
 
 /**
@@ -80,14 +81,15 @@ export function SubClusterManager({ subClusters, onCreate, onRename, onDelete }:
         <div className="relative">
           <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden divide-y divide-tertiary/10">
             {subClusters.map((sc) => (
-              <button
-                key={sc.id}
-                type="button"
-                onClick={(e) => openEdit(sc, e.currentTarget)}
-                className="w-full flex items-center gap-3 px-4 py-3.5 text-left transition-all active:scale-[0.98] hover:bg-themeblue2/5"
-              >
-                <span className="text-sm font-medium text-primary truncate flex-1">{sc.name}</span>
-              </button>
+              <SwipeToDeleteRow key={sc.id} onDelete={() => setPendingDelete(sc)}>
+                <button
+                  type="button"
+                  onClick={(e) => openEdit(sc, e.currentTarget)}
+                  className="w-full flex items-center gap-3 px-4 py-3.5 text-left transition-all active:scale-[0.98] hover:bg-themeblue2/5"
+                >
+                  <span className="text-sm font-medium text-primary truncate flex-1">{sc.name}</span>
+                </button>
+              </SwipeToDeleteRow>
             ))}
           </div>
           <ActionPill ref={addPillRef} shadow="sm" placement="overlay">

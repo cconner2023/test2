@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, forwardRef, useImperativeHandle } from 'react'
+import { useState, useMemo, useCallback, useEffect, forwardRef, useImperativeHandle } from 'react'
 import { X, Square, CheckSquare, Plus } from 'lucide-react'
 import { TextInput, PickerInput, DatePickerInput } from '../FormInputs'
 import { usePropertyStore } from '../../stores/usePropertyStore'
@@ -14,6 +14,8 @@ interface PropertyItemFormProps {
   /** Called after a brand-new item is created so the host can present the
    *  visual-ID enroll step as a modal (shared with the detail-menu enroll). */
   onEnrollNew?: (item: LocalPropertyItem) => void
+  /** Reports save-in-flight so the host surface can gate with the HUD loader. */
+  onSavingChange?: (saving: boolean) => void
 }
 
 export interface PropertyItemFormHandle {
@@ -22,7 +24,7 @@ export interface PropertyItemFormHandle {
 }
 
 export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemFormProps>(
-  function PropertyItemForm({ editingItem, onClose, onEnrollNew }, ref) {
+  function PropertyItemForm({ editingItem, onClose, onEnrollNew, onSavingChange }, ref) {
   const {
     locations,
     clinicMembers,
@@ -68,7 +70,7 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
   const [parentItemId, setParentItemId] = useState(editingItem?.parent_item_id ?? '')
   const [notes, setNotes] = useState(editingItem?.notes ?? '')
   const [expiryDate, setExpiryDate] = useState(editingItem?.expiry_date ?? '')
-  const [, setIsSaving] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
   const [isSerialized, setIsSerialized] = useState(editingItem?.is_serialized ?? true)
   // Health/serviceability is expressed by PMCS faults now (no manual chips). The
   // value still round-trips: 'serviceable' default on create, and an edit preserves
@@ -212,6 +214,11 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
   ])
 
   useImperativeHandle(ref, () => ({ submit: handleSave }), [handleSave])
+
+  useEffect(() => { onSavingChange?.(isSaving) }, [isSaving, onSavingChange])
+  // Save success calls onClose() (unmount) before the finally resets isSaving, so
+  // clear the host's HUD flag on unmount to avoid a stuck loader.
+  useEffect(() => () => onSavingChange?.(false), [onSavingChange])
 
   const hasLocations = locationOptions.length > 0
   const hasParentItems = parentItemOptions.length > 0

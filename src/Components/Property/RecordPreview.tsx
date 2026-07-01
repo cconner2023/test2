@@ -85,6 +85,9 @@ export function useRecordPreview({ event, onClose, label, detail, Icon, tint, in
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [editText, setEditText] = useState('')
   const [busy, setBusy] = useState(false)
+  // Save-only in-flight flag (distinct from `busy`, which also covers delete and
+  // doc-open). Drives the overlay HUD morph on save; delete stays modal-only.
+  const [saving, setSaving] = useState(false)
   const [scannerOpen, setScannerOpen] = useState(false)
 
   // Structured-edit form fields (PMCS check / dispatch open / dispatch close). One
@@ -193,7 +196,9 @@ export function useRecordPreview({ event, onClose, label, detail, Icon, tint, in
   const saveForm = async () => {
     if (!event || busy || !canSave) return
     setBusy(true)
+    setSaving(true)
     setDocError(null)
+    try {
 
     // Resolve the attachment: a freshly picked file uploads now (encrypted, same
     // pipeline as the intake); else keep the existing doc unless it was removed.
@@ -246,6 +251,9 @@ export function useRecordPreview({ event, onClose, label, detail, Icon, tint, in
     await editPmcsEntry(event.id, payload)
     setBusy(false)
     onClose()
+    } finally {
+      setSaving(false)
+    }
   }
 
   const confirmDelete = async () => {
@@ -449,7 +457,7 @@ export function useRecordPreview({ event, onClose, label, detail, Icon, tint, in
   // null for the other rows, which carry their label in the summary card instead.
   const title = formKind === 'pmcs' ? 'PMCS' : formKind ? 'Dispatch' : null
 
-  return { isOpen, title, body, footer, rightFooter, confirm }
+  return { isOpen, title, body, footer, rightFooter, confirm, saving }
 }
 
 /**
@@ -459,7 +467,7 @@ export function useRecordPreview({ event, onClose, label, detail, Icon, tint, in
  * the hook directly inside their OverlayStack history→detail drill-down screen.
  */
 export function RecordPreview({ containerRef, ...props }: RecordPreviewProps) {
-  const { isOpen, title, body, footer, rightFooter, confirm } = useRecordPreview({ ...props, containerRef })
+  const { isOpen, title, body, footer, rightFooter, confirm, saving } = useRecordPreview({ ...props, containerRef })
   return (
     <PreviewOverlay
       isOpen={isOpen}
@@ -470,6 +478,7 @@ export function RecordPreview({ containerRef, ...props }: RecordPreviewProps) {
       title={title ?? undefined}
       footer={footer}
       rightFooter={rightFooter}
+      loading={saving}
     >
       <>
         {body}

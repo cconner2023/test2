@@ -14,6 +14,7 @@ function waypointGlyphIcon(type: WaypointType): LucideIcon {
   )) as unknown as LucideIcon;
 }
 import { LoadingSpinner } from '../LoadingSpinner';
+import { LoadingOverlay } from '../LoadingOverlay';
 import { BaseDrawer } from '../BaseDrawer';
 import { Sheet } from '../Sheet';
 import { HeaderPill, PillButton } from '../HeaderPill';
@@ -398,6 +399,10 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
 
   // Save flow
   const [saveError, setSaveError] = useState<string | null>(null);
+  // Save-in-flight for the overlay write — drives the HUD loader on the feature
+  // editor surface (desktop pane LoadingOverlay / mobile Sheet loading morph).
+  // Delete stays the ConfirmDialog; save is the HUD (consistent across domains).
+  const [savingOverlay, setSavingOverlay] = useState(false);
   const [mapCenter, setMapCenter] = useState<[number, number]>([0, 0]);
   const [mapZoom, setMapZoom] = useState(4);
 
@@ -1399,6 +1404,8 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
 
   const handleSaveClick = useCallback(async () => {
     if (!overlayId || !user || !activeClinicId) return;
+    setSavingOverlay(true);
+    try {
     let name = overlayName.trim();
     if (!name) {
       // Auto-default unnamed overlays to today's date so autosave doesn't need
@@ -1491,6 +1498,9 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
       : o));
     skipDirtyRef.current = true;
     setIsDirty(false);
+    } finally {
+      setSavingOverlay(false);
+    }
   }, [overlayId, user, activeClinicId, overlayName, mapCenter, mapZoom, features, overlayFloors, writeOverlay, upsertFeature, removeFeature, writeOverlayMetadata]);
 
   // Dirty watcher: any features change after the initial load flips draft mode
@@ -2262,6 +2272,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                 <Sheet
                   isOpen={!!selectedFeature}
                   onClose={handleCloseFeatureEditor}
+                  loading={savingOverlay}
                   height="fit"
                   // Cap at 40dvh + no backdrop so the map stays visible and
                   // interactive while "Edit & move" lets the user drag points.
@@ -2779,6 +2790,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
               )}
               {selectedFeature && (
                 <div className="relative flex flex-col flex-1 min-h-0">
+                  <LoadingOverlay visible={savingOverlay} />
                   <div className="shrink-0 flex items-center gap-1 px-3 py-2 border-b border-tertiary/10">
                     {/* READ-mode title in the desktop pane header — hidden in
                         edit mode so the body TextInput is the single source

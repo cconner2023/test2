@@ -359,7 +359,7 @@ export function DispatchSheet({ isOpen, onClose, subjectId, clinicId, containerR
       screens={screens}
       maxWidth={360}
       previewMaxHeight="60dvh"
-      loading={loading}
+      loading={loading || busy || recordView.saving}
     />
   )
 }

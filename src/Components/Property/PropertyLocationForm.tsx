@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, forwardRef, useImperativeHandle } from 'react'
+import { useState, useMemo, useCallback, useEffect, forwardRef, useImperativeHandle } from 'react'
 import { TextInput, PickerInput } from '../FormInputs'
 import { usePropertyStore } from '../../stores/usePropertyStore'
 import { useShallow } from 'zustand/react/shallow'
@@ -33,6 +33,8 @@ interface PropertyLocationFormProps {
    */
   pendingTag?: PendingZoneTag | null
   onClose: () => void
+  /** Reports save-in-flight so the host surface can gate with the HUD loader. */
+  onSavingChange?: (saving: boolean) => void
 }
 
 /**
@@ -41,7 +43,7 @@ interface PropertyLocationFormProps {
  * (forwardRef submit handle), mirroring PropertyItemForm.
  */
 export const PropertyLocationForm = forwardRef<PropertyLocationFormHandle, PropertyLocationFormProps>(
-  function PropertyLocationForm({ editingLocation, defaultParentId = null, pendingTag = null, onClose }, ref) {
+  function PropertyLocationForm({ editingLocation, defaultParentId = null, pendingTag = null, onClose, onSavingChange }, ref) {
   const store = usePropertyStore(
     useShallow((s) => ({
       locations: s.locations,
@@ -59,7 +61,7 @@ export const PropertyLocationForm = forwardRef<PropertyLocationFormHandle, Prope
   const [kind, setKind] = useState<'area' | 'vehicle'>(
     editingLocation?.kind === 'vehicle' ? 'vehicle' : 'area',
   )
-  const [, setIsSaving] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
   // Levels are created/managed via the floor switcher, not this form — don't
   // expose the area/vehicle toggle for them (it would clobber kind='level').
   const isLevel = editingLocation?.kind === 'level'
@@ -152,6 +154,11 @@ export const PropertyLocationForm = forwardRef<PropertyLocationFormHandle, Prope
   }, [name, parentId, kind, isLevel, isEdit, editingLocation, pendingTag, store, onClose])
 
   useImperativeHandle(ref, () => ({ submit: handleSave }), [handleSave])
+
+  useEffect(() => { onSavingChange?.(isSaving) }, [isSaving, onSavingChange])
+  // Save success calls onClose() (unmount) before the finally resets isSaving, so
+  // clear the host's HUD flag on unmount to avoid a stuck loader.
+  useEffect(() => () => onSavingChange?.(false), [onSavingChange])
 
   return (
     <div className="px-4 py-4">

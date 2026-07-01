@@ -45,13 +45,25 @@ export async function getOutsideContactStatus(
  * per-user call silence: on-call always rings regardless of profiles.allow_calls.
  * A fresh read (never cached) so a teammate flipping your presence takes effect
  * immediately. Returns false on any error — fail toward respecting the silence.
+ *
+ * The roster (clinics.oncall) is NOT cleared when a supervisor turns the cluster's
+ * "Allow calls" master off, so a bare roster read reports the last on-call member
+ * indefinitely. Being on-call only means something while the call channel is open,
+ * so we additionally require the cluster's GATE-2 `oncall_enabled` master (on the
+ * credential, read via the membership-gated status RPC) — otherwise on-call pings
+ * nothing and must not override the personal silence.
  */
 export async function fetchSelfOnCall(clinicIds: string[], userId: string): Promise<boolean> {
   const ids = clinicIds.filter(Boolean)
   if (ids.length === 0 || !userId) return false
-  const { data, error } = await supabase.from('clinics').select('oncall').in('id', ids)
+  const { data, error } = await supabase.from('clinics').select('id, oncall').in('id', ids)
   if (error || !data) return false
-  return (data as { oncall?: string[] | null }[]).some((row) => (row.oncall ?? []).includes(userId))
+  const rosteredIn = (data as { id: string; oncall?: string[] | null }[])
+    .filter((row) => (row.oncall ?? []).includes(userId))
+    .map((row) => row.id)
+  if (rosteredIn.length === 0) return false
+  const statuses = await Promise.all(rosteredIn.map((id) => getOutsideContactStatus(id)))
+  return statuses.some((s) => s.ok && s.data.oncall_enabled)
 }
 
 // ─── GATE 3: presence (any cluster member toggles self or teammate) ───

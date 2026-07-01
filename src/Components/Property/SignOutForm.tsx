@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, forwardRef, useImperativeHandle } from 'react'
+import { useState, useMemo, useCallback, useEffect, forwardRef, useImperativeHandle } from 'react'
 import { Check, ChevronDown, MapPin, Minus, Plus } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import { TextInput } from '../FormInputs'
@@ -23,6 +23,8 @@ interface SignOutFormProps {
   /** Close the hosting surface (detail sheet / right pane / Settings sheet).
    *  Called when the user closes the generated 2062 preview. */
   onClose: () => void
+  /** Reports save-in-flight so the host surface can gate with the HUD loader. */
+  onSavingChange?: (saving: boolean) => void
 }
 
 /**
@@ -45,7 +47,7 @@ interface SignOutFormProps {
  * container.
  * State resets on unmount, so closing the host surface clears the form.
  */
-export const SignOutForm = forwardRef<SignOutFormHandle, SignOutFormProps>(function SignOutForm({ onClose }, ref) {
+export const SignOutForm = forwardRef<SignOutFormHandle, SignOutFormProps>(function SignOutForm({ onClose, onSavingChange }, ref) {
   const store = usePropertyStore(
     useShallow((s) => ({
       items: s.items,
@@ -219,6 +221,10 @@ export const SignOutForm = forwardRef<SignOutFormHandle, SignOutFormProps>(funct
     if (canSubmit) setShowSignature(true)
   }, [canSubmit])
   useImperativeHandle(ref, () => ({ submit: requestSubmit }), [requestSubmit])
+
+  useEffect(() => { onSavingChange?.(busy) }, [busy, onSavingChange])
+  // Clear the host's HUD flag on unmount so closing mid-flight never strands it.
+  useEffect(() => () => onSavingChange?.(false), [onSavingChange])
 
   return (
     <>

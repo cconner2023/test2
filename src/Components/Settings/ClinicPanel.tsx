@@ -24,6 +24,8 @@ import {
   disassociateClinic,
   getClinicEncryptionKey,
   getClinicDetails,
+  removeSoldierFromClinic,
+  endLoanFromClinic,
 } from '../../lib/supervisorService'
 import { getAssociatedClinicCode } from '../../lib/clinicAssociationService'
 // listLocations is an authenticated read of the canonical post taxonomy;
@@ -48,6 +50,7 @@ import { ActionPill } from '../ActionPill'
 import { ClinicIdentityEditPopover } from '../ClinicAdmin/ClinicIdentityEditPopover'
 import { MemberEditPopover } from '../ClinicAdmin/MemberEditPopover'
 import { AddMemberPopover } from '../ClinicAdmin/AddMemberPopover'
+import { SwipeToDeleteRow } from '../SwipeToDeleteRow'
 
 
 interface ClinicPanelProps {
@@ -73,7 +76,7 @@ export function ClinicPanel({
   onAddingMemberChange,
   onPendingChangesChange,
 }: ClinicPanelProps) {
-  const { clinicId: assignedClinicId, surrogateClinicIds, supervisingClinicId, profile, isSupervisorRole, setSupervisingClinic } = useAuth()
+  const { user, clinicId: assignedClinicId, surrogateClinicIds, supervisingClinicId, profile, isSupervisorRole, setSupervisingClinic } = useAuth()
   // The supervisor toggle picks which clinic this panel administers. For
   // single-clinic users it stays equal to the assigned clinic. All clinic-
   // scoped reads, writes, and labels below resolve through `clinicId` and
@@ -263,7 +266,13 @@ export function ClinicPanel({
   const renderMemberRow = (member: (typeof members)[number], subtitle: string, badge: ReactNode) => {
     const isOn = oncall.includes(member.id)
     return (
-      <div key={member.id} className="w-full flex items-center gap-3 py-2 px-2 rounded-lg hover:bg-secondary/5 transition-all">
+      <SwipeToDeleteRow
+        key={member.id}
+        className="rounded-lg"
+        onDelete={() => setRemoveMemberTarget(member)}
+        disabled={member.id === user?.id}
+      >
+      <div className="w-full flex items-center gap-3 py-2 px-2 rounded-lg hover:bg-secondary/5 transition-all">
         <button
           type="button"
           onClick={(e) => openMemberPopover(member.id, e.currentTarget)}
@@ -299,6 +308,7 @@ export function ClinicPanel({
           </button>
         )}
       </div>
+      </SwipeToDeleteRow>
     )
   }
 
@@ -317,6 +327,12 @@ export function ClinicPanel({
 
   // Member popover (tap-to-edit roster row)
   const [memberPopover, setMemberPopover] = useState<{ memberId: string; anchor: DOMRect } | null>(null)
+
+  // Swipe-to-remove target from the Users roster. Loaned-in → end the loan from
+  // this clinic; otherwise remove from the cluster (mirrors MemberEditPopover).
+  const [removeMemberTarget, setRemoveMemberTarget] = useState<(typeof members)[number] | null>(null)
+  const [removingMember, setRemovingMember] = useState(false)
+  const [removeMemberError, setRemoveMemberError] = useState<string | null>(null)
 
   // Join section
   const [joinCode, setJoinCode] = useState('')
@@ -537,6 +553,23 @@ export function ClinicPanel({
     refreshMedics()
     closeAssocPopover()
   }, [confirmDisassociate, clinicId, refreshMedics, closeAssocPopover])
+
+  const handleConfirmRemoveMember = useCallback(async () => {
+    if (!removeMemberTarget || !clinicId) return
+    setRemovingMember(true)
+    setRemoveMemberError(null)
+    const r = removeMemberTarget.isLoanedIn
+      ? await endLoanFromClinic(removeMemberTarget.id, clinicId)
+      : await removeSoldierFromClinic(removeMemberTarget.id)
+    setRemovingMember(false)
+    if (!r.success) {
+      setRemoveMemberError(r.error)
+      return
+    }
+    invalidate('users', 'clinics')
+    setRemoveMemberTarget(null)
+    refreshMedics()
+  }, [removeMemberTarget, clinicId, refreshMedics])
 
   const handleSave = useCallback(async () => {
     if (!clinicId) return
@@ -804,8 +837,12 @@ export function ClinicPanel({
               ) : (
                 <div className="space-y-1">
                   {nearbyClinicMap.map((clinic) => (
-                    <button
+                    <SwipeToDeleteRow
                       key={clinic.clinicId}
+                      className="rounded-lg"
+                      onDelete={() => setConfirmDisassociate({ clinicId: clinic.clinicId, clinicName: clinic.clinicName })}
+                    >
+                    <button
                       type="button"
                       onClick={(e) => openAssocInfoPopover(clinic, e.currentTarget)}
                       className="w-full flex items-center gap-3 py-2 px-2 rounded-lg text-left hover:bg-secondary/5 active:scale-95 transition-all"
@@ -825,6 +862,7 @@ export function ClinicPanel({
                         )}
                       </div>
                     </button>
+                    </SwipeToDeleteRow>
                   ))}
                 </div>
               )}
@@ -1144,6 +1182,24 @@ export function ClinicPanel({
         processing={assocSaving}
         onConfirm={handleConfirmDisassociate}
         onCancel={() => setConfirmDisassociate(null)}
+      />
+
+      {/* Swipe-to-remove confirmation (Users roster). Loaned-in members end the
+          loan; everyone else is removed from the cluster. */}
+      <ConfirmDialog
+        visible={!!removeMemberTarget}
+        title={removeMemberTarget?.isLoanedIn ? 'End loan?' : 'Remove from cluster?'}
+        subtitle={
+          removeMemberError ??
+          (removeMemberTarget?.isLoanedIn
+            ? 'Sends this member back to their home cluster.'
+            : 'They will no longer be associated with this cluster.')
+        }
+        confirmLabel={removeMemberTarget?.isLoanedIn ? 'End loan' : 'Remove'}
+        variant="danger"
+        processing={removingMember}
+        onConfirm={handleConfirmRemoveMember}
+        onCancel={() => { if (!removingMember) { setRemoveMemberTarget(null); setRemoveMemberError(null) } }}
       />
     </div>
   )

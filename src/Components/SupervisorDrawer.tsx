@@ -29,7 +29,9 @@ import { ClinicIdentityEditPopover } from './ClinicAdmin/ClinicIdentityEditPopov
 import { MemberEditPopover } from './ClinicAdmin/MemberEditPopover'
 import { AddMemberPopover } from './ClinicAdmin/AddMemberPopover'
 import { useClinicMedics } from '../Hooks/useClinicMedics'
-import { getClinicDetails } from '../lib/supervisorService'
+import { getClinicDetails, removeSoldierFromClinic, endLoanFromClinic } from '../lib/supervisorService'
+import { ConfirmDialog } from './ConfirmDialog'
+import { invalidate } from '../stores/useInvalidationStore'
 import { listLocations, type AdminLocation } from '../lib/adminService'
 import type { ClinicMedic } from '../Types/SupervisorTestTypes'
 import type { StepResult } from '../Types/SupervisorTestTypes'
@@ -103,6 +105,11 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
   const [locations, setLocations] = useState<AdminLocation[]>([])
   const [memberEdit, setMemberEdit] = useState<{ memberId: string; anchor: DOMRect } | null>(null)
   const [addMemberAnchor, setAddMemberAnchor] = useState<DOMRect | null>(null)
+  // Swipe-to-remove target from the roster. Loaned-in → end the loan from this
+  // clinic; otherwise remove from the cluster (mirrors MemberEditPopover).
+  const [removeTarget, setRemoveTarget] = useState<ClinicMedic | null>(null)
+  const [removing, setRemoving] = useState(false)
+  const [removeError, setRemoveError] = useState<string | null>(null)
   // Associated clinics for the Loans multi-select. Derived from medics whose
   // home clinic is different (gives counts + names) plus any clinics we
   // discover via getClinicDetails for accepted associations missing from
@@ -588,6 +595,8 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
               onNavigateToAlgorithmList={handleNavigateToAlgorithmList}
               onEditClinic={isSupervisor && clinicId ? setClinicEditAnchor : undefined}
               onAddMember={isSupervisor && clinicId ? setAddMemberAnchor : undefined}
+              onRemoveSoldier={isSupervisor && clinicId ? setRemoveTarget : undefined}
+              currentUserId={currentUserId ?? undefined}
               showClusterSwitch={isMobile}
             />
           </div>
@@ -815,6 +824,23 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
     refreshData()
   }, [refreshMedics, refreshData])
 
+  const handleConfirmRemove = useCallback(async () => {
+    if (!removeTarget) return
+    setRemoving(true)
+    setRemoveError(null)
+    const r = removeTarget.isLoanedIn && clinicId
+      ? await endLoanFromClinic(removeTarget.id, clinicId)
+      : await removeSoldierFromClinic(removeTarget.id)
+    setRemoving(false)
+    if (!r.success) {
+      setRemoveError(r.error)
+      return
+    }
+    invalidate('users', 'clinics')
+    setRemoveTarget(null)
+    handleMemberChanged()
+  }, [removeTarget, clinicId, handleMemberChanged])
+
   return (
     <>
       <BaseDrawer
@@ -930,6 +956,24 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
         clinicId={clinicId}
         onClose={() => setAddMemberAnchor(null)}
         onAdded={handleMemberChanged}
+      />
+
+      {/* Swipe-to-remove confirmation (roster rows). Loaned-in soldiers end the
+          loan; everyone else is removed from the cluster. */}
+      <ConfirmDialog
+        visible={!!removeTarget}
+        title={removeTarget?.isLoanedIn ? 'End loan?' : 'Remove from cluster?'}
+        subtitle={
+          removeError ??
+          (removeTarget?.isLoanedIn
+            ? 'Sends this soldier back to their home cluster.'
+            : 'They will no longer be associated with this cluster.')
+        }
+        confirmLabel={removeTarget?.isLoanedIn ? 'End loan' : 'Remove'}
+        variant="danger"
+        processing={removing}
+        onConfirm={handleConfirmRemove}
+        onCancel={() => { if (!removing) { setRemoveTarget(null); setRemoveError(null) } }}
       />
     </>
   )

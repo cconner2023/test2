@@ -246,7 +246,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     }
     return opts
   }, [clinicId, surrogateClinicIds, profile.clinicName, profile.surrogateClinics])
-  const { writeEvent, vaultUpdate, deleteEvent: calendarDeleteEvent, isWriting, isDeleting } = useCalendarWrite()
+  const { writeEvent, vaultUpdate, deleteEvent: calendarDeleteEvent, isWriting } = useCalendarWrite()
   const { writeOverlay } = useMapOverlayWrite()
   const apptTypes = useClinicAppointmentTypes(activeClinicId)
   const apptTypeNames = useMemo(() => apptTypes.map(t => t.name), [apptTypes])
@@ -1450,7 +1450,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                 onCreateOverlay={handleCreateOverlayForEvent}
                 onTitleChange={setFormTitle}
               />
-              <LoadingOverlay visible={isFormPending || isWriting || isDeleting} className="rounded-xl" />
+              <LoadingOverlay visible={isFormPending || isWriting} className="rounded-xl" />
             </div>
           </BaseDrawer>
 
@@ -1586,7 +1586,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
             // detail view) — the sheet counterpart to the drawer/panel
             // LoadingOverlay. Gated to edit mode so a detail-mode status write
             // (which also flips isWriting) can't collapse the read view.
-            loading={dayDrawerView === 'edit' && (isFormPending || isWriting || isDeleting)}
+            loading={dayDrawerView === 'edit' && (isFormPending || isWriting)}
             title={dayDrawerView === 'edit' ? (formTitle.trim() || 'Edit Event') : undefined}
             rightContent={dayDrawerView === 'edit' && editingEvent ? (
               <HeaderPill>
@@ -1608,10 +1608,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                 onClose={handleDayDrawerDetailBack}
                 onEdit={handleDayDrawerEdit}
                 onMove={(id) => { handleDayDrawerClose(); enterMoveMode(id) }}
-                onDelete={(id) => {
-                  handleDeleteEvent(id)
-                  handleDayDrawerClose()
-                }}
+                onDelete={(id) => setConfirmDeleteEvent(id)}
                 onCancelTemplate={handleCancelTemplate}
                 apptTypeNames={apptTypeNames}
                 canDeleteTemplate={isSupervisor}
@@ -1692,7 +1689,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                 onTitleChange={setFormTitle}
                     />
                   </div>
-                  <LoadingOverlay visible={isFormPending || isWriting || isDeleting} className="rounded-xl" />
+                  <LoadingOverlay visible={isFormPending || isWriting} className="rounded-xl" />
                 </div>
               ) : panelView === 'detail' && selectedEvent ? (
                 <div className="relative flex flex-col flex-1 min-h-0">
@@ -1701,7 +1698,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                     onClose={handleDetailBack}
                     onEdit={handleEditEvent}
                     onMove={enterMoveMode}
-                    onDelete={handleDeleteEvent}
+                    onDelete={(id) => setConfirmDeleteEvent(id)}
                     onCancelTemplate={handleCancelTemplate}
                     apptTypeNames={apptTypeNames}
                     canDeleteTemplate={isSupervisor}
@@ -1713,7 +1710,6 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                     overlayOptions={overlayOptions}
                     roomAnchor={roomAnchorFor(selectedEvent.room_id)}
                   />
-                  <LoadingOverlay visible={isDeleting} className="rounded-xl" />
                 </div>
               ) : panelView === 'template' && activeClinicId && user && isSupervisor ? (
                 <div className="relative flex flex-col flex-1 min-h-0">

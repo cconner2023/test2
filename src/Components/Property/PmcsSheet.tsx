@@ -470,7 +470,7 @@ export function PmcsSheet({ isOpen, onClose, subjectType = 'item', subjectId, cl
       screens={screens}
       maxWidth={360}
       previewMaxHeight="60dvh"
-      loading={loading}
+      loading={loading || busy || recordView.saving}
     />
   )
 }
