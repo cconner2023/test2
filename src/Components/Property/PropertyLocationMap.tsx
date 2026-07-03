@@ -594,14 +594,22 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
     [zoomToRect],
   )
 
-  /** World-fraction window framed around a tapped item pin (point has no size). */
-  const ITEM_FOCUS_SPAN = 0.18
+  // Item focus box = a fraction of its containing zone, sized PER-AXIS (so it matches
+  // the zone's aspect ratio) and CLAMPED to stay inside the zone. The item truly lives
+  // inside its zone, so its frame must too: a box that's < the zone on both axes always
+  // zooms IN past the zone view (drills one level deeper — same felt zoom-in as picking
+  // a zone), and clamping-inside means we never frame outside-zone space. The earlier
+  // SQUARE box (sized off the zone's longest side) spilled past thin/wide zones — the
+  // frame ran outside the container (pill straddling the border) and under-zoomed, which
+  // read as a zoom-OUT. All selection paths call this, so the behaviour is uniform.
+  const ITEM_ZONE_FRACTION = 0.4 // item frames at 40% of its zone per axis → ~2.5× drill-in
+  const ITEM_FOCUS_SPAN_MAX = 0.18 // per-axis cap so an item in a very large zone still frames tight
 
   /**
-   * Zoom in on an item's pin the same way a zone tap zooms to a location: frame a
-   * small window centred on the point pin, clamped to the containing zone so we
-   * never zoom out past the zone's own framing. Returns false if the pin isn't
-   * currently rendered (so callers can fall back).
+   * Zoom in on an item's pin. The pin's stored (x,y) is the pill CENTRE (view/edit
+   * pins render with translate(-50%,-50%)), so we centre the box on it, then slide it
+   * back inside the zone if the pin sits near an edge. Returns false if the pin isn't
+   * currently rendered (so callers can defer/fall back).
    */
   const focusItemPin = useCallback(
     (itemId: string): boolean => {
@@ -609,11 +617,10 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
         (t) => t.target_type === 'item' && t.target_id === itemId,
       )
       if (!pin) return false
+      // The item's containing zone in world space — box its frame relative to this.
       const zone =
         allWorldTagsRef.current.find((t) => t.target_id === pin.location_id && (t.width ?? 0) > 0) ??
         childZoneAutoTagsRef.current.find((t) => t.target_id === pin.location_id && (t.width ?? 0) > 0)
-      const zoneSpan = zone ? Math.max(zone.width ?? 0, zone.height ?? 0) : ITEM_FOCUS_SPAN
-      const span = Math.min(ITEM_FOCUS_SPAN, zoneSpan || ITEM_FOCUS_SPAN)
       // On mobile the property sheet covers the bottom of the canvas — frame the pin
       // in the band above it (PropertyPanel publishes the covered height on the map's
       // ancestor). Desktop leaves the var unset → 0 → full-viewport framing.
@@ -621,11 +628,31 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
       const bottomInset = container
         ? parseFloat(getComputedStyle(container).getPropertyValue('--property-map-bottom-inset')) || 0
         : 0
+
+      if (zone) {
+        const zx = zone.x
+        const zy = zone.y
+        const zw = zone.width ?? 0
+        const zh = zone.height ?? 0
+        // Per-axis fraction (matches zone aspect), each capped so a huge zone still
+        // frames the item tightly. Both are < the zone on their axis → guaranteed zoom-in.
+        const iw = Math.min(zw * ITEM_ZONE_FRACTION, ITEM_FOCUS_SPAN_MAX)
+        const ih = Math.min(zh * ITEM_ZONE_FRACTION, ITEM_FOCUS_SPAN_MAX)
+        // Centre on the pin, then clamp the whole box within [zone .. zone+dim - box]
+        // so we never spill outside the container (which showed as a zoom-out).
+        const x = Math.min(Math.max(pin.x - iw / 2, zx), zx + zw - iw)
+        const y = Math.min(Math.max(pin.y - ih / 2, zy), zy + zh - ih)
+        zoomToRect({ x, y, width: iw, height: ih }, true, bottomInset)
+        return true
+      }
+
+      // No zone geometry (shouldn't happen for a rendered pin) — small square fallback.
+      const half = ITEM_FOCUS_SPAN_MAX / 2
       zoomToRect({
-        x: Math.max(0, pin.x - span / 2),
-        y: Math.max(0, pin.y - span / 2),
-        width: span,
-        height: span,
+        x: Math.max(0, pin.x - half),
+        y: Math.max(0, pin.y - half),
+        width: ITEM_FOCUS_SPAN_MAX,
+        height: ITEM_FOCUS_SPAN_MAX,
       }, true, bottomInset)
       return true
     },
@@ -819,6 +846,12 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
     // this it would snap back to the whole zone and lose the item).
     const focusedItem = focusedItemIdRef.current
     if (focusedItem && focusItemPin(focusedItem)) return
+    // A pending external item focus (route/tree/search select whose pin hasn't
+    // rendered yet) owns the camera — do NOT fall through to zone framing, or this
+    // resize re-fit would zoom out to the whole zone and clobber the incoming item
+    // focus. Try to grab it now; otherwise yield and let the deferred effect land it.
+    const pendingItem = pendingFocusItemRef.current
+    if (pendingItem) { focusItemPin(pendingItem); return }
     const sel = store.selectedZoneId
     // A selected tag-less sub-zone lives in childZoneAutoTags, not allWorldTags. Consult
     // both so the re-fit zooms to it instead of falling through to handleResetZoom — which
@@ -846,7 +879,13 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
   // effect drills in once the pin is live.
   const pendingFocusItemRef = useRef<string | null>(null)
 
-  const executeNavigation = useCallback((targetId: string) => {
+  // skipZoom: select the zone but move NO camera. Used when the real target is an
+  // item inside the zone — the zone-framing zoom here is the "competing fit" that
+  // clobbers the deferred per-item focus (same failure mode as the MapOverlay
+  // open-from-message bug). With skipZoom the deferred focusItemPin is the ONLY
+  // camera op, so a route/tree/search item select lands at item depth, matching a
+  // canvas pin tap instead of flashing the whole-zone zoom-out.
+  const executeNavigation = useCallback((targetId: string, skipZoom = false) => {
     // Consult childZoneAutoTags too (tag-less sub-zones) so external nav can frame
     // them — same lookup a direct canvas tap (handleZoneTap) uses.
     const tag =
@@ -856,6 +895,7 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
 
     const prevId = store.selectedZoneId
     store.selectZone(targetId)
+    if (skipZoom) return true
 
     // Reuse the SAME zoom-to logic as a direct canvas zone tap (handleZoneTap):
     // travel from the current selection to the target via their lowest common
@@ -874,6 +914,26 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
   // the item already lives in the active zone its pin is rendered, so focus
   // straight away; otherwise navigate to its zone and defer the drill-in to the
   // visibleTagsWithPins effect (the zone selection has to render the pin first).
+  // Activate the floor(s) on a zone's ancestry so a top-level / search / tree select
+  // can reveal a zone that lives on a currently-INACTIVE level — otherwise
+  // collectSuppressedIds filters that level's whole subtree out of allWorldTags and
+  // the target frames nothing. Walk zone→root; every `level` ancestor is made active
+  // in its container. This is what drilling in via the FloorSwitcher does implicitly;
+  // the direct path has to do it explicitly. No-op for zones on no floor (normal case).
+  const activateAncestorFloors = useCallback((zoneId: string) => {
+    const locs = locationsRef.current
+    let cur: string | null = zoneId
+    let guard = 0
+    while (cur && guard++ < 64) {
+      const loc = locs.find((l) => l.id === cur)
+      if (!loc) break
+      if (loc.kind === 'level' && loc.parent_id && store.activeLevelByContainer[loc.parent_id] !== loc.id) {
+        store.setActiveLevel(loc.parent_id, loc.id)
+      }
+      cur = loc.parent_id ?? null
+    }
+  }, [store])
+
   const focusItemExternal = useCallback((itemId: string) => {
     const item = itemsRef.current.find((i) => i.id === itemId)
     const zoneId = item?.location_id ?? null
@@ -882,8 +942,22 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
       return
     }
     pendingFocusItemRef.current = itemId
-    if (zoneId && zoneId !== store.selectedZoneId) executeNavigation(zoneId)
-  }, [store, focusItemPin, executeNavigation])
+    if (zoneId && zoneId !== store.selectedZoneId) {
+      // Reveal the zone's floor if it sits on an inactive level (else it's suppressed
+      // out of the tag set and nothing frames). This recomputes allWorldTags next render.
+      activateAncestorFloors(zoneId)
+      // Select the zone WITHOUT its framing zoom (skipZoom) — the deferred focusItemPin
+      // (fired once the pin renders) is then the SOLE camera op, so this path zooms to
+      // the item at item depth exactly like a canvas pin tap, not to the whole zone.
+      // executeNavigation returning false (tags still loading, or a floor we just
+      // activated whose suppression hasn't recomputed yet) is fine — we still select the
+      // zone here; the deferred focus effect (keyed on visibleTagsWithPins) re-fires once
+      // the pin renders and drills to the ITEM. Do NOT set pendingNavRef here: that would
+      // run a competing whole-zone zoomToTag that clobbers the item focus (the item
+      // "flashes then the map pops back out to the zone").
+      if (!executeNavigation(zoneId, true)) store.selectZone(zoneId)
+    }
+  }, [store, focusItemPin, executeNavigation, activateAncestorFloors])
 
   // ── Imperative handle for external navigation (tree clicks, breadcrumbs) ──
   // ── Floor switcher: activate a level + zoom to it once its tag is live ──

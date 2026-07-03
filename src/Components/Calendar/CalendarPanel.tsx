@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
-import { Clock, Users2, CalendarDays, X, Check, Trash2, CalendarPlus, CalendarOff, Square, Columns3, ListChecks, Grid2x2, CalendarRange, Rows3, Megaphone } from 'lucide-react'
+import { Clock, Users2, CalendarDays, X, Check, Trash2, CalendarPlus, CalendarOff, Square, Columns3, ListChecks, Grid2x2, CalendarRange, Rows3, Megaphone, SlidersHorizontal } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { ActionPill } from '../ActionPill'
 import { LiftedRowMenu } from '../LiftedRowMenu'
@@ -59,7 +59,7 @@ import { useClinicCategoryColorsSync } from '../../Hooks/useClinicCategoryColors
 import { shareCalendar, shareTroopsToTaskCsv, shareSingleEvent } from '../../lib/calendarExport'
 
 type PanelView = 'calendar' | 'detail' | 'form' | 'template' | 'block' | 'import'
-type DayDrawerView = 'detail' | 'edit'
+type DayDrawerView = 'detail' | 'edit' | 'create'
 
 /**
  * Normalize a pressed element's rect into a compact, on-screen anchor for the
@@ -195,9 +195,9 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
   const isMobile = useIsMobile()
   const [panelView, setPanelView] = useState<PanelView>('calendar')
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null)
-  // View-config popover (Map basemap-picker pattern) — opened by re-tapping the
-  // already-active view pill. Holds the active view's layout options so they live
-  // on the island instead of buried in the settings drawer.
+  // View-config popover — opened by the island's leading "view options" button.
+  // Holds the active view's layout/sub-scope options so they live on the island
+  // instead of buried in the settings drawer.
   const [showViewConfig, setShowViewConfig] = useState(false)
 
   const calendarDrawerEventId = useNavigationStore(s => s.calendarDrawerEventId)
@@ -637,15 +637,13 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     }
   }, [viewMode, moveModeEventId, setSelectedDate, setViewMode])
 
-  // View-pill tap: switch views — auto-opening the new view's config popover so
-  // its layout options are discoverable without knowing to re-tap. Re-tapping the
-  // already-active pill toggles the popover. Every view carries options → caret.
+  // View pills only switch the view now — the sub-scope options live behind the
+  // island's dedicated "view options" button (setShowViewConfig). Switching view
+  // closes any open config so the popover never shows a stale view's options.
   const selectView = useCallback((v: 'month' | 'day' | 'troops') => {
-    if (viewMode === v) {
-      setShowViewConfig(o => !o)
-    } else {
+    if (viewMode !== v) {
       setViewMode(v)
-      setShowViewConfig(true)
+      setShowViewConfig(false)
     }
   }, [viewMode, setViewMode])
 
@@ -682,8 +680,17 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     setNewEventDateKey(forDateKey ?? selectedDateStr)
     setNewEventHuddleTaskId(null)
     setNewEventPrefill(prefill ?? null)
-    setPanelView('form')
-  }, [selectedDateStr])
+    // Mobile create reuses the edit PRIMITIVE — the day-drawer Sheet in 'create'
+    // mode (save → loading morph → new event's detail view) — instead of the old
+    // fullscreen BaseDrawer. Desktop keeps the right-panel form (its edit surface).
+    if (isMobile) {
+      setDayDrawerEventId(null)
+      setDayDrawerView('create')
+      setShowDayDrawer(true)
+    } else {
+      setPanelView('form')
+    }
+  }, [selectedDateStr, isMobile])
 
   // Deep-link from external sources (Mission Board "+", a detected date in a
   // message, etc.) — open the new-event form on mount, applying any prefill.
@@ -701,8 +708,14 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     setNewEventDateKey(forDateKey)
     setNewEventHuddleTaskId(taskId ?? null)
     setNewEventPrefill(null)
-    setPanelView('form')
-  }, [])
+    if (isMobile) {
+      setDayDrawerEventId(null)
+      setDayDrawerView('create')
+      setShowDayDrawer(true)
+    } else {
+      setPanelView('form')
+    }
+  }, [isMobile])
 
   const handleAssignMedicToHuddle = useCallback(async (medicId: string, taskId: string, forDateKey: string, providerId?: string) => {
     if (!activeClinicId) return
@@ -880,6 +893,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     if (savingRef.current) return
     savingRef.current = true
     const now = new Date().toISOString()
+    let createdEventId: string | null = null
     setIsFormPending(true)
     try {
       if (editingEvent) {
@@ -943,6 +957,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
           updated_at: now,
         }
         await writeEvent(newEvent)
+        createdEventId = newEvent.id
 
         // Supervisor task-assignment handoff (from the Supervisor drawer): the
         // prefill carries the STP task id, so the SAVE — not the drawer — mints
@@ -972,11 +987,27 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
       savingRef.current = false
     }
     setEditingEvent(null)
-    setPanelView('calendar')
+    if (createdEventId) {
+      // Match the edit primitive: a fresh create lands on the new event's
+      // detail view (the loading HUD above already covered the vault write),
+      // rather than dumping back to the bare calendar. Mirrors the deep-link
+      // select routing — mobile → day-drawer detail Sheet, desktop → right panel.
+      selectEvent(createdEventId)
+      if (isMobile) {
+        setDayDrawerEventId(createdEventId)
+        setDayDrawerView('detail')
+        setShowDayDrawer(true)
+        setPanelView('calendar') // close the fullscreen form drawer
+      } else {
+        setPanelView('detail')
+      }
+    } else {
+      setPanelView('calendar')
+    }
     // If this form was opened from a chat message (detected date), hop back to
-    // that message; no-op otherwise.
+    // that message; no-op otherwise (and it overrides the detail routing above).
     returnFromCalendar()
-  }, [editingEvent, writeEvent, activeClinicId, user, profile.subClusterId, returnFromCalendar, newEventPrefill])
+  }, [editingEvent, writeEvent, activeClinicId, user, profile.subClusterId, returnFromCalendar, newEventPrefill, isMobile, selectEvent])
 
   const handleMoveEvent = useCallback((eventId: string, newStartTime: string) => {
     const events = useCalendarStore.getState().events
@@ -1161,6 +1192,17 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     setDayDrawerView('detail')
   }, [])
 
+  // Cancel a mobile create-in-Sheet: there is no prior detail to fall back to,
+  // so close the Sheet entirely (mirrors handleFormCancel for the old drawer).
+  const handleDayDrawerCreateCancel = useCallback(() => {
+    setEditingEvent(null)
+    setShowDayDrawer(false)
+    setDayDrawerEventId(null)
+    setDayDrawerView('detail')
+    // A create opened from a chat message still returns to that message.
+    returnFromCalendar()
+  }, [returnFromCalendar])
+
   const handleDayDrawerDetailBack = useCallback(() => {
     setShowDayDrawer(false)
     setDayDrawerEventId(null)
@@ -1202,7 +1244,6 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
 
   // ── Calendar views ──
 
-  const showFormDrawer = isMobile && panelView === 'form'
   const showTemplateDrawer = isMobile && panelView === 'template'
   const showBlockDrawer = isMobile && panelView === 'block'
   const showImportDrawer = isMobile && panelView === 'import'
@@ -1329,10 +1370,11 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
             )}
           </div>
 
-          {/* View-config popover — floats above the island's active pill (Map
-              basemap-picker pattern). Holds the active view's layout options. */}
+          {/* View-config popover — floats above the island, centered. Holds the
+              active view's sub-scope options; opened by the island "View options"
+              icon (4th island button). */}
           {/* No backdrop — the popover is non-blocking: the calendar stays live and
-              scrollable underneath. Dismiss by re-tapping the active pill. */}
+              scrollable underneath. Dismiss by re-tapping the options button. */}
           {showViewConfig && (
               <div className="absolute bottom-[4.5rem] inset-x-0 z-50 flex items-end justify-center px-4 pb-[max(0rem,var(--sab,0px))] pointer-events-none">
                 <div className="pointer-events-auto w-full max-w-xs rounded-2xl bg-themewhite shadow-lg border border-tertiary/15 p-3 space-y-2.5 animate-fadeIn">
@@ -1394,65 +1436,25 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
               <AddFab tour="calendar-add-event" label="Add event" onClick={() => setShowAddSheet(true)} className="absolute right-4" />
             }
           >
-            <IslandButton caret active={viewMode === 'month'} onClick={() => selectView('month')} label="Month" tour="calendar-view-month">
+            <IslandButton active={viewMode === 'month'} onClick={() => selectView('month')} label="Month" tour="calendar-view-month">
               <CalendarDays className="w-5 h-5" />
             </IslandButton>
-            <IslandButton caret active={viewMode === 'day'} onClick={() => selectView('day')} label="Day" tour="calendar-view-day">
+            <IslandButton active={viewMode === 'day'} onClick={() => selectView('day')} label="Day" tour="calendar-view-day">
               <Clock className="w-5 h-5" />
             </IslandButton>
-            <IslandButton caret active={viewMode === 'troops'} onClick={() => selectView('troops')} label="Troops to Task" tour="calendar-view-troops">
+            <IslandButton active={viewMode === 'troops'} onClick={() => selectView('troops')} label="Troops to Task" tour="calendar-view-troops">
               <Users2 className="w-5 h-5" />
+            </IslandButton>
+            {/* Hairline divider — separates the view switcher from the options
+                toggle so the 4th icon reads as "options", not a 4th view. */}
+            <div className="w-px h-6 bg-tertiary/20 mx-0.5 shrink-0" aria-hidden />
+            <IslandButton active={showViewConfig} onClick={() => setShowViewConfig(o => !o)} label="View options" tour="calendar-view-options">
+              <SlidersHorizontal className="w-5 h-5" />
             </IslandButton>
           </BottomIsland>
 
-          {/* Mobile form drawer — uses BaseDrawer for consistent animation/drag */}
-          <BaseDrawer
-            isVisible={showFormDrawer}
-            onClose={handleFormCancel}
-            mobileOnly
-            fullHeight="85dvh"
-            zIndex="z-50"
-            header={{
-              title: formTitle.trim() || (editingEvent ? 'Edit Event' : 'New Event'),
-              rightContent: (
-                <HeaderPill>
-                  {editingEvent && (
-                    <PillButton icon={Trash2} iconSize={18} onClick={() => setConfirmDeleteEvent(editingEvent.id)} label="Delete" variant="danger" />
-                  )}
-                  <PillButton icon={X} iconSize={18} onClick={handleFormCancel} label="Cancel" />
-                  <PillButton
-                    icon={Check}
-                    iconSize={18}
-                    accent="success"
-                    onClick={() => eventFormRef.current?.submit()}
-                    label="Save"
-                  />
-                </HeaderPill>
-              ),
-              hideDefaultClose: true,
-            }}
-          >
-            <div className="relative h-full">
-              <EventForm
-                key={formKey}
-                ref={eventFormRef}
-                initialData={editingEvent ? eventToFormData(editingEvent) : newEventInitialData}
-                onSave={handleSaveEvent}
-                isEditing={!!editingEvent}
-                subClusterApplicable={subClusterApplicable}
-                medics={medicList}
-                propertyItems={propertyItems}
-                overlayOptions={overlayOptions}
-                roomOptions={roomFormOptions}
-                huddleTaskOptions={huddleTaskFormOptions}
-                checklistTemplates={sortedPccTemplates}
-                clinicOptions={clinicFormOptions}
-                onCreateOverlay={handleCreateOverlayForEvent}
-                onTitleChange={setFormTitle}
-              />
-              <LoadingOverlay visible={isFormPending || isWriting} className="rounded-xl" />
-            </div>
-          </BaseDrawer>
+          {/* Mobile create/edit now live in the day-drawer Sheet below (the edit
+              PRIMITIVE) — the old fullscreen create BaseDrawer was removed. */}
 
           {/* Mobile template drawer — supervisor provider-template generator */}
           {activeClinicId && user && isSupervisor && (
@@ -1573,8 +1575,8 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
               [isOpen]-keyed mount effect and stranding the sheet off-screen (which
               also froze further event selection). hideClose stays on in both modes. */}
           <Sheet
-            isOpen={showDayDrawer && (dayDrawerView === 'detail' || dayDrawerView === 'edit')}
-            onClose={dayDrawerView === 'edit' ? handleDayDrawerEditCancel : handleDayDrawerDetailBack}
+            isOpen={showDayDrawer && (dayDrawerView === 'detail' || dayDrawerView === 'edit' || dayDrawerView === 'create')}
+            onClose={dayDrawerView === 'edit' ? handleDayDrawerEditCancel : dayDrawerView === 'create' ? handleDayDrawerCreateCancel : handleDayDrawerDetailBack}
             height="fit"
             maxHeight={60}
             backdrop="block"
@@ -1584,14 +1586,27 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
             // Save-in-flight uses the Sheet's native loading morph (collapse to a
             // HUD puck, hold through the vault write, expand into the updated
             // detail view) — the sheet counterpart to the drawer/panel
-            // LoadingOverlay. Gated to edit mode so a detail-mode status write
-            // (which also flips isWriting) can't collapse the read view.
-            loading={dayDrawerView === 'edit' && (isFormPending || isWriting)}
-            title={dayDrawerView === 'edit' ? (formTitle.trim() || 'Edit Event') : undefined}
+            // LoadingOverlay. Gated to the form modes so a detail-mode status
+            // write (which also flips isWriting) can't collapse the read view.
+            // On create, handleSaveEvent then flips this Sheet to 'detail' on the
+            // new event → the morph expands straight into its detail view.
+            loading={(dayDrawerView === 'edit' || dayDrawerView === 'create') && (isFormPending || isWriting)}
+            title={dayDrawerView === 'detail' ? undefined : (formTitle.trim() || (editingEvent ? 'Edit Event' : 'New Event'))}
             rightContent={dayDrawerView === 'edit' && editingEvent ? (
               <HeaderPill>
                 <PillButton icon={Trash2} iconSize={18} onClick={() => setConfirmDeleteEvent(editingEvent.id)} label="Delete" variant="danger" />
                 <PillButton icon={X} iconSize={18} onClick={handleDayDrawerEditCancel} label="Cancel" />
+                <PillButton
+                  icon={Check}
+                  iconSize={18}
+                  accent="success"
+                  onClick={() => eventFormRef.current?.submit()}
+                  label="Save"
+                />
+              </HeaderPill>
+            ) : dayDrawerView === 'create' ? (
+              <HeaderPill>
+                <PillButton icon={X} iconSize={18} onClick={handleDayDrawerCreateCancel} label="Cancel" />
                 <PillButton
                   icon={Check}
                   iconSize={18}
@@ -1628,6 +1643,28 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                 initialData={eventToFormData(editingEvent)}
                 onSave={handleDayDrawerSave}
                 isEditing
+                subClusterApplicable={subClusterApplicable}
+                medics={medicList}
+                propertyItems={propertyItems}
+                overlayOptions={overlayOptions}
+                roomOptions={roomFormOptions}
+                huddleTaskOptions={huddleTaskFormOptions}
+                checklistTemplates={sortedPccTemplates}
+                clinicOptions={clinicFormOptions}
+                onCreateOverlay={handleCreateOverlayForEvent}
+                onTitleChange={setFormTitle}
+              />
+            )}
+            {dayDrawerView === 'create' && (
+              // Keyed by formKey so a late-landing prefill (deep-link "new",
+              // detected date) remounts the form with the current initialData —
+              // same remount contract as the desktop panel form.
+              <EventForm
+                key={formKey}
+                ref={eventFormRef}
+                initialData={newEventInitialData}
+                onSave={handleSaveEvent}
+                isEditing={false}
                 subClusterApplicable={subClusterApplicable}
                 medics={medicList}
                 propertyItems={propertyItems}
@@ -1793,12 +1830,16 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
         options={[
           { key: 'new', label: 'New Event', onAction: () => handleNewEvent() },
           ...(isSupervisor ? [
-            { key: 'template', label: 'Provider Template…', onAction: () => { setTemplateNonce(n => n + 1); setPanelView('template') } },
-            { key: 'clear-templates', label: 'Clear Templates…', onAction: () => { setBlockNonce(n => n + 1); setPanelView('block') } },
+            { key: 'templates', label: 'Templates', children: [
+              { key: 'template', label: 'Provider Template…', onAction: () => { setTemplateNonce(n => n + 1); setPanelView('template') } },
+              { key: 'clear-templates', label: 'Clear Templates…', onAction: () => { setBlockNonce(n => n + 1); setPanelView('block') } },
+            ] },
           ] : []),
-          { key: 'import', label: 'Import CSV', onAction: () => setPanelView('import'), tourTag: 'calendar-export-import' },
-          { key: 'export', label: 'Export .ics', onAction: () => shareCalendar(events).catch(() => {}) },
-          { key: 'export-t2t', label: 'Export Troops-to-Task .csv', onAction: () => shareTroopsToTaskCsv(events, { medics: ownClinicMedics, huddleTasks: sortedHuddleTasks }).catch(() => {}) },
+          { key: 'data', label: 'Data', tourTag: 'calendar-export-import', children: [
+            { key: 'import', label: 'Import CSV', onAction: () => setPanelView('import') },
+            { key: 'export', label: 'Export .ics', onAction: () => shareCalendar(events).catch(() => {}) },
+            { key: 'export-t2t', label: 'Export Troops-to-Task .csv', onAction: () => shareTroopsToTaskCsv(events, { medics: ownClinicMedics, huddleTasks: sortedHuddleTasks }).catch(() => {}) },
+          ] },
         ]}
         onClose={() => setShowAddSheet(false)}
       />

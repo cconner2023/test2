@@ -1,5 +1,6 @@
-import { Fragment, useEffect, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { useSpring, useTransition, animated } from '@react-spring/web'
 import type { ReactNode } from 'react'
 import { ChevronLeft } from 'lucide-react'
 import { ActionPill } from './ActionPill'
@@ -117,8 +118,65 @@ export function AnchoredMenu({ isOpen, anchorRect, row, items, onClose, bare = f
   const menuRef = useRef<HTMLDivElement>(null)
   const activeItems = submenu?.items ?? items
 
+  const isList = layout === 'list'
+  const showReactRow = isList && !submenu && !!reactions?.length
+  const showHeader = isList && !submenu && !!header
+
+  // ── Drill-down morph (list layout) — mirrors ActionSheet's add-FAB drilldown ──
+  // Descending into a submenu (Quantity / Logistics on the property item menu)
+  // cross-slides the new level in from the right and springs the card height so it
+  // grows/shrinks in place instead of hard-swapping its rows. Reset when closed.
+  const [contentH, setContentH] = useState<number>()
+  const roRef = useRef<ResizeObserver | null>(null)
+  const sizerRef = useCallback((node: HTMLDivElement | null) => {
+    roRef.current?.disconnect()
+    if (!node) return
+    const measure = () => setContentH(node.offsetHeight)
+    measure()
+    roRef.current = new ResizeObserver(measure)
+    roRef.current.observe(node)
+  }, [])
+  const firstH = useRef(true)
+  const heightSpring = useSpring({
+    height: contentH ?? 0,
+    immediate: firstH.current, // snap the first measured height; morph on later swaps
+    config: { tension: 320, friction: 30 },
+  })
+  useEffect(() => { if (contentH != null) firstH.current = false }, [contentH])
+
+  // Slide direction: descending (root → submenu) pushes in from the right, Back pops
+  // back out to the right. depth is 0 (root) or 1 (a submenu) — nesting is one level.
+  const depth = submenu ? 1 : 0
+  const prevDepth = useRef(0)
+  const slideDir = depth >= prevDepth.current ? 1 : -1
+  useEffect(() => { prevDepth.current = depth }, [depth])
+
+  type MenuLevel = {
+    key: string
+    submenu: { title: string; items: ContextMenuItem[] } | null
+    reactRow: boolean
+    sectionHeader: boolean
+  }
+  const level: MenuLevel = submenu
+    ? { key: `sub:${submenu.title}`, submenu, reactRow: false, sectionHeader: false }
+    : { key: 'root', submenu: null, reactRow: showReactRow, sectionHeader: showHeader }
+  const levelTransitions = useTransition(level, {
+    keys: (l) => l.key,
+    from: { opacity: 0, transform: `translateX(${slideDir * 14}px)` },
+    enter: { opacity: 1, transform: 'translateX(0px)' },
+    leave: { opacity: 0, transform: `translateX(${slideDir * -14}px)` },
+    initial: { opacity: 1, transform: 'translateX(0px)' }, // no slide on first open
+    config: { tension: 320, friction: 30 },
+  })
+
   useEffect(() => {
-    if (!isOpen) { setVisible(false); setSubmenu(null); return }
+    if (!isOpen) {
+      setVisible(false)
+      setSubmenu(null)
+      firstH.current = true
+      setContentH(undefined)
+      return
+    }
     const raf = requestAnimationFrame(() => setVisible(true))
     return () => cancelAnimationFrame(raf)
   }, [isOpen])
@@ -133,10 +191,6 @@ export function AnchoredMenu({ isOpen, anchorRect, row, items, onClose, bare = f
   // no-clone case shouldn't read as a flat dropdown. 'plain' opts out.
   const dimmed = backdrop ? backdrop === 'dim' : true
 
-  const isList = layout === 'list'
-  // Reactions ride as the top row of the list-card (horizontal emoji row).
-  const showReactRow = isList && !submenu && !!reactions?.length
-  const showHeader = isList && !submenu && !!header
   const showBackHeader = isList && !!submenu
   const menuH = isList
     ? activeItems.length * ROW_H + (showReactRow ? STRIP_H : 0) + (showHeader ? HEADER_H : 0) + (showBackHeader ? BACK_HEADER_H : 0) + LIST_PAD
@@ -194,6 +248,64 @@ export function AnchoredMenu({ isOpen, anchorRect, row, items, onClose, bare = f
   // menu RISES UP into place (echoes the lifted feel) instead of dropping flat.
   const menuHidden = hasClone ? 'scale(0.92) translateY(-8px)' : 'scale(0.96) translateY(12px)'
 
+  const renderRow = (item: ContextMenuItem) =>
+    item.render ? (
+      // Custom renderer owns its button + click + status feedback; the whole row is
+      // the tap target and forwards to the inner button (pointer-events-none wrapper
+      // keeps it firing once). The menu does NOT auto-close (dismiss via backdrop).
+      <div
+        key={item.key}
+        onClick={(e) => e.currentTarget.querySelector('button')?.click()}
+        className="w-full flex items-center gap-3 py-1.5 px-3 cursor-pointer active:bg-black/[0.06] transition-colors"
+      >
+        <span className="shrink-0 flex items-center justify-center pointer-events-none">{item.render()}</span>
+        <span className="text-[10pt] font-medium text-primary truncate flex-1 pointer-events-none">{item.label}</span>
+      </div>
+    ) : (
+      <MenuListRow
+        key={item.key}
+        item={item}
+        onSelect={(it) => {
+          if (it.submenu) { setSubmenu({ title: it.label, items: it.submenu }); return }
+          it.onAction?.()
+          onClose()
+        }}
+      />
+    )
+
+  // One drill level — a submenu (Back header + its rows) or the root (optional react
+  // strip / section header + rows). Rendered by both the invisible sizer and each
+  // cross-sliding transition layer, so leaving/entering levels keep their own content.
+  const renderLevel = (lvl: MenuLevel) => (
+    <div className="divide-y divide-black/[0.06]">
+      {lvl.submenu ? (
+        <PopoverHeader title={lvl.submenu.title} onBack={() => setSubmenu(null)} onClose={onClose} />
+      ) : (
+        <>
+          {lvl.reactRow && (
+            <div className="flex items-center justify-between px-3" style={{ height: STRIP_H }}>
+              {reactions!.map((r) => (
+                <button
+                  key={r.key}
+                  onClick={() => { r.onAction?.(); onClose() }}
+                  aria-label={r.label}
+                  title={r.label}
+                  className="w-8 h-8 flex items-center justify-center rounded-full active:scale-90 transition-transform"
+                >
+                  {r.node}
+                </button>
+              ))}
+            </div>
+          )}
+          {lvl.sectionHeader && (
+            <p className="px-4 pt-2.5 pb-1.5 text-[9pt] font-semibold text-tertiary uppercase tracking-wider">{header}</p>
+          )}
+        </>
+      )}
+      {(lvl.submenu ? lvl.submenu.items : items).map(renderRow)}
+    </div>
+  )
+
   return createPortal(
     <div className="fixed inset-0" style={{ zIndex: 9998 }}>
       {/* Backdrop — dim+blur for peek, transparent catcher for dropdowns */}
@@ -231,15 +343,19 @@ export function AnchoredMenu({ isOpen, anchorRect, row, items, onClose, bare = f
 
       {/* Action menu */}
       {isList ? (
-        <div
+        <animated.div
           ref={menuRef}
-          className="absolute rounded-2xl bg-themewhite overflow-hidden ring-1 ring-black/5 divide-y divide-black/[0.06] select-none"
+          className="absolute rounded-2xl bg-themewhite overflow-hidden ring-1 ring-black/5 select-none"
           style={{
             left: menuLeft,
-            top: menuTop,
+            // Down/peek: top is fixed, height grows downward. Open-up: keep the bottom
+            // edge planted (anchorRect.top − GAP) so the card grows/shrinks upward as
+            // the height springs between levels — no jump at the anchored edge.
+            top: openUp
+              ? heightSpring.height.to((h) => Math.max(SAFE, anchorRect.top - GAP - h))
+              : menuTop,
             width: menuW,
-            paddingTop: LIST_PAD / 2,
-            paddingBottom: LIST_PAD / 2,
+            height: heightSpring.height,
             WebkitTouchCallout: 'none',
             touchAction: 'manipulation',
             boxShadow: visible ? '0 18px 44px rgba(0,0,0,0.28)' : '0 0 0 rgba(0,0,0,0)',
@@ -250,60 +366,19 @@ export function AnchoredMenu({ isOpen, anchorRect, row, items, onClose, bare = f
               'transform 260ms cubic-bezier(0.34, 1.45, 0.64, 1) 70ms, opacity 200ms ease-out 70ms, box-shadow 260ms ease-out',
           }}
         >
-          {/* Submenu back header — reuses PopoverHeader (Back chevron · title · X). */}
-          {showBackHeader && (
-            <PopoverHeader title={submenu!.title} onBack={() => setSubmenu(null)} onClose={onClose} />
-          )}
-          {/* Section header — selectors */}
-          {showHeader && (
-            <p className="px-4 pt-2.5 pb-1.5 text-[9pt] font-semibold text-tertiary uppercase tracking-wider">{header}</p>
-          )}
-          {/* React row — horizontal emoji glyphs, top row of the same card */}
-          {showReactRow && (
-            <div className="flex items-center justify-between px-3" style={{ height: STRIP_H }}>
-              {reactions!.map((r) => (
-                <button
-                  key={r.key}
-                  onClick={() => { r.onAction?.(); onClose() }}
-                  aria-label={r.label}
-                  title={r.label}
-                  className="w-8 h-8 flex items-center justify-center rounded-full active:scale-90 transition-transform"
-                >
-                  {r.node}
-                </button>
-              ))}
-            </div>
-          )}
-          {activeItems.map((item) =>
-            item.render ? (
-              // Custom renderer owns its button + click + status feedback; the menu
-              // does NOT auto-close (dismiss via backdrop tap). In the vertical list
-              // the label is NOT a dead sibling — the WHOLE row is the tap target: a
-              // tap anywhere forwards to the rendered control, so the animated icon
-              // still drives the action and shows in-place status. The render() wrapper
-              // is pointer-events-none so a tap can't hit the inner button directly,
-              // which keeps the forward firing exactly once (no double-trigger).
-              <div
-                key={item.key}
-                onClick={(e) => e.currentTarget.querySelector('button')?.click()}
-                className="w-full flex items-center gap-3 py-1.5 px-3 cursor-pointer active:bg-black/[0.06] transition-colors"
-              >
-                <span className="shrink-0 flex items-center justify-center pointer-events-none">{item.render()}</span>
-                <span className="text-[10pt] font-medium text-primary truncate flex-1 pointer-events-none">{item.label}</span>
-              </div>
-            ) : (
-              <MenuListRow
-                key={item.key}
-                item={item}
-                onSelect={(it) => {
-                  if (it.submenu) { setSubmenu({ title: it.label, items: it.submenu }); return }
-                  it.onAction?.()
-                  onClose()
-                }}
-              />
-            ),
-          )}
-        </div>
+          {/* Invisible sizer — the settling level, measured so the height spring has a
+              target. The visible levels are absolute, so they can't size the card. */}
+          <div ref={sizerRef} aria-hidden className="invisible absolute inset-x-0 top-0">
+            {renderLevel(level)}
+          </div>
+          {/* Cross-sliding levels: descending pushes the new level in from the right,
+              Back pops the old one out — over the morphing height. */}
+          {levelTransitions((style, lvl) => (
+            <animated.div style={style} className="absolute inset-x-0 top-0">
+              {renderLevel(lvl)}
+            </animated.div>
+          ))}
+        </animated.div>
       ) : (
         <ActionPill
           ref={menuRef}

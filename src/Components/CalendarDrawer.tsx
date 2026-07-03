@@ -167,7 +167,7 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
     }, [setSelectedDate])
 
     // Per-view layout prefs (Weekends / Day layout / Troops cells + huddle-only)
-    // now live on the calendar's view-config popover (re-tap the active view pill).
+    // now live on the calendar's view-config popover (island "view options" button).
     // The settings drawer keeps only clinic-level config (supervisor).
     const layoutSection = isSupervisorRole ? (
         <div className="px-5 py-4">
@@ -384,7 +384,7 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
                                     />
                                 </div>
                                 {/* Settings gear holds clinic config (supervisor only);
-                                    per-view layout prefs moved to the island view-config popover. */}
+                                    per-view layout prefs moved to the island "view options" button. */}
                                 {isSupervisorRole && (
                                     <button
                                         data-tour="calendar-settings"
