@@ -16,6 +16,7 @@ import {
   loadAllConversations,
   loadUnreadCounts,
   getAllTombstones,
+  getAllOriginTombstones,
   saveTombstone,
   deleteTombstone,
   deleteConversation as deleteConversationFromDb,
@@ -47,6 +48,12 @@ interface MessagingState {
   /** Tombstones: conversationKey → deletedAt ISO string.
    *  Messages with createdAt < deletedAt are suppressed. */
   deletedConversations: Record<string, string>
+  /** Per-origin tombstones: originId → deletedAt ISO string. The canonical,
+   *  createdAt-independent delete identity. Mirrors messageStore's
+   *  originTombstones so addMessage can suppress a deleted message synchronously
+   *  (symmetric with saveMessage's IDB guard) — otherwise a vault/realtime echo
+   *  renders in the live store while IDB refuses it ("shows but not saved"). */
+  deletedOrigins: Record<string, string>
   /** Local device ID — loaded async from keyManager. */
   localDeviceId: string | null
   /** Clinic device ID — set after clinic device init. */
@@ -168,6 +175,7 @@ export const useMessagingStore = create<MessagingStore>()((set, get) => ({
   groups: {},
   sendingMap: {},
   deletedConversations: {},
+  deletedOrigins: {},
   localDeviceId: null,
   clinicDeviceId: null,
   localUserId: null,
@@ -198,10 +206,21 @@ export const useMessagingStore = create<MessagingStore>()((set, get) => ({
     if (msg.messageType === 'sender-key-distribution' || msg.messageType === 'sender-key-message') {
       return
     }
-    const { deletedConversations, conversations, localUserId, systemGroupIds } = get()
+    const { deletedConversations, deletedOrigins, conversations, localUserId, systemGroupIds } = get()
     const userId = localUserId
 
     const conversationKey = msg.groupId ?? (userId && msg.senderId === userId ? msg.recipientId : msg.senderId)
+
+    // Origin tombstone guard — symmetric with messageStore.saveMessage's IDB
+    // guard. A message whose originId was deleted (individual OR conversation
+    // delete) must never re-enter the live store, even via a vault drain /
+    // realtime echo whose createdAt >= the conversation tombstone. Origin IDs
+    // are unique UUIDs, so this only ever suppresses the exact deleted message.
+    // Checked BEFORE the conversation-tombstone clear logic so a resurrected
+    // origin can't clear the conversation tombstone. Without this, the message
+    // renders in the conversation while saveMessage refuses it to IDB — the
+    // "shows in the conversation but not in the actual messages" ghost.
+    if (msg.originId && deletedOrigins[msg.originId]) return
 
     const tombstoneAt = deletedConversations[conversationKey]
     if (tombstoneAt) {
@@ -372,26 +391,34 @@ export const useMessagingStore = create<MessagingStore>()((set, get) => ({
   },
 
   removeMessagesByOriginIds: (originIds) => {
+    if (originIds.length === 0) return
     const originSet = new Set(originIds)
+    const deletedAt = new Date().toISOString()
     set(s => {
-      let changed = false
       const next: Record<string, DecryptedSignalMessage[]> = {}
       for (const [key, msgs] of Object.entries(s.conversations)) {
         const filtered = msgs.filter(m => !(m.originId && originSet.has(m.originId)))
-        if (filtered.length !== msgs.length) changed = true
-        if (filtered.length > 0) {
-          next[key] = filtered
-        } else {
-          changed = true
-        }
+        if (filtered.length > 0) next[key] = filtered
       }
-      return changed ? { conversations: next } : s
+      // Always mirror the origin tombstones into state (symmetric with the IDB
+      // originTombstone written by the delete path) so a subsequent vault /
+      // realtime echo of the same message is suppressed by addMessage — even if
+      // the message wasn't currently in live state.
+      const deletedOrigins = { ...s.deletedOrigins }
+      for (const o of originIds) if (!deletedOrigins[o]) deletedOrigins[o] = deletedAt
+      return { conversations: next, deletedOrigins }
     })
   },
 
   deleteConversation: async (conversationKey) => {
     const deletedAt = new Date().toISOString()
     const wasGroup = !!get().groups[conversationKey]
+    // Origins currently in live state — tombstone them immediately so a
+    // same-session vault/realtime echo can't resurrect the conversation before
+    // the async IDB purge folds in the complete set below.
+    const stateOrigins = (get().conversations[conversationKey] ?? [])
+      .map(m => m.originId)
+      .filter((o): o is string => !!o)
 
     // Write tombstone to state and IDB immediately (offline-safe)
     set(s => {
@@ -404,18 +431,32 @@ export const useMessagingStore = create<MessagingStore>()((set, get) => ({
         delete p[conversationKey]
         return p
       })()
+      const deletedOrigins = { ...s.deletedOrigins }
+      for (const o of stateOrigins) deletedOrigins[o] = deletedAt
       return {
         conversations: next,
         unreadCounts: unread,
         peerProfiles,
         deletedConversations: { ...s.deletedConversations, [conversationKey]: deletedAt },
+        deletedOrigins,
       }
     })
 
     await saveTombstone(conversationKey, deletedAt)
-    await deleteConversationFromDb(conversationKey).catch(e =>
-      logger.warn('Failed to delete conversation from IDB:', e),
-    )
+    // deleteConversationFromDb writes a per-origin tombstone for every message
+    // it purges (the durable delete identity) and returns those origins.
+    const purgedOrigins = await deleteConversationFromDb(conversationKey, deletedAt)
+    // Fold in any origins that were in IDB but not live state (partial load).
+    if (purgedOrigins.length > 0) {
+      set(s => {
+        const deletedOrigins = { ...s.deletedOrigins }
+        let changed = false
+        for (const o of purgedOrigins) {
+          if (!deletedOrigins[o]) { deletedOrigins[o] = deletedAt; changed = true }
+        }
+        return changed ? { deletedOrigins } : s
+      })
+    }
     if (!wasGroup) {
       await deletePeerProfile(conversationKey).catch(e =>
         logger.warn('Failed to delete peer profile from IDB:', e),
@@ -466,10 +507,11 @@ export const useMessagingStore = create<MessagingStore>()((set, get) => ({
 
   hydrateFromIdb: async (userId) => {
     try {
-      const [convos, counts, tombstones, peerProfileList] = await Promise.all([
+      const [convos, counts, tombstones, originTombstones, peerProfileList] = await Promise.all([
         loadAllConversations(),
         loadUnreadCounts(userId),
         getAllTombstones(),
+        getAllOriginTombstones(),
         loadAllPeerProfiles(),
       ])
       const peerProfiles: Record<string, ClinicMedic> = {}
@@ -503,7 +545,13 @@ export const useMessagingStore = create<MessagingStore>()((set, get) => ({
           return true
         })
       for (const [key, msgs] of Object.entries(convos)) {
-        const visible = dropControlPlane(msgs)
+        // Drop control-plane cruft AND any message whose originId is tombstoned
+        // (defensive: a pre-fix build, or saveMessage racing the tombstone, may
+        // have persisted a since-deleted message — the origin tombstone is the
+        // durable delete identity and outranks the coarse conversation gate).
+        const visible = dropControlPlane(msgs).filter(
+          m => !(m.originId && originTombstones[m.originId]),
+        )
         const tombstoneAt = tombstones[key]
         if (tombstoneAt) {
           // Keep only messages genuinely newer than the tombstone
@@ -558,6 +606,7 @@ export const useMessagingStore = create<MessagingStore>()((set, get) => ({
           conversations: Object.keys(merged).length > 0 ? merged : s.conversations,
           unreadCounts: Object.keys(counts).length > 0 ? counts : s.unreadCounts,
           deletedConversations: tombstones,
+          deletedOrigins: originTombstones,
           localDeviceId: deviceId ?? s.localDeviceId,
           localUserId: userId,
           peerProfiles: Object.keys(peerProfiles).length > 0
@@ -596,6 +645,7 @@ export const useMessagingStore = create<MessagingStore>()((set, get) => ({
       groups: {},
       sendingMap: {},
       deletedConversations: {},
+      deletedOrigins: {},
       localDeviceId: null,
       clinicDeviceId: null,
       localUserId: null,

@@ -117,7 +117,7 @@ export function PropertyCSVImport({ onClose }: PropertyCSVImportProps) {
         parent_item_id: null,
         expiry_date: null,
         notes: null,
-        is_serialized: false,
+        is_serialized: row.itemType === 'SI' || !!row.serialNumber.trim(),
         serial_number: row.serialNumber || null,
         quantity: row.quantity,
         location_tag_id: null,
@@ -125,6 +125,9 @@ export function PropertyCSVImport({ onClose }: PropertyCSVImportProps) {
         visual_fingerprint: null,
         sub_cluster_id: null,
         quantity_authorized: row.quantityAuthorized,
+        item_type: row.itemType ?? undefined,
+        unit_of_issue: row.unitOfIssue,
+        pack_size: row.packSize,
       })
     }
 

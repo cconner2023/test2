@@ -5,8 +5,22 @@ import { usePropertyStore } from '../../stores/usePropertyStore'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { useSubClusters } from '../../Hooks/useSubClusters'
 import { useShallow } from 'zustand/react/shallow'
-import type { LocalPropertyItem } from '../../Types/PropertyTypes'
+import type { LocalPropertyItem, ItemType, UnitOfIssue } from '../../Types/PropertyTypes'
 import { ROOT_LOCATION_NAME } from '../../Types/PropertyTypes'
+
+const ITEM_TYPE_OPTIONS: { value: ItemType; label: string }[] = [
+  { value: 'CI', label: 'Consumable' },
+  { value: 'DI', label: 'Durable' },
+  { value: 'SI', label: 'Sensitive' },
+]
+const UNIT_OF_ISSUE_OPTIONS: { value: UnitOfIssue; label: string }[] = [
+  { value: 'EA', label: 'EA — each' },
+  { value: 'SET', label: 'SET' },
+  { value: 'PR', label: 'PR — pair' },
+  { value: 'BOT', label: 'BOT — bottle' },
+  { value: 'PK', label: 'PK — pack' },
+  { value: 'TUB', label: 'TUB — tube' },
+]
 
 interface PropertyItemFormProps {
   editingItem?: LocalPropertyItem | null
@@ -72,6 +86,13 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
   const [expiryDate, setExpiryDate] = useState(editingItem?.expiry_date ?? '')
   const [isSaving, setIsSaving] = useState(false)
   const [isSerialized, setIsSerialized] = useState(editingItem?.is_serialized ?? true)
+  // Accountability class. New items default DI. SI forces serialized (see effect below).
+  const [itemType, setItemType] = useState<ItemType>(editingItem?.item_type ?? 'DI')
+  // Unit of issue + base-per-issue pack size — fungible (non-serialized) lines only.
+  const [unitOfIssue, setUnitOfIssue] = useState<string>(editingItem?.unit_of_issue ?? '')
+  const [packSize, setPackSize] = useState(editingItem?.pack_size != null ? String(editingItem.pack_size) : '')
+  // SI is serialized by definition — selecting it locks the individual-tracking flag on.
+  useEffect(() => { if (itemType === 'SI') setIsSerialized(true) }, [itemType])
   // Health/serviceability is expressed by PMCS faults now (no manual chips). The
   // value still round-trips: 'serviceable' default on create, and an edit preserves
   // whatever's there (e.g. 'missing' set by the transfer accountability check).
@@ -143,6 +164,10 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
       expiry_date: expiryDate || null,
       notes: notes.trim() || null,
       is_serialized: isSerialized,
+      item_type: itemType,
+      // Unit/pack describe fungible issue lines; a serialized item is 1:1 (unit irrelevant).
+      unit_of_issue: isSerialized ? null : ((unitOfIssue || null) as UnitOfIssue | null),
+      pack_size: isSerialized ? null : (packSize.trim() ? Math.max(1, parseInt(packSize) || 1) : null),
     }
 
     try {
@@ -209,6 +234,7 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
   }, [
     name, nomenclature, nsn, lin, serialNumbers, quantity,
     locationId, holderId, parentItemId, notes, expiryDate, isSerialized,
+    itemType, unitOfIssue, packSize,
     isEdit, editingItem, clinicId, addItem, editItem, onClose, onEnrollNew, conditionCode,
     sectionId, sectionApplicable,
   ])
@@ -238,9 +264,25 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
         </div>
       </div>
 
+      {/* Accountability class — true segmented selector (CI/DI/SI). SI locks serialized on. */}
+      <div className="flex items-stretch border-b border-primary/6">
+        {ITEM_TYPE_OPTIONS.map((opt) => (
+          <button
+            key={opt.value}
+            type="button"
+            onClick={() => setItemType(opt.value)}
+            className={`flex-1 min-w-0 px-2 py-3 text-[10pt] transition-all active:scale-95 border-l first:border-l-0 border-primary/6 ${
+              itemType === opt.value ? 'bg-themeblue3 text-white' : 'text-secondary'
+            }`}
+          >
+            {opt.label}
+          </button>
+        ))}
+      </div>
+
       <button
         type="button"
-        onClick={() => setIsSerialized((v) => !v)}
+        onClick={() => itemType !== 'SI' && setIsSerialized((v) => !v)}
         className="w-full flex items-center gap-1.5 px-4 py-3 text-[10pt] text-secondary active:scale-95 transition-all border-b border-primary/6"
       >
         {isSerialized ? <CheckSquare size={14} /> : <Square size={14} />}
@@ -288,7 +330,22 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
           )}
         </div>
       ) : (
-        <TextInput type="number" value={quantity} onChange={setQuantity} placeholder="Quantity" />
+        <>
+          <TextInput type="number" value={quantity} onChange={setQuantity} placeholder="Quantity" />
+          <div className="flex items-stretch border-b border-primary/6">
+            <div className="flex-1 min-w-0">
+              <PickerInput
+                value={unitOfIssue}
+                onChange={setUnitOfIssue}
+                options={[{ value: '', label: 'Unit of issue (EA)' }, ...UNIT_OF_ISSUE_OPTIONS]}
+                placeholder="Unit of issue (EA)"
+              />
+            </div>
+            <div className="flex-1 min-w-0 border-l border-primary/6">
+              <TextInput type="number" value={packSize} onChange={setPackSize} placeholder="Per issue (e.g. PR = 2)" />
+            </div>
+          </div>
+        </>
       )}
 
       {hasLocations && (

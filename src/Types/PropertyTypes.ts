@@ -10,6 +10,20 @@
 
 export type PropertyCondition = 'serviceable' | 'unserviceable' | 'missing' | 'damaged'
 
+/** Accountability class — the "basement" discriminator that gates unit/substitution/expend
+ *  behavior (see v2/property CLUSTER-PROPERTY BASEMENT drawer):
+ *   - CI Consumable: expendable (the only type routed to custody_ledger 'expended').
+ *   - DI Durable:    non-serialized (serial optional); fungible pool + base-unit + LIN
+ *                    substitution apply; not expended (turn-in, not use-up).
+ *   - SI Sensitive:  serialized (is_serialized forced true); never pooled/substituted/
+ *                    normalized (1:1 present vs authorized serials); not expended.
+ *  med/fluid become refinements of CI in a later floor. */
+export type ItemType = 'CI' | 'DI' | 'SI'
+
+/** Unit of issue — how a line is issued/authorized. Display + BOM-matching lens ONLY;
+ *  all on-hand `quantity` and all shortage math run in BASE (individual/EA) units. */
+export type UnitOfIssue = 'EA' | 'SET' | 'PR' | 'BOT' | 'PK' | 'TUB'
+
 export type CustodyAction =
   | 'sign_down'     // HRH → subordinate
   | 'sign_up'       // subordinate → HRH (return)
@@ -53,6 +67,17 @@ export interface PropertyItem {
   serial_number: string | null
   quantity: number
   is_serialized: boolean
+  /** Accountability class (CI/DI/SI). Gates fungibility, substitution and expend behavior.
+   *  NOT NULL on the spine (default 'DI'); legacy IDB rows coerce in localItem
+   *  (is_serialized → 'SI', else 'DI'). See CLUSTER-PROPERTY BASEMENT drawer. */
+  item_type: ItemType
+  /** Unit of issue (EA/SET/PR/BOT/PK/TUB). Display + BOM lens only. null = untracked → EA. */
+  unit_of_issue: UnitOfIssue | null
+  /** Base (individual/EA) units per one issue unit — the accountability multiplier. PR→2,
+   *  SET→n, EA/BOT→1. Shortage folds convert authorized (issue units) → base via this before
+   *  comparing to on-hand `quantity` (already base). null = 1 (no split below the issue unit).
+   *  NOT the med dispense-content count (tablets-per-bottle) — that is a later floor. */
+  pack_size: number | null
   condition_code: PropertyCondition
   parent_item_id: string | null   // self-FK for sub-items / components
   location_id: string | null      // FK to property_locations for placement

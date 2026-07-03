@@ -33,7 +33,10 @@ interface SwipeToDeleteRowProps {
  */
 export function SwipeToDeleteRow({ onDelete, disabled, className, children }: SwipeToDeleteRowProps) {
   const contentRef = useRef<HTMLDivElement>(null)
+  const revealRef = useRef<HTMLDivElement>(null)
   const drag = useRef<{ startX: number; startY: number; locked: boolean | null } | null>(null)
+  // Timer that hides the reveal once the row has finished snapping back.
+  const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   // Set the instant a swipe locks horizontal; consumed by onClickCapture to
   // swallow the trailing tap. Reset on every touchstart so a real tap that
   // follows a swipe (no click fired by the browser) is never eaten.
@@ -43,11 +46,22 @@ export function SwipeToDeleteRow({ onDelete, disabled, className, children }: Sw
     if (contentRef.current) contentRef.current.style.transform = `translateX(${x}px)`
   }
 
+  // The red reveal is painted ONLY during an active swipe. At rest it stays
+  // hidden so it can't bleed through the content's promoted compositor layer
+  // during fast/overscroll (the flash bug). Toggled via ref — no re-render.
+  const showReveal = (on: boolean) => {
+    if (hideTimer.current) { clearTimeout(hideTimer.current); hideTimer.current = null }
+    if (revealRef.current) revealRef.current.style.opacity = on ? '1' : '0'
+  }
+
   const snap = () => {
     const el = contentRef.current
     if (!el) return
     el.style.transition = 'transform 0.2s ease-out'
     el.style.transform = 'translateX(0)'
+    // Keep the reveal painted until the row has slid fully back over it, then
+    // drop it so nothing red remains behind the row at rest.
+    hideTimer.current = setTimeout(() => showReveal(false), 200)
   }
 
   const onTouchStart = (e: React.TouchEvent) => {
@@ -70,6 +84,7 @@ export function SwipeToDeleteRow({ onDelete, disabled, className, children }: Sw
       // A vertical lock hands the gesture back to the scroll container.
       if (!state.locked) { drag.current = null; snap(); return }
       didSwipe.current = true
+      showReveal(true)
     }
     // Left drag reveals; a wrong-way (right) drag rubber-bands a hair.
     const offset = dx < 0 ? Math.max(-SWIPE_MAX, dx) : Math.min(8, dx * 0.1)
@@ -87,8 +102,15 @@ export function SwipeToDeleteRow({ onDelete, disabled, className, children }: Sw
 
   return (
     <div className={`relative overflow-hidden ${className ?? ''}`}>
-      {/* Solid reveal beneath the row — black icon, no growing circle. */}
-      <div aria-hidden className="absolute inset-0 flex items-center justify-end bg-themeredred pr-6">
+      {/* Solid reveal beneath the row — black icon, no growing circle. Hidden
+          at rest (opacity 0) so it never bleeds through during scroll; shown
+          only while a swipe is locked horizontal. */}
+      <div
+        ref={revealRef}
+        aria-hidden
+        style={{ opacity: 0 }}
+        className="absolute inset-0 flex items-center justify-end bg-themeredred pr-6"
+      >
         <Trash2 size={20} className="text-black" />
       </div>
       <div

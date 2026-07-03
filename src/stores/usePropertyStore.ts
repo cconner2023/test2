@@ -6,6 +6,8 @@ import type {
   PropertyItem,
   PropertyLocation,
   VisualFingerprint,
+  ItemType,
+  UnitOfIssue,
 } from '../Types/PropertyTypes'
 import { ROOT_LOCATION_NAME } from '../Types/PropertyTypes'
 import { useAuthStore } from './useAuthStore'
@@ -89,7 +91,7 @@ interface PropertyState {
   setTransitionState: (state: 'idle' | 'zooming-in' | 'zooming-out') => void
 
   init: () => Promise<void>
-  addItem: (data: Omit<PropertyItem, 'id' | 'created_at' | 'updated_at' | 'signed_out_external' | 'owner_user_id' | 'quantity_authorized' | 'turned_in_at'> & { quantity_authorized?: number | null }) => Promise<LocalPropertyItem | null>
+  addItem: (data: Omit<PropertyItem, 'id' | 'created_at' | 'updated_at' | 'signed_out_external' | 'owner_user_id' | 'quantity_authorized' | 'turned_in_at' | 'item_type' | 'unit_of_issue' | 'pack_size'> & { quantity_authorized?: number | null; item_type?: ItemType; unit_of_issue?: UnitOfIssue | null; pack_size?: number | null }) => Promise<LocalPropertyItem | null>
   editItem: (id: string, updates: Partial<PropertyItem>, opts?: { skipAudit?: boolean }) => Promise<void>
   removeItem: (id: string) => Promise<void>
   addLocation: (data: Omit<PropertyLocation, 'id' | 'created_at' | 'updated_at'>) => Promise<{ success: boolean; location?: LocalPropertyLocation }>
@@ -661,6 +663,9 @@ export const usePropertyStore = create<PropertyState>((set, get) => ({
         visual_fingerprint: null,
         expiry_date: source.expiry_date,
         notes: source.notes,
+        item_type: source.item_type, // split-off stock keeps the source's class + issue unit
+        unit_of_issue: source.unit_of_issue,
+        pack_size: source.pack_size,
       })
       if (!created) return
       destId = created.id

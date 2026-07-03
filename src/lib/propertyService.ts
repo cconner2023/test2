@@ -58,6 +58,8 @@ import type {
   SubItemCheck,
   SyncStatus,
   VisualFingerprint,
+  ItemType,
+  UnitOfIssue,
 } from '../Types/PropertyTypes'
 
 const logger = createLogger('PropertyService')
@@ -73,6 +75,11 @@ function localItem(item: PropertyItem, syncStatus: SyncStatus = 'pending'): Loca
     owner_user_id: item.owner_user_id ?? null,
     // Coerce legacy IDB rows cached before quantity_authorized existed. null = not tracked.
     quantity_authorized: item.quantity_authorized ?? null,
+    // Coerce legacy IDB rows cached before item_type existed. Serialized → SI, else DI
+    // (mirrors the spine backfill). unit_of_issue null → EA at read; pack_size null → 1.
+    item_type: item.item_type ?? (item.is_serialized ? 'SI' : 'DI'),
+    unit_of_issue: item.unit_of_issue ?? null,
+    pack_size: item.pack_size ?? null,
     // Coerce legacy IDB rows cached before turned_in_at existed. null = active/on the books.
     turned_in_at: item.turned_in_at ?? null,
     // Coerce legacy rows cached before turn_in_origin_location_id existed.
@@ -207,8 +214,8 @@ export async function fetchClinicItems(clinicId: string): Promise<LocalPropertyI
 }
 
 export async function createItem(
-  data: Omit<PropertyItem, 'id' | 'created_at' | 'updated_at' | 'signed_out_external' | 'owner_user_id' | 'quantity_authorized' | 'turned_in_at'>
-    & { quantity_authorized?: number | null },
+  data: Omit<PropertyItem, 'id' | 'created_at' | 'updated_at' | 'signed_out_external' | 'owner_user_id' | 'quantity_authorized' | 'turned_in_at' | 'item_type' | 'unit_of_issue' | 'pack_size'>
+    & { quantity_authorized?: number | null; item_type?: ItemType; unit_of_issue?: UnitOfIssue | null; pack_size?: number | null },
   userId: string,
 ): Promise<ServiceResult<{ item: LocalPropertyItem }>> {
   try {
@@ -222,6 +229,9 @@ export async function createItem(
       signed_out_external: false,
       owner_user_id: null,
       quantity_authorized: data.quantity_authorized ?? null,
+      item_type: data.item_type ?? 'DI',
+      unit_of_issue: data.unit_of_issue ?? null,
+      pack_size: data.pack_size ?? null,
       turned_in_at: null,
       id: crypto.randomUUID(),
       created_at: now,
@@ -283,7 +293,7 @@ export async function createItem(
 const AUDITED_EDIT_FIELDS: (keyof PropertyItem)[] = [
   'name', 'nomenclature', 'nsn', 'lin', 'serial_number',
   'condition_code', 'quantity', 'expiry_date', 'notes', 'parent_item_id', 'owner_user_id',
-  'quantity_authorized',
+  'quantity_authorized', 'item_type', 'unit_of_issue', 'pack_size',
 ]
 
 export async function updateItem(
@@ -2533,6 +2543,9 @@ async function writeTurnInRows(
           notes: item.notes,
           sub_cluster_id: item.sub_cluster_id ?? null,
           quantity_authorized: null, // the moved stock is never itself a shortage line
+          item_type: item.item_type, // relocated stock keeps its accountability class + unit
+          unit_of_issue: item.unit_of_issue,
+          pack_size: item.pack_size,
         },
         userId,
       )

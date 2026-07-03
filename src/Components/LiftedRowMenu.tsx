@@ -1,7 +1,9 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { ReactNode } from 'react'
+import { ChevronLeft } from 'lucide-react'
 import { ActionPill } from './ActionPill'
+import { PopoverHeader } from './PreviewOverlay'
 import { MenuItemButton, contextMenuItemVariant, type ContextMenuItem } from './ContextMenu'
 
 interface AnchoredMenuProps {
@@ -46,6 +48,7 @@ const ROW_H = 40     // approx per-row height (py-2.5 + 10pt line) — geometry 
 const LIST_PAD = 0   // card has no extra vertical padding (rows are full-bleed)
 const STRIP_H = 52   // reaction-strip height (pill + reserve)
 const HEADER_H = 30  // section-header height (list layout, when `header` set)
+const BACK_HEADER_H = 52 // PopoverHeader height (back chevron + title + close), submenu only
 
 /** A single row in the vertical list-card. Mirrors ActionSheet's option rows
  *  (the calendar add-FAB menu): icon-left, `text-[10pt] font-medium`, divider
@@ -107,12 +110,15 @@ function MenuListRow({ item, onSelect }: { item: ContextMenuItem; onSelect: (ite
  */
 export function AnchoredMenu({ isOpen, anchorRect, row, items, onClose, bare = false, align = 'left', layout = 'pill', reactions, backdrop, header }: AnchoredMenuProps) {
   const [visible, setVisible] = useState(false)
-  const [submenuItems, setSubmenuItems] = useState<ContextMenuItem[] | null>(null)
+  // A drilled-in submenu carries its parent row's label so the header can title it
+  // and offer a Back chevron (PopoverHeader) instead of trapping the user until they
+  // dismiss the whole menu.
+  const [submenu, setSubmenu] = useState<{ title: string; items: ContextMenuItem[] } | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
-  const activeItems = submenuItems ?? items
+  const activeItems = submenu?.items ?? items
 
   useEffect(() => {
-    if (!isOpen) { setVisible(false); setSubmenuItems(null); return }
+    if (!isOpen) { setVisible(false); setSubmenu(null); return }
     const raf = requestAnimationFrame(() => setVisible(true))
     return () => cancelAnimationFrame(raf)
   }, [isOpen])
@@ -129,12 +135,14 @@ export function AnchoredMenu({ isOpen, anchorRect, row, items, onClose, bare = f
 
   const isList = layout === 'list'
   // Reactions ride as the top row of the list-card (horizontal emoji row).
-  const showReactRow = isList && !submenuItems && !!reactions?.length
-  const showHeader = isList && !submenuItems && !!header
+  const showReactRow = isList && !submenu && !!reactions?.length
+  const showHeader = isList && !submenu && !!header
+  const showBackHeader = isList && !!submenu
   const menuH = isList
-    ? activeItems.length * ROW_H + (showReactRow ? STRIP_H : 0) + (showHeader ? HEADER_H : 0) + LIST_PAD
+    ? activeItems.length * ROW_H + (showReactRow ? STRIP_H : 0) + (showHeader ? HEADER_H : 0) + (showBackHeader ? BACK_HEADER_H : 0) + LIST_PAD
     : MENU_H
-  const menuW = isList ? LIST_W : activeItems.length * 40 + 12
+  // Pill submenus prepend a Back chevron tile — reserve its width.
+  const menuW = isList ? LIST_W : (activeItems.length + (submenu ? 1 : 0)) * 40 + 12
 
   // ── Vertical placement ──
   let lift = 0
@@ -222,6 +230,10 @@ export function AnchoredMenu({ isOpen, anchorRect, row, items, onClose, bare = f
               'transform 260ms cubic-bezier(0.34, 1.45, 0.64, 1) 70ms, opacity 200ms ease-out 70ms, box-shadow 260ms ease-out',
           }}
         >
+          {/* Submenu back header — reuses PopoverHeader (Back chevron · title · X). */}
+          {showBackHeader && (
+            <PopoverHeader title={submenu!.title} onBack={() => setSubmenu(null)} onClose={onClose} />
+          )}
           {/* Section header — selectors */}
           {showHeader && (
             <p className="px-4 pt-2.5 pb-1.5 text-[9pt] font-semibold text-tertiary uppercase tracking-wider">{header}</p>
@@ -264,7 +276,7 @@ export function AnchoredMenu({ isOpen, anchorRect, row, items, onClose, bare = f
                 key={item.key}
                 item={item}
                 onSelect={(it) => {
-                  if (it.submenu) { setSubmenuItems(it.submenu); return }
+                  if (it.submenu) { setSubmenu({ title: it.label, items: it.submenu }); return }
                   it.onAction?.()
                   onClose()
                 }}
@@ -286,6 +298,18 @@ export function AnchoredMenu({ isOpen, anchorRect, row, items, onClose, bare = f
               'transform 260ms cubic-bezier(0.34, 1.45, 0.64, 1) 70ms, opacity 200ms ease-out 70ms',
           }}
         >
+          {/* Submenu Back tile — pill layout can't host a full header, so drill-out
+              rides as a leading chevron button. */}
+          {submenu && (
+            <button
+              onClick={() => setSubmenu(null)}
+              aria-label="Back"
+              title={submenu.title}
+              className="w-9 h-9 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
+            >
+              <ChevronLeft size={16} />
+            </button>
+          )}
           {activeItems.map((item) =>
             item.render ? (
               <Fragment key={item.key}>{item.render()}</Fragment>
@@ -294,7 +318,7 @@ export function AnchoredMenu({ isOpen, anchorRect, row, items, onClose, bare = f
                 key={item.key}
                 item={item}
                 onSelect={(it) => {
-                  if (it.submenu) { setSubmenuItems(it.submenu); return }
+                  if (it.submenu) { setSubmenu({ title: it.label, items: it.submenu }); return }
                   it.onAction?.()
                   onClose()
                 }}

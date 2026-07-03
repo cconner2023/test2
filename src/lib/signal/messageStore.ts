@@ -525,20 +525,42 @@ export async function deleteMessagesByOriginId(
   }
 }
 
-/** Delete all messages for a conversation (by peerId / groupId). */
-export async function deleteConversation(conversationKey: string): Promise<void> {
+/** Delete all messages for a conversation (by peerId / groupId) AND record a
+ *  per-origin tombstone for each in the same transaction. The origin tombstone
+ *  is the canonical delete identity — it is what makes a conversation delete
+ *  survive backup restores, vault drains, and realtime echoes (see the
+ *  invariant block at the top of this file). The coarse conversation tombstone
+ *  alone is NOT durable: addMessage's clear-on-newer logic drops it the moment
+ *  any message with createdAt >= deletedAt arrives, so a conversation-delete
+ *  that only wrote the conversation tombstone would resurrect. Mirrors
+ *  deleteMessagesByOriginId. Returns the origins tombstoned so the store can
+ *  mirror them into in-memory state for same-session suppression. */
+export async function deleteConversation(
+  conversationKey: string,
+  deletedAt: string = new Date().toISOString(),
+): Promise<string[]> {
   try {
     const db = await getDb()
-    const tx = db.transaction('messages', 'readwrite')
-    const index = tx.store.index('by-peer')
+    const tx = db.transaction(['messages', 'originTombstones'], 'readwrite')
+    const messagesStore = tx.objectStore('messages')
+    const originStore = tx.objectStore('originTombstones')
+    const index = messagesStore.index('by-peer')
+    const purgedOrigins: string[] = []
     let cursor = await index.openCursor(conversationKey)
     while (cursor) {
+      const originId = cursor.value.originId
+      if (originId) {
+        await originStore.put({ originId, deletedAt })
+        purgedOrigins.push(originId)
+      }
       await cursor.delete()
       cursor = await cursor.continue()
     }
     await tx.done
+    return purgedOrigins
   } catch (err) {
     logger.warn(`Failed to delete conversation ${conversationKey}:`, err)
+    return []
   }
 }
 

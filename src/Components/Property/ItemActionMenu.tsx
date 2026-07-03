@@ -1,14 +1,18 @@
 import { useState, useMemo, forwardRef, useImperativeHandle, type RefObject } from 'react'
-import { ScanLine, ArrowRightLeft, GitMerge, Check, MessageSquare, Pencil, Trash2, Wrench, PackageMinus, UserCheck, Users, Eye } from 'lucide-react'
+import { ScanLine, ArrowRightLeft, GitMerge, Check, MessageSquare, Pencil, Trash2, Wrench, PackageMinus, UserCheck, Users, Eye, Printer, Boxes, Package } from 'lucide-react'
 import { SectionCard } from '../Section'
 import { type ContextMenuItem } from '../ContextMenu'
 import { LiftedRowMenu } from '../LiftedRowMenu'
 import { PreviewOverlay } from '../PreviewOverlay'
+import { ActionSheet } from '../ActionSheet'
+import { PdfPreviewModal } from '../PdfPreviewModal'
 import { TextInput, PickerInput } from '../FormInputs'
 import { PillButton } from '../HeaderPill'
 import type { LocalPropertyItem, LocalPropertyLocation } from '../../Types/PropertyTypes'
+import type { LabelPresetKey } from '../../Utilities/PropertyLabelExport'
 import { usePropertyStore } from '../../stores/usePropertyStore'
 import { useAuthStore } from '../../stores/useAuthStore'
+import { usePropertyLabelExport } from '../../Hooks/usePropertyLabelExport'
 import { useShareToChat } from '../Messages/ShareToChatPicker'
 import { PmcsSheet } from './PmcsSheet'
 
@@ -69,10 +73,13 @@ function QtyField({
 }
 
 /**
- * The single, shared property-item action menu — the full action set (View · Edit ·
- * Mark as mine · Split/Move · Merge · Expend · PMCS · Visual ID · Share to chat ·
- * Stage turn-in · Delete) plus its co-located Split/Merge/Expend/PMCS overlays and
- * the share picker. Mounted ONCE by PropertyPanel and driven imperatively (openMenu)
+ * The single, shared property-item action menu. Top level stays short (View · Edit ·
+ * Quantity · PMCS · Share · Logistics · Delete) with the crowded actions collapsed
+ * into two submenus so the menu can't outgrow a small viewport: Quantity groups
+ * Split/Move · Merge · Expend; Logistics groups Mark-as-mine · Print label · Visual
+ * ID · Stage turn-in. Co-locates its Split/Merge/Expend/PMCS overlays, the single-
+ * item label print (stock choice + PDF preview), and the share picker. Mounted ONCE
+ * by PropertyPanel and driven imperatively (openMenu)
  * from every surface — the location tree, the sign-out (Custody) tab, and the item
  * detail header — so the three surfaces can't drift. Self-contained actions run
  * straight through usePropertyStore; host actions (view/edit/delete/enroll/stage)
@@ -93,6 +100,7 @@ export const ItemActionMenu = forwardRef<ItemActionMenuHandle, ItemActionMenuPro
   const [showMergeSheet, setShowMergeSheet] = useState(false)
   const [showExpendSheet, setShowExpendSheet] = useState(false)
   const [showPmcs, setShowPmcs] = useState(false)
+  const [showLabelStock, setShowLabelStock] = useState(false)
   const [splitQty, setSplitQty] = useState(1)
   const [expendQty, setExpendQty] = useState(1)
   const [splitTargetId, setSplitTargetId] = useState<string | null>(null)
@@ -105,12 +113,20 @@ export const ItemActionMenu = forwardRef<ItemActionMenuHandle, ItemActionMenuPro
       setShowMergeSheet(false)
       setShowExpendSheet(false)
       setShowPmcs(false)
+      setShowLabelStock(false)
     },
   }), [])
 
   // Re-resolve the live item each render so qty caps / candidates stay fresh as the
   // store mutates (compensates for not receiving the item as a per-render prop).
   const item = active ? (items.find(i => i.id === active.item.id) ?? active.item) : null
+
+  const { exportLabels, labelPreview, downloadLabels, clearLabelPreview } = usePropertyLabelExport()
+  const printLabel = (geometry: LabelPresetKey) => {
+    if (!item) return
+    setShowLabelStock(false)
+    void exportLabels({ items: [{ id: item.id, name: item.name, nsn: item.nsn }], geometry })
+  }
 
   const { share: shareToChat, picker: shareToChatPicker } = useShareToChat()
   const handleShareToChat = () => {
@@ -208,6 +224,37 @@ export const ItemActionMenu = forwardRef<ItemActionMenuHandle, ItemActionMenuPro
     </p>
   )
 
+  // Quantity ops (non-serialized only) collapse under one "Quantity" row so the
+  // top-level menu stays short enough to never clip off a small viewport.
+  const quantityChildren: ContextMenuItem[] = [
+    ...(!item.is_serialized ? [{
+      key: 'move',
+      label: item.quantity > 1 ? 'Split / Move' : 'Move to location',
+      icon: ArrowRightLeft,
+      onAction: () => { setSplitQty(1); setSplitTargetId(null); setShowSplitSheet(true) },
+    } as ContextMenuItem] : []),
+    ...(!item.is_serialized && mergeCandidates.length > 0
+      ? [{ key: 'merge', label: 'Merge like items', icon: GitMerge, onAction: () => setShowMergeSheet(true) } as ContextMenuItem]
+      : []),
+    ...(!item.is_serialized && item.quantity > 0
+      ? [{ key: 'expend', label: 'Expend', icon: PackageMinus, onAction: () => { setExpendQty(1); setShowExpendSheet(true) } } as ContextMenuItem]
+      : []),
+  ]
+
+  // Asset-admin actions (ownership, visual ID, turn-in, single-item label print)
+  // collapse under one "Logistics" row.
+  const logisticsChildren: ContextMenuItem[] = [
+    ...(currentUserId ? [{
+      key: 'ownership',
+      label: isMine ? 'Mark as cluster property' : 'Mark as mine',
+      icon: isMine ? Users : UserCheck,
+      onAction: toggleOwnership,
+    } as ContextMenuItem] : []),
+    { key: 'print-label', label: 'Print label', icon: Printer, onAction: () => setShowLabelStock(true) },
+    ...(onEnroll ? [{ key: 'enroll', label: item.visual_fingerprint ? 'Update Visual ID' : 'Enroll Visual ID', icon: ScanLine, onAction: () => onEnroll(item) } as ContextMenuItem] : []),
+    ...(onStageTurnIn ? [{ key: 'turnin', label: 'Stage for turn-in', icon: PackageMinus, onAction: () => onStageTurnIn(item) } as ContextMenuItem] : []),
+  ]
+
   const mergeRows = (
     <>
       {mergeCandidates.map(candidate => {
@@ -245,28 +292,10 @@ export const ItemActionMenu = forwardRef<ItemActionMenuHandle, ItemActionMenuPro
           items={[
             ...(onView && active?.showView ? [{ key: 'view', label: 'View', icon: Eye, onAction: () => onView(item) } as ContextMenuItem] : []),
             ...(onEdit ? [{ key: 'edit', label: 'Edit', icon: Pencil, onAction: () => onEdit(item) } as ContextMenuItem] : []),
-            ...(currentUserId ? [{
-              key: 'ownership',
-              label: isMine ? 'Mark as cluster property' : 'Mark as mine',
-              icon: isMine ? Users : UserCheck,
-              onAction: toggleOwnership,
-            } as ContextMenuItem] : []),
-            ...(!item.is_serialized ? [{
-              key: 'move',
-              label: item.quantity > 1 ? 'Split / Move' : 'Move to location',
-              icon: ArrowRightLeft,
-              onAction: () => { setSplitQty(1); setSplitTargetId(null); setShowSplitSheet(true) },
-            } as ContextMenuItem] : []),
-            ...(!item.is_serialized && mergeCandidates.length > 0
-              ? [{ key: 'merge', label: 'Merge like items', icon: GitMerge, onAction: () => setShowMergeSheet(true) } as ContextMenuItem]
-              : []),
-            ...(!item.is_serialized && item.quantity > 0
-              ? [{ key: 'expend', label: 'Expend', icon: PackageMinus, onAction: () => { setExpendQty(1); setShowExpendSheet(true) } } as ContextMenuItem]
-              : []),
+            ...(quantityChildren.length > 0 ? [{ key: 'quantity', label: 'Quantity', icon: Boxes, submenu: quantityChildren } as ContextMenuItem] : []),
             { key: 'pmcs', label: 'PMCS', icon: Wrench, onAction: () => setShowPmcs(true) },
             { key: 'share', label: 'Share to chat', icon: MessageSquare, onAction: handleShareToChat },
-            ...(onEnroll ? [{ key: 'enroll', label: item.visual_fingerprint ? 'Update Visual ID' : 'Enroll Visual ID', icon: ScanLine, onAction: () => onEnroll(item) } as ContextMenuItem] : []),
-            ...(onStageTurnIn ? [{ key: 'turnin', label: 'Stage for turn-in', icon: PackageMinus, onAction: () => onStageTurnIn(item) } as ContextMenuItem] : []),
+            ...(logisticsChildren.length > 0 ? [{ key: 'logistics', label: 'Logistics', icon: Package, submenu: logisticsChildren } as ContextMenuItem] : []),
             ...(onDelete && canDelete ? [{ key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => onDelete(item) } as ContextMenuItem] : []),
           ]}
         />
@@ -366,6 +395,25 @@ export const ItemActionMenu = forwardRef<ItemActionMenuHandle, ItemActionMenuPro
         subjectId={item.id}
         clinicId={item.clinic_id}
         containerRef={containerRef}
+      />
+
+      {/* Print label — stock choice then PDF preview, mirroring PropertyDrawer's
+          mass-label flow but scoped to this one item (the single-item target that
+          the mass "print all labels" flow can't hit). */}
+      <ActionSheet
+        visible={showLabelStock}
+        title="Print label — choose stock"
+        options={[
+          { key: 'standard', label: 'Address (1" × 2⅝")', onAction: () => printLabel('standard') },
+          { key: 'fileFolder', label: 'File folder (⅔" × 3‑7/16")', onAction: () => printLabel('fileFolder') },
+        ]}
+        onClose={() => setShowLabelStock(false)}
+      />
+
+      <PdfPreviewModal
+        preview={labelPreview}
+        onDownload={downloadLabels}
+        onClose={clearLabelPreview}
       />
 
       {shareToChatPicker}

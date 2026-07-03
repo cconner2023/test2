@@ -251,8 +251,18 @@ export function PropertyLocationTree({
   // keeping every child at a parent — vehicle, zone, or item — at the same indent.
   // `actionCls` toggles hover-gated vs always-visible ellipsis.
   function renderItemRow(item: LocalPropertyItem, depth: number, actionCls: string) {
-    // Expired / expiring (≤30d) / depleted (0 on hand) → red row + dot.
+    // Expired/depleted → red (already a problem); expiring (≤30d) → yellow (still time to
+    // act). Mirrors PropertyItemDetail's EXPIRY_LABELS split so tree and detail agree —
+    // the old unified-red hid "about to go" vs "already went" from the user.
     const alert = itemAlert(item)
+    const isSoon = alert === 'expiring'
+    const rowAlertCls = alert
+      ? isSoon
+        ? 'bg-themeyellow/[0.06] border-l-themeyellow/60'
+        : 'bg-themeredred/[0.06] border-l-themeredred/60'
+      : 'border-l-transparent hover:bg-secondary/5'
+    const alertTextCls = isSoon ? 'text-themeyellow' : 'text-themeredred'
+    const alertDotCls = isSoon ? 'bg-themeyellow' : 'bg-themeredred'
     // Compact warning tag riding the action slot: OUT when depleted, EXP when expiry-flagged.
     const warnLabel = alert === 'depleted' ? 'OUT' : alert ? 'EXP' : null
     const hasActions = !!onOpenItemMenu
@@ -261,9 +271,7 @@ export function PropertyLocationTree({
         key={item.id}
         role="button"
         tabIndex={0}
-        className={`group flex items-center gap-2 w-full py-2 pr-6 transition-colors text-left cursor-pointer border-l-2 ${
-          alert ? 'bg-themeredred/[0.06] border-l-themeredred/60' : 'border-l-transparent hover:bg-secondary/5'
-        }`}
+        className={`group flex items-center gap-2 w-full py-2 pr-6 transition-colors text-left cursor-pointer border-l-2 ${rowAlertCls}`}
         style={{ paddingLeft: `${16 + depth * 20}px` }}
         data-prop-row
         onClick={() => onSelectItem(item)}
@@ -272,9 +280,9 @@ export function PropertyLocationTree({
       >
         {/* Alert indicator sits in the chevron slot so item names line up with sibling locations. */}
         <span className="w-[18px] shrink-0 flex items-center justify-center">
-          {alert && <span className="w-1.5 h-1.5 rounded-full bg-themeredred" />}
+          {alert && <span className={`w-1.5 h-1.5 rounded-full ${alertDotCls}`} />}
         </span>
-        <span className={`text-[10pt] truncate flex-1 ${alert ? 'text-themeredred font-medium' : 'text-primary'}`}>{item.name}</span>
+        <span className={`text-[10pt] truncate flex-1 ${alert ? `${alertTextCls} font-medium` : 'text-primary'}`}>{item.name}</span>
         {/* Quantity — matches the title font; hidden when depleted (the OUT tag covers it). */}
         {item.quantity > 0 && (
           <span className="text-[10pt] text-tertiary tabular-nums shrink-0">{item.quantity}</span>
@@ -283,7 +291,7 @@ export function PropertyLocationTree({
         {(warnLabel || hasActions) && (
           <div className="relative w-7 h-7 shrink-0">
             {warnLabel && (
-              <span className={`absolute inset-0 flex items-center justify-center text-[8pt] font-semibold text-themeredred tabular-nums pointer-events-none transition-opacity ${hasActions ? 'group-hover:opacity-0' : ''}`}>
+              <span className={`absolute inset-0 flex items-center justify-center text-[8pt] font-semibold ${alertTextCls} tabular-nums pointer-events-none transition-opacity ${hasActions ? 'group-hover:opacity-0' : ''}`}>
                 {warnLabel}
               </span>
             )}

@@ -64,35 +64,35 @@ function CustodyCard({
     else if (menuItems.length && openMenu) openMenu(rect, menuItems)
   }, [onOpenMenu, openMenu, menuItems])
   const { isPressing, ...longPress } = useLongPress(openFromRow)
+  // A flush ROW in the section's SectionCard stack — the divider between rows is the
+  // enclosing card's `divide-y` (renderGroup), so the card itself owns no border/round.
   return (
-    <SectionCard>
-      <div
-        ref={rowRef}
-        onContextMenu={hasMenu ? (e) => { e.preventDefault(); e.stopPropagation(); openFromRow() } : undefined}
-        {...(hasMenu ? longPress : {})}
-        className={`w-full flex items-center gap-3 px-4 py-3 transition-colors ${isPressing ? 'opacity-60' : ''} ${active ? 'bg-themeblue2/8' : ''}`}
-      >
-        <button onClick={onTap} className="flex-1 min-w-0 text-left active:opacity-70">
-          {children}
+    <div
+      ref={rowRef}
+      onContextMenu={hasMenu ? (e) => { e.preventDefault(); e.stopPropagation(); openFromRow() } : undefined}
+      {...(hasMenu ? longPress : {})}
+      className={`w-full flex items-center gap-3 px-4 py-3 transition-colors ${isPressing ? 'opacity-60' : ''} ${active ? 'bg-themeblue2/8' : ''}`}
+    >
+      <button onClick={onTap} className="flex-1 min-w-0 text-left active:opacity-70">
+        {children}
+      </button>
+      {trailing}
+      {hasMenu && (
+        <button
+          type="button"
+          aria-label="More actions"
+          onClick={(e) => {
+            e.stopPropagation()
+            const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+            if (onOpenMenu) onOpenMenu(rect)
+            else if (openMenu) openMenu(rect, menuItems)
+          }}
+          className="shrink-0 -mr-1 p-1 text-tertiary active:scale-90 transition-transform"
+        >
+          <MoreHorizontal size={16} />
         </button>
-        {trailing}
-        {hasMenu && (
-          <button
-            type="button"
-            aria-label="More actions"
-            onClick={(e) => {
-              e.stopPropagation()
-              const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-              if (onOpenMenu) onOpenMenu(rect)
-              else if (openMenu) openMenu(rect, menuItems)
-            }}
-            className="shrink-0 -mr-1 p-1 text-tertiary active:scale-90 transition-transform"
-          >
-            <MoreHorizontal size={16} />
-          </button>
-        )}
-      </div>
-    </SectionCard>
+      )}
+    </div>
   )
 }
 
@@ -453,9 +453,10 @@ export function CustodyPanel({
 
   // A collapsible SECTION — the SectionHeader primitive (9pt semibold uppercase
   // primary) with a subtle TRAILING chevron so it reads as a section header you can
-  // collapse, not a tree node. No count identifier per USR. When open, its discrete
-  // items render as a flush card stack beneath the header (no tree indent).
-  const renderGroup = (key: string, title: string, body: ReactNode) => {
+  // collapse, not a tree node. No count identifier per USR. When open, its rows render
+  // as ONE flush SectionCard stack (divide-y between rows), NOT discrete per-item cards.
+  // `empty` bodies (the muted "nothing" line) stay bare on the panel — no card frame.
+  const renderGroup = (key: string, title: string, body: ReactNode, empty = false) => {
     const open = expanded.has(key)
     return (
       <div>
@@ -472,7 +473,8 @@ export function CustodyPanel({
             <ChevronRight size={14} className="text-tertiary/50 shrink-0" />
           )}
         </button>
-        {open && <div className="space-y-2.5">{body}</div>}
+        {open &&
+          (empty ? body : <SectionCard className="divide-y divide-tertiary/8">{body}</SectionCard>)}
       </div>
     )
   }
@@ -488,6 +490,7 @@ export function CustodyPanel({
           '__dispatch__',
           'Dispatch',
           dispatchEvents.length > 0 ? dispatchEvents.map(renderActivityCard) : emptyLine('Nothing this week.'),
+          dispatchEvents.length === 0,
         )}
 
         {/* PMCS / maintenance activity (this week). */}
@@ -495,6 +498,7 @@ export function CustodyPanel({
           '__pmcs__',
           'PMCS',
           pmcsEvents.length > 0 ? pmcsEvents.map(renderActivityCard) : emptyLine('Nothing this week.'),
+          pmcsEvents.length === 0,
         )}
 
         {/* Signed Out — always shown so an empty list reads as "all in". */}
@@ -504,6 +508,7 @@ export function CustodyPanel({
           outstanding.length > 0
             ? outstanding.map(renderReceiptCard)
             : emptyLine(loading ? 'Loading…' : 'Nothing signed out.'),
+          outstanding.length === 0,
         )}
 
         {/* Turn-In (DA 3161) — ONE card per turn-in: pending cards open their detail
@@ -525,6 +530,7 @@ export function CustodyPanel({
           '__expired__',
           'Expired',
           expiredItems.length > 0 ? expiredItems.map(renderExpiredCard) : emptyLine('Nothing expiring.'),
+          expiredItems.length === 0,
         )}
 
         {/* Usage — consumables expended this week (item.expended ledger events).
@@ -533,6 +539,7 @@ export function CustodyPanel({
           '__usage__',
           'Usage',
           usageEvents.length > 0 ? usageEvents.map(renderUsageCard) : emptyLine('Nothing expended this week.'),
+          usageEvents.length === 0,
         )}
       </div>
 

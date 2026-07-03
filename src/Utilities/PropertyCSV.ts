@@ -1,5 +1,8 @@
-import type { LocalPropertyItem, LocalPropertyLocation } from '../Types/PropertyTypes'
+import type { LocalPropertyItem, LocalPropertyLocation, ItemType, UnitOfIssue } from '../Types/PropertyTypes'
 import type { OrderLine } from './propertyShortage'
+
+const ITEM_TYPES: ItemType[] = ['CI', 'DI', 'SI']
+const UNITS_OF_ISSUE: UnitOfIssue[] = ['EA', 'SET', 'PR', 'BOT', 'PK', 'TUB']
 
 // ── CSV Escaping ────────────────────────────────────────────
 
@@ -15,6 +18,7 @@ function escapeCSVField(value: string): string {
 const CSV_HEADERS = [
   'Item Name', 'Nomenclature', 'NSN', 'LIN',
   'Quantity', 'Quantity Authorized', 'Serial Number', 'Location',
+  'Item Type', 'Unit of Issue', 'Pack Size',
 ] as const
 
 export function exportPropertyCSV(
@@ -33,6 +37,9 @@ export function exportPropertyCSV(
     item.quantity_authorized == null ? '' : String(item.quantity_authorized),
     escapeCSVField(item.serial_number ?? ''),
     escapeCSVField(item.location_id ? locationMap.get(item.location_id) ?? '' : ''),
+    item.item_type ?? 'DI',
+    item.unit_of_issue ?? '',
+    item.pack_size == null ? '' : String(item.pack_size),
   ])
 
   const csv = [CSV_HEADERS.join(','), ...rows.map((r) => r.join(','))].join('\r\n')
@@ -57,6 +64,12 @@ export interface ParsedRow {
   quantityAuthorized: number | null
   serialNumber: string
   location: string
+  /** Accountability class. null = column blank → createItem defaults to 'DI'. */
+  itemType: ItemType | null
+  /** Unit of issue. null = column blank. */
+  unitOfIssue: UnitOfIssue | null
+  /** Base units per issue unit. null = column blank → 1. */
+  packSize: number | null
 }
 
 /** Logical column → accepted header names (lowercased, trimmed). The parser maps by
@@ -71,6 +84,9 @@ const COLUMN_ALIASES: Record<keyof ParsedRow, string[]> = {
   quantityAuthorized: ['quantity authorized', 'qty authorized', 'authorized', 'auth'],
   serialNumber: ['serial number', 'serial', 'serial no'],
   location: ['location'],
+  itemType: ['item type', 'type', 'class'],
+  unitOfIssue: ['unit of issue', 'ui', 'unit', 'u/i'],
+  packSize: ['pack size', 'pack', 'issue qty', 'pack qty', 'per issue'],
 }
 
 export interface ParseResult {
@@ -115,6 +131,9 @@ function parseCSVText(text: string): ParseResult {
     quantityAuthorized: colIndex('quantityAuthorized'),
     serialNumber: colIndex('serialNumber'),
     location: colIndex('location'),
+    itemType: colIndex('itemType'),
+    unitOfIssue: colIndex('unitOfIssue'),
+    packSize: colIndex('packSize'),
   }
 
   const dataLines = lines.slice(1)
@@ -162,6 +181,37 @@ function parseCSVText(text: string): ParseResult {
       quantityAuthorized = parsed
     }
 
+    const rawType = cell(fields, idx.itemType).toUpperCase()
+    let itemType: ItemType | null = null
+    if (rawType !== '') {
+      if (!(ITEM_TYPES as string[]).includes(rawType)) {
+        errors.push(`Row ${lineNum}: Item Type must be one of CI, DI, SI (got "${rawType}")`)
+        continue
+      }
+      itemType = rawType as ItemType
+    }
+
+    const rawUnit = cell(fields, idx.unitOfIssue).toUpperCase()
+    let unitOfIssue: UnitOfIssue | null = null
+    if (rawUnit !== '') {
+      if (!(UNITS_OF_ISSUE as string[]).includes(rawUnit)) {
+        errors.push(`Row ${lineNum}: Unit of Issue must be one of ${UNITS_OF_ISSUE.join(', ')} (got "${rawUnit}")`)
+        continue
+      }
+      unitOfIssue = rawUnit as UnitOfIssue
+    }
+
+    const rawPack = cell(fields, idx.packSize)
+    let packSize: number | null = null
+    if (rawPack !== '') {
+      const parsed = parseInt(rawPack, 10)
+      if (isNaN(parsed) || parsed < 1 || !Number.isInteger(Number(rawPack))) {
+        errors.push(`Row ${lineNum}: Pack Size must be a positive integer (got "${rawPack}")`)
+        continue
+      }
+      packSize = parsed
+    }
+
     rows.push({
       name,
       nomenclature: cell(fields, idx.nomenclature),
@@ -171,6 +221,9 @@ function parseCSVText(text: string): ParseResult {
       quantityAuthorized,
       serialNumber: cell(fields, idx.serialNumber),
       location: cell(fields, idx.location),
+      itemType,
+      unitOfIssue,
+      packSize,
     })
   }
 

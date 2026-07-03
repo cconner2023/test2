@@ -45,13 +45,27 @@ export interface ShortageReport {
   trackedCount: number
 }
 
-/** Stable aggregation key: NSN, else LIN, else name (all normalized). */
+/** Stable aggregation key: LIN, else NSN, else name (all normalized). LIN-FIRST so
+ *  substitutable NSNs under one Line Item Number (e.g. CAT + SOF-T tourniquets) pool into
+ *  a single shortage line — the LIN is the Army's interchangeability group. Falls back to
+ *  NSN-exact only when there is no LIN. (Serialized/SI rows are matched 1:1 upstream and
+ *  never reach this fungible pool.) */
 function keyOf(it: { nsn: string | null; lin: string | null; name: string }): string {
-  const nsn = (it.nsn ?? '').trim().toLowerCase()
-  if (nsn) return 'nsn:' + nsn
   const lin = (it.lin ?? '').trim().toLowerCase()
   if (lin) return 'lin:' + lin
+  const nsn = (it.nsn ?? '').trim().toLowerCase()
+  if (nsn) return 'nsn:' + nsn
   return 'name:' + it.name.trim().toLowerCase()
+}
+
+/** Authorized quantity converted to BASE (individual/EA) units — issue-unit authorized
+ *  (`quantity_authorized`, e.g. 6 PR) × pack_size (base per issue unit, e.g. 2) = 12 base,
+ *  directly comparable to on-hand `quantity` (always stored in base units). pack_size
+ *  null/0 → 1 (no split below the issue unit). */
+function authBase(it: { quantity_authorized: number | null; pack_size: number | null }): number {
+  if (it.quantity_authorized == null) return 0
+  const factor = it.pack_size && it.pack_size > 0 ? it.pack_size : 1
+  return it.quantity_authorized * factor
 }
 
 export function computeShortages(
@@ -73,7 +87,9 @@ export function computeShortages(
   // Per-line shortfalls.
   const lines: ShortageLine[] = []
   for (const it of tracked) {
-    const authorized = it.quantity_authorized as number
+    // Authorized normalized to base (individual) units so a PR/SET line compares to
+    // individually-placed on-hand stock (see authBase). onHand is already base.
+    const authorized = authBase(it)
     const onHand = onHandOf(it)
     const short = Math.max(0, authorized - onHand)
     if (short > 0) {
@@ -106,7 +122,7 @@ export function computeShortages(
     return a
   }
   for (const it of live) ensure(it).onHand += onHandOf(it)
-  for (const it of tracked) ensure(it).authorized += it.quantity_authorized as number
+  for (const it of tracked) ensure(it).authorized += authBase(it)
 
   const orders: OrderLine[] = []
   for (const a of agg.values()) {
