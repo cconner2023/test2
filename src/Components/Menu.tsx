@@ -1,4 +1,5 @@
 import type { LucideIcon } from 'lucide-react'
+import type { ReactNode } from 'react'
 import { BaseOverlay, Z } from './BaseOverlay'
 
 export interface MenuOption {
@@ -7,6 +8,9 @@ export interface MenuOption {
   icon?: LucideIcon
   variant?: 'default' | 'danger'
   onAction: () => void
+  /** Keep the menu open when this row fires (e.g. it drills into a sub-menu
+   *  instead of running a terminal action). Default false = close then fire. */
+  keepOpen?: boolean
   /** data-tour anchor on this option's button (used by guided tours) */
   tourTag?: string
 }
@@ -16,6 +20,8 @@ interface MenuProps {
   onClose: () => void
   /** Optional uppercase title shown above the option list. */
   title?: string
+  /** Header-left cluster (before the title) — e.g. a Back pill for drill-down. */
+  leftContent?: ReactNode
   options: MenuOption[]
   /** Show a Cancel row at the bottom. Default true. */
   showCancel?: boolean
@@ -34,6 +40,7 @@ export function Menu({
   isOpen,
   onClose,
   title,
+  leftContent,
   options,
   showCancel = true,
   cancelLabel = 'Cancel',
@@ -41,6 +48,8 @@ export function Menu({
   zIndex = Z.MODAL,
 }: MenuProps) {
   const handleOption = (opt: MenuOption) => {
+    // keepOpen rows (drill-down) fire in place; terminal rows close then fire.
+    if (opt.keepOpen) { opt.onAction(); return }
     onClose()
     setTimeout(opt.onAction, 320)
   }
@@ -60,10 +69,15 @@ export function Menu({
             role="menu"
             aria-modal="true"
           >
-            {title && (
-              <p className="px-4 pt-3 pb-2 text-[9pt] font-semibold text-tertiary uppercase tracking-widest border-b border-primary/6">
-                {title}
-              </p>
+            {(title || leftContent) && (
+              <div className="flex items-center gap-2 px-4 pt-3 pb-2 border-b border-primary/6">
+                {leftContent}
+                {title && (
+                  <p className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest">
+                    {title}
+                  </p>
+                )}
+              </div>
             )}
             {options.map((opt) => {
               const isDanger = opt.variant === 'danger'

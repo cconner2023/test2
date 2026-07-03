@@ -9,6 +9,10 @@ interface PdfPreviewModalProps {
   preview: PdfPreviewData | null
   onDownload: () => void
   onClose: () => void
+  /** Explicit z-tier — pass when launched from a surface that mounts OUTSIDE the host
+   *  sheet (e.g. the shared ItemActionMenu on mobile), so the preview floats above it
+   *  instead of inheriting a low default. Omit for the in-context call sites. */
+  zIndex?: number
 }
 
 /**
@@ -20,7 +24,7 @@ interface PdfPreviewModalProps {
  * PdfPreviewModal for its call sites (WriteNotePage, ProviderNoteOutput,
  * PropertyDrawer) though it is no longer a centered Modal.
  */
-export function PdfPreviewModal({ preview, onDownload, onClose }: PdfPreviewModalProps) {
+export function PdfPreviewModal({ preview, onDownload, onClose, zIndex }: PdfPreviewModalProps) {
   const blobUrl = useMemo(() => {
     if (!preview) return null
     return URL.createObjectURL(new Blob([preview.bytes], { type: 'application/pdf' }))
@@ -37,6 +41,7 @@ export function PdfPreviewModal({ preview, onDownload, onClose }: PdfPreviewModa
       isOpen={!!preview && !!blobUrl}
       onClose={onClose}
       anchorRect={null}
+      zIndex={zIndex}
       title={preview?.filename ?? 'PDF'}
       maxWidth={672}
       previewMaxHeight="70dvh"

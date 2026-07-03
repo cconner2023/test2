@@ -33,11 +33,21 @@ export function LockGate({ children }: { children: ReactNode }) {
     return () => clearTimeout(id)
   }, [])
 
-  // Dismiss the HTML splash once auth settles
+  // Dismiss the HTML splash once auth settles — but only after the React layer
+  // beneath it (app children / LoginScreen / PostLoginLoader) has actually
+  // PAINTED. Firing on the `loading` flip alone runs post-commit but pre-paint,
+  // so the splash could start fading over a still-settling frame — that's the
+  // "app flashes in at the bottom" glitch. A double-rAF waits for one committed
+  // paint of the new top layer, so the fade always reveals a stable frame.
   useEffect(() => {
-    if (!loading) {
-      (window as unknown as { dismissSplash?: () => void }).dismissSplash?.()
-    }
+    if (loading) return
+    let raf2 = 0
+    const raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() => {
+        (window as unknown as { dismissSplash?: () => void }).dismissSplash?.()
+      })
+    })
+    return () => { cancelAnimationFrame(raf1); if (raf2) cancelAnimationFrame(raf2) }
   }, [loading])
 
   const shouldLoad = loading

@@ -26,6 +26,8 @@ interface LocationTagPhotoProps {
   items?: LocalPropertyItem[]
   /** Called when an item pin is tapped */
   onItemTap?: (item: LocalPropertyItem) => void
+  /** Currently focused/selected item id — its pin gets the selected ring. */
+  selectedItemId?: string | null
   /** target_id (vehicle location id) → current open-dispatch status, for the
    *  expiring/expired red-dot on the zone tile. Vehicles only; absent = no dot. */
   dispatchStatusByLocation?: Map<string, DispatchStatus>
@@ -85,17 +87,18 @@ function CompositeZoneSVG({ rects, selected, id, photo }: { rects: ZoneRect[]; s
 }
 
 /** Item badge in view mode — tap-only, no drag. Dragging is handled by EditItemPin in edit mode. */
-function ItemPin({ pin, item, onTap }: {
+function ItemPin({ pin, item, onTap, selected }: {
   pin: LocationTag
   item: LocalPropertyItem
   onTap: (item: LocalPropertyItem) => void
+  selected?: boolean
 }) {
   // Expired / expiring (≤30d) / depleted (0 on hand) → red tag.
   const alert = itemAlert(item)
   return (
     <div
       data-item-target={item.id}
-      className="absolute z-20 select-none cursor-pointer"
+      className={`absolute select-none cursor-pointer ${selected ? 'z-30' : 'z-20'}`}
       style={{
         left: `${pin.x * 100}%`,
         top: `${pin.y * 100}%`,
@@ -104,10 +107,15 @@ function ItemPin({ pin, item, onTap }: {
       onClick={(e) => { e.stopPropagation(); onTap(item) }}
     >
       <div
-        className={`px-2 py-1 rounded-full text-[9pt] font-medium shadow-sm backdrop-blur-sm min-h-[28px] flex items-center gap-1 active:scale-95 transition-transform border ${
+        className={`relative px-2 py-1 rounded-full text-[9pt] font-medium shadow-sm backdrop-blur-sm min-h-[28px] flex items-center gap-1 active:scale-95 transition-transform border ${
           alert ? 'bg-themeredred/90 text-white border-themeredred' : 'bg-themewhite3/90 text-primary border-themeblue3/30'
         }`}
       >
+        {/* Selection = a corner indicator, NOT a pill-fill — so it never fights the
+            red alert (depleted/expired) fill for the same surface. */}
+        {selected && (
+          <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-themeblue1 ring-2 ring-themewhite3" />
+        )}
         <span className="whitespace-nowrap max-w-[90px] truncate">{item.name}</span>
         {/* Show the count when it's not a single unit — incl. ×0 so a depleted tag reads its emptiness. */}
         {item.quantity !== 1 && (
@@ -128,6 +136,7 @@ export const LocationTagPhoto = memo(function LocationTagPhoto({
   photoMap,
   items,
   onItemTap,
+  selectedItemId,
   dispatchStatusByLocation,
 }: LocationTagPhotoProps) {
   const zones = tags.filter((t) => (t.width ?? 0) > 0 && (t.height ?? 0) > 0)
@@ -240,6 +249,7 @@ export const LocationTagPhoto = memo(function LocationTagPhoto({
             pin={pin}
             item={item}
             onTap={onItemTap ?? (() => {})}
+            selected={item.id === selectedItemId}
           />
         )
       })}

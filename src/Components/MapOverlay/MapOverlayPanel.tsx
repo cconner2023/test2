@@ -2287,31 +2287,36 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                       || (selectedFeature?.type === 'waypoint' ? 'Waypoint'
                         : selectedFeature?.type === 'route' ? 'Route'
                         : 'Area'))}
-                  leftContent={(
+                  leftContent={isFeatureEditMode ? (
+                    <button
+                      type="button"
+                      onClick={handleToggleFeatureEditMode}
+                      aria-label="Back"
+                      className="w-9 h-9 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
+                    >
+                      <ChevronLeft size={20} />
+                    </button>
+                  ) : (
                     <HeaderPill>
-                      {isFeatureEditMode ? (
+                      <span className="inline-flex" onClick={openFeatureMenu}>
                         <PillButton
-                          icon={Check}
+                          icon={MoreHorizontal}
                           iconSize={18}
-                          onClick={handleSaveAndExitEdit}
-                          label="Save changes"
-                          accent={isDirty ? 'info' : undefined}
+                          onClick={() => {}}
+                          label="More actions"
                         />
-                      ) : (
-                        <span className="inline-flex" onClick={openFeatureMenu}>
-                          <PillButton
-                            icon={MoreHorizontal}
-                            iconSize={18}
-                            onClick={() => {}}
-                            label="More actions"
-                          />
-                        </span>
-                      )}
+                      </span>
                     </HeaderPill>
                   )}
                   rightContent={isFeatureEditMode ? (
                     <HeaderPill>
-                      <PillButton icon={Trash2} iconSize={18} variant="danger" onClick={handleDeleteSelected} label="Delete" />
+                      <PillButton
+                        icon={Check}
+                        iconSize={18}
+                        onClick={handleSaveAndExitEdit}
+                        label="Save changes"
+                        accent={isDirty ? 'info' : undefined}
+                      />
                     </HeaderPill>
                   ) : undefined}
                 >
@@ -2803,12 +2808,23 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                             : 'Area')}
                       </div>
                     )}
-                    {isFeatureEditMode && <div className="flex-1" />}
+                    {isFeatureEditMode && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={handleToggleFeatureEditMode}
+                          aria-label="Back"
+                          className="w-9 h-9 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all shrink-0"
+                        >
+                          <ChevronLeft size={20} />
+                        </button>
+                        <div className="flex-1" />
+                      </>
+                    )}
                     <HeaderPill>
                       {isFeatureEditMode ? (
                         <>
                           <PillButton icon={Check} iconSize={18} onClick={handleSaveAndExitEdit} label="Save changes" accent={isDirty ? 'info' : undefined} />
-                          <PillButton icon={Trash2} iconSize={18} variant="danger" onClick={handleDeleteSelected} label="Delete" />
                           <PillButton icon={X} iconSize={18} onClick={handleCloseFeatureEditor} label="Close" />
                         </>
                       ) : (

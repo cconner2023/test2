@@ -20,6 +20,9 @@ export interface CanvasEditHandle {
   duplicate: () => void
   deleteSelected: () => void
   renameSelected: () => void
+  /** Drop the zone selection — used when the parent hands the selection context
+   *  to item pins (item ↔ zone selection are mutually exclusive). */
+  clearSelection: () => void
   selectedCount: number
   confirmName: (name: string) => void
   cancelName: () => void
@@ -144,6 +147,11 @@ export const CanvasEditOverlay = memo(function CanvasEditOverlay({
       queueMicrotask(() => onSelectionChange?.(next.size))
       return next
     })
+  }, [onSelectionChange])
+
+  const clearSelection = useCallback(() => {
+    setSelectedIndices(new Set())
+    onSelectionChange?.(0)
   }, [onSelectionChange])
 
   const handlePointerDown = useCallback(
@@ -565,10 +573,11 @@ export const CanvasEditOverlay = memo(function CanvasEditOverlay({
     duplicate: handleDuplicateSelected,
     deleteSelected: handleDeleteSelected,
     renameSelected: handleRenameSelected,
+    clearSelection,
     selectedCount: selectedIndices.size,
     confirmName: confirmNameExternal,
     cancelName: cancelNameExternal,
-  }), [handleSave, canSplit, canMerge, canDuplicate, canDelete, canRename, handleSplit, handleMerge, handleDuplicateSelected, handleDeleteSelected, handleRenameSelected, selectedIndices.size, confirmNameExternal, cancelNameExternal])
+  }), [handleSave, canSplit, canMerge, canDuplicate, canDelete, canRename, handleSplit, handleMerge, handleDuplicateSelected, handleDeleteSelected, handleRenameSelected, clearSelection, selectedIndices.size, confirmNameExternal, cancelNameExternal])
 
   const drawPreview =
     dragAction?.type === 'draw'

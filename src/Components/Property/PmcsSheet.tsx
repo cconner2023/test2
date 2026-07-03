@@ -60,9 +60,13 @@ interface PmcsSheetProps {
   /** Scopes the PreviewOverlay to the property drawer (desktop). Null on mobile
    *  → the overlay floats fixed, auto-stacked above the detail sheet. */
   containerRef?: React.RefObject<HTMLElement | null>
+  /** Explicit z-tier — needed when this is launched from the shared ItemActionMenu,
+   *  which mounts OUTSIDE any sheet (so there's no sheet context to inherit a ceiling
+   *  from). Pass a value above the host sheet on mobile; omit when scoped (desktop). */
+  zIndex?: number
 }
 
-export function PmcsSheet({ isOpen, onClose, subjectType = 'item', subjectId, clinicId, containerRef }: PmcsSheetProps) {
+export function PmcsSheet({ isOpen, onClose, subjectType = 'item', subjectId, clinicId, containerRef, zIndex }: PmcsSheetProps) {
   const [events, setEvents] = useState<AuditEvent[]>([])
   const [loading, setLoading] = useState(true)
   const [desc, setDesc] = useState('')
@@ -465,6 +469,7 @@ export function PmcsSheet({ isOpen, onClose, subjectType = 'item', subjectId, cl
       isOpen={isOpen}
       onClose={onClose}
       containerRef={containerRef}
+      zIndex={zIndex}
       navRef={navRef}
       initial={{ key: 'check' }}
       screens={screens}

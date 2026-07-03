@@ -20,6 +20,7 @@
  *        indexes by-user-type and by-user-sync
  */
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb'
+import type { EchelonReadinessSummary } from './echelonSummary'
 import type { CompletionType, CompletionResult, Json } from '../Types/database.types'
 import type { LocalPropertyItem, LocalPropertyLocation, LocalDiscrepancy, LocalCustodyEntry, LocationTag } from '../Types/PropertyTypes'
 import type { LocalMapOverlay } from '../Types/MapOverlayTypes'
@@ -261,6 +262,12 @@ interface PackageBackEndDB extends DBSchema {
       'by-user-sync': [string, string]
     }
   }
+  /** Parent-side cache of de-identified readiness rollups fanned up from child
+   *  clusters. Keyed by source_clinic_id (latest-wins). See echelonSummary.ts. */
+  echelonSummaries: {
+    key: string
+    value: EchelonReadinessSummary
+  }
   propertyItems: {
     key: string
     value: LocalPropertyItem
@@ -389,7 +396,7 @@ interface PackageBackEndDB extends DBSchema {
 }
 
 const DB_NAME = 'packagebackend-offline'
-const DB_VERSION = 18
+const DB_VERSION = 19
 
 let dbInstance: IDBPDatabase<PackageBackEndDB> | null = null
 
@@ -580,6 +587,14 @@ export async function getDb(): Promise<IDBPDatabase<PackageBackEndDB>> {
       // the root cause of "zone canvas geometry resets".
       if (oldVersion < 18) {
         db.createObjectStore('locationTagCanvasMeta', { keyPath: 'location_id' })
+      }
+
+      // v18 → v19: echelon readiness summaries — the parent-side cache of the
+      // de-identified rollups child clusters fan up. Keyed by source_clinic_id
+      // (latest-wins). Written by the deferred vault-consume path; read by the
+      // "Subordinate Units" cards.
+      if (oldVersion < 19) {
+        db.createObjectStore('echelonSummaries', { keyPath: 'source_clinic_id' })
       }
     },
   })
@@ -914,6 +929,29 @@ export async function cleanupSyncedItems(maxAgeMs: number = 7 * 24 * 60 * 60 * 1
 // ============================================================
 // Training Completions Operations
 // ============================================================
+
+// ── Echelon readiness summaries (parent-side cache) ──────────────────────────
+
+/** Upsert a received child summary (latest-wins by source_clinic_id). Stamps
+ *  received_at when the caller hasn't. */
+export async function putEchelonSummary(summary: EchelonReadinessSummary): Promise<void> {
+  const db = await getDb()
+  await db.put('echelonSummaries', {
+    ...summary,
+    received_at: summary.received_at ?? new Date().toISOString(),
+  })
+}
+
+/** All cached summaries, or just those for the given source clinics. */
+export async function getEchelonSummaries(
+  sourceClinicIds?: string[],
+): Promise<EchelonReadinessSummary[]> {
+  const db = await getDb()
+  const all = await db.getAll('echelonSummaries')
+  if (!sourceClinicIds) return all
+  const wanted = new Set(sourceClinicIds)
+  return all.filter((s) => wanted.has(s.source_clinic_id))
+}
 
 /**
  * Get all local training completions for a user.

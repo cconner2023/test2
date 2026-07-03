@@ -10,6 +10,7 @@ import { TextInput, PickerInput } from '../FormInputs'
 import { PillButton } from '../HeaderPill'
 import type { LocalPropertyItem, LocalPropertyLocation } from '../../Types/PropertyTypes'
 import type { LabelPresetKey } from '../../Utilities/PropertyLabelExport'
+import { useIsMobile } from '../../Hooks/useIsMobile'
 import { usePropertyStore } from '../../stores/usePropertyStore'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { usePropertyLabelExport } from '../../Hooks/usePropertyLabelExport'
@@ -92,6 +93,14 @@ export const ItemActionMenu = forwardRef<ItemActionMenuHandle, ItemActionMenuPro
   const expendItem = usePropertyStore(s => s.expendItem)
   const editItem = usePropertyStore(s => s.editItem)
   const currentUserId = useAuthStore(s => s.user?.id ?? null)
+  const isMobile = useIsMobile()
+
+  // This menu is mounted ONCE at the host top level (so tree / detail / custody can't
+  // drift), which puts its co-located overlays OUTSIDE any mobile detail sheet — they
+  // can't inherit that sheet's OverlayStackContext ceiling. On desktop `containerRef`
+  // scopes them into the pane; on mobile there's no scope, so float them explicitly
+  // above the z1200 detail sheet (below the z1500 confirm dialogs). Omit on desktop.
+  const overlayZ = isMobile ? 1300 : undefined
 
   // The LATCHED subject: survives the menu closing so an open sheet keeps its item.
   const [active, setActive] = useState<{ item: LocalPropertyItem; showView: boolean } | null>(null)
@@ -309,6 +318,7 @@ export const ItemActionMenu = forwardRef<ItemActionMenuHandle, ItemActionMenuPro
         onClose={() => setShowSplitSheet(false)}
         anchorRect={null}
         containerRef={containerRef}
+        zIndex={overlayZ}
         title={splitTitle}
         maxWidth={320}
         rightFooter={
@@ -344,6 +354,7 @@ export const ItemActionMenu = forwardRef<ItemActionMenuHandle, ItemActionMenuPro
         onClose={() => setShowMergeSheet(false)}
         anchorRect={null}
         containerRef={containerRef}
+        zIndex={overlayZ}
         title="Merge Like Items"
         maxWidth={320}
       >
@@ -361,6 +372,7 @@ export const ItemActionMenu = forwardRef<ItemActionMenuHandle, ItemActionMenuPro
         onClose={() => setShowExpendSheet(false)}
         anchorRect={null}
         containerRef={containerRef}
+        zIndex={overlayZ}
         title="Expend"
         maxWidth={320}
         rightFooter={
@@ -395,6 +407,7 @@ export const ItemActionMenu = forwardRef<ItemActionMenuHandle, ItemActionMenuPro
         subjectId={item.id}
         clinicId={item.clinic_id}
         containerRef={containerRef}
+        zIndex={overlayZ}
       />
 
       {/* Print label — stock choice then PDF preview, mirroring PropertyDrawer's
@@ -408,12 +421,14 @@ export const ItemActionMenu = forwardRef<ItemActionMenuHandle, ItemActionMenuPro
           { key: 'fileFolder', label: 'File folder (⅔" × 3‑7/16")', onAction: () => printLabel('fileFolder') },
         ]}
         onClose={() => setShowLabelStock(false)}
+        zIndex={overlayZ}
       />
 
       <PdfPreviewModal
         preview={labelPreview}
         onDownload={downloadLabels}
         onClose={clearLabelPreview}
+        zIndex={overlayZ}
       />
 
       {shareToChatPicker}

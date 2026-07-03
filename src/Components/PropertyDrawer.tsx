@@ -346,13 +346,27 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                 visible={showAddSheet}
                 title="Add to Property Book"
                 options={[
+                    // Frequent creates stay top-level; the periodic book-management
+                    // tools fold behind two gateway rows (drill-down w/ Back pill).
                     { key: 'item', label: 'New Item', onAction: () => { setShowAddSheet(false); addItemTriggerRef.current?.() } },
                     { key: 'location', label: 'New Location', onAction: () => { setShowAddSheet(false); addLocationTriggerRef.current?.() } },
-                    ...(showAccountability ? [{ key: 'da2062', label: 'New DA 2062', onAction: () => { setShowAddSheet(false); newDA2062TriggerRef.current?.() } }] : []),
-                    { key: 'import-csv', label: 'Import CSV', onAction: () => { setShowAddSheet(false); importTriggerRef.current?.() } },
-                    ...(showAccountability ? [{ key: 'shortages', label: 'Shortages', onAction: () => { setShowAddSheet(false); shortagesTriggerRef.current?.() } }] : []),
-                    { key: 'export-csv', label: 'Export CSV', onAction: () => { setShowAddSheet(false); exportPropertyCSV(items, store.locations) } },
-                    { key: 'print-labels', label: 'Print labels', onAction: () => { setShowAddSheet(false); setShowLabelSheet(true) } },
+                    ...(showAccountability ? [{
+                        key: 'accountability',
+                        label: 'Accountability',
+                        children: [
+                            { key: 'da2062', label: 'New DA 2062', onAction: () => { setShowAddSheet(false); newDA2062TriggerRef.current?.() } },
+                            { key: 'shortages', label: 'Shortages', onAction: () => { setShowAddSheet(false); shortagesTriggerRef.current?.() } },
+                        ],
+                    }] : []),
+                    {
+                        key: 'data-labels',
+                        label: 'Data & labels',
+                        children: [
+                            { key: 'import-csv', label: 'Import CSV', onAction: () => { setShowAddSheet(false); importTriggerRef.current?.() } },
+                            { key: 'export-csv', label: 'Export CSV', onAction: () => { setShowAddSheet(false); exportPropertyCSV(items, store.locations) } },
+                            { key: 'print-labels', label: 'Print labels', onAction: () => { setShowAddSheet(false); setShowLabelSheet(true) } },
+                        ],
+                    },
                 ]}
                 onClose={() => setShowAddSheet(false)}
             />

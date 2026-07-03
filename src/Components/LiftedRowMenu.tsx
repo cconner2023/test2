@@ -144,6 +144,20 @@ export function AnchoredMenu({ isOpen, anchorRect, row, items, onClose, bare = f
   // Pill submenus prepend a Back chevron tile — reserve its width.
   const menuW = isList ? LIST_W : (activeItems.length + (submenu ? 1 : 0)) * 40 + 12
 
+  // Stable reference height spanning the root menu AND every submenu it can drill
+  // into. Placement DECISIONS (open up/down, peek lift, clamps) key off this — never
+  // the live `menuH` — so drilling into a shorter/taller submenu can't flip the
+  // menu's direction or shove its anchored edge to a new spot. The card still renders
+  // at its live `menuH`, morphing in place (growing/shrinking) from the fixed edge.
+  const listRowsH = (rows: number, back: boolean) =>
+    rows * ROW_H + (back ? BACK_HEADER_H : 0) + LIST_PAD
+  const rootListH = listRowsH(items.length, false) + (showReactRow ? STRIP_H : 0) + (showHeader ? HEADER_H : 0)
+  const submenuMaxH = items.reduce(
+    (m, it) => (it.submenu ? Math.max(m, listRowsH(it.submenu.length, true)) : m),
+    0,
+  )
+  const stableH = isList ? Math.max(rootListH, submenuMaxH) : MENU_H
+
   // ── Vertical placement ──
   let lift = 0
   let menuTop: number
@@ -151,18 +165,24 @@ export function AnchoredMenu({ isOpen, anchorRect, row, items, onClose, bare = f
   if (hasClone) {
     // Peek: pop the row up by a baseline so it visibly detaches; lift further if
     // needed for the menu to clear the bottom edge. Never let the row top cross
-    // the safe area, and never lift more than the room above allows.
-    const bottomNeed = (anchorRect.bottom + GAP + menuH + SAFE) - vh
+    // the safe area, and never lift more than the room above allows. Size the lift
+    // for the tallest state so a drill-down never re-lifts the row.
+    const bottomNeed = (anchorRect.bottom + GAP + stableH + SAFE) - vh
     const desiredLift = Math.max(BASE_LIFT, bottomNeed)
     const maxLift = Math.max(0, anchorRect.top - SAFE)
     lift = Math.min(desiredLift, maxLift)
     menuTop = anchorRect.bottom - lift + GAP
   } else {
-    // Dropdown: drop below the anchor, flip above when there isn't room.
+    // Dropdown: drop below the anchor, flip above when there isn't room. Decide with
+    // the tallest state so the direction is chosen once and holds across drill-downs.
     const spaceBelow = vh - anchorRect.bottom
-    openUp = spaceBelow < menuH + GAP + SAFE && anchorRect.top > spaceBelow
+    openUp = spaceBelow < stableH + GAP + SAFE && anchorRect.top > spaceBelow
+    // Anchor the edge that stays put: top edge when dropping down, bottom edge when
+    // flipping up (`anchorRect.top - GAP` fixed, live menuH grows the card upward).
     menuTop = openUp ? anchorRect.top - GAP - menuH : anchorRect.bottom + GAP
-    menuTop = Math.max(SAFE, Math.min(menuTop, vh - menuH - SAFE))
+    // Clamp against the stable height so a shorter submenu doesn't get pulled to a
+    // new offset — since the direction already guarantees the tallest state fits.
+    menuTop = Math.max(SAFE, Math.min(menuTop, vh - stableH - SAFE))
   }
 
   const rawLeft = align === 'right' ? anchorRect.right - menuW : anchorRect.left

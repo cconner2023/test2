@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useMemo, memo } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo, memo, type CSSProperties } from 'react'
 import { X, MoreHorizontal, Check, ChevronLeft, Map as MapIcon, Camera, ClipboardList, Download } from 'lucide-react'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { LiftedRowMenu } from '../LiftedRowMenu'
@@ -452,7 +452,13 @@ export const PropertyPanel = memo(function PropertyPanel({
   }, [onRegisterAddItem])
 
   useEffect(() => {
-    onRegisterOpenLocations?.(() => setShowLocations(true))
+    // Header "Locations" pill → always land on the tree step: drop any active
+    // zone/item selection + frame the overview so the merged sheet shows the tree.
+    onRegisterOpenLocations?.(() => {
+      setMobileItem(null); setMobileForm(null)
+      setSelectedLocationId(null); mapRef.current?.clearSelection(); mapRef.current?.resetZoom()
+      setShowLocations(true)
+    })
   }, [onRegisterOpenLocations])
 
 
@@ -736,11 +742,22 @@ export const PropertyPanel = memo(function PropertyPanel({
   // Breadcrumb (in the detail header) → navigate the canvas to an ancestor zone,
   // or to root. Leaving any open item/form first so the target zone surfaces.
   const handleBreadcrumbNavigate = useCallback((id: string | null) => {
-    if (isMobile) { setMobileItem(null); closeMobileForm() }
-    else if (view === 'property-detail' || view === 'property-form') { onBack() }
+    if (isMobile) {
+      setMobileItem(null); closeMobileForm()
+      if (id) {
+        // Parent crumb → morph the sheet into the parent zone's detail.
+        mapRef.current?.navigateToZone(id)
+      } else {
+        // Root crumb lands back on the TREE step (step 0), not bare map: clear the
+        // selection + frame the overview so the merged sheet re-shows the tree.
+        closeLocationDetail(); mapRef.current?.resetZoom(); setShowLocations(true)
+      }
+      return
+    }
+    if (view === 'property-detail' || view === 'property-form') onBack()
     if (id) mapRef.current?.navigateToZone(id)
     else mapRef.current?.resetZoom()
-  }, [isMobile, view, onBack, closeMobileForm])
+  }, [isMobile, view, onBack, closeMobileForm, closeLocationDetail])
 
   const handleConfirmDeleteItem = useCallback(async () => {
     if (!pendingDeleteItem) return
@@ -1362,12 +1379,36 @@ export const PropertyPanel = memo(function PropertyPanel({
     )
   }
 
-  // Mobile layout — full-screen canvas; the header "Locations" button opens a Sheet
-  // with the location list for selection/navigation. Item detail & forms live in the
-  // shared PropertyNavSheet (owned by PropertyDrawer) via the bubbled callbacks.
+  // Mobile layout — full-screen canvas; the header "Locations" button opens the
+  // ONE morphing detail Sheet at its tree step. Selecting a zone/item MORPHS the
+  // same sheet into that node's detail (the breadcrumb walks the hierarchy back
+  // up; the root crumb lands back on the tree). The tree is step 0, not a separate
+  // sheet — so there is no "which sheet is open" ambiguity.
+  // `detailOpen` = any zone/item/task surface is active; `treeStep` = the sheet is
+  // open but nothing is selected → show the tree.
+  const detailOpen =
+    !!selectedLocation || !!mobileItem || !!mobileForm || !!selectedReceipt ||
+    !!selectedRecord || !!selectedTurnIn || signOutOpen || importOpen ||
+    shortageOpen || !!da2062Preview
+  const treeStep = showLocations && !detailOpen
+  // The non-blocking mobile sheet covers the bottom of the canvas. Publish its covered
+  // height (px) as a CSS var on the map's ancestor so the canvas frames a focused item
+  // pin in the VISIBLE band above the sheet (else zoom-to-item centres it in the full
+  // viewport → tucked under the sheet). Blocking task sheets (PDF/sign-out/import/
+  // shortage) dim the whole canvas, so no inset there. Mirrors the Sheet's maxHeight.
+  const sheetOverMap = (showLocations || detailOpen) && !drawingZone
+    && !(da2062Preview || signOutOpen || importOpen || shortageOpen)
+  const mobileSheetMaxVh = treeStep ? 70 : mobileForm ? 60 : 50
+  const mapBottomInsetPx = sheetOverMap
+    ? Math.min((mobileSheetMaxVh / 100) * window.innerHeight, window.innerHeight - 24)
+    : 0
   return (
     <>
-      <div data-tour="property-locations" className="h-full relative">
+      <div
+        data-tour="property-locations"
+        className="h-full relative"
+        style={{ '--property-map-bottom-inset': `${mapBottomInsetPx}px` } as CSSProperties}
+      >
         {/* The island swaps the MAIN SURFACE (calendar's view-switcher model),
             NOT a sheet over a persistent map: Map (canvas) ↔ Sign-outs (custody),
             mirroring the desktop center pane. Custody clears the floating glass
@@ -1435,16 +1476,20 @@ export const PropertyPanel = memo(function PropertyPanel({
         )}
       </div>
 
-      {/* Selected zone → detail sheet (mirrors the map overlay's feature sheet):
-          fit height capped, no backdrop so the canvas stays interactive. Items AND
-          forms NEST in the SAME sheet (height-transition) — back unwinds
-          form → item/location → parent zone. No separate sheets. */}
+      {/* THE morphing property sheet (mirrors the map overlay's feature sheet):
+          fit height capped, no backdrop so the canvas stays interactive. Step 0 is
+          the location TREE (treeStep); selecting a zone/item morphs this SAME sheet
+          into that node's detail (height-transition), and the breadcrumb walks the
+          hierarchy back up — parent → root crumb lands back on the tree. Forms/tasks
+          nest as leaf steps whose back = close. One sheet, no separate tree sheet. */}
       <Sheet
         loading={formSaving}
-        isOpen={(!!selectedLocation || !!mobileItem || !!mobileForm || !!selectedReceipt || !!selectedRecord || !!selectedTurnIn || signOutOpen || importOpen || shortageOpen || !!da2062Preview) && !drawingZone}
-        onClose={() => { closeMobileForm(); setMobileItem(null); closeLocationDetail(); closeRosterDetail(); setSignOutOpen(false); setImportOpen(false); setShortageOpen(false); clearDA2062Preview() }}
+        isOpen={(showLocations || detailOpen) && !drawingZone}
+        onClose={() => { closeMobileForm(); setMobileItem(null); closeLocationDetail(); closeRosterDetail(); setSignOutOpen(false); setImportOpen(false); setShortageOpen(false); clearDA2062Preview(); setShowLocations(false) }}
         title={
-          da2062Preview
+          treeStep
+            ? 'Locations'
+            : da2062Preview
             ? da2062Preview.filename
             : importOpen
             ? 'Import Property CSV'
@@ -1499,7 +1544,10 @@ export const PropertyPanel = memo(function PropertyPanel({
         // Detail views (item / zone / receipt / record / turn-in) stay compact so
         // the sheet doesn't dominate the map — the timeline-heavy item view no longer
         // balloons to fill the cap. Editing (forms) + focused tasks expand to 85.
-        maxHeight={da2062Preview || signOutOpen || importOpen || shortageOpen || mobileForm ? 85 : 50}
+        // Tree 70 · big task surfaces (PDF/sign-out/import/shortage) 85 · edit form
+        // just above the 50 detail view (fields scroll internally, sheet doesn't
+        // balloon) · detail 50.
+        maxHeight={treeStep ? 70 : da2062Preview || signOutOpen || importOpen || shortageOpen ? 85 : mobileForm ? 60 : 50}
         // Detail/form are non-blocking like the map's mobile feature editor: the
         // canvas stays interactive and the body swaps detail↔form in the SAME sheet.
         // Sign-out is a focused task, so dim the canvas (non-dismissing) to block
@@ -1548,7 +1596,31 @@ export const PropertyPanel = memo(function PropertyPanel({
           ) : undefined
         }
       >
-        {da2062Preview ? (
+        {treeStep ? (
+          // Step 0 — the location tree. Selecting a zone/item morphs THIS sheet into
+          // that node's detail; the breadcrumb walks back up to here. The filter +
+          // tree share this step (same set the personnel carousel shows).
+          <>
+            {propertyFilterPanel}
+            {sectionHeader('Zones')}
+            <PropertyLocationTree
+              locations={treeLocations}
+              items={displayItems}
+              clinicName={clinicName}
+              activeLocationId={selectedLocationId}
+              allSelected={!selectedLocationId}
+              onSelectAll={() => mapRef.current?.resetZoom()}
+              onSelectLocation={(loc) => mapRef.current?.navigateToZone(loc.id)}
+              onSelectItem={(item) => handleSelectItem(item)}
+              onEditLocation={handleEditLocation}
+              onOpenItemMenu={(item, rect) => openItemMenu(item, rect, { view: true })}
+              onDeleteLocation={onDeleteItem ? (locId) => setPendingDeleteLocId(locId) : undefined}
+              onAddChildLocation={handleAddChildLocation}
+              onAddLevel={(id) => mapRef.current?.addFloorTo(id)}
+              onAddItemAtLocation={handleAddItemAtLocation}
+            />
+          </>
+        ) : da2062Preview ? (
           <div className="h-[70vh]">
             <Da2062PdfView preview={da2062Preview} />
           </div>
@@ -1643,36 +1715,6 @@ export const PropertyPanel = memo(function PropertyPanel({
       )}
       {itemActionMenuEl}
       {photoInput}
-
-      <Sheet
-        isOpen={showLocations}
-        onClose={() => setShowLocations(false)}
-        title="Locations"
-        height="fit"
-        maxHeight={70}
-        zIndex={1200}
-      >
-        {/* One entry point: the filter + the tree share this sheet. The tree includes
-            personnel zones gated by the filter (same set the carousel shows). */}
-        {propertyFilterPanel}
-        {sectionHeader('Zones')}
-        <PropertyLocationTree
-          locations={treeLocations}
-          items={displayItems}
-          clinicName={clinicName}
-          activeLocationId={selectedLocationId}
-          allSelected={!selectedLocationId}
-          onSelectAll={() => { mapRef.current?.resetZoom(); setShowLocations(false) }}
-          onSelectLocation={(loc) => { mapRef.current?.navigateToZone(loc.id); setShowLocations(false) }}
-          onSelectItem={(item) => { handleSelectItem(item); setShowLocations(false) }}
-          onEditLocation={handleEditLocation}
-          onOpenItemMenu={(item, rect) => openItemMenu(item, rect, { view: true })}
-          onDeleteLocation={onDeleteItem ? (locId) => setPendingDeleteLocId(locId) : undefined}
-          onAddChildLocation={handleAddChildLocation}
-          onAddLevel={(id) => mapRef.current?.addFloorTo(id)}
-          onAddItemAtLocation={handleAddItemAtLocation}
-        />
-      </Sheet>
 
       <ConfirmDialog
         visible={!!pendingDeleteItem}

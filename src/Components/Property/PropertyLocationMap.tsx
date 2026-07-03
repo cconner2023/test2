@@ -32,27 +32,35 @@ import { itemAlert } from '../../Types/PropertyTypes'
 
 const logger = createLogger('PropertyLocationMap')
 
-// ── EditItemPin — draggable item badge for zone edit mode ─────
+// ── EditItemPin — selectable item badge for zone edit mode ─────
+// Default: a tap toggles selection (inert to canvas scroll — pins are only
+// draggable once selected AND Move mode is on, so a scroll gesture starting on a
+// pin just scrolls). Move mode: the single selected pin drags to reposition its
+// x/y within the zone (persisted with the zone tags on Save).
 
 interface EditItemPinProps {
   pin: LocationTag
   item: LocalPropertyItem
   containerRef: React.RefObject<HTMLDivElement | null>
+  selected: boolean
+  /** True only for the lone selected pin while Move mode is active → drag-to-reposition. */
+  draggable: boolean
   onMove: (targetId: string, newX: number, newY: number) => void
-  onTap: (item: LocalPropertyItem) => void
+  onToggleSelect: (item: LocalPropertyItem) => void
 }
 
-const EditItemPin = memo(function EditItemPin({ pin, item, containerRef, onMove, onTap }: EditItemPinProps) {
+const EditItemPin = memo(function EditItemPin({ pin, item, containerRef, selected, draggable, onMove, onToggleSelect }: EditItemPinProps) {
   const [dragOffset, setDragOffset] = useState<{ dx: number; dy: number } | null>(null)
   const dragState = useRef<{ startX: number; startY: number; moved: boolean } | null>(null)
 
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
+    if (!draggable) return
     e.stopPropagation()
     e.preventDefault()
     ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
     dragState.current = { startX: e.clientX, startY: e.clientY, moved: false }
     setDragOffset({ dx: 0, dy: 0 })
-  }, [])
+  }, [draggable])
 
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
     if (!dragState.current) return
@@ -69,8 +77,7 @@ const EditItemPin = memo(function EditItemPin({ pin, item, containerRef, onMove,
     const wasMoved = dragState.current.moved
     dragState.current = null
     setDragOffset(null)
-
-    if (!wasMoved) { onTap(item); return }
+    if (!wasMoved) return // a stationary tap in Move mode = no-op (pin already selected)
 
     const container = containerRef.current
     if (!container) return
@@ -78,7 +85,7 @@ const EditItemPin = memo(function EditItemPin({ pin, item, containerRef, onMove,
     const newX = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width))
     const newY = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height))
     onMove(pin.target_id, newX, newY)
-  }, [item, onTap, onMove, pin.target_id, containerRef])
+  }, [onMove, pin.target_id, containerRef])
 
   const isDragging = dragOffset !== null && (dragState.current?.moved ?? false)
   // Expired / expiring (≤30d) / depleted (0 on hand) → red tag (matches view mode).
@@ -86,7 +93,7 @@ const EditItemPin = memo(function EditItemPin({ pin, item, containerRef, onMove,
 
   return (
     <div
-      className={['absolute z-30 select-none touch-none pointer-events-auto', isDragging ? 'cursor-grabbing' : 'cursor-grab'].join(' ')}
+      className={['absolute z-30 select-none pointer-events-auto', draggable ? 'touch-none' : '', isDragging ? 'cursor-grabbing' : draggable ? 'cursor-grab' : 'cursor-pointer'].join(' ')}
       style={{
         left: `${pin.x * 100}%`,
         top: `${pin.y * 100}%`,
@@ -97,8 +104,9 @@ const EditItemPin = memo(function EditItemPin({ pin, item, containerRef, onMove,
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
+      onClick={draggable ? undefined : (e) => { e.stopPropagation(); onToggleSelect(item) }}
     >
-      <div className={['px-2 py-1 rounded-full text-[9pt] font-medium shadow-sm backdrop-blur-sm min-h-[28px] flex items-center gap-1 transition-transform border', alert ? 'bg-themeredred/90 text-white border-themeredred' : 'bg-themewhite3/95 text-primary border-themeblue3/40', isDragging ? 'shadow-md scale-105' : 'active:scale-95'].join(' ')}>
+      <div className={['px-2 py-1 rounded-full text-[9pt] font-medium shadow-sm backdrop-blur-sm min-h-[28px] flex items-center gap-1 transition-transform border', selected ? 'ring-2 ring-themeblue2 ring-offset-1' : '', alert ? 'bg-themeredred/90 text-white border-themeredred' : selected ? 'bg-themeblue3/20 text-primary border-themeblue2' : 'bg-themewhite3/95 text-primary border-themeblue3/40', isDragging ? 'shadow-md scale-105' : 'active:scale-95'].join(' ')}>
         <span className="whitespace-nowrap max-w-[90px] truncate">{item.name}</span>
         {item.quantity !== 1 && (
           <span className={['shrink-0 text-[8pt] font-semibold px-1 rounded-full leading-tight', alert ? 'bg-white/25 text-white' : 'text-themeblue1 bg-themeblue3/15'].join(' ')}>×{item.quantity}</span>
@@ -267,6 +275,12 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
   const lcaCleanupRef = useRef<(() => void) | null>(null)
   // Track edit selection count so toolbar re-renders when shift-selection changes
   const [editSelectionCount, setEditSelectionCount] = useState(0)
+  // Item selection in edit mode (mutually exclusive with zone selection). Item
+  // pins are tap-to-select; Move re-arranges the selected pin's x/y within the
+  // zone (gated behind this selection so raw pin-drag stops fighting canvas scroll).
+  const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set())
+  const [itemMoveMode, setItemMoveMode] = useState(false)
+  const [pendingItemDelete, setPendingItemDelete] = useState<LocalPropertyItem[] | null>(null)
   // Nested edit: external name prompt state
   const [namingState, setNamingState] = useState<{ index: number; existingLabel: string } | null>(null)
   const [nameInput, setNameInput] = useState('')
@@ -527,7 +541,7 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
 
   // ── Zoom to a world-coord rect { x, y, width, height } ──
   const zoomToRect = useCallback(
-    (rect: { x: number; y: number; width: number; height: number }, smooth = true) => {
+    (rect: { x: number; y: number; width: number; height: number }, smooth = true, bottomInset = 0) => {
       const container = scrollRef.current
       if (!container || !rect.width || !rect.height) return
 
@@ -542,17 +556,33 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
       // publish --drawer-header-h → var unset → 0, so framing stays top-flush there.
       const headerH = parseFloat(getComputedStyle(container).getPropertyValue('--drawer-header-h')) || 0
       const topInset = PADDING + headerH
-      const newScale = Math.min(FILL / rect.width, FILL / rect.height, 100)
+      // A mobile sheet covering the bottom of the canvas (bottomInset px) shrinks the
+      // visible band. Fit the rect into that band (not the full viewport) so the target
+      // — e.g. a focused item pin — lands ABOVE the sheet instead of tucked under it.
+      // bottomInset defaults to 0, preserving the original full-viewport framing.
+      const heightScale = bottomInset > 0
+        ? (FILL * Math.max(1, vpH - topInset - bottomInset)) / (vpH * rect.height)
+        : FILL / rect.height
+      const newScale = Math.min(FILL / rect.width, heightScale, 100)
 
-      flushSync(() => setCanvasScale(newScale))
+      setCanvasScale(newScale)
 
-      const contentW = container.scrollWidth - 2 * vpW
-      const contentH = container.scrollHeight - 2 * vpH
+      // Defer the measure+scroll to after the scale commits and the browser
+      // re-lays-out the canvas, so scrollWidth/Height reflect the new scale.
+      // (Previously a flushSync forced this inline — but zoomToRect also runs
+      // from the initial-fit effect, and flushing mid-render warns. rAF is safe
+      // in every call context and still reads post-scale scroll dimensions.)
+      requestAnimationFrame(() => {
+        const el = scrollRef.current
+        if (!el) return
+        const contentW = el.scrollWidth - 2 * vpW
+        const contentH = el.scrollHeight - 2 * vpH
 
-      container.scrollTo({
-        left: vpW + rect.x * contentW - PADDING,
-        top: vpH + rect.y * contentH - topInset,
-        behavior: smooth ? 'smooth' : 'instant',
+        el.scrollTo({
+          left: vpW + rect.x * contentW - PADDING,
+          top: vpH + rect.y * contentH - topInset,
+          behavior: smooth ? 'smooth' : 'instant',
+        })
       })
     },
     [],
@@ -584,12 +614,19 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
         childZoneAutoTagsRef.current.find((t) => t.target_id === pin.location_id && (t.width ?? 0) > 0)
       const zoneSpan = zone ? Math.max(zone.width ?? 0, zone.height ?? 0) : ITEM_FOCUS_SPAN
       const span = Math.min(ITEM_FOCUS_SPAN, zoneSpan || ITEM_FOCUS_SPAN)
+      // On mobile the property sheet covers the bottom of the canvas — frame the pin
+      // in the band above it (PropertyPanel publishes the covered height on the map's
+      // ancestor). Desktop leaves the var unset → 0 → full-viewport framing.
+      const container = scrollRef.current
+      const bottomInset = container
+        ? parseFloat(getComputedStyle(container).getPropertyValue('--property-map-bottom-inset')) || 0
+        : 0
       zoomToRect({
         x: Math.max(0, pin.x - span / 2),
         y: Math.max(0, pin.y - span / 2),
         width: span,
         height: span,
-      })
+      }, true, bottomInset)
       return true
     },
     [zoomToRect],
@@ -1020,6 +1057,8 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
     setIsMoving(false)
     setEditCanvasId(null)
     setEditItemPins([])
+    setSelectedItemIds(new Set())
+    setItemMoveMode(false)
     setNamingState(null)
     setNameInput('')
     if (drawOnce) {
@@ -1027,6 +1066,57 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
       onDrawingChangeRef.current?.(false)
     }
   }, [drawOnce])
+
+  // ── Item pins in edit mode: select → act (Move / Delete / Merge) ──────────────
+  // Selecting an item hands the toolbar context to items and drops any zone
+  // selection (mutually exclusive). Move re-arranges x/y (persists on Save);
+  // Delete + Merge are immediate store mutations (audit-logged, serialized-guarded)
+  // and are NOT rolled back by Cancel — items are their own accountability entity.
+  const handleZoneSelectionChange = useCallback((count: number) => {
+    setEditSelectionCount(count)
+    if (count > 0) { setSelectedItemIds(new Set()); setItemMoveMode(false) }
+  }, [])
+
+  const handleToggleItemSelect = useCallback((item: LocalPropertyItem) => {
+    editRef.current?.clearSelection()
+    setItemMoveMode(false)
+    setSelectedItemIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(item.id)) next.delete(item.id)
+      else next.add(item.id)
+      return next
+    })
+  }, [])
+
+  const handleDeleteSelectedItems = useCallback(() => {
+    const sel = itemsRef.current.filter((i) => selectedItemIds.has(i.id))
+    if (sel.length) setPendingItemDelete(sel)
+  }, [selectedItemIds])
+
+  const handleConfirmItemDelete = useCallback(async () => {
+    const sel = pendingItemDelete
+    if (!sel) return
+    const ids = new Set(sel.map((i) => i.id))
+    for (const it of sel) await store.removeItem(it.id)
+    setEditItemPins((prev) => prev.filter((p) => !ids.has(p.target_id)))
+    setSelectedItemIds(new Set())
+    setItemMoveMode(false)
+    setPendingItemDelete(null)
+  }, [pendingItemDelete, store])
+
+  const handleMergeSelectedItems = useCallback(async () => {
+    const sel = itemsRef.current.filter((i) => selectedItemIds.has(i.id))
+    if (sel.length !== 2) return
+    // First stays (absorbs), second is the source and ceases.
+    const [target, source] = sel
+    await store.mergeItems(source.id, target.id)
+    setEditItemPins((prev) => prev.filter((p) => p.target_id !== source.id))
+    setSelectedItemIds(new Set())
+    setItemMoveMode(false)
+  }, [selectedItemIds, store])
+
+  // Drop item selection when the edited canvas changes (drilling into a nested zone).
+  useEffect(() => { setSelectedItemIds(new Set()); setItemMoveMode(false) }, [editCanvasId])
 
   // ── Standardized add-zone: enter single-rectangle draw mode on parentId's canvas ──
   // Loads the canvas's existing zones as visual context, then the first drawn rect
@@ -1545,6 +1635,18 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
     ? resolveActiveLevel(containerLevels, store.activeLevelByContainer, levelContainerId)
     : null
 
+  // Item-selection toolbar context (edit mode). While items are selected, the zone
+  // buttons hide (zoneSel forced to 0) and the item action group takes over. Merge
+  // is offered only for two stackable pins: non-serialized, same name + nsn.
+  const itemSel = selectedItemIds.size
+  const zoneSel = itemSel === 0 ? editSelectionCount : 0
+  const selectedItemsList = itemSel > 0 ? items.filter((i) => selectedItemIds.has(i.id)) : []
+  const canMergeItems =
+    selectedItemsList.length === 2 &&
+    selectedItemsList.every((i) => !i.is_serialized) &&
+    selectedItemsList[0].name.toLowerCase() === selectedItemsList[1].name.toLowerCase() &&
+    (selectedItemsList[0].nsn ?? null) === (selectedItemsList[1].nsn ?? null)
+
   return (
     <div className="flex flex-col h-full">
       {/* Canvas wrapper — relative so controls float over scroll area. Full-bleed
@@ -1554,7 +1656,7 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
         <div
           ref={scrollRef}
           className={`absolute inset-0 overflow-auto bg-themewhite2 ${isEditing ? (isDrawing ? 'cursor-crosshair' : isResizing ? 'cursor-nwse-resize' : isMoving ? 'cursor-move' : 'cursor-default') : 'cursor-default'}`}
-          style={{ touchAction: (isDrawing || isMoving || isResizing) ? 'none' : 'pan-x pan-y' }}
+          style={{ touchAction: (isDrawing || isMoving || isResizing || itemMoveMode) ? 'none' : 'pan-x pan-y' }}
           onPointerDown={handlePanStart}
           onPointerMove={handlePanMove}
           onPointerUp={handlePanEnd}
@@ -1592,7 +1694,7 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
                       onSave={handleEditSave}
                       onCancel={handleExitEdit}
                       onDeleteZone={(targetId, label) => setPendingZoneDelete({ targetId, label })}
-                      onSelectionChange={setEditSelectionCount}
+                      onSelectionChange={handleZoneSelectionChange}
                       photoMap={photoMap}
                       externalNamePrompt
                       onNamingChange={setNamingState}
@@ -1620,12 +1722,14 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
                             pin={pin}
                             item={item}
                             containerRef={editZoneOverlayRef}
+                            selected={selectedItemIds.has(pin.target_id)}
+                            draggable={itemMoveMode && selectedItemIds.size === 1 && selectedItemIds.has(pin.target_id)}
                             onMove={(targetId, newX, newY) =>
                               setEditItemPins((prev) =>
                                 prev.map((p) => (p.target_id === targetId ? { ...p, x: newX, y: newY } : p)),
                               )
                             }
-                            onTap={onSelectItem ?? (() => {})}
+                            onToggleSelect={handleToggleItemSelect}
                           />
                         )
                       })}
@@ -1649,7 +1753,7 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
                   onSave={handleEditSave}
                   onCancel={handleExitEdit}
                   onDeleteZone={(targetId, label) => setPendingZoneDelete({ targetId, label })}
-                  onSelectionChange={setEditSelectionCount}
+                  onSelectionChange={handleZoneSelectionChange}
                   photoMap={photoMap}
                   externalNamePrompt
                   onNamingChange={setNamingState}
@@ -1668,6 +1772,7 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
                   photoMap={photoMap}
                   items={items}
                   onItemTap={handleCanvasItemTap}
+                  selectedItemId={focusedItemId}
                   dispatchStatusByLocation={dispatchStatusByLocation}
                 />
 
@@ -1760,7 +1865,7 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
               >
                 <PenTool size={15} />
               </button>
-              {editSelectionCount === 1 && (
+              {zoneSel === 1 && (
                 <button
                   onClick={() => { setIsMoving((m) => !m); setIsDrawing(false); setIsResizing(false) }}
                   className={`w-10 h-10 shrink-0 rounded-full flex items-center justify-center active:scale-95 transition-all ${isMoving ? 'bg-themegreen text-white' : 'text-tertiary hover:text-primary'}`}
@@ -1769,7 +1874,7 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
                   <Move size={15} />
                 </button>
               )}
-              {editSelectionCount === 1 && (
+              {zoneSel === 1 && (
                 <button
                   onClick={() => { setIsResizing((r) => !r); setIsDrawing(false); setIsMoving(false) }}
                   className={`w-10 h-10 shrink-0 rounded-full flex items-center justify-center active:scale-95 transition-all ${isResizing ? 'bg-themeyellow text-white' : 'text-tertiary hover:text-primary'}`}
@@ -1778,8 +1883,8 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
                   <Maximize2 size={15} />
                 </button>
               )}
-              {editSelectionCount >= 1 && <div className="h-5 w-px shrink-0 bg-tertiary/15" />}
-              {editSelectionCount >= 1 && (
+              {zoneSel >= 1 && <div className="h-5 w-px shrink-0 bg-tertiary/15" />}
+              {zoneSel >= 1 && (
                 <button
                   onClick={() => editRef.current?.deleteSelected()}
                   className="w-10 h-10 shrink-0 rounded-full flex items-center justify-center text-tertiary hover:text-themeredred active:scale-95 transition-all"
@@ -1788,8 +1893,8 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
                   <Trash2 size={15} />
                 </button>
               )}
-              {editSelectionCount >= 1 && <div className="h-5 w-px shrink-0 bg-tertiary/15" />}
-              {editSelectionCount === 1 && (
+              {zoneSel >= 1 && <div className="h-5 w-px shrink-0 bg-tertiary/15" />}
+              {zoneSel === 1 && (
                 <button
                   onClick={() => editRef.current?.duplicate()}
                   className="w-10 h-10 shrink-0 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all"
@@ -1798,7 +1903,7 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
                   <Copy size={15} />
                 </button>
               )}
-              {editSelectionCount === 1 && (
+              {zoneSel === 1 && (
                 <button
                   onClick={() => editRef.current?.split()}
                   className="w-10 h-10 shrink-0 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all"
@@ -1807,9 +1912,40 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
                   <Scissors size={15} />
                 </button>
               )}
-              {editSelectionCount >= 2 && (
+              {zoneSel >= 2 && (
                 <button
                   onClick={() => editRef.current?.merge()}
+                  className="w-10 h-10 shrink-0 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all"
+                  title="Merge"
+                >
+                  <Merge size={15} />
+                </button>
+              )}
+              {/* ── Item action group — mutually exclusive with zone actions. Move
+                  re-arranges the selected pin's x/y (persists on Save); Delete +
+                  Merge apply immediately (audit-logged, serialized-guarded). ── */}
+              {itemSel >= 1 && <div className="h-5 w-px shrink-0 bg-tertiary/15" />}
+              {itemSel === 1 && (
+                <button
+                  onClick={() => setItemMoveMode((m) => !m)}
+                  className={`w-10 h-10 shrink-0 rounded-full flex items-center justify-center active:scale-95 transition-all ${itemMoveMode ? 'bg-themegreen text-white' : 'text-tertiary hover:text-primary'}`}
+                  title="Move"
+                >
+                  <Move size={15} />
+                </button>
+              )}
+              {itemSel >= 1 && (
+                <button
+                  onClick={handleDeleteSelectedItems}
+                  className="w-10 h-10 shrink-0 rounded-full flex items-center justify-center text-tertiary hover:text-themeredred active:scale-95 transition-all"
+                  title="Delete"
+                >
+                  <Trash2 size={15} />
+                </button>
+              )}
+              {canMergeItems && (
+                <button
+                  onClick={handleMergeSelectedItems}
                   className="w-10 h-10 shrink-0 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all"
                   title="Merge"
                 >
@@ -2020,6 +2156,20 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
         variant="danger"
         onConfirm={handleConfirmZoneDelete}
         onCancel={() => setPendingZoneDelete(null)}
+      />
+
+      {/* Item delete (from the edit-mode item selection) — immediate + terminal */}
+      <ConfirmDialog
+        visible={!!pendingItemDelete}
+        title={
+          pendingItemDelete && pendingItemDelete.length === 1
+            ? `Delete "${pendingItemDelete[0].name}"? This cannot be undone.`
+            : `Delete ${pendingItemDelete?.length ?? 0} items? This cannot be undone.`
+        }
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={handleConfirmItemDelete}
+        onCancel={() => setPendingItemDelete(null)}
       />
 
       {/* Member location — block delete */}

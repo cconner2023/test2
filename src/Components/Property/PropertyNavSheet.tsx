@@ -175,7 +175,10 @@ export const PropertyNavSheet = forwardRef<PropertyNavSheetHandle, PropertyNavSh
           isOpen={stack.length > 0}
           onClose={closeAll}
           height="fit"
-          maxHeight={top?.kind === 'item-form' || top?.kind === 'location-form' ? 85 : 50}
+          // Constant reduced cap across detail AND edit/form modes — matching the
+          // calendar event sheet (fixed maxHeight, forms scroll internally). Editing
+          // must not grow the sheet; a stray expand reads as a different surface.
+          maxHeight={50}
           zIndex={1200}
           title={title}
           leftContent={back}

@@ -61,8 +61,10 @@ export const HUD_SWEEPS: HudSweep[] = [
   { dur: 4.5, dir: -1, d: sector(24, 40, 70, 135), opacity: 0.16 }, // near, small
   { dur: 3.4, dir: 1, d: sector(30, 80, -130, -40), opacity: 0.18 },
   { dur: 6, dir: -1, d: sector(50, 82, 30, 95), opacity: 0.14 },
-  { dur: 9, dir: 1, d: sector(70, 94, 150, 250), opacity: 0.1 },
-  { dur: 12, dir: 1, d: sector(72, 98, -62, 92), opacity: 0.08 }, // far, wide
+  { dur: 9, dir: 1, d: sector(58, 82, 135, 235), opacity: 0.1 }, // large, pulled inward
+  { dur: 12, dir: 1, d: sector(76, 100, -55, 85), opacity: 0.08 }, // large, kept far — offset in depth
+  { dur: 5.2, dir: 1, d: sector(44, 64, 195, 240), opacity: 0.15 }, // mid, narrow
+  { dur: 8, dir: -1, d: sector(34, 58, 105, 205), opacity: 0.12 }, // long, near-mid, balances the arc
 ]
 
 export const STAR_SCALE = 1.9

@@ -54,11 +54,25 @@ function defaultBlockState(): BlockState {
     return { status: 'inactive', selectedTags: [], freeText: '' };
 }
 
+function emptyCustomTags(): Record<PlanBlockKey, string[]> {
+    return { referral: [], meds: [], radiology: [], lab: [], followUp: [], instructions: [] };
+}
+
+/**
+ * Parse seed text ("Label: a; b; c") into block states.
+ *
+ * Every semicolon-separated segment becomes an individually-removable
+ * selectedTag — including auto-generated items the provider hasn't configured
+ * as order tags. Unconfigured segments are returned as `customTags` so they're
+ * registered in `allTags` (renders the block, keeps the item re-selectable from
+ * the preview after it's unselected). Nothing lands in `freeText`, which has no
+ * editor in this UI and would otherwise trap suggested items as an unremovable blob.
+ */
 function parseInitialText(
     text: string,
     orderTags: PlanOrderTags,
     instructionTags: string[],
-): Record<PlanBlockKey, BlockState> {
+): { states: Record<PlanBlockKey, BlockState>; customTags: Record<PlanBlockKey, string[]> } {
     const states: Record<PlanBlockKey, BlockState> = {
         referral: defaultBlockState(),
         meds: defaultBlockState(),
@@ -67,9 +81,10 @@ function parseInitialText(
         followUp: defaultBlockState(),
         instructions: defaultBlockState(),
     };
-    if (!text.trim()) return states;
+    const customTags = emptyCustomTags();
+    if (!text.trim()) return { states, customTags };
 
-    const allTags: Record<PlanBlockKey, string[]> = {
+    const configuredTags: Record<PlanBlockKey, string[]> = {
         ...orderTags,
         instructions: instructionTags,
     };
@@ -81,25 +96,24 @@ function parseInitialText(
             if (trimmed.toUpperCase().startsWith(`${label.toUpperCase()}:`)) {
                 const rest = trimmed.slice(label.length + 1).trim();
                 const segments = rest.split(';').map(s => s.trim()).filter(Boolean);
-                const selected: string[] = [];
-                const freeParts: string[] = [];
-                for (const seg of segments) {
-                    if (allTags[key].includes(seg)) {
-                        selected.push(seg);
-                    } else {
-                        freeParts.push(seg);
+                const selected = [...new Set(segments)];
+                // Segments not in the provider's configured tags become custom
+                // tags so they render as removable/re-selectable chips.
+                for (const seg of selected) {
+                    if (!configuredTags[key].includes(seg) && !customTags[key].includes(seg)) {
+                        customTags[key].push(seg);
                     }
                 }
                 states[key] = {
                     status: 'active',
                     selectedTags: selected,
-                    freeText: freeParts.join('; '),
+                    freeText: '',
                 };
                 break;
             }
         }
     }
-    return states;
+    return { states, customTags };
 }
 
 // ── Text generation ──────────────────────────────────────────
@@ -275,10 +289,17 @@ function ActiveItemsCard({ items, onToggle, onReorder }: {
 export const Plan = ({ orderTags, instructionTags, orderSets = [], initialText, onChange, expanders = [],
     pickerOpenSignal, pickerOpenAnchor = null,
 }: PlanProps) => {
-    // Custom tags added inline via popover — merged with profile tags
-    const [customTags, setCustomTags] = useState<Record<PlanBlockKey, string[]>>({
-        referral: [], meds: [], radiology: [], lab: [], followUp: [], instructions: [],
-    });
+    // Parse the seed once — states plus any custom (unconfigured) tags it carried,
+    // e.g. auto-generated plan items from the algorithm's decision-making.
+    const parsedSeed = useMemo(
+        () => parseInitialText(initialText ?? '', orderTags, instructionTags),
+        // Seed is consumed once at mount (matches PE/Plan seed semantics).
+        [], // eslint-disable-line react-hooks/exhaustive-deps
+    );
+
+    // Custom tags added inline via popover, seeded with unconfigured seed items —
+    // merged with profile tags.
+    const [customTags, setCustomTags] = useState<Record<PlanBlockKey, string[]>>(parsedSeed.customTags);
 
     const allTags: Record<PlanBlockKey, string[]> = useMemo(() => {
         const base: Record<PlanBlockKey, string[]> = {
@@ -293,9 +314,7 @@ export const Plan = ({ orderTags, instructionTags, orderSets = [], initialText, 
         return base;
     }, [orderTags, instructionTags, customTags]);
 
-    const [states, setStates] = useState<Record<PlanBlockKey, BlockState>>(() =>
-        parseInitialText(initialText ?? '', orderTags, instructionTags),
-    );
+    const [states, setStates] = useState<Record<PlanBlockKey, BlockState>>(parsedSeed.states);
 
     // Track which order sets are "active" (have been applied)
     const [activeSetIds, setActiveSetIds] = useState<Set<string>>(new Set());

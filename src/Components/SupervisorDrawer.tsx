@@ -18,6 +18,7 @@ import { TimelineFullView, useSubjectTimelineRows, buildTimelineCalendarEntries 
 import { EvaluateFlow } from './Settings/Supervisor/EvaluateFlow'
 import { AlgorithmEvaluateFlow } from './Settings/Supervisor/AlgorithmEvaluateFlow'
 import { TeamReporting } from './Settings/Supervisor/TeamReporting'
+import { SubordinateUnitsCards } from './Settings/Supervisor/SubordinateUnitsCards'
 import { CoverageTasksView } from './Settings/Supervisor/CoverageTasksView'
 import { AlgorithmCoverageView } from './Settings/Supervisor/AlgorithmCoverageView'
 import { AlgorithmGapList } from './Settings/Supervisor/AlgorithmGapList'
@@ -599,6 +600,10 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
               currentUserId={currentUserId ?? undefined}
               showClusterSwitch={isMobile}
             />
+            {/* Echelon roll-up: direct child clusters (renders nothing if none). */}
+            <div className="mt-5">
+              <SubordinateUnitsCards clinicId={clinicId} isSupervisor={isSupervisor} currentUserId={currentUserId} />
+            </div>
           </div>
         )
 
