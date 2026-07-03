@@ -11,9 +11,6 @@ import {
   removeClinicMember,
   type ClinicMember,
 } from '../../../lib/supervisorService'
-import { fetchClinicCertifications } from '../../../lib/certificationService'
-import { getExpirationStatus } from '../../Certifications/certHelpers'
-import type { Certification } from '../../../Data/User'
 
 /**
  * Child-cluster roster management — the echelon drill-in. Tapping a Subordinate
@@ -33,16 +30,6 @@ function memberName(m: ClinicMember): string {
   return `${rank}${name}`.trim()
 }
 
-/** Worst-status cert chip for a member (echelon cert READ, subtree-authorized). */
-function certChip(certs: Certification[]): { label: string; cls: string } | null {
-  if (certs.length === 0) return null
-  const expired = certs.filter((c) => getExpirationStatus(c.exp_date) === 'expired').length
-  const expiring = certs.filter((c) => getExpirationStatus(c.exp_date) === 'expiring').length
-  if (expired) return { label: `${expired} expired`, cls: 'text-themeredred bg-themeredred/10' }
-  if (expiring) return { label: `${expiring} expiring`, cls: 'text-themeyellow bg-themeyellow/10' }
-  return { label: 'Current', cls: 'text-themegreen bg-themegreen/10' }
-}
-
 export function ChildClinicRosterSheet({
   clinicId,
   clinicName,
@@ -55,7 +42,6 @@ export function ChildClinicRosterSheet({
   onClose: () => void
 }) {
   const [members, setMembers] = useState<ClinicMember[]>([])
-  const [certsByUser, setCertsByUser] = useState<Record<string, Certification[]>>({})
   const [loading, setLoading] = useState(true)
   const [addAnchor, setAddAnchor] = useState<DOMRect | null>(null)
   const [removeTarget, setRemoveTarget] = useState<ClinicMember | null>(null)
@@ -71,25 +57,6 @@ export function ChildClinicRosterSheet({
   useEffect(() => {
     refresh()
   }, [refresh])
-
-  // Child certs — plaintext, read via the subtree-widened certifications_select
-  // (READ only; parents don't edit child certs). Grouped per member for the chip.
-  useEffect(() => {
-    if (members.length === 0) {
-      setCertsByUser({})
-      return
-    }
-    let cancelled = false
-    fetchClinicCertifications(members.map((m) => m.id)).then((certs) => {
-      if (cancelled) return
-      const map: Record<string, Certification[]> = {}
-      for (const c of certs) (map[c.user_id] ??= []).push(c)
-      setCertsByUser(map)
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [members])
 
   const handleRemove = useCallback(async () => {
     if (!removeTarget) return
@@ -136,14 +103,6 @@ export function ChildClinicRosterSheet({
                     <p className="text-sm text-primary truncate">{memberName(m)}</p>
                     <p className="text-[9pt] text-tertiary truncate">{m.email}</p>
                   </div>
-                  {(() => {
-                    const chip = certChip(certsByUser[m.id] ?? [])
-                    return chip ? (
-                      <span className={`shrink-0 text-[9pt] font-medium px-2 py-0.5 rounded-full ${chip.cls}`}>
-                        {chip.label}
-                      </span>
-                    ) : null
-                  })()}
                 </div>
               </SwipeToDeleteRow>
             ))}
