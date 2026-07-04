@@ -1,0 +1,45 @@
+name: Deploy Pages
+
+# Publishes the already-built site that `npm run deploy` pushes to the
+# gh-pages branch. NOTHING is built here — the bundle is built locally with
+# the real .env, so CI never needs any secrets. This workflow only takes the
+# prebuilt gh-pages branch contents and serves them through the Actions Pages
+# path, avoiding GitHub's flaky legacy Jekyll build backend.
+#
+# Triggered automatically by `npm run deploy` (via `gh workflow run`), and can
+# be re-run by hand from the Actions tab.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One Pages deployment at a time; let an in-flight deploy finish rather than
+# cancelling it (cancelling mid-publish can leave the site half-updated).
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout gh-pages (prebuilt site)
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+
+      - name: Upload site artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
