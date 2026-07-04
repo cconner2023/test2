@@ -1,7 +1,7 @@
 import { memo, useState, useRef, useCallback } from 'react'
 import { Plus, Check, RotateCcw, Crosshair } from 'lucide-react'
 import { useTC3Store } from '../../stores/useTC3Store'
-import { PreviewOverlay } from '../PreviewOverlay'
+import { TC3EditorSurface } from './TC3EditorSurface'
 import { SectionHeader } from '../Section'
 import { ActionButton } from '../ActionButton'
 import { ActionPill } from '../ActionPill'
@@ -122,7 +122,7 @@ export const MechanismForm = memo(function MechanismForm() {
       )}
 
       {/* Edit popover */}
-      <PreviewOverlay
+      <TC3EditorSurface
         isOpen={popoverVisible}
         onClose={() => setPopoverVisible(false)}
         anchorRect={anchorRect}

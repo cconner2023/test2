@@ -29,6 +29,7 @@ export type Domain =
   | 'messaging'
   | 'mapOverlays'
   | 'subClusters'
+  | 'echelon'
 
 interface InvalidationState {
   generations: Record<Domain, number>
@@ -47,6 +48,7 @@ export const useInvalidationStore = create<InvalidationState>((set) => ({
     messaging: 0,
     mapOverlays: 0,
     subClusters: 0,
+    echelon: 0,
   },
   invalidate: (...domains) =>
     set((state) => {

@@ -428,62 +428,17 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
     })
   }, [allWorldTags, rootLocationId, canvasScale, store.selectedZoneId, memberZoneIds])
 
-  // ── Item pins: only for selected zone, deduplicated against stale persisted pins ──
-  // Stale pins arise when an item moves zones but its old pin persists in the old zone's
-  // canvas — flattenToWorld emits both old + new, causing duplicate badges.
-  const visibleTagsWithPins: LocationTag[] = useMemo(() => {
-    const selectedId = store.selectedZoneId
-
-    // Build item→currentZone map to detect stale pins
-    const itemLocationMap = new Map<string, string>()
-    for (const item of items) itemLocationMap.set(item.id, item.location_id ?? '')
-
-    // Strip item pins that are stale (item moved zones) or not in the selected zone
-    const baseTags = visibleTags.filter((t) => {
-      if (t.target_type !== 'item') return true
-      if (t.location_id !== selectedId) return false
-      return itemLocationMap.get(t.target_id) === t.location_id
-    })
-
-    if (!selectedId || items.length === 0) return baseTags
-
-    // Auto-pin items in the selected zone that have no saved pin
-    const taggedIds = new Set(baseTags.filter((t) => t.target_type === 'item').map((t) => t.target_id))
-    const selectedZone = baseTags.find((t) => (t.width ?? 0) > 0 && t.target_id === selectedId)
-    if (!selectedZone) return baseTags
-
-    const untagged = items.filter((item) => item.location_id === selectedId && !taggedIds.has(item.id))
-    if (untagged.length === 0) return baseTags
-
-    const cols = 3
-    const rows = Math.ceil(untagged.length / cols)
-    const zw = selectedZone.width ?? 0
-    const zh = selectedZone.height ?? 0
-
-    const autoPins: LocationTag[] = untagged.map((item, i) => ({
-      id: `auto-${item.id}`,
-      location_id: selectedId,
-      target_type: 'item' as const,
-      target_id: item.id,
-      x: selectedZone.x + ((i % cols + 0.5) / cols) * zw,
-      y: selectedZone.y + ((Math.floor(i / cols) + 0.5) / rows) * zh,
-      width: null,
-      height: null,
-      label: item.name,
-    }))
-
-    return [...baseTags, ...autoPins]
-  }, [visibleTags, items, store.selectedZoneId])
-  // Ref so the item-focus zoom (and the resize re-fit) can read the live pin set —
-  // a tapped pin is always present here, including auto-pins for the selected zone.
-  const visibleTagsWithPinsRef = useRef<LocationTag[]>([])
-  visibleTagsWithPinsRef.current = visibleTagsWithPins
-
-  // ── Auto-rendered child zones ──
-  // Child locations that have NO drawn zone tag get a default grid rectangle laid
-  // out inside their parent's world bounds (mirrors the item auto-pin pattern above),
-  // so a "New area" sub-zone renders + is tappable the instant it's created. Dragging
-  // one in nested edit persists a real tag.
+  // ── Auto-rendered child zones (walks the full tag-less ancestry) ──
+  // Child locations with NO drawn zone tag get a default grid rectangle laid out inside
+  // their parent's world bounds, so a "New area" sub-zone renders + is tappable the instant
+  // it's created. Crucially the selected zone — AND any of its ancestors — may be tag-less
+  // (deep "New area" chains); flattenToWorld can't anchor those, so they (and any DRAWN zone
+  // nested beneath them) are absent from allWorldTags. We therefore WALK UP the ancestry to
+  // the nearest zone WITH real geometry, then derive each intervening tag-less level's rect
+  // on the way back down — resolving a zone at ANY depth to world coords (so its items can
+  // pin + focus), not just one level up. Without the full walk, selecting an item from a
+  // distant ancestor/tree framed nothing (the zone had no resolvable geometry). Dragging a
+  // zone in nested edit persists a real tag and drops it from this set.
   const childZoneAutoTags: LocationTag[] = useMemo(() => {
     const selectedId = store.selectedZoneId
     if (!selectedId) return []
@@ -513,31 +468,107 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
       }))
     }
 
-    const selectedRealZone = allWorldTags.find(
-      (t) => t.target_id === selectedId && (t.width ?? 0) > 0 && (t.height ?? 0) > 0,
-    )
-    if (selectedRealZone) {
-      // Selected zone has real geometry → render its tag-less children inside it.
-      return placeChildren(selectedRealZone, selectedId)
-    }
+    const realZoneOf = (id: string) =>
+      allWorldTags.find((t) => t.target_id === id && (t.width ?? 0) > 0 && (t.height ?? 0) > 0)
 
-    // Selected zone is itself tag-less (an auto-zone that was tapped). Render it (and
-    // its siblings) inside its real parent so it doesn't vanish, then its own children.
-    const selLoc = locations.find((l) => l.id === selectedId)
-    const parentId = selLoc?.parent_id
-    if (!parentId) return []
-    const parentZone = allWorldTags.find(
-      (t) => t.target_id === parentId && (t.width ?? 0) > 0 && (t.height ?? 0) > 0,
-    )
-    if (!parentZone) return []
-    const siblings = placeChildren(parentZone, parentId)
-    const selfZone = siblings.find((t) => t.target_id === selectedId)
-    if (!selfZone) return siblings
-    return [...siblings, ...placeChildren(selfZone, selectedId)]
+    // Selected zone has real geometry → just render its tag-less children inside it.
+    const selectedRealZone = realZoneOf(selectedId)
+    if (selectedRealZone) return placeChildren(selectedRealZone, selectedId)
+
+    // Selected zone is itself tag-less. Walk up to the nearest ancestor WITH real geometry,
+    // recording the tag-less chain [nearest-real-child … selected] top-down. Bail if the
+    // walk runs off the tree (no real anchor) — there's nothing to place against.
+    const chain: string[] = []
+    let anchor: LocationTag | undefined
+    let cur: string | null = selectedId
+    let guard = 0
+    while (cur && guard++ < 64) {
+      const real = realZoneOf(cur)
+      if (real) { anchor = real; break }
+      chain.unshift(cur)
+      cur = locations.find((l) => l.id === cur)?.parent_id ?? null
+    }
+    if (!anchor) return []
+
+    // Walk back down from the real anchor, deriving each tag-less level's rect. Emit every
+    // level's siblings (so the whole path renders, not just the selected zone), then finally
+    // the selected zone's own children.
+    const out: LocationTag[] = []
+    let parentZone = anchor
+    let parentLocId = anchor.target_id
+    let selfZone: LocationTag | undefined
+    for (const stepId of chain) {
+      const siblings = placeChildren(parentZone, parentLocId)
+      out.push(...siblings)
+      const stepZone = siblings.find((t) => t.target_id === stepId)
+      if (!stepZone) return out // stale data — render what resolved
+      parentZone = stepZone
+      parentLocId = stepId
+      if (stepId === selectedId) selfZone = stepZone
+    }
+    if (selfZone) out.push(...placeChildren(selfZone, selectedId))
+    return out
   }, [store.selectedZoneId, allWorldTags, locations])
   // Ref so handleZoneTap can zoom to an auto-zone (not present in allWorldTags).
   const childZoneAutoTagsRef = useRef<LocationTag[]>([])
   childZoneAutoTagsRef.current = childZoneAutoTags
+
+  // ── Item pins: only for selected zone, deduplicated against stale persisted pins ──
+  // Stale pins arise when an item moves zones but its old pin persists in the old zone's
+  // canvas — flattenToWorld emits both old + new, causing duplicate badges.
+  const visibleTagsWithPins: LocationTag[] = useMemo(() => {
+    const selectedId = store.selectedZoneId
+
+    // Build item→currentZone map to detect stale pins
+    const itemLocationMap = new Map<string, string>()
+    for (const item of items) itemLocationMap.set(item.id, item.location_id ?? '')
+
+    // Strip item pins that are stale (item moved zones) or not in the selected zone
+    const baseTags = visibleTags.filter((t) => {
+      if (t.target_type !== 'item') return true
+      if (t.location_id !== selectedId) return false
+      return itemLocationMap.get(t.target_id) === t.location_id
+    })
+
+    if (!selectedId || items.length === 0) return baseTags
+
+    // Auto-pin items in the selected zone that have no saved pin
+    const taggedIds = new Set(baseTags.filter((t) => t.target_type === 'item').map((t) => t.target_id))
+    // The selected zone may be tag-less (absent from baseTags/allWorldTags) yet resolvable
+    // via childZoneAutoTags, which walks the tag-less ancestry to synthesize geometry. Fall
+    // back to it so a deep-nested zone's items still auto-pin — otherwise an external item
+    // select (tree / search / distant ancestor) frames nothing.
+    const selectedZone =
+      baseTags.find((t) => (t.width ?? 0) > 0 && t.target_id === selectedId) ??
+      childZoneAutoTags.find((t) => t.target_id === selectedId && (t.width ?? 0) > 0)
+    if (!selectedZone) return baseTags
+
+    const untagged = items.filter((item) => item.location_id === selectedId && !taggedIds.has(item.id))
+    if (untagged.length === 0) return baseTags
+
+    const cols = 3
+    const rows = Math.ceil(untagged.length / cols)
+    const zw = selectedZone.width ?? 0
+    const zh = selectedZone.height ?? 0
+
+    const autoPins: LocationTag[] = untagged.map((item, i) => ({
+      id: `auto-${item.id}`,
+      location_id: selectedId,
+      target_type: 'item' as const,
+      target_id: item.id,
+      x: selectedZone.x + ((i % cols + 0.5) / cols) * zw,
+      y: selectedZone.y + ((Math.floor(i / cols) + 0.5) / rows) * zh,
+      width: null,
+      height: null,
+      label: item.name,
+    }))
+
+    return [...baseTags, ...autoPins]
+  }, [visibleTags, items, store.selectedZoneId, childZoneAutoTags])
+  // Ref so the item-focus zoom (and the resize re-fit) can read the live pin set —
+  // a tapped pin is always present here, including auto-pins for the selected zone.
+  const visibleTagsWithPinsRef = useRef<LocationTag[]>([])
+  visibleTagsWithPinsRef.current = visibleTagsWithPins
 
   // ── Zoom to a world-coord rect { x, y, width, height } ──
   const zoomToRect = useCallback(
@@ -567,23 +598,26 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
 
       setCanvasScale(newScale)
 
-      // Defer the measure+scroll to after the scale commits and the browser
-      // re-lays-out the canvas, so scrollWidth/Height reflect the new scale.
-      // (Previously a flushSync forced this inline — but zoomToRect also runs
-      // from the initial-fit effect, and flushing mid-render warns. rAF is safe
-      // in every call context and still reads post-scale scroll dimensions.)
-      requestAnimationFrame(() => {
+      // Scroll to the target AFTER the new scale commits. The content box is
+      // width = vpW*newScale (see contentW = vpSize.w*canvasScale in render) — derive
+      // the scroll extent from the KNOWN newScale rather than measuring scrollWidth,
+      // which a single rAF can read BEFORE the enlarged canvas commits. For a large
+      // zoom jump (root/overview → a nested item, e.g. picking an item from the master
+      // tree sheet) that stale, smaller measurement put the target in the padding and
+      // blanked the canvas; near-scale jumps (a pin tap inside the zone, or an item from
+      // its already-zoomed parent) hid the error. Two rAFs let the DOM grow to the new
+      // size so scrollTo doesn't clamp short of the target.
+      const contentW = vpW * newScale
+      const contentH = vpH * newScale
+      requestAnimationFrame(() => requestAnimationFrame(() => {
         const el = scrollRef.current
         if (!el) return
-        const contentW = el.scrollWidth - 2 * vpW
-        const contentH = el.scrollHeight - 2 * vpH
-
         el.scrollTo({
           left: vpW + rect.x * contentW - PADDING,
           top: vpH + rect.y * contentH - topInset,
           behavior: smooth ? 'smooth' : 'instant',
         })
-      })
+      }))
     },
     [],
   )

@@ -673,11 +673,22 @@ export const PropertyPanel = memo(function PropertyPanel({
     store.expendItem(itemId, quantity)
   }, [store])
 
+  // Scanned ZONE label (BCN-ZONE) → close the scanner + navigate the canvas to the
+  // zone; navigateToZone fires onSelectZone → selectedLocationId → the zone detail
+  // (where DD 1750 / Print label live). The zone sibling of handleScanLocate.
+  const handleScanLocateZone = useCallback((zoneId: string) => {
+    setShowScanner(false)
+    setPropertyTab('map')
+    mapRef.current?.navigateToZone(zoneId)
+  }, [])
+
   // Shared camera overlay (fixed inset-0) — rendered in both layouts.
   const scannerEl = showScanner ? (
     <ItemScanner
       items={store.items}
+      locations={visibleLocations}
       onLocate={handleScanLocate}
+      onLocateZone={handleScanLocateZone}
       onMatch={handleScanExpend}
       onClose={() => setShowScanner(false)}
     />
@@ -867,6 +878,8 @@ export const PropertyPanel = memo(function PropertyPanel({
     onDelete: () => setPendingDeleteLocId(loc.id),
     onPmcs: () => locDetailRef.current?.openPmcs(),
     onDispatch: () => locDetailRef.current?.openDispatch(),
+    onDD1750: () => locDetailRef.current?.openDD1750(),
+    onPrintLabel: () => locDetailRef.current?.openPrintLabel(),
   })
 
   // Trayed FAB in a positioning wrapper — matches Calendar/Admin's add FAB

@@ -88,6 +88,7 @@ const CLOSE_ALL_DRAWERS = {
     propertyDrawerZoneId: null as string | null,
     propertyDrawerCustody: false,
     showLoRaDrawer: false,
+    showTC3Drawer: false,
     showMapOverlayDrawer: false,
     mapOverlayDrawerOverlayId: null as string | null,
     mapOverlayDrawerFeatureId: null as string | null,
@@ -136,6 +137,7 @@ interface NavigationState {
     propertyDrawerZoneId: string | null
     propertyDrawerCustody: boolean
     showLoRaDrawer: boolean
+    showTC3Drawer: boolean
     showMapOverlayDrawer: boolean
     mapOverlayDrawerOverlayId: string | null
     mapOverlayDrawerFeatureId: string | null
@@ -188,6 +190,7 @@ interface NavigationActions {
     openPropertyCustody: () => void
     clearPropertyDeepLink: () => void
     setShowLoRaDrawer: (show: boolean) => void
+    setShowTC3Drawer: (show: boolean) => void
     setShowMapOverlayDrawer: (show: boolean, overlayId?: string | null, featureId?: string | null) => void
     setShowCalendarDrawer: (show: boolean, initialDate?: string | null) => void
     openCalendarEvent: (eventId: string) => void
@@ -241,6 +244,7 @@ export const useNavigationStore = create<NavigationStore>()((set, get) => ({
     propertyDrawerZoneId: null,
     propertyDrawerCustody: false,
     showLoRaDrawer: false,
+    showTC3Drawer: false,
     showMapOverlayDrawer: false,
     mapOverlayDrawerOverlayId: null,
     mapOverlayDrawerFeatureId: null,
@@ -491,6 +495,12 @@ export const useNavigationStore = create<NavigationStore>()((set, get) => ({
         ...(show ? CLOSE_ALL_DRAWERS : {}),
         ...PRESERVED_FIELDS(s),
         showLoRaDrawer: show,
+    })),
+
+    setShowTC3Drawer: (show) => set((s) => ({
+        ...(show ? CLOSE_ALL_DRAWERS : {}),
+        ...PRESERVED_FIELDS(s),
+        showTC3Drawer: show,
     })),
 
     setShowMapOverlayDrawer: (show, overlayId, featureId) => set((s) => ({

@@ -19,6 +19,11 @@ interface SwipeToDeleteRowProps {
    *  the red reveal is clipped to match a spaced/rounded row. Omit for seamless
    *  full-bleed rows inside an already-rounded container. */
   className?: string
+  /** When false, the wrapper does NOT clip its overflow. Use for rows that also
+   *  host drag-to-reorder (whose vertical lift translate would otherwise be
+   *  clipped to a single row height) AND live inside an already overflow-hidden
+   *  container that clips the horizontal swipe bleed. Default true. */
+  clip?: boolean
   children: ReactNode
 }
 
@@ -31,7 +36,7 @@ interface SwipeToDeleteRowProps {
  * container, and the tap the swipe would otherwise spawn is swallowed so the
  * row's own onClick doesn't also fire.
  */
-export function SwipeToDeleteRow({ onDelete, disabled, className, children }: SwipeToDeleteRowProps) {
+export function SwipeToDeleteRow({ onDelete, disabled, className, clip = true, children }: SwipeToDeleteRowProps) {
   const contentRef = useRef<HTMLDivElement>(null)
   const revealRef = useRef<HTMLDivElement>(null)
   const drag = useRef<{ startX: number; startY: number; locked: boolean | null } | null>(null)
@@ -101,7 +106,7 @@ export function SwipeToDeleteRow({ onDelete, disabled, className, children }: Sw
   }
 
   return (
-    <div className={`relative overflow-hidden ${className ?? ''}`}>
+    <div className={`relative ${clip ? 'overflow-hidden' : ''} ${className ?? ''}`}>
       {/* Solid reveal beneath the row — black icon, no growing circle. Hidden
           at rest (opacity 0) so it never bleeds through during scroll; shown
           only while a swipe is locked horizontal. */}

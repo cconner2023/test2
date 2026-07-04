@@ -5,16 +5,22 @@ import { BrowserMultiFormatReader } from '@zxing/library'
 import { openCamera, closeCamera, captureFrame } from '../../lib/vision/camera'
 import { extractFingerprint } from '../../lib/vision/fingerprint'
 import { matchScan, type MatchResult } from '../../lib/vision/matcher'
-import type { LocalPropertyItem } from '../../Types/PropertyTypes'
+import type { LocalPropertyItem, LocalPropertyLocation } from '../../Types/PropertyTypes'
 import { parseItemTag } from '../../Utilities/itemLabelCodec'
+import { parseZoneTag } from '../../Utilities/zoneLabelCodec'
 import { DisambiguationCard } from './DisambiguationCard'
 
 interface ItemScannerProps {
   items: LocalPropertyItem[]
+  /** Zones the scanner can resolve — a scanned BCN-ZONE label lands on the zone.
+   *  Optional so item-only callers/tests are unaffected. */
+  locations?: LocalPropertyLocation[]
   /** Expend the matched item (secondary action on the confirmed card). */
   onMatch: (itemId: string, quantity: number) => void
   /** Primary action — surface the matched item on the map ("target it"). */
   onLocate: (itemId: string) => void
+  /** Surface a scanned ZONE (BCN-ZONE tag) — the zone sibling of onLocate. */
+  onLocateZone?: (zoneId: string) => void
   onClose: () => void
 }
 
@@ -30,7 +36,7 @@ function imageDataToCanvas(imageData: ImageData): HTMLCanvasElement {
   return canvas
 }
 
-export function ItemScanner({ items, onMatch, onLocate, onClose }: ItemScannerProps) {
+export function ItemScanner({ items, locations, onMatch, onLocate, onLocateZone, onClose }: ItemScannerProps) {
   const [phase, setPhase] = useState<ScanPhase>('scanning')
   const [matchResult, setMatchResult] = useState<MatchResult | null>(null)
   const [confirmedItemId, setConfirmedItemId] = useState<string | null>(null)
@@ -122,9 +128,17 @@ export function ItemScanner({ items, onMatch, onLocate, onClose }: ItemScannerPr
       // No barcode found — normal path
     }
 
-    // Deterministic resolve: our printed Data Matrix labels encode the item id
-    // (BCN-ITEM:<uuid>). A direct hit skips fuzzy visual matching entirely.
+    // Deterministic resolve: our printed Data Matrix labels encode an opaque id.
+    // A ZONE tag (BCN-ZONE) lands on the zone; an ITEM tag (BCN-ITEM) confirms the
+    // item. Either skips fuzzy visual matching entirely. Distinct prefixes keep the
+    // two unambiguous, so order is immaterial.
     for (const code of barcodes) {
+      const zoneId = parseZoneTag(code)
+      if (zoneId && locations?.some(l => l.id === zoneId)) {
+        stopCamera()
+        onLocateZone?.(zoneId)
+        return
+      }
       const taggedId = parseItemTag(code)
       if (taggedId && items.some(i => i.id === taggedId)) {
         stopCamera()

@@ -184,13 +184,14 @@ export const WriteNotePage = ({
         peNote, setPeNote,
         peState, setPeState,
         planNote, setPlanNote,
+        assessmentNote, setAssessmentNote,
         selectedDdx, setSelectedDdx, customDdx, setCustomDdx,
         encodedValue, setEncodedValue,
         copiedTarget,
         currentPage, currentPageId, slideDirection,
         handleNext, handlePageBack,
         handleSwipeStart, handleSwipeMove, handleSwipeEnd,
-        piiWarnings, pePiiWarnings, hasPII,
+        piiWarnings, pePiiWarnings, assessmentPiiWarnings, hasPII,
         handleCopy, handleShare, handleExportDD689, handleExportSF600,
         shareStatus, exportStatus, sf600ExportStatus,
         dd689Preview, downloadDD689, clearDD689Preview,
@@ -449,31 +450,43 @@ export const WriteNotePage = ({
                                     )}
                                 </div>
 
-                                {/* Assessment (DDx) */}
-                                <div className="space-y-2" data-tour="writenote-ddx">
+                                {/* Assessment — free-text clinical narrative + connected differential */}
+                                <div className="space-y-2" data-tour="writenote-assessment">
                                     <p className={SECTION_LABEL_CLASS}>Assessment</p>
-                                    {(selectedDdx.length > 0 || customDdx.length > 0) ? (
-                                        <div
-                                            onClick={openDdxPopover}
-                                            className={`${CARD_CLASS} cursor-pointer active:scale-[0.99] transition-all`}
-                                        >
-                                            <div className="px-4 py-3 text-sm text-primary whitespace-pre-wrap max-h-64 overflow-y-auto">
-                                                {[...selectedDdx, ...customDdx].map((d, i) => `${i + 1}. ${d}`).join('; ')}
+                                    <TextSectionCard
+                                        addLabel="Add assessment"
+                                        value={assessmentNote}
+                                        onChange={setAssessmentNote}
+                                        expanders={expanders}
+                                        placeholder="Clinical impression, working diagnosis, reasoning..."
+                                    />
+
+                                    {/* Differential Diagnosis (connected to the assessment) */}
+                                    <div className="space-y-2 pt-1" data-tour="writenote-ddx">
+                                        <p className="text-[9pt] font-semibold text-tertiary uppercase tracking-wider">Differential Diagnosis</p>
+                                        {(selectedDdx.length > 0 || customDdx.length > 0) ? (
+                                            <div
+                                                onClick={openDdxPopover}
+                                                className={`${CARD_CLASS} cursor-pointer active:scale-[0.99] transition-all`}
+                                            >
+                                                <div className="px-4 py-3 text-sm text-primary whitespace-pre-wrap max-h-64 overflow-y-auto">
+                                                    {[...selectedDdx, ...customDdx].map((d, i) => `${i + 1}. ${d}`).join('; ')}
+                                                </div>
                                             </div>
-                                        </div>
-                                    ) : (
-                                        <EmptyState
-                                            title="Add assessment"
-                                            action={{
-                                                icon: Plus,
-                                                label: 'Add assessment',
-                                                onClick: (a) => {
-                                                    setDdxAnchorRect(a.getBoundingClientRect());
-                                                    setDdxPopoverVisible(true);
-                                                },
-                                            }}
-                                        />
-                                    )}
+                                        ) : (
+                                            <EmptyState
+                                                title="Add differential"
+                                                action={{
+                                                    icon: Plus,
+                                                    label: 'Add differential',
+                                                    onClick: (a) => {
+                                                        setDdxAnchorRect(a.getBoundingClientRect());
+                                                        setDdxPopoverVisible(true);
+                                                    },
+                                                }}
+                                            />
+                                        )}
+                                    </div>
                                 </div>
 
                                 <PreviewOverlay
@@ -580,7 +593,7 @@ export const WriteNotePage = ({
                                 )}
 
                                 {/* PII warning */}
-                                {hasPII && <PIIWarningBanner warnings={[...new Set([...piiWarnings, ...pePiiWarnings])]} />}
+                                {hasPII && <PIIWarningBanner warnings={[...new Set([...piiWarnings, ...pePiiWarnings, ...assessmentPiiWarnings])]} />}
                             </div>
                         </div>
 
@@ -588,7 +601,7 @@ export const WriteNotePage = ({
                     <div className={`w-full p-2 ${currentPageId !== 'fullnote' ? 'hidden' : ''}`}>
                                 <div className="space-y-4 mx-2 mt-2">
                                     {hasPII && (
-                                        <PIIWarningBanner warnings={[...new Set([...piiWarnings, ...pePiiWarnings])]} />
+                                        <PIIWarningBanner warnings={[...new Set([...piiWarnings, ...pePiiWarnings, ...assessmentPiiWarnings])]} />
                                     )}
                                     {/* Note Preview */}
                                     <section data-tour="writenote-preview">
@@ -680,6 +693,7 @@ export const WriteNotePage = ({
                                                     cardStates={cardStates}
                                                     noteOptions={{
                                                         includeAlgorithm: true,
+                                                        assessmentNote,
                                                         selectedDdx,
                                                         customDdx,
                                                         customNote: note,

@@ -117,8 +117,7 @@ export const features = {
     tables: [],
     idb: [],
     components: 'Components/TC3/',
-    drawer: null, // dedicated layout modes: TC3DesktopLayout, TC3MobileWizard
-    activation: 'layout', // not a drawer — has own desktop + mobile layout
+    drawer: { id: 'showTC3Drawer', wrapper: 'TC3Drawer.tsx' }, // desktop master-detail (rail + DD1380) / mobile wizard
   },
 
   tour: {

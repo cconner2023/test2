@@ -1,7 +1,7 @@
 import { memo, useState, useRef, useEffect, type ReactNode } from 'react'
 import { Plus, X, Check, TrendingUp } from 'lucide-react'
 import { useTC3Store } from '../../stores/useTC3Store'
-import { PreviewOverlay } from '../PreviewOverlay'
+import { TC3EditorSurface } from './TC3EditorSurface'
 import { BloodPressureInput, DatePickerInput } from '../FormInputs'
 import { ActionButton } from '../ActionButton'
 import { ActionPill } from '../ActionPill'
@@ -566,7 +566,7 @@ export const VitalsForm = memo(function VitalsForm() {
 
       {/* Popover for editing a vital set (includes AVPU + GCS + vitals) */}
       {editingSet && (
-        <PreviewOverlay
+        <TC3EditorSurface
           isOpen={!!editingId}
           onClose={handleClose}
           anchorRect={null}

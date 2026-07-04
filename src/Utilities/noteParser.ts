@@ -37,7 +37,8 @@ export interface ParsedNote {
     hpiText: string;
     peText: string;
     planText: string;
-    flags: { includeAlgorithm: boolean; includeDecisionMaking: boolean; includeHPI: boolean; includePhysicalExam: boolean; includePlan: boolean };
+    assessmentText: string;
+    flags: { includeAlgorithm: boolean; includeDecisionMaking: boolean; includeHPI: boolean; includePhysicalExam: boolean; includePlan: boolean; includeAssessment: boolean };
     user: UserTypes | null;
     userId: string | null;
     // Provider overlay fields (lowercase prefix segments)
@@ -52,6 +53,7 @@ export interface ParsedNote {
 
 export interface NoteEncodeOptions {
     includeAlgorithm: boolean;
+    assessmentNote?: string;
     selectedDdx?: string[];
     customDdx?: string[];
     customNote: string;
@@ -198,12 +200,14 @@ export function parseNoteEncoding(encodedText: string): ParsedNote | null {
         hpiText: '',
         peText: '',
         planText: '',
+        assessmentText: '',
         flags: {
             includeAlgorithm: !isProvider,
             includeDecisionMaking: !isProvider,
             includeHPI: false,
             includePhysicalExam: false,
             includePlan: false,
+            includeAssessment: false,
         },
         user: null,
         userId: null,
@@ -258,7 +262,12 @@ export function parseNoteEncoding(encodedText: string): ParsedNote | null {
                     includeHPI: !!(f & 4),
                     includePhysicalExam: !!(f & 8),
                     includePlan: !!(f & 16),
+                    includeAssessment: !!(f & 32),
                 };
+                break;
+            }
+            case 'X': {
+                result.assessmentText = decompressText(value);
                 break;
             }
             case 'U': {
@@ -698,6 +707,10 @@ export function encodeNoteState(
     const planNoteText = noteOptions.planNote?.trim();
     if (planNoteText) parts.push(`N${compressText(planNoteText)}`);
 
+    // Assessment (free-text clinical narrative)
+    const assessmentNoteText = noteOptions.assessmentNote?.trim();
+    if (assessmentNoteText) parts.push(`X${compressText(assessmentNoteText)}`);
+
     // DDx list
     const allDdx = [...(noteOptions.selectedDdx ?? []), ...(noteOptions.customDdx ?? [])];
     if (allDdx.length > 0) {
@@ -713,6 +726,7 @@ export function encodeNoteState(
     if (customNote) flags |= 4;
     if (hasPE) flags |= 8;
     if (planNoteText) flags |= 16;
+    if (assessmentNoteText) flags |= 32;
     parts.push(`F${flags}`);
 
     // User profile

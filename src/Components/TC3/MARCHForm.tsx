@@ -5,7 +5,7 @@ import type {
   MedRoute, MedCategory, BodyRegion,
 } from '../../Types/TC3Types'
 import { useTC3Store } from '../../stores/useTC3Store'
-import { PreviewOverlay } from '../PreviewOverlay'
+import { TC3EditorSurface } from './TC3EditorSurface'
 import { Section, SectionHeader } from '../Section'
 import { ActionButton } from '../ActionButton'
 import { ActionPill } from '../ActionPill'
@@ -927,7 +927,7 @@ export const MARCHForm = memo(function MARCHForm() {
       </Section>
 
       {/* Add menu popover */}
-      <PreviewOverlay
+      <TC3EditorSurface
         isOpen={showAddMenu}
         onClose={closeAll}
         anchorRect={anchorRef.current}
@@ -966,7 +966,7 @@ export const MARCHForm = memo(function MARCHForm() {
       />
 
       {/* Edit / Add-form popover */}
-      <PreviewOverlay
+      <TC3EditorSurface
         isOpen={isPopoverOpen}
         onClose={closeAll}
         anchorRect={anchorRef.current}

@@ -4,6 +4,7 @@ import { PreviewOverlay } from './PreviewOverlay';
 import type { ContextMenuAction } from './PreviewOverlay';
 import { ExamBlockPreview } from './ExamBlockPreview';
 import { ListItemRow } from './ListItemRow';
+import { SwipeToDeleteRow } from './SwipeToDeleteRow';
 import { ActionPill } from './ActionPill';
 import { ActionButton } from './ActionButton';
 import { VitalSignsCalculator } from './VitalSignsCalculator';
@@ -438,7 +439,7 @@ function ExamItemRow({ block, state, onTap, index, isDragging, dragOffset, onDra
                     <>
                         <p className="text-sm font-medium text-primary truncate">{block.label}</p>
                         {hasSummary && (
-                            <p className="text-[9pt] mt-0.5 truncate">
+                            <p className="text-[9pt] mt-0.5 whitespace-normal break-words">
                                 {normals.length > 0 && <span className="text-tertiary">{normals.join(', ')}</span>}
                                 {normals.length > 0 && abnormals.length > 0 && <span className="text-tertiary"> · </span>}
                                 {abnormals.length > 0 && <span className="text-primary font-medium">{abnormals.join(', ')}</span>}
@@ -899,6 +900,23 @@ export function PhysicalExam({
         setEditingIndex(null);
     }, []);
 
+    // Swipe-to-delete removal — mirrors the in-popover X/trash actions:
+    // added blocks are always removable; template-mode blocks drop their key.
+    const canRemove = useCallback((entry: FlatEntry) =>
+        entry.isAdded || (mode === 'template' && !!onBlockKeysChange && !!templateBlockKeys),
+    [mode, onBlockKeysChange, templateBlockKeys]);
+
+    const removeEntry = useCallback((entry: FlatEntry) => {
+        if (entry.isAdded) {
+            deleteBlock(entry);
+            return;
+        }
+        if (mode === 'template' && onBlockKeysChange && templateBlockKeys) {
+            onBlockKeysChange(templateBlockKeys.filter(k => k !== entry.key));
+            setBlockStates(prev => ({ ...prev, [entry.key]: defaultItemState() }));
+        }
+    }, [deleteBlock, mode, onBlockKeysChange, templateBlockKeys]);
+
     const popoverActions = useMemo((): ContextMenuAction[] => {
         if (editingIndex === null) return [];
         const len = flatBlockList.length;
@@ -1122,7 +1140,7 @@ export function PhysicalExam({
                                     center={
                                         <>
                                             <p className="text-sm font-medium text-primary truncate">Vital Signs</p>
-                                            <p className={`text-[9pt] mt-0.5 truncate ${hasAnyVitals ? 'text-tertiary' : 'text-tertiary/60 italic'}`}>
+                                            <p className={`text-[9pt] mt-0.5 whitespace-normal break-words ${hasAnyVitals ? 'text-tertiary' : 'text-tertiary/60 italic'}`}>
                                                 {hasAnyVitals ? vitalsSummary : 'Tap to add'}
                                             </p>
                                         </>
@@ -1138,16 +1156,22 @@ export function PhysicalExam({
                             onPointerCancel={handleDragEnd}
                         >
                             {flatBlockList.map((entry, i) => (
-                                <ExamItemRow
+                                <SwipeToDeleteRow
                                     key={entry.key}
-                                    block={entry.viewBlock}
-                                    state={blockStates[entry.key] ?? defaultItemState()}
-                                    onTap={handleRowTap}
-                                    index={i}
-                                    isDragging={dragIndex === i}
-                                    dragOffset={dragIndex === i ? dragOffset : 0}
-                                    onDragStart={handleDragStart}
-                                />
+                                    onDelete={() => removeEntry(entry)}
+                                    disabled={!canRemove(entry)}
+                                    clip={false}
+                                >
+                                    <ExamItemRow
+                                        block={entry.viewBlock}
+                                        state={blockStates[entry.key] ?? defaultItemState()}
+                                        onTap={handleRowTap}
+                                        index={i}
+                                        isDragging={dragIndex === i}
+                                        dragOffset={dragIndex === i ? dragOffset : 0}
+                                        onDragStart={handleDragStart}
+                                    />
+                                </SwipeToDeleteRow>
                             ))}
                         </div>
 

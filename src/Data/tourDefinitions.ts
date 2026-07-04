@@ -108,9 +108,9 @@ export interface TourDefinition {
 //   'navigate:settings:overview-widgets' — open Settings → Mission Overview panel
 //   'navigate:settings:theme-picker'     — open Settings → Appearance panel
 //   'navigate:settings:back'             — slide back to main settings panel
-//   'open:tc3'                    — enable TC3 mode (sets tc3Mode = true in authStore)
+//   'open:tc3'                    — open the TC3 drawer (navigation.setShowTC3Drawer(true))
 //   'tc3:advance-page'            — advance mobile wizard to MARCH page (mobile only)
-//   'tc3:cleanup'                 — exit TC3 mode, reset wizard step, return to guided tours
+//   'tc3:cleanup'                 — close the TC3 drawer, reset wizard step, return to guided tours
 //   'open:property'               — open the Property Book drawer
 //   'property:cleanup'            — close property drawer, return to guided tours
 //   'calendar:open-template-panel' — open calendar drawer + provider-template generator
@@ -708,15 +708,7 @@ const tc3Tour: TourDefinition = {
       placement: 'bottom',
       duration: 5000,
     },
-    // Desktop: MARCH column is always visible
-    {
-      target: 'tc3-march',
-      text: 'MARCH interventions — tourniquets, airway, IV access, medications, and fluid resuscitation.',
-      placement: 'bottom',
-      duration: 5000,
-      desktopOnly: true,
-    },
-    // Mobile: advance to page 2 before showing MARCH
+    // Single scrollable column (both platforms): scroll MARCH into view first.
     {
       target: 'tc3-march',
       text: 'MARCH interventions — tourniquets, airway, IV access, medications, and fluid resuscitation.',
@@ -724,7 +716,6 @@ const tc3Tour: TourDefinition = {
       beforeStep: 'tc3:advance-page',
       delay: 400,
       duration: 5000,
-      mobileOnly: true,
     },
     {
       target: 'tc3-notes',

@@ -239,7 +239,7 @@ export function exportStatusToIconStatus(status: string): 'idle' | 'busy' | 'don
 }
 
 // ProgressDots — Step indicator dots for multi-page wizards.
-// Used by WriteNotePage (via BaseDrawer's progressDots slot) and TC3MobileWizard.
+// Used by WriteNotePage (via BaseDrawer's progressDots slot).
 
 export const ProgressDots = ({
     pages,

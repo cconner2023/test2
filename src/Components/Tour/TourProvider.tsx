@@ -917,18 +917,18 @@ function TourProviderInner({ children, onboardingBlocked }: { children: React.Re
           await new Promise(r => setTimeout(r, 300))
           break
         case 'tc3': {
-          const { useAuthStore } = await import('../../stores/useAuthStore')
-          useAuthStore.getState().patchProfile({ tc3Mode: true })
+          store.setShowTC3Drawer(true)
           await waitForTarget('tc3-casualty-info', 3000)
           break
         }
       }
     }
 
-    // ── tc3:advance-page — advance mobile wizard to MARCH page ──
+    // ── tc3:advance-page — scroll the MARCH section into view ──
+    // The card is now one scrollable column (no front/back wizard), so reveal
+    // MARCH by scrolling to its anchor instead of paging.
     if (action === 'tc3:advance-page') {
-      const { useTC3Store } = await import('../../stores/useTC3Store')
-      useTC3Store.getState().setWizardStep(1)
+      document.querySelector('[data-tour="tc3-march"]')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
       await waitForTarget('tc3-march', 2000)
       return
     }
@@ -1066,15 +1066,14 @@ function TourProviderInner({ children, onboardingBlocked }: { children: React.Re
       return
     }
 
-    // ── tc3:cleanup — exit TC3 mode, reset wizard, return to guided tours ──
+    // ── tc3:cleanup — close the TC3 drawer, reset wizard, return to guided tours ──
     if (action === 'tc3:cleanup') {
       setTooltipHidden(true)
       await new Promise(r => setTimeout(r, 250))
       setCurtainVisible(true)
       await new Promise(r => setTimeout(r, 350))
-      const { useAuthStore } = await import('../../stores/useAuthStore')
       const { useTC3Store } = await import('../../stores/useTC3Store')
-      useAuthStore.getState().patchProfile({ tc3Mode: false })
+      store.setShowTC3Drawer(false)
       useTC3Store.getState().setWizardStep(0)
       closeAllDrawers()
       store.closeMenu()

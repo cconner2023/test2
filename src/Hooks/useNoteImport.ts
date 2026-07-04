@@ -130,6 +130,7 @@ export const useNoteImport = () => {
             {
                 includeAlgorithm: parsed.flags.includeAlgorithm,
                 customNote: parsed.flags.includeHPI ? parsed.hpiText : '',
+                assessmentNote: parsed.flags.includeAssessment ? parsed.assessmentText : '',
                 physicalExamNote: parsed.flags.includePhysicalExam ? parsed.peText : '',
                 planNote: parsed.flags.includePlan ? parsed.planText : '',
                 signature: parsed.user ? formatSignature(parsed.user) : undefined,
@@ -163,7 +164,7 @@ export const useNoteImport = () => {
             addMerged('PHYSICAL EXAM:', result.sections.physicalExam, parsed.providerPe);
             if (result.sections.algorithm) { parts.push(''); const t = selectedSymptom?.icon && selectedSymptom?.text ? `${selectedSymptom.icon}: ${selectedSymptom.text}:` : 'ALGORITHM:'; parts.push(t); parts.push(result.sections.algorithm); }
             if (result.sections.differentials) { parts.push(''); parts.push('DIFFERENTIALS:'); parts.push(result.sections.differentials); }
-            addMerged('ASSESSMENT:', undefined, parsed.providerAssessment);
+            addMerged('ASSESSMENT:', result.sections.assessment, parsed.providerAssessment);
             addMerged('PLAN:', result.sections.plan, parsed.providerPlan);
             if (medicSig) { parts.push(''); parts.push(medicSig); }
             fullNote = parts.join('\n').trim();
@@ -182,7 +183,7 @@ export const useNoteImport = () => {
             if (result.sections.differentials) {
                 layout.push(['DIFFERENTIALS:', result.sections.differentials, undefined, true]);
             }
-            layout.push(['ASSESSMENT:', undefined, parsed.providerAssessment, false]);
+            layout.push(['ASSESSMENT:', result.sections.assessment, parsed.providerAssessment, false]);
             layout.push(['PLAN:', result.sections.plan, parsed.providerPlan, false]);
 
             // Find last index where each voice has content

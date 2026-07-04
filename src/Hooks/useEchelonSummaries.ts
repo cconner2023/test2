@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { fetchChildClinics, type ChildClinicRow } from '../lib/echelonService'
 import { getEchelonSummaries } from '../lib/offlineDb'
+import { useInvalidation } from '../stores/useInvalidationStore'
 import type { EchelonReadinessSummary } from '../lib/echelonSummary'
 
 export interface ChildClinicCard {
@@ -29,6 +30,9 @@ export function useEchelonSummaries(
   const [children, setChildren] = useState<ChildClinicRow[]>([])
   const [summaries, setSummaries] = useState<Record<string, EchelonReadinessSummary>>({})
   const [loading, setLoading] = useState(false)
+  // Bumped by routeReadinessSummary when a child's rollup lands in the cache —
+  // re-runs the fetch so a newly-consumed summary paints without a remount.
+  const echelonGen = useInvalidation('echelon')
 
   useEffect(() => {
     if (!clinicId || !isSupervisor) {
@@ -51,7 +55,7 @@ export function useEchelonSummaries(
     return () => {
       cancelled = true
     }
-  }, [clinicId, isSupervisor])
+  }, [clinicId, isSupervisor, echelonGen])
 
   const cards = useMemo<ChildClinicCard[]>(
     () =>

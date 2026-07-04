@@ -1,5 +1,5 @@
 import { useRef, useState, useCallback, forwardRef, useImperativeHandle, type RefObject } from 'react'
-import { Pencil, Package, FolderPlus, Camera, X, Trash2, Layers, Wrench, Route } from 'lucide-react'
+import { Pencil, Package, FolderPlus, Camera, X, Trash2, Layers, Wrench, Route, ClipboardList, QrCode } from 'lucide-react'
 import type { ContextMenuItem } from '../ContextMenu'
 import type { LocalPropertyItem, LocalPropertyLocation, HolderInfo } from '../../Types/PropertyTypes'
 import { PropertyLocationTree } from './PropertyLocationTree'
@@ -7,6 +7,12 @@ import { useIsMobile } from '../../Hooks/useIsMobile'
 import { PmcsSheet } from './PmcsSheet'
 import { DispatchSheet } from './DispatchSheet'
 import { ItemTimeline } from '../Timeline/ItemTimeline'
+import { PdfPreviewModal } from '../PdfPreviewModal'
+import { useDD1750Export } from '../../Hooks/useDD1750Export'
+import type { DD1750Item } from '../../Utilities/DD1750Export'
+import { useZoneLabelExport } from '../../Hooks/useZoneLabelExport'
+import type { LabelItem } from '../../Utilities/PropertyLabelExport'
+import { DD1750Sheet } from './DD1750Sheet'
 
 /** Stable empty holders map for vehicle timelines (no custody/move events). */
 const EMPTY_HOLDERS: Map<string, HolderInfo> = new Map()
@@ -19,6 +25,13 @@ export interface PropertyLocationDetailHandle {
   /** Open the vehicle's Dispatch overlay (DA 5982/5987). Same host-ellipsis
    *  trigger pattern as openPmcs (buildLocationMenuItems → onDispatch). */
   openDispatch: () => void
+  /** Generate a DD 1750 packing list for THIS zone (flat: top-level items whose
+   *  location_id === the zone). Same host-ellipsis trigger pattern
+   *  (buildLocationMenuItems → onDD1750); the preview overlay lives here. */
+  openDD1750: () => void
+  /** Generate a Data Matrix label sheet (BCN-ZONE:<id>) for THIS zone — the zone
+   *  sibling of item labels. Same host-ellipsis trigger (→ onPrintLabel). */
+  openPrintLabel: () => void
 }
 
 interface PropertyLocationDetailProps {
@@ -67,10 +80,41 @@ export const PropertyLocationDetail = forwardRef<PropertyLocationDetailHandle, P
   const isMobile = useIsMobile()
   const [showPmcs, setShowPmcs] = useState(false)
   const [showDispatch, setShowDispatch] = useState(false)
+  const { exportDD1750, dd1750Preview, downloadDD1750, clearDD1750Preview } = useDD1750Export()
+  const { exportZoneLabels, zoneLabelPreview, downloadZoneLabels, clearZoneLabelPreview } = useZoneLabelExport()
+  const [showDD1750, setShowDD1750] = useState(false)
+
+  // DD 1750 = the zone's contents, FLAT: top-level items physically in THIS zone
+  // (parent_item_id === null → a packed SKO is one line, not exploded), live only
+  // (not tombstoned, not turned in). packed-by / reviewed-by come from the picker sheet.
+  const handleDD1750Create = useCallback((opts: { packedBy?: string; reviewedBy?: string }) => {
+    const lines: DD1750Item[] = items
+      .filter((it) => it.location_id === location.id && !it.deleted_at && !it.turned_in_at && it.parent_item_id === null)
+      .map((it) => ({
+        name: it.name,
+        nomenclature: it.nomenclature,
+        nsn: it.nsn,
+        serial_number: it.serial_number,
+        quantity: it.quantity,
+      }))
+    const date = new Date().toISOString().slice(0, 10)
+    void exportDD1750({ zoneName: location.name, packedBy: opts.packedBy, reviewedBy: opts.reviewedBy, date, items: lines })
+    setShowDD1750(false)
+  }, [items, location.id, location.name, exportDD1750])
+
+  // Print a Data Matrix label (BCN-ZONE:<id>) for THIS zone — the zone sibling of
+  // item labels. Single label, no NSN, default 'standard' (Avery 5160) stock.
+  const handlePrintLabel = useCallback(() => {
+    const label: LabelItem = { id: location.id, name: location.name, nsn: null }
+    void exportZoneLabels({ items: [label], geometry: 'standard' })
+  }, [location.id, location.name, exportZoneLabels])
+
   useImperativeHandle(ref, () => ({
     openPmcs: () => setShowPmcs(true),
     openDispatch: () => setShowDispatch(true),
-  }), [])
+    openDD1750: () => setShowDD1750(true),
+    openPrintLabel: handlePrintLabel,
+  }), [handlePrintLabel])
 
   return (
     <div className="flex flex-col pt-1 pb-2">
@@ -129,6 +173,31 @@ export const PropertyLocationDetail = forwardRef<PropertyLocationDetailHandle, P
           containerRef={drawerRef}
         />
       )}
+
+      {/* DD 1750 packing list for this zone — any zone, generated on demand.
+          High z so it floats above the detail sheet on mobile. */}
+      <PdfPreviewModal
+        preview={dd1750Preview}
+        onDownload={downloadDD1750}
+        onClose={clearDD1750Preview}
+        zIndex={1600}
+      />
+
+      {/* Data Matrix label sheet for this zone (BCN-ZONE) — print + affix to the container. */}
+      <PdfPreviewModal
+        preview={zoneLabelPreview}
+        onDownload={downloadZoneLabels}
+        onClose={clearZoneLabelPreview}
+        zIndex={1600}
+      />
+
+      {/* DD 1750 packed-by / reviewed-by picker → onCreate runs the export above. */}
+      <DD1750Sheet
+        isOpen={showDD1750}
+        onClose={() => setShowDD1750(false)}
+        onCreate={handleDD1750Create}
+        containerRef={drawerRef}
+      />
     </div>
   )
 })
@@ -151,6 +220,10 @@ export function buildLocationMenuItems(opts: {
   onPmcs?: () => void
   /** Open the vehicle Dispatch (DA 5982/5987) overlay. Shown only for vehicles. */
   onDispatch?: () => void
+  /** Generate a DD 1750 packing list for this zone. Shown for any zone when passed. */
+  onDD1750?: () => void
+  /** Print a Data Matrix label for this zone. Shown for any zone when passed. */
+  onPrintLabel?: () => void
 }): ContextMenuItem[] {
   const hasPhoto = !!opts.location.photo_data
   const isVehicle = opts.location.kind === 'vehicle'
@@ -161,6 +234,12 @@ export function buildLocationMenuItems(opts: {
       : []),
     ...(isVehicle && opts.onDispatch
       ? [{ key: 'dispatch', label: 'Dispatch', icon: Route, onAction: opts.onDispatch } as ContextMenuItem]
+      : []),
+    ...(opts.onDD1750
+      ? [{ key: 'dd1750', label: 'DD 1750', icon: ClipboardList, onAction: opts.onDD1750 } as ContextMenuItem]
+      : []),
+    ...(opts.onPrintLabel
+      ? [{ key: 'print-label', label: 'Print label', icon: QrCode, onAction: opts.onPrintLabel } as ContextMenuItem]
       : []),
     { key: 'new-item', label: 'New item', icon: Package, onAction: opts.onNewItem },
     { key: 'new-area', label: 'New area', icon: FolderPlus, onAction: opts.onNewArea },

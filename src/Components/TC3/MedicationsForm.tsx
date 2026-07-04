@@ -1,7 +1,7 @@
 import { memo, useState, useRef, useCallback } from 'react'
 import { X, Check, ChevronRight, Syringe, Pill, Droplet, HeartPulse } from 'lucide-react'
 import { useTC3Store } from '../../stores/useTC3Store'
-import { PreviewOverlay } from '../PreviewOverlay'
+import { TC3EditorSurface } from './TC3EditorSurface'
 import { ActionButton } from '../ActionButton'
 import { ActionPill } from '../ActionPill'
 import { TextInput } from '../FormInputs'
@@ -731,7 +731,7 @@ export const MedicationsForm = memo(function MedicationsForm() {
       )}
 
       {/* Unified popover */}
-      <PreviewOverlay
+      <TC3EditorSurface
         isOpen={popoverType !== null}
         onClose={closePopover}
         anchorRect={anchorRect}

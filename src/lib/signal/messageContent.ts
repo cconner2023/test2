@@ -20,6 +20,7 @@
 import type { EventCategory, EventStatus, CategorySwatchId } from '../../Types/CalendarTypes'
 import type { OverlayFeature, OverlayFloor } from '../../Types/MapOverlayTypes'
 import type { LocationTag } from '../../Types/PropertyTypes'
+import type { EchelonReadinessSummary } from '../echelonSummary'
 
 // ---- Content Types ----
 
@@ -197,6 +198,24 @@ export interface PropertyEventContent {
   action: 'create' | 'update' | 'delete'
   entity: PropertyEntity
   data: PropertyEventPayload
+}
+
+/**
+ * Echelon readiness summary sync — a CHILD cluster's de-identified,
+ * percentages-only readiness rollup fanned UP to its DIRECT parent's clinic
+ * vault (sealed to the parent's public bundle, same no-membership pathway as
+ * the cross-cluster calendar/property fan-out). The parent reads it from its
+ * OWN vault (recipient_id = parent clinic id ∈ parent's auth_clinic_ids) and
+ * caches it for the Subordinate Units cards. NO soldier identity, no task
+ * detail, no PHI — only percentages + counts. One echelon hop per publish.
+ *
+ * Unlike calendar/property, there is no create/update/delete: the payload is
+ * always the latest full snapshot for source_clinic_id (latest-wins by
+ * computed_at on consume).
+ */
+export interface ReadinessSummaryContent {
+  type: 'readiness_summary'
+  data: EchelonReadinessSummary
 }
 
 /**
@@ -414,7 +433,7 @@ export interface ReactionContent {
   remove?: boolean
 }
 
-export type MessageContent = TextContent | ImageContent | VoiceContent | CalendarEventContent | MapOverlayContent | MapFeatureContent | PropertyEventContent | SharedRefContent | SharedBundleContent | IntakeRequestContent | OncallCallContent | OutsideMessageContent | OutsideSessionContent | OutsideSessionUpdate | ReactionContent
+export type MessageContent = TextContent | ImageContent | VoiceContent | CalendarEventContent | MapOverlayContent | MapFeatureContent | PropertyEventContent | ReadinessSummaryContent | SharedRefContent | SharedBundleContent | IntakeRequestContent | OncallCallContent | OutsideMessageContent | OutsideSessionContent | OutsideSessionUpdate | ReactionContent
 
 // ---- Compact wire shapes ----
 
@@ -481,6 +500,12 @@ interface WirePropertyEvent {
   e: PropertyEntity
   /** Full payload (id + clinic_id + target_clinic_ids + data/tags). */
   d: Record<string, unknown>
+}
+
+interface WireReadinessSummary {
+  t: 'rs'
+  /** Full de-identified summary (percentages + counts + timestamps only). */
+  d: EchelonReadinessSummary
 }
 
 interface WireSharedRef {
@@ -579,7 +604,7 @@ interface WireReaction {
   r?: 1
 }
 
-type WireContent = WireText | WireImage | WireVoice | WireCalendarEvent | WireMapOverlay | WireMapFeature | WirePropertyEvent | WireSharedRef | WireSharedBundle | WireIntake | WireOutsideMessage | WireOncallCall | WireReaction
+type WireContent = WireText | WireImage | WireVoice | WireCalendarEvent | WireMapOverlay | WireMapFeature | WirePropertyEvent | WireReadinessSummary | WireSharedRef | WireSharedBundle | WireIntake | WireOutsideMessage | WireOncallCall | WireReaction
 
 // ---- Serialization ----
 
@@ -651,6 +676,11 @@ export function serializeContent(content: MessageContent): string {
       e: content.entity,
       d: content.data as unknown as Record<string, unknown>,
     }
+    return JSON.stringify(wire)
+  }
+
+  if (content.type === 'readiness_summary') {
+    const wire: WireReadinessSummary = { t: 'rs', d: content.data }
     return JSON.stringify(wire)
   }
 
@@ -880,6 +910,16 @@ export function parseMessageContent(raw: string): ParsedContent {
           entity: wire.e,
           data: wire.d as unknown as PropertyEventPayload,
         } satisfies PropertyEventContent,
+      }
+    }
+
+    if (wire.t === 'rs') {
+      return {
+        plaintext: '[readiness summary]',
+        content: {
+          type: 'readiness_summary',
+          data: wire.d,
+        } satisfies ReadinessSummaryContent,
       }
     }
 

@@ -18,10 +18,8 @@ import { useMessagesSlide } from './Hooks/useMessagesSlide'
 import UpdateNotification from './Components/UpdateNotification'
 import PasswordResetOverlay from './Components/PasswordResetOverlay'
 import { ColumnA } from './Components/ColumnA'
-import { TC3DesktopLayout } from './Components/TC3/TC3DesktopLayout'
-import { TC3MobileWizard } from './Components/TC3/TC3MobileWizard'
+import { TC3Drawer } from './Components/TC3/TC3Drawer'
 import { TC3WriteNote } from './Components/TC3/TC3WriteNote'
-import { TC3NavSlot } from './Components/TC3/TC3NavSlot'
 import { useTC3Store, hydrateTC3Store } from './stores/useTC3Store'
 import { hydrateMedevacStore } from './stores/useMedevacStore'
 
@@ -108,13 +106,10 @@ function AppContent() {
   // Mounted once here so useProfileAvatar no longer opens its own channel.
   useProfileRealtime(user?.id)
   const avatarState = useProfileAvatar(user?.id)
-  const tc3Mode = useAuthStore((s) => s.profile.tc3Mode) ?? false
   const showTC3Export = useTC3Store((s) => s.showExport)
   const tc3ExportCard = useTC3Store((s) => s.exportCard)
   const tc3ExportCards = useTC3Store((s) => s.exportCards)
   const closeTC3Export = useTC3Store((s) => s.closeExport)
-  const tc3WizardStep = useTC3Store((s) => s.wizardStep)
-  const tc3PrevStep = useTC3Store((s) => s.prevWizardStep)
 
   // ── Menu slide (mobile: swipe + click, desktop: click-only) ──
   const menuNavWidth = navigation.isMobile ? MENU_NAV_WIDTH_MOBILE : MENU_NAV_WIDTH_DESKTOP
@@ -300,15 +295,9 @@ function AppContent() {
 case 'mapOverlay':
         handleMapOverlayClick()
         break
-      case 'tc3': {
-        const currentTc3Mode = useAuthStore.getState().profile.tc3Mode
-        useAuthStore.getState().patchProfile({ tc3Mode: !currentTc3Mode })
-        if (currentTc3Mode) {
-          // Leaving TC3 → transitioning to ADTMC: clear the notes field
-          useTC3Store.getState().setNotes('')
-        }
+      case 'tc3':
+        navigation.setShowTC3Drawer(true)
         break
-      }
       case 'calendar':
         handleCalendarClick()
         break
@@ -324,7 +313,7 @@ case 'mapOverlay':
         navigation.setShowSettings(true)
         break
     }
-  }, [navigation.isMobile, navigation.toggleImportExpanded, navigation.setShowSettings, handleKnowledgeBaseClick, handleMessagesClick, handlePropertyClick, handleMapOverlayClick, handleCalendarClick, handleSupervisorClick, handleAdminClick])
+  }, [navigation.isMobile, navigation.toggleImportExpanded, navigation.setShowSettings, navigation.setShowTC3Drawer, handleKnowledgeBaseClick, handleMessagesClick, handlePropertyClick, handleMapOverlayClick, handleCalendarClick, handleSupervisorClick, handleAdminClick])
 
   // Callback for notification toast tap — opens MessagesDrawer to the target conversation
   const handleNotificationTap = useCallback((n: MessageNotification) => {
@@ -497,11 +486,6 @@ case 'mapOverlay':
       return
     }
 
-    if (tc3Mode && navigation.isMobile && tc3WizardStep > 0) {
-      tc3PrevStep()
-      return
-    }
-
     // State change drives grid column transition and Column A carousel
     navigation.handleBackClick()
   }
@@ -513,8 +497,8 @@ case 'mapOverlay':
     search.handleSearchChange(value)
   }
 
-  // Title: empty when searching, "TC3" when in TC3 mode on mobile, otherwise from navigation
-  const title = search.searchInput ? "" : (tc3Mode && navigation.isMobile ? "TC3" : navigation.dynamicTitle)
+  // Title: empty when searching, otherwise from navigation
+  const title = search.searchInput ? "" : navigation.dynamicTitle
 
   // Content key — drives fade-in animation on content change.
   // On mobile, search is handled by a separate overlay so the key stays stable
@@ -603,34 +587,19 @@ case 'mapOverlay':
                 onMessagesClick: handleMessagesClick,
               }}
               ui={{
-                showBack: tc3Mode && navigation.isMobile
-                  ? tc3WizardStep > 0
-                  : navigation.shouldShowBackButton(!!search.searchInput.trim()),
+                showBack: navigation.shouldShowBackButton(!!search.searchInput.trim()),
                 showMenu: navigation.shouldShowMenuButton(!!search.searchInput.trim()),
                 dynamicTitle: title,
                 isMobile: navigation.isMobile,
                 isAlgorithmView: navigation.showQuestionCard,
                 isSearchFocused: searchFocused,
-                rightSlot: tc3Mode ? <TC3NavSlot /> : undefined,
+                rightSlot: undefined,
               }}
             />
           </animated.div>
 
-          {/* Content area — TC3 mode uses dedicated layouts; normal mode uses 2-column grid */}
+          {/* Content area — ADTMC 2-column grid (TC3 now lives in its own drawer) */}
           <div className="md:flex-1 h-full overflow-hidden absolute inset-0 md:relative md:inset-auto md:mt-2 md:mx-2">
-            {tc3Mode ? (
-              // TC3 mode: mobile wizard or desktop 2-column front/back layout
-              navigation.isMobile ? (
-                <TC3MobileWizard
-                  onEdgeDrag={menuSlide.onEdgeDrag}
-                  onEdgeDragEnd={menuSlide.onEdgeDragEnd}
-                  onRightEdgeDrag={messagesSlide.onEdgeDrag}
-                  onRightEdgeDragEnd={messagesSlide.onEdgeDragEnd}
-                />
-              ) : (
-                <TC3DesktopLayout />
-              )
-            ) : (
             <div
               className={`h-full grid gap-1 transition-[grid-template-columns] duration-300 ease-in-out ${navigation.mobileGridClass} md:grid-cols-[0.45fr_0.55fr]`}
               {...(navigation.isMobile ? swipe.touchHandlers : {})}
@@ -689,7 +658,6 @@ case 'mapOverlay':
                 </div>
               </div>
             </div>
-            )}
 
           </div>
 
@@ -816,6 +784,12 @@ case 'mapOverlay':
         <PropertyDrawer
           isVisible={navigation.showPropertyDrawer}
           onClose={() => navigation.setShowPropertyDrawer(false)}
+        />
+        </ErrorBoundary>
+        <ErrorBoundary>
+        <TC3Drawer
+          isVisible={navigation.showTC3Drawer}
+          onClose={() => navigation.setShowTC3Drawer(false)}
         />
         </ErrorBoundary>
         <ErrorBoundary>

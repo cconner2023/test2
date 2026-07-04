@@ -6,6 +6,7 @@ import { PreviewOverlay } from './PreviewOverlay';
 import { PlanAllBlocksPreview, CategoryPicker } from './PlanBlockPreview';
 import { CATEGORY_META } from './Settings/PlanTagManager';
 import { ListItemRow } from './ListItemRow';
+import { SwipeToDeleteRow } from './SwipeToDeleteRow';
 import { ExpandableInput } from './ExpandableInput';
 import { EmptyState } from './EmptyState';
 import type { MergedPlanOrderSet } from '../Hooks/useMergedNoteContent';
@@ -176,7 +177,7 @@ function PlanBlockRow({ label, state, onTap, index, isDragging, dragOffset, onDr
                     <>
                         <p className="text-sm font-medium text-primary truncate">{label}</p>
                         {hasSummary && (
-                            <p className="text-[9pt] text-primary mt-0.5 truncate">
+                            <p className="text-[9pt] text-primary mt-0.5 whitespace-normal break-words">
                                 {[...state.selectedTags, ...(state.freeText.trim() ? [state.freeText.trim()] : [])].join('; ')}
                             </p>
                         )}
@@ -487,6 +488,12 @@ export const Plan = ({ orderTags, instructionTags, orderSets = [], initialText, 
         setShowFabPopover(true);
     }, [visibleBlocks]);
 
+    // Swipe-to-delete: deactivate the whole block (e.g. removes Medications /
+    // Referral / Instructions), clearing its selected tags. Re-addable via +.
+    const removeBlock = useCallback((key: PlanBlockKey) => {
+        setStates(prev => ({ ...prev, [key]: defaultBlockState() }));
+    }, []);
+
     const reorderTag = useCallback((key: PlanBlockKey, fromIndex: number, toIndex: number) => {
         setStates(prev => {
             const tags = [...prev[key].selectedTags];
@@ -569,16 +576,21 @@ export const Plan = ({ orderTags, instructionTags, orderSets = [], initialText, 
                             onPointerCancel={handleDragEnd}
                         >
                             {visibleBlocks.map((key, i) => (
-                                <PlanBlockRow
+                                <SwipeToDeleteRow
                                     key={key}
-                                    label={BLOCK_LABELS[key]}
-                                    state={states[key]}
-                                    onTap={handleRowTap}
-                                    index={i}
-                                    isDragging={dragIndex === i}
-                                    dragOffset={dragIndex === i ? dragOffset : 0}
-                                    onDragStart={handleDragStart}
-                                />
+                                    onDelete={() => removeBlock(key)}
+                                    clip={false}
+                                >
+                                    <PlanBlockRow
+                                        label={BLOCK_LABELS[key]}
+                                        state={states[key]}
+                                        onTap={handleRowTap}
+                                        index={i}
+                                        isDragging={dragIndex === i}
+                                        dragOffset={dragIndex === i ? dragOffset : 0}
+                                        onDragStart={handleDragStart}
+                                    />
+                                </SwipeToDeleteRow>
                             ))}
                         </div>
                     </div>

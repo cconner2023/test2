@@ -297,6 +297,8 @@ export interface NoteAssemblyOptions {
     includeAlgorithm: boolean;
     /** Defaults to true. Controls whether the DECISION MAKING section is rendered. */
     includeDecisionMaking?: boolean;
+    /** Free-text clinical assessment narrative — leads the ASSESSMENT section. */
+    assessmentNote?: string;
     selectedDdx?: string[];
     customDdx?: string[];
     customNote: string;
@@ -308,6 +310,7 @@ export interface NoteAssemblyOptions {
 export interface AssembledNote {
     sections: {
         algorithm?: string;
+        assessment?: string;
         differentials?: string;
         physicalExam?: string;
         plan?: string;
@@ -344,9 +347,15 @@ export function assembleNote(
         fullNoteParts.push(physicalExamNote);
     }
 
-    // ASSESSMENT — screening, algorithm, and decision making
+    // ASSESSMENT — clinical narrative, screening, algorithm, and decision making
     let algorithmContent: string | undefined;
     const assessmentParts: string[] = [];
+
+    // Free-text clinical assessment (the provider/medic impression) leads the section.
+    const assessmentNote = options.assessmentNote?.trim();
+    if (assessmentNote) {
+        assessmentParts.push(assessmentNote);
+    }
 
     if (algorithmOptions.length > 0) {
         assessmentParts.push('SCREENED IAW MEDCOM PAM 40-7-21 ADTMC');
@@ -408,6 +417,7 @@ export function assembleNote(
     return {
         sections: {
             algorithm: algorithmContent,
+            assessment: assessmentNote || undefined,
             differentials: differentialsContent,
             physicalExam: physicalExamNote || undefined,
             plan: planNote || undefined,

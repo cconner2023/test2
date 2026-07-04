@@ -4,7 +4,7 @@ import { useTC3Store } from '../../stores/useTC3Store'
 import { useMapOverlaysStore } from '../../stores/useMapOverlaysStore'
 import { useNavigationStore } from '../../stores/useNavigationStore'
 import { OverlaySnapshot } from '../MapOverlay/OverlaySnapshot'
-import { PreviewOverlay } from '../PreviewOverlay'
+import { TC3EditorSurface } from './TC3EditorSurface'
 import { TextInput, DatePickerInput, PickerInput } from '../FormInputs'
 import { ActionButton } from '../ActionButton'
 import { ActionPill } from '../ActionPill'
@@ -200,7 +200,7 @@ export const CasualtyInfoForm = memo(function CasualtyInfoForm() {
       )}
 
       {/* ── Edit popover ── */}
-      <PreviewOverlay
+      <TC3EditorSurface
         isOpen={popoverVisible}
         onClose={() => setPopoverVisible(false)}
         anchorRect={anchorRect}

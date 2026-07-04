@@ -124,6 +124,25 @@ async function sendHeartbeat() {
         })
         .catch(() => {})
     }
+
+    // Echelon readiness-summary publish (downtrace fan-out) — DELTA-GATED, no
+    // timer. Runs every heartbeat (already throttled to ~MIN_ELAPSED by the guard
+    // at the top), but the REAL gate is inside publishReadinessSummary: it
+    // recomputes the child's own rollup and fans ONLY when the value moved vs the
+    // last-sent key (roster changed / a percentage changed). If a prior summary
+    // exists and nothing changed, the fan is skipped — a stable cluster emits
+    // zero egress between real changes. The recompute is read-only; the first
+    // post-login heartbeat backfills the parent. Fire-and-forget, per registered
+    // clinic (home + surrogate).
+    if (currentUserId && currentClinicDevices.size > 0) {
+      const uid = currentUserId
+      const clinicIds = Array.from(currentClinicDevices.keys())
+      import('./echelonVault')
+        .then(({ publishReadinessSummary }) => {
+          for (const cId of clinicIds) publishReadinessSummary(uid, cId).catch(() => {})
+        })
+        .catch(() => {})
+    }
   } catch {
     // Network error — silently skip, will retry next interval
   }

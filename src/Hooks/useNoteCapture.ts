@@ -6,6 +6,7 @@ import { assembleNote } from '../Utilities/NoteFormatter';
 interface NoteCaptureOptions {
     includeAlgorithm: boolean;
     includeDecisionMaking?: boolean;
+    assessmentNote?: string;
     selectedDdx?: string[];
     customDdx?: string[];
     customNote: string;

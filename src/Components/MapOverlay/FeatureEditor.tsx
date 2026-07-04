@@ -9,7 +9,7 @@ import { WaypointIcon } from './WaypointIcon';
 import { useMapPrefsStore } from '../../stores/useMapPrefsStore';
 import { formatBearing } from '../../lib/declination';
 import { useTC3Store } from '../../stores/useTC3Store';
-import { useAuthStore } from '../../stores/useAuthStore';
+import { useNavigationStore } from '../../stores/useNavigationStore';
 import { useMedevacStore } from '../../stores/useMedevacStore';
 import { buildMedevacFromPin } from '../../lib/medevacFromPin';
 import { MedevacForm } from '../Medevac/MedevacForm';
@@ -119,8 +119,8 @@ export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg, l
   const handleOpenTC3 = useCallback(() => {
     if (!linkedId) return;
     if (linkedIsQueued && !linkedIsActive) tc3Restore(linkedId);
-    // Flip the app into TC3 mode — same path as the menu toggle.
-    useAuthStore.getState().patchProfile({ tc3Mode: true });
+    // Open the TC3 drawer — same path as the menu item (closes the map drawer).
+    useNavigationStore.getState().setShowTC3Drawer(true);
   }, [linkedId, linkedIsActive, linkedIsQueued, tc3Restore]);
 
   // Phase 4.2 — Build MEDEVAC from this pin. Pre-populates the MEDEVAC store

@@ -58,6 +58,7 @@ export function useNoteEditor(config: NoteEditorConfig) {
     const [peNote, setPeNote] = useState('');
     const [peState, setPeState] = useState<PEState | null>(null);
     const [planNote, setPlanNote] = useState('');
+    const [assessmentNote, setAssessmentNote] = useState('');
     const [selectedDdx, setSelectedDdx] = useState<string[]>([]);
     const [customDdx, setCustomDdx] = useState<string[]>([]);
     const [encodedValue, setEncodedValue] = useState('');
@@ -73,6 +74,7 @@ export function useNoteEditor(config: NoteEditorConfig) {
     // --- PII detection (debounced) ---
     const [piiWarnings, setPiiWarnings] = useState<string[]>([]);
     const [pePiiWarnings, setPePiiWarnings] = useState<string[]>([]);
+    const [assessmentPiiWarnings, setAssessmentPiiWarnings] = useState<string[]>([]);
     useEffect(() => {
         const id = window.setTimeout(() => setPiiWarnings(detectPII(note)), 400);
         return () => clearTimeout(id);
@@ -81,7 +83,11 @@ export function useNoteEditor(config: NoteEditorConfig) {
         const id = window.setTimeout(() => setPePiiWarnings(detectPII(peNote)), 400);
         return () => clearTimeout(id);
     }, [peNote]);
-    const hasPII = piiWarnings.length > 0 || pePiiWarnings.length > 0;
+    useEffect(() => {
+        const id = window.setTimeout(() => setAssessmentPiiWarnings(detectPII(assessmentNote)), 400);
+        return () => clearTimeout(id);
+    }, [assessmentNote]);
+    const hasPII = piiWarnings.length > 0 || pePiiWarnings.length > 0 || assessmentPiiWarnings.length > 0;
 
     // --- Refs ---
     const currentPageRef = useRef(currentPage);
@@ -105,13 +111,13 @@ export function useNoteEditor(config: NoteEditorConfig) {
     // --- Preview note generation ---
     useEffect(() => {
         const result = generateNote(
-            { includeAlgorithm, includeDecisionMaking, selectedDdx, customDdx, customNote: note, physicalExamNote: peNote, planNote },
+            { includeAlgorithm, includeDecisionMaking, assessmentNote, selectedDdx, customDdx, customNote: note, physicalExamNote: peNote, planNote },
             dispositionType,
             dispositionText,
             selectedSymptom,
         );
         setPreviewNote(result.fullNote);
-    }, [note, selectedDdx, customDdx, peNote, planNote, generateNote, dispositionType, dispositionText, selectedSymptom, includeAlgorithm, includeDecisionMaking]);
+    }, [note, assessmentNote, selectedDdx, customDdx, peNote, planNote, generateNote, dispositionType, dispositionText, selectedSymptom, includeAlgorithm, includeDecisionMaking]);
 
     // --- Copy handler ---
     const handleCopy = useCallback((text: string, target: 'preview' | 'encoded') => {
@@ -217,6 +223,7 @@ export function useNoteEditor(config: NoteEditorConfig) {
         peNote, setPeNote,
         peState, setPeState,
         planNote, setPlanNote,
+        assessmentNote, setAssessmentNote,
         selectedDdx, setSelectedDdx,
         customDdx, setCustomDdx,
         encodedValue, setEncodedValue,
@@ -231,7 +238,7 @@ export function useNoteEditor(config: NoteEditorConfig) {
         handleSwipeStart, handleSwipeMove, handleSwipeEnd,
 
         // PII
-        piiWarnings, pePiiWarnings, hasPII,
+        piiWarnings, pePiiWarnings, assessmentPiiWarnings, hasPII,
 
         // Handlers
         handleCopy, handleShare, handleExportDD689, handleExportSF600,

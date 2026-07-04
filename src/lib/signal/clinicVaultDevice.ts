@@ -58,7 +58,10 @@ import {
   applyItemTombstones, applyZoneTombstones, getItemTombstones, getZoneTombstones,
   type PropertyTagsSnapshot,
 } from '../propertyEventRouting'
-import type { CalendarEventContent, MapOverlayContent, MapFeatureContent, PropertyEventContent } from './messageContent'
+import { isReadinessSummary, routeReadinessSummary } from '../echelonRouting'
+import { getEchelonSummaries } from '../offlineDb'
+import type { EchelonReadinessSummary } from '../echelonSummary'
+import type { CalendarEventContent, MapOverlayContent, MapFeatureContent, PropertyEventContent, ReadinessSummaryContent } from './messageContent'
 import { parseMessageContent } from './messageContent'
 import { deflateRaw, inflateRaw } from 'pako'
 import type { CalendarEvent } from '../../Types/CalendarTypes'
@@ -554,7 +557,7 @@ export interface ClinicDrainOptions {
 // the personal signal_backups model — see two-phase-vault-drain: never reap a
 // vault row until the snapshot that preserves it has landed.
 
-const CLINIC_SNAPSHOT_PAYLOAD_VERSION = 3
+const CLINIC_SNAPSHOT_PAYLOAD_VERSION = 4
 const CLINIC_SNAPSHOT_RETAIN = 3
 
 interface ClinicSnapshotPayload {
@@ -582,6 +585,13 @@ interface ClinicSnapshotPayload {
   propertyCustody?: LocalCustodyEntry[]
   propertyDiscrepancies?: LocalDiscrepancy[]
   propertyTags?: PropertyTagsSnapshot[]
+  // v4: de-identified child readiness rollups this clinic (as a PARENT) has been
+  // fanned. Summaries ride the vault as messages that the watermark reap deletes
+  // like any other row; embedding the current cache here gives a FRESH parent
+  // device instant cards instead of waiting for the next child heartbeat tick.
+  // No delete/tombstone semantics — latest-wins by computed_at on restore, so
+  // this is outside the poison-snapshot invariant. Default [] on a v1–v3 read.
+  echelonSummaries?: EchelonReadinessSummary[]
 }
 
 interface LoadedClinicSnapshot {
@@ -754,6 +764,12 @@ export async function processClinicVaultMessages(
     await loadSnapshotPropertyCustody(snap.payload.propertyCustody ?? []).catch(() => {})
     await loadSnapshotPropertyDiscrepancies(snap.payload.propertyDiscrepancies ?? []).catch(() => {})
     await loadSnapshotPropertyTags(snap.payload.propertyTags ?? []).catch(() => {})
+    // Restore child readiness rollups (fresh-device backfill). routeReadinessSummary
+    // is latest-wins by computed_at, so a stale snapshot can't clobber a fresher
+    // summary a warm device already holds; bumps 'echelon' so cards repaint.
+    for (const s of snap.payload.echelonSummaries ?? []) {
+      await routeReadinessSummary({ type: 'readiness_summary', data: s }).catch(() => {})
+    }
   }
 
   // 3. Fetch the TAIL: vault rows at/after the snapshot watermark. gte not gt —
@@ -806,6 +822,7 @@ export async function processClinicVaultMessages(
   const overlayRoutes: Array<{ content: MapOverlayContent; originId: string | null }> = []
   const featureRoutes: Array<{ content: MapFeatureContent; originId: string | null }> = []
   const propertyRoutes: Array<{ content: PropertyEventContent; originId: string | null }> = []
+  const echelonRoutes: Array<{ content: ReadinessSummaryContent }> = []
 
   for (const row of rows as SignalMessageRow[]) {
     try {
@@ -936,6 +953,8 @@ export async function processClinicVaultMessages(
         featureRoutes.push({ content, originId: (row as SignalMessageRow).origin_id ?? null })
       } else if (isPropertyEvent(content)) {
         propertyRoutes.push({ content, originId: (row as SignalMessageRow).origin_id ?? null })
+      } else if (isReadinessSummary(content)) {
+        echelonRoutes.push({ content })
       }
 
       processedCount++
@@ -1010,6 +1029,16 @@ export async function processClinicVaultMessages(
         (content.entity === 'zone' && content.action !== 'delete' && deletedZoneIds.has(content.data.id)) ||
         (content.entity === 'custody' && content.action !== 'delete' && deletedCustodyIds.has(content.data.id))
       if (!suppressed) await routePropertyEvent(content).catch(() => {})
+    }
+  }
+
+  // 5e. Echelon readiness summaries fanned up from child clusters. No c/u/d —
+  // each is the latest full rollup for its source clinic; routeReadinessSummary
+  // applies latest-wins by computed_at and bumps the 'echelon' invalidation so
+  // the Subordinate Units cards refetch. Serial await (IDB read-modify-write).
+  if (echelonRoutes.length > 0) {
+    for (const { content } of echelonRoutes) {
+      await routeReadinessSummary(content).catch(() => {})
     }
   }
 
@@ -1132,6 +1161,11 @@ export async function processClinicVaultMessages(
         propertyCustody: await snapshotPropertyCustody(clinicId, propertyCustodyVaultLiveIds),
         propertyDiscrepancies: await snapshotPropertyDiscrepancies(clinicId, propertyDiscrepancyVaultLiveIds),
         propertyTags: await snapshotPropertyTags(clinicId, propertyZoneVaultLiveIds),
+        // Only the summaries this clinic owns AS A PARENT (parent_clinic_id ===
+        // clinicId) — routeReadinessSummary already wrote this batch's arrivals
+        // to the cache above (5e), so they're preserved before the reap deletes
+        // their vault rows.
+        echelonSummaries: (await getEchelonSummaries()).filter((s) => s.parent_clinic_id === clinicId),
       }
       const newVersion = await writeClinicSnapshot(clinicId, payload, baseVersion, clinicKey)
       if (newVersion > 0) {

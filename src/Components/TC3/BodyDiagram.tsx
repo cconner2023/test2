@@ -2,7 +2,7 @@ import { memo, useState, useCallback, useRef } from 'react'
 import { X, Check } from 'lucide-react'
 import { useTC3Store } from '../../stores/useTC3Store'
 import { TC3BodyDiagramSvg } from './TC3BodyDiagramSvg'
-import { PreviewOverlay } from '../PreviewOverlay'
+import { TC3EditorSurface } from './TC3EditorSurface'
 import { ActionPill } from '../ActionPill'
 import { ActionButton } from '../ActionButton'
 import { MarkerPopover } from './MarkerPopover'
@@ -110,8 +110,8 @@ export const BodyDiagram = memo(function BodyDiagram({
         />
       </div>
 
-      {/* PreviewOverlay popover for editing marker */}
-      <PreviewOverlay
+      {/* Marker editor — Sheet (mobile) / docked right pane (desktop) */}
+      <TC3EditorSurface
         isOpen={!!editedMarker}
         onClose={handleDone}
         anchorRect={anchorRect}

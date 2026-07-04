@@ -71,12 +71,15 @@ export interface LabelSheetParams {
   geometry: LabelPresetKey | LabelGeometry
   /** Skip this many cells on the first page (reuse partially-used stock). */
   startOffset?: number
+  /** Opaque-tag encoder for the Data Matrix payload. Default = item tag
+   *  (BCN-ITEM:<id>); zones pass encodeZoneTag (BCN-ZONE:<id>). */
+  encode?: (id: string) => string
 }
 
-/** Render an item's Data Matrix to a base64 PNG data URL at print resolution. */
-function renderTagPng(itemId: string): string {
+/** Render an id's Data Matrix to a base64 PNG data URL at print resolution. */
+function renderTagPng(id: string, encode: (id: string) => string): string {
   const canvas = document.createElement('canvas')
-  renderBarcodeToCanvas(canvas, encodeItemTag(itemId), { scale: 6, padding: 0 })
+  renderBarcodeToCanvas(canvas, encode(id), { scale: 6, padding: 0 })
   return canvas.toDataURL('image/png')
 }
 
@@ -98,17 +101,18 @@ export async function generateLabelSheet(params: LabelSheetParams): Promise<Uint
   const black = rgb(0, 0, 0)
   const gray = rgb(0.35, 0.35, 0.35)
 
+  const encode = params.encode ?? encodeItemTag
   const pdfDoc = await PDFDocument.create()
   const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold)
   const fontReg = await pdfDoc.embedFont(StandardFonts.Helvetica)
 
-  // Cache embedded Data Matrix images by item id (an item could repeat).
+  // Cache embedded Data Matrix images by id (an id could repeat).
   const imgCache = new Map<string, any>()
-  async function imgFor(itemId: string) {
-    let img = imgCache.get(itemId)
+  async function imgFor(id: string) {
+    let img = imgCache.get(id)
     if (!img) {
-      img = await pdfDoc.embedPng(renderTagPng(itemId))
-      imgCache.set(itemId, img)
+      img = await pdfDoc.embedPng(renderTagPng(id, encode))
+      imgCache.set(id, img)
     }
     return img
   }

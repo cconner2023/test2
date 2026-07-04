@@ -62,7 +62,6 @@ interface SideNavProps {
 export function SideNav({ onClose, onMenuItemClick, isMobile = true }: SideNavProps) {
   const { currentAvatar, customImage, isCustom, isInitials } = useAvatar()
   const { profile, isAuthenticated } = useAuth()
-  const tc3Mode = useAuthStore((s) => s.profile.tc3Mode) ?? false
   const totalUnread = useTotalUnread()
   const hasUnvotedCycle = useFeatureVotesStore(selectHasUnvotedActiveCycle)
   const isConnected = useSyncExternalStore(subscribeOnline, getOnline)
@@ -170,7 +169,7 @@ export function SideNav({ onClose, onMenuItemClick, isMobile = true }: SideNavPr
                     )}
                   </div>
                   <span className={`tracking-wide ${isMobile ? 'text-[11pt]' : 'text-[10pt]'} text-primary font-medium flex-1`}>
-                    {item.action === 'tc3' ? (tc3Mode ? 'ADTMC' : 'TC3') : item.text}
+                    {item.text}
                     {BETA_ACTIONS.has(item.action) && (
                       <span className="ml-2 text-[9pt] font-semibold text-themeyellow bg-themeyellow/15 px-2 py-0.5 rounded-full align-middle tracking-wide">
                         BETA

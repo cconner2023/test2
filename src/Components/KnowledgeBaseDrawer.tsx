@@ -17,7 +17,6 @@ import { DatePickerCalendar } from './FormInputs'
 import { PreviewOverlay } from './PreviewOverlay'
 import { type ContextMenuItem } from './ContextMenu'
 import { LiftedRowMenu } from './LiftedRowMenu'
-import { useAuthStore } from '../stores/useAuthStore'
 import { useNavPreferencesStore } from '../stores/useNavPreferencesStore'
 import { useShallow } from 'zustand/react/shallow'
 import { kbCategories, kbGroupLabels, kbGroupOrder, type KBCategory } from '../Data/KnowledgeBaseCategories'
@@ -73,7 +72,10 @@ export function KnowledgeBaseDrawer({
     initialScreenerId,
     initialMedevacReq,
 }: KnowledgeBaseDrawerProps) {
-    const tc3Mode = useAuthStore((s) => s.profile.tc3Mode) ?? false
+    // TC3-scoped KB options are parked until TC3's drawer refactor is fine-tuned;
+    // the KB always uses the standard medication list for now. Re-wire to the TC3
+    // drawer's active state when the TC3 KB surface is reintroduced.
+    const tc3Mode = false
     const { pinnedKB, togglePinKB } = useNavPreferencesStore(
         useShallow(s => ({ pinnedKB: s.pinnedKB, togglePinKB: s.togglePinKB }))
     )
