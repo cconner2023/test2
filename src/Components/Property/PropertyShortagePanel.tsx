@@ -31,7 +31,7 @@ function annexHolder(displayName: string): HolderInfo {
  *  already-loaded items (see computeShortages). */
 export function PropertyShortagePanel({ stagedTurnInIds }: PropertyShortagePanelProps) {
   const items = usePropertyStore(useShallow(s => s.items))
-  const { exportDA2062, da2062Preview, downloadDA2062, clearDA2062Preview } = useDA2062Export()
+  const { exportDA2062, da2062Preview, downloadDA2062, clearDA2062Preview, status: da2062Status } = useDA2062Export()
 
   const report = useMemo(() => computeShortages(items, stagedTurnInIds), [items, stagedTurnInIds])
 
@@ -167,6 +167,7 @@ export function PropertyShortagePanel({ stagedTurnInIds }: PropertyShortagePanel
 
       <Da2062Preview
         preview={da2062Preview}
+        generating={da2062Status === 'generating'}
         onDownload={downloadDA2062}
         onClose={clearDA2062Preview}
       />

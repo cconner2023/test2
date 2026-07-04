@@ -10,11 +10,11 @@ import {
 } from '../../lib/supervisorService'
 import { patchClinicConfig } from '../../Hooks/useClinicConfig'
 import { ActionButton } from '../ActionButton'
-import { ActionPill } from '../ActionPill'
 import { OverlayActionMenu } from '../OverlayActionMenu'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { ErrorPill } from '../ErrorPill'
-import { PreviewOverlay, type ContextMenuAction } from '../PreviewOverlay'
+import { ActionPill } from '../ActionPill'
+import { OverlayStack, type StackNav, type StackScreen } from '../OverlayStack'
 import { TextInput } from '../FormInputs'
 import type { ContextMenuItem } from '../ContextMenu'
 
@@ -51,12 +51,14 @@ export function PreCombatChecksSection({ cornerItems }: PreCombatChecksSectionPr
   const [saving, setSaving] = useState(false)
 
   const fabRef = useRef<HTMLDivElement>(null)
-  const addFabRef = useRef<HTMLDivElement>(null)
+  const navRef = useRef<StackNav | null>(null)
   const [editor, setEditor] = useState<PCCEditorState | null>(null)
   const [draftName, setDraftName] = useState('')
   const [nameError, setNameError] = useState<string | null>(null)
   const [draftItems, setDraftItems] = useState<PCCItem[]>([])
-  const [addMenu, setAddMenu] = useState<{ anchor: DOMRect; kind: ItemKind | null } | null>(null)
+  // Footer-morph flag — true == the "Add check" pill has morphed into its kind
+  // options in place (no nested overlay), mirroring TemplateBuilder's AddStepFooter.
+  const [addOpen, setAddOpen] = useState(false)
   const [freeTextDraft, setFreeTextDraft] = useState('')
 
   const [confirmDelete, setConfirmDelete] = useState<ClinicPreCombatCheck | null>(null)
@@ -66,7 +68,7 @@ export function PreCombatChecksSection({ cornerItems }: PreCombatChecksSectionPr
     setDraftName('')
     setNameError(null)
     setDraftItems([])
-    setAddMenu(null)
+    setAddOpen(false)
     setFreeTextDraft('')
     setSaving(false)
   }, [])
@@ -131,37 +133,30 @@ export function PreCombatChecksSection({ cornerItems }: PreCombatChecksSectionPr
     if (ok) closeEditor()
   }, [confirmDelete, templates, persist, closeEditor])
 
+  // Delete rides the editor footer; drop the overlay first (close the parent-owned
+  // `editor` prop, not a bare anchor) so the confirm animates in cleanly after.
+  const handleDeleteTap = useCallback(() => {
+    const target = editor?.target
+    if (!target) return
+    closeEditor()
+    setTimeout(() => setConfirmDelete(target), 320)
+  }, [editor, closeEditor])
+
   const addItem = useCallback((item: PCCItem) => {
     setDraftItems(prev => [...prev, item])
-    setAddMenu(null)
-    setFreeTextDraft('')
   }, [])
 
   const removeItem = useCallback((id: string) => {
     setDraftItems(prev => prev.filter(i => i.id !== id))
   }, [])
 
-  const activeKind = addMenu?.kind ?? null
-
-  // Pickers — feed the second-stage selector once a kind is chosen.
-  const kindPickerOptions = useMemo(() => {
-    if (!activeKind) return []
-    switch (activeKind) {
-      case 'property_item':     return propertyItems.map(p => ({ id: p.id, label: p.name }))
-      case 'property_location': return propertyLocations.map(p => ({ id: p.id, label: p.name }))
-      case 'task':              return []
-    }
-  }, [activeKind, propertyItems, propertyLocations])
-
-  const addActions: ContextMenuAction[] = useMemo(() => (
-    (Object.keys(KIND_META) as ItemKind[]).map(kind => ({
-      key: kind,
-      icon: KIND_META[kind].icon,
-      label: `Add ${KIND_META[kind].label.toLowerCase()}`,
-      closesOnAction: false,
-      onAction: () => setAddMenu(prev => prev ? { ...prev, kind } : null),
-    }))
-  ), [])
+  // Kind picked from the morphed footer → drill into the matching sub-screen in the
+  // SAME card (property kinds → a ref list; free text → a text field). No overlay.
+  const startAdd = useCallback((kind: ItemKind) => {
+    setAddOpen(false)
+    if (kind === 'task') navRef.current?.push('freetext')
+    else navRef.current?.push('pick', { kind })
+  }, [])
 
   const sortedTemplates = useMemo(
     () => [...templates].sort((a, b) => a.sort_order - b.sort_order),
@@ -175,6 +170,147 @@ export function PreCombatChecksSection({ cornerItems }: PreCombatChecksSectionPr
       case 'property_location': return propertyLocations.find(p => p.id === item.ref)?.name ?? '(deleted location)'
     }
   }, [propertyItems, propertyLocations])
+
+  const saveDisabled = saving || !draftName.trim()
+
+  // ── OverlayStack screens: one morphing card (checklist → pick / freetext) ──
+  const screens: Record<string, StackScreen> = {
+    checklist: {
+      // Footer-LEFT: Delete (edit only) + Add; tapping Add morphs the pill into the
+      // three kind options IN PLACE, then drills the picker into this same card.
+      footer: addOpen ? (
+        <ActionPill>
+          <ActionButton icon={X} label="Cancel" onClick={() => setAddOpen(false)} />
+          {(Object.keys(KIND_META) as ItemKind[]).map(kind => (
+            <ActionButton
+              key={kind}
+              icon={KIND_META[kind].icon}
+              label={KIND_META[kind].label}
+              onClick={() => startAdd(kind)}
+            />
+          ))}
+        </ActionPill>
+      ) : (
+        <ActionPill>
+          {editor?.mode === 'edit' && (
+            <ActionButton icon={Trash2} label="Delete" variant="danger" onClick={handleDeleteTap} />
+          )}
+          <ActionButton icon={Plus} label="Add check" onClick={() => setAddOpen(true)} />
+        </ActionPill>
+      ),
+      rightFooter: (
+        <ActionPill>
+          <ActionButton
+            icon={saving ? Loader2 : Check}
+            label={saving ? 'Saving…' : 'Save'}
+            variant={saveDisabled ? 'disabled' : 'success'}
+            onClick={saveDisabled ? () => {} : handleSave}
+          />
+        </ActionPill>
+      ),
+      render: () => (
+        <div className="px-4 pb-3 space-y-3">
+          <div className="bg-themewhite2 rounded-xl overflow-hidden">
+            <TextInput
+              value={draftName}
+              onChange={(v) => { setDraftName(v); setNameError(null) }}
+              placeholder={editor?.mode === 'new' ? 'New checklist…' : 'Checklist name'}
+              hint={nameError}
+            />
+          </div>
+          {draftItems.length === 0 ? (
+            <p className="text-[10pt] text-tertiary py-6 text-center">
+              No checks yet — tap “Add check” to add equipment, locations, or free-text tasks.
+            </p>
+          ) : (
+            <div className="space-y-1">
+              {draftItems.map((item) => {
+                const Icon = KIND_META[item.kind].icon
+                return (
+                  <div key={item.id} className="flex items-center gap-2 py-1.5 px-2 rounded-lg bg-themewhite2">
+                    <Icon size={13} className="text-tertiary shrink-0" />
+                    <p className="flex-1 min-w-0 text-[10pt] text-primary truncate">{resolveItemLabel(item)}</p>
+                    <button
+                      type="button"
+                      onClick={() => removeItem(item.id)}
+                      aria-label="Remove item"
+                      className="w-6 h-6 rounded-full flex items-center justify-center text-tertiary hover:text-themeredred active:scale-95 transition-all"
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      ),
+    },
+    // Ref picker (equipment / locations) — tap adds and pops back to the checklist.
+    pick: {
+      title: (p: { kind: ItemKind }) => `Add ${KIND_META[p.kind].label.toLowerCase()}`,
+      maxWidth: 320,
+      previewMaxHeight: '50dvh',
+      render: (p: { kind: ItemKind }, nav: StackNav) => {
+        const options = p.kind === 'property_item' ? propertyItems : propertyLocations
+        if (options.length === 0) {
+          return <p className="px-4 pb-3 text-[10pt] text-tertiary">None available.</p>
+        }
+        return (
+          <div className="px-2 pb-2 space-y-1">
+            {options.map(opt => (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => {
+                  const id = crypto.randomUUID()
+                  addItem(
+                    p.kind === 'property_item'
+                      ? { id, kind: 'property_item', ref: opt.id }
+                      : { id, kind: 'property_location', ref: opt.id },
+                  )
+                  nav.pop()
+                }}
+                className="w-full text-left px-3 py-2 rounded-lg hover:bg-themeblue3/5 active:scale-[0.98] transition-all text-[10pt] text-primary truncate"
+              >
+                {opt.name}
+              </button>
+            ))}
+          </div>
+        )
+      },
+    },
+    // Free-text task — type + Add, then pop back to the checklist.
+    freetext: {
+      title: 'Add free text',
+      maxWidth: 320,
+      onBack: (nav: StackNav) => { setFreeTextDraft(''); nav.pop() },
+      rightFooter: (_: unknown, nav: StackNav) => (
+        <ActionPill>
+          <ActionButton
+            icon={Check}
+            label="Add"
+            variant={freeTextDraft.trim() ? 'success' : 'disabled'}
+            onClick={() => {
+              const label = freeTextDraft.trim()
+              if (!label) return
+              addItem({ id: crypto.randomUUID(), kind: 'task', label })
+              setFreeTextDraft('')
+              nav.pop()
+            }}
+          />
+        </ActionPill>
+      ),
+      render: () => (
+        <TextInput
+          value={freeTextDraft}
+          onChange={setFreeTextDraft}
+          placeholder="e.g. Brief OPORD"
+          maxLength={120}
+        />
+      ),
+    },
+  }
 
   return (
     <>
@@ -226,155 +362,16 @@ export function PreCombatChecksSection({ cornerItems }: PreCombatChecksSectionPr
         </div>
       </section>
 
-      <PreviewOverlay
+      <OverlayStack
         isOpen={!!editor}
         onClose={closeEditor}
         anchorRect={editor?.anchor ?? null}
+        initial={{ key: 'checklist' }}
+        screens={screens}
+        navRef={navRef}
         maxWidth={560}
         previewMaxHeight="60dvh"
-        headerCard={
-          editor ? (
-            <div className="bg-themewhite rounded-2xl overflow-hidden">
-              <TextInput
-                value={draftName}
-                onChange={(v) => { setDraftName(v); setNameError(null) }}
-                placeholder={editor.mode === 'new' ? 'New checklist…' : 'Checklist name'}
-                hint={nameError}
-              />
-            </div>
-          ) : undefined
-        }
-        footer={
-          editor ? (
-            <ActionPill ref={addFabRef} shadow="sm">
-              {editor.mode === 'edit' && (
-                <ActionButton
-                  icon={Trash2}
-                  label="Delete"
-                  variant="danger"
-                  onClick={() => {
-                    const target = editor.target
-                    if (!target) return
-                    closeEditor()
-                    setTimeout(() => setConfirmDelete(target), 320)
-                  }}
-                />
-              )}
-              <ActionButton
-                icon={Plus}
-                label="Add check"
-                onClick={() => {
-                  const rect = addFabRef.current?.getBoundingClientRect()
-                  if (!rect) return
-                  setAddMenu({ anchor: rect, kind: null })
-                }}
-              />
-            </ActionPill>
-          ) : undefined
-        }
-        rightFooter={
-          editor ? (
-            <ActionPill>
-              <ActionButton
-                icon={saving ? Loader2 : Check}
-                label={saving ? 'Saving…' : 'Save'}
-                variant={saving || !draftName.trim() ? 'disabled' : 'success'}
-                onClick={handleSave}
-              />
-            </ActionPill>
-          ) : undefined
-        }
-      >
-        {editor && (
-          <div className="px-4 pb-3">
-            {draftItems.length === 0 ? (
-              <p className="text-[10pt] text-tertiary py-6 text-center">
-                No checks yet — tap “Add check” to add equipment, locations, rooms, or free-text tasks.
-              </p>
-            ) : (
-              <div className="space-y-1">
-                {draftItems.map((item) => {
-                  const Icon = KIND_META[item.kind].icon
-                  return (
-                    <div key={item.id} className="flex items-center gap-2 py-1.5 px-2 rounded-lg bg-themewhite2">
-                      <Icon size={13} className="text-tertiary shrink-0" />
-                      <p className="flex-1 min-w-0 text-[10pt] text-primary truncate">{resolveItemLabel(item)}</p>
-                      <button
-                        type="button"
-                        onClick={() => removeItem(item.id)}
-                        aria-label="Remove item"
-                        className="w-6 h-6 rounded-full flex items-center justify-center text-tertiary hover:text-themeredred active:scale-95 transition-all"
-                      >
-                        <X size={12} />
-                      </button>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-        )}
-      </PreviewOverlay>
-
-      {/* Add-check picker — morphs between kind selection and ref/free-text picker */}
-      {addMenu && (
-        <PreviewOverlay
-          isOpen
-          onClose={() => { setAddMenu(null); setFreeTextDraft('') }}
-          anchorRect={addMenu.anchor}
-          title={activeKind ? `Add ${KIND_META[activeKind].label.toLowerCase()}` : 'Add check'}
-          onBack={activeKind ? () => { setAddMenu(prev => prev ? { ...prev, kind: null } : null); setFreeTextDraft('') } : undefined}
-          maxWidth={activeKind ? 320 : 280}
-          previewMaxHeight={activeKind ? '50dvh' : 'auto'}
-          actions={activeKind ? [] : addActions}
-          zIndex={95}
-          rightFooter={activeKind === 'task' ? (
-            <ActionPill>
-              <ActionButton
-                icon={Check}
-                label="Add"
-                variant={freeTextDraft.trim() ? 'success' : 'disabled'}
-                onClick={() => {
-                  if (!freeTextDraft.trim()) return
-                  addItem({ id: crypto.randomUUID(), kind: 'task', label: freeTextDraft.trim() })
-                }}
-              />
-            </ActionPill>
-          ) : undefined}
-        >
-          {!activeKind ? (
-            <div className="px-4 pb-3 text-[10pt] text-tertiary">
-              Pick the kind of check to add.
-            </div>
-          ) : activeKind === 'task' ? (
-            <TextInput
-              value={freeTextDraft}
-              onChange={setFreeTextDraft}
-              placeholder="e.g. Brief OPORD"
-              maxLength={120}
-            />
-          ) : kindPickerOptions.length === 0 ? (
-            <p className="px-4 pb-3 text-[10pt] text-tertiary">None available.</p>
-          ) : (
-            <div className="px-2 pb-2 space-y-1">
-              {kindPickerOptions.map(opt => (
-                <button
-                  key={opt.id}
-                  type="button"
-                  onClick={() => {
-                    const id = crypto.randomUUID()
-                    if (activeKind === 'property_item')     addItem({ id, kind: 'property_item', ref: opt.id })
-                    if (activeKind === 'property_location') addItem({ id, kind: 'property_location', ref: opt.id })
-                  }}
-                  className="w-full text-left px-3 py-2 rounded-lg hover:bg-themeblue3/5 active:scale-[0.98] transition-all text-[10pt] text-primary truncate"
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-          )}
-        </PreviewOverlay>
-      )}
+      />
 
       <ConfirmDialog
         visible={!!confirmDelete}

@@ -113,6 +113,17 @@ export function OverlayStack({
     ? () => screen.onBack!(nav)
     : (canBack ? nav.pop : undefined)
 
+  // Searchable screens route through PreviewOverlay's `preview` slot so the card
+  // pins its search box above the morphing body and feeds the live filter into
+  // render(); plain screens render into `children`. Either way the body is the
+  // same StackBody morph layer.
+  const searchable = !!screen.searchPlaceholder
+  const body = (filter: string) => (
+    <StackBody screenKey={top.key} dir={dir}>
+      {screen.render(top.params, nav, filter)}
+    </StackBody>
+  )
+
   return (
     <StackNavContext.Provider value={nav}>
       <PreviewOverlay
@@ -127,13 +138,13 @@ export function OverlayStack({
         rightFooter={rightFooter}
         maxWidth={screen.maxWidth ?? maxWidth}
         previewMaxHeight={screen.previewMaxHeight ?? previewMaxHeight}
+        searchPlaceholder={screen.searchPlaceholder}
         zIndex={zIndex}
         loading={loading}
         hudSize={hudSize}
+        preview={searchable ? (filter) => body(filter) : undefined}
       >
-        <StackBody screenKey={top.key} dir={dir}>
-          {screen.render(top.params, nav)}
-        </StackBody>
+        {searchable ? null : body('')}
       </PreviewOverlay>
     </StackNavContext.Provider>
   )

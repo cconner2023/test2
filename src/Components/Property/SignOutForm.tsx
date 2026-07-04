@@ -76,7 +76,7 @@ export const SignOutForm = forwardRef<SignOutFormHandle, SignOutFormProps>(funct
   const [itemsOpen, setItemsOpen] = useState(false)
   const [itemsAnchor, setItemsAnchor] = useState<DOMRect | null>(null)
 
-  const { exportDA2062, da2062Preview, downloadDA2062, clearDA2062Preview } = useDA2062Export()
+  const { exportDA2062, da2062Preview, downloadDA2062, clearDA2062Preview, status: da2062Status } = useDA2062Export()
 
   const locationName = useCallback(
     (id: string | null) => (id ? store.locations.find((l) => l.id === id)?.name ?? null : null),
@@ -427,6 +427,7 @@ export const SignOutForm = forwardRef<SignOutFormHandle, SignOutFormProps>(funct
 
       <Da2062Preview
         preview={da2062Preview}
+        generating={da2062Status === 'generating'}
         onDownload={downloadDA2062}
         onClose={() => {
           clearDA2062Preview()

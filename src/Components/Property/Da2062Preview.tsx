@@ -13,6 +13,10 @@ interface Da2062PreviewProps {
   /** Scopes the overlay to a container (the property drawer / settings sheet).
    *  Null → floats fixed, auto-stacking above its host sheet via OverlayStackContext. */
   containerRef?: React.RefObject<HTMLElement | null>
+  /** True while the 2062 is still generating (before `preview` bytes arrive). Opens
+   *  the overlay immediately as a HUD puck that holds through generation, then morphs
+   *  into the full preview once the bytes land. Omit for an instant (non-morph) open. */
+  generating?: boolean
 }
 
 /**
@@ -28,7 +32,7 @@ interface Da2062PreviewProps {
  * The PDF renders in an <object>; the footer carries Save (download + close), and
  * the filename rides the overlay header beside the X.
  */
-export function Da2062Preview({ preview, onDownload, onClose, containerRef }: Da2062PreviewProps) {
+export function Da2062Preview({ preview, onDownload, onClose, containerRef, generating = false }: Da2062PreviewProps) {
   const blobUrl = useMemo(() => {
     if (!preview) return null
     return URL.createObjectURL(new Blob([preview.bytes], { type: 'application/pdf' }))
@@ -42,13 +46,14 @@ export function Da2062Preview({ preview, onDownload, onClose, containerRef }: Da
 
   return (
     <PreviewOverlay
-      isOpen={!!preview && !!blobUrl}
+      isOpen={generating || (!!preview && !!blobUrl)}
       onClose={onClose}
       anchorRect={null}
       containerRef={containerRef}
       title={preview?.filename ?? 'DA 2062'}
       maxWidth={640}
       previewMaxHeight="62dvh"
+      loading={generating || !blobUrl}
       rightFooter={
         <div className="bg-themewhite rounded-2xl px-1.5 py-1.5">
           <PillButton icon={Download} iconSize={16} accent="info" onClick={save} label="Save" />

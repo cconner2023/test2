@@ -130,7 +130,7 @@ export const ItemActionMenu = forwardRef<ItemActionMenuHandle, ItemActionMenuPro
   // store mutates (compensates for not receiving the item as a per-render prop).
   const item = active ? (items.find(i => i.id === active.item.id) ?? active.item) : null
 
-  const { exportLabels, labelPreview, downloadLabels, clearLabelPreview } = usePropertyLabelExport()
+  const { exportLabels, labelPreview, downloadLabels, clearLabelPreview, status: labelExportStatus } = usePropertyLabelExport()
   const printLabel = (geometry: LabelPresetKey) => {
     if (!item) return
     setShowLabelStock(false)
@@ -426,6 +426,7 @@ export const ItemActionMenu = forwardRef<ItemActionMenuHandle, ItemActionMenuPro
 
       <PdfPreviewModal
         preview={labelPreview}
+        generating={labelExportStatus === 'generating'}
         onDownload={downloadLabels}
         onClose={clearLabelPreview}
         zIndex={overlayZ}

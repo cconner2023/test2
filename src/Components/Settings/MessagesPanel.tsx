@@ -29,7 +29,9 @@ import { useClinicGroupedMedics } from '../../Hooks/useClinicGroupedMedics'
 import { useSubClusters } from '../../Hooks/useSubClusters'
 import { usePeerAvailability, type UnavailableReason } from '../../Hooks/usePeerAvailability'
 import { ChatDetailView, type ParticipantStatus } from '../ChatDetailView'
-import { PreviewOverlay } from '../PreviewOverlay'
+import { OverlayStack, type StackNav } from '../OverlayStack'
+import { ActionPill } from '../ActionPill'
+import { ActionButton } from '../ActionButton'
 import { useLongPress } from '../../Hooks/useLongPress'
 import { useIsMobile } from '../../Hooks/useIsMobile'
 import type { ClinicMedic } from '../../Types/SupervisorTestTypes'
@@ -1036,13 +1038,12 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
   const qrVideoRef = useRef<HTMLVideoElement>(null)
   const [emailLookupError, setEmailLookupError] = useState<string | null>(null)
   const [emailLookupLoading, setEmailLookupLoading] = useState(false)
-  const [emailLookupOpen, setEmailLookupOpen] = useState(false)
   const [emailValue, setEmailValue] = useState('')
-  const [addPickerOpen, setAddPickerOpen] = useState(false)
-  const [codeLookupOpen, setCodeLookupOpen] = useState(false)
   const [codeValue, setCodeValue] = useState('')
   const [codeLookupError, setCodeLookupError] = useState<string | null>(null)
   const [codeLookupLoading, setCodeLookupLoading] = useState(false)
+  // Live nav of the new-message morph stack — handlers push/reset screens on it.
+  const stackNavRef = useRef<StackNav | null>(null)
 
   const {
     isScanning: qrIsScanning,
@@ -1147,21 +1148,15 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
   }, [callActions])
 
   const closeEmailLookup = useCallback(() => {
-    setEmailLookupOpen(false)
     setEmailValue('')
     setEmailLookupError(null)
     setEmailLookupLoading(false)
   }, [])
 
   const closeCodeLookup = useCallback(() => {
-    setCodeLookupOpen(false)
     setCodeValue('')
     setCodeLookupError(null)
     setCodeLookupLoading(false)
-  }, [])
-
-  const closeAddPicker = useCallback(() => {
-    setAddPickerOpen(false)
   }, [])
 
   // Routes a discovered user (from QR / email / code lookup) based on mode:
@@ -1174,12 +1169,13 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
         next.add(medic.id)
         return next
       })
+      // Tear down the lookup sub-flow and morph back to the group builder (root).
       setQrScanOpen(false)
       qrStopScanning()
       qrClearResult()
       closeEmailLookup()
       closeCodeLookup()
-      setAddPickerOpen(false)
+      stackNavRef.current?.reset()
     } else {
       setShowNewMsg(false)
       onSelectPeer(medic)
@@ -1211,7 +1207,6 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
         clinicId: match.clinic_id ?? undefined,
         clinicName: match.clinic_name ?? undefined,
       }
-      setEmailLookupOpen(false)
       setEmailValue('')
       handlePickedUser(medic)
     } catch {
@@ -1487,123 +1482,169 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
         </animated.div>
       </div>
 
-      {/* New Message / New Group overlay */}
-      <PreviewOverlay
+      {/* New Message / New Group / Add-contact — one card that morphs between
+          screens (drill-down primitive) instead of a boolean/ternary machine. */}
+      <OverlayStack
         isOpen={showNewMsg}
-        onClose={() => { setShowNewMsg(false); setNewMsgMode('contacts'); setQrScanOpen(false); qrStopScanning(); qrClearResult(); closeEmailLookup(); closeCodeLookup(); closeAddPicker() }}
+        onClose={() => { setShowNewMsg(false); setNewMsgMode('contacts'); setQrScanOpen(false); qrStopScanning(); qrClearResult(); closeEmailLookup(); closeCodeLookup() }}
         anchorRect={null}
-        title={
-          codeLookupOpen ? 'Enter User Code'
-          : emailLookupOpen ? 'Find by Email'
-          : addPickerOpen ? 'Add Contact'
-          : newMsgMode === 'contacts' ? 'New Message'
-          : 'New Group'
-        }
-        onBack={
-          codeLookupOpen ? closeCodeLookup
-          : emailLookupOpen ? closeEmailLookup
-          : addPickerOpen ? closeAddPicker
-          : newMsgMode === 'group' ? () => { setNewMsgMode('contacts'); setGroupSelectedIds(new Set()) }
-          : undefined
-        }
-        searchPlaceholder={(emailLookupOpen || codeLookupOpen || addPickerOpen) ? undefined : 'Search contacts...'}
+        initial={{ key: 'main' }}
+        navRef={stackNavRef}
         previewMaxHeight="50dvh"
-        preview={(filter: string) => {
-          if (codeLookupOpen) {
-            return (
-              <div className="px-1 py-1">
-                <TextInput
-                  label="User Code"
-                  value={codeValue}
-                  onChange={(v) => { setCodeValue(v); if (codeLookupError) setCodeLookupError(null) }}
-                  placeholder="Paste user code"
-                  hint={codeLookupLoading ? 'Looking up user…' : codeLookupError}
+        screens={{
+          // Root: the contact list (New Message) or the group builder (New Group).
+          // The mode is host state so the two share one root — New Group / back
+          // toggle it in place; the Add sub-flow drills on top of whichever is shown.
+          main: {
+            title: newMsgMode === 'group' ? 'New Group' : 'New Message',
+            searchPlaceholder: 'Search contacts...',
+            onBack: newMsgMode === 'group'
+              ? () => { setNewMsgMode('contacts'); setGroupSelectedIds(new Set()) }
+              : undefined,
+            footer: (_p, nav) => (
+              <ActionPill>
+                {newMsgMode === 'contacts' && (
+                  <ActionButton
+                    icon={Users}
+                    label="New Group"
+                    onClick={() => { setNewMsgMode('group'); setGroupName(''); setGroupSelectedIds(new Set()) }}
+                  />
+                )}
+                <ActionButton icon={Plus} label="Add" onClick={() => nav.push('addPicker')} />
+              </ActionPill>
+            ),
+            rightFooter: newMsgMode === 'group' ? (
+              <ActionPill>
+                <ActionButton
+                  icon={Check}
+                  label="Create Group"
+                  variant={(!groupName.trim() || groupSelectedIds.size === 0 || groupCreating) ? 'disabled' : 'success'}
+                  onClick={handleCreateGroup}
                 />
-              </div>
-            )
-          }
-          if (emailLookupOpen) {
-            return (
-              <div className="px-1 py-1">
-                <TextInput
-                  label="Email"
-                  value={emailValue}
-                  onChange={(v) => { setEmailValue(v); if (emailLookupError) setEmailLookupError(null) }}
-                  placeholder="user@example.com"
-                  type="email"
-                  inputMode="email"
-                  hint={emailLookupLoading ? 'Looking up email…' : emailLookupError}
-                />
-              </div>
-            )
-          }
-          if (addPickerOpen && !qrScanOpen) {
-            const pickerRows: Array<{ key: string; label: string; icon: typeof QrCode; onClick: () => void }> = [
-              {
-                key: 'scan-qr',
-                label: 'Scan QR Code',
-                icon: QrCode,
-                onClick: () => {
-                  setQrScanOpen(true)
-                  setQrLookupError(null)
-                  requestAnimationFrame(() => {
-                    if (qrVideoRef.current) qrStartScanning(qrVideoRef.current)
-                  })
-                },
-              },
-              {
-                key: 'by-email',
-                label: 'Find by Email',
-                icon: Mail,
-                onClick: () => {
-                  setEmailLookupError(null)
-                  setEmailValue('')
-                  setEmailLookupOpen(true)
-                },
-              },
-              {
-                key: 'by-code',
-                label: 'Enter User Code',
-                icon: Hash,
-                onClick: () => {
-                  setCodeLookupError(null)
-                  setCodeValue('')
-                  setCodeLookupOpen(true)
-                },
-              },
-            ]
-            return (
-              <div className="py-1">
-                {pickerRows.map(row => (
-                  <button
-                    key={row.key}
-                    onClick={row.onClick}
-                    className="flex items-center w-full px-4 py-2.5 gap-3 text-left hover:bg-themewhite2 active:scale-95 transition-all"
-                  >
-                    <div className="w-8 h-8 rounded-full bg-themewhite2 flex items-center justify-center shrink-0">
-                      <row.icon className="w-4 h-4 text-themeblue2" />
+              </ActionPill>
+            ) : undefined,
+            render: (_p, _nav, filter) => {
+              const q = filter.toLowerCase()
+              // System is a synthetic pseudo-user injected into peerProfiles for
+              // name/avatar resolution of existing system conversations. It must
+              // never appear as a startable contact in the new-conversation picker.
+              const rosterMedics = allMedics.filter(m => m.id !== SYSTEM_USER_ID)
+              const filtered = q
+                ? rosterMedics.filter(m =>
+                    m.firstName?.toLowerCase().includes(q) ||
+                    m.lastName?.toLowerCase().includes(q) ||
+                    m.rank?.toLowerCase().includes(q) ||
+                    [m.rank, m.lastName].filter(Boolean).join(' ').toLowerCase().includes(q)
+                  )
+                : rosterMedics
+              return (
+                <div className="py-1">
+                  {newMsgMode === 'group' && (
+                    <div className="px-4 pb-2 pt-1">
+                      <input
+                        type="text"
+                        value={groupName}
+                        onChange={e => setGroupName(e.target.value)}
+                        placeholder="Group name"
+                        autoFocus
+                        className="w-full px-4 py-2 rounded-full bg-themewhite2 text-sm text-primary
+                                   placeholder:text-tertiary outline-none focus:ring-1 focus:ring-themeblue2/40 transition-all"
+                      />
                     </div>
-                    <span className="flex-1 text-sm text-primary">{row.label}</span>
-                  </button>
-                ))}
-              </div>
-            )
-          }
-          const q = filter.toLowerCase()
-          // System is a synthetic pseudo-user injected into peerProfiles for
-          // name/avatar resolution of existing system conversations. It must
-          // never appear as a startable contact in the new-conversation picker.
-          const rosterMedics = allMedics.filter(m => m.id !== SYSTEM_USER_ID)
-          const filtered = q
-            ? rosterMedics.filter(m =>
-                m.firstName?.toLowerCase().includes(q) ||
-                m.lastName?.toLowerCase().includes(q) ||
-                m.rank?.toLowerCase().includes(q) ||
-                [m.rank, m.lastName].filter(Boolean).join(' ').toLowerCase().includes(q)
+                  )}
+                  {filtered.map(medic => (
+                    newMsgMode === 'group' ? (
+                      <button
+                        key={medic.id}
+                        onClick={() => toggleGroupMember(medic.id)}
+                        className="flex items-center w-full px-4 py-2.5 gap-3 text-left hover:bg-themewhite2 active:scale-95 transition-all"
+                      >
+                        <UserAvatar avatarId={medic.avatarId} avatarBlob={medic.avatarBlob} userId={medic.id} firstName={medic.firstName} lastName={medic.lastName} className="w-8 h-8" />
+                        <span className="flex-1 text-sm text-primary truncate">{getDisplayName(medic)}</span>
+                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors
+                                       ${groupSelectedIds.has(medic.id) ? 'bg-themeblue2 border-themeblue2' : 'border-tertiary/30'}`}>
+                          {groupSelectedIds.has(medic.id) && <Check size={12} className="text-white" />}
+                        </div>
+                      </button>
+                    ) : (
+                      <button
+                        key={medic.id}
+                        onClick={() => { setShowNewMsg(false); onSelectPeer(medic) }}
+                        className="flex items-center w-full px-4 py-2.5 gap-3 text-left hover:bg-themewhite2 active:scale-95 transition-all"
+                      >
+                        <UserAvatar avatarId={medic.avatarId} avatarBlob={medic.avatarBlob} userId={medic.id} firstName={medic.firstName} lastName={medic.lastName} className="w-8 h-8" />
+                        <span className="flex-1 text-sm text-primary truncate">{getDisplayName(medic)}</span>
+                      </button>
+                    )
+                  ))}
+                  {filtered.length === 0 && (
+                    <p className="text-[10pt] text-tertiary text-center py-6">No contacts found</p>
+                  )}
+                </div>
               )
-            : rosterMedics
-          if (qrScanOpen) {
-            return (
+            },
+          },
+          // Add a contact off-roster: pick a lookup method, then drill into it.
+          addPicker: {
+            title: 'Add Contact',
+            render: (_p, nav) => {
+              const pickerRows: Array<{ key: string; label: string; icon: typeof QrCode; onClick: () => void }> = [
+                {
+                  key: 'scan-qr',
+                  label: 'Scan QR Code',
+                  icon: QrCode,
+                  onClick: () => {
+                    setQrScanOpen(true)
+                    setQrLookupError(null)
+                    nav.push('qrScan')
+                    requestAnimationFrame(() => {
+                      if (qrVideoRef.current) qrStartScanning(qrVideoRef.current)
+                    })
+                  },
+                },
+                {
+                  key: 'by-email',
+                  label: 'Find by Email',
+                  icon: Mail,
+                  onClick: () => {
+                    setEmailLookupError(null)
+                    setEmailValue('')
+                    nav.push('emailLookup')
+                  },
+                },
+                {
+                  key: 'by-code',
+                  label: 'Enter User Code',
+                  icon: Hash,
+                  onClick: () => {
+                    setCodeLookupError(null)
+                    setCodeValue('')
+                    nav.push('codeLookup')
+                  },
+                },
+              ]
+              return (
+                <div className="py-1">
+                  {pickerRows.map(row => (
+                    <button
+                      key={row.key}
+                      onClick={row.onClick}
+                      className="flex items-center w-full px-4 py-2.5 gap-3 text-left hover:bg-themewhite2 active:scale-95 transition-all"
+                    >
+                      <div className="w-8 h-8 rounded-full bg-themewhite2 flex items-center justify-center shrink-0">
+                        <row.icon className="w-4 h-4 text-themeblue2" />
+                      </div>
+                      <span className="flex-1 text-sm text-primary">{row.label}</span>
+                    </button>
+                  ))}
+                </div>
+              )
+            },
+          },
+          qrScan: {
+            title: 'Scan QR Code',
+            onBack: (nav) => { qrStopScanning(); setQrScanOpen(false); qrClearResult(); setQrLookupError(null); nav.pop() },
+            render: () => (
               <div className="px-4 py-3 space-y-2">
                 <p className="text-[10pt] text-tertiary">
                   Scan another user's QR code to open a conversation.
@@ -1624,113 +1665,62 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
                 {(qrScanError || qrLookupError) && (
                   <p className="text-[10pt] text-themeredred">{qrScanError || qrLookupError}</p>
                 )}
-                <button
-                  onClick={() => { qrStopScanning(); setQrScanOpen(false); qrClearResult(); setQrLookupError(null) }}
-                  className="w-full py-2 text-[10pt] text-tertiary active:opacity-70 transition-opacity"
-                >
-                  Cancel
-                </button>
               </div>
-            )
-          }
-          return (
-            <div className="py-1">
-              {newMsgMode === 'group' && (
-                <div className="px-4 pb-2 pt-1">
-                  <input
-                    type="text"
-                    value={groupName}
-                    onChange={e => setGroupName(e.target.value)}
-                    placeholder="Group name"
-                    autoFocus
-                    className="w-full px-4 py-2 rounded-full bg-themewhite2 text-sm text-primary
-                               placeholder:text-tertiary outline-none focus:ring-1 focus:ring-themeblue2/40 transition-all"
-                  />
-                </div>
-              )}
-              {filtered.map(medic => (
-                newMsgMode === 'group' ? (
-                  <button
-                    key={medic.id}
-                    onClick={() => toggleGroupMember(medic.id)}
-                    className="flex items-center w-full px-4 py-2.5 gap-3 text-left hover:bg-themewhite2 active:scale-95 transition-all"
-                  >
-                    <UserAvatar avatarId={medic.avatarId} avatarBlob={medic.avatarBlob} userId={medic.id} firstName={medic.firstName} lastName={medic.lastName} className="w-8 h-8" />
-                    <span className="flex-1 text-sm text-primary truncate">{getDisplayName(medic)}</span>
-                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors
-                                   ${groupSelectedIds.has(medic.id) ? 'bg-themeblue2 border-themeblue2' : 'border-tertiary/30'}`}>
-                      {groupSelectedIds.has(medic.id) && <Check size={12} className="text-white" />}
-                    </div>
-                  </button>
-                ) : (
-                  <button
-                    key={medic.id}
-                    onClick={() => { setShowNewMsg(false); onSelectPeer(medic) }}
-                    className="flex items-center w-full px-4 py-2.5 gap-3 text-left hover:bg-themewhite2 active:scale-95 transition-all"
-                  >
-                    <UserAvatar avatarId={medic.avatarId} avatarBlob={medic.avatarBlob} userId={medic.id} firstName={medic.firstName} lastName={medic.lastName} className="w-8 h-8" />
-                    <span className="flex-1 text-sm text-primary truncate">{getDisplayName(medic)}</span>
-                  </button>
-                )
-              ))}
-              {filtered.length === 0 && (
-                <p className="text-[10pt] text-tertiary text-center py-6">No contacts found</p>
-              )}
-            </div>
-          )
+            ),
+          },
+          emailLookup: {
+            title: 'Find by Email',
+            onBack: (nav) => { closeEmailLookup(); nav.pop() },
+            rightFooter: (
+              <ActionPill>
+                <ActionButton
+                  icon={Send}
+                  label="Find User"
+                  variant={(!emailValue.trim() || emailLookupLoading) ? 'disabled' : 'default'}
+                  onClick={handleEmailLookup}
+                />
+              </ActionPill>
+            ),
+            render: () => (
+              <div className="px-1 py-1">
+                <TextInput
+                  label="Email"
+                  value={emailValue}
+                  onChange={(v) => { setEmailValue(v); if (emailLookupError) setEmailLookupError(null) }}
+                  placeholder="user@example.com"
+                  type="email"
+                  inputMode="email"
+                  hint={emailLookupLoading ? 'Looking up email…' : emailLookupError}
+                />
+              </div>
+            ),
+          },
+          codeLookup: {
+            title: 'Enter User Code',
+            onBack: (nav) => { closeCodeLookup(); nav.pop() },
+            rightFooter: (
+              <ActionPill>
+                <ActionButton
+                  icon={Send}
+                  label="Find User"
+                  variant={(!codeValue.trim() || codeLookupLoading) ? 'disabled' : 'default'}
+                  onClick={handleCodeLookup}
+                />
+              </ActionPill>
+            ),
+            render: () => (
+              <div className="px-1 py-1">
+                <TextInput
+                  label="User Code"
+                  value={codeValue}
+                  onChange={(v) => { setCodeValue(v); if (codeLookupError) setCodeLookupError(null) }}
+                  placeholder="Paste user code"
+                  hint={codeLookupLoading ? 'Looking up user…' : codeLookupError}
+                />
+              </div>
+            ),
+          },
         }}
-        actions={
-          codeLookupOpen ? [{
-            key: 'submit-code',
-            label: 'Find User',
-            icon: Send,
-            closesOnAction: false,
-            onAction: handleCodeLookup,
-            variant: (!codeValue.trim() || codeLookupLoading) ? 'disabled' : 'default',
-          }] :
-          emailLookupOpen ? [{
-            key: 'submit-email',
-            label: 'Find User',
-            icon: Send,
-            closesOnAction: false,
-            onAction: handleEmailLookup,
-            variant: (!emailValue.trim() || emailLookupLoading) ? 'disabled' : 'default',
-          }] :
-          addPickerOpen || qrScanOpen ? [] :
-          newMsgMode === 'group' ? [
-            {
-              key: 'add',
-              label: 'Add',
-              icon: Plus,
-              closesOnAction: false,
-              onAction: () => setAddPickerOpen(true),
-            },
-            {
-              key: 'create-group',
-              label: 'Create Group',
-              icon: Check,
-              onAction: handleCreateGroup,
-              closesOnAction: false,
-              variant: (!groupName.trim() || groupSelectedIds.size === 0 || groupCreating) ? 'disabled' : 'default',
-            },
-          ] :
-          [
-            {
-              key: 'new-group',
-              label: 'New Group',
-              icon: Users,
-              closesOnAction: false,
-              onAction: () => { setNewMsgMode('group'); setGroupName(''); setGroupSelectedIds(new Set()) },
-            },
-            {
-              key: 'add',
-              label: 'Add',
-              icon: Plus,
-              closesOnAction: false,
-              onAction: () => setAddPickerOpen(true),
-            },
-          ]
-        }
       />
 
       <ProvisionalDeviceModal />

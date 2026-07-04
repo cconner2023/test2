@@ -268,11 +268,21 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
   const [editItemPins, setEditItemPins] = useState<LocationTag[]>([])
   const editItemPinsRef = useRef<LocationTag[]>([])
   editItemPinsRef.current = editItemPins
+  // Personnel + Turn-In tiles filtered out of the editable ROOT canvas — hidden from the
+  // cluster overview in edit mode, but stashed here and re-merged on save so the
+  // full-replace upsertLocationTags doesn't delete them. Empty for a nested-canvas edit.
+  const hiddenRootTagsRef = useRef<LocationTag[]>([])
   const editZoneOverlayRef = useRef<HTMLDivElement>(null)
   const dragRef = useRef<{ startX: number; startY: number; scrollX: number; scrollY: number; zoneId: string | null; itemId: string | null } | null>(null)
   /** Suppress the click event that follows a drag-to-pan or a handled zone tap */
   const suppressClickRef = useRef(false)
   const lcaCleanupRef = useRef<(() => void) | null>(null)
+  // True while a two-finger pinch is manipulating the zoom. Blocks the resize
+  // re-fit (below) from firing zoomToTag mid-gesture — iOS Safari's dynamic
+  // toolbar toggles the container height during a pinch, which would otherwise
+  // trip the ResizeObserver → reFit → smooth-scroll that fights the pinch.
+  const isPinchingRef = useRef(false)
+  const pinchEndTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // Track edit selection count so toolbar re-renders when shift-selection changes
   const [editSelectionCount, setEditSelectionCount] = useState(0)
   // Item selection in edit mode (mutually exclusive with zone selection). Item
@@ -341,12 +351,14 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
 
   // ── Suppressed locations — every inactive level + its subtree (floor switcher) ──
   // Geometry-free: derived from the parent_id tree + kind/ordinal + active-level map.
-  // Personnel (member) zones — never tiled on the company overview. They live in the
-  // top personnel carousel; tapping a card navigates (zooms) into one, at which point
-  // its tile + items render. Kept in the tag index (so navigateToZone can frame them
-  // and their items pin inside), just filtered out of the overview render.
-  const memberZoneIds = useMemo(
-    () => new Set(locations.filter(l => !!l.holder_user_id).map(l => l.id)),
+  // Personnel (member) zones AND the system Turn-In staging zone — never tiled on the
+  // company overview, in view OR edit. Personnel live in the top carousel; the Turn-In
+  // zone lives in the tree/sheet ("if exists" — only when populated). Selecting one
+  // navigates (zooms) into it, at which point its tile + contents render. Kept in the
+  // tag index (so navigateToZone can frame them and their items pin inside), just
+  // filtered out of the overview render + hidden from the editable root canvas.
+  const hiddenOverviewZoneIds = useMemo(
+    () => new Set(locations.filter(l => !!l.holder_user_id || l.is_turn_in_zone).map(l => l.id)),
     [locations],
   )
 
@@ -409,9 +421,9 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
     }
 
     return allWorldTags.filter((tag) => {
-      // Personnel zones never tile the overview — shown only once navigated into (the
-      // carousel selects them); their items then render via the LOD/auto-pin path.
-      if (memberZoneIds.has(tag.target_id) && tag.target_id !== selectedId && !ancestorIds.has(tag.target_id)) return false
+      // Personnel + Turn-In zones never tile the overview — shown only once navigated
+      // into (via carousel / tree / sheet); their contents then render via LOD/auto-pin.
+      if (hiddenOverviewZoneIds.has(tag.target_id) && tag.target_id !== selectedId && !ancestorIds.has(tag.target_id)) return false
       const depth = depthOf.get(tag.target_id) ?? 0
       // Top-level zones (and root-canvas items) always visible
       if (depth === 0) return true
@@ -426,7 +438,7 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
       const parentFill = Math.max((parent.width ?? 0), (parent.height ?? 0)) * canvasScale
       return parentFill >= LOD_FILL_THRESHOLD
     })
-  }, [allWorldTags, rootLocationId, canvasScale, store.selectedZoneId, memberZoneIds])
+  }, [allWorldTags, rootLocationId, canvasScale, store.selectedZoneId, hiddenOverviewZoneIds])
 
   // ── Auto-rendered child zones (walks the full tag-less ancestry) ──
   // Child locations with NO drawn zone tag get a default grid rectangle laid out inside
@@ -875,6 +887,10 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
   // Captured in a ref so the effect depends ONLY on vpSize (not on every store/tag change).
   const reFitRef = useRef<() => void>(() => {})
   reFitRef.current = () => {
+    // Never re-frame mid-pinch — the user is manually driving the zoom and any
+    // programmatic zoomToTag here would fight the gesture (bug: "canvas loses the
+    // hold on zoom and wilds out" while pinching inside a selected zone).
+    if (isPinchingRef.current) return
     // A focused item wins: keep the view framed on the tapped item (e.g. the desktop
     // right-pane open that animates the center column width fires this re-fit — without
     // this it would snap back to the whole zone and lose the item).
@@ -901,6 +917,7 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
   useEffect(() => {
     if (vpSize.w === 0 || vpSize.h === 0) return
     if (!didInitialFitRef.current) return // let the initial fit run first
+    if (isPinchingRef.current) return // don't schedule a re-fit against an active pinch
     const t = setTimeout(() => reFitRef.current(), 160)
     return () => clearTimeout(t)
   }, [vpSize.w, vpSize.h])
@@ -1098,6 +1115,7 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
     // Separate zone tags from item pins — CanvasEditOverlay only processes zone tags
     const zoneTags = allTags.filter((t) => t.target_type !== 'item')
     setEditCanvasId(canvasId)
+    hiddenRootTagsRef.current = []
 
     // Seed default rectangles for child locations that have no drawn zone yet, so
     // they appear as editable zones (drag/resize to persist). target_id is the
@@ -1120,7 +1138,11 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
       }))
       setEditCanvasTags([...zoneTags, ...seededZones])
     } else {
-      setEditCanvasTags(zoneTags)
+      // Root canvas: personnel + Turn-In tiles are hidden from the editable overview
+      // (they're only rendered/edited once selected → their own nested canvas). Stash
+      // them so the full-replace save re-merges them instead of deleting them.
+      hiddenRootTagsRef.current = zoneTags.filter((t) => hiddenOverviewZoneIds.has(t.target_id))
+      setEditCanvasTags(zoneTags.filter((t) => !hiddenOverviewZoneIds.has(t.target_id)))
     }
 
     // Load item pins for non-root zone edits; auto-place any items without a saved pin
@@ -1156,7 +1178,7 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
       const parentTag = allWorldTags.find((t) => t.target_id === canvasId)
       if (parentTag) zoomToTag(parentTag)
     }
-  }, [rootLocationId, store.selectedZoneId, allWorldTags, zoomToTag])
+  }, [rootLocationId, store.selectedZoneId, allWorldTags, zoomToTag, hiddenOverviewZoneIds])
 
   const handleExitEdit = useCallback(() => {
     setIsEditing(false)
@@ -1236,7 +1258,10 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
     store.selectZone(parentId)
     const allTags = await fetchLocationTags(canvasId)
     setEditCanvasId(canvasId)
-    setEditCanvasTags(allTags.filter((t) => t.target_type !== 'item'))
+    // Personnel + Turn-In tiles stay hidden while drawing too. Draw-once never saves
+    // this canvas (it reports the rect up + exits), so no re-merge stash is needed.
+    hiddenRootTagsRef.current = []
+    setEditCanvasTags(allTags.filter((t) => t.target_type !== 'item' && !hiddenOverviewZoneIds.has(t.target_id)))
     setEditItemPins([])
     setNamingState(null)
     setDrawOnce(true)
@@ -1249,7 +1274,7 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
       const parentTag = allWorldTags.find((t) => t.target_id === canvasId)
       if (parentTag) zoomToTag(parentTag)
     }
-  }, [rootLocationId, store, allWorldTags, zoomToTag])
+  }, [rootLocationId, store, allWorldTags, zoomToTag, hiddenOverviewZoneIds])
   startDrawZoneRef.current = handleStartDrawZone
 
   // Single-draw rect committed → exit edit + report to parent (which opens the sheet).
@@ -1325,8 +1350,10 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
         }
       }
 
-      // Merge item pins back in so they aren't clobbered by the zone tag save
-      const savedTags = await upsertLocationTags(canvasId, [...resolvedTags, ...editItemPinsRef.current])
+      // Merge item pins + the hidden personnel/Turn-In root tiles back in so they aren't
+      // clobbered by the full-replace zone tag save (they were filtered out of the
+      // editable set to declutter the overview, but still live on this canvas).
+      const savedTags = await upsertLocationTags(canvasId, [...resolvedTags, ...editItemPinsRef.current, ...hiddenRootTagsRef.current])
 
       // Optimistic: update tagIndex directly so the new zones show instantly.
       if (savedTags.success && savedTags.tags) {
@@ -1667,6 +1694,8 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
     const onTouchStart = (e: TouchEvent) => {
       if (e.touches.length === 2) {
         e.preventDefault()
+        isPinchingRef.current = true
+        if (pinchEndTimerRef.current) { clearTimeout(pinchEndTimerRef.current); pinchEndTimerRef.current = null }
         lastDist = getDistance(e.touches[0], e.touches[1])
         lastCenter = getCenter(e.touches[0], e.touches[1])
       }
@@ -1688,8 +1717,14 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
       lastCenter = center
     }
 
-    const onTouchEnd = () => {
+    const onTouchEnd = (e: TouchEvent) => {
       lastDist = 0
+      // Keep the pinch guard up briefly after the fingers lift so the trailing
+      // iOS toolbar-driven resize blip doesn't wake the re-fit and snap the zoom.
+      if (e.touches.length < 2) {
+        if (pinchEndTimerRef.current) clearTimeout(pinchEndTimerRef.current)
+        pinchEndTimerRef.current = setTimeout(() => { isPinchingRef.current = false }, 400)
+      }
     }
 
     el.addEventListener('touchstart', onTouchStart, { passive: false })
@@ -1700,13 +1735,21 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
       el.removeEventListener('touchstart', onTouchStart)
       el.removeEventListener('touchmove', onTouchMove)
       el.removeEventListener('touchend', onTouchEnd)
+      // NB: do NOT reset isPinchingRef / the end-timer here — this effect re-runs
+      // on every zoom step (zoomBy depends on canvasScale), so clearing the flag
+      // in cleanup would drop the pinch guard after the first frame. The
+      // touchend-scheduled timer is the sole owner of turning the flag back off.
     }
   }, [zoomBy])
 
-  // ── Prevent iOS native scroll during move/resize gestures ──
+  // ── Prevent iOS native scroll during move/resize/item-move gestures ──
+  // touch-action:none on the scroll div is not enough on iOS Safari — it still
+  // momentum-scrolls a single-finger drag that started on a pin. Actively
+  // preventDefault-ing single-touch moves is what actually pins the canvas so the
+  // item-reposition drag doesn't fight the scroll.
   useEffect(() => {
     const el = scrollRef.current
-    if (!el || (!isMoving && !isResizing)) return
+    if (!el || (!isMoving && !isResizing && !itemMoveMode)) return
 
     const prevent = (e: TouchEvent) => {
       // Allow two-finger pinch through
@@ -1716,7 +1759,7 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
 
     el.addEventListener('touchmove', prevent, { passive: false })
     return () => el.removeEventListener('touchmove', prevent)
-  }, [isMoving, isResizing])
+  }, [isMoving, isResizing, itemMoveMode])
 
   // ── Computed canvas dimensions (pixel-based for infinite canvas) ──
   const contentW = vpSize.w * canvasScale

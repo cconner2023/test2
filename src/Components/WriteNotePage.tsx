@@ -741,6 +741,7 @@ export const WriteNotePage = ({
         </BaseDrawer>
         <PdfPreviewModal
             preview={sf600Preview ?? dd689Preview ?? null}
+            generating={sf600ExportStatus === 'generating' || exportStatus === 'generating'}
             onDownload={sf600Preview ? downloadSF600 : downloadDD689}
             onClose={sf600Preview ? clearSF600Preview : clearDD689Preview}
         />

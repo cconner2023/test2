@@ -80,8 +80,8 @@ export const PropertyLocationDetail = forwardRef<PropertyLocationDetailHandle, P
   const isMobile = useIsMobile()
   const [showPmcs, setShowPmcs] = useState(false)
   const [showDispatch, setShowDispatch] = useState(false)
-  const { exportDD1750, dd1750Preview, downloadDD1750, clearDD1750Preview } = useDD1750Export()
-  const { exportZoneLabels, zoneLabelPreview, downloadZoneLabels, clearZoneLabelPreview } = useZoneLabelExport()
+  const { exportDD1750, dd1750Preview, downloadDD1750, clearDD1750Preview, status: dd1750Status } = useDD1750Export()
+  const { exportZoneLabels, zoneLabelPreview, downloadZoneLabels, clearZoneLabelPreview, status: zoneLabelStatus } = useZoneLabelExport()
   const [showDD1750, setShowDD1750] = useState(false)
 
   // DD 1750 = the zone's contents, FLAT: top-level items physically in THIS zone
@@ -178,6 +178,7 @@ export const PropertyLocationDetail = forwardRef<PropertyLocationDetailHandle, P
           High z so it floats above the detail sheet on mobile. */}
       <PdfPreviewModal
         preview={dd1750Preview}
+        generating={dd1750Status === 'generating'}
         onDownload={downloadDD1750}
         onClose={clearDD1750Preview}
         zIndex={1600}
@@ -186,6 +187,7 @@ export const PropertyLocationDetail = forwardRef<PropertyLocationDetailHandle, P
       {/* Data Matrix label sheet for this zone (BCN-ZONE) — print + affix to the container. */}
       <PdfPreviewModal
         preview={zoneLabelPreview}
+        generating={zoneLabelStatus === 'generating'}
         onDownload={downloadZoneLabels}
         onClose={clearZoneLabelPreview}
         zIndex={1600}

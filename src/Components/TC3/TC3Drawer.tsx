@@ -126,11 +126,12 @@ export const TC3Drawer = memo(function TC3Drawer({ isVisible, onClose }: TC3Draw
             <div className="flex-1 min-w-0 h-full">
               <TC3CardColumn />
             </div>
-            {/* Right — docked detail pane; sub-editors portal in via containerRef. */}
+            {/* Right — docked detail pane; sub-editors render in directly
+                (EventDetailPanel-style) via a portal into paneRef. */}
             <div
               ref={paneRef}
-              className={`shrink-0 border-l border-primary/10 bg-themewhite3 relative transition-all duration-300 ${
-                detailOpen ? 'w-[400px] opacity-100' : 'w-0 opacity-0 overflow-hidden border-l-0'
+              className={`shrink-0 border-l border-primary/10 bg-themewhite3 flex flex-col transition-all duration-300 ${
+                detailOpen ? 'w-[380px] opacity-100' : 'w-0 opacity-0 overflow-hidden border-l-0'
               }`}
             />
           </div>

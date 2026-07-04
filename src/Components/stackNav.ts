@@ -33,8 +33,13 @@ export interface StackNav {
 export interface StackScreen {
   /** Header title — a string or a fn of this screen's params. */
   title?: string | ((params: any) => string)
-  /** The body content. */
-  render: (params: any, nav: StackNav) => ReactNode
+  /** When set, the underlying PreviewOverlay pins its search box above the body
+   *  and the screen's `render` receives the live filter string (3rd arg). Screens
+   *  without it render into the plain (non-searchable) body and get filter ''. */
+  searchPlaceholder?: string
+  /** The body content. Receives the search filter (3rd arg) when the screen
+   *  declares `searchPlaceholder`; otherwise ''. */
+  render: (params: any, nav: StackNav, filter: string) => ReactNode
   /** Footer left-pill slot (mirrors PreviewOverlay.footer). */
   footer?: ReactNode | ((params: any, nav: StackNav) => ReactNode)
   /** Footer right-pill slot — the success/confirm action (mirrors rightFooter). */

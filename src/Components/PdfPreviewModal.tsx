@@ -13,6 +13,10 @@ interface PdfPreviewModalProps {
    *  sheet (e.g. the shared ItemActionMenu on mobile), so the preview floats above it
    *  instead of inheriting a low default. Omit for the in-context call sites. */
   zIndex?: number
+  /** True while the PDF is still generating (before `preview` bytes arrive). Opens
+   *  the overlay immediately as a HUD puck that holds through generation, then morphs
+   *  into the full preview once the bytes land. Omit for an instant (non-morph) open. */
+  generating?: boolean
 }
 
 /**
@@ -24,7 +28,7 @@ interface PdfPreviewModalProps {
  * PdfPreviewModal for its call sites (WriteNotePage, ProviderNoteOutput,
  * PropertyDrawer) though it is no longer a centered Modal.
  */
-export function PdfPreviewModal({ preview, onDownload, onClose, zIndex }: PdfPreviewModalProps) {
+export function PdfPreviewModal({ preview, onDownload, onClose, zIndex, generating = false }: PdfPreviewModalProps) {
   const blobUrl = useMemo(() => {
     if (!preview) return null
     return URL.createObjectURL(new Blob([preview.bytes], { type: 'application/pdf' }))
@@ -38,13 +42,14 @@ export function PdfPreviewModal({ preview, onDownload, onClose, zIndex }: PdfPre
 
   return (
     <PreviewOverlay
-      isOpen={!!preview && !!blobUrl}
+      isOpen={generating || (!!preview && !!blobUrl)}
       onClose={onClose}
       anchorRect={null}
       zIndex={zIndex}
       title={preview?.filename ?? 'PDF'}
       maxWidth={672}
       previewMaxHeight="70dvh"
+      loading={generating || !blobUrl}
       rightFooter={
         <div className="bg-themewhite rounded-2xl px-1.5 py-1.5">
           <PillButton icon={Download} iconSize={16} accent="info" onClick={save} label="Save" />

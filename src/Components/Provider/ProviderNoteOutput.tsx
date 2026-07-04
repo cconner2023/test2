@@ -240,6 +240,7 @@ export function ProviderNoteOutput({
             </div>
             <PdfPreviewModal
                 preview={sf600Preview}
+                generating={sf600ExportStatus === 'generating'}
                 onDownload={downloadSF600}
                 onClose={clearSF600Preview}
             />

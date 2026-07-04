@@ -7,7 +7,8 @@ import { createContext, useContext, type RefObject } from 'react'
  * falls back to a bottom Sheet.
  */
 export interface TC3DetailValue {
-  /** The docked right-pane element PreviewOverlay portals into (position: relative). */
+  /** The docked right-pane element (flex flex-col) an open editor renders into
+   *  directly via createPortal — EventDetailPanel-style, not an overlay. */
   paneRef: RefObject<HTMLDivElement | null>
   /** Called by an open editor to drive the rail-collapse / pane-open transition. */
   registerDetail: (open: boolean) => void

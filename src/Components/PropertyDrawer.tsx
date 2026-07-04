@@ -62,7 +62,7 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
     const [pendingEnrollNew, setPendingEnrollNew] = useState<LocalPropertyItem | null>(null)
     const [showAddSheet, setShowAddSheet] = useState(false)
     const [showLabelSheet, setShowLabelSheet] = useState(false)
-    const { exportLabels, labelPreview, downloadLabels, clearLabelPreview } = usePropertyLabelExport()
+    const { exportLabels, labelPreview, downloadLabels, clearLabelPreview, status: labelExportStatus } = usePropertyLabelExport()
     const addItemTriggerRef = useRef<(() => void) | null>(null)
     const addLocationTriggerRef = useRef<(() => void) | null>(null)
     const openLocationsTriggerRef = useRef<(() => void) | null>(null)
@@ -383,6 +383,7 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
 
             <PdfPreviewModal
                 preview={labelPreview}
+                generating={labelExportStatus === 'generating'}
                 onDownload={downloadLabels}
                 onClose={clearLabelPreview}
             />

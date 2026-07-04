@@ -125,6 +125,11 @@ export const CanvasEditOverlay = memo(function CanvasEditOverlay({
   // Track target_ids removed by merge (so save handler can transfer items)
   const [mergedAwayIds, setMergedAwayIds] = useState<string[]>([])
   const containerRef = useRef<HTMLDivElement>(null)
+  // Records an empty-canvas press (not on a zone/handle) while NOT drawing, so a
+  // stationary tap on blank canvas deselects — the "deselect" gesture that was
+  // missing in edit mode (you could stack zone selections but never clear them by
+  // tapping away, leaving you stuck holding two zones).
+  const emptyDownRef = useRef<{ x: number; y: number } | null>(null)
 
   const toNorm = useCallback(
     (clientX: number, clientY: number) => {
@@ -160,8 +165,12 @@ export const CanvasEditOverlay = memo(function CanvasEditOverlay({
       const target = e.target as HTMLElement
       if (target.closest('[data-zone]') || target.closest('[data-handle]')) return
 
-      // Only draw when drawMode is active — otherwise let parent handle panning
-      if (!drawMode) return
+      // Only draw when drawMode is active — otherwise let parent handle panning.
+      // Record the press so a stationary tap on empty canvas can deselect.
+      if (!drawMode) {
+        emptyDownRef.current = { x: e.clientX, y: e.clientY }
+        return
+      }
 
       const { nx, ny } = toNorm(e.clientX, e.clientY)
       setDragAction({ type: 'draw', startX: nx, startY: ny, currentX: nx, currentY: ny })
@@ -228,7 +237,16 @@ export const CanvasEditOverlay = memo(function CanvasEditOverlay({
     [dragAction, toNorm],
   )
 
-  const handlePointerUp = useCallback(() => {
+  const handlePointerUp = useCallback((e: React.PointerEvent) => {
+    // Empty-canvas tap (no drag started) → clear the zone selection.
+    const ed = emptyDownRef.current
+    if (ed) {
+      emptyDownRef.current = null
+      const dx = Math.abs(e.clientX - ed.x)
+      const dy = Math.abs(e.clientY - ed.y)
+      if (dx < 8 && dy < 8 && selectedIndices.size > 0) clearSelection()
+    }
+
     if (!dragAction) return
 
     if (dragAction.type === 'draw') {
@@ -249,7 +267,7 @@ export const CanvasEditOverlay = memo(function CanvasEditOverlay({
     }
 
     setDragAction(null)
-  }, [dragAction, onDrawComplete])
+  }, [dragAction, onDrawComplete, selectedIndices, clearSelection])
 
   // Track zone pointer-down to distinguish tap (select) from drag (move)
   const zoneDownRef = useRef<{ idx: number; x: number; y: number; nx: number; ny: number } | null>(null)

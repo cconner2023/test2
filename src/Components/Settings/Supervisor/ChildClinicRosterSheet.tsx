@@ -50,7 +50,7 @@ export function ChildClinicRosterSheet({
 
   const refresh = useCallback(async () => {
     const res = await listClinicMembers(clinicId)
-    if (res.success) setMembers(res.data.members)
+    if (res.success) setMembers(res.members)
     setLoading(false)
   }, [clinicId])
 
@@ -70,7 +70,7 @@ export function ChildClinicRosterSheet({
   }, [removeTarget, clinicId])
 
   return (
-    <Sheet isOpen onClose={onClose} title={clinicName} height="snap" zIndex={1250}>
+    <Sheet isOpen onClose={onClose} title={clinicName} loading={loading} zIndex={1250}>
       <div className="relative px-4 pb-6 pt-2">
         <ActionPill ref={addPillRef} shadow="sm" placement="overlay">
           <ActionButton
@@ -86,9 +86,7 @@ export function ChildClinicRosterSheet({
           Roster
         </p>
 
-        {loading ? (
-          <p className="text-sm text-tertiary py-8 text-center">Loading…</p>
-        ) : members.length === 0 ? (
+        {members.length === 0 ? (
           <p className="text-sm text-tertiary py-8 text-center">No members assigned.</p>
         ) : (
           <div className="rounded-2xl bg-themewhite2 overflow-hidden">
