@@ -1,12 +1,11 @@
-import { useState, useRef, useMemo, useLayoutEffect } from 'react'
-import { PreviewOverlay } from './PreviewOverlay'
-import { StackBody } from './StackBody'
 import { StackNavContext, type StackNav, type StackScreen } from './stackNav'
+import { PreviewOverlay } from './PreviewOverlay'
+import { useStack } from './useStack'
 
 export type { StackNav, StackScreen } from './stackNav'
 
 /**
- * OverlayStack — a navigation-stack ("morph") overlay primitive.
+ * OverlayStack — the PreviewOverlay-shelled drill-down ("morph") overlay.
  *
  * The counterpart to OverlayStackContext's z-STACKING: where that layers separate
  * overlays on top of each other (correct for INTERRUPTS — a confirm over a form,
@@ -15,10 +14,11 @@ export type { StackNav, StackScreen } from './stackNav'
  * → its detail slides in over the same card; back chevron walks out. No dim-on-dim,
  * no nested z-index, no per-level `onBack` recompute.
  *
- * Built ON TOP of PreviewOverlay — it reuses that card's header (title + back + X),
- * footer/rightFooter pill slots and scroll area, and only swaps the body content
- * with a direction-aware slide + height morph (transform/opacity + height — the
- * iOS-Safari-safe set; WAAPI, no global keyframes).
+ * The stack navigation itself lives in the shell-free `useStack` engine; this
+ * component is just its PreviewOverlay SHELL — it reuses that card's header (title
+ * + back + X), footer/rightFooter pill slots and scroll area, and drops the
+ * engine's morphing `body` into it. The bottom-Sheet shell (SheetStack) drives the
+ * same engine, so the two surfaces morph identically.
  *
  * Screens are declared as a `key → StackScreen` map. Each screen's chrome
  * (title/footer/rightFooter/headerActions) is read fresh every render, so screens
@@ -34,11 +34,6 @@ export type { StackNav, StackScreen } from './stackNav'
  * DispatchSheet, PmcsSheet, and TemplateBuilder (recursive — screens keyed by a
  * path into the node tree).
  */
-
-/** A frame may carry its OWN screen (ad-hoc, via nav.pushScreen) — when present it
- *  wins over the host-declared `screens[key]` lookup so leaves can drill without the
- *  host pre-declaring them. */
-interface Frame { key: string; params: unknown; screen?: StackScreen }
 
 interface OverlayStackProps {
   isOpen: boolean
@@ -66,85 +61,38 @@ interface OverlayStackProps {
 export function OverlayStack({
   isOpen, onClose, initial, screens, containerRef, anchorRect = null, navRef, maxWidth, previewMaxHeight, zIndex, loading, hudSize,
 }: OverlayStackProps) {
-  const [stack, setStack] = useState<Frame[]>([{ key: initial.key, params: initial.params }])
-  const [dir, setDir] = useState<1 | -1>(1)
-  const adHocId = useRef(0)
+  const stack = useStack({ isOpen, initial, screens, navRef })
 
-  // Restore the root screen whenever the overlay (re)opens — the host's own
-  // open/close state owns lifecycle, the stack just resets to its entry point.
-  const initialKey = initial.key
-  useLayoutEffect(() => {
-    if (isOpen) { setStack([{ key: initial.key, params: initial.params }]); setDir(1) }
-    // initial is a fresh literal each render; key the reset on isOpen + the root key.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, initialKey])
-
-  const nav: StackNav = useMemo(() => ({
-    push: (key, params) => { setDir(1); setStack(s => [...s, { key, params }]) },
-    replace: (key, params) => { setDir(1); setStack(s => [...s.slice(0, -1), { key, params }]) },
-    pushScreen: (screen, params) => {
-      const key = `__adhoc_${++adHocId.current}`
-      setDir(1); setStack(s => [...s, { key, params, screen }])
-    },
-    pop: () => { setDir(-1); setStack(s => (s.length > 1 ? s.slice(0, -1) : s)) },
-    reset: () => { setDir(-1); setStack(s => (s.length > 1 ? [s[0]] : s)) },
-    depth: stack.length,
-  }), [stack.length])
-
-  // Expose the live nav for handler/async-driven navigation in the host.
-  useLayoutEffect(() => {
-    if (navRef) navRef.current = nav
-  }, [navRef, nav])
-
-  const top = stack[stack.length - 1]
-  const screen = top.screen ?? screens[top.key]
-  if (!screen) return null
-
-  const resolve = <T,>(v: T | ((p: any, n: StackNav) => T)): T =>
-    (typeof v === 'function' ? (v as (p: any, n: StackNav) => T)(top.params, nav) : v)
-
-  const title = typeof screen.title === 'function' ? screen.title(top.params) : screen.title
-  const footer = resolve(screen.footer)
-  const rightFooter = resolve(screen.rightFooter)
-  const headerActions = resolve(screen.headerActions)
-
-  const canBack = stack.length > 1
-  const onBack = screen.onBack
-    ? () => screen.onBack!(nav)
-    : (canBack ? nav.pop : undefined)
+  // No resolvable screen (bad key + no ad-hoc frame) → render nothing, matching
+  // the pre-extraction behavior (the card never mounted in that state).
+  if (!stack.hasScreen) return null
 
   // Searchable screens route through PreviewOverlay's `preview` slot so the card
   // pins its search box above the morphing body and feeds the live filter into
-  // render(); plain screens render into `children`. Either way the body is the
-  // same StackBody morph layer.
-  const searchable = !!screen.searchPlaceholder
-  const body = (filter: string) => (
-    <StackBody screenKey={top.key} dir={dir}>
-      {screen.render(top.params, nav, filter)}
-    </StackBody>
-  )
+  // render(); plain screens render into `children`.
+  const searchable = !!stack.searchPlaceholder
 
   return (
-    <StackNavContext.Provider value={nav}>
+    <StackNavContext.Provider value={stack.nav}>
       <PreviewOverlay
         isOpen={isOpen}
         onClose={onClose}
         anchorRect={anchorRect}
         containerRef={containerRef}
-        title={title}
-        onBack={onBack}
-        headerActions={headerActions}
-        footer={footer}
-        rightFooter={rightFooter}
-        maxWidth={screen.maxWidth ?? maxWidth}
-        previewMaxHeight={screen.previewMaxHeight ?? previewMaxHeight}
-        searchPlaceholder={screen.searchPlaceholder}
+        title={stack.title}
+        onBack={stack.onBack}
+        headerActions={stack.headerActions}
+        footer={stack.footer}
+        rightFooter={stack.rightFooter}
+        maxWidth={stack.screenMaxWidth ?? maxWidth}
+        previewMaxHeight={stack.screenPreviewMaxHeight ?? previewMaxHeight}
+        searchPlaceholder={stack.searchPlaceholder}
         zIndex={zIndex}
         loading={loading}
         hudSize={hudSize}
-        preview={searchable ? (filter) => body(filter) : undefined}
+        preview={searchable ? (filter) => stack.body(filter) : undefined}
       >
-        {searchable ? null : body('')}
+        {searchable ? null : stack.body('')}
       </PreviewOverlay>
     </StackNavContext.Provider>
   )

@@ -244,7 +244,7 @@ const PickerRows = ({ options, isSelected, onSelect, ariaLabel, multi }: {
           role="option"
           aria-selected={selected}
           onClick={() => onSelect(opt)}
-          className={`w-full text-left px-3.5 py-2 text-sm hover:bg-primary/5 active:bg-primary/10 transition-colors flex items-center justify-between ${
+          className={`w-full text-left px-4 py-2 text-sm hover:bg-primary/5 active:bg-primary/10 transition-colors flex items-center justify-between ${
             selected ? 'text-themeblue2 font-medium' : 'text-primary'
           }`}
         >

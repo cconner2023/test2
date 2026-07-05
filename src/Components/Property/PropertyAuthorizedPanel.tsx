@@ -85,51 +85,34 @@ export function PropertyAuthorizedPanel({ onEdit, onView }: PropertyAuthorizedPa
       {shownGroups.map((g) => (
         <Section key={g.skoId ?? '__top__'} title={g.skoName ?? 'Top-level items'}>
           <SectionCard>
-            <table className="w-full text-[10pt]">
-              <thead>
-                <tr className="border-b border-themeblue3/10">
-                  <th className="text-left px-3 py-2 text-tertiary font-medium">Item</th>
-                  <th className="text-right px-3 py-2 text-tertiary font-medium">Auth</th>
-                  <th className="text-right px-3 py-2 text-tertiary font-medium">On hand</th>
-                  <th className="w-8" />
-                </tr>
-              </thead>
-              <tbody>
-                {g.lines.map((l) => (
-                  <tr
-                    key={l.itemId}
-                    onClick={() => openEdit(l.itemId)}
-                    className="border-b border-themeblue3/10 last:border-b-0 cursor-pointer active:bg-primary/5 transition-colors"
-                  >
-                    <td className="px-3 py-2 text-primary truncate max-w-[150px]">
-                      {l.name}
-                      {l.lin && <span className="block text-[9pt] text-tertiary">LIN {l.lin}</span>}
-                      {l.nsn && <span className="block text-[9pt] text-tertiary">NSN {l.nsn}</span>}
-                    </td>
-                    <td className="px-3 py-2 text-right text-primary">
-                      {l.authorized}
-                      {l.unitOfIssue && <span className="text-[9pt] uppercase text-tertiary"> {l.unitOfIssue}</span>}
-                      {/* Pack units (PR/SET/BOT) aren't 1:1 with individually-counted on-hand —
-                          show the base-unit equivalent so the two columns are comparable. */}
-                      {l.packSize != null && l.packSize > 1 && (
-                        <span className="block text-[9pt] text-tertiary">= {l.authorizedBase} EA</span>
-                      )}
-                    </td>
-                    <td className="px-3 py-2 text-secondary text-right">{l.onHand}<span className="text-[9pt] text-tertiary"> EA</span></td>
-                    <td className="px-1 py-2 text-right">
-                      <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); openRowMenu(l.itemId, (e.currentTarget as HTMLElement).getBoundingClientRect()) }}
-                        aria-label="Line actions"
-                        className="w-7 h-7 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
-                      >
-                        <MoreHorizontal size={16} />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            {g.lines.map((l) => (
+              <div
+                key={l.itemId}
+                role="button"
+                tabIndex={0}
+                onClick={() => openEdit(l.itemId)}
+                className="group flex items-center gap-2 py-2 px-3 border-b border-themeblue3/10 last:border-b-0 cursor-pointer active:bg-primary/5 transition-colors"
+              >
+                <div className="min-w-0 flex-1">
+                  <span className="block text-[10pt] text-primary truncate">{l.name}</span>
+                  {l.lin && <span className="block text-[9pt] text-tertiary">LIN {l.lin}</span>}
+                  {l.nsn && <span className="block text-[9pt] text-tertiary">NSN {l.nsn}</span>}
+                </div>
+                {/* Authorized / on-hand, both in base (EA) units so the pair is directly
+                    comparable (pack authorizations are converted to base). */}
+                <span className="text-[10pt] text-tertiary tabular-nums shrink-0">
+                  {l.authorizedBase} / {l.onHand}
+                </span>
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); openRowMenu(l.itemId, (e.currentTarget as HTMLElement).getBoundingClientRect()) }}
+                  aria-label="Line actions"
+                  className="w-7 h-7 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all shrink-0"
+                >
+                  <MoreHorizontal size={15} />
+                </button>
+              </div>
+            ))}
           </SectionCard>
         </Section>
       ))}

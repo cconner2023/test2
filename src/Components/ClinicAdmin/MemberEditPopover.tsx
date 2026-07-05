@@ -58,6 +58,14 @@ interface MemberEditPopoverProps {
    * above the code input so the supervisor doesn't have to copy a code.
    */
   associatedClinics?: { clinicId: string; clinicName: string; uics: string[]; location: string | null }[]
+  /**
+   * Hide the cluster-membership actions (Loans · Transfer · Remove), leaving
+   * profile edit + password/email reset. Used for the SUBORDINATE-cluster edit
+   * surface, where membership moves belong to the home-clinic supervisor and
+   * removal is handled by the roster's own swipe (subtree-safe RPC). The profile
+   * + password + email RPCs are echelon-subtree authorized; loans/transfer aren't.
+   */
+  hideClusterActions?: boolean
   onClose: () => void
   /** Called after rank/roles save succeeds OR after delete/loan/transfer succeeds */
   onChanged: () => void
@@ -72,6 +80,7 @@ export function MemberEditPopover({
   loanState = 'home',
   loans,
   associatedClinics,
+  hideClusterActions = false,
   onClose,
   onChanged,
 }: MemberEditPopoverProps) {
@@ -552,16 +561,18 @@ export function MemberEditPopover({
   // ConfirmDialog stays a z-stacked INTERRUPT, rendered inside its screen body so
   // OverlayStackContext floors it above the card. Back clears the screen's flag and
   // pops; the header X closes the whole stack (handleClose resets all flags).
-  const detailFooter = profile ? (
+  // With cluster actions hidden, edit mode leaves no footer buttons (Reset is
+  // non-edit-only) — drop the footer entirely so no empty shadow box floats.
+  const detailFooter = profile && !(hideClusterActions && editMode) ? (
     <div className="flex gap-1 bg-themewhite rounded-2xl shadow-lg px-1.5 py-1.5">
-      {!editMode && (
+      {!hideClusterActions && !editMode && (
         <ActionButton
           icon={Send}
           label={activeLoans.length > 0 ? `Loans (${activeLoans.length}/4)` : 'Loans'}
           onClick={() => { setLoansMode(true); navRef.current?.push('loans') }}
         />
       )}
-      {loanState !== 'loaned-in' && !editMode && (
+      {!hideClusterActions && loanState !== 'loaned-in' && !editMode && (
         <ActionButton icon={ArrowRightLeft} label="Transfer" onClick={() => { setMoveMode('transfer'); navRef.current?.push('transfer') }} />
       )}
       {!editMode && (
@@ -576,12 +587,14 @@ export function MemberEditPopover({
           }}
         />
       )}
-      <ActionButton
-        icon={Trash2}
-        label={removeLabel}
-        variant="danger"
-        onClick={() => setConfirmDelete(true)}
-      />
+      {!hideClusterActions && (
+        <ActionButton
+          icon={Trash2}
+          label={removeLabel}
+          variant="danger"
+          onClick={() => setConfirmDelete(true)}
+        />
+      )}
     </div>
   ) : undefined
 

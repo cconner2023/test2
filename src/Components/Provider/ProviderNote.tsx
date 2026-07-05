@@ -15,6 +15,9 @@ import type { TextExpander } from '../../Data/User';
 import type { ImportedMedicNote } from '../ProviderDrawer';
 import type { PEState } from '../../Types/PETypes';
 
+/** The four editable provider-note sections — the pane-editor routing key. */
+export type ProviderSection = 'hpi' | 'pe' | 'assessment' | 'plan';
+
 interface ProviderNoteProps {
   hpiNote: string;
   setHpiNote: (note: string) => void;
@@ -32,6 +35,12 @@ interface ProviderNoteProps {
   setPlanNote: (note: string) => void;
   onNext: () => void;
   importedMedicNote: ImportedMedicNote | null;
+  /** Desktop 3-pane: render sections as read-only summary cards that route editing
+   *  into the right pane (the live editors mount there). Omit/false on mobile, where
+   *  each section hosts its own inline editor + lifted PreviewOverlay. */
+  summaryMode?: boolean;
+  /** Desktop: open a section's editor in the right pane (summaryMode only). */
+  onOpenSection?: (section: ProviderSection) => void;
 }
 
 const SECTION_LABEL_CLASS = 'text-[9pt] font-semibold text-primary uppercase tracking-wider';
@@ -134,6 +143,45 @@ function TextSectionCard({ addLabel, value, onChange, expanders, placeholder, da
   );
 }
 
+/**
+ * Desktop summary card for one section (summaryMode). Shows the current value (or
+ * an EmptyState) and routes a tap into the right-pane editor. The center keeps its
+ * structure; the live editor lives in the pane and this card refreshes on save.
+ */
+function SummarySection({
+  label, value, addLabel, medicName, medicText, onOpen, dataTour,
+}: {
+  label: string;
+  value: string;
+  addLabel: string;
+  medicName?: string;
+  medicText?: string;
+  onOpen: () => void;
+  dataTour?: string;
+}) {
+  return (
+    <div className="space-y-3 md:space-y-2" data-tour={dataTour}>
+      <p className={SECTION_LABEL_CLASS}>{label}</p>
+      {medicText && <MedicContextCard name={medicName ?? ''} text={medicText} />}
+      {value ? (
+        <div
+          onClick={onOpen}
+          className={`${CARD_CLASS} cursor-pointer active:scale-[0.99] transition-all`}
+        >
+          <div className="px-4 py-3 text-sm text-primary whitespace-pre-wrap max-h-64 overflow-y-auto">
+            {value}
+          </div>
+        </div>
+      ) : (
+        <EmptyState
+          title={addLabel}
+          action={{ icon: Plus, label: addLabel, onClick: () => onOpen() }}
+        />
+      )}
+    </div>
+  );
+}
+
 export function ProviderNote({
   hpiNote,
   setHpiNote,
@@ -151,6 +199,8 @@ export function ProviderNote({
   setPlanNote,
   onNext,
   importedMedicNote,
+  summaryMode = false,
+  onOpenSection,
 }: ProviderNoteProps) {
 
   const { expanders, orderTags, instructionTags, orderSets } = useMergedNoteContent();
@@ -180,6 +230,128 @@ export function ProviderNote({
   const [planPickerAnchor, setPlanPickerAnchor] = useState<DOMRect | null>(null);
   const planHasContent = !!planNote;
 
+  // PE + Plan sections — SHARED across the mobile full editor and the desktop
+  // summary layout. They stay live-mounted in the center on both platforms so the
+  // exam/plan text (peNote/planNote) stays synced from a template apply; only their
+  // block/category sub-pickers float as overlays. (HPI/Assessment, plain textareas,
+  // route into the right pane on desktop instead — see summaryMode below.)
+  const peSection = (
+    <div className="space-y-3 md:space-y-2" data-tour="provider-pe">
+      <p className={SECTION_LABEL_CLASS}>Physical Exam</p>
+      {importedMedicNote?.medicPe && (
+        <MedicContextCard name={importedMedicNote.medicName} text={importedMedicNote.medicPe} />
+      )}
+      {/* Always-mounted PE — wrapper is visibility-only. PhysicalExam owns its own
+          bordered chrome + placement="overlay" action pill; wrapping in CARD_CLASS
+          here would double-chrome and clip the negative-translated pill. */}
+      <div style={peHasContent ? undefined : { display: 'none' }} aria-hidden={!peHasContent}>
+        <PhysicalExam
+          key={peResetKey}
+          initialText={peNote}
+          initialState={peState}
+          onChange={setPeNote}
+          onStateChange={onPeStateChange}
+          colors={getColorClasses('routine')}
+          symptomCode="A-1"
+          mode="template"
+          templateBlockKeys={selectedBlockKeys}
+          onBlockKeysChange={onBlockKeysChange}
+          expanders={expanders}
+          pickerOpenSignal={pePickerSignal}
+          pickerOpenAnchor={pePickerAnchor}
+        />
+      </div>
+      {!peHasContent && (
+        <EmptyState
+          title="Add physical exam"
+          action={{
+            icon: Plus,
+            label: 'Add physical exam',
+            onClick: (anchor) => {
+              setPePickerAnchor(anchor.getBoundingClientRect());
+              setPePickerSignal(s => s + 1);
+            },
+          }}
+        />
+      )}
+    </div>
+  );
+
+  const planSection = (
+    <div className="space-y-3 md:space-y-2" data-tour="provider-plan">
+      <p className={SECTION_LABEL_CLASS}>Plan</p>
+      {importedMedicNote?.medicPlan && (
+        <MedicContextCard name={importedMedicNote.medicName} text={importedMedicNote.medicPlan} />
+      )}
+      {/* Always-mounted Plan — wrapper visibility-only. Plan owns its own bordered
+          chrome + overlay pill; CARD_CLASS here would double-chrome and clip. */}
+      <div style={planHasContent ? undefined : { display: 'none' }} aria-hidden={!planHasContent}>
+        <Plan
+          key={planResetKey}
+          orderTags={orderTags}
+          instructionTags={instructionTags}
+          orderSets={orderSets}
+          initialText={planNote}
+          onChange={setPlanNote}
+          expanders={expanders}
+          pickerOpenSignal={planPickerSignal}
+          pickerOpenAnchor={planPickerAnchor}
+        />
+      </div>
+      {!planHasContent && (
+        <EmptyState
+          title="Add plan"
+          action={{
+            icon: Plus,
+            label: 'Add plan',
+            onClick: (anchor) => {
+              setPlanPickerAnchor(anchor.getBoundingClientRect());
+              setPlanPickerSignal(s => s + 1);
+            },
+          }}
+        />
+      )}
+    </div>
+  );
+
+  // ── Desktop 3-pane: HPI + Assessment (plain text) route into the right pane;
+  //    PE + Plan stay live inline. The center keeps its structure and refreshes
+  //    from pane edits (they bind to the same lifted state). ──
+  if (summaryMode) {
+    const open = (s: ProviderSection) => onOpenSection?.(s);
+    return (
+      <div className="space-y-4 md:space-y-3">
+        {piiWarnings.length > 0 && <PIIWarningBanner warnings={piiWarnings} />}
+        <SummarySection
+          label="History of Present Illness" addLabel="Add HPI"
+          value={hpiNote}
+          medicName={importedMedicNote?.medicName} medicText={importedMedicNote?.medicHpi}
+          onOpen={() => open('hpi')} dataTour="provider-hpi"
+        />
+        {peSection}
+        <SummarySection
+          label="Assessment" addLabel="Add assessment"
+          value={assessmentNote}
+          medicName={importedMedicNote?.medicName} medicText={importedMedicNote?.medicAssessment}
+          onOpen={() => open('assessment')} dataTour="provider-assessment"
+        />
+        {planSection}
+        <div className="flex items-center justify-end pt-4">
+          <ActionPill>
+            <button
+              onClick={onNext}
+              data-tour="provider-generate"
+              aria-label="Next"
+              className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 active:scale-95 transition-all bg-themeblue2 text-white"
+            >
+              <ChevronRight className="w-5 h-5" />
+            </button>
+          </ActionPill>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4 md:space-y-3">
       {piiWarnings.length > 0 && <PIIWarningBanner warnings={piiWarnings} />}
@@ -200,48 +372,7 @@ export function ProviderNote({
       </div>
 
       {/* ── Physical Exam ─────────────────────────────────────── */}
-      <div className="space-y-3 md:space-y-2" data-tour="provider-pe">
-        <p className={SECTION_LABEL_CLASS}>Physical Exam</p>
-        {importedMedicNote?.medicPe && (
-          <MedicContextCard name={importedMedicNote.medicName} text={importedMedicNote.medicPe} />
-        )}
-        {/* Always-mounted PE — wrapper is visibility-only. PhysicalExam owns its own
-            bordered chrome + placement="overlay" action pill; wrapping in CARD_CLASS
-            here would double-chrome and clip the negative-translated pill. */}
-        <div
-          style={peHasContent ? undefined : { display: 'none' }}
-          aria-hidden={!peHasContent}
-        >
-          <PhysicalExam
-            key={peResetKey}
-            initialText={peNote}
-            initialState={peState}
-            onChange={setPeNote}
-            onStateChange={onPeStateChange}
-            colors={getColorClasses('routine')}
-            symptomCode="A-1"
-            mode="template"
-            templateBlockKeys={selectedBlockKeys}
-            onBlockKeysChange={onBlockKeysChange}
-            expanders={expanders}
-            pickerOpenSignal={pePickerSignal}
-            pickerOpenAnchor={pePickerAnchor}
-          />
-        </div>
-        {!peHasContent && (
-          <EmptyState
-            title="Add physical exam"
-            action={{
-              icon: Plus,
-              label: 'Add physical exam',
-              onClick: (anchor) => {
-                setPePickerAnchor(anchor.getBoundingClientRect());
-                setPePickerSignal(s => s + 1);
-              },
-            }}
-          />
-        )}
-      </div>
+      {peSection}
 
       {/* ── Assessment ────────────────────────────────────────── */}
       <div className="space-y-3 md:space-y-2" data-tour="provider-assessment">
@@ -259,43 +390,7 @@ export function ProviderNote({
       </div>
 
       {/* ── Plan ─────────────────────────────────────────────── */}
-      <div className="space-y-3 md:space-y-2" data-tour="provider-plan">
-        <p className={SECTION_LABEL_CLASS}>Plan</p>
-        {importedMedicNote?.medicPlan && (
-          <MedicContextCard name={importedMedicNote.medicName} text={importedMedicNote.medicPlan} />
-        )}
-        {/* Always-mounted Plan — wrapper visibility-only. Plan owns its own bordered
-            chrome + overlay pill; CARD_CLASS here would double-chrome and clip. */}
-        <div
-          style={planHasContent ? undefined : { display: 'none' }}
-          aria-hidden={!planHasContent}
-        >
-          <Plan
-            key={planResetKey}
-            orderTags={orderTags}
-            instructionTags={instructionTags}
-            orderSets={orderSets}
-            initialText={planNote}
-            onChange={setPlanNote}
-            expanders={expanders}
-            pickerOpenSignal={planPickerSignal}
-            pickerOpenAnchor={planPickerAnchor}
-          />
-        </div>
-        {!planHasContent && (
-          <EmptyState
-            title="Add plan"
-            action={{
-              icon: Plus,
-              label: 'Add plan',
-              onClick: (anchor) => {
-                setPlanPickerAnchor(anchor.getBoundingClientRect());
-                setPlanPickerSignal(s => s + 1);
-              },
-            }}
-          />
-        )}
-      </div>
+      {planSection}
 
       <div className="flex items-center justify-end pt-4">
         <ActionPill>

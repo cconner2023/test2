@@ -53,6 +53,7 @@ import { MGRSConverter } from './MGRSConverter';
 import { MapSettingsDrawer, MapSettingsBody } from './MapSettingsDrawer';
 import { FeatureEditor } from './FeatureEditor';
 import { MapOverlayTree } from './MapOverlayTree';
+import { MapOverlayBreadcrumb } from './MapOverlayBreadcrumb';
 import { floorLabel } from './FloorSelector';
 import { OverlayEventPicker } from './OverlayEventPicker';
 import { useCalendarWrite } from '../../Hooks/useCalendarWrite';
@@ -1718,7 +1719,23 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
     setSelectedFeatureId(null);
     setIsFeatureEditMode(false);
     if (drawMode === 'drag') handleModeChange('drag');
+    // X = "close everything." On mobile the tree + feature detail are ONE
+    // morphing sheet (property parity), so also drop the tree flag or the sheet
+    // would fall back to its tree step instead of dismissing.
+    setShowMobileTree(false);
   }, [drawMode, handleModeChange]);
+
+  // Parent-overlay breadcrumb walk-up: deselect the feature and land back on the
+  // level above it — the overlay tree. Mobile morphs the SAME sheet back to its
+  // tree step (setShowMobileTree(true)); desktop just deselects, which collapses
+  // the right pane and reveals the rail tree. Mirrors property's root-crumb →
+  // tree-step walk (handleBreadcrumbNavigate(null)).
+  const handleFeatureBreadcrumbUp = useCallback(() => {
+    setSelectedFeatureId(null);
+    setIsFeatureEditMode(false);
+    if (drawMode === 'drag') handleModeChange('drag');
+    if (isMobile) setShowMobileTree(true);
+  }, [drawMode, handleModeChange, isMobile]);
 
   // ── Delete selected ──
   const handleDeleteSelected = useCallback(() => {
@@ -1943,6 +1960,12 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
   const activeOverlayHidden = overlayId != null && !visibleOverlayIds.has(overlayId);
   const renderedFeatures = activeOverlayHidden ? [] : features;
 
+  // Mobile: the overlay tree + selected-feature editor are ONE morphing sheet
+  // (property tree-walk parity). `mobileTreeStep` = the sheet is open at its tree
+  // step (nothing selected); a selected feature morphs it into the feature detail,
+  // whose header breadcrumb walks back up to here. Feature detail takes precedence.
+  const mobileTreeStep = showMobileTree && !selectedFeature;
+
   const headerTitle = overlayName.trim() ? `Map · ${overlayName.trim()}` : 'Map';
 
   // The map drawer HEADER owns the one real search input (mobile + desktop).
@@ -1979,7 +2002,13 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
               <HeaderPill>
                 {searchFocused
                   ? <PillButton icon={ChevronLeft} onClick={() => setSearchFocused(false)} label="Back" />
-                  : <PillButton icon={Layers} onClick={() => setShowMobileTree(prev => !prev)} label="Overlays & settings" />}
+                  : <PillButton icon={Layers} onClick={() => {
+                      // Merged morphing sheet: if a feature is open, walk up to the
+                      // tree step (deselect + show tree) rather than leaving the
+                      // pill inert; otherwise toggle the tree step.
+                      if (selectedFeature) { handleFeatureBreadcrumbUp(); return; }
+                      setShowMobileTree(prev => !prev);
+                    }} label="Overlays & settings" />}
               </HeaderPill>
               <div className="flex-1 min-w-0">{searchInputEl}</div>
               <HeaderPill>
@@ -2209,134 +2238,156 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                 </Sheet>
               )}
 
-              {/* ── Mobile: overlay tree drawer. Replaces the desktop left rail —
-                  layers button in the header opens it; selecting an overlay/feature
-                  closes it so the map stays visible. ── */}
+              {/* ── Mobile: ONE morphing sheet = overlay tree (step 0) ↔ selected-
+                  feature detail (property tree-walk parity). The Layers header pill
+                  opens it at its tree step; selecting a feature MORPHS the same sheet
+                  into that feature's detail (no dismiss-and-reopen); the detail
+                  header's parent-overlay breadcrumb walks back up to the tree step.
+                  Tree step 60dvh · feature detail 40dvh + backdrop none so the map
+                  stays live for "Edit & move" drags. X = close everything. ── */}
               {isMobile && (
                 <Sheet
-                  isOpen={showMobileTree}
-                  onClose={() => setShowMobileTree(false)}
-                  title="Overlays & settings"
-                  height="fit"
-                  // No live-map interaction behind this one (unlike the
-                  // feature/temp editors), so it can take more height.
-                  maxHeight={60}
-                  // Opens nested over the map's BaseDrawer (~z-1010); fit's
-                  // default Z.SHEET(50) would trap it underneath.
-                  zIndex={1200}
-                >
-                  <div className="flex flex-col">
-                    <section className="shrink-0">
-                      <p className="px-4 pt-3 pb-1 text-[9pt] tracking-widest uppercase text-tertiary">Settings</p>
-                      <MapSettingsBody
-                        showGrid={showGrid}
-                        onToggleGrid={() => setShowGrid(prev => !prev)}
-                      />
-                    </section>
-                    <section>
-                      <p className="px-4 pt-3 pb-1 text-[9pt] tracking-widest uppercase text-tertiary">Overlays</p>
-                      <MapOverlayTree
-                        overlays={overlays}
-                        activeOverlayId={overlayId}
-                        visibleOverlayIds={visibleOverlayIds}
-                        selectedFeatureId={selectedFeatureId}
-                        onMakeActive={(o) => { handleOpenOverlay(o as MapOverlay); setShowMobileTree(false); }}
-                        onToggleVisible={handleToggleVisible}
-                        onRenameOverlay={handleRenameOverlay}
-                        onDeleteOverlay={handleDeleteOverlay}
-                        onSelectFeature={(feature, ovId) => { handleSelectFeatureFromTree(feature, ovId); setShowMobileTree(false); }}
-                        onNewOverlay={() => { handleNewOverlay(); setShowMobileTree(false); }}
-                        tileMeta={tileMetaMap}
-                        downloadingId={downloadingId}
-                        onDownloadTiles={(o) => handleDownloadTiles(o as MapOverlay)}
-                        onEvictTiles={handleEvictTiles}
-                        linkedOverlayIds={linkedOverlayIds}
-                        onJumpToLinkedEvent={(id) => { handleJumpToLinkedEvent(id); setShowMobileTree(false); }}
-                        onOpenLinkPicker={handleOpenLinkPicker}
-                        onUnlinkEvent={handleUnlinkEvent}
-                        onOpenLinksEditor={handleOpenLinksEditor}
-                        onOpenFeatureLinksEditor={(ov, fid, anchor) => { handleOpenFeatureLinksEditor(ov, fid, anchor); setShowMobileTree(false); }}
-                        onDeleteFeature={(ov, fid) => { handleDeleteFeatureFromTree(ov, fid); setShowMobileTree(false); }}
-                        onCopyFeatureToOverlay={(ov, fid) => { handleCopyFeatureToOverlay(ov, fid); setShowMobileTree(false); }}
-                        onAddFloor={() => { handleAddFloor(); setShowMobileTree(false); }}
-                      />
-                    </section>
-                  </div>
-                </Sheet>
-              )}
-
-              {/* ── Mobile: selected-feature editor as a Sheet. Capped at 40dvh
-                  with no backdrop so the map stays visible/interactive.
-                  X closes (clears selection). ── */}
-              {isMobile && (
-                <Sheet
-                  isOpen={!!selectedFeature}
+                  isOpen={showMobileTree || !!selectedFeature}
                   onClose={handleCloseFeatureEditor}
                   loading={savingOverlay}
                   height="fit"
-                  // Cap at 40dvh + no backdrop so the map stays visible and
-                  // interactive while "Edit & move" lets the user drag points.
-                  maxHeight={40}
+                  maxHeight={mobileTreeStep ? 60 : 40}
+                  // 'none' throughout so the morph is seamless and the canvas stays
+                  // interactive at both steps (tapping a feature behind the tree
+                  // morphs it forward — same as property's tree-step backdrop drop).
                   backdrop="none"
+                  // Opens nested over the map's BaseDrawer (~z-1010); fit's default
+                  // Z.SHEET(50) would trap it underneath.
                   zIndex={1200}
-                  // Title shown in READ mode only. Edit mode hides it so the
-                  // body TextInput is the single source of truth for the name.
-                  title={isFeatureEditMode
-                    ? ''
-                    : (selectedFeature?.label
-                      || (selectedFeature?.type === 'waypoint' ? 'Waypoint'
-                        : selectedFeature?.type === 'route' ? 'Route'
-                        : 'Area'))}
-                  leftContent={isFeatureEditMode ? (
-                    <button
-                      type="button"
-                      onClick={handleToggleFeatureEditMode}
-                      aria-label="Back"
-                      className="w-9 h-9 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
-                    >
-                      <ChevronLeft size={20} />
-                    </button>
-                  ) : (
-                    <HeaderPill>
-                      <span className="inline-flex" onClick={openFeatureMenu}>
-                        <PillButton
-                          icon={MoreHorizontal}
-                          iconSize={18}
-                          onClick={() => {}}
-                          label="More actions"
+                  // Tree step → plain string title. Feature READ mode → titleNode
+                  // (breadcrumb + name). Feature EDIT mode → title '' so the body
+                  // TextInput is the single source of truth for the name.
+                  title={
+                    mobileTreeStep
+                      ? 'Overlays & settings'
+                      : isFeatureEditMode
+                        ? ''
+                        : (selectedFeature?.label
+                          || (selectedFeature?.type === 'waypoint' ? 'Waypoint'
+                            : selectedFeature?.type === 'route' ? 'Route'
+                            : 'Area'))
+                  }
+                  titleNode={
+                    !mobileTreeStep && selectedFeature && !isFeatureEditMode ? (
+                      <div className="min-w-0">
+                        <MapOverlayBreadcrumb
+                          label={overlayName.trim() || 'Overlay'}
+                          onNavigate={handleFeatureBreadcrumbUp}
+                          className="mb-0.5"
                         />
-                      </span>
-                    </HeaderPill>
-                  )}
-                  rightContent={isFeatureEditMode ? (
-                    <HeaderPill>
-                      <PillButton
-                        icon={Check}
-                        iconSize={18}
-                        onClick={handleSaveAndExitEdit}
-                        label="Save changes"
-                        accent={isDirty ? 'info' : undefined}
-                      />
-                    </HeaderPill>
-                  ) : undefined}
+                        <span className="block truncate text-[13pt] font-semibold text-primary">
+                          {selectedFeature.label
+                            || (selectedFeature.type === 'waypoint' ? 'Waypoint'
+                              : selectedFeature.type === 'route' ? 'Route'
+                              : 'Area')}
+                        </span>
+                      </div>
+                    ) : undefined
+                  }
+                  leftContent={
+                    mobileTreeStep ? undefined
+                    : isFeatureEditMode ? (
+                      <button
+                        type="button"
+                        onClick={handleToggleFeatureEditMode}
+                        aria-label="Back"
+                        className="w-9 h-9 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
+                      >
+                        <ChevronLeft size={20} />
+                      </button>
+                    ) : selectedFeature ? (
+                      <HeaderPill>
+                        <span className="inline-flex" onClick={openFeatureMenu}>
+                          <PillButton
+                            icon={MoreHorizontal}
+                            iconSize={18}
+                            onClick={() => {}}
+                            label="More actions"
+                          />
+                        </span>
+                      </HeaderPill>
+                    ) : undefined
+                  }
+                  rightContent={
+                    !mobileTreeStep && isFeatureEditMode ? (
+                      <HeaderPill>
+                        <PillButton
+                          icon={Check}
+                          iconSize={18}
+                          onClick={handleSaveAndExitEdit}
+                          label="Save changes"
+                          accent={isDirty ? 'info' : undefined}
+                        />
+                      </HeaderPill>
+                    ) : undefined
+                  }
                 >
-                  {selectedFeature && (
-                      <FeatureEditor
-                        feature={selectedFeature}
-                        onUpdate={handleUpdateSelectedFeature}
-                        waypoints={features.filter(f => f.type === 'waypoint')}
-                        onFocusLeg={(bbox) => mapRef.current?.fitBounds(bbox)}
-                        linkedEventCount={allEvents.reduce((n, e) => {
-                          const explicit = e.linked_features?.some(f => f.overlay_id === selectedFeature.overlay_id && f.feature_id === selectedFeature.id)
-                          const implied = e.linked_overlays?.includes(selectedFeature.overlay_id)
-                          return n + (explicit || implied ? 1 : 0)
-                        }, 0)}
-                        onOpenLinksEditor={(anchor) => handleOpenFeatureLinksEditor(selectedFeature.overlay_id, selectedFeature.id, anchor)}
-                        isEditMode={isFeatureEditMode}
-                        floors={floorLevels}
-                        onChangeFloor={handleChangeFeatureFloor}
-                      />
-                  )}
+                  {mobileTreeStep ? (
+                    // Step 0 — settings + overlay tree. Selecting a feature morphs
+                    // THIS sheet into that feature's detail; the breadcrumb walks
+                    // back up here. Overlay/feature actions that reveal the map
+                    // (make-active, new, links, delete) still dismiss the tree.
+                    <div className="flex flex-col">
+                      <section className="shrink-0">
+                        <p className="px-4 pt-3 pb-1 text-[9pt] tracking-widest uppercase text-tertiary">Settings</p>
+                        <MapSettingsBody
+                          showGrid={showGrid}
+                          onToggleGrid={() => setShowGrid(prev => !prev)}
+                        />
+                      </section>
+                      <section>
+                        <p className="px-4 pt-3 pb-1 text-[9pt] tracking-widest uppercase text-tertiary">Overlays</p>
+                        <MapOverlayTree
+                          overlays={overlays}
+                          activeOverlayId={overlayId}
+                          visibleOverlayIds={visibleOverlayIds}
+                          selectedFeatureId={selectedFeatureId}
+                          onMakeActive={(o) => { handleOpenOverlay(o as MapOverlay); setShowMobileTree(false); }}
+                          onToggleVisible={handleToggleVisible}
+                          onRenameOverlay={handleRenameOverlay}
+                          onDeleteOverlay={handleDeleteOverlay}
+                          // Morph, don't dismiss: keep showMobileTree true underneath
+                          // so the breadcrumb can walk back to this tree step.
+                          onSelectFeature={(feature, ovId) => handleSelectFeatureFromTree(feature, ovId)}
+                          onNewOverlay={() => { handleNewOverlay(); setShowMobileTree(false); }}
+                          tileMeta={tileMetaMap}
+                          downloadingId={downloadingId}
+                          onDownloadTiles={(o) => handleDownloadTiles(o as MapOverlay)}
+                          onEvictTiles={handleEvictTiles}
+                          linkedOverlayIds={linkedOverlayIds}
+                          onJumpToLinkedEvent={(id) => { handleJumpToLinkedEvent(id); setShowMobileTree(false); }}
+                          onOpenLinkPicker={handleOpenLinkPicker}
+                          onUnlinkEvent={handleUnlinkEvent}
+                          onOpenLinksEditor={handleOpenLinksEditor}
+                          onOpenFeatureLinksEditor={(ov, fid, anchor) => { handleOpenFeatureLinksEditor(ov, fid, anchor); setShowMobileTree(false); }}
+                          onDeleteFeature={(ov, fid) => { handleDeleteFeatureFromTree(ov, fid); setShowMobileTree(false); }}
+                          onCopyFeatureToOverlay={(ov, fid) => { handleCopyFeatureToOverlay(ov, fid); setShowMobileTree(false); }}
+                          onAddFloor={() => { handleAddFloor(); setShowMobileTree(false); }}
+                        />
+                      </section>
+                    </div>
+                  ) : selectedFeature ? (
+                    <FeatureEditor
+                      feature={selectedFeature}
+                      onUpdate={handleUpdateSelectedFeature}
+                      waypoints={features.filter(f => f.type === 'waypoint')}
+                      onFocusLeg={(bbox) => mapRef.current?.fitBounds(bbox)}
+                      linkedEventCount={allEvents.reduce((n, e) => {
+                        const explicit = e.linked_features?.some(f => f.overlay_id === selectedFeature.overlay_id && f.feature_id === selectedFeature.id)
+                        const implied = e.linked_overlays?.includes(selectedFeature.overlay_id)
+                        return n + (explicit || implied ? 1 : 0)
+                      }, 0)}
+                      onOpenLinksEditor={(anchor) => handleOpenFeatureLinksEditor(selectedFeature.overlay_id, selectedFeature.id, anchor)}
+                      isEditMode={isFeatureEditMode}
+                      floors={floorLevels}
+                      onChangeFloor={handleChangeFeatureFloor}
+                    />
+                  ) : null}
                 </Sheet>
               )}
 
@@ -2801,11 +2852,21 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                         edit mode so the body TextInput is the single source
                         of truth for the feature name. */}
                     {!isFeatureEditMode && (
-                      <div className="flex-1 min-w-0 truncate text-[10pt] font-semibold text-primary">
-                        {selectedFeature.label
-                          || (selectedFeature.type === 'waypoint' ? 'Waypoint'
-                            : selectedFeature.type === 'route' ? 'Route'
-                            : 'Area')}
+                      <div className="flex-1 min-w-0">
+                        {/* Parent-overlay breadcrumb stacked above the name (admin/
+                            property desktop pattern). Tapping it deselects → collapses
+                            this pane and reveals the rail tree = the walk-up target. */}
+                        <MapOverlayBreadcrumb
+                          label={overlayName.trim() || 'Overlay'}
+                          onNavigate={handleFeatureBreadcrumbUp}
+                          className="mb-0.5"
+                        />
+                        <div className="truncate text-[10pt] font-semibold text-primary">
+                          {selectedFeature.label
+                            || (selectedFeature.type === 'waypoint' ? 'Waypoint'
+                              : selectedFeature.type === 'route' ? 'Route'
+                              : 'Area')}
+                        </div>
                       </div>
                     )}
                     {isFeatureEditMode && (

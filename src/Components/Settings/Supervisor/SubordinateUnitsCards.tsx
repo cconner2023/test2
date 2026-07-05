@@ -44,13 +44,15 @@ function MetricRow({ label, pct }: { label: string; pct: number }) {
   )
 }
 
-function ChildCard({ card, onOpen }: { card: ChildClinicCard; onOpen: () => void }) {
+function ChildCard({ card, onOpen, active }: { card: ChildClinicCard; onOpen: () => void; active?: boolean }) {
   const { clinicName, medicCount, summary } = card
   return (
     <button
       type="button"
       onClick={onOpen}
-      className="w-full text-left rounded-xl bg-themewhite2 px-4 py-3 hover:bg-secondary/5 active:scale-[0.99] transition-all"
+      className={`w-full text-left rounded-xl px-4 py-3 active:scale-[0.99] transition-all ${
+        active ? 'bg-themeblue3/8' : 'bg-themewhite2 hover:bg-secondary/5'
+      }`}
     >
       <div className="flex items-center gap-3">
         <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
@@ -90,14 +92,27 @@ export function SubordinateUnitsCards({
   clinicId,
   isSupervisor,
   currentUserId,
+  onSelectChild,
+  activeChildId,
 }: {
   clinicId: string | null
   isSupervisor: boolean
   currentUserId?: string | null
+  /** When provided (desktop), tapping a card routes the drill to the supervisor's
+   *  right pane instead of opening the local Sheet. */
+  onSelectChild?: (child: { id: string; name: string }) => void
+  /** Highlights the card whose roster is open in the right pane (desktop). */
+  activeChildId?: string | null
 }) {
   const { cards } = useEchelonSummaries(clinicId, isSupervisor)
   const [openChild, setOpenChild] = useState<{ id: string; name: string } | null>(null)
   if (cards.length === 0) return null
+
+  const handleOpen = (card: ChildClinicCard) => {
+    const child = { id: card.clinicId, name: card.clinicName }
+    if (onSelectChild) onSelectChild(child)
+    else setOpenChild(child)
+  }
 
   return (
     <div>
@@ -109,12 +124,14 @@ export function SubordinateUnitsCards({
           <ChildCard
             key={card.clinicId}
             card={card}
-            onOpen={() => setOpenChild({ id: card.clinicId, name: card.clinicName })}
+            active={card.clinicId === activeChildId}
+            onOpen={() => handleOpen(card)}
           />
         ))}
       </div>
 
-      {openChild && (
+      {/* Mobile host: inline Sheet. Desktop routes to the right pane via onSelectChild. */}
+      {!onSelectChild && openChild && (
         <ChildClinicRosterSheet
           clinicId={openChild.id}
           clinicName={openChild.name}

@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useEffect } from 'react'
-import { Ban, X, Settings } from 'lucide-react'
+import { Ban, X, Settings, ChevronLeft } from 'lucide-react'
 import { BaseDrawer, ScrollPane } from './BaseDrawer'
 import { ContentWrapper } from './ContentWrapper'
 import { HeaderPill, PillButton } from './HeaderPill'
@@ -19,6 +19,7 @@ import { EvaluateFlow } from './Settings/Supervisor/EvaluateFlow'
 import { AlgorithmEvaluateFlow } from './Settings/Supervisor/AlgorithmEvaluateFlow'
 import { TeamReporting } from './Settings/Supervisor/TeamReporting'
 import { SubordinateUnitsCards } from './Settings/Supervisor/SubordinateUnitsCards'
+import { ChildClinicRosterBody } from './Settings/Supervisor/ChildClinicRosterSheet'
 import { CoverageTasksView } from './Settings/Supervisor/CoverageTasksView'
 import { AlgorithmCoverageView } from './Settings/Supervisor/AlgorithmCoverageView'
 import { AlgorithmGapList } from './Settings/Supervisor/AlgorithmGapList'
@@ -66,6 +67,9 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
   // Desktop third pane: the selected soldier's full timeline. Mobile uses the
   // timeline's own bottom Sheet instead (UserTimeline falls back when no host).
   const [timelinePaneOpen, setTimelinePaneOpen] = useState(false)
+  // Desktop right pane: a subordinate (child) cluster's roster drill. Mobile keeps
+  // the SubordinateUnitsCards local Sheet instead (routed by onSelectChild absence).
+  const [selectedChild, setSelectedChild] = useState<{ id: string; name: string } | null>(null)
 
   // Clear search when navigating between views (e.g., clicking a search result)
   useEffect(() => { setTaskSearchQuery('') }, [view.screen])
@@ -233,7 +237,7 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
   // ── Navigation ─────────────────────────────────────────────────────────────
 
   const handleViewProfile = useCallback((soldier: ClinicMedic) => {
-
+    setSelectedChild(null)
     if (!isMobile) {
       setTreeSelection({ type: 'soldier', soldierId: soldier.id })
     } else {
@@ -241,6 +245,14 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
       handleSlideAnimation('left')
     }
   }, [isMobile, handleSlideAnimation])
+
+  // Desktop: drill a subordinate cluster into the right pane. Clears any soldier
+  // selection so the pane has a single occupant; the dashboard center persists.
+  const handleSelectChild = useCallback((child: { id: string; name: string }) => {
+    setTreeSelection({ type: 'all-personnel' })
+    setView({ screen: 'main' })
+    setSelectedChild(child)
+  }, [])
 
   const handleEvaluate = useCallback((soldier: ClinicMedic) => {
 
@@ -356,11 +368,17 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
       handleSlideAnimation('right')
       setTaskSearchQuery('')
       setView({ screen: 'main' })
-    } else if (isMobile && treeSelection.type !== 'all-personnel') {
+    } else if (selectedChild) {
+      // Close the subordinate-cluster drill → right pane closes, rail returns.
+      handleSlideAnimation('right')
+      setSelectedChild(null)
+    } else if (treeSelection.type !== 'all-personnel') {
+      // Deselect the soldier → closes the right detail pane and (desktop) brings
+      // the tree rail back. Slide animation is a no-op on desktop.
       handleSlideAnimation('right')
       setTreeSelection({ type: 'all-personnel' })
     }
-  }, [view, isMobile, treeSelection, handleSlideAnimation])
+  }, [view, treeSelection, selectedChild, handleSlideAnimation])
 
   const handleClose = useCallback(() => {
     setView({ screen: 'main' })
@@ -370,6 +388,7 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
     setMemberEdit(null)
     setAddMemberAnchor(null)
     setTimelinePaneOpen(false)
+    setSelectedChild(null)
 
     onClose()
   }, [onClose])
@@ -422,11 +441,14 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
     calendarEntries: timelineEntries,
     onOpenEvent: handleOpenEvent,
   })
-  // Desktop three-pane: when the timeline opens, the left rail collapses and this
-  // pane opens (the established rail-closes/right-pane-opens convention).
-  const timelinePaneVisible = !isMobile && timelinePaneOpen && view.screen === 'main' && treeSelection.type === 'soldier'
+  // Desktop three-pane (Provider rail-collapse primitive): the right detail pane
+  // is "active" whenever there's something to drill into — a selected soldier or
+  // any task flow. When active, the left tree rail collapses; the center dashboard
+  // persists. Mirrors ProviderDrawer's selectedTemplate → rail-collapse mechanic.
+  const rightActive = view.screen !== 'main' || treeSelection.type === 'soldier' || !!selectedChild
 
   const handleTreeSelect = useCallback((selection: TreeSelection) => {
+    setSelectedChild(null)
     setTreeSelection(selection)
     if (view.screen !== 'main') {
       setView({ screen: 'main' })
@@ -471,8 +493,10 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
   const headerConfig = useMemo(() => {
     switch (view.screen) {
       case 'main': {
-        // On mobile, show back for non-default tree selections
-        if (isMobile && treeSelection.type !== 'all-personnel') {
+        // Soldier selected (either platform): show a back-to-roster affordance.
+        // Mobile → full-screen profile; desktop → right pane is open + rail
+        // collapsed, so the header back is how you deselect and restore the tree.
+        if (treeSelection.type !== 'all-personnel') {
           const titleMap: Record<TreeSelection['type'], string> = {
             'all-personnel': 'Supervisor',
             'soldier': 'Soldier Profile',
@@ -581,31 +605,42 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
 
   // ── Content Rendering ──────────────────────────────────────────────────────
 
+  // The all-personnel team dashboard. On desktop this is the PERSISTENT center
+  // pane (never swaps); on mobile it's the root view inside the scroll machine.
+  const renderDashboard = () => (
+    <div className={isMobile ? 'h-full overflow-y-auto px-4 pt-[calc(var(--drawer-header-h,3.5rem)+1.75rem)] pb-8' : 'px-5 py-5 pb-8'}>
+      <TeamReporting
+        metrics={teamMetrics}
+        medics={medics}
+        onViewSoldier={handleViewProfile}
+        testableTaskMap={testableTaskMap}
+        clinicName={clinicName}
+        onNavigateToArea={handleNavigateToArea}
+        onNavigateToAlgorithmList={handleNavigateToAlgorithmList}
+        onEditClinic={isSupervisor && clinicId ? setClinicEditAnchor : undefined}
+        onAddMember={isSupervisor && clinicId ? setAddMemberAnchor : undefined}
+        onRemoveSoldier={isSupervisor && clinicId ? setRemoveTarget : undefined}
+        currentUserId={currentUserId ?? undefined}
+        showClusterSwitch={isMobile}
+      />
+      {/* Echelon roll-up: direct child clusters (renders nothing if none).
+          Desktop drills into the right pane; mobile keeps the local Sheet. */}
+      <div className="mt-5">
+        <SubordinateUnitsCards
+          clinicId={clinicId}
+          isSupervisor={isSupervisor}
+          currentUserId={currentUserId}
+          onSelectChild={isMobile ? undefined : handleSelectChild}
+          activeChildId={selectedChild?.id}
+        />
+      </div>
+    </div>
+  )
+
   const renderTreeContent = () => {
     switch (treeSelection.type) {
       case 'all-personnel':
-        return (
-          <div className={isMobile ? 'h-full overflow-y-auto px-4 pt-[calc(var(--drawer-header-h,3.5rem)+1.75rem)] pb-8' : 'px-5 py-5 pb-8'}>
-            <TeamReporting
-              metrics={teamMetrics}
-              medics={medics}
-              onViewSoldier={handleViewProfile}
-              testableTaskMap={testableTaskMap}
-              clinicName={clinicName}
-              onNavigateToArea={handleNavigateToArea}
-              onNavigateToAlgorithmList={handleNavigateToAlgorithmList}
-              onEditClinic={isSupervisor && clinicId ? setClinicEditAnchor : undefined}
-              onAddMember={isSupervisor && clinicId ? setAddMemberAnchor : undefined}
-              onRemoveSoldier={isSupervisor && clinicId ? setRemoveTarget : undefined}
-              currentUserId={currentUserId ?? undefined}
-              showClusterSwitch={isMobile}
-            />
-            {/* Echelon roll-up: direct child clusters (renders nothing if none). */}
-            <div className="mt-5">
-              <SubordinateUnitsCards clinicId={clinicId} isSupervisor={isSupervisor} currentUserId={currentUserId} />
-            </div>
-          </div>
-        )
+        return renderDashboard()
 
       case 'soldier': {
         const soldier = medics.find(m => m.id === treeSelection.soldierId)
@@ -804,6 +839,51 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
     }
   }
 
+  // Desktop right pane — the "active drill": the selected soldier's profile, any
+  // task flow, or (on top of a soldier) the full timeline. renderContent() already
+  // returns exactly this for every non-dashboard state, so we reuse it; rightActive
+  // guarantees it never resolves to the all-personnel dashboard here.
+  const renderRightDetail = () => {
+    if (selectedChild) {
+      // The body owns its own detail header (back + name + Add icon primitive).
+      return (
+        <ChildClinicRosterBody
+          key={selectedChild.id}
+          clinicId={selectedChild.id}
+          currentUserId={currentUserId ?? null}
+          title={selectedChild.name}
+          onBack={() => setSelectedChild(null)}
+        />
+      )
+    }
+    if (timelinePaneOpen && view.screen === 'main' && treeSelection.type === 'soldier') {
+      return (
+        <>
+          <div className="shrink-0 flex items-center gap-2 px-4 py-3 border-b border-primary/10">
+            <button
+              onClick={() => setTimelinePaneOpen(false)}
+              className="w-8 h-8 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all"
+              aria-label="Back to profile"
+            >
+              <ChevronLeft size={18} />
+            </button>
+            <p className="text-[10pt] font-medium text-tertiary uppercase tracking-wide">Timeline</p>
+          </div>
+          <div className="flex-1 min-h-0 overflow-y-auto">
+            <TimelineFullView rows={timelineRows} loading={timelineLoading} />
+          </div>
+        </>
+      )
+    }
+    // Soldier profile + evaluate/coverage/algorithm flows scroll as one region
+    // (mirrors the prior desktop center wrapper).
+    return (
+      <div className="flex-1 min-h-0 overflow-y-auto">
+        {renderContent()}
+      </div>
+    )
+  }
+
   // ── Render ─────────────────────────────────────────────────────────────────
 
   const memberFallback = useMemo(() => {
@@ -860,11 +940,13 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
       >
         <ContentWrapper slideDirection={isMobile ? slideDirection : ''} swipeHandlers={isMobile && canSwipeBack ? swipeHandlers : undefined}>
           <div className="h-full relative">
-            {/* Desktop: split pane layout */}
+            {/* Desktop: three-pane layout (Provider rail-collapse primitive) —
+                tree rail | persistent dashboard | soldier/flow detail. */}
             {!isMobile && !loading && isSupervisor ? (
               <div className="flex h-full">
+                {/* Left rail — personnel tree; collapses when the right pane is active. */}
                 <div className={`shrink-0 border-r border-tertiary/10 flex flex-col bg-themewhite3/50 transition-all duration-300 ${
-                  timelinePaneVisible ? 'w-0 opacity-0 overflow-hidden border-r-0' : 'w-65 opacity-100'
+                  rightActive ? 'w-0 opacity-0 overflow-hidden border-r-0' : 'w-[260px] opacity-100'
                 }`}>
                   <div className="shrink-0 flex items-center gap-1.5 px-3 py-2 border-b border-primary/10">
                     <div className="flex-1 min-w-0">
@@ -892,27 +974,16 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
                     />
                   </div>
                 </div>
+                {/* Center — persistent team dashboard (never swaps). */}
                 <div className="flex-1 min-w-0 overflow-y-auto">
-                  {renderContent()}
+                  {renderDashboard()}
                 </div>
-                {/* Third pane — the selected soldier's full timeline. Opens as the
-                    left rail collapses (rail-closes / right-pane-opens convention). */}
-                <div className={`shrink-0 border-l border-tertiary/10 flex flex-col bg-themewhite3/30 transition-all duration-300 ${
-                  timelinePaneVisible ? 'w-96 opacity-100' : 'w-0 opacity-0 overflow-hidden border-l-0'
+                {/* Right pane — active drill (soldier profile / task flow / timeline);
+                    opens as the left rail collapses. */}
+                <div className={`shrink-0 border-l border-primary/10 flex flex-col bg-themewhite3 transition-all duration-300 ${
+                  rightActive ? 'w-[380px] opacity-100' : 'w-0 opacity-0 overflow-hidden border-l-0'
                 }`}>
-                  <div className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-primary/10">
-                    <p className="text-[10pt] font-medium text-tertiary uppercase tracking-wide">Timeline</p>
-                    <button
-                      onClick={() => setTimelinePaneOpen(false)}
-                      className="w-8 h-8 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all"
-                      aria-label="Close timeline"
-                    >
-                      <X size={16} />
-                    </button>
-                  </div>
-                  <div className="flex-1 min-h-0 overflow-y-auto">
-                    {timelinePaneVisible && <TimelineFullView rows={timelineRows} loading={timelineLoading} />}
-                  </div>
+                  {rightActive && renderRightDetail()}
                 </div>
               </div>
             ) : (

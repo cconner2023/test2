@@ -1,8 +1,7 @@
-import { useMemo, useEffect } from 'react'
 import { Download } from 'lucide-react'
 import { PreviewOverlay } from './PreviewOverlay'
 import { PillButton } from './HeaderPill'
-import { PdfPreviewFallback } from './PdfPreviewFallback'
+import { PdfCanvasView } from './PdfCanvasView'
 import type { PdfPreviewData } from '../Hooks/usePdfExport'
 
 interface PdfPreviewModalProps {
@@ -22,45 +21,33 @@ interface PdfPreviewModalProps {
 /**
  * Shared export-preview surface for generated PDFs (note exports — SF600 / DD689 —
  * and property labels). A nested PreviewOverlay (our object-viewing primitive): the
- * filename rides the overlay header beside the X, the PDF renders in an <object>
- * (falling back to PdfPreviewFallback where the device can't inline-render), and Save
- * (download + close) is a footer action pill. Mirrors Da2062Preview. Name kept as
+ * filename rides the overlay header beside the X, the PDF renders to page canvases
+ * via PdfCanvasView (pdf.js — works on iOS Safari, unlike the old native <object>
+ * embed the build CSP blocked), and Save (download + close) is a footer action pill.
+ * Mirrors Da2062Preview. Name kept as
  * PdfPreviewModal for its call sites (WriteNotePage, ProviderNoteOutput,
  * PropertyDrawer) though it is no longer a centered Modal.
  */
 export function PdfPreviewModal({ preview, onDownload, onClose, zIndex, generating = false }: PdfPreviewModalProps) {
-  const blobUrl = useMemo(() => {
-    if (!preview) return null
-    return URL.createObjectURL(new Blob([preview.bytes], { type: 'application/pdf' }))
-  }, [preview])
-
-  useEffect(() => {
-    return () => { if (blobUrl) URL.revokeObjectURL(blobUrl) }
-  }, [blobUrl])
-
   const save = () => { onDownload(); onClose() }
 
   return (
     <PreviewOverlay
-      isOpen={generating || (!!preview && !!blobUrl)}
+      isOpen={generating || !!preview}
       onClose={onClose}
       anchorRect={null}
       zIndex={zIndex}
       title={preview?.filename ?? 'PDF'}
       maxWidth={672}
       previewMaxHeight="70dvh"
-      loading={generating || !blobUrl}
+      loading={generating || !preview}
       rightFooter={
         <div className="bg-themewhite rounded-2xl px-1.5 py-1.5">
           <PillButton icon={Download} iconSize={16} accent="info" onClick={save} label="Save" />
         </div>
       }
     >
-      {blobUrl && (
-        <object data={blobUrl} type="application/pdf" className="w-full h-[70dvh] block bg-themewhite">
-          <PdfPreviewFallback />
-        </object>
-      )}
+      {preview && <PdfCanvasView bytes={preview.bytes} className="bg-themewhite" />}
     </PreviewOverlay>
   )
 }

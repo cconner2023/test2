@@ -8,7 +8,7 @@ import { PLAN_ORDER_LABELS } from '../../Data/User';
 import type { ProviderNoteTemplate, PlanOrderSet } from '../../Data/User';
 import { ActionPill } from '../ActionPill';
 import { ActionButton } from '../ActionButton';
-import { OverlayStack, type StackNav } from '../OverlayStack';
+import { OverlayStack, type StackNav, type StackScreen } from '../OverlayStack';
 import { TextInput } from '../FormInputs';
 import { EmptyState } from '../EmptyState';
 
@@ -55,7 +55,24 @@ interface Props {
     zIndex?: number;
 }
 
-export function ProviderTemplateEditPopover({ state, onClose, onSave, onDelete, zIndex }: Props) {
+/**
+ * Shell-agnostic editor screens for the provider-template editor (name + HPI/PE/
+ * Assessment/Plan, with PE + Plan as drill screens). Extracted so BOTH the
+ * OverlayStack popover (mobile picker + Settings) AND the desktop right-pane
+ * useStack surface (ProviderDrawer Case A) mount the identical editor — one source
+ * of truth for the field state, save/delete, and the PE/Plan drills.
+ *
+ * Screen keys: `editor` (root) → drills to `pe` / `plan`. Compose these into a
+ * larger `screens` map (the pane merges them with detail/section/output) — the keys
+ * won't collide as long as the host namespaces its own screens.
+ */
+export function useProviderTemplateEditorScreens({
+    state, onSave, onDelete,
+}: {
+    state: EditState | null;
+    onSave: Props['onSave'];
+    onDelete: Props['onDelete'];
+}): { screens: Record<string, StackScreen>; isOpen: boolean } {
     const { orderTags, instructionTags, orderSets } = useMergedNoteContent();
     const isOpen = !!state;
     const isEdit = state?.mode === 'edit';
@@ -109,7 +126,7 @@ export function ProviderTemplateEditPopover({ state, onClose, onSave, onDelete, 
     // z-stacked PreviewOverlays) — the stack morphs between them; back pops to the
     // editor. The PE block-picker auto-opens via PeTemplateScreen's own mount, which
     // remounts on each navigation into the screen.
-    const screens = {
+    const screens: Record<string, StackScreen> = {
         editor: {
             title: isEdit ? 'Edit template' : 'New template',
             footer: isEdit ? (
@@ -192,6 +209,16 @@ export function ProviderTemplateEditPopover({ state, onClose, onSave, onDelete, 
         },
     };
 
+    return { screens, isOpen };
+}
+
+/**
+ * Lifted OverlayStack popover for the mobile Templates picker + Settings panel.
+ * On desktop the ProviderDrawer mounts the same editor via the right-pane stack
+ * (useProviderTemplateEditorScreens) instead of this floating popover.
+ */
+export function ProviderTemplateEditPopover({ state, onClose, onSave, onDelete, zIndex }: Props) {
+    const { screens, isOpen } = useProviderTemplateEditorScreens({ state, onSave, onDelete });
     return (
         <OverlayStack
             isOpen={isOpen}

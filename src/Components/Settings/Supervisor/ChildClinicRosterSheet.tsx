@@ -1,15 +1,18 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Plus } from 'lucide-react'
+import { Plus, ChevronLeft, Pencil } from 'lucide-react'
 import { Sheet } from '../../Sheet'
 import { ActionPill } from '../../ActionPill'
 import { ActionButton } from '../../ActionButton'
+import { HeaderPill, PillButton } from '../../HeaderPill'
 import { SwipeToDeleteRow } from '../../SwipeToDeleteRow'
 import { ConfirmDialog } from '../../ConfirmDialog'
 import { AddMemberPopover } from '../../ClinicAdmin/AddMemberPopover'
+import { MemberEditPopover } from '../../ClinicAdmin/MemberEditPopover'
 import {
   listClinicMembers,
   removeClinicMember,
   type ClinicMember,
+  type MemberProfileData,
 } from '../../../lib/supervisorService'
 
 /**
@@ -30,22 +33,49 @@ function memberName(m: ClinicMember): string {
   return `${rank}${name}`.trim()
 }
 
-export function ChildClinicRosterSheet({
+/** Backstop profile from the roster row — the live supervisor_get_member_profile
+ *  fetch (subtree-authorized) fills in the real component/roles once open. */
+function toFallbackProfile(m: ClinicMember): MemberProfileData {
+  return {
+    firstName: m.first_name,
+    lastName: m.last_name,
+    middleInitial: m.middle_initial,
+    credential: m.credential,
+    component: null,
+    rank: m.rank,
+    uic: m.uic,
+    roles: ['medic'],
+    email: m.email,
+    homeClinicId: null,
+    homeClinicName: null,
+  }
+}
+
+/**
+ * Roster body for a subordinate (direct-child) cluster. Surface-agnostic so it can
+ * host inside a Sheet (mobile) OR the supervisor's right detail pane (desktop) —
+ * mirrors the shared-settings-body pattern (MapSettingsBody). All chrome (add pill,
+ * add popover, remove confirm) lives here so both host surfaces behave identically.
+ */
+export function ChildClinicRosterBody({
   clinicId,
-  clinicName,
   currentUserId,
-  onClose,
+  title,
+  onBack,
 }: {
   clinicId: string
-  clinicName: string
   currentUserId: string | null
-  onClose: () => void
+  /** Desktop pane host: renders a detail header (back + title + Add-member icon
+   *  primitive on the right) instead of the mobile overlay add-pill above the list. */
+  title?: string
+  onBack?: () => void
 }) {
   const [members, setMembers] = useState<ClinicMember[]>([])
   const [loading, setLoading] = useState(true)
   const [addAnchor, setAddAnchor] = useState<DOMRect | null>(null)
   const [removeTarget, setRemoveTarget] = useState<ClinicMember | null>(null)
   const [removing, setRemoving] = useState(false)
+  const [editTarget, setEditTarget] = useState<{ member: ClinicMember; anchor: DOMRect } | null>(null)
   const addPillRef = useRef<HTMLDivElement>(null)
 
   const refresh = useCallback(async () => {
@@ -69,45 +99,40 @@ export function ChildClinicRosterSheet({
     }
   }, [removeTarget, clinicId])
 
-  return (
-    <Sheet isOpen onClose={onClose} title={clinicName} loading={loading} zIndex={1250}>
-      <div className="relative px-4 pb-6 pt-2">
-        <ActionPill ref={addPillRef} shadow="sm" placement="overlay">
-          <ActionButton
-            icon={Plus}
-            label="Add member"
-            onClick={() => {
-              if (addPillRef.current) setAddAnchor(addPillRef.current.getBoundingClientRect())
-            }}
-          />
-        </ActionPill>
+  const openAdd = () => {
+    if (addPillRef.current) setAddAnchor(addPillRef.current.getBoundingClientRect())
+  }
 
-        <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">
-          Roster
-        </p>
+  const roster = loading ? (
+    <p className="text-sm text-tertiary py-8 text-center">Loading…</p>
+  ) : members.length === 0 ? (
+    <p className="text-sm text-tertiary py-8 text-center">No members assigned.</p>
+  ) : (
+    <div className="rounded-2xl bg-themewhite2 overflow-hidden">
+      {members.map((m) => (
+        <SwipeToDeleteRow
+          key={m.id}
+          onDelete={() => setRemoveTarget(m)}
+          disabled={m.id === currentUserId}
+        >
+          <button
+            type="button"
+            onClick={(e) => setEditTarget({ member: m, anchor: e.currentTarget.getBoundingClientRect() })}
+            className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-secondary/5 active:scale-[0.99] transition-all"
+          >
+            <div className="flex-1 min-w-0">
+              <p className="text-sm text-primary truncate">{memberName(m)}</p>
+              <p className="text-[9pt] text-tertiary truncate">{m.email}</p>
+            </div>
+            <Pencil size={14} className="text-tertiary shrink-0" />
+          </button>
+        </SwipeToDeleteRow>
+      ))}
+    </div>
+  )
 
-        {members.length === 0 ? (
-          <p className="text-sm text-tertiary py-8 text-center">No members assigned.</p>
-        ) : (
-          <div className="rounded-2xl bg-themewhite2 overflow-hidden">
-            {members.map((m) => (
-              <SwipeToDeleteRow
-                key={m.id}
-                onDelete={() => setRemoveTarget(m)}
-                disabled={m.id === currentUserId}
-              >
-                <div className="w-full flex items-center gap-3 px-4 py-3">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-primary truncate">{memberName(m)}</p>
-                    <p className="text-[9pt] text-tertiary truncate">{m.email}</p>
-                  </div>
-                </div>
-              </SwipeToDeleteRow>
-            ))}
-          </div>
-        )}
-      </div>
-
+  const popovers = (
+    <>
       <AddMemberPopover
         isOpen={!!addAnchor}
         anchorRect={addAnchor}
@@ -118,7 +143,6 @@ export function ChildClinicRosterSheet({
           refresh()
         }}
       />
-
       <ConfirmDialog
         visible={!!removeTarget}
         title={removeTarget ? `Remove ${memberName(removeTarget)}?` : ''}
@@ -130,6 +154,86 @@ export function ChildClinicRosterSheet({
         onCancel={() => setRemoveTarget(null)}
         zIndex={1300}
       />
+
+      {/* Edit a subordinate-cluster soldier. Profile + password/email only —
+          cluster membership moves stay with the home-clinic supervisor. The
+          edit RPCs are echelon-subtree authorized (see supervisorService). */}
+      <MemberEditPopover
+        isOpen={!!editTarget}
+        anchorRect={editTarget?.anchor ?? null}
+        memberId={editTarget?.member.id ?? null}
+        clinicId={clinicId}
+        fallbackProfile={editTarget ? toFallbackProfile(editTarget.member) : undefined}
+        hideClusterActions
+        onClose={() => setEditTarget(null)}
+        onChanged={refresh}
+      />
+    </>
+  )
+
+  // Desktop pane host: detail header (back + name + Add icon primitive on the right),
+  // scrollable roster below. Mirrors ProviderTemplateDetail's header layout.
+  if (title || onBack) {
+    return (
+      <div className="flex h-full flex-col">
+        <div className="shrink-0 flex items-center gap-2 px-4 py-3 border-b border-tertiary/10">
+          {onBack && (
+            <button
+              onClick={onBack}
+              className="w-8 h-8 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all shrink-0"
+              aria-label="Back to dashboard"
+            >
+              <ChevronLeft size={18} />
+            </button>
+          )}
+          <p className="flex-1 min-w-0 text-sm font-semibold text-primary truncate">{title}</p>
+          <div ref={addPillRef}>
+            <HeaderPill>
+              <PillButton icon={Plus} iconSize={16} onClick={openAdd} label="Add member" />
+            </HeaderPill>
+          </div>
+        </div>
+        <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-6 pt-3">
+          {roster}
+        </div>
+        {popovers}
+      </div>
+    )
+  }
+
+  // Mobile Sheet host: overlay add-pill above the roster (Sheet provides the title).
+  // pt-5 floor so the placement="overlay" add pill clears the scroll top.
+  return (
+    <div className="relative px-4 pb-6 pt-5">
+      <ActionPill ref={addPillRef} shadow="sm" placement="overlay">
+        <ActionButton icon={Plus} label="Add member" onClick={openAdd} />
+      </ActionPill>
+
+      <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">
+        Roster
+      </p>
+
+      {roster}
+      {popovers}
+    </div>
+  )
+}
+
+/** Mobile host: the roster body inside a bottom Sheet. */
+export function ChildClinicRosterSheet({
+  clinicId,
+  clinicName,
+  currentUserId,
+  onClose,
+}: {
+  clinicId: string
+  clinicName: string
+  currentUserId: string | null
+  onClose: () => void
+}) {
+  return (
+    <Sheet isOpen onClose={onClose} title={clinicName} zIndex={1250}>
+      <ChildClinicRosterBody clinicId={clinicId} currentUserId={currentUserId} />
     </Sheet>
   )
 }

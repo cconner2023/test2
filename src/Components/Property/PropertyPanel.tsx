@@ -41,7 +41,6 @@ import { PropertyShortagePanel } from './PropertyShortagePanel'
 import { PropertyAuthorizedPanel } from './PropertyAuthorizedPanel'
 import { SignOutForm, type SignOutFormHandle } from './SignOutForm'
 import { HeaderPill, PillButton } from '../HeaderPill'
-import { ActionSheet } from '../ActionSheet'
 import { SearchInput } from '../SearchInput'
 import { useSubClusters } from '../../Hooks/useSubClusters'
 import { effectiveSubClusters, passesSubClusterFilter, itemPassesLens, HQ_BUCKET, type SubClusterFilter } from '../../Utilities/subCluster'
@@ -334,12 +333,21 @@ export const PropertyPanel = memo(function PropertyPanel({
     // Turned-in items (turned_in_at set) have left the books — they drop out of the
     // active book (canvas + tree) and live only in the Turn-In history.
     let items = store.items.filter(i => !i.turned_in_at)
+    // Staged turn-in stock is a clinic-wide operational state, NOT squad property: it
+    // must stay visible at the (system) Pending Turn-In zone regardless of the squad
+    // lens / "My property" filter — otherwise the zone empties and the tree hides it
+    // (PropertyLocationTree roots filter), while the ledger-driven turn-in list still
+    // shows it. The authorized-split clone in particular loses its owner_user_id bypass
+    // (createItem nulls it), so without this exemption the lens would drop it. Mirrors
+    // the unfiltered turn-in list so the two surfaces can't drift.
+    const turnInZoneIds = new Set(store.locations.filter(l => l.is_turn_in_zone).map(l => l.id))
+    const atTurnIn = (i: LocalPropertyItem) => i.location_id != null && turnInZoneIds.has(i.location_id)
     if (mineOnly && currentUserId)
-      items = items.filter(i => i.owner_user_id === currentUserId || i.current_holder_id === currentUserId)
+      items = items.filter(i => atTurnIn(i) || i.owner_user_id === currentUserId || i.current_holder_id === currentUserId)
     if (subActive)
-      items = items.filter(i => itemPassesLens(i, { lens: subClusterLens, primaryClinicId: viewerPrimaryClinicId, currentUserId }))
+      items = items.filter(i => atTurnIn(i) || itemPassesLens(i, { lens: subClusterLens, primaryClinicId: viewerPrimaryClinicId, currentUserId }))
     return items
-  }, [mineOnly, currentUserId, subActive, subClusterLens, viewerPrimaryClinicId, store.items])
+  }, [mineOnly, currentUserId, subActive, subClusterLens, viewerPrimaryClinicId, store.items, store.locations])
 
   // The TREE (rail + Locations sheet) lists physical/shared zones PLUS the filtered
   // personnel zones — so the one Locations entry point covers both, gated by the same
@@ -414,20 +422,22 @@ export const PropertyPanel = memo(function PropertyPanel({
   const [importOpen, setImportOpen] = useState(false)
   const [shortageOpen, setShortageOpen] = useState(false)
   const [authorizedOpen, setAuthorizedOpen] = useState(false)
-  // Authorized panel "More actions" menu (header ellipsis) — hosts Import from CSV.
-  const [authMenu, setAuthMenu] = useState(false)
-  // Authorized surface MORPH: the add/edit item form OR the read-only item detail that
-  // temporarily REPLACES the authorized list in the same right pane (desktop) / sheet
-  // (mobile). Not a nested overlay — the surface swaps list ↔ form/view and back on save.
+  // Authorized surface MORPH: the add/edit item form, the read-only item detail, OR the
+  // CSV import wizard that temporarily REPLACES the authorized list in the same right pane
+  // (desktop) / sheet (mobile). Not a nested overlay — the surface swaps list ↔ form/view/
+  // import and back on save/close. Import has no ActionSheet: the header pill morphs
+  // straight to it (its only action), with a back button returning to the list.
   const [authForm, setAuthForm] = useState<{ item: LocalPropertyItem | null; parentId: string | null } | null>(null)
   const [authView, setAuthView] = useState<LocalPropertyItem | null>(null)
+  const [authImport, setAuthImport] = useState(false)
   const authFormRef = useRef<PropertyItemFormHandle>(null)
-  const openAuthAdd = useCallback(() => { setAuthView(null); setAuthForm({ item: null, parentId: null }) }, [])
-  const openAuthEdit = useCallback((item: LocalPropertyItem) => { setAuthView(null); setAuthForm({ item, parentId: item.parent_item_id ?? null }) }, [])
-  const openAuthView = useCallback((item: LocalPropertyItem) => { setAuthForm(null); setAuthView(item) }, [])
-  const closeAuthMorph = useCallback(() => { setAuthForm(null); setAuthView(null) }, [])
+  const openAuthAdd = useCallback(() => { setAuthImport(false); setAuthView(null); setAuthForm({ item: null, parentId: null }) }, [])
+  const openAuthEdit = useCallback((item: LocalPropertyItem) => { setAuthImport(false); setAuthView(null); setAuthForm({ item, parentId: item.parent_item_id ?? null }) }, [])
+  const openAuthView = useCallback((item: LocalPropertyItem) => { setAuthImport(false); setAuthForm(null); setAuthView(item) }, [])
+  const openAuthImport = useCallback(() => { setAuthForm(null); setAuthView(null); setAuthImport(true) }, [])
+  const closeAuthMorph = useCallback(() => { setAuthForm(null); setAuthView(null); setAuthImport(false) }, [])
   // Closing the authorized surface (or opening another) always drops any open morph.
-  useEffect(() => { if (!authorizedOpen) { setAuthForm(null); setAuthView(null) } }, [authorizedOpen])
+  useEffect(() => { if (!authorizedOpen) { setAuthForm(null); setAuthView(null); setAuthImport(false) } }, [authorizedOpen])
   // A Custody-roster card opened into the detail surface (right pane desktop /
   // sheet mobile): a DA 2062 hand receipt OR a PMCS/dispatch record. Same "main-
   // content card → pane/sheet detail" primitive the item/zone rows use; mutually
@@ -959,15 +969,6 @@ export const PropertyPanel = memo(function PropertyPanel({
         onEnroll={onEnrollItem ? (it) => onEnrollItem(it) : undefined}
         onStageTurnIn={onDeleteItem ? (it) => handleStageTurnIn(it) : undefined}
       />
-      {/* Authorized panel "More actions" menu — Import from CSV lives behind the
-          header ellipsis (not a body pill), mounted once for desktop + mobile. */}
-      <ActionSheet
-        visible={authMenu}
-        title="Authorized items"
-        options={[{ key: 'import', label: 'Import from CSV', onAction: () => { setAuthMenu(false); setAuthorizedOpen(false); setImportOpen(true) } }]}
-        onClose={() => setAuthMenu(false)}
-        zIndex={isMobile ? 1300 : undefined}
-      />
     </>
   )
 
@@ -1372,7 +1373,7 @@ export const PropertyPanel = memo(function PropertyPanel({
               <div className="absolute inset-0 z-10 flex flex-col bg-themewhite3">
                 <LoadingOverlay visible={formSaving} />
                 <div className="shrink-0 flex items-center justify-between gap-2 px-4 py-3 border-b border-tertiary/10">
-                  {authForm || authView ? (
+                  {authForm || authView || authImport ? (
                     // Morph header — back returns to the list; Save persists a form.
                     <>
                       <div className="flex items-center gap-2 min-w-0">
@@ -1380,7 +1381,7 @@ export const PropertyPanel = memo(function PropertyPanel({
                           <ChevronLeft size={20} />
                         </button>
                         <p className="text-sm font-medium text-primary truncate">
-                          {authForm ? (authForm.item ? 'Edit authorized item' : 'Add authorized item') : authView?.name}
+                          {authForm ? (authForm.item ? 'Edit authorized item' : 'Add authorized item') : authView ? authView.name : 'Import Property CSV'}
                         </p>
                       </div>
                       <HeaderPill>
@@ -1389,12 +1390,11 @@ export const PropertyPanel = memo(function PropertyPanel({
                       </HeaderPill>
                     </>
                   ) : (
-                    // List header — ellipsis (More actions) left; add + close right.
+                    // List header — Import (its only "more action", morphs in place) left;
+                    // add + close right.
                     <>
                       <div className="flex items-center gap-2 min-w-0">
-                        <span className="inline-flex shrink-0" onClick={() => setAuthMenu(true)}>
-                          <PillButton icon={MoreHorizontal} iconSize={16} onClick={() => {}} label="More actions" />
-                        </span>
+                        <PillButton icon={Download} iconSize={16} onClick={openAuthImport} label="Import from CSV" />
                         <p className="text-sm font-medium text-primary truncate">Authorized items</p>
                       </div>
                       <HeaderPill>
@@ -1422,6 +1422,8 @@ export const PropertyPanel = memo(function PropertyPanel({
                         holders={store.holders}
                         items={store.items}
                       />
+                    ) : authImport ? (
+                      <PropertyCSVImport onClose={closeAuthMorph} />
                     ) : (
                       <PropertyAuthorizedPanel
                         onClose={() => setAuthorizedOpen(false)}
@@ -1627,7 +1629,7 @@ export const PropertyPanel = memo(function PropertyPanel({
             : shortageOpen
             ? 'Shortages'
             : authorizedOpen
-            ? (authForm ? (authForm.item ? 'Edit authorized item' : 'Add authorized item') : authView ? authView.name : 'Authorized items')
+            ? (authForm ? (authForm.item ? 'Edit authorized item' : 'Add authorized item') : authView ? authView.name : authImport ? 'Import Property CSV' : 'Authorized items')
             : signOutOpen
             ? 'New DA 2062'
             : selectedReceipt
@@ -1680,7 +1682,10 @@ export const PropertyPanel = memo(function PropertyPanel({
         // Tree 70 · big task surfaces (PDF/sign-out/import/shortage) 85 · edit form
         // just above the 50 detail view (fields scroll internally, sheet doesn't
         // balloon) · detail 50.
-        maxHeight={treeStep ? 70 : da2062Preview || signOutOpen || importOpen || shortageOpen || authorizedOpen ? 85 : mobileForm ? 60 : 50}
+        // Authorized morph mirrors the standalone item surfaces: its edit/add FORM caps
+        // at 60 (like mobileForm) and its read-only VIEW at 50 (like the item detail); only
+        // the authorized LIST itself is a big task surface at 85.
+        maxHeight={treeStep ? 70 : authorizedOpen ? (authForm ? 60 : authView ? 50 : 85) : da2062Preview || signOutOpen || importOpen || shortageOpen ? 85 : mobileForm ? 60 : 50}
         // Detail/form are non-blocking like the map's mobile feature editor: the
         // canvas stays interactive and the body swaps detail↔form in the SAME sheet.
         // Sign-out is a focused task, so dim the canvas (non-dismissing) to block
@@ -1693,15 +1698,13 @@ export const PropertyPanel = memo(function PropertyPanel({
               <ChevronLeft size={20} />
             </button>
           ) : authorizedOpen ? (
-            (authForm || authView) ? (
+            (authForm || authView || authImport) ? (
               <button onClick={closeAuthMorph} aria-label="Back" className="w-9 h-9 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all">
                 <ChevronLeft size={20} />
               </button>
             ) : (
               <HeaderPill>
-                <span className="inline-flex" onClick={() => setAuthMenu(true)}>
-                  <PillButton icon={MoreHorizontal} iconSize={18} onClick={() => {}} label="More actions" />
-                </span>
+                <PillButton icon={Download} iconSize={18} onClick={openAuthImport} label="Import from CSV" />
               </HeaderPill>
             )
           ) : (mobileItem || selectedLocation || selectedReceipt || selectedRecord || selectedTurnIn) ? (
@@ -1732,10 +1735,10 @@ export const PropertyPanel = memo(function PropertyPanel({
             <PillButton icon={Check} iconSize={18} accent="success" onClick={() => signOutFormRef.current?.submit()} label="Sign out" />
           ) : authorizedOpen ? (
             // + folds before the sheet's built-in Close → "+ · close" on the right;
-            // Save while a form is morphed in; nothing while viewing.
+            // Save while a form is morphed in; nothing while viewing or importing.
             authForm ? (
               <PillButton icon={Check} iconSize={18} accent="success" onClick={() => authFormRef.current?.submit()} label="Save" />
-            ) : authView ? undefined : (
+            ) : (authView || authImport) ? undefined : (
               <PillButton icon={Plus} iconSize={18} onClick={openAuthAdd} label="Add authorized item" />
             )
           ) : mobileForm ? (
@@ -1798,6 +1801,8 @@ export const PropertyPanel = memo(function PropertyPanel({
               holders={store.holders}
               items={store.items}
             />
+          ) : authImport ? (
+            <PropertyCSVImport onClose={closeAuthMorph} />
           ) : (
             <PropertyAuthorizedPanel
               onClose={() => setAuthorizedOpen(false)}

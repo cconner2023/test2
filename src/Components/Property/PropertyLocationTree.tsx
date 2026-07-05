@@ -206,8 +206,14 @@ export function PropertyLocationTree({
     // (sub_cluster_id == null) items always bypass; null lens = no narrowing.
     const inSubLens = (i: LocalPropertyItem) =>
       itemPassesLens(i, { lens: subClusterLens, primaryClinicId, currentUserId })
+    // Staged turn-in stock is a clinic-wide operational state, not squad property — it
+    // bypasses the mine/sub narrowings so the (system) Pending Turn-In zone never empties
+    // out from under the viewer (the authorized-split clone loses its owner_user_id bypass).
+    // Search still applies. Mirrors PropertyPanel.displayItems + the unfiltered turn-in list.
+    const turnInZoneIds = new Set(locations.filter(l => l.is_turn_in_zone).map(l => l.id))
+    const atTurnIn = (i: LocalPropertyItem) => i.location_id != null && turnInZoneIds.has(i.location_id)
     const showItem = (i: LocalPropertyItem) =>
-      (!isSearching || matchesSearch(i)) && (!mineActive || isMine(i)) && inSubLens(i)
+      (!isSearching || matchesSearch(i)) && (atTurnIn(i) || ((!mineActive || isMine(i)) && inSubLens(i)))
 
     const filterNode = (node: TreeNode): TreeNode | null => {
       // A location NAME hit keeps its whole subtree — but ONLY for a pure search. The
@@ -263,8 +269,8 @@ export function PropertyLocationTree({
       : 'border-l-transparent hover:bg-secondary/5'
     const alertTextCls = isSoon ? 'text-themeyellow' : 'text-themeredred'
     const alertDotCls = isSoon ? 'bg-themeyellow' : 'bg-themeredred'
-    // Compact warning tag riding the action slot: OUT when depleted, EXP when expiry-flagged.
-    const warnLabel = alert === 'depleted' ? 'OUT' : alert ? 'EXP' : null
+    // Compact warning tag riding the action slot: DEP when depleted, EXP when expiry-flagged.
+    const warnLabel = alert === 'depleted' ? 'DEP' : alert ? 'EXP' : null
     const hasActions = !!onOpenItemMenu
     return (
       <div

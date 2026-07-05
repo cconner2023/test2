@@ -1,19 +1,31 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
-import { ScanLine, X, LayoutTemplate } from 'lucide-react'
+import { ScanLine, X, LayoutTemplate, Pencil, Check, ChevronLeft } from 'lucide-react'
 import { ImportInputBar } from './ImportInputBar'
 import { ImportResultPopover } from './ImportResultPopover'
 import { BaseDrawer } from './BaseDrawer'
 import { Sheet } from './Sheet'
 import { ContentWrapper } from './ContentWrapper'
 import { HeaderPill, PillButton } from './HeaderPill'
+import { SearchInput } from './SearchInput'
+import { ActionPill } from './ActionPill'
+import { ActionButton } from './ActionButton'
+import { useStack } from './useStack'
+import { type StackNav, type StackScreen } from './stackNav'
 import { useSwipeBack } from '../Hooks/useSwipeBack'
 import { useIsMobile } from '../Hooks/useIsMobile'
 import { useBarcodeImport } from '../Hooks/useBarcodeImport'
 import { UI_TIMING } from '../Utilities/constants'
-import { ProviderNote } from './Provider/ProviderNote'
+import { ProviderNote, type ProviderSection } from './Provider/ProviderNote'
 import { ProviderNoteOutput } from './Provider/ProviderNoteOutput'
-import { ProviderTemplateList } from './Provider/ProviderTemplateList'
-import { ProviderTemplateEditPopover, type EditState as TemplateEditState } from './Provider/ProviderTemplateEditPopover'
+import { ProviderTemplateTree } from './Provider/ProviderTemplateTree'
+import { TemplateDetailBody } from './Provider/ProviderTemplateDetail'
+import { TextSectionEditor } from './Provider/ProviderPaneSections'
+import { ProviderTemplateMenu } from './Provider/ProviderTemplateMenu'
+import {
+  ProviderTemplateEditPopover,
+  useProviderTemplateEditorScreens,
+  type EditState as TemplateEditState,
+} from './Provider/ProviderTemplateEditPopover'
 import type { PEState } from '../Types/PETypes'
 import type { UserTypes, ProviderNoteTemplate, TextExpander, PlanOrderSet, PlanBlockKey } from '../Data/User'
 import { PLAN_ORDER_LABELS } from '../Data/User'
@@ -26,6 +38,11 @@ import { assembleNote, formatSignature } from '../Utilities/NoteFormatter'
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type ProviderView = 'note' | 'output'
+
+/** Which screen the desktop right pane shows (null = closed, rail expanded). The
+ *  key indexes the pane's useStack `screens` map; `detail` reads selectedTemplateId
+ *  live, `editor` reads templateEditState. */
+type PaneScreen = { key: string; params?: unknown }
 
 export interface ImportedMedicNote {
   medicHpi: string
@@ -44,7 +61,7 @@ interface ProviderDrawerProps {
 // ─── ProviderDrawer ───────────────────────────────────────────────────────────
 
 export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
-  const [view, setView] = useState<ProviderView>('note')
+  const [view, setView] = useState<ProviderView>('note') // mobile output view-swap only
   const [slideDirection, setSlideDirection] = useState<'left' | 'right' | ''>('')
 
   const [hpiNote, setHpiNote] = useState('')
@@ -65,11 +82,23 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
   const isMobile = useIsMobile()
   const { profile, updateProfile, syncProfileField } = useUserProfile()
   const templates = profile.providerNoteTemplates ?? []
+  const orderSetsForExport = profile.planOrderSets ?? []
 
   // ── Mobile template drawer ─────────────────────────────────────────────────
   const [templateDrawerOpen, setTemplateDrawerOpen] = useState(false)
 
-  // ── Inline template edit popover (desktop left pane + mobile picker) ───────
+  // ── Template rail search + selection (desktop three-zone) ──────────────────
+  const [templateSearch, setTemplateSearch] = useState('')
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null)
+  const selectedTemplate = selectedTemplateId
+    ? templates.find(t => t.id === selectedTemplateId) ?? null
+    : null
+
+  // ── Desktop right pane (Case A/B/C) ────────────────────────────────────────
+  const [paneScreen, setPaneScreen] = useState<PaneScreen | null>(null)
+  const paneOpen = paneScreen !== null
+
+  // ── Template edit state (mobile popover + desktop pane editor share this) ──
   const [templateEditState, setTemplateEditState] = useState<TemplateEditState | null>(null)
 
   const persistTemplates = useCallback((next: ProviderNoteTemplate[]) => {
@@ -77,28 +106,32 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
     syncProfileField({ provider_note_templates: next as unknown as UserTypes['providerNoteTemplates'] })
   }, [updateProfile, syncProfileField])
 
+  const closePane = useCallback(() => {
+    setPaneScreen(null)
+    setTemplateEditState(null)
+  }, [])
+
   const handleTemplateSave = useCallback((entry: ProviderNoteTemplate, isNew: boolean) => {
     const current = profile.providerNoteTemplates ?? []
     const next = isNew ? [...current, entry] : current.map(t => t.id === entry.id ? entry : t)
     persistTemplates(next)
     setTemplateEditState(null)
+    setPaneScreen(null) // desktop: leave the editor; no-op on mobile
   }, [profile.providerNoteTemplates, persistTemplates])
 
   const handleTemplateDelete = useCallback((id: string) => {
     const current = profile.providerNoteTemplates ?? []
     persistTemplates(current.filter(t => t.id !== id))
     setTemplateEditState(null)
-  }, [profile.providerNoteTemplates, persistTemplates])
-
-  const handleTemplateNew = useCallback((anchor: DOMRect) => {
-    setTemplateEditState({ mode: 'new', anchor })
-  }, [])
+    setPaneScreen(null)
+    if (selectedTemplateId === id) setSelectedTemplateId(null)
+  }, [profile.providerNoteTemplates, persistTemplates, selectedTemplateId])
 
   const handleTemplateEdit = useCallback((template: ProviderNoteTemplate, anchor: DOMRect) => {
     setTemplateEditState({ mode: 'edit', anchor, template })
   }, [])
 
-  // ── Template apply (merge — only fills empty provider fields) ──────────────
+  // ── Template apply (overwrites all sections with template content) ─────────
 
   const expandTemplateText = useCallback((text: string | undefined, abbrs: string[] | undefined, legacyAbbr: string | undefined, expanders: TextExpander[]): string => {
     // Unified model: abbreviations are embedded in text, expand tokens in-place
@@ -255,7 +288,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
     barcodeImport.reset()
   }, [barcodeImport.reset])
 
-  // ── Slide Animation ─────────────────────────────────────────────────────────
+  // ── Slide Animation (mobile output view-swap) ──────────────────────────────
 
   const handleSlideAnimation = useCallback((direction: 'left' | 'right') => {
     setSlideDirection(direction)
@@ -264,10 +297,15 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
 
   // ── Navigation ──────────────────────────────────────────────────────────────
 
-  const handleGoToOutput = useCallback(() => {
-    handleSlideAnimation('left')
-    setView('output')
-  }, [handleSlideAnimation])
+  // Output: desktop → right pane (Case C); mobile → center view-swap.
+  const goToOutput = useCallback(() => {
+    if (isMobile) {
+      handleSlideAnimation('left')
+      setView('output')
+    } else {
+      setPaneScreen({ key: 'output' })
+    }
+  }, [isMobile, handleSlideAnimation])
 
   const handleBack = useCallback(() => {
     if (view === 'output') {
@@ -276,9 +314,24 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
     }
   }, [view, handleSlideAnimation])
 
+  // Desktop: open a section editor in the pane (Case B).
+  const openSection = useCallback((s: ProviderSection) => {
+    setPaneScreen({ key: `s-${s}` })
+  }, [])
+
+  // Desktop: New template → pane editor (Case A). Mobile: New → lifted popover.
+  const handleNewTemplate = useCallback((anchor: DOMRect) => {
+    setTemplateEditState({ mode: 'new', anchor })
+    if (!isMobile) setPaneScreen({ key: 'editor' })
+  }, [isMobile])
+
   const handleClose = useCallback(() => {
     setView('note')
     setSlideDirection('')
+    setSelectedTemplateId(null)
+    setTemplateSearch('')
+    setPaneScreen(null)
+    setTemplateEditState(null)
     setHpiNote('')
     setPeNote('')
     setPeState(null)
@@ -294,7 +347,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
     onClose()
   }, [onClose, barcodeImport.reset])
 
-  // ── Swipe Back ──────────────────────────────────────────────────────────────
+  // ── Swipe Back (mobile output) ──────────────────────────────────────────────
 
   const canSwipeBack = view === 'output'
   const swipeHandlers = useSwipeBack(
@@ -316,7 +369,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
       if (demoTemplate) handleApplyTemplate(demoTemplate)
     }
     const handleTourGoToOutput = () => {
-      handleGoToOutput()
+      goToOutput()
     }
     window.addEventListener('tour:provider-import', handleTourImport)
     window.addEventListener('tour:provider-apply-template', handleTourApplyTemplate)
@@ -326,9 +379,82 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
       window.removeEventListener('tour:provider-apply-template', handleTourApplyTemplate)
       window.removeEventListener('tour:provider-go-to-output', handleTourGoToOutput)
     }
-  }, [barcodeImport.decodeText, templates, handleApplyTemplate, handleGoToOutput])
+  }, [barcodeImport.decodeText, templates, handleApplyTemplate, goToOutput])
 
   // No auto-focus on expand — iOS keyboard open shifts the viewport
+
+  // ── Right-pane stack (desktop): detail · template editor · sections · output ─
+  const { screens: templateEditorScreens } = useProviderTemplateEditorScreens({
+    state: templateEditState,
+    onSave: handleTemplateSave,
+    onDelete: handleTemplateDelete,
+  })
+
+  const doneFooter = (
+    <ActionPill>
+      <ActionButton icon={Check} label="Done" variant="success" onClick={closePane} />
+    </ActionPill>
+  )
+
+  const paneScreens: Record<string, StackScreen> = {
+    ...templateEditorScreens,
+    detail: {
+      title: selectedTemplate?.name ?? 'Template',
+      headerActions: (_p: unknown, nav: StackNav) => selectedTemplate ? (
+        <HeaderPill>
+          <PillButton
+            icon={Pencil}
+            iconSize={16}
+            label="Edit"
+            onClick={() => { handleTemplateEdit(selectedTemplate, new DOMRect()); nav.push('editor') }}
+          />
+        </HeaderPill>
+      ) : null,
+      rightFooter: selectedTemplate ? (
+        <ActionPill>
+          <ActionButton
+            icon={Check}
+            label="Apply"
+            variant="success"
+            onClick={() => { handleApplyTemplate(selectedTemplate); setSelectedTemplateId(null); closePane() }}
+          />
+        </ActionPill>
+      ) : undefined,
+      render: () => selectedTemplate
+        ? <TemplateDetailBody template={selectedTemplate} expanders={profile.textExpanders ?? []} orderSets={profile.planOrderSets} />
+        : null,
+    },
+    's-hpi': {
+      title: 'History of Present Illness',
+      rightFooter: doneFooter,
+      render: () => <TextSectionEditor value={hpiNote} onChange={setHpiNote} placeholder="Chief complaint, onset, duration, character, associated symptoms..." />,
+    },
+    's-assessment': {
+      title: 'Assessment',
+      rightFooter: doneFooter,
+      render: () => <TextSectionEditor value={assessmentNote} onChange={setAssessmentNote} placeholder="Clinical assessment, diagnosis, differential..." />,
+    },
+    output: {
+      title: 'Note Output',
+      render: () => (
+        <ProviderNoteOutput
+          hpiNote={hpiNote}
+          peNote={peNote}
+          peState={peState}
+          assessmentNote={assessmentNote}
+          planNote={planNote}
+          importedMedicNote={importedMedicNote}
+          medicBarcode={medicBarcode}
+        />
+      ),
+    },
+  }
+
+  const paneStack = useStack({
+    isOpen: paneOpen,
+    initial: paneScreen ?? { key: 'detail' },
+    screens: paneScreens,
+  })
 
   // ── Desktop header (import bar in right content) ─────────────────────────
 
@@ -367,7 +493,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
   // ── Header config ─────────────────────────────────────────────────────────
 
   const headerConfig = useMemo(() => {
-    if (view === 'output') {
+    if (isMobile && view === 'output') {
       return { title: 'Note Output', showBack: true, onBack: handleBack }
     }
     if (isMobile) {
@@ -419,6 +545,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
   }, [view, handleBack, isMobile, importExpanded, desktopHeaderRight, handleClose,
       handleExpandImport, handleCollapseImport, barcodeImport.importText,
       barcodeImport.setImportText, barcodeImport.handleSubmit, barcodeImport.handleScan,
+      barcodeImport.handleSerialScan, barcodeImport.isSerialSupported,
       barcodeImport.stageImage, barcodeImport.isDecodingImage, barcodeImport.stagedImage])
 
   // ── Render ──────────────────────────────────────────────────────────────────
@@ -437,16 +564,36 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
       <div className="relative h-full">
         {!isMobile ? (
           <div className="flex h-full">
-            {/* Left pane — templates */}
-            <div className="w-[260px] shrink-0 border-r border-tertiary/10 flex flex-col bg-themewhite3/50">
-              <ProviderTemplateList
-                templates={templates}
-                onSelect={handleApplyTemplate}
-                onNew={handleTemplateNew}
-                onEdit={handleTemplateEdit}
-              />
+            {/* Left rail — template search + tree. Collapses when the right pane
+                opens (rail-collapse 3-pane primitive). */}
+            <div className={`shrink-0 border-r border-tertiary/10 flex flex-col bg-themewhite3/50 transition-all duration-300 ${
+              paneOpen ? 'w-0 opacity-0 overflow-hidden border-r-0' : 'w-[260px] opacity-100'
+            }`}>
+              <div className="shrink-0 px-3 pt-2 pb-1 flex items-center gap-2">
+                <SearchInput
+                  value={templateSearch}
+                  onChange={setTemplateSearch}
+                  placeholder="Search templates"
+                  className="flex-1 min-w-0"
+                />
+                <ProviderTemplateMenu
+                  templates={templates}
+                  orderSets={orderSetsForExport}
+                  onNew={handleNewTemplate}
+                  variant="gear"
+                />
+              </div>
+              <div className="flex-1 min-h-0 overflow-y-auto">
+                <ProviderTemplateTree
+                  templates={templates}
+                  searchQuery={templateSearch}
+                  activeTemplateId={selectedTemplateId}
+                  onSelect={(t) => { setSelectedTemplateId(t.id); setPaneScreen({ key: 'detail' }) }}
+                />
+              </div>
             </div>
-            {/* Right pane — note content */}
+
+            {/* Center — note summary (editing routes into the right pane) */}
             <div className="flex-1 min-w-0 overflow-y-auto">
               <ContentWrapper slideDirection="" swipeHandlers={undefined}>
                 {barcodeImport.error && (
@@ -455,38 +602,67 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
                   </div>
                 )}
                 <div className="p-5 pb-8">
-                  {view === 'note' ? (
-                    <ProviderNote
-                      hpiNote={hpiNote}
-                      setHpiNote={setHpiNote}
-                      peNote={peNote}
-                      setPeNote={setPeNote}
-                      peState={peState}
-                      onPeStateChange={setPeState}
-                      peResetKey={peResetKey}
-                      planResetKey={planResetKey}
-                      selectedBlockKeys={selectedBlockKeys}
-                      onBlockKeysChange={setSelectedBlockKeys}
-                      assessmentNote={assessmentNote}
-                      setAssessmentNote={setAssessmentNote}
-                      planNote={planNote}
-                      setPlanNote={setPlanNote}
-                      onNext={handleGoToOutput}
-                      importedMedicNote={importedMedicNote}
-                    />
-                  ) : (
-                    <ProviderNoteOutput
-                      hpiNote={hpiNote}
-                      peNote={peNote}
-                      peState={peState}
-                      assessmentNote={assessmentNote}
-                      planNote={planNote}
-                      importedMedicNote={importedMedicNote}
-                      medicBarcode={medicBarcode}
-                    />
-                  )}
+                  <ProviderNote
+                    summaryMode
+                    onOpenSection={openSection}
+                    hpiNote={hpiNote}
+                    setHpiNote={setHpiNote}
+                    peNote={peNote}
+                    setPeNote={setPeNote}
+                    peState={peState}
+                    onPeStateChange={setPeState}
+                    peResetKey={peResetKey}
+                    planResetKey={planResetKey}
+                    selectedBlockKeys={selectedBlockKeys}
+                    onBlockKeysChange={setSelectedBlockKeys}
+                    assessmentNote={assessmentNote}
+                    setAssessmentNote={setAssessmentNote}
+                    planNote={planNote}
+                    setPlanNote={setPlanNote}
+                    onNext={goToOutput}
+                    importedMedicNote={importedMedicNote}
+                  />
                 </div>
               </ContentWrapper>
+            </div>
+
+            {/* Right pane — detail / template editor / section editor / output */}
+            <div className={`shrink-0 border-l border-primary/10 flex flex-col bg-themewhite3 transition-all duration-300 ${
+              paneOpen ? 'w-[460px] opacity-100' : 'w-0 opacity-0 overflow-hidden border-l-0'
+            }`}>
+              {paneOpen && paneStack.hasScreen && (
+                <>
+                  <div className="shrink-0 flex items-center gap-2 px-4 py-3 border-b border-tertiary/10">
+                    {paneStack.canBack && (
+                      <button
+                        onClick={paneStack.onBack}
+                        aria-label="Back"
+                        className="w-8 h-8 shrink-0 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all"
+                      >
+                        <ChevronLeft size={18} />
+                      </button>
+                    )}
+                    <p className="flex-1 min-w-0 text-sm font-semibold text-primary truncate">{paneStack.title}</p>
+                    {paneStack.headerActions}
+                    <button
+                      onClick={closePane}
+                      aria-label="Close"
+                      className="w-8 h-8 shrink-0 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all"
+                    >
+                      <X size={18} />
+                    </button>
+                  </div>
+                  <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-4 py-4">
+                    {paneStack.body('')}
+                  </div>
+                  {(paneStack.footer || paneStack.rightFooter) && (
+                    <div className="shrink-0 flex items-center justify-between gap-2 px-4 py-3 border-t border-tertiary/10">
+                      <div className="flex items-center gap-2">{paneStack.footer}</div>
+                      <div className="flex items-center gap-2">{paneStack.rightFooter}</div>
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           </div>
         ) : (
@@ -519,7 +695,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
                   setAssessmentNote={setAssessmentNote}
                   planNote={planNote}
                   setPlanNote={setPlanNote}
-                  onNext={handleGoToOutput}
+                  onNext={goToOutput}
                   importedMedicNote={importedMedicNote}
                 />
               ) : (
@@ -566,25 +742,46 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
             // Opens nested over this BaseDrawer (~z-1010); fit's default
             // Z.SHEET(50) would trap it underneath.
             zIndex={1200}
+            rightContent={
+              <ProviderTemplateMenu
+                templates={templates}
+                orderSets={orderSetsForExport}
+                onNew={handleNewTemplate}
+                variant="ellipsis"
+              />
+            }
           >
-            <ProviderTemplateList
+            <div className="px-3 pt-1 pb-2">
+              <SearchInput
+                value={templateSearch}
+                onChange={setTemplateSearch}
+                placeholder="Search templates"
+                className="w-full"
+              />
+            </div>
+            <ProviderTemplateTree
               templates={templates}
+              searchQuery={templateSearch}
               onSelect={(t) => { handleApplyTemplate(t); setTemplateDrawerOpen(false) }}
-              onNew={handleTemplateNew}
               onEdit={handleTemplateEdit}
+              hoverActions={false}
             />
           </Sheet>
         )}
 
-        <ProviderTemplateEditPopover
-          state={templateEditState}
-          onClose={() => setTemplateEditState(null)}
-          onSave={handleTemplateSave}
-          onDelete={handleTemplateDelete}
-          // On mobile the editor opens while the Templates Sheet (z-[1200])
-          // is still mounted, so it must sit above the sheet.
-          zIndex={isMobile ? 1300 : undefined}
-        />
+        {/* Mobile only: the lifted editor popover. On desktop the same editor
+            (useProviderTemplateEditorScreens) mounts in the right pane instead. */}
+        {isMobile && (
+          <ProviderTemplateEditPopover
+            state={templateEditState}
+            onClose={() => setTemplateEditState(null)}
+            onSave={handleTemplateSave}
+            onDelete={handleTemplateDelete}
+            // The editor opens while the Templates Sheet (z-[1200]) is still
+            // mounted, so it must sit above the sheet.
+            zIndex={1300}
+          />
+        )}
       </div>
     </BaseDrawer>
   )

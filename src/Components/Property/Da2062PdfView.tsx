@@ -1,5 +1,4 @@
-import { useMemo, useEffect } from 'react'
-import { PdfPreviewFallback } from '../PdfPreviewFallback'
+import { PdfCanvasView } from '../PdfCanvasView'
 import type { PdfPreviewData } from '../../Hooks/usePdfExport'
 
 interface Da2062PdfViewProps {
@@ -16,15 +15,5 @@ interface Da2062PdfViewProps {
  * is ALREADY inside a pane/sheet (SignOutForm).
  */
 export function Da2062PdfView({ preview }: Da2062PdfViewProps) {
-  const blobUrl = useMemo(
-    () => URL.createObjectURL(new Blob([preview.bytes], { type: 'application/pdf' })),
-    [preview],
-  )
-  useEffect(() => () => URL.revokeObjectURL(blobUrl), [blobUrl])
-
-  return (
-    <object data={blobUrl} type="application/pdf" className="w-full h-full bg-themewhite3">
-      <PdfPreviewFallback />
-    </object>
-  )
+  return <PdfCanvasView bytes={preview.bytes} className="bg-themewhite3" />
 }

@@ -84,7 +84,9 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
   const [serialNumbers, setSerialNumbers] = useState<string[]>(
     editingItem ? [editingItem.serial_number ?? ''] : ['']
   )
-  const [quantity, setQuantity] = useState(String(editingItem?.quantity ?? 1))
+  // Authorized/BOM lines default to on-hand 0 — a BOM records what you SHOULD have, and
+  // you often haven't received it yet. Normal new items default to 1. An edit keeps its own.
+  const [quantity, setQuantity] = useState(String(editingItem?.quantity ?? (showAuthorized ? 0 : 1)))
   const [locationId, setLocationId] = useState(editingItem?.location_id ?? (isEdit ? '' : defaultLocationId ?? ''))
   const [holderId, setHolderId] = useState(editingItem?.current_holder_id ?? '')
   const [parentItemId, setParentItemId] = useState(editingItem?.parent_item_id ?? initialParentId ?? '')
@@ -166,6 +168,10 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
     if (!name.trim() || !clinicId) return
     setIsSaving(true)
 
+    // Authorized (BOM) context allows on-hand 0 — an authorized-but-unreceived line is a
+    // real state (surfaces DEPLETED + feeds the shortage fold). Elsewhere on-hand floors at 1.
+    const minQuantity = authActive ? 0 : 1
+
     const sharedPayload = {
       name: name.trim(),
       nomenclature: nomenclature.trim() || null,
@@ -195,7 +201,7 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
           ...sharedPayload,
           sub_cluster_id: sectionApplicable ? (sectionId || null) : (editingItem.sub_cluster_id ?? null),
           serial_number: isSerialized ? (serialNumbers[0]?.trim() || null) : null,
-          quantity: isSerialized ? 1 : Math.max(1, parseInt(quantity) || 1),
+          quantity: isSerialized ? 1 : Math.max(minQuantity, parseInt(quantity) || 0),
         })
         onClose()
       } else if (!isSerialized) {
@@ -204,7 +210,7 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
           sub_cluster_id: sectionApplicable ? (sectionId || null) : null,
           ...sharedPayload,
           serial_number: null,
-          quantity: Math.max(1, parseInt(quantity) || 1),
+          quantity: Math.max(minQuantity, parseInt(quantity) || 0),
           location_tag_id: null,
           photo_url: null,
           visual_fingerprint: null,

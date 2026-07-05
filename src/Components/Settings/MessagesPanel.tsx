@@ -13,7 +13,7 @@ import type { RequestStatus } from '../../Hooks/useMessages'
 import { ContactListItem } from './ContactListItem'
 import { GroupListItem } from './GroupListItem'
 import { getDisplayName } from '../../Utilities/nameUtils'
-import { GroupInfoPanel } from './GroupInfoPanel'
+import { ConversationInfoPanel } from './ConversationInfoPanel'
 import { UserAvatar } from './UserAvatar'
 import { LoadingSpinner } from '../LoadingSpinner'
 import { useMinLoadTime } from '../../Hooks/useMinLoadTime'
@@ -739,6 +739,11 @@ function ChatDetail({
   const { user } = useAuth()
   const userId = user?.id ?? ''
   const isSelf = peerId === userId
+  const isDevRole = useAuthStore(s => s.isDevRole)
+  // Conversation info + shared-media browsing is a dev-only surface for now.
+  const showInfoButton = isDevRole && !isSelf
+  const [showInfo, setShowInfo] = useState(false)
+  const [mediaJumpId, setMediaJumpId] = useState<string | null>(null)
 
   const participants = useMemo<ParticipantStatus[]>(() => {
     if (isSelf) return []
@@ -771,13 +776,16 @@ function ChatDetail({
       <p className="flex-1 text-sm font-medium text-primary truncate mx-3">
         {peerName ?? (isSelf ? 'Notes' : 'Chat')}
       </p>
-      {canCall ? (
+      {canCall || showInfoButton ? (
         <HeaderPill>
-          {onStartVideoCall && (
+          {canCall && onStartVideoCall && (
             <PillButton icon={Play} onClick={onStartVideoCall} label="Video call" />
           )}
-          {onStartCall && (
+          {canCall && onStartCall && (
             <PillButton icon={Headset} onClick={onStartCall} label="Voice call" />
+          )}
+          {showInfoButton && (
+            <PillButton icon={Info} onClick={() => setShowInfo(true)} label="Conversation info" />
           )}
         </HeaderPill>
       ) : (
@@ -825,9 +833,26 @@ function ChatDetail({
       registerThreadBack={registerThreadBack}
       conversationIsGroup={false}
       conversationPeerName={peerName}
-      scrollToMessageId={scrollToMessageId}
-      onScrollConsumed={onScrollConsumed}
-    />
+      scrollToMessageId={mediaJumpId ?? scrollToMessageId}
+      onScrollConsumed={() => { setMediaJumpId(null); onScrollConsumed?.() }}
+    >
+      {showInfoButton && (
+        <ConversationInfoPanel
+          isOpen={showInfo}
+          onClose={() => setShowInfo(false)}
+          messages={conversations[peerId] ?? []}
+          isDevRole={isDevRole}
+          onJumpToMessage={setMediaJumpId}
+          peer={{
+            userId: peerId,
+            name: peerName ?? 'Chat',
+            avatarId: peerAvatarId,
+            firstName: peerFirstName,
+            lastName: peerLastName,
+          }}
+        />
+      )}
+    </ChatDetailView>
   )
 }
 
@@ -894,7 +919,10 @@ function GroupChatDetail({
 }) {
   const { user } = useAuth()
   const userId = user?.id ?? ''
+  const isDevRole = useAuthStore(s => s.isDevRole)
   const [membersCache, setMembersCache] = useState<GroupMember[]>([])
+  // Local scroll target so the info panel can jump the thread to a media message.
+  const [mediaJumpId, setMediaJumpId] = useState<string | null>(null)
 
   useEffect(() => {
     fetchGroupMembers(groupId).then(setMembersCache)
@@ -999,15 +1027,18 @@ function GroupChatDetail({
       registerThreadBack={registerThreadBack}
       conversationIsGroup={true}
       conversationPeerName={group.name}
-      scrollToMessageId={scrollToMessageId}
-      onScrollConsumed={onScrollConsumed}
+      scrollToMessageId={mediaJumpId ?? scrollToMessageId}
+      onScrollConsumed={() => { setMediaJumpId(null); onScrollConsumed?.() }}
     >
-      <GroupInfoPanel
+      <ConversationInfoPanel
         isOpen={showGroupInfo}
+        onClose={() => onShowGroupInfo(false)}
+        messages={conversations[groupId] ?? []}
+        isDevRole={isDevRole}
+        onJumpToMessage={setMediaJumpId}
         group={group}
         userId={userId}
         medics={medics}
-        onClose={() => onShowGroupInfo(false)}
         onLeave={handleLeave}
         onRename={renameGroup}
         onAddMember={addGroupMember}

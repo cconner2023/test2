@@ -23,6 +23,9 @@ import { ConfirmDialog } from '../ConfirmDialog'
 import { ActionSheet } from '../ActionSheet'
 import { BaseDrawer } from '../BaseDrawer'
 import { Sheet } from '../Sheet'
+import { useStack } from '../useStack'
+import { StackNavContext } from '../stackNav'
+import { LayeredStackBody } from '../LayeredStackBody'
 import { BottomIsland, IslandButton } from '../BottomIsland'
 import { AddFab } from '../AddFab'
 import { CalendarCSVImport } from './CalendarCSVImportDrawer'
@@ -1260,6 +1263,61 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
   const showImportDrawer = isMobile && panelView === 'import'
   const showDesktopPanel = !isMobile && (panelView === 'detail' || panelView === 'form' || panelView === 'template' || panelView === 'block' || panelView === 'import')
 
+  // ── Mobile edit/create surface = a MOUNT-PRESERVING drill stack ──
+  // The day-drawer Sheet hosts EventForm as the stack's ROOT frame; its selectors
+  // (category, cluster, sub-unit, times, room, huddle task) drill IN-PLACE via the
+  // shared morph engine instead of stacking their own nested overlays. The form
+  // frame stays MOUNTED under a drilled selector (LayeredStackBody), so in-progress
+  // edits survive the drill — the reason this uses the layered body, not StackBody.
+  const isMobileFormView = showDayDrawer && (dayDrawerView === 'edit' || dayDrawerView === 'create')
+  const formStack = useStack({
+    isOpen: isMobileFormView,
+    initial: { key: 'form' },
+    screens: {
+      form: {
+        render: () =>
+          dayDrawerView === 'edit' && editingEvent ? (
+            <EventForm
+              ref={eventFormRef}
+              initialData={eventToFormData(editingEvent)}
+              onSave={handleDayDrawerSave}
+              isEditing
+              subClusterApplicable={subClusterApplicable}
+              medics={medicList}
+              propertyItems={propertyItems}
+              overlayOptions={overlayOptions}
+              roomOptions={roomFormOptions}
+              huddleTaskOptions={huddleTaskFormOptions}
+              checklistTemplates={sortedPccTemplates}
+              clinicOptions={clinicFormOptions}
+              onCreateOverlay={handleCreateOverlayForEvent}
+              onTitleChange={setFormTitle}
+            />
+          ) : dayDrawerView === 'create' ? (
+            // Keyed by formKey so a late-landing prefill (deep-link "new",
+            // detected date) remounts the form with the current initialData.
+            <EventForm
+              key={formKey}
+              ref={eventFormRef}
+              initialData={newEventInitialData}
+              onSave={handleSaveEvent}
+              isEditing={false}
+              subClusterApplicable={subClusterApplicable}
+              medics={medicList}
+              propertyItems={propertyItems}
+              overlayOptions={overlayOptions}
+              roomOptions={roomFormOptions}
+              huddleTaskOptions={huddleTaskFormOptions}
+              checklistTemplates={sortedPccTemplates}
+              clinicOptions={clinicFormOptions}
+              onCreateOverlay={handleCreateOverlayForEvent}
+              onTitleChange={setFormTitle}
+            />
+          ) : null,
+      },
+    },
+  })
+
   return (
     <>
       <div className="relative h-full flex">
@@ -1602,23 +1660,47 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
             // On create, handleSaveEvent then flips this Sheet to 'detail' on the
             // new event → the morph expands straight into its detail view.
             loading={(dayDrawerView === 'edit' || dayDrawerView === 'create') && (isFormPending || isWriting)}
-            title={dayDrawerView === 'detail' ? undefined : (formTitle.trim() || (editingEvent ? 'Edit Event' : 'New Event'))}
+            // Drilled into a form selector → the Sheet header borrows the stack's
+            // screen title (e.g. "Category"); at the form root it shows the event
+            // title. Detail mode has no Sheet title (EventDetailPanel owns it).
+            title={
+              isMobileFormView && formStack.canBack
+                ? formStack.title
+                : dayDrawerView === 'detail' ? undefined : (formTitle.trim() || (editingEvent ? 'Edit Event' : 'New Event'))
+            }
             // Edit-mode header mirrors the map FeatureEditor pattern (2026-07-02):
             // LEFT = bare ChevronLeft Back (exit edit → read detail, pure content
             // swap, hideClose stays on so no Sheet desync); RIGHT = Save + Close.
             // Delete is NOT in the edit header — it's an independent action already
             // in the read-mode ellipsis menu (EventDetailPanel onDelete).
-            leftContent={dayDrawerView === 'edit' && editingEvent ? (
-              <button
-                type="button"
-                onClick={handleDayDrawerEditCancel}
-                aria-label="Back"
-                className="w-9 h-9 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
-              >
-                <ChevronLeft size={20} />
-              </button>
-            ) : undefined}
-            rightContent={dayDrawerView === 'edit' && editingEvent ? (
+            // Drilled → the header LEFT becomes a Back that POPS the selector (not
+            // an exit-edit), and the Save/Cancel pills give way to the selector's
+            // own footer (usually none — single-select pops on tap).
+            leftContent={
+              isMobileFormView && formStack.canBack ? (
+                <button
+                  type="button"
+                  onClick={() => formStack.nav.pop()}
+                  aria-label="Back"
+                  className="w-9 h-9 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
+                >
+                  <ChevronLeft size={20} />
+                </button>
+              ) : dayDrawerView === 'edit' && editingEvent ? (
+                <button
+                  type="button"
+                  onClick={handleDayDrawerEditCancel}
+                  aria-label="Back"
+                  className="w-9 h-9 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
+                >
+                  <ChevronLeft size={20} />
+                </button>
+              ) : undefined
+            }
+            rightContent={
+              isMobileFormView && formStack.canBack ? (
+                formStack.rightFooter
+              ) : dayDrawerView === 'edit' && editingEvent ? (
               <HeaderPill>
                 <PillButton
                   icon={Check}
@@ -1662,45 +1744,14 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                 inSheet
               />
             )}
-            {dayDrawerView === 'edit' && editingEvent && (
-              <EventForm
-                ref={eventFormRef}
-                initialData={eventToFormData(editingEvent)}
-                onSave={handleDayDrawerSave}
-                isEditing
-                subClusterApplicable={subClusterApplicable}
-                medics={medicList}
-                propertyItems={propertyItems}
-                overlayOptions={overlayOptions}
-                roomOptions={roomFormOptions}
-                huddleTaskOptions={huddleTaskFormOptions}
-                checklistTemplates={sortedPccTemplates}
-                clinicOptions={clinicFormOptions}
-                onCreateOverlay={handleCreateOverlayForEvent}
-                onTitleChange={setFormTitle}
-              />
-            )}
-            {dayDrawerView === 'create' && (
-              // Keyed by formKey so a late-landing prefill (deep-link "new",
-              // detected date) remounts the form with the current initialData —
-              // same remount contract as the desktop panel form.
-              <EventForm
-                key={formKey}
-                ref={eventFormRef}
-                initialData={newEventInitialData}
-                onSave={handleSaveEvent}
-                isEditing={false}
-                subClusterApplicable={subClusterApplicable}
-                medics={medicList}
-                propertyItems={propertyItems}
-                overlayOptions={overlayOptions}
-                roomOptions={roomFormOptions}
-                huddleTaskOptions={huddleTaskFormOptions}
-                checklistTemplates={sortedPccTemplates}
-                clinicOptions={clinicFormOptions}
-                onCreateOverlay={handleCreateOverlayForEvent}
-                onTitleChange={setFormTitle}
-              />
+            {/* Edit + create render through the mount-preserving drill stack: the
+                EventForm root frame stays mounted (state intact) while a selector
+                morphs the Sheet body on top. StackNavContext lets EventForm's
+                PickerInputs drill here instead of opening nested overlays. */}
+            {isMobileFormView && (
+              <StackNavContext.Provider value={formStack.nav}>
+                <LayeredStackBody frames={formStack.frames} searchPlaceholder={formStack.searchPlaceholder} />
+              </StackNavContext.Provider>
             )}
           </Sheet>
 
