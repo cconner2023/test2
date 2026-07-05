@@ -6,10 +6,19 @@ name: Deploy Pages
 # prebuilt gh-pages branch contents and serves them through the Actions Pages
 # path, avoiding GitHub's flaky legacy Jekyll build backend.
 #
-# Triggered automatically by `npm run deploy` (via `gh workflow run`), and can
-# be re-run by hand from the Actions tab.
+# Triggered automatically by the push `npm run deploy` makes to gh-pages.
+# Triggering on the gh-pages push (not a dispatch on main) is deliberate:
+# actions/deploy-pages keys each deployment by github.sha. A dispatch runs on
+# main, so github.sha = main HEAD — unchanged between deploys that don't touch
+# main — which makes two deploys collide on the same pages_build_version and
+# the second fails ("Deployment failed, try again later"), poisoning that SHA
+# for all re-runs. The gh-pages push gives every deploy a unique, content-
+# matching SHA, so no collision is possible. Can also be re-run by hand from
+# the Actions tab against the gh-pages branch.
 
 on:
+  push:
+    branches: [gh-pages]
   workflow_dispatch:
 
 permissions:
@@ -28,7 +37,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      url: ${{ steps.deploy1.outputs.page_url || steps.deploy2.outputs.page_url }}
     steps:
       - name: Checkout gh-pages (prebuilt site)
         uses: actions/checkout@v4
@@ -40,6 +49,20 @@ jobs:
         with:
           path: .
 
-      - name: Deploy to GitHub Pages
-        id: deployment
+      # Publish, with one native retry. The gh-pages-push trigger already
+      # rules out same-SHA collisions; this retry only absorbs a genuine
+      # transient blip in GitHub's publish backend so a single flake doesn't
+      # fail the whole deploy. No third-party action — keeps CI dependency-free.
+      - name: Deploy to GitHub Pages (attempt 1)
+        id: deploy1
+        continue-on-error: true
+        uses: actions/deploy-pages@v4
+
+      - name: Back off before retry
+        if: steps.deploy1.outcome == 'failure'
+        run: sleep 20
+
+      - name: Deploy to GitHub Pages (retry)
+        id: deploy2
+        if: steps.deploy1.outcome == 'failure'
         uses: actions/deploy-pages@v4
