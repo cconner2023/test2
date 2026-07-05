@@ -1094,6 +1094,26 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
     }
   }, [visibleTagsWithPins, focusItemPin])
 
+  // ── Parent-driven item close → drop the lit pin + return to zone framing ──
+  // The parent (PropertyPanel) owns the open-item lifecycle: it opens the detail on
+  // select and closes it on back-to-zone / empty-canvas / tab switch. `selectedItem` is
+  // that authoritative signal. A canvas pin tap sets focusedItemId internally for the
+  // immediate zoom, then the parent echoes the SAME item back through this prop in the
+  // same batched render (no-op here). But item taps deliberately don't change the
+  // selected zone, so the zone-change clear (above) never fires on close — without this,
+  // the pin stays highlighted and the resize re-fit keeps pinning a now-closed item
+  // ("go back to the zone and the item indicator is still lit"). On close (selectedItem
+  // → null) drop the focus and re-fit, which re-frames the still-selected zone.
+  const openItemId = selectedItem?.id ?? null
+  useEffect(() => {
+    if (openItemId) return
+    if (!focusedItemIdRef.current && !pendingFocusItemRef.current) return
+    setFocusedItemId(null)
+    focusedItemIdRef.current = null // sync now so the re-fit below doesn't re-grab the item
+    pendingFocusItemRef.current = null
+    reFitRef.current()
+  }, [openItemId])
+
   // Process deferred navigation when tags load
   useEffect(() => {
     if (!pendingNavRef.current || !tagIndex) return

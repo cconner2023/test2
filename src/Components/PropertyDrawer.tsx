@@ -69,6 +69,7 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
     const newDA2062TriggerRef = useRef<(() => void) | null>(null)
     const importTriggerRef = useRef<(() => void) | null>(null)
     const shortagesTriggerRef = useRef<(() => void) | null>(null)
+    const authorizedTriggerRef = useRef<(() => void) | null>(null)
     const navigateZoneTriggerRef = useRef<((zoneId: string) => void) | null>(null)
     const openCustodyTriggerRef = useRef<(() => void) | null>(null)
     const initRef = useRef(false)
@@ -303,6 +304,7 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                         onRegisterNewDA2062={(t) => { newDA2062TriggerRef.current = t }}
                         onRegisterImport={(t) => { importTriggerRef.current = t }}
                         onRegisterShortages={(t) => { shortagesTriggerRef.current = t }}
+                        onRegisterAuthorized={(t) => { authorizedTriggerRef.current = t }}
                         onRegisterNavigateZone={(t) => { navigateZoneTriggerRef.current = t }}
                         onRegisterOpenCustody={(t) => { openCustodyTriggerRef.current = t }}
                     />
@@ -325,6 +327,7 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                         onRegisterNewDA2062={(t) => { newDA2062TriggerRef.current = t }}
                         onRegisterImport={(t) => { importTriggerRef.current = t }}
                         onRegisterShortages={(t) => { shortagesTriggerRef.current = t }}
+                        onRegisterAuthorized={(t) => { authorizedTriggerRef.current = t }}
                         onRegisterNavigateZone={(t) => { navigateZoneTriggerRef.current = t }}
                         onRegisterOpenCustody={(t) => { openCustodyTriggerRef.current = t }}
                     />
@@ -355,6 +358,7 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                         label: 'Accountability',
                         children: [
                             { key: 'da2062', label: 'New DA 2062', onAction: () => { setShowAddSheet(false); newDA2062TriggerRef.current?.() } },
+                            { key: 'authorized', label: 'Authorized items', onAction: () => { setShowAddSheet(false); authorizedTriggerRef.current?.() } },
                             { key: 'shortages', label: 'Shortages', onAction: () => { setShowAddSheet(false); shortagesTriggerRef.current?.() } },
                         ],
                     }] : []),

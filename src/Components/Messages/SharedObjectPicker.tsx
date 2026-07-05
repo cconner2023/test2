@@ -1,6 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Calendar, Map as MapIcon, Image as ImageIcon, Package, ChevronRight, MapPin, Route, Hexagon, FileText, ClipboardList } from 'lucide-react'
 import { PreviewOverlay } from '../PreviewOverlay'
+import { AnchoredMenu } from '../LiftedRowMenu'
+import type { ContextMenuItem } from '../ContextMenu'
 import { useCalendarStore } from '../../stores/useCalendarStore'
 import { useMapOverlaysStore, useMapOverlaysCache } from '../../stores/useMapOverlaysStore'
 import { usePropertyStore } from '../../stores/usePropertyStore'
@@ -37,10 +39,13 @@ function featureIcon(f: OverlayFeature) {
 
 interface SharedObjectPickerProps {
   isOpen: boolean
-  /** Bounding rect of the + button — drives the popover transform origin. */
-  anchorRect: DOMRect | null
-  /** Conversation container — scopes the overlay so it roots in the conversation
-   *  stacking context, not document.body (where the parent drawer covers it). */
+  /** Live + button element. The anchored menu re-measures it on reflow so an iOS
+   *  keyboard collapse (input was focused when + was tapped) re-pins the menu to
+   *  the button instead of stranding it at the top of the screen. */
+  anchorRef: React.RefObject<HTMLElement | null>
+  /** Conversation container — scopes the leaf list overlay so it roots in the
+   *  conversation stacking context, not document.body (where the parent drawer
+   *  covers it). */
   containerRef: React.RefObject<HTMLElement | null>
   clinicId: string | null
   onClose: () => void
@@ -75,7 +80,7 @@ interface Row { id: string; label: string; sub: string }
  */
 export function SharedObjectPicker({
   isOpen,
-  anchorRect,
+  anchorRef,
   containerRef,
   clinicId,
   onClose,
@@ -107,6 +112,11 @@ export function SharedObjectPicker({
   const [step, setStep] = useState<Step>('menu')
   // Overlay whose features the user is drilling into (map-feature step).
   const [featureOverlay, setFeatureOverlay] = useState<LocalMapOverlay | null>(null)
+  // A menu row that advances to a leaf step must NOT let the AnchoredMenu's
+  // select-then-onClose collapse the whole picker — flag the navigation so our
+  // onClose handler swallows that one close. Real dismissals (backdrop/Photo)
+  // leave it false and fall through to close.
+  const navigatingRef = useRef(false)
 
   // Property store only inits when its drawer opens; if a chat reaches the
   // property step with no cached items, do a one-shot clinic-items fetch.
@@ -118,8 +128,13 @@ export function SharedObjectPicker({
   }, [step, storeItems.length, fetchedItems, clinicId])
   const propertyItems = storeItems.length > 0 ? storeItems : (fetchedItems ?? [])
 
-  // Reset to the menu whenever the picker (re)opens.
-  useEffect(() => { if (isOpen) { setStep('menu'); setFeatureOverlay(null) } }, [isOpen])
+  // Reset to the menu on every open AND close — resetting on close too means a
+  // reopen never briefly renders a stale leaf step before this fires.
+  useEffect(() => { setStep('menu'); setFeatureOverlay(null); navigatingRef.current = false }, [isOpen])
+
+  // Advance from the root menu into a leaf step without the menu's own close
+  // collapsing the picker.
+  const goToStep = (next: Step) => { navigatingRef.current = true; setStep(next) }
 
   const buildRows = useMemo(() => (filter: string): Row[] => {
     const q = filter.trim().toLowerCase()
@@ -280,60 +295,16 @@ export function SharedObjectPicker({
     : step === 'map-feature' ? (featureOverlay?.name || 'Share a feature')
     : 'Share a map'
 
-  // ── Menu step ──────────────────────────────────────────────────────────
-  const menu = (
-    <div className="py-1" data-tour="messages-share">
-      <button
-        onClick={() => { onClose(); onPickPhoto() }}
-        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-primary/5 active:scale-[0.99] transition-all text-left"
-      >
-        <div className="w-9 h-9 rounded-full bg-themeblue3/10 flex items-center justify-center shrink-0">
-          <ImageIcon size={16} className="text-themeblue3" />
-        </div>
-        <span className="text-[11pt] font-medium text-primary flex-1">Photo</span>
-      </button>
-      <button
-        onClick={() => setStep('calendar-event')}
-        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-primary/5 active:scale-[0.99] transition-all text-left"
-      >
-        <div className="w-9 h-9 rounded-full bg-themeblue3/10 flex items-center justify-center shrink-0">
-          <Calendar size={16} className="text-themeblue3" />
-        </div>
-        <span className="text-[11pt] font-medium text-primary flex-1">Event</span>
-        <ChevronRight size={16} className="text-tertiary shrink-0" />
-      </button>
-      <button
-        onClick={() => setStep('map-overlay')}
-        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-primary/5 active:scale-[0.99] transition-all text-left"
-      >
-        <div className="w-9 h-9 rounded-full bg-themeblue3/10 flex items-center justify-center shrink-0">
-          <MapIcon size={16} className="text-themeblue3" />
-        </div>
-        <span className="text-[11pt] font-medium text-primary flex-1">Map</span>
-        <ChevronRight size={16} className="text-tertiary shrink-0" />
-      </button>
-      <button
-        onClick={() => setStep('property-item')}
-        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-primary/5 active:scale-[0.99] transition-all text-left"
-      >
-        <div className="w-9 h-9 rounded-full bg-themeblue3/10 flex items-center justify-center shrink-0">
-          <Package size={16} className="text-themeblue3" />
-        </div>
-        <span className="text-[11pt] font-medium text-primary flex-1">Property</span>
-        <ChevronRight size={16} className="text-tertiary shrink-0" />
-      </button>
-      <button
-        onClick={() => setStep('template')}
-        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-primary/5 active:scale-[0.99] transition-all text-left"
-      >
-        <div className="w-9 h-9 rounded-full bg-themeblue3/10 flex items-center justify-center shrink-0">
-          <FileText size={16} className="text-themeblue3" />
-        </div>
-        <span className="text-[11pt] font-medium text-primary flex-1">Template</span>
-        <ChevronRight size={16} className="text-tertiary shrink-0" />
-      </button>
-    </div>
-  )
+  // ── Menu step — the canonical anchored list menu (same primitive as the
+  // message long-press menu). Photo fires the file picker; the rest advance to a
+  // searchable leaf list. ──
+  const menuItems: ContextMenuItem[] = [
+    { key: 'photo', label: 'Photo', icon: ImageIcon, onAction: onPickPhoto },
+    { key: 'event', label: 'Event', icon: Calendar, onAction: () => goToStep('calendar-event') },
+    { key: 'map', label: 'Map', icon: MapIcon, onAction: () => goToStep('map-overlay') },
+    { key: 'property', label: 'Property', icon: Package, onAction: () => goToStep('property-item') },
+    { key: 'template', label: 'Template', icon: FileText, onAction: () => goToStep('template') },
+  ]
 
   // ── Object-list step (also the map-feature drill-in) ────────────────────
   const list = (filter: string) => {
@@ -380,22 +351,41 @@ export function SharedObjectPicker({
     )
   }
 
+  // Root menu → canonical anchored menu (live-anchored, so an iOS keyboard
+  // collapse re-pins it to the + button). Closed state falls here too, so a stale
+  // leaf never flashes on reopen.
+  if (!isOpen || step === 'menu') {
+    return (
+      <AnchoredMenu
+        isOpen={isOpen}
+        anchorRef={anchorRef}
+        dataTour="messages-share"
+        layout="list"
+        align="left"
+        items={menuItems}
+        onClose={() => {
+          if (navigatingRef.current) { navigatingRef.current = false; return }
+          onClose()
+        }}
+      />
+    )
+  }
+
+  // Leaf steps — searchable object / template lists stay in the anchored
+  // PreviewOverlay (a static context-menu submenu can't host a search field).
   return (
     <PreviewOverlay
       isOpen={isOpen}
       onClose={onClose}
-      anchorRect={anchorRect}
+      anchorRect={anchorRef.current?.getBoundingClientRect() ?? null}
       containerRef={containerRef}
       anchored
       title={title}
-      onBack={step === 'menu' ? undefined : step === 'map-feature' ? () => setStep('map-overlay') : () => setStep('menu')}
+      onBack={step === 'map-feature' ? () => setStep('map-overlay') : () => setStep('menu')}
       maxWidth={320}
       previewMaxHeight="50dvh"
-      {...(step === 'menu'
-        ? {}
-        : { searchPlaceholder: 'Filter…', preview: (filter: string) => step === 'template' ? templateList(filter) : list(filter) })}
-    >
-      {step === 'menu' ? menu : null}
-    </PreviewOverlay>
+      searchPlaceholder="Filter…"
+      preview={(filter: string) => step === 'template' ? templateList(filter) : list(filter)}
+    />
   )
 }

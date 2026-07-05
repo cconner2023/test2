@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
-import { Clock, Users2, CalendarDays, X, Check, Trash2, CalendarPlus, CalendarOff, Square, Columns3, ListChecks, Grid2x2, CalendarRange, Rows3, Megaphone, SlidersHorizontal } from 'lucide-react'
+import { Clock, Users2, CalendarDays, X, Check, Trash2, CalendarPlus, CalendarOff, Square, Columns3, ListChecks, Grid2x2, CalendarRange, Rows3, Megaphone, SlidersHorizontal, ChevronLeft } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { ActionPill } from '../ActionPill'
 import { LiftedRowMenu } from '../LiftedRowMenu'
@@ -885,9 +885,20 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     const event = events.find(e => e.id === id)
     if (event && isEventEditable(event, isSupervisor)) {
       setEditingEvent(event)
-      setPanelView('form')
+      // Mobile edits live in the day-drawer Sheet's 'edit' mode (the shared
+      // edit PRIMITIVE) — the fullscreen mobile form was removed, so
+      // panelView='form' renders nothing on mobile. Called from the lifted-row
+      // peek the Sheet may be closed, so open it and pin it to this event
+      // (handleDayDrawerEdit alone assumes the Sheet is already open in detail).
+      if (isMobile) {
+        setDayDrawerEventId(id)
+        setDayDrawerView('edit')
+        setShowDayDrawer(true)
+      } else {
+        setPanelView('form')
+      }
     }
-  }, [events, isSupervisor])
+  }, [events, isSupervisor, isMobile])
 
   const handleSaveEvent = useCallback(async (data: EventFormData) => {
     if (savingRef.current) return
@@ -1592,10 +1603,23 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
             // new event → the morph expands straight into its detail view.
             loading={(dayDrawerView === 'edit' || dayDrawerView === 'create') && (isFormPending || isWriting)}
             title={dayDrawerView === 'detail' ? undefined : (formTitle.trim() || (editingEvent ? 'Edit Event' : 'New Event'))}
+            // Edit-mode header mirrors the map FeatureEditor pattern (2026-07-02):
+            // LEFT = bare ChevronLeft Back (exit edit → read detail, pure content
+            // swap, hideClose stays on so no Sheet desync); RIGHT = Save + Close.
+            // Delete is NOT in the edit header — it's an independent action already
+            // in the read-mode ellipsis menu (EventDetailPanel onDelete).
+            leftContent={dayDrawerView === 'edit' && editingEvent ? (
+              <button
+                type="button"
+                onClick={handleDayDrawerEditCancel}
+                aria-label="Back"
+                className="w-9 h-9 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
+              >
+                <ChevronLeft size={20} />
+              </button>
+            ) : undefined}
             rightContent={dayDrawerView === 'edit' && editingEvent ? (
               <HeaderPill>
-                <PillButton icon={Trash2} iconSize={18} onClick={() => setConfirmDeleteEvent(editingEvent.id)} label="Delete" variant="danger" />
-                <PillButton icon={X} iconSize={18} onClick={handleDayDrawerEditCancel} label="Cancel" />
                 <PillButton
                   icon={Check}
                   iconSize={18}
@@ -1603,6 +1627,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                   onClick={() => eventFormRef.current?.submit()}
                   label="Save"
                 />
+                <PillButton icon={X} iconSize={18} onClick={handleDayDrawerDetailBack} label="Close" />
               </HeaderPill>
             ) : dayDrawerView === 'create' ? (
               <HeaderPill>
@@ -1689,15 +1714,23 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
             {showDesktopPanel && (
               panelView === 'form' ? (
                 <div className="relative flex flex-col flex-1 min-h-0">
-                  <div className="flex items-center justify-between px-3 py-2 border-b border-tertiary/10">
-                    <h2 className="min-w-0 flex-1 mr-2 text-sm font-semibold text-primary truncate">
+                  {/* Edit-pane header mirrors the map FeatureEditor pattern
+                      (2026-07-02): LEFT = bare Back (→ read detail, or calendar
+                      on create); RIGHT = Save + Close. Delete is NOT here — it's
+                      in the read-mode ellipsis (EventDetailPanel onDelete). */}
+                  <div className="flex items-center px-3 py-2 border-b border-tertiary/10">
+                    <button
+                      type="button"
+                      onClick={handleFormCancel}
+                      aria-label="Back"
+                      className="w-8 h-8 shrink-0 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
+                    >
+                      <ChevronLeft size={20} />
+                    </button>
+                    <h2 className="min-w-0 flex-1 mx-2 text-sm font-semibold text-primary truncate">
                       {formTitle.trim() || (editingEvent ? 'Edit Event' : 'New Event')}
                     </h2>
                     <HeaderPill>
-                      {editingEvent && (
-                        <PillButton icon={Trash2} iconSize={18} onClick={() => setConfirmDeleteEvent(editingEvent.id)} label="Delete" variant="danger" />
-                      )}
-                      <PillButton icon={X} iconSize={18} onClick={handleFormCancel} label="Cancel" />
                       <PillButton
                         icon={Check}
                         iconSize={18}
@@ -1705,6 +1738,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                         onClick={() => eventFormRef.current?.submit()}
                         label="Save"
                       />
+                      <PillButton icon={X} iconSize={18} onClick={handleDetailBack} label="Close" />
                     </HeaderPill>
                   </div>
                   <div className="flex-1 min-h-0 overflow-y-auto">

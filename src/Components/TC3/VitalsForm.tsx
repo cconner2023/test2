@@ -1,10 +1,11 @@
 import { memo, useState, useRef, useEffect, type ReactNode } from 'react'
-import { Plus, X, Check, TrendingUp } from 'lucide-react'
+import { Plus, Trash2, Check, TrendingUp } from 'lucide-react'
 import { useTC3Store } from '../../stores/useTC3Store'
 import { TC3EditorSurface } from './TC3EditorSurface'
 import { BloodPressureInput, DatePickerInput } from '../FormInputs'
 import { ActionButton } from '../ActionButton'
 import { ActionPill } from '../ActionPill'
+import { OverlayHeaderMenu } from '../OverlayHeaderMenu'
 import { EmptyState } from '../EmptyState'
 import type { TC3VitalSet, AVPU } from '../../Types/TC3Types'
 
@@ -572,15 +573,13 @@ export const VitalsForm = memo(function VitalsForm() {
           anchorRect={null}
           title="Vital Signs"
           preview={<VitalSetPreviewContent id={editingSet.id} />}
-          actions={[
-            {
-              key: 'remove',
-              label: 'Remove',
-              icon: X,
-              onAction: handleRemove,
-              variant: 'danger',
-            },
-          ]}
+          headerActions={
+            <OverlayHeaderMenu
+              items={[
+                { key: 'remove', label: 'Remove vitals', icon: Trash2, onAction: handleRemove, destructive: true },
+              ]}
+            />
+          }
           rightFooter={
             <ActionPill>
               <ActionButton icon={Check} label="Done" onClick={handleClose} />

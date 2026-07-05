@@ -1,13 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Check, Send, MessageSquare, X, Plus, Globe } from 'lucide-react'
 import { PreviewOverlay } from '../PreviewOverlay'
 import { HudLoader } from '../HudLoader'
 import { UserAvatar } from '../Settings/UserAvatar'
 import { useAuthStore } from '../../stores/useAuthStore'
-import { useClinicMedics } from '../../Hooks/useClinicMedics'
+import { useMessageRoster } from '../../Hooks/useMessageRoster'
 import { useMessagesContext } from '../../Hooks/MessagesContext'
-import { useAvatar } from '../../Utilities/AvatarContext'
-import { SYSTEM_USER_ID } from '../../lib/signal/systemIdentity'
 import { getDisplayName } from '../../Utilities/nameUtils'
 import { fetchProfileById } from '../../lib/peerLookup'
 import { packBundle, bundleSourceToBundle, type BundleSource } from '../../lib/objectBundle'
@@ -40,8 +38,8 @@ interface SendResult {
 /**
  * Centered modal that lets a user share a SharedRefContent (calendar event,
  * map overlay, map feature, or property item) into one or more cluster
- * conversations. Roster is cluster-scoped (allMedics from useClinicMedics)
- * plus a self row routed to the existing self-conversation path. Multi-select
+ * conversations. Roster is the shared useMessageRoster primitive (cluster +
+ * self row + code-added out-cluster peers). Multi-select
  * → loop sendStructured → completion modal listing succeeded / failed.
  *
  * No PHI on the wire — only the opaque refId + operator-supplied label travel.
@@ -49,11 +47,9 @@ interface SendResult {
  */
 export function ShareToChatPicker({ isOpen, content, bundleSource, onClose, zIndex }: ShareToChatPickerProps) {
   const ctx = useMessagesContext()
-  const { medics } = useClinicMedics()
   const userId = useAuthStore(s => s.user?.id ?? null)
   const myClinicId = useAuthStore(s => s.clinicId)
   const myClinicName = useAuthStore(s => s.user?.clinicName ?? null)
-  const { currentAvatar } = useAvatar()
 
   const [phase, setPhase] = useState<Phase>('pick')
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -65,6 +61,11 @@ export function ShareToChatPicker({ isOpen, content, bundleSource, onClose, zInd
   const [lookupBusy, setLookupBusy] = useState(false)
   const [lookupError, setLookupError] = useState<string | null>(null)
 
+  // Shared roster primitive — self row + cluster + code-added peers, SYSTEM and
+  // dupes dropped, plus the common name/rank/id filter. Same source the forward
+  // and new-message pickers use; sharing just layers multi-select on top.
+  const { roster, selfMedic, applyFilter } = useMessageRoster({ includeSelf: true, extraPeers })
+
   // Reset internal state on open/close.
   useEffect(() => {
     if (!isOpen) return
@@ -75,40 +76,6 @@ export function ShareToChatPicker({ isOpen, content, bundleSource, onClose, zInd
     setLookupBusy(false)
     setLookupError(null)
   }, [isOpen])
-
-  // Self row — first in the list. Routes through sendStructured's self-notes
-  // branch (peerId === userId) so it always works without an open conversation.
-  // Shape mirrors MessagesPanel's selfMedic (currentAvatar + placeholder name).
-  const selfMedic = useMemo<ClinicMedic | null>(() => {
-    if (!userId) return null
-    return {
-      id: userId,
-      firstName: null,
-      lastName: 'You',
-      middleInitial: null,
-      rank: null,
-      credential: null,
-      avatarId: currentAvatar.id,
-    }
-  }, [userId, currentAvatar.id])
-
-  // Cluster roster: self + medics + any out-cluster peers added by code, minus
-  // SYSTEM, minus duplicates of self.
-  const roster = useMemo<ClinicMedic[]>(() => {
-    const out: ClinicMedic[] = []
-    if (selfMedic) out.push(selfMedic)
-    for (const m of extraPeers) {
-      if (selfMedic && m.id === selfMedic.id) continue
-      out.push(m)
-    }
-    for (const m of medics) {
-      if (m.id === SYSTEM_USER_ID) continue
-      if (selfMedic && m.id === selfMedic.id) continue
-      if (extraPeers.some(e => e.id === m.id)) continue
-      out.push(m)
-    }
-    return out
-  }, [selfMedic, medics, extraPeers])
 
   /** A recipient counts as cross-cluster when we know both clinic ids and they
    *  differ. Same-cluster (or unknown) → live ref; cross-cluster → frozen bundle. */
@@ -134,18 +101,6 @@ export function ShareToChatPicker({ isOpen, content, bundleSource, onClose, zInd
       setLookupBusy(false)
     }
   }, [userId, roster])
-
-  const applyFilter = (q: string): ClinicMedic[] => {
-    const trimmed = q.trim().toLowerCase()
-    if (!trimmed) return roster
-    return roster.filter(m =>
-      m.id.toLowerCase() === trimmed ||
-      (m.firstName ?? '').toLowerCase().includes(trimmed) ||
-      (m.lastName ?? '').toLowerCase().includes(trimmed) ||
-      (m.rank ?? '').toLowerCase().includes(trimmed) ||
-      [m.rank, m.lastName].filter(Boolean).join(' ').toLowerCase().includes(trimmed)
-    )
-  }
 
   const toggle = (id: string) => {
     setSelected(prev => {

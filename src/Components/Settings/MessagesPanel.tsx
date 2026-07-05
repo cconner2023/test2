@@ -677,7 +677,7 @@ function ConversationPane({
   )
 }
 
-// ── (ForwardPicker moved to ChatDetailView.tsx) ──
+// ── (Recipient selection lives in the shared RecipientPicker / useMessageRoster) ──
 
 // ── Chat Detail (1:1) — thin wrapper over ChatDetailView ──────────────────
 

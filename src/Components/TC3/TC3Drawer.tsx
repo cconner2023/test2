@@ -143,7 +143,7 @@ export const TC3Drawer = memo(function TC3Drawer({ isVisible, onClose }: TC3Draw
           isOpen={rosterOpen}
           onClose={() => setRosterOpen(false)}
           title="Casualties"
-          maxHeight={80}
+          maxHeight={60}
           zIndex={1200}
           actions={rosterActions}
         >

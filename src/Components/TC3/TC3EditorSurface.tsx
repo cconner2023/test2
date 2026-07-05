@@ -62,14 +62,24 @@ export function TC3EditorSurface(props: Props) {
   }
 
   // ── Mobile — bottom Sheet ──
+  // Header right cluster reads ellipsis (headerActions) · save (rightFooter) ·
+  // close, mirroring the desktop pane. Capped at 60dvh so the sheet never
+  // dominates the viewport — the body scrolls past it.
   return (
     <Sheet
       isOpen={isOpen}
       onClose={onClose}
       title={props.title}
       zIndex={1200}
-      maxHeight={85}
-      rightContent={props.rightFooter}
+      maxHeight={60}
+      rightContent={
+        props.headerActions || props.rightFooter ? (
+          <div className="flex items-center gap-2">
+            {props.headerActions}
+            {props.rightFooter}
+          </div>
+        ) : undefined
+      }
       actions={<EditorActions actions={props.actions} onClose={onClose} />}
     >
       {body}

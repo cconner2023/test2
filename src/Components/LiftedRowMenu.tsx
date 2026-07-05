@@ -1,7 +1,7 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useSpring, useTransition, animated } from '@react-spring/web'
-import type { ReactNode } from 'react'
+import type { ReactNode, RefObject } from 'react'
 import { ChevronLeft } from 'lucide-react'
 import { ActionPill } from './ActionPill'
 import { PopoverHeader } from './PreviewOverlay'
@@ -10,8 +10,17 @@ import { MenuItemButton, contextMenuItemVariant, type ContextMenuItem } from './
 interface AnchoredMenuProps {
   isOpen: boolean
   /** Bounding rect the menu anchors to — the long-pressed/right-clicked row, or
-   *  the trigger button (ellipsis / selector). */
+   *  the trigger button (ellipsis / selector). Ignored when `anchorRef` is set. */
   anchorRect: DOMRect | null
+  /** Live trigger element. When set, the menu re-measures its rect on
+   *  scroll / resize / visualViewport changes instead of freezing a snapshot — so
+   *  an iOS keyboard collapse (which reflows the layout after the tap) re-pins the
+   *  menu to the button's true position rather than stranding it at the top.
+   *  Takes precedence over `anchorRect`. */
+  anchorRef?: RefObject<HTMLElement | null>
+  /** data-tour anchor applied to the menu card (so a guided tour can highlight the
+   *  open menu — e.g. the chat "+" share menu). */
+  dataTour?: string
   /** Visual clone of the row — rendered floating, lifted off the list (iOS peek).
    *  OMIT for ellipsis / selector menus: with no clone the menu still dims the bg
    *  and rises into place (same lifted feel) — it just has no row to lift. */
@@ -109,8 +118,10 @@ function MenuListRow({ item, onSelect }: { item: ContextMenuItem; onSelect: (ite
  *
  * `LiftedRowMenu` is a back-compat alias for callers that pass a clone.
  */
-export function AnchoredMenu({ isOpen, anchorRect, row, items, onClose, bare = false, align = 'left', layout = 'pill', reactions, backdrop, header }: AnchoredMenuProps) {
+export function AnchoredMenu({ isOpen, anchorRect: anchorRectProp, anchorRef, dataTour, row, items, onClose, bare = false, align = 'left', layout = 'pill', reactions, backdrop, header }: AnchoredMenuProps) {
   const [visible, setVisible] = useState(false)
+  // Live-anchor rect — re-measured from `anchorRef` on any reflow (see prop doc).
+  const [liveRect, setLiveRect] = useState<DOMRect | null>(null)
   // A drilled-in submenu carries its parent row's label so the header can title it
   // and offer a Back chevron (PopoverHeader) instead of trapping the user until they
   // dismiss the whole menu.
@@ -181,6 +192,26 @@ export function AnchoredMenu({ isOpen, anchorRect, row, items, onClose, bare = f
     return () => cancelAnimationFrame(raf)
   }, [isOpen])
 
+  // Re-read the trigger's rect on scroll / resize / visualViewport changes so an
+  // iOS keyboard collapse re-pins the menu instead of freezing a stale snapshot.
+  useEffect(() => {
+    if (!isOpen || !anchorRef) { setLiveRect(null); return }
+    const measure = () => { const el = anchorRef.current; if (el) setLiveRect(el.getBoundingClientRect()) }
+    measure()
+    const vvp = window.visualViewport
+    window.addEventListener('resize', measure, { passive: true })
+    window.addEventListener('scroll', measure, { passive: true, capture: true })
+    vvp?.addEventListener('resize', measure)
+    vvp?.addEventListener('scroll', measure)
+    return () => {
+      window.removeEventListener('resize', measure)
+      window.removeEventListener('scroll', measure, true)
+      vvp?.removeEventListener('resize', measure)
+      vvp?.removeEventListener('scroll', measure)
+    }
+  }, [isOpen, anchorRef])
+
+  const anchorRect = anchorRef ? liveRect : anchorRectProp
   if (!isOpen || !anchorRect) return null
 
   const vw = window.innerWidth
@@ -345,6 +376,7 @@ export function AnchoredMenu({ isOpen, anchorRect, row, items, onClose, bare = f
       {isList ? (
         <animated.div
           ref={menuRef}
+          data-tour={dataTour}
           className="absolute rounded-2xl bg-themewhite overflow-hidden ring-1 ring-black/5 select-none"
           style={{
             left: menuLeft,

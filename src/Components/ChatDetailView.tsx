@@ -5,14 +5,13 @@ import { GlassBand } from './GlassBand'
 import { MessageBubble } from './Settings/MessageBubble'
 import { SharedObjectPicker } from './Messages/SharedObjectPicker'
 import { ImageEditor } from './ImageEditor'
-import { PreviewOverlay } from './PreviewOverlay'
 import type { MessageContent, SharedBundleContent } from '../lib/signal/messageContent'
 import { packBundle, bundleSourceToBundle, type BundleSource } from '../lib/objectBundle'
 import { ContextMenu, type ContextMenuItem } from './ContextMenu'
 import { LiftedRowMenu } from './LiftedRowMenu'
 import { ReactionGlyph, REACTION_CODES, REACTION_LABELS } from './Messages/ReactionGlyphs'
 import { useMessagesContext } from '../Hooks/MessagesContext'
-import { ContactListItem } from './Settings/ContactListItem'
+import { RecipientPicker } from './Messages/RecipientPicker'
 import { useAuth } from '../Hooks/useAuth'
 import { useAuthStore } from '../stores/useAuthStore'
 import { useImagePaste } from '../Hooks/useImagePaste'
@@ -99,67 +98,6 @@ export interface ChatDetailViewProps {
   children?: ReactNode
 }
 
-// ── Forward Contact Picker ────────────────────────────────────────────────
-
-function ForwardPicker({
-  isOpen,
-  conversations,
-  currentId,
-  medics,
-  onSelect,
-  onCancel,
-}: {
-  isOpen: boolean
-  conversations: Record<string, DecryptedSignalMessage[]>
-  currentId: string
-  medics: ClinicMedic[]
-  onSelect: (medic: ClinicMedic) => void
-  onCancel: () => void
-}) {
-  const { user } = useAuth()
-  const userId = user?.id ?? null
-
-  const targets = medics.filter(m => m.id !== currentId && m.id !== userId)
-  const sorted = [...targets].sort((a, b) => {
-    const aHas = conversations[a.id] ? 1 : 0
-    const bHas = conversations[b.id] ? 1 : 0
-    if (aHas !== bHas) return bHas - aHas
-    return (a.lastName ?? '').localeCompare(b.lastName ?? '')
-  })
-
-  return (
-    <PreviewOverlay
-      isOpen={isOpen}
-      onClose={onCancel}
-      anchorRect={null}
-      title="Forward to..."
-      searchPlaceholder="Search contacts..."
-      previewMaxHeight="50dvh"
-      preview={(filter: string) => {
-        const q = filter.toLowerCase()
-        const filtered = q
-          ? sorted.filter(m =>
-              m.firstName?.toLowerCase().includes(q) ||
-              m.lastName?.toLowerCase().includes(q) ||
-              m.rank?.toLowerCase().includes(q) ||
-              [m.rank, m.lastName].filter(Boolean).join(' ').toLowerCase().includes(q)
-            )
-          : sorted
-        if (filtered.length === 0) {
-          return <p className="text-[10pt] text-tertiary text-center py-6">No contacts found</p>
-        }
-        return (
-          <div className="py-1">
-            {filtered.map(medic => (
-              <ContactListItem key={medic.id} medic={medic} onClick={() => onSelect(medic)} />
-            ))}
-          </div>
-        )
-      }}
-    />
-  )
-}
-
 // ── Unavailability Banner ─────────────────────────────────────────────────
 
 function UnavailableBanner({ participants, peerName }: { participants: ParticipantStatus[]; peerName?: string }) {
@@ -201,7 +139,6 @@ function UnavailableBanner({ participants, peerName }: { participants: Participa
 export function ChatDetailView({
   conversationId,
   conversations,
-  medics,
   sendMessage,
   sendImage,
   sendStructured,
@@ -247,13 +184,9 @@ export function ChatDetailView({
   const [editFile, setEditFile] = useState<File | null>(null)
   const conversationRef = useRef<HTMLDivElement>(null)
   const [attachOpen, setAttachOpen] = useState(false)
-  const [attachAnchorRect, setAttachAnchorRect] = useState<DOMRect | null>(null)
+  // The share menu anchors to this live button ref (not a captured rect) so an iOS
+  // keyboard collapse — the input was focused when + was tapped — re-pins it.
   const attachBtnRef = useRef<HTMLButtonElement>(null)
-
-  const openAttachMenu = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
-    setAttachAnchorRect(e.currentTarget.getBoundingClientRect())
-    setAttachOpen(true)
-  }, [])
 
   const handleShareObject = useCallback((content: MessageContent) => {
     if (!sendStructured) return
@@ -412,10 +345,7 @@ export function ChatDetailView({
       if (tourIds.length > 0) deleteMessages(conversationId, tourIds)
     }
 
-    const handleOpenShare = () => {
-      if (attachBtnRef.current) setAttachAnchorRect(attachBtnRef.current.getBoundingClientRect())
-      setAttachOpen(true)
-    }
+    const handleOpenShare = () => setAttachOpen(true)
     const handleCloseShare = () => setAttachOpen(false)
 
     window.addEventListener('tour:messaging-send-note', handleSendNote)
@@ -657,7 +587,7 @@ export function ChatDetailView({
               {canUploadImage && (
                 <button
                   ref={attachBtnRef}
-                  onClick={e => sendStructured ? openAttachMenu(e) : fileInputRef.current?.click()}
+                  onClick={() => sendStructured ? setAttachOpen(true) : fileInputRef.current?.click()}
                   disabled={sending}
                   className={`w-10 h-10 rounded-full bg-themewhite2/90 dark:bg-themewhite3/90 flex items-center justify-center disabled:opacity-30 active:scale-95 transition-all shrink-0
                               ${attachOpen ? 'rotate-45' : ''}`}
@@ -845,7 +775,7 @@ export function ChatDetailView({
       {sendStructured && (
         <SharedObjectPicker
           isOpen={attachOpen}
-          anchorRect={attachAnchorRect}
+          anchorRef={attachBtnRef}
           containerRef={conversationRef}
           clinicId={clinicId ?? null}
           onClose={() => setAttachOpen(false)}
@@ -962,13 +892,13 @@ export function ChatDetailView({
         onCancel={closePendingDelete}
       />
       {showForward && (
-        <ForwardPicker
+        <RecipientPicker
           isOpen={showForwardPicker}
+          title="Forward to..."
+          excludeIds={[conversationId]}
           conversations={conversations}
-          currentId={conversationId}
-          medics={medics}
           onSelect={handleForwardSelect}
-          onCancel={closeForwardPicker}
+          onClose={closeForwardPicker}
         />
       )}
       {children}
