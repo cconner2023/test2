@@ -1,5 +1,5 @@
 import { memo, useState, useCallback, useRef } from 'react'
-import { Plus, X, Check, ChevronRight } from 'lucide-react'
+import { Plus, Trash2, Check, ChevronRight } from 'lucide-react'
 import type {
   TC3IVAccess, TC3Medication, NeedleDecompSide,
   MedRoute, MedCategory, BodyRegion,
@@ -515,7 +515,7 @@ export const MARCHForm = memo(function MARCHForm() {
   let popoverActions: { key: string; label: string; icon: typeof Check; onAction: () => void; variant?: 'default' | 'danger' }[] = []
 
   if (editing) {
-    const removeAction = { key: 'remove', label: 'Remove', icon: X, onAction: handleRemove, variant: 'danger' as const }
+    const removeAction = { key: 'remove', label: 'Remove', icon: Trash2, onAction: handleRemove, variant: 'danger' as const }
     const doneAction = { key: 'done', label: 'Done', icon: Check, onAction: () => setEditing(null) }
 
     if (editing.kind === 'tourniquet') {
@@ -973,11 +973,11 @@ export const MARCHForm = memo(function MARCHForm() {
         title="Intervention"
         preview={popoverPreview}
         actions={popoverLeftActions}
-        rightFooter={popoverDoneAction ? (
-          <ActionPill>
-            <ActionButton icon={popoverDoneAction.icon} label={popoverDoneAction.label} onClick={popoverDoneAction.onAction} />
-          </ActionPill>
-        ) : undefined}
+        saveAction={popoverDoneAction ? {
+          icon: popoverDoneAction.icon,
+          label: popoverDoneAction.label,
+          onAction: popoverDoneAction.onAction,
+        } : undefined}
         previewMaxHeight="65dvh"
       />
     </div>

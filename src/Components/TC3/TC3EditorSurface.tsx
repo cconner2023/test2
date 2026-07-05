@@ -1,17 +1,22 @@
 import { useEffect, useState, type ComponentProps, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { Check, X } from 'lucide-react'
+import { Check, X, type LucideIcon } from 'lucide-react'
 import { useIsMobile } from '../../Hooks/useIsMobile'
 import { PreviewOverlay } from '../PreviewOverlay'
 import { Sheet } from '../Sheet'
 import { SearchInput } from '../SearchInput'
-import { ActionButton } from '../ActionButton'
 import { HeaderPill, PillButton } from '../HeaderPill'
 import { TextInput } from '../FormInputs'
 import { useTC3Detail } from './TC3DetailContext'
 
-// Reuse PreviewOverlay's prop surface so the TC3 forms remain unchanged drop-ins.
-type Props = ComponentProps<typeof PreviewOverlay>
+// Reuse PreviewOverlay's prop surface so the TC3 forms remain drop-ins, plus a
+// structured `saveAction` so the surface owns the Save button markup (rendered
+// as a Check PillButton grouped with Close) rather than each form hand-rolling it.
+type Props = ComponentProps<typeof PreviewOverlay> & {
+  /** Primary save/done action — an icon PillButton grouped in the Close pill.
+   *  Its `onAction` is responsible for closing the surface (commit + dismiss). */
+  saveAction?: { icon?: LucideIcon; label: string; onAction: () => void }
+}
 
 /**
  * The TC3 card sub-editor surface — same prop surface the forms already pass to
@@ -39,20 +44,40 @@ export function TC3EditorSurface(props: Props) {
 
   const body = useEditorBody(props)
 
+  const { saveAction } = props
+
+  // Save (Check) + Close (X) as a single grouped cluster: one HeaderPill →
+  // borderless icons on desktop, a bordered pill on mobile. Same PillButton
+  // styling for both; Save carries the success accent (green underline desktop /
+  // filled circle mobile) to read as primary.
+  const saveClosePills = (
+    <>
+      {saveAction && (
+        <PillButton
+          icon={saveAction.icon ?? Check}
+          iconSize={16}
+          accent="success"
+          onClick={saveAction.onAction}
+          label={saveAction.label}
+        />
+      )}
+      <PillButton icon={X} iconSize={16} onClick={onClose} label="Close" />
+    </>
+  )
+
   // ── Desktop — docked panel portaled into the right pane ──
+  // Header mirrors the app's edit-item pane: reset/remove (left) · title ·
+  // [ellipsis] Save · Close (right, one borderless cluster).
   if (!isMobile && detail) {
     if (!isOpen || !detail.paneRef.current) return null
     return createPortal(
       <div className="flex flex-col h-full bg-themewhite3">
-        <div className="shrink-0 flex items-center justify-between gap-2 px-3 py-2 border-b border-primary/10">
-          <span className="text-sm font-medium text-primary truncate min-w-0">{props.title}</span>
+        <div className="shrink-0 flex items-center gap-2 px-3 py-2 border-b border-primary/10">
+          <LeftAction actions={props.actions} onClose={onClose} />
+          <span className="text-sm font-medium text-primary truncate min-w-0 flex-1">{props.title}</span>
           <div className="flex items-center gap-2 shrink-0">
             {props.headerActions}
-            <EditorActions actions={props.actions} onClose={onClose} />
-            {props.rightFooter}
-            <HeaderPill>
-              <PillButton icon={X} iconSize={16} onClick={onClose} label="Close" />
-            </HeaderPill>
+            <HeaderPill>{saveClosePills}</HeaderPill>
           </div>
         </div>
         <div className="flex-1 min-h-0 overflow-y-auto px-1 py-1">{body}</div>
@@ -62,9 +87,9 @@ export function TC3EditorSurface(props: Props) {
   }
 
   // ── Mobile — bottom Sheet ──
-  // Header right cluster reads ellipsis (headerActions) · save (rightFooter) ·
-  // close, mirroring the desktop pane. Capped at 60dvh so the sheet never
-  // dominates the viewport — the body scrolls past it.
+  // reset/remove rides the header-left; Save folds into the Sheet's Close pill
+  // (Sheet groups `actions` + Close in one HeaderPill). Capped at 60dvh so the
+  // sheet never dominates the viewport — the body scrolls past it.
   return (
     <Sheet
       isOpen={isOpen}
@@ -72,45 +97,50 @@ export function TC3EditorSurface(props: Props) {
       title={props.title}
       zIndex={1200}
       maxHeight={60}
-      rightContent={
-        props.headerActions || props.rightFooter ? (
-          <div className="flex items-center gap-2">
-            {props.headerActions}
-            {props.rightFooter}
-          </div>
+      leftContent={<LeftAction actions={props.actions} onClose={onClose} />}
+      rightContent={props.headerActions ? <div className="flex items-center gap-2">{props.headerActions}</div> : undefined}
+      actions={
+        saveAction ? (
+          <PillButton
+            icon={saveAction.icon ?? Check}
+            accent="success"
+            onClick={saveAction.onAction}
+            label={saveAction.label}
+          />
         ) : undefined
       }
-      actions={<EditorActions actions={props.actions} onClose={onClose} />}
     >
       {body}
     </Sheet>
   )
 }
 
-/** Left-side action pills (e.g. Remove) — shared by the desktop header + Sheet. */
-function EditorActions({ actions = [], onClose }: { actions?: Props['actions']; onClose: () => void }) {
-  if (!actions || actions.length === 0) return null
+/** Header-left secondary action(s) — reset / remove. One HeaderPill so it reads
+ *  as a grouped pill on mobile and borderless icons on desktop, matching the
+ *  Save/Close cluster on the right. */
+function LeftAction({ actions = [], onClose }: { actions?: Props['actions']; onClose: () => void }) {
+  const items = (actions ?? []).filter((a) => a.icon)
+  if (items.length === 0) return null
   return (
-    <>
-      {actions.map((a) =>
-        a.icon ? (
-          <ActionButton
-            key={a.key}
-            icon={a.icon}
-            label={a.label}
-            variant={a.variant ?? 'default'}
-            onClick={() => {
-              if (a.closesOnAction === false) {
-                a.onAction()
-              } else {
-                onClose()
-                setTimeout(a.onAction, 320)
-              }
-            }}
-          />
-        ) : null,
-      )}
-    </>
+    <HeaderPill>
+      {items.map((a) => (
+        <PillButton
+          key={a.key}
+          icon={a.icon!}
+          iconSize={16}
+          label={a.label}
+          variant={a.variant === 'danger' ? 'danger' : 'default'}
+          onClick={() => {
+            if (a.closesOnAction === false) {
+              a.onAction()
+            } else {
+              onClose()
+              setTimeout(a.onAction, 320)
+            }
+          }}
+        />
+      ))}
+    </HeaderPill>
   )
 }
 

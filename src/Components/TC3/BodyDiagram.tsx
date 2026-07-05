@@ -3,9 +3,6 @@ import { Trash2, Check } from 'lucide-react'
 import { useTC3Store } from '../../stores/useTC3Store'
 import { TC3BodyDiagramSvg } from './TC3BodyDiagramSvg'
 import { TC3EditorSurface } from './TC3EditorSurface'
-import { ActionPill } from '../ActionPill'
-import { ActionButton } from '../ActionButton'
-import { OverlayHeaderMenu } from '../OverlayHeaderMenu'
 import { MarkerPopover } from './MarkerPopover'
 import { getRegionLabel } from '../../Utilities/bodyRegionMap'
 import type { TC3Marker, InjuryType } from '../../Types/TC3Types'
@@ -127,18 +124,10 @@ export const BodyDiagram = memo(function BodyDiagram({
             />
           ) : null
         )}
-        headerActions={
-          <OverlayHeaderMenu
-            items={[
-              { key: 'remove', label: 'Remove marker', icon: Trash2, onAction: handleRemove, destructive: true },
-            ]}
-          />
-        }
-        rightFooter={
-          <ActionPill>
-            <ActionButton icon={Check} label="Done" onClick={handleDone} />
-          </ActionPill>
-        }
+        actions={[
+          { key: 'remove', label: 'Remove marker', icon: Trash2, onAction: handleRemove, variant: 'danger' },
+        ]}
+        saveAction={{ icon: Check, label: 'Done', onAction: handleDone }}
         onAdd={(value) => {
           if (editedMarker) {
             updateMarker(editedMarker.id, {

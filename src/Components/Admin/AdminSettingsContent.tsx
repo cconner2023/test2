@@ -4,11 +4,6 @@ import { listLocations } from '../../lib/adminService'
 import type { AdminLocation } from '../../lib/adminService'
 import { useInvalidation } from '../../stores/useInvalidationStore'
 import { EmptyState } from '../EmptyState'
-import { HudLoader } from '../HudLoader'
-
-// TEMP: keep the locations settings surface pinned to the loading HUD so the
-// design can be finetuned in place. Set false (or delete this block) to restore.
-const HUD_PREVIEW = true
 
 interface AdminSettingsContentProps {
   /** Open a location's detail (view/edit) — reuses the drawer's location pane. */
@@ -34,15 +29,6 @@ export function AdminSettingsContent({ onSelectLocation, onCreateLocation }: Adm
   }, [])
 
   useEffect(() => { load() }, [load, gen])
-
-  // TEMP: render the loading HUD in place of the list for design iteration.
-  if (HUD_PREVIEW) {
-    return (
-      <div className="flex items-center justify-center py-24">
-        <HudLoader size={120} />
-      </div>
-    )
-  }
 
   return (
     <div>

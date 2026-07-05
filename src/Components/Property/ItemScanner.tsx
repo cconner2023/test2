@@ -1,7 +1,14 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { X, ScanLine, Loader2, CheckCircle2, AlertCircle } from 'lucide-react'
-import { BrowserMultiFormatReader } from '@zxing/library'
+import {
+  BrowserMultiFormatReader,
+  BinaryBitmap,
+  HybridBinarizer,
+  RGBLuminanceSource,
+  DecodeHintType,
+  BarcodeFormat,
+} from '@zxing/library'
 import { openCamera, closeCamera, captureFrame } from '../../lib/vision/camera'
 import { extractFingerprint } from '../../lib/vision/fingerprint'
 import { matchScan, type MatchResult } from '../../lib/vision/matcher'
@@ -26,14 +33,28 @@ interface ItemScannerProps {
 
 type ScanPhase = 'scanning' | 'processing' | 'ambiguous' | 'confirmed' | 'no_match'
 
-// Offscreen canvas for barcode decoding
-function imageDataToCanvas(imageData: ImageData): HTMLCanvasElement {
-  const canvas = document.createElement('canvas')
-  canvas.width = imageData.width
-  canvas.height = imageData.height
-  const ctx = canvas.getContext('2d')!
-  ctx.putImageData(imageData, 0, 0)
-  return canvas
+// Our printed property/zone labels are Data Matrix symbols (bwip-js `datamatrix`).
+// Pin the reader to that one format + TRY_HARDER so a small label in a busy frame is
+// actually located, and stray 1D manufacturer codes are never picked up.
+const SCAN_HINTS = new Map<DecodeHintType, any>([
+  [DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.DATA_MATRIX]],
+  [DecodeHintType.TRY_HARDER, true],
+])
+
+// Decode a single frame for a Data Matrix; returns its text or null.
+// ZXing 0.21 has NO `decodeFromCanvas` (calling it throws) — build a BinaryBitmap
+// from the frame's luminance and decode that. Int32Array views the RGBA buffer as
+// packed pixels; RGBLuminanceSource derives luminance from them. Throws NotFound
+// when the frame holds no symbol → treated as "keep scanning".
+function decodeDataMatrix(reader: BrowserMultiFormatReader, frame: ImageData): string | null {
+  try {
+    const packed = new Int32Array(frame.data.buffer)
+    const source = new RGBLuminanceSource(packed, frame.width, frame.height)
+    const bitmap = new BinaryBitmap(new HybridBinarizer(source))
+    return reader.decodeBitmap(bitmap).getText()
+  } catch {
+    return null
+  }
 }
 
 export function ItemScanner({ items, locations, onMatch, onLocate, onLocateZone, onClose }: ItemScannerProps) {
@@ -46,7 +67,7 @@ export function ItemScanner({ items, locations, onMatch, onLocate, onLocateZone,
   const streamRef = useRef<MediaStream | null>(null)
   const rafRef = useRef<number | null>(null)
   const lastScanRef = useRef<number>(0)
-  const readerRef = useRef<BrowserMultiFormatReader>(new BrowserMultiFormatReader())
+  const readerRef = useRef<BrowserMultiFormatReader>(new BrowserMultiFormatReader(SCAN_HINTS))
   const activeRef = useRef(true)
 
   const stopLoop = useCallback(() => {
@@ -118,15 +139,10 @@ export function ItemScanner({ items, locations, onMatch, onLocate, onLocateZone,
 
     const imageData = captureFrame(videoRef.current)
 
-    // Barcode decode
+    // Data Matrix decode — our opaque BCN-ITEM / BCN-ZONE labels.
     const barcodes: string[] = []
-    try {
-      const canvas = imageDataToCanvas(imageData)
-      const result = readerRef.current.decodeFromCanvas(canvas)
-      if (result) barcodes.push(result.getText())
-    } catch {
-      // No barcode found — normal path
-    }
+    const decoded = decodeDataMatrix(readerRef.current, imageData)
+    if (decoded) barcodes.push(decoded)
 
     // Deterministic resolve: our printed Data Matrix labels encode an opaque id.
     // A ZONE tag (BCN-ZONE) lands on the zone; an ITEM tag (BCN-ITEM) confirms the
@@ -149,8 +165,10 @@ export function ItemScanner({ items, locations, onMatch, onLocate, onLocateZone,
       }
     }
 
-    // Visual fingerprint
-    const fingerprint = extractFingerprint(imageData, barcodes)
+    // Visual fingerprint. Barcodes drive only the deterministic short-circuit above;
+    // enrolled fingerprints never carry barcodes, so feeding a stray decoded symbol
+    // here would only sabotage scoring (scoreFingerprints caps the score at 0.35).
+    const fingerprint = extractFingerprint(imageData, [])
 
     // Match against enrolled items
     const result = matchScan(

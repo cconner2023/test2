@@ -6,8 +6,6 @@ import { useNavigationStore } from '../../stores/useNavigationStore'
 import { OverlaySnapshot } from '../MapOverlay/OverlaySnapshot'
 import { TC3EditorSurface } from './TC3EditorSurface'
 import { TextInput, DatePickerInput, PickerInput } from '../FormInputs'
-import { ActionButton } from '../ActionButton'
-import { ActionPill } from '../ActionPill'
 import { EmptyState } from '../EmptyState'
 import type { EvacPriority, BloodType } from '../../Types/TC3Types'
 import { MILITARY_TIME_OPTIONS, militaryToHHMM, hhmmToMilitary } from '../../Types/CalendarTypes'
@@ -390,11 +388,7 @@ export const CasualtyInfoForm = memo(function CasualtyInfoForm() {
             variant: 'danger',
           },
         ]}
-        rightFooter={
-          <ActionPill>
-            <ActionButton icon={Check} label="Accept" onClick={() => { handleAccept(); setPopoverVisible(false); }} />
-          </ActionPill>
-        }
+        saveAction={{ icon: Check, label: 'Accept', onAction: () => { handleAccept(); setPopoverVisible(false); } }}
       />
     </div>
   )

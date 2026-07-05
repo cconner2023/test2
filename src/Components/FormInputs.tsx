@@ -71,6 +71,7 @@ export const TextInput = ({
   inputRef,
   onKeyDown,
   inputClassName,
+  ariaLabel,
   autoFocus,
 }: {
   label?: string
@@ -90,6 +91,8 @@ export const TextInput = ({
   onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void
   /** Override the input className for dense embeds (mirrors BloodPressureInput). Pair with `bare`. */
   inputClassName?: string
+  /** Accessible name for label-less `bare` embeds (e.g. a numeric cell with no visible label). */
+  ariaLabel?: string
   autoFocus?: boolean
 }) => {
   const input = (
@@ -105,6 +108,7 @@ export const TextInput = ({
       placeholder={placeholder ?? label}
       maxLength={maxLength}
       required={required}
+      aria-label={ariaLabel}
       className={inputClassName ?? 'w-full bg-transparent px-4 py-3 text-base md:text-sm text-primary placeholder:text-tertiary focus:outline-none'}
     />
   )

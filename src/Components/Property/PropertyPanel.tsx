@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo, memo, type CSSProperties } from 'react'
-import { X, MoreHorizontal, Check, ChevronLeft, Map as MapIcon, Camera, ClipboardList, Download } from 'lucide-react'
+import { X, MoreHorizontal, Check, ChevronLeft, Map as MapIcon, Camera, ClipboardList, Download, Plus } from 'lucide-react'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { LiftedRowMenu } from '../LiftedRowMenu'
 import { AddFab } from '../AddFab'
@@ -21,7 +21,7 @@ import type { TurnInDoc } from '../../Types/PropertyTypes'
 import { PropertyBreadcrumb } from './PropertyBreadcrumb'
 import { PropertySearchOverlay } from './PropertySearchOverlay'
 import { PropertyLocationForm, type PropertyLocationFormHandle, type PendingZoneTag } from './PropertyLocationForm'
-import { PropertyLocationDetail, buildLocationMenuItems, usePropertyPhotoUpload, type PropertyLocationDetailHandle } from './PropertyLocationDetail'
+import { PropertyLocationDetail, buildLocationMenuItems, type PropertyLocationDetailHandle } from './PropertyLocationDetail'
 import { PropertyItemForm, type PropertyItemFormHandle } from './PropertyItemForm'
 import { PropertyLocationMap, type MapNavHandle } from './PropertyLocationMap'
 import { isStructuralZone } from './levelUtils'
@@ -41,6 +41,7 @@ import { PropertyShortagePanel } from './PropertyShortagePanel'
 import { PropertyAuthorizedPanel } from './PropertyAuthorizedPanel'
 import { SignOutForm, type SignOutFormHandle } from './SignOutForm'
 import { HeaderPill, PillButton } from '../HeaderPill'
+import { ActionSheet } from '../ActionSheet'
 import { SearchInput } from '../SearchInput'
 import { useSubClusters } from '../../Hooks/useSubClusters'
 import { effectiveSubClusters, passesSubClusterFilter, itemPassesLens, HQ_BUCKET, type SubClusterFilter } from '../../Utilities/subCluster'
@@ -413,6 +414,20 @@ export const PropertyPanel = memo(function PropertyPanel({
   const [importOpen, setImportOpen] = useState(false)
   const [shortageOpen, setShortageOpen] = useState(false)
   const [authorizedOpen, setAuthorizedOpen] = useState(false)
+  // Authorized panel "More actions" menu (header ellipsis) — hosts Import from CSV.
+  const [authMenu, setAuthMenu] = useState(false)
+  // Authorized surface MORPH: the add/edit item form OR the read-only item detail that
+  // temporarily REPLACES the authorized list in the same right pane (desktop) / sheet
+  // (mobile). Not a nested overlay — the surface swaps list ↔ form/view and back on save.
+  const [authForm, setAuthForm] = useState<{ item: LocalPropertyItem | null; parentId: string | null } | null>(null)
+  const [authView, setAuthView] = useState<LocalPropertyItem | null>(null)
+  const authFormRef = useRef<PropertyItemFormHandle>(null)
+  const openAuthAdd = useCallback(() => { setAuthView(null); setAuthForm({ item: null, parentId: null }) }, [])
+  const openAuthEdit = useCallback((item: LocalPropertyItem) => { setAuthView(null); setAuthForm({ item, parentId: item.parent_item_id ?? null }) }, [])
+  const openAuthView = useCallback((item: LocalPropertyItem) => { setAuthForm(null); setAuthView(item) }, [])
+  const closeAuthMorph = useCallback(() => { setAuthForm(null); setAuthView(null) }, [])
+  // Closing the authorized surface (or opening another) always drops any open morph.
+  useEffect(() => { if (!authorizedOpen) { setAuthForm(null); setAuthView(null) } }, [authorizedOpen])
   // A Custody-roster card opened into the detail surface (right pane desktop /
   // sheet mobile): a DA 2062 hand receipt OR a PMCS/dispatch record. Same "main-
   // content card → pane/sheet detail" primitive the item/zone rows use; mutually
@@ -423,11 +438,9 @@ export const PropertyPanel = memo(function PropertyPanel({
   // so it re-derives live from the pending fold (curating an item shrinks it; the pane
   // auto-closes when the turn-in empties / completes).
   const [selectedTurnInId, setSelectedTurnInId] = useState<string | null>(null)
-  // Selected-location action menu (header ellipsis) anchor + photo upload plumbing.
+  // Selected-location action menu (header ellipsis) anchor. Photo add/change/remove
+  // now lives in the zone Edit form (PropertyLocationForm), not this menu.
   const [locMenu, setLocMenu] = useState<{ rect: DOMRect } | null>(null)
-  const { trigger: triggerPhoto, input: photoInput } = usePropertyPhotoUpload(
-    (id, dataUrl) => store.editLocation(id, { photo_data: dataUrl }),
-  )
 
   // Mobile: open a nested form in the location sheet (seeds the store the form reads).
   const openMobileItemForm = useCallback((item: LocalPropertyItem | null, locationId: string | null) => {
@@ -903,8 +916,6 @@ export const PropertyPanel = memo(function PropertyPanel({
     onNewArea: () => handleAddChildLocation(loc.id),
     canAddLevel: isStructuralZone(loc),
     onAddLevel: () => mapRef.current?.addFloorTo(loc.id),
-    onPhoto: () => triggerPhoto(loc.id),
-    onRemovePhoto: () => store.editLocation(loc.id, { photo_data: null }),
     onDelete: () => setPendingDeleteLocId(loc.id),
     onPmcs: () => locDetailRef.current?.openPmcs(),
     onDispatch: () => locDetailRef.current?.openDispatch(),
@@ -935,18 +946,29 @@ export const PropertyPanel = memo(function PropertyPanel({
   // detail header via openItemMenu. Host actions reuse the existing item flows; the
   // self-contained actions (mark-as-mine, split/merge, expend, PMCS, share) live inside.
   const itemActionMenuEl = (
-    <ItemActionMenu
-      ref={itemActionRef}
-      items={store.items}
-      locations={visibleLocations}
-      containerRef={panelRef}
-      onView={handleSelectItem}
-      onEdit={handleEditItemRow}
-      onDelete={onDeleteItem ? (it) => setPendingDeleteItem(it) : undefined}
-      canDelete={!!onDeleteItem}
-      onEnroll={onEnrollItem ? (it) => onEnrollItem(it) : undefined}
-      onStageTurnIn={onDeleteItem ? (it) => handleStageTurnIn(it) : undefined}
-    />
+    <>
+      <ItemActionMenu
+        ref={itemActionRef}
+        items={store.items}
+        locations={visibleLocations}
+        containerRef={panelRef}
+        onView={handleSelectItem}
+        onEdit={handleEditItemRow}
+        onDelete={onDeleteItem ? (it) => setPendingDeleteItem(it) : undefined}
+        canDelete={!!onDeleteItem}
+        onEnroll={onEnrollItem ? (it) => onEnrollItem(it) : undefined}
+        onStageTurnIn={onDeleteItem ? (it) => handleStageTurnIn(it) : undefined}
+      />
+      {/* Authorized panel "More actions" menu — Import from CSV lives behind the
+          header ellipsis (not a body pill), mounted once for desktop + mobile. */}
+      <ActionSheet
+        visible={authMenu}
+        title="Authorized items"
+        options={[{ key: 'import', label: 'Import from CSV', onAction: () => { setAuthMenu(false); setAuthorizedOpen(false); setImportOpen(true) } }]}
+        onClose={() => setAuthMenu(false)}
+        zIndex={isMobile ? 1300 : undefined}
+      />
+    </>
   )
 
   // The bottom-island tabs (Map · Camera · Sign-outs) — identical on both platforms.
@@ -1348,18 +1370,65 @@ export const PropertyPanel = memo(function PropertyPanel({
                 overlay treatment as CSV import / Shortages. */}
             {authorizedOpen && (
               <div className="absolute inset-0 z-10 flex flex-col bg-themewhite3">
-                <div className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-tertiary/10">
-                  <p className="text-sm font-medium text-primary truncate">Authorized items</p>
-                  <HeaderPill>
-                    <PillButton icon={X} iconSize={16} onClick={() => setAuthorizedOpen(false)} label="Close" />
-                  </HeaderPill>
+                <LoadingOverlay visible={formSaving} />
+                <div className="shrink-0 flex items-center justify-between gap-2 px-4 py-3 border-b border-tertiary/10">
+                  {authForm || authView ? (
+                    // Morph header — back returns to the list; Save persists a form.
+                    <>
+                      <div className="flex items-center gap-2 min-w-0">
+                        <button onClick={closeAuthMorph} aria-label="Back" className="w-9 h-9 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all shrink-0">
+                          <ChevronLeft size={20} />
+                        </button>
+                        <p className="text-sm font-medium text-primary truncate">
+                          {authForm ? (authForm.item ? 'Edit authorized item' : 'Add authorized item') : authView?.name}
+                        </p>
+                      </div>
+                      <HeaderPill>
+                        {authForm && <PillButton icon={Check} iconSize={16} accent="success" onClick={() => authFormRef.current?.submit()} label="Save" />}
+                        <PillButton icon={X} iconSize={16} onClick={() => setAuthorizedOpen(false)} label="Close" />
+                      </HeaderPill>
+                    </>
+                  ) : (
+                    // List header — ellipsis (More actions) left; add + close right.
+                    <>
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="inline-flex shrink-0" onClick={() => setAuthMenu(true)}>
+                          <PillButton icon={MoreHorizontal} iconSize={16} onClick={() => {}} label="More actions" />
+                        </span>
+                        <p className="text-sm font-medium text-primary truncate">Authorized items</p>
+                      </div>
+                      <HeaderPill>
+                        <PillButton icon={Plus} iconSize={16} onClick={openAuthAdd} label="Add authorized item" />
+                        <PillButton icon={X} iconSize={16} onClick={() => setAuthorizedOpen(false)} label="Close" />
+                      </HeaderPill>
+                    </>
+                  )}
                 </div>
                 <div className="flex-1 min-h-0 overflow-y-auto">
                   <div className="px-4 py-4 pb-8">
-                    <PropertyAuthorizedPanel
-                      onClose={() => setAuthorizedOpen(false)}
-                      onImport={() => { setAuthorizedOpen(false); setImportOpen(true) }}
-                    />
+                    {authForm ? (
+                      <PropertyItemForm
+                        ref={authFormRef}
+                        editingItem={authForm.item}
+                        showAuthorized
+                        initialParentId={authForm.parentId}
+                        onClose={closeAuthMorph}
+                        onSavingChange={setFormSaving}
+                      />
+                    ) : authView ? (
+                      <PropertyItemDetail
+                        item={authView}
+                        locations={visibleLocations}
+                        holders={store.holders}
+                        items={store.items}
+                      />
+                    ) : (
+                      <PropertyAuthorizedPanel
+                        onClose={() => setAuthorizedOpen(false)}
+                        onEdit={openAuthEdit}
+                        onView={openAuthView}
+                      />
+                    )}
                   </div>
                 </div>
               </div>
@@ -1395,7 +1464,6 @@ export const PropertyPanel = memo(function PropertyPanel({
           />
         )}
         {itemActionMenuEl}
-        {photoInput}
 
         <ConfirmDialog
           visible={!!pendingDeleteItem}
@@ -1559,7 +1627,7 @@ export const PropertyPanel = memo(function PropertyPanel({
             : shortageOpen
             ? 'Shortages'
             : authorizedOpen
-            ? 'Authorized items'
+            ? (authForm ? (authForm.item ? 'Edit authorized item' : 'Add authorized item') : authView ? authView.name : 'Authorized items')
             : signOutOpen
             ? 'New DA 2062'
             : selectedReceipt
@@ -1624,6 +1692,18 @@ export const PropertyPanel = memo(function PropertyPanel({
             <button onClick={closeMobileForm} aria-label="Cancel" className="w-9 h-9 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all">
               <ChevronLeft size={20} />
             </button>
+          ) : authorizedOpen ? (
+            (authForm || authView) ? (
+              <button onClick={closeAuthMorph} aria-label="Back" className="w-9 h-9 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all">
+                <ChevronLeft size={20} />
+              </button>
+            ) : (
+              <HeaderPill>
+                <span className="inline-flex" onClick={() => setAuthMenu(true)}>
+                  <PillButton icon={MoreHorizontal} iconSize={18} onClick={() => {}} label="More actions" />
+                </span>
+              </HeaderPill>
+            )
           ) : (mobileItem || selectedLocation || selectedReceipt || selectedRecord || selectedTurnIn) ? (
             <HeaderPill>
               <span
@@ -1650,6 +1730,14 @@ export const PropertyPanel = memo(function PropertyPanel({
             <PillButton icon={Download} iconSize={18} accent="info" onClick={saveReprint} label="Save" />
           ) : signOutOpen ? (
             <PillButton icon={Check} iconSize={18} accent="success" onClick={() => signOutFormRef.current?.submit()} label="Sign out" />
+          ) : authorizedOpen ? (
+            // + folds before the sheet's built-in Close → "+ · close" on the right;
+            // Save while a form is morphed in; nothing while viewing.
+            authForm ? (
+              <PillButton icon={Check} iconSize={18} accent="success" onClick={() => authFormRef.current?.submit()} label="Save" />
+            ) : authView ? undefined : (
+              <PillButton icon={Plus} iconSize={18} onClick={openAuthAdd} label="Add authorized item" />
+            )
           ) : mobileForm ? (
             <PillButton
               icon={Check}
@@ -1694,10 +1782,29 @@ export const PropertyPanel = memo(function PropertyPanel({
         ) : shortageOpen ? (
           <PropertyShortagePanel onClose={() => setShortageOpen(false)} stagedTurnInIds={turnInItemIds} />
         ) : authorizedOpen ? (
-          <PropertyAuthorizedPanel
-            onClose={() => setAuthorizedOpen(false)}
-            onImport={() => { setAuthorizedOpen(false); setImportOpen(true) }}
-          />
+          authForm ? (
+            <PropertyItemForm
+              ref={authFormRef}
+              editingItem={authForm.item}
+              showAuthorized
+              initialParentId={authForm.parentId}
+              onClose={closeAuthMorph}
+              onSavingChange={setFormSaving}
+            />
+          ) : authView ? (
+            <PropertyItemDetail
+              item={authView}
+              locations={visibleLocations}
+              holders={store.holders}
+              items={store.items}
+            />
+          ) : (
+            <PropertyAuthorizedPanel
+              onClose={() => setAuthorizedOpen(false)}
+              onEdit={openAuthEdit}
+              onView={openAuthView}
+            />
+          )
         ) : signOutOpen ? (
           <SignOutForm ref={signOutFormRef} onClose={() => setSignOutOpen(false)} onSavingChange={setFormSaving} />
         ) : selectedReceipt ? (
@@ -1784,7 +1891,6 @@ export const PropertyPanel = memo(function PropertyPanel({
         />
       )}
       {itemActionMenuEl}
-      {photoInput}
 
       <ConfirmDialog
         visible={!!pendingDeleteItem}

@@ -13,6 +13,7 @@
  *            cluster shortfall to requisition.
  */
 import type { LocalPropertyItem } from '../Types/PropertyTypes'
+import { authorizedBaseUnits } from './propertyAuthorized'
 
 export interface ShortageLine {
   itemId: string
@@ -58,14 +59,11 @@ function keyOf(it: { nsn: string | null; lin: string | null; name: string }): st
   return 'name:' + it.name.trim().toLowerCase()
 }
 
-/** Authorized quantity converted to BASE (individual/EA) units — issue-unit authorized
- *  (`quantity_authorized`, e.g. 6 PR) × pack_size (base per issue unit, e.g. 2) = 12 base,
- *  directly comparable to on-hand `quantity` (always stored in base units). pack_size
- *  null/0 → 1 (no split below the issue unit). */
+/** Authorized quantity converted to BASE (individual/EA) units, directly comparable to
+ *  on-hand `quantity`. Thin adapter over the shared authorizedBaseUnits (single source of
+ *  truth in propertyAuthorized) so the shortage math and the authorized view never diverge. */
 function authBase(it: { quantity_authorized: number | null; pack_size: number | null }): number {
-  if (it.quantity_authorized == null) return 0
-  const factor = it.pack_size && it.pack_size > 0 ? it.pack_size : 1
-  return it.quantity_authorized * factor
+  return authorizedBaseUnits(it.quantity_authorized, it.pack_size)
 }
 
 export function computeShortages(

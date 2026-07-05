@@ -1,7 +1,9 @@
-import { useRef, useState, useCallback, forwardRef, useImperativeHandle, type RefObject } from 'react'
-import { Pencil, Package, FolderPlus, Camera, X, Trash2, Layers, Wrench, Route, ClipboardList, QrCode } from 'lucide-react'
+import { useState, useCallback, forwardRef, useImperativeHandle, type RefObject } from 'react'
+import { Pencil, Package, FolderPlus, Trash2, Layers, Wrench, Route, ClipboardList, QrCode, Download } from 'lucide-react'
 import type { ContextMenuItem } from '../ContextMenu'
 import type { LocalPropertyItem, LocalPropertyLocation, HolderInfo } from '../../Types/PropertyTypes'
+import { downloadBlob } from '../../Utilities/downloadUtils'
+import { dataUrlToBlob } from '../../Utilities/imageUtils'
 import { PropertyLocationTree } from './PropertyLocationTree'
 import { useIsMobile } from '../../Hooks/useIsMobile'
 import { PmcsSheet } from './PmcsSheet'
@@ -116,11 +118,27 @@ export const PropertyLocationDetail = forwardRef<PropertyLocationDetailHandle, P
     openPrintLabel: handlePrintLabel,
   }), [handlePrintLabel])
 
+  // The zone photo already IS the map tile background — so the detail doesn't
+  // re-preview it. Instead we surface it as a downloadable file (edit lives in
+  // the zone Edit form). resizeImage always writes JPEG; older data may be PNG.
+  const photoExt = location.photo_data?.startsWith('data:image/png') ? 'png' : 'jpg'
+  const photoFilename = `${(location.name || 'photo').trim().replace(/[^\w.-]+/g, '_') || 'photo'}.${photoExt}`
+  const handleDownloadPhoto = useCallback(() => {
+    if (location.photo_data) downloadBlob(dataUrlToBlob(location.photo_data), photoFilename)
+  }, [location.photo_data, photoFilename])
+
   return (
     <div className="flex flex-col pt-1 pb-2">
       {location.photo_data && (
-        <div className="px-4 pb-1">
-          <img src={location.photo_data} alt={location.name} className="w-full h-40 object-cover rounded-xl border border-tertiary/15" />
+        <div className="px-4 pb-2">
+          <button
+            type="button"
+            onClick={handleDownloadPhoto}
+            className="w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl border border-tertiary/15 bg-themewhite2 active:scale-[0.99] transition-transform"
+          >
+            <span className="text-[10pt] text-primary truncate">{photoFilename}</span>
+            <Download size={16} className="shrink-0 text-secondary" />
+          </button>
         </div>
       )}
 
@@ -215,8 +233,6 @@ export function buildLocationMenuItems(opts: {
   onAddLevel?: () => void
   /** True when this zone can hold floors (a structural zone, not a person/level/root). */
   canAddLevel?: boolean
-  onPhoto: () => void
-  onRemovePhoto: () => void
   onDelete: () => void
   /** Open the vehicle PMCS (5988) overlay. Shown only for kind='vehicle' zones. */
   onPmcs?: () => void
@@ -227,7 +243,6 @@ export function buildLocationMenuItems(opts: {
   /** Print a Data Matrix label for this zone. Shown for any zone when passed. */
   onPrintLabel?: () => void
 }): ContextMenuItem[] {
-  const hasPhoto = !!opts.location.photo_data
   const isVehicle = opts.location.kind === 'vehicle'
   return [
     { key: 'edit', label: 'Edit', icon: Pencil, onAction: opts.onEdit },
@@ -248,38 +263,6 @@ export function buildLocationMenuItems(opts: {
     ...(opts.canAddLevel && opts.onAddLevel
       ? [{ key: 'add-level', label: 'Add level', icon: Layers, onAction: opts.onAddLevel } as ContextMenuItem]
       : []),
-    { key: 'photo', label: hasPhoto ? 'Change photo' : 'Add photo', icon: Camera, onAction: opts.onPhoto },
-    ...(hasPhoto ? [{ key: 'remove-photo', label: 'Remove photo', icon: X, onAction: opts.onRemovePhoto } as ContextMenuItem] : []),
     ...(opts.canDelete ? [{ key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: opts.onDelete } as ContextMenuItem] : []),
   ]
-}
-
-/** Hidden file input + trigger for setting a location's zone photo (resized data-URL). */
-export function usePropertyPhotoUpload(onSet: (locationId: string, dataUrl: string | null) => void) {
-  const inputRef = useRef<HTMLInputElement>(null)
-  const targetRef = useRef<string | null>(null)
-
-  const trigger = useCallback((locationId: string) => {
-    targetRef.current = locationId
-    inputRef.current?.click()
-  }, [])
-
-  const handleChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    const id = targetRef.current
-    if (!file || !id) return
-    try {
-      const { resizeImage } = await import('../../Utilities/imageUtils')
-      const resized = await resizeImage(file, 800, 0.7)
-      onSet(id, resized)
-    } catch { /* non-fatal */ }
-    e.target.value = ''
-    targetRef.current = null
-  }, [onSet])
-
-  const input = (
-    <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={handleChange} />
-  )
-
-  return { trigger, input }
 }

@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useEffect, useLayoutEffect, useRef, type ReactNode } from 'react'
+import { useState, useCallback, useMemo, useEffect, useRef, type ReactNode } from 'react'
 import { X, Inbox, ChevronLeft, MessageCircleQuestion, Network } from 'lucide-react'
 import { BaseDrawer, ScrollPane } from './BaseDrawer'
 import { Sheet } from './Sheet'
@@ -125,9 +125,6 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
     // route through the same dialog without each duplicating the guard logic.
     const [confirmDiscard, setConfirmDiscard] = useState(false)
     const pendingActionRef = useRef<(() => void) | null>(null)
-
-    // Clear search when navigating between views (e.g., clicking a search result)
-    useEffect(() => { setSearchQuery('') }, [view])
 
     const isMobile = useIsMobile()
     const isPageVisible = usePageVisibility()
@@ -484,7 +481,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
             return selectedLocation?.display_name || 'New Location'
         }
         if (view === 'admin-settings') {
-            return 'Settings'
+            return 'Locations'
         }
         if (view === 'admin-system-conversation') {
             return systemPeerProfile ? getDisplayName(systemPeerProfile) : 'System thread'
@@ -793,17 +790,6 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         view === 'admin-settings'
     )
 
-    // TEMP test harness — replay the Sheet loading→morph each time the mobile
-    // Settings sheet opens, so we can iterate on the puck→sheet animation.
-    // Remove this state + effect + the `loading` prop on the detail Sheet to drop.
-    const [settingsLoadTest, setSettingsLoadTest] = useState(false)
-    useLayoutEffect(() => {
-        if (!(detailSheetOpen && view === 'admin-settings')) { setSettingsLoadTest(false); return }
-        setSettingsLoadTest(true)
-        const t = setTimeout(() => setSettingsLoadTest(false), 1400)
-        return () => clearTimeout(t)
-    }, [detailSheetOpen, view])
-
     // Mobile detail-Sheet breadcrumb: the lateral trail as clickable crumbs
     // stacked above the current entity name. Replaces the panel-push back
     // chevron — crumbs walk laterally, dismissing the sheet returns to the list.
@@ -959,9 +945,9 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                                 across tabs; collapses when a detail pane slides in. */}
                             <div
                                 aria-hidden={!desktopTreeOpen}
-                                className={`shrink-0 overflow-hidden flex flex-col bg-themewhite3/50 transition-all duration-300 ease-out ${
+                                className={`shrink-0 border-r border-primary/10 bg-themewhite3 overflow-hidden flex flex-col transition-[width,opacity] duration-300 ${
                                     desktopTreeOpen
-                                        ? 'w-[260px] opacity-100 border-r border-tertiary/10'
+                                        ? 'w-60 opacity-100'
                                         : 'w-0 opacity-0 border-r-0'
                                 }`}
                             >
@@ -983,13 +969,13 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                             </div>
                             <div
                                 aria-hidden={!desktopDetailPaneOpen}
-                                className={`shrink-0 overflow-hidden flex flex-col bg-themewhite transition-all duration-300 ease-out ${
+                                className={`shrink-0 border-l border-primary/10 bg-themewhite3 overflow-hidden flex flex-col transition-[width,opacity] duration-300 relative ${
                                     desktopDetailPaneOpen
-                                        ? 'w-[520px] opacity-100 border-l border-tertiary/10'
+                                        ? 'w-[320px] opacity-100'
                                         : 'w-0 opacity-0 border-l-0'
                                 }`}
                             >
-                                <div className="flex items-center gap-2 px-3 py-2 border-b border-tertiary/10">
+                                <div className="flex items-center gap-2 px-3 py-2 border-b border-primary/10">
                                     <button
                                         type="button"
                                         onClick={handleBack}
@@ -1057,8 +1043,6 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                 // Portals to body — must clear the mobileFullScreen drawer
                 // (z-60). Matches the overlay-sheet convention (Property/Map).
                 zIndex={1200}
-                // TEMP — drive the puck→sheet loading morph for Settings only.
-                loading={view === 'admin-settings' ? settingsLoadTest : undefined}
             >
                 {renderDetailContent(true)}
             </Sheet>
@@ -1074,12 +1058,12 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                 isOpen={showNavSheet}
                 onClose={() => setShowNavSheet(false)}
                 height="fit"
-                maxHeight={82}
+                maxHeight={60}
                 backdrop="dismiss"
                 title="Inbox"
                 zIndex={1200}
             >
-                <div className="flex flex-col" style={{ height: '72dvh' }}>
+                <div className="flex flex-col" style={{ height: '52dvh' }}>
                     <div className="px-3 pt-1 pb-2 shrink-0">
                         <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Search..." />
                     </div>

@@ -93,6 +93,7 @@ const EditItemPin = memo(function EditItemPin({ pin, item, containerRef, selecte
 
   return (
     <div
+      data-item-pin
       className={['absolute z-30 select-none pointer-events-auto', draggable ? 'touch-none' : '', isDragging ? 'cursor-grabbing' : draggable ? 'cursor-grab' : 'cursor-pointer'].join(' ')}
       style={{
         left: `${pin.x * 100}%`,
@@ -229,6 +230,10 @@ interface PropertyLocationMapProps {
   onUpdateLocation?: (id: string, updates: Partial<PropertyLocation>) => Promise<unknown>
   onSelectItem?: (item: LocalPropertyItem) => void
   onCreateItem?: () => void
+  /** The item whose detail the parent currently has open (right pane / mobile sheet),
+   *  or null when none. Authoritative close signal: when it goes null the map drops the
+   *  lit pin and re-frames the still-selected zone. */
+  selectedItem?: LocalPropertyItem | null
   /** When provided, the parent owns the selected-zone surface (desktop right pane):
    *  fires on every zone selection change, and the inline canvas popover is suppressed. */
   onSelectZone?: (locationId: string | null) => void
@@ -241,7 +246,7 @@ interface PropertyLocationMapProps {
   onDrawingChange?: (active: boolean) => void
 }
 
-export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapProps>(function PropertyLocationMap({ clinicId, locations, items, onCreateLocation, onDeleteLocation, onEditItem, onUpdateLocation, onSelectItem, onCreateItem, onSelectZone, onZoneDrawn, onDrawingChange }, ref) {
+export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapProps>(function PropertyLocationMap({ clinicId, locations, items, onCreateLocation, onDeleteLocation, onEditItem, onUpdateLocation, onSelectItem, onCreateItem, onSelectZone, onZoneDrawn, onDrawingChange, selectedItem }, ref) {
   const store = usePropertyStore()
   const isMobile = useIsMobile()
   // Open-dispatch status per vehicle → the zone-tile red-dot (expiring/expired).
@@ -1430,6 +1435,9 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
     if ((e.target as HTMLElement).closest('[data-zoom-controls]')) return
     // In edit mode, don't pan when interacting with a zone or its controls
     if (isEditing && (e.target as HTMLElement).closest('[data-zone]')) return
+    // Same for item pins: capturing the pointer here would eat the pin's own onClick
+    // (select) / drag (Move), so a pin tap could never select in edit mode.
+    if (isEditing && (e.target as HTMLElement).closest('[data-item-pin]')) return
 
     // Mobile view mode: let native scroll handle everything — zone taps use onClick
     if (isMobile && e.pointerType === 'touch' && !isEditing) return

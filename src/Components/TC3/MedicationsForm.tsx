@@ -1,5 +1,5 @@
 import { memo, useState, useRef, useCallback } from 'react'
-import { X, Check, ChevronRight, Syringe, Pill, Droplet, HeartPulse } from 'lucide-react'
+import { Trash2, Check, ChevronRight, Syringe, Pill, Droplet, HeartPulse } from 'lucide-react'
 import { useTC3Store } from '../../stores/useTC3Store'
 import { TC3EditorSurface } from './TC3EditorSurface'
 import { ActionButton } from '../ActionButton'
@@ -549,22 +549,22 @@ export const MedicationsForm = memo(function MedicationsForm() {
     currentPreview = ivPopoverPreview
     currentActions = isAdding
       ? [{ key: 'done', label: 'Done', icon: Check, onAction: handleDoneIV }]
-      : [{ key: 'remove', label: 'Remove', icon: X, onAction: handleRemoveIV, variant: 'danger' }, { key: 'done', label: 'Done', icon: Check, onAction: handleDoneIV }]
+      : [{ key: 'remove', label: 'Remove', icon: Trash2, onAction: handleRemoveIV, variant: 'danger' }, { key: 'done', label: 'Done', icon: Check, onAction: handleDoneIV }]
   } else if (popoverType === 'med') {
     currentPreview = isAdding ? medAddPopoverPreview : medEditPopoverPreview
     currentActions = isAdding
       ? [{ key: 'done', label: 'Done', icon: Check, onAction: handleDoneMed }]
-      : [{ key: 'remove', label: 'Remove', icon: X, onAction: handleRemoveMed, variant: 'danger' }, { key: 'done', label: 'Done', icon: Check, onAction: handleDoneMed }]
+      : [{ key: 'remove', label: 'Remove', icon: Trash2, onAction: handleRemoveMed, variant: 'danger' }, { key: 'done', label: 'Done', icon: Check, onAction: handleDoneMed }]
   } else if (popoverType === 'fluid') {
     currentPreview = isAdding ? fluidAddPopoverPreview : fluidEditPopoverPreview
     currentActions = isAdding
       ? [{ key: 'done', label: 'Done', icon: Check, onAction: handleDoneFluid }]
-      : [{ key: 'remove', label: 'Remove', icon: X, onAction: handleRemoveFluid, variant: 'danger' }, { key: 'done', label: 'Done', icon: Check, onAction: handleDoneFluid }]
+      : [{ key: 'remove', label: 'Remove', icon: Trash2, onAction: handleRemoveFluid, variant: 'danger' }, { key: 'done', label: 'Done', icon: Check, onAction: handleDoneFluid }]
   } else if (popoverType === 'blood') {
     currentPreview = isAdding ? bloodAddPopoverPreview : bloodEditPopoverPreview
     currentActions = isAdding
       ? [{ key: 'done', label: 'Done', icon: Check, onAction: handleDoneBlood }]
-      : [{ key: 'remove', label: 'Remove', icon: X, onAction: handleRemoveBlood, variant: 'danger' }, { key: 'done', label: 'Done', icon: Check, onAction: handleDoneBlood }]
+      : [{ key: 'remove', label: 'Remove', icon: Trash2, onAction: handleRemoveBlood, variant: 'danger' }, { key: 'done', label: 'Done', icon: Check, onAction: handleDoneBlood }]
   }
 
   // Terminal Done rides bottom-right; Remove (when present) stays bottom-left.
@@ -738,11 +738,11 @@ export const MedicationsForm = memo(function MedicationsForm() {
         title={popoverType === 'iv' ? 'IV Access' : popoverType === 'med' ? 'Medication' : popoverType === 'fluid' ? 'Fluid' : popoverType === 'blood' ? 'Blood Product' : ''}
         preview={currentPreview}
         actions={currentLeftActions}
-        rightFooter={currentDoneAction ? (
-          <ActionPill>
-            <ActionButton icon={currentDoneAction.icon} label={currentDoneAction.label} onClick={currentDoneAction.onAction} />
-          </ActionPill>
-        ) : undefined}
+        saveAction={currentDoneAction ? {
+          icon: currentDoneAction.icon,
+          label: currentDoneAction.label,
+          onAction: currentDoneAction.onAction,
+        } : undefined}
       />
     </div>
   )

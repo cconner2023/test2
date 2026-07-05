@@ -30,6 +30,12 @@ interface PropertyItemFormProps {
   onEnrollNew?: (item: LocalPropertyItem) => void
   /** Reports save-in-flight so the host surface can gate with the HUD loader. */
   onSavingChange?: (saving: boolean) => void
+  /** Authorized/BOM context (opened from PropertyAuthorizedPanel): surfaces the
+   *  Authorized-qty field and defaults new lines to fungible (non-serialized). An
+   *  item already authorization-tracked shows the field regardless. */
+  showAuthorized?: boolean
+  /** Pre-parent a new line under an SKO (the authorized panel's per-group add). */
+  initialParentId?: string | null
 }
 
 export interface PropertyItemFormHandle {
@@ -38,7 +44,7 @@ export interface PropertyItemFormHandle {
 }
 
 export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemFormProps>(
-  function PropertyItemForm({ editingItem, onClose, onEnrollNew, onSavingChange }, ref) {
+  function PropertyItemForm({ editingItem, onClose, onEnrollNew, onSavingChange, showAuthorized, initialParentId }, ref) {
   const {
     locations,
     clinicMembers,
@@ -81,11 +87,19 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
   const [quantity, setQuantity] = useState(String(editingItem?.quantity ?? 1))
   const [locationId, setLocationId] = useState(editingItem?.location_id ?? (isEdit ? '' : defaultLocationId ?? ''))
   const [holderId, setHolderId] = useState(editingItem?.current_holder_id ?? '')
-  const [parentItemId, setParentItemId] = useState(editingItem?.parent_item_id ?? '')
+  const [parentItemId, setParentItemId] = useState(editingItem?.parent_item_id ?? initialParentId ?? '')
   const [notes, setNotes] = useState(editingItem?.notes ?? '')
   const [expiryDate, setExpiryDate] = useState(editingItem?.expiry_date ?? '')
   const [isSaving, setIsSaving] = useState(false)
-  const [isSerialized, setIsSerialized] = useState(editingItem?.is_serialized ?? true)
+  // Authorized/BOM lines are fungible by default (unit/pack + auth qty apply); normal
+  // new items default to serialized. An edit always preserves the item's own flag.
+  const [isSerialized, setIsSerialized] = useState(editingItem?.is_serialized ?? (showAuthorized ? false : true))
+  // Authorized (BOM) quantity — issue-unit value, converts to base via pack_size. Shown
+  // only in authorized context or when the item is already authorization-tracked.
+  const authActive = !!showAuthorized || editingItem?.quantity_authorized != null
+  const [quantityAuthorized, setQuantityAuthorized] = useState(
+    editingItem?.quantity_authorized != null ? String(editingItem.quantity_authorized) : ''
+  )
   // Accountability class. New items default DI. SI forces serialized (see effect below).
   const [itemType, setItemType] = useState<ItemType>(editingItem?.item_type ?? 'DI')
   // Unit of issue + base-per-issue pack size — fungible (non-serialized) lines only.
@@ -168,6 +182,11 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
       // Unit/pack describe fungible issue lines; a serialized item is 1:1 (unit irrelevant).
       unit_of_issue: isSerialized ? null : ((unitOfIssue || null) as UnitOfIssue | null),
       pack_size: isSerialized ? null : (packSize.trim() ? Math.max(1, parseInt(packSize) || 1) : null),
+      // Only write quantity_authorized in authorized context — a normal edit must never
+      // clear an item's BOM authorization by omission.
+      ...(authActive
+        ? { quantity_authorized: quantityAuthorized.trim() ? Math.max(0, parseInt(quantityAuthorized) || 0) : null }
+        : {}),
     }
 
     try {
@@ -234,7 +253,7 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
   }, [
     name, nomenclature, nsn, lin, serialNumbers, quantity,
     locationId, holderId, parentItemId, notes, expiryDate, isSerialized,
-    itemType, unitOfIssue, packSize,
+    itemType, unitOfIssue, packSize, authActive, quantityAuthorized,
     isEdit, editingItem, clinicId, addItem, editItem, onClose, onEnrollNew, conditionCode,
     sectionId, sectionApplicable,
   ])
@@ -263,6 +282,16 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
           <TextInput value={lin} onChange={setLin} placeholder="LIN" />
         </div>
       </div>
+
+      {authActive && (
+        <TextInput
+          type="number"
+          inputMode="numeric"
+          value={quantityAuthorized}
+          onChange={setQuantityAuthorized}
+          placeholder="Authorized qty (BOM)"
+        />
+      )}
 
       {/* Accountability class — true segmented selector (CI/DI/SI). SI locks serialized on. */}
       <div className="flex items-stretch border-b border-primary/6">

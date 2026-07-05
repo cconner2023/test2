@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Settings, ChevronRight } from 'lucide-react'
+import { MapPin, ChevronRight } from 'lucide-react'
 import { listClinics, listAllUsers } from '../../lib/adminService'
 import { useInvalidation } from '../../stores/useInvalidationStore'
 import { AdminSystemConversationsList } from './AdminSystemConversationsList'
@@ -32,7 +32,7 @@ const FEEDBACK_KINDS = ['suggestion', 'feedback'] as const
  * The admin drawer's standing inbox (desktop left pane + mobile nav sheet).
  * NOT the directory tree — that's the main content list (AdminSummary). The
  * rail reads like the chat conversation panel: a single scroller of labelled
- * sections of rows. Top to bottom: Settings, the standing counts, then the
+ * sections of rows. Top to bottom: Locations, the standing counts, then the
  * three triage queues grouped by kind — Requests, Feedback, Messages.
  */
 export function AdminSortRail({
@@ -57,15 +57,15 @@ export function AdminSortRail({
   return (
     <div className="flex flex-col h-full min-h-0">
       <div className="flex-1 min-h-0 overflow-y-auto pb-6">
-        {/* Settings — opens the locations management sheet. */}
+        {/* Locations — opens the locations management sheet. */}
         <button
           onClick={onOpenSettings}
           className="flex items-center gap-3 w-full text-left px-4 py-3 hover:bg-themeblue2/5 active:scale-[0.99] transition-all"
         >
           <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
-            <Settings size={16} className="text-tertiary" />
+            <MapPin size={16} className="text-tertiary" />
           </div>
-          <span className="flex-1 min-w-0 text-sm font-medium text-primary">Settings</span>
+          <span className="flex-1 min-w-0 text-sm font-medium text-primary">Locations</span>
           <ChevronRight size={16} className="text-tertiary shrink-0" />
         </button>
 

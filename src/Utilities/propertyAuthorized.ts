@@ -15,12 +15,29 @@ export interface AuthLine {
   itemId: string
   name: string
   nsn: string | null
+  /** Line Item Number (MTOE catalog id) — the primary sort key within a group. */
+  lin: string | null
   unitOfIssue: UnitOfIssue | null
   packSize: number | null
-  /** Issue-unit authorized quantity (quantity_authorized, non-null here). */
+  /** Issue-unit authorized quantity (quantity_authorized, non-null here) — the value the
+   *  user edits. May be a pack unit (PR/SET/BOT) that is NOT directly comparable to onHand. */
   authorized: number
+  /** Authorized converted to BASE (individual/EA) units via pack_size — directly comparable
+   *  to onHand. Same conversion the shortage fold uses (authorizedBaseUnits). */
+  authorizedBase: number
   /** On-hand in base (individual) units — property_items.quantity. */
   onHand: number
+}
+
+/** Issue-unit authorized quantity → BASE (individual/EA) units. `quantity_authorized`
+ *  (e.g. 6 PR) × pack_size (base per issue unit, e.g. 2) = 12 base, directly comparable to
+ *  on-hand `quantity` (always base). pack_size null/0 → 1 (no split below the issue unit).
+ *  SINGLE SOURCE OF TRUTH for the authorized→base conversion — shared with
+ *  propertyShortage.computeShortages so the view and the shortage math never diverge. */
+export function authorizedBaseUnits(quantityAuthorized: number | null, packSize: number | null): number {
+  if (quantityAuthorized == null) return 0
+  const factor = packSize && packSize > 0 ? packSize : 1
+  return quantityAuthorized * factor
 }
 
 export interface AuthGroup {
@@ -56,16 +73,24 @@ export function groupAuthorized(items: LocalPropertyItem[]): AuthorizedList {
       itemId: it.id,
       name: it.name,
       nsn: it.nsn,
+      lin: it.lin,
       unitOfIssue: it.unit_of_issue,
       packSize: it.pack_size,
       authorized: it.quantity_authorized as number,
+      authorizedBase: authorizedBaseUnits(it.quantity_authorized, it.pack_size),
       onHand: it.quantity,
     })
   }
 
   const groups: AuthGroup[] = []
   for (const [parentId, lines] of byParent) {
-    lines.sort((a, b) => a.name.localeCompare(b.name))
+    // Sort by LIN (the MTOE ordering); untagged lines sink to the bottom, then name.
+    lines.sort((a, b) => {
+      if (a.lin && b.lin) return a.lin.localeCompare(b.lin) || a.name.localeCompare(b.name)
+      if (a.lin) return -1
+      if (b.lin) return 1
+      return a.name.localeCompare(b.name)
+    })
     groups.push({
       skoId: parentId,
       skoName: parentId ? nameById.get(parentId) ?? null : null,

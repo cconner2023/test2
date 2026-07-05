@@ -27,8 +27,8 @@ interface AdminSummaryProps {
   /** Empty-state fallback action. */
   onSelectAll: () => void
   /** Controlled search (shared with the drawer's SearchInput). Filters the tree
-   *  by cluster name, its location chip, and member name/email; matches
-   *  force-expand. */
+   *  by cluster name, cluster location, and member name/email/rank/UIC/cluster;
+   *  matches force-expand. */
   searchQuery?: string
   activeClinicId?: string | null
   activeUserId?: string | null
@@ -277,13 +277,24 @@ export function AdminSummary({
   // its (cluster) users match, or any descendant survives.
   const displayRoots = useMemo(() => {
     if (!q) return roots
+    // A user leaf matches on name, email, rank, UIC, or its cluster name.
     const userMatches = (u: AdminUser) => {
       const name = `${u.first_name ?? ''} ${u.last_name ?? ''}`.toLowerCase()
-      return name.includes(q) || (u.email ?? '').toLowerCase().includes(q)
+      return name.includes(q)
+        || (u.email ?? '').toLowerCase().includes(q)
+        || (u.rank ?? '').toLowerCase().includes(q)
+        || (u.uic ?? '').toLowerCase().includes(q)
+        || (u.clinic_name ?? '').toLowerCase().includes(q)
     }
     const filterNode = (node: TreeNode): TreeNode | null => {
+      // Location match resolves the clinic's actual location (not just the
+      // chip label, which only shows when it differs from the parent), so a
+      // location query surfaces every cluster sitting in it — inherited or not.
+      const clinicLoc = node.clinic.location_id
+        ? (locationsById.get(node.clinic.location_id)?.display_name ?? '')
+        : ''
       const selfMatch = node.label.toLowerCase().includes(q)
-        || (node.locationLabel?.toLowerCase().includes(q) ?? false)
+        || clinicLoc.toLowerCase().includes(q)
       const children = node.children.map(filterNode).filter((n): n is TreeNode => n !== null)
       const matchedUsers = selfMatch ? node.users : node.users.filter(userMatches)
       // A sub-unit survives if its name matches (keep all its members) or any of
@@ -301,13 +312,16 @@ export function AdminSummary({
       return null
     }
     return roots.map(filterNode).filter((n): n is TreeNode => n !== null)
-  }, [q, roots])
+  }, [q, roots, locationsById])
 
   const displayUnassigned = useMemo(() => {
     if (!q) return unassignedUsers
     return unassignedUsers.filter(u => {
       const name = `${u.first_name ?? ''} ${u.last_name ?? ''}`.toLowerCase()
-      return name.includes(q) || (u.email ?? '').toLowerCase().includes(q)
+      return name.includes(q)
+        || (u.email ?? '').toLowerCase().includes(q)
+        || (u.rank ?? '').toLowerCase().includes(q)
+        || (u.uic ?? '').toLowerCase().includes(q)
     })
   }, [q, unassignedUsers])
 

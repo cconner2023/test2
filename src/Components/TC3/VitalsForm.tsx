@@ -5,7 +5,6 @@ import { TC3EditorSurface } from './TC3EditorSurface'
 import { BloodPressureInput, DatePickerInput } from '../FormInputs'
 import { ActionButton } from '../ActionButton'
 import { ActionPill } from '../ActionPill'
-import { OverlayHeaderMenu } from '../OverlayHeaderMenu'
 import { EmptyState } from '../EmptyState'
 import type { TC3VitalSet, AVPU } from '../../Types/TC3Types'
 
@@ -573,18 +572,10 @@ export const VitalsForm = memo(function VitalsForm() {
           anchorRect={null}
           title="Vital Signs"
           preview={<VitalSetPreviewContent id={editingSet.id} />}
-          headerActions={
-            <OverlayHeaderMenu
-              items={[
-                { key: 'remove', label: 'Remove vitals', icon: Trash2, onAction: handleRemove, destructive: true },
-              ]}
-            />
-          }
-          rightFooter={
-            <ActionPill>
-              <ActionButton icon={Check} label="Done" onClick={handleClose} />
-            </ActionPill>
-          }
+          actions={[
+            { key: 'remove', label: 'Remove vitals', icon: Trash2, onAction: handleRemove, variant: 'danger' },
+          ]}
+          saveAction={{ icon: Check, label: 'Done', onAction: handleClose }}
         />
       )}
     </div>

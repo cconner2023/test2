@@ -174,11 +174,7 @@ export const MechanismForm = memo(function MechanismForm() {
             variant: 'danger',
           },
         ]}
-        rightFooter={
-          <ActionPill>
-            <ActionButton icon={Check} label="Accept" onClick={() => { handleAccept(); setPopoverVisible(false); }} />
-          </ActionPill>
-        }
+        saveAction={{ icon: Check, label: 'Accept', onAction: () => { handleAccept(); setPopoverVisible(false); } }}
       />
     </div>
   )

@@ -1,4 +1,5 @@
-import { useState, useMemo, useCallback, useEffect, forwardRef, useImperativeHandle } from 'react'
+import { useState, useMemo, useCallback, useEffect, useRef, forwardRef, useImperativeHandle } from 'react'
+import { Image as ImageIcon } from 'lucide-react'
 import { TextInput, PickerInput } from '../FormInputs'
 import { usePropertyStore } from '../../stores/usePropertyStore'
 import { useShallow } from 'zustand/react/shallow'
@@ -62,6 +63,20 @@ export const PropertyLocationForm = forwardRef<PropertyLocationFormHandle, Prope
     editingLocation?.kind === 'vehicle' ? 'vehicle' : 'area',
   )
   const [isSaving, setIsSaving] = useState(false)
+  // Zone photo — the map-tile background. Staged locally (raw resize, NO crop) and
+  // committed on Save; create seeds null. resizeImage preserves aspect ratio.
+  const [photoData, setPhotoData] = useState<string | null>(editingLocation?.photo_data ?? null)
+  const photoInputRef = useRef<HTMLInputElement>(null)
+  const handlePhotoPick = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      try {
+        const { resizeImage } = await import('../../Utilities/imageUtils')
+        setPhotoData(await resizeImage(file, 800, 0.7))
+      } catch { /* non-fatal */ }
+    }
+    e.target.value = ''
+  }, [])
   // Levels are created/managed via the floor switcher, not this form — don't
   // expose the area/vehicle toggle for them (it would clobber kind='level').
   const isLevel = editingLocation?.kind === 'level'
@@ -103,6 +118,7 @@ export const PropertyLocationForm = forwardRef<PropertyLocationFormHandle, Prope
           name: trimmed,
           parent_id: parentId || null,
           ...(isLevel ? {} : { kind }),
+          photo_data: photoData,
         })
         onClose()
         return
@@ -112,7 +128,7 @@ export const PropertyLocationForm = forwardRef<PropertyLocationFormHandle, Prope
         parent_id: parentId || null,
         name: trimmed,
         kind,
-        photo_data: null,
+        photo_data: photoData,
         holder_user_id: null,
         created_by: '',
       })
@@ -151,7 +167,7 @@ export const PropertyLocationForm = forwardRef<PropertyLocationFormHandle, Prope
     } finally {
       setIsSaving(false)
     }
-  }, [name, parentId, kind, isLevel, isEdit, editingLocation, pendingTag, store, onClose])
+  }, [name, parentId, kind, isLevel, photoData, isEdit, editingLocation, pendingTag, store, onClose])
 
   useImperativeHandle(ref, () => ({ submit: handleSave }), [handleSave])
 
@@ -182,6 +198,39 @@ export const PropertyLocationForm = forwardRef<PropertyLocationFormHandle, Prope
             ]}
             placeholder="Type"
           />
+        )}
+
+        {/* Zone photo — the map-tile background. Raw upload (no crop); staged here
+            and committed on Save. Shows as a downloadable file in the zone detail. */}
+        <input ref={photoInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoPick} />
+        {photoData ? (
+          <div className="flex items-center gap-3 px-4 py-3 border-b border-primary/6 last:border-b-0">
+            <img src={photoData} alt="" className="w-11 h-11 rounded-lg object-cover border border-tertiary/15 shrink-0" />
+            <span className="flex-1 text-base md:text-sm text-primary truncate">Photo</span>
+            <button
+              type="button"
+              onClick={() => photoInputRef.current?.click()}
+              className="text-[10pt] font-medium text-themeblue2 active:scale-95 transition-transform"
+            >
+              Change
+            </button>
+            <button
+              type="button"
+              onClick={() => setPhotoData(null)}
+              className="text-[10pt] font-medium text-themeredred active:scale-95 transition-transform"
+            >
+              Remove
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => photoInputRef.current?.click()}
+            className="w-full bg-transparent px-4 py-3 text-left text-base md:text-sm flex items-center justify-between gap-3 focus:outline-none text-tertiary border-b border-primary/6 last:border-b-0"
+          >
+            <span>Add photo</span>
+            <ImageIcon size={16} className="shrink-0 text-tertiary" />
+          </button>
         )}
       </div>
     </div>

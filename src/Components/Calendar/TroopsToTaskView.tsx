@@ -335,8 +335,9 @@ export function TroopsToTaskView({ date, events, medics, huddleTasks, onSelectEv
       const key = m.subClusterId && knownIds.has(m.subClusterId) ? m.subClusterId : HQ_GROUP_ID
       byId.get(key)!.medics.push(m)
     }
-    // Drop the HQ bucket header when empty; keep every real sub-cluster header.
-    return groups.filter(g => g.id !== HQ_GROUP_ID || g.medics.length > 0)
+    // Drop any empty group — the HQ bucket and every real sub-cluster header
+    // render only when they hold at least one (filter-surviving) medic.
+    return groups.filter(g => g.medics.length > 0)
   }, [medics, subClusters])
 
   // Roll a collapsed group's members up into one lane-stacked summary bar so the
@@ -713,7 +714,6 @@ export function TroopsToTaskView({ date, events, medics, huddleTasks, onSelectEv
         >
           {collapsed ? <ChevronRight className="w-3.5 h-3.5 shrink-0 text-tertiary" /> : <ChevronDown className="w-3.5 h-3.5 shrink-0 text-tertiary" />}
           <span className="text-[9pt] font-semibold uppercase tracking-wider text-tertiary truncate flex-1">{group.name}</span>
-          <span className="text-[9pt] text-tertiary tabular-nums">{group.medics.length}</span>
         </button>
         <div className="flex-1 relative">
           <DayGrid days={days} ticks={ticks} dayWidth={cfg.dayWidth} />
