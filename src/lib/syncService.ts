@@ -507,11 +507,20 @@ export async function reconcilePropertyWithServer(
     return getLocalPropertyItems(clinicId)
   }
 
+  // COLD-DEVICE FLOOR ONLY — mirrors fetchClinicItems. A warm device is already
+  // populated by the clinic-vault snapshot + tail (property rides
+  // loadSnapshotPropertyItems + applyProperty on the 'properties' invalidation), so
+  // re-pulling the whole clinic table on every performSync (app start / reconnect /
+  // any cycle with pending outbound items) is redundant egress against the floor.
+  // Pull the durable spine only to bootstrap a cold/fresh device (empty local IDB).
+  const localItemsCheck = await getLocalPropertyItems(clinicId)
+  if (localItemsCheck.length > 0) return localItemsCheck
+
   // Bootstrap-only (vault-authoritative): download active rows, NEVER delete-local.
   // Property deletions are carried by the clinic-vault 'd' envelope + tombstones,
   // so a row missing from the server no longer deletes the local copy. The old
   // generic reconcile() delete-local pass was the resurrection/data-loss vector.
-  logger.info('Starting property items bootstrap from server')
+  logger.info('Starting property items bootstrap from server (cold device)')
 
   try {
     const { data, error } = await supabase
@@ -549,11 +558,17 @@ export async function reconcilePropertyLocationsWithServer(
 ): Promise<void> {
   if (!isOnline()) return
 
+  // COLD-DEVICE FLOOR ONLY — mirrors fetchClinicLocations. Warm devices ride the
+  // clinic-vault snapshot + tail; the full clinic pull on every performSync is
+  // redundant egress. Pull only to bootstrap a cold/fresh device (empty local IDB).
+  const { getLocalPropertyLocations, saveLocalPropertyLocation } = await import('./offlineDb')
+  const localLocsCheck = await getLocalPropertyLocations(clinicId)
+  if (localLocsCheck.length > 0) return
+
   // Bootstrap-only (vault-authoritative): download active rows, NEVER delete-local.
-  logger.info('Starting property locations bootstrap from server')
+  logger.info('Starting property locations bootstrap from server (cold device)')
 
   try {
-    const { getLocalPropertyLocations, saveLocalPropertyLocation } = await import('./offlineDb')
     type LocalLoc = Awaited<ReturnType<typeof getLocalPropertyLocations>>[number]
 
     const { data, error } = await supabase

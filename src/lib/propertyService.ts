@@ -1719,14 +1719,31 @@ export async function reconcileLocationTagsWithServer(
   if (!isOnline()) return
 
   try {
-    const locationIds = locations.map((l) => l.id)
-    if (locationIds.length === 0) return
+    const allIds = locations.map((l) => l.id)
+    if (allIds.length === 0) return
 
-    // Fetch all tags from server in one query
+    // COLD-CANVAS FLOOR ONLY — narrow the network read to canvases that are still
+    // cold (locally empty AND version 0 AND not pending) BEFORE hitting the wire.
+    // A warm device rides the vault tag channel + local edits, so every canvas is
+    // already authoritative; the old full location_tags pull on every performSync
+    // was redundant egress. Mirrors the seed-only WRITE guard below (kept as a
+    // belt-and-suspenders check against a canvas warming between here and the write).
+    const pendingCanvasIds = await getPendingTagCanvasIds()
+    const localByCanvasPre = await getLocalLocationTagsBatch(allIds)
+    const coldIds: string[] = []
+    for (const id of allIds) {
+      if (pendingCanvasIds.has(id)) continue
+      if ((localByCanvasPre.get(id) || []).length > 0) continue
+      if ((await getLocalTagCanvasVersion(id)) > 0) continue
+      coldIds.push(id)
+    }
+    if (coldIds.length === 0) return // every canvas already owned locally — zero egress
+
+    // Fetch tags for the cold canvases only
     const { data, error } = await supabase
       .from('location_tags')
       .select('*')
-      .in('location_id', locationIds)
+      .in('location_id', coldIds)
 
     if (error || !data) {
       logger.warn('Tag reconciliation failed:', error?.message)
@@ -1741,20 +1758,16 @@ export async function reconcileLocationTagsWithServer(
       serverByCanvas.set(tag.location_id, arr)
     }
 
-    // Check which canvases have pending sync queue items
-    const pendingCanvasIds = await getPendingTagCanvasIds()
-
     // SEED-ONLY (vault-authoritative): only populate a canvas that is locally
     // empty AND never touched (version 0) — the fresh/cold-device bootstrap case.
     // A non-empty OR versioned local canvas was already populated by the vault
     // tag channel (or a local edit) and is authoritative; pulling the (possibly
     // stale, vault-only-geometry-missing) spine over it would delete that
     // geometry. Mirrors applyTagsCanvas's seed-empty / never-reset guard.
-    const localByCanvas = await getLocalLocationTagsBatch(locationIds)
     for (const [locId, serverTags] of serverByCanvas) {
       if (serverTags.length === 0) continue
       if (pendingCanvasIds.has(locId)) continue
-      const localTags = localByCanvas.get(locId) || []
+      const localTags = await getLocalLocationTags(locId)
       if (localTags.length > 0) continue
       if ((await getLocalTagCanvasVersion(locId)) > 0) continue // vault/local already owns this canvas
       await saveLocalLocationTags(locId, serverTags)

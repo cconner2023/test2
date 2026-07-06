@@ -18,7 +18,7 @@ export interface ReleaseNoteTypes {
 }
 
 export const ReleaseNotes: ReleaseNoteTypes[] = [
-    { version: '2.7.0', type: 'added', sectionId: 'property-accountability', text: 'Property accountability: cluster primary hand receipt, shortages, DA 2062 sign-out, DA 3161 turn-in, DD 1750 packing list, and personal property' },
+    { version: '2.7.1', type: 'added', sectionId: 'property-accountability', text: 'Property accountability: cluster primary hand receipt, shortages, DA 2062 sign-out, DA 3161 turn-in, DD 1750 packing list, and personal property' },
     { version: '2.6.9', type: 'changed', sectionId: 'event-subtasks', text: 'sub-tasks in calendar events. Custom cluster PCC/PCIs so you can apply sub-tasks to an event or a pre-defined packing list' },
     { version: '2.6.9', type: 'changed', sectionId: 'outside-contacts', text: 'Outside contacts: let people outside your cluster reach you without an account. Chat goes to the on-call in the cluster, event requests go to the cluster supervisors to add/decline' },
     { version: '2.6.9', type: 'added', tier: 'supervisor', sectionId: 'on-call', text: 'On-call: supervisors in the group can publish a secure link + passphrase so people outside your cluster can send messages to the group. On-Call roster editable so only those on shift get notifications.' },
