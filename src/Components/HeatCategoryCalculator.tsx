@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Thermometer } from 'lucide-react'
 import { ToggleSwitch } from './Settings/ToggleSwitch'
-import { TextInput } from './FormInputs'
+import { TextInput } from '@/Components/primitives/FormInputs'
 import { CATEGORIES, CATEGORY_BG, estimateWBGT, getCategory } from '../lib/wbgtUtils'
 
 export function HeatCategoryCalculator() {

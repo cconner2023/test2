@@ -78,7 +78,7 @@ export function NotePreviewContent({ preview }: { preview: ImportPreview }) {
         {preview.authorLabel}
       </div>
       {/* Note text */}
-      <div data-tour="import-note-preview" className="rounded-xl bg-themewhite2 overflow-hidden">
+      <div className="rounded-xl bg-themewhite2 overflow-hidden">
         <div className="px-3 py-2 text-tertiary text-[10pt] whitespace-pre-wrap max-h-36 overflow-y-auto">
           {preview.fullNote
             ? preview.fullNote.split('\n').filter(l => !l.startsWith('Signed:')).join('\n').trim()
@@ -86,7 +86,7 @@ export function NotePreviewContent({ preview }: { preview: ImportPreview }) {
         </div>
       </div>
       {/* Barcode */}
-      <div data-tour="import-encoded-section" className="rounded-xl bg-themewhite2 overflow-hidden">
+      <div className="rounded-xl bg-themewhite2 overflow-hidden">
         <div className="px-3 py-2">
           <BarcodeDisplay encodedText={preview.encodedText} />
         </div>

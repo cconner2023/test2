@@ -1,5 +1,5 @@
 import { memo, useState, useEffect, useMemo } from 'react'
-import { BaseDrawer } from '../BaseDrawer'
+import { BaseDrawer } from '@/Components/primitives/BaseDrawer'
 import { BarcodeDisplay } from '../Barcode'
 import { useAuthStore, selectIsAuthenticated } from '../../stores/useAuthStore'
 import { encodeTC3Card } from '../../Utilities/tc3Codec'

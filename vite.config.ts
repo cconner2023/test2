@@ -7,11 +7,18 @@ import { createHash } from 'crypto'
 import { resolve } from 'path'
 import { hudSplashMarkup } from './src/lib/hudGeometry'
 
-const APP_VERSION = '2.6.9'
+const APP_VERSION = '2.7.0'
 const BUILD_ID = 'A1'
 
 export default defineConfig({
   base: '/test2/',
+  resolve: {
+    // @/ -> src/ (matches tsconfig paths). Uses cwd-relative resolve() to
+    // mirror the existing input resolution above.
+    alias: {
+      '@': resolve('src'),
+    },
+  },
   build: {
     rollupOptions: {
       input: {

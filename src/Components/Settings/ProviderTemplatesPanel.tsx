@@ -3,8 +3,7 @@ import { Plus } from 'lucide-react';
 import { useUserProfile } from '../../Hooks/useUserProfile';
 import { useAuthStore } from '../../stores/useAuthStore';
 import type { UserTypes, ProviderNoteTemplate } from '../../Data/User';
-import { PROVIDER_TOUR_TEMPLATE_PREFIX } from '../../Data/GuidedTourData';
-import { OverlayActionMenu } from '../OverlayActionMenu';
+import { OverlayActionMenu } from '@/Components/primitives/OverlayActionMenu';
 import { useCsvActionsItems } from './CsvActionsMenu';
 import { exportProviderTemplatesCSV } from '../../Utilities/noteBlocksCSV';
 import { ProviderTemplateEditPopover, type EditState } from '../Provider/ProviderTemplateEditPopover';
@@ -56,7 +55,7 @@ export const ProviderTemplatesPanel = () => {
     }, [templates, handleUpdate]);
 
     return (
-        <div className="h-full overflow-y-auto" data-tour="settings-provider-templates">
+        <div className="h-full overflow-y-auto">
             <div className="px-5 pb-4 space-y-5 pt-[calc(var(--drawer-header-h,3.5rem)+0.75rem)]">
                 <p className="text-[10pt] text-tertiary leading-relaxed">
                     Compose note skeletons with HPI, exam, assessment, and plan presets. Apply them to pre-fill fields.
@@ -72,12 +71,10 @@ export const ProviderTemplatesPanel = () => {
                             {templates.length > 0 ? (
                                 <div className="space-y-0.5">
                                     {templates.map(t => {
-                                        const isTourTemplate = t.id.startsWith(PROVIDER_TOUR_TEMPLATE_PREFIX);
                                         return (
                                             <button
                                                 key={t.id}
                                                 type="button"
-                                                data-tour={isTourTemplate ? 'provider-demo-template' : undefined}
                                                 onClick={(e) => setEditState({
                                                     mode: 'edit',
                                                     anchor: e.currentTarget.getBoundingClientRect(),

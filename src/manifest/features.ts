@@ -120,17 +120,6 @@ export const features = {
     drawer: { id: 'showTC3Drawer', wrapper: 'TC3Drawer.tsx' }, // desktop master-detail (rail + DD1380) / mobile wizard
   },
 
-  tour: {
-    label: 'Guided Onboarding',
-    store: null,
-    services: ['featureFlags'],
-    tables: [],
-    idb: [],
-    components: 'Components/Tour/',
-    drawer: null, // overlay system
-    featureFlag: 'GUIDED_TOURS_ENABLED',
-  },
-
   messaging: {
     label: 'E2EE Messaging (Signal Protocol)',
     store: 'useMessagingStore',

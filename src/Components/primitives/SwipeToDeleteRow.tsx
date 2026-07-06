@@ -1,6 +1,6 @@
 import { useRef, type ReactNode } from 'react'
 import { Trash2 } from 'lucide-react'
-import { GESTURE_THRESHOLDS } from '../Utilities/GestureUtils'
+import { GESTURE_THRESHOLDS } from '@/Utilities/GestureUtils'
 
 // Matches MessageBubble's swipe feel so the gesture reads identically across the
 // app. Cards diverge from bubbles only in the REVEAL: a solid theme-red panel

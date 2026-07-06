@@ -1,16 +1,14 @@
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useUserProfile } from '../../Hooks/useUserProfile';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useEditableClinicContent } from '../../Hooks/useEditableClinicContent';
 import type { UserTypes, TextExpander } from '../../Data/User';
-import { parseFieldText } from '../../Utilities/templateParser';
-import { SearchInput } from '../SearchInput';
+import { SearchInput } from '@/Components/primitives/SearchInput';
 import { TextExpanderManager } from './TextExpanderManager';
 import { TextExpanderEditPopover, type TextExpanderEditState, type ExpanderScope } from './TextExpanderEditPopover';
 import { useClusterEditItem } from './ClusterEditPicker';
 import { useNoteBlocksTransferItems } from './NoteBlocksTransferMenu';
 import { useNoteBlocksTransfer } from '../../Hooks/useNoteBlocksTransfer';
-import { DEMO_EXPANDER_ABBR, DEMO_EXPANDER_BUILDS } from '../../Data/GuidedTourData';
 
 export const TextTemplatesPanel = () => {
     const { profile, updateProfile, syncProfileField } = useUserProfile();
@@ -109,50 +107,6 @@ export const TextTemplatesPanel = () => {
         setEditState(null);
     }, [profile.textExpanders, clinicTextExpanders, editingClinicId, writeClinic, handleUpdate]);
 
-    // ── Tour: open popover pre-filled with the demo template ──
-    useEffect(() => {
-        const handleSubmit = () => {
-            setEditState({
-                mode: 'new',
-                type: 'simple',
-                anchor: null,
-                source: 'personal',
-                seed: { abbr: DEMO_EXPANDER_ABBR, expansion: '' },
-            });
-        };
-        const handleBuild = (e: Event) => {
-            const step = (e as CustomEvent).detail as string;
-            const build = DEMO_EXPANDER_BUILDS[step];
-            if (!build) return;
-            window.dispatchEvent(new CustomEvent('tour:expander-detail-build', { detail: build }));
-        };
-        const handleAccept = () => {
-            const build = DEMO_EXPANDER_BUILDS.complete;
-            const nodes = parseFieldText(build.expansion, build.fields);
-            const entry: TextExpander = { abbr: DEMO_EXPANDER_ABBR, expansion: '', template: nodes };
-            const current = profile.textExpanders ?? [];
-            handleUpdate({ textExpanders: [...current, entry] });
-            setEditState(null);
-        };
-        const handleCleanup = () => {
-            const current = profile.textExpanders ?? [];
-            const filtered = current.filter(e => e.abbr !== DEMO_EXPANDER_ABBR);
-            if (filtered.length !== current.length) handleUpdate({ textExpanders: filtered });
-            setEditState(null);
-        };
-
-        window.addEventListener('tour:expander-submit', handleSubmit);
-        window.addEventListener('tour:expander-build', handleBuild);
-        window.addEventListener('tour:expander-accept', handleAccept);
-        window.addEventListener('tour:expander-cleanup', handleCleanup);
-        return () => {
-            window.removeEventListener('tour:expander-submit', handleSubmit);
-            window.removeEventListener('tour:expander-build', handleBuild);
-            window.removeEventListener('tour:expander-accept', handleAccept);
-            window.removeEventListener('tour:expander-cleanup', handleCleanup);
-        };
-    }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
     return (
         <>
             <div className="px-3 pb-2 pt-[calc(var(--drawer-header-h,3.5rem)+0.75rem)]">
@@ -162,8 +116,8 @@ export const TextTemplatesPanel = () => {
                     placeholder="Search shortcuts..."
                 />
             </div>
-            <div data-tour="expander-usage-hint" className="px-5 py-4 space-y-5">
-                    <p data-tour="expander-edit-hint" className="text-[10pt] text-tertiary leading-relaxed">
+            <div className="px-5 py-4 space-y-5">
+                    <p className="text-[10pt] text-tertiary leading-relaxed">
                         Autotext shortcuts that expand abbreviations as you type in your notes.
                         {clinicTextExpanders.length > 0 && (
                             <span className="text-tertiary"> Includes cluster-wide shortcuts.</span>

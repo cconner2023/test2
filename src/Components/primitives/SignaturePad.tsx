@@ -1,6 +1,6 @@
 import { useRef, useState, useCallback, useEffect } from 'react'
 import { Eraser } from 'lucide-react'
-import { Modal } from './Modal'
+import { Modal } from '@/Components/primitives/Modal'
 
 interface SignaturePadProps {
   isOpen: boolean

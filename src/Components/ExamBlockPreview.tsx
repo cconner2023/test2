@@ -19,6 +19,9 @@ interface ExamBlockPreviewProps {
   onToggleNormal: (findingKey: string) => void;
   onToggleAbnormal: (abnormalKey: string) => void;
   onSpecifyChange?: (abnormalKey: string, value: string) => void;
+  /** Mark every finding normal / abnormal — renders a tap row atop the block. */
+  onAllNormal?: () => void;
+  onAllAbnormal?: () => void;
 }
 
 export const ExamBlockPreview: React.FC<ExamBlockPreviewProps> = ({
@@ -28,6 +31,8 @@ export const ExamBlockPreview: React.FC<ExamBlockPreviewProps> = ({
   onToggleNormal,
   onToggleAbnormal,
   onSpecifyChange,
+  onAllNormal,
+  onAllAbnormal,
 }) => {
   const lowerFilter = filter.toLowerCase();
   const filtered = lowerFilter
@@ -50,6 +55,26 @@ export const ExamBlockPreview: React.FC<ExamBlockPreviewProps> = ({
       {/* Findings grid — left: normal, right: abnormals (one per row) */}
       {filtered.length > 0 ? (
         <div className="mb-4 border border-tertiary/10 rounded-xl overflow-hidden">
+          {/* Quick actions — mark the whole block normal / abnormal. Not a finding
+              row; sits above the first, aligned to the normal / abnormal columns. */}
+          {(onAllNormal || onAllAbnormal) && (
+            <div className="grid grid-cols-[7rem_1fr] border-b border-tertiary/10">
+              <button
+                type="button"
+                onClick={onAllNormal}
+                className="text-left px-3 py-2 active:bg-tertiary/5 transition-colors"
+              >
+                <span className="text-[9pt] font-medium text-secondary">All Normal</span>
+              </button>
+              <button
+                type="button"
+                onClick={onAllAbnormal}
+                className="text-left px-3 py-2 border-l border-tertiary/10 active:bg-tertiary/5 transition-colors"
+              >
+                <span className="text-[9pt] font-medium text-secondary">All Abnormal</span>
+              </button>
+            </div>
+          )}
           {filtered.map((finding: PEFinding, i: number) => {
             const abnormalCount = Math.max(finding.abnormals.length, 1);
             const hasNormal = !!finding.normal;

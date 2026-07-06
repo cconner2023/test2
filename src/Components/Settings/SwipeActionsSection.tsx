@@ -1,8 +1,8 @@
 import { Reply, Forward, Ban, MoreHorizontal, Trash2 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
-import { Section } from '../Section'
-import { OverlayActionMenu } from '../OverlayActionMenu'
-import type { ContextMenuItem } from '../ContextMenu'
+import { Section } from '@/Components/primitives/Section'
+import { OverlayActionMenu } from '@/Components/primitives/OverlayActionMenu'
+import type { ContextMenuItem } from '@/Components/primitives/ContextMenu'
 import { useUserProfile } from '../../Hooks/useUserProfile'
 import {
   resolveSwipeActions,

@@ -2,9 +2,9 @@ import { memo, useState, useRef, useCallback } from 'react'
 import { Trash2, Check, ChevronRight, Syringe, Pill, Droplet, HeartPulse } from 'lucide-react'
 import { useTC3Store } from '../../stores/useTC3Store'
 import { TC3EditorSurface } from './TC3EditorSurface'
-import { ActionButton } from '../ActionButton'
-import { ActionPill } from '../ActionPill'
-import { TextInput } from '../FormInputs'
+import { ActionButton } from '@/Components/primitives/ActionButton'
+import { ActionPill } from '@/Components/primitives/ActionPill'
+import { TextInput } from '@/Components/primitives/FormInputs'
 import type { TC3Medication, TC3IVAccess, MedRoute, MedCategory } from '../../Types/TC3Types'
 
 // ---------------------------------------------------------------------------

@@ -27,15 +27,15 @@ import {
   type VoteTally,
   type VotersByCandidate,
 } from '../../lib/featureVotingService'
-import { EmptyState } from '../EmptyState'
-import { ConfirmDialog } from '../ConfirmDialog'
-import { ErrorDisplay } from '../ErrorDisplay'
+import { EmptyState } from '@/Components/primitives/EmptyState'
+import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
+import { ErrorDisplay } from '@/Components/primitives/ErrorDisplay'
 import { PreviewOverlay } from '../PreviewOverlay'
-import { TextInput } from '../FormInputs'
-import { ActionButton } from '../ActionButton'
-import { ActionPill } from '../ActionPill'
-import { OverlayActionMenu } from '../OverlayActionMenu'
-import { type ContextMenuItem } from '../ContextMenu'
+import { TextInput } from '@/Components/primitives/FormInputs'
+import { ActionButton } from '@/Components/primitives/ActionButton'
+import { ActionPill } from '@/Components/primitives/ActionPill'
+import { OverlayActionMenu } from '@/Components/primitives/OverlayActionMenu'
+import { type ContextMenuItem } from '@/Components/primitives/ContextMenu'
 
 const MAX_OPTIONS_PER_CYCLE = 3
 

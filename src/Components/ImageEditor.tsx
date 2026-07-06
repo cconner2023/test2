@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { Check, Crop, ZoomIn } from 'lucide-react'
 import { PreviewOverlay } from './PreviewOverlay'
-import { PillButton } from './HeaderPill'
-import { ActionButton } from './ActionButton'
+import { PillButton } from '@/Components/primitives/HeaderPill'
+import { ActionButton } from '@/Components/primitives/ActionButton'
 import { fileToCanvas, cropToFile, type RasterImage } from '../lib/imageEdit'
 import { createLogger } from '../Utilities/Logger'
 

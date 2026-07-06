@@ -4,8 +4,8 @@ import { type PerformanceStep } from '../../../Data/TrainingData'
 import { getEvaluableTaskData } from '../../../Utilities/algorithmCompetency'
 import type { StepResult } from '../../../Types/SupervisorTestTypes'
 import { StepCallout } from '../../TrainingStepComponents'
-import { SectionHeader } from '../../Section'
-import { ActionPill } from '../../ActionPill'
+import { SectionHeader } from '@/Components/primitives/Section'
+import { ActionPill } from '@/Components/primitives/ActionPill'
 
 // ─── EvaluationStep ──────────────────────────────────────────────────────────
 

@@ -18,7 +18,7 @@ import {
     forwardRef,
     type ReactNode,
 } from 'react'
-import { SearchInput } from './SearchInput'
+import { SearchInput } from '@/Components/primitives/SearchInput'
 
 const VARIANT_PLACEHOLDERS: Record<string, string> = {
     default: 'Search...',
@@ -44,8 +44,6 @@ interface MobileSearchBarProps {
     variant?: 'default' | 'messages' | 'admin' | 'supervisor' | 'property'
     /** When true, skip creating own scroll container — parent handles scrolling */
     inheritScroll?: boolean
-    /** data-tour attribute for in-app tour targeting */
-    dataTour?: string
 }
 
 function setExternalRef<T>(ref: React.Ref<T> | undefined, value: T | null) {
@@ -68,7 +66,6 @@ export const MobileSearchBar = forwardRef<HTMLDivElement, MobileSearchBarProps>(
             onFocusChange,
             variant = 'default',
             inheritScroll = false,
-            dataTour,
         },
         externalRef,
     ) {
@@ -292,7 +289,6 @@ export const MobileSearchBar = forwardRef<HTMLDivElement, MobileSearchBarProps>(
                                 onBlur={handleBlur}
                                 onKeyDown={handleKeyDown}
                                 className="flex-1 min-w-0"
-                                dataTour={dataTour}
                             />
                             {/* Close button — appears when focused, shortens pill width */}
                             <div className={`transition-all duration-200 overflow-hidden ${

@@ -1,6 +1,6 @@
 import type { LucideIcon } from 'lucide-react'
 import { Children, type ReactNode } from 'react'
-import { useIsMobile } from '../Hooks/useIsMobile'
+import { useIsMobile } from '@/Hooks/useIsMobile'
 
 type AccentTone = 'success' | 'info' | 'danger'
 
@@ -32,11 +32,9 @@ interface PillButtonProps {
     circleBg?: string
     /** Semantic accent — renders as filled circle on mobile (in-pill), underlined icon on desktop. */
     accent?: AccentTone
-    /** Guided tour anchor */
-    'data-tour'?: string
 }
 
-export function PillButton({ icon: Icon, onClick, label, variant = 'default', iconSize, compact, disabled, circleBg, accent, 'data-tour': dataTour }: PillButtonProps) {
+export function PillButton({ icon: Icon, onClick, label, variant = 'default', iconSize, compact, disabled, circleBg, accent }: PillButtonProps) {
     const isMobile = useIsMobile()
     const size = compact
         ? (isMobile ? 'w-[2.4375rem] h-[2.4375rem]' : 'w-8 h-8')  // 39px mobile, 32px desktop
@@ -58,7 +56,6 @@ export function PillButton({ icon: Icon, onClick, label, variant = 'default', ic
         <button
             onClick={onClick}
             disabled={disabled}
-            data-tour={dataTour}
             className={`${size} rounded-full flex items-center justify-center active:scale-95 transition-all duration-200 relative ${color} ${disabled ? 'opacity-30 pointer-events-none' : ''}`}
             aria-label={label}
             title={label}

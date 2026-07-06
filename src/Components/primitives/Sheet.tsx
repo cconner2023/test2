@@ -29,10 +29,10 @@ import { useEffect, useRef, useState, useCallback, type ReactNode } from 'react'
 import { createPortal } from 'react-dom';
 import { useSpring, animated } from '@react-spring/web';
 import { X, ChevronUp, ChevronDown } from 'lucide-react';
-import { HeaderPill, PillButton } from './HeaderPill';
-import { HudLoader } from './HudLoader';
-import { DRAWER_TIMING } from '../Utilities/constants';
-import { Z, OverlayStackContext, STACK_BUMP } from './BaseOverlay';
+import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill';
+import { HudLoader } from '@/Components/primitives/HudLoader';
+import { DRAWER_TIMING } from '@/Utilities/constants';
+import { Z, OverlayStackContext, STACK_BUMP } from '@/Components/primitives/BaseOverlay';
 
 type SheetHeight = 'fit' | 'snap';
 type SheetBackdrop = 'dismiss' | 'block' | 'none';

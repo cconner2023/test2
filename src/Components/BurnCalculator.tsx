@@ -1,10 +1,10 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react'
 import { RefreshCw } from 'lucide-react'
-import { Section, SectionCard } from './Section'
-import { ActionButton } from './ActionButton'
+import { Section, SectionCard } from '@/Components/primitives/Section'
+import { ActionButton } from '@/Components/primitives/ActionButton'
 import { REGIONS_MAP } from './BurnDiagram/burnRegions'
 import { BurnBodyDiagram } from './BurnDiagram/BurnBodyDiagram'
-import { ActionPill } from './ActionPill'
+import { ActionPill } from '@/Components/primitives/ActionPill'
 
 type PatientType = 'adult' | 'pediatric'
 

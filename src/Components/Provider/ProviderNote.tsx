@@ -1,13 +1,13 @@
-import { useMemo, useRef, useState } from 'react';
-import { ChevronRight, Plus, RotateCcw, Check } from 'lucide-react';
+import { useMemo, useRef, useState, type ReactNode } from 'react';
+import { Plus, RotateCcw, Check } from 'lucide-react';
 import { detectPII } from '../../lib/piiDetector';
 import { PIIWarningBanner } from '../PIIWarningBanner';
-import { ExpandableInput } from '../ExpandableInput';
+import { ExpandableInput } from '@/Components/primitives/ExpandableInput';
 import { PhysicalExam } from '../PhysicalExam';
 import { Plan } from '../Plan';
-import { ActionPill } from '../ActionPill';
-import { ActionButton } from '../ActionButton';
-import { EmptyState } from '../EmptyState';
+import { ActionPill } from '@/Components/primitives/ActionPill';
+import { ActionButton } from '@/Components/primitives/ActionButton';
+import { EmptyState } from '@/Components/primitives/EmptyState';
 import { PreviewOverlay } from '../PreviewOverlay';
 import { useMergedNoteContent } from '../../Hooks/useMergedNoteContent';
 import { getColorClasses } from '../../Utilities/ColorUtilities';
@@ -33,7 +33,6 @@ interface ProviderNoteProps {
   setAssessmentNote: (note: string) => void;
   planNote: string;
   setPlanNote: (note: string) => void;
-  onNext: () => void;
   importedMedicNote: ImportedMedicNote | null;
   /** Desktop 3-pane: render sections as read-only summary cards that route editing
    *  into the right pane (the live editors mount there). Omit/false on mobile, where
@@ -41,6 +40,9 @@ interface ProviderNoteProps {
   summaryMode?: boolean;
   /** Desktop: open a section's editor in the right pane (summaryMode only). */
   onOpenSection?: (section: ProviderSection) => void;
+  /** Desktop (summaryMode): the PE section element — movable cards + selector entry.
+   *  Composed by ProviderDrawer since PE editing lives in the right pane. */
+  peCenter?: ReactNode;
 }
 
 const SECTION_LABEL_CLASS = 'text-[9pt] font-semibold text-primary uppercase tracking-wider';
@@ -65,13 +67,12 @@ function MedicContextCard({ name, text }: { name: string; text: string }) {
  * textarea. Once content exists, the card body shows the full text and tapping
  * the card reopens the same overlay.
  */
-function TextSectionCard({ addLabel, value, onChange, expanders, placeholder, dataTour }: {
+function TextSectionCard({ addLabel, value, onChange, expanders, placeholder }: {
   addLabel: string;
   value: string;
   onChange: (v: string) => void;
   expanders: TextExpander[];
   placeholder: string;
-  dataTour?: string;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [anchor, setAnchor] = useState<DOMRect | null>(null);
@@ -91,7 +92,6 @@ function TextSectionCard({ addLabel, value, onChange, expanders, placeholder, da
         <div
           ref={cardRef}
           onClick={openFromCard}
-          data-tour={dataTour}
           className={`${CARD_CLASS} cursor-pointer active:scale-[0.99] transition-all`}
         >
           <div className="px-4 py-3 text-sm text-primary whitespace-pre-wrap max-h-64 overflow-y-auto">
@@ -149,7 +149,7 @@ function TextSectionCard({ addLabel, value, onChange, expanders, placeholder, da
  * structure; the live editor lives in the pane and this card refreshes on save.
  */
 function SummarySection({
-  label, value, addLabel, medicName, medicText, onOpen, dataTour,
+  label, value, addLabel, medicName, medicText, onOpen,
 }: {
   label: string;
   value: string;
@@ -157,10 +157,9 @@ function SummarySection({
   medicName?: string;
   medicText?: string;
   onOpen: () => void;
-  dataTour?: string;
 }) {
   return (
-    <div className="space-y-3 md:space-y-2" data-tour={dataTour}>
+    <div className="space-y-3 md:space-y-2">
       <p className={SECTION_LABEL_CLASS}>{label}</p>
       {medicText && <MedicContextCard name={medicName ?? ''} text={medicText} />}
       {value ? (
@@ -197,10 +196,10 @@ export function ProviderNote({
   setAssessmentNote,
   planNote,
   setPlanNote,
-  onNext,
   importedMedicNote,
   summaryMode = false,
   onOpenSection,
+  peCenter,
 }: ProviderNoteProps) {
 
   const { expanders, orderTags, instructionTags, orderSets } = useMergedNoteContent();
@@ -236,7 +235,7 @@ export function ProviderNote({
   // block/category sub-pickers float as overlays. (HPI/Assessment, plain textareas,
   // route into the right pane on desktop instead — see summaryMode below.)
   const peSection = (
-    <div className="space-y-3 md:space-y-2" data-tour="provider-pe">
+    <div className="space-y-3 md:space-y-2">
       <p className={SECTION_LABEL_CLASS}>Physical Exam</p>
       {importedMedicNote?.medicPe && (
         <MedicContextCard name={importedMedicNote.medicName} text={importedMedicNote.medicPe} />
@@ -278,7 +277,7 @@ export function ProviderNote({
   );
 
   const planSection = (
-    <div className="space-y-3 md:space-y-2" data-tour="provider-plan">
+    <div className="space-y-3 md:space-y-2">
       <p className={SECTION_LABEL_CLASS}>Plan</p>
       {importedMedicNote?.medicPlan && (
         <MedicContextCard name={importedMedicNote.medicName} text={importedMedicNote.medicPlan} />
@@ -326,28 +325,21 @@ export function ProviderNote({
           label="History of Present Illness" addLabel="Add HPI"
           value={hpiNote}
           medicName={importedMedicNote?.medicName} medicText={importedMedicNote?.medicHpi}
-          onOpen={() => open('hpi')} dataTour="provider-hpi"
+          onOpen={() => open('hpi')}
         />
-        {peSection}
+        {peCenter}
         <SummarySection
           label="Assessment" addLabel="Add assessment"
           value={assessmentNote}
           medicName={importedMedicNote?.medicName} medicText={importedMedicNote?.medicAssessment}
-          onOpen={() => open('assessment')} dataTour="provider-assessment"
+          onOpen={() => open('assessment')}
         />
-        {planSection}
-        <div className="flex items-center justify-end pt-4">
-          <ActionPill>
-            <button
-              onClick={onNext}
-              data-tour="provider-generate"
-              aria-label="Next"
-              className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 active:scale-95 transition-all bg-themeblue2 text-white"
-            >
-              <ChevronRight className="w-5 h-5" />
-            </button>
-          </ActionPill>
-        </div>
+        <SummarySection
+          label="Plan" addLabel="Add plan"
+          value={planNote}
+          medicName={importedMedicNote?.medicName} medicText={importedMedicNote?.medicPlan}
+          onOpen={() => open('plan')}
+        />
       </div>
     );
   }
@@ -357,7 +349,7 @@ export function ProviderNote({
       {piiWarnings.length > 0 && <PIIWarningBanner warnings={piiWarnings} />}
 
       {/* ── HPI ───────────────────────────────────────────────── */}
-      <div className="space-y-3 md:space-y-2" data-tour="provider-hpi">
+      <div className="space-y-3 md:space-y-2">
         <p className={SECTION_LABEL_CLASS}>History of Present Illness</p>
         {importedMedicNote?.medicHpi && (
           <MedicContextCard name={importedMedicNote.medicName} text={importedMedicNote.medicHpi} />
@@ -375,7 +367,7 @@ export function ProviderNote({
       {peSection}
 
       {/* ── Assessment ────────────────────────────────────────── */}
-      <div className="space-y-3 md:space-y-2" data-tour="provider-assessment">
+      <div className="space-y-3 md:space-y-2">
         <p className={SECTION_LABEL_CLASS}>Assessment</p>
         {importedMedicNote?.medicAssessment && (
           <MedicContextCard name={importedMedicNote.medicName} text={importedMedicNote.medicAssessment} />
@@ -391,19 +383,6 @@ export function ProviderNote({
 
       {/* ── Plan ─────────────────────────────────────────────── */}
       {planSection}
-
-      <div className="flex items-center justify-end pt-4">
-        <ActionPill>
-          <button
-            onClick={onNext}
-            data-tour="provider-generate"
-            aria-label="Next"
-            className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 active:scale-95 transition-all bg-themeblue2 text-white"
-          >
-            <ChevronRight className="w-5 h-5" />
-          </button>
-        </ActionPill>
-      </div>
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import type { LucideIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { BaseOverlay, Z } from './BaseOverlay'
+import { BaseOverlay, Z } from '@/Components/primitives/BaseOverlay'
 
 export interface MenuOption {
   key: string
@@ -11,8 +11,6 @@ export interface MenuOption {
   /** Keep the menu open when this row fires (e.g. it drills into a sub-menu
    *  instead of running a terminal action). Default false = close then fire. */
   keepOpen?: boolean
-  /** data-tour anchor on this option's button (used by guided tours) */
-  tourTag?: string
 }
 
 interface MenuProps {
@@ -85,7 +83,6 @@ export function Menu({
               return (
                 <button
                   key={opt.key}
-                  data-tour={opt.tourTag}
                   onClick={() => handleOption(opt)}
                   role="menuitem"
                   className={`flex items-center gap-3 w-full px-4 py-3 text-base md:text-sm border-b border-primary/6 last:border-b-0 hover:bg-primary/5 active:bg-primary/10 transition-colors ${

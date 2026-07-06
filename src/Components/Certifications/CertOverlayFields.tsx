@@ -1,6 +1,6 @@
 import { credentials } from '../../Data/User'
 import { ToggleSwitch } from '../Settings/ToggleSwitch'
-import { DatePickerInput } from '../FormInputs'
+import { DatePickerInput } from '@/Components/primitives/FormInputs'
 import type { CertFormData } from './certHelpers'
 
 interface CertOverlayFieldsProps {

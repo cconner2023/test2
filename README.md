@@ -1,5 +1,5 @@
 # Name in progress - I'm open to suggestions. An application for the medical MOSs.
-I coded this with 2017 SPC me in mind - what could he have used, what would've made us more effective as medics. Triage algorithms, medication references, note documentation suggestions, property management, E2EE comms for medical personnel so we could evac faster, and training IAW updated CPGs, STP, MEDCOM PAM 40-7-21. Built mobile-first, offline-first. Maybe its a playground, maybe it actually goes somewhere, maybe its the next system of record. Who knows. Feel free to chime in.
+I started making this with 2017 SPC me in mind - what could he have used, what would've made us more effective as medics. Triage algorithms, medication references, note documentation suggestions, property management, E2EE comms for medical personnel so we could evac faster, and training IAW updated CPGs, STP, MEDCOM PAM 40-7-21. Built mobile-first, offline-first, E2EE and hashed to outpace a post-quantum world. Maybe its a playground, maybe it actually goes somewhere, maybe its the next system of record. Who knows. Feel free to chime in.
 
 ```
 https://cconner2023.github.io/test2
@@ -25,11 +25,19 @@ https://cconner2023.github.io/test2
 - **Messaging:** Message users in your clinic
   - chain ratchet + DH ratchet encrypted at rest. Device purge for inactive devices. Message purge after > 4MB network storage. 
   - LoRa architecture + the same DH/chain ratchet for offline messaging in low-bandwidth environments using mesh node, guardian + witness prop, and self-healing node architecture.
+  - Outside Contact: allow users with a DH ratchet custom QR + passphrase to contact your team. Session storage until sender tab close or timeout. Keys destroyed, E2EE. Burn the QR or rotate the passphrase whenever you choose.
+  - On-Call roster: if outside contact is authorized, toggle which users receive contacts. Avoid staffing a 24/7 Aid Station when you have a medic On-Call who can be reached regardless of US or OCONUS numbers.
 - **Calendar:** A troops to task. How I think it should be
   - chain ratchet + DH ratchet encrypted at rest. Device purge for inactive devices. Based on clinic association so your platoon always knows what the group is doing
   - customizable huddle tasks so your supervisors can edit all aspects to stay organized.
+- **Property Management:** How GCSS should've been
+  - Set up your LINs and authorized quantities, place items on the canvas and arrange them so you know where each item is.
+  - Auto generated 2062s, 1750s, 3161s for turn-in
+  - PMCS and dispatch your fleet, and see it all in real time organized by tab.
+  - View shortage lists, percentages filled, and order against those accurately.
 - **Authentication:** Auth with role-based accesses: medic, provider, supervisor, admin, credentials, dev.
-  - Clinics are parent/child to reflect the reality that a lot of medicine may happen outside of a DHA clinic - the rest happens at the Battalion during sick call, in the field, or deployed.
+  - Clusters are parent/child to reflect the reality that a lot of medicine may happen outside of a DHA clinic - the rest happens at the Battalion during sick call, in the field, or deployed.
+  - Loan Clusters: loan your users out temporarily to other clusters, but retain visibility of their calendar events.
 - **Offline-First:** sync queue pushes to network on connect. 
   - training information, certification, and knowledge base accessible offline. 
   - Need to wrap in capacitor before I can use native BWE plugins (iOS looking at you) - alternative is we get a $12 LoRa.
@@ -42,7 +50,9 @@ https://cconner2023.github.io/test2
 ## Feedback
 - We're always looking for feedback on how to make this product better. You can send feedback in the application settings or in gh.
 
-## In Progress and thoughts
+## In Progress and future thoughts
 - **BAA:** one day store / send PHI/PII through secured servers with audit logging. Sick Call logs, real-time provider or NCO notification.
-- **Call higher:** built in E2EE web calls to your clinic provider, but what if you have to send to the next geographic node.
-- **VoIP:** DSN becomes encrypt VoIP on medic devices with audit logging. Why are we posting medics 24/7 somewhere when we could run E2EE on-call with a familiar number.
+- **App licensing:** use the app stores and an .exe for desktop devices. take advantage of the hardware we already use.
+- **Connections:** IPPS-A, MODS, DCAMS, GCCS-A, etc. Hoping for write accesses so we don't have to keep using software from whatever time period those are from.
+- **MilitaryMedicine:** it would be really neat to be able to use their doctrine.
+- **Physical Exam and Abnormal Findings Dictionary:** would have to be collected from providers and medics across the globe. most current ones are trademarked and not helpful.

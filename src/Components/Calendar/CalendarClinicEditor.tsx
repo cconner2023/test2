@@ -10,10 +10,10 @@ import {
   type ClinicAppointmentType,
 } from '../../lib/supervisorService'
 import { patchClinicConfig } from '../../Hooks/useClinicConfig'
-import { ActionButton } from '../ActionButton'
-import { ActionPill } from '../ActionPill'
-import { ConfirmDialog } from '../ConfirmDialog'
-import { ErrorPill } from '../ErrorPill'
+import { ActionButton } from '@/Components/primitives/ActionButton'
+import { ActionPill } from '@/Components/primitives/ActionPill'
+import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
+import { ErrorPill } from '@/Components/primitives/ErrorPill'
 import { PreviewOverlay } from '../PreviewOverlay'
 import { PreCombatChecksSection } from './PreCombatChecksSection'
 import { CategoryColorSettings } from './CategoryColorSettings'
@@ -195,7 +195,7 @@ export function CalendarClinicEditor({ variant = 'clinic' }: { variant?: ClinicE
 
       {showClinic && <PreCombatChecksSection />}
 
-      {showCalendar && <section data-tour="clinic-huddle-tasks">
+      {showCalendar && <section>
         <div className="pb-2">
           <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Huddle Tasks</p>
         </div>
@@ -235,7 +235,7 @@ export function CalendarClinicEditor({ variant = 'clinic' }: { variant?: ClinicE
         </div>
       </section>}
 
-      {showCalendar && <section data-tour="clinic-appointment-types">
+      {showCalendar && <section>
         <div className="pb-2">
           <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Appointment Types</p>
         </div>

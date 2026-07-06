@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import * as pdfjsLib from 'pdfjs-dist'
-import { HudLoader } from './HudLoader'
+import { HudLoader } from '@/Components/primitives/HudLoader'
 import { PdfPreviewFallback } from './PdfPreviewFallback'
 
 // Resolve pdf.js's worker via a URL relative to the bundled mjs — same idiom as

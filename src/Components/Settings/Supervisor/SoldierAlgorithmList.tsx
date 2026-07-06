@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react'
 import { ChevronRight, ClipboardCheck, CalendarPlus } from 'lucide-react'
 import { listAlgorithmsWithStp } from '../../../Utilities/algorithmStp'
-import { ActionButton } from '../../ActionButton'
-import { ActionPill } from '../../ActionPill'
+import { ActionButton } from '@/Components/primitives/ActionButton'
+import { ActionPill } from '@/Components/primitives/ActionPill'
 import { PreviewOverlay } from '../../PreviewOverlay'
 import type { AlgorithmCompetency } from './supervisorHelpers'
 

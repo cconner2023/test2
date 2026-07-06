@@ -3,7 +3,7 @@ import { MapPin, Plus, ChevronRight } from 'lucide-react'
 import { listLocations } from '../../lib/adminService'
 import type { AdminLocation } from '../../lib/adminService'
 import { useInvalidation } from '../../stores/useInvalidationStore'
-import { EmptyState } from '../EmptyState'
+import { EmptyState } from '@/Components/primitives/EmptyState'
 
 interface AdminSettingsContentProps {
   /** Open a location's detail (view/edit) — reuses the drawer's location pane. */

@@ -37,7 +37,6 @@ export function FloorSelector({ floors, activeFloor, onSelect, onDeleteFloor }: 
   const canDelete = onDeleteFloor && activeFloor != null && activeFloor !== 0;
   return (
     <div
-      data-tour="map-floor-selector"
       className="absolute right-3 top-1/2 -translate-y-1/2 z-[1000] flex flex-col gap-1.5 items-center pointer-events-auto"
     >
       <button

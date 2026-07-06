@@ -1,10 +1,10 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { X } from 'lucide-react';
-import { useTextExpander } from '../Hooks/useTextExpander';
-import { useTemplateSession } from '../Hooks/useTemplateSession';
-import { TextExpanderSuggestion } from './TextExpanderSuggestion';
-import { TemplateOverlay } from './TemplateOverlay';
-import type { TextExpander } from '../Data/User';
+import { useTextExpander } from '@/Hooks/useTextExpander';
+import { useTemplateSession } from '@/Hooks/useTemplateSession';
+import { TextExpanderSuggestion } from '@/Components/TextExpanderSuggestion';
+import { TemplateOverlay } from '@/Components/TemplateOverlay';
+import type { TextExpander } from '@/Data/User';
 
 interface ExpandableInputProps {
     value: string;

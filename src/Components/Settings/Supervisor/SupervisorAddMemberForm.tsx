@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react'
 import { UserPlus, Search, UserCheck } from 'lucide-react'
-import { TextInput, PickerInput, PasswordInput } from '../../FormInputs'
-import { ErrorDisplay } from '../../ErrorDisplay'
+import { TextInput, PickerInput, PasswordInput } from '@/Components/primitives/FormInputs'
+import { ErrorDisplay } from '@/Components/primitives/ErrorDisplay'
 import { credentials, components, ranksByComponent } from '../../../Data/User'
 import type { Component } from '../../../Data/User'
 import {

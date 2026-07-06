@@ -1,11 +1,11 @@
 import { useState } from 'react'
 import { Copy, Check, Download, Printer, Plus, X } from 'lucide-react'
-import { ActionButton } from '../ActionButton'
-import { Section, SectionCard } from '../Section'
+import { ActionButton } from '@/Components/primitives/ActionButton'
+import { Section, SectionCard } from '@/Components/primitives/Section'
 import type { Opord, OpordTask } from '../../Types/ReportTypes'
 import { emptyOpord } from '../../Types/ReportTypes'
 import { opordToText, copyToClipboard, downloadAsText, printReport } from '../../lib/reportExport'
-import { ActionPill } from '../ActionPill'
+import { ActionPill } from '@/Components/primitives/ActionPill'
 
 const rowCx = 'flex items-center justify-between border-b border-primary/6 last:border-0 px-4 py-3'
 

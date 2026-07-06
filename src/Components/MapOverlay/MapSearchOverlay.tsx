@@ -5,9 +5,9 @@
  *  overlay here can't cover the header anyway) and clears it via top padding. */
 import { useMemo } from 'react'
 import { Clock, MapPin, Trash2 } from 'lucide-react'
-import { Section, SectionCard } from '../Section'
-import { ActionPill } from '../ActionPill'
-import { ActionButton } from '../ActionButton'
+import { Section, SectionCard } from '@/Components/primitives/Section'
+import { ActionPill } from '@/Components/primitives/ActionPill'
+import { ActionButton } from '@/Components/primitives/ActionButton'
 import { useMapSearchStore } from '../../stores/useMapSearchStore'
 import { useMapPrefsStore } from '../../stores/useMapPrefsStore'
 import { latLngToMgrs } from '../../lib/mgrsFormat'

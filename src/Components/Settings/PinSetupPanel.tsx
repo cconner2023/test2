@@ -1,8 +1,8 @@
 import { useState, useCallback, useEffect } from 'react'
 import { Lock, KeyRound, ScanFace, Timer, Activity, Camera, MapPin, ChevronRight } from 'lucide-react'
-import { ErrorDisplay } from '../ErrorDisplay'
+import { ErrorDisplay } from '@/Components/primitives/ErrorDisplay'
 import { ToggleSwitch } from './ToggleSwitch'
-import { PinKeypad } from '../PinKeypad'
+import { PinKeypad } from '@/Components/primitives/PinKeypad'
 import { UI_TIMING } from '../../Utilities/constants'
 import {
   isPinEnabled,

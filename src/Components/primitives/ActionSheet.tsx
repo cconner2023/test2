@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSpring, useTransition, animated } from '@react-spring/web'
 import { ChevronLeft, type LucideIcon } from 'lucide-react'
-import { useIsMobile } from '../Hooks/useIsMobile'
-import { Sheet } from './Sheet'
-import { Z } from './BaseOverlay'
-import { Menu } from './Menu'
+import { useIsMobile } from '@/Hooks/useIsMobile'
+import { Sheet } from '@/Components/primitives/Sheet'
+import { Z } from '@/Components/primitives/BaseOverlay'
+import { Menu } from '@/Components/primitives/Menu'
 
 export interface ActionSheetOption {
   key: string
@@ -17,8 +17,6 @@ export interface ActionSheetOption {
    *  The sheet header gains a Back affordance (same Back pill the property
    *  item-detail edit view uses). Keeps the top level short. */
   children?: ActionSheetOption[]
-  /** data-tour anchor on this option's button (used by guided tours) */
-  tourTag?: string
 }
 
 interface ActionSheetProps {
@@ -113,7 +111,6 @@ export function ActionSheet({ visible, title, options, onClose, zIndex = Z.MODAL
         return (
           <button
             key={opt.key}
-            data-tour={opt.tourTag}
             onClick={() => handleOption(opt)}
             className="w-full flex items-center gap-3 py-2.5 px-4 text-left transition-colors active:scale-95 hover:bg-secondary/5"
           >
@@ -179,7 +176,6 @@ export function ActionSheet({ visible, title, options, onClose, zIndex = Z.MODAL
         label: o.label,
         icon: o.icon,
         variant: o.variant,
-        tourTag: o.tourTag,
         keepOpen: !!o.children?.length,
         onAction: o.children?.length ? () => setPath((p) => [...p, o.key]) : (o.onAction ?? (() => {})),
       }))}

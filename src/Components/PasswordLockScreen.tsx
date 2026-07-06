@@ -6,9 +6,9 @@ import { isBiometricAvailable, isBiometricEnrolled, verifyBiometric } from '../l
 import { deriveAndStoreBackupKey, createBackup } from '../lib/signal/backupService'
 import { ensureVaultExists, deriveAndCacheVaultKey, setVaultKeyReady, processVaultMessages, ackVaultDrain } from '../lib/signal/vaultDevice'
 import { useAuthStore } from '../stores/useAuthStore'
-import { PasswordInput } from './FormInputs'
-import { ErrorDisplay } from './ErrorDisplay'
-import { ConfirmDialog } from './ConfirmDialog'
+import { PasswordInput } from '@/Components/primitives/FormInputs'
+import { ErrorDisplay } from '@/Components/primitives/ErrorDisplay'
+import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
 import { FORGOT_PREFILL_KEY } from './LoginScreen'
 
 interface PasswordLockScreenProps {

@@ -41,7 +41,7 @@ export function MapSettingsBody({ showGrid, onToggleGrid }: MapSettingsBodyProps
     <div className="flex flex-col gap-4 p-4">
         <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
           {/* Grid toggle row */}
-          <div data-tour="map-settings-grid-toggle" className="flex items-center justify-between px-4 py-3">
+          <div className="flex items-center justify-between px-4 py-3">
             <div className="flex items-center gap-3 min-w-0">
               <div className="w-9 h-9 shrink-0 rounded-full bg-themewhite flex items-center justify-center text-tertiary">
                 <Grid3X3 size={17} />
@@ -66,7 +66,7 @@ export function MapSettingsBody({ showGrid, onToggleGrid }: MapSettingsBodyProps
           </div>
 
           {/* Always-on labels toggle — off = labels only on selected feature */}
-          <div data-tour="map-settings-label-mode" className="flex items-center justify-between px-4 py-3 border-t border-themeblue3/10">
+          <div className="flex items-center justify-between px-4 py-3 border-t border-themeblue3/10">
             <div className="flex items-center gap-3 min-w-0">
               <div className="w-9 h-9 shrink-0 rounded-full bg-themewhite flex items-center justify-center text-tertiary">
                 <Tag size={17} />
@@ -91,7 +91,7 @@ export function MapSettingsBody({ showGrid, onToggleGrid }: MapSettingsBodyProps
           </div>
 
           {/* Bearing reference — icon row + compact right-aligned pill */}
-          <div data-tour="map-settings-bearing-ref" className="flex items-center justify-between px-4 py-3 border-t border-themeblue3/10">
+          <div className="flex items-center justify-between px-4 py-3 border-t border-themeblue3/10">
             <div className="flex items-center gap-3 min-w-0">
               <div className="w-9 h-9 shrink-0 rounded-full bg-themewhite flex items-center justify-center text-tertiary">
                 <Compass size={17} />
@@ -126,7 +126,7 @@ export function MapSettingsBody({ showGrid, onToggleGrid }: MapSettingsBodyProps
           </div>
 
           {/* Coordinate display — icon row + compact right-aligned pill */}
-          <div data-tour="map-settings-coord-display" className="flex items-center justify-between px-4 py-3 border-t border-themeblue3/10">
+          <div className="flex items-center justify-between px-4 py-3 border-t border-themeblue3/10">
             <div className="flex items-center gap-3 min-w-0">
               <div className="w-9 h-9 shrink-0 rounded-full bg-themewhite flex items-center justify-center text-tertiary">
                 <MapPin size={17} />

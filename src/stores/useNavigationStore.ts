@@ -102,6 +102,8 @@ const CLOSE_ALL_DRAWERS = {
     showAdminDrawer: false,
     showSupervisorDrawer: false,
     showProviderDrawer: false,
+    showUserGuideDrawer: false,
+    userGuideDrawerSectionId: null as string | null,
     isMenuOpen: false,
 } as const
 
@@ -151,6 +153,9 @@ interface NavigationState {
     showAdminDrawer: boolean
     showSupervisorDrawer: boolean
     showProviderDrawer: boolean
+    showUserGuideDrawer: boolean
+    /** Deep-link target: a section/subsection id the guide should scroll to on open. */
+    userGuideDrawerSectionId: string | null
     isMobile: boolean
 }
 
@@ -206,6 +211,9 @@ interface NavigationActions {
     setShowAdminDrawer: (show: boolean) => void
     setShowSupervisorDrawer: (show: boolean) => void
     setShowProviderDrawer: (show: boolean) => void
+    /** Open the User Guide drawer, optionally deep-linked to a section/subsection id. */
+    setShowUserGuideDrawer: (show: boolean, sectionId?: string | null) => void
+    clearUserGuideSection: () => void
     openWriteNote: (data: WriteNoteData) => void
     closeWriteNote: () => void
     resetToMain: () => void
@@ -258,6 +266,8 @@ export const useNavigationStore = create<NavigationStore>()((set, get) => ({
     showAdminDrawer: false,
     showSupervisorDrawer: false,
     showProviderDrawer: false,
+    showUserGuideDrawer: false,
+    userGuideDrawerSectionId: null,
     isMobile: typeof window !== 'undefined'
         ? window.matchMedia('(max-width: 767px)').matches
         : false,
@@ -582,6 +592,15 @@ export const useNavigationStore = create<NavigationStore>()((set, get) => ({
         ...PRESERVED_FIELDS(s),
         showProviderDrawer: show,
     })),
+
+    setShowUserGuideDrawer: (show, sectionId) => set((s) => ({
+        ...(show ? CLOSE_ALL_DRAWERS : {}),
+        ...PRESERVED_FIELDS(s),
+        showUserGuideDrawer: show,
+        userGuideDrawerSectionId: show ? (sectionId ?? null) : null,
+    })),
+
+    clearUserGuideSection: () => set({ userGuideDrawerSectionId: null }),
 
     openWriteNote: (data) => set({ isWriteNoteVisible: true, writeNoteData: data }),
 

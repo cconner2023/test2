@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Check, Send, MessageSquare, X, Plus, Globe } from 'lucide-react'
 import { PreviewOverlay } from '../PreviewOverlay'
-import { HudLoader } from '../HudLoader'
+import { HudLoader } from '@/Components/primitives/HudLoader'
 import { UserAvatar } from '../Settings/UserAvatar'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { useMessageRoster } from '../../Hooks/useMessageRoster'

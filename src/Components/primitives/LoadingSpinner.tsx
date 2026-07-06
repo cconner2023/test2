@@ -1,5 +1,5 @@
 import { memo } from 'react'
-import { HudLoader } from './HudLoader'
+import { HudLoader } from '@/Components/primitives/HudLoader'
 
 interface LoadingSpinnerProps {
   /** 'sm' = 28px, 'md' = 44px, 'lg' = 72px */

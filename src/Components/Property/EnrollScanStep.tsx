@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { Camera, X, CheckCircle2 } from 'lucide-react'
-import { HudLoader } from '../HudLoader'
+import { HudLoader } from '@/Components/primitives/HudLoader'
 import { openCamera, closeCamera, captureFrame } from '../../lib/vision/camera'
 import { extractFingerprint } from '../../lib/vision/fingerprint'
 import type { VisualFingerprint } from '../../Types/PropertyTypes'

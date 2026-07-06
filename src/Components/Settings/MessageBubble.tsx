@@ -1,6 +1,6 @@
 import { useRef, useCallback, useState, useEffect, useMemo } from 'react'
 import { Check, CheckCheck, X, Reply, Forward, Trash2, Clock, Play, Pause, Copy, Download, CalendarPlus, Calendar, Map as MapIcon, Package, ChevronRight, MoreHorizontal, ScanLine } from 'lucide-react'
-import { ActionButton } from '../ActionButton'
+import { ActionButton } from '@/Components/primitives/ActionButton'
 import { GESTURE_THRESHOLDS, isInteractiveTarget } from '../../Utilities/GestureUtils'
 import type { DecryptedSignalMessage } from '../../lib/signal/transportTypes'
 import { downloadDecryptedAttachment } from '../../lib/signal/attachmentService'
@@ -891,7 +891,6 @@ export function MessageBubble({
                 (not hover-gated) — iOS Safari has no hover. */}
             {!!threadReplyCount && threadReplyCount > 0 && (
               <button
-                data-tour="messages-thread-badge"
                 onClick={e => { e.stopPropagation(); onOpenThread?.(message.originId ?? message.id) }}
                 className={`flex items-center gap-1.5 mt-1 -ml-1 pl-1 pr-1.5 py-0.5 rounded-md max-w-full
                            hover:bg-themeblue3/8 active:scale-[0.98] transition-colors

@@ -3,7 +3,7 @@ import { X } from 'lucide-react'
 import { animated, type SpringValue } from '@react-spring/web'
 import { CategoryList } from './CategoryList'
 import { SearchResults } from './SearchResults'
-import { SearchInput } from './SearchInput'
+import { SearchInput } from '@/Components/primitives/SearchInput'
 import { MissionBoardPanel } from './MissionBoard/MissionBoardPanel'
 import { useColumnCarousel } from '../Hooks/useColumnCarousel'
 import type { SearchResultType } from '../Types/CatTypes'
@@ -250,7 +250,6 @@ export const ColumnA = memo(function ColumnA({ onNavigate, onEdgeDrag, onEdgeDra
                   onBlur={handleColumnSearchBlur}
                   onKeyDown={handleColumnSearchKeyDown}
                   className="flex-1 min-w-0"
-                  dataTour="column-search"
                 />
                 {/* Close button — appears when focused */}
                 <div className={`transition-all duration-200 overflow-hidden ${
@@ -293,7 +292,7 @@ export const ColumnA = memo(function ColumnA({ onNavigate, onEdgeDrag, onEdgeDra
         style={{ width: `${panelCount * 100}%` }}
       >
         {/* Panel 0: Mission board (scrolls naturally) + main categories */}
-        <div ref={panel0ScrollRef} data-tour="category-list" className="h-full overflow-y-auto bg-themewhite" style={{ flex: `0 0 ${panelWidth}` }}>
+        <div ref={panel0ScrollRef} className="h-full overflow-y-auto bg-themewhite" style={{ flex: `0 0 ${panelWidth}` }}>
           <animated.div className="px-2 md:px-0 min-h-full" style={{ paddingTop: mobilePanelPadding }}>
             {isMobile && (
               <div ref={missionBoardSectionRef} className="pb-2">
@@ -313,7 +312,7 @@ export const ColumnA = memo(function ColumnA({ onNavigate, onEdgeDrag, onEdgeDra
 
         {/* Panel 2: Symptom info (desktop only) */}
         {!isMobile && (
-          <div data-tour="guidelines-panel" className="h-full overflow-y-auto bg-themewhite" style={{ flex: `0 0 ${panelWidth}` }}>
+          <div className="h-full overflow-y-auto bg-themewhite" style={{ flex: `0 0 ${panelWidth}` }}>
             <div className="px-2 md:px-0 min-h-full">
               <CategoryList mobilePanel="guidelines" onNavigate={onNavigate} />
             </div>

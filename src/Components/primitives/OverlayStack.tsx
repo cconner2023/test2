@@ -1,8 +1,8 @@
-import { StackNavContext, type StackNav, type StackScreen } from './stackNav'
-import { PreviewOverlay } from './PreviewOverlay'
-import { useStack } from './useStack'
+import { StackNavContext, type StackNav, type StackScreen } from '@/Components/stackNav'
+import { PreviewOverlay } from '@/Components/PreviewOverlay'
+import { useStack } from '@/Components/primitives/useStack'
 
-export type { StackNav, StackScreen } from './stackNav'
+export type { StackNav, StackScreen } from '@/Components/stackNav'
 
 /**
  * OverlayStack — the PreviewOverlay-shelled drill-down ("morph") overlay.

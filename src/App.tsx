@@ -41,7 +41,6 @@ import { CallOverlay } from './Components/Settings/CallOverlay'
 import { OncallCallModal } from './Components/Messages/OncallCallModal'
 import { OutsideSessionCallHost } from './Components/Messages/OutsideSessionCallHost'
 import { MessageNotificationToast } from './Components/MessageNotificationToast'
-import { TourProvider } from './Components/Tour/TourProvider'
 import { PushNotificationToast } from './Components/PushNotificationToast'
 import { usePushNotifications } from './Hooks/usePushNotifications'
 import type { MessageNotification } from './Hooks/useMessageNotifications'
@@ -53,6 +52,7 @@ import { KnowledgeBaseDrawer } from './Components/KnowledgeBaseDrawer'
 import { TrainingDrawer } from './Components/TrainingDrawer'
 import { MessagesDrawer } from './Components/MessagesDrawer'
 import { PropertyDrawer } from './Components/PropertyDrawer'
+import { UserGuideDrawer } from './Components/UserGuide/UserGuideDrawer'
 import { AdminDrawer } from './Components/AdminDrawer'
 import { SupervisorDrawer } from './Components/SupervisorDrawer'
 import { ProviderDrawer } from './Components/ProviderDrawer'
@@ -201,16 +201,6 @@ function AppContent() {
       navigation.setImportExpanded(false)
     }
   }, [barcodeImport.stagedImage, barcodeImport.scanRequested, navigation.setImportExpanded])
-
-  // Tour system: listen for demo import requests
-  useEffect(() => {
-    const handler = (e: Event) => {
-      const barcode = (e as CustomEvent).detail as string
-      barcodeImport.decodeText(barcode)
-    }
-    window.addEventListener('tour:open-import', handler)
-    return () => window.removeEventListener('tour:open-import', handler)
-  }, [barcodeImport.decodeText])
 
   // Inline import submit: decode via hook → popover shows result
   const handleInlineImportSubmit = useCallback((barcodeText: string) => {
@@ -512,7 +502,6 @@ case 'mapOverlay':
 
   return (
     <AvatarProvider value={avatarState}>
-    <TourProvider onboardingBlocked={updateVisible || postUpdatePending}>
     <MessagesProvider>
     <CallProvider>
     <div className='h-screen bg-themewhite md:bg-themewhite2 items-center flex justify-center overflow-hidden'>
@@ -787,6 +776,12 @@ case 'mapOverlay':
         />
         </ErrorBoundary>
         <ErrorBoundary>
+        <UserGuideDrawer
+          isVisible={navigation.showUserGuideDrawer}
+          onClose={() => navigation.setShowUserGuideDrawer(false)}
+        />
+        </ErrorBoundary>
+        <ErrorBoundary>
         <TC3Drawer
           isVisible={navigation.showTC3Drawer}
           onClose={() => navigation.setShowTC3Drawer(false)}
@@ -858,7 +853,6 @@ case 'mapOverlay':
     </div>
     </CallProvider>
     </MessagesProvider>
-    </TourProvider>
     </AvatarProvider>
   )
 }

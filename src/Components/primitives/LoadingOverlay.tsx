@@ -1,6 +1,6 @@
 import { memo } from 'react'
 import { useSpring, animated } from '@react-spring/web'
-import { HudLoader } from './HudLoader'
+import { HudLoader } from '@/Components/primitives/HudLoader'
 
 interface LoadingOverlayProps {
   /** Drives the crossfade. Always mounted; opacity 0↔1 is the on/off. */

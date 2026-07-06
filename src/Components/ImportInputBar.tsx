@@ -1,6 +1,6 @@
 import { useRef, useCallback } from 'react';
 import { Camera, ImagePlus, Check, X } from 'lucide-react';
-import { ErrorPill } from './ErrorPill';
+import { ErrorPill } from '@/Components/primitives/ErrorPill';
 
 export interface ImportInputBarProps {
     value: string;

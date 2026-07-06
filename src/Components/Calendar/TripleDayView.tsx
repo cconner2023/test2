@@ -81,7 +81,7 @@ export function TripleDayView({ date, events, onSelectEvent, onEventContextMenu,
   const maxAllDay = Math.max(0, ...columns.map(c => c.allDay.length))
 
   return (
-    <div data-tour="calendar-triple-day-view" className="flex flex-col h-full">
+    <div className="flex flex-col h-full">
       <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto">
         <div className="sticky top-0 z-10 bg-themewhite3">
           {(onPrevDay && onNextDay) ? (

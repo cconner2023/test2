@@ -12,13 +12,6 @@
 export const LORA_MESH_ENABLED = true;
 
 /**
- * GUIDED_TOURS_ENABLED: When true, the Guided Tours interactive walkthrough
- * system is available. Provides auto-playing step-by-step feature tours
- * with spotlight overlays and tooltip navigation.
- */
-export const GUIDED_TOURS_ENABLED = true;
-
-/**
  * BURN_CALCULATOR_ENABLED: When true, the TBSA/Parkland burn assessment
  * calculator is available in the Knowledge Base calculators section.
  */

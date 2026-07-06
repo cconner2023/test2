@@ -3,11 +3,11 @@ import { Plus, UserPlus, Pill, ScanLine, FlaskConical, CalendarCheck, ClipboardL
 import type { LucideIcon } from 'lucide-react';
 import type { PlanOrderTags, PlanBlockKey } from '../../Data/User';
 import { PLAN_ORDER_CATEGORIES } from '../../Data/User';
-import { ActionButton } from '../ActionButton';
-import { ActionPill } from '../ActionPill'
-import { LiftedRowMenu } from '../LiftedRowMenu';
+import { ActionButton } from '@/Components/primitives/ActionButton';
+import { ActionPill } from '@/Components/primitives/ActionPill'
+import { LiftedRowMenu } from '@/Components/primitives/LiftedRowMenu';
 import { liftPressHandlers, type LiftPressState, type LiftSnapshot } from '../liftPress';
-import type { ContextMenuItem } from '../ContextMenu';
+import type { ContextMenuItem } from '@/Components/primitives/ContextMenu';
 
 const ALL_KEYS: PlanBlockKey[] = [...PLAN_ORDER_CATEGORIES, 'instructions'];
 
@@ -64,7 +64,7 @@ export const PlanTagManager = ({
     const totalCount = visibleCategories.reduce((s, k) => s + tagsByKey[k].length, 0);
 
     return (
-        <section data-tour="plan-tag-section">
+        <section>
             <div className="pb-2">
                 <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Plan Tags</p>
             </div>
@@ -77,7 +77,6 @@ export const PlanTagManager = ({
                             return (
                                 <div
                                     key={key}
-                                    data-tour={`plan-tag-${key}`}
                                     className="overflow-hidden"
                                 >
                                     <div className="flex items-center gap-2.5 px-3 py-2 border-b border-primary/6">
@@ -118,7 +117,7 @@ export const PlanTagManager = ({
                     </div>
                 )}
                 </div>
-                <ActionPill ref={fabRef} data-tour="plan-tag-input" shadow="sm" placement="overlay">
+                <ActionPill ref={fabRef} shadow="sm" placement="overlay">
                     <ActionButton icon={Plus} label="New tag" onClick={() => fabRef.current && onTapNew(fabRef.current)} />
                 </ActionPill>
             </div>

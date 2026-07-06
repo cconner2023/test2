@@ -2,14 +2,14 @@
 import { useState, useRef } from 'react'
 import { Copy, Check, ChevronRight, Printer, RefreshCw, Image } from 'lucide-react'
 import { MedevacForm } from '../Medevac/MedevacForm'
-import { ActionButton } from '../ActionButton'
+import { ActionButton } from '@/Components/primitives/ActionButton'
 import { BarcodeDisplay } from '../Barcode'
 
 import type { MedevacRequest } from '../../Types/MedevacTypes'
 import { medevacPatientTotal } from '../../Types/MedevacTypes'
 import { medevacToText, medevacToCompact, copyToClipboard, printReport } from '../../lib/reportExport'
-import { ActionPill } from '../ActionPill'
-import { OverlayActionMenu } from '../OverlayActionMenu'
+import { ActionPill } from '@/Components/primitives/ActionPill'
+import { OverlayActionMenu } from '@/Components/primitives/OverlayActionMenu'
 
 function hasContent(req: MedevacRequest): boolean {
   return !!(req.l1 || req.l2f || req.l2c || medevacPatientTotal(req) > 0)

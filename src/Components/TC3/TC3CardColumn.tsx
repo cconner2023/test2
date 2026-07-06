@@ -1,6 +1,6 @@
 import { memo, useState } from 'react'
 import { ChevronRight, Crosshair, FileText } from 'lucide-react'
-import { SectionHeader } from '../Section'
+import { SectionHeader } from '@/Components/primitives/Section'
 import { useTC3Store } from '../../stores/useTC3Store'
 import type { TC3Card } from '../../Types/TC3Types'
 import { CasualtyInfoForm } from './CasualtyInfoForm'
@@ -49,7 +49,7 @@ export const TC3CardColumn = memo(function TC3CardColumn() {
 
           <MechanismForm />
 
-          <div data-tour="tc3-body-diagram">
+          <div>
             <BodyDiagram editingMarkerId={editingMarker} onEditMarker={setEditingMarker} />
           </div>
 
@@ -93,7 +93,6 @@ export const TC3CardColumn = memo(function TC3CardColumn() {
           {/* Export — final section of the column */}
           {hasData && (
             <button
-              data-tour="tc3-export"
               type="button"
               onClick={() => openExport()}
               className="w-full rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden text-left active:scale-95 transition-all hover:bg-themeblue2/5"

@@ -1,5 +1,5 @@
 import { Pencil, Trash2, X, Check } from 'lucide-react'
-import { HeaderPill, PillButton } from '../HeaderPill'
+import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill'
 
 interface DetailHeaderActionsProps {
   editing: boolean

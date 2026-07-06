@@ -1,17 +1,21 @@
-import { ExpandableInput } from '../ExpandableInput';
+import { ExpandableInput } from '@/Components/primitives/ExpandableInput';
 import { useMergedNoteContent } from '../../Hooks/useMergedNoteContent';
 
 /**
  * Right-pane text editor for the provider note's plain-text sections (HPI /
- * Assessment) on desktop. Binds live to the drawer's lifted section state, so the
- * center summary card reflects edits. PE and Plan are NOT edited here — those stay
- * live-mounted in the center (their exam/plan text must stay synced from a template
- * apply, which only their mounted component can generate).
+ * Assessment) on desktop — the template builder's RowTextarea field (borderless
+ * min-h-[4rem] textarea) minus the label header (the pane header already titles the
+ * section), routed through ExpandableInput so it stays text-template aware
+ * (abbreviation expansion + template sessions). Binds live to the drawer's lifted section state,
+ * so the center summary card reflects edits. PE and Plan are NOT edited here — those
+ * stay live-mounted in the center (their exam/plan text must stay synced from a
+ * template apply, which only their mounted component can generate).
  */
 
-const TEXTAREA_CLASS =
-  'w-full bg-transparent px-4 py-3 text-base md:text-sm text-primary placeholder:text-tertiary ' +
-  'focus:outline-none resize-none overflow-hidden min-h-[260px]';
+// Matches ProviderTemplateEditPopover.RowTextarea's textarea class.
+const INPUT_CLASS =
+  'w-full bg-transparent px-4 py-2 pb-3 text-base md:text-sm text-primary placeholder:text-tertiary ' +
+  'focus:outline-none resize-none min-h-[4rem] leading-5';
 
 export function TextSectionEditor({
   value, onChange, placeholder,
@@ -22,16 +26,16 @@ export function TextSectionEditor({
 }) {
   const { expanders } = useMergedNoteContent();
   return (
-    <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+    <label className="block">
       <ExpandableInput
         value={value}
         onChange={onChange}
         expanders={expanders}
         multiline
         hideClear
-        className={TEXTAREA_CLASS}
+        className={INPUT_CLASS}
         placeholder={placeholder}
       />
-    </div>
+    </label>
   );
 }

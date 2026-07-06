@@ -1,10 +1,10 @@
 import { useRef, useEffect, useCallback, useState, useContext, useImperativeHandle, forwardRef } from 'react';
 import { createPortal } from 'react-dom';
 import { TextCursor, ChevronDown, Trash2, Check } from 'lucide-react';
-import { Z, OverlayStackContext } from '../BaseOverlay';
+import { Z, OverlayStackContext } from '@/Components/primitives/BaseOverlay';
 import { StackNavContext } from '../stackNav';
-import { ActionButton } from '../ActionButton';
-import { ActionPill } from '../ActionPill';
+import { ActionButton } from '@/Components/primitives/ActionButton';
+import { ActionPill } from '@/Components/primitives/ActionPill';
 import type { FieldInfo } from '../../Utilities/templateParser';
 
 // ─── Segment helpers ─────────────────────────────────────────────────

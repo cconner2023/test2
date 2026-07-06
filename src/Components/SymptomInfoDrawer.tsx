@@ -1,4 +1,4 @@
-import { BaseDrawer } from './BaseDrawer';
+import { BaseDrawer } from '@/Components/primitives/BaseDrawer';
 import { SymptomGuidelines } from './CategoryList';
 import type { GuidelineItemData } from './CategoryList';
 import type { catDataTypes, subCatDataTypes, SearchResultType } from '../Types/CatTypes';
@@ -55,7 +55,7 @@ export function SymptomInfoDrawer({
             }}
             contentPadding="compact"
         >
-            <div data-tour="symptom-info-content">
+            <div>
                 <SymptomGuidelines
                     symptom={selectedSymptom}
                     category={selectedCategory}

@@ -2,7 +2,7 @@ import { useRef, useEffect } from 'react'
 import { Trash2, X, Check, RefreshCw } from 'lucide-react'
 import { credentials } from '../../Data/User'
 import { ToggleSwitch } from '../Settings/ToggleSwitch'
-import { TextInput, DatePickerInput } from '../FormInputs'
+import { TextInput, DatePickerInput } from '@/Components/primitives/FormInputs'
 import type { CertFormData } from './certHelpers'
 
 interface CertificationFormProps {

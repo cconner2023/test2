@@ -20,6 +20,8 @@ skills-lock.json
 .claude/
 .md
 *.md
+# Exception: the primitives guidelines are colocated with the code on purpose.
+!src/Components/primitives/README.md
 .omc
 *.omc
 node_modules

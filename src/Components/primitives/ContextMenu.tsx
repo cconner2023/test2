@@ -1,8 +1,8 @@
 import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import type { LucideIcon } from 'lucide-react'
-import { ActionButton, type ActionButtonVariant } from './ActionButton'
-import { ActionPill } from './ActionPill'
+import { ActionButton, type ActionButtonVariant } from '@/Components/primitives/ActionButton'
+import { ActionPill } from '@/Components/primitives/ActionPill'
 
 export interface ContextMenuItem {
   key: string
@@ -27,8 +27,7 @@ export interface ContextMenuItem {
   selected?: boolean
   /** Fully custom button renderer. When set, the item owns its own button + click and the
    *  menu does NOT auto-close on select. Use for status-aware buttons (ActionIconButton
-   *  spinner/done) or stateful copy-tint buttons, and for buttons that carry their own
-   *  data-tour anchor. Wins over icon/node/onAction. Rendered verbatim in horizontal/pill
+   *  spinner/done) or stateful copy-tint buttons. Wins over icon/node/onAction. Rendered verbatim in horizontal/pill
    *  layouts; in the vertical list layout the whole row becomes the tap target (a tap
    *  anywhere forwards to the rendered control) so the label isn't a dead zone. */
   render?: () => ReactNode

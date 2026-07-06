@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
-import { MoreHorizontal, Eye, Pencil, Trash2 } from 'lucide-react'
-import { Section, SectionCard } from '../Section'
-import { SearchInput } from '../SearchInput'
-import { LiftedRowMenu } from '../LiftedRowMenu'
+import { ChevronRight, ChevronDown, MoreHorizontal, Eye, Pencil, Trash2 } from 'lucide-react'
+import { SearchInput } from '@/Components/primitives/SearchInput'
+import { LiftedRowMenu } from '@/Components/primitives/LiftedRowMenu'
+import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
 import { usePropertyStore } from '../../stores/usePropertyStore'
 import { groupAuthorized } from '../../Utilities/propertyAuthorized'
 import type { LocalPropertyItem } from '../../Types/PropertyTypes'
@@ -18,22 +18,37 @@ interface PropertyAuthorizedPanelProps {
   onView: (item: LocalPropertyItem) => void
 }
 
-/** Surfaceless authorized-items (BOM) LIST. Hosted in the Property right pane (desktop) /
- *  detail sheet (mobile) by PropertyPanel — the host owns the header (ellipsis · + · close)
- *  AND the add/edit/view MORPH: tapping +, a row, or a row menu action calls back up so the
- *  host swaps the surface between this list and the canonical PropertyItemForm /
- *  PropertyItemDetail (no nested overlay). Shows the COMPLETE authorized list grouped by
- *  SKO, lines sorted by LIN; a search bar appears once populated. The list persists across
- *  devices (offline-first sync). Row "Delete" DE-AUTHORIZES (clears quantity_authorized) —
- *  the item stays on-hand as excess; it is NEVER deleted from the book. */
+/** Cluster Hand Receipt (authorized/BOM) rendered as a TREE: each LIN is a collapsible parent
+ *  node; its authorized components nest beneath it. Mirrors the property location tree idiom —
+ *  a row TAP opens the read-only detail (onView, no inline edit); the trailing ellipsis opens
+ *  View · Edit · Delete. LINs (standalone item-LINs AND vehicle-LINs) are editable here.
+ *  Hosted in the Property right pane (desktop) / detail sheet (mobile); the host owns the
+ *  header (ellipsis · + · close) and the view/edit morph. Offline-first; persists across devices.
+ *
+ *  DELETE semantics: a COMPONENT "Delete" DE-AUTHORIZES (clears quantity_authorized) — it stays
+ *  on-hand as excess, never removed. A LIN "Delete" removes the LIN from the receipt (confirm):
+ *  its components detach + de-authorize (survive as loose stock), then the LIN container is
+ *  removed — for a vehicle-LIN this un-LINs the vehicle; its zone remains. */
 export function PropertyAuthorizedPanel({ onEdit, onView }: PropertyAuthorizedPanelProps) {
-  const items = usePropertyStore(useShallow((s) => s.items))
-  const editItem = usePropertyStore((s) => s.editItem)
+  const { items, editItem, removeItem } = usePropertyStore(
+    useShallow((s) => ({ items: s.items, editItem: s.editItem, removeItem: s.removeItem })),
+  )
 
-  const { groups, trackedCount } = useMemo(() => groupAuthorized(items), [items])
+  const { groups, trackedCount, linCount } = useMemo(() => groupAuthorized(items), [items])
 
   const [query, setQuery] = useState('')
   const q = query.trim().toLowerCase()
+
+  // Collapse state per LIN node (keyed by group id; the top-level bucket uses '__top__').
+  // Default expanded.
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
+  const toggle = (key: string) =>
+    setCollapsed((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
 
   // Filter lines by name / NSN / LIN; drop groups left with no surviving lines.
   const shownGroups = useMemo(() => {
@@ -51,71 +66,127 @@ export function PropertyAuthorizedPanel({ onEdit, onView }: PropertyAuthorizedPa
       .filter((g) => g.lines.length > 0)
   }, [groups, q])
 
-  // Tap a row = edit; the trailing ellipsis opens View · Edit · Delete (de-authorize).
-  const openEdit = (itemId: string) => {
-    const item = items.find((i) => i.id === itemId)
-    if (item) onEdit(item)
-  }
-  const [menu, setMenu] = useState<{ item: LocalPropertyItem; rect: DOMRect } | null>(null)
-  const openRowMenu = (itemId: string, rect: DOMRect) => {
-    const item = items.find((i) => i.id === itemId)
-    if (item) setMenu({ item, rect })
-  }
+  // The ellipsis row menu — carries whether it anchors a LIN (delete = remove the LIN) or a
+  // component (delete = de-authorize).
+  const [menu, setMenu] = useState<{ item: LocalPropertyItem; kind: 'lin' | 'component'; rect: DOMRect } | null>(null)
+  const openMenu = (item: LocalPropertyItem, kind: 'lin' | 'component', rect: DOMRect) => setMenu({ item, kind, rect })
 
-  // Remove-from-BOM = de-authorize (stays on-hand as excess), NEVER delete the item.
+  // Component "Delete" = de-authorize (stays on-hand as excess), NEVER delete the item.
   const deauthorize = (itemId: string) => { void editItem(itemId, { quantity_authorized: null }) }
 
-  // Empty state — no icon (USR), just the explanation; add via the header +.
-  if (trackedCount === 0) {
+  // LIN "Delete" (confirmed) = remove the LIN container after detaching + de-authorizing its
+  // components so removeItem doesn't cascade-delete them (they survive as loose stock).
+  const [pendingDeleteLin, setPendingDeleteLin] = useState<LocalPropertyItem | null>(null)
+  const confirmDeleteLin = async () => {
+    const lin = pendingDeleteLin
+    setPendingDeleteLin(null)
+    if (!lin) return
+    for (const comp of items.filter((i) => i.parent_item_id === lin.id)) {
+      await editItem(comp.id, { parent_item_id: null, quantity_authorized: null })
+    }
+    await removeItem(lin.id)
+  }
+
+  // Empty state — only when the hand receipt is truly empty (no LINs AND no lines); an empty
+  // LIN still renders its node.
+  if (trackedCount === 0 && linCount === 0) {
     return (
       <div className="flex flex-col items-center gap-3 py-8 px-6 text-center">
-        <p className="text-sm text-secondary">No authorized quantities yet.</p>
+        <p className="text-sm text-secondary">No hand receipt yet.</p>
         <p className="text-[10pt] text-tertiary max-w-[260px]">
-          Import a property CSV with a <span className="font-medium">Quantity Authorized</span> column,
-          or add lines by hand with the <span className="font-medium">+</span> above.
+          Start by adding the <span className="font-medium">LINs</span> you're signed for with the{' '}
+          <span className="font-medium">+</span> above — then assign your items to each. Or import a
+          property CSV with a <span className="font-medium">Quantity Authorized</span> column.
         </p>
       </div>
     )
   }
 
+  const ellipsisCls =
+    'w-7 h-7 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all shrink-0'
+
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-2">
       <SearchInput value={query} onChange={setQuery} placeholder="Search authorized items" />
 
-      {shownGroups.map((g) => (
-        <Section key={g.skoId ?? '__top__'} title={g.skoName ?? 'Top-level items'}>
-          <SectionCard>
-            {g.lines.map((l) => (
+      <div className="flex flex-col py-1">
+        {shownGroups.map((g) => {
+          const key = g.skoId ?? '__top__'
+          const container = g.skoId ? items.find((i) => i.id === g.skoId) ?? null : null
+          const isCollapsed = collapsed.has(key)
+          return (
+            <div key={key}>
+              {/* LIN node header */}
               <div
-                key={l.itemId}
-                role="button"
-                tabIndex={0}
-                onClick={() => openEdit(l.itemId)}
-                className="group flex items-center gap-2 py-2 px-3 border-b border-themeblue3/10 last:border-b-0 cursor-pointer active:bg-primary/5 transition-colors"
+                className="group flex items-center gap-2 py-2 pr-3 border-l-2 border-l-transparent hover:bg-secondary/5 transition-colors"
+                style={{ paddingLeft: '16px' }}
               >
-                <div className="min-w-0 flex-1">
-                  <span className="block text-[10pt] text-primary truncate">{l.name}</span>
-                  {l.lin && <span className="block text-[9pt] text-tertiary">LIN {l.lin}</span>}
-                  {l.nsn && <span className="block text-[9pt] text-tertiary">NSN {l.nsn}</span>}
-                </div>
-                {/* Authorized / on-hand, both in base (EA) units so the pair is directly
-                    comparable (pack authorizations are converted to base). */}
-                <span className="text-[10pt] text-tertiary tabular-nums shrink-0">
-                  {l.authorizedBase} / {l.onHand}
-                </span>
                 <button
                   type="button"
-                  onClick={(e) => { e.stopPropagation(); openRowMenu(l.itemId, (e.currentTarget as HTMLElement).getBoundingClientRect()) }}
-                  aria-label="Line actions"
-                  className="w-7 h-7 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all shrink-0"
+                  className="p-0.5 rounded hover:bg-secondary/10 text-tertiary shrink-0"
+                  onClick={() => toggle(key)}
+                  aria-label={isCollapsed ? 'Expand' : 'Collapse'}
                 >
-                  <MoreHorizontal size={15} />
+                  {isCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
                 </button>
+                <button
+                  type="button"
+                  className="min-w-0 flex-1 text-left"
+                  onClick={() => container && onView(container)}
+                >
+                  <span className="block text-[10pt] font-bold text-primary truncate">{g.skoName ?? 'Top-level items'}</span>
+                  {container?.lin && <span className="block text-[9pt] text-tertiary">LIN {container.lin}</span>}
+                </button>
+                {container && (
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); openMenu(container, 'lin', (e.currentTarget as HTMLElement).getBoundingClientRect()) }}
+                    aria-label="LIN actions"
+                    className={ellipsisCls}
+                  >
+                    <MoreHorizontal size={15} />
+                  </button>
+                )}
               </div>
-            ))}
-          </SectionCard>
-        </Section>
-      ))}
+
+              {/* Components */}
+              {!isCollapsed &&
+                g.lines.map((l) => {
+                  const comp = items.find((i) => i.id === l.itemId)
+                  return (
+                    <div
+                      key={l.itemId}
+                      className="group flex items-center gap-2 py-2 pr-3 border-l-2 border-l-transparent hover:bg-secondary/5 transition-colors"
+                      style={{ paddingLeft: '38px' }}
+                    >
+                      <button
+                        type="button"
+                        className="min-w-0 flex-1 text-left"
+                        onClick={() => comp && onView(comp)}
+                      >
+                        <span className="block text-[10pt] text-primary truncate">{l.name}</span>
+                        {l.nomenclature && <span className="block text-[9pt] text-tertiary truncate">{l.nomenclature}</span>}
+                        {l.nsn && <span className="block text-[9pt] text-tertiary truncate">NSN {l.nsn}</span>}
+                      </button>
+                      {/* On-hand / authorized, both in base (EA) units so the pair is directly comparable. */}
+                      <span className="text-[10pt] text-tertiary tabular-nums shrink-0">
+                        {l.onHand} / {l.authorizedBase}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); comp && openMenu(comp, 'component', (e.currentTarget as HTMLElement).getBoundingClientRect()) }}
+                        aria-label="Line actions"
+                        className={ellipsisCls}
+                      >
+                        <MoreHorizontal size={15} />
+                      </button>
+                    </div>
+                  )
+                })}
+            </div>
+          )
+        })}
+      </div>
 
       {menu && (
         <LiftedRowMenu
@@ -127,10 +198,21 @@ export function PropertyAuthorizedPanel({ onEdit, onView }: PropertyAuthorizedPa
           items={[
             { key: 'view', label: 'View', icon: Eye, onAction: () => onView(menu.item) },
             { key: 'edit', label: 'Edit', icon: Pencil, onAction: () => onEdit(menu.item) },
-            { key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => deauthorize(menu.item.id) },
+            menu.kind === 'lin'
+              ? { key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => setPendingDeleteLin(menu.item) }
+              : { key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => deauthorize(menu.item.id) },
           ]}
         />
       )}
+
+      <ConfirmDialog
+        visible={!!pendingDeleteLin}
+        title="Remove this LIN from the hand receipt? Its items stay on-hand (de-authorized)."
+        confirmLabel="Remove"
+        variant="danger"
+        onConfirm={confirmDeleteLin}
+        onCancel={() => setPendingDeleteLin(null)}
+      />
     </div>
   )
 }

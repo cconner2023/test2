@@ -9,24 +9,22 @@ import { NoteBarcodeGenerator } from './Barcode';
 import { DecisionMaking } from './DecisionMaking';
 import { PhysicalExam } from './PhysicalExam';
 import { Plan } from './Plan';
-import { BaseDrawer } from './BaseDrawer';
+import { BaseDrawer } from '@/Components/primitives/BaseDrawer';
 import {
     ActionIconButton,
     NoteWizardFooter,
     shareStatusToIconStatus, exportStatusToIconStatus,
 } from './WriteNoteHelpers';
-import { ExpandableInput } from './ExpandableInput';
+import { ExpandableInput } from '@/Components/primitives/ExpandableInput';
 import { useAlgorithmMetrics } from '../Hooks/useAlgorithmMetrics';
 import { useMergedNoteContent } from '../Hooks/useMergedNoteContent';
-import { X, Plus, Check, Eye, FileText, RotateCcw } from 'lucide-react';
+import { X, Plus, Check, RotateCcw } from 'lucide-react';
 import { PreviewOverlay } from './PreviewOverlay';
-import { ConfirmDialog } from './ConfirmDialog';
-import { GUIDED_HPI_EXPANDED, GUIDED_PE_TEXT, GUIDED_PLAN_TEXT } from '../Data/GuidedTourData';
+import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog';
 import { PdfPreviewModal } from './PdfPreviewModal';
-import { ActionButton } from './ActionButton';
-import { ActionPill } from './ActionPill'
-import { OverlayActionMenu } from './OverlayActionMenu';
-import { EmptyState } from './EmptyState';
+import { Chip, ChipBar } from '@/Components/primitives/Chip';
+import { OverlayActionMenu } from '@/Components/primitives/OverlayActionMenu';
+import { EmptyState } from '@/Components/primitives/EmptyState';
 import type { TextExpander } from '../Data/User';
 import { getBlocksForFocusedExam, getCategoryFromSymptomCode } from '../Data/PhysicalExamData';
 import type { CategoryLetter } from '../Data/PhysicalExamData';
@@ -43,13 +41,12 @@ const TEXTAREA_CLASS =
     'focus:outline-none resize-none overflow-hidden min-h-[200px]';
 
 /** Empty → overlay → populated card pattern, mirrors ProviderNote's TextSectionCard. */
-function TextSectionCard({ addLabel, value, onChange, expanders, placeholder, dataTour }: {
+function TextSectionCard({ addLabel, value, onChange, expanders, placeholder }: {
     addLabel: string;
     value: string;
     onChange: (v: string) => void;
     expanders: TextExpander[];
     placeholder: string;
-    dataTour?: string;
 }) {
     const [isOpen, setIsOpen] = useState(false);
     const [anchor, setAnchor] = useState<DOMRect | null>(null);
@@ -66,7 +63,6 @@ function TextSectionCard({ addLabel, value, onChange, expanders, placeholder, da
                 <div
                     ref={cardRef}
                     onClick={openFromCard}
-                    data-tour={dataTour}
                     className={`${CARD_CLASS} cursor-pointer active:scale-[0.99] transition-all`}
                 >
                     <div className="px-4 py-3 text-sm text-primary whitespace-pre-wrap max-h-64 overflow-y-auto">
@@ -140,25 +136,13 @@ export const WriteNotePage = ({
 }: WriteNoteProps) => {
     const { profile } = useUserProfile();
     const { logNow } = useAlgorithmMetrics();
-    const [logStatus, setLogStatus] = useState<'idle' | 'done'>('idle');
+    const [logConfirmOpen, setLogConfirmOpen] = useState(false);
     const loggedRef = useRef(false);
     const { expanders, orderTags, instructionTags, orderSets } = useMergedNoteContent();
     const colors = getColorClasses(disposition.type);
-    const [viewMode, setViewMode] = useState<'preview' | 'fullnote'>(
-        () => (window.__tourNoteOverride ? 'fullnote' : 'preview')
-    );
+    const [viewMode, setViewMode] = useState<'preview' | 'fullnote'>('preview');
     const [includeDecisionMaking, setIncludeDecisionMaking] = useState(true);
     const [dmConfirmOpen, setDmConfirmOpen] = useState(false);
-
-    // Tour override: clean up global flag on restore/unmount
-    useEffect(() => {
-        const onRestore = () => { window.__tourNoteOverride = false; };
-        window.addEventListener('tour:restore-note-sections', onRestore);
-        return () => {
-            window.removeEventListener('tour:restore-note-sections', onRestore);
-            window.__tourNoteOverride = false;
-        };
-    }, []);
 
     const visiblePages = useMemo(() => [
         { id: 'edit' as const, label: 'Write Note' },
@@ -309,41 +293,8 @@ export const WriteNotePage = ({
     const handleLog = useCallback(async () => {
         if (loggedRef.current) return;
         loggedRef.current = true;
-        await logNow(selectedSymptom.icon, selectedSymptom.text);
-        setLogStatus('done');
-    }, [logNow, selectedSymptom.icon, selectedSymptom.text]);
-
-    // ── Tour injection listeners ────────────────────────────────────────────
-    useEffect(() => {
-        const onInjectHPI = () => { setNote(GUIDED_HPI_EXPANDED); };
-        const onInjectPE = () => { setPeNote(GUIDED_PE_TEXT); };
-        const onInjectPlan = () => { setPlanNote(GUIDED_PLAN_TEXT); };
-        const onOpenDdx = () => {
-            const anchor = document.querySelector('[data-tour="writenote-ddx"]') as HTMLElement | null;
-            if (anchor) setDdxAnchorRect(anchor.getBoundingClientRect());
-            setDdxPopoverVisible(true);
-        };
-        const onCloseDdx = () => { setDdxPopoverVisible(false); };
-        const onSelectDdxDemo = () => {
-            const demo = availableDdx.slice(0, 2);
-            if (demo.length) setSelectedDdx(demo);
-        };
-
-        window.addEventListener('tour:inject-hpi', onInjectHPI);
-        window.addEventListener('tour:inject-pe', onInjectPE);
-        window.addEventListener('tour:inject-plan', onInjectPlan);
-        window.addEventListener('tour:open-ddx', onOpenDdx);
-        window.addEventListener('tour:close-ddx', onCloseDdx);
-        window.addEventListener('tour:select-ddx-demo', onSelectDdxDemo);
-        return () => {
-            window.removeEventListener('tour:inject-hpi', onInjectHPI);
-            window.removeEventListener('tour:inject-pe', onInjectPE);
-            window.removeEventListener('tour:inject-plan', onInjectPlan);
-            window.removeEventListener('tour:open-ddx', onOpenDdx);
-            window.removeEventListener('tour:close-ddx', onCloseDdx);
-            window.removeEventListener('tour:select-ddx-demo', onSelectDdxDemo);
-        };
-    }, [setNote, setPeNote, setPlanNote, availableDdx, setSelectedDdx]);
+        await logNow(selectedSymptom.icon);
+    }, [logNow, selectedSymptom.icon]);
 
     return (
         <>
@@ -352,44 +303,50 @@ export const WriteNotePage = ({
             onClose={() => onExpansionChange(false)}
             fullHeight="90dvh"
             mobileClassName=""
+            scrollDisabled
             header={{
                 title: visiblePages[currentPage]?.label ?? '',
                 showBack: currentPage > 0,
                 onBack: handlePageBack,
+                // View-mode segmented toggle lives in the header band (edit page only)
+                // so it reads as screen chrome, not a control floating over content.
+                extraRow: currentPageId === 'edit' ? (
+                    <div className="px-5 pb-3 pt-1">
+                        <ChipBar>
+                            <Chip
+                                active={viewMode === 'preview'}
+                                onClick={() => setViewMode('preview')}
+                                className="w-1/2 text-center"
+                            >
+                                Decision Making
+                            </Chip>
+                            <Chip
+                                active={viewMode === 'fullnote'}
+                                onClick={() => setViewMode('fullnote')}
+                                className="w-1/2 text-center"
+                            >
+                                Full Note
+                            </Chip>
+                        </ChipBar>
+                    </div>
+                ) : undefined,
             }}
         >
             <div
-                className="flex flex-col min-h-full"
+                className="h-full relative flex flex-col"
                 style={{ touchAction: isMobile ? 'pan-y' : 'auto' }}
                 onTouchStart={isMobile ? handleSwipeStart : undefined}
                 onTouchMove={isMobile ? handleSwipeMove : undefined}
                 onTouchEnd={isMobile ? handleSwipeEnd : undefined}
                 onTouchCancel={isMobile ? handleSwipeEnd : undefined}
             >
-                <div className={`flex-1 ${slideDirection === 'left' ? 'animate-slide-in-left' : slideDirection === 'right' ? 'animate-slide-in-right' : ''}`}>
+                <div className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain">
+                <div className={`${slideDirection === 'left' ? 'animate-slide-in-left' : slideDirection === 'right' ? 'animate-slide-in-right' : ''}`}>
                     {/* Edit Page */}
-                    <div data-tour="writenote-edit-page" className={`w-full p-4 ${currentPageId !== 'edit' ? 'hidden' : ''}`}>
+                    <div className={`w-full px-4 pt-4 pb-32 ${currentPageId !== 'edit' ? 'hidden' : ''}`}>
                         <div className="space-y-4">
-                                {/* View-mode toggle: Preview ↔ Full Note */}
-                                <div data-tour="writenote-view-toggle" className="flex items-center justify-end">
-                                    <ActionPill shadow="sm">
-                                        <ActionButton
-                                            icon={Eye}
-                                            label="Preview"
-                                            onClick={() => setViewMode('preview')}
-                                            variant={viewMode === 'preview' ? 'success' : 'default'}
-                                        />
-                                        <ActionButton
-                                            icon={FileText}
-                                            label="Full Note"
-                                            onClick={() => setViewMode('fullnote')}
-                                            variant={viewMode === 'fullnote' ? 'success' : 'default'}
-                                        />
-                                    </ActionPill>
-                                </div>
-
                                 {viewMode === 'preview' && (
-                                    <div data-tour="writenote-decision-making" className="rounded-xl border border-tertiary/15 bg-themewhite2 overflow-hidden px-2 py-2">
+                                    <div className="rounded-xl border border-tertiary/15 bg-themewhite2 overflow-hidden px-2 py-2">
                                         <DecisionMaking
                                             algorithmOptions={algorithmOptions}
                                             cardStates={cardStates}
@@ -402,7 +359,7 @@ export const WriteNotePage = ({
                                 {viewMode === 'fullnote' && (
                                 <>
                                 {/* HPI */}
-                                <div className="space-y-2" data-tour="writenote-hpi">
+                                <div className="space-y-2">
                                     <p className={SECTION_LABEL_CLASS}>History of Present Illness</p>
                                     <TextSectionCard
                                         addLabel="Add HPI"
@@ -414,7 +371,7 @@ export const WriteNotePage = ({
                                 </div>
 
                                 {/* Physical Exam — symptom-templated, typically populated on mount */}
-                                <div className="space-y-2" data-tour="writenote-pe">
+                                <div className="space-y-2">
                                     <p className={SECTION_LABEL_CLASS}>Physical Exam</p>
                                     <div
                                         style={peHasContent ? undefined : { display: 'none' }}
@@ -451,7 +408,7 @@ export const WriteNotePage = ({
                                 </div>
 
                                 {/* Assessment — free-text clinical narrative + connected differential */}
-                                <div className="space-y-2" data-tour="writenote-assessment">
+                                <div className="space-y-2">
                                     <p className={SECTION_LABEL_CLASS}>Assessment</p>
                                     <TextSectionCard
                                         addLabel="Add assessment"
@@ -462,7 +419,7 @@ export const WriteNotePage = ({
                                     />
 
                                     {/* Differential Diagnosis (connected to the assessment) */}
-                                    <div className="space-y-2 pt-1" data-tour="writenote-ddx">
+                                    <div className="space-y-2 pt-1">
                                         <p className="text-[9pt] font-semibold text-tertiary uppercase tracking-wider">Differential Diagnosis</p>
                                         {(selectedDdx.length > 0 || customDdx.length > 0) ? (
                                             <div
@@ -558,7 +515,7 @@ export const WriteNotePage = ({
                                 />
 
                                 {/* Plan */}
-                                <div className="space-y-2" data-tour="writenote-plan">
+                                <div className="space-y-2">
                                     <p className={SECTION_LABEL_CLASS}>Plan</p>
                                     <div
                                         style={planHasContent ? undefined : { display: 'none' }}
@@ -598,30 +555,20 @@ export const WriteNotePage = ({
                         </div>
 
                     {/* Full Note */}
-                    <div className={`w-full p-2 ${currentPageId !== 'fullnote' ? 'hidden' : ''}`}>
+                    <div className={`w-full px-2 pt-2 pb-32 ${currentPageId !== 'fullnote' ? 'hidden' : ''}`}>
                                 <div className="space-y-4 mx-2 mt-2">
                                     {hasPII && (
                                         <PIIWarningBanner warnings={[...new Set([...piiWarnings, ...pePiiWarnings, ...assessmentPiiWarnings])]} />
                                     )}
                                     {/* Note Preview */}
-                                    <section data-tour="writenote-preview">
+                                    <section>
                                         <div className="pb-2 flex items-center gap-2">
                                             <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Note Preview</p>
                                         </div>
                                         <div className="relative">
                                             <OverlayActionMenu
                                                 shadow="sm"
-                                                triggerTourTag="writenote-preview-more"
                                                 items={[
-                                                    { key: 'log', label: 'Log to calendar', render: () => (
-                                                        <ActionIconButton
-                                                            onClick={handleLog}
-                                                            status={logStatus}
-                                                            variant="calendar"
-                                                            title="Log to calendar"
-                                                            tourTag="writenote-log-calendar"
-                                                        />
-                                                    ) },
                                                     { key: 'copy', label: 'Copy note text', render: () => (
                                                         <ActionIconButton
                                                             onClick={() => handleCopy(previewNote, 'preview')}
@@ -636,7 +583,6 @@ export const WriteNotePage = ({
                                                             status={exportStatusToIconStatus(sf600ExportStatus)}
                                                             variant="pdf"
                                                             title="Export SF600 PDF"
-                                                            tourTag="writenote-export-sf600"
                                                         />
                                                     ) },
                                                 ]}
@@ -650,14 +596,13 @@ export const WriteNotePage = ({
                                     </section>
 
                                     {/* Encoded Note / Barcode */}
-                                    <section data-tour="writenote-encoded">
+                                    <section>
                                         <div className="pb-2 flex items-center gap-2">
                                             <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Encoded Note</p>
                                         </div>
                                         <div className="relative">
                                             <OverlayActionMenu
                                                 shadow="sm"
-                                                triggerTourTag="writenote-encoded-more"
                                                 items={[
                                                     { key: 'copy', label: 'Copy encoded text', render: () => (
                                                         <ActionIconButton
@@ -681,7 +626,6 @@ export const WriteNotePage = ({
                                                             status={exportStatusToIconStatus(exportStatus)}
                                                             variant="pdf"
                                                             title="Export DD689 PDF"
-                                                            tourTag="writenote-export-dd689"
                                                         />
                                                     ) },
                                                 ]}
@@ -715,6 +659,7 @@ export const WriteNotePage = ({
                             </div>
                     </div>
                 </div>
+                </div>
 
                 <NoteWizardFooter
                     currentPage={currentPage} visiblePages={visiblePages} slideDirection={slideDirection}
@@ -722,10 +667,11 @@ export const WriteNotePage = ({
                         if (currentPageId === 'edit') {
                             setDmConfirmOpen(true);
                         } else {
-                            handleNext();
+                            // Full Note is terminal — the FAB confirms logging the encounter.
+                            setLogConfirmOpen(true);
                         }
                     }}
-                    hasPII={hasPII} colors={colors} isMobile={isMobile}
+                    hasPII={hasPII} isMobile={isMobile}
                 />
                 <ConfirmDialog
                     visible={dmConfirmOpen}
@@ -736,6 +682,16 @@ export const WriteNotePage = ({
                     cancelLabel="Exclude DM"
                     onConfirm={() => { setIncludeDecisionMaking(true); setDmConfirmOpen(false); handleNext(); }}
                     onCancel={() => { setIncludeDecisionMaking(false); setDmConfirmOpen(false); handleNext(); }}
+                />
+                <ConfirmDialog
+                    visible={logConfirmOpen}
+                    title="Log training?"
+                    subtitle="Records this algorithm to your training timeline — visible to supervisors. No patient details are included."
+                    variant="primary"
+                    confirmLabel="Log training"
+                    cancelLabel="Skip"
+                    onConfirm={async () => { await handleLog(); setLogConfirmOpen(false); onExpansionChange(false); }}
+                    onCancel={() => { setLogConfirmOpen(false); onExpansionChange(false); }}
                 />
             </div>
         </BaseDrawer>

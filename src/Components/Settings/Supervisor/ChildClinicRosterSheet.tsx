@@ -1,11 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Plus, ChevronLeft, Pencil } from 'lucide-react'
-import { Sheet } from '../../Sheet'
-import { ActionPill } from '../../ActionPill'
-import { ActionButton } from '../../ActionButton'
-import { HeaderPill, PillButton } from '../../HeaderPill'
-import { SwipeToDeleteRow } from '../../SwipeToDeleteRow'
-import { ConfirmDialog } from '../../ConfirmDialog'
+import { Plus, ChevronLeft } from 'lucide-react'
+import { Sheet } from '@/Components/primitives/Sheet'
+import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill'
+import { SwipeToDeleteRow } from '@/Components/primitives/SwipeToDeleteRow'
+import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
 import { AddMemberPopover } from '../../ClinicAdmin/AddMemberPopover'
 import { MemberEditPopover } from '../../ClinicAdmin/MemberEditPopover'
 import {
@@ -62,6 +60,7 @@ export function ChildClinicRosterBody({
   currentUserId,
   title,
   onBack,
+  reloadToken,
 }: {
   clinicId: string
   currentUserId: string | null
@@ -69,6 +68,9 @@ export function ChildClinicRosterBody({
    *  primitive on the right) instead of the mobile overlay add-pill above the list. */
   title?: string
   onBack?: () => void
+  /** Mobile host nudge: the add-member trigger lives in the Sheet header (outside
+   *  this body), so bumping this token tells the body to re-fetch after an add. */
+  reloadToken?: number
 }) {
   const [members, setMembers] = useState<ClinicMember[]>([])
   const [loading, setLoading] = useState(true)
@@ -86,7 +88,7 @@ export function ChildClinicRosterBody({
 
   useEffect(() => {
     refresh()
-  }, [refresh])
+  }, [refresh, reloadToken])
 
   const handleRemove = useCallback(async () => {
     if (!removeTarget) return
@@ -124,7 +126,6 @@ export function ChildClinicRosterBody({
               <p className="text-sm text-primary truncate">{memberName(m)}</p>
               <p className="text-[9pt] text-tertiary truncate">{m.email}</p>
             </div>
-            <Pencil size={14} className="text-tertiary shrink-0" />
           </button>
         </SwipeToDeleteRow>
       ))}
@@ -201,25 +202,20 @@ export function ChildClinicRosterBody({
     )
   }
 
-  // Mobile Sheet host: overlay add-pill above the roster (Sheet provides the title).
-  // pt-5 floor so the placement="overlay" add pill clears the scroll top.
+  // Mobile Sheet host: the add-member trigger lives in the Sheet header (folded
+  // into the close pill via the Sheet `actions` slot — see ChildClinicRosterSheet).
+  // No section label — the Sheet title already names the cluster; this is its roster.
   return (
-    <div className="relative px-4 pb-6 pt-5">
-      <ActionPill ref={addPillRef} shadow="sm" placement="overlay">
-        <ActionButton icon={Plus} label="Add member" onClick={openAdd} />
-      </ActionPill>
-
-      <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">
-        Roster
-      </p>
-
+    <div className="px-4 pb-6 pt-3">
       {roster}
       {popovers}
     </div>
   )
 }
 
-/** Mobile host: the roster body inside a bottom Sheet. */
+/** Mobile host: the roster body inside a bottom Sheet. The add-member trigger
+ *  rides in the Sheet header (folded into the close pill via `actions`); adding a
+ *  member bumps `reloadToken` so the body re-fetches. */
 export function ChildClinicRosterSheet({
   clinicId,
   clinicName,
@@ -231,9 +227,43 @@ export function ChildClinicRosterSheet({
   currentUserId: string | null
   onClose: () => void
 }) {
+  const [addAnchor, setAddAnchor] = useState<DOMRect | null>(null)
+  const [reloadToken, setReloadToken] = useState(0)
+  const addBtnRef = useRef<HTMLDivElement>(null)
+
+  const openAdd = () => {
+    if (addBtnRef.current) setAddAnchor(addBtnRef.current.getBoundingClientRect())
+  }
+
   return (
-    <Sheet isOpen onClose={onClose} title={clinicName} zIndex={1250}>
-      <ChildClinicRosterBody clinicId={clinicId} currentUserId={currentUserId} />
+    <Sheet
+      isOpen
+      onClose={onClose}
+      title={clinicName}
+      zIndex={1250}
+      actions={
+        <div ref={addBtnRef}>
+          <PillButton icon={Plus} onClick={openAdd} label="Add member" />
+        </div>
+      }
+    >
+      <ChildClinicRosterBody
+        clinicId={clinicId}
+        currentUserId={currentUserId}
+        reloadToken={reloadToken}
+      />
+      {/* Rendered inside the Sheet so it inherits the sheet's OverlayStackContext
+          ceiling and stacks above it (the header trigger lives outside the body). */}
+      <AddMemberPopover
+        isOpen={!!addAnchor}
+        anchorRect={addAnchor}
+        clinicId={clinicId}
+        onClose={() => setAddAnchor(null)}
+        onAdded={() => {
+          setAddAnchor(null)
+          setReloadToken((t) => t + 1)
+        }}
+      />
     </Sheet>
   )
 }

@@ -6,7 +6,7 @@ import { EventTasksCard } from './EventTasksCard'
 import { createEmptyFormData, EVENT_CATEGORIES, MILITARY_TIME_OPTIONS, militaryToHHMM, hhmmToMilitary, CATEGORY_SWATCH_IDS, CATEGORY_SWATCHES } from '../../Types/CalendarTypes'
 import { useCategoryColors } from '../../Hooks/useCategoryColors'
 import type { ClinicPreCombatCheck } from '../../lib/supervisorService'
-import { TextInput, PickerInput, DatePickerInput, TimeInput } from '../FormInputs'
+import { TextInput, PickerInput, DatePickerInput, TimeInput } from '@/Components/primitives/FormInputs'
 import { UserAvatar } from '../Settings/UserAvatar'
 import { useIsMobile } from '../../Hooks/useIsMobile'
 import { MedevacForm } from '../Medevac/MedevacForm'
@@ -135,17 +135,6 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
       onTitleChange?.(form.title)
     }, [form.title, onTitleChange])
 
-    // Tour-driven category override (lets the guided tour reveal huddle pickers)
-    useEffect(() => {
-      const onSetCategory = (e: Event) => {
-        const detail = (e as CustomEvent<EventCategory>).detail
-        if (!detail) return
-        setForm(prev => ({ ...prev, category: detail }))
-      }
-      window.addEventListener('tour:calendar-select-category', onSetCategory)
-      return () => window.removeEventListener('tour:calendar-select-category', onSetCategory)
-    }, [])
-
     const toggleAssigned = useCallback((userId: string) => {
       setForm(prev => ({
         ...prev,
@@ -193,7 +182,7 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
     return (
       <div className="px-4 py-4">
         <div className="rounded-2xl overflow-hidden">
-          <div data-tour="event-form-title">
+          <div>
             <TextInput
               value={form.title}
               onChange={v => updateField('title', v)}
@@ -209,7 +198,7 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
           {!isEditing && clinicOptions && clinicOptions.length >= 2 && (() => {
             const selected = clinicOptions.find(c => c.id === form.clinic_id) ?? clinicOptions[0]
             return (
-              <div data-tour="event-form-clinic">
+              <div>
                 <PickerInput
                   value={selected.name}
                   onChange={name => {
@@ -224,7 +213,7 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
           })()}
 
           {form.category !== 'templated' && (
-            <div data-tour="event-form-category">
+            <div>
               <PickerInput
                 value={categoryLabel}
                 onChange={v => {
@@ -249,7 +238,7 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
           {/* Sub-unit (platoon/squad) picker — defaults to the author's squad;
               '' = HQ / common (visible to every sub-unit). Primary-clinic-scoped. */}
           {subClusterApplicable && subClusters.length > 0 && (
-            <div data-tour="event-form-sub-cluster">
+            <div>
               <PickerInput
                 value={form.sub_cluster_id ?? ''}
                 onChange={v => updateField('sub_cluster_id', v || null)}
@@ -335,7 +324,7 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
           </label>
 
           {/* Start date + time */}
-          <div data-tour="event-form-datetime">
+          <div>
             <div className="flex items-stretch border-b border-primary/6">
               <div className="flex-1 min-w-0">
                 <DatePickerInput
@@ -398,7 +387,7 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
           {errors.end_time && <p className="px-4 py-2 text-[10pt] text-themeredred border-b border-primary/6">{errors.end_time}</p>}
 
           {form.category === 'huddle' && roomOptions && roomOptions.length > 0 && (
-            <div data-tour="event-form-room">
+            <div>
               <PickerInput
                 value={form.room_id ?? ''}
                 onChange={v => updateField('room_id', v || null)}
@@ -409,7 +398,7 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
           )}
 
           {form.category === 'huddle' && huddleTaskOptions && huddleTaskOptions.length > 0 && (
-            <div data-tour="event-form-huddle-task">
+            <div>
               <PickerInput
                 value={form.huddle_task_id ?? ''}
                 onChange={v => updateField('huddle_task_id', v || null)}
@@ -448,7 +437,7 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
           )}
 
           {form.category !== 'medevac' && (
-            <div data-tour="event-form-tasks" className="px-4 py-3 border-b border-primary/6">
+            <div className="px-4 py-3 border-b border-primary/6">
               <EventTasksCard
                 subtasks={form.subtasks ?? []}
                 templates={checklistTemplates}

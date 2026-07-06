@@ -3,7 +3,7 @@ import type { catDataTypes, subCatDataTypes, SearchResultType } from '../Types/C
 import { catData } from '../Data/CatData'
 import { useAppAnimate } from '../Utilities/AnimationConfig'
 import { useNavigationStore } from '../stores/useNavigationStore'
-import { SectionHeader, SectionCard } from './Section'
+import { SectionHeader, SectionCard } from '@/Components/primitives/Section'
 
 // Shared shape for guideline-like items (DDX, medcom, stp, gen all have text + optional id)
 export interface GuidelineItemData {
@@ -130,20 +130,17 @@ function NavigationRow({
     onClick,
     className = '',
     extraContentClassName = '',
-    ...rest
 }: {
     icon: string
     text: string
     onClick: () => void
     className?: string
     extraContentClassName?: string
-    'data-tour'?: string
 }) {
     return (
         <div
             className={`flex py-3 px-2 w-full cursor-pointer min-w-0 ${className}`}
             onClick={onClick}
-            {...rest}
         >
             <div className="px-3 py-2 flex text-[10pt] font-bold items-center justify-center shrink-0 bg-themeblue3 text-white rounded-md">
                 {icon}
@@ -224,7 +221,7 @@ export function CategoryList({
                 return (
                     <div className="flex flex-col h-full w-full">
                         <div className="flex-1 overflow-y-auto pb-4 bg-themewhite">
-                            {catData.map((category, catIdx) => (
+                            {catData.map((category) => (
                                 category && (
                                     <NavigationRow
                                         key={category.id}
@@ -232,7 +229,6 @@ export function CategoryList({
                                         text={category.text}
                                         onClick={() => onNavigate(categoryToResult(category))}
                                         className="rounded-md border-b border-themewhite2/90 hover:bg-themewhite2"
-                                        {...(catIdx === 0 ? { 'data-tour': 'category-item' } : {})}
                                     />
                                 )
                             ))}
@@ -243,7 +239,7 @@ export function CategoryList({
                 return (
                     <div className="flex flex-col h-full w-full">
                         <div className="h-full flex-1 overflow-y-auto pb-4 bg-themewhite">
-                            {selectedCategory?.contents?.map((symptom, symIdx) => (
+                            {selectedCategory?.contents?.map((symptom) => (
                                 symptom && (
                                     <NavigationRow
                                         key={symptom.id}
@@ -252,7 +248,6 @@ export function CategoryList({
                                         onClick={() => onNavigate(symptomToResult(symptom, selectedCategory))}
                                         className="rounded-sm border-b border-themewhite2/70"
                                         extraContentClassName="bg-themewhite"
-                                        {...(symIdx === 0 ? { 'data-tour': 'subcategory-item' } : {})}
                                     />
                                 )
                             ))}

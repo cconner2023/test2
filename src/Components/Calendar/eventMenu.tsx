@@ -1,5 +1,5 @@
 import { Pencil, Move, MessageSquare, Share2, FileText, Ban, Trash2, CircleDashed, Play, CheckCircle2 } from 'lucide-react'
-import type { ContextMenuItem } from '../ContextMenu'
+import type { ContextMenuItem } from '@/Components/primitives/ContextMenu'
 import type { CalendarEvent, EventStatus } from '../../Types/CalendarTypes'
 
 /**

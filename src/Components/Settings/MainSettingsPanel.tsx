@@ -26,19 +26,6 @@ export const MainSettingsPanel = ({
     const { currentAvatar, customImage, isCustom, isInitials } = useAvatar();
     const { profile } = useAuth();
 
-    const tourTargets: Partial<Record<PanelId, string>> = {
-        [PANEL.TOGGLE_THEME]: 'settings-theme',
-        [PANEL.PIN_SETUP]: 'settings-pin',
-        [PANEL.NOTIFICATION_SETTINGS]: 'settings-notifications',
-        [PANEL.NOTE_CONTENT]: 'settings-note-content',
-        [PANEL.OVERVIEW_WIDGETS]: 'settings-mission-overview',
-        [PANEL.CLINIC]: 'settings-clinic',
-        [PANEL.GUIDED_TOURS]: 'settings-guided-tours',
-        [PANEL.PROVIDER_TEMPLATES]: 'settings-provider-templates',
-        [PANEL.RELEASE_NOTES]: 'settings-release-notes',
-        [PANEL.FEEDBACK]: 'settings-feedback',
-        [PANEL.PRIVACY_POLICY]: 'settings-privacy',
-    };
     // Separate top row items (no header before them) from card sections
     const topItems: Extract<SettingsItem, { type: 'option' }>[] = [];
     const cardSections: { label: string; items: Extract<SettingsItem, { type: 'option' }>[] }[] = [];
@@ -61,7 +48,6 @@ export const MainSettingsPanel = ({
                 {/* Profile card */}
                 <div className="rounded-2xl bg-themewhite2 overflow-hidden">
                     <div
-                        data-tour="settings-profile"
                         onClick={onProfileClick}
                         role="button"
                         tabIndex={0}
@@ -93,10 +79,9 @@ export const MainSettingsPanel = ({
                 {/* Top row items (before first header, if any) */}
                 {topItems.length > 0 && (
                     <div className="rounded-2xl bg-themewhite2 overflow-hidden">
-                        {topItems.map((item, idx) => (
+                        {topItems.map((item) => (
                             <button
                                 key={item.id}
-                                data-tour={tourTargets[item.id]}
                                 onClick={() => {
                                     item.action();
                                     onItemClick(item.id);
@@ -133,10 +118,9 @@ export const MainSettingsPanel = ({
                             <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">{section.label}</p>
                         </div>
                         <div className="rounded-2xl bg-themewhite2 overflow-hidden">
-                            {section.items.map((item, idx) => (
+                            {section.items.map((item) => (
                                 <button
                                     key={item.id}
-                                    data-tour={tourTargets[item.id]}
                                     onClick={() => {
                                         if (item.disabled) return;
                                         item.action();

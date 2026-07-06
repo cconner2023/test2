@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { XCircle, AlertTriangle, CheckCircle2, HelpCircle } from 'lucide-react'
-import { Modal } from './Modal'
+import { Modal } from '@/Components/primitives/Modal'
 
 interface ConfirmDialogProps {
   visible: boolean

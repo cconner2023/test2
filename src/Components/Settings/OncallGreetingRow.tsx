@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Voicemail, Mic, Play, Pause, Trash2, X, Check } from 'lucide-react'
 import { useVoiceRecorder } from '../../Hooks/useVoiceRecorder'
-import { ConfirmDialog } from '../ConfirmDialog'
+import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
 import { bytesToBase64, base64ToBytes } from '../../lib/base64Utils'
 import {
   setOncallGreeting,

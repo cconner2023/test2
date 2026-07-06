@@ -1,13 +1,13 @@
 // src/Components/Reports/LaceReport.tsx
 import { useState } from 'react'
 import { Copy, Check, Download, Printer, Plus, X } from 'lucide-react'
-import { ActionButton } from '../ActionButton'
-import { Section, SectionCard } from '../Section'
+import { ActionButton } from '@/Components/primitives/ActionButton'
+import { Section, SectionCard } from '@/Components/primitives/Section'
 import { emptyLaceReport, DEFAULT_AMMO_TYPES } from '../../Types/ReportTypes'
 import type { LaceReport as LaceReportType, LaceEquipmentLine } from '../../Types/ReportTypes'
 import { laceToText, copyToClipboard, downloadAsText, printReport } from '../../lib/reportExport'
-import { ActionPill } from '../ActionPill'
-import { TextInput } from '../FormInputs'
+import { ActionPill } from '@/Components/primitives/ActionPill'
+import { TextInput } from '@/Components/primitives/FormInputs'
 
 const rowCx = 'flex items-center justify-between border-b border-primary/6 last:border-0 px-4 py-3'
 

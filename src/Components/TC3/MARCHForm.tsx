@@ -6,10 +6,10 @@ import type {
 } from '../../Types/TC3Types'
 import { useTC3Store } from '../../stores/useTC3Store'
 import { TC3EditorSurface } from './TC3EditorSurface'
-import { Section, SectionHeader } from '../Section'
-import { ActionButton } from '../ActionButton'
-import { ActionPill } from '../ActionPill'
-import { EmptyState } from '../EmptyState'
+import { Section, SectionHeader } from '@/Components/primitives/Section'
+import { ActionButton } from '@/Components/primitives/ActionButton'
+import { ActionPill } from '@/Components/primitives/ActionPill'
+import { EmptyState } from '@/Components/primitives/EmptyState'
 import { getRegionLabel, getRegionCenter } from '../../Utilities/bodyRegionMap'
 import {
   CellCard, Cell, Segmented, LocationCell, cellInput,
@@ -902,7 +902,7 @@ export const MARCHForm = memo(function MARCHForm() {
   }
 
   return (
-    <div data-tour="tc3-march">
+    <div>
       <Section title="Interventions">
         {rows.length === 0 ? (
           <EmptyState

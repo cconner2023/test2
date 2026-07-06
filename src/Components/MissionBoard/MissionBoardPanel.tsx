@@ -13,7 +13,7 @@ import type { OverlayFeature } from '../../Types/MapOverlayTypes'
 import type { CalendarEvent, EventStatus } from '../../Types/CalendarTypes'
 import { toDateKey, eventFallsOnDate, formatShortDayLabel, isEventEditable, isTemplateStructureMutable } from '../../Types/CalendarTypes'
 import { useCalendarWrite } from '../../Hooks/useCalendarWrite'
-import { ConfirmDialog } from '../ConfirmDialog'
+import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
 import type { OverviewWidgetId } from '../../Data/User'
 import { GESTURE_THRESHOLDS } from '../../Utilities/GestureUtils'
 import { useMessagingStore } from '../../stores/useMessagingStore'
@@ -34,12 +34,12 @@ import {
 } from './MissionGantt'
 import { useCategoryColors } from '../../Hooks/useCategoryColors'
 import { useClinicCategoryColorsSync } from '../../Hooks/useClinicCategoryColors'
-import type { ContextMenuItem } from '../ContextMenu'
+import type { ContextMenuItem } from '@/Components/primitives/ContextMenu'
 import { menuPressHandlers, type MenuPressState } from '../Calendar/menuPress'
-import { LiftedRowMenu } from '../LiftedRowMenu'
-import { ActionButton } from '../ActionButton'
-import { ActionPill } from '../ActionPill'
-import { EmptyState } from '../EmptyState'
+import { LiftedRowMenu } from '@/Components/primitives/LiftedRowMenu'
+import { ActionButton } from '@/Components/primitives/ActionButton'
+import { ActionPill } from '@/Components/primitives/ActionPill'
+import { EmptyState } from '@/Components/primitives/EmptyState'
 
 const TASK_PREVIEW_LIMIT = 4
 const KANBAN_PREVIEW_LIMIT = 3
@@ -837,7 +837,7 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
   }
 
   return (
-    <div className="rounded-xl overflow-hidden border border-themeblue3/10 bg-themewhite2" data-tour="mission-overview-panel">
+    <div className="rounded-xl overflow-hidden border border-themeblue3/10 bg-themewhite2">
       {widgets.length === 0 ? (
         <div className="flex items-center justify-center h-[80px]">
           <span className="text-[10pt] text-secondary">No widgets selected</span>
@@ -848,7 +848,7 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
               widget (calendar or not) so the first widget's overlay action pill
               has a bar to sit on instead of being clipped by the card's overflow-hidden. */}
           {dateNavRow}
-          <div className="divide-y divide-themeblue3/8" data-tour="mission-overview-widgets">
+          <div className="divide-y divide-themeblue3/8">
             {widgets.map(id => (
               <div key={id}>
                 {renderWidget(id)}

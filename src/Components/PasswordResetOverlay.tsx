@@ -5,10 +5,10 @@ import { useAuthStore } from '../stores/useAuthStore'
 import { deriveAndStoreBackupKey, createBackup } from '../lib/signal/backupService'
 import { reEncryptVaultKeysWithCachedKey } from '../lib/signal/vaultDevice'
 import { PreviewOverlay } from './PreviewOverlay'
-import { ActionPill } from './ActionPill'
-import { ActionButton } from './ActionButton'
-import { PasswordInput } from './FormInputs'
-import { ErrorDisplay } from './ErrorDisplay'
+import { ActionPill } from '@/Components/primitives/ActionPill'
+import { ActionButton } from '@/Components/primitives/ActionButton'
+import { PasswordInput } from '@/Components/primitives/FormInputs'
+import { ErrorDisplay } from '@/Components/primitives/ErrorDisplay'
 
 /**
  * Non-blocking password reset surfaced after a recovery OTP login.

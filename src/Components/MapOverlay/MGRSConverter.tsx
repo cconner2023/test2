@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback } from 'react'
 import { Copy, ClipboardCheck, MapPin } from 'lucide-react'
 import { toPoint } from 'mgrs'
-import { ErrorDisplay } from '../ErrorDisplay'
+import { ErrorDisplay } from '@/Components/primitives/ErrorDisplay'
 import { latLngToMgrs, normalizeMgrs } from '../../lib/mgrsFormat'
 
 interface MGRSConverterProps {

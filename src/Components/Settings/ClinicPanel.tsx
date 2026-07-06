@@ -13,12 +13,12 @@ import {
 } from 'lucide-react'
 import bwipjs from 'bwip-js'
 import { useAuth } from '../../Hooks/useAuth'
-import { ErrorPill } from '../ErrorPill'
+import { ErrorPill } from '@/Components/primitives/ErrorPill'
 import { useClinicInvites } from '../../Hooks/useClinicInvites'
 import { useBarcodeScanner } from '../../Hooks/useBarcodeScanner'
 import { useClinicMedics } from '../../Hooks/useClinicMedics'
 import { useClinicLoans } from '../../Hooks/useClinicLoans'
-import { LoadingOverlay } from '../LoadingOverlay'
+import { LoadingOverlay } from '@/Components/primitives/LoadingOverlay'
 import {
   updateSupervisorClinic,
   disassociateClinic,
@@ -35,22 +35,22 @@ import { invalidate } from '../../stores/useInvalidationStore'
 import { SubClusterManager } from '../SubClusterManager'
 import { useSubClusters } from '../../Hooks/useSubClusters'
 import { createSubCluster, renameSubCluster, deleteSubCluster } from '../../lib/subClusterService'
-import { ErrorDisplay } from '../ErrorDisplay'
+import { ErrorDisplay } from '@/Components/primitives/ErrorDisplay'
 import { UserAvatar } from './UserAvatar'
 import { IntakeMintSection } from './IntakeMintSection'
 import { ToggleSwitch } from './ToggleSwitch'
 import { supabase } from '../../lib/supabase'
 import { toggleOncallPresence } from '../../lib/oncallService'
 import { PreviewOverlay } from '../PreviewOverlay'
-import { ActionButton } from '../ActionButton'
-import { OverlayActionMenu } from '../OverlayActionMenu'
-import type { ContextMenuItem } from '../ContextMenu'
-import { ConfirmDialog } from '../ConfirmDialog'
-import { ActionPill } from '../ActionPill'
+import { ActionButton } from '@/Components/primitives/ActionButton'
+import { OverlayActionMenu } from '@/Components/primitives/OverlayActionMenu'
+import type { ContextMenuItem } from '@/Components/primitives/ContextMenu'
+import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
+import { ActionPill } from '@/Components/primitives/ActionPill'
 import { ClinicIdentityEditPopover } from '../ClinicAdmin/ClinicIdentityEditPopover'
 import { MemberEditPopover } from '../ClinicAdmin/MemberEditPopover'
 import { AddMemberPopover } from '../ClinicAdmin/AddMemberPopover'
-import { SwipeToDeleteRow } from '../SwipeToDeleteRow'
+import { SwipeToDeleteRow } from '@/Components/primitives/SwipeToDeleteRow'
 
 
 interface ClinicPanelProps {
@@ -366,17 +366,6 @@ export function ClinicPanel({
     onPendingChangesChange?.(deleteSelection.size > 0)
   }, [deleteSelection.size, onPendingChangesChange])
 
-  // Tour: cancel edit mode when guided tour requests it
-  useEffect(() => {
-    const handleCancelEdit = () => {
-      onDeleteSelectionChange(new Set())
-      onEditingChange(false)
-    }
-    window.addEventListener('tour:clinic-cancel-edit', handleCancelEdit)
-    return () => {
-      window.removeEventListener('tour:clinic-cancel-edit', handleCancelEdit)
-    }
-  }, [onDeleteSelectionChange, onEditingChange])
 
   // ─── QR Rendering ─────────────────────────────────────────────────
 
@@ -720,7 +709,7 @@ export function ClinicPanel({
         {success && <ErrorDisplay type="success" message={success} />}
 
         {/* ── Clinic ───────────────────────────────────────────────── */}
-        <section data-tour="clinic-identity-card">
+        <section>
           <div className="pb-2 flex items-center gap-2">
             <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Cluster</p>
           </div>
@@ -826,7 +815,7 @@ export function ClinicPanel({
         )}
 
         {/* ── Associated ─────────────────────────────────────────── */}
-        <section data-tour="clinic-associated">
+        <section>
           <div className="pb-2 flex items-center gap-2">
             <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Associated</p>
           </div>
@@ -876,7 +865,7 @@ export function ClinicPanel({
 
         {/* ── Sub-units (platoon/squad) — own clinic, supervisor/dev ─────── */}
         {isSupervisorRole && clinicId && !isSurrogateContext && (
-          <section data-tour="clinic-sub-units">
+          <section>
             <div className="pb-2 flex items-center gap-2">
               <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Sub-units</p>
             </div>
@@ -903,7 +892,7 @@ export function ClinicPanel({
 
         {/* ── Users (supervisor-gated) ───────────────────────────── */}
         {isSupervisorRole && clinicId && (
-          <section data-tour="clinic-personnel">
+          <section>
             <div className="pb-2 flex items-center gap-2">
               <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Users</p>
             </div>
@@ -948,7 +937,7 @@ export function ClinicPanel({
               </div>
               <LoadingOverlay visible={medicsLoading} size={120} className="rounded-xl" />
               </div>
-              <ActionPill ref={addMemberFabRef} data-tour="clinic-add-member" shadow="sm" placement="overlay">
+              <ActionPill ref={addMemberFabRef} shadow="sm" placement="overlay">
                 <ActionButton icon={Plus} label="Add member" onClick={openAddMemberPopover} />
               </ActionPill>
             </div>

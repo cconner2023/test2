@@ -10,7 +10,7 @@ import type { ClinicMedic } from '../../Types/SupervisorTestTypes'
 import { UserAvatar } from '../Settings/UserAvatar'
 import { useIsMobile } from '../../Hooks/useIsMobile'
 import type { ClinicHuddleTask } from '../../lib/supervisorService'
-import { DatePickerCalendar } from '../FormInputs'
+import { DatePickerCalendar } from '@/Components/primitives/FormInputs'
 import { PreviewOverlay } from '../PreviewOverlay'
 import { getDisplayName } from '../../Utilities/nameUtils'
 
@@ -752,7 +752,6 @@ export function TroopsToTaskView({ date, events, medics, huddleTasks, onSelectEv
 
   return (
     <div
-      data-tour="calendar-troops-view"
       ref={scrollRef}
       className="touch-pan-xy h-full min-h-0 min-w-0 overflow-auto overscroll-contain"
       onScroll={handleScroll}
@@ -808,7 +807,6 @@ export function TroopsToTaskView({ date, events, medics, huddleTasks, onSelectEv
 
         {/* Huddle band — sticky under the time header, sectioned into Providers + Tasks rows */}
         <div
-          data-tour="calendar-huddle-band"
           className="flex flex-col border-b border-themeblue3/20 bg-themewhite3"
         >
           {/* Band collapse header — toggles the whole huddle section; collapsed → rolls all

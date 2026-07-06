@@ -3,8 +3,8 @@ import { KeyRound, X, Check, RefreshCw } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../stores/useAuthStore'
 import { deriveAndStoreBackupKey, createBackup } from '../lib/signal/backupService'
-import { PasswordInput } from './FormInputs'
-import { ErrorDisplay } from './ErrorDisplay'
+import { PasswordInput } from '@/Components/primitives/FormInputs'
+import { ErrorDisplay } from '@/Components/primitives/ErrorDisplay'
 
 interface SetPasswordScreenProps {
   /** 'recovery' = user clicked a password-reset link (forgot password flow)

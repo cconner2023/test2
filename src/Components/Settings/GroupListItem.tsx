@@ -1,5 +1,5 @@
 import type { GroupInfo } from '../../lib/signal/groupTypes'
-import { ListItemRow, UnreadBadge } from '../ListItemRow'
+import { ListItemRow, UnreadBadge } from '@/Components/primitives/ListItemRow'
 
 interface GroupListItemProps {
   group: GroupInfo

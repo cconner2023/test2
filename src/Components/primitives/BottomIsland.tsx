@@ -13,7 +13,7 @@
  * - `barClassName` extends the bar (Map uses `max-w-[…]`).
  */
 import type { ReactNode } from 'react'
-import { GlassBand } from './GlassBand'
+import { GlassBand } from '@/Components/primitives/GlassBand'
 
 interface BottomIslandProps {
   children: ReactNode
@@ -23,8 +23,6 @@ interface BottomIslandProps {
   z?: string
   /** Extra classes on the pill bar. */
   barClassName?: string
-  /** `data-tour` anchor for the bar (guided tours). */
-  tour?: string
   /** ARIA role for the bar, e.g. 'tablist'. */
   role?: string
   /** ARIA label for the bar (use with role). */
@@ -38,12 +36,11 @@ interface BottomIslandProps {
   glass?: boolean
 }
 
-export function BottomIsland({ children, fab, z = 'z-20', barClassName = '', tour, role, ariaLabel, glass = false }: BottomIslandProps) {
+export function BottomIsland({ children, fab, z = 'z-20', barClassName = '', role, ariaLabel, glass = false }: BottomIslandProps) {
   return (
     <div className={`absolute bottom-0 inset-x-0 flex flex-col items-center justify-end ${z} pointer-events-none pb-[max(1rem,var(--sab,0px))]${glass ? ' pt-8' : ' pt-4'}`}>
       {glass && <GlassBand edge="bottom" className="inset-0" />}
       <div
-        data-tour={tour}
         role={role}
         aria-label={ariaLabel}
         className={`flex items-center gap-1 rounded-full bg-themewhite2/90 dark:bg-themewhite3/90 backdrop-blur-sm border border-tertiary/20 px-1 py-1 shadow-lg pointer-events-auto ${barClassName}`}
@@ -61,8 +58,6 @@ interface IslandButtonProps {
   onClick: () => void
   /** Accessible label — also the tooltip. */
   label: string
-  /** `data-tour` anchor (guided tours). */
-  tour?: string
   /** ARIA role, e.g. 'tab' for a tablist. Adds aria-selected when set. */
   role?: string
   disabled?: boolean
@@ -70,12 +65,11 @@ interface IslandButtonProps {
   children: ReactNode
 }
 
-export function IslandButton({ active = false, onClick, label, tour, role, disabled, children }: IslandButtonProps) {
+export function IslandButton({ active = false, onClick, label, role, disabled, children }: IslandButtonProps) {
   return (
     <button
       onClick={onClick}
       disabled={disabled}
-      data-tour={tour}
       aria-label={label}
       title={label}
       {...(role ? { role, 'aria-selected': active } : {})}

@@ -5,24 +5,20 @@ import { PLAN_ORDER_CATEGORIES, PLAN_ORDER_LABELS } from '../Data/User';
 import { PreviewOverlay } from './PreviewOverlay';
 import { PlanAllBlocksPreview, CategoryPicker } from './PlanBlockPreview';
 import { CATEGORY_META } from './Settings/PlanTagManager';
-import { ListItemRow } from './ListItemRow';
-import { SwipeToDeleteRow } from './SwipeToDeleteRow';
-import { ExpandableInput } from './ExpandableInput';
-import { EmptyState } from './EmptyState';
+import { ListItemRow } from '@/Components/primitives/ListItemRow';
+import { SwipeToDeleteRow } from '@/Components/primitives/SwipeToDeleteRow';
+import { ExpandableInput } from '@/Components/primitives/ExpandableInput';
+import { EmptyState } from '@/Components/primitives/EmptyState';
 import type { MergedPlanOrderSet } from '../Hooks/useMergedNoteContent';
-import { ActionPill } from './ActionPill';
-import { ActionButton } from './ActionButton';
-import { Chip, ChipBar } from './Chip';
+import { ActionPill } from '@/Components/primitives/ActionPill';
+import { ActionButton } from '@/Components/primitives/ActionButton';
+import { Chip, ChipBar } from '@/Components/primitives/Chip';
+import type { PlanBlockState, PlanState } from '../Types/PlanTypes';
 
 // ── Types ────────────────────────────────────────────────────
 
-type BlockStatus = 'inactive' | 'active';
-
-interface BlockState {
-    status: BlockStatus;
-    selectedTags: string[];
-    freeText: string;
-}
+// Block state is shared with the desktop pane flow (ProviderPlanSections).
+type BlockState = PlanBlockState;
 
 // Display order: meds → lab → radiology → referral → instructions → followUp
 const ALL_BLOCK_KEYS: PlanBlockKey[] = [
@@ -131,6 +127,34 @@ function generateText(states: Record<PlanBlockKey, BlockState>, orderedKeys?: Pl
         lines.push(`${BLOCK_LABELS[key]}: ${parts.join('; ')}`);
     }
     return lines.join('\n');
+}
+
+/**
+ * Pure `PlanState → plan text` renderer — the same output as the mounted Plan
+ * component's onChange, without needing Plan mounted. Lets the desktop provider
+ * pane drive Plan from the lifted planState and keep planNote in sync (mirrors
+ * generatePEText). customTags/activeSetIds are UI-only and don't affect text.
+ */
+export function generatePlanText(planState: PlanState): string {
+    const body = generateText(planState.states, planState.blockOrder.length ? planState.blockOrder : undefined);
+    const extra = (planState.additional ?? '').trim();
+    return [body, extra].filter(Boolean).join('\n');
+}
+
+/**
+ * Seed a lifted PlanState from note text — the desktop pane's inverse of
+ * generatePlanText (mirrors parseInitialText, which the mobile Plan runs on mount).
+ * Used by ProviderDrawer to hydrate the center from a template apply / imported note.
+ * blockOrder = the active categories in display order; order sets start un-applied.
+ */
+export function parsePlanState(
+    text: string,
+    orderTags: PlanOrderTags,
+    instructionTags: string[],
+): PlanState {
+    const { states, customTags } = parseInitialText(text, orderTags, instructionTags);
+    const blockOrder = ALL_BLOCK_KEYS.filter(k => states[k].status === 'active');
+    return { states, customTags, activeSetIds: [], blockOrder };
 }
 
 // ── Summary row (tap opens popover) ──────────────────────────

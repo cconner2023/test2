@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
-import { Bug, PlusCircle, RefreshCw, CalendarClock, Loader, Download, CheckCircle2, MessageCircleQuestion, ChevronRight, CheckCircle, Compass } from 'lucide-react';
+import { Bug, PlusCircle, RefreshCw, CalendarClock, Loader, Download, CheckCircle2, MessageCircleQuestion, ChevronRight, CheckCircle, BookOpen } from 'lucide-react';
 import { type ReleaseNoteTypes, ReleaseNotes } from '../../Data/Release';
 import { useServiceWorker } from '../../Hooks/useServiceWorker';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useFeatureVotesStore } from '../../stores/useFeatureVotesStore';
-import { useTourContext } from '../Tour/TourProvider';
+import { useNavigationStore } from '../../stores/useNavigationStore';
+import { UserGuideAnchorsById } from '../../Data/UserGuide';
 
 type NoteType = Exclude<ReleaseNoteTypes['type'], undefined> | 'default';
 
@@ -24,12 +25,12 @@ const ReleaseNoteItem = ({ note }: { note: ReleaseNoteTypes }) => {
     const noteType: NoteType = note.type || 'default';
     const { icon: Icon, className } = NOTE_ICONS[noteType];
 
-    const tour = useTourContext();
-    // A note is tappable only when it links a tour the current user is allowed to run.
-    const hasTour = !!note.tourId && !!tour?.canStartTour(note.tourId);
-    const tourDone = hasTour && !!tour?.isCompleted(note.tourId!);
+    const openUserGuide = useNavigationStore((s) => s.setShowUserGuideDrawer);
 
-    if (!hasTour) {
+    // A note is tappable when it points at an existing User Guide section/subsection.
+    const hasSection = !!note.sectionId && !!UserGuideAnchorsById[note.sectionId];
+
+    if (!hasSection) {
         return (
             <div className="flex items-center gap-3 px-4 py-3 hover:bg-themeblue2/5 transition-all">
                 <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
@@ -42,7 +43,7 @@ const ReleaseNoteItem = ({ note }: { note: ReleaseNoteTypes }) => {
 
     return (
         <button
-            onClick={() => tour!.startReleaseTour(note.tourId!)}
+            onClick={() => openUserGuide(true, note.sectionId!)}
             className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-themeblue2/5 active:scale-[0.99] transition-all"
         >
             <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
@@ -51,9 +52,7 @@ const ReleaseNoteItem = ({ note }: { note: ReleaseNoteTypes }) => {
             <div className="flex-1 min-w-0">
                 <p className="text-sm text-primary">{note.text}</p>
                 <span className="inline-flex items-center gap-1 mt-1 text-[9pt] font-semibold text-themeblue2">
-                    {tourDone
-                        ? <><CheckCircle size={11} className="text-themegreen" /> Replay tour</>
-                        : <><Compass size={11} /> Take the tour</>}
+                    <BookOpen size={11} /> Read more
                 </span>
             </div>
             <ChevronRight size={16} className="text-tertiary shrink-0 self-center" />

@@ -1,6 +1,6 @@
 import type React from 'react'
 import { AlertTriangle } from 'lucide-react'
-import { SectionCard } from '../Section'
+import { SectionCard } from '@/Components/primitives/Section'
 import { useIsMobile } from '../../Hooks/useIsMobile'
 import type { MedevacRequest } from '../../Types/MedevacTypes'
 import {

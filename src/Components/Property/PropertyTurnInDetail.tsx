@@ -1,9 +1,9 @@
 import { useState, forwardRef, useImperativeHandle } from 'react'
 import { Pencil, Check, PackageMinus, Trash2, X } from 'lucide-react'
-import { LiftedRowMenu } from '../LiftedRowMenu'
-import { type ContextMenuItem } from '../ContextMenu'
-import { ConfirmDialog } from '../ConfirmDialog'
-import { SectionCard } from '../Section'
+import { LiftedRowMenu } from '@/Components/primitives/LiftedRowMenu'
+import { type ContextMenuItem } from '@/Components/primitives/ContextMenu'
+import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
+import { SectionCard } from '@/Components/primitives/Section'
 import type { HandReceiptData } from '../../Hooks/useHandReceipts'
 import type { CustodyLedgerEntry } from '../../Types/PropertyTypes'
 

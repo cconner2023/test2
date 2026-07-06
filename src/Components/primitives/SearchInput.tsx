@@ -17,7 +17,6 @@ interface SearchInputProps {
     onFocus?: () => void
     onBlur?: () => void
     onKeyDown?: (e: KeyboardEvent<HTMLInputElement>) => void
-    dataTour?: string
 }
 
 export const SearchInput = forwardRef<HTMLInputElement, SearchInputProps>(
@@ -34,7 +33,6 @@ export const SearchInput = forwardRef<HTMLInputElement, SearchInputProps>(
             onFocus,
             onBlur,
             onKeyDown,
-            dataTour,
         },
         externalRef,
     ) {
@@ -56,7 +54,6 @@ export const SearchInput = forwardRef<HTMLInputElement, SearchInputProps>(
         return (
             <div
                 className={`relative flex items-center transition-all duration-300 ${wrapperClasses} ${className}`}
-                {...(dataTour ? { 'data-tour': dataTour } : {})}
             >
                 {!hideSearchIcon && (
                     <Search

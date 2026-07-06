@@ -10,14 +10,14 @@ import type { Component } from '../../Data/User';
 import { credentials, components, ranksByComponent } from '../../Data/User';
 import { useAvatar } from '../../Utilities/AvatarContext';
 import { getInitials } from '../../Utilities/nameUtils';
-import { ConfirmDialog } from '../ConfirmDialog';
-import { PinKeypad } from '../PinKeypad';
+import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog';
+import { PinKeypad } from '@/Components/primitives/PinKeypad';
 import { isPinEnabled, verifyPin } from '../../lib/pinService';
-import { ActionButton } from '../ActionButton';
-import { OverlayActionMenu } from '../OverlayActionMenu';
+import { ActionButton } from '@/Components/primitives/ActionButton';
+import { OverlayActionMenu } from '@/Components/primitives/OverlayActionMenu';
 import { PreviewOverlay } from '../PreviewOverlay';
-import { ActionPill } from '../ActionPill'
-import { SkeletonRows } from '../Skeleton';
+import { ActionPill } from '@/Components/primitives/ActionPill'
+import { SkeletonRows } from '@/Components/primitives/Skeleton';
 import { CertificationRow } from '../Certifications/CertificationRow';
 import { CertOverlayFields } from '../Certifications/CertOverlayFields';
 import { emptyCertForm } from '../Certifications/certHelpers';
@@ -26,8 +26,8 @@ import type { CertInput } from '../../lib/certificationService';
 import { submitProfileChangeRequest } from '../../lib/accountRequestService';
 import { updateOwnEmail } from '../../lib/authService';
 import { isValidEmail } from '../../lib/adminService';
-import { PickerInput, PasswordInput } from '../FormInputs';
-import { ErrorDisplay } from '../ErrorDisplay';
+import { PickerInput, PasswordInput } from '@/Components/primitives/FormInputs';
+import { ErrorDisplay } from '@/Components/primitives/ErrorDisplay';
 import { supabase } from '../../lib/supabase';
 import { reEncryptVaultKeys } from '../../lib/signal/vaultDevice';
 

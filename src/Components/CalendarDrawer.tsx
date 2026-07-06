@@ -1,13 +1,13 @@
 import { useState, useCallback, useEffect } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { X, Settings as SettingsIcon, Check, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react'
-import { BaseDrawer } from './BaseDrawer'
-import { HeaderPill, PillButton } from './HeaderPill'
+import { BaseDrawer } from '@/Components/primitives/BaseDrawer'
+import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill'
 import { PreviewOverlay } from './PreviewOverlay'
-import { Sheet } from './Sheet'
+import { Sheet } from '@/Components/primitives/Sheet'
 import { CalendarPanel } from './Calendar/CalendarPanel'
 import { MiniCalendar } from './Calendar/MiniCalendar'
-import { SearchInput } from './SearchInput'
+import { SearchInput } from '@/Components/primitives/SearchInput'
 import { useCalendarStore } from '../stores/useCalendarStore'
 import { useNavigationStore } from '../stores/useNavigationStore'
 import { useIsMobile } from '../Hooks/useIsMobile'
@@ -96,18 +96,6 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
         }
     }, [isVisible, initialDate, setSelectedDate, clearInitialDate])
 
-    // Tour events — open/close the mobile settings drawer programmatically
-    useEffect(() => {
-        const openHandler = () => setShowSettings(true)
-        const closeHandler = () => setShowSettings(false)
-        window.addEventListener('tour:calendar-open-controls', openHandler)
-        window.addEventListener('tour:calendar-close-controls', closeHandler)
-        return () => {
-            window.removeEventListener('tour:calendar-open-controls', openHandler)
-            window.removeEventListener('tour:calendar-close-controls', closeHandler)
-        }
-    }, [])
-
     const [showDatePopover, setShowDatePopover] = useState(false)
     const [showSettings, setShowSettings] = useState(false)
     const [controlsDisplayMonth, setControlsDisplayMonth] = useState(() => {
@@ -177,7 +165,7 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
 
     // Category filter panel — list-item UI matching personnelFilterPanel
     const categoryFilterPanel = (
-        <div data-tour="calendar-category-filter" className="flex flex-col min-h-0">
+        <div className="flex flex-col min-h-0">
             <div className="shrink-0 px-4 py-3 border-t border-primary/10">
                 <p className="text-[10pt] font-medium text-tertiary uppercase tracking-wide">Filter Categories</p>
             </div>
@@ -277,7 +265,7 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
     }
 
     const personnelFilterPanel = (
-        <div data-tour="calendar-personnel-filter" className="flex flex-col min-h-0">
+        <div className="flex flex-col min-h-0">
             <div className="shrink-0 px-4 py-3 border-t border-primary/10">
                 <p className="text-[10pt] font-medium text-tertiary uppercase tracking-wide">Filter Personnel</p>
             </div>
@@ -341,7 +329,7 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
                 rightContent: isMobile ? (
                     <div className="flex items-center w-full gap-2">
                         <HeaderPill>
-                            <PillButton data-tour="calendar-mobile-filter" icon={SettingsIcon} onClick={() => setShowSettings(true)} label="Settings" />
+                            <PillButton icon={SettingsIcon} onClick={() => setShowSettings(true)} label="Settings" />
                         </HeaderPill>
                         <button
                             onClick={() => setShowDatePopover(true)}
@@ -374,7 +362,7 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
                 <div className="flex absolute inset-0 overflow-hidden">
                     {/* Contextual sidebar — desktop only, hidden for troops-to-task (has its own personnel column) */}
                     {!isMobile && viewMode !== 'troops' && (
-                        <div data-tour="calendar-desktop-sidebar" className={`shrink-0 flex flex-col border-r border-primary/10 transition-all duration-300 ${rightPanelOpen ? 'w-0 opacity-0 overflow-hidden border-r-0' : 'w-60'}`}>
+                        <div className={`shrink-0 flex flex-col border-r border-primary/10 transition-all duration-300 ${rightPanelOpen ? 'w-0 opacity-0 overflow-hidden border-r-0' : 'w-60'}`}>
                             <div className="shrink-0 flex items-center gap-1.5 px-3 pt-2 pb-1">
                                 <div className="flex-1 min-w-0">
                                     <SearchInput
@@ -387,7 +375,6 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
                                     per-view layout prefs moved to the island "view options" button. */}
                                 {isSupervisorRole && (
                                     <button
-                                        data-tour="calendar-settings"
                                         onClick={() => setShowSettings(true)}
                                         className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center transition-colors active:scale-95 text-tertiary hover:text-primary"
                                         aria-label="Calendar settings"
@@ -453,7 +440,7 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
                         maxHeight={60}
                         zIndex={1200}
                     >
-                        <div data-tour="calendar-controls-drawer" className="pb-[max(1rem,var(--sab,0px))]">
+                        <div className="pb-[max(1rem,var(--sab,0px))]">
                             {layoutSection}
                             <SupervisorClinicFilterPanel />
                             <ClusterFilterPanel />
@@ -470,7 +457,7 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
                         maxWidth={360}
                         previewMaxHeight="70dvh"
                     >
-                        <div data-tour="calendar-controls-drawer">
+                        <div>
                             {layoutSection}
                         </div>
                     </PreviewOverlay>

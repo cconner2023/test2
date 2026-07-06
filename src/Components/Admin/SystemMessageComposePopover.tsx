@@ -10,9 +10,9 @@
 import { useEffect, useState } from 'react'
 import { Check, RefreshCw } from 'lucide-react'
 import { PreviewOverlay } from '../PreviewOverlay'
-import { ActionPill } from '../ActionPill'
-import { ActionButton } from '../ActionButton'
-import { TextInput } from '../FormInputs'
+import { ActionPill } from '@/Components/primitives/ActionPill'
+import { ActionButton } from '@/Components/primitives/ActionButton'
+import { TextInput } from '@/Components/primitives/FormInputs'
 
 interface Props {
   anchorRect: DOMRect | null

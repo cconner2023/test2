@@ -8,14 +8,13 @@ import { Algorithm as AlgorithmData } from '../Data/Algorithms';
 import { QuestionCard } from './QuestionCard';
 import { ScreenerDrawer } from './ScreenerDrawer';
 import { SearchResults } from './SearchResults';
-import { MobileSearchBar } from './MobileSearchBar';
+import { MobileSearchBar } from '@/Components/primitives/MobileSearchBar';
 import { getColorClasses } from '../Utilities/ColorUtilities';
-import { ConnectorDots } from './ConnectorDots';
+import { ConnectorDots } from '@/Components/primitives/ConnectorDots';
 import { ALGORITHM_TIMING } from '../Utilities/constants';
 import { useNavigationStore } from '../stores/useNavigationStore';
-import { useTourContext } from './Tour/TourProvider';
 import type { SearchResultType } from '../Types/CatTypes';
-import { ActionPill } from './ActionPill'
+import { ActionPill } from '@/Components/primitives/ActionPill'
 
 interface AlgorithmPageProps {
     searchInput?: string
@@ -32,8 +31,6 @@ export function AlgorithmPage({ searchInput = '', onSearchChange, onSearchFocusC
     const isMobile = useNavigationStore((s) => s.isMobile);
     const openWriteNote = useNavigationStore((s) => s.openWriteNote);
     const navigateToAlgorithm = useNavigationStore((s) => s.navigateToAlgorithm);
-    const tourCtx = useTourContext();
-    const tourActive = tourCtx?.isActive ?? false;
 
     const containerRef = useRef<HTMLDivElement>(null);
     const markerRef = useRef<HTMLDivElement>(null);
@@ -72,9 +69,8 @@ export function AlgorithmPage({ searchInput = '', onSearchChange, onSearchFocusC
         }
     }, [currentDisposition]);
 
-    // Scroll function — suppressed during guided tour (spotlight handles scroll)
+    // Scroll function
     const scrollToMarker = useCallback(() => {
-        if (tourActive) { setIsTransitioning(false); return; }
         if (!markerRef.current || !containerRef.current) {
             setTimeout(scrollToMarker, ALGORITHM_TIMING.SCROLL_RETRY);
             return;
@@ -87,7 +83,7 @@ export function AlgorithmPage({ searchInput = '', onSearchChange, onSearchFocusC
             behavior: 'smooth'
         });
         setIsTransitioning(false);
-    }, [tourActive]);
+    }, []);
 
     // Scroll effect — only fires when scrollTrigger increments
     useEffect(() => {
@@ -238,7 +234,7 @@ export function AlgorithmPage({ searchInput = '', onSearchChange, onSearchFocusC
                         />
                     </div>
                 ) : (
-                    <div data-tour="algorithm-cards" className="flex flex-col px-4 pt-5 pb-32 space-y-1 w-full">
+                    <div className="flex flex-col px-4 pt-5 pb-32 space-y-1 w-full">
                         <QuestionCard
                             algorithmOptions={algorithmOptions}
                             cardStates={cardStates}
@@ -257,7 +253,7 @@ export function AlgorithmPage({ searchInput = '', onSearchChange, onSearchFocusC
                                     key={`dispo-${currentDisposition.type}-${currentDisposition.text}`}
                                     className="w-full animate-cardAppearIn"
                                 >
-                                    <div data-tour="algorithm-disposition" className={`flex flex-col rounded-2xl w-full overflow-hidden shadow-sm
+                                    <div className={`flex flex-col rounded-2xl w-full overflow-hidden shadow-sm
                                             bg-themewhite2 border ${colors.badgeBorder}`}>
                                         <div className="p-4">
                                             <div className="flex items-center justify-between">
@@ -280,7 +276,6 @@ export function AlgorithmPage({ searchInput = '', onSearchChange, onSearchFocusC
                                                 </div>
                                                 <ActionPill>
                                                     <button
-                                                        data-tour="algorithm-expand-note"
                                                         onClick={handleExpandNote}
                                                         className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 active:scale-95 transition-all ${colors.buttonClass}`}
                                                         aria-label="Continue"

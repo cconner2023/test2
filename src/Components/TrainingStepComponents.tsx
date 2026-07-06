@@ -36,5 +36,5 @@ export function PerformanceStepItem({ step }: { step: PerformanceStep }) {
     )
 }
 
-/** @deprecated Import from './Section' instead */
-export { SectionHeader } from './Section'
+/** @deprecated Import from '@/Components/primitives/Section' instead */
+export { SectionHeader } from '@/Components/primitives/Section'

@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback, useRef, useMemo, memo, type CSSProperties } from 'react'
-import { X, MoreHorizontal, Check, ChevronLeft, Map as MapIcon, Camera, ClipboardList, Download, Plus } from 'lucide-react'
-import { ConfirmDialog } from '../ConfirmDialog'
-import { LiftedRowMenu } from '../LiftedRowMenu'
-import { AddFab } from '../AddFab'
-import { BottomIsland, IslandButton } from '../BottomIsland'
+import { X, MoreHorizontal, Check, ChevronLeft, Map as MapIcon, Camera, ClipboardList, Download, Plus, Pencil } from 'lucide-react'
+import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
+import { LiftedRowMenu } from '@/Components/primitives/LiftedRowMenu'
+import { AddFab } from '@/Components/primitives/AddFab'
+import { BottomIsland, IslandButton } from '@/Components/primitives/BottomIsland'
 import { usePropertyStore } from '../../stores/usePropertyStore'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { useShallow } from 'zustand/react/shallow'
@@ -25,8 +25,8 @@ import { PropertyLocationDetail, buildLocationMenuItems, type PropertyLocationDe
 import { PropertyItemForm, type PropertyItemFormHandle } from './PropertyItemForm'
 import { PropertyLocationMap, type MapNavHandle } from './PropertyLocationMap'
 import { isStructuralZone } from './levelUtils'
-import { Sheet } from '../Sheet'
-import { LoadingOverlay } from '../LoadingOverlay'
+import { Sheet } from '@/Components/primitives/Sheet'
+import { LoadingOverlay } from '@/Components/primitives/LoadingOverlay'
 import { useMinLoadTime } from '../../Hooks/useMinLoadTime'
 import { useClinicName } from '../../Hooks/useClinicNameResolver'
 import type { LocalPropertyItem, LocalPropertyLocation, HandReceipt } from '../../Types/PropertyTypes'
@@ -37,13 +37,12 @@ import { Da2062Detail, da2062DetailSubtitle, type Da2062DetailHandle } from './D
 import { PropertyRecordDetail, type PropertyRecordDetailHandle, type SelectedRecord } from './PropertyRecordDetail'
 import { PropertyTurnInDetail, type PropertyTurnInDetailHandle, type PendingTurnIn } from './PropertyTurnInDetail'
 import { PropertyCSVImport } from './PropertyCSVImportDrawer'
-import { PropertyShortagePanel } from './PropertyShortagePanel'
+import { PropertyShortagePanel, type PropertyShortageHandle } from './PropertyShortagePanel'
 import { PropertyAuthorizedPanel } from './PropertyAuthorizedPanel'
+import { isLinContainer, isAuthTarget } from '../../Utilities/propertyAuthorized'
 import { SignOutForm, type SignOutFormHandle } from './SignOutForm'
-import { HeaderPill, PillButton } from '../HeaderPill'
-import { SearchInput } from '../SearchInput'
-import { useSubClusters } from '../../Hooks/useSubClusters'
-import { effectiveSubClusters, passesSubClusterFilter, itemPassesLens, HQ_BUCKET, type SubClusterFilter } from '../../Utilities/subCluster'
+import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill'
+import { SearchInput } from '@/Components/primitives/SearchInput'
 
 export type PropertyView = 'property' | 'property-detail' | 'property-form'
 
@@ -76,12 +75,6 @@ interface PropertyPanelProps {
   /** Register a trigger to open CSV import in the detail surface (right pane on
    *  desktop / detail sheet on mobile). Fired from the add ActionSheet. */
   onRegisterImport?: (trigger: () => void) => void
-  /** Register a trigger to open the Shortages / requisition report in the detail
-   *  surface. Fired from the add ActionSheet (dev-gated, like New DA 2062). */
-  onRegisterShortages?: (trigger: () => void) => void
-  /** Register a trigger to open the editable Authorized items (BOM) manager in the
-   *  detail surface. Fired from the add ActionSheet (dev-gated, like Shortages). */
-  onRegisterAuthorized?: (trigger: () => void) => void
   /** Register a trigger to navigate the canvas to a zone (global-search deep-link). */
   onRegisterNavigateZone?: (trigger: (zoneId: string) => void) => void
   /** Register a trigger to open the Custody / DA 2062 tab (global-search deep-link). */
@@ -108,8 +101,6 @@ export const PropertyPanel = memo(function PropertyPanel({
   onOpenAddSheet,
   onRegisterNewDA2062,
   onRegisterImport,
-  onRegisterShortages,
-  onRegisterAuthorized,
   onRegisterNavigateZone,
   onRegisterOpenCustody,
 }: PropertyPanelProps) {
@@ -146,37 +137,10 @@ export const PropertyPanel = memo(function PropertyPanel({
   // same gate. See src/lib/featureGate.ts.
   const showAccountability = useFeatureGate('propertyAccountability')
   const currentUserId = useAuthStore(s => s.user?.id ?? null)
-  const viewerSubClusterId = useAuthStore(s => s.profile.subClusterId ?? null)
-  const viewerPrimaryClinicId = useAuthStore(s => s.clinicId)
-  const { subClusters } = useSubClusters()
-  // Property FILTER — collapsed into the existing Locations sheet / desktop rail (one
-  // entry point shares the filter + the tree), NOT a separate gear. No chips. Two scopes
-  // via the calendar list-item filter primitive: (1) sub-unit (platoon/squad) → which
-  // personnel the carousel + tree show AND which items the map/tree narrow to (via
-  // itemPassesLens; default = viewer's own squad via the null lens); (2) "My property"
-  // → canvas/tree items the viewer owns/holds. Both render-only.
+  // Property FILTER — one entry point at the top of the Locations sheet / desktop rail,
+  // above the tree. "My property" narrows the canvas + tree to what the viewer owns/holds.
+  // (Sub-cluster scoping removed — the collapsible Personnel group handles roster scale.)
   const [mineOnly, setMineOnly] = useState(false)
-  const [subClusterFilter, setSubClusterFilter] = useState<SubClusterFilter>(null)
-  const subClusterLens = effectiveSubClusters(subClusterFilter, viewerSubClusterId)
-  const subActive = Array.isArray(subClusterLens)
-  const subClusterShowingAll = subClusterLens === null
-  // Showing-all = NONE individually selected (empty set), so the first tap on a
-  // sub-unit ISOLATES to it rather than deselecting it from an implicit all-set.
-  // Highlighting reads this too, but is guarded by !subClusterShowingAll above.
-  const subClusterActiveSet = new Set(subClusterLens ?? [])
-  // The selectable cluster rows = the HQ/common bucket + the real sub-clusters.
-  // HQ is a first-class toggle now: selecting it alone narrows to the common pool
-  // (squad items carry a sub_cluster_id not in the lens → hidden; HQ items are
-  // null-tagged → pass the itemPassesLens/passesSubClusterFilter bypass). Including
-  // it in the toggle universe keeps the "select-all collapses to 'all'" math right.
-  const clusterRows = [{ id: HQ_BUCKET, name: 'HQ' }, ...subClusters]
-  const toggleSubCluster = (id: string) => {
-    const next = new Set(subClusterActiveSet)
-    if (next.has(id)) next.delete(id)
-    else next.add(id)
-    const arr = clusterRows.map(c => c.id).filter(c => next.has(c))
-    setSubClusterFilter(arr.length === 0 || arr.length === clusterRows.length ? 'all' : arr)
-  }
   const filterRowCls = (active: boolean) =>
     `w-full flex items-center gap-3 py-2.5 px-4 text-left transition-colors active:scale-95 ${
       active ? 'bg-themeblue3/8 border-l-2 border-l-themeblue3' : 'hover:bg-secondary/5'
@@ -200,23 +164,6 @@ export const PropertyPanel = memo(function PropertyPanel({
         <span className="text-[10pt] font-medium text-primary truncate flex-1">My property only</span>
         {mineOnly && <Check size={14} className="text-themeblue2 shrink-0" />}
       </button>
-      {subClusters.length > 0 && (
-        <>
-          {sectionHeader('Cluster')}
-          <button className={filterRowCls(subClusterShowingAll)} onClick={() => setSubClusterFilter('all')}>
-            <span className="text-[10pt] font-medium text-primary truncate flex-1">All clusters</span>
-          </button>
-          {clusterRows.map(c => {
-            const active = !subClusterShowingAll && subClusterActiveSet.has(c.id)
-            return (
-              <button key={c.id} className={filterRowCls(active)} onClick={() => toggleSubCluster(c.id)}>
-                <span className="text-[10pt] font-medium text-primary truncate flex-1">{c.name}</span>
-                {active && <Check size={14} className="text-themeblue2 shrink-0" />}
-              </button>
-            )
-          })}
-        </>
-      )}
     </div>
   )
 
@@ -305,34 +252,29 @@ export const PropertyPanel = memo(function PropertyPanel({
   // is selected. Store keeps full data for writes.
   const physicalLocations = useMemo(() => visibleLocations.filter(l => !l.holder_user_id), [visibleLocations])
 
-  // Personnel zones for the tree — member (root) zones gated by the sub-unit
-  // filter (default = viewer's own squad). Own zone, foreign-clinic zones, and
-  // HQ/unassigned holders always pass. Sorted by holder name.
+  // Personnel zones for the tree — all member (root) zones, sorted by holder name.
+  // Roster scale is handled by the collapsible Personnel group in the tree, not a filter.
   const personnelZones = useMemo(() => {
-    const members = visibleLocations.filter(l => !!l.holder_user_id)
-    const scoped = subActive
-      ? members.filter(l =>
-          (viewerPrimaryClinicId != null && l.clinic_id !== viewerPrimaryClinicId) ||
-          l.holder_user_id === currentUserId ||
-          passesSubClusterFilter(store.holders.get(l.holder_user_id!)?.subClusterId ?? null, subClusterLens),
-        )
-      : members
-    return scoped.slice().sort((a, b) => {
-      const an = store.holders.get(a.holder_user_id!)?.displayName || a.name
-      const bn = store.holders.get(b.holder_user_id!)?.displayName || b.name
-      return an.localeCompare(bn)
-    })
-  }, [visibleLocations, subActive, subClusterLens, viewerPrimaryClinicId, currentUserId, store.holders])
+    return visibleLocations
+      .filter(l => !!l.holder_user_id)
+      .slice()
+      .sort((a, b) => {
+        const an = store.holders.get(a.holder_user_id!)?.displayName || a.name
+        const bn = store.holders.get(b.holder_user_id!)?.displayName || b.name
+        return an.localeCompare(bn)
+      })
+  }, [visibleLocations, store.holders])
 
   // Item scope for the canvas + tree — the SINGLE source both surfaces read, so map
-  // and tree can't drift. Two render-only narrowings stack:
+  // and tree can't drift. One render-only narrowing:
   //   • "My property" → viewer-owned (owner_user_id) or held (current_holder_id)
-  //   • sub-unit lens → itemPassesLens (HQ/common + cross-cluster + owned/held bypass)
-  // Off on both → the full set.
+  // Off → the full set (turn-in / LIN-container exclusions still apply below).
   const displayItems = useMemo(() => {
     // Turned-in items (turned_in_at set) have left the books — they drop out of the
-    // active book (canvas + tree) and live only in the Turn-In history.
-    let items = store.items.filter(i => !i.turned_in_at)
+    // active book (canvas + tree) and live only in the Turn-In history. LIN containers are
+    // PHR headers, not discrete property — they never render on the canvas or in the tree
+    // (only their component items, which are real placeable items, do).
+    let items = store.items.filter(i => !i.turned_in_at && !isLinContainer(i) && !isAuthTarget(i))
     // Staged turn-in stock is a clinic-wide operational state, NOT squad property: it
     // must stay visible at the (system) Pending Turn-In zone regardless of the squad
     // lens / "My property" filter — otherwise the zone empties and the tree hides it
@@ -344,15 +286,13 @@ export const PropertyPanel = memo(function PropertyPanel({
     const atTurnIn = (i: LocalPropertyItem) => i.location_id != null && turnInZoneIds.has(i.location_id)
     if (mineOnly && currentUserId)
       items = items.filter(i => atTurnIn(i) || i.owner_user_id === currentUserId || i.current_holder_id === currentUserId)
-    if (subActive)
-      items = items.filter(i => atTurnIn(i) || itemPassesLens(i, { lens: subClusterLens, primaryClinicId: viewerPrimaryClinicId, currentUserId }))
     return items
-  }, [mineOnly, currentUserId, subActive, subClusterLens, viewerPrimaryClinicId, store.items, store.locations])
+  }, [mineOnly, currentUserId, store.items, store.locations])
 
-  // The TREE (rail + Locations sheet) lists physical/shared zones PLUS the filtered
-  // personnel zones — so the one Locations entry point covers both, gated by the same
-  // filter. (The MAP overview hides personnel tiles until one is selected, then un-hides
-  // and pins its items — so tapping a personnel zone from the tree still renders it.)
+  // The TREE (rail + Locations sheet) lists physical/shared zones PLUS the personnel
+  // zones (the tree groups the latter under a collapsible "Personnel" node) — so the one
+  // Locations entry point covers both. (The MAP overview hides personnel tiles until one
+  // is selected, then un-hides and pins its items — so tapping one from the tree renders it.)
   const treeLocations = useMemo(() => [...physicalLocations, ...personnelZones], [physicalLocations, personnelZones])
   const clinicName = useClinicName(store.clinicId) || 'Cluster'
 
@@ -365,6 +305,7 @@ export const PropertyPanel = memo(function PropertyPanel({
   const da2062DetailRef = useRef<Da2062DetailHandle>(null)
   const recordDetailRef = useRef<PropertyRecordDetailHandle>(null)
   const turnInDetailRef = useRef<PropertyTurnInDetailHandle>(null)
+  const shortageRef = useRef<PropertyShortageHandle>(null)
   // Desktop right pane — scopes the item's split/merge PreviewOverlay so it dims
   // and centers within the pane rather than spanning the whole viewport.
   const detailPaneRef = useRef<HTMLDivElement>(null)
@@ -434,6 +375,15 @@ export const PropertyPanel = memo(function PropertyPanel({
   const openAuthAdd = useCallback(() => { setAuthImport(false); setAuthView(null); setAuthForm({ item: null, parentId: null }) }, [])
   const openAuthEdit = useCallback((item: LocalPropertyItem) => { setAuthImport(false); setAuthView(null); setAuthForm({ item, parentId: item.parent_item_id ?? null }) }, [])
   const openAuthView = useCallback((item: LocalPropertyItem) => { setAuthImport(false); setAuthForm(null); setAuthView(item) }, [])
+  // Add a component parented to a LIN (from the LIN detail's Components "+"): open the auth form
+  // pre-parented so the two-pick flow lands under this LIN.
+  const openAuthAddChild = useCallback((linId: string) => { setAuthImport(false); setAuthView(null); setAuthForm({ item: null, parentId: linId }) }, [])
+  // Component "Delete" from the LIN detail = DE-AUTHORIZE (stays on-hand as excess), never a
+  // hard delete — mirrors PropertyAuthorizedPanel component-delete semantics.
+  const deauthorizeComponent = useCallback((item: LocalPropertyItem) => { void store.editItem(item.id, { quantity_authorized: null }) }, [store])
+  // Auth-view header ellipsis anchor. Menu contents depend on what's being viewed: a LIN →
+  // "Add item" (to the LIN) + "Edit LIN"; a component/item → "Edit".
+  const [authViewMenu, setAuthViewMenu] = useState<{ rect: DOMRect } | null>(null)
   const openAuthImport = useCallback(() => { setAuthForm(null); setAuthView(null); setAuthImport(true) }, [])
   const closeAuthMorph = useCallback(() => { setAuthForm(null); setAuthView(null); setAuthImport(false) }, [])
   // Closing the authorized surface (or opening another) always drops any open morph.
@@ -539,38 +489,48 @@ export const PropertyPanel = memo(function PropertyPanel({
     })
   }, [onRegisterImport, store])
 
-  // Shortages report opens as the sole occupant of the detail surface (mirrors Import).
-  useEffect(() => {
-    onRegisterShortages?.(() => {
-      setMobileItem(null)
-      setMobileForm(null)
-      store.setEditingItem(null)
-      setEditLocationTarget(null)
-      setSelectedLocationId(null)
-      mapRef.current?.clearSelection()
-      setSignOutOpen(false)
-      setImportOpen(false)
-      setAuthorizedOpen(false)
-      setShortageOpen(true)
-    })
-  }, [onRegisterShortages, store])
+  // Cluster Hand Receipt (authorized/BOM) + Cluster Shortages open as the sole occupant of
+  // the detail surface (right pane desktop / sheet mobile), mirroring Import. Driven from the
+  // left-pane "Cluster" nav rows (accountabilityNav) — the FAB is create-only now.
+  const openShortages = useCallback(() => {
+    setMobileItem(null)
+    setMobileForm(null)
+    store.setEditingItem(null)
+    setEditLocationTarget(null)
+    setSelectedLocationId(null)
+    mapRef.current?.clearSelection()
+    setSignOutOpen(false)
+    setImportOpen(false)
+    setAuthorizedOpen(false)
+    setShortageOpen(true)
+  }, [store])
+  const openAuthorized = useCallback(() => {
+    setMobileItem(null)
+    setMobileForm(null)
+    store.setEditingItem(null)
+    setEditLocationTarget(null)
+    setSelectedLocationId(null)
+    mapRef.current?.clearSelection()
+    setSignOutOpen(false)
+    setImportOpen(false)
+    setShortageOpen(false)
+    setAuthorizedOpen(true)
+  }, [store])
 
-  // Authorized items (BOM) manager opens as the sole occupant of the detail surface
-  // (mirrors Import / Shortages).
-  useEffect(() => {
-    onRegisterAuthorized?.(() => {
-      setMobileItem(null)
-      setMobileForm(null)
-      store.setEditingItem(null)
-      setEditLocationTarget(null)
-      setSelectedLocationId(null)
-      mapRef.current?.clearSelection()
-      setSignOutOpen(false)
-      setImportOpen(false)
-      setShortageOpen(false)
-      setAuthorizedOpen(true)
-    })
-  }, [onRegisterAuthorized, store])
+  // Left-pane "Cluster" access section — the cluster's book views (Hand Receipt = the
+  // authorized/PHR list, Shortages = the requisition report). Sits ABOVE "My property".
+  // These are ACCESS points (open a right-pane/sheet morph), not creates — the FAB stays
+  // create-only. Dev-gated like the rest of accountability. Row highlights when its pane is open.
+  const accountabilityNav = showAccountability ? (
+    <div className="flex flex-col">
+      <button className={filterRowCls(authorizedOpen)} onClick={openAuthorized}>
+        <span className="text-[10pt] font-medium text-primary truncate flex-1">Cluster Hand Receipt</span>
+      </button>
+      <button className={filterRowCls(shortageOpen)} onClick={openShortages}>
+        <span className="text-[10pt] font-medium text-primary truncate flex-1">Cluster Shortages</span>
+      </button>
+    </div>
+  ) : null
 
   // Mobile: focusing the header search opens the results overlay over the canvas
   // (z1020). The Custody sheet sits above it (z1200), so leave that tab first —
@@ -938,7 +898,6 @@ export const PropertyPanel = memo(function PropertyPanel({
   const addFab = onOpenAddSheet ? (
     <div className="absolute bottom-4 right-4 z-30 pb-[max(0rem,var(--sab,0px))] pointer-events-none">
       <AddFab
-        tour="property-add-fab"
         label="Add"
         onClick={onOpenAddSheet}
       />
@@ -948,7 +907,7 @@ export const PropertyPanel = memo(function PropertyPanel({
   // Mobile variant — placed inside BottomIsland's fab slot (the island owns the
   // bottom/safe-area offset, so the fab just needs horizontal placement).
   const islandFab = onOpenAddSheet ? (
-    <AddFab tour="property-add-fab" label="Add" onClick={onOpenAddSheet} className="absolute right-4" />
+    <AddFab label="Add" onClick={onOpenAddSheet} className="absolute right-4" />
   ) : null
 
   // The one shared item action menu + its co-located sheets — mounted once per layout
@@ -977,14 +936,14 @@ export const PropertyPanel = memo(function PropertyPanel({
   // the scanner overlay, which returns to the map). The location tree is NOT a tab.
   const renderTabs = () => (
     <>
-      <IslandButton role="tab" active={propertyTab === 'map'} onClick={() => { closeRosterDetail(); setPropertyTab('map') }} label="Map" tour="property-tab-map">
+      <IslandButton role="tab" active={propertyTab === 'map'} onClick={() => { closeRosterDetail(); setPropertyTab('map') }} label="Map">
         <MapIcon className="w-5 h-5" />
       </IslandButton>
-      <IslandButton role="tab" onClick={() => setShowScanner(true)} label="Camera" tour="property-tab-scan">
+      <IslandButton role="tab" onClick={() => setShowScanner(true)} label="Camera">
         <Camera className="w-5 h-5" />
       </IslandButton>
       {showAccountability && (
-        <IslandButton role="tab" active={propertyTab === 'custody'} onClick={() => { setMobileItem(null); setMobileForm(null); closeLocationDetail(); closeRosterDetail(); setPropertyTab('custody') }} label="Sign-outs" tour="property-tab-custody">
+        <IslandButton role="tab" active={propertyTab === 'custody'} onClick={() => { setMobileItem(null); setMobileForm(null); closeLocationDetail(); closeRosterDetail(); setPropertyTab('custody') }} label="Sign-outs">
           <ClipboardList className="w-5 h-5" />
         </IslandButton>
       )}
@@ -1002,7 +961,7 @@ export const PropertyPanel = memo(function PropertyPanel({
     return (
       <>
         <div ref={panelRef} className="flex h-full relative">
-          <div data-tour="property-locations" className={`shrink-0 border-r border-tertiary/10 flex flex-col bg-themewhite3/50 transition-all duration-300 ${
+          <div className={`shrink-0 border-r border-tertiary/10 flex flex-col bg-themewhite3/50 transition-all duration-300 ${
             railCollapsed ? 'w-0 opacity-0 overflow-hidden border-r-0' : 'w-[260px] opacity-100'
           }`}>
             {/* Location tree is always present in the rail (reached by search here);
@@ -1020,6 +979,7 @@ export const PropertyPanel = memo(function PropertyPanel({
                 so the filter rows scroll WITH the tree instead of pinning the rail and
                 starving the tree's scroll window. */}
             <div className="flex-1 min-h-0 overflow-y-auto">
+              {accountabilityNav}
               {propertyFilterPanel}
               {sectionHeader('Zones')}
               <PropertyLocationTree
@@ -1105,7 +1065,6 @@ export const PropertyPanel = memo(function PropertyPanel({
                 z="z-20"
                 role="tablist"
                 ariaLabel="Property views"
-                tour="property-view-switcher"
               >
                 {renderTabs()}
               </BottomIsland>
@@ -1357,12 +1316,15 @@ export const PropertyPanel = memo(function PropertyPanel({
                 <div className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-tertiary/10">
                   <p className="text-sm font-medium text-primary truncate">Shortages</p>
                   <HeaderPill>
+                    <span className="inline-flex" onClick={(e) => shortageRef.current?.openMenu((e.currentTarget as HTMLElement).getBoundingClientRect())}>
+                      <PillButton icon={MoreHorizontal} iconSize={16} onClick={() => {}} label="More actions" />
+                    </span>
                     <PillButton icon={X} iconSize={16} onClick={() => setShortageOpen(false)} label="Close" />
                   </HeaderPill>
                 </div>
                 <div className="flex-1 min-h-0 overflow-y-auto">
                   <div className="px-4 py-4 pb-8">
-                    <PropertyShortagePanel onClose={() => setShortageOpen(false)} stagedTurnInIds={turnInItemIds} />
+                    <PropertyShortagePanel ref={shortageRef} onClose={() => setShortageOpen(false)} stagedTurnInIds={turnInItemIds} />
                   </div>
                 </div>
               </div>
@@ -1386,6 +1348,11 @@ export const PropertyPanel = memo(function PropertyPanel({
                       </div>
                       <HeaderPill>
                         {authForm && <PillButton icon={Check} iconSize={16} accent="success" onClick={() => authFormRef.current?.submit()} label="Save" />}
+                        {authView && (
+                          <span className="inline-flex" onClick={(e) => setAuthViewMenu({ rect: (e.currentTarget as HTMLElement).getBoundingClientRect() })}>
+                            <PillButton icon={MoreHorizontal} iconSize={16} onClick={() => {}} label="More actions" />
+                          </span>
+                        )}
                         <PillButton icon={X} iconSize={16} onClick={() => setAuthorizedOpen(false)} label="Close" />
                       </HeaderPill>
                     </>
@@ -1421,6 +1388,9 @@ export const PropertyPanel = memo(function PropertyPanel({
                         locations={visibleLocations}
                         holders={store.holders}
                         items={store.items}
+                        onViewComponent={openAuthView}
+                        onEditComponent={openAuthEdit}
+                        onDeleteComponent={deauthorizeComponent}
                       />
                     ) : authImport ? (
                       <PropertyCSVImport onClose={closeAuthMorph} />
@@ -1463,6 +1433,24 @@ export const PropertyPanel = memo(function PropertyPanel({
             layout="list"
             align="right"
             items={locMenuItems(selectedLocation)}
+          />
+        )}
+        {/* Auth-view header ellipsis — LIN: Add item (to LIN) + Edit LIN; component/item: Edit. */}
+        {authViewMenu && authView && (
+          <LiftedRowMenu
+            isOpen
+            anchorRect={authViewMenu.rect}
+            onClose={() => setAuthViewMenu(null)}
+            layout="list"
+            align="right"
+            items={
+              isLinContainer(authView)
+                ? [
+                    { key: 'add', label: 'Add item', icon: Plus, onAction: () => openAuthAddChild(authView.id) },
+                    { key: 'edit', label: 'Edit LIN', icon: Pencil, onAction: () => openAuthEdit(authView) },
+                  ]
+                : [{ key: 'edit', label: 'Edit', icon: Pencil, onAction: () => openAuthEdit(authView) }]
+            }
           />
         )}
         {itemActionMenuEl}
@@ -1538,7 +1526,6 @@ export const PropertyPanel = memo(function PropertyPanel({
   return (
     <>
       <div
-        data-tour="property-locations"
         className="h-full relative"
         style={{ '--property-map-bottom-inset': `${mapBottomInsetPx}px` } as CSSProperties}
       >
@@ -1602,7 +1589,6 @@ export const PropertyPanel = memo(function PropertyPanel({
             fab={propertyTab === 'custody' ? undefined : islandFab}
             role="tablist"
             ariaLabel="Property views"
-            tour="property-view-switcher"
           >
             {renderTabs()}
           </BottomIsland>
@@ -1731,6 +1717,10 @@ export const PropertyPanel = memo(function PropertyPanel({
         actions={
           da2062Preview ? (
             <PillButton icon={Download} iconSize={18} accent="info" onClick={saveReprint} label="Save" />
+          ) : shortageOpen ? (
+            <span className="inline-flex" onClick={(e) => shortageRef.current?.openMenu((e.currentTarget as HTMLElement).getBoundingClientRect())}>
+              <PillButton icon={MoreHorizontal} iconSize={18} onClick={() => {}} label="More actions" />
+            </span>
           ) : signOutOpen ? (
             <PillButton icon={Check} iconSize={18} accent="success" onClick={() => signOutFormRef.current?.submit()} label="Sign out" />
           ) : authorizedOpen ? (
@@ -1738,7 +1728,11 @@ export const PropertyPanel = memo(function PropertyPanel({
             // Save while a form is morphed in; nothing while viewing or importing.
             authForm ? (
               <PillButton icon={Check} iconSize={18} accent="success" onClick={() => authFormRef.current?.submit()} label="Save" />
-            ) : (authView || authImport) ? undefined : (
+            ) : authImport ? undefined : authView ? (
+              <span className="inline-flex" onClick={(e) => setAuthViewMenu({ rect: (e.currentTarget as HTMLElement).getBoundingClientRect() })}>
+                <PillButton icon={MoreHorizontal} iconSize={18} onClick={() => {}} label="More actions" />
+              </span>
+            ) : (
               <PillButton icon={Plus} iconSize={18} onClick={openAuthAdd} label="Add authorized item" />
             )
           ) : mobileForm ? (
@@ -1757,6 +1751,7 @@ export const PropertyPanel = memo(function PropertyPanel({
           // that node's detail; the breadcrumb walks back up to here. The filter +
           // tree share this step (same set the personnel carousel shows).
           <>
+            {accountabilityNav}
             {propertyFilterPanel}
             {sectionHeader('Zones')}
             <PropertyLocationTree
@@ -1783,7 +1778,7 @@ export const PropertyPanel = memo(function PropertyPanel({
         ) : importOpen ? (
           <PropertyCSVImport onClose={() => setImportOpen(false)} />
         ) : shortageOpen ? (
-          <PropertyShortagePanel onClose={() => setShortageOpen(false)} stagedTurnInIds={turnInItemIds} />
+          <PropertyShortagePanel ref={shortageRef} onClose={() => setShortageOpen(false)} stagedTurnInIds={turnInItemIds} />
         ) : authorizedOpen ? (
           authForm ? (
             <PropertyItemForm
@@ -1800,6 +1795,9 @@ export const PropertyPanel = memo(function PropertyPanel({
               locations={visibleLocations}
               holders={store.holders}
               items={store.items}
+              onViewComponent={openAuthView}
+              onEditComponent={openAuthEdit}
+              onDeleteComponent={deauthorizeComponent}
             />
           ) : authImport ? (
             <PropertyCSVImport onClose={closeAuthMorph} />
@@ -1893,6 +1891,24 @@ export const PropertyPanel = memo(function PropertyPanel({
           layout="list"
           align="right"
           items={locMenuItems(selectedLocation)}
+        />
+      )}
+      {/* Auth-view header ellipsis — LIN: Add item (to LIN) + Edit LIN; component/item: Edit. */}
+      {authViewMenu && authView && (
+        <LiftedRowMenu
+          isOpen
+          anchorRect={authViewMenu.rect}
+          onClose={() => setAuthViewMenu(null)}
+          layout="list"
+          align="right"
+          items={
+            isLinContainer(authView)
+              ? [
+                  { key: 'add', label: 'Add item', icon: Plus, onAction: () => openAuthAddChild(authView.id) },
+                  { key: 'edit', label: 'Edit LIN', icon: Pencil, onAction: () => openAuthEdit(authView) },
+                ]
+              : [{ key: 'edit', label: 'Edit', icon: Pencil, onAction: () => openAuthEdit(authView) }]
+          }
         />
       )}
       {itemActionMenuEl}

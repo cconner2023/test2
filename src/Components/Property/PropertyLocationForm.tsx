@@ -1,9 +1,10 @@
 import { useState, useMemo, useCallback, useEffect, useRef, forwardRef, useImperativeHandle } from 'react'
 import { Image as ImageIcon } from 'lucide-react'
-import { TextInput, PickerInput } from '../FormInputs'
+import { TextInput, PickerInput } from '@/Components/primitives/FormInputs'
 import { usePropertyStore } from '../../stores/usePropertyStore'
 import { useShallow } from 'zustand/react/shallow'
 import { fetchLocationTags, upsertLocationTags } from '../../lib/propertyService'
+import { isLinContainer } from '../../Utilities/propertyAuthorized'
 import type { LocalPropertyLocation } from '../../Types/PropertyTypes'
 import { ROOT_LOCATION_NAME } from '../../Types/PropertyTypes'
 
@@ -48,10 +49,13 @@ export const PropertyLocationForm = forwardRef<PropertyLocationFormHandle, Prope
   const store = usePropertyStore(
     useShallow((s) => ({
       locations: s.locations,
+      items: s.items,
       clinicId: s.clinicId,
       rootLocationId: s.rootLocationId,
       addLocation: s.addLocation,
       editLocation: s.editLocation,
+      addItem: s.addItem,
+      editItem: s.editItem,
       bumpTagVersion: s.bumpTagVersion,
     })),
   )
@@ -62,6 +66,15 @@ export const PropertyLocationForm = forwardRef<PropertyLocationFormHandle, Prope
   const [kind, setKind] = useState<'area' | 'vehicle'>(
     editingLocation?.kind === 'vehicle' ? 'vehicle' : 'area',
   )
+  // A vehicle IS a LIN (signed for, with authorized BII). Its PHR identity lives on a SHADOW
+  // LIN-item linked by location_id = this vehicle zone; the vehicle's LIN code is stored there
+  // (locations have no lin column). Entering a LIN here mints/syncs that shadow on save, so the
+  // vehicle appears in the Cluster Hand Receipt and can carry authorized components.
+  const existingShadow = useMemo(
+    () => (editingLocation ? store.items.find((i) => i.location_id === editingLocation.id && isLinContainer(i)) ?? null : null),
+    [editingLocation, store.items],
+  )
+  const [lin, setLin] = useState(existingShadow?.lin ?? '')
   const [isSaving, setIsSaving] = useState(false)
   // Zone photo — the map-tile background. Staged locally (raw resize, NO crop) and
   // committed on Save; create seeds null. resizeImage preserves aspect ratio.
@@ -108,6 +121,43 @@ export const PropertyLocationForm = forwardRef<PropertyLocationFormHandle, Prope
       .map((l) => ({ value: l.id, label: l.name }))
   }, [store.locations, editingLocation])
 
+    // Mint/sync the vehicle's shadow LIN-item (its PHR identity). No-op unless this is a
+    // vehicle WITH a LIN code entered. name/LIN edits here keep the shadow in step; the
+    // shadow is what surfaces the vehicle in the Cluster Hand Receipt.
+    const syncShadow = async (vehicleId: string, vehicleName: string) => {
+      const linCode = lin.trim()
+      if (kind !== 'vehicle' || !linCode || !store.clinicId) return
+      const shadow = store.items.find((i) => i.location_id === vehicleId && isLinContainer(i))
+      if (shadow) {
+        await store.editItem(shadow.id, { name: vehicleName, lin: linCode })
+        return
+      }
+      await store.addItem({
+        clinic_id: store.clinicId,
+        sub_cluster_id: null,
+        name: vehicleName,
+        nomenclature: null,
+        nsn: null,
+        lin: linCode,
+        condition_code: 'serviceable',
+        location_id: vehicleId,
+        current_holder_id: null,
+        parent_item_id: null,
+        expiry_date: null,
+        notes: null,
+        is_serialized: false,
+        item_type: 'DI',
+        unit_of_issue: null,
+        pack_size: null,
+        quantity_authorized: null,
+        serial_number: null,
+        quantity: 0,
+        location_tag_id: null,
+        photo_url: null,
+        visual_fingerprint: null,
+      })
+    }
+
   const handleSave = useCallback(async () => {
     const trimmed = name.trim()
     if (!trimmed || !store.clinicId) return
@@ -120,6 +170,7 @@ export const PropertyLocationForm = forwardRef<PropertyLocationFormHandle, Prope
           ...(isLevel ? {} : { kind }),
           photo_data: photoData,
         })
+        await syncShadow(editingLocation.id, trimmed)
         onClose()
         return
       }
@@ -162,12 +213,13 @@ export const PropertyLocationForm = forwardRef<PropertyLocationFormHandle, Prope
           ])
           store.bumpTagVersion()
         }
+        await syncShadow(result.location.id, trimmed)
       }
       onClose()
     } finally {
       setIsSaving(false)
     }
-  }, [name, parentId, kind, isLevel, photoData, isEdit, editingLocation, pendingTag, store, onClose])
+  }, [name, parentId, kind, lin, isLevel, photoData, isEdit, editingLocation, pendingTag, store, onClose])
 
   useImperativeHandle(ref, () => ({ submit: handleSave }), [handleSave])
 
@@ -198,6 +250,11 @@ export const PropertyLocationForm = forwardRef<PropertyLocationFormHandle, Prope
             ]}
             placeholder="Type"
           />
+        )}
+        {/* A vehicle IS a LIN — its LIN code signs it onto the cluster hand receipt and lets
+            it carry authorized BII. Optional: leave blank to keep it a plain container zone. */}
+        {kind === 'vehicle' && (
+          <TextInput value={lin} onChange={setLin} placeholder="Vehicle LIN (e.g. T61494)" />
         )}
 
         {/* Zone photo — the map-tile background. Raw upload (no crop); staged here

@@ -1,9 +1,9 @@
 // Components/SearchResults.tsx - COMPLETE WORKING VERSION
 import { useState, useEffect, useMemo } from 'react';
 import type { SearchResultType } from "../Types/CatTypes";
-import { Skeleton } from './Skeleton';
+import { Skeleton } from '@/Components/primitives/Skeleton';
 import { useMinLoadTime } from '../Hooks/useMinLoadTime';
-import { Chip, ChipBar } from './Chip';
+import { Chip, ChipBar } from '@/Components/primitives/Chip';
 
 export interface SearchResultsProps {
     results: SearchResultType[]

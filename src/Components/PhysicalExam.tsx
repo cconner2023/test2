@@ -3,12 +3,12 @@ import { Check, RotateCcw, Plus, AlertTriangle, ChevronLeft, ChevronRight, X, Tr
 import { PreviewOverlay } from './PreviewOverlay';
 import type { ContextMenuAction } from './PreviewOverlay';
 import { ExamBlockPreview } from './ExamBlockPreview';
-import { ListItemRow } from './ListItemRow';
-import { SwipeToDeleteRow } from './SwipeToDeleteRow';
-import { ActionPill } from './ActionPill';
-import { ActionButton } from './ActionButton';
+import { ListItemRow } from '@/Components/primitives/ListItemRow';
+import { SwipeToDeleteRow } from '@/Components/primitives/SwipeToDeleteRow';
+import { ActionPill } from '@/Components/primitives/ActionPill';
+import { ActionButton } from '@/Components/primitives/ActionButton';
 import { VitalSignsCalculator } from './VitalSignsCalculator';
-import { DatePickerCalendar } from './FormInputs';
+import { DatePickerCalendar } from '@/Components/primitives/FormInputs';
 import type { getColorClasses } from '../Utilities/ColorUtilities';
 import {
     getCategoryFromSymptomCode,
@@ -375,6 +375,33 @@ function generateText(
     }
 
     return parts.join('\n');
+}
+
+/**
+ * Pure `PEState → exam text` renderer — the same output as the mounted component's
+ * onChange, without needing PhysicalExam mounted. Lets the desktop provider pane
+ * drive PE from the lifted peState and keep peNote in sync. Template mode: blocks
+ * resolve from peState.blockKeys and are all fully expanded (mirrors the mount path
+ * at PhysicalExam ~L494-498). laterality/spineRegion/categoryLetter are accepted by
+ * generateText but unused in its body.
+ */
+export function generatePEText(peState: PEState): string {
+    const blocks = getBlocksForTemplate(peState.blockKeys ?? []);
+    const expandedKeys = new Set(blocks.map(b => b.key));
+    const blockStates: Record<string, ItemState> = {};
+    for (const [key, s] of Object.entries(peState.items)) {
+        blockStates[key] = { ...s, specifyDetails: s.specifyDetails ?? {} };
+    }
+    return generateText(
+        blocks,
+        blockStates,
+        expandedKeys,
+        peState.laterality,
+        peState.spineRegion,
+        peState.additional,
+        peState.vitals,
+        peState.categoryLetter,
+    );
 }
 
 // ── Shared item row renderer ─────────────────────────────────
@@ -933,13 +960,7 @@ export function PhysicalExam({
                 closesOnAction: false,
             });
         }
-        actions.push({
-            key: 'normal',
-            label: '',
-            icon: Check,
-            onAction: () => setBlockStates(prev => ({ ...prev, [entry.key]: allNormalsSelected(entry.viewBlock.findings) })),
-            closesOnAction: false,
-        });
+        // All Normal / All Abnormal moved into the block (ExamBlockPreview quick-action row).
         actions.push({
             key: 'reset',
             label: '',
@@ -980,47 +1001,6 @@ export function PhysicalExam({
         return actions;
     }, [editingIndex, flatBlockList, blockStates, deleteBlock]);
 
-    // ── Tour event listeners ──────────────────────────────────
-    useEffect(() => {
-        const onOpenPreview = (e: Event) => {
-            const blockKey = (e as CustomEvent<string>).detail;
-            const idx = flatBlockList.findIndex(entry => entry.key === blockKey);
-            if (idx === -1) return;
-            setPopoverAnchorRect(new DOMRect(window.innerWidth / 2, window.innerHeight / 3, 0, 0));
-            setEditingIndex(idx);
-        };
-        const onMarkNormal = () => {
-            if (editingIndex === null) return;
-            const entry = flatBlockList[editingIndex];
-            setBlockStates(prev => ({ ...prev, [entry.key]: allNormalsSelected(entry.viewBlock.findings) }));
-        };
-        const onToggleAbnormal = (e: Event) => {
-            if (editingIndex === null) return;
-            const abnormalKey = (e as CustomEvent<string>).detail;
-            const entry = flatBlockList[editingIndex];
-            const augmented = augmentBlock(entry.viewBlock, entry.key);
-            toggleAbnormal(entry.key, abnormalKey, augmented);
-        };
-        const onReset = () => {
-            if (editingIndex === null) return;
-            const entry = flatBlockList[editingIndex];
-            setBlockStates(prev => ({ ...prev, [entry.key]: defaultItemState() }));
-        };
-        const onClosePreview = () => setEditingIndex(null);
-
-        window.addEventListener('tour:pe-open-preview', onOpenPreview);
-        window.addEventListener('tour:pe-mark-normal', onMarkNormal);
-        window.addEventListener('tour:pe-toggle-abnormal', onToggleAbnormal);
-        window.addEventListener('tour:pe-reset', onReset);
-        window.addEventListener('tour:pe-close-preview', onClosePreview);
-        return () => {
-            window.removeEventListener('tour:pe-open-preview', onOpenPreview);
-            window.removeEventListener('tour:pe-mark-normal', onMarkNormal);
-            window.removeEventListener('tour:pe-toggle-abnormal', onToggleAbnormal);
-            window.removeEventListener('tour:pe-reset', onReset);
-            window.removeEventListener('tour:pe-close-preview', onClosePreview);
-        };
-    }, [flatBlockList, editingIndex, augmentBlock]);
 
     // ── Drag reorder ─────────────────────────────────────────────
     const dragStateRef = useRef<{
@@ -1231,6 +1211,8 @@ export function PhysicalExam({
                                 onToggleNormal={(fk) => { toggleNormal(editingEntry.key, fk, augmented); clearFilter(); }}
                                 onToggleAbnormal={(ak) => { toggleAbnormal(editingEntry.key, ak, augmented); clearFilter(); }}
                                 onSpecifyChange={(ak, v) => setSpecifyDetail(editingEntry.key, ak, v)}
+                                onAllNormal={() => { setBlockStates(prev => ({ ...prev, [editingEntry.key]: allNormalsSelected(augmented.findings) })); clearFilter(); }}
+                                onAllAbnormal={() => { setBlockStates(prev => ({ ...prev, [editingEntry.key]: allAbnormalsSelected(augmented.findings) })); clearFilter(); }}
                             />
                         );
                     }}

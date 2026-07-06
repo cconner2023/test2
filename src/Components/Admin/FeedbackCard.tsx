@@ -1,8 +1,8 @@
 import { useCallback, useRef, useState, type ReactNode } from 'react'
 import { MessageSquare, Star, Trash2, Mail, MessageCircle } from 'lucide-react'
 import { PreviewOverlay } from '../PreviewOverlay'
-import { ActionPill } from '../ActionPill'
-import { ActionButton } from '../ActionButton'
+import { ActionPill } from '@/Components/primitives/ActionPill'
+import { ActionButton } from '@/Components/primitives/ActionButton'
 import type { FeedbackRow } from '../../lib/feedbackService'
 import { buildMailtoHref } from '../../lib/mailto'
 

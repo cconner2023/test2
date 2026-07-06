@@ -1,11 +1,11 @@
 import { useState, useMemo, useEffect, useImperativeHandle, forwardRef } from 'react'
 import { Trash2 } from 'lucide-react'
-import { PickerInput, DatePickerInput, TimeInput } from '../FormInputs'
-import { SectionCard } from '../Section'
+import { PickerInput, DatePickerInput, TimeInput } from '@/Components/primitives/FormInputs'
+import { SectionCard } from '@/Components/primitives/Section'
 import { PreviewOverlay } from '../PreviewOverlay'
-import { ActionPill } from '../ActionPill'
-import { ActionButton } from '../ActionButton'
-import { ConfirmDialog } from '../ConfirmDialog'
+import { ActionPill } from '@/Components/primitives/ActionPill'
+import { ActionButton } from '@/Components/primitives/ActionButton'
+import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { useClinicMedics } from '../../Hooks/useClinicMedics'
 import { useClinicAppointmentTypes } from '../../Hooks/useClinicAppointmentTypes'
@@ -186,9 +186,9 @@ export const TemplateGeneratorPanel = forwardRef<TemplateGeneratorHandle, Templa
     if (!isSupervisor) return null
 
     return (
-      <div data-tour="template-form" className="flex flex-col h-full overflow-y-auto px-4 py-4">
+      <div className="flex flex-col h-full overflow-y-auto px-4 py-4">
         <div className="rounded-2xl overflow-hidden">
-          <div data-tour="template-provider">
+          <div>
             <PickerInput
               value={providerId}
               onChange={setProviderId}
@@ -199,11 +199,11 @@ export const TemplateGeneratorPanel = forwardRef<TemplateGeneratorHandle, Templa
           </div>
 
           {apptTypeOptions.length === 0 ? (
-            <p data-tour="template-appt-type" className="px-4 py-3 text-[10pt] text-tertiary border-b border-primary/6">
+            <p className="px-4 py-3 text-[10pt] text-tertiary border-b border-primary/6">
               No appointment types defined. Add types in calendar settings before generating templates.
             </p>
           ) : (
-            <div data-tour="template-appt-type">
+            <div>
               <PickerInput
                 value={apptTypeId}
                 onChange={setApptTypeId}
@@ -214,7 +214,7 @@ export const TemplateGeneratorPanel = forwardRef<TemplateGeneratorHandle, Templa
             </div>
           )}
 
-          <div data-tour="template-date-time" className="flex items-stretch border-b border-primary/6">
+          <div className="flex items-stretch border-b border-primary/6">
             <div className="flex-1 min-w-0">
               <DatePickerInput
                 value={fromDate}
@@ -257,7 +257,7 @@ export const TemplateGeneratorPanel = forwardRef<TemplateGeneratorHandle, Templa
         </div>
 
         {slots.length > 0 && (
-          <div data-tour="template-slot-preview" className="mt-4">
+          <div className="mt-4">
             <div className="px-1 pb-2 flex items-center gap-2">
               <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Preview</p>
               <span className="text-[9pt] px-1.5 py-0.5 rounded-full bg-tertiary/10 text-tertiary font-medium">

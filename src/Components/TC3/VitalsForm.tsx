@@ -2,10 +2,11 @@ import { memo, useState, useRef, useEffect, type ReactNode } from 'react'
 import { Plus, Trash2, Check, TrendingUp } from 'lucide-react'
 import { useTC3Store } from '../../stores/useTC3Store'
 import { TC3EditorSurface } from './TC3EditorSurface'
-import { BloodPressureInput, DatePickerInput } from '../FormInputs'
-import { ActionButton } from '../ActionButton'
-import { ActionPill } from '../ActionPill'
-import { EmptyState } from '../EmptyState'
+import { DatePickerInput } from '@/Components/primitives/FormInputs'
+import { BloodPressureInput } from '@/Components/DomainInputs'
+import { ActionButton } from '@/Components/primitives/ActionButton'
+import { ActionPill } from '@/Components/primitives/ActionPill'
+import { EmptyState } from '@/Components/primitives/EmptyState'
 import type { TC3VitalSet, AVPU } from '../../Types/TC3Types'
 
 const AVPU_OPTIONS: AVPU[] = ['A', 'V', 'P', 'U']
@@ -540,7 +541,7 @@ export const VitalsForm = memo(function VitalsForm() {
   const editingSet = editingId ? vitals.find((v) => v.id === editingId) : null
 
   return (
-    <div data-tour="tc3-vitals">
+    <div>
       {/* Section header */}
       <div className="mb-2">
         <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">

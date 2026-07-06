@@ -1,6 +1,7 @@
 import type { TemplateNode } from './TemplateTypes';
 import type { AvatarBlob } from '../Types/SupervisorTestTypes';
 import type { SwipeActions } from '../Utilities/swipeActions';
+import type { PEItemState } from '../Types/PETypes';
 
 export type Credential =
     | 'EMT-B' | 'EMT-A' | 'EMT-P'
@@ -97,6 +98,9 @@ export interface ProviderNoteTemplate {
     peText?: string;
     /** Stores master block keys from MASTER_BLOCKS */
     peBlockKeys?: string[];
+    /** Per-system PE findings (normals/abnormals/free-text), keyed by block key.
+     *  Absent on legacy templates → apply defaults every system to all-normal. */
+    peItems?: Record<string, PEItemState>;
     /** @deprecated Use assessmentExpanderAbbrs */
     assessmentExpanderAbbr?: string;
     assessmentExpanderAbbrs?: string[];

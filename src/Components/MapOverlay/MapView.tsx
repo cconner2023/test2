@@ -5,8 +5,8 @@ import { latLngToMgrs } from '../../lib/mgrsFormat';
 import { Plus, Minus, Info, Copy, ClipboardCheck, LocateFixed, Map as MapIcon, Globe, Mountain, MountainSnow } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { PreviewOverlay } from '../PreviewOverlay';
-import { BottomIsland } from '../BottomIsland';
-import { ActionPill } from '../ActionPill';
+import { BottomIsland } from '@/Components/primitives/BottomIsland';
+import { ActionPill } from '@/Components/primitives/ActionPill';
 import { useTheme } from '../../Utilities/ThemeContext';
 import { createThemedTileLayer, getTileTheme } from './ThemedTileLayer';
 import { getTileFromCache, getTileSource, TILE_SOURCES } from '../../lib/mapTileService';
@@ -912,7 +912,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
       </PreviewOverlay>
 
       {/* Bottom-left: zoom controls */}
-      <div data-tour="map-zoom-controls" className="absolute bottom-4 left-3 z-[1001] flex flex-col gap-1.5 pointer-events-auto pb-[max(0rem,var(--sab,0px))]">
+      <div className="absolute bottom-4 left-3 z-[1001] flex flex-col gap-1.5 pointer-events-auto pb-[max(0rem,var(--sab,0px))]">
         <button type="button" onClick={handleZoomIn} className={CTRL_BTN} aria-label="Zoom in">
           <Plus size={16} />
         </button>
@@ -922,11 +922,10 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
       </div>
 
       {/* Bottom-center island: basemap | locate | coord readout */}
-      <BottomIsland z="z-[1000]" tour="map-control-island" barClassName="max-w-[calc(100%-7rem)]" glass>
+      <BottomIsland z="z-[1000]" barClassName="max-w-[calc(100%-7rem)]" glass>
           <button
             type="button"
             onClick={() => setShowBasemapPicker(v => !v)}
-            data-tour="map-basemap-button"
             className={`shrink-0 w-9 h-9 rounded-full flex items-center justify-center active:scale-95 transition-all ${
               showBasemapPicker ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'
             }`}
@@ -941,7 +940,6 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
           <button
             type="button"
             onClick={handleOpenReadout}
-            data-tour="map-coord-readout"
             className="min-w-0 flex items-center gap-1.5 px-2 h-9 rounded-full text-primary text-[10pt] font-mono active:scale-95 transition-all select-none"
             aria-label="Show coordinate detail"
           >
@@ -951,7 +949,6 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
             type="button"
             onClick={handleRecenterGps}
             disabled={!gpsPosition}
-            data-tour="map-recenter-gps"
             className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all disabled:opacity-30"
             aria-label="Center on my position"
           >
@@ -962,7 +959,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
       {/* Basemap picker — ActionPill row, floats above the island's basemap glyph
           (mirrors the waypoint pin glyph picker convention) */}
       {showBasemapPicker && (
-        <div data-tour="map-basemap-picker" className="absolute bottom-[4.25rem] inset-x-0 flex items-center justify-center z-[1001] pointer-events-none pb-[max(0rem,var(--sab,0px))]">
+        <div className="absolute bottom-[4.25rem] inset-x-0 flex items-center justify-center z-[1001] pointer-events-none pb-[max(0rem,var(--sab,0px))]">
           <ActionPill className="pointer-events-auto">
             {Object.values(TILE_SOURCES).map((src) => {
               const active = basemapId === src.id;

@@ -8,8 +8,6 @@ export interface ActionButtonProps {
   onClick?: () => void
   variant?: ActionButtonVariant
   iconSize?: number
-  /** data-tour attribute for guided-tour anchoring (e.g. an ellipsis trigger). */
-  dataTour?: string
   /** When set, renders a real `<a href>` instead of a `<button>` — the only form
    *  that reliably launches the OS handler for non-http schemes (`mailto:`/`tel:`)
    *  in the installed PWA shell. See src/lib/mailto.ts. `onClick` still fires (e.g.
@@ -24,14 +22,13 @@ const STYLES: Record<ActionButtonVariant, string> = {
   success:  'bg-themeblue2 text-white active:scale-95',
 }
 
-export function ActionButton({ icon: Icon, label, onClick, variant = 'default', iconSize = 16, dataTour, href }: ActionButtonProps) {
+export function ActionButton({ icon: Icon, label, onClick, variant = 'default', iconSize = 16, href }: ActionButtonProps) {
   const className = `w-9 h-9 rounded-full flex items-center justify-center transition-all ${STYLES[variant]}`
   if (href && variant !== 'disabled') {
     return (
       <a
         href={href}
         onClick={onClick}
-        data-tour={dataTour}
         aria-label={label}
         title={label}
         className={className}
@@ -44,7 +41,6 @@ export function ActionButton({ icon: Icon, label, onClick, variant = 'default', 
     <button
       disabled={variant === 'disabled'}
       onClick={onClick}
-      data-tour={dataTour}
       aria-label={label}
       title={label}
       className={className}

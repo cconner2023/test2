@@ -5,13 +5,13 @@ import {
 } from 'lucide-react'
 import { useAuth } from '../../Hooks/useAuth'
 import { useBetaBypass } from '../../lib/betaFeatures'
-import { ConfirmDialog } from '../ConfirmDialog'
-import { EmptyState } from '../EmptyState'
-import { ActionPill } from '../ActionPill'
-import { ActionButton } from '../ActionButton'
-import { OverlayActionMenu } from '../OverlayActionMenu'
+import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
+import { EmptyState } from '@/Components/primitives/EmptyState'
+import { ActionPill } from '@/Components/primitives/ActionPill'
+import { ActionButton } from '@/Components/primitives/ActionButton'
+import { OverlayActionMenu } from '@/Components/primitives/OverlayActionMenu'
 import { PreviewOverlay } from '../PreviewOverlay'
-import { TextInput } from '../FormInputs'
+import { TextInput } from '@/Components/primitives/FormInputs'
 import { validatePasswordComplexity } from '../../lib/constants'
 import {
   mintEventIntakeCredential,
@@ -311,7 +311,7 @@ export function IntakeMintSection({ clinicId, oncallCount = 0, onOncallEnabledCh
   if (loading) return null
 
   return (
-    <section data-tour="clinic-event-intake">
+    <section>
       <div className="pb-2 flex items-center gap-2">
         <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">
           Outside contact

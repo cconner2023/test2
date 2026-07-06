@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Check } from 'lucide-react'
-import { PickerInput } from '../FormInputs'
-import { OverlayStack } from '../OverlayStack'
-import { PillButton } from '../HeaderPill'
+import { PickerInput } from '@/Components/primitives/FormInputs'
+import { OverlayStack } from '@/Components/primitives/OverlayStack'
+import { PillButton } from '@/Components/primitives/HeaderPill'
 import { useClinicMedics } from '../../Hooks/useClinicMedics'
 import { useAuthStore } from '../../stores/useAuthStore'
 

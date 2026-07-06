@@ -53,6 +53,7 @@ import { setupConnectivityListeners, healStuckPendingRecords } from '../lib/sync
 import { getLocalPropertyItems, getLocalPropertyLocations } from '../lib/offlineDb'
 import { invalidate, useInvalidationStore } from './useInvalidationStore'
 import { createLogger } from '../Utilities/Logger'
+import { isLinContainer } from '../Utilities/propertyAuthorized'
 
 const logger = createLogger('PropertyStore')
 
@@ -447,6 +448,17 @@ export const usePropertyStore = create<PropertyState>((set, get) => ({
     for (const locId of allRemovedIds) {
       if (defaultZoneIds.has(locId)) continue
       await deleteLocation(locId, user.id)
+    }
+
+    // Vehicle LINs: a removed vehicle's SHADOW LIN-item goes too. Detach + de-authorize its
+    // authorized components FIRST so removeItem doesn't cascade-delete the BII — they survive
+    // as loose stock (the location null-out below strands them from the removed zone).
+    const shadows = get().items.filter((i) => i.location_id && allRemovedIds.has(i.location_id) && isLinContainer(i))
+    for (const shadow of shadows) {
+      for (const comp of get().items.filter((i) => i.parent_item_id === shadow.id)) {
+        await get().editItem(comp.id, { parent_item_id: null, quantity_authorized: null })
+      }
+      await get().removeItem(shadow.id)
     }
 
     const currentItems = get().items

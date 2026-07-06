@@ -21,9 +21,9 @@ import { useLongPress } from '../../Hooks/useLongPress'
 import { summarizePmcs, pmcsOpened } from '../../lib/pmcsFold'
 import type { SelectedRecord } from './PropertyRecordDetail'
 import type { PendingTurnIn } from './PropertyTurnInDetail'
-import { SectionCard, SectionHeader } from '../Section'
-import { AnchoredMenu } from '../LiftedRowMenu'
-import type { ContextMenuItem } from '../ContextMenu'
+import { SectionCard, SectionHeader } from '@/Components/primitives/Section'
+import { AnchoredMenu } from '@/Components/primitives/LiftedRowMenu'
+import type { ContextMenuItem } from '@/Components/primitives/ContextMenu'
 import { expiryStatus, type HandReceipt, type CustodyLedgerEntry, type TurnInDoc } from '../../Types/PropertyTypes'
 import type { AuditEvent } from '../../lib/auditTypes'
 
@@ -451,11 +451,11 @@ export function CustodyPanel({
     <p className="text-[9pt] text-tertiary italic px-1 py-1">{text}</p>
   )
 
-  // A collapsible SECTION — the SectionHeader primitive (9pt semibold uppercase
-  // primary) with a subtle TRAILING chevron so it reads as a section header you can
-  // collapse, not a tree node. No count identifier per USR. When open, its rows render
-  // as ONE flush SectionCard stack (divide-y between rows), NOT discrete per-item cards.
-  // `empty` bodies (the muted "nothing" line) stay bare on the panel — no card frame.
+  // A collapsible SECTION — a LEADING chevron (matching the property location tree's
+  // group headers) then the SectionHeader primitive (9pt semibold uppercase primary),
+  // so it reads as a collapsible tree node. No count identifier per USR. When open, its
+  // rows render as ONE flush SectionCard stack (divide-y between rows), NOT discrete
+  // per-item cards. `empty` bodies (the muted "nothing" line) stay bare — no card frame.
   const renderGroup = (key: string, title: string, body: ReactNode, empty = false) => {
     const open = expanded.has(key)
     return (
@@ -463,15 +463,14 @@ export function CustodyPanel({
         <button
           type="button"
           onClick={() => toggle(key)}
-          className="w-full flex items-center gap-2 mb-2 text-left"
+          className="w-full flex items-center gap-1.5 mb-2 text-left"
         >
-          <SectionHeader>{title}</SectionHeader>
-          <span className="flex-1" />
           {open ? (
             <ChevronDown size={14} className="text-tertiary/50 shrink-0" />
           ) : (
             <ChevronRight size={14} className="text-tertiary/50 shrink-0" />
           )}
+          <SectionHeader>{title}</SectionHeader>
         </button>
         {open &&
           (empty ? body : <SectionCard className="divide-y divide-tertiary/8">{body}</SectionCard>)}
@@ -481,7 +480,9 @@ export function CustodyPanel({
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4 space-y-4">
+      {/* pb-24 clears the glass BottomIsland that floats over this panel (both the
+          desktop center pane and the mobile custody overlay). */}
+      <div className="flex-1 min-h-0 overflow-y-auto px-4 pt-4 pb-24 space-y-4">
         {/* Section order (USR): Dispatch · PMCS · Signed Out · Turn-In · Expired · Usage. */}
 
         {/* Dispatch activity (this week). Always shown so an empty group reads as

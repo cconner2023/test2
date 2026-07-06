@@ -2,8 +2,8 @@ import { memo } from 'react'
 import { Check } from 'lucide-react'
 import { useTC3Store } from '../../stores/useTC3Store'
 import { getValidTreatments, getRegionLabel } from '../../Utilities/bodyRegionMap'
-import { SectionHeader } from '../Section'
-import { DatePickerInput, PickerInput } from '../FormInputs'
+import { SectionHeader } from '@/Components/primitives/Section'
+import { DatePickerInput, PickerInput } from '@/Components/primitives/FormInputs'
 import type {
   TC3Marker,
   InjuryType,

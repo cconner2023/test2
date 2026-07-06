@@ -6,18 +6,18 @@ import { useEditableClinicContent } from '../../Hooks/useEditableClinicContent';
 import type { UserTypes, PlanBlockKey, PlanOrderSet, PlanOrderTags } from '../../Data/User';
 import { PLAN_ORDER_CATEGORIES } from '../../Data/User';
 import { PreviewOverlay } from '../PreviewOverlay';
-import { SearchInput } from '../SearchInput';
-import { TextInput } from '../FormInputs';
-import { ActionButton } from '../ActionButton';
+import { SearchInput } from '@/Components/primitives/SearchInput';
+import { TextInput } from '@/Components/primitives/FormInputs';
+import { ActionButton } from '@/Components/primitives/ActionButton';
 import { PlanAllBlocksPreview } from '../PlanBlockPreview';
 import { CATEGORY_META, PlanTagManager } from './PlanTagManager';
 import { OrderSetManager } from './OrderSetManager';
 import { useClusterEditItem } from './ClusterEditPicker';
 import { useNoteBlocksTransferItems } from './NoteBlocksTransferMenu';
 import { useNoteBlocksTransfer } from '../../Hooks/useNoteBlocksTransfer';
-import { ActionPill } from '../ActionPill'
-import { OverlayHeaderMenu } from '../OverlayHeaderMenu';
-import type { ContextMenuItem } from '../ContextMenu';
+import { ActionPill } from '@/Components/primitives/ActionPill'
+import { OverlayHeaderMenu } from '@/Components/primitives/OverlayHeaderMenu';
+import type { ContextMenuItem } from '@/Components/primitives/ContextMenu';
 
 const ALL_KEYS: PlanBlockKey[] = [...PLAN_ORDER_CATEGORIES, 'instructions'];
 const EMPTY_TAGS: PlanOrderTags = { referral: [], meds: [], radiology: [], lab: [], followUp: [] };
@@ -215,7 +215,7 @@ export const PlanPanel = () => {
                     placeholder="Search order sets and tags..."
                 />
             </div>
-            <div className="px-5 py-4 space-y-5" data-tour="plan-settings-panel">
+            <div className="px-5 py-4 space-y-5">
                     <p className="text-[10pt] text-tertiary leading-relaxed">
                         Manage order tags and order sets for the plan section of your notes.
                         {(clinicPlanOrderTags || (clinicPlanOrderSets?.length ?? 0) > 0) && (

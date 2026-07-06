@@ -3,25 +3,25 @@ import type { CalendarEvent } from '../../Types/CalendarTypes';
 import { useSpring, animated } from '@react-spring/web';
 import { ChevronLeft, ChevronRight, Settings, MapPin, Route, Pentagon, Trash2, X, Ruler, RadioTower, Undo2, Activity, Pause, Play, Square, Plus, Check, Navigation, Layers, Pencil, Clock, MoreHorizontal, MessageSquare, Share2, Copy } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import { ActionSheet, type ActionSheetOption } from '../ActionSheet';
-import { AddFab } from '../AddFab';
-import { ActionPill } from '../ActionPill';
-import { ConfirmDialog } from '../ConfirmDialog';
+import { ActionSheet, type ActionSheetOption } from '@/Components/primitives/ActionSheet';
+import { AddFab } from '@/Components/primitives/AddFab';
+import { ActionPill } from '@/Components/primitives/ActionPill';
+import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog';
 
 function waypointGlyphIcon(type: WaypointType): LucideIcon {
   return ((props: { size?: number }) => (
     <WaypointIcon type={type} color="currentColor" size={props.size ?? 16} />
   )) as unknown as LucideIcon;
 }
-import { LoadingSpinner } from '../LoadingSpinner';
-import { LoadingOverlay } from '../LoadingOverlay';
-import { BaseDrawer } from '../BaseDrawer';
-import { Sheet } from '../Sheet';
-import { HeaderPill, PillButton } from '../HeaderPill';
-import { SearchInput } from '../SearchInput';
-import { ContentWrapper } from '../ContentWrapper';
-import { ErrorDisplay } from '../ErrorDisplay';
-import { TextInput } from '../FormInputs';
+import { LoadingSpinner } from '@/Components/primitives/LoadingSpinner';
+import { LoadingOverlay } from '@/Components/primitives/LoadingOverlay';
+import { BaseDrawer } from '@/Components/primitives/BaseDrawer';
+import { Sheet } from '@/Components/primitives/Sheet';
+import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill';
+import { SearchInput } from '@/Components/primitives/SearchInput';
+import { ContentWrapper } from '@/Components/primitives/ContentWrapper';
+import { ErrorDisplay } from '@/Components/primitives/ErrorDisplay';
+import { TextInput } from '@/Components/primitives/FormInputs';
 import { useGeolocation } from '../../Hooks/useGeolocation';
 import { useIsMobile } from '../../Hooks/useIsMobile';
 import { useAuth } from '../../Hooks/useAuth';
@@ -63,7 +63,7 @@ import { useNavigationStore } from '../../stores/useNavigationStore';
 import { resolveSearch } from './searchResolver';
 import { MapSearchOverlay, type SearchOverlaySelection } from './MapSearchOverlay';
 import { useMapSearchStore } from '../../stores/useMapSearchStore';
-import { LiftedRowMenu } from '../LiftedRowMenu';
+import { LiftedRowMenu } from '@/Components/primitives/LiftedRowMenu';
 import { useShareToChat } from '../Messages/ShareToChatPicker';
 import { parseGPX, serializeGPX } from '../../lib/gpx';
 import { parseKML, serializeKML } from '../../lib/kml';
@@ -1556,41 +1556,6 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
     }
   }, [drawMode, overlayId, overlays, handleOpenOverlay, focusFeature]);
 
-  // Tour orchestrator hooks — let the guided Map tour drive selection and
-  // settings without depending on click coordinates the tour can't compute.
-  useEffect(() => {
-    const onSelect = (e: Event) => {
-      const detail = (e as CustomEvent<{ featureId: string }>).detail;
-      if (!detail?.featureId) return;
-      for (const ov of overlays) {
-        const found = ov.features.find(f => f.id === detail.featureId);
-        if (found) {
-          handleSelectFeatureFromTree(found, ov.id);
-          return;
-        }
-      }
-    };
-    const onOpenSettings = () => setShowPopover(true);
-    const onCloseSettings = () => setShowPopover(false);
-    const onClearSelection = () => setSelectedFeatureId(null);
-    const onOpenMobileTree = () => setShowMobileTree(true);
-    const onCloseMobileTree = () => setShowMobileTree(false);
-    window.addEventListener('tour:map-select-feature', onSelect);
-    window.addEventListener('tour:map-open-settings', onOpenSettings);
-    window.addEventListener('tour:map-close-settings', onCloseSettings);
-    window.addEventListener('tour:map-clear-selection', onClearSelection);
-    window.addEventListener('tour:map-open-mobile-tree', onOpenMobileTree);
-    window.addEventListener('tour:map-close-mobile-tree', onCloseMobileTree);
-    return () => {
-      window.removeEventListener('tour:map-select-feature', onSelect);
-      window.removeEventListener('tour:map-open-settings', onOpenSettings);
-      window.removeEventListener('tour:map-close-settings', onCloseSettings);
-      window.removeEventListener('tour:map-clear-selection', onClearSelection);
-      window.removeEventListener('tour:map-open-mobile-tree', onOpenMobileTree);
-      window.removeEventListener('tour:map-close-mobile-tree', onCloseMobileTree);
-    };
-  }, [overlays, handleSelectFeatureFromTree]);
-
   const handleUpdateSelectedFeature = useCallback((updated: OverlayFeature) => {
     setFeatures(prev => prev.map(f => f.id === updated.id ? updated : f));
   }, []);
@@ -2058,7 +2023,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
               (selectedFeature || tempPoint || tempRoute || geoPdfFormOpen) ? 'w-0 opacity-0 border-r-0' : 'w-60 opacity-100'
             }`}>
               <div className="shrink-0 flex items-center gap-1.5 px-3 pt-2 pb-1">
-                <div data-tour="map-feature-search" className="flex-1 min-w-0">
+                <div className="flex-1 min-w-0">
                   <SearchInput
                     value={searchQuery}
                     onChange={setSearchQuery}
@@ -2069,7 +2034,6 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                 <button
                   type="button"
                   onClick={() => setShowPopover(prev => !prev)}
-                  data-tour="map-settings-button"
                   className={`shrink-0 w-9 h-9 rounded-full flex items-center justify-center active:scale-95 transition-all ${
                     showPopover ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'
                   }`}
@@ -2173,7 +2137,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
             )}
 
             {/* Map area */}
-            <div data-tour="map-canvas" className="flex-1 min-h-0 relative">
+            <div className="flex-1 min-h-0 relative">
               <MapView
                 ref={mapRef}
                 features={renderedFeatures}
@@ -2546,7 +2510,6 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                 {/* Add FAB — opens a context menu of create tools (Pin / Route / Area / Measure / Track).
                     Lights up + swaps glyph while a create mode is active; tap again to exit to pan. */}
                 <AddFab
-                  tour="map-add-fab"
                   size="lg"
                   tray={false}
                   onClick={() => {
@@ -2685,7 +2648,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
 
               {/* Track recorder card — visible while in track mode OR while a recording is in progress */}
               {(drawMode === 'track' || recorder.status !== 'idle') && (
-                <div data-tour="map-track-recorder" className="absolute bottom-3 left-3 z-[1000] flex items-center gap-3
+                <div className="absolute bottom-3 left-3 z-[1000] flex items-center gap-3
                   bg-themewhite2/95 dark:bg-themewhite3/95 backdrop-blur-sm
                   px-3 py-2 rounded-lg shadow-sm">
                   <div className="relative w-10 h-10 rounded-full bg-themewhite shrink-0 flex items-center justify-center">

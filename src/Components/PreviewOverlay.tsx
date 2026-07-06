@@ -3,11 +3,11 @@ import { useSpring, animated } from '@react-spring/web'
 import { Plus, Check, X, ChevronLeft } from 'lucide-react'
 import type { ReactNode } from 'react'
 import type { LucideIcon } from 'lucide-react'
-import { SearchInput } from './SearchInput'
-import { BaseOverlay, Z } from './BaseOverlay'
-import { ActionButton } from './ActionButton'
-import { HudLoader } from './HudLoader'
-import { TextInput } from './FormInputs'
+import { SearchInput } from '@/Components/primitives/SearchInput'
+import { BaseOverlay, Z } from '@/Components/primitives/BaseOverlay'
+import { ActionButton } from '@/Components/primitives/ActionButton'
+import { HudLoader } from '@/Components/primitives/HudLoader'
+import { TextInput } from '@/Components/primitives/FormInputs'
 
 export interface ContextMenuAction {
   key: string

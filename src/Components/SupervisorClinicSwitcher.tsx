@@ -19,7 +19,7 @@ import { useShallow } from 'zustand/react/shallow'
 import { ArrowLeftRight, Check } from 'lucide-react'
 import { useAuth } from '../Hooks/useAuth'
 import { useCalendarStore } from '../stores/useCalendarStore'
-import { ActionButton } from './ActionButton'
+import { ActionButton } from '@/Components/primitives/ActionButton'
 import { PreviewOverlay } from './PreviewOverlay'
 
 interface ClinicOption {
@@ -47,7 +47,7 @@ export function SupervisorClinicFilterPanel() {
   if (!options) return null
 
   return (
-    <div data-tour="supervisor-clinic-filter" className="flex flex-col min-h-0">
+    <div className="flex flex-col min-h-0">
       <div className="shrink-0 px-4 py-3 border-t border-primary/10">
         <p className="text-[10pt] font-medium text-tertiary uppercase tracking-wide">Operating As</p>
       </div>
@@ -97,7 +97,7 @@ export function ClusterFilterPanel() {
   }
 
   return (
-    <div data-tour="cluster-filter" className="flex flex-col min-h-0">
+    <div className="flex flex-col min-h-0">
       <div className="shrink-0 px-4 py-3 border-t border-primary/10">
         <p className="text-[10pt] font-medium text-tertiary uppercase tracking-wide">Filter Cluster</p>
       </div>

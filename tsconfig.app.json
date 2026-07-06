@@ -20,6 +20,12 @@
     "moduleDetection": "force",
     "noEmit": true,
     "jsx": "react-jsx",
+    /* Path alias — @/ maps to src/ so imports are depth-independent and
+       files can be relocated without rewriting relative paths. */
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"]
+    },
     /* Linting */
     "strict": true,
     "noUnusedLocals": true,

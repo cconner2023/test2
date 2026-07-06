@@ -2,7 +2,7 @@ import { useCallback, useContext, useMemo, useState } from 'react'
 import { ChevronDown, Plus } from 'lucide-react'
 import { PreviewOverlay } from '../PreviewOverlay'
 import { StackNavContext } from '../stackNav'
-import { TextInput } from '../FormInputs'
+import { TextInput } from '@/Components/primitives/FormInputs'
 import type { OverlayOption } from './EventForm'
 import type { LinkedFeatureRef } from '../../Types/MissionTypes'
 

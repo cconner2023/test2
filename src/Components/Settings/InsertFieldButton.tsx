@@ -1,6 +1,6 @@
 import { TextCursor, ChevronDown, X } from 'lucide-react';
-import { ActionButton } from '../ActionButton';
-import { ActionPill } from '../ActionPill';
+import { ActionButton } from '@/Components/primitives/ActionButton';
+import { ActionPill } from '@/Components/primitives/ActionPill';
 import type { FieldInfo } from '../../Utilities/templateParser';
 
 /**
@@ -54,7 +54,6 @@ export function FieldInsertFooter({
             <ActionPill>
                 <button
                     type="button"
-                    data-tour="expander-insert-field"
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={onStart}
                     title="Insert field"

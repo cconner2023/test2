@@ -1,9 +1,11 @@
-import { useState, useEffect } from 'react'
-import { AlertTriangle } from 'lucide-react'
-import { SectionCard } from '../Section'
+import { useMemo, useState, useEffect } from 'react'
+import { AlertTriangle, MoreHorizontal, Eye, Pencil, Trash2 } from 'lucide-react'
+import { SectionCard } from '@/Components/primitives/Section'
+import { LiftedRowMenu } from '@/Components/primitives/LiftedRowMenu'
 import { useIsMobile } from '../../Hooks/useIsMobile'
 import type { LocalPropertyItem, LocalPropertyLocation, HolderInfo } from '../../Types/PropertyTypes'
 import { expiryStatus } from '../../Types/PropertyTypes'
+import { isLinContainer, groupAuthorized } from '../../Utilities/propertyAuthorized'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { fetchItemLedger } from '../../lib/propertyService'
 import { ItemTimeline } from '../Timeline/ItemTimeline'
@@ -13,6 +15,14 @@ interface PropertyItemDetailProps {
   locations: LocalPropertyLocation[]
   holders: Map<string, HolderInfo>
   items: LocalPropertyItem[]
+  /** Auth-context component actions. When provided AND the viewed item is a LIN container, the
+   *  Components section renders cards IDENTICAL to the Cluster Hand Receipt (name · nomenclature ·
+   *  NSN · on-hand / authorized) with a trailing ellipsis (View · Edit · Delete = de-authorize);
+   *  a row tap opens the component's own card. ADD lives in the host header ellipsis, not here.
+   *  Omitted everywhere else → the plain read-only sub-item list. */
+  onViewComponent?: (item: LocalPropertyItem) => void
+  onEditComponent?: (item: LocalPropertyItem) => void
+  onDeleteComponent?: (item: LocalPropertyItem) => void
 }
 
 function DetailRow({ label, value }: { label: string; value: string | null | undefined }) {
@@ -48,7 +58,7 @@ function WarnBadge({ label }: { label: string }) {
  * surface just reads the item: identity fields, the split-across-holders "Signed
  * out" fold, notes, components, and the lifecycle timeline.
  */
-export function PropertyItemDetail({ item, locations, holders, items }: PropertyItemDetailProps) {
+export function PropertyItemDetail({ item, locations, holders, items, onViewComponent, onEditComponent, onDeleteComponent }: PropertyItemDetailProps) {
   const isMobile = useIsMobile()
   const currentUserId = useAuthStore(s => s.user?.id ?? null)
 
@@ -106,7 +116,22 @@ export function PropertyItemDetail({ item, locations, holders, items }: Property
   const isMissing = item.condition_code === 'missing'
   const expiry = expiryStatus(item.expiry_date ?? null)
   const isExpired = expiry === 'expired'
-  const isDepleted = !item.is_serialized && item.quantity <= 0
+  // A LIN is a pure hand-receipt header (quantity 0, never stocked itself) — it must never wear
+  // the Depleted badge; depletion is a property of its component lines, not the LIN.
+  const isLin = isLinContainer(item)
+  const isDepleted = !item.is_serialized && item.quantity <= 0 && !isLin
+
+  // Auth-context Components for a LIN: the SAME tracked lines the Cluster Hand Receipt shows
+  // (name · nomenclature · NSN · on-hand / authorized), reused verbatim from groupAuthorized so
+  // the cards are identical and the on-hand aggregation never diverges. Only computed when the
+  // host wired the component actions AND this is a LIN.
+  const authLines = useMemo(
+    () => (onViewComponent && isLin ? groupAuthorized(items).groups.find(g => g.skoId === item.id)?.lines ?? [] : null),
+    [onViewComponent, isLin, items, item.id],
+  )
+
+  // Component ellipsis (View · Edit · Delete=de-authorize) anchor.
+  const [compMenu, setCompMenu] = useState<{ item: LocalPropertyItem; rect: DOMRect } | null>(null)
 
   return (
     <div className={`flex flex-col h-full ${isMobile ? 'px-4 py-4 space-y-4' : 'px-3 py-3 space-y-3'}`}>
@@ -187,14 +212,53 @@ export function PropertyItemDetail({ item, locations, holders, items }: Property
         </SectionCard>
       )}
 
-      {/* Sub-items */}
-      {subItems.length > 0 && (
+      {/* Components — auth context (LIN): cards IDENTICAL to the Cluster Hand Receipt (name ·
+          nomenclature · NSN, on-hand / authorized centered right). Trailing ellipsis =
+          View · Edit · Delete (de-authorize); a row tap opens the component's own card; the "+"
+          adds a component parented to this LIN. No count indicator. */}
+      {authLines ? (
         <div>
           <div className="flex items-center gap-2 mb-2">
             <span className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Components</span>
-            <span className="text-[9pt] px-1.5 py-0.5 rounded-full bg-tertiary/10 text-tertiary font-medium">
-              {subItems.length}
-            </span>
+          </div>
+          <SectionCard>
+            {authLines.length === 0 ? (
+              <div className={`${isMobile ? 'px-4 py-3' : 'px-3 py-2'} text-[10pt] text-tertiary`}>
+                No components assigned yet — add one with +
+              </div>
+            ) : (
+              authLines.map(l => {
+                const comp = items.find(i => i.id === l.itemId)
+                return (
+                  <div
+                    key={l.itemId}
+                    className={`group flex items-center gap-2 ${isMobile ? 'px-4 py-3' : 'px-3 py-2'} border-b border-primary/5 last:border-b-0`}
+                  >
+                    <button type="button" className="min-w-0 flex-1 text-left" onClick={() => comp && onViewComponent?.(comp)}>
+                      <span className="block text-[10pt] text-primary truncate">{l.name}</span>
+                      {l.nomenclature && <span className="block text-[9pt] text-tertiary truncate">{l.nomenclature}</span>}
+                      {l.nsn && <span className="block text-[9pt] text-tertiary truncate">NSN {l.nsn}</span>}
+                    </button>
+                    {/* On-hand / authorized, both in base (EA) units so the pair is directly comparable. */}
+                    <span className="text-[10pt] text-tertiary tabular-nums shrink-0">{l.onHand} / {l.authorizedBase}</span>
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); comp && setCompMenu({ item: comp, rect: (e.currentTarget as HTMLElement).getBoundingClientRect() }) }}
+                      aria-label="Component actions"
+                      className="w-7 h-7 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all shrink-0"
+                    >
+                      <MoreHorizontal size={15} />
+                    </button>
+                  </div>
+                )
+              })
+            )}
+          </SectionCard>
+        </div>
+      ) : subItems.length > 0 && (
+        <div>
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Components</span>
           </div>
           <SectionCard>
             {subItems.map(sub => (
@@ -207,6 +271,22 @@ export function PropertyItemDetail({ item, locations, holders, items }: Property
             ))}
           </SectionCard>
         </div>
+      )}
+
+      {/* Component ellipsis menu (auth context) — View · Edit · Delete (de-authorize). */}
+      {compMenu && (
+        <LiftedRowMenu
+          isOpen
+          anchorRect={compMenu.rect}
+          onClose={() => setCompMenu(null)}
+          layout="list"
+          align="right"
+          items={[
+            { key: 'view', label: 'View', icon: Eye, onAction: () => onViewComponent?.(compMenu.item) },
+            { key: 'edit', label: 'Edit', icon: Pencil, onAction: () => onEditComponent?.(compMenu.item) },
+            { key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => onDeleteComponent?.(compMenu.item) },
+          ]}
+        />
       )}
 
       {/* Lifecycle timeline (creation, move, assign/transfer, edit, expend, faults) */}

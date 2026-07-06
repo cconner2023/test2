@@ -1,11 +1,12 @@
 import { useState, useMemo, useCallback } from 'react'
 import { ChevronRight, ChevronDown, Pencil, Trash2, FolderPlus, PackagePlus, MoreHorizontal, FolderClosed, Layers } from 'lucide-react'
-import { type ContextMenuItem } from '../ContextMenu'
-import { LiftedRowMenu } from '../LiftedRowMenu'
+import { type ContextMenuItem } from '@/Components/primitives/ContextMenu'
+import { LiftedRowMenu } from '@/Components/primitives/LiftedRowMenu'
 import type { LocalPropertyLocation, LocalPropertyItem, HolderInfo } from '../../Types/PropertyTypes'
 import { itemAlert } from '../../Types/PropertyTypes'
 import { isStructuralZone } from './levelUtils'
 import { itemPassesLens } from '../../Utilities/subCluster'
+import { isLinContainer, isAuthTarget } from '../../Utilities/propertyAuthorized'
 import { useVehicleDispatches } from '../../Hooks/useVehicleDispatches'
 import { DispatchDot } from './DispatchDot'
 
@@ -64,7 +65,7 @@ interface TreeNode {
 
 export function PropertyLocationTree({
   locations,
-  items,
+  items: itemsRaw,
   clinicName,
   holders,
   searchQuery,
@@ -86,7 +87,14 @@ export function PropertyLocationTree({
   onAddLevel,
   onAddItemAtLocation,
 }: PropertyLocationTreeProps) {
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
+  // LIN containers are PHR headers, never discrete placeable property — exclude them from
+  // every tree surface (main rail, Locations sheet, and the scoped location detail, which is
+  // fed the unfiltered store items). Also keeps a component's LIN parent out of `presentIds`,
+  // so the component renders at its own location instead of nesting under an absent header.
+  const items = useMemo(() => itemsRaw.filter((i) => !isLinContainer(i) && !isAuthTarget(i)), [itemsRaw])
+
+  // Personnel starts collapsed so a large roster doesn't bury the physical zones.
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set(['__personnel__']))
   // Current open dispatches per vehicle → the row red-dot (expiring/expired).
   const dispatches = useVehicleDispatches(locations[0]?.clinic_id ?? null)
   const [contextMenu, setContextMenu] = useState<{ kind: 'location' | 'item'; id: string; rect: DOMRect } | null>(null)
@@ -114,9 +122,16 @@ export function PropertyLocationTree({
       else childrenMap.set(key, [loc])
     }
 
+    // An item nests under its parent (and so is omitted here) ONLY when that parent is
+    // itself present in the tree — a real, placed SKO kit. A component whose parent is
+    // absent (a PHR LIN header, filtered out of the canvas/tree; or an orphan) is a
+    // standalone placeable item and renders at its own location.
+    const presentIds = new Set(items.map((i) => i.id))
+    const isNested = (i: LocalPropertyItem) => !!i.parent_item_id && presentIds.has(i.parent_item_id)
+
     const itemsByLocation = new Map<string | null, LocalPropertyItem[]>()
     for (const item of items) {
-      if (item.parent_item_id) continue
+      if (isNested(item)) continue
       const key = item.location_id ?? null
       const arr = itemsByLocation.get(key)
       if (arr) arr.push(item)
@@ -164,9 +179,10 @@ export function PropertyLocationTree({
       .map(buildNode)
       .filter(n => !(n.location.is_turn_in_zone && n.children.length === 0 && n.items.length === 0))
 
-    // Unassigned = no location at all
+    // Unassigned = no location at all (and not nested under a present kit — a LIN's
+    // unplaced component is a real standalone item that belongs here, not hidden).
     const unassignedItems = items
-      .filter(i => !i.parent_item_id && !i.location_id)
+      .filter(i => !isNested(i) && !i.location_id)
       .sort((a, b) => a.name.localeCompare(b.name))
 
     return { roots, unassignedItems, memberNodes, rootItems: [] as LocalPropertyItem[] }
@@ -413,7 +429,33 @@ export function PropertyLocationTree({
         </div>
       )}
 
-      {displayMembers.map((node) => renderNode(node, 0))}
+      {/* Personnel zones — grouped under one collapsible node (default collapsed) so a
+          large roster doesn't bury the physical zones or force endless scrolling. Sits ABOVE
+          the committed/physical zones (personnel render above them on the canvas too). Not in
+          scoped mode. Search force-expands it (like Unassigned) to reveal matches. */}
+      {!rootId && displayMembers.length > 0 && (
+        <div>
+          <div
+            className="flex items-center gap-2 py-2 pr-6 transition-colors border-l-2 hover:bg-secondary/5 border-l-transparent"
+            style={{ paddingLeft: '16px' }}
+          >
+            <button
+              className="p-0.5 rounded hover:bg-secondary/10 text-tertiary shrink-0"
+              onClick={(e) => { e.stopPropagation(); toggleCollapse('__personnel__') }}
+            >
+              {collapsed.has('__personnel__') ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
+            </button>
+            <span className="text-[10pt] font-medium text-primary truncate flex-1">Personnel</span>
+          </div>
+
+          {(isSearching || !collapsed.has('__personnel__')) && (
+            <>
+              {displayMembers.map((node) => renderNode(node, 1))}
+            </>
+          )}
+        </div>
+      )}
+
       {displayRoots.map((node) => renderNode(node, 0))}
 
       {/* Scoped mode: the selected zone's own direct items, as top-level rows */}
@@ -433,9 +475,6 @@ export function PropertyLocationTree({
               {collapsed.has('__unassigned__') ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
             </button>
             <span className="text-[10pt] font-medium text-tertiary italic flex-1">Unassigned</span>
-            <span className="text-[10pt] font-medium px-1.5 py-0.5 rounded-full bg-tertiary/10 text-tertiary shrink-0">
-              {displayUnassigned.length}
-            </span>
           </div>
 
           {(isSearching || !collapsed.has('__unassigned__')) && (

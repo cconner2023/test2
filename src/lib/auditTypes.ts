@@ -105,6 +105,16 @@ export type AuditEventType =
   | 'dispatch.opened'
   | 'dispatch.closed'
   // training — payload: { training_item_id, result?, step_results?, supervisor_notes?, due_date?, supersedes? }
+  //
+  // DISGUISED ENCOUNTER: an algorithm ENCOUNTER (real patient treatment) is
+  // logged as an ordinary `read.recorded` for the algorithm id
+  // (training_item_id = AlgorithmData.id, e.g. "A-1"). The event is
+  // INDISTINGUISHABLE from a genuine training read in the cleartext spine — the
+  // training_item_id rides in the encrypted payload just like any read — giving
+  // plausible deniability against a DB/wire adversary. Do NOT add an "encounter"
+  // marker to the payload: that anomaly would break the blend. It folds as a real
+  // 'read' completion (trainingFold), so it counts as training. See
+  // useAlgorithmMetrics.logNow.
   | 'read.recorded'
   | 'test.graded'
   | 'assignment.created'

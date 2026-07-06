@@ -185,7 +185,7 @@ export function DayView({ date, events, onSelectEvent, onMoveEvent, onEventConte
   }, [onSelectEvent])
 
   return (
-    <div data-tour="calendar-day-view" className="flex flex-col h-full">
+    <div className="flex flex-col h-full">
       <div
         ref={scrollRef}
         className={`flex-1 min-h-0 ${isDragging ? 'overflow-hidden' : 'overflow-y-auto'}`}

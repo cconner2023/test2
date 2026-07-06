@@ -1,4 +1,4 @@
-import { Section, SectionCard } from '../Section'
+import { Section, SectionCard } from '@/Components/primitives/Section'
 import type { PatientType } from './burnDiagramTypes'
 import { BodyRegionSvg } from './BodyRegionSvg'
 

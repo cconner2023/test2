@@ -1,5 +1,5 @@
 import { useId } from 'react'
-import { HUD_GROUPS, HUD_SWEEPS, STAR_SCALE, HUD_STYLE } from '../lib/hudGeometry'
+import { HUD_GROUPS, HUD_SWEEPS, STAR_SCALE, HUD_STYLE } from '@/lib/hudGeometry'
 
 /**
  * Sci-fi HUD loading animation — animated-SVG loader derived from the

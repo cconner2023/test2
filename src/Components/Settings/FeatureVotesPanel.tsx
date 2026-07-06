@@ -10,11 +10,11 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { Check, Loader2, MessageCircleQuestion, MessageSquare } from 'lucide-react'
-import { LoadingOverlay } from '../LoadingOverlay'
+import { LoadingOverlay } from '@/Components/primitives/LoadingOverlay'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { useFeatureVotesStore, OTHER_CANDIDATE_ID } from '../../stores/useFeatureVotesStore'
-import { ErrorDisplay } from '../ErrorDisplay'
-import { EmptyState } from '../EmptyState'
+import { ErrorDisplay } from '@/Components/primitives/ErrorDisplay'
+import { EmptyState } from '@/Components/primitives/EmptyState'
 
 interface Props {
   onOpenFeedback: () => void

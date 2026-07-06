@@ -3,7 +3,7 @@ import type { CalendarEvent } from '../../Types/CalendarTypes'
 import type { ResourceAllocation } from '../../Types/MissionTypes'
 import { useMissionBoard } from '../../Hooks/useMissionBoard'
 import { AllocationPanel } from './AllocationPanel'
-import { LoadingOverlay } from '../LoadingOverlay'
+import { LoadingOverlay } from '@/Components/primitives/LoadingOverlay'
 import { usePropertyStore } from '../../stores/usePropertyStore'
 import { useIsMobile } from '../../Hooks/useIsMobile'
 

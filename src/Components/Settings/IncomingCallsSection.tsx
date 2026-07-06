@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { PhoneIncoming, PhoneOff, Radio } from 'lucide-react'
-import { Section, SectionCard } from '../Section'
+import { Section, SectionCard } from '@/Components/primitives/Section'
 import { ToggleSwitch } from './ToggleSwitch'
 import { useUserProfile } from '../../Hooks/useUserProfile'
 import { useAuthStore } from '../../stores/useAuthStore'

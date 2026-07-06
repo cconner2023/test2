@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import { Palette, Shield, Lock, MessageSquare, Bell, Stethoscope, Scale, X, Building2, Check, Radio, Compass, LayoutDashboard, HardDrive, Smartphone } from 'lucide-react';
-import { BaseDrawer } from '../BaseDrawer';
+import { Palette, Shield, Lock, MessageSquare, Bell, Stethoscope, Scale, X, Building2, Check, Radio, LayoutDashboard, HardDrive, Smartphone, BookOpen } from 'lucide-react';
+import { BaseDrawer } from '@/Components/primitives/BaseDrawer';
 import { resizeImage } from '../../Hooks/useProfileAvatar';
 import { useAvatar } from '../../Utilities/AvatarContext';
 import { useUserProfile } from '../../Hooks/useUserProfile';
@@ -25,21 +25,19 @@ import { clearServiceWorkerCaches } from '../../lib/cacheService';
 import { deleteOwnAccount } from '../../lib/authService';
 import { PANEL, PANEL_TARGET, type PanelId, type SettingsItem } from './SettingsTypes';
 import { UI_TIMING } from '../../Utilities/constants';
-import { GUIDED_TOURS_ENABLED } from '../../lib/featureFlags';
 import { useBetaFlag } from '../../lib/betaFeatures';
 import { MainSettingsPanel } from './MainSettingsPanel';
 import { AvatarPickerPanel } from './AvatarPickerPanel';
-import { ContentWrapper } from '../ContentWrapper';
-import { HeaderPill, PillButton } from '../HeaderPill';
+import { ContentWrapper } from '@/Components/primitives/ContentWrapper';
+import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill';
 import { SessionsDevicesPanel } from './SessionsDevicesPanel';
 import { ClinicPanel } from './ClinicPanel';
 import { LoRaPanel } from './LoRaPanel';
-import { ConfirmDialog } from '../ConfirmDialog';
-import { GuidedToursPanel } from './GuidedToursPanel';
-import { GUIDED_TEXT_EXPANDER } from '../../Data/GuidedTourData';
+import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog';
 import { ThemePickerPanel } from './ThemePickerPanel';
 import { StoragePanel } from './StoragePanel';
 import { FeatureVotesPanel } from './FeatureVotesPanel';
+import { useNavigationStore } from '../../stores/useNavigationStore';
 import { useFeatureVotesStore, selectHasUnvotedActiveCycle } from '../../stores/useFeatureVotesStore';
 import { useTheme } from '../../Utilities/ThemeContext';
 
@@ -57,7 +55,10 @@ export const Settings = ({
 }: SettingsDrawerProps) => {
     const { currentAvatar, setAvatar, avatarList, customImage, isCustom, setCustomImage, clearCustomImage } = useAvatar();
     const { themeName } = useTheme();
-    const [activePanel, setActivePanel] = useState<'main' | 'release-notes' | 'avatar-picker' | 'user-profile' | 'pin-setup' | 'notification-settings' | 'feedback' | 'note-content' | 'privacy-policy' | 'sessions-devices' | 'clinic' | 'lora' | 'plan-settings' | 'text-templates' | 'provider-templates' | 'guided-tours' | 'overview-widgets' | 'theme-picker' | 'storage' | 'feature-votes' | 'checklists'>('main');
+    const [activePanel, setActivePanel] = useState<'main' | 'release-notes' | 'avatar-picker' | 'user-profile' | 'pin-setup' | 'notification-settings' | 'feedback' | 'note-content' | 'privacy-policy' | 'sessions-devices' | 'clinic' | 'lora' | 'plan-settings' | 'text-templates' | 'provider-templates' | 'overview-widgets' | 'theme-picker' | 'storage' | 'feature-votes' | 'checklists'>('main');
+    // The User Guide is its own top-level drawer (opened from the About row / release
+    // notes), not a Settings sub-panel — so opening it just flips a nav-store flag.
+    const setShowUserGuideDrawer = useNavigationStore((s) => s.setShowUserGuideDrawer);
     const { profile, updateProfile } = useUserProfile();
     const [slideDirection, setSlideDirection] = useState<'left' | 'right' | ''>('');
     const prevVisibleRef = useRef(false);
@@ -125,49 +126,6 @@ export const Settings = ({
         setTimeout(() => setSlideDirection(''), UI_TIMING.SLIDE_ANIMATION);
     }, []);
 
-    // Tour system: listen for panel navigation events
-    useEffect(() => {
-        const handler = (e: Event) => {
-            const panel = (e as CustomEvent).detail as string;
-            if (panel) {
-                handleSlideAnimation('left');
-                setActivePanel(panel as typeof activePanel);
-            }
-        };
-        const backHandler = () => {
-            handleSlideAnimation('right');
-            setActivePanel('main');
-        };
-        window.addEventListener('tour:settings-navigate', handler);
-        window.addEventListener('tour:settings-back', backHandler);
-        return () => {
-            window.removeEventListener('tour:settings-navigate', handler);
-            window.removeEventListener('tour:settings-back', backHandler);
-        };
-    }, [handleSlideAnimation]);
-
-    // Tour system: inject/cleanup demo text expander
-    useEffect(() => {
-        const inject = () => {
-            const current = profile.textExpanders ?? [];
-            if (current.some(e => e.abbr === 'hpi')) return;
-            updateProfile({ textExpanders: [...current, GUIDED_TEXT_EXPANDER] });
-        };
-        const cleanup = () => {
-            const current = profile.textExpanders ?? [];
-            const filtered = current.filter(e => e.abbr !== 'hpi');
-            if (filtered.length !== current.length) {
-                updateProfile({ textExpanders: filtered });
-            }
-        };
-        window.addEventListener('tour:inject-expander', inject);
-        window.addEventListener('tour:cleanup-expander', cleanup);
-        return () => {
-            window.removeEventListener('tour:inject-expander', inject);
-            window.removeEventListener('tour:cleanup-expander', cleanup);
-        };
-    }, [profile.textExpanders, updateProfile]);
-
 const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
         if (id === PANEL.CLOSE) { closeDrawer(); return; }
         if (id === PANEL.BACK_TO_MAIN) { handleSlideAnimation('right'); setActivePanel('main'); return; }
@@ -233,7 +191,9 @@ const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
         items.push({ type: 'header', label: 'About' });
         if (isAuthenticated) {
             items.push(
-                ...(GUIDED_TOURS_ENABLED ? [opt(PANEL.GUIDED_TOURS, <Compass size={20} />, 'Guided Tours', 'Interactive feature walkthroughs')] : []),
+                opt(PANEL.USER_GUIDE, <BookOpen size={20} />, 'User Guide', 'How everything works', {
+                    action: () => { setShowUserGuideDrawer(true); closeDrawer(); },
+                }),
                 opt(PANEL.RELEASE_NOTES, <Shield size={20} />, 'Release Notes', 'What\'s new in this version', hasUnvotedCycle ? { dot: true } : undefined),
             );
         }
@@ -252,7 +212,7 @@ const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
         }
 
         return items;
-    }, [themeName, handleItemClick, isDevRole, isAuthenticated, isSupervisorRole, profile.clinicName, updateProfile, hasUnvotedCycle, whisperNetVisible]);
+    }, [themeName, handleItemClick, isDevRole, isAuthenticated, isSupervisorRole, profile.clinicName, updateProfile, hasUnvotedCycle, whisperNetVisible, setShowUserGuideDrawer]);
 
     // Swipe-back for sub-panels (mobile touch only)
     const swipeHandlers = useSwipeBack(
@@ -323,7 +283,6 @@ const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
             case 'lora':                return { title: 'WhisperNet', ...backTo() };
             case 'pin-setup':           return { title: 'Security', ...backTo() };
             case 'notification-settings': return { title: 'Notifications', ...backTo() };
-            case 'guided-tours':        return { title: 'Guided Tours', ...backTo() };
             case 'feedback':            return { title: 'Feedback', ...backTo() };
             case 'privacy-policy':      return { title: 'Privacy Policy', ...backTo() };
             case 'note-content':            return { title: 'App Content', ...backTo() };
@@ -383,7 +342,6 @@ const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
                                     accent="success"
                                     onClick={() => setClinicSaveRequested(true)}
                                     label="Save"
-                                    data-tour="clinic-save-button"
                                 />
                             ) : (
                                 <PillButton icon={X} onClick={() => guardedClinicAction(handleClose)} label="Close" />
@@ -499,7 +457,6 @@ const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
                                     }}
                                 />
                             ),
-                            'guided-tours':         <GuidedToursPanel onClose={handleClose} />,
                             'release-notes':        <ReleaseNotesPanel onOpenFeatureVotes={() => { handleSlideAnimation('left'); setActivePanel('feature-votes'); }} />,
                             'feature-votes':        <FeatureVotesPanel onOpenFeedback={() => { handleSlideAnimation('left'); setActivePanel('feedback'); }} />,
                             'feedback':             <FeedbackPanel />,

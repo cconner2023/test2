@@ -2,11 +2,11 @@
 import { useEffect, useRef, useState, useCallback, type ReactNode } from 'react';
 import { useDrag } from '@use-gesture/react';
 import { X, ChevronLeft } from 'lucide-react';
-import { HeaderPill, PillButton } from './HeaderPill';
-import { GlassBand } from './GlassBand';
-import { GESTURE_THRESHOLDS, clamp } from '../Utilities/GestureUtils';
-import { DRAWER_TIMING } from '../Utilities/constants';
-import { useIsMobile } from '../Hooks/useIsMobile';
+import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill';
+import { GlassBand } from '@/Components/primitives/GlassBand';
+import { GESTURE_THRESHOLDS, clamp } from '@/Utilities/GestureUtils';
+import { DRAWER_TIMING } from '@/Utilities/constants';
+import { useIsMobile } from '@/Hooks/useIsMobile';
 
 /** Render prop type: children can receive handleClose for animated close */
 type DrawerRenderProp = (handleClose: () => void) => ReactNode;

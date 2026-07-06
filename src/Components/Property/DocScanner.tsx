@@ -8,10 +8,10 @@ import {
   assembleScanPdf, type Quad, type ScanFilter, type RasterImage,
 } from '../../lib/docScan'
 import { openCamera, closeCamera } from '../../lib/vision/camera'
-import { OverlayStack, type StackNav } from '../OverlayStack'
-import { TextInput } from '../FormInputs'
-import { ActionButton } from '../ActionButton'
-import { PillButton } from '../HeaderPill'
+import { OverlayStack, type StackNav } from '@/Components/primitives/OverlayStack'
+import { TextInput } from '@/Components/primitives/FormInputs'
+import { ActionButton } from '@/Components/primitives/ActionButton'
+import { PillButton } from '@/Components/primitives/HeaderPill'
 import { createLogger } from '../../Utilities/Logger'
 
 const logger = createLogger('DocScanner')

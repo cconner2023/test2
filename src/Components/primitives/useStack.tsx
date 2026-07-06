@@ -1,9 +1,9 @@
 import { useState, useRef, useMemo, useLayoutEffect, type ReactNode } from 'react'
-import { StackBody } from './StackBody'
-import { StackNavContext, type StackNav, type StackScreen } from './stackNav'
+import { StackBody } from '@/Components/primitives/StackBody'
+import { StackNavContext, type StackNav, type StackScreen } from '@/Components/stackNav'
 
-export { StackNavContext } from './stackNav'
-export type { StackNav, StackScreen } from './stackNav'
+export { StackNavContext } from '@/Components/stackNav'
+export type { StackNav, StackScreen } from '@/Components/stackNav'
 
 /**
  * useStack — the container-agnostic drill-down ("morph") ENGINE.
@@ -59,6 +59,7 @@ export interface StackController {
   footer?: ReactNode
   rightFooter?: ReactNode
   headerActions?: ReactNode
+  headerLeft?: ReactNode
   searchPlaceholder?: string
   /** Per-screen width override, if the top screen declared one. */
   screenMaxWidth?: number | string
@@ -134,6 +135,7 @@ export function useStack({
   const footer = screen ? resolve(screen.footer) : undefined
   const rightFooter = screen ? resolve(screen.rightFooter) : undefined
   const headerActions = screen ? resolve(screen.headerActions) : undefined
+  const headerLeft = screen ? resolve(screen.headerLeft) : undefined
   const onBack = screen?.onBack
     ? () => screen.onBack!(nav)
     : (canBack ? nav.pop : undefined)
@@ -168,6 +170,7 @@ export function useStack({
     footer,
     rightFooter,
     headerActions,
+    headerLeft,
     searchPlaceholder: screen?.searchPlaceholder,
     screenMaxWidth: screen?.maxWidth,
     screenPreviewMaxHeight: screen?.previewMaxHeight,

@@ -1,11 +1,11 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { Building2, Check, Pencil, Trash2, Loader2, Camera, Send, ArrowRightLeft, KeyRound, AlertCircle, Home } from 'lucide-react'
-import { OverlayStack, type StackNav } from '../OverlayStack'
-import { ActionButton } from '../ActionButton'
-import { ActionPill } from '../ActionPill'
-import { ConfirmDialog } from '../ConfirmDialog'
-import { ErrorPill } from '../ErrorPill'
-import { PickerInput } from '../FormInputs'
+import { OverlayStack, type StackNav } from '@/Components/primitives/OverlayStack'
+import { ActionButton } from '@/Components/primitives/ActionButton'
+import { ActionPill } from '@/Components/primitives/ActionPill'
+import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
+import { ErrorPill } from '@/Components/primitives/ErrorPill'
+import { PickerInput } from '@/Components/primitives/FormInputs'
 import { ResetPasswordForm } from '../Admin/ResetPasswordForm'
 import {
   getMemberProfile,

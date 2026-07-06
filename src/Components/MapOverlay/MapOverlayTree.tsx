@@ -1,8 +1,8 @@
 import { useState, useMemo, useCallback, useRef, type ReactNode } from 'react';
 import { ChevronRight, ChevronDown, Eye, EyeOff, Pencil, Trash2, X, Check, ArrowDownToLine, Wifi, Loader2, Plus, CalendarClock, Link2, Link2Off, MessageSquare, MoreHorizontal, Copy, Layers } from 'lucide-react';
-import { LiftedRowMenu } from '../LiftedRowMenu';
-import type { ContextMenuItem } from '../ContextMenu';
-import { EmptyState } from '../EmptyState';
+import { LiftedRowMenu } from '@/Components/primitives/LiftedRowMenu';
+import type { ContextMenuItem } from '@/Components/primitives/ContextMenu';
+import { EmptyState } from '@/Components/primitives/EmptyState';
 import { useLongPress } from '../../Hooks/useLongPress';
 import { useShareToChat } from '../Messages/ShareToChatPicker';
 import type { LocalMapOverlay, OverlayFeature } from '../../Types/MapOverlayTypes';
@@ -12,13 +12,12 @@ interface OverlayRowProps {
   overlayId: string;
   className: string;
   style?: React.CSSProperties;
-  dataTour?: string;
   /** Open the lifted menu anchored to this row's bounding rect (conversation pattern). */
   onOpenMenu: (rect: DOMRect) => void;
   children: React.ReactNode;
 }
 
-function OverlayRow({ overlayId, className, style, dataTour, onOpenMenu, children }: OverlayRowProps) {
+function OverlayRow({ overlayId, className, style, onOpenMenu, children }: OverlayRowProps) {
   const rowRef = useRef<HTMLDivElement>(null);
   const openFromRow = useCallback(() => {
     if (rowRef.current) onOpenMenu(rowRef.current.getBoundingClientRect());
@@ -28,7 +27,6 @@ function OverlayRow({ overlayId, className, style, dataTour, onOpenMenu, childre
     <div
       ref={rowRef}
       data-overlay-row={overlayId}
-      data-tour={dataTour}
       className={`${className} ${isPressing ? 'opacity-60' : ''}`}
       style={style}
       onContextMenu={(e) => {
@@ -47,14 +45,13 @@ interface FeatureRowProps {
   featureId: string;
   className: string;
   style?: React.CSSProperties;
-  dataTour?: string;
   /** Open the lifted menu anchored to this row's bounding rect (conversation pattern). */
   onOpenMenu: (rect: DOMRect) => void;
   onClick: () => void;
   children: React.ReactNode;
 }
 
-function FeatureRow({ featureId, className, style, dataTour, onOpenMenu, onClick, children }: FeatureRowProps) {
+function FeatureRow({ featureId, className, style, onOpenMenu, onClick, children }: FeatureRowProps) {
   const rowRef = useRef<HTMLButtonElement>(null);
   const openFromRow = useCallback(() => {
     if (rowRef.current) onOpenMenu(rowRef.current.getBoundingClientRect());
@@ -65,7 +62,6 @@ function FeatureRow({ featureId, className, style, dataTour, onOpenMenu, onClick
       ref={rowRef}
       type="button"
       data-feature-row={featureId}
-      data-tour={dataTour}
       onClick={onClick}
       onContextMenu={(e) => {
         e.preventDefault();
@@ -210,7 +206,7 @@ export function MapOverlayTree({
   }, []);
 
   return (
-    <div data-tour="map-overlay-tree" className="flex flex-col h-full">
+    <div className="flex flex-col h-full">
       {/* Tree body — empty state primitive, or populated list with corner action */}
       <div className="flex-1 min-h-0 overflow-y-auto py-1 relative">
         {sorted.length === 0 ? (
@@ -221,7 +217,7 @@ export function MapOverlayTree({
           />
         ) : (
           <>
-            {sorted.map((overlay, overlayIdx) => {
+            {sorted.map((overlay) => {
             const hasChildren = overlay.features.length > 0;
             const isCollapsed = collapsed.has(overlay.id);
             const isActive = activeOverlayId === overlay.id;
@@ -235,7 +231,6 @@ export function MapOverlayTree({
                 {/* Overlay row */}
                 <OverlayRow
                   overlayId={overlay.id}
-                  dataTour={overlayIdx === 0 ? 'map-overlay-row' : undefined}
                   className={`group flex items-center gap-1.5 py-2 pr-3 transition-colors ${
                     isActive
                       ? 'bg-themeblue3/8 border-l-2 border-l-themeblue3'
@@ -360,7 +355,6 @@ export function MapOverlayTree({
                             ),
                           });
                         }}
-                        data-tour={overlayIdx === 0 ? 'map-overlay-visibility' : undefined}
                         className="w-9 h-9 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
                         title="More actions"
                         aria-label="More actions"
@@ -372,13 +366,12 @@ export function MapOverlayTree({
                 </OverlayRow>
 
                 {/* Features */}
-                {hasChildren && !isCollapsed && overlay.features.map((feature, featureIdx) => {
+                {hasChildren && !isCollapsed && overlay.features.map((feature) => {
                   const isSelected = selectedFeatureId === feature.id && isActive;
                   return (
                     <FeatureRow
                       key={feature.id}
                       featureId={feature.id}
-                      dataTour={overlayIdx === 0 && featureIdx === 0 ? 'map-feature-row' : undefined}
                       onClick={() => onSelectFeature(feature, overlay.id)}
                       onOpenMenu={(rect) => setFeatureContextMenu({
                         overlayId: overlay.id,

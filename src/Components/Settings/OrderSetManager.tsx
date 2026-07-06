@@ -2,10 +2,10 @@ import { Plus, MessageSquare, Trash2, Building2 } from 'lucide-react';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import type { PlanOrderSet, PlanBlockKey } from '../../Data/User';
 import { PLAN_ORDER_CATEGORIES } from '../../Data/User';
-import { OverlayActionMenu } from '../OverlayActionMenu';
-import { LiftedRowMenu } from '../LiftedRowMenu';
+import { OverlayActionMenu } from '@/Components/primitives/OverlayActionMenu';
+import { LiftedRowMenu } from '@/Components/primitives/LiftedRowMenu';
 import { liftPressHandlers, type LiftPressState, type LiftSnapshot } from '../liftPress';
-import type { ContextMenuItem } from '../ContextMenu';
+import type { ContextMenuItem } from '@/Components/primitives/ContextMenu';
 
 const ALL_PLAN_BLOCK_KEYS: PlanBlockKey[] = [...PLAN_ORDER_CATEGORIES, 'instructions'];
 
@@ -52,7 +52,7 @@ export const OrderSetManager = ({
     }, [orderSets, lc]);
 
     return (
-        <section data-tour="plan-orderset-section">
+        <section>
             <div className="pb-2">
                 <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Order Sets</p>
             </div>

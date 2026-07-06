@@ -1,14 +1,14 @@
 import { useState, useRef, useEffect, useCallback, type ReactNode } from 'react'
 import { ArrowUp, X, Plus, Mic, Copy, Pencil, Download, Reply, Trash2, Forward, SmilePlus, CalendarPlus, ScanLine } from 'lucide-react'
-import { ConfirmDialog } from './ConfirmDialog'
-import { GlassBand } from './GlassBand'
+import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
+import { GlassBand } from '@/Components/primitives/GlassBand'
 import { MessageBubble } from './Settings/MessageBubble'
 import { SharedObjectPicker } from './Messages/SharedObjectPicker'
 import { ImageEditor } from './ImageEditor'
 import type { MessageContent, SharedBundleContent } from '../lib/signal/messageContent'
 import { packBundle, bundleSourceToBundle, type BundleSource } from '../lib/objectBundle'
-import { ContextMenu, type ContextMenuItem } from './ContextMenu'
-import { LiftedRowMenu } from './LiftedRowMenu'
+import { ContextMenu, type ContextMenuItem } from '@/Components/primitives/ContextMenu'
+import { LiftedRowMenu } from '@/Components/primitives/LiftedRowMenu'
 import { ReactionGlyph, REACTION_CODES, REACTION_LABELS } from './Messages/ReactionGlyphs'
 import { useMessagesContext } from '../Hooks/MessagesContext'
 import { RecipientPicker } from './Messages/RecipientPicker'
@@ -25,7 +25,6 @@ import { useSwipeBack } from '../Hooks/useSwipeBack'
 import { useVoiceRecorder } from '../Hooks/useVoiceRecorder'
 import type { VoiceRecordingResult } from '../Hooks/useVoiceRecorder'
 import { playSendSound } from '../lib/soundService'
-import { MESSAGING_TOUR_NOTE, MESSAGING_TOUR_REPLY } from '../Data/GuidedTourData'
 import type { DecryptedSignalMessage } from '../lib/signal/transportTypes'
 import type { UnavailableReason } from '../Hooks/usePeerAvailability'
 import type { RequestStatus } from '../Hooks/useMessages'
@@ -320,48 +319,6 @@ export function ChatDetailView({
     setThreadClosing(false)
   }, [conversationId]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Tour event listeners (only active in self-chat) ──
-  useEffect(() => {
-    if (!isSelfChat) return
-
-    const tourTexts = [MESSAGING_TOUR_NOTE, MESSAGING_TOUR_REPLY]
-
-    const handleSendNote = () => {
-      sendMessage(conversationId, MESSAGING_TOUR_NOTE)
-    }
-    const handleSendReply = () => {
-      const firstNote = messages.find(m => m.senderId === userId && m.plaintext === MESSAGING_TOUR_NOTE)
-      if (firstNote) {
-        sendMessage(conversationId, MESSAGING_TOUR_REPLY, firstNote.originId ?? firstNote.id)
-      }
-    }
-    const handleCleanup = () => {
-      // Close thread if open
-      setActiveThreadId(null)
-      setThreadClosing(false)
-      // Delete tour messages
-      const tourMsgs = messages.filter(m => m.senderId === userId && tourTexts.includes(m.plaintext))
-      const tourIds = tourMsgs.map(m => m.id)
-      if (tourIds.length > 0) deleteMessages(conversationId, tourIds)
-    }
-
-    const handleOpenShare = () => setAttachOpen(true)
-    const handleCloseShare = () => setAttachOpen(false)
-
-    window.addEventListener('tour:messaging-send-note', handleSendNote)
-    window.addEventListener('tour:messaging-send-reply', handleSendReply)
-    window.addEventListener('tour:messaging-cleanup', handleCleanup)
-    window.addEventListener('tour:messaging-open-share', handleOpenShare)
-    window.addEventListener('tour:messaging-close-share', handleCloseShare)
-    return () => {
-      window.removeEventListener('tour:messaging-send-note', handleSendNote)
-      window.removeEventListener('tour:messaging-send-reply', handleSendReply)
-      window.removeEventListener('tour:messaging-cleanup', handleCleanup)
-      window.removeEventListener('tour:messaging-open-share', handleOpenShare)
-      window.removeEventListener('tour:messaging-close-share', handleCloseShare)
-    }
-  }, [isSelfChat, conversationId, userId, messages, sendMessage, deleteMessages, setActiveThreadId])
-
   const handleCloseThread = useCallback(() => {
     setThreadClosing(true)
     setTimeout(() => {
@@ -543,7 +500,6 @@ export function ChatDetailView({
         )}
 
         <div
-          data-tour="messages-input"
           className="px-4 pt-3 pb-3"
         >
           <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
@@ -646,10 +602,6 @@ export function ChatDetailView({
     const rootMsg = pinnedRoot && msgs.length > 0 ? msgs[0] : null
     const listMsgs = pinnedRoot ? msgs.slice(1) : msgs
 
-    // Find the last own-message index (within the scrolling list) for tour targeting
-    let lastOwnIdx = -1
-    for (let i = listMsgs.length - 1; i >= 0; i--) { if (listMsgs[i].senderId === userId) { lastOwnIdx = i; break } }
-
     const bubbleRow = (msg: DecryptedSignalMessage, idx: number) => {
       const own = msg.senderId === userId
 
@@ -680,7 +632,7 @@ export function ChatDetailView({
       }
 
       return (
-        <div key={msg.id} data-message-id={msg.id} data-tour={own && idx === lastOwnIdx ? 'messages-latest-bubble' : undefined}>
+        <div key={msg.id} data-message-id={msg.id}>
           {dateSeparator}
           <MessageBubble
             message={msg}
@@ -861,7 +813,6 @@ export function ChatDetailView({
       {/* Thread overlay */}
       {showThread && (
         <div
-          data-tour="messages-thread-overlay"
           className={`absolute inset-0 z-20 flex flex-col bg-themewhite3 transition-opacity duration-200 ${threadClosing ? 'opacity-0' : 'animate-fadeIn'}`}
           {...threadSwipeBack}
         >

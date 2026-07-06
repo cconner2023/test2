@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback, forwardRef, useImperativeHandle, type ReactNode } from 'react'
-import { DatePickerCalendar, BloodPressureInput } from './FormInputs'
+import { DatePickerCalendar } from '@/Components/primitives/FormInputs'
+import { BloodPressureInput } from '@/Components/DomainInputs'
 import { Calendar as CalendarIcon } from 'lucide-react'
 
 export interface VitalSignsCalculatorHandle {

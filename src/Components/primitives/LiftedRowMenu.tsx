@@ -3,9 +3,9 @@ import { createPortal } from 'react-dom'
 import { useSpring, useTransition, animated } from '@react-spring/web'
 import type { ReactNode, RefObject } from 'react'
 import { ChevronLeft } from 'lucide-react'
-import { ActionPill } from './ActionPill'
-import { PopoverHeader } from './PreviewOverlay'
-import { MenuItemButton, contextMenuItemVariant, type ContextMenuItem } from './ContextMenu'
+import { ActionPill } from '@/Components/primitives/ActionPill'
+import { PopoverHeader } from '@/Components/PreviewOverlay'
+import { MenuItemButton, contextMenuItemVariant, type ContextMenuItem } from '@/Components/primitives/ContextMenu'
 
 interface AnchoredMenuProps {
   isOpen: boolean
@@ -18,9 +18,6 @@ interface AnchoredMenuProps {
    *  menu to the button's true position rather than stranding it at the top.
    *  Takes precedence over `anchorRect`. */
   anchorRef?: RefObject<HTMLElement | null>
-  /** data-tour anchor applied to the menu card (so a guided tour can highlight the
-   *  open menu — e.g. the chat "+" share menu). */
-  dataTour?: string
   /** Visual clone of the row — rendered floating, lifted off the list (iOS peek).
    *  OMIT for ellipsis / selector menus: with no clone the menu still dims the bg
    *  and rises into place (same lifted feel) — it just has no row to lift. */
@@ -118,7 +115,7 @@ function MenuListRow({ item, onSelect }: { item: ContextMenuItem; onSelect: (ite
  *
  * `LiftedRowMenu` is a back-compat alias for callers that pass a clone.
  */
-export function AnchoredMenu({ isOpen, anchorRect: anchorRectProp, anchorRef, dataTour, row, items, onClose, bare = false, align = 'left', layout = 'pill', reactions, backdrop, header }: AnchoredMenuProps) {
+export function AnchoredMenu({ isOpen, anchorRect: anchorRectProp, anchorRef, row, items, onClose, bare = false, align = 'left', layout = 'pill', reactions, backdrop, header }: AnchoredMenuProps) {
   const [visible, setVisible] = useState(false)
   // Live-anchor rect — re-measured from `anchorRef` on any reflow (see prop doc).
   const [liveRect, setLiveRect] = useState<DOMRect | null>(null)
@@ -376,7 +373,6 @@ export function AnchoredMenu({ isOpen, anchorRect: anchorRectProp, anchorRef, da
       {isList ? (
         <animated.div
           ref={menuRef}
-          data-tour={dataTour}
           className="absolute rounded-2xl bg-themewhite overflow-hidden ring-1 ring-black/5 select-none"
           style={{
             left: menuLeft,

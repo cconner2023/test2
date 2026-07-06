@@ -1,8 +1,8 @@
 import { useEffect, useCallback, useState, useRef } from 'react'
 import { MapPin, Check, ChevronRight, ChevronLeft, RefreshCw, Loader, X, Plus } from 'lucide-react'
 import { latLngToMgrs } from '../../lib/mgrsFormat'
-import { SectionCard } from '../Section'
-import { TextInput } from '../FormInputs'
+import { SectionCard } from '@/Components/primitives/Section'
+import { TextInput } from '@/Components/primitives/FormInputs'
 import { PreviewOverlay } from '../PreviewOverlay'
 import type { ContextMenuAction } from '../PreviewOverlay'
 import { useIsMobile } from '../../Hooks/useIsMobile'
@@ -26,7 +26,7 @@ import {
   medevacPatientTotal,
   medevacNationalityTotal,
 } from '../../Types/MedevacTypes'
-import { ActionPill } from '../ActionPill'
+import { ActionPill } from '@/Components/primitives/ActionPill'
 
 interface MedevacFormProps {
   value?: MedevacRequest | null

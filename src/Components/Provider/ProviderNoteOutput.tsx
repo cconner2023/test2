@@ -14,7 +14,7 @@ import { PdfPreviewModal } from '../PdfPreviewModal';
 
 import type { ImportedMedicNote } from '../ProviderDrawer'
 import type { PEState } from '../../Types/PETypes'
-import { ActionPill } from '../ActionPill'
+import { ActionPill } from '@/Components/primitives/ActionPill'
 
 export interface ProviderNoteOutputProps {
     hpiNote: string;
@@ -176,7 +176,7 @@ export function ProviderNoteOutput({
             : 'busy';
 
     return (
-        <div className="space-y-4" data-tour="provider-output">
+        <div className="space-y-4">
             {/* Note Preview */}
             <div>
                 <p className="pb-2 text-[9pt] font-semibold text-primary uppercase tracking-wider">Note Preview</p>

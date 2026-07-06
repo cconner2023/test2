@@ -2,8 +2,8 @@ import { useState, useRef, useEffect, useCallback, memo, useImperativeHandle, fo
 import type { ReactNode } from 'react'
 import { Trash2, Headset, Play, MessageSquare, Info, ChevronLeft, ChevronRight, ChevronDown, Pin, Users, Check, QrCode, Mail, Send, Plus, Hash, Settings } from 'lucide-react'
 import { useSpring, animated } from '@react-spring/web'
-import { SearchInput } from '../SearchInput'
-import { HeaderPill, PillButton } from '../HeaderPill'
+import { SearchInput } from '@/Components/primitives/SearchInput'
+import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill'
 import { useClinicMedics } from '../../Hooks/useClinicMedics'
 import { supabase } from '../../lib/supabase'
 import { useMessagesContext } from '../../Hooks/MessagesContext'
@@ -15,23 +15,23 @@ import { GroupListItem } from './GroupListItem'
 import { getDisplayName } from '../../Utilities/nameUtils'
 import { ConversationInfoPanel } from './ConversationInfoPanel'
 import { UserAvatar } from './UserAvatar'
-import { LoadingSpinner } from '../LoadingSpinner'
+import { LoadingSpinner } from '@/Components/primitives/LoadingSpinner'
 import { useMinLoadTime } from '../../Hooks/useMinLoadTime'
 import { ProvisionalDeviceModal } from './ProvisionalDeviceModal'
 import { useAuth } from '../../Hooks/useAuth'
 import { useCallActions } from '../../Hooks/CallContext'
 import { useAvatar } from '../../Utilities/AvatarContext'
-import type { ContextMenuItem } from '../ContextMenu'
-import { LiftedRowMenu } from '../LiftedRowMenu'
-import { ConfirmDialog } from '../ConfirmDialog'
-import { TextInput } from '../FormInputs'
+import type { ContextMenuItem } from '@/Components/primitives/ContextMenu'
+import { LiftedRowMenu } from '@/Components/primitives/LiftedRowMenu'
+import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
+import { TextInput } from '@/Components/primitives/FormInputs'
 import { useClinicGroupedMedics } from '../../Hooks/useClinicGroupedMedics'
 import { useSubClusters } from '../../Hooks/useSubClusters'
 import { usePeerAvailability, type UnavailableReason } from '../../Hooks/usePeerAvailability'
 import { ChatDetailView, type ParticipantStatus } from '../ChatDetailView'
-import { OverlayStack, type StackNav } from '../OverlayStack'
-import { ActionPill } from '../ActionPill'
-import { ActionButton } from '../ActionButton'
+import { OverlayStack, type StackNav } from '@/Components/primitives/OverlayStack'
+import { ActionPill } from '@/Components/primitives/ActionPill'
+import { ActionButton } from '@/Components/primitives/ActionButton'
 import { useLongPress } from '../../Hooks/useLongPress'
 import { useIsMobile } from '../../Hooks/useIsMobile'
 import type { ClinicMedic } from '../../Types/SupervisorTestTypes'
@@ -174,8 +174,6 @@ interface ConversationPaneProps {
   loading?: boolean
   searchQuery: string
   onSearchClear: () => void
-  /** Tour variant — 'mobile' or 'desktop' — determines data-tour attribute prefix. Omit to disable. */
-  tourVariant?: 'mobile' | 'desktop'
 }
 
 function ConversationPane({
@@ -192,7 +190,6 @@ function ConversationPane({
   loading,
   searchQuery,
   onSearchClear,
-  tourVariant,
 }: ConversationPaneProps) {
   const { user } = useAuth()
   const userId = user?.id ?? null
@@ -301,13 +298,6 @@ function ConversationPane({
   const selfMedic: ClinicMedic | null = userId
     ? { id: userId, firstName: null, lastName: 'Notes', middleInitial: null, rank: null, credential: null, avatarId: currentAvatar.id }
     : null
-
-  // Tour: open self-chat when tour dispatches the event
-  useEffect(() => {
-    const handler = () => { if (selfMedic) onSelectPeer(selfMedic) }
-    window.addEventListener('tour:messaging-open-self-chat', handler)
-    return () => window.removeEventListener('tour:messaging-open-self-chat', handler)
-  }, [selfMedic, onSelectPeer])
 
   const sortedGroups = Object.values(groups).filter(g => !g.systemType).sort((a, b) => a.name.localeCompare(b.name))
 
@@ -512,7 +502,7 @@ function ConversationPane({
               const selfTarget: PreviewTarget = { key: userId!, type: 'contact', medic: selfMedic, hasConversation: !!conversations[userId!]?.length, isPinned: false }
               const selfItem = <ContactListItem medic={selfMedic} lastMessage={activityPreview(lastActivityMessage(conversations[userId!]))} unreadCount={0} onClick={() => {}} />
               return (
-                <div data-tour={tourVariant ? 'messages-self-notes' : undefined}>
+                <div>
                   {isMobile ? (
                     <LongPressRow
                       onClick={() => onSelectPeer(selfMedic)}
@@ -589,7 +579,7 @@ function ConversationPane({
               </>
             )}
 
-            <div data-tour={tourVariant ? 'messages-roster' : undefined}>
+            <div>
               <div className="mx-3 my-2 border-b border-primary/10" />
 
               {/* My Cluster — own clinic, grouped by sub-cluster into collapsible
@@ -1445,10 +1435,10 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
   }
 
   // Chat lens → conversations; Calls lens → call history (tap to redial).
-  const renderPane = (tourVariant: 'mobile' | 'desktop') =>
+  const renderPane = () =>
     lens === 'calls'
       ? <CallsPane entries={callHistory} onRedial={handleRedial} searchQuery={searchQuery} />
-      : <ConversationPane {...conversationPaneProps} tourVariant={tourVariant} />
+      : <ConversationPane {...conversationPaneProps} />
 
   return (
     <div className="flex h-full relative">
@@ -1461,7 +1451,7 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
           <div className="px-3 pt-[calc(var(--sat,0px)+4.375rem+0.5rem)] pb-2">
             <SearchInput value={searchQuery} onChange={onSearchChange} placeholder="Search..." />
           </div>
-          {renderPane('mobile')}
+          {renderPane()}
         </div>
       )}
       <div className="hidden md:flex md:flex-col w-80 shrink-0 border-r border-primary/10 overflow-hidden">
@@ -1499,7 +1489,7 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
           </div>
         )}
         <div className="flex-1 min-h-0 overflow-y-auto">
-          {renderPane('desktop')}
+          {renderPane()}
         </div>
       </div>
 

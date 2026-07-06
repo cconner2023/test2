@@ -1,8 +1,8 @@
 import { memo, useCallback, useMemo, useState } from 'react'
 import { Copy, Check, Swords } from 'lucide-react'
 import { MedevacCard, type MedevacLine } from '../Medevac/MedevacCard'
-import { OverlayActionMenu } from '../OverlayActionMenu'
-import type { ContextMenuItem } from '../ContextMenu'
+import { OverlayActionMenu } from '@/Components/primitives/OverlayActionMenu'
+import type { ContextMenuItem } from '@/Components/primitives/ContextMenu'
 import { useTC3Store } from '../../stores/useTC3Store'
 import {
   deriveMedevacFromTC3Cards,

@@ -14,6 +14,9 @@ import type { LocalPropertyItem, UnitOfIssue } from '../Types/PropertyTypes'
 export interface AuthLine {
   itemId: string
   name: string
+  /** Component ROLE / doctrinal identity ("Tourniquet", "Chest Seal") — the middle row,
+   *  between the product name and NSN. */
+  nomenclature: string | null
   nsn: string | null
   /** Line Item Number (MTOE catalog id) — the primary sort key within a group. */
   lin: string | null
@@ -50,8 +53,61 @@ export interface AuthGroup {
 
 export interface AuthorizedList {
   groups: AuthGroup[]
-  /** Count of authorization-tracked lines — 0 drives the "upload a BOM" empty state. */
+  /** Count of authorization-tracked lines — feeds the empty state alongside linCount. */
   trackedCount: number
+  /** Count of PHR LIN containers (see isLinContainer). trackedCount + linCount === 0 = a
+   *  truly empty hand receipt → the "build LINs first" empty state. */
+  linCount: number
+}
+
+/** A PHR LIN container (the cluster's hand-receipt line): a live, TOP-LEVEL item that carries
+ *  a LIN code and is NOT authorization-tracked itself. It's a pure header the component lines
+ *  hang under — it holds no quantity_authorized, so it never multiplies or contributes its own
+ *  shortage. This is the (no-migration) marker that distinguishes a LIN from a loose top-level
+ *  item; New-LIN mode in PropertyItemForm writes exactly this shape (name + lin, everything
+ *  else null/0). */
+export function isLinContainer(it: {
+  parent_item_id: string | null
+  lin: string | null
+  quantity_authorized: number | null
+  deleted_at?: string | null
+  turned_in_at: string | null
+}): boolean {
+  return (
+    it.parent_item_id == null &&
+    it.quantity_authorized == null &&
+    !!(it.lin && it.lin.trim()) &&
+    !it.deleted_at &&
+    !it.turned_in_at
+  )
+}
+
+/** An AUTHORIZED TARGET (decoupled model): a tracked line (quantity_authorized set) with NO
+ *  location. It's the "what we should have" target — one per (LIN + NSN) — that lives ONLY in
+ *  the Cluster Hand Receipt; its on-hand is the SUM of all located physical stock matching its
+ *  (LIN + NSN), wherever that stock sits. Because it has no location it never pins on the
+ *  map/tree (a depleted target simply shows short in the receipt). Physical stock is untracked,
+ *  located, and scoped under the same LIN (parent_item_id), so it renders on the map/tree. */
+export function isAuthTarget(it: {
+  quantity_authorized: number | null
+  location_id: string | null
+  deleted_at?: string | null
+  turned_in_at: string | null
+}): boolean {
+  return it.quantity_authorized != null && it.location_id == null && !it.deleted_at && !it.turned_in_at
+}
+
+/** COMPOSITE (LIN + NSN) key — the single source shared by the shortage fold and the authorized
+ *  view so on-hand aggregation never diverges. Scope = the item's parent LIN (else its own LIN
+ *  string, else a "top" bucket); identity = NSN (else name). A target and the physical stock
+ *  that fills it share this key when the stock sits under the same LIN with the same NSN. */
+export function lineKeyOf(it: { nsn: string | null; lin: string | null; name: string; parent_item_id: string | null }): string {
+  const scope = it.parent_item_id
+    ? 'p:' + it.parent_item_id
+    : ((it.lin ?? '').trim() ? 'lin:' + (it.lin ?? '').trim().toLowerCase() : 'top')
+  const nsn = (it.nsn ?? '').trim().toLowerCase()
+  const ident = nsn ? 'nsn:' + nsn : 'name:' + it.name.trim().toLowerCase()
+  return scope + '||' + ident
 }
 
 /** Group every authorization-tracked line by its SKO parent. Live items only
@@ -60,8 +116,21 @@ export function groupAuthorized(items: LocalPropertyItem[]): AuthorizedList {
   const live = items.filter((it) => !it.deleted_at && !it.turned_in_at)
   const nameById = new Map(live.map((it) => [it.id, it.name]))
   const tracked = live.filter((it) => it.quantity_authorized != null)
+  const containers = live.filter(isLinContainer)
+
+  // On-hand per (LIN + NSN), summed over ALL live stock of that key — the decoupled model: a
+  // target's on-hand is everything that counts for it (located physical stock across zones +
+  // any qty carried on the target row itself), not just its own row.
+  const onHandByKey = new Map<string, number>()
+  for (const it of live) {
+    const k = lineKeyOf(it)
+    onHandByKey.set(k, (onHandByKey.get(k) ?? 0) + it.quantity)
+  }
 
   const byParent = new Map<string | null, AuthLine[]>()
+  // Seed a group for every LIN container so a freshly-built LIN shows (with zero items) before
+  // any component is assigned — the PHR is the LIN list, not just the lines under it.
+  for (const c of containers) if (!byParent.has(c.id)) byParent.set(c.id, [])
   for (const it of tracked) {
     const key = it.parent_item_id ?? null
     let arr = byParent.get(key)
@@ -72,13 +141,14 @@ export function groupAuthorized(items: LocalPropertyItem[]): AuthorizedList {
     arr.push({
       itemId: it.id,
       name: it.name,
+      nomenclature: it.nomenclature,
       nsn: it.nsn,
       lin: it.lin,
       unitOfIssue: it.unit_of_issue,
       packSize: it.pack_size,
       authorized: it.quantity_authorized as number,
       authorizedBase: authorizedBaseUnits(it.quantity_authorized, it.pack_size),
-      onHand: it.quantity,
+      onHand: onHandByKey.get(lineKeyOf(it)) ?? it.quantity,
     })
   }
 
@@ -104,5 +174,5 @@ export function groupAuthorized(items: LocalPropertyItem[]): AuthorizedList {
     return (a.skoName ?? '').localeCompare(b.skoName ?? '')
   })
 
-  return { groups, trackedCount: tracked.length }
+  return { groups, trackedCount: tracked.length, linCount: containers.length }
 }

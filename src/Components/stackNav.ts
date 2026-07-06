@@ -46,6 +46,9 @@ export interface StackScreen {
   rightFooter?: ReactNode | ((params: any, nav: StackNav) => ReactNode)
   /** Header overflow slot left of the X (mirrors headerActions). */
   headerActions?: ReactNode | ((params: any, nav: StackNav) => ReactNode)
+  /** Header LEADING slot — left of the title (e.g. an ellipsis menu). Honored by
+   *  shells that render it (the provider pane); others ignore it. */
+  headerLeft?: ReactNode | ((params: any, nav: StackNav) => ReactNode)
   /** Override the default back (default: pop when depth>1, hidden at root). */
   onBack?: (nav: StackNav) => void
   /** Per-screen card width override (else the OverlayStack-level value). */

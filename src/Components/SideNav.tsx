@@ -7,8 +7,8 @@ import { useTotalUnread } from '../stores/useMessagingStore'
 import { useFeatureVotesStore, selectHasUnvotedActiveCycle } from '../stores/useFeatureVotesStore'
 import { getInitials } from '../Utilities/nameUtils'
 import { useNavItems } from '../Hooks/useNavItems'
-import { type ContextMenuItem } from './ContextMenu'
-import { LiftedRowMenu } from './LiftedRowMenu'
+import { type ContextMenuItem } from '@/Components/primitives/ContextMenu'
+import { LiftedRowMenu } from '@/Components/primitives/LiftedRowMenu'
 import { liftPressHandlers, type LiftPressState, type LiftSnapshot } from './liftPress'
 
 const iconMapMobile: Record<string, React.ReactNode> = {
@@ -97,7 +97,6 @@ export function SideNav({ onClose, onMenuItemClick, isMobile = true }: SideNavPr
     >
       {/* User profile card */}
       <button
-        data-tour="sidenav-profile"
         onClick={() => {
           // Guests have no profile — this card is a logout affordance, matching the
           // settings drawer's guest profile card. Exit guest mode → LoginScreen.
@@ -152,7 +151,6 @@ export function SideNav({ onClose, onMenuItemClick, isMobile = true }: SideNavPr
                   <div className="mx-4 my-1.5 border-t border-tertiary/10" />
                 )}
                 <button
-                  data-tour={`sidenav-${item.action}`}
                   onClick={() => handleClick(item.action)}
                   {...(isPinned ? {} : makeHandlers(item.action, item.text))}
                   className={`w-full text-left flex items-center ${isMobile ? 'pl-7 pr-4 py-3.5' : 'pl-5 pr-3 py-2.5'} rounded-xl cursor-pointer hover:bg-themewhite2/60 bg-transparent active:scale-95 transform-gpu transition-colors`}

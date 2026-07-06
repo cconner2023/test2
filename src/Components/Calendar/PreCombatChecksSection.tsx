@@ -9,14 +9,14 @@ import {
   type PCCItem,
 } from '../../lib/supervisorService'
 import { patchClinicConfig } from '../../Hooks/useClinicConfig'
-import { ActionButton } from '../ActionButton'
-import { OverlayActionMenu } from '../OverlayActionMenu'
-import { ConfirmDialog } from '../ConfirmDialog'
-import { ErrorPill } from '../ErrorPill'
-import { ActionPill } from '../ActionPill'
-import { OverlayStack, type StackNav, type StackScreen } from '../OverlayStack'
-import { TextInput } from '../FormInputs'
-import type { ContextMenuItem } from '../ContextMenu'
+import { ActionButton } from '@/Components/primitives/ActionButton'
+import { OverlayActionMenu } from '@/Components/primitives/OverlayActionMenu'
+import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
+import { ErrorPill } from '@/Components/primitives/ErrorPill'
+import { ActionPill } from '@/Components/primitives/ActionPill'
+import { OverlayStack, type StackNav, type StackScreen } from '@/Components/primitives/OverlayStack'
+import { TextInput } from '@/Components/primitives/FormInputs'
+import type { ContextMenuItem } from '@/Components/primitives/ContextMenu'
 
 type ItemKind = PCCItem['kind']
 
@@ -320,7 +320,7 @@ export function PreCombatChecksSection({ cornerItems }: PreCombatChecksSectionPr
         </div>
       )}
 
-      <section data-tour="clinic-pre-combat-checks">
+      <section>
         <div className="pb-2">
           <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Checklists</p>
         </div>

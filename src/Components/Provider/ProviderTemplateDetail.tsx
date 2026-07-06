@@ -1,6 +1,6 @@
 import { useRef } from 'react'
 import { Check, Pencil, X } from 'lucide-react'
-import { HeaderPill, PillButton } from '../HeaderPill'
+import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill'
 import { getBlockByKey } from '../../Data/PhysicalExamData'
 import type { ProviderNoteTemplate, TextExpander, PlanOrderSet } from '../../Data/User'
 import { PLAN_ORDER_LABELS } from '../../Data/User'

@@ -3,9 +3,9 @@ import { AlertTriangle, Building2, ChevronRight, Plus } from 'lucide-react'
 import { formatMedicName } from './supervisorHelpers'
 import type { ClinicMedic } from '../../../Types/SupervisorTestTypes'
 import type { TeamMetrics } from './supervisorHelpers'
-import { ActionButton } from '../../ActionButton'
-import { ActionPill } from '../../ActionPill'
-import { SwipeToDeleteRow } from '../../SwipeToDeleteRow'
+import { ActionButton } from '@/Components/primitives/ActionButton'
+import { ActionPill } from '@/Components/primitives/ActionPill'
+import { SwipeToDeleteRow } from '@/Components/primitives/SwipeToDeleteRow'
 import { SupervisorClinicCardAction } from '../../SupervisorClinicSwitcher'
 
 interface TeamReportingProps {
@@ -94,7 +94,6 @@ export function TeamReporting({
       <div className="relative mb-5">
       <button
         type="button"
-        data-tour="supervisor-clinic-stats"
         disabled={!onEditClinic}
         onClick={(e) => onEditClinic?.(e.currentTarget.getBoundingClientRect())}
         className="w-full text-left rounded-xl bg-themewhite2 px-4 py-3 enabled:hover:bg-secondary/5 enabled:active:scale-[0.99] disabled:cursor-default transition-all"
@@ -133,7 +132,7 @@ export function TeamReporting({
       </div>
 
       {/* Soldier Readiness */}
-      <div data-tour="supervisor-soldier-readiness">
+      <div>
         <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">
           Soldier Readiness
         </p>
@@ -151,7 +150,7 @@ export function TeamReporting({
             </ActionPill>
           )}
           <div className="rounded-2xl bg-themewhite2 overflow-hidden">
-          {sortedSoldiers.map((entry, index) => {
+          {sortedSoldiers.map((entry) => {
             const soldier = medics.find(m => m.id === entry.soldierId)
             if (!soldier) return null
             return (
@@ -163,7 +162,6 @@ export function TeamReporting({
               <button
                 onClick={() => onViewSoldier(soldier)}
                 className="w-full flex items-center gap-3 px-4 py-3 hover:bg-themeblue2/5 text-left active:scale-95 transition-all"
-                {...(index === 0 && { 'data-tour': 'supervisor-first-soldier' })}
               >
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-primary truncate">{formatMedicName(soldier)}</p>
@@ -216,15 +214,14 @@ export function TeamReporting({
       </div>
 
       {/* Coverage Gaps */}
-      <div data-tour="supervisor-coverage-gaps">
+      <div>
         <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">
           Coverage Gaps
         </p>
         <div className="rounded-2xl bg-themewhite2 overflow-hidden">
-          {sortedGaps.map((gap, index) => (
+          {sortedGaps.map((gap) => (
             <button
               key={gap.areaName}
-              {...(index === 0 && { 'data-tour': 'supervisor-first-area' })}
               onClick={() => {
                 if (onNavigateToArea) {
                   onNavigateToArea(gap.areaName)

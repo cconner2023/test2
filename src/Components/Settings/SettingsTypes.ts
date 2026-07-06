@@ -26,12 +26,13 @@ export const PANEL = {
     PLAN_SETTINGS: 31,
     TEXT_TEMPLATES: 32,
     PROVIDER_TEMPLATES: 33,
-    GUIDED_TOURS: 34,
     THEME_PICKER: 35,
     OVERVIEW_WIDGETS: 36,
     STORAGE: 37,
     FEATURE_VOTES: 38,
     CHECKLISTS: 39,
+    /** About → User Guide. Opens the top-level UserGuideDrawer, not a Settings sub-panel. */
+    USER_GUIDE: 40,
 } as const;
 
 export type PanelId = (typeof PANEL)[keyof typeof PANEL];
@@ -55,7 +56,6 @@ export const PANEL_TARGET: Partial<Record<PanelId, string>> = {
     [PANEL.PLAN_SETTINGS]: 'plan-settings',
     [PANEL.TEXT_TEMPLATES]: 'text-templates',
     [PANEL.PROVIDER_TEMPLATES]: 'provider-templates',
-    [PANEL.GUIDED_TOURS]: 'guided-tours',
     [PANEL.OVERVIEW_WIDGETS]: 'overview-widgets',
     [PANEL.TOGGLE_THEME]: 'theme-picker',
     [PANEL.STORAGE]: 'storage',

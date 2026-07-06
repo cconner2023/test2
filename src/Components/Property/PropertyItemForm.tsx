@@ -1,9 +1,8 @@
 import { useState, useMemo, useCallback, useEffect, forwardRef, useImperativeHandle } from 'react'
 import { X, Square, CheckSquare, Plus } from 'lucide-react'
-import { TextInput, PickerInput, DatePickerInput } from '../FormInputs'
+import { TextInput, PickerInput, DatePickerInput } from '@/Components/primitives/FormInputs'
 import { usePropertyStore } from '../../stores/usePropertyStore'
-import { useAuthStore } from '../../stores/useAuthStore'
-import { useSubClusters } from '../../Hooks/useSubClusters'
+import { isLinContainer } from '../../Utilities/propertyAuthorized'
 import { useShallow } from 'zustand/react/shallow'
 import type { LocalPropertyItem, ItemType, UnitOfIssue } from '../../Types/PropertyTypes'
 import { ROOT_LOCATION_NAME } from '../../Types/PropertyTypes'
@@ -53,6 +52,7 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
     defaultLocationId,
     addItem,
     editItem,
+    editLocation,
   } = usePropertyStore(
     useShallow((s) => ({
       locations: s.locations,
@@ -62,17 +62,9 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
       defaultLocationId: s.defaultLocationId,
       addItem: s.addItem,
       editItem: s.editItem,
+      editLocation: s.editLocation,
     }))
   )
-
-  // Author's sub-cluster (platoon/squad) — new items default into this squad's
-  // lens. HQ authors (null) → common/HQ item. Render-only; see v2/supervisor.
-  const authorSubClusterId = useAuthStore(s => s.profile.subClusterId ?? null)
-  // Sub-clusters are primary-clinic-scoped; only offer the picker when the
-  // property panel is on the user's primary clinic.
-  const primaryClinicId = useAuthStore(s => s.clinicId)
-  const { subClusters } = useSubClusters()
-  const sectionApplicable = clinicId === primaryClinicId && subClusters.length > 0
 
   const isEdit = !!editingItem
 
@@ -89,7 +81,20 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
   const [quantity, setQuantity] = useState(String(editingItem?.quantity ?? (showAuthorized ? 0 : 1)))
   const [locationId, setLocationId] = useState(editingItem?.location_id ?? (isEdit ? '' : defaultLocationId ?? ''))
   const [holderId, setHolderId] = useState(editingItem?.current_holder_id ?? '')
-  const [parentItemId, setParentItemId] = useState(editingItem?.parent_item_id ?? initialParentId ?? '')
+  const [parentItemId, setParentItemId] = useState(() => {
+    if (editingItem?.parent_item_id != null) return editingItem.parent_item_id
+    if (initialParentId) return initialParentId
+    // Fresh authorized add: default to the first existing LIN (assign mode) so the common
+    // post-setup action is assigning a product; '' (build a New LIN) stays an explicit choice.
+    // With no LINs yet the flow FORCES LIN-building first — you can't assign to a missing LIN.
+    if (showAuthorized && !editingItem) {
+      const firstLin = items
+        .filter(isLinContainer)
+        .sort((a, b) => a.name.localeCompare(b.name))[0]
+      return firstLin?.id ?? ''
+    }
+    return ''
+  })
   const [notes, setNotes] = useState(editingItem?.notes ?? '')
   const [expiryDate, setExpiryDate] = useState(editingItem?.expiry_date ?? '')
   const [isSaving, setIsSaving] = useState(false)
@@ -99,6 +104,18 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
   // Authorized (BOM) quantity — issue-unit value, converts to base via pack_size. Shown
   // only in authorized context or when the item is already authorization-tracked.
   const authActive = !!showAuthorized || editingItem?.quantity_authorized != null
+  // The PHR two-pick add flow (pick a LIN, then the component within it) runs only on a
+  // FRESH authorized add — it hard-blocks freeform item invention in the PHR. Edits keep the
+  // generic parent picker so an existing line can still be re-parented.
+  const authAddFlow = !!showAuthorized && !editingItem
+  // Building a new LIN (the PHR container) vs assigning a product under an existing one. A LIN
+  // is a pure header — name + LIN code only, no qty/location/holder/expiry/serial and NOT
+  // authorization-tracked (it carries no quantity_authorized, so it never multiplies or
+  // contributes its own shortage; only its component lines do).
+  const isNewLin = authAddFlow && parentItemId === ''
+  // Editing an existing LIN container (standalone item-LIN or a vehicle shadow) — the same
+  // minimal name + LIN surface as building one; all stockable fields stay hidden.
+  const editingIsLin = !!editingItem && isLinContainer(editingItem)
   const [quantityAuthorized, setQuantityAuthorized] = useState(
     editingItem?.quantity_authorized != null ? String(editingItem.quantity_authorized) : ''
   )
@@ -114,11 +131,6 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
   // whatever's there (e.g. 'missing' set by the transfer accountability check).
   const [conditionCode] = useState<'serviceable' | 'unserviceable' | 'damaged' | 'missing'>(
     editingItem?.condition_code ?? 'serviceable'
-  )
-  // Sub-unit (platoon/squad) section. '' = HQ / common. New items default to the
-  // author's squad; edits preserve the item's current section. Render-only.
-  const [sectionId, setSectionId] = useState(
-    isEdit ? (editingItem?.sub_cluster_id ?? '') : (authorSubClusterId ?? '')
   )
 
   const updateSerial = useCallback((idx: number, value: string) => {
@@ -164,8 +176,64 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
     [items, editingItem?.id]
   )
 
+  // PHR level 1 — the cluster's LINs: top-level, authorization-tracked, live items. These
+  // are the "hand receipts" a new component can be signed under.
+  const authorizedLinOptions = useMemo(
+    () =>
+      items
+        .filter((i) => isLinContainer(i) && i.id !== editingItem?.id)
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map((i) => ({ value: i.id, label: i.lin ? `${i.name} · LIN ${i.lin}` : i.name })),
+    [items, editingItem?.id],
+  )
+
+  // PHR level 2 — the authorized component ROLES already present under the chosen LIN
+  // (distinct nomenclatures). Picking one quick-fills nomenclature; a new role is typed.
+  const componentRoleOptions = useMemo(() => {
+    if (!parentItemId) return [] as { value: string; label: string }[]
+    const roles = new Set<string>()
+    for (const i of items) {
+      if (
+        i.parent_item_id === parentItemId &&
+        i.quantity_authorized != null &&
+        i.nomenclature &&
+        !i.deleted_at &&
+        !i.turned_in_at
+      ) {
+        roles.add(i.nomenclature)
+      }
+    }
+    return [...roles].sort((a, b) => a.localeCompare(b)).map((r) => ({ value: r, label: r }))
+  }, [items, parentItemId])
+
+  // NORMAL new-item "link to hand receipt" flow: when the cluster has authorized LINs, a
+  // fresh inventory add picks its LIN (parent) + authorized role (nomenclature) instead of
+  // free-typing them, so the new stock lands under the right hand receipt AND draws down that
+  // line's shortage. The shortage fold keys on-hand by (parent LIN + NSN), so picking a role
+  // must copy that role's authorized NSN — otherwise the new stock keys separately and the
+  // shortage doesn't move. Off-book stock stays possible via "Not on hand receipt".
+  const linkFlow = !authActive && !authAddFlow && !editingIsLin && !isEdit && authorizedLinOptions.length > 0
+
+  // Pick an authorized role under the chosen LIN — sets nomenclature and inherits the
+  // authorized component's NSN so this stock counts toward that line.
+  const pickRole = useCallback((role: string) => {
+    setNomenclature(role)
+    if (!role) return
+    const auth = items.find(
+      (i) =>
+        i.parent_item_id === parentItemId &&
+        i.nomenclature === role &&
+        i.quantity_authorized != null &&
+        !i.deleted_at &&
+        !i.turned_in_at,
+    )
+    if (auth?.nsn) setNsn(auth.nsn)
+  }, [items, parentItemId])
+
   const handleSave = useCallback(async () => {
     if (!name.trim() || !clinicId) return
+    // A LIN needs a Line Item Number — that code is what marks it as a PHR container.
+    if ((isNewLin || editingIsLin) && !lin.trim()) return
     setIsSaving(true)
 
     // Authorized (BOM) context allows on-hand 0 — an authorized-but-unreceived line is a
@@ -178,7 +246,10 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
       nsn: nsn.trim() || null,
       lin: lin.trim() || null,
       condition_code: conditionCode,
-      location_id: locationId || null,
+      // An authorized line is a location-less TARGET — never carries a location (its physical
+      // stock does). This also converts a legacy authorized-at-a-zone item into a pure target
+      // on edit, which is the decoupled-model migration.
+      location_id: authActive ? null : (locationId || null),
       current_holder_id: holderId || null,
       parent_item_id: parentItemId || null,
       expiry_date: expiryDate || null,
@@ -196,10 +267,48 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
     }
 
     try {
-      if (isEdit && editingItem) {
+      if (editingIsLin && editingItem) {
+        // Edit a LIN header — only name + LIN change; everything else is preserved. If this LIN
+        // is a vehicle-shadow (it lives at a vehicle zone), sync the zone name so the vehicle
+        // and its hand-receipt LIN never split.
+        await editItem(editingItem.id, { name: name.trim(), lin: lin.trim() })
+        if (editingItem.location_id) {
+          const loc = locations.find((l) => l.id === editingItem.location_id)
+          if (loc?.kind === 'vehicle') await editLocation(loc.id, { name: name.trim() })
+        }
+        onClose()
+      } else if (isNewLin) {
+        // A LIN container — header only (name + LIN). No qty/location/holder/expiry/serial and
+        // NOT authorization-tracked; the components assigned to it carry the authorized qtys.
+        await addItem({
+          clinic_id: clinicId,
+          sub_cluster_id: null,
+          name: name.trim(),
+          nomenclature: null,
+          nsn: null,
+          lin: lin.trim(),
+          condition_code: 'serviceable',
+          location_id: null,
+          current_holder_id: null,
+          parent_item_id: null,
+          expiry_date: null,
+          notes: null,
+          is_serialized: false,
+          item_type: 'DI',
+          unit_of_issue: null,
+          pack_size: null,
+          quantity_authorized: null,
+          serial_number: null,
+          quantity: 0,
+          location_tag_id: null,
+          photo_url: null,
+          visual_fingerprint: null,
+        })
+        onClose()
+      } else if (isEdit && editingItem) {
         await editItem(editingItem.id, {
           ...sharedPayload,
-          sub_cluster_id: sectionApplicable ? (sectionId || null) : (editingItem.sub_cluster_id ?? null),
+          sub_cluster_id: editingItem.sub_cluster_id ?? null,
           serial_number: isSerialized ? (serialNumbers[0]?.trim() || null) : null,
           quantity: isSerialized ? 1 : Math.max(minQuantity, parseInt(quantity) || 0),
         })
@@ -207,7 +316,7 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
       } else if (!isSerialized) {
         const created = await addItem({
           clinic_id: clinicId,
-          sub_cluster_id: sectionApplicable ? (sectionId || null) : null,
+          sub_cluster_id: null,
           ...sharedPayload,
           serial_number: null,
           quantity: Math.max(minQuantity, parseInt(quantity) || 0),
@@ -224,7 +333,7 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
           // Single item — preserve enrollment flow
           const created = await addItem({
             clinic_id: clinicId,
-            sub_cluster_id: sectionApplicable ? (sectionId || null) : null,
+            sub_cluster_id: null,
             ...sharedPayload,
             serial_number: validSerials[0] ?? null,
             quantity: 1,
@@ -239,7 +348,7 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
           for (const serial of validSerials) {
             await addItem({
               clinic_id: clinicId,
-              sub_cluster_id: sectionApplicable ? (sectionId || null) : null,
+              sub_cluster_id: null,
               ...sharedPayload,
               serial_number: serial,
               quantity: 1,
@@ -259,9 +368,8 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
   }, [
     name, nomenclature, nsn, lin, serialNumbers, quantity,
     locationId, holderId, parentItemId, notes, expiryDate, isSerialized,
-    itemType, unitOfIssue, packSize, authActive, quantityAuthorized,
-    isEdit, editingItem, clinicId, addItem, editItem, onClose, onEnrollNew, conditionCode,
-    sectionId, sectionApplicable,
+    itemType, unitOfIssue, packSize, authActive, quantityAuthorized, isNewLin, editingIsLin,
+    isEdit, editingItem, clinicId, addItem, editItem, editLocation, locations, onClose, onEnrollNew, conditionCode,
   ])
 
   useImperativeHandle(ref, () => ({ submit: handleSave }), [handleSave])
@@ -278,17 +386,123 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
   return (
     <div className="px-4 py-4">
       <div className="rounded-2xl overflow-hidden">
-      <TextInput value={name} onChange={setName} placeholder="Item name *" required />
-      <TextInput value={nomenclature} onChange={setNomenclature} placeholder="Nomenclature" />
-      <div className="flex items-stretch border-b border-primary/6">
-        <div className="flex-1 min-w-0">
-          <TextInput value={nsn} onChange={setNsn} placeholder="NSN" />
+      {editingIsLin ? (
+        /* Edit an existing LIN — name + LIN code only (a header carries nothing else). */
+        <div className="flex items-stretch border-b border-primary/6">
+          <div className="flex-1 min-w-0">
+            <TextInput value={name} onChange={setName} placeholder="LIN name *" required />
+          </div>
+          <div className="flex-1 min-w-0 border-l border-primary/6">
+            <TextInput value={lin} onChange={setLin} placeholder="LIN * (e.g. M30499)" required />
+          </div>
         </div>
-        <div className="flex-1 min-w-0 border-l border-primary/6">
-          <TextInput value={lin} onChange={setLin} placeholder="LIN" />
-        </div>
-      </div>
+      ) : authAddFlow ? (
+        <>
+          {/* PHR pick 1 — which LIN (hand receipt) this belongs to. With no LINs yet the flow
+              FORCES building one first (no picker, prompt shown); once LINs exist the picker
+              defaults to assigning under one, with "+ New LIN" as an explicit choice. */}
+          {authorizedLinOptions.length === 0 ? (
+            <p className="px-4 py-3 text-[10pt] text-tertiary border-b border-primary/6">
+              Build your hand receipt first — add a LIN you're signed for, then assign items to it.
+            </p>
+          ) : (
+            <PickerInput
+              value={parentItemId}
+              onChange={setParentItemId}
+              options={[...authorizedLinOptions, { value: '', label: '+ New LIN (top-level)' }]}
+              placeholder="Which LIN (hand receipt)"
+            />
+          )}
+          {parentItemId === '' ? (
+            /* Declaring a new LIN the cluster is signed for — the set / end-item itself. */
+            <div className="flex items-stretch border-b border-primary/6">
+              <div className="flex-1 min-w-0">
+                <TextInput value={name} onChange={setName} placeholder="Set name *" required />
+              </div>
+              <div className="flex-1 min-w-0 border-l border-primary/6">
+                <TextInput value={lin} onChange={setLin} placeholder="LIN * (e.g. M30499)" required />
+              </div>
+            </div>
+          ) : (
+            /* PHR pick 2 — the authorized component within the LIN. Role = nomenclature
+               (quick-fill from existing roles or type a new one); name = the product held. */
+            <>
+              {componentRoleOptions.length > 0 && (
+                <PickerInput
+                  value={componentRoleOptions.some((o) => o.value === nomenclature) ? nomenclature : ''}
+                  onChange={setNomenclature}
+                  options={[{ value: '', label: 'New role…' }, ...componentRoleOptions]}
+                  placeholder="Use existing role"
+                />
+              )}
+              <TextInput value={nomenclature} onChange={setNomenclature} placeholder="Component role * (e.g. Tourniquet)" required />
+              <TextInput value={name} onChange={setName} placeholder="Product name * (e.g. CAT)" required />
+              <TextInput value={nsn} onChange={setNsn} placeholder="NSN" />
+            </>
+          )}
+        </>
+      ) : linkFlow ? (
+        <>
+          <TextInput value={name} onChange={setName} placeholder="Item name *" required />
+          {/* Link this stock to the hand receipt — pick the LIN it's signed under; the
+              authorized role picker below inherits its NSN so the stock draws down that
+              line's shortage. "Not on hand receipt" keeps it loose/off-book. */}
+          <PickerInput
+            value={parentItemId}
+            onChange={setParentItemId}
+            options={[{ value: '', label: 'Not on hand receipt' }, ...authorizedLinOptions]}
+            placeholder="LIN (hand receipt)"
+          />
+          {parentItemId ? (
+            <>
+              {componentRoleOptions.length > 0 && (
+                <PickerInput
+                  value={componentRoleOptions.some((o) => o.value === nomenclature) ? nomenclature : ''}
+                  onChange={pickRole}
+                  options={[{ value: '', label: 'Other role…' }, ...componentRoleOptions]}
+                  placeholder="Authorized item (nomenclature)"
+                />
+              )}
+              <TextInput value={nomenclature} onChange={setNomenclature} placeholder="Nomenclature (role)" />
+              <TextInput value={nsn} onChange={setNsn} placeholder="NSN" />
+            </>
+          ) : (
+            <>
+              <TextInput value={nomenclature} onChange={setNomenclature} placeholder="Nomenclature" />
+              <div className="flex items-stretch border-b border-primary/6">
+                <div className="flex-1 min-w-0">
+                  <TextInput value={nsn} onChange={setNsn} placeholder="NSN" />
+                </div>
+                <div className="flex-1 min-w-0 border-l border-primary/6">
+                  <TextInput value={lin} onChange={setLin} placeholder="LIN" />
+                </div>
+              </div>
+            </>
+          )}
+        </>
+      ) : (
+        <>
+          <TextInput value={name} onChange={setName} placeholder="Item name *" required />
+          <TextInput value={nomenclature} onChange={setNomenclature} placeholder="Nomenclature" />
+          {/* An authorized line's LIN is inherited from its parent LIN — hide it here. */}
+          {authActive ? (
+            <TextInput value={nsn} onChange={setNsn} placeholder="NSN" />
+          ) : (
+            <div className="flex items-stretch border-b border-primary/6">
+              <div className="flex-1 min-w-0">
+                <TextInput value={nsn} onChange={setNsn} placeholder="NSN" />
+              </div>
+              <div className="flex-1 min-w-0 border-l border-primary/6">
+                <TextInput value={lin} onChange={setLin} placeholder="LIN" />
+              </div>
+            </div>
+          )}
+        </>
+      )}
 
+      {/* Stockable fields — hidden when building OR editing a LIN (a header carries none). */}
+      {!isNewLin && !editingIsLin && (
+        <>
       {authActive && (
         <TextInput
           type="number"
@@ -299,30 +513,36 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
         />
       )}
 
-      {/* Accountability class — true segmented selector (CI/DI/SI). SI locks serialized on. */}
-      <div className="flex items-stretch border-b border-primary/6">
-        {ITEM_TYPE_OPTIONS.map((opt) => (
-          <button
-            key={opt.value}
-            type="button"
-            onClick={() => setItemType(opt.value)}
-            className={`flex-1 min-w-0 px-2 py-3 text-[10pt] transition-all active:scale-95 border-l first:border-l-0 border-primary/6 ${
-              itemType === opt.value ? 'bg-themeblue3 text-white' : 'text-secondary'
-            }`}
-          >
-            {opt.label}
-          </button>
-        ))}
-      </div>
+      {/* Accountability class + serialized + on-hand qty are PHYSICAL-stock attributes. An
+          authorized line is a location-less TARGET (its on-hand is derived from matching stock),
+          so they're all hidden for authActive — the target form is role/NSN/authorized-qty only. */}
+      {!authActive && (
+        <>
+          <div className="flex items-stretch border-b border-primary/6">
+            {ITEM_TYPE_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => setItemType(opt.value)}
+                className={`flex-1 min-w-0 px-2 py-3 text-[10pt] transition-all active:scale-95 border-l first:border-l-0 border-primary/6 ${
+                  itemType === opt.value ? 'bg-themeblue3 text-white' : 'text-secondary'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
 
-      <button
-        type="button"
-        onClick={() => itemType !== 'SI' && setIsSerialized((v) => !v)}
-        className="w-full flex items-center gap-1.5 px-4 py-3 text-[10pt] text-secondary active:scale-95 transition-all border-b border-primary/6"
-      >
-        {isSerialized ? <CheckSquare size={14} /> : <Square size={14} />}
-        Track individually (serialized)
-      </button>
+          <button
+            type="button"
+            onClick={() => itemType !== 'SI' && setIsSerialized((v) => !v)}
+            className="w-full flex items-center gap-1.5 px-4 py-3 text-[10pt] text-secondary active:scale-95 transition-all border-b border-primary/6"
+          >
+            {isSerialized ? <CheckSquare size={14} /> : <Square size={14} />}
+            Track individually (serialized)
+          </button>
+        </>
+      )}
 
 
       {isSerialized ? (
@@ -366,7 +586,10 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
         </div>
       ) : (
         <>
-          <TextInput type="number" value={quantity} onChange={setQuantity} placeholder="Quantity" />
+          {/* On-hand qty is a physical-stock field — a target has none (derived from stock). */}
+          {!authActive && (
+            <TextInput type="number" value={quantity} onChange={setQuantity} placeholder="Quantity" />
+          )}
           <div className="flex items-stretch border-b border-primary/6">
             <div className="flex-1 min-w-0">
               <PickerInput
@@ -383,7 +606,8 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
         </>
       )}
 
-      {hasLocations && (
+      {/* A target has no location (its stock does) — hide for authActive. */}
+      {hasLocations && !authActive && (
         <PickerInput
           value={locationId}
           onChange={setLocationId}
@@ -391,7 +615,8 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
           placeholder="Location"
         />
       )}
-      {holderOptions.length > 0 && (
+      {/* An authorized line is cluster-owned — no holder. */}
+      {holderOptions.length > 0 && !authActive && (
         <PickerInput
           value={holderId}
           onChange={setHolderId}
@@ -399,7 +624,7 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
           placeholder="Holder (unassigned)"
         />
       )}
-      {hasParentItems && (
+      {hasParentItems && !authAddFlow && !linkFlow && (
         <PickerInput
           value={parentItemId}
           onChange={setParentItemId}
@@ -407,34 +632,27 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
           placeholder="Parent item (top-level)"
         />
       )}
-      {/* Sub-unit (platoon/squad) section — '' = HQ / common. Primary-clinic-scoped. */}
-      {sectionApplicable && (
-        <PickerInput
-          value={sectionId}
-          onChange={setSectionId}
-          options={[{ value: '', label: 'HQ / Common' }, ...subClusters.map(s => ({ value: s.id, label: s.name }))]}
-          placeholder="Sub-unit"
-        />
-      )}
-
-      <div className="flex items-center border-b border-primary/6">
-        <div className="flex-1 min-w-0">
-          <DatePickerInput
-            value={expiryDate}
-            onChange={setExpiryDate}
-            placeholder="Expiry date"
-          />
+      {/* An authorized line never carries an expiry — that belongs to the physical stock. */}
+      {!authActive && (
+        <div className="flex items-center border-b border-primary/6">
+          <div className="flex-1 min-w-0">
+            <DatePickerInput
+              value={expiryDate}
+              onChange={setExpiryDate}
+              placeholder="Expiry date"
+            />
+          </div>
+          {expiryDate && (
+            <button
+              type="button"
+              onClick={() => setExpiryDate('')}
+              className="shrink-0 w-8 h-8 mr-2 flex items-center justify-center rounded-full text-tertiary hover:text-tertiary active:scale-95 transition-all"
+            >
+              <X size={14} />
+            </button>
+          )}
         </div>
-        {expiryDate && (
-          <button
-            type="button"
-            onClick={() => setExpiryDate('')}
-            className="shrink-0 w-8 h-8 mr-2 flex items-center justify-center rounded-full text-tertiary hover:text-tertiary active:scale-95 transition-all"
-          >
-            <X size={14} />
-          </button>
-        )}
-      </div>
+      )}
 
       <label className="block border-b border-primary/6">
         <textarea
@@ -445,6 +663,8 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
           placeholder="Notes"
         />
       </label>
+        </>
+      )}
       </div>
     </div>
   )

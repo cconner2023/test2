@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { X } from 'lucide-react'
-import { BaseOverlay, Z } from './BaseOverlay'
-import { useIsMobile } from '../Hooks/useIsMobile'
+import { BaseOverlay, Z } from '@/Components/primitives/BaseOverlay'
+import { useIsMobile } from '@/Hooks/useIsMobile'
 
 interface ModalProps {
   isOpen: boolean

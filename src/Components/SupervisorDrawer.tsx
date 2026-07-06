@@ -1,9 +1,9 @@
 import { useState, useCallback, useMemo, useEffect } from 'react'
 import { Ban, X, Settings, ChevronLeft } from 'lucide-react'
-import { BaseDrawer, ScrollPane } from './BaseDrawer'
-import { ContentWrapper } from './ContentWrapper'
-import { HeaderPill, PillButton } from './HeaderPill'
-import { SearchInput } from './SearchInput'
+import { BaseDrawer, ScrollPane } from '@/Components/primitives/BaseDrawer'
+import { ContentWrapper } from '@/Components/primitives/ContentWrapper'
+import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill'
+import { SearchInput } from '@/Components/primitives/SearchInput'
 import { useSwipeBack } from '../Hooks/useSwipeBack'
 import { useIsMobile } from '../Hooks/useIsMobile'
 import { UI_TIMING } from '../Utilities/constants'
@@ -25,14 +25,14 @@ import { AlgorithmCoverageView } from './Settings/Supervisor/AlgorithmCoverageVi
 import { AlgorithmGapList } from './Settings/Supervisor/AlgorithmGapList'
 import { SoldierAlgorithmList } from './Settings/Supervisor/SoldierAlgorithmList'
 import { SupervisorTree, type TreeSelection } from './Settings/Supervisor/SupervisorTree'
-import { LoadingOverlay } from './LoadingOverlay'
+import { LoadingOverlay } from '@/Components/primitives/LoadingOverlay'
 import { useMinLoadTime } from '../Hooks/useMinLoadTime'
 import { ClinicIdentityEditPopover } from './ClinicAdmin/ClinicIdentityEditPopover'
 import { MemberEditPopover } from './ClinicAdmin/MemberEditPopover'
 import { AddMemberPopover } from './ClinicAdmin/AddMemberPopover'
 import { useClinicMedics } from '../Hooks/useClinicMedics'
 import { getClinicDetails, removeSoldierFromClinic, endLoanFromClinic } from '../lib/supervisorService'
-import { ConfirmDialog } from './ConfirmDialog'
+import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
 import { invalidate } from '../stores/useInvalidationStore'
 import { listLocations, type AdminLocation } from '../lib/adminService'
 import type { ClinicMedic } from '../Types/SupervisorTestTypes'
@@ -76,16 +76,6 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
 
   // Close the timeline pane whenever the selected person changes.
   useEffect(() => { setTimelinePaneOpen(false) }, [treeSelection])
-
-  // Tour: guided tour navigation events
-  useEffect(() => {
-    const handleBack = () => {
-      setView({ screen: 'main' })
-      setTreeSelection({ type: 'all-personnel' })
-    }
-    window.addEventListener('tour:supervisor-back', handleBack)
-    return () => window.removeEventListener('tour:supervisor-back', handleBack)
-  }, [])
 
   const isMobile = useIsMobile()
 
@@ -210,22 +200,6 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
       .filter(e => isEncounterEvent(e) && e.status !== 'cancelled')
       .sort((a, b) => b.start_time.localeCompare(a.start_time))
   }, [calendarEvents])
-
-  // Tour: navigate into first coverage area programmatically
-  useEffect(() => {
-    const handleOpenFirstArea = () => {
-      const firstGap = teamMetrics.subjectAreaGaps
-        .slice()
-        .sort((a, b) => a.coveragePercent - b.coveragePercent)[0]
-      if (firstGap) {
-        setView({ screen: 'coverage-tasks', areaName: firstGap.areaName })
-      }
-    }
-    window.addEventListener('tour:supervisor-open-first-area', handleOpenFirstArea)
-    return () => {
-      window.removeEventListener('tour:supervisor-open-first-area', handleOpenFirstArea)
-    }
-  }, [teamMetrics])
 
   // ── Slide Animation ────────────────────────────────────────────────────────
 

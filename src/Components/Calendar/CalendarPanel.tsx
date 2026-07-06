@@ -1,8 +1,8 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
 import { Clock, Users2, CalendarDays, X, Check, Trash2, CalendarPlus, CalendarOff, Square, Columns3, ListChecks, Grid2x2, CalendarRange, Rows3, Megaphone, SlidersHorizontal, ChevronLeft } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
-import { ActionPill } from '../ActionPill'
-import { LiftedRowMenu } from '../LiftedRowMenu'
+import { ActionPill } from '@/Components/primitives/ActionPill'
+import { LiftedRowMenu } from '@/Components/primitives/LiftedRowMenu'
 import { buildEventMenuItems, buildEventStatusReactions } from './eventMenu'
 import { exportEventConop, gatherLinkedGeometry } from '../../lib/conop/exportEventConop'
 import { getTileTheme } from '../MapOverlay/ThemedTileLayer'
@@ -19,20 +19,20 @@ import { DaySummaryView } from './DaySummaryView'
 import { TroopsToTaskView } from './TroopsToTaskView'
 import { InfiniteScrollCalendar } from './InfiniteScrollCalendar'
 import { useShareToChat } from '../Messages/ShareToChatPicker'
-import { ConfirmDialog } from '../ConfirmDialog'
-import { ActionSheet } from '../ActionSheet'
-import { BaseDrawer } from '../BaseDrawer'
-import { Sheet } from '../Sheet'
-import { useStack } from '../useStack'
+import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
+import { ActionSheet } from '@/Components/primitives/ActionSheet'
+import { BaseDrawer } from '@/Components/primitives/BaseDrawer'
+import { Sheet } from '@/Components/primitives/Sheet'
+import { useStack } from '@/Components/primitives/useStack'
 import { StackNavContext } from '../stackNav'
-import { LayeredStackBody } from '../LayeredStackBody'
-import { BottomIsland, IslandButton } from '../BottomIsland'
-import { AddFab } from '../AddFab'
+import { LayeredStackBody } from '@/Components/primitives/LayeredStackBody'
+import { BottomIsland, IslandButton } from '@/Components/primitives/BottomIsland'
+import { AddFab } from '@/Components/primitives/AddFab'
 import { CalendarCSVImport } from './CalendarCSVImportDrawer'
 import { TemplateGeneratorPanel, type TemplateGeneratorHandle } from './TemplateGeneratorPanel'
 import { BlockTemplatedPanel, type BlockTemplatedHandle } from './BlockTemplatedPanel'
 import { useAuthStore } from '../../stores/useAuthStore'
-import { HeaderPill, PillButton } from '../HeaderPill'
+import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill'
 import { useCalendarStore } from '../../stores/useCalendarStore'
 import { createAssignment, updateAssignmentCalendarOriginId } from '../../lib/trainingService'
 import { useDispatchCalendarEvents, DISPATCH_CAL_ID_PREFIX } from '../../Hooks/useDispatchCalendarEvents'
@@ -46,7 +46,7 @@ import { useClinicPreCombatChecks } from '../../Hooks/useClinicPreCombatChecks'
 import { usePropertyStore } from '../../stores/usePropertyStore'
 import { useCalendarSync } from '../../Hooks/useCalendarSync'
 import { useCalendarWrite } from '../../Hooks/useCalendarWrite'
-import { LoadingOverlay } from '../LoadingOverlay'
+import { LoadingOverlay } from '@/Components/primitives/LoadingOverlay'
 import { useAuth } from '../../Hooks/useAuth'
 import { getOverlays } from '../../lib/mapOverlayService'
 import { useMapOverlayWrite } from '../../Hooks/useMapOverlayWrite'
@@ -215,18 +215,6 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     onPanelStateChange?.(panelView !== 'calendar')
   }, [panelView, onPanelStateChange])
 
-  // Tour-driven panel view override (used by provider-template guided tours).
-  useEffect(() => {
-    const onSet = (e: Event) => {
-      const detail = (e as CustomEvent<PanelView>).detail
-      if (!detail) return
-      if (detail === 'template') setTemplateNonce(n => n + 1)
-      if (detail === 'block') setBlockNonce(n => n + 1)
-      setPanelView(detail)
-    }
-    window.addEventListener('tour:calendar-set-panel-view', onSet)
-    return () => window.removeEventListener('tour:calendar-set-panel-view', onSet)
-  }, [])
   const eventFormRef = useRef<EventFormHandle>(null)
   // Live title mirrored up from the open EventForm so the drawer/sheet/desktop
   // headers can show it (map-overlay-style title-in-header). EventForm reports
@@ -1500,24 +1488,23 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
           <BottomIsland
             glass
             z="z-20"
-            tour="calendar-view-switcher"
             fab={
-              <AddFab tour="calendar-add-event" label="Add event" onClick={() => setShowAddSheet(true)} className="absolute right-4" />
+              <AddFab label="Add event" onClick={() => setShowAddSheet(true)} className="absolute right-4" />
             }
           >
-            <IslandButton active={viewMode === 'month'} onClick={() => selectView('month')} label="Month" tour="calendar-view-month">
+            <IslandButton active={viewMode === 'month'} onClick={() => selectView('month')} label="Month">
               <CalendarDays className="w-5 h-5" />
             </IslandButton>
-            <IslandButton active={viewMode === 'day'} onClick={() => selectView('day')} label="Day" tour="calendar-view-day">
+            <IslandButton active={viewMode === 'day'} onClick={() => selectView('day')} label="Day">
               <Clock className="w-5 h-5" />
             </IslandButton>
-            <IslandButton active={viewMode === 'troops'} onClick={() => selectView('troops')} label="Troops to Task" tour="calendar-view-troops">
+            <IslandButton active={viewMode === 'troops'} onClick={() => selectView('troops')} label="Troops to Task">
               <Users2 className="w-5 h-5" />
             </IslandButton>
             {/* Hairline divider — separates the view switcher from the options
                 toggle so the 4th icon reads as "options", not a 4th view. */}
             <div className="w-px h-6 bg-tertiary/20 mx-0.5 shrink-0" aria-hidden />
-            <IslandButton active={showViewConfig} onClick={() => setShowViewConfig(o => !o)} label="View options" tour="calendar-view-options">
+            <IslandButton active={showViewConfig} onClick={() => setShowViewConfig(o => !o)} label="View options">
               <SlidersHorizontal className="w-5 h-5" />
             </IslandButton>
           </BottomIsland>
@@ -1544,7 +1531,6 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                       accent="success"
                       onClick={() => templatePanelRef.current?.submit()}
                       label="Generate"
-                      data-tour="template-generate"
                     />
                   </HeaderPill>
                 ),
@@ -1583,7 +1569,6 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                       onClick={() => blockPanelRef.current?.submit()}
                       label="Clear"
                       variant="danger"
-                      data-tour="block-clear"
                     />
                   </HeaderPill>
                 ),
@@ -1845,7 +1830,6 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                         accent="success"
                         onClick={() => templatePanelRef.current?.submit()}
                         label="Generate"
-                        data-tour="template-generate"
                       />
                     </HeaderPill>
                   </div>
@@ -1872,7 +1856,6 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                         onClick={() => blockPanelRef.current?.submit()}
                         label="Clear"
                         variant="danger"
-                        data-tour="block-clear"
                       />
                     </HeaderPill>
                   </div>
@@ -1920,7 +1903,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
               { key: 'clear-templates', label: 'Clear Templates…', onAction: () => { setBlockNonce(n => n + 1); setPanelView('block') } },
             ] },
           ] : []),
-          { key: 'data', label: 'Data', tourTag: 'calendar-export-import', children: [
+          { key: 'data', label: 'Data', children: [
             { key: 'import', label: 'Import CSV', onAction: () => setPanelView('import') },
             { key: 'export', label: 'Export .ics', onAction: () => shareCalendar(events).catch(() => {}) },
             { key: 'export-t2t', label: 'Export Troops-to-Task .csv', onAction: () => shareTroopsToTaskCsv(events, { medics: ownClinicMedics, huddleTasks: sortedHuddleTasks }).catch(() => {}) },

@@ -11,7 +11,7 @@ import { Phone, PhoneOff, Mic, MicOff, Video, VideoOff } from 'lucide-react'
 import { useCallStore, selectShowCallUI, selectCanLeaveVoicemail } from '../../stores/useCallStore'
 import { useCallActions } from '../../Hooks/CallContext'
 import { CallVoicemailControls } from './CallVoicemailControls'
-import { Z, STACK_BUMP, OverlayStackContext } from '../BaseOverlay'
+import { Z, STACK_BUMP, OverlayStackContext } from '@/Components/primitives/BaseOverlay'
 
 function formatElapsed(ms: number): string {
   const totalSeconds = Math.floor(ms / 1000)

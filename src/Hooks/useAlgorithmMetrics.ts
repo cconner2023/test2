@@ -1,54 +1,44 @@
 import { useCallback } from 'react'
 import { useAuth } from './useAuth'
-import { useCalendarVault } from './useCalendarVault'
-import { useCalendarStore } from '../stores/useCalendarStore'
-import { queuePendingVaultSend } from '../lib/calendarEventStore'
-import { generateId, toLocalISOString } from '../Types/CalendarTypes'
-import type { CalendarEvent } from '../Types/CalendarTypes'
+import { emitAudit } from '../lib/auditService'
 
+/**
+ * Algorithm encounter logging — DISGUISED AS TRAINING for plausible deniability.
+ *
+ * An "encounter" here is real patient treatment. We do NOT want that fact legible
+ * to anyone with raw DB/wire access, so `logNow` records it as an ordinary
+ * training READ of the algorithm: an audit_log `read.recorded` (domain=training,
+ * subject=the medic) whose only payload is `training_item_id = <algorithm id>`.
+ *
+ * The training_item_id lives in the ENCRYPTED payload (Tier-1 clinic key), exactly
+ * like a genuine training read — so in the cleartext spine this event is
+ * indistinguishable from any other training completion. An adversary without the
+ * clinic key sees "a training read at time T," nothing more. The clinic-key holder
+ * (the medic / their supervisor) decrypts and it folds as a real 'read' completion
+ * for the algorithm, so it also counts as training. Deliberately carries NO
+ * "encounter" marker — that anomaly would break the blend and defeat the point.
+ */
 export function useAlgorithmMetrics() {
-  const { sendEvent } = useCalendarVault()
   const { user, clinicId } = useAuth()
 
-  const logNow = useCallback(async (algorithmId: string, algorithmName: string) => {
+  const logNow = useCallback(async (algorithmId: string) => {
     if (!user?.id || !clinicId) return
 
-    const now = new Date()
-    const nowStr = toLocalISOString(now)
-
-    const event: CalendarEvent = {
-      id: generateId(),
-      clinic_id: clinicId,
-      title: `ADTMC ${algorithmId} \u2014 ${algorithmName}`,
-      description: null,
-      category: 'training',
-      status: 'completed',
-      encounter_algorithm_id: algorithmId,
-      start_time: nowStr,
-      end_time: nowStr,
-      all_day: false,
-      location: null,
-      opord_notes: null,
-      uniform: null,
-      report_time: null,
-      assigned_to: [user.id],
-      property_item_ids: [],
-      structured_location: null,
-      resource_allocations: null,
-      created_by: user.id,
-      created_at: now.toISOString(),
-      updated_at: now.toISOString(),
-    }
-
-    useCalendarStore.getState().addEvent(event)
-
-    const originId = await sendEvent('c', event)
-    if (originId) {
-      useCalendarStore.getState().updateEvent(event.id, { originId })
-    } else {
-      await queuePendingVaultSend(event)
-    }
-  }, [sendEvent, user, clinicId])
+    await emitAudit(
+      {
+        clinicId,
+        actorId: user.id,
+        domain: 'training',
+        eventType: 'read.recorded',
+        subjectType: 'user',
+        subjectId: user.id,
+        // Encrypted tail — same shape as a genuine training read (see the
+        // deniability note above). No algorithm name, no encounter flag.
+        payload: { training_item_id: algorithmId },
+      },
+      user.id,
+    )
+  }, [user, clinicId])
 
   return { logNow }
 }

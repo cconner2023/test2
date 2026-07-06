@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef } from 'react'
 import { FileText, X, Wand2, Check } from 'lucide-react'
-import { ActionPill } from '../ActionPill'
-import { ActionButton } from '../ActionButton'
+import { ActionPill } from '@/Components/primitives/ActionPill'
+import { ActionButton } from '@/Components/primitives/ActionButton'
 import { detectGeoRefFromFile, type DetectedGeoRef } from '../../lib/mapImporters/lgiParser'
 
 interface GeoPdfImportFormProps {

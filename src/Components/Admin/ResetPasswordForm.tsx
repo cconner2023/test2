@@ -1,7 +1,7 @@
 import { Check, X } from 'lucide-react'
-import { PasswordInput } from '../FormInputs'
-import { ActionPill } from '../ActionPill'
-import { ActionButton } from '../ActionButton'
+import { PasswordInput } from '@/Components/primitives/FormInputs'
+import { ActionPill } from '@/Components/primitives/ActionPill'
+import { ActionButton } from '@/Components/primitives/ActionButton'
 
 interface ResetPasswordFormProps {
   value: string

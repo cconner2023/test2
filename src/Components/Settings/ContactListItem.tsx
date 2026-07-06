@@ -2,7 +2,7 @@ import type { ClinicMedic } from '../../Types/SupervisorTestTypes'
 import type { UnavailableReason } from '../../Hooks/usePeerAvailability'
 import { getDisplayName } from '../../Utilities/nameUtils'
 import { UserAvatar } from './UserAvatar'
-import { ListItemRow, UnreadBadge } from '../ListItemRow'
+import { ListItemRow, UnreadBadge } from '@/Components/primitives/ListItemRow'
 
 interface ContactListItemProps {
   medic: ClinicMedic

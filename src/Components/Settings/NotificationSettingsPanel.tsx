@@ -5,7 +5,7 @@ import { useUserProfile } from '../../Hooks/useUserProfile'
 import { useAuth } from '../../Hooks/useAuth'
 import { isMessageSoundsEnabled, setMessageSoundsEnabled } from '../../lib/soundService'
 import { ToggleSwitch } from './ToggleSwitch'
-import { ErrorDisplay } from '../ErrorDisplay'
+import { ErrorDisplay } from '@/Components/primitives/ErrorDisplay'
 import { UI_TIMING } from '../../Utilities/constants'
 
 export const NotificationSettingsPanel = () => {

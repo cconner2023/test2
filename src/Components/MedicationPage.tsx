@@ -1,5 +1,5 @@
 import type { medListTypes } from "../Data/MedData"
-import { Section, SectionCard } from './Section'
+import { Section, SectionCard } from '@/Components/primitives/Section'
 
 interface MedicationPageProps {
     medication: medListTypes

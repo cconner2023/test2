@@ -31,9 +31,9 @@ import {
 } from '../lib/biometricService'
 import { tryDeviceRestore } from '../lib/sessionRestore'
 import { useAuthStore } from '../stores/useAuthStore'
-import { PinKeypad } from './PinKeypad'
+import { PinKeypad } from '@/Components/primitives/PinKeypad'
 import { PasswordLockScreen } from './PasswordLockScreen'
-import { LoadingSpinner } from './LoadingSpinner'
+import { LoadingSpinner } from '@/Components/primitives/LoadingSpinner'
 
 type Phase =
   | 'restoring'   // silent restore in progress

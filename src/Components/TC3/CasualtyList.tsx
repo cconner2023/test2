@@ -1,9 +1,9 @@
 import { memo, useMemo, useState } from 'react'
 import { MoreHorizontal, FileText, RotateCcw, Trash2, Crosshair } from 'lucide-react'
 import { useTC3Store } from '../../stores/useTC3Store'
-import { SearchInput } from '../SearchInput'
-import { LiftedRowMenu } from '../LiftedRowMenu'
-import { type ContextMenuItem } from '../ContextMenu'
+import { SearchInput } from '@/Components/primitives/SearchInput'
+import { LiftedRowMenu } from '@/Components/primitives/LiftedRowMenu'
+import { type ContextMenuItem } from '@/Components/primitives/ContextMenu'
 import type { TC3Card } from '../../Types/TC3Types'
 
 const PRIORITY_COLOR: Record<string, string> = {

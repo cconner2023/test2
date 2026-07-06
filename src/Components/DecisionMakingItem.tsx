@@ -2,7 +2,7 @@
 import { useMemo, memo } from 'react'
 import type { decisionMakingType } from '../Types/AlgorithmTypes'
 import type { medListTypes } from '../Data/MedData'
-import { SectionHeader } from './Section'
+import { SectionHeader } from '@/Components/primitives/Section'
 
 interface DecisionMakingItemProps {
     item: decisionMakingType;

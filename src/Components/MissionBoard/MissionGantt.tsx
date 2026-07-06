@@ -4,7 +4,7 @@ import type { LucideIcon } from 'lucide-react'
 import { toDateKey, formatShortDayLabel } from '../../Types/CalendarTypes'
 import type { CalendarEvent, EventStatus } from '../../Types/CalendarTypes'
 import { MissionEventBar } from './MissionEventBar'
-import { type ContextMenuItem } from '../ContextMenu'
+import { type ContextMenuItem } from '@/Components/primitives/ContextMenu'
 import { menuPressHandlers, type MenuPressState } from '../Calendar/menuPress'
 import { useCategoryColors } from '../../Hooks/useCategoryColors'
 

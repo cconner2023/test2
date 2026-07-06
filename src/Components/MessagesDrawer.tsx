@@ -1,11 +1,11 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
 import { useSpring, animated } from '@react-spring/web'
 import { ChevronLeft, Plus, X, Play, Headset, Info, Settings, MessageSquare } from 'lucide-react'
-import { BaseDrawer } from './BaseDrawer'
-import { BottomIsland, IslandButton } from './BottomIsland'
-import { HeaderPill, PillButton } from './HeaderPill'
+import { BaseDrawer } from '@/Components/primitives/BaseDrawer'
+import { BottomIsland, IslandButton } from '@/Components/primitives/BottomIsland'
+import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill'
 import { PreviewOverlay } from './PreviewOverlay'
-import { Sheet } from './Sheet'
+import { Sheet } from '@/Components/primitives/Sheet'
 import { VoicemailGreetingSection } from './Settings/VoicemailGreetingSection'
 import { IncomingCallsSection } from './Settings/IncomingCallsSection'
 import { MessagingOncallSettings } from './Settings/MessagingOncallSettings'
@@ -19,7 +19,6 @@ import { useUserProfile } from '../Hooks/useUserProfile'
 import { useIsMobile } from '../Hooks/useIsMobile'
 import { useCallActions } from '../Hooks/CallContext'
 import { useSwipeBack } from '../Hooks/useSwipeBack'
-import { useTourContext } from './Tour/TourProvider'
 import type { ClinicMedic } from '../Types/SupervisorTestTypes'
 import type { GroupInfo } from '../lib/signal/groupTypes'
 
@@ -64,8 +63,6 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
     }, [isVisible, settingsClinicId, isSupervisorRole, outsideCallBeta])
     const panelRef = useRef<MessagesPanelHandle>(null)
     const isMobile = useIsMobile()
-    const tourCtx = useTourContext()
-    const isTourActive = tourCtx?.isActive ?? false
     const callActions = useCallActions()
     // Apply deep-link when drawer opens
     useMemo(() => {
@@ -173,7 +170,6 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
             registerThreadBack={registerThreadBack}
             lens={lens}
             onLensChange={setLens}
-            tourVariant={isTourActive ? (isMobile ? 'mobile' : 'desktop') : undefined}
             scrollToMessageId={pendingScrollMsgId}
             onScrollConsumed={handleScrollConsumed}
         />

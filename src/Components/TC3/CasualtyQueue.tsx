@@ -2,7 +2,7 @@ import { memo } from 'react'
 import { Trash2, UserPlus, RotateCcw, FileText, Download } from 'lucide-react'
 import { useTC3Store } from '../../stores/useTC3Store'
 import { PreviewOverlay } from '../PreviewOverlay'
-import { ActionButton } from '../ActionButton'
+import { ActionButton } from '@/Components/primitives/ActionButton'
 import type { TC3Card } from '../../Types/TC3Types'
 
 const PRIORITY_COLOR: Record<string, string> = {

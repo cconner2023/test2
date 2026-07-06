@@ -26,8 +26,6 @@ interface AddFabProps {
   onClick: () => void
   /** aria-label + tooltip. Default 'Add'. */
   label?: string
-  /** `data-tour` anchor on the button (guided tours). */
-  tour?: string
   /** Glyph component; default `Plus`. Rendered at `w-5 h-5`. */
   icon?: LucideIcon
   /** 'md' = w-11 h-11 (default); 'lg' = w-12 h-12. */
@@ -44,7 +42,6 @@ interface AddFabProps {
 export function AddFab({
   onClick,
   label = 'Add',
-  tour,
   icon: Icon = Plus,
   size = 'md',
   tray = true,
@@ -57,7 +54,6 @@ export function AddFab({
     <button
       onClick={onClick}
       disabled={disabled}
-      data-tour={tour}
       aria-label={label}
       title={label}
       className={`relative shrink-0 ${dim} rounded-full bg-themeblue3 text-white flex items-center justify-center active:scale-95 transition-all duration-200 disabled:opacity-30 ${

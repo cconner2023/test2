@@ -1,6 +1,6 @@
 import { Thermometer, MapPin, RefreshCw } from 'lucide-react'
 import { useWeather } from '../../Hooks/useWeather'
-import { SectionCard } from '../Section'
+import { SectionCard } from '@/Components/primitives/Section'
 
 function ageLabel(d: Date): string {
   const mins = Math.floor((Date.now() - d.getTime()) / 60000)

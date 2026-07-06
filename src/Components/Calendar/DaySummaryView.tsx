@@ -117,7 +117,7 @@ export function DaySummaryView({
   }
 
   return (
-    <div data-tour="calendar-summary-view" className="flex flex-col h-full">
+    <div className="flex flex-col h-full">
       {/* Sticky header — mirrors DayView for cross-view consistency */}
       <div className="sticky top-0 z-10 bg-themewhite3">
         {hasNav ? (

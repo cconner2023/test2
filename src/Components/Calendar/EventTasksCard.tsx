@@ -6,9 +6,9 @@ import type { ClinicPreCombatCheck } from '../../lib/supervisorService'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { usePropertyStore } from '../../stores/usePropertyStore'
 import { PreviewOverlay, type ContextMenuAction } from '../PreviewOverlay'
-import { TextInput } from '../FormInputs'
-import { ActionPill } from '../ActionPill'
-import { ActionButton } from '../ActionButton'
+import { TextInput } from '@/Components/primitives/FormInputs'
+import { ActionPill } from '@/Components/primitives/ActionPill'
+import { ActionButton } from '@/Components/primitives/ActionButton'
 
 interface Props {
   subtasks: EventSubtask[]

@@ -367,7 +367,7 @@ export function InfiniteScrollCalendar({
   }, [])
 
   return (
-    <div data-tour="calendar-month-grid" className="flex flex-col h-full">
+    <div className="flex flex-col h-full">
       {/* Scrollable weeks */}
       <div
         ref={scrollRef}

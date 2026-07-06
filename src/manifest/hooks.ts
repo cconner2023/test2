@@ -78,9 +78,6 @@ export const hooks = {
   useTemplateSession:     { path: 'Hooks/useTemplateSession.ts',     stores: [], services: [], purpose: 'Template session state (step/choice progression, branching)' },
   useTextExpander:        { path: 'Hooks/useTextExpander.ts',        stores: [], services: [], purpose: 'Fuzzy abbreviation matching for text expansion' },
 
-  // ─── Tour ──────────────────────────────────────────────────────
-  useTour:                { path: 'Hooks/useTour.ts',                stores: ['useAuthStore'], services: [], purpose: 'Guided onboarding tour orchestration with role gating' },
-
   // ─── PWA / Platform ────────────────────────────────────────────
   useServiceWorker:       { path: 'Hooks/useServiceWorker.ts',       stores: [], services: [], purpose: 'SW registration, periodic updates, skip-waiting' },
   useInstallCapability:   { path: 'Hooks/useInstallPrompt.ts',       stores: [], services: [], purpose: 'PWA install affordance (canInstall/install/isIOS) — surfaced by ProvisionalDeviceModal' },

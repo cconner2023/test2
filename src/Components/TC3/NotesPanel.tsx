@@ -1,8 +1,8 @@
 import { memo } from 'react'
 import { useTC3Store } from '../../stores/useTC3Store'
-import { ExpandableInput } from '../ExpandableInput'
+import { ExpandableInput } from '@/Components/primitives/ExpandableInput'
 import { useMergedNoteContent } from '../../Hooks/useMergedNoteContent'
-import { Section, SectionCard } from '../Section'
+import { Section, SectionCard } from '@/Components/primitives/Section'
 
 export const NotesPanel = memo(function NotesPanel() {
   const notes = useTC3Store((s) => s.card.notes)
@@ -10,7 +10,7 @@ export const NotesPanel = memo(function NotesPanel() {
   const { expanders } = useMergedNoteContent()
 
   return (
-    <div data-tour="tc3-notes">
+    <div>
       <Section title="Notes">
         <SectionCard>
           <ExpandableInput

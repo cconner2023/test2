@@ -1,5 +1,5 @@
 import { memo, useMemo, useState, useEffect } from 'react'
-import { BaseDrawer } from '../BaseDrawer'
+import { BaseDrawer } from '@/Components/primitives/BaseDrawer'
 import { BarcodeDisplay } from '../Barcode'
 import { ActionIconButton } from '../WriteNoteHelpers'
 import { useTC3Store } from '../../stores/useTC3Store'
@@ -13,7 +13,7 @@ import { TC3NineLine } from './TC3NineLine'
 import { CasualtyQueue } from './CasualtyQueue'
 import type { TC3Card } from '../../Types/TC3Types'
 import type { UserTypes } from '../../Data/User'
-import { ActionPill } from '../ActionPill'
+import { ActionPill } from '@/Components/primitives/ActionPill'
 import { ChevronDown } from 'lucide-react'
 
 const INJURY_COLORS: Record<string, string> = {

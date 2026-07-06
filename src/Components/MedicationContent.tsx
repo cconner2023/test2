@@ -1,12 +1,12 @@
 import { useMemo, useState, useCallback, useRef } from 'react'
 import { Pin } from 'lucide-react'
 import { MedicationPage } from './MedicationPage'
-import { Section, SectionCard } from './Section'
+import { Section, SectionCard } from '@/Components/primitives/Section'
 import { medList, type medListTypes } from '../Data/MedData'
 import { tc3MedList } from '../Data/TC3MedData'
 import { useNavPreferencesStore } from '../stores/useNavPreferencesStore'
 import { useShallow } from 'zustand/react/shallow'
-import { LiftedRowMenu } from './LiftedRowMenu'
+import { LiftedRowMenu } from '@/Components/primitives/LiftedRowMenu'
 import { liftPressHandlers, type LiftPressState, type LiftSnapshot } from './liftPress'
 
 function MedicationListItem({ medication, onClick, isPinned, pressHandlers }: {

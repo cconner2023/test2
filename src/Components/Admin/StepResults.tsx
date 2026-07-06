@@ -1,6 +1,6 @@
 import { Check, X, RefreshCw } from 'lucide-react'
-import { ActionPill } from '../ActionPill'
-import { ActionButton } from '../ActionButton'
+import { ActionPill } from '@/Components/primitives/ActionPill'
+import { ActionButton } from '@/Components/primitives/ActionButton'
 
 export interface StepResult {
   key: string

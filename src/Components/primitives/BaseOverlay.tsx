@@ -1,7 +1,7 @@
 import { createContext, useContext } from 'react'
 import { createPortal } from 'react-dom'
 import type { ReactNode, RefObject } from 'react'
-import { useOverlay } from '../Hooks/useOverlay'
+import { useOverlay } from '@/Hooks/useOverlay'
 
 /**
  * z-index tier tokens. Higher = renders on top.

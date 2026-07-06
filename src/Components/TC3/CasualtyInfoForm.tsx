@@ -5,8 +5,8 @@ import { useMapOverlaysStore } from '../../stores/useMapOverlaysStore'
 import { useNavigationStore } from '../../stores/useNavigationStore'
 import { OverlaySnapshot } from '../MapOverlay/OverlaySnapshot'
 import { TC3EditorSurface } from './TC3EditorSurface'
-import { TextInput, DatePickerInput, PickerInput } from '../FormInputs'
-import { EmptyState } from '../EmptyState'
+import { TextInput, DatePickerInput, PickerInput } from '@/Components/primitives/FormInputs'
+import { EmptyState } from '@/Components/primitives/EmptyState'
 import type { EvacPriority, BloodType } from '../../Types/TC3Types'
 import { MILITARY_TIME_OPTIONS, militaryToHHMM, hhmmToMilitary } from '../../Types/CalendarTypes'
 
@@ -119,7 +119,7 @@ export const CasualtyInfoForm = memo(function CasualtyInfoForm() {
   const populated = hasData(casualty)
 
   return (
-    <div data-tour="tc3-casualty-info">
+    <div>
       {/* ── Section header ── */}
       <div className="mb-2">
         <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">

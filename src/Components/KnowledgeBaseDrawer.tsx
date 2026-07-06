@@ -1,22 +1,22 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import { ChevronRight, RotateCcw, Pin, Pill, BookOpen, MoreHorizontal } from 'lucide-react'
-import { SearchInput } from './SearchInput'
-import { ActionButton } from './ActionButton'
-import { HeaderPill, PillButton } from './HeaderPill'
-import { BaseDrawer } from './BaseDrawer'
+import { SearchInput } from '@/Components/primitives/SearchInput'
+import { ActionButton } from '@/Components/primitives/ActionButton'
+import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill'
+import { BaseDrawer } from '@/Components/primitives/BaseDrawer'
 import { TrainingPanel, type TrainingView } from './Settings/TrainingPanel'
 import { MedicationContent } from './MedicationContent'
-import { ContentWrapper } from './ContentWrapper'
+import { ContentWrapper } from '@/Components/primitives/ContentWrapper'
 import { QuestionRow, WordListContent } from './ScreenerDrawer'
 import { useSwipeBack } from '../Hooks/useSwipeBack'
 import { VitalSignsCalculator, type VitalSignsCalculatorHandle } from './VitalSignsCalculator'
 import { BurnCalculator } from './BurnCalculator'
 import { HeatCategoryCalculator } from './HeatCategoryCalculator'
 import { NineLineKB, NineLineExport } from './Reports/NineLineKB'
-import { DatePickerCalendar } from './FormInputs'
+import { DatePickerCalendar } from '@/Components/primitives/FormInputs'
 import { PreviewOverlay } from './PreviewOverlay'
-import { type ContextMenuItem } from './ContextMenu'
-import { LiftedRowMenu } from './LiftedRowMenu'
+import { type ContextMenuItem } from '@/Components/primitives/ContextMenu'
+import { LiftedRowMenu } from '@/Components/primitives/LiftedRowMenu'
 import { useNavPreferencesStore } from '../stores/useNavPreferencesStore'
 import { useShallow } from 'zustand/react/shallow'
 import { kbCategories, kbGroupLabels, kbGroupOrder, type KBCategory } from '../Data/KnowledgeBaseCategories'
@@ -303,7 +303,7 @@ export function KnowledgeBaseDrawer({
             <ContentWrapper slideDirection={slideDirection} swipeHandlers={canSwipeBack ? swipeHandlers : undefined}>
                 {view === 'home' && (
                     <>
-                        <div className="px-3 py-2" data-tour="kb-search">
+                        <div className="px-3 py-2">
                             <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Search..." />
                         </div>
                         <KBHome
@@ -426,7 +426,6 @@ function KBRow({
     onClick,
     className,
     disabled,
-    dataTour,
     children,
 }: {
     menuId: string | null
@@ -434,7 +433,6 @@ function KBRow({
     onClick: () => void
     className: string
     disabled?: boolean
-    dataTour?: string
     children: React.ReactNode
 }) {
     const btnRef = useRef<HTMLButtonElement>(null)
@@ -462,7 +460,6 @@ function KBRow({
                 onTouchEnd={menuId ? clearTimer : undefined}
                 onTouchMove={menuId ? clearTimer : undefined}
                 onTouchCancel={menuId ? clearTimer : undefined}
-                {...(dataTour ? { 'data-tour': dataTour } : {})}
                 className={className}
             >
                 {children}
@@ -681,22 +678,12 @@ function KBHome({
     const hasPinnedItems = pinnedCategories.length > 0 || pinnedMeds.length > 0 || pinnedTasks.length > 0
 
     // ── Default category grid ─────────────────────────────────
-    // Map category IDs to data-tour values; first screener gets 'kb-screener'
-    const tourMap: Record<string, string> = {
-        medications: 'kb-medications',
-        stp: 'kb-stp',
-        'vital-signs': 'kb-vitals',
-        burn: 'kb-burn',
-    }
-    let firstScreenerTagged = false
-
     // Shared category button renderer
-    const renderCatButton = (cat: KBCategory, idx: number, tourAttr?: string) => (
+    const renderCatButton = (cat: KBCategory, idx: number) => (
         <KBRow
             key={cat.id}
             menuId={cat.comingSoon ? null : cat.id}
             disabled={cat.comingSoon}
-            dataTour={tourAttr}
             onLift={handleLift}
             onClick={() => onCategoryClick(cat)}
             className={`flex items-center w-full px-4 py-3.5 text-left transition-all
@@ -726,10 +713,10 @@ function KBHome({
     )
 
     return (
-        <div className="px-4 py-3 md:p-5" data-tour="kb-category-grid">
+        <div className="px-4 py-3 md:p-5">
             {/* Pinned section */}
             {hasPinnedItems && (
-                <div className="mb-4" data-tour="kb-pinned">
+                <div className="mb-4">
                     <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider px-2 mb-2">
                         PINNED
                     </p>
@@ -789,14 +776,7 @@ function KBHome({
                                 {kbGroupLabels[group]}
                             </p>
                             <div className="rounded-xl bg-themewhite2/50 overflow-hidden">
-                                {items.map((cat, idx) => {
-                                    let tourAttr = tourMap[cat.id]
-                                    if (!tourAttr && cat.group === 'screening' && !cat.comingSoon && !firstScreenerTagged) {
-                                        tourAttr = 'kb-screener'
-                                        firstScreenerTagged = true
-                                    }
-                                    return renderCatButton(cat, idx, tourAttr)
-                                })}
+                                {items.map((cat, idx) => renderCatButton(cat, idx))}
                             </div>
                         </div>
                     )

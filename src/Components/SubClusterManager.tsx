@@ -1,12 +1,12 @@
 import { useRef, useState } from 'react'
 import { Plus, Check, Trash2 } from 'lucide-react'
-import { TextInput } from './FormInputs'
-import { EmptyState } from './EmptyState'
-import { ActionPill } from './ActionPill'
-import { ActionButton } from './ActionButton'
+import { TextInput } from '@/Components/primitives/FormInputs'
+import { EmptyState } from '@/Components/primitives/EmptyState'
+import { ActionPill } from '@/Components/primitives/ActionPill'
+import { ActionButton } from '@/Components/primitives/ActionButton'
 import { PreviewOverlay } from './PreviewOverlay'
-import { ConfirmDialog } from './ConfirmDialog'
-import { SwipeToDeleteRow } from './SwipeToDeleteRow'
+import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
+import { SwipeToDeleteRow } from '@/Components/primitives/SwipeToDeleteRow'
 import type { SubCluster } from '../lib/subClusterService'
 
 /**

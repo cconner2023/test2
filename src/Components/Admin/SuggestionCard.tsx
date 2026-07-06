@@ -1,8 +1,8 @@
 import { useCallback, useRef, useState } from 'react'
 import { Lightbulb, Trash2 } from 'lucide-react'
 import { PreviewOverlay } from '../PreviewOverlay'
-import { ActionPill } from '../ActionPill'
-import { ActionButton } from '../ActionButton'
+import { ActionPill } from '@/Components/primitives/ActionPill'
+import { ActionButton } from '@/Components/primitives/ActionButton'
 import type { FeatureVoteSuggestion } from '../../lib/featureVotingService'
 
 export interface SuggestionCardProps {

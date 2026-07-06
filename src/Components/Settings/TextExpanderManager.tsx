@@ -2,10 +2,10 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import { Plus, TextCursorInput, Layers, MessageSquare, Trash2, Building2 } from 'lucide-react';
 import type { TextExpander } from '../../Data/User';
 import { isFlatTemplate } from '../../Utilities/templateParser';
-import { OverlayActionMenu } from '../OverlayActionMenu';
-import { LiftedRowMenu } from '../LiftedRowMenu';
+import { OverlayActionMenu } from '@/Components/primitives/OverlayActionMenu';
+import { LiftedRowMenu } from '@/Components/primitives/LiftedRowMenu';
 import { liftPressHandlers, type LiftPressState, type LiftSnapshot } from '../liftPress';
-import type { ContextMenuItem } from '../ContextMenu';
+import type { ContextMenuItem } from '@/Components/primitives/ContextMenu';
 
 const hasBranches = (e: TextExpander): boolean =>
     !!(e.template && e.template.length > 0 && !isFlatTemplate(e.template));
@@ -76,14 +76,13 @@ export const TextExpanderManager = ({
             <div className="relative">
                 <OverlayActionMenu
                     ref={fabRef}
-                    tourTag="expander-fab"
                     shadow="sm"
                     items={[
                         { key: 'new', label: 'New shortcut', icon: Plus, onAction: () => fabRef.current && onStartNew(fabRef.current) },
                         ...(cornerItems ?? []),
                     ]}
                 />
-                <div data-tour="expander-list" className="rounded-xl bg-themewhite2 overflow-hidden">
+                <div className="rounded-xl bg-themewhite2 overflow-hidden">
                 <div className="px-2 py-2">
                     {hasItems ? (
                         <div className="divide-y divide-tertiary/8">

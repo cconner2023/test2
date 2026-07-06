@@ -1,6 +1,6 @@
 import { Download } from 'lucide-react'
 import { PreviewOverlay } from '../PreviewOverlay'
-import { PillButton } from '../HeaderPill'
+import { PillButton } from '@/Components/primitives/HeaderPill'
 import { PdfCanvasView } from '../PdfCanvasView'
 import type { PdfPreviewData } from '../../Hooks/usePdfExport'
 

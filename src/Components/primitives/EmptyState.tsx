@@ -1,16 +1,19 @@
-/** Shared empty state placeholder. Two variants:
- *  - `card` (default): matches SectionCard chrome (rounded-2xl + border + bg-themewhite2)
- *    sized to a populated card with one item. When `action` is provided, the ActionPill
- *    uses placement="overlay" — riding the top edge of the card / divider — matching
- *    populated-card overlays. The pill is always lifted to a sibling of the bordered
- *    chrome so its negative translate isn't clipped by overflow-hidden.
+/** Shared empty state placeholder. Variants:
+ *  - `card` (default) WITH an `action`: no card chrome. The add-affordance branches
+ *    by `surface` (the container it lives in) — see SURFACE below. The `title`
+ *    rides as the button's aria-label (the section label above the slot carries the
+ *    visible meaning). This is the consolidated add-empty-state.
+ *  - `card` WITHOUT an `action`: informational text (optionally in bordered chrome).
  *  - `gate`: centered icon + title + subtitle for access gates (sign-in, role-required).
+ *
+ * SURFACE (add-empty-state only): the empty-state treatment differs by the
+ * container it sits in. `drawer` (default) = variant A, a full-width dashed
+ * add-row (icon + label). `sheet` and `overlay` will branch to their own
+ * treatments — for now they fall through to the drawer row.
  */
 import type { ReactNode } from 'react'
 import { useRef } from 'react'
 import type { LucideIcon } from 'lucide-react'
-import { ActionPill } from './ActionPill'
-import { ActionButton } from './ActionButton'
 
 interface EmptyStateAction {
     icon: LucideIcon
@@ -20,6 +23,9 @@ interface EmptyStateAction {
 
 interface EmptyStateProps {
     variant?: 'card' | 'gate'
+    /** Add-empty-state only — the container the empty state lives in. Branches the
+     *  add-affordance treatment. Default 'drawer' (variant A dashed add-row). */
+    surface?: 'drawer' | 'sheet' | 'overlay'
     /** Gate variant only — ignored on card. */
     icon?: ReactNode
     title: string
@@ -27,12 +33,13 @@ interface EmptyStateProps {
     subtitle?: string
     action?: EmptyStateAction
     className?: string
-    /** Card variant only — when false, drops the rounded border / bg chrome so it sits inside an existing container. */
+    /** Card variant, no-action only — when false, drops the rounded border / bg chrome so it sits inside an existing container. */
     bordered?: boolean
 }
 
 export const EmptyState = ({
     variant = 'card',
+    surface = 'drawer',
     icon,
     title,
     subtitle,
@@ -40,7 +47,7 @@ export const EmptyState = ({
     className = '',
     bordered = true,
 }: EmptyStateProps) => {
-    const anchorRef = useRef<HTMLDivElement>(null)
+    const anchorRef = useRef<HTMLButtonElement>(null)
 
     if (variant === 'gate') {
         return (
@@ -52,6 +59,35 @@ export const EmptyState = ({
         )
     }
 
+    // Add-empty-state — no card. Treatment branches by SURFACE.
+    if (action) {
+        const Glyph = action.icon
+
+        // Sheet: the sheet HEADER owns the add affordance (its + or ellipsis), so the
+        // empty body is just the message text — no in-body add row.
+        if (surface === 'sheet') {
+            return (
+                <div className={`px-4 py-8 text-center text-[10pt] text-tertiary ${className}`}>
+                    {title}
+                </div>
+            )
+        }
+
+        // Variant A (drawer; overlay falls through for now): a full-width dashed
+        // add-row — icon only, ghosted, lifting to full opacity on hover. No card.
+        return (
+            <button
+                ref={anchorRef}
+                onClick={() => anchorRef.current && action.onClick(anchorRef.current)}
+                aria-label={action.label}
+                className={`flex items-center justify-center gap-1.5 w-full py-3 rounded-2xl border border-dashed border-themeblue2/25 text-themeblue2 text-[10pt] font-medium opacity-50 hover:opacity-100 hover:bg-themeblue2/5 active:scale-[0.98] transition-all ${className}`}
+            >
+                <Glyph className="w-4 h-4" />
+            </button>
+        )
+    }
+
+    // Informational (no action) — plain text, optionally in bordered card chrome.
     const row = (
         <div className="flex items-center gap-3 px-4 py-3 min-h-[3.75rem]">
             <p className="text-[10pt] text-tertiary flex-1 text-center">{title}</p>
@@ -64,15 +100,6 @@ export const EmptyState = ({
                     {row}
                 </div>
             ) : row}
-            {action && (
-                <ActionPill ref={anchorRef} shadow="sm" placement="overlay">
-                    <ActionButton
-                        icon={action.icon}
-                        label={action.label}
-                        onClick={() => anchorRef.current && action.onClick(anchorRef.current)}
-                    />
-                </ActionPill>
-            )}
         </div>
     )
 }

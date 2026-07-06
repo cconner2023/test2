@@ -2,10 +2,10 @@ import { useRef } from 'react';
 import { Plus, Trash2, Type, TextCursor, ChevronDown, GitBranch, Check, ChevronRight, X } from 'lucide-react';
 import type { TemplateNode, TextNode, StepNode, ChoiceNode, BranchNode } from '../../Data/TemplateTypes';
 import { getChoiceLabels, findChoiceByLabel } from '../../Utilities/templateEngine';
-import type { StackNav, StackScreen } from '../OverlayStack';
-import { ActionButton } from '../ActionButton';
-import { ActionPill } from '../ActionPill';
-import { TextInput, PickerInput } from '../FormInputs';
+import type { StackNav, StackScreen } from '@/Components/primitives/OverlayStack';
+import { ActionButton } from '@/Components/primitives/ActionButton';
+import { ActionPill } from '@/Components/primitives/ActionPill';
+import { TextInput, PickerInput } from '@/Components/primitives/FormInputs';
 
 /**
  * TemplateBuilder — the note-template authoring tree (text / step / choice / branch

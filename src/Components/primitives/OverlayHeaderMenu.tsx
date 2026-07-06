@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import { MoreHorizontal } from 'lucide-react'
-import { AnchoredMenu } from './LiftedRowMenu'
-import type { ContextMenuItem } from './ContextMenu'
+import { AnchoredMenu } from '@/Components/primitives/LiftedRowMenu'
+import type { ContextMenuItem } from '@/Components/primitives/ContextMenu'
 
 /**
  * Right-header overflow menu for popovers/detail sheets — a single ellipsis that

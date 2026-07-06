@@ -14,10 +14,10 @@
 import { useRef, useState } from 'react'
 import { ArrowRightLeft, Check } from 'lucide-react'
 import { useAuth } from '../../Hooks/useAuth'
-import { ActionButton } from '../ActionButton'
-import { ActionPill } from '../ActionPill'
+import { ActionButton } from '@/Components/primitives/ActionButton'
+import { ActionPill } from '@/Components/primitives/ActionPill'
 import { PreviewOverlay } from '../PreviewOverlay'
-import type { ContextMenuItem } from '../ContextMenu'
+import type { ContextMenuItem } from '@/Components/primitives/ContextMenu'
 
 interface ClusterEditPickerProps {
   selectedClinicId: string | null

@@ -7,11 +7,11 @@
 import { useState, useCallback, useRef } from 'react'
 import { Plus, Check, RefreshCw, Trash2 } from 'lucide-react'
 import type { Certification } from '../../Data/User'
-import { ConfirmDialog } from '../ConfirmDialog'
+import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
 import { PreviewOverlay } from '../PreviewOverlay'
-import { ActionPill } from '../ActionPill'
-import { ActionButton } from '../ActionButton'
-import { SectionCard } from '../Section'
+import { ActionPill } from '@/Components/primitives/ActionPill'
+import { ActionButton } from '@/Components/primitives/ActionButton'
+import { SectionCard } from '@/Components/primitives/Section'
 import {
   updateCertification,
   adminAddCertification,
@@ -22,7 +22,7 @@ import { CertificationRow } from '../Certifications/CertificationRow'
 import { CertOverlayFields } from '../Certifications/CertOverlayFields'
 import { emptyCertForm } from '../Certifications/certHelpers'
 import type { CertFormData } from '../Certifications/certHelpers'
-import { EmptyState } from '../EmptyState'
+import { EmptyState } from '@/Components/primitives/EmptyState'
 import { useIsMobile } from '../../Hooks/useIsMobile'
 
 interface AdminCertsSectionProps {

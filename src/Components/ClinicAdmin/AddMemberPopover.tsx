@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { Check, Loader2 } from 'lucide-react'
-import { OverlayStack, type StackScreen, type StackNav } from '../OverlayStack'
-import { ActionButton } from '../ActionButton'
-import { ActionPill } from '../ActionPill'
-import { ErrorPill } from '../ErrorPill'
-import { PickerInput, UicPinInput } from '../FormInputs'
+import { OverlayStack, type StackScreen, type StackNav } from '@/Components/primitives/OverlayStack'
+import { ActionButton } from '@/Components/primitives/ActionButton'
+import { ActionPill } from '@/Components/primitives/ActionPill'
+import { ErrorPill } from '@/Components/primitives/ErrorPill'
+import { PickerInput } from '@/Components/primitives/FormInputs'
+import { UicPinInput } from '@/Components/DomainInputs'
 import {
   findUserByEmail,
   addClinicMember,

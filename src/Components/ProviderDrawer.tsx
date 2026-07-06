@@ -1,15 +1,16 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
-import { ScanLine, X, LayoutTemplate, Pencil, Check, ChevronLeft } from 'lucide-react'
+import { ScanLine, X, LayoutTemplate, Pencil, Check, ChevronLeft, ChevronRight } from 'lucide-react'
 import { ImportInputBar } from './ImportInputBar'
 import { ImportResultPopover } from './ImportResultPopover'
-import { BaseDrawer } from './BaseDrawer'
-import { Sheet } from './Sheet'
-import { ContentWrapper } from './ContentWrapper'
-import { HeaderPill, PillButton } from './HeaderPill'
-import { SearchInput } from './SearchInput'
-import { ActionPill } from './ActionPill'
-import { ActionButton } from './ActionButton'
-import { useStack } from './useStack'
+import { BaseDrawer } from '@/Components/primitives/BaseDrawer'
+import { Sheet } from '@/Components/primitives/Sheet'
+import { ContentWrapper } from '@/Components/primitives/ContentWrapper'
+import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill'
+import { SearchInput } from '@/Components/primitives/SearchInput'
+import { ActionPill } from '@/Components/primitives/ActionPill'
+import { ActionButton } from '@/Components/primitives/ActionButton'
+import { AddFab } from '@/Components/primitives/AddFab'
+import { useStack } from '@/Components/primitives/useStack'
 import { type StackNav, type StackScreen } from './stackNav'
 import { useSwipeBack } from '../Hooks/useSwipeBack'
 import { useIsMobile } from '../Hooks/useIsMobile'
@@ -20,13 +21,19 @@ import { ProviderNoteOutput } from './Provider/ProviderNoteOutput'
 import { ProviderTemplateTree } from './Provider/ProviderTemplateTree'
 import { TemplateDetailBody } from './Provider/ProviderTemplateDetail'
 import { TextSectionEditor } from './Provider/ProviderPaneSections'
+import { usePEPaneScreens, PECenter } from './Provider/ProviderPESections'
+import { usePlanPaneScreens } from './Provider/ProviderPlanSections'
+import { generatePEText } from './PhysicalExam'
+import { parsePlanState } from './Plan'
+import { useMergedNoteContent } from '../Hooks/useMergedNoteContent'
+import type { PlanState } from '../Types/PlanTypes'
 import { ProviderTemplateMenu } from './Provider/ProviderTemplateMenu'
 import {
   ProviderTemplateEditPopover,
   useProviderTemplateEditorScreens,
   type EditState as TemplateEditState,
 } from './Provider/ProviderTemplateEditPopover'
-import type { PEState } from '../Types/PETypes'
+import type { PEState, PEItemState } from '../Types/PETypes'
 import type { UserTypes, ProviderNoteTemplate, TextExpander, PlanOrderSet, PlanBlockKey } from '../Data/User'
 import { PLAN_ORDER_LABELS } from '../Data/User'
 import { useUserProfile } from '../Hooks/useUserProfile'
@@ -67,6 +74,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
   const [hpiNote, setHpiNote] = useState('')
   const [peNote, setPeNote] = useState('')
   const [peState, setPeState] = useState<PEState | null>(null)
+  const [planState, setPlanState] = useState<PlanState | null>(null)
   const [peResetKey, setPeResetKey] = useState(0)
   const [planResetKey, setPlanResetKey] = useState(0)
   const [selectedBlockKeys, setSelectedBlockKeys] = useState<string[]>([])
@@ -81,6 +89,9 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
 
   const isMobile = useIsMobile()
   const { profile, updateProfile, syncProfileField } = useUserProfile()
+  // Merged (personal + subscribed clinic) plan tags/order sets — the same source the
+  // mobile Plan reads, so the desktop center + pane flow stay consistent with it.
+  const { orderTags: planOrderTags, instructionTags: planInstructionTags, orderSets: planOrderSets } = useMergedNoteContent()
   const templates = profile.providerNoteTemplates ?? []
   const orderSetsForExport = profile.planOrderSets ?? []
 
@@ -166,19 +177,23 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
     setHpiNote(expandTemplateText(template.hpiText, template.hpiExpanderAbbrs, template.hpiExpanderAbbr, expanders))
 
     if (template.peBlockKeys?.length) {
-      const items: Record<string, { status: 'normal'; selectedNormals: string[]; selectedAbnormals: string[]; findings: string }> = {}
+      // Use the template's saved per-system findings when present; legacy templates
+      // (no peItems for a block) fall back to all-normal defaults.
+      const items: Record<string, PEItemState> = {}
       for (const key of template.peBlockKeys) {
+        const saved = template.peItems?.[key]
+        if (saved) { items[key] = saved; continue }
         const block = getMasterBlockByKey(key)
         if (!block) continue
         items[key] = {
           status: 'normal',
           selectedNormals: block.findings.filter(f => f.normal).map(f => f.key),
           selectedAbnormals: [],
+          specifyDetails: {},
           findings: '',
         }
       }
-      setSelectedBlockKeys(template.peBlockKeys)
-      setPeState({
+      const nextPeState: PEState = {
         categoryLetter: 'A',
         laterality: 'right',
         spineRegion: 'lumbar',
@@ -187,8 +202,12 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
         additional: '',
         mode: 'template',
         blockKeys: template.peBlockKeys,
-      })
-      setPeNote('')
+      }
+      setSelectedBlockKeys(template.peBlockKeys)
+      setPeState(nextPeState)
+      // Desktop center no longer mounts PhysicalExam, so derive peNote here (mobile
+      // still emits via its mounted PE — same generatePEText, so outputs match).
+      setPeNote(generatePEText(nextPeState))
     } else {
       setSelectedBlockKeys([])
       setPeState(null)
@@ -204,8 +223,11 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
       if (orderSet) planText = generatePlanFromOrderSet(orderSet)
     }
     setPlanNote(planText)
+    // Seed the lifted plan state so the desktop center reflects the applied text
+    // (mobile still re-parses planNote on its own mount — same parser).
+    setPlanState(planText ? parsePlanState(planText, planOrderTags, planInstructionTags) : null)
     setPlanResetKey(k => k + 1)
-  }, [profile.textExpanders, profile.planOrderSets, expandTemplateText, generatePlanFromOrderSet])
+  }, [profile.textExpanders, profile.planOrderSets, expandTemplateText, generatePlanFromOrderSet, planOrderTags, planInstructionTags])
 
   // ── Import decode logic ────────────────────────────────────────────────────
 
@@ -223,7 +245,10 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
         }
         setPeResetKey(k => k + 1)
         if (parsed.providerAssessment) setAssessmentNote(parsed.providerAssessment)
-        if (parsed.providerPlan) setPlanNote(parsed.providerPlan)
+        if (parsed.providerPlan) {
+          setPlanNote(parsed.providerPlan)
+          setPlanState(parsePlanState(parsed.providerPlan, planOrderTags, planInstructionTags))
+        }
         setImportedMedicNote(null)
         setMedicBarcode('')
         setImportExpanded(false)
@@ -239,7 +264,10 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
         }
         setPeResetKey(k => k + 1)
         if (parsed.providerAssessment) setAssessmentNote(parsed.providerAssessment)
-        if (parsed.providerPlan) setPlanNote(parsed.providerPlan)
+        if (parsed.providerPlan) {
+          setPlanNote(parsed.providerPlan)
+          setPlanState(parsePlanState(parsed.providerPlan, planOrderTags, planInstructionTags))
+        }
       }
 
       const authorLabel = parsed.user ? formatSignature(parsed.user) || 'Unknown Medic' : 'Unknown Medic'
@@ -268,7 +296,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
       setMedicBarcode(payload)
       setImportExpanded(false)
     } catch { /* error surfaced by hook */ }
-  }, [])
+  }, [planOrderTags, planInstructionTags])
 
   const barcodeImport = useBarcodeImport({ onDecoded: handleProviderDecoded })
 
@@ -340,6 +368,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
     setPlanResetKey(k => k + 1)
     setAssessmentNote('')
     setPlanNote('')
+    setPlanState(null)
     setImportedMedicNote(null)
     setMedicBarcode('')
     setImportExpanded(false)
@@ -358,57 +387,72 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
     canSwipeBack,
   )
 
-  // ── Tour events ──────────────────────────────────────────────────────────
-  useEffect(() => {
-    const handleTourImport = (e: Event) => {
-      const barcode = (e as CustomEvent).detail as string
-      if (barcode) barcodeImport.decodeText(barcode)
-    }
-    const handleTourApplyTemplate = () => {
-      const demoTemplate = templates.find(t => t.id.startsWith('tour_provider_'))
-      if (demoTemplate) handleApplyTemplate(demoTemplate)
-    }
-    const handleTourGoToOutput = () => {
-      goToOutput()
-    }
-    window.addEventListener('tour:provider-import', handleTourImport)
-    window.addEventListener('tour:provider-apply-template', handleTourApplyTemplate)
-    window.addEventListener('tour:provider-go-to-output', handleTourGoToOutput)
-    return () => {
-      window.removeEventListener('tour:provider-import', handleTourImport)
-      window.removeEventListener('tour:provider-apply-template', handleTourApplyTemplate)
-      window.removeEventListener('tour:provider-go-to-output', handleTourGoToOutput)
-    }
-  }, [barcodeImport.decodeText, templates, handleApplyTemplate, goToOutput])
-
   // No auto-focus on expand — iOS keyboard open shifts the viewport
 
   // ── Right-pane stack (desktop): detail · template editor · sections · output ─
+  // No onDelete → the editor hides its footer Delete; deletion lives on the template
+  // tree's ellipsis (desktop rail + mobile Sheet) via handleTemplateDelete.
   const { screens: templateEditorScreens } = useProviderTemplateEditorScreens({
     state: templateEditState,
     onSave: handleTemplateSave,
-    onDelete: handleTemplateDelete,
   })
 
-  const doneFooter = (
-    <ActionPill>
-      <ActionButton icon={Check} label="Done" variant="success" onClick={closePane} />
-    </ActionPill>
+  // PE pane screens (desktop): s-pe (select systems + drill rows) → s-pe-block
+  // (per-system findings). Drives the lifted peState + keeps peNote synced.
+  const { screens: pePaneScreens, reorder: reorderPe } = usePEPaneScreens({
+    peState,
+    selectedBlockKeys,
+    onPeStateChange: setPeState,
+    onBlockKeysChange: setSelectedBlockKeys,
+    onPeNoteChange: setPeNote,
+    onClose: closePane,
+  })
+
+  // PE section for the desktop center (MAIN pane) — movable cards once systems are
+  // selected; tap a card → findings in the right pane; dashed + → the selector.
+  const peCenter = (
+    <PECenter
+      selectedBlockKeys={selectedBlockKeys}
+      items={peState?.items ?? {}}
+      onOpenSelector={() => setPaneScreen({ key: 's-pe' })}
+      onOpenBlock={(blockKey) => setPaneScreen({ key: 's-pe-block', params: { blockKey } })}
+      onReorder={reorderPe}
+    />
+  )
+
+  // Plan pane screen (desktop): a single s-plan editor modeled on order-set creation
+  // (order-set chips + Selected list + search + all-category picker). Drives the
+  // lifted planState + keeps planNote synced. The center is a plain summary (below).
+  const { screens: planPaneScreens } = usePlanPaneScreens({
+    planState,
+    orderTags: planOrderTags,
+    instructionTags: planInstructionTags,
+    orderSets: planOrderSets,
+    onPlanStateChange: setPlanState,
+    onPlanNoteChange: setPlanNote,
+    onClose: closePane,
+  })
+
+  // Section-editor submit — a Check that rides the pane header beside Close (the
+  // calendar edit-event pattern). Edits bind live, so "Done" just closes the pane.
+  const doneHeaderAction = (
+    <PillButton icon={Check} iconSize={18} accent="success" onClick={closePane} label="Done" />
   )
 
   const paneScreens: Record<string, StackScreen> = {
     ...templateEditorScreens,
+    ...pePaneScreens,
+    ...planPaneScreens,
     detail: {
       title: selectedTemplate?.name ?? 'Template',
+      // Bare PillButton — the pane chrome supplies the shared HeaderPill (Edit + Close).
       headerActions: (_p: unknown, nav: StackNav) => selectedTemplate ? (
-        <HeaderPill>
-          <PillButton
-            icon={Pencil}
-            iconSize={16}
-            label="Edit"
-            onClick={() => { handleTemplateEdit(selectedTemplate, new DOMRect()); nav.push('editor') }}
-          />
-        </HeaderPill>
+        <PillButton
+          icon={Pencil}
+          iconSize={16}
+          label="Edit"
+          onClick={() => { handleTemplateEdit(selectedTemplate, new DOMRect()); nav.push('editor') }}
+        />
       ) : null,
       rightFooter: selectedTemplate ? (
         <ActionPill>
@@ -426,12 +470,12 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
     },
     's-hpi': {
       title: 'History of Present Illness',
-      rightFooter: doneFooter,
+      headerActions: doneHeaderAction,
       render: () => <TextSectionEditor value={hpiNote} onChange={setHpiNote} placeholder="Chief complaint, onset, duration, character, associated symptoms..." />,
     },
     's-assessment': {
       title: 'Assessment',
-      rightFooter: doneFooter,
+      headerActions: doneHeaderAction,
       render: () => <TextSectionEditor value={assessmentNote} onChange={setAssessmentNote} placeholder="Clinical assessment, diagnosis, differential..." />,
     },
     output: {
@@ -588,47 +632,58 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
                   templates={templates}
                   searchQuery={templateSearch}
                   activeTemplateId={selectedTemplateId}
-                  onSelect={(t) => { setSelectedTemplateId(t.id); setPaneScreen({ key: 'detail' }) }}
+                  onSelect={handleApplyTemplate}
+                  onView={(t) => { setSelectedTemplateId(t.id); setPaneScreen({ key: 'detail' }) }}
+                  onEdit={(t) => { handleTemplateEdit(t, new DOMRect()); setPaneScreen({ key: 'editor' }) }}
+                  onDelete={(t) => handleTemplateDelete(t.id)}
+                  hoverActions
                 />
               </div>
             </div>
 
             {/* Center — note summary (editing routes into the right pane) */}
-            <div className="flex-1 min-w-0 overflow-y-auto">
-              <ContentWrapper slideDirection="" swipeHandlers={undefined}>
-                {barcodeImport.error && (
-                  <div className="px-4 pt-2">
-                    <div className="text-[10pt] text-themeredred">{barcodeImport.error}</div>
+            <div className="relative flex-1 min-w-0 flex flex-col min-h-0">
+              <div className="flex-1 min-h-0 overflow-y-auto">
+                <ContentWrapper slideDirection="" swipeHandlers={undefined}>
+                  {barcodeImport.error && (
+                    <div className="px-4 pt-2">
+                      <div className="text-[10pt] text-themeredred">{barcodeImport.error}</div>
+                    </div>
+                  )}
+                  <div className="p-5 pb-24">
+                    <ProviderNote
+                      summaryMode
+                      onOpenSection={openSection}
+                      peCenter={peCenter}
+                      hpiNote={hpiNote}
+                      setHpiNote={setHpiNote}
+                      peNote={peNote}
+                      setPeNote={setPeNote}
+                      peState={peState}
+                      onPeStateChange={setPeState}
+                      peResetKey={peResetKey}
+                      planResetKey={planResetKey}
+                      selectedBlockKeys={selectedBlockKeys}
+                      onBlockKeysChange={setSelectedBlockKeys}
+                      assessmentNote={assessmentNote}
+                      setAssessmentNote={setAssessmentNote}
+                      planNote={planNote}
+                      setPlanNote={setPlanNote}
+                      importedMedicNote={importedMedicNote}
+                    />
                   </div>
-                )}
-                <div className="p-5 pb-8">
-                  <ProviderNote
-                    summaryMode
-                    onOpenSection={openSection}
-                    hpiNote={hpiNote}
-                    setHpiNote={setHpiNote}
-                    peNote={peNote}
-                    setPeNote={setPeNote}
-                    peState={peState}
-                    onPeStateChange={setPeState}
-                    peResetKey={peResetKey}
-                    planResetKey={planResetKey}
-                    selectedBlockKeys={selectedBlockKeys}
-                    onBlockKeysChange={setSelectedBlockKeys}
-                    assessmentNote={assessmentNote}
-                    setAssessmentNote={setAssessmentNote}
-                    planNote={planNote}
-                    setPlanNote={setPlanNote}
-                    onNext={goToOutput}
-                    importedMedicNote={importedMedicNote}
-                  />
-                </div>
-              </ContentWrapper>
+                </ContentWrapper>
+              </div>
+              {/* Next → note output (right pane). The canonical bottom-right add FAB
+                  (Property/Calendar), with the glyph swapped to a forward chevron. */}
+              <div className="absolute bottom-4 right-4 z-30 pb-[max(0rem,var(--sab,0px))] pointer-events-none">
+                <AddFab icon={ChevronRight} label="Next" onClick={goToOutput} />
+              </div>
             </div>
 
             {/* Right pane — detail / template editor / section editor / output */}
             <div className={`shrink-0 border-l border-primary/10 flex flex-col bg-themewhite3 transition-all duration-300 ${
-              paneOpen ? 'w-[460px] opacity-100' : 'w-0 opacity-0 overflow-hidden border-l-0'
+              paneOpen ? 'w-[380px] opacity-100' : 'w-0 opacity-0 overflow-hidden border-l-0'
             }`}>
               {paneOpen && paneStack.hasScreen && (
                 <>
@@ -642,15 +697,14 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
                         <ChevronLeft size={18} />
                       </button>
                     )}
+                    {paneStack.headerLeft}
                     <p className="flex-1 min-w-0 text-sm font-semibold text-primary truncate">{paneStack.title}</p>
-                    {paneStack.headerActions}
-                    <button
-                      onClick={closePane}
-                      aria-label="Close"
-                      className="w-8 h-8 shrink-0 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all"
-                    >
-                      <X size={18} />
-                    </button>
+                    {/* Edit-overlay header (calendar edit-event pattern): a screen's
+                        submit/action pill joins Close in one HeaderPill. */}
+                    <HeaderPill>
+                      {paneStack.headerActions}
+                      <PillButton icon={X} iconSize={18} onClick={closePane} label="Close" />
+                    </HeaderPill>
                   </div>
                   <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-4 py-4">
                     {paneStack.body('')}
@@ -678,7 +732,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
                   <div className="text-[10pt] text-themeredred">{barcodeImport.error}</div>
                 </div>
               )}
-              <div className="px-5 pb-8">
+              <div className="px-5 pb-24">
                 {view === 'note' ? (
                 <ProviderNote
                   hpiNote={hpiNote}
@@ -695,7 +749,6 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
                   setAssessmentNote={setAssessmentNote}
                   planNote={planNote}
                   setPlanNote={setPlanNote}
-                  onNext={goToOutput}
                   importedMedicNote={importedMedicNote}
                 />
               ) : (
@@ -712,6 +765,14 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
             </div>
               </div>
             </ContentWrapper>
+        )}
+
+        {/* Mobile Next → note output. Same canonical add FAB (forward chevron),
+            floating bottom-right over the note view only. */}
+        {isMobile && view === 'note' && (
+          <div className="absolute bottom-4 right-4 z-30 pb-[max(0rem,var(--sab,0px))] pointer-events-none">
+            <AddFab icon={ChevronRight} label="Next" onClick={goToOutput} />
+          </div>
         )}
 
         {/* Import popover for scan + staged image preview */}
@@ -742,7 +803,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
             // Opens nested over this BaseDrawer (~z-1010); fit's default
             // Z.SHEET(50) would trap it underneath.
             zIndex={1200}
-            rightContent={
+            leftContent={
               <ProviderTemplateMenu
                 templates={templates}
                 orderSets={orderSetsForExport}
@@ -764,6 +825,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
               searchQuery={templateSearch}
               onSelect={(t) => { handleApplyTemplate(t); setTemplateDrawerOpen(false) }}
               onEdit={handleTemplateEdit}
+              onDelete={(t) => handleTemplateDelete(t.id)}
               hoverActions={false}
             />
           </Sheet>
@@ -776,7 +838,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
             state={templateEditState}
             onClose={() => setTemplateEditState(null)}
             onSave={handleTemplateSave}
-            onDelete={handleTemplateDelete}
+            // No onDelete → no footer Delete; the template Sheet's tree ellipsis deletes.
             // The editor opens while the Templates Sheet (z-[1200]) is still
             // mounted, so it must sit above the sheet.
             zIndex={1300}

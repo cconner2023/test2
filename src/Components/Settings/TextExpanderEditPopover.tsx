@@ -14,12 +14,12 @@ import {
 } from './TemplateBuilder';
 import { FieldTextEditor, type FieldEditorHandle } from './FieldTextEditor';
 import { InsertFieldForm, FieldInsertFooter, buildFieldInfo, emptyInsertDraft, type InsertDraft, type FieldType } from './InsertFieldButton';
-import { ActionButton } from '../ActionButton';
-import { OverlayStack, type StackNav } from '../OverlayStack';
-import { ActionPill } from '../ActionPill'
-import { OverlayHeaderMenu } from '../OverlayHeaderMenu';
-import type { ContextMenuItem } from '../ContextMenu';
-import { TextInput } from '../FormInputs';
+import { ActionButton } from '@/Components/primitives/ActionButton';
+import { OverlayStack, type StackNav } from '@/Components/primitives/OverlayStack';
+import { ActionPill } from '@/Components/primitives/ActionPill'
+import { OverlayHeaderMenu } from '@/Components/primitives/OverlayHeaderMenu';
+import type { ContextMenuItem } from '@/Components/primitives/ContextMenu';
+import { TextInput } from '@/Components/primitives/FormInputs';
 
 export type ExpanderScope = 'personal' | 'clinic';
 
@@ -112,18 +112,6 @@ export const TextExpanderEditPopover = ({
         setInsertOpen(false);
         setInsertDraft(emptyInsertDraft);
     }, [state]);
-
-    // Tour: progressively fill expansion + fields when build events arrive
-    useEffect(() => {
-        const handler = (e: Event) => {
-            const build = (e as CustomEvent).detail as { expansion: string; fields: Record<string, FieldInfo> } | null;
-            if (!build) return;
-            setExpansion(build.expansion);
-            setFields({ ...build.fields });
-        };
-        window.addEventListener('tour:expander-detail-build', handler);
-        return () => window.removeEventListener('tour:expander-detail-build', handler);
-    }, []);
 
     const handleSave = useCallback(() => {
         if (!state) return;
@@ -258,7 +246,7 @@ export const TextExpanderEditPopover = ({
                     />
                 </ActionPill>
             ) : (
-                <ActionPill data-tour="expander-edit-accept">
+                <ActionPill>
                     <ActionButton
                         icon={Check}
                         label="Save"
@@ -268,7 +256,7 @@ export const TextExpanderEditPopover = ({
                 </ActionPill>
             ),
             render: (_: unknown, nav: StackNav) => (
-                <div data-tour="expander-edit-card" className="px-4 pb-3 space-y-3">
+                <div className="px-4 pb-3 space-y-3">
                     <div className={insertFormStage ? 'hidden' : ''}>
                         <TextInput
                             value={abbr}

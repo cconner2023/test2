@@ -3,8 +3,8 @@ import { ChevronRight, Lock } from 'lucide-react'
 import { isTaskTestable } from '../../../Data/TrainingData'
 import { skillLevelLabels } from '../../../Data/TrainingConstants'
 import { formatMedicName, getLatestTestByTask } from './supervisorHelpers'
-import { ActionSheet } from '../../ActionSheet'
-import type { ActionSheetOption } from '../../ActionSheet'
+import { ActionSheet } from '@/Components/primitives/ActionSheet'
+import type { ActionSheetOption } from '@/Components/primitives/ActionSheet'
 import type { FlatTask } from './supervisorHelpers'
 import type { ClinicMedic } from '../../../Types/SupervisorTestTypes'
 import type { TrainingCompletionUI } from '../../../lib/trainingService'
@@ -281,7 +281,7 @@ export function CoverageTasksView({
   }
 
   return (
-    <div data-tour="supervisor-task-list">
+    <div>
       <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">
         {areaName}
       </p>

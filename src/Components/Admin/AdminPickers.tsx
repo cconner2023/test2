@@ -1,8 +1,8 @@
 import { useState, useCallback, useMemo } from 'react'
 import { X, Check, ChevronDown } from 'lucide-react'
 import { PreviewOverlay } from '../PreviewOverlay'
-import { ActionPill } from '../ActionPill'
-import { ActionButton } from '../ActionButton'
+import { ActionPill } from '@/Components/primitives/ActionPill'
+import { ActionButton } from '@/Components/primitives/ActionButton'
 import type { AdminUser, AdminClinic, AdminLocation } from '../../lib/adminService'
 import { LocationBreadcrumb } from './LocationBreadcrumb'
 

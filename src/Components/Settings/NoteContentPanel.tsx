@@ -47,7 +47,6 @@ export const NoteContentPanel = ({ onNavigate }: NoteContentPanelProps) => {
                         return (
                             <div
                                 key={section.label}
-                                {...(section.navigateTo === 'text-templates' ? { 'data-tour': 'note-content-expanders' } : {})}
                                 className="flex items-center gap-3 px-4 py-3.5 cursor-pointer transition-all active:scale-95 hover:bg-themeblue2/5"
                                 onClick={() => onNavigate?.(section.navigateTo)}
                                 role="button"

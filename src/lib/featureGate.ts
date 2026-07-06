@@ -25,8 +25,8 @@ type Stage = 'dev' | 'pilot' | 'released'
 /** Current rollout stage per feature. Edit to advance a feature down the pipeline. */
 export const FEATURE_STAGE = {
   // DA 2062 hand receipts + DA 3161 turn-in lifecycle + shortage annex — the property
-  // accountability suite. Piloting on 1-14 FA 75TH FA III CORPS before release.
-  propertyAccountability: 'pilot',
+  // accountability suite. Released in 2.7.0 after piloting on 1-14 FA 75TH FA III CORPS.
+  propertyAccountability: 'released',
 } satisfies Record<string, Stage>
 
 export type GatedFeature = keyof typeof FEATURE_STAGE

@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { Lock } from 'lucide-react'
-import { PinKeypad } from './PinKeypad'
+import { PinKeypad } from '@/Components/primitives/PinKeypad'
 import {
   verifyPin,
   setSessionUnlocked,

@@ -14,7 +14,7 @@ import { useState, useCallback, useEffect } from 'react'
 import { Download, Share } from 'lucide-react'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { useInstallCapability } from '../../Hooks/useInstallPrompt'
-import { Modal } from '../Modal'
+import { Modal } from '@/Components/primitives/Modal'
 
 const DISMISS_KEY = '_provisional_modal_dismissed'
 
@@ -32,12 +32,6 @@ export function ProvisionalDeviceModal() {
   }, [])
 
   const isOpen = deviceRole === 'provisional' && !dismissed
-
-  // Tour: auto-dismiss when guided tour opens self-chat
-  useEffect(() => {
-    window.addEventListener('tour:messaging-dismiss-provisional', dismiss)
-    return () => window.removeEventListener('tour:messaging-dismiss-provisional', dismiss)
-  }, [dismiss])
 
   const handleInstall = useCallback(async () => {
     await install()

@@ -1,6 +1,6 @@
 import { useState, useCallback, forwardRef, useImperativeHandle, type RefObject } from 'react'
 import { Pencil, Package, FolderPlus, Trash2, Layers, Wrench, Route, ClipboardList, QrCode, Download } from 'lucide-react'
-import type { ContextMenuItem } from '../ContextMenu'
+import type { ContextMenuItem } from '@/Components/primitives/ContextMenu'
 import type { LocalPropertyItem, LocalPropertyLocation, HolderInfo } from '../../Types/PropertyTypes'
 import { downloadBlob } from '../../Utilities/downloadUtils'
 import { dataUrlToBlob } from '../../Utilities/imageUtils'

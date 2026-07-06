@@ -1,15 +1,15 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
 import { Pencil, X, Trash2, ChevronLeft, List } from 'lucide-react'
-import { HeaderPill, PillButton } from './HeaderPill'
-import { SearchInput } from './SearchInput'
-import { BaseDrawer } from './BaseDrawer'
+import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill'
+import { SearchInput } from '@/Components/primitives/SearchInput'
+import { BaseDrawer } from '@/Components/primitives/BaseDrawer'
 import { PropertyPanel, type PropertyView } from './Property/PropertyPanel'
-import { ConfirmDialog } from './ConfirmDialog'
+import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
 import { PropertyNavSheet, type PropertyNavSheetHandle } from './Property/PropertyNavSheet'
 import { EnrollScanStep } from './Property/EnrollScanStep'
 import { useIsMobile } from '../Hooks/useIsMobile'
 import type { LocalPropertyItem } from '../Types/PropertyTypes'
-import { ActionSheet } from './ActionSheet'
+import { ActionSheet } from '@/Components/primitives/ActionSheet'
 import { usePropertyStore } from '../stores/usePropertyStore'
 import { useAuthStore } from '../stores/useAuthStore'
 import { useFeatureGate } from '../lib/featureGate'
@@ -68,8 +68,6 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
     const openLocationsTriggerRef = useRef<(() => void) | null>(null)
     const newDA2062TriggerRef = useRef<(() => void) | null>(null)
     const importTriggerRef = useRef<(() => void) | null>(null)
-    const shortagesTriggerRef = useRef<(() => void) | null>(null)
-    const authorizedTriggerRef = useRef<(() => void) | null>(null)
     const navigateZoneTriggerRef = useRef<((zoneId: string) => void) | null>(null)
     const openCustodyTriggerRef = useRef<(() => void) | null>(null)
     const initRef = useRef(false)
@@ -303,8 +301,6 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                         onRegisterOpenLocations={(t) => { openLocationsTriggerRef.current = t }}
                         onRegisterNewDA2062={(t) => { newDA2062TriggerRef.current = t }}
                         onRegisterImport={(t) => { importTriggerRef.current = t }}
-                        onRegisterShortages={(t) => { shortagesTriggerRef.current = t }}
-                        onRegisterAuthorized={(t) => { authorizedTriggerRef.current = t }}
                         onRegisterNavigateZone={(t) => { navigateZoneTriggerRef.current = t }}
                         onRegisterOpenCustody={(t) => { openCustodyTriggerRef.current = t }}
                     />
@@ -326,8 +322,6 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                         onRegisterAddLocation={(t) => { addLocationTriggerRef.current = t }}
                         onRegisterNewDA2062={(t) => { newDA2062TriggerRef.current = t }}
                         onRegisterImport={(t) => { importTriggerRef.current = t }}
-                        onRegisterShortages={(t) => { shortagesTriggerRef.current = t }}
-                        onRegisterAuthorized={(t) => { authorizedTriggerRef.current = t }}
                         onRegisterNavigateZone={(t) => { navigateZoneTriggerRef.current = t }}
                         onRegisterOpenCustody={(t) => { openCustodyTriggerRef.current = t }}
                     />
@@ -353,15 +347,10 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                     // tools fold behind two gateway rows (drill-down w/ Back pill).
                     { key: 'item', label: 'New Item', onAction: () => { setShowAddSheet(false); addItemTriggerRef.current?.() } },
                     { key: 'location', label: 'New Location', onAction: () => { setShowAddSheet(false); addLocationTriggerRef.current?.() } },
-                    ...(showAccountability ? [{
-                        key: 'accountability',
-                        label: 'Accountability',
-                        children: [
-                            { key: 'da2062', label: 'New DA 2062', onAction: () => { setShowAddSheet(false); newDA2062TriggerRef.current?.() } },
-                            { key: 'authorized', label: 'Authorized items', onAction: () => { setShowAddSheet(false); authorizedTriggerRef.current?.() } },
-                            { key: 'shortages', label: 'Shortages', onAction: () => { setShowAddSheet(false); shortagesTriggerRef.current?.() } },
-                        ],
-                    }] : []),
+                    // The FAB is create-only: only "New DA 2062" (a create) stays. The
+                    // Hand Receipt + Shortages VIEWS moved to the left-pane "Accountability"
+                    // nav (PropertyPanel accountabilityNav) — access points, not creates.
+                    ...(showAccountability ? [{ key: 'da2062', label: 'New DA 2062', onAction: () => { setShowAddSheet(false); newDA2062TriggerRef.current?.() } }] : []),
                     {
                         key: 'data-labels',
                         label: 'Data & labels',

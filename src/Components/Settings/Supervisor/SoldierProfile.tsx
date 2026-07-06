@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo, useRef } from 'react'
 import { ChevronRight, ClipboardList, Plus, Check, Trash2, Loader2 } from 'lucide-react'
-import { ActionButton } from '../../ActionButton'
-import { ConfirmDialog } from '../../ConfirmDialog'
+import { ActionButton } from '@/Components/primitives/ActionButton'
+import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
 import { PreviewOverlay } from '../../PreviewOverlay'
 import { getTaskData, isTaskTestable } from '../../../Data/TrainingData'
 import { deleteCompletion as deleteCompletionApi } from '../../../lib/trainingService'
@@ -21,7 +21,7 @@ import type { ClinicMedic } from '../../../Types/SupervisorTestTypes'
 import type { Certification } from '../../../Data/User'
 import type { TrainingCompletionUI } from '../../../lib/trainingService'
 import { createLogger } from '../../../Utilities/Logger'
-import { ActionPill } from '../../ActionPill'
+import { ActionPill } from '@/Components/primitives/ActionPill'
 import { UserTimeline, type TimelineRowData } from '../../Timeline/UserTimeline'
 
 const logger = createLogger('SoldierProfile')
@@ -260,7 +260,6 @@ export function SoldierProfile({
       {/* Soldier Card — tap-to-edit (rank/roles/delete) when onEditMember provided */}
       <button
         type="button"
-        data-tour="supervisor-soldier-card"
         disabled={!onEditMember}
         onClick={(e) => onEditMember?.(soldier.id, e.currentTarget.getBoundingClientRect())}
         className="w-full text-left rounded-xl bg-themewhite2 px-4 py-3 enabled:hover:bg-secondary/5 enabled:active:scale-[0.99] disabled:cursor-default transition-all"
@@ -408,7 +407,7 @@ export function SoldierProfile({
       </div>
 
       {/* Training Competency by Category */}
-      <div data-tour="supervisor-competency">
+      <div>
         <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">
           Training Competency
         </p>
@@ -447,7 +446,6 @@ export function SoldierProfile({
                 Drills into the grouped per-algorithm list (SoldierAlgorithmList). */}
             {algorithmCompetency.length > 0 && (
               <button
-                data-tour="supervisor-algorithm-competency"
                 onClick={onOpenAlgorithms}
                 disabled={!onOpenAlgorithms}
                 className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-themeblue2/5 active:scale-95 transition-all disabled:active:scale-100"

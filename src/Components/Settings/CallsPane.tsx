@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { PhoneIncoming, PhoneOutgoing, PhoneMissed, Video } from 'lucide-react'
-import { ListItemRow } from '../ListItemRow'
+import { ListItemRow } from '@/Components/primitives/ListItemRow'
 import { UserAvatar } from './UserAvatar'
 import { getDisplayName } from '../../Utilities/nameUtils'
 import type { CallHistoryEntry } from '../../Hooks/useCallHistory'

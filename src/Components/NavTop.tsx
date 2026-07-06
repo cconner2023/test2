@@ -1,7 +1,7 @@
 // NavTop.tsx - Simplified version with grouped props
 import { X, ChevronLeft, Info, MessageSquare, Upload, BookOpen } from "lucide-react";
 import { ImportInputBar } from "./ImportInputBar";
-import { HeaderPill, PillButton } from "./HeaderPill";
+import { HeaderPill, PillButton } from "@/Components/primitives/HeaderPill";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useSpring, animated, to } from '@react-spring/web';
 import type { NavTopProps } from "../Types/NavTopTypes";
@@ -204,7 +204,6 @@ export function NavTop({ search, import: importProps, actions, ui }: NavTopProps
                                         onClick={onMenuClick}
                                         className="relative w-[2.6875rem] h-[2.6875rem] rounded-full flex items-center justify-center active:scale-95 transition-transform"
                                         aria-label="Open menu"
-                                        data-tour="menu-button"
                                     >
                                         <div className="w-full h-full rounded-full overflow-hidden">
                                             {isCustom && customImage ? (
@@ -243,7 +242,6 @@ export function NavTop({ search, import: importProps, actions, ui }: NavTopProps
                                 className="relative w-8 h-8 rounded-full shrink-0 active:scale-95 transition-transform"
                                 aria-label="Open menu"
                                 title="Menu"
-                                data-tour="menu-button"
                             >
                                 <div className="w-full h-full rounded-full overflow-hidden">
                                     {isCustom && customImage ? (
@@ -365,7 +363,6 @@ export function NavTop({ search, import: importProps, actions, ui }: NavTopProps
                                 `}>
                                     {shouldShowInfoButton && (
                                         <button
-                                            data-tour="info-button"
                                             onClick={onInfoClick}
                                             className="w-[2.6875rem] h-[2.6875rem] rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all duration-200"
                                             aria-label="Info"

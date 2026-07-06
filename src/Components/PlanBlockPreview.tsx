@@ -2,8 +2,8 @@ import React, { useMemo, useRef, useState } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import type { PlanBlockKey } from '../Data/User';
 import { CATEGORY_META } from './Settings/PlanTagManager';
-import { AnchoredMenu } from './LiftedRowMenu';
-import type { ContextMenuItem } from './ContextMenu';
+import { AnchoredMenu } from '@/Components/primitives/LiftedRowMenu';
+import type { ContextMenuItem } from '@/Components/primitives/ContextMenu';
 
 type BlockStatus = 'inactive' | 'active';
 

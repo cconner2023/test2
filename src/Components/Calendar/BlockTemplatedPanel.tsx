@@ -1,6 +1,6 @@
 import { useState, useMemo, useImperativeHandle, forwardRef } from 'react'
-import { ConfirmDialog } from '../ConfirmDialog'
-import { MultiPickerInput, DatePickerInput } from '../FormInputs'
+import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
+import { MultiPickerInput, DatePickerInput } from '@/Components/primitives/FormInputs'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { useClinicMedics } from '../../Hooks/useClinicMedics'
 import { useCalendarStore } from '../../stores/useCalendarStore'
@@ -91,9 +91,9 @@ export const BlockTemplatedPanel = forwardRef<BlockTemplatedHandle, BlockTemplat
 
     return (
       <>
-        <div data-tour="block-form" className="flex flex-col h-full overflow-y-auto px-4 py-4">
+        <div className="flex flex-col h-full overflow-y-auto px-4 py-4">
           <div className="rounded-2xl overflow-hidden">
-            <div data-tour="block-provider">
+            <div>
               <MultiPickerInput
                 value={providerIds}
                 onChange={setProviderIds}
@@ -103,7 +103,7 @@ export const BlockTemplatedPanel = forwardRef<BlockTemplatedHandle, BlockTemplat
               />
             </div>
 
-            <div data-tour="block-date-range" className="flex items-stretch border-b border-primary/6">
+            <div className="flex items-stretch border-b border-primary/6">
               <div className="flex-1 min-w-0">
                 <DatePickerInput
                   value={fromDate}
@@ -123,7 +123,7 @@ export const BlockTemplatedPanel = forwardRef<BlockTemplatedHandle, BlockTemplat
           </div>
 
           {providerIds.length > 0 && fromDate && toDate && (
-            <div data-tour="block-match" className="mt-4">
+            <div className="mt-4">
               <div className="px-1 pb-2 flex items-center gap-2">
                 <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Match</p>
                 <span className="text-[9pt] px-1.5 py-0.5 rounded-full bg-tertiary/10 text-tertiary font-medium">

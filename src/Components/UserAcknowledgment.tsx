@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { ShieldCheck, Activity, EyeOff, FileText, Scale } from 'lucide-react'
-import { SectionCard } from './Section'
+import { SectionCard } from '@/Components/primitives/Section'
 
 /**
  * Bump this when the acknowledgment content changes materially. Authenticated

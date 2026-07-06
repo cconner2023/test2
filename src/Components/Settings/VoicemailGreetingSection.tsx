@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Voicemail, Mic, Play, Pause, Trash2, X, Check } from 'lucide-react'
 import { useVoiceRecorder } from '../../Hooks/useVoiceRecorder'
-import { ConfirmDialog } from '../ConfirmDialog'
-import { OverlayActionMenu } from '../OverlayActionMenu'
-import type { ContextMenuItem } from '../ContextMenu'
-import { Section, SectionCard } from '../Section'
+import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
+import { OverlayActionMenu } from '@/Components/primitives/OverlayActionMenu'
+import type { ContextMenuItem } from '@/Components/primitives/ContextMenu'
+import { Section, SectionCard } from '@/Components/primitives/Section'
 import {
   getOwnGreeting,
   saveOwnGreeting,

@@ -1,4 +1,4 @@
-import { BaseDrawer } from './BaseDrawer'
+import { BaseDrawer } from '@/Components/primitives/BaseDrawer'
 import { LoRaPanel } from './Settings/LoRaPanel'
 
 interface LoRaDrawerProps {

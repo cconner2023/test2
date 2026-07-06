@@ -13,12 +13,12 @@ import { useNavigationStore } from '../../stores/useNavigationStore';
 import { useMedevacStore } from '../../stores/useMedevacStore';
 import { buildMedevacFromPin } from '../../lib/medevacFromPin';
 import { MedevacForm } from '../Medevac/MedevacForm';
-import { Modal } from '../Modal';
+import { Modal } from '@/Components/primitives/Modal';
 import { Siren, FileDown as FileDownStripMap } from 'lucide-react';
 import { computeLegs, type Pace } from '../../lib/stripMap/computeLegs';
 import { generateStripMapPdf } from '../../lib/stripMap/generatePdf';
 import { downloadPdfBytes } from '../../Utilities/downloadUtils';
-import { TextInput, PickerInput } from '../FormInputs';
+import { TextInput, PickerInput } from '@/Components/primitives/FormInputs';
 
 
 interface FeatureEditorProps {
@@ -335,7 +335,7 @@ export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg, l
   }, [feature.geometry]);
 
   return (
-    <div data-tour="map-feature-editor" className="flex flex-col pb-[calc(env(safe-area-inset-bottom)+3rem)]">
+    <div className="flex flex-col pb-[calc(env(safe-area-inset-bottom)+3rem)]">
       {/* Save/Cancel for the draft now live in the drawer/pane header pill
           cluster (see MapOverlayPanel) — the Pencil toggle swaps to Check + X
           while in edit mode. No in-body banner. */}
@@ -346,7 +346,7 @@ export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg, l
           (driven by the parent panel) so the input is the single source of
           truth for the feature name. */}
       {isEditMode && (
-        <div data-tour="map-feature-name" className="rounded-2xl overflow-hidden">
+        <div className="rounded-2xl overflow-hidden">
           <TextInput
             value={feature.label ?? ''}
             onChange={handleLabelChange}
@@ -364,7 +364,7 @@ export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg, l
           address. Replaces the per-row action stack from the prior read view;
           actions (Navigate / Build MEDEVAC) now live in edit mode. */}
       {!isEditMode && (
-        <div data-tour="map-feature-info" className="px-3 py-3 border-b border-primary/6 flex gap-3">
+        <div className="px-3 py-3 border-b border-primary/6 flex gap-3">
           <div className="shrink-0 w-9 h-9 rounded-full bg-themewhite flex items-center justify-center">
             {feature.type === 'waypoint' ? (
               <WaypointIcon type={feature.waypoint_type ?? 'circle'} color={feature.style.color} size={22} />
@@ -411,7 +411,7 @@ export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg, l
           creation toolbar; not surfaced in read mode (the pin itself shows
           the current glyph on the map). */}
       {isEditMode && feature.type === 'waypoint' && (
-        <div data-tour="map-feature-glyph-picker" className="px-3 py-2 border-b border-primary/6 flex items-center gap-1.5 flex-wrap">
+        <div className="px-3 py-2 border-b border-primary/6 flex items-center gap-1.5 flex-wrap">
           {PIN_GLYPHS.map(wt => {
             const active = (feature.waypoint_type ?? 'circle') === wt;
             return (
@@ -433,7 +433,7 @@ export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg, l
       {/* Build MEDEVAC — EDIT mode action (relocated from read view).
           Surfaced for PZ/LZ pins or any pin with a TC3 link. */}
       {isEditMode && showMedevacAction && (
-        <div data-tour="map-feature-medevac" className="px-3 py-2 border-b border-primary/6 flex items-center gap-3">
+        <div className="px-3 py-2 border-b border-primary/6 flex items-center gap-3">
           <div className="w-9 h-9 rounded-full bg-themewhite flex items-center justify-center text-themeredred shrink-0">
             <Siren size={15} />
           </div>
@@ -506,7 +506,7 @@ export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg, l
       )}
       {/* Color Picker — EDIT mode only. */}
       {isEditMode && (
-        <div data-tour="map-feature-color-picker" className="px-3 py-2 border-b border-primary/6 flex items-center gap-2">
+        <div className="px-3 py-2 border-b border-primary/6 flex items-center gap-2">
           {TACTICAL_COLORS.map((tc) => {
             const active = feature.style.color === tc.hex;
             return (
@@ -527,7 +527,7 @@ export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg, l
           Shown only when the overlay actually has depth (>1 floor) so flat
           overlays stay uncluttered. "+" moves it to a brand-new floor. */}
       {isEditMode && onChangeFloor && floors.length > 1 && (
-        <div data-tour="map-feature-floor" className="px-3 py-2 border-b border-primary/6 flex items-center gap-2">
+        <div className="px-3 py-2 border-b border-primary/6 flex items-center gap-2">
           <span className="text-[9pt] font-medium text-tertiary uppercase tracking-widest shrink-0">Floor</span>
           <div className="flex items-center gap-1 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
             {floors.map((level) => {
@@ -562,7 +562,7 @@ export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg, l
           leg (distance · bearing · 8-digit grid or waypoint name), end point
           and total at the bottom. Tapping a leg fits the map to that segment. */}
       {!isEditMode && feature.type === 'route' && legs.length > 0 && startLabel && endLabel && (
-        <div data-tour="map-feature-directions" className="px-3 py-2 border-b border-primary/6 flex flex-col gap-1.5">
+        <div className="px-3 py-2 border-b border-primary/6 flex flex-col gap-1.5">
           <div className={`text-[10pt] ${startLabel.isWaypoint ? 'text-themeblue2 font-medium' : 'font-mono text-primary'}`}>
             {startLabel.label}
           </div>
@@ -593,7 +593,7 @@ export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg, l
           </div>
 
           {/* Phase 4.4 — Export strip map PDF */}
-          <div data-tour="map-feature-strip-map" className="pt-2 mt-1 border-t border-primary/6 flex items-center gap-2">
+          <div className="pt-2 mt-1 border-t border-primary/6 flex items-center gap-2">
             <span className="text-[9pt] font-medium text-tertiary uppercase tracking-widest shrink-0">Pace</span>
             <div className="flex rounded-md bg-themewhite p-0.5">
               {([
@@ -636,11 +636,10 @@ export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg, l
           onChange={(e) => handleNotesChange(e.target.value)}
           rows={3}
           placeholder="Notes"
-          data-tour="map-feature-notes"
           className="w-full px-3 py-2 bg-transparent text-[10pt] text-primary placeholder:text-tertiary resize-none focus:outline-none"
         />
       ) : feature.notes ? (
-        <div className="px-3 py-2 text-[10pt] text-primary whitespace-pre-wrap" data-tour="map-feature-notes">
+        <div className="px-3 py-2 text-[10pt] text-primary whitespace-pre-wrap">
           {feature.notes}
         </div>
       ) : null}

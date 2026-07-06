@@ -6,8 +6,8 @@
  *  cover the header), and clears it via top padding. */
 import { useMemo } from 'react'
 import { FolderClosed, User, ClipboardList, MapPin } from 'lucide-react'
-import { Section, SectionCard } from '../Section'
-import { EmptyState } from '../EmptyState'
+import { Section, SectionCard } from '@/Components/primitives/Section'
+import { EmptyState } from '@/Components/primitives/EmptyState'
 import type { LocalPropertyItem, LocalPropertyLocation, HolderInfo, HandReceipt } from '../../Types/PropertyTypes'
 import { expiryStatus } from '../../Types/PropertyTypes'
 import type { ReceiptItem } from '../../Hooks/useHandReceipts'

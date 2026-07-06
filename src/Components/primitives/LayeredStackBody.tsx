@@ -1,5 +1,5 @@
 import { useRef, useState, useLayoutEffect, useEffect, type ReactNode } from 'react'
-import { SearchInput } from './SearchInput'
+import { SearchInput } from '@/Components/primitives/SearchInput'
 
 /**
  * LayeredStackBody — the MOUNT-PRESERVING sibling of StackBody.

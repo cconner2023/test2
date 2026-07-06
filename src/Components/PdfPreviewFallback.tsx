@@ -1,5 +1,5 @@
 import { FileText } from 'lucide-react'
-import { EmptyState } from './EmptyState'
+import { EmptyState } from '@/Components/primitives/EmptyState'
 
 /**
  * Shared fallback body for every in-app PDF preview — rendered inside the <object>

@@ -1,9 +1,9 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { Check, Loader2, ChevronDown } from 'lucide-react'
 import { PreviewOverlay } from '../PreviewOverlay'
-import { ActionButton } from '../ActionButton'
-import { ActionPill } from '../ActionPill'
-import { ErrorPill } from '../ErrorPill'
+import { ActionButton } from '@/Components/primitives/ActionButton'
+import { ActionPill } from '@/Components/primitives/ActionPill'
+import { ErrorPill } from '@/Components/primitives/ErrorPill'
 import {
   getClinicEncryptionKey,
   updateSupervisorClinic,

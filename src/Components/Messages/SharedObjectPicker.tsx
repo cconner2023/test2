@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Calendar, Map as MapIcon, Image as ImageIcon, Package, ChevronRight, MapPin, Route, Hexagon, FileText, ClipboardList } from 'lucide-react'
 import { PreviewOverlay } from '../PreviewOverlay'
-import { AnchoredMenu } from '../LiftedRowMenu'
-import type { ContextMenuItem } from '../ContextMenu'
+import { AnchoredMenu } from '@/Components/primitives/LiftedRowMenu'
+import type { ContextMenuItem } from '@/Components/primitives/ContextMenu'
 import { useCalendarStore } from '../../stores/useCalendarStore'
 import { useMapOverlaysStore, useMapOverlaysCache } from '../../stores/useMapOverlaysStore'
 import { usePropertyStore } from '../../stores/usePropertyStore'
@@ -359,7 +359,6 @@ export function SharedObjectPicker({
       <AnchoredMenu
         isOpen={isOpen}
         anchorRef={anchorRef}
-        dataTour="messages-share"
         layout="list"
         align="left"
         items={menuItems}

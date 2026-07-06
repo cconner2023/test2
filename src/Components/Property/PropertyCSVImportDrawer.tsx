@@ -1,8 +1,8 @@
 import { useState, useRef, useMemo, useCallback } from 'react'
 import { Upload, AlertTriangle, CheckCircle2 } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
-import { Section, SectionCard } from '../Section'
-import { LoadingSpinner } from '../LoadingSpinner'
+import { Section, SectionCard } from '@/Components/primitives/Section'
+import { LoadingSpinner } from '@/Components/primitives/LoadingSpinner'
 import { usePropertyStore } from '../../stores/usePropertyStore'
 import {
   parsePropertyCSV,

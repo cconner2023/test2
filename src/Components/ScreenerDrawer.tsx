@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from 'react';
-import { BaseDrawer } from './BaseDrawer';
+import { BaseDrawer } from '@/Components/primitives/BaseDrawer';
 import type { ScreenerConfig, ScreenerWordList } from '../Types/AlgorithmTypes';
 import { getScreenerMaxScore, isQuestionScored } from '../Data/SpecTesting';
 import { Check } from 'lucide-react';

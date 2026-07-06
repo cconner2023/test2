@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { HudLoader } from './HudLoader'
+import { HudLoader } from '@/Components/primitives/HudLoader'
 
 /**
  * Full-screen loading overlay shown during first-time login while

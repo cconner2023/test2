@@ -1,13 +1,13 @@
 import { useEffect, useRef, useCallback } from 'react'
 import { Check, CalendarDays } from 'lucide-react'
-import { BaseDrawer } from './BaseDrawer'
+import { BaseDrawer } from '@/Components/primitives/BaseDrawer'
 import { getTaskData } from '../Data/TrainingData'
 import { useTrainingCompletions } from '../Hooks/useTrainingCompletions'
 import { useCalendarWrite } from '../Hooks/useCalendarWrite'
 import { useCalendarStore } from '../stores/useCalendarStore'
 import { AudioAidPlayer } from './AudioAidPlayer'
 import { StepCallout, PerformanceStepItem } from './TrainingStepComponents'
-import { SectionHeader } from './Section'
+import { SectionHeader } from '@/Components/primitives/Section'
 
 interface TrainingDrawerProps {
     isVisible: boolean
