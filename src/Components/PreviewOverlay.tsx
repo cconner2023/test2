@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
-import { useSpring, animated } from '@react-spring/web'
+import { animated } from '@react-spring/web'
 import { Plus, Check, X, ChevronLeft } from 'lucide-react'
 import type { ReactNode } from 'react'
 import type { LucideIcon } from 'lucide-react'
@@ -7,6 +7,7 @@ import { SearchInput } from '@/Components/primitives/SearchInput'
 import { BaseOverlay, Z } from '@/Components/primitives/BaseOverlay'
 import { ActionButton } from '@/Components/primitives/ActionButton'
 import { HudLoader } from '@/Components/primitives/HudLoader'
+import { useLoadingMorph } from '@/Components/primitives/useLoadingMorph'
 import { TextInput } from '@/Components/primitives/FormInputs'
 
 export interface ContextMenuAction {
@@ -167,16 +168,25 @@ export function PreviewOverlay({
   const posClass = scoped ? 'absolute' : 'fixed'
 
   // ── LOADING MORPH (opt-in) — HUD puck grows into the popover shell ──────────
-  // Mirrors the Sheet loading morph. `loading === undefined` ⇒ classic path only.
+  // Shares the Sheet's exact machine via useLoadingMorph. A popover scales in from
+  // its anchor (no bottom slide-up), so it has NO vessel: hasVessel=false ⇒ it opens
+  // straight as the puck, then expands into the shell. `loading === undefined` ⇒
+  // classic path only.
   const cardW = typeof maxWidth === 'number' ? maxWidth : 340
   const opted = loading !== undefined
-  const [settled, setSettled] = useState(() => !loading)
-  useEffect(() => { if (loading) setSettled(false) }, [loading])
-  const morphActive = opted && (!!loading || !settled)
   const PUCK_W = 140
   const PUCK_H = hudSize + 56
   const shellRef = useRef<HTMLDivElement>(null)
   const [shellH, setShellH] = useState(0)
+  const { phase, morph, hudFade, contentFade } = useLoadingMorph({
+    loading,
+    fullW: cardW,
+    fullH: shellH,
+    puckW: PUCK_W,
+    puckH: PUCK_H,
+    hasVessel: false,
+  })
+  const morphActive = opted && (!!loading || phase !== 'done')
   useEffect(() => {
     if (!morphActive) return
     const measure = () => { if (shellRef.current) setShellH(shellRef.current.scrollHeight) }
@@ -185,24 +195,6 @@ export function PreviewOverlay({
     if (shellRef.current) ro.observe(shellRef.current)
     return () => ro.disconnect()
   }, [morphActive])
-  const morphCfg = { tension: 210, friction: 24 }
-  const morph = useSpring({
-    width: loading ? PUCK_W : cardW,
-    height: loading ? PUCK_H : (shellH || PUCK_H),
-    config: morphCfg,
-    onRest: () => { if (!loading) setSettled(true) },
-  })
-  const hudFade = useSpring({
-    from: { opacity: 0, scale: 1 },
-    opacity: loading ? 1 : 0,
-    scale: loading ? 1 : 1.08,
-    config: morphCfg,
-  })
-  const contentFade = useSpring({
-    opacity: loading ? 0 : 1,
-    delay: loading ? 0 : 90,
-    config: morphCfg,
-  })
 
   const resolvedContent = preview
     ? (typeof preview === 'function' ? preview(filter, clearFilter) : preview)

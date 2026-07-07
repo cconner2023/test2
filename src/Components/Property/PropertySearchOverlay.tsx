@@ -10,6 +10,7 @@ import { Section, SectionCard } from '@/Components/primitives/Section'
 import { EmptyState } from '@/Components/primitives/EmptyState'
 import type { LocalPropertyItem, LocalPropertyLocation, HolderInfo, HandReceipt } from '../../Types/PropertyTypes'
 import { expiryStatus } from '../../Types/PropertyTypes'
+import { isAuthTarget } from '../../Utilities/propertyAuthorized'
 import type { ReceiptItem } from '../../Hooks/useHandReceipts'
 
 interface PropertySearchOverlayProps {
@@ -67,7 +68,11 @@ export function PropertySearchOverlay({
     if (!isSearching) return []
     return items
       .filter((i) => {
-        if (i.parent_item_id) return false
+        // Off-the-books rows never surface. Abstract authorized "targets" (tracked, no
+        // location) have no physical item to route to, so skip them too — but real physical
+        // stock DOES surface even when it's a sub-component parented under a LIN.
+        if (i.deleted_at || i.turned_in_at) return false
+        if (isAuthTarget(i)) return false
         const holder = i.current_holder_id ? holders?.get(i.current_holder_id) : null
         const locName = i.location_id ? locationNameMap.get(i.location_id) : null
         return (
@@ -177,7 +182,7 @@ export function PropertySearchOverlay({
                   {itemResults.map((item, i) => {
                     const exp = expiryStatus(item.expiry_date ?? null)
                     const meta: { text: string; className?: string }[] = []
-                    if (item.nsn) meta.push({ text: `NSN ${item.nsn}` })
+                    if (item.nsn) meta.push({ text: `Material/NSN ${item.nsn}` })
                     if (item.lin) meta.push({ text: `LIN ${item.lin}` })
                     meta.push({ text: `Qty ${item.quantity}` })
                     if (item.expiry_date) {
@@ -243,7 +248,7 @@ export function PropertySearchOverlay({
                         const subtitle = it?.serial_number
                           ? `S/N ${it.serial_number}`
                           : it?.nsn
-                            ? `NSN ${it.nsn}`
+                            ? `Material/NSN ${it.nsn}`
                             : null
                         return (
                           <button

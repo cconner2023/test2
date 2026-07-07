@@ -244,7 +244,11 @@ export function UserGuideDrawer({ isVisible, onClose }: UserGuideDrawerProps) {
                     isOpen={tocOpen}
                     onClose={() => setTocOpen(false)}
                     title="Contents"
-                    maxHeight={70}
+                    maxHeight={60}
+                    // Fit sheets default to Z.SHEET (50), but this nests over the
+                    // full-screen guide drawer (z-60) — lift it so the TOC isn't
+                    // trapped behind the drawer (matches the snap-sheet default).
+                    zIndex={1200}
                 >
                     <div className="pb-2">
                         <UserGuideTree

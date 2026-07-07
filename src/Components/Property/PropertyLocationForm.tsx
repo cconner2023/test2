@@ -56,6 +56,7 @@ export const PropertyLocationForm = forwardRef<PropertyLocationFormHandle, Prope
       editLocation: s.editLocation,
       addItem: s.addItem,
       editItem: s.editItem,
+      removeItem: s.removeItem,
       bumpTagVersion: s.bumpTagVersion,
     })),
   )
@@ -66,10 +67,11 @@ export const PropertyLocationForm = forwardRef<PropertyLocationFormHandle, Prope
   const [kind, setKind] = useState<'area' | 'vehicle'>(
     editingLocation?.kind === 'vehicle' ? 'vehicle' : 'area',
   )
-  // A vehicle IS a LIN (signed for, with authorized BII). Its PHR identity lives on a SHADOW
-  // LIN-item linked by location_id = this vehicle zone; the vehicle's LIN code is stored there
-  // (locations have no lin column). Entering a LIN here mints/syncs that shadow on save, so the
-  // vehicle appears in the Cluster Hand Receipt and can carry authorized components.
+  // ANY zone can also BE a LIN (signed for, with authorized BII) — a vehicle, a Pelican case,
+  // an aid bag. LIN-ness is orthogonal to `kind`. A zone's PHR identity lives on a SHADOW
+  // LIN-item linked by location_id = this zone; the zone's LIN code is stored there (locations
+  // have no lin column). Entering a LIN here mints/syncs that shadow on save, so the zone appears
+  // in the Cluster Hand Receipt and can carry authorized components. Clearing it reaps the shadow.
   const existingShadow = useMemo(
     () => (editingLocation ? store.items.find((i) => i.location_id === editingLocation.id && isLinContainer(i)) ?? null : null),
     [editingLocation, store.items],
@@ -121,26 +123,36 @@ export const PropertyLocationForm = forwardRef<PropertyLocationFormHandle, Prope
       .map((l) => ({ value: l.id, label: l.name }))
   }, [store.locations, editingLocation])
 
-    // Mint/sync the vehicle's shadow LIN-item (its PHR identity). No-op unless this is a
-    // vehicle WITH a LIN code entered. name/LIN edits here keep the shadow in step; the
-    // shadow is what surfaces the vehicle in the Cluster Hand Receipt.
-    const syncShadow = async (vehicleId: string, vehicleName: string) => {
+    // Mint/sync/reap this zone's shadow LIN-item (its PHR identity) — kind-agnostic. name/LIN
+    // edits keep the shadow in step; the shadow is what surfaces the zone in the Cluster Hand
+    // Receipt. Clearing the LIN reaps the shadow (same detach-then-remove cascade removeLocation
+    // uses, so authorized BII survive as loose stock under this zone rather than being deleted).
+    const syncShadow = async (zoneId: string, zoneName: string) => {
+      if (!store.clinicId) return
       const linCode = lin.trim()
-      if (kind !== 'vehicle' || !linCode || !store.clinicId) return
-      const shadow = store.items.find((i) => i.location_id === vehicleId && isLinContainer(i))
+      const shadow = store.items.find((i) => i.location_id === zoneId && isLinContainer(i))
+      if (!linCode) {
+        if (shadow) {
+          for (const comp of store.items.filter((i) => i.parent_item_id === shadow.id)) {
+            await store.editItem(comp.id, { parent_item_id: null, quantity_authorized: null })
+          }
+          await store.removeItem(shadow.id)
+        }
+        return
+      }
       if (shadow) {
-        await store.editItem(shadow.id, { name: vehicleName, lin: linCode })
+        await store.editItem(shadow.id, { name: zoneName, lin: linCode })
         return
       }
       await store.addItem({
         clinic_id: store.clinicId,
         sub_cluster_id: null,
-        name: vehicleName,
+        name: zoneName,
         nomenclature: null,
         nsn: null,
         lin: linCode,
         condition_code: 'serviceable',
-        location_id: vehicleId,
+        location_id: zoneId,
         current_holder_id: null,
         parent_item_id: null,
         expiry_date: null,
@@ -251,10 +263,11 @@ export const PropertyLocationForm = forwardRef<PropertyLocationFormHandle, Prope
             placeholder="Type"
           />
         )}
-        {/* A vehicle IS a LIN — its LIN code signs it onto the cluster hand receipt and lets
-            it carry authorized BII. Optional: leave blank to keep it a plain container zone. */}
-        {kind === 'vehicle' && (
-          <TextInput value={lin} onChange={setLin} placeholder="Vehicle LIN (e.g. T61494)" />
+        {/* Any zone can also BE a LIN — its LIN code signs it onto the cluster hand receipt and
+            lets it carry authorized BII (a vehicle, a med case, an aid bag). Optional: leave blank
+            to keep it a plain container zone; clearing an existing code reaps the shadow. */}
+        {!isLevel && (
+          <TextInput value={lin} onChange={setLin} placeholder="Hand-receipt LIN (optional, e.g. M30499)" />
         )}
 
         {/* Zone photo — the map-tile background. Raw upload (no crop); staged here

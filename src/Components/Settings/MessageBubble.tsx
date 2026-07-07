@@ -10,6 +10,7 @@ import { OncallCallCard } from '../Messages/OncallCallCard'
 import { OutsideMessageCard } from '../Messages/OutsideMessageCard'
 import { OutsideSessionCard } from '../Messages/OutsideSessionCard'
 import { SharedBundleCard } from '../Messages/SharedBundleCard'
+import { SharedObjectRow } from '../Messages/SharedObjectRow'
 import { OverlaySnapshot } from '../MapOverlay/OverlaySnapshot'
 import type { LucideIcon } from 'lucide-react'
 import { detectFirstDate } from '../../Utilities/dateDetect'
@@ -568,22 +569,14 @@ export function MessageBubble({
     if (sharedRef) {
       const RefIcon = sharedRef.refKind === 'calendar-event' ? Calendar : sharedRef.refKind === 'property-item' ? Package : MapIcon
       const refRow = (
-        <button
+        <SharedObjectRow
+          icon={RefIcon}
+          label={sharedRef.label}
+          subLabel={sharedRef.subLabel}
+          tone={isOwn ? 'own' : 'peer'}
           onClick={handleOpenRef}
-          className={`flex items-center gap-2.5 min-w-[180px] max-w-[240px] -mx-1 px-2 py-1 rounded-lg active:scale-[0.98] transition-all text-left
-                     ${isOwn ? 'hover:bg-white/10' : 'hover:bg-primary/5'}`}
-        >
-          <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${isOwn ? 'bg-white/20' : 'bg-themeblue3/10'}`}>
-            <RefIcon size={17} className={isOwn ? 'text-white' : 'text-themeblue3'} />
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className={`text-sm font-medium truncate ${isOwn ? 'text-white' : 'text-primary'}`}>{sharedRef.label}</p>
-            {sharedRef.subLabel && (
-              <p className={`text-[9pt] truncate ${isOwn ? 'text-white/70' : 'text-tertiary'}`}>{sharedRef.subLabel}</p>
-            )}
-          </div>
-          <ChevronRight size={16} className={`shrink-0 ${isOwn ? 'text-white/60' : 'text-tertiary'}`} />
-        </button>
+          className="min-w-[180px] max-w-[240px]"
+        />
       )
       // A shared map overlay shows a static thumbnail of its features above the
       // row. Resolves from the local overlays cache; falls back to a map-icon

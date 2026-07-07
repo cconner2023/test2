@@ -44,7 +44,7 @@ export function DisambiguationCard({ candidates, items, onSelect, onManual }: Di
               <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                 {item?.nsn && (
                   <span className="text-[9pt] text-tertiary font-medium">
-                    NSN {item.nsn}
+                    Material/NSN {item.nsn}
                   </span>
                 )}
                 {(item?.quantity ?? 1) > 1 && (

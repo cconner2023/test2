@@ -70,6 +70,7 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
     const importTriggerRef = useRef<(() => void) | null>(null)
     const navigateZoneTriggerRef = useRef<((zoneId: string) => void) | null>(null)
     const openCustodyTriggerRef = useRef<(() => void) | null>(null)
+    const focusItemTriggerRef = useRef<((itemId: string) => void) | null>(null)
     const initRef = useRef(false)
 
     useEffect(() => { setSearchQuery(''); setSearchFocused(false) }, [view])
@@ -91,25 +92,31 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
         }
     }, [isVisible, init])
 
-    // Deep-link: open straight to an item when navigated here with a focus id
-    // (e.g. tapping a shared property card in a chat). Waits for items to load.
+    // Deep-link: focus an item when navigated here with a focus id (e.g. tapping a
+    // shared property card in a chat, a calendar equipment link, or a master-search
+    // item result). Routes through the panel's focus-item trigger — the SAME path as
+    // an in-drawer search-result tap — so the canvas navigates to the item's parent
+    // zone first (breadcrumb points at the zone; mobile gets a real Back target).
+    // Previously this opened the detail surface directly with no parent zone.
+    // Waits for items to load + the panel to register its trigger, then defers a
+    // frame so the canvas has mounted/measured before we focus.
     const propertyDrawerItemId = useNavigationStore(s => s.propertyDrawerItemId)
     const clearPropertyDrawerItemId = useNavigationStore(s => s.clearPropertyDrawerItemId)
     useEffect(() => {
         if (!isVisible || !propertyDrawerItemId) return
-        const item = items.find(i => i.id === propertyDrawerItemId)
-        if (item) {
-            // Mobile surfaces the item in the shared nav sheet; desktop uses the
-            // right detail pane via the view machine.
-            if (isMobile) {
-                navSheetRef.current?.openItem(item)
-            } else {
-                setSelectedItem(item)
-                setView('property-detail')
-            }
-            clearPropertyDrawerItemId()
-        }
-    }, [isVisible, propertyDrawerItemId, items, clearPropertyDrawerItemId, isMobile])
+        if (!items.some(i => i.id === propertyDrawerItemId)) return
+        const id = propertyDrawerItemId
+        let raf2 = 0
+        // Clear INSIDE the deferred callback — clearing synchronously would null the
+        // dep, re-run this effect, and cancel the rAF we just scheduled.
+        const raf1 = requestAnimationFrame(() => {
+            raf2 = requestAnimationFrame(() => {
+                focusItemTriggerRef.current?.(id)
+                clearPropertyDrawerItemId()
+            })
+        })
+        return () => { cancelAnimationFrame(raf1); cancelAnimationFrame(raf2) }
+    }, [isVisible, propertyDrawerItemId, items, clearPropertyDrawerItemId])
 
     // Deep-link from global search → a zone: wait for locations to load + the
     // panel to register its navigate trigger, then defer a frame so the canvas
@@ -303,6 +310,7 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                         onRegisterImport={(t) => { importTriggerRef.current = t }}
                         onRegisterNavigateZone={(t) => { navigateZoneTriggerRef.current = t }}
                         onRegisterOpenCustody={(t) => { openCustodyTriggerRef.current = t }}
+                        onRegisterFocusItem={(t) => { focusItemTriggerRef.current = t }}
                     />
                 ) : (
                     <PropertyPanel
@@ -324,6 +332,7 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                         onRegisterImport={(t) => { importTriggerRef.current = t }}
                         onRegisterNavigateZone={(t) => { navigateZoneTriggerRef.current = t }}
                         onRegisterOpenCustody={(t) => { openCustodyTriggerRef.current = t }}
+                        onRegisterFocusItem={(t) => { focusItemTriggerRef.current = t }}
                     />
                 )}
 

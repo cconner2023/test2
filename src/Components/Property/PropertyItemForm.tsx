@@ -84,15 +84,10 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
   const [parentItemId, setParentItemId] = useState(() => {
     if (editingItem?.parent_item_id != null) return editingItem.parent_item_id
     if (initialParentId) return initialParentId
-    // Fresh authorized add: default to the first existing LIN (assign mode) so the common
-    // post-setup action is assigning a product; '' (build a New LIN) stays an explicit choice.
-    // With no LINs yet the flow FORCES LIN-building first — you can't assign to a missing LIN.
-    if (showAuthorized && !editingItem) {
-      const firstLin = items
-        .filter(isLinContainer)
-        .sort((a, b) => a.name.localeCompare(b.name))[0]
-      return firstLin?.id ?? ''
-    }
+    // Fresh authorized add opens in New-LIN mode ('' → isNewLin) — building the hand receipt
+    // (declaring the LINs you're signed for) is the primary first action; assigning a product
+    // under an existing LIN is an explicit pick from the picker. The per-group "+ Add item"
+    // still lands here with initialParentId set (assign mode), so it's unaffected.
     return ''
   })
   const [notes, setNotes] = useState(editingItem?.notes ?? '')
@@ -177,7 +172,8 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
   )
 
   // PHR level 1 — the cluster's LINs: top-level, authorization-tracked, live items. These
-  // are the "hand receipts" a new component can be signed under.
+  // are the "hand receipts" a new component can be signed under. Used by the authorized-add
+  // flow, which builds the WHOLE receipt (standalone item-LINs included).
   const authorizedLinOptions = useMemo(
     () =>
       items
@@ -186,6 +182,27 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
         .map((i) => ({ value: i.id, label: i.lin ? `${i.name} · LIN ${i.lin}` : i.name })),
     [items, editingItem?.id],
   )
+
+  // The normal add-item flow only offers LINs that live at a ZONE (a real physical container —
+  // med case, vehicle, bag: isLinContainer WITH a location_id). Standalone item-LINs (no zone)
+  // are receipt-only abstractions you can't physically stock into, so they're excluded here.
+  // Picking one auto-fills Location to its zone (pickLinkLin below), overridable.
+  const zoneLinOptions = useMemo(
+    () =>
+      items
+        .filter((i) => isLinContainer(i) && i.location_id != null && i.id !== editingItem?.id)
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map((i) => ({ value: i.id, label: i.lin ? `${i.name} · LIN ${i.lin}` : i.name })),
+    [items, editingItem?.id],
+  )
+
+  // Pick a zone-LIN in the normal add flow — sets the parent AND defaults Location to that
+  // LIN's zone (the physical container the stock lands in). Location stays overridable.
+  const pickLinkLin = useCallback((linId: string) => {
+    setParentItemId(linId)
+    const lin = items.find((i) => i.id === linId)
+    if (lin?.location_id) setLocationId(lin.location_id)
+  }, [items])
 
   // PHR level 2 — the authorized component ROLES already present under the chosen LIN
   // (distinct nomenclatures). Picking one quick-fills nomenclature; a new role is typed.
@@ -212,7 +229,7 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
   // line's shortage. The shortage fold keys on-hand by (parent LIN + NSN), so picking a role
   // must copy that role's authorized NSN — otherwise the new stock keys separately and the
   // shortage doesn't move. Off-book stock stays possible via "Not on hand receipt".
-  const linkFlow = !authActive && !authAddFlow && !editingIsLin && !isEdit && authorizedLinOptions.length > 0
+  const linkFlow = !authActive && !authAddFlow && !editingIsLin && !isEdit && zoneLinOptions.length > 0
 
   // Pick an authorized role under the chosen LIN — sets nomenclature and inherits the
   // authorized component's NSN so this stock counts toward that line.
@@ -269,12 +286,13 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
     try {
       if (editingIsLin && editingItem) {
         // Edit a LIN header — only name + LIN change; everything else is preserved. If this LIN
-        // is a vehicle-shadow (it lives at a vehicle zone), sync the zone name so the vehicle
-        // and its hand-receipt LIN never split.
+        // is a zone-shadow (it lives at a zone — any kind: vehicle, case, bag), sync the zone
+        // name so the zone and its hand-receipt LIN never split. Standalone item-LINs have no
+        // location_id, so they skip this branch.
         await editItem(editingItem.id, { name: name.trim(), lin: lin.trim() })
         if (editingItem.location_id) {
           const loc = locations.find((l) => l.id === editingItem.location_id)
-          if (loc?.kind === 'vehicle') await editLocation(loc.id, { name: name.trim() })
+          if (loc) await editLocation(loc.id, { name: name.trim() })
         }
         onClose()
       } else if (isNewLin) {
@@ -437,21 +455,22 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
               )}
               <TextInput value={nomenclature} onChange={setNomenclature} placeholder="Component role * (e.g. Tourniquet)" required />
               <TextInput value={name} onChange={setName} placeholder="Product name * (e.g. CAT)" required />
-              <TextInput value={nsn} onChange={setNsn} placeholder="NSN" />
+              <TextInput value={nsn} onChange={setNsn} placeholder="Material/NSN" />
             </>
           )}
         </>
       ) : linkFlow ? (
         <>
-          <TextInput value={name} onChange={setName} placeholder="Item name *" required />
-          {/* Link this stock to the hand receipt — pick the LIN it's signed under; the
-              authorized role picker below inherits its NSN so the stock draws down that
-              line's shortage. "Not on hand receipt" keeps it loose/off-book. */}
+          {/* LIN FIRST — pick the physical container (zone-LIN) this stock lands in. Only LINs
+              tied to a zone are listed; picking one auto-fills Location to its zone (below) and
+              inherits the chosen role's NSN so the stock draws down that line's shortage.
+              Component appears only once a LIN is picked; "Not on a LIN" keeps it loose. */}
           <PickerInput
             value={parentItemId}
-            onChange={setParentItemId}
-            options={[{ value: '', label: 'Not on hand receipt' }, ...authorizedLinOptions]}
-            placeholder="LIN (hand receipt)"
+            onChange={pickLinkLin}
+            options={[{ value: '', label: 'Not on a LIN (loose stock)' }, ...zoneLinOptions]}
+            placeholder="LIN (container) *"
+            searchable
           />
           {parentItemId ? (
             <>
@@ -460,18 +479,21 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
                   value={componentRoleOptions.some((o) => o.value === nomenclature) ? nomenclature : ''}
                   onChange={pickRole}
                   options={[{ value: '', label: 'Other role…' }, ...componentRoleOptions]}
-                  placeholder="Authorized item (nomenclature)"
+                  placeholder="Authorized item (role)"
+                  searchable
                 />
               )}
+              <TextInput value={name} onChange={setName} placeholder="Item name *" required />
               <TextInput value={nomenclature} onChange={setNomenclature} placeholder="Nomenclature (role)" />
-              <TextInput value={nsn} onChange={setNsn} placeholder="NSN" />
+              <TextInput value={nsn} onChange={setNsn} placeholder="Material/NSN" />
             </>
           ) : (
             <>
+              <TextInput value={name} onChange={setName} placeholder="Item name *" required />
               <TextInput value={nomenclature} onChange={setNomenclature} placeholder="Nomenclature" />
               <div className="flex items-stretch border-b border-primary/6">
                 <div className="flex-1 min-w-0">
-                  <TextInput value={nsn} onChange={setNsn} placeholder="NSN" />
+                  <TextInput value={nsn} onChange={setNsn} placeholder="Material/NSN" />
                 </div>
                 <div className="flex-1 min-w-0 border-l border-primary/6">
                   <TextInput value={lin} onChange={setLin} placeholder="LIN" />
@@ -486,11 +508,11 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
           <TextInput value={nomenclature} onChange={setNomenclature} placeholder="Nomenclature" />
           {/* An authorized line's LIN is inherited from its parent LIN — hide it here. */}
           {authActive ? (
-            <TextInput value={nsn} onChange={setNsn} placeholder="NSN" />
+            <TextInput value={nsn} onChange={setNsn} placeholder="Material/NSN" />
           ) : (
             <div className="flex items-stretch border-b border-primary/6">
               <div className="flex-1 min-w-0">
-                <TextInput value={nsn} onChange={setNsn} placeholder="NSN" />
+                <TextInput value={nsn} onChange={setNsn} placeholder="Material/NSN" />
               </div>
               <div className="flex-1 min-w-0 border-l border-primary/6">
                 <TextInput value={lin} onChange={setLin} placeholder="LIN" />
@@ -613,6 +635,7 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
           onChange={setLocationId}
           options={locationOptions}
           placeholder="Location"
+          searchable
         />
       )}
       {/* An authorized line is cluster-owned — no holder. */}

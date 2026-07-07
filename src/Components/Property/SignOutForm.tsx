@@ -381,7 +381,7 @@ export const SignOutForm = forwardRef<SignOutFormHandle, SignOutFormProps>(funct
                       <span className="min-w-0 flex-1">
                         <span className="block text-sm text-primary truncate">{i.name}</span>
                         <span className="block text-[10pt] text-tertiary truncate">
-                          {i.serial_number ? `S/N ${i.serial_number}` : i.nsn ? `NSN ${i.nsn}` : 'No NSN'}
+                          {i.serial_number ? `S/N ${i.serial_number}` : i.nsn ? `Material/NSN ${i.nsn}` : 'No Material/NSN'}
                           {max > 1 ? ` · ${max} on hand` : ''}
                           {loc ? ` · usually ${loc}` : ''}
                           {out ? ' · already out' : ''}

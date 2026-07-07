@@ -27,10 +27,11 @@
 // glass-header-isolated stacking context (the original reason SubDrawer existed).
 import { useEffect, useRef, useState, useCallback, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { useSpring, animated } from '@react-spring/web';
+import { animated } from '@react-spring/web';
 import { X, ChevronUp, ChevronDown } from 'lucide-react';
 import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill';
 import { HudLoader } from '@/Components/primitives/HudLoader';
+import { useLoadingMorph } from '@/Components/primitives/useLoadingMorph';
 import { DRAWER_TIMING } from '@/Utilities/constants';
 import { Z, OverlayStackContext, STACK_BUMP } from '@/Components/primitives/BaseOverlay';
 
@@ -227,39 +228,29 @@ export function Sheet({
         return () => ro.disconnect();
     }, [isSnap, isMounted, isOpen]);
 
-    // ── LOADING MORPH (opt-in, fit only) — explicit 3-shape phase machine ────
-    // `loading === undefined` ⇒ consumer didn't opt in ⇒ classic path only.
-    // The SAME element passes through three settled shapes, no DOM swap (the
-    // swap was the old "close"): (1) a sheet vessel slides up → (2) collapses
-    // to a settled HUD puck that HOLDS for the whole load → (3) expands into
-    // the settled content sheet. Phases: enter → collapse → hud → expand → done.
-    // (A `check` dwell — HUD morphing to a checkmark — will slot in at hud→expand.)
-    type MorphPhase = 'enter' | 'collapse' | 'hud' | 'expand' | 'done';
+    // ── LOADING MORPH (opt-in, fit only) — the SHARED useLoadingMorph machine ────
+    // `loading === undefined` ⇒ consumer didn't opt in ⇒ classic path only. The SAME
+    // element passes through vessel → puck → sheet (enter→collapse→hud→expand→done),
+    // no DOM swap (the swap was the old "close"). The phase machine + springs live in
+    // useLoadingMorph so PreviewOverlay shares the identical feel; the Sheet owns only
+    // its own measurement + the shape-1 vessel (hasVessel=true). Opted fit sheets
+    // ALWAYS render through the morph element (even at 'done', pixel-identical to the
+    // classic card) so we never swap subtrees.
     const opted = loading !== undefined && !isSnap;
-    const [phase, setPhase] = useState<MorphPhase>('done');
-    const phaseRef = useRef<MorphPhase>(phase);
-    phaseRef.current = phase;
-    // Opted fit sheets ALWAYS render through the morph element (even at 'done',
-    // where it's pixel-identical to the classic card) so we never swap subtrees.
     const morphActive = opted;
-    // Puck shapes — the settled HUD loader (shape 2).
-    const isPuck = phase === 'collapse' || phase === 'hud';
-    const isPuckRef = useRef(isPuck);
-    isPuckRef.current = isPuck;
-
     const PUCK_W = 140;
     const PUCK_H = hudSize + 56;
 
-    // Measure the wrapper width (target full width) + the real content height we
-    // grow into. Live (ResizeObserver) so async content still lands correctly.
-    // Content is mounted (faded) the whole time, so it measures even under the
-    // puck — but skip height updates while collapsed (content is squeezed to
-    // PUCK_W there, so its scrollHeight is bogus). At full width (enter/expand/
-    // done) the measurement is true; the puck just retains the last good height.
+    // Measure the wrapper width (target full width) + the real content height we grow
+    // into. Live (ResizeObserver) so async content still lands correctly. Content is
+    // mounted (faded) the whole time, so it measures even under the puck — but skip
+    // height updates while collapsed (content is squeezed to PUCK_W there, so its
+    // scrollHeight is bogus). The puck retains the last good full-width height.
     const wrapRef = useRef<HTMLDivElement>(null);
     const morphContentRef = useRef<HTMLDivElement>(null);
     const [wrapW, setWrapW] = useState(0);
     const [fullH, setFullH] = useState(0);
+    const isPuckRef = useRef(false);
     useEffect(() => {
         if (!morphActive) return;
         const measure = () => {
@@ -275,64 +266,23 @@ export function Sheet({
         return () => ro.disconnect();
     }, [morphActive, maxHeight, isMounted]);
 
-    // Shape-1 vessel height — a sheet-looking blank that slides up before it
-    // collapses. Tracks the eventual content height when known, else a neutral
-    // ~42dvh fallback so the vessel reads as a sheet on the first paint.
+    // Shape-1 vessel height — a sheet-looking blank that slides up before it collapses.
+    // Tracks the eventual content height when known, else a neutral ~42dvh fallback so
+    // the vessel reads as a sheet on the first paint.
     const vesselH = fullH || (typeof window !== 'undefined' ? Math.round(window.innerHeight * 0.42) : 320);
-    const fullW = wrapW || PUCK_W;
-    const targetW = isPuck ? PUCK_W : fullW;
-    const targetH = phase === 'enter' ? vesselH : isPuck ? PUCK_H : (fullH || PUCK_H);
 
-    const morphCfg = { tension: 210, friction: 24 };
-    const morph = useSpring({
-        width: targetW,
-        height: targetH,
-        // The vessel (shape 1) snaps to full size and rides in on the CSS slide —
-        // only the collapse → puck and puck → sheet actually animate their size.
-        immediate: phase === 'enter',
-        config: morphCfg,
-        onRest: () => {
-            if (phaseRef.current === 'collapse') setPhase('hud');
-            else if (phaseRef.current === 'expand') setPhase('done');
-        },
+    const { isPuck, morph, hudFade, contentFade } = useLoadingMorph({
+        loading,
+        enabled: !isSnap,
+        shown,
+        fullW: wrapW,
+        fullH,
+        vesselH,
+        puckW: PUCK_W,
+        puckH: PUCK_H,
+        hasVessel: true,
     });
-    // HUD: blank through the vessel, fades in as it collapses to the puck, then
-    // dissolves outward as the sheet expands.
-    const hudFade = useSpring({
-        opacity: isPuck ? 1 : 0,
-        scale: phase === 'expand' || phase === 'done' ? 1.08 : 1,
-        config: morphCfg,
-    });
-    // Content: blank through vessel + puck, fades in a beat into the expand.
-    // ONLY the expand fade-in animates — hiding is instant (immediate), so the
-    // vessel is truly blank on entry and the initial 'done' frame never bleeds
-    // the settled sheet through the slide-in (that bleed was the pre-collapse flash).
-    const contentFade = useSpring({
-        opacity: phase === 'expand' || phase === 'done' ? 1 : 0,
-        immediate: phase !== 'expand',
-        delay: phase === 'expand' ? 90 : 0,
-        config: morphCfg,
-    });
-
-    // ── Phase transitions ────────────────────────────────────────────────────
-    // Entrance: `loading` rising drives the sheet vessel in (shape 1). If a
-    // settled sheet is re-loading, collapse straight to the puck instead.
-    useEffect(() => {
-        if (!opted) return;
-        if (loading) setPhase(p => (p === 'done' && shown ? 'collapse' : 'enter'));
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [loading, opted]);
-    // Vessel → puck: let the slide-up land, then collapse inward (shape 2).
-    useEffect(() => {
-        if (phase !== 'enter') return;
-        const t = window.setTimeout(() => setPhase('collapse'), DRAWER_TIMING.TRANSITION);
-        return () => window.clearTimeout(t);
-    }, [phase]);
-    // Settled puck → expand once the load clears (shape 3). The future checkmark
-    // dwell slots in right here, between `hud` settling and the expand.
-    useEffect(() => {
-        if (phase === 'hud' && !loading) setPhase('expand');
-    }, [phase, loading]);
+    isPuckRef.current = isPuck;
 
     // Unified touch handlers: snap mode feeds overscroll; fit mode tracks a
     // dismiss drag started from the handle.

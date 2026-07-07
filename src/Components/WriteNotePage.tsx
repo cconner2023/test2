@@ -18,11 +18,12 @@ import {
 import { ExpandableInput } from '@/Components/primitives/ExpandableInput';
 import { useAlgorithmMetrics } from '../Hooks/useAlgorithmMetrics';
 import { useMergedNoteContent } from '../Hooks/useMergedNoteContent';
-import { X, Plus, Check, RotateCcw } from 'lucide-react';
+import { X, Plus, Check, RotateCcw, ChevronRight, ClipboardList, FileText } from 'lucide-react';
 import { PreviewOverlay } from './PreviewOverlay';
 import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog';
 import { PdfPreviewModal } from './PdfPreviewModal';
-import { Chip, ChipBar } from '@/Components/primitives/Chip';
+import { BottomIsland, IslandButton } from '@/Components/primitives/BottomIsland';
+import { AddFab } from '@/Components/primitives/AddFab';
 import { OverlayActionMenu } from '@/Components/primitives/OverlayActionMenu';
 import { EmptyState } from '@/Components/primitives/EmptyState';
 import type { TextExpander } from '../Data/User';
@@ -308,28 +309,6 @@ export const WriteNotePage = ({
                 title: visiblePages[currentPage]?.label ?? '',
                 showBack: currentPage > 0,
                 onBack: handlePageBack,
-                // View-mode segmented toggle lives in the header band (edit page only)
-                // so it reads as screen chrome, not a control floating over content.
-                extraRow: currentPageId === 'edit' ? (
-                    <div className="px-5 pb-3 pt-1">
-                        <ChipBar>
-                            <Chip
-                                active={viewMode === 'preview'}
-                                onClick={() => setViewMode('preview')}
-                                className="w-1/2 text-center"
-                            >
-                                Decision Making
-                            </Chip>
-                            <Chip
-                                active={viewMode === 'fullnote'}
-                                onClick={() => setViewMode('fullnote')}
-                                className="w-1/2 text-center"
-                            >
-                                Full Note
-                            </Chip>
-                        </ChipBar>
-                    </div>
-                ) : undefined,
             }}
         >
             <div
@@ -661,18 +640,41 @@ export const WriteNotePage = ({
                 </div>
                 </div>
 
-                <NoteWizardFooter
-                    currentPage={currentPage} visiblePages={visiblePages} slideDirection={slideDirection}
-                    handleNext={() => {
-                        if (currentPageId === 'edit') {
-                            setDmConfirmOpen(true);
-                        } else {
-                            // Full Note is terminal — the FAB confirms logging the encounter.
-                            setLogConfirmOpen(true);
+                {currentPageId === 'edit' ? (
+                    // Edit page: view switcher + advance FAB share one bottom island
+                    // (canonical BottomIsland pattern — mirrors CalendarPanel's view
+                    // switcher). The FAB nests in the island's `fab` slot so tabs +
+                    // FAB + glass footer read as one band, not stacked chrome.
+                    <BottomIsland
+                        glass
+                        z="z-20"
+                        role="tablist"
+                        ariaLabel="Note view"
+                        fab={
+                            <AddFab
+                                onClick={() => setDmConfirmOpen(true)}
+                                icon={ChevronRight}
+                                label={hasPII ? 'Remove PII/PHI before continuing' : 'Next'}
+                                disabled={hasPII}
+                                className="absolute right-4"
+                            />
                         }
-                    }}
-                    hasPII={hasPII} isMobile={isMobile}
-                />
+                    >
+                        <IslandButton role="tab" active={viewMode === 'preview'} onClick={() => setViewMode('preview')} label="Decision Making">
+                            <ClipboardList className="w-5 h-5" />
+                        </IslandButton>
+                        <IslandButton role="tab" active={viewMode === 'fullnote'} onClick={() => setViewMode('fullnote')} label="Full Note">
+                            <FileText className="w-5 h-5" />
+                        </IslandButton>
+                    </BottomIsland>
+                ) : (
+                    // Full Note page (terminal): the Done FAB over the glass footer.
+                    <NoteWizardFooter
+                        currentPage={currentPage} visiblePages={visiblePages} slideDirection={slideDirection}
+                        handleNext={() => setLogConfirmOpen(true)}
+                        hasPII={hasPII} isMobile={isMobile}
+                    />
+                )}
                 <ConfirmDialog
                     visible={dmConfirmOpen}
                     title="Include decision making in note?"

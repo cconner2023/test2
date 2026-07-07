@@ -146,7 +146,7 @@ export const ItemActionMenu = forwardRef<ItemActionMenuHandle, ItemActionMenuPro
       refKind: 'property-item',
       refId: item.id,
       label: item.name || item.nomenclature || 'Item',
-      subLabel: item.nsn ? `${qty} · NSN ${item.nsn}` : qty,
+      subLabel: item.nsn ? `${qty} · Material/NSN ${item.nsn}` : qty,
     })
   }
 

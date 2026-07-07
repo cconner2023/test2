@@ -94,6 +94,7 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete, onMove, onC
   const rowPad = isMobile ? 'px-4 py-3' : 'px-3 py-2.5'
   const isSupervisor = useAuthStore(s => s.isSupervisorRole)
   const openMapOverlay = useNavigationStore(s => s.setShowMapOverlayDrawer)
+  const openPropertyItem = useNavigationStore(s => s.setShowPropertyDrawer)
   const overlaysCache = useMapOverlaysStore(s => s.overlays)
   const { theme, themeName } = useTheme()
   const propertyItems = usePropertyStore(s => s.items)
@@ -415,10 +416,15 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete, onMove, onC
                 <SectionHeader>Equipment</SectionHeader>
                 <div className="space-y-1.5">
                   {linkedPropertyItems.map((item) => (
-                    <div key={item.id} className="min-w-0">
-                      <p className={`font-medium text-primary truncate ${txt}`}>{item.name}</p>
-                      {item.nsn && <p className="text-[9pt] text-tertiary">{item.nsn}</p>}
-                    </div>
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => openPropertyItem(true, item.id)}
+                      className="flex flex-col items-start text-left min-w-0 active:scale-[0.99] transition-all"
+                    >
+                      <span className={`text-themeblue3 hover:underline truncate max-w-full ${txt}`}>{item.name}</span>
+                      {item.nsn && <span className="text-[9pt] text-tertiary">{item.nsn}</span>}
+                    </button>
                   ))}
                 </div>
               </div>

@@ -17,6 +17,7 @@ import { useLongPress } from '../../Hooks/useLongPress'
 import { createLogger } from '../../Utilities/Logger'
 import { loadIngested, markIngested } from '../../lib/bundleIngestLog'
 import { NoteBlocksBundleCard } from './NoteBlocksBundleCard'
+import { SharedObjectRow } from './SharedObjectRow'
 
 const logger = createLogger('SharedBundleCard')
 
@@ -187,17 +188,12 @@ function ObjectBundleCard({ content, isOwn, senderName, messageId, onLongPress }
         )}
 
         {/* Title row */}
-        <div className="flex items-center gap-2.5">
-          <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${isOwn ? 'bg-white/20' : 'bg-themeblue3/10'}`}>
-            <Icon size={17} className={isOwn ? 'text-white' : 'text-themeblue3'} />
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className={`text-sm font-medium truncate ${isOwn ? 'text-white' : 'text-primary'}`}>{content.label}</p>
-            {content.subLabel && (
-              <p className={`text-[9pt] truncate ${isOwn ? 'text-white/70' : 'text-tertiary'}`}>{content.subLabel}</p>
-            )}
-          </div>
-        </div>
+        <SharedObjectRow
+          icon={Icon}
+          label={content.label}
+          subLabel={content.subLabel}
+          tone={isOwn ? 'own' : 'peer'}
+        />
 
         {/* Action */}
         <button

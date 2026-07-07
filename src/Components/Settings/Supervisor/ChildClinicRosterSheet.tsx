@@ -240,6 +240,8 @@ export function ChildClinicRosterSheet({
       isOpen
       onClose={onClose}
       title={clinicName}
+      maxHeight={60}
+      backdrop="dismiss"
       zIndex={1250}
       actions={
         <div ref={addBtnRef}>

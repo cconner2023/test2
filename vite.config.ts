@@ -103,8 +103,15 @@ export default defineConfig({
       includeAssets: ['icon-144.png', 'icon-192.png', 'icon-512.png', 'icon-512-maskable.png', 'browserconfig.xml', 'splash/*.png'],
       manifest: {
         id: '/test2/',
-        name: `ADTMC V${APP_VERSION}`,
-        short_name: `ADTMC ${APP_VERSION}`,
+        // Manifest name is stable app IDENTITY — NOT a version channel. Embedding
+        // APP_VERSION here mutates the manifest every release, which makes desktop
+        // Chrome fire its OWN native "App update available" flow and activate the new
+        // SW itself — preempting the in-app UpdateNotification card (onNeedRefresh
+        // never fires because the SW never sits in `waiting`). iOS Safari ignores
+        // manifest-update, so mobile was unaffected; desktop was not. Keep this static
+        // so version signaling stays solely in version.json (swService gate) + the card.
+        name: 'ADTMC',
+        short_name: 'ADTMC',
         description: 'knowledge base, training, logistics, and mesh communications',
         start_url: '/test2/',
         display: 'standalone',

@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Calendar, Map as MapIcon, Image as ImageIcon, Package, ChevronRight, MapPin, Route, Hexagon, FileText, ClipboardList } from 'lucide-react'
+import { Calendar, Map as MapIcon, Image as ImageIcon, Package, ChevronRight, MapPin, Route, Hexagon, FileText, ClipboardList, type LucideIcon } from 'lucide-react'
 import { PreviewOverlay } from '../PreviewOverlay'
 import { AnchoredMenu } from '@/Components/primitives/LiftedRowMenu'
+import { ListItemRow } from '@/Components/primitives/ListItemRow'
 import type { ContextMenuItem } from '@/Components/primitives/ContextMenu'
 import { useCalendarStore } from '../../stores/useCalendarStore'
 import { useMapOverlaysStore, useMapOverlaysCache } from '../../stores/useMapOverlaysStore'
@@ -35,6 +36,36 @@ function featureIcon(f: OverlayFeature) {
   if (f.type === 'route') return Route
   if (f.type === 'area') return Hexagon
   return MapPin
+}
+
+/** One selection row for the share picker (objects + templates) — the canonical
+ *  ListItemRow shape (icon tile · title/sub · optional chevron), so every picker
+ *  row renders identically instead of two hand-rolled copies. */
+function PickerListRow({ icon: Icon, label, sub, onClick, chevron = false }: {
+  icon: LucideIcon
+  label: string
+  sub: string
+  onClick: () => void
+  chevron?: boolean
+}) {
+  return (
+    <ListItemRow
+      onClick={onClick}
+      className="px-3 py-2.5 hover:bg-primary/5 active:scale-[0.99] transition-all"
+      left={
+        <div className="w-9 h-9 rounded-full bg-themeblue3/10 flex items-center justify-center shrink-0">
+          <Icon size={16} className="text-themeblue3" />
+        </div>
+      }
+      center={
+        <>
+          <p className="text-[11pt] font-medium text-primary truncate">{label}</p>
+          <p className="text-[9pt] text-tertiary truncate">{sub}</p>
+        </>
+      }
+      right={chevron ? <ChevronRight size={16} className="text-tertiary shrink-0" /> : undefined}
+    />
+  )
 }
 
 interface SharedObjectPickerProps {
@@ -266,24 +297,15 @@ export function SharedObjectPicker({
     }
     return (
       <div className="py-1">
-        {rows.map(row => {
-          const RowIcon = row.isOrderSet ? ClipboardList : FileText
-          return (
-            <button
-              key={row.id}
-              onClick={() => handlePickTemplate(row)}
-              className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-primary/5 active:scale-[0.99] transition-all text-left"
-            >
-              <div className="w-9 h-9 rounded-full bg-themeblue3/10 flex items-center justify-center shrink-0">
-                <RowIcon size={16} className="text-themeblue3" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-[11pt] font-medium text-primary truncate">{row.label}</p>
-                <p className="text-[9pt] text-tertiary truncate">{row.sub}</p>
-              </div>
-            </button>
-          )
-        })}
+        {rows.map(row => (
+          <PickerListRow
+            key={row.id}
+            icon={row.isOrderSet ? ClipboardList : FileText}
+            label={row.label}
+            sub={row.sub}
+            onClick={() => handlePickTemplate(row)}
+          />
+        ))}
       </div>
     )
   }
@@ -326,27 +348,16 @@ export function SharedObjectPicker({
     }
     return (
       <div className="py-1">
-        {rows.map(row => {
-          const RowIcon = rowIcon(row)
-          return (
-            <button
-              key={row.id}
-              onClick={() => isFeatureStep ? handlePickFeature(row) : handleRowClick(kind, row)}
-              className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-primary/5 active:scale-[0.99] transition-all text-left"
-            >
-              <div className="w-9 h-9 rounded-full bg-themeblue3/10 flex items-center justify-center shrink-0">
-                <RowIcon size={16} className="text-themeblue3" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-[11pt] font-medium text-primary truncate">{row.label}</p>
-                <p className="text-[9pt] text-tertiary truncate">{row.sub}</p>
-              </div>
-              {!isFeatureStep && kind === 'map-overlay' && (
-                <ChevronRight size={16} className="text-tertiary shrink-0" />
-              )}
-            </button>
-          )
-        })}
+        {rows.map(row => (
+          <PickerListRow
+            key={row.id}
+            icon={rowIcon(row)}
+            label={row.label}
+            sub={row.sub}
+            onClick={() => isFeatureStep ? handlePickFeature(row) : handleRowClick(kind, row)}
+            chevron={!isFeatureStep && kind === 'map-overlay'}
+          />
+        ))}
       </div>
     )
   }

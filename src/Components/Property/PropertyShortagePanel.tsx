@@ -9,7 +9,7 @@ import { useDA2062Export } from '../../Hooks/useDA2062Export'
 import { Da2062Preview } from './Da2062Preview'
 import { computeShortages, type ShortageLine } from '../../Utilities/propertyShortage'
 import type { DA2062Params } from '../../Utilities/DA2062Export'
-import type { HolderInfo } from '../../Types/PropertyTypes'
+import type { HolderInfo, LocalPropertyItem } from '../../Types/PropertyTypes'
 
 export interface PropertyShortageHandle {
   /** Open the action menu (DA 2062 shortage annex) anchored to the host header's
@@ -25,6 +25,9 @@ interface PropertyShortagePanelProps {
   /** Items staged for turn-in (open pending marker) — counted as on-hand 0 so a staged
    *  line surfaces its shortage immediately. Lifted in PropertyPanel from useHandReceipts. */
   stagedTurnInIds?: Set<string>
+  /** Locate a short line's item ON THE MAP: drops this book view, selects it on the
+   *  canvas, breadcrumb → its parent zone. Wired to the host's handleSelectItem. */
+  onLocate?: (item: LocalPropertyItem) => void
 }
 
 /** A LIN's short lines grouped under it — the tree node. */
@@ -48,11 +51,12 @@ function annexHolder(displayName: string): HolderInfo {
  *  node; its short component lines nest beneath it (Name · Nomenclature · NSN · short qty).
  *  Mirrors the Cluster Hand Receipt (PropertyAuthorizedPanel) idiom for a consistent look.
  *  Shortage = authorized − on-hand, a pure client fold over the already-loaded items
- *  (see computeShortages). Read-only: the only action is the DA 2062 shortage annex, which
- *  lives in the host header's ellipsis (opened via the openMenu handle). Hosted in the
+ *  (see computeShortages). A line TAP locates its item on the map (onLocate — drops this
+ *  book view, breadcrumb → parent zone); the DA 2062 shortage annex export lives in the
+ *  host header's ellipsis (opened via the openMenu handle). Hosted in the
  *  Property right pane (desktop) / detail sheet (mobile) by PropertyPanel. */
 export const PropertyShortagePanel = forwardRef<PropertyShortageHandle, PropertyShortagePanelProps>(
-  function PropertyShortagePanel({ stagedTurnInIds }, ref) {
+  function PropertyShortagePanel({ stagedTurnInIds, onLocate }, ref) {
     const items = usePropertyStore(useShallow(s => s.items))
     const { exportDA2062, da2062Preview, downloadDA2062, clearDA2062Preview, status: da2062Status } = useDA2062Export()
 
@@ -196,21 +200,28 @@ export const PropertyShortagePanel = forwardRef<PropertyShortageHandle, Property
 
                 {/* Short lines — Name · Nomenclature · NSN, with the per-line short qty. */}
                 {!isCollapsed &&
-                  g.lines.map(l => (
-                    <div
-                      key={l.itemId}
-                      className="flex items-center gap-2 py-2 pr-3 border-l-2 border-l-transparent hover:bg-secondary/5 transition-colors"
-                      style={{ paddingLeft: '38px' }}
-                    >
-                      <div className="min-w-0 flex-1">
-                        <span className="block text-[10pt] text-primary truncate">{l.name}</span>
-                        {l.nomenclature && <span className="block text-[9pt] text-tertiary truncate">{l.nomenclature}</span>}
-                        {l.nsn && <span className="block text-[9pt] text-tertiary truncate">NSN {l.nsn}</span>}
+                  g.lines.map(l => {
+                    const item = items.find(i => i.id === l.itemId) ?? null
+                    return (
+                      <div
+                        key={l.itemId}
+                        className="flex items-center gap-2 py-2 pr-3 border-l-2 border-l-transparent hover:bg-secondary/5 transition-colors"
+                        style={{ paddingLeft: '38px' }}
+                      >
+                        <button
+                          type="button"
+                          className="min-w-0 flex-1 text-left"
+                          onClick={() => item && onLocate?.(item)}
+                        >
+                          <span className="block text-[10pt] text-primary truncate">{l.name}</span>
+                          {l.nomenclature && <span className="block text-[9pt] text-tertiary truncate">{l.nomenclature}</span>}
+                          {l.nsn && <span className="block text-[9pt] text-tertiary truncate">Material/NSN {l.nsn}</span>}
+                        </button>
+                        {/* Signed shortfall for this (LIN + NSN) line — negative = short. */}
+                        <span className="text-[10pt] font-semibold text-themeredred tabular-nums shrink-0">-{l.short}</span>
                       </div>
-                      {/* Signed shortfall for this (LIN + NSN) line — negative = short. */}
-                      <span className="text-[10pt] font-semibold text-themeredred tabular-nums shrink-0">-{l.short}</span>
-                    </div>
-                  ))}
+                    )
+                  })}
               </div>
             )
           })}

@@ -1,13 +1,13 @@
 import { useState, useCallback, useImperativeHandle, forwardRef, useEffect } from 'react'
 import { LocationPicker } from './LocationPicker'
 import { EquipmentPicker } from './EquipmentPicker'
+import { PersonnelPicker } from './PersonnelPicker'
 import type { EventFormData, EventCategory, EventStatus } from '../../Types/CalendarTypes'
 import { EventTasksCard } from './EventTasksCard'
 import { createEmptyFormData, EVENT_CATEGORIES, MILITARY_TIME_OPTIONS, militaryToHHMM, hhmmToMilitary, CATEGORY_SWATCH_IDS, CATEGORY_SWATCHES } from '../../Types/CalendarTypes'
 import { useCategoryColors } from '../../Hooks/useCategoryColors'
 import type { ClinicPreCombatCheck } from '../../lib/supervisorService'
 import { TextInput, PickerInput, DatePickerInput, TimeInput } from '@/Components/primitives/FormInputs'
-import { UserAvatar } from '../Settings/UserAvatar'
 import { useIsMobile } from '../../Hooks/useIsMobile'
 import { MedevacForm } from '../Medevac/MedevacForm'
 import { emptyMedevacRequest } from '../../Types/MedevacTypes'
@@ -135,16 +135,6 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
       onTitleChange?.(form.title)
     }, [form.title, onTitleChange])
 
-    const toggleAssigned = useCallback((userId: string) => {
-      setForm(prev => ({
-        ...prev,
-        assigned_to: prev.assigned_to.includes(userId)
-          ? prev.assigned_to.filter(id => id !== userId)
-          : [...prev.assigned_to, userId]
-      }))
-    }, [])
-
-
     const categoryLabel = EVENT_CATEGORIES.find(c => c.value === form.category)?.label ?? ''
 
     // Derive date/time parts from stored datetime strings ("2026-03-22T14:30")
@@ -244,6 +234,7 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
                 onChange={v => updateField('sub_cluster_id', v || null)}
                 options={[{ value: '', label: 'HQ / Common' }, ...subClusters.map(s => ({ value: s.id, label: s.name }))]}
                 placeholder="Sub-unit"
+                searchable
               />
             </div>
           )}
@@ -393,6 +384,7 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
                 onChange={v => updateField('room_id', v || null)}
                 options={[{ value: '', label: 'No room' }, ...roomOptions.map(r => ({ value: r.id, label: r.name }))]}
                 placeholder="Cluster room"
+                searchable
               />
             </div>
           )}
@@ -404,6 +396,7 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
                 onChange={v => updateField('huddle_task_id', v || null)}
                 options={[{ value: '', label: 'Provider pairing (no task)' }, ...huddleTaskOptions.map(t => ({ value: t.id, label: t.name }))]}
                 placeholder="Huddle task"
+                searchable
               />
               <p className="px-4 py-2 text-[9pt] text-tertiary border-b border-primary/6">
                 Leave blank for an on-shift provider block. Pick a task to assign someone to a station like Front Desk.
@@ -449,50 +442,22 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
             </div>
           )}
 
-          {medics && medics.length > 0 && (
-            <div className="border-b border-primary/6">
-              <div className="px-4 pt-3 pb-1.5">
-                <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">
-                  Personnel
-                </p>
-              </div>
-              {medics.map(medic => {
-                const isSelected = form.assigned_to.includes(medic.id)
-                return (
-                  <button
-                    key={medic.id}
-                    type="button"
-                    onClick={() => toggleAssigned(medic.id)}
-                    className={`w-full flex items-center text-left transition-all duration-150 active:scale-[0.98] border-b border-primary/6 last:border-b-0 ${
-                      isMobile ? 'gap-3 px-4 py-3' : 'gap-2 px-3 py-2'
-                    } ${isSelected ? 'bg-themeblue3/8' : ''}`}
-                  >
-                    <UserAvatar
-                      avatarId={medic.avatarId}
-                      firstName={medic.firstName}
-                      lastName={medic.lastName}
-                      className={isMobile ? 'w-10 h-10' : 'w-7 h-7'}
-                    />
-                    <div className="flex-1 min-w-0">
-                      <p className={`font-medium text-primary truncate ${isMobile ? 'text-sm' : 'text-[10pt]'}`}>{medic.name}</p>
-                      {medic.credential && (
-                        <p className="text-[9pt] text-tertiary truncate">{medic.credential}</p>
-                      )}
-                    </div>
-                    {isSelected && (
-                      <div className="w-2 h-2 rounded-full bg-themeblue3 shrink-0" />
-                    )}
-                  </button>
-                )
-              })}
-            </div>
-          )}
-
+          {/* Property attachment comes BEFORE personnel — you scope the event to
+              its equipment first, then assign who works it. */}
           {propertyItems && propertyItems.length > 0 && (
             <EquipmentPicker
               items={propertyItems}
               selectedIds={form.property_item_ids}
               onChange={ids => updateField('property_item_ids', ids)}
+            />
+          )}
+
+          {medics && medics.length > 0 && (
+            <PersonnelPicker
+              medics={medics}
+              selectedIds={form.assigned_to}
+              onChange={ids => updateField('assigned_to', ids)}
+              isMobile={isMobile}
             />
           )}
         </div>

@@ -182,6 +182,43 @@ const PickerRows = ({ options, isSelected, onSelect, ariaLabel, multi }: {
   </div>
 )
 
+/**
+ * A searchable option list — a filter box above the shared rows. Kept self-contained so it
+ * owns its own query state (a stackNav pushed screen freezes its render at push time, so the
+ * filter can't live in the host). Case-insensitive substring match on the option LABEL.
+ */
+const SearchablePickerList = ({ options, value, onSelect, placeholder }: {
+  options: readonly PickerOption[]
+  value: string
+  onSelect: (opt: PickerOption) => void
+  placeholder?: string
+}) => {
+  const [q, setQ] = useState('')
+  const filtered = q.trim()
+    ? options.filter((o) => getOptionLabel(o).toLowerCase().includes(q.trim().toLowerCase()))
+    : options
+  return (
+    <>
+      <div className="border-b border-primary/6 px-4 py-2.5">
+        <input
+          type="text"
+          inputMode="search"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Search…"
+          autoFocus
+          className="w-full bg-transparent text-base md:text-sm text-primary placeholder:text-tertiary focus:outline-none"
+        />
+      </div>
+      {filtered.length > 0 ? (
+        <PickerRows options={filtered} isSelected={(v) => v === value} onSelect={onSelect} ariaLabel={placeholder} />
+      ) : (
+        <p className="px-4 py-3 text-sm text-tertiary">No matches</p>
+      )}
+    </>
+  )
+}
+
 export const PickerInput = ({
   value,
   onChange,
@@ -190,6 +227,7 @@ export const PickerInput = ({
   required = false,
   label,
   header,
+  searchable = false,
 }: {
   value: string
   onChange: (val: string) => void
@@ -198,6 +236,8 @@ export const PickerInput = ({
   required?: boolean
   label?: string
   header?: ReactNode
+  /** Render a filter box above the rows — for long lists (LIN / location pickers). */
+  searchable?: boolean
 }) => {
   // Inside an OverlayStack, drill down (morph the card) instead of stacking our own
   // overlay; outside one, fall back to the nested PreviewOverlay below.
@@ -211,7 +251,11 @@ export const PickerInput = ({
   const list = (onSelect: (opt: PickerOption) => void) => (
     <>
       {header && <div className="border-b border-primary/6">{header}</div>}
-      <PickerRows options={options} isSelected={(v) => v === value} onSelect={onSelect} ariaLabel={placeholder} />
+      {searchable ? (
+        <SearchablePickerList options={options} value={value} onSelect={onSelect} placeholder={placeholder} />
+      ) : (
+        <PickerRows options={options} isSelected={(v) => v === value} onSelect={onSelect} ariaLabel={placeholder} />
+      )}
     </>
   )
 

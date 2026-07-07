@@ -113,6 +113,12 @@ export function PropertyLocationTree({
     })
   }, [])
 
+  // Row indentation — condensed base + per-level step, CAPPED at 3 levels deep: beyond
+  // depth 2 rows stop indenting visually (deep SKO/vehicle/zone nesting would otherwise
+  // march off the left rail and starve the label width). Chevron + collapse still convey
+  // hierarchy past the cap. Paired with the tighter py-1.5 row padding below.
+  const rowPadLeft = (depth: number) => 12 + Math.min(depth, 2) * 16
+
   const { roots, unassignedItems, memberNodes, rootItems } = useMemo(() => {
     const childrenMap = new Map<string | null, LocalPropertyLocation[]>()
     for (const loc of locations) {
@@ -293,8 +299,8 @@ export function PropertyLocationTree({
         key={item.id}
         role="button"
         tabIndex={0}
-        className={`group flex items-center gap-2 w-full py-2 pr-6 transition-colors text-left cursor-pointer border-l-2 ${rowAlertCls}`}
-        style={{ paddingLeft: `${16 + depth * 20}px` }}
+        className={`group flex items-center gap-2 w-full py-1.5 pr-6 transition-colors text-left cursor-pointer border-l-2 ${rowAlertCls}`}
+        style={{ paddingLeft: `${rowPadLeft(depth)}px` }}
         data-prop-row
         onClick={() => onSelectItem(item)}
         onKeyDown={(e) => { if (e.key === 'Enter') onSelectItem(item) }}
@@ -347,12 +353,12 @@ export function PropertyLocationTree({
       <div key={node.location.id}>
         {/* Location row */}
         <div
-          className={`group flex items-center gap-2 py-2 pr-6 transition-colors border-l-2 ${
+          className={`group flex items-center gap-2 py-1.5 pr-6 transition-colors border-l-2 ${
             isActive
               ? 'bg-themeblue3/8 border-l-themeblue3'
               : 'hover:bg-secondary/5 border-l-transparent'
           }`}
-          style={{ paddingLeft: `${16 + depth * 20}px` }}
+          style={{ paddingLeft: `${rowPadLeft(depth)}px` }}
           data-prop-row
           onContextMenu={!isMember && !isSystemZone ? (e) => { e.preventDefault(); e.stopPropagation(); if (onEditLocation || onDeleteLocation || onAddChildLocation || onAddItemAtLocation) openRowMenu('location', node.location.id, e.currentTarget as HTMLElement) } : undefined}
         >
@@ -415,12 +421,12 @@ export function PropertyLocationTree({
         <div
           role="button"
           tabIndex={0}
-          className={`flex items-center gap-2 py-2 pr-6 transition-colors cursor-pointer border-l-2 ${
+          className={`flex items-center gap-2 py-1.5 pr-6 transition-colors cursor-pointer border-l-2 ${
             allSelected
               ? 'bg-themeblue3/8 border-l-themeblue3'
               : 'hover:bg-secondary/5 border-l-transparent'
           }`}
-          style={{ paddingLeft: '16px' }}
+          style={{ paddingLeft: `${rowPadLeft(0)}px` }}
           onClick={onSelectAll}
           onKeyDown={(e) => { if (e.key === 'Enter') onSelectAll() }}
         >
@@ -436,8 +442,8 @@ export function PropertyLocationTree({
       {!rootId && displayMembers.length > 0 && (
         <div>
           <div
-            className="flex items-center gap-2 py-2 pr-6 transition-colors border-l-2 hover:bg-secondary/5 border-l-transparent"
-            style={{ paddingLeft: '16px' }}
+            className="flex items-center gap-2 py-1.5 pr-6 transition-colors border-l-2 hover:bg-secondary/5 border-l-transparent"
+            style={{ paddingLeft: `${rowPadLeft(0)}px` }}
           >
             <button
               className="p-0.5 rounded hover:bg-secondary/10 text-tertiary shrink-0"
@@ -465,8 +471,8 @@ export function PropertyLocationTree({
       {showUnassigned && (
         <div>
           <div
-            className="flex items-center gap-2 py-2 pr-6 transition-colors border-l-2 hover:bg-secondary/5 border-l-transparent"
-            style={{ paddingLeft: '16px' }}
+            className="flex items-center gap-2 py-1.5 pr-6 transition-colors border-l-2 hover:bg-secondary/5 border-l-transparent"
+            style={{ paddingLeft: `${rowPadLeft(0)}px` }}
           >
             <button
               className="p-0.5 rounded hover:bg-secondary/10 text-tertiary shrink-0"

@@ -72,7 +72,7 @@ export const PropertyTurnInDetail = forwardRef<PropertyTurnInDetailHandle, Prope
                   <p className="text-sm font-medium text-primary truncate">
                     {it?.name ?? 'Item'}{qty > 1 ? ` ×${qty}` : ''}
                   </p>
-                  {it?.nsn && <p className="text-[9pt] text-tertiary mt-0.5 truncate">NSN {it.nsn}</p>}
+                  {it?.nsn && <p className="text-[9pt] text-tertiary mt-0.5 truncate">Material/NSN {it.nsn}</p>}
                 </div>
                 {curate && (
                   <button

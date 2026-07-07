@@ -149,8 +149,8 @@ export const Da2062Detail = forwardRef<Da2062DetailHandle, Da2062DetailProps>(
                       {item?.serial_number
                         ? `S/N ${item.serial_number}`
                         : item?.nsn
-                          ? `NSN ${item.nsn}`
-                          : 'No NSN'}
+                          ? `Material/NSN ${item.nsn}`
+                          : 'No Material/NSN'}
                       {loc && (
                         <>
                           <span className="text-tertiary/50">·</span>
@@ -217,7 +217,7 @@ export const Da2062Detail = forwardRef<Da2062DetailHandle, Da2062DetailProps>(
                   <div className="flex-1 min-w-0">
                     <p className="text-sm text-primary truncate">{it.name}</p>
                     <p className="text-[9pt] text-tertiary truncate">
-                      {it.serial_number ? `S/N ${it.serial_number}` : it.nsn ? `NSN ${it.nsn}` : 'No NSN'}
+                      {it.serial_number ? `S/N ${it.serial_number}` : it.nsn ? `Material/NSN ${it.nsn}` : 'No Material/NSN'}
                     </p>
                   </div>
                 </button>

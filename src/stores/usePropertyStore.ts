@@ -450,9 +450,10 @@ export const usePropertyStore = create<PropertyState>((set, get) => ({
       await deleteLocation(locId, user.id)
     }
 
-    // Vehicle LINs: a removed vehicle's SHADOW LIN-item goes too. Detach + de-authorize its
-    // authorized components FIRST so removeItem doesn't cascade-delete the BII — they survive
-    // as loose stock (the location null-out below strands them from the removed zone).
+    // Zone LINs: a removed zone's SHADOW LIN-item goes too (vehicle, case, bag — any zone that
+    // carries a LIN). Detach + de-authorize its authorized components FIRST so removeItem doesn't
+    // cascade-delete the BII — they survive as loose stock (the location null-out below strands
+    // them from the removed zone).
     const shadows = get().items.filter((i) => i.location_id && allRemovedIds.has(i.location_id) && isLinContainer(i))
     for (const shadow of shadows) {
       for (const comp of get().items.filter((i) => i.parent_item_id === shadow.id)) {

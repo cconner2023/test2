@@ -79,6 +79,9 @@ interface PropertyPanelProps {
   onRegisterNavigateZone?: (trigger: (zoneId: string) => void) => void
   /** Register a trigger to open the Custody / DA 2062 tab (global-search deep-link). */
   onRegisterOpenCustody?: (trigger: () => void) => void
+  /** Register a trigger to focus a specific item on the canvas by id (global-search /
+   *  cross-domain deep-link). Routes through the same path as an in-drawer search tap. */
+  onRegisterFocusItem?: (trigger: (itemId: string) => void) => void
 }
 
 export const PropertyPanel = memo(function PropertyPanel({
@@ -103,6 +106,7 @@ export const PropertyPanel = memo(function PropertyPanel({
   onRegisterImport,
   onRegisterNavigateZone,
   onRegisterOpenCustody,
+  onRegisterFocusItem,
 }: PropertyPanelProps) {
   const store = usePropertyStore(
     useShallow((s) => ({
@@ -540,6 +544,13 @@ export const PropertyPanel = memo(function PropertyPanel({
   }, [searchFocused])
 
   const handleSelectItem = useCallback((item: LocalPropertyItem) => {
+    // Selecting an item ALWAYS surfaces it on the canvas: drop any full-pane book view
+    // (Cluster Hand Receipt / Shortages) sitting over the map, and leave the Sign-outs
+    // tab — so "View" on a sign-out card (like a canvas pin tap) lands on the item on the
+    // map, not behind the overlay / on the custody tab.
+    setAuthorizedOpen(false)
+    setShortageOpen(false)
+    setPropertyTab('map')
     // Auto-navigate the canvas to the item's zone so it surfaces "within that
     // location" — the breadcrumb then points to that zone/sub-zone. Flag the
     // programmatic selection so onSelectZone keeps the item open.
@@ -559,6 +570,18 @@ export const PropertyPanel = memo(function PropertyPanel({
     if (isMobile) { setMobileItem(item); return }
     onSelectItem(item)
   }, [isMobile, onSelectItem, selectedLocationId])
+
+  // Global-search / cross-domain deep-link: focus a specific item on the canvas by id.
+  // Routes through handleSelectItem so the canvas navigates to the item's PARENT ZONE
+  // first (breadcrumb points at the zone) and, on mobile, nests it in the location sheet
+  // with a real Back target — matching an in-drawer search-result tap. Without this the
+  // item deep-link opened the detail surface with no parent zone established.
+  useEffect(() => {
+    onRegisterFocusItem?.((itemId) => {
+      const it = store.items.find((i) => i.id === itemId)
+      if (it) handleSelectItem(it)
+    })
+  }, [onRegisterFocusItem, store.items, handleSelectItem])
 
   // Locate a signed-out item from the hand-receipts tree section: surface it on the
   // canvas (navigate + select, like any item tap). On mobile, dismiss the Locations
@@ -857,6 +880,10 @@ export const PropertyPanel = memo(function PropertyPanel({
       onCreateItem={() => handleAddItemAtLocation(null)}
       onSelectZone={(id) => {
         setSelectedLocationId(id)
+        // Selecting a zone on the canvas takes over the right pane — drop any full-pane
+        // book view (Cluster Hand Receipt / Shortages) sitting over the map so the zone
+        // detail surfaces instead of staying hidden behind that overlay.
+        if (id) { setAuthorizedOpen(false); setShortageOpen(false) }
         // Keep the item open when this zone change was the auto-navigation that
         // revealed it; otherwise a real zone change closes the open item/form.
         if (id && id === pendingItemZoneRef.current) return
@@ -1324,7 +1351,7 @@ export const PropertyPanel = memo(function PropertyPanel({
                 </div>
                 <div className="flex-1 min-h-0 overflow-y-auto">
                   <div className="px-4 py-4 pb-8">
-                    <PropertyShortagePanel ref={shortageRef} onClose={() => setShortageOpen(false)} stagedTurnInIds={turnInItemIds} />
+                    <PropertyShortagePanel ref={shortageRef} onClose={() => setShortageOpen(false)} stagedTurnInIds={turnInItemIds} onLocate={handleSelectItem} />
                   </div>
                 </div>
               </div>
@@ -1399,6 +1426,7 @@ export const PropertyPanel = memo(function PropertyPanel({
                         onClose={() => setAuthorizedOpen(false)}
                         onEdit={openAuthEdit}
                         onView={openAuthView}
+                        onLocate={handleSelectItem}
                       />
                     )}
                   </div>
@@ -1671,7 +1699,7 @@ export const PropertyPanel = memo(function PropertyPanel({
         // Authorized morph mirrors the standalone item surfaces: its edit/add FORM caps
         // at 60 (like mobileForm) and its read-only VIEW at 50 (like the item detail); only
         // the authorized LIST itself is a big task surface at 85.
-        maxHeight={treeStep ? 70 : authorizedOpen ? (authForm ? 60 : authView ? 50 : 85) : da2062Preview || signOutOpen || importOpen || shortageOpen ? 85 : mobileForm ? 60 : 50}
+        maxHeight={treeStep ? 70 : authorizedOpen ? (authForm ? 60 : authView ? 50 : 60) : shortageOpen ? 60 : da2062Preview || signOutOpen || importOpen ? 85 : mobileForm ? 60 : 50}
         // Detail/form are non-blocking like the map's mobile feature editor: the
         // canvas stays interactive and the body swaps detail↔form in the SAME sheet.
         // Sign-out is a focused task, so dim the canvas (non-dismissing) to block
@@ -1778,7 +1806,7 @@ export const PropertyPanel = memo(function PropertyPanel({
         ) : importOpen ? (
           <PropertyCSVImport onClose={() => setImportOpen(false)} />
         ) : shortageOpen ? (
-          <PropertyShortagePanel ref={shortageRef} onClose={() => setShortageOpen(false)} stagedTurnInIds={turnInItemIds} />
+          <PropertyShortagePanel ref={shortageRef} onClose={() => setShortageOpen(false)} stagedTurnInIds={turnInItemIds} onLocate={handleSelectItem} />
         ) : authorizedOpen ? (
           authForm ? (
             <PropertyItemForm
@@ -1806,6 +1834,7 @@ export const PropertyPanel = memo(function PropertyPanel({
               onClose={() => setAuthorizedOpen(false)}
               onEdit={openAuthEdit}
               onView={openAuthView}
+              onLocate={handleSelectItem}
             />
           )
         ) : signOutOpen ? (

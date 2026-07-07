@@ -112,7 +112,8 @@ export function PropertyItemDetail({ item, locations, holders, items, onViewComp
     ? (isMine ? 'You' : holders.get(item.owner_user_id)?.displayName ?? 'Personal')
     : null
   const parentItem = item.parent_item_id ? items.find(i => i.id === item.parent_item_id) : null
-  const subItems = items.filter(i => i.parent_item_id === item.id)
+  // Live physical components under this item (skip off-the-books rows).
+  const subItems = items.filter(i => i.parent_item_id === item.id && !i.deleted_at && !i.turned_in_at)
   const isMissing = item.condition_code === 'missing'
   const expiry = expiryStatus(item.expiry_date ?? null)
   const isExpired = expiry === 'expired'
@@ -158,7 +159,7 @@ export function PropertyItemDetail({ item, locations, holders, items, onViewComp
           {item.nomenclature && (
             <p className={`py-2 border-b border-primary/5 text-primary ${isMobile ? 'text-sm' : 'text-[10pt]'}`}>{item.nomenclature}</p>
           )}
-          <DetailRow label="NSN" value={item.nsn} />
+          <DetailRow label="Material/NSN" value={item.nsn} />
           <DetailRow label="LIN" value={item.lin} />
           <DetailRow label="Serial" value={item.serial_number} />
           <DetailRow label="Qty" value={item.quantity > 1 ? String(item.quantity) : null} />
@@ -237,7 +238,7 @@ export function PropertyItemDetail({ item, locations, holders, items, onViewComp
                     <button type="button" className="min-w-0 flex-1 text-left" onClick={() => comp && onViewComponent?.(comp)}>
                       <span className="block text-[10pt] text-primary truncate">{l.name}</span>
                       {l.nomenclature && <span className="block text-[9pt] text-tertiary truncate">{l.nomenclature}</span>}
-                      {l.nsn && <span className="block text-[9pt] text-tertiary truncate">NSN {l.nsn}</span>}
+                      {l.nsn && <span className="block text-[9pt] text-tertiary truncate">Material/NSN {l.nsn}</span>}
                     </button>
                     {/* On-hand / authorized, both in base (EA) units so the pair is directly comparable. */}
                     <span className="text-[10pt] text-tertiary tabular-nums shrink-0">{l.onHand} / {l.authorizedBase}</span>
@@ -261,14 +262,24 @@ export function PropertyItemDetail({ item, locations, holders, items, onViewComp
             <span className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Components</span>
           </div>
           <SectionCard>
-            {subItems.map(sub => (
-              <div key={sub.id} className={`flex items-center justify-between ${isMobile ? 'px-4 py-3' : 'px-3 py-2'} border-b border-primary/5 last:border-b-0`}>
-                <span className={`text-primary truncate ${isMobile ? 'text-sm' : 'text-[10pt]'}`}>{sub.name}</span>
-                {sub.serial_number && (
-                  <span className="text-[9pt] text-tertiary shrink-0 ml-2">{sub.serial_number}</span>
-                )}
-              </div>
-            ))}
+            {subItems.map(sub => {
+              const subLoc = sub.location_id ? locations.find(l => l.id === sub.location_id) : null
+              // Where the component lives: its own location, else its holder (signed out).
+              const subHolder = sub.current_holder_id ? holders.get(sub.current_holder_id) : null
+              const place = subLoc?.name ?? subHolder?.displayName ?? null
+              return (
+                <div key={sub.id} className={`flex items-center gap-3 ${isMobile ? 'px-4 py-3' : 'px-3 py-2'} border-b border-primary/5 last:border-b-0`}>
+                  <div className="min-w-0 flex-1">
+                    <span className={`block text-primary truncate ${isMobile ? 'text-sm' : 'text-[10pt]'}`}>{sub.name}</span>
+                    <span className="block text-[9pt] text-tertiary truncate">
+                      {place ?? 'Unplaced'}
+                      {sub.serial_number && <span> · {sub.serial_number}</span>}
+                    </span>
+                  </div>
+                  <span className="text-[10pt] font-medium text-secondary shrink-0 tabular-nums">×{sub.quantity}</span>
+                </div>
+              )
+            })}
           </SectionCard>
         </div>
       )}
