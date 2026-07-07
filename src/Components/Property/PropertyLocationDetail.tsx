@@ -130,16 +130,14 @@ export const PropertyLocationDetail = forwardRef<PropertyLocationDetailHandle, P
   return (
     <div className="flex flex-col pt-1 pb-2">
       {location.photo_data && (
-        <div className="px-4 pb-2">
-          <button
-            type="button"
-            onClick={handleDownloadPhoto}
-            className="w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl border border-tertiary/15 bg-themewhite2 active:scale-[0.99] transition-transform"
-          >
-            <span className="text-[10pt] text-primary truncate">{photoFilename}</span>
-            <Download size={16} className="shrink-0 text-secondary" />
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={handleDownloadPhoto}
+          className="w-full flex items-center gap-2 px-4 py-2 text-left hover:bg-secondary/5 active:opacity-70 transition-colors"
+        >
+          <span className="flex-1 min-w-0 text-[10pt] text-primary truncate">{photoFilename}</span>
+          <Download size={15} className="shrink-0 text-tertiary" />
+        </button>
       )}
 
       <PropertyLocationTree
@@ -167,6 +165,7 @@ export const PropertyLocationDetail = forwardRef<PropertyLocationDetailHandle, P
             clinicId={location.clinic_id}
             locations={locations}
             holders={holders ?? EMPTY_HOLDERS}
+            hideWhenEmpty
           />
         </div>
       )}

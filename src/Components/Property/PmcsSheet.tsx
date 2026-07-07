@@ -9,7 +9,8 @@ import { PMCS_EVENT_TYPES, foldOpenFaults, summarizePmcs } from '../../lib/pmcsF
 import { usePropertyStore } from '../../stores/usePropertyStore'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { useInvalidation } from '../../stores/useInvalidationStore'
-import { TextInput, PickerInput } from '@/Components/primitives/FormInputs'
+import { TextInput } from '@/Components/primitives/FormInputs'
+import { PartyPicker, partyLabel, type Party } from './PartyPicker'
 import { FuelMeter } from '@/Components/DomainInputs'
 import { OverlayStack, type StackNav } from '@/Components/primitives/OverlayStack'
 import { useRecordPreview } from './RecordPreview'
@@ -77,8 +78,10 @@ export function PmcsSheet({ isOpen, onClose, subjectType = 'item', subjectId, cl
   const navRef = useRef<StackNav | null>(null)
   const [mileage, setMileage] = useState('')
   const [fuelLevel, setFuelLevel] = useState<number | null>(null)
-  const [operator, setOperator] = useState('')
-  const [mechanic, setMechanic] = useState('')
+  // Operator + mechanic are each a party (cluster member or off-roster free-text) —
+  // only their display name persists into the encrypted PMCS payload.
+  const [operator, setOperator] = useState<Party | null>(null)
+  const [mechanic, setMechanic] = useState<Party | null>(null)
   const [docFile, setDocFile] = useState<File | null>(null)
   const [docError, setDocError] = useState<string | null>(null)
   const [scannerOpen, setScannerOpen] = useState(false)
@@ -93,17 +96,16 @@ export function PmcsSheet({ isOpen, onClose, subjectType = 'item', subjectId, cl
   const userId = useAuthStore((s) => s.user?.id)
   const { medics } = useClinicMedics()
 
-  // Operator dropdown options — the clinic roster, "RANK Last, First". value =
-  // the display name so the PMCS payload carries a readable name with no later
-  // roster lookup (no PHI — operational identity only).
-  const operatorOptions = medics
-    .map((m) => {
-      const name = [m.rank, [m.lastName, m.firstName].filter(Boolean).join(', ')]
-        .filter(Boolean).join(' ').trim()
-      return name
-    })
-    .filter((n) => n.length > 0)
-    .sort((a, b) => a.localeCompare(b))
+  // Cluster roster for the party pickers — { id, "RANK Last First" }. The PMCS payload
+  // only stores the picked display name (no PHI — operational identity only), so the
+  // id is just for the picker's single-select checkmark.
+  const members = medics
+    .map((m) => ({
+      id: m.id,
+      displayName: [m.rank, m.lastName, m.firstName].filter(Boolean).join(' ').trim(),
+    }))
+    .filter((m) => m.displayName.length > 0)
+    .sort((a, b) => a.displayName.localeCompare(b.displayName))
 
   // Mileage + fuel are a vehicle's 5988 intake; a stock item's PMCS is just the
   // fault check + a clean-check log.
@@ -116,7 +118,7 @@ export function PmcsSheet({ isOpen, onClose, subjectType = 'item', subjectId, cl
   useEffect(() => {
     if (!isOpen) {
       setPreviewEvent(null); setDesc('')
-      setMileage(''); setFuelLevel(null); setOperator(''); setMechanic('')
+      setMileage(''); setFuelLevel(null); setOperator(null); setMechanic(null)
       setDocFile(null); setDocError(null); setScannerOpen(false)
       setNewFaults([]); setMarkedCorrect(new Set()); setConfirmCorrectId(null)
     }
@@ -215,8 +217,8 @@ export function PmcsSheet({ isOpen, onClose, subjectType = 'item', subjectId, cl
         mileage: Number.isFinite(miles) ? miles : undefined,
         fuelLevel: fuelLevel ?? undefined,
       } : {}),
-      ...(operator.trim() ? { operator: operator.trim() } : {}),
-      ...(mechanic.trim() ? { mechanic: mechanic.trim() } : {}),
+      ...(partyLabel(operator) ? { operator: partyLabel(operator) } : {}),
+      ...(partyLabel(mechanic) ? { mechanic: partyLabel(mechanic) } : {}),
       ...(doc ? { doc } : {}),
       ...(newFaults.length ? { faultsOpened: newFaults } : {}),
       ...(correctedList.length ? { faultsCorrected: correctedList } : {}),
@@ -248,15 +250,24 @@ export function PmcsSheet({ isOpen, onClose, subjectType = 'item', subjectId, cl
       )}
       {isVehicle && <FuelMeter value={fuelLevel} onChange={setFuelLevel} />}
 
-      {/* Who did it — operator picked from the clinic roster, mechanic optional
-          free-text (motor-pool / external). Both ride in the encrypted payload. */}
-      <PickerInput
+      {/* Who did it — operator + mechanic each a cluster member OR an off-roster
+          (motor-pool / external) party via the shared PartyPicker. Both ride in the
+          encrypted payload as a display name only. */}
+      <PartyPicker
+        members={members}
         value={operator}
         onChange={setOperator}
-        options={operatorOptions}
         placeholder="Operator"
+        externalPlaceholder="Off-roster operator…"
       />
-      <TextInput value={mechanic} onChange={setMechanic} placeholder="Mechanic (optional)" />
+      <PartyPicker
+        members={members}
+        value={mechanic}
+        onChange={setMechanic}
+        placeholder="Mechanic (optional)"
+        title="Mechanic"
+        externalPlaceholder="Off-roster mechanic…"
+      />
 
       {/* Inline add — report a new fault (TextInput + circular Plus). */}
       <div className="flex items-center gap-2 px-4 py-3">

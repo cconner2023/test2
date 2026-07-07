@@ -22,6 +22,12 @@ export interface ContextMenuItem {
   variant?: ActionButtonVariant
   /** When set, tapping this item swaps the menu to show these items instead of running onAction. */
   submenu?: ContextMenuItem[]
+  /** When set, tapping this item drills into a SEARCHABLE card list (AnchoredMenu
+   *  `list` layout only) — a filter field over scrollable cards, instead of the
+   *  plain rows `submenu` gives. Additive; `submenu`/`search` are mutually exclusive
+   *  per item. If `onAction` is ALSO set it fires once as a side-effect (e.g. a lazy
+   *  fetch) just before the drill. Ignored by the horizontal pill layout. */
+  search?: SearchLevelSpec
   /** Marks the item as the current selection (selector menus) — list rows render
    *  a highlighted/checked state. Ignored by the horizontal pill layout. */
   selected?: boolean
@@ -31,6 +37,31 @@ export interface ContextMenuItem {
    *  layouts; in the vertical list layout the whole row becomes the tap target (a tap
    *  anywhere forwards to the rendered control) so the label isn't a dead zone. */
   render?: () => ReactNode
+}
+
+/** A rich "card" row inside a searchable AnchoredMenu level: icon tile · label/sub,
+ *  optional trailing chevron. Selecting it either PICKS (`spec.onPick`) or — when
+ *  `drill` is set — descends into a further searchable level (e.g. map → features). */
+export interface MenuCardRow {
+  id: string
+  label: string
+  sub?: string
+  icon?: LucideIcon
+  /** Custom left glyph — wins over `icon` (e.g. a mini overlay snapshot). */
+  node?: ReactNode
+  /** When set, selecting this row drills into another searchable level. */
+  drill?: SearchLevelSpec
+}
+
+/** A searchable list level for AnchoredMenu (`list` layout): a filter field over a
+ *  scrollable list of card rows. `rows` is called live with the current query, so
+ *  keep it cheap — it re-runs on every keystroke. */
+export interface SearchLevelSpec {
+  title: string
+  placeholder?: string
+  rows: (filter: string) => MenuCardRow[]
+  onPick?: (row: MenuCardRow) => void
+  emptyText?: string
 }
 
 /** Render a single menu item — a custom-glyph button when `node` is set, else an ActionButton. */

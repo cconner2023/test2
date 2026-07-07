@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, type ReactNode } from 'react'
-import { ArrowUp, X, Plus, Mic, Copy, Pencil, Download, Reply, Trash2, Forward, SmilePlus, CalendarPlus, ScanLine } from 'lucide-react'
+import { ArrowUp, X, Plus, Mic, Copy, Pencil, Download, Reply, Trash2, Forward, SmilePlus, CalendarPlus, ScanLine, Calendar, Package, Map as MapIcon, Building2 } from 'lucide-react'
 import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
 import { GlassBand } from '@/Components/primitives/GlassBand'
 import { MessageBubble } from './Settings/MessageBubble'
@@ -17,6 +17,7 @@ import { useAuthStore } from '../stores/useAuthStore'
 import { useImagePaste } from '../Hooks/useImagePaste'
 import { useChatInteractions } from '../Hooks/useChatInteractions'
 import { useNavigationStore } from '../stores/useNavigationStore'
+import { useSharedObjectActions } from '../Hooks/useSharedObjectActions'
 import { detectFirstDate } from '../Utilities/dateDetect'
 import { detectEncodedNote } from '../Utilities/noteDecode'
 import { calendarArgsForMessage } from '../Utilities/messageCalendar'
@@ -242,6 +243,8 @@ export function ChatDetailView({
   // (dev-gated) and decode-note. Both act on contextMsg.
   const requestNewCalendarEvent = useNavigationStore(s => s.requestNewCalendarEvent)
   const isDevRole = useAuthStore(s => s.isDevRole)
+  // Open / Add actions for shared-object messages — folded into the lifted menu.
+  const sharedActions = useSharedObjectActions()
   const [decodeMenu, setDecodeMenu] = useState<{ token: string; rect: DOMRect | null } | null>(null)
 
   const handleMenuAddToCalendar = useCallback(() => {
@@ -728,7 +731,6 @@ export function ChatDetailView({
         <SharedObjectPicker
           isOpen={attachOpen}
           anchorRef={attachBtnRef}
-          containerRef={conversationRef}
           clinicId={clinicId ?? null}
           onClose={() => setAttachOpen(false)}
           onPickPhoto={() => fileInputRef.current?.click()}
@@ -776,7 +778,31 @@ export function ChatDetailView({
         const isTextMsg = !contextMsg.content || contextMsg.content.type === 'text'
         const menuDetectedDate = isTextMsg && isDevRole ? detectFirstDate(contextMsg.plaintext ?? '') : null
         const menuDecoded = isTextMsg ? detectEncodedNote(contextMsg.plaintext ?? '') : null
+        // Shared-object primary actions ride the top of the menu: a live
+        // deep-link opens its object; a frozen bundle Adds into the receiver's
+        // own data (hidden once this device has already ingested it).
+        const cardContent = contextMsg.content
+        const sharedItems: ContextMenuItem[] = []
+        if (cardContent?.type === 'shared_ref') {
+          const ref = cardContent
+          const openLabel = ref.refKind === 'calendar-event' ? 'Open event' : ref.refKind === 'property-item' ? 'Open item' : 'Open on map'
+          const OpenIcon = ref.refKind === 'calendar-event' ? Calendar : ref.refKind === 'property-item' ? Package : MapIcon
+          sharedItems.push({ key: 'open-ref', label: openLabel, icon: OpenIcon, onAction: () => sharedActions.openRef(ref) })
+        } else if (cardContent?.type === 'shared_bundle' && !sharedActions.isAdded(cardContent.contentHash)) {
+          const bundle = cardContent
+          if (bundle.bundleKind === 'note-blocks') {
+            sharedItems.push({ key: 'add-blocks', label: 'Add to my blocks', icon: Plus, onAction: () => void sharedActions.addBundle(bundle, 'personal') })
+            if (sharedActions.canIngestToClinic) {
+              sharedItems.push({ key: 'add-cluster', label: 'Add to cluster', icon: Building2, onAction: () => void sharedActions.addBundle(bundle, 'clinic') })
+            }
+          } else if (bundle.bundleKind === 'calendar-event') {
+            sharedItems.push({ key: 'add-event', label: 'Add to my calendar', icon: CalendarPlus, onAction: () => void sharedActions.addBundle(bundle) })
+          } else {
+            sharedItems.push({ key: 'add-overlay', label: 'Add to my map', icon: Plus, onAction: () => void sharedActions.addBundle(bundle) })
+          }
+        }
         const actionItems: ContextMenuItem[] = [
+          ...sharedItems,
           { key: 'reply', label: 'Reply', icon: Reply, onAction: handleContextReply },
           ...(!isMedia ? [{ key: 'copy', label: 'Copy', icon: Copy, onAction: handleCopy }] : []),
           ...(isMedia && handleSaveImage ? [{ key: 'save', label: 'Save', icon: Download, onAction: handleSaveImage }] : []),

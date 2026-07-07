@@ -145,8 +145,7 @@ export function UserGuideBody({ chapters, isMobile }: UserGuideBodyProps) {
                         {chapter.sections.map((section) => (
                             // scroll-mt clears the floating header so anchored jumps land below it.
                             <div key={section.id} id={`guide-${section.id}`} data-guide-anchor={section.id} className="scroll-mt-24 mb-6">
-                                <h2 className="text-[13pt] font-bold text-primary mb-0.5">{section.title}</h2>
-                                <p className="text-[9.5pt] text-tertiary mb-2.5">{section.summary}</p>
+                                <h2 className="text-[13pt] font-bold text-primary mb-2.5">{section.title}</h2>
                                 <div className="overflow-hidden">
                                     {section.blocks?.map((block, i) => renderBlock(block, i))}
                                 </div>

@@ -1,7 +1,10 @@
-import { useState, useMemo, useCallback, useEffect, forwardRef, useImperativeHandle } from 'react'
+import { useState, useMemo, useCallback, useEffect, useContext, forwardRef, useImperativeHandle } from 'react'
 import { Check, ChevronDown, MapPin, Minus, Plus } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import { TextInput } from '@/Components/primitives/FormInputs'
+import { ActionPill } from '@/Components/primitives/ActionPill'
+import { ActionButton } from '@/Components/primitives/ActionButton'
+import { StackNavContext } from '@/Components/stackNav'
 import { PreviewOverlay } from '../PreviewOverlay'
 import { ToggleSwitch } from '../Settings/ToggleSwitch'
 import { SignaturePad } from '@/Components/primitives/SignaturePad'
@@ -9,9 +12,129 @@ import { Da2062Preview } from './Da2062Preview'
 import { usePropertyStore } from '../../stores/usePropertyStore'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { useDA2062Export } from '../../Hooks/useDA2062Export'
-import type { HolderInfo } from '../../Types/PropertyTypes'
+import { PartyPicker, type Party } from './PartyPicker'
+import type { HolderInfo, LocalPropertyItem } from '../../Types/PropertyTypes'
 
-type Mode = 'member' | 'external'
+/* ── Shared picker rows — one source for the desktop PreviewOverlay fallback AND the
+      mobile stack drill screens, so both render byte-identical (mirrors FormInputs'
+      PickerRows split). The recipient (member-or-external) picker lives in the shared
+      PartyPicker; only the multi-select item rows are bespoke to the sign-out. ── */
+
+/** Multi-select item rows with a per-item quantity stepper, filtered by the live
+ *  search value. State ownership differs by host (live host state on desktop, local
+ *  screen state in the drill) — this component is purely presentational. */
+function ItemRows({ items, filter, quantities, onToggle, onSetQty, locationName }: {
+  items: LocalPropertyItem[]
+  filter: string
+  quantities: Map<string, number>
+  onToggle: (id: string) => void
+  onSetQty: (id: string, qty: number, max: number) => void
+  locationName: (id: string | null) => string | null
+}) {
+  const q = filter.trim().toLowerCase()
+  const shown = q
+    ? items.filter(
+        (i) =>
+          i.name.toLowerCase().includes(q) ||
+          i.nsn?.toLowerCase().includes(q) ||
+          i.serial_number?.toLowerCase().includes(q),
+      )
+    : items
+  return (
+    <div>
+      {shown.map((i) => {
+        const qty = quantities.get(i.id)
+        const selected = qty !== undefined
+        const max = Math.max(1, i.quantity)
+        const loc = locationName(i.location_id)
+        const out = i.signed_out_external || !!i.current_holder_id
+        const showStepper = selected && max > 1
+        return (
+          <div
+            key={i.id}
+            className="w-full flex items-center gap-3 px-4 py-2.5 active:bg-tertiary/5 border-b border-primary/6 last:border-b-0"
+          >
+            <button
+              type="button"
+              onClick={() => onToggle(i.id)}
+              className="flex items-center gap-3 min-w-0 flex-1 text-left"
+            >
+              <span
+                className={`w-5 h-5 rounded-md shrink-0 flex items-center justify-center border ${
+                  selected ? 'bg-themeblue3 border-themeblue3' : 'border-tertiary/40'
+                }`}
+              >
+                {selected && <Check size={14} className="text-white" />}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm text-primary truncate">{i.name}</span>
+                <span className="block text-[10pt] text-tertiary truncate">
+                  {i.serial_number ? `S/N ${i.serial_number}` : i.nsn ? `Material/NSN ${i.nsn}` : 'No Material/NSN'}
+                  {max > 1 ? ` · ${max} on hand` : ''}
+                  {loc ? ` · usually ${loc}` : ''}
+                  {out ? ' · already out' : ''}
+                </span>
+              </span>
+            </button>
+            {showStepper && (
+              <span className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => onSetQty(i.id, (qty ?? 1) - 1, max)}
+                  disabled={(qty ?? 1) <= 1}
+                  aria-label="Decrease quantity"
+                  className="w-6 h-6 rounded-full flex items-center justify-center text-tertiary active:scale-90 transition-all disabled:opacity-30"
+                >
+                  <Minus size={14} />
+                </button>
+                <span className="text-[10pt] text-tertiary tabular-nums w-8 text-center">
+                  {qty} / {max}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => onSetQty(i.id, (qty ?? 1) + 1, max)}
+                  disabled={(qty ?? 1) >= max}
+                  aria-label="Increase quantity"
+                  className="w-6 h-6 rounded-full flex items-center justify-center text-tertiary active:scale-90 transition-all disabled:opacity-30"
+                >
+                  <Plus size={14} />
+                </button>
+              </span>
+            )}
+          </div>
+        )
+      })}
+      {shown.length === 0 && <p className="px-4 py-3 text-[10pt] text-tertiary">No items match.</p>}
+    </div>
+  )
+}
+
+/** Multi-select items drill screen. A pushed stack screen freezes its render closure
+ *  at push time, so it can't read the host's live `quantities` — it owns a local Map
+ *  seeded from `initial` and commits every change up via `onChange` (MultiSelectScreen
+ *  pattern). */
+function ItemsScreen({ items, filter, initial, onChange, locationName }: {
+  items: LocalPropertyItem[]
+  filter: string
+  initial: Map<string, number>
+  onChange: (next: Map<string, number>) => void
+  locationName: (id: string | null) => string | null
+}) {
+  const [qtys, setQtys] = useState<Map<string, number>>(() => new Map(initial))
+  const toggle = useCallback((id: string) => {
+    const n = new Map(qtys)
+    if (n.has(id)) n.delete(id)
+    else n.set(id, 1)
+    setQtys(n); onChange(n)
+  }, [qtys, onChange])
+  const setQty = useCallback((id: string, qty: number, max: number) => {
+    if (!qtys.has(id)) return
+    const clamped = Math.max(1, Math.min(qty, Math.max(1, max)))
+    const n = new Map(qtys); n.set(id, clamped)
+    setQtys(n); onChange(n)
+  }, [qtys, onChange])
+  return <ItemRows items={items} filter={filter} quantities={qtys} onToggle={toggle} onSetQty={setQty} locationName={locationName} />
+}
 
 export interface SignOutFormHandle {
   /** Submit from the host header Check pill (calendar/property form pattern).
@@ -58,9 +181,14 @@ export const SignOutForm = forwardRef<SignOutFormHandle, SignOutFormProps>(funct
   )
   const profile = useAuthStore((s) => s.profile)
 
-  const [mode, setMode] = useState<Mode>('member')
-  const [toHolderId, setToHolderId] = useState<string | null>(null)
-  const [externalName, setExternalName] = useState('')
+  // When hosted inside the property sheet's stack engine, the recipient/item pickers
+  // MORPH the sheet in place (pushScreen); on desktop (no stack) they fall back to the
+  // anchored PreviewOverlay popovers below.
+  const stackNav = useContext(StackNavContext)
+
+  // The party this receipt signs to — a cluster member (id → current_holder_id) or a
+  // free-text outside-cluster entity (name only). The shared PartyPicker owns the pick.
+  const [recipient, setRecipient] = useState<Party | null>(null)
   const [notes, setNotes] = useState('')
   // "Real" sign-out (item physically leaves → relocate to the member's zone) vs. a
   // sign-over / sign-for (custody only, location unchanged — the default). Member-zone
@@ -71,8 +199,6 @@ export const SignOutForm = forwardRef<SignOutFormHandle, SignOutFormProps>(funct
   const [busy, setBusy] = useState(false)
   const [showSignature, setShowSignature] = useState(false)
 
-  const [recipientOpen, setRecipientOpen] = useState(false)
-  const [recipientAnchor, setRecipientAnchor] = useState<DOMRect | null>(null)
   const [itemsOpen, setItemsOpen] = useState(false)
   const [itemsAnchor, setItemsAnchor] = useState<DOMRect | null>(null)
 
@@ -89,18 +215,6 @@ export const SignOutForm = forwardRef<SignOutFormHandle, SignOutFormProps>(funct
     () => store.items.filter((i) => !i.parent_item_id && !i.turned_in_at),
     [store.items],
   )
-
-  const selectMember = useCallback((id: string) => {
-    setMode('member')
-    setToHolderId(id)
-    setExternalName('')
-  }, [])
-
-  const selectExternal = useCallback((name: string) => {
-    setMode('external')
-    setExternalName(name)
-    setToHolderId(null)
-  }, [])
 
   const toggleItem = useCallback((id: string) => {
     setQuantities((prev) => {
@@ -124,9 +238,12 @@ export const SignOutForm = forwardRef<SignOutFormHandle, SignOutFormProps>(funct
   }, [])
 
   const recipientLabel = useMemo(() => {
-    if (mode === 'member') return store.clinicMembers.find((m) => m.id === toHolderId)?.displayName ?? null
-    return externalName.trim() || null
-  }, [mode, toHolderId, externalName, store.clinicMembers])
+    if (!recipient) return null
+    return recipient.kind === 'member' ? recipient.displayName : recipient.name
+  }, [recipient])
+  // Member-zone relocation only exists for internal recipients; an external party has
+  // no zone, so the "move to zone" row hides in external mode.
+  const isExternal = recipient?.kind === 'external'
 
   const itemsLabel = useMemo(() => {
     if (quantities.size === 0) return null
@@ -139,21 +256,36 @@ export const SignOutForm = forwardRef<SignOutFormHandle, SignOutFormProps>(funct
       .join(', ')
   }, [quantities, signableItems])
 
-  const openRecipient = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
-    setRecipientAnchor(e.currentTarget.getBoundingClientRect())
-    setRecipientOpen(true)
-  }, [])
-
   const openItems = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
+    if (stackNav) {
+      stackNav.pushScreen({
+        title: 'Items',
+        searchPlaceholder: 'Search items…',
+        rightFooter: (_p, nav) => (
+          <ActionPill>
+            <ActionButton icon={Check} label="Done" onClick={nav.pop} />
+          </ActionPill>
+        ),
+        render: (_p, _nav, filter = '') => (
+          <ItemsScreen
+            items={signableItems}
+            filter={filter}
+            initial={quantities}
+            onChange={setQuantities}
+            locationName={locationName}
+          />
+        ),
+      })
+      return
+    }
     setItemsAnchor(e.currentTarget.getBoundingClientRect())
     setItemsOpen(true)
-  }, [])
+  }, [stackNav, signableItems, quantities, locationName])
 
-  const recipientReady = mode === 'member' ? !!toHolderId : !!externalName.trim()
-  const canSubmit = recipientReady && quantities.size > 0 && !busy
+  const canSubmit = !!recipient && quantities.size > 0 && !busy
 
   const handleSubmit = useCallback(async (signatureImage?: string) => {
-    if (!canSubmit) return
+    if (!canSubmit || !recipient) return
     setBusy(true)
     const chosen = signableItems.filter((i) => quantities.has(i.id))
     const itemIds = chosen.map((i) => i.id)
@@ -161,11 +293,11 @@ export const SignOutForm = forwardRef<SignOutFormHandle, SignOutFormProps>(funct
     const handReceiptId = await store.signOut({
       itemIds,
       quantities: quantityMap,
-      toHolderId: mode === 'member' ? toHolderId : null,
-      externalName: mode === 'external' ? externalName.trim() : null,
+      toHolderId: recipient.kind === 'member' ? recipient.id : null,
+      externalName: recipient.kind === 'external' ? recipient.name : null,
       notes: notes.trim() || null,
       // Relocate to the recipient's member-zone only on a "real" internal sign-out.
-      moveToZone: mode === 'member' && moveToZone,
+      moveToZone: recipient.kind === 'member' && moveToZone,
     })
     if (!handReceiptId) {
       setBusy(false)
@@ -183,15 +315,15 @@ export const SignOutForm = forwardRef<SignOutFormHandle, SignOutFormProps>(funct
         'Hand Receipt Holder',
     }
     const toHolder: HolderInfo =
-      mode === 'member'
-        ? store.clinicMembers.find((m) => m.id === toHolderId) ?? {
-            id: toHolderId ?? 'unknown',
+      recipient.kind === 'member'
+        ? store.clinicMembers.find((m) => m.id === recipient.id) ?? {
+            id: recipient.id,
             rank: null,
             firstName: null,
             lastName: null,
-            displayName: 'Member',
+            displayName: recipient.displayName,
           }
-        : { id: 'external', rank: null, firstName: null, lastName: null, displayName: externalName.trim() }
+        : { id: 'external', rank: null, firstName: null, lastName: null, displayName: recipient.name }
 
     // Carry the chosen quantity into the 2062 QTY column (defaults to on-hand 1).
     const items = chosen.map((i) => ({
@@ -213,7 +345,7 @@ export const SignOutForm = forwardRef<SignOutFormHandle, SignOutFormProps>(funct
       signature: { printedName: toHolder.displayName, date: ymd, image: signatureImage },
     })
     setBusy(false)
-  }, [canSubmit, signableItems, quantities, store, mode, toHolderId, externalName, notes, moveToZone, profile, exportDA2062])
+  }, [canSubmit, recipient, signableItems, quantities, store, notes, moveToZone, profile, exportDA2062])
 
   // Host header Check pill opens the signature pad (no-ops until valid); the
   // recipient signs to acknowledge, which both confirms and stamps the 2062.
@@ -242,20 +374,15 @@ export const SignOutForm = forwardRef<SignOutFormHandle, SignOutFormProps>(funct
             dividers (EventForm / FeatureEditor pattern). No per-field bordered
             cards or uppercase mini-headers; each row owns its own border. */}
         <div className="rounded-2xl overflow-hidden">
-          {/* Recipient — PickerInput-shaped row (custom because it needs member
-              search + add-custom outside recipient via PreviewOverlay). */}
-          <div className="block border-b border-primary/6 last:border-b-0">
-            <button
-              type="button"
-              onClick={openRecipient}
-              className={`w-full bg-transparent px-4 py-3 text-left text-base md:text-sm flex items-center justify-between gap-3 focus:outline-none ${
-                recipientLabel ? 'text-primary' : 'text-tertiary'
-              }`}
-            >
-              <span className="truncate">{recipientLabel || 'Sign to…'}</span>
-              <ChevronDown size={16} className="shrink-0 text-tertiary" />
-            </button>
-          </div>
+          {/* Recipient — shared PartyPicker (cluster member or outside-cluster entity). */}
+          <PartyPicker
+            members={store.clinicMembers}
+            value={recipient}
+            onChange={setRecipient}
+            placeholder="Sign to…"
+            title="Sign to"
+            externalPlaceholder="Recipient outside cluster…"
+          />
 
           {/* Items — PickerInput-shaped row (custom multi-select with search). */}
           <div className="block border-b border-primary/6 last:border-b-0">
@@ -274,7 +401,7 @@ export const SignOutForm = forwardRef<SignOutFormHandle, SignOutFormProps>(funct
           {/* Sign-out kind — toggle a "real" sign-out (item leaves → relocate to the
               member's zone) vs. a sign-over (custody only). Internal-only: an external
               recipient has no member-zone, so the row is hidden in external mode. */}
-          {mode === 'member' && (
+          {!isExternal && (
             <button
               type="button"
               onClick={() => setMoveToZone((v) => !v)}
@@ -294,45 +421,6 @@ export const SignOutForm = forwardRef<SignOutFormHandle, SignOutFormProps>(funct
         </div>
       </div>
 
-      {/* Recipient picker — cluster members (search) + add custom outside recipient */}
-      <PreviewOverlay
-        isOpen={recipientOpen}
-        onClose={() => setRecipientOpen(false)}
-        anchorRect={recipientAnchor}
-        title="Sign to"
-        searchPlaceholder="Search members…"
-        onAdd={(name) => { selectExternal(name); setRecipientOpen(false) }}
-        addPlaceholder="Recipient outside cluster…"
-        preview={(filter, clearFilter) => {
-          const q = filter.trim().toLowerCase()
-          const members = q
-            ? store.clinicMembers.filter((m) => m.displayName.toLowerCase().includes(q))
-            : store.clinicMembers
-          return (
-            <div className="py-1">
-              {members.map((m) => {
-                const selected = mode === 'member' && toHolderId === m.id
-                return (
-                  <button
-                    key={m.id}
-                    onClick={() => { selectMember(m.id); clearFilter(); setRecipientOpen(false) }}
-                    className="w-full flex items-center justify-between px-4 py-2.5 text-left active:bg-tertiary/5 border-b border-primary/6 last:border-b-0"
-                  >
-                    <span className={`text-sm ${selected ? 'text-primary font-medium' : 'text-secondary'}`}>
-                      {m.displayName}
-                    </span>
-                    {selected && <Check size={16} className="text-themeblue3 shrink-0" />}
-                  </button>
-                )
-              })}
-              {members.length === 0 && (
-                <p className="px-4 py-3 text-[10pt] text-tertiary">No members match.</p>
-              )}
-            </div>
-          )
-        }}
-      />
-
       {/* Item picker — multi-select top-level property items (search) */}
       <PreviewOverlay
         isOpen={itemsOpen}
@@ -340,89 +428,16 @@ export const SignOutForm = forwardRef<SignOutFormHandle, SignOutFormProps>(funct
         anchorRect={itemsAnchor}
         title="Items"
         searchPlaceholder="Search items…"
-        preview={(filter) => {
-          const q = filter.trim().toLowerCase()
-          const items = q
-            ? signableItems.filter(
-                (i) =>
-                  i.name.toLowerCase().includes(q) ||
-                  i.nsn?.toLowerCase().includes(q) ||
-                  i.serial_number?.toLowerCase().includes(q),
-              )
-            : signableItems
-          return (
-            <div>
-              {items.map((i) => {
-                const qty = quantities.get(i.id)
-                const selected = qty !== undefined
-                const max = Math.max(1, i.quantity)
-                const loc = locationName(i.location_id)
-                const out = i.signed_out_external || !!i.current_holder_id
-                // Stepper only when a bulk item is picked; serialized/qty-1 items
-                // sign out as a single unit (no count to choose).
-                const showStepper = selected && max > 1
-                return (
-                  <div
-                    key={i.id}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 active:bg-tertiary/5 border-b border-primary/6 last:border-b-0"
-                  >
-                    <button
-                      type="button"
-                      onClick={() => toggleItem(i.id)}
-                      className="flex items-center gap-3 min-w-0 flex-1 text-left"
-                    >
-                      <span
-                        className={`w-5 h-5 rounded-md shrink-0 flex items-center justify-center border ${
-                          selected ? 'bg-themeblue3 border-themeblue3' : 'border-tertiary/40'
-                        }`}
-                      >
-                        {selected && <Check size={14} className="text-white" />}
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block text-sm text-primary truncate">{i.name}</span>
-                        <span className="block text-[10pt] text-tertiary truncate">
-                          {i.serial_number ? `S/N ${i.serial_number}` : i.nsn ? `Material/NSN ${i.nsn}` : 'No Material/NSN'}
-                          {max > 1 ? ` · ${max} on hand` : ''}
-                          {loc ? ` · usually ${loc}` : ''}
-                          {out ? ' · already out' : ''}
-                        </span>
-                      </span>
-                    </button>
-                    {showStepper && (
-                      <span className="flex items-center gap-2 shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => setItemQty(i.id, (qty ?? 1) - 1, max)}
-                          disabled={(qty ?? 1) <= 1}
-                          aria-label="Decrease quantity"
-                          className="w-6 h-6 rounded-full flex items-center justify-center text-tertiary active:scale-90 transition-all disabled:opacity-30"
-                        >
-                          <Minus size={14} />
-                        </button>
-                        {/* Chosen count — plain text, same font as the item info line. */}
-                        <span className="text-[10pt] text-tertiary tabular-nums w-8 text-center">
-                          {qty} / {max}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => setItemQty(i.id, (qty ?? 1) + 1, max)}
-                          disabled={(qty ?? 1) >= max}
-                          aria-label="Increase quantity"
-                          className="w-6 h-6 rounded-full flex items-center justify-center text-tertiary active:scale-90 transition-all disabled:opacity-30"
-                        >
-                          <Plus size={14} />
-                        </button>
-                      </span>
-                    )}
-                  </div>
-                )
-              })}
-              {items.length === 0 && (
-                <p className="px-4 py-3 text-[10pt] text-tertiary">No items match.</p>
-              )}
-            </div>
-          )
-        }}
+        preview={(filter) => (
+          <ItemRows
+            items={signableItems}
+            filter={filter}
+            quantities={quantities}
+            onToggle={toggleItem}
+            onSetQty={setItemQty}
+            locationName={locationName}
+          />
+        )}
       />
 
       <Da2062Preview

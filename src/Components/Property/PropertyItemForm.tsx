@@ -144,6 +144,18 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
     setSerialNumbers(prev => prev.filter((_, i) => i !== idx))
   }, [])
 
+  // Shared item-picker presentation — every picker that lists items uses the same
+  // label (name + LIN when set) and the same exclusion (deleted / turned-in / self),
+  // so the create-flow and edit-flow item pickers render and filter identically.
+  const itemOptionLabel = useCallback(
+    (i: LocalPropertyItem) => (i.lin ? `${i.name} · LIN ${i.lin}` : i.name),
+    [],
+  )
+  const isSelectableItem = useCallback(
+    (i: LocalPropertyItem) => !i.deleted_at && !i.turned_in_at && i.id !== editingItem?.id,
+    [editingItem?.id],
+  )
+
   const locationOptions = useMemo(
     () =>
       locations
@@ -165,10 +177,10 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
   const parentItemOptions = useMemo(
     () =>
       items
-        .filter((i) => i.id !== editingItem?.id)
+        .filter(isSelectableItem)
         .sort((a, b) => a.name.localeCompare(b.name))
-        .map((i) => ({ value: i.id, label: i.name })),
-    [items, editingItem?.id]
+        .map((i) => ({ value: i.id, label: itemOptionLabel(i) })),
+    [items, isSelectableItem, itemOptionLabel]
   )
 
   // PHR level 1 — the cluster's LINs: top-level, authorization-tracked, live items. These
@@ -177,27 +189,16 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
   const authorizedLinOptions = useMemo(
     () =>
       items
-        .filter((i) => isLinContainer(i) && i.id !== editingItem?.id)
+        .filter((i) => isLinContainer(i) && isSelectableItem(i))
         .sort((a, b) => a.name.localeCompare(b.name))
-        .map((i) => ({ value: i.id, label: i.lin ? `${i.name} · LIN ${i.lin}` : i.name })),
-    [items, editingItem?.id],
+        .map((i) => ({ value: i.id, label: itemOptionLabel(i) })),
+    [items, isSelectableItem, itemOptionLabel],
   )
 
-  // The normal add-item flow only offers LINs that live at a ZONE (a real physical container —
-  // med case, vehicle, bag: isLinContainer WITH a location_id). Standalone item-LINs (no zone)
-  // are receipt-only abstractions you can't physically stock into, so they're excluded here.
-  // Picking one auto-fills Location to its zone (pickLinkLin below), overridable.
-  const zoneLinOptions = useMemo(
-    () =>
-      items
-        .filter((i) => isLinContainer(i) && i.location_id != null && i.id !== editingItem?.id)
-        .sort((a, b) => a.name.localeCompare(b.name))
-        .map((i) => ({ value: i.id, label: i.lin ? `${i.name} · LIN ${i.lin}` : i.name })),
-    [items, editingItem?.id],
-  )
-
-  // Pick a zone-LIN in the normal add flow — sets the parent AND defaults Location to that
-  // LIN's zone (the physical container the stock lands in). Location stays overridable.
+  // Pick a LIN in the normal add flow — sets the parent. If the LIN lives at a zone (a physical
+  // container: vehicle/case/bag shadow) it ALSO defaults Location to that zone. A standalone
+  // item-LIN has no location, so the stock keeps the zone it's being added at (decoupled model:
+  // physical stock carries its own location and reconciles to the target by LIN+NSN). Overridable.
   const pickLinkLin = useCallback((linId: string) => {
     setParentItemId(linId)
     const lin = items.find((i) => i.id === linId)
@@ -223,13 +224,18 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
     return [...roles].sort((a, b) => a.localeCompare(b)).map((r) => ({ value: r, label: r }))
   }, [items, parentItemId])
 
-  // NORMAL new-item "link to hand receipt" flow: when the cluster has authorized LINs, a
-  // fresh inventory add picks its LIN (parent) + authorized role (nomenclature) instead of
-  // free-typing them, so the new stock lands under the right hand receipt AND draws down that
-  // line's shortage. The shortage fold keys on-hand by (parent LIN + NSN), so picking a role
-  // must copy that role's authorized NSN — otherwise the new stock keys separately and the
-  // shortage doesn't move. Off-book stock stays possible via "Not on hand receipt".
-  const linkFlow = !authActive && !authAddFlow && !editingIsLin && !isEdit && zoneLinOptions.length > 0
+  // NORMAL "link to hand receipt" flow: when the cluster has authorized LINs, an inventory
+  // line picks its LIN (parent) + authorized role (nomenclature) instead of free-typing them,
+  // so the stock lands under the right hand receipt AND draws down that line's shortage. The
+  // shortage fold keys on-hand by (parent LIN + NSN), so picking a role must copy that role's
+  // authorized NSN — otherwise the stock keys separately and the shortage doesn't move. Off-book
+  // stock stays possible via "Not on a LIN". Offers EVERY LIN the cluster is signed for
+  // (authorizedLinOptions) — not just zone-located ones — so a component under a standalone
+  // hand-receipt LIN is matchable when stocking a zone.
+  // EDIT PARITY: applies to edits too (not just fresh adds) — an existing line seeds parentItemId
+  // from its parent LIN so the same picker/role/NSN-inherit surface reopens; the material/LIN
+  // auto-fill exactly as on create. A loose line (parentItemId '') opens the free-text branch.
+  const linkFlow = !authActive && !authAddFlow && !editingIsLin && authorizedLinOptions.length > 0
 
   // Pick an authorized role under the chosen LIN — sets nomenclature and inherits the
   // authorized component's NSN so this stock counts toward that line.
@@ -461,15 +467,16 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
         </>
       ) : linkFlow ? (
         <>
-          {/* LIN FIRST — pick the physical container (zone-LIN) this stock lands in. Only LINs
-              tied to a zone are listed; picking one auto-fills Location to its zone (below) and
-              inherits the chosen role's NSN so the stock draws down that line's shortage.
-              Component appears only once a LIN is picked; "Not on a LIN" keeps it loose. */}
+          {/* LIN FIRST — pick the hand-receipt LIN this stock belongs to (every LIN the cluster
+              is signed for, standalone or zone-located). A zone-located LIN auto-fills Location to
+              its zone (below); a standalone LIN keeps the zone being stocked. Picking a role
+              inherits its NSN so the stock draws down that line's shortage. The component field
+              appears only once a LIN is picked; "Not on a LIN" keeps it loose. */}
           <PickerInput
             value={parentItemId}
             onChange={pickLinkLin}
-            options={[{ value: '', label: 'Not on a LIN (loose stock)' }, ...zoneLinOptions]}
-            placeholder="LIN (container) *"
+            options={[{ value: '', label: 'Not on a LIN (loose stock)' }, ...authorizedLinOptions]}
+            placeholder="LIN (hand receipt) *"
             searchable
           />
           {parentItemId ? (
@@ -653,6 +660,7 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
           onChange={setParentItemId}
           options={parentItemOptions}
           placeholder="Parent item (top-level)"
+          searchable
         />
       )}
       {/* An authorized line never carries an expiry — that belongs to the physical stock. */}

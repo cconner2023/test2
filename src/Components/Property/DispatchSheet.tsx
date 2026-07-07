@@ -9,6 +9,8 @@ import { usePropertyStore } from '../../stores/usePropertyStore'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { useInvalidation } from '../../stores/useInvalidationStore'
 import { TextInput, DatePickerInput } from '@/Components/primitives/FormInputs'
+import { PartyPicker, partyLabel, type Party } from './PartyPicker'
+import { useClinicMedics } from '../../Hooks/useClinicMedics'
 import { OverlayStack, type StackNav } from '@/Components/primitives/OverlayStack'
 import { useRecordPreview } from './RecordPreview'
 import { DocScanner } from './DocScanner'
@@ -71,8 +73,10 @@ export function DispatchSheet({ isOpen, onClose, subjectId, clinicId, containerR
   // Open-intake form state.
   const [expDate, setExpDate] = useState('')
   const [odoOut, setOdoOut] = useState('')
-  const [operator, setOperator] = useState('')
-  const [tc, setTc] = useState('')
+  // Operator (driver) + TC (track commander) — each a cluster member or an off-roster
+  // (other-unit) party; only the display name persists into the dispatch payload.
+  const [operator, setOperator] = useState<Party | null>(null)
+  const [tc, setTc] = useState<Party | null>(null)
   const [openNote, setOpenNote] = useState('')
   const [openDocFile, setOpenDocFile] = useState<File | null>(null)
   // Return form state.
@@ -84,6 +88,15 @@ export function DispatchSheet({ isOpen, onClose, subjectId, clinicId, containerR
   const [scannerOpen, setScannerOpen] = useState(false)
 
   const userId = useAuthStore((s) => s.user?.id)
+  // Cluster roster for the operator/TC pickers — { id, "RANK Last First" }.
+  const { medics } = useClinicMedics()
+  const members = medics
+    .map((m) => ({
+      id: m.id,
+      displayName: [m.rank, m.lastName, m.firstName].filter(Boolean).join(' ').trim(),
+    }))
+    .filter((m) => m.displayName.length > 0)
+    .sort((a, b) => a.displayName.localeCompare(b.displayName))
   const openDispatch = usePropertyStore((s) => s.openDispatch)
   const closeDispatch = usePropertyStore((s) => s.closeDispatch)
   const propGen = useInvalidation('properties')
@@ -92,7 +105,7 @@ export function DispatchSheet({ isOpen, onClose, subjectId, clinicId, containerR
   useEffect(() => {
     if (!isOpen) {
       setPreviewEvent(null); setDocError(null)
-      setExpDate(''); setOdoOut(''); setOperator(''); setTc(''); setOpenNote(''); setOpenDocFile(null)
+      setExpDate(''); setOdoOut(''); setOperator(null); setTc(null); setOpenNote(''); setOpenDocFile(null)
       setReturnDate(''); setOdoIn(''); setReturnNote(''); setReturnDocFile(null)
       setScannerOpen(false)
     }
@@ -155,8 +168,8 @@ export function DispatchSheet({ isOpen, onClose, subjectId, clinicId, containerR
       ...(doc ? { doc } : {}),
       ...(openNote.trim() ? { note: openNote.trim() } : {}),
       ...(Number.isFinite(miles) ? { odo_out: miles } : {}),
-      ...(operator.trim() ? { operator: operator.trim() } : {}),
-      ...(tc.trim() ? { tc: tc.trim() } : {}),
+      ...(partyLabel(operator) ? { operator: partyLabel(operator) } : {}),
+      ...(partyLabel(tc) ? { tc: partyLabel(tc) } : {}),
     })
     setBusy(false)
     if (id) onClose()
@@ -219,10 +232,23 @@ export function DispatchSheet({ isOpen, onClose, subjectId, clinicId, containerR
     <div className="divide-y divide-tertiary/8">
       <DatePickerInput value={expDate} onChange={setExpDate} placeholder="Dispatch expires" minDate={new Date().toISOString().slice(0, 10)} />
       <TextInput value={odoOut} onChange={(v) => setOdoOut(v.replace(/[^\d]/g, ''))} inputMode="numeric" placeholder="Odometer out" />
-      {/* Who took it out — operator (driver) + TC (track commander), free-text so
-          either can be from another unit. Ride in the encrypted payload, no PHI. */}
-      <TextInput value={operator} onChange={setOperator} placeholder="Operator" />
-      <TextInput value={tc} onChange={setTc} placeholder="TC" />
+      {/* Who took it out — operator (driver) + TC (track commander), each a cluster
+          member OR an off-roster (other-unit) party via the shared PartyPicker. Ride
+          in the encrypted payload as a display name only, no PHI. */}
+      <PartyPicker
+        members={members}
+        value={operator}
+        onChange={setOperator}
+        placeholder="Operator"
+        externalPlaceholder="Off-roster operator…"
+      />
+      <PartyPicker
+        members={members}
+        value={tc}
+        onChange={setTc}
+        placeholder="TC"
+        externalPlaceholder="Off-roster TC…"
+      />
       {openDocFile && <FileChip file={openDocFile} onRemove={() => setOpenDocFile(null)} busy={busy} />}
       {docError && <p className="px-4 pb-2 text-[9pt] font-medium text-themered">{docError}</p>}
     </div>

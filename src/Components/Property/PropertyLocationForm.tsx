@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useEffect, useRef, forwardRef, useImperativeHandle } from 'react'
-import { Image as ImageIcon } from 'lucide-react'
+import { Paperclip } from 'lucide-react'
 import { TextInput, PickerInput } from '@/Components/primitives/FormInputs'
 import { usePropertyStore } from '../../stores/usePropertyStore'
 import { useShallow } from 'zustand/react/shallow'
@@ -77,6 +77,28 @@ export const PropertyLocationForm = forwardRef<PropertyLocationFormHandle, Prope
     [editingLocation, store.items],
   )
   const [lin, setLin] = useState(existingShadow?.lin ?? '')
+  // The zone's LIN is chosen the same way new-item entry picks one: reuse an EXISTING LIN
+  // (its code copies onto this zone's shadow — identical med cases / vehicles share a LIN, kept
+  // apart by NSN/serial) or "+ New LIN" to type a fresh code. Every isLinContainer is offered
+  // except this zone's own shadow. linPick drives the UI only; `lin` stays the saved code.
+  const linOptions = useMemo(
+    () =>
+      store.items
+        .filter((i) => isLinContainer(i) && i.id !== existingShadow?.id)
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map((i) => ({ value: i.id, label: i.lin ? `${i.name} · LIN ${i.lin}` : i.name })),
+    [store.items, existingShadow?.id],
+  )
+  // '' = not on the hand receipt, '__new__' = type a fresh code, or an existing LIN item id =
+  // reuse its code. Seeds to '__new__' when this zone already carries a code so the established
+  // value shows editable (a zone-shadow is its own LIN, never matched back into the list).
+  const [linPick, setLinPick] = useState<string>(existingShadow?.lin ? '__new__' : '')
+  const pickLin = useCallback((choice: string) => {
+    setLinPick(choice)
+    if (choice === '') { setLin(''); return }
+    if (choice === '__new__') return
+    setLin(store.items.find((i) => i.id === choice)?.lin ?? '')
+  }, [store.items])
   const [isSaving, setIsSaving] = useState(false)
   // Zone photo — the map-tile background. Staged locally (raw resize, NO crop) and
   // committed on Save; create seeds null. resizeImage preserves aspect ratio.
@@ -264,10 +286,26 @@ export const PropertyLocationForm = forwardRef<PropertyLocationFormHandle, Prope
           />
         )}
         {/* Any zone can also BE a LIN — its LIN code signs it onto the cluster hand receipt and
-            lets it carry authorized BII (a vehicle, a med case, an aid bag). Optional: leave blank
-            to keep it a plain container zone; clearing an existing code reaps the shadow. */}
+            lets it carry authorized BII (a vehicle, a med case, an aid bag). Pick an existing LIN
+            to reuse its code, "+ New LIN" to type a fresh one, or leave "Not on hand receipt" to
+            keep it a plain container zone; clearing an existing code reaps the shadow. */}
         {!isLevel && (
-          <TextInput value={lin} onChange={setLin} placeholder="Hand-receipt LIN (optional, e.g. M30499)" />
+          <>
+            <PickerInput
+              value={linPick}
+              onChange={pickLin}
+              options={[
+                { value: '', label: 'Not on hand receipt' },
+                ...linOptions,
+                { value: '__new__', label: '+ New LIN' },
+              ]}
+              placeholder="Hand-receipt LIN (optional)"
+              searchable
+            />
+            {linPick === '__new__' && (
+              <TextInput value={lin} onChange={setLin} placeholder="LIN (e.g. M30499)" />
+            )}
+          </>
         )}
 
         {/* Zone photo — the map-tile background. Raw upload (no crop); staged here
@@ -299,7 +337,7 @@ export const PropertyLocationForm = forwardRef<PropertyLocationFormHandle, Prope
             className="w-full bg-transparent px-4 py-3 text-left text-base md:text-sm flex items-center justify-between gap-3 focus:outline-none text-tertiary border-b border-primary/6 last:border-b-0"
           >
             <span>Add photo</span>
-            <ImageIcon size={16} className="shrink-0 text-tertiary" />
+            <Paperclip size={16} className="shrink-0 text-tertiary" />
           </button>
         )}
       </div>

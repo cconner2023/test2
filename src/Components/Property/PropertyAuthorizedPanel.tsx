@@ -14,18 +14,19 @@ interface PropertyAuthorizedPanelProps {
   /** Open the canonical item form on a line — the host MORPHS this surface (right
    *  pane desktop / detail sheet mobile) from the list into the form, and back on save. */
   onEdit: (item: LocalPropertyItem) => void
-  /** Open the read-only item detail — the host morphs the surface the same way. */
+  /** Open the read-only item detail — the host morphs the surface the same way. A LIN header
+   *  tap and a component tap both route here; the detail's "On hand" section is where the
+   *  located stacks that fill a line are listed (and tapped to locate on the map). */
   onView: (item: LocalPropertyItem) => void
-  /** Locate a component ON THE MAP: drops this book view, selects the item on the
-   *  canvas, breadcrumb → its parent zone. Wired to the host's handleSelectItem. */
-  onLocate: (item: LocalPropertyItem) => void
 }
 
 /** Cluster Hand Receipt (authorized/BOM) rendered as a TREE: each LIN is a collapsible parent
  *  node; its authorized components nest beneath it. Mirrors the property location tree idiom —
- *  a LIN-header TAP opens the read-only detail (onView); a COMPONENT TAP locates it on the map
- *  (onLocate — drops this book view, breadcrumb → parent zone); the trailing ellipsis opens
- *  View · Edit · Delete. LINs (standalone item-LINs AND vehicle-LINs) are editable here.
+ *  a LIN-header TAP and a COMPONENT TAP both open the read-only detail (onView). The located
+ *  stacks that fill a component's on-hand are listed in that detail's "On hand" section
+ *  (PropertyItemDetail), each tapping through to locate the stack on the map. The trailing
+ *  ellipsis opens View · Edit · Delete. LINs (standalone item-LINs AND vehicle-LINs) are
+ *  editable here.
  *  Hosted in the Property right pane (desktop) / detail sheet (mobile); the host owns the
  *  header (ellipsis · + · close) and the view/edit morph. Offline-first; persists across devices.
  *
@@ -33,7 +34,7 @@ interface PropertyAuthorizedPanelProps {
  *  on-hand as excess, never removed. A LIN "Delete" removes the LIN from the receipt (confirm):
  *  its components detach + de-authorize (survive as loose stock), then the LIN container is
  *  removed — for a vehicle-LIN this un-LINs the vehicle; its zone remains. */
-export function PropertyAuthorizedPanel({ onEdit, onView, onLocate }: PropertyAuthorizedPanelProps) {
+export function PropertyAuthorizedPanel({ onEdit, onView }: PropertyAuthorizedPanelProps) {
   const { items, editItem, removeItem } = usePropertyStore(
     useShallow((s) => ({ items: s.items, editItem: s.editItem, removeItem: s.removeItem })),
   )
@@ -153,7 +154,8 @@ export function PropertyAuthorizedPanel({ onEdit, onView, onLocate }: PropertyAu
                 )}
               </div>
 
-              {/* Components */}
+              {/* Components — a TAP opens the line's read-only detail (onView), where the
+                  "On hand" section lists the located stacks filling it (tap → locate on map). */}
               {!isCollapsed &&
                 g.lines.map((l) => {
                   const comp = items.find((i) => i.id === l.itemId)
@@ -166,7 +168,7 @@ export function PropertyAuthorizedPanel({ onEdit, onView, onLocate }: PropertyAu
                       <button
                         type="button"
                         className="min-w-0 flex-1 text-left"
-                        onClick={() => comp && onLocate(comp)}
+                        onClick={() => comp && onView(comp)}
                       >
                         <span className="block text-[10pt] text-primary truncate">{l.name}</span>
                         {l.nomenclature && <span className="block text-[9pt] text-tertiary truncate">{l.nomenclature}</span>}

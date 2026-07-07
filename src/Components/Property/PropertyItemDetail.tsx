@@ -5,7 +5,7 @@ import { LiftedRowMenu } from '@/Components/primitives/LiftedRowMenu'
 import { useIsMobile } from '../../Hooks/useIsMobile'
 import type { LocalPropertyItem, LocalPropertyLocation, HolderInfo } from '../../Types/PropertyTypes'
 import { expiryStatus } from '../../Types/PropertyTypes'
-import { isLinContainer, groupAuthorized } from '../../Utilities/propertyAuthorized'
+import { isLinContainer, groupAuthorized, fillersByLineKey, lineKeyOf } from '../../Utilities/propertyAuthorized'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { fetchItemLedger } from '../../lib/propertyService'
 import { ItemTimeline } from '../Timeline/ItemTimeline'
@@ -23,6 +23,9 @@ interface PropertyItemDetailProps {
   onViewComponent?: (item: LocalPropertyItem) => void
   onEditComponent?: (item: LocalPropertyItem) => void
   onDeleteComponent?: (item: LocalPropertyItem) => void
+  /** Locate a filler ON THE MAP from the "On hand" section (see below). Wired to the host's
+   *  handleSelectItem. When omitted the fillers render as read-only rows. */
+  onLocateFiller?: (item: LocalPropertyItem) => void
 }
 
 function DetailRow({ label, value }: { label: string; value: string | null | undefined }) {
@@ -56,9 +59,11 @@ function WarnBadge({ label }: { label: string }) {
  * The item detail BODY — info only. All item actions live in the shared
  * ItemActionMenu (mounted by PropertyPanel, opened from the header ellipsis); this
  * surface just reads the item: identity fields, the split-across-holders "Signed
- * out" fold, notes, components, and the lifecycle timeline.
+ * out" fold, the "On hand" fillers (for an authorized line — the located stacks that
+ * make up its aggregated on-hand, each tapping through to locate on the map), notes,
+ * components, and the lifecycle timeline.
  */
-export function PropertyItemDetail({ item, locations, holders, items, onViewComponent, onEditComponent, onDeleteComponent }: PropertyItemDetailProps) {
+export function PropertyItemDetail({ item, locations, holders, items, onViewComponent, onEditComponent, onDeleteComponent, onLocateFiller }: PropertyItemDetailProps) {
   const isMobile = useIsMobile()
   const currentUserId = useAuthStore(s => s.user?.id ?? null)
 
@@ -131,6 +136,16 @@ export function PropertyItemDetail({ item, locations, holders, items, onViewComp
     [onViewComponent, isLin, items, item.id],
   )
 
+  // "On hand" fillers — the located physical stacks that make up an AUTHORIZED line's on-hand.
+  // A tracked line's on-hand is an AGGREGATE summed over every live row sharing its (LIN + NSN)
+  // key (the target itself is location-less and holds no stock), so this is the only place the
+  // user can see WHAT fills the line and WHERE. Only computed for a tracked line; a plain
+  // physical item is itself a filler, not a line, so it never shows this section.
+  const fillers = useMemo(
+    () => (item.quantity_authorized != null ? fillersByLineKey(items).get(lineKeyOf(item)) ?? [] : []),
+    [item, items],
+  )
+
   // Component ellipsis (View · Edit · Delete=de-authorize) anchor.
   const [compMenu, setCompMenu] = useState<{ item: LocalPropertyItem; rect: DOMRect } | null>(null)
 
@@ -201,6 +216,41 @@ export function PropertyItemDetail({ item, locations, holders, items, onViewComp
             </div>
           </div>
         </SectionCard>
+      )}
+
+      {/* On hand — the located stacks that fill this authorized line (its on-hand is a sum
+          across zones). Each row taps through to locate that stack on the map. */}
+      {fillers.length > 0 && (
+        <div>
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">On hand</span>
+          </div>
+          <SectionCard>
+            {fillers.map(f => {
+              const fLoc = f.location_id ? locations.find(l => l.id === f.location_id) : null
+              const fHolder = f.current_holder_id ? holders.get(f.current_holder_id) : null
+              // Where the stack sits: its zone, else its holder (signed out), else unplaced.
+              const place = fLoc?.name ?? fHolder?.displayName ?? 'Unplaced'
+              const rowInner = (
+                <>
+                  <div className="min-w-0 flex-1">
+                    <span className={`block text-primary truncate ${isMobile ? 'text-sm' : 'text-[10pt]'}`}>{f.name}</span>
+                    <span className="block text-[9pt] text-tertiary truncate">{place}</span>
+                  </div>
+                  <span className="text-[10pt] font-medium text-secondary shrink-0 tabular-nums">×{f.quantity}</span>
+                </>
+              )
+              const rowCls = `flex items-center gap-3 ${isMobile ? 'px-4 py-3' : 'px-3 py-2'} border-b border-primary/5 last:border-b-0`
+              return onLocateFiller ? (
+                <button key={f.id} type="button" onClick={() => onLocateFiller(f)} className={`w-full text-left hover:bg-secondary/5 transition-colors ${rowCls}`}>
+                  {rowInner}
+                </button>
+              ) : (
+                <div key={f.id} className={rowCls}>{rowInner}</div>
+              )
+            })}
+          </SectionCard>
+        </div>
       )}
 
       {/* Notes */}

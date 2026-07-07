@@ -26,6 +26,9 @@ import { PropertyItemForm, type PropertyItemFormHandle } from './PropertyItemFor
 import { PropertyLocationMap, type MapNavHandle } from './PropertyLocationMap'
 import { isStructuralZone } from './levelUtils'
 import { Sheet } from '@/Components/primitives/Sheet'
+import { useStack } from '@/Components/primitives/useStack'
+import { LayeredStackBody } from '@/Components/primitives/LayeredStackBody'
+import { StackNavContext } from '@/Components/stackNav'
 import { LoadingOverlay } from '@/Components/primitives/LoadingOverlay'
 import { useMinLoadTime } from '../../Hooks/useMinLoadTime'
 import { useClinicName } from '../../Hooks/useClinicNameResolver'
@@ -977,6 +980,66 @@ export const PropertyPanel = memo(function PropertyPanel({
     </>
   )
 
+  // ── Mobile form MORPH stack ──────────────────────────────────────────────
+  // The one mobile property Sheet has no StackNavContext of its own, so a form's
+  // pickers used to fall back to a centered nested PreviewOverlay. Host the ACTIVE
+  // form as the root frame of the shared drill engine (useStack): its PickerInputs /
+  // DatePickerInputs (and SignOutForm's stack-aware pickers) morph the SAME sheet in
+  // place. One scoped stack for whichever form is open — the sheet still owns the
+  // tree/detail/task surfaces. Hook runs unconditionally (before the desktop return);
+  // idle on desktop, where the forms render in the right pane with popover pickers.
+  const activeForm =
+    authorizedOpen && authForm ? (
+      <PropertyItemForm
+        ref={authFormRef}
+        editingItem={authForm.item}
+        showAuthorized
+        initialParentId={authForm.parentId}
+        onClose={closeAuthMorph}
+        onSavingChange={setFormSaving}
+      />
+    ) : signOutOpen ? (
+      <SignOutForm ref={signOutFormRef} onClose={() => setSignOutOpen(false)} onSavingChange={setFormSaving} />
+    ) : mobileForm?.kind === 'item' ? (
+      <PropertyItemForm
+        ref={itemFormRef}
+        editingItem={store.editingItem}
+        onClose={closeMobileForm}
+        onEnrollNew={onEnrollNewItem}
+        onSavingChange={setFormSaving}
+      />
+    ) : mobileForm?.kind === 'location' ? (
+      <PropertyLocationForm
+        ref={locationFormRef}
+        editingLocation={mobileForm.loc}
+        defaultParentId={mobileForm.parentId}
+        pendingTag={mobileForm.pendingTag}
+        onClose={() => setMobileForm(null)}
+        onSavingChange={setFormSaving}
+      />
+    ) : null
+  // Re-root the stack whenever the active form identity changes (useStack resets on
+  // isOpen OR initial.key change), so switching between forms starts fresh.
+  const formKey =
+    authorizedOpen && authForm ? `auth:${authForm.item?.id ?? 'new'}:${authForm.parentId ?? ''}`
+    : signOutOpen ? 'signout'
+    : mobileForm?.kind === 'item' ? `item:${store.editingItem?.id ?? 'new'}`
+    : mobileForm?.kind === 'location' ? `location:${mobileForm.loc?.id ?? 'new'}`
+    : 'none'
+  const formStack = useStack({
+    isOpen: activeForm != null,
+    initial: { key: formKey },
+    screens: { [formKey]: { render: () => activeForm } },
+  })
+  // Drilled = a picker pushed a screen over the form root; the sheet header swaps to
+  // Back + the picker title while drilled.
+  const formDrilled = activeForm != null && formStack.canBack
+  const formBody = (
+    <StackNavContext.Provider value={formStack.nav}>
+      <LayeredStackBody frames={formStack.frames} searchPlaceholder={formStack.searchPlaceholder} />
+    </StackNavContext.Provider>
+  )
+
   // Desktop layout — left rail (location tree) · center map · right pane (detail/form),
   // mirroring MapOverlayPanel: the rail collapses while the right pane is open.
   if (!isMobile) {
@@ -1165,6 +1228,7 @@ export const PropertyPanel = memo(function PropertyPanel({
                     locations={visibleLocations}
                     holders={store.holders}
                     items={store.items}
+                    onLocateFiller={handleSelectItem}
                   />
                 </div>
               </>
@@ -1418,6 +1482,7 @@ export const PropertyPanel = memo(function PropertyPanel({
                         onViewComponent={openAuthView}
                         onEditComponent={openAuthEdit}
                         onDeleteComponent={deauthorizeComponent}
+                        onLocateFiller={handleSelectItem}
                       />
                     ) : authImport ? (
                       <PropertyCSVImport onClose={closeAuthMorph} />
@@ -1426,7 +1491,6 @@ export const PropertyPanel = memo(function PropertyPanel({
                         onClose={() => setAuthorizedOpen(false)}
                         onEdit={openAuthEdit}
                         onView={openAuthView}
-                        onLocate={handleSelectItem}
                       />
                     )}
                   </div>
@@ -1634,7 +1698,9 @@ export const PropertyPanel = memo(function PropertyPanel({
         isOpen={(showLocations || detailOpen) && !drawingZone}
         onClose={() => { closeMobileForm(); setMobileItem(null); closeLocationDetail(); closeRosterDetail(); setSignOutOpen(false); setImportOpen(false); setShortageOpen(false); setAuthorizedOpen(false); clearDA2062Preview(); setShowLocations(false) }}
         title={
-          treeStep
+          formDrilled
+            ? formStack.title
+            : treeStep
             ? 'Locations'
             : da2062Preview
             ? da2062Preview.filename
@@ -1659,6 +1725,7 @@ export const PropertyPanel = memo(function PropertyPanel({
               : mobileItem ? mobileItem.name : (selectedLocation?.name ?? '')
         }
         titleNode={
+          formDrilled ? undefined :
           selectedReceipt ? (
             <div className="min-w-0">
               <span className="block text-[9pt] text-tertiary mb-0.5">{da2062DetailSubtitle(selectedReceipt)}</span>
@@ -1699,15 +1766,22 @@ export const PropertyPanel = memo(function PropertyPanel({
         // Authorized morph mirrors the standalone item surfaces: its edit/add FORM caps
         // at 60 (like mobileForm) and its read-only VIEW at 50 (like the item detail); only
         // the authorized LIST itself is a big task surface at 85.
-        maxHeight={treeStep ? 70 : authorizedOpen ? (authForm ? 60 : authView ? 50 : 60) : shortageOpen ? 60 : da2062Preview || signOutOpen || importOpen ? 85 : mobileForm ? 60 : 50}
+        maxHeight={formDrilled ? 85 : treeStep ? 70 : authorizedOpen ? (authForm ? 60 : authView ? 50 : 60) : shortageOpen ? 60 : da2062Preview || signOutOpen || importOpen ? 85 : mobileForm ? 60 : 50}
         // Detail/form are non-blocking like the map's mobile feature editor: the
         // canvas stays interactive and the body swaps detail↔form in the SAME sheet.
         // Sign-out is a focused task, so dim the canvas (non-dismissing) to block
         // stray taps from selecting items behind it.
         backdrop={da2062Preview || signOutOpen || importOpen || shortageOpen || authorizedOpen ? 'block' : 'none'}
         zIndex={1200}
+        // While a picker is drilled the Back chevron owns reversal; a stray drag must
+        // not dismiss the whole sheet mid-selection (matches SheetStack).
+        draggable={!formDrilled}
         leftContent={
-          mobileForm ? (
+          formDrilled ? (
+            <button onClick={formStack.onBack} aria-label="Back" className="w-9 h-9 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all">
+              <ChevronLeft size={20} />
+            </button>
+          ) : mobileForm ? (
             <button onClick={closeMobileForm} aria-label="Cancel" className="w-9 h-9 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all">
               <ChevronLeft size={20} />
             </button>
@@ -1743,7 +1817,9 @@ export const PropertyPanel = memo(function PropertyPanel({
           ) : undefined
         }
         actions={
-          da2062Preview ? (
+          formDrilled ? (
+            formStack.rightFooter ?? undefined
+          ) : da2062Preview ? (
             <PillButton icon={Download} iconSize={18} accent="info" onClick={saveReprint} label="Save" />
           ) : shortageOpen ? (
             <span className="inline-flex" onClick={(e) => shortageRef.current?.openMenu((e.currentTarget as HTMLElement).getBoundingClientRect())}>
@@ -1809,14 +1885,7 @@ export const PropertyPanel = memo(function PropertyPanel({
           <PropertyShortagePanel ref={shortageRef} onClose={() => setShortageOpen(false)} stagedTurnInIds={turnInItemIds} onLocate={handleSelectItem} />
         ) : authorizedOpen ? (
           authForm ? (
-            <PropertyItemForm
-              ref={authFormRef}
-              editingItem={authForm.item}
-              showAuthorized
-              initialParentId={authForm.parentId}
-              onClose={closeAuthMorph}
-              onSavingChange={setFormSaving}
-            />
+            formBody
           ) : authView ? (
             <PropertyItemDetail
               item={authView}
@@ -1826,6 +1895,7 @@ export const PropertyPanel = memo(function PropertyPanel({
               onViewComponent={openAuthView}
               onEditComponent={openAuthEdit}
               onDeleteComponent={deauthorizeComponent}
+              onLocateFiller={handleSelectItem}
             />
           ) : authImport ? (
             <PropertyCSVImport onClose={closeAuthMorph} />
@@ -1834,11 +1904,10 @@ export const PropertyPanel = memo(function PropertyPanel({
               onClose={() => setAuthorizedOpen(false)}
               onEdit={openAuthEdit}
               onView={openAuthView}
-              onLocate={handleSelectItem}
             />
           )
         ) : signOutOpen ? (
-          <SignOutForm ref={signOutFormRef} onClose={() => setSignOutOpen(false)} onSavingChange={setFormSaving} />
+          formBody
         ) : selectedReceipt ? (
           <Da2062Detail
             ref={da2062DetailRef}
@@ -1870,28 +1939,16 @@ export const PropertyPanel = memo(function PropertyPanel({
             onClose={closeRosterDetail}
           />
         ) : mobileForm?.kind === 'item' ? (
-          <PropertyItemForm
-            ref={itemFormRef}
-            editingItem={store.editingItem}
-            onClose={closeMobileForm}
-            onEnrollNew={onEnrollNewItem}
-            onSavingChange={setFormSaving}
-          />
+          formBody
         ) : mobileForm?.kind === 'location' ? (
-          <PropertyLocationForm
-            ref={locationFormRef}
-            editingLocation={mobileForm.loc}
-            defaultParentId={mobileForm.parentId}
-            pendingTag={mobileForm.pendingTag}
-            onClose={() => setMobileForm(null)}
-            onSavingChange={setFormSaving}
-          />
+          formBody
         ) : mobileItem ? (
           <PropertyItemDetail
             item={mobileItem}
             locations={visibleLocations}
             holders={store.holders}
             items={store.items}
+            onLocateFiller={handleSelectItem}
           />
         ) : selectedLocation ? (
           <PropertyLocationDetail

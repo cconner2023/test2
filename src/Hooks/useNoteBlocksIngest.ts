@@ -1,7 +1,7 @@
 /**
  * Ingest a note-blocks bundle (text templates / order sets / plan tags) into the
  * receiver's OWN blocks, with content-level duplicate checking. Used by both the
- * chat SharedBundleCard (cross/same-cluster share) and the settings file import.
+ * chat shared-bundle menu (useSharedObjectActions) and the settings file import.
  *
  * Dedup keys: text expander by `abbr` (case-insensitive), order set by `name`
  * (case-insensitive — and ids are reminted so a copy never collides on id), tags

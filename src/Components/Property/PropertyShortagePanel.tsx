@@ -51,9 +51,10 @@ function annexHolder(displayName: string): HolderInfo {
  *  node; its short component lines nest beneath it (Name · Nomenclature · NSN · short qty).
  *  Mirrors the Cluster Hand Receipt (PropertyAuthorizedPanel) idiom for a consistent look.
  *  Shortage = authorized − on-hand, a pure client fold over the already-loaded items
- *  (see computeShortages). A line TAP locates its item on the map (onLocate — drops this
- *  book view, breadcrumb → parent zone); the DA 2062 shortage annex export lives in the
- *  host header's ellipsis (opened via the openMenu handle). Hosted in the
+ *  (see computeShortages). A line TAP opens the line's detail (onLocate → host
+ *  handleSelectItem), where the "On hand" section lists the located stacks that ARE present
+ *  (and taps through to locate each on the map). The DA 2062 shortage annex export lives in
+ *  the host header's ellipsis (opened via the openMenu handle). Hosted in the
  *  Property right pane (desktop) / detail sheet (mobile) by PropertyPanel. */
 export const PropertyShortagePanel = forwardRef<PropertyShortageHandle, PropertyShortagePanelProps>(
   function PropertyShortagePanel({ stagedTurnInIds, onLocate }, ref) {
@@ -198,7 +199,9 @@ export const PropertyShortagePanel = forwardRef<PropertyShortageHandle, Property
                   </div>
                 </div>
 
-                {/* Short lines — Name · Nomenclature · NSN, with the per-line short qty. */}
+                {/* Short lines — Name · Nomenclature · NSN, with the per-line short qty. A tap
+                    opens the line's detail (onLocate), where the "On hand" section lists what
+                    IS present and where. */}
                 {!isCollapsed &&
                   g.lines.map(l => {
                     const item = items.find(i => i.id === l.itemId) ?? null

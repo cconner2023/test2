@@ -2,10 +2,11 @@ import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useSpring, useTransition, animated } from '@react-spring/web'
 import type { ReactNode, RefObject } from 'react'
-import { ChevronLeft } from 'lucide-react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { ActionPill } from '@/Components/primitives/ActionPill'
+import { SearchInput } from '@/Components/primitives/SearchInput'
 import { PopoverHeader } from '@/Components/PreviewOverlay'
-import { MenuItemButton, contextMenuItemVariant, type ContextMenuItem } from '@/Components/primitives/ContextMenu'
+import { MenuItemButton, contextMenuItemVariant, type ContextMenuItem, type MenuCardRow, type SearchLevelSpec } from '@/Components/primitives/ContextMenu'
 
 interface AnchoredMenuProps {
   isOpen: boolean
@@ -57,6 +58,17 @@ const STRIP_H = 52   // reaction-strip height (pill + reserve)
 const HEADER_H = 30  // section-header height (list layout, when `header` set)
 const BACK_HEADER_H = 52 // PopoverHeader height (back chevron + title + close), submenu only
 
+// Searchable-level geometry (a drill-in `search` level: back header + filter + cards)
+const SEARCH_W = 300      // wider card so label/sub cards breathe (vs 216 for plain rows)
+const SEARCHBAR_H = 46    // filter field row
+const SEARCH_BODY_H = 240 // FIXED scroll-body height — constant so typing never resizes/re-places the card
+const SEARCH_LEVEL_H = BACK_HEADER_H + SEARCHBAR_H + SEARCH_BODY_H
+
+/** One drill level: a plain menu (root or a pushed submenu) OR a searchable card list. */
+type Level =
+  | { kind: 'menu'; key: string; title?: string; items: ContextMenuItem[]; reactRow: boolean; sectionHeader: boolean }
+  | { kind: 'search'; key: string; spec: SearchLevelSpec }
+
 /** A single row in the vertical list-card. Mirrors ActionSheet's option rows
  *  (the calendar add-FAB menu): icon-left, `text-[10pt] font-medium`, divider
  *  between rows. */
@@ -100,6 +112,31 @@ function MenuListRow({ item, onSelect }: { item: ContextMenuItem; onSelect: (ite
   )
 }
 
+/** A rich card row for a searchable level — circular icon tile · label/sub, optional
+ *  drill chevron. Mirrors the object-picker's row shape (icon tile + two lines) so
+ *  every "share an object" surface reads the same. */
+function MenuCardListRow({ row, onSelect }: { row: MenuCardRow; onSelect: (row: MenuCardRow) => void }) {
+  const Icon = row.icon
+  return (
+    <button
+      onClick={() => onSelect(row)}
+      aria-label={row.label}
+      className="w-full flex items-center gap-3 px-3 py-2.5 text-left active:bg-black/[0.06] transition-colors"
+    >
+      {row.node ?? (Icon ? (
+        <div className="w-9 h-9 rounded-full bg-themeblue3/10 flex items-center justify-center shrink-0">
+          <Icon size={16} className="text-themeblue3" />
+        </div>
+      ) : null)}
+      <div className="min-w-0 flex-1">
+        <p className="text-[11pt] font-medium text-primary truncate">{row.label}</p>
+        {row.sub && <p className="text-[9pt] text-tertiary truncate">{row.sub}</p>}
+      </div>
+      {row.drill && <ChevronRight size={16} className="text-tertiary shrink-0" />}
+    </button>
+  )
+}
+
 /**
  * Anchored portal menu — the single menu primitive.
  *
@@ -119,16 +156,31 @@ export function AnchoredMenu({ isOpen, anchorRect: anchorRectProp, anchorRef, ro
   const [visible, setVisible] = useState(false)
   // Live-anchor rect — re-measured from `anchorRef` on any reflow (see prop doc).
   const [liveRect, setLiveRect] = useState<DOMRect | null>(null)
-  // A drilled-in submenu carries its parent row's label so the header can title it
-  // and offer a Back chevron (PopoverHeader) instead of trapping the user until they
-  // dismiss the whole menu.
-  const [submenu, setSubmenu] = useState<{ title: string; items: ContextMenuItem[] } | null>(null)
+  // Drill stack — empty = root. A pushed level is a plain submenu (`menu`) or a
+  // searchable card list (`search`); arbitrary depth (the object picker uses 2:
+  // Map → overlays → features). Each pushed level shows a Back chevron (PopoverHeader)
+  // so the user pops one level instead of being trapped until the whole menu dismisses.
+  const [stack, setStack] = useState<Level[]>([])
+  // Shared filter query for the active search level. Reset on every push/pop.
+  const [query, setQuery] = useState('')
   const menuRef = useRef<HTMLDivElement>(null)
-  const activeItems = submenu?.items ?? items
 
   const isList = layout === 'list'
-  const showReactRow = isList && !submenu && !!reactions?.length
-  const showHeader = isList && !submenu && !!header
+  const atRoot = stack.length === 0
+  const showReactRow = isList && atRoot && !!reactions?.length
+  const showHeader = isList && atRoot && !!header
+
+  const ROOT: Level = { kind: 'menu', key: 'root', items, reactRow: showReactRow, sectionHeader: showHeader }
+  const current: Level = stack[stack.length - 1] ?? ROOT
+  const activeItems = current.kind === 'menu' ? current.items : items
+
+  const pushMenu = (title: string, sub: ContextMenuItem[]) =>
+    setStack((s) => [...s, { kind: 'menu', key: `m:${s.length}:${title}`, title, items: sub, reactRow: false, sectionHeader: false }])
+  const pushSearch = (spec: SearchLevelSpec) =>
+    setStack((s) => [...s, { kind: 'search', key: `s:${s.length}:${spec.title}`, spec }])
+  const back = () => setStack((s) => s.slice(0, -1))
+  // Reset the filter whenever drill depth changes (enter/leave a search level).
+  useEffect(() => { setQuery('') }, [stack.length])
 
   // ── Drill-down morph (list layout) — mirrors ActionSheet's add-FAB drilldown ──
   // Descending into a submenu (Quantity / Logistics on the property item menu)
@@ -152,23 +204,14 @@ export function AnchoredMenu({ isOpen, anchorRect: anchorRectProp, anchorRef, ro
   })
   useEffect(() => { if (contentH != null) firstH.current = false }, [contentH])
 
-  // Slide direction: descending (root → submenu) pushes in from the right, Back pops
-  // back out to the right. depth is 0 (root) or 1 (a submenu) — nesting is one level.
-  const depth = submenu ? 1 : 0
+  // Slide direction: descending (push) slides the new level in from the right, Back
+  // pops it out to the right. depth = stack length (root is 0).
+  const depth = stack.length
   const prevDepth = useRef(0)
   const slideDir = depth >= prevDepth.current ? 1 : -1
   useEffect(() => { prevDepth.current = depth }, [depth])
 
-  type MenuLevel = {
-    key: string
-    submenu: { title: string; items: ContextMenuItem[] } | null
-    reactRow: boolean
-    sectionHeader: boolean
-  }
-  const level: MenuLevel = submenu
-    ? { key: `sub:${submenu.title}`, submenu, reactRow: false, sectionHeader: false }
-    : { key: 'root', submenu: null, reactRow: showReactRow, sectionHeader: showHeader }
-  const levelTransitions = useTransition(level, {
+  const levelTransitions = useTransition(current, {
     keys: (l) => l.key,
     from: { opacity: 0, transform: `translateX(${slideDir * 14}px)` },
     enter: { opacity: 1, transform: 'translateX(0px)' },
@@ -180,7 +223,8 @@ export function AnchoredMenu({ isOpen, anchorRect: anchorRectProp, anchorRef, ro
   useEffect(() => {
     if (!isOpen) {
       setVisible(false)
-      setSubmenu(null)
+      setStack([])
+      setQuery('')
       firstH.current = true
       setContentH(undefined)
       return
@@ -219,26 +263,35 @@ export function AnchoredMenu({ isOpen, anchorRect: anchorRectProp, anchorRef, ro
   // no-clone case shouldn't read as a flat dropdown. 'plain' opts out.
   const dimmed = backdrop ? backdrop === 'dim' : true
 
-  const showBackHeader = isList && !!submenu
+  // Widen the card when the menu drills into searchable card lists (label/sub rows
+  // need room); plain menus keep the tight 216 width. Constant across the flow so a
+  // drill never jumps the width.
+  const hasSearch = items.some((i) => i.search)
+  const listW = hasSearch ? SEARCH_W : LIST_W
   const menuH = isList
-    ? activeItems.length * ROW_H + (showReactRow ? STRIP_H : 0) + (showHeader ? HEADER_H : 0) + (showBackHeader ? BACK_HEADER_H : 0) + LIST_PAD
+    ? (current.kind === 'search'
+        ? SEARCH_LEVEL_H
+        : activeItems.length * ROW_H + (showReactRow ? STRIP_H : 0) + (showHeader ? HEADER_H : 0) + (!atRoot ? BACK_HEADER_H : 0) + LIST_PAD)
     : MENU_H
   // Pill submenus prepend a Back chevron tile — reserve its width.
-  const menuW = isList ? LIST_W : (activeItems.length + (submenu ? 1 : 0)) * 40 + 12
+  const menuW = isList ? listW : (activeItems.length + (!atRoot ? 1 : 0)) * 40 + 12
 
   // Stable reference height spanning the root menu AND every submenu it can drill
   // into. Placement DECISIONS (open up/down, peek lift, clamps) key off this — never
   // the live `menuH` — so drilling into a shorter/taller submenu can't flip the
   // menu's direction or shove its anchored edge to a new spot. The card still renders
   // at its live `menuH`, morphing in place (growing/shrinking) from the fixed edge.
-  const listRowsH = (rows: number, back: boolean) =>
-    rows * ROW_H + (back ? BACK_HEADER_H : 0) + LIST_PAD
+  const listRowsH = (rows: number, backHdr: boolean) =>
+    rows * ROW_H + (backHdr ? BACK_HEADER_H : 0) + LIST_PAD
   const rootListH = listRowsH(items.length, false) + (showReactRow ? STRIP_H : 0) + (showHeader ? HEADER_H : 0)
   const submenuMaxH = items.reduce(
     (m, it) => (it.submenu ? Math.max(m, listRowsH(it.submenu.length, true)) : m),
     0,
   )
-  const stableH = isList ? Math.max(rootListH, submenuMaxH) : MENU_H
+  // Search levels are a fixed height regardless of result count (the body scrolls),
+  // so a single constant bounds them for placement.
+  const searchMaxH = hasSearch ? SEARCH_LEVEL_H : 0
+  const stableH = isList ? Math.max(rootListH, submenuMaxH, searchMaxH) : MENU_H
 
   // ── Vertical placement ──
   let lift = 0
@@ -294,45 +347,80 @@ export function AnchoredMenu({ isOpen, anchorRect: anchorRectProp, anchorRef, ro
         key={item.key}
         item={item}
         onSelect={(it) => {
-          if (it.submenu) { setSubmenu({ title: it.label, items: it.submenu }); return }
+          if (it.submenu) { pushMenu(it.label, it.submenu); return }
+          // `search` drills into a searchable card list; `onAction` (if present)
+          // fires once as a side-effect (e.g. a lazy fetch) right before the drill.
+          if (it.search) { it.onAction?.(); pushSearch(it.search); return }
           it.onAction?.()
           onClose()
         }}
       />
     )
 
-  // One drill level — a submenu (Back header + its rows) or the root (optional react
-  // strip / section header + rows). Rendered by both the invisible sizer and each
-  // cross-sliding transition layer, so leaving/entering levels keep their own content.
-  const renderLevel = (lvl: MenuLevel) => (
-    <div className="divide-y divide-black/[0.06]">
-      {lvl.submenu ? (
-        <PopoverHeader title={lvl.submenu.title} onBack={() => setSubmenu(null)} onClose={onClose} />
-      ) : (
-        <>
-          {lvl.reactRow && (
-            <div className="flex items-center justify-between px-3" style={{ height: STRIP_H }}>
-              {reactions!.map((r) => (
-                <button
-                  key={r.key}
-                  onClick={() => { r.onAction?.(); onClose() }}
-                  aria-label={r.label}
-                  title={r.label}
-                  className="w-8 h-8 flex items-center justify-center rounded-full active:scale-90 transition-transform"
-                >
-                  {r.node}
-                </button>
-              ))}
-            </div>
-          )}
-          {lvl.sectionHeader && (
-            <p className="px-4 pt-2.5 pb-1.5 text-[9pt] font-semibold text-tertiary uppercase tracking-wider">{header}</p>
-          )}
-        </>
-      )}
-      {(lvl.submenu ? lvl.submenu.items : items).map(renderRow)}
-    </div>
-  )
+  const selectCard = (spec: SearchLevelSpec, r: MenuCardRow) => {
+    if (r.drill) { pushSearch(r.drill); return }
+    spec.onPick?.(r)
+    onClose()
+  }
+
+  // One drill level — a searchable card list (`search`), a pushed submenu (Back header
+  // + rows), or the root (optional react strip / section header + rows). Rendered by
+  // both the invisible sizer and each cross-sliding transition layer, so leaving/
+  // entering levels keep their own content.
+  const renderLevel = (lvl: Level) => {
+    if (lvl.kind === 'search') {
+      const rows = lvl.spec.rows(query)
+      return (
+        <div>
+          <PopoverHeader title={lvl.spec.title} onBack={back} onClose={onClose} />
+          <div className="border-b border-tertiary/10 px-2 py-1.5">
+            <SearchInput
+              value={query}
+              onChange={setQuery}
+              placeholder={lvl.spec.placeholder ?? 'Filter…'}
+              className="!bg-transparent !border-transparent !shadow-none text-[10pt]"
+            />
+          </div>
+          <div className="overflow-y-auto overscroll-contain" style={{ height: SEARCH_BODY_H }}>
+            {rows.length === 0 ? (
+              <p className="text-[10pt] text-tertiary text-center py-10">{lvl.spec.emptyText ?? 'No results'}</p>
+            ) : (
+              rows.map((r) => <MenuCardListRow key={r.id} row={r} onSelect={(row) => selectCard(lvl.spec, row)} />)
+            )}
+          </div>
+        </div>
+      )
+    }
+    return (
+      <div className="divide-y divide-black/[0.06]">
+        {lvl.key !== 'root' ? (
+          <PopoverHeader title={lvl.title ?? ''} onBack={back} onClose={onClose} />
+        ) : (
+          <>
+            {lvl.reactRow && (
+              <div className="flex items-center justify-between px-3" style={{ height: STRIP_H }}>
+                {reactions!.map((r) => (
+                  <button
+                    key={r.key}
+                    onClick={() => { r.onAction?.(); onClose() }}
+                    aria-label={r.label}
+                    title={r.label}
+                    className="w-8 h-8 flex items-center justify-center rounded-full active:scale-90 transition-transform"
+                  >
+                    {r.node}
+                  </button>
+                ))}
+              </div>
+            )}
+            {lvl.sectionHeader && (
+              <p className="px-4 pt-2.5 pb-1.5 text-[9pt] font-semibold text-tertiary uppercase tracking-wider">{header}</p>
+            )}
+          </>
+        )}
+        {lvl.items.map(renderRow)}
+      </div>
+    )
+  }
 
   return createPortal(
     <div className="fixed inset-0" style={{ zIndex: 9998 }}>
@@ -397,7 +485,7 @@ export function AnchoredMenu({ isOpen, anchorRect: anchorRectProp, anchorRef, ro
           {/* Invisible sizer — the settling level, measured so the height spring has a
               target. The visible levels are absolute, so they can't size the card. */}
           <div ref={sizerRef} aria-hidden className="invisible absolute inset-x-0 top-0">
-            {renderLevel(level)}
+            {renderLevel(current)}
           </div>
           {/* Cross-sliding levels: descending pushes the new level in from the right,
               Back pops the old one out — over the morphing height. */}
@@ -423,11 +511,11 @@ export function AnchoredMenu({ isOpen, anchorRect: anchorRectProp, anchorRef, ro
         >
           {/* Submenu Back tile — pill layout can't host a full header, so drill-out
               rides as a leading chevron button. */}
-          {submenu && (
+          {!atRoot && (
             <button
-              onClick={() => setSubmenu(null)}
+              onClick={back}
               aria-label="Back"
-              title={submenu.title}
+              title={current.kind === 'menu' ? current.title : ''}
               className="w-9 h-9 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
             >
               <ChevronLeft size={16} />
@@ -441,7 +529,7 @@ export function AnchoredMenu({ isOpen, anchorRect: anchorRectProp, anchorRef, ro
                 key={item.key}
                 item={item}
                 onSelect={(it) => {
-                  if (it.submenu) { setSubmenu({ title: it.label, items: it.submenu }); return }
+                  if (it.submenu) { pushMenu(it.label, it.submenu); return }
                   it.onAction?.()
                   onClose()
                 }}

@@ -36,6 +36,10 @@ interface ItemTimelineProps {
   /** For resolving holder ids in assign/transfer events to names. */
   holders: Map<string, HolderInfo>
   title?: string
+  /** Render nothing (no title, no card) when there are no events — so a blank
+   *  subject (e.g. a vehicle zone with no 5988 trail yet) reads as "nothing here"
+   *  rather than an empty "No history yet" card. */
+  hideWhenEmpty?: boolean
 }
 
 const EVENT_ICON: Record<string, LucideIcon> = {
@@ -83,7 +87,7 @@ function isUndoableHead(e: AuditEvent): boolean {
   }
 }
 
-export function ItemTimeline({ subjectId, clinicId, locations, holders, title = 'History' }: ItemTimelineProps) {
+export function ItemTimeline({ subjectId, clinicId, locations, holders, title = 'History', hideWhenEmpty = false }: ItemTimelineProps) {
   const [events, setEvents] = useState<AuditEvent[]>([])
   const [loading, setLoading] = useState(true)
   const [preview, setPreview] = useState<{ event: AuditEvent; action: 'view' | 'edit' | 'delete' } | null>(null)
@@ -195,12 +199,17 @@ export function ItemTimeline({ subjectId, clinicId, locations, holders, title = 
     return false
   }
 
+  // A blank subject should read as empty, not show a "No history yet" card. Suppress
+  // the whole section until there's something to show (covers the loading-empty case
+  // too, so no skeleton flickers in then vanishes).
+  if (hideWhenEmpty && events.length === 0) return null
+
   return (
     <div>
       <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase mb-2">
         {title}
       </p>
-      <div className="relative rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+      <div className="relative rounded-2xl bg-themewhite2 overflow-hidden">
         {loading && events.length === 0 ? (
           <SkeletonRows count={3} />
         ) : events.length === 0 ? (

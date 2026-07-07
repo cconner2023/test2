@@ -1,71 +1,34 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Calendar, Map as MapIcon, Image as ImageIcon, Package, ChevronRight, MapPin, Route, Hexagon, FileText, ClipboardList, type LucideIcon } from 'lucide-react'
-import { PreviewOverlay } from '../PreviewOverlay'
+import { Calendar, Map as MapIcon, Image as ImageIcon, Package, FileText } from 'lucide-react'
 import { AnchoredMenu } from '@/Components/primitives/LiftedRowMenu'
-import { ListItemRow } from '@/Components/primitives/ListItemRow'
-import type { ContextMenuItem } from '@/Components/primitives/ContextMenu'
+import type { ContextMenuItem, MenuCardRow, SearchLevelSpec } from '@/Components/primitives/ContextMenu'
 import { useCalendarStore } from '../../stores/useCalendarStore'
 import { useMapOverlaysStore, useMapOverlaysCache } from '../../stores/useMapOverlaysStore'
 import { usePropertyStore } from '../../stores/usePropertyStore'
 import { useUserProfile } from '../../Hooks/useUserProfile'
 import { useEditableClinicContent } from '../../Hooks/useEditableClinicContent'
-import { fetchClinicItems } from '../../lib/propertyService'
-import type { LocalPropertyItem } from '../../Types/PropertyTypes'
-import type { LocalMapOverlay, OverlayFeature } from '../../Types/MapOverlayTypes'
+import { fetchClinicItems, fetchClinicLocations } from '../../lib/propertyService'
+import { getCategoryMeta } from '../../Types/CalendarTypes'
+import type { LocalPropertyItem, LocalPropertyLocation } from '../../Types/PropertyTypes'
 import type { SharedRefContent } from '../../lib/signal/messageContent'
 import type { BundleSource } from '../../lib/objectBundle'
 import type { TextExpander, PlanOrderSet } from '../../Data/User'
 
 type RefKind = 'calendar-event' | 'map-overlay' | 'property-item'
-// 'map-feature' is a drill-in sub-step of 'map-overlay' — pick a single feature
-// (or the whole overlay) so the shared_ref can carry a featureId.
-// 'template' lists the user's text templates + plan order sets — these have NO
-// live shared_ref (objectBundle.ts), so a pick sends a frozen note-blocks bundle.
-type Step = 'menu' | RefKind | 'map-feature' | 'template'
 
-/** Sentinel row id for the "Whole overlay" option inside the feature step. */
-const WHOLE_OVERLAY = '__whole_overlay__'
-
-function featureTypeLabel(f: OverlayFeature): string {
-  if (f.type === 'waypoint') return f.waypoint_type ? `Waypoint · ${f.waypoint_type.toUpperCase()}` : 'Waypoint'
-  if (f.type === 'route') return f.recorded ? 'Recorded route' : 'Route'
-  return 'Area'
+function formatEventDate(startISO: string): string {
+  return new Date(startISO).toLocaleDateString([], { month: 'short', day: 'numeric' })
 }
 
-function featureIcon(f: OverlayFeature) {
-  if (f.type === 'route') return Route
-  if (f.type === 'area') return Hexagon
-  return MapPin
+function orderSetSub(o: PlanOrderSet): string {
+  const n = Object.values(o.presets).reduce((sum, arr) => sum + (arr?.length ?? 0), 0)
+  return `Order set · ${n} ${n === 1 ? 'order' : 'orders'}`
 }
 
-/** One selection row for the share picker (objects + templates) — the canonical
- *  ListItemRow shape (icon tile · title/sub · optional chevron), so every picker
- *  row renders identically instead of two hand-rolled copies. */
-function PickerListRow({ icon: Icon, label, sub, onClick, chevron = false }: {
-  icon: LucideIcon
-  label: string
-  sub: string
-  onClick: () => void
-  chevron?: boolean
-}) {
-  return (
-    <ListItemRow
-      onClick={onClick}
-      className="px-3 py-2.5 hover:bg-primary/5 active:scale-[0.99] transition-all"
-      left={
-        <div className="w-9 h-9 rounded-full bg-themeblue3/10 flex items-center justify-center shrink-0">
-          <Icon size={16} className="text-themeblue3" />
-        </div>
-      }
-      center={
-        <>
-          <p className="text-[11pt] font-medium text-primary truncate">{label}</p>
-          <p className="text-[9pt] text-tertiary truncate">{sub}</p>
-        </>
-      }
-      right={chevron ? <ChevronRight size={16} className="text-tertiary shrink-0" /> : undefined}
-    />
-  )
+/** Join present fields into a consistent `a · b` sub-line (drops blanks). */
+function subLine(...parts: (string | null | undefined)[]): string | undefined {
+  const kept = parts.filter(Boolean)
+  return kept.length ? kept.join(' · ') : undefined
 }
 
 interface SharedObjectPickerProps {
@@ -74,45 +37,31 @@ interface SharedObjectPickerProps {
    *  keyboard collapse (input was focused when + was tapped) re-pins the menu to
    *  the button instead of stranding it at the top of the screen. */
   anchorRef: React.RefObject<HTMLElement | null>
-  /** Conversation container — scopes the leaf list overlay so it roots in the
-   *  conversation stacking context, not document.body (where the parent drawer
-   *  covers it). */
-  containerRef: React.RefObject<HTMLElement | null>
   clinicId: string | null
   onClose: () => void
   /** User chose "Photo" — caller opens its file picker. */
   onPickPhoto: () => void
-  /** User picked a clustered object to share. */
+  /** User picked a clustered object to share (live shared_ref). */
   onPick: (content: SharedRefContent) => void
-  /** User picked a text template / order set — sent as a frozen note-blocks
-   *  bundle (no live ref exists for config). Caller packs + sends into the chat. */
+  /** User picked a text template / order set — sent as a frozen note-blocks bundle
+   *  (no live ref exists for config). Caller packs + sends into the chat. */
   onPickBundle: (source: BundleSource) => void
 }
 
-function formatEventWhen(startISO: string, category: string): string {
-  const d = new Date(startISO)
-  const date = d.toLocaleDateString([], { month: 'short', day: 'numeric' })
-  const time = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
-  return `${date}, ${time}${category ? ` · ${category}` : ''}`
-}
-
-interface Row { id: string; label: string; sub: string }
-
 /**
- * Anchored picker for the chat composer's "+" add menu. Two steps inside one
- * PreviewOverlay: a menu (Photo / Event / Map / Property / Template), then a
- * searchable list.
+ * Anchored "+" add menu for the chat composer — a single {@link AnchoredMenu} (list
+ * layout). The root is Photo / Event / Map / Property / Template; every non-Photo
+ * entry drills into a SEARCHABLE card list inside the same menu (Map drills again to
+ * a feature step). One primitive, real Back navigation — no PreviewOverlay stitch.
  *
  * Event / Map / Property send a LIVE `shared_ref` (opaque id + operational label,
- * resolved against the receiver's vault) via onPick. Template lists the user's
- * text templates + plan order sets and sends a FROZEN note-blocks bundle via
- * onPickBundle — config has no live ref (objectBundle.ts). Never the payload,
- * never PHI.
+ * resolved against the receiver's vault) via onPick. Template lists the user's text
+ * templates + plan order sets and sends a FROZEN note-blocks bundle via onPickBundle
+ * — config has no live ref (objectBundle.ts). Never the payload, never PHI.
  */
 export function SharedObjectPicker({
   isOpen,
   anchorRef,
-  containerRef,
   clinicId,
   onClose,
   onPickPhoto,
@@ -124,9 +73,10 @@ export function SharedObjectPicker({
   const events = useCalendarStore(s => s.events)
   const overlays = useMapOverlaysStore(s => s.overlays)
   const storeItems = usePropertyStore(s => s.items)
+  const storeLocations = usePropertyStore(s => s.locations)
 
-  // Note-block sources for the 'template' step: personal (profile) + clinic
-  // content, merged. Text templates dedupe by abbr, order sets by id.
+  // Note-block sources for the Template step: personal (profile) + clinic content,
+  // merged. Text templates dedupe by abbr, order sets by id.
   const { profile } = useUserProfile()
   const { content: clinicContent } = useEditableClinicContent(clinicId)
   const textTemplates = useMemo<TextExpander[]>(() => {
@@ -140,262 +90,162 @@ export function SharedObjectPicker({
     return merged.filter(o => { if (seen.has(o.id)) return false; seen.add(o.id); return true })
   }, [clinicContent.planOrderSets, profile.planOrderSets])
 
-  const [step, setStep] = useState<Step>('menu')
-  // Overlay whose features the user is drilling into (map-feature step).
-  const [featureOverlay, setFeatureOverlay] = useState<LocalMapOverlay | null>(null)
-  // A menu row that advances to a leaf step must NOT let the AnchoredMenu's
-  // select-then-onClose collapse the whole picker — flag the navigation so our
-  // onClose handler swallows that one close. Real dismissals (backdrop/Photo)
-  // leave it false and fall through to close.
-  const navigatingRef = useRef(false)
-
-  // Property store only inits when its drawer opens; if a chat reaches the
-  // property step with no cached items, do a one-shot clinic-items fetch.
+  // Property store only inits when its drawer opens; lazy-fetch clinic items the
+  // first time the user drills into Property with an empty cache.
   const [fetchedItems, setFetchedItems] = useState<LocalPropertyItem[] | null>(null)
-  useEffect(() => {
-    if (step === 'property-item' && storeItems.length === 0 && fetchedItems === null && clinicId) {
-      void fetchClinicItems(clinicId).then(setFetchedItems).catch(() => setFetchedItems([]))
-    }
-  }, [step, storeItems.length, fetchedItems, clinicId])
+  const [fetchedLocations, setFetchedLocations] = useState<LocalPropertyLocation[] | null>(null)
+  const fetchStarted = useRef(false)
+  useEffect(() => { if (!isOpen) fetchStarted.current = false }, [isOpen])
   const propertyItems = storeItems.length > 0 ? storeItems : (fetchedItems ?? [])
+  const propertyLocations = storeLocations.length > 0 ? storeLocations : (fetchedLocations ?? [])
 
-  // Reset to the menu on every open AND close — resetting on close too means a
-  // reopen never briefly renders a stale leaf step before this fires.
-  useEffect(() => { setStep('menu'); setFeatureOverlay(null); navigatingRef.current = false }, [isOpen])
+  // Live snapshot of everything the search levels read. AnchoredMenu holds each
+  // pushed level's spec in its OWN state, so `rows()` closures MUST read live data
+  // through this ref — otherwise a lazy fetch (property) or a store update wouldn't
+  // reach an already-open level.
+  const dataRef = useRef({ events, overlays, propertyItems, propertyLocations, textTemplates, orderSets })
+  dataRef.current = { events, overlays, propertyItems, propertyLocations, textTemplates, orderSets }
 
-  // Advance from the root menu into a leaf step without the menu's own close
-  // collapsing the picker.
-  const goToStep = (next: Step) => { navigatingRef.current = true; setStep(next) }
+  // Same for the pick callbacks + clinicId — lets `menuItems` build ONCE (stable
+  // identity) without going stale on prop changes.
+  const ctxRef = useRef({ onPick, onPickBundle, onPickPhoto, clinicId })
+  ctxRef.current = { onPick, onPickBundle, onPickPhoto, clinicId }
 
-  const buildRows = useMemo(() => (filter: string): Row[] => {
-    const q = filter.trim().toLowerCase()
-    if (step === 'calendar-event') {
-      return [...events]
-        .filter(e => !q || (e.title ?? '').toLowerCase().includes(q) || (e.location ?? '').toLowerCase().includes(q))
-        .sort((a, b) => b.start_time.localeCompare(a.start_time))
-        .slice(0, 60)
-        .map(e => ({ id: e.id, label: e.title || 'Untitled event', sub: formatEventWhen(e.start_time, e.category) }))
+  const menuItems = useMemo<ContextMenuItem[]>(() => {
+    const pickRef = (kind: RefKind, row: MenuCardRow) =>
+      ctxRef.current.onPick({ type: 'shared_ref', refKind: kind, refId: row.id, label: row.label, subLabel: row.sub })
+
+    const eventSpec: SearchLevelSpec = {
+      title: 'Share an event',
+      placeholder: 'Filter events…',
+      emptyText: 'No events to share',
+      rows: (q) => {
+        const ql = q.trim().toLowerCase()
+        return [...dataRef.current.events]
+          .filter(e => !ql || (e.title ?? '').toLowerCase().includes(ql) || (e.location ?? '').toLowerCase().includes(ql))
+          .sort((a, b) => b.start_time.localeCompare(a.start_time))
+          .slice(0, 60)
+          .map(e => ({ id: e.id, label: e.title || 'Untitled event', sub: subLine(formatEventDate(e.start_time), getCategoryMeta(e.category).label) }))
+      },
+      onPick: (r) => pickRef('calendar-event', r),
     }
-    if (step === 'map-overlay') {
-      return [...overlays]
-        .filter(o => !q || (o.name ?? '').toLowerCase().includes(q) || (o.description ?? '').toLowerCase().includes(q))
-        .sort((a, b) => (b.updated_at ?? '').localeCompare(a.updated_at ?? ''))
-        .slice(0, 60)
-        .map(o => ({
-          id: o.id,
-          label: o.name || 'Untitled overlay',
-          sub: o.description || `${o.features?.length ?? 0} ${(o.features?.length ?? 0) === 1 ? 'feature' : 'features'}`,
-        }))
-    }
-    if (step === 'property-item') {
-      return [...propertyItems]
-        .filter(i => !q
-          || (i.name ?? '').toLowerCase().includes(q)
-          || (i.nsn ?? '').toLowerCase().includes(q)
-          || (i.serial_number ?? '').toLowerCase().includes(q))
-        .sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''))
-        .slice(0, 60)
-        .map(i => {
-          const qty = i.is_serialized ? (i.serial_number ? `SN ${i.serial_number}` : 'Serialized') : `Qty ${i.quantity}`
-          return {
+
+    const propertySpec: SearchLevelSpec = {
+      title: 'Share an item',
+      placeholder: 'Filter property…',
+      emptyText: 'No property to share',
+      rows: (q) => {
+        const ql = q.trim().toLowerCase()
+        const locName = new Map(dataRef.current.propertyLocations.map(l => [l.id, l.name]))
+        return [...dataRef.current.propertyItems]
+          .filter(i => !ql
+            || (i.name ?? '').toLowerCase().includes(ql)
+            || (i.nsn ?? '').toLowerCase().includes(ql)
+            || (i.serial_number ?? '').toLowerCase().includes(ql))
+          .sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''))
+          .slice(0, 60)
+          .map(i => ({
             id: i.id,
             label: i.name || i.nomenclature || 'Item',
-            sub: i.nsn ? `${qty} · NSN ${i.nsn}` : qty,
+            sub: subLine(i.nsn ? `NSN ${i.nsn}` : null, i.location_id ? locName.get(i.location_id) : null),
+          }))
+      },
+      onPick: (r) => pickRef('property-item', r),
+    }
+
+    // Flat list of every overlay feature across every overlay — no drill step. Row id
+    // is `${overlayId}:${featureId}` (both bare uuids, so one split is unambiguous) so
+    // onPick can resolve the parent overlay + feature live.
+    const mapSpec: SearchLevelSpec = {
+      title: 'Share a map feature',
+      placeholder: 'Filter features…',
+      emptyText: 'No map features to share',
+      rows: (q) => {
+        const ql = q.trim().toLowerCase()
+        const rows: MenuCardRow[] = []
+        for (const o of dataRef.current.overlays) {
+          const overlayName = o.name || 'Untitled overlay'
+          for (const f of o.features ?? []) {
+            if (ql
+              && !(f.label ?? '').toLowerCase().includes(ql)
+              && !(f.mgrs ?? '').toLowerCase().includes(ql)
+              && !overlayName.toLowerCase().includes(ql)) continue
+            rows.push({
+              id: `${o.id}:${f.id}`,
+              label: f.label || 'Untitled feature',
+              sub: subLine(f.mgrs, overlayName),
+            })
           }
+        }
+        return rows.slice(0, 80)
+      },
+      onPick: (r) => {
+        const [overlayId, featureId] = r.id.split(':')
+        const overlay = dataRef.current.overlays.find(o => o.id === overlayId)
+        const f = overlay?.features?.find(ff => ff.id === featureId)
+        if (!overlay || !f) return
+        ctxRef.current.onPick({
+          type: 'shared_ref', refKind: 'map-overlay', refId: overlay.id, featureId: f.id,
+          label: f.label || 'Waypoint', subLabel: overlay.name || 'Overlay',
         })
+      },
     }
-    if (step === 'map-feature' && featureOverlay) {
-      const feats = featureOverlay.features ?? []
-      const featureRows: Row[] = feats
-        .filter(f => !q || (f.label ?? '').toLowerCase().includes(q))
-        .map(f => ({ id: f.id, label: f.label || 'Untitled feature', sub: featureTypeLabel(f) }))
-      // "Whole overlay" stays pinned at top when not actively filtering.
-      const whole: Row = {
-        id: WHOLE_OVERLAY,
-        label: 'Whole overlay',
-        sub: `${feats.length} ${feats.length === 1 ? 'feature' : 'features'}`,
-      }
-      return q ? featureRows : [whole, ...featureRows]
+
+    const templateSpec: SearchLevelSpec = {
+      title: 'Share a template',
+      placeholder: 'Filter templates…',
+      emptyText: 'No templates to share',
+      rows: (q) => {
+        const ql = q.trim().toLowerCase()
+        const te: MenuCardRow[] = dataRef.current.textTemplates
+          .filter(t => !ql || t.abbr.toLowerCase().includes(ql) || (t.expansion ?? '').toLowerCase().includes(ql))
+          .map(t => ({ id: `te:${t.abbr}`, label: t.abbr, sub: t.expansion?.trim() || 'Text template' }))
+        const os: MenuCardRow[] = dataRef.current.orderSets
+          .filter(o => !ql || o.name.toLowerCase().includes(ql))
+          .map(o => ({ id: `os:${o.id}`, label: o.name, sub: orderSetSub(o) }))
+        return [...te, ...os].slice(0, 80)
+      },
+      onPick: (r) => {
+        if (r.id.startsWith('os:')) {
+          const o = dataRef.current.orderSets.find(x => `os:${x.id}` === r.id)
+          if (!o) return
+          ctxRef.current.onPickBundle({ kind: 'note-blocks', blocks: { planOrderSets: [o] }, label: o.name, subLabel: 'Order set' })
+        } else {
+          const t = dataRef.current.textTemplates.find(x => `te:${x.abbr}` === r.id)
+          if (!t) return
+          ctxRef.current.onPickBundle({ kind: 'note-blocks', blocks: { textExpanders: [t] }, label: t.abbr, subLabel: 'Text template' })
+        }
+      },
     }
-    return []
-  }, [step, events, overlays, propertyItems, featureOverlay])
 
-  const handlePick = (kind: RefKind, row: Row) => {
-    onPick({ type: 'shared_ref', refKind: kind, refId: row.id, label: row.label, subLabel: row.sub })
-    onClose()
-  }
-
-  // Map-overlay rows drill into a feature step instead of picking immediately —
-  // unless the overlay has no features, in which case share the whole overlay.
-  const handleRowClick = (kind: RefKind, row: Row) => {
-    if (kind === 'map-overlay') {
-      const o = overlays.find(ov => ov.id === row.id)
-      if (o && (o.features?.length ?? 0) > 0) { setFeatureOverlay(o); setStep('map-feature'); return }
+    // Fires as the Property row's side-effect (onAction) right before its drill —
+    // one-shot clinic-items fetch when the store cache is cold.
+    const prefetchProperty = () => {
+      const cid = ctxRef.current.clinicId
+      if (!cid || fetchStarted.current) return
+      if (usePropertyStore.getState().items.length > 0) return
+      fetchStarted.current = true
+      void fetchClinicItems(cid).then(setFetchedItems).catch(() => setFetchedItems([]))
+      void fetchClinicLocations(cid).then(setFetchedLocations).catch(() => setFetchedLocations([]))
     }
-    handlePick(kind, row)
-  }
 
-  // Feature step: "Whole overlay" → overlay-scoped ref; a feature → ref + featureId.
-  const handlePickFeature = (row: Row) => {
-    if (!featureOverlay) return
-    if (row.id === WHOLE_OVERLAY) {
-      const count = featureOverlay.features?.length ?? 0
-      onPick({
-        type: 'shared_ref',
-        refKind: 'map-overlay',
-        refId: featureOverlay.id,
-        label: featureOverlay.name || 'Untitled overlay',
-        subLabel: featureOverlay.description || `${count} ${count === 1 ? 'feature' : 'features'}`,
-      })
-    } else {
-      const f = featureOverlay.features?.find(ff => ff.id === row.id)
-      if (!f) return
-      onPick({
-        type: 'shared_ref',
-        refKind: 'map-overlay',
-        refId: featureOverlay.id,
-        featureId: f.id,
-        label: f.label || 'Waypoint',
-        subLabel: featureOverlay.name || 'Overlay',
-      })
-    }
-    onClose()
-  }
+    return [
+      { key: 'photo', label: 'Photo', icon: ImageIcon, onAction: () => ctxRef.current.onPickPhoto() },
+      { key: 'event', label: 'Event', icon: Calendar, search: eventSpec },
+      { key: 'map', label: 'Map', icon: MapIcon, search: mapSpec },
+      { key: 'property', label: 'Property', icon: Package, search: propertySpec, onAction: prefetchProperty },
+      { key: 'template', label: 'Template', icon: FileText, search: templateSpec },
+    ]
+  }, [])
 
-  // ── Template step (text templates + order sets → frozen note-blocks bundle) ──
-  interface TemplateRow { id: string; label: string; sub: string; isOrderSet: boolean }
-  const orderSetSub = (o: PlanOrderSet): string => {
-    const n = Object.values(o.presets).reduce((sum, arr) => sum + (arr?.length ?? 0), 0)
-    return `Order set · ${n} ${n === 1 ? 'order' : 'orders'}`
-  }
-  const buildTemplateRows = (filter: string): TemplateRow[] => {
-    const q = filter.trim().toLowerCase()
-    const te: TemplateRow[] = textTemplates
-      .filter(t => !q || t.abbr.toLowerCase().includes(q) || (t.expansion ?? '').toLowerCase().includes(q))
-      .map(t => ({ id: `te:${t.abbr}`, label: t.abbr, sub: t.expansion?.trim() || 'Text template', isOrderSet: false }))
-    const os: TemplateRow[] = orderSets
-      .filter(o => !q || o.name.toLowerCase().includes(q))
-      .map(o => ({ id: `os:${o.id}`, label: o.name, sub: orderSetSub(o), isOrderSet: true }))
-    return [...te, ...os].slice(0, 80)
-  }
-  const handlePickTemplate = (row: TemplateRow) => {
-    if (row.isOrderSet) {
-      const o = orderSets.find(x => `os:${x.id}` === row.id)
-      if (!o) return
-      onPickBundle({ kind: 'note-blocks', blocks: { planOrderSets: [o] }, label: o.name, subLabel: 'Order set' })
-    } else {
-      const t = textTemplates.find(x => `te:${x.abbr}` === row.id)
-      if (!t) return
-      onPickBundle({ kind: 'note-blocks', blocks: { textExpanders: [t] }, label: t.abbr, subLabel: 'Text template' })
-    }
-    onClose()
-  }
-  const templateList = (filter: string) => {
-    const rows = buildTemplateRows(filter)
-    if (rows.length === 0) {
-      return <p className="text-[10pt] text-tertiary text-center py-10">No templates to share</p>
-    }
-    return (
-      <div className="py-1">
-        {rows.map(row => (
-          <PickerListRow
-            key={row.id}
-            icon={row.isOrderSet ? ClipboardList : FileText}
-            label={row.label}
-            sub={row.sub}
-            onClick={() => handlePickTemplate(row)}
-          />
-        ))}
-      </div>
-    )
-  }
-
-  const title = step === 'menu' ? 'Share'
-    : step === 'calendar-event' ? 'Share an event'
-    : step === 'property-item' ? 'Share an item'
-    : step === 'template' ? 'Share a template'
-    : step === 'map-feature' ? (featureOverlay?.name || 'Share a feature')
-    : 'Share a map'
-
-  // ── Menu step — the canonical anchored list menu (same primitive as the
-  // message long-press menu). Photo fires the file picker; the rest advance to a
-  // searchable leaf list. ──
-  const menuItems: ContextMenuItem[] = [
-    { key: 'photo', label: 'Photo', icon: ImageIcon, onAction: onPickPhoto },
-    { key: 'event', label: 'Event', icon: Calendar, onAction: () => goToStep('calendar-event') },
-    { key: 'map', label: 'Map', icon: MapIcon, onAction: () => goToStep('map-overlay') },
-    { key: 'property', label: 'Property', icon: Package, onAction: () => goToStep('property-item') },
-    { key: 'template', label: 'Template', icon: FileText, onAction: () => goToStep('template') },
-  ]
-
-  // ── Object-list step (also the map-feature drill-in) ────────────────────
-  const list = (filter: string) => {
-    const isFeatureStep = step === 'map-feature'
-    const kind = step as RefKind
-    const rows = buildRows(filter)
-    const Icon = kind === 'calendar-event' ? Calendar : kind === 'property-item' ? Package : MapIcon
-    const emptyText = isFeatureStep ? 'No features to share'
-      : kind === 'calendar-event' ? 'No events to share'
-      : kind === 'property-item' ? 'No property to share'
-      : 'No maps to share'
-    if (rows.length === 0) {
-      return <p className="text-[10pt] text-tertiary text-center py-10">{emptyText}</p>
-    }
-    const rowIcon = (row: Row) => {
-      if (!isFeatureStep || row.id === WHOLE_OVERLAY) return Icon
-      const f = featureOverlay?.features?.find(ff => ff.id === row.id)
-      return f ? featureIcon(f) : MapIcon
-    }
-    return (
-      <div className="py-1">
-        {rows.map(row => (
-          <PickerListRow
-            key={row.id}
-            icon={rowIcon(row)}
-            label={row.label}
-            sub={row.sub}
-            onClick={() => isFeatureStep ? handlePickFeature(row) : handleRowClick(kind, row)}
-            chevron={!isFeatureStep && kind === 'map-overlay'}
-          />
-        ))}
-      </div>
-    )
-  }
-
-  // Root menu → canonical anchored menu (live-anchored, so an iOS keyboard
-  // collapse re-pins it to the + button). Closed state falls here too, so a stale
-  // leaf never flashes on reopen.
-  if (!isOpen || step === 'menu') {
-    return (
-      <AnchoredMenu
-        isOpen={isOpen}
-        anchorRef={anchorRef}
-        layout="list"
-        align="left"
-        items={menuItems}
-        onClose={() => {
-          if (navigatingRef.current) { navigatingRef.current = false; return }
-          onClose()
-        }}
-      />
-    )
-  }
-
-  // Leaf steps — searchable object / template lists stay in the anchored
-  // PreviewOverlay (a static context-menu submenu can't host a search field).
   return (
-    <PreviewOverlay
+    <AnchoredMenu
       isOpen={isOpen}
+      anchorRef={anchorRef}
+      layout="list"
+      align="left"
+      items={menuItems}
       onClose={onClose}
-      anchorRect={anchorRef.current?.getBoundingClientRect() ?? null}
-      containerRef={containerRef}
-      anchored
-      title={title}
-      onBack={step === 'map-feature' ? () => setStep('map-overlay') : () => setStep('menu')}
-      maxWidth={320}
-      previewMaxHeight="50dvh"
-      searchPlaceholder="Filter…"
-      preview={(filter: string) => step === 'template' ? templateList(filter) : list(filter)}
     />
   )
 }

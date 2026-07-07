@@ -110,6 +110,27 @@ export function lineKeyOf(it: { nsn: string | null; lin: string | null; name: st
   return scope + '||' + ident
 }
 
+/** The PHYSICAL STOCK behind each line's on-hand count, indexed by (LIN + NSN) line key —
+ *  the "what's filling this" set. A line's `onHand` is the SUM over every live row sharing
+ *  its key; this exposes the individual rows so the Cluster Hand Receipt and Shortages panels
+ *  can drill from an aggregated line to the located stacks that fill it (tap → locate on map).
+ *
+ *  Excludes: location-less AUTHORIZED TARGETS (the requirement rows carry the key but hold no
+ *  physical stock — see isAuthTarget) and any zero-on-hand row. Each key's fillers therefore
+ *  sum to that line's onHand, and every one is a real, locatable stack. Sorted by qty desc. */
+export function fillersByLineKey(items: LocalPropertyItem[]): Map<string, LocalPropertyItem[]> {
+  const m = new Map<string, LocalPropertyItem[]>()
+  for (const it of items) {
+    if (it.deleted_at || it.turned_in_at || it.quantity <= 0 || isAuthTarget(it)) continue
+    const k = lineKeyOf(it)
+    const arr = m.get(k)
+    if (arr) arr.push(it)
+    else m.set(k, [it])
+  }
+  for (const arr of m.values()) arr.sort((a, b) => b.quantity - a.quantity || a.name.localeCompare(b.name))
+  return m
+}
+
 /** Group every authorization-tracked line by its SKO parent. Live items only
  *  (turned-in / deleted rows have left the book). */
 export function groupAuthorized(items: LocalPropertyItem[]): AuthorizedList {

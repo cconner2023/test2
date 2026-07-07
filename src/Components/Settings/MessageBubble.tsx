@@ -1,5 +1,5 @@
 import { useRef, useCallback, useState, useEffect, useMemo } from 'react'
-import { Check, CheckCheck, X, Reply, Forward, Trash2, Clock, Play, Pause, Copy, Download, CalendarPlus, Calendar, Map as MapIcon, Package, ChevronRight, MoreHorizontal, ScanLine } from 'lucide-react'
+import { Check, CheckCheck, X, Reply, Forward, Trash2, Clock, Play, Pause, Copy, Download, CalendarPlus, ChevronRight, MoreHorizontal, ScanLine } from 'lucide-react'
 import { ActionButton } from '@/Components/primitives/ActionButton'
 import { GESTURE_THRESHOLDS, isInteractiveTarget } from '../../Utilities/GestureUtils'
 import type { DecryptedSignalMessage } from '../../lib/signal/transportTypes'
@@ -9,9 +9,6 @@ import { IntakeRequestCard } from '../Messages/IntakeRequestCard'
 import { OncallCallCard } from '../Messages/OncallCallCard'
 import { OutsideMessageCard } from '../Messages/OutsideMessageCard'
 import { OutsideSessionCard } from '../Messages/OutsideSessionCard'
-import { SharedBundleCard } from '../Messages/SharedBundleCard'
-import { SharedObjectRow } from '../Messages/SharedObjectRow'
-import { OverlaySnapshot } from '../MapOverlay/OverlaySnapshot'
 import type { LucideIcon } from 'lucide-react'
 import { detectFirstDate } from '../../Utilities/dateDetect'
 import { detectEncodedNote } from '../../Utilities/noteDecode'
@@ -192,24 +189,25 @@ export function MessageBubble({
   const [playProgress, setPlayProgress] = useState(0)
 
   const requestNewCalendarEvent = useNavigationStore(s => s.requestNewCalendarEvent)
-  const openCalendarEvent = useNavigationStore(s => s.openCalendarEvent)
-  const setShowMapOverlayDrawer = useNavigationStore(s => s.setShowMapOverlayDrawer)
-  const setShowPropertyDrawer = useNavigationStore(s => s.setShowPropertyDrawer)
   const isDevRole = useAuthStore(s => s.isDevRole)
 
-  const sharedRef = message.content?.type === 'shared_ref' ? message.content : null
-
-  const handleOpenRef = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation()
-    if (!sharedRef) return
-    if (sharedRef.refKind === 'calendar-event') {
-      openCalendarEvent(sharedRef.refId)
-    } else if (sharedRef.refKind === 'property-item') {
-      setShowPropertyDrawer(true, sharedRef.refId)
-    } else {
-      setShowMapOverlayDrawer(true, sharedRef.refId, sharedRef.featureId ?? null)
+  // Unified shared-object descriptor — both live deep-links (shared_ref) and
+  // frozen bundles (shared_bundle) render as ONE text+chevron bubble: a type
+  // header, the name, and an optional detail line. No icon, no thumbnail. Tapping
+  // opens the lifted-row menu (same as long-press) where the type-appropriate
+  // Open / Add actions live (see ChatDetailView).
+  const sharedObject = (() => {
+    const c = message.content
+    if (c?.type === 'shared_ref') {
+      const typeLabel = c.refKind === 'calendar-event' ? 'Event' : c.refKind === 'property-item' ? 'Property' : 'Map'
+      return { typeLabel, name: c.label, detail: c.subLabel ?? null }
     }
-  }, [sharedRef, openCalendarEvent, setShowMapOverlayDrawer, setShowPropertyDrawer])
+    if (c?.type === 'shared_bundle') {
+      const typeLabel = c.bundleKind === 'note-blocks' ? 'Template' : c.bundleKind === 'calendar-event' ? 'Event' : 'Map'
+      return { typeLabel, name: c.label, detail: c.subLabel ?? null }
+    }
+    return null
+  })()
 
   // Detect a schedulable date in text content — drives the floating "add to
   // calendar" affordance. Dev-gated for now. Runs on already-decrypted local
@@ -323,22 +321,6 @@ export function MessageBubble({
     )
   }
 
-  // Cross-cluster shared object bundle: a frozen calendar event / map overlay
-  // from another cluster, rendered as an "Add to my cluster" card. The dedicated
-  // card mounts the calendar/overlay write hooks itself (only for bundle
-  // messages) so the main bubble path stays light.
-  if (message.content?.type === 'shared_bundle') {
-    return (
-      <SharedBundleCard
-        content={message.content}
-        isOwn={isOwn}
-        senderName={senderName}
-        messageId={message.id}
-        onLongPress={(x, y, rect, html) => onLongPress?.(message, x, y, rect, html)}
-      />
-    )
-  }
-
   // Outside→cluster one-way message card: sealed text note from an outside party.
   if (message.content?.type === 'outside_message') {
     return (
@@ -430,6 +412,18 @@ export function MessageBubble({
       html: el.outerHTML.replace('scale-[0.92] brightness-90', ''),
     }
   }, [])
+
+  // Tap a shared-object bubble → open the lifted-row menu (reuses the long-press
+  // pipeline) so Open / Add ride the menu instead of bespoke in-bubble buttons.
+  const handleOpenMenu = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    // A long-press already opened the menu; swallow the trailing click so it
+    // doesn't re-open on top of the lifted clone.
+    if (longPressFiredRef.current) return
+    const snap = captureBubble()
+    const r = snap.rect ?? (e.currentTarget as HTMLElement).getBoundingClientRect()
+    onLongPress?.(message, r.left + r.width / 2, r.top + r.height / 2, snap.rect, snap.html)
+  }, [message, onLongPress, captureBubble])
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     const t = e.touches[0]
@@ -566,36 +560,28 @@ export function MessageBubble({
   // ── Render content ────────────────────────────────────────────────────
 
   const renderContent = () => {
-    if (sharedRef) {
-      const RefIcon = sharedRef.refKind === 'calendar-event' ? Calendar : sharedRef.refKind === 'property-item' ? Package : MapIcon
-      const refRow = (
-        <SharedObjectRow
-          icon={RefIcon}
-          label={sharedRef.label}
-          subLabel={sharedRef.subLabel}
-          tone={isOwn ? 'own' : 'peer'}
-          onClick={handleOpenRef}
-          className="min-w-[180px] max-w-[240px]"
-        />
-      )
-      // A shared map overlay shows a static thumbnail of its features above the
-      // row. Resolves from the local overlays cache; falls back to a map-icon
-      // placeholder when the overlay hasn't synced in yet.
-      if (sharedRef.refKind === 'map-overlay') {
-        return (
-          <div className="flex flex-col gap-1.5">
-            <OverlaySnapshot
-              overlayId={sharedRef.refId}
-              width={240}
-              height={120}
-              onClick={handleOpenRef}
-              className="rounded-lg"
-            />
-            {refRow}
+    if (sharedObject) {
+      return (
+        <button
+          onClick={handleOpenMenu}
+          className="w-full flex items-center gap-2.5 text-left min-w-[170px] max-w-[240px]"
+        >
+          <div className="min-w-0 flex-1">
+            <p className={`text-[8pt] font-semibold uppercase tracking-wider ${isOwn ? 'text-white/55' : 'text-themeblue3'}`}>
+              {sharedObject.typeLabel}
+            </p>
+            <p className={`text-sm font-medium truncate ${isOwn ? 'text-white' : 'text-primary'}`}>
+              {sharedObject.name}
+            </p>
+            {sharedObject.detail && (
+              <p className={`text-[9pt] truncate ${isOwn ? 'text-white/70' : 'text-tertiary'}`}>
+                {sharedObject.detail}
+              </p>
+            )}
           </div>
-        )
-      }
-      return refRow
+          <ChevronRight size={16} className={`shrink-0 self-center ${isOwn ? 'text-white/60' : 'text-tertiary'}`} />
+        </button>
+      )
     }
 
     if (isEditing && !isImage) {
