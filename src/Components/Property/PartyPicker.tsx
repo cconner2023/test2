@@ -1,5 +1,5 @@
 import { useCallback, useContext, useState } from 'react'
-import { Check, ChevronDown, Plus } from 'lucide-react'
+import { Check, ChevronDown } from 'lucide-react'
 import { TextInput } from '@/Components/primitives/FormInputs'
 import { StackNavContext } from '@/Components/stackNav'
 import { PreviewOverlay } from '../PreviewOverlay'
@@ -66,30 +66,51 @@ function MemberRows({ members, filter, selectedId, onPick }: {
   )
 }
 
-/** Inline "add outside-cluster party" row for the drill screen (the desktop
- *  PreviewOverlay gets this via its own add-custom input). Primitive inline-add
- *  pattern: bare TextInput + circular Plus. */
-function AddExternalRow({ placeholder, onAdd }: { placeholder: string; onAdd: (name: string) => void }) {
-  const [name, setName] = useState('')
-  const commit = () => { const n = name.trim(); if (n) { onAdd(n); setName('') } }
+/** The member list as a self-contained selectable screen. Owns its own `selected`
+ *  (seeded from the host) so a tap reflects immediately even when FROZEN inside a
+ *  pushed stack screen (the morph path never re-renders the frame's closure).
+ *  Re-tapping the CURRENTLY-selected member CLEARS it (→ onClear) and STAYS on the
+ *  screen so the user can switch to the free-text field below; tapping a different
+ *  member picks it and closes. */
+function MemberSelectScreen({ members, filter, initialSelectedId, onPickMember, onClear, onClose }: {
+  members: Member[]
+  filter: string
+  initialSelectedId: string | null
+  onPickMember: (m: Member) => void
+  onClear: () => void
+  onClose: () => void
+}) {
+  const [selectedId, setSelectedId] = useState(initialSelectedId)
+  const handle = (m: Member) => {
+    if (selectedId === m.id) { setSelectedId(null); onClear() }   // re-tap = clear, stay put
+    else { setSelectedId(m.id); onPickMember(m); onClose() }      // pick a new one = commit + close
+  }
+  return <MemberRows members={members} filter={filter} selectedId={selectedId} onPick={handle} />
+}
+
+/** The outside-cluster entry — ONE primitive text input, no add-to-list affordance.
+ *  A party is a single value (we never add more than one), so there's no "+": the
+ *  typed name IS the external party, bound live as you type. Enter closes the picker;
+ *  tapping a member row overrides it (a later commit wins). Seeded from the current
+ *  external name so re-opening shows what was typed. Own local state so it survives a
+ *  frozen pushed stack screen (the morph path), committing each change up via onPick. */
+function ExternalNameField({ initial, placeholder, onPick, onClose }: {
+  initial: string
+  placeholder: string
+  onPick: (name: string) => void
+  onClose: () => void
+}) {
+  const [name, setName] = useState(initial)
   return (
-    <div className="flex items-center gap-2 border-t border-primary/6 px-4 py-2.5">
+    <div className="border-t border-primary/6 px-4 py-3">
       <TextInput
         bare
         value={name}
-        onChange={setName}
+        onChange={(v) => { setName(v); const t = v.trim(); if (t) onPick(t) }}
         placeholder={placeholder}
-        inputClassName="flex-1 bg-transparent text-base md:text-sm text-primary placeholder:text-tertiary focus:outline-none"
-        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); commit() } }}
+        onKeyDown={(e) => { if (e.key === 'Enter' && name.trim()) { e.preventDefault(); onClose() } }}
+        inputClassName="w-full bg-transparent text-base md:text-sm text-primary placeholder:text-tertiary focus:outline-none"
       />
-      <button
-        type="button"
-        onClick={commit}
-        aria-label="Add party"
-        className="shrink-0 w-9 h-9 flex items-center justify-center rounded-full bg-themeblue3 text-white active:scale-95 transition-all"
-      >
-        <Plus size={16} />
-      </button>
     </div>
   )
 }
@@ -98,7 +119,9 @@ interface PartyPickerProps {
   /** Cluster roster — anything with an id + displayName (HolderInfo / mapped medic). */
   members: Member[]
   value: Party | null
-  onChange: (party: Party) => void
+  /** Null clears the selection (re-tapping the picked member) — every consumer
+   *  holds `Party | null`, so this is safe. */
+  onChange: (party: Party | null) => void
   /** Row placeholder shown when nothing is picked (e.g. "Operator", "Sign to…"). */
   placeholder: string
   /** Picker overlay / drill-screen title. Defaults to `placeholder`. */
@@ -142,14 +165,21 @@ export function PartyPicker({
         searchPlaceholder,
         render: (_p, nav, filter = '') => (
           <>
-            <MemberRows
+            <MemberSelectScreen
               members={members}
               filter={filter}
-              selectedId={selectedId}
-              onPick={(m) => { pickMember(m); nav.pop() }}
+              initialSelectedId={selectedId}
+              onPickMember={pickMember}
+              onClear={() => onChange(null)}
+              onClose={nav.pop}
             />
             {allowExternal && (
-              <AddExternalRow placeholder={externalPlaceholder} onAdd={(name) => { pickExternal(name); nav.pop() }} />
+              <ExternalNameField
+                initial={value?.kind === 'external' ? value.name : ''}
+                placeholder={externalPlaceholder}
+                onPick={pickExternal}
+                onClose={nav.pop}
+              />
             )}
           </>
         ),
@@ -180,15 +210,25 @@ export function PartyPicker({
           anchorRect={anchor}
           title={title}
           searchPlaceholder={searchPlaceholder}
-          onAdd={allowExternal ? (name) => { pickExternal(name); setOpen(false) } : undefined}
-          addPlaceholder={externalPlaceholder}
           preview={(filter, clearFilter) => (
-            <MemberRows
-              members={members}
-              filter={filter}
-              selectedId={selectedId}
-              onPick={(m) => { pickMember(m); clearFilter(); setOpen(false) }}
-            />
+            <>
+              <MemberSelectScreen
+                members={members}
+                filter={filter}
+                initialSelectedId={selectedId}
+                onPickMember={pickMember}
+                onClear={() => onChange(null)}
+                onClose={() => { clearFilter(); setOpen(false) }}
+              />
+              {allowExternal && (
+                <ExternalNameField
+                  initial={value?.kind === 'external' ? value.name : ''}
+                  placeholder={externalPlaceholder}
+                  onPick={pickExternal}
+                  onClose={() => { clearFilter(); setOpen(false) }}
+                />
+              )}
+            </>
           )}
         />
       )}

@@ -1,5 +1,6 @@
 import type { LocalPropertyItem, LocalPropertyLocation, ItemType, UnitOfIssue } from '../Types/PropertyTypes'
 import type { OrderLine } from './propertyShortage'
+import { isLinContainer, isZoneShadow } from './propertyAuthorized'
 
 const ITEM_TYPES: ItemType[] = ['CI', 'DI', 'SI']
 const UNITS_OF_ISSUE: UnitOfIssue[] = ['EA', 'SET', 'PR', 'BOT', 'PK', 'TUB']
@@ -28,19 +29,32 @@ export function exportPropertyCSV(
   const locationMap = new Map<string, string>()
   for (const loc of locations) locationMap.set(loc.id, loc.name)
 
-  const rows = items.map((item) => [
-    escapeCSVField(item.name),
-    escapeCSVField(item.nomenclature ?? ''),
-    escapeCSVField(item.nsn ?? ''),
-    escapeCSVField(item.lin ?? ''),
-    String(item.quantity),
-    item.quantity_authorized == null ? '' : String(item.quantity_authorized),
-    escapeCSVField(item.serial_number ?? ''),
-    escapeCSVField(item.location_id ? locationMap.get(item.location_id) ?? '' : ''),
-    item.item_type ?? 'DI',
-    item.unit_of_issue ?? '',
-    item.pack_size == null ? '' : String(item.pack_size),
-  ])
+  // A component parented under a LIN carries its LIN on the container, not on itself — resolve
+  // the EFFECTIVE LIN from the parent so the export round-trips (re-import re-associates by LIN).
+  const linByContainerId = new Map<string, string>()
+  for (const it of items) if (isLinContainer(it) && it.lin) linByContainerId.set(it.id, it.lin)
+
+  // LIN containers + zone-shadows are STRUCTURAL rows (auto-derived from the LIN column / zones),
+  // not CSV line-items — emit them and a re-import would spawn junk duplicates. Skip them.
+  const rows = items
+    .filter((item) => !isLinContainer(item) && !isZoneShadow(item))
+    .map((item) => {
+      const effectiveLin =
+        item.lin ?? (item.parent_item_id ? linByContainerId.get(item.parent_item_id) ?? '' : '')
+      return [
+        escapeCSVField(item.name),
+        escapeCSVField(item.nomenclature ?? ''),
+        escapeCSVField(item.nsn ?? ''),
+        escapeCSVField(effectiveLin),
+        String(item.quantity),
+        item.quantity_authorized == null ? '' : String(item.quantity_authorized),
+        escapeCSVField(item.serial_number ?? ''),
+        escapeCSVField(item.location_id ? locationMap.get(item.location_id) ?? '' : ''),
+        item.item_type ?? 'DI',
+        item.unit_of_issue ?? '',
+        item.pack_size == null ? '' : String(item.pack_size),
+      ]
+    })
 
   const csv = [CSV_HEADERS.join(','), ...rows.map((r) => r.join(','))].join('\r\n')
   downloadCSVString(csv, `property-export-${new Date().toISOString().slice(0, 10)}.csv`)
@@ -159,17 +173,6 @@ function parseCSVText(text: string): ParseResult {
       continue
     }
 
-    const rawQty = cell(fields, idx.quantity)
-    let quantity = 1
-    if (rawQty !== '') {
-      const parsed = parseInt(rawQty, 10)
-      if (isNaN(parsed) || parsed < 1 || !Number.isInteger(Number(rawQty))) {
-        errors.push(`Row ${lineNum}: Quantity must be a positive integer (got "${rawQty}")`)
-        continue
-      }
-      quantity = parsed
-    }
-
     const rawAuth = cell(fields, idx.quantityAuthorized)
     let quantityAuthorized: number | null = null
     if (rawAuth !== '') {
@@ -179,6 +182,19 @@ function parseCSVText(text: string): ParseResult {
         continue
       }
       quantityAuthorized = parsed
+    }
+
+    const rawQty = cell(fields, idx.quantity)
+    // Blank quantity: an authorized (BOM) line defaults to 0 on hand — authorized-but-unreceived
+    // is a real state that surfaces as short. A plain stock line with no quantity defaults to 1.
+    let quantity = quantityAuthorized != null ? 0 : 1
+    if (rawQty !== '') {
+      const parsed = parseInt(rawQty, 10)
+      if (isNaN(parsed) || parsed < 0 || !Number.isInteger(Number(rawQty))) {
+        errors.push(`Row ${lineNum}: Quantity must be a non-negative integer (got "${rawQty}")`)
+        continue
+      }
+      quantity = parsed
     }
 
     const rawType = cell(fields, idx.itemType).toUpperCase()
@@ -289,21 +305,24 @@ function parseCSVRow(line: string): string[] {
 
 // ── Reconcile (additive-or-merge import) ────────────────────
 //
-// An upload NEVER duplicates the book: each row either ADDS a new item or MERGES into an
-// existing one. Matching:
-//   - A row WITH a serial number is DISTINCT — matched by serial only (50 serialized items
-//     never collapse into one NSN pool). No serial match → create.
-//   - A row WITHOUT a serial is FUNGIBLE — matched into the bulk pool by NSN → LIN → name.
-//     Serial-bearing / serialized existing items are excluded from that pool.
-//   - No match → create (additive).
-// Matches are consumed so two CSV rows sharing an NSN map to two different existing items.
+// Aligned with the DECOUPLED (LIN + NSN) model shared by propertyAuthorized / propertyShortage
+// (see lineKeyOf): an upload matches and aggregates by the composite (assigned-LIN SCOPE + NSN
+// IDENTITY), NOT by a global NSN pool. Three rules keep it non-destructive:
 //
-// On a merge, present `quantity` is reconciled per mergeMode:
-//   - 'set' — present qty becomes the CSV value (inventory snapshot; re-upload idempotent).
-//   - 'add' — CSV qty is added to what's on hand (received shipment; re-upload accumulates).
-// Authorized qty always tracks the CSV row. Authorization-tracked items absent from the
-// upload are DE-AUTHORIZED (quantity_authorized → null, kept on hand), never deleted, and
-// their present stock is never touched.
+//   1. ROLE SPLIT — an AUTHORIZED row (Quantity Authorized set) only ever matches an existing
+//      authorization-tracked line; a STOCK row (blank Authorized) only ever matches loose,
+//      non-tracked stock. So a BOM re-upload can NEVER clobber the physical stock filling a
+//      target (and vice-versa) — the corruption the old global-NSN matcher allowed.
+//   2. SERIAL rows are DISTINCT — matched 1:1 by serial only (never collapse into a pool).
+//   3. Rows with no match CREATE. Every created row carrying a LIN is parented under that LIN's
+//      container (auto-created when missing — see ReconcilePlan.linContainers) so its on-hand
+//      aggregates into the hand-receipt line exactly as the folds compute it.
+//
+// On a merge, present `quantity` reconciles per mergeMode ('set' = snapshot/idempotent, 'add' =
+// received/accumulates); a STOCK row never rewrites authorization. Authorization-tracked lines
+// the BOM omits are DE-AUTHORIZED (quantity_authorized → null, kept on hand, never deleted) —
+// but ONLY within the LINs the upload actually addresses (scoped, not clinic-wide) and only when
+// the upload carries authorized rows at all (a pure stock/receipt sheet never de-auths).
 
 /** How a merge reconciles present quantity. */
 export type MergeMode = 'set' | 'add'
@@ -328,6 +347,10 @@ export interface Deauthorize {
 }
 
 export interface ReconcilePlan {
+  /** Distinct LINs (original case) that CREATE rows will hang under but which have no existing
+   *  container. The drawer creates a LIN container for each first, then parents the new items to
+   *  them so on-hand aggregates into the line (the decoupled LIN + NSN model). */
+  linContainers: string[]
   creates: ParsedRow[]
   merges: MergeUpdate[]
   deauthorizes: Deauthorize[]
@@ -344,28 +367,59 @@ function pushKey(map: Map<string, LocalPropertyItem[]>, key: string, item: Local
   else map.set(key, [item])
 }
 
+/** Composite-key IDENTITY half — NSN when present, else name. Mirrors lineKeyOf. */
+function identOf(nsn: string | null | undefined, name: string): string {
+  const n = norm(nsn)
+  return n ? 'nsn:' + n : 'name:' + norm(name)
+}
+
 export function reconcileImport(
   rows: ParsedRow[],
   existing: LocalPropertyItem[],
   opts: { mergeMode: MergeMode } = { mergeMode: 'set' },
 ): ReconcilePlan {
-  const live = existing.filter((it) => !it.deleted_at)
+  // Turned-in / deleted rows have left the book — exclude them (matches the folds' `live`).
+  const live = existing.filter((it) => !it.deleted_at && !it.turned_in_at)
 
-  // Distinct (serial-bearing/serialized) items are matchable ONLY by serial; fungible
-  // items populate the NSN/LIN/name bulk pool.
-  const bySerial = new Map<string, LocalPropertyItem[]>()
-  const byNsn = new Map<string, LocalPropertyItem[]>()
-  const byLin = new Map<string, LocalPropertyItem[]>()
-  const byName = new Map<string, LocalPropertyItem[]>()
+  // LIN containers, and the container-id → LIN lookup used to resolve an item's SCOPE. A component
+  // parented under a container inherits the container's LIN, so both key by that LIN string —
+  // making a CSV row (which only knows the LIN string) comparable to container-parented stock.
+  const containerByLin = new Map<string, string>()
+  const linByContainerId = new Map<string, string>()
   for (const it of live) {
-    const isDistinct = it.is_serialized || !!norm(it.serial_number)
-    if (isDistinct) {
-      pushKey(bySerial, norm(it.serial_number), it)
-    } else {
-      pushKey(byNsn, norm(it.nsn), it)
-      pushKey(byLin, norm(it.lin), it)
-      pushKey(byName, norm(it.name), it)
+    if (!isLinContainer(it)) continue
+    const l = norm(it.lin)
+    if (!l) continue
+    containerByLin.set(l, it.id)
+    linByContainerId.set(it.id, l)
+  }
+
+  // SCOPE half of the composite key: the LIN the item/row is assigned under (parent LIN → own LIN
+  // → top). A non-LIN parent (e.g. a named SKO) falls back to the parent id.
+  const itemScope = (it: LocalPropertyItem): string => {
+    if (it.parent_item_id) {
+      const pl = linByContainerId.get(it.parent_item_id)
+      return pl ? 'lin:' + pl : 'p:' + it.parent_item_id
     }
+    const l = norm(it.lin)
+    return l ? 'lin:' + l : 'top'
+  }
+  const rowScope = (row: ParsedRow): string => (norm(row.lin) ? 'lin:' + norm(row.lin) : 'top')
+
+  // Match pools. Structural rows (LIN containers, zone-shadows) are NEVER matched — they're
+  // headers / zone identities, not line-items, so an upload can't clobber them.
+  const bySerial = new Map<string, LocalPropertyItem[]>() // distinct: serial → items
+  const tracked = new Map<string, LocalPropertyItem[]>()  // authorized lines: key → items
+  const loose = new Map<string, LocalPropertyItem[]>()    // untracked stock: key → items
+  for (const it of live) {
+    if (isLinContainer(it) || isZoneShadow(it)) continue
+    if (it.is_serialized || norm(it.serial_number)) {
+      pushKey(bySerial, norm(it.serial_number), it)
+      continue
+    }
+    const k = itemScope(it) + '||' + identOf(it.nsn, it.name)
+    if (it.quantity_authorized != null) pushKey(tracked, k, it)
+    else pushKey(loose, k, it)
   }
 
   const consumed = new Set<string>()
@@ -381,11 +435,14 @@ export function reconcileImport(
   const merges: MergeUpdate[] = []
 
   for (const row of rows) {
-    const match = norm(row.serialNumber)
-      ? takeFirst(bySerial, norm(row.serialNumber))
-      : takeFirst(byNsn, norm(row.nsn)) ??
-        takeFirst(byLin, norm(row.lin)) ??
-        takeFirst(byName, norm(row.name))
+    const serial = norm(row.serialNumber)
+    const key = rowScope(row) + '||' + identOf(row.nsn, row.name)
+    // ROLE SPLIT: an authorized row consults only tracked lines; a stock row only loose stock.
+    const match = serial
+      ? takeFirst(bySerial, serial)
+      : row.quantityAuthorized != null
+        ? takeFirst(tracked, key)
+        : takeFirst(loose, key)
 
     if (!match) {
       creates.push(row)
@@ -396,7 +453,9 @@ export function reconcileImport(
     const oldQty = match.quantity
     const newQty = opts.mergeMode === 'add' ? oldQty + row.quantity : row.quantity
     const oldAuth = match.quantity_authorized ?? null
-    const newAuth = row.quantityAuthorized
+    // A stock row (blank Authorized) must never clear an existing authorization by omission; only
+    // an authorized row rewrites it.
+    const newAuth = row.quantityAuthorized != null ? row.quantityAuthorized : oldAuth
     const qtyChanged = newQty !== oldQty
     const authChanged = oldAuth !== newAuth
     if (qtyChanged || authChanged) {
@@ -404,15 +463,33 @@ export function reconcileImport(
     }
   }
 
-  // Authorization-tracked items absent from the upload are de-authorized, not deleted.
+  // A LIN container is needed for every LIN a CREATE row hangs under that doesn't already have one.
+  const linContainers: string[] = []
+  const seenLin = new Set<string>()
+  for (const row of creates) {
+    const l = norm(row.lin)
+    if (!l || containerByLin.has(l) || seenLin.has(l)) continue
+    seenLin.add(l)
+    linContainers.push(row.lin.trim())
+  }
+
+  // De-authorize BOM-omitted lines — SCOPED to the LINs this upload addresses, and only when the
+  // upload carries authorized rows (a pure stock/receipt sheet never touches the BOM). Serialized
+  // authorizations are matched 1:1 and never swept by a fungible BOM upload.
+  const authScopes = new Set<string>()
+  for (const row of rows) if (row.quantityAuthorized != null) authScopes.add(rowScope(row))
   const deauthorizes: Deauthorize[] = []
-  for (const it of live) {
-    if (it.quantity_authorized != null && !consumed.has(it.id)) {
-      deauthorizes.push({ itemId: it.id, name: it.name, onHand: it.quantity })
+  if (authScopes.size > 0) {
+    for (const it of live) {
+      if (isLinContainer(it) || isZoneShadow(it)) continue
+      if (it.is_serialized || norm(it.serial_number)) continue
+      if (it.quantity_authorized != null && !consumed.has(it.id) && authScopes.has(itemScope(it))) {
+        deauthorizes.push({ itemId: it.id, name: it.name, onHand: it.quantity })
+      }
     }
   }
 
-  return { creates, merges, deauthorizes }
+  return { linContainers, creates, merges, deauthorizes }
 }
 
 // ── Shortage order-list export ──────────────────────────────

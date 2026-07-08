@@ -11,6 +11,7 @@ import {
   type ParsedRow,
   type MergeMode,
 } from '../../Utilities/PropertyCSV'
+import { isLinContainer } from '../../Utilities/propertyAuthorized'
 import { ROOT_LOCATION_NAME } from '../../Types/PropertyTypes'
 
 interface PropertyCSVImportProps {
@@ -52,7 +53,8 @@ export function PropertyCSVImport({ onClose }: PropertyCSVImportProps) {
     () => reconcileImport(parsedRows, items, { mergeMode }),
     [parsedRows, items, mergeMode],
   )
-  const totalOps = plan.creates.length + plan.merges.length + plan.deauthorizes.length
+  const totalOps =
+    plan.linContainers.length + plan.creates.length + plan.merges.length + plan.deauthorizes.length
 
   const handleClose = useCallback(() => {
     setStep('pick')
@@ -100,10 +102,50 @@ export function PropertyCSVImport({ onClose }: PropertyCSVImportProps) {
       }
     }
 
-    // New items: present qty + authorized in one create.
+    // LIN containers: created rows parent under their LIN so on-hand aggregates into the
+    // hand-receipt line (the decoupled LIN + NSN model). Map existing containers, then create the
+    // missing ones the plan flagged.
+    const containerMap = new Map<string, string>()
+    for (const it of items) {
+      if (!it.deleted_at && !it.turned_in_at && isLinContainer(it) && it.lin) {
+        containerMap.set(it.lin.trim().toLowerCase(), it.id)
+      }
+    }
+    for (const lin of plan.linContainers) {
+      const created = await addItem({
+        clinic_id: clinicId,
+        name: lin,
+        nomenclature: null,
+        nsn: null,
+        lin,
+        condition_code: 'serviceable',
+        location_id: null,
+        current_holder_id: null,
+        parent_item_id: null,
+        expiry_date: null,
+        notes: null,
+        is_serialized: false,
+        serial_number: null,
+        quantity: 0,
+        location_tag_id: null,
+        photo_url: null,
+        visual_fingerprint: null,
+        sub_cluster_id: null,
+        quantity_authorized: null,
+        item_type: 'DI',
+        unit_of_issue: null,
+        pack_size: null,
+      })
+      if (created) containerMap.set(lin.trim().toLowerCase(), created.id)
+    }
+
+    // New items: present qty + authorized in one create, parented under their LIN container.
     for (const row of plan.creates) {
       const locationId = row.location.trim()
         ? locMap.get(row.location.trim().toLowerCase()) ?? null
+        : null
+      const parentId = row.lin.trim()
+        ? containerMap.get(row.lin.trim().toLowerCase()) ?? null
         : null
       await addItem({
         clinic_id: clinicId,
@@ -114,7 +156,7 @@ export function PropertyCSVImport({ onClose }: PropertyCSVImportProps) {
         condition_code: 'serviceable',
         location_id: locationId,
         current_holder_id: null,
-        parent_item_id: null,
+        parent_item_id: parentId,
         expiry_date: null,
         notes: null,
         is_serialized: row.itemType === 'SI' || !!row.serialNumber.trim(),
@@ -231,6 +273,9 @@ export function PropertyCSVImport({ onClose }: PropertyCSVImportProps) {
 
           {/* Reconcile diff — an upload is an upsert, never a wipe. */}
           <div className="flex flex-col gap-1 text-sm">
+            {plan.linContainers.length > 0 && (
+              <span className="text-secondary">{plan.linContainers.length} new hand-receipt {plan.linContainers.length === 1 ? 'LIN' : 'LINs'}</span>
+            )}
             <span className="text-primary font-medium">{plan.creates.length} new {plan.creates.length === 1 ? 'item' : 'items'}</span>
             <span className="text-secondary">{plan.merges.length} merged into existing {plan.merges.length === 1 ? 'item' : 'items'}</span>
             {plan.deauthorizes.length > 0 && (

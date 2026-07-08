@@ -193,6 +193,7 @@ const SearchablePickerList = ({ options, value, onSelect, placeholder }: {
   onSelect: (opt: PickerOption) => void
   placeholder?: string
 }) => {
+  const isMobile = useIsMobile()
   const [q, setQ] = useState('')
   const filtered = q.trim()
     ? options.filter((o) => getOptionLabel(o).toLowerCase().includes(q.trim().toLowerCase()))
@@ -206,7 +207,11 @@ const SearchablePickerList = ({ options, value, onSelect, placeholder }: {
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="Search…"
-          autoFocus
+          // Desktop only: on the mobile morph this list mounts inside the Sheet the
+          // instant the picker row is tapped, and an autoFocus'd input pops the iOS
+          // keyboard over a tap-to-select list the user never asked to type into.
+          // Desktop keeps autoFocus (popover, physical keyboard, type-to-filter).
+          autoFocus={!isMobile}
           className="w-full bg-transparent text-base md:text-sm text-primary placeholder:text-tertiary focus:outline-none"
         />
       </div>

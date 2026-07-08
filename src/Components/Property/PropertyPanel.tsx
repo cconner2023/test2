@@ -42,7 +42,7 @@ import { PropertyTurnInDetail, type PropertyTurnInDetailHandle, type PendingTurn
 import { PropertyCSVImport } from './PropertyCSVImportDrawer'
 import { PropertyShortagePanel, type PropertyShortageHandle } from './PropertyShortagePanel'
 import { PropertyAuthorizedPanel } from './PropertyAuthorizedPanel'
-import { isLinContainer, isAuthTarget } from '../../Utilities/propertyAuthorized'
+import { isLinContainer, isAuthTarget, isZoneShadow } from '../../Utilities/propertyAuthorized'
 import { SignOutForm, type SignOutFormHandle } from './SignOutForm'
 import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill'
 import { SearchInput } from '@/Components/primitives/SearchInput'
@@ -281,7 +281,7 @@ export const PropertyPanel = memo(function PropertyPanel({
     // active book (canvas + tree) and live only in the Turn-In history. LIN containers are
     // PHR headers, not discrete property — they never render on the canvas or in the tree
     // (only their component items, which are real placeable items, do).
-    let items = store.items.filter(i => !i.turned_in_at && !isLinContainer(i) && !isAuthTarget(i))
+    let items = store.items.filter(i => !i.turned_in_at && !isLinContainer(i) && !isAuthTarget(i) && !isZoneShadow(i))
     // Staged turn-in stock is a clinic-wide operational state, NOT squad property: it
     // must stay visible at the (system) Pending Turn-In zone regardless of the squad
     // lens / "My property" filter — otherwise the zone empties and the tree hides it

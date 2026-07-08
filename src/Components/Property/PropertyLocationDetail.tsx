@@ -2,6 +2,7 @@ import { useState, useCallback, forwardRef, useImperativeHandle, type RefObject 
 import { Pencil, Package, FolderPlus, Trash2, Layers, Wrench, Route, ClipboardList, QrCode, Download } from 'lucide-react'
 import type { ContextMenuItem } from '@/Components/primitives/ContextMenu'
 import type { LocalPropertyItem, LocalPropertyLocation, HolderInfo } from '../../Types/PropertyTypes'
+import { isZoneShadow } from '../../Utilities/propertyAuthorized'
 import { downloadBlob } from '../../Utilities/downloadUtils'
 import { dataUrlToBlob } from '../../Utilities/imageUtils'
 import { PropertyLocationTree } from './PropertyLocationTree'
@@ -19,6 +20,57 @@ import { DD1750Sheet } from './DD1750Sheet'
 /** Stable empty holders map for vehicle timelines (no custody/move events). */
 const EMPTY_HOLDERS: Map<string, HolderInfo> = new Map()
 
+/** Map a live item to a DD 1750 packing-list line. */
+const toDD1750Line = (it: LocalPropertyItem): DD1750Item => ({
+  name: it.name,
+  nomenclature: it.nomenclature,
+  nsn: it.nsn,
+  serial_number: it.serial_number,
+  quantity: it.quantity,
+})
+
+/**
+ * Collect DD 1750 lines for a zone SUBTREE (the end item + everything packed
+ * inside it), pre-order:
+ *   1. the zone's direct contents — live, top-level (a packed SKO stays one line),
+ *      excluding zone-shadows (a shadow is emitted as its child zone's component
+ *      line, below — never as loose stock here);
+ *   2. for each child zone: if it's a LIN component (has a zone-shadow) emit that
+ *      shadow as the component line, then recurse into the child.
+ * So zone A → A's items, then child zone B (as a LIN-component line), then B's
+ * items, then B's children, … The root zone itself is the END ITEM (box 3), so
+ * its own shadow is never listed — only descendants' shadows are.
+ */
+function collectDD1750Lines(
+  rootId: string,
+  items: LocalPropertyItem[],
+  locations: LocalPropertyLocation[],
+): DD1750Item[] {
+  const seen = new Set<string>() // cycle guard (offline sync could theoretically loop parent_id)
+  const walk = (zoneId: string): DD1750Item[] => {
+    if (seen.has(zoneId)) return []
+    seen.add(zoneId)
+    const out: DD1750Item[] = []
+    const contents = items.filter(
+      (it) =>
+        it.location_id === zoneId &&
+        !it.deleted_at &&
+        !it.turned_in_at &&
+        it.parent_item_id === null &&
+        !it.represents_location_id,
+    )
+    out.push(...contents.map(toDD1750Line))
+    const children = locations.filter((l) => l.parent_id === zoneId && !l.deleted_at)
+    for (const child of children) {
+      const shadow = items.find((it) => isZoneShadow(it) && it.represents_location_id === child.id)
+      if (shadow) out.push(toDD1750Line(shadow))
+      out.push(...walk(child.id))
+    }
+    return out
+  }
+  return walk(rootId)
+}
+
 export interface PropertyLocationDetailHandle {
   /** Open the vehicle's PMCS overlay (5988). The trigger lives in the host header
    *  ellipsis (buildLocationMenuItems → onPmcs); the overlay state lives here so
@@ -27,8 +79,9 @@ export interface PropertyLocationDetailHandle {
   /** Open the vehicle's Dispatch overlay (DA 5982/5987). Same host-ellipsis
    *  trigger pattern as openPmcs (buildLocationMenuItems → onDispatch). */
   openDispatch: () => void
-  /** Generate a DD 1750 packing list for THIS zone (flat: top-level items whose
-   *  location_id === the zone). Same host-ellipsis trigger pattern
+  /** Generate a DD 1750 packing list for THIS zone as the END ITEM — its contents
+   *  plus every child zone (LIN-component shadow line) and their nested contents,
+   *  recursively (see collectDD1750Lines). Same host-ellipsis trigger pattern
    *  (buildLocationMenuItems → onDD1750); the preview overlay lives here. */
   openDD1750: () => void
   /** Generate a Data Matrix label sheet (BCN-ZONE:<id>) for THIS zone — the zone
@@ -86,23 +139,17 @@ export const PropertyLocationDetail = forwardRef<PropertyLocationDetailHandle, P
   const { exportZoneLabels, zoneLabelPreview, downloadZoneLabels, clearZoneLabelPreview, status: zoneLabelStatus } = useZoneLabelExport()
   const [showDD1750, setShowDD1750] = useState(false)
 
-  // DD 1750 = the zone's contents, FLAT: top-level items physically in THIS zone
-  // (parent_item_id === null → a packed SKO is one line, not exploded), live only
-  // (not tombstoned, not turned in). packed-by / reviewed-by come from the picker sheet.
+  // DD 1750 = this zone as the END ITEM plus everything packed inside it,
+  // RECURSIVELY: the zone's direct contents (top-level → a packed SKO stays one
+  // line), then each child zone that is a LIN component (its shadow line) and all
+  // of that child's contents, on down the subtree. Live rows only (not tombstoned,
+  // not turned in). packed-by / reviewed-by come from the picker sheet.
   const handleDD1750Create = useCallback((opts: { packedBy?: string; reviewedBy?: string }) => {
-    const lines: DD1750Item[] = items
-      .filter((it) => it.location_id === location.id && !it.deleted_at && !it.turned_in_at && it.parent_item_id === null)
-      .map((it) => ({
-        name: it.name,
-        nomenclature: it.nomenclature,
-        nsn: it.nsn,
-        serial_number: it.serial_number,
-        quantity: it.quantity,
-      }))
+    const lines = collectDD1750Lines(location.id, items, locations)
     const date = new Date().toISOString().slice(0, 10)
     void exportDD1750({ zoneName: location.name, packedBy: opts.packedBy, reviewedBy: opts.reviewedBy, date, items: lines })
     setShowDD1750(false)
-  }, [items, location.id, location.name, exportDD1750])
+  }, [items, locations, location.id, location.name, exportDD1750])
 
   // Print a Data Matrix label (BCN-ZONE:<id>) for THIS zone — the zone sibling of
   // item labels. Single label, no NSN, default 'standard' (Avery 5160) stock.

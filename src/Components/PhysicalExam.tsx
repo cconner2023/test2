@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Check, RotateCcw, Plus, AlertTriangle, ChevronLeft, ChevronRight, X, Trash2, GripVertical, Activity } from 'lucide-react';
+import { Check, RotateCcw, Plus, AlertTriangle, ChevronRight, Trash2, GripVertical, Activity } from 'lucide-react';
 import { PreviewOverlay } from './PreviewOverlay';
 import type { ContextMenuAction } from './PreviewOverlay';
 import { ExamBlockPreview } from './ExamBlockPreview';
@@ -920,6 +920,8 @@ export function PhysicalExam({
 
     const editingEntry = editingIndex !== null ? flatBlockList[editingIndex] : null;
     const editingState = editingEntry ? (blockStates[editingEntry.key] ?? defaultItemState()) : null;
+    const editingIsFirst = editingIndex === 0;
+    const editingIsLast = editingIndex !== null && editingIndex === flatBlockList.length - 1;
 
     const deleteBlock = useCallback((entry: FlatEntry) => {
         setAddedBlocks(prev => prev.filter(b => b.key !== entry.key));
@@ -927,7 +929,7 @@ export function PhysicalExam({
         setEditingIndex(null);
     }, []);
 
-    // Swipe-to-delete removal — mirrors the in-popover X/trash actions:
+    // Swipe-to-delete removal — mirrors the in-popover trash action:
     // added blocks are always removable; template-mode blocks drop their key.
     const canRemove = useCallback((entry: FlatEntry) =>
         entry.isAdded || (mode === 'template' && !!onBlockKeysChange && !!templateBlockKeys),
@@ -944,39 +946,19 @@ export function PhysicalExam({
         }
     }, [deleteBlock, mode, onBlockKeysChange, templateBlockKeys]);
 
+    // Footer-left destructive group: reset + delete/remove. Block-to-block
+    // navigation (‹ ›) lives in the header; the Check submit is the way out.
     const popoverActions = useMemo((): ContextMenuAction[] => {
         if (editingIndex === null) return [];
-        const len = flatBlockList.length;
-        const isFirst = editingIndex === 0;
-        const isLast = editingIndex === len - 1;
         const entry = flatBlockList[editingIndex];
-        const actions: ContextMenuAction[] = [];
-        if (!isFirst) {
-            actions.push({
-                key: 'prev',
-                label: '',
-                icon: ChevronLeft,
-                onAction: () => setEditingIndex(editingIndex - 1),
-                closesOnAction: false,
-            });
-        }
-        // All Normal / All Abnormal moved into the block (ExamBlockPreview quick-action row).
-        actions.push({
+        const actions: ContextMenuAction[] = [{
             key: 'reset',
             label: '',
             icon: RotateCcw,
             onAction: () => setBlockStates(prev => ({ ...prev, [entry.key]: defaultItemState() })),
             closesOnAction: false,
-        });
-        if (!isLast) {
-            actions.push({
-                key: 'next',
-                label: '',
-                icon: ChevronRight,
-                onAction: () => setEditingIndex(editingIndex + 1),
-                closesOnAction: false,
-            });
-        }
+            variant: 'danger',
+        }];
         if (entry.isAdded) {
             actions.push({
                 key: 'delete',
@@ -989,7 +971,7 @@ export function PhysicalExam({
             actions.push({
                 key: 'remove',
                 label: '',
-                icon: X,
+                icon: Trash2,
                 onAction: () => {
                     onBlockKeysChange(templateBlockKeys.filter(k => k !== entry.key));
                     setBlockStates(prev => ({ ...prev, [entry.key]: defaultItemState() }));
@@ -999,7 +981,7 @@ export function PhysicalExam({
             });
         }
         return actions;
-    }, [editingIndex, flatBlockList, blockStates, deleteBlock]);
+    }, [editingIndex, flatBlockList, mode, onBlockKeysChange, templateBlockKeys, deleteBlock]);
 
 
     // ── Drag reorder ─────────────────────────────────────────────
@@ -1200,6 +1182,18 @@ export function PhysicalExam({
                     anchorRect={popoverAnchorRect}
                     maxWidth={520}
                     title={editingEntry.viewBlock.label}
+                    onBack={!editingIsFirst ? () => setEditingIndex(i => (i ?? 0) - 1) : undefined}
+                    headerActions={!editingIsLast ? (
+                        <button
+                            type="button"
+                            onClick={() => setEditingIndex(i => (i ?? 0) + 1)}
+                            className="w-8 h-8 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
+                            aria-label="Next system"
+                        >
+                            <ChevronRight size={16} />
+                        </button>
+                    ) : undefined}
+                    hideHeaderClose
                     searchPlaceholder="Filter findings..."
                     preview={(filter, clearFilter) => {
                         const augmented = augmentBlock(editingEntry.viewBlock, editingEntry.key);
@@ -1219,6 +1213,11 @@ export function PhysicalExam({
                     actions={popoverActions}
                     onAdd={(value) => addCustomFinding(editingEntry.key, value)}
                     addPlaceholder="Add custom finding..."
+                    rightFooter={
+                        <ActionPill>
+                            <ActionButton icon={Check} label="Done" onClick={() => setEditingIndex(null)} />
+                        </ActionPill>
+                    }
                 />
             )}
 

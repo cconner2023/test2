@@ -44,15 +44,9 @@ export const ExamBlockPreview: React.FC<ExamBlockPreviewProps> = ({
     : block.findings;
 
   return (
-    <div>
-      {/* Header */}
-      <div className="px-4 pt-4 pb-2">
-        <span className="text-[9pt] font-semibold text-secondary uppercase tracking-wider">
-          {block.label}
-        </span>
-      </div>
-
-      {/* Findings grid — left: normal, right: abnormals (one per row) */}
+    <div className="pt-2">
+      {/* Findings grid — left: normal, right: abnormals (one per row).
+          The block label is owned by the hosting overlay header, not repeated here. */}
       {filtered.length > 0 ? (
         <div className="mb-4 border border-tertiary/10 rounded-xl overflow-hidden">
           {/* Quick actions — mark the whole block normal / abnormal. Not a finding

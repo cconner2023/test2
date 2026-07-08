@@ -82,6 +82,20 @@ export function isLinContainer(it: {
   )
 }
 
+/** A ZONE-SHADOW: an item that IS the hand-receipt identity of a property_locations zone
+ *  (a vehicle/case/bag that is itself accountable property). It's a COUNTED COMPONENT under
+ *  its parent LIN — NOT a LIN header — but carries `represents_location_id` = the zone it is.
+ *  That field, not isLinContainer, is what separates it from loose stock located in the same
+ *  zone, and it's the map/tree pin-exclusion marker (the zone already draws itself). Live rows
+ *  only. See the zone-shadow-component model. */
+export function isZoneShadow(it: {
+  represents_location_id?: string | null
+  deleted_at?: string | null
+  turned_in_at: string | null
+}): boolean {
+  return !!it.represents_location_id && !it.deleted_at && !it.turned_in_at
+}
+
 /** An AUTHORIZED TARGET (decoupled model): a tracked line (quantity_authorized set) with NO
  *  location. It's the "what we should have" target — one per (LIN + NSN) — that lives ONLY in
  *  the Cluster Hand Receipt; its on-hand is the SUM of all located physical stock matching its

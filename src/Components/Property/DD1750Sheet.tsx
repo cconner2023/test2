@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Check } from 'lucide-react'
-import { PickerInput } from '@/Components/primitives/FormInputs'
 import { OverlayStack } from '@/Components/primitives/OverlayStack'
 import { PillButton } from '@/Components/primitives/HeaderPill'
+import { PartyPicker, partyLabel, type Party } from './PartyPicker'
 import { useClinicMedics } from '../../Hooks/useClinicMedics'
 import { useAuthStore } from '../../stores/useAuthStore'
 
@@ -35,27 +35,47 @@ export function DD1750Sheet({ isOpen, onClose, onCreate, containerRef, zIndex }:
   const profile = useAuthStore((s) => s.profile)
   const selfName = memberName({ rank: profile.rank, lastName: profile.lastName, firstName: profile.firstName })
 
-  const [packedBy, setPackedBy] = useState('')
-  const [reviewedBy, setReviewedBy] = useState('')
+  const [packedBy, setPackedBy] = useState<Party | null>(null)
+  const [reviewedBy, setReviewedBy] = useState<Party | null>(null)
 
-  // Default "packed by" to the current user; clear both on each open.
+  // Default "packed by" to the current user; clear both on each open. Name-only
+  // (external kind) — the DD 1750 persists just the display string, so the self
+  // default carries no roster identity (matches the old string-picker behavior).
   useEffect(() => {
-    if (isOpen) { setPackedBy(selfName); setReviewedBy('') }
+    if (isOpen) {
+      setPackedBy(selfName ? { kind: 'external', name: selfName } : null)
+      setReviewedBy(null)
+    }
   }, [isOpen, selfName])
 
-  const options = medics.map(memberName).filter((n) => n.length > 0).sort((a, b) => a.localeCompare(b))
-  // Keep the current user selectable even if not yet in the medics roster.
-  const packedOptions = selfName && !options.includes(selfName) ? [selfName, ...options] : options
+  // Cluster roster for the picker — a party is a member (checkmark) OR an off-roster
+  // name typed into the primitive input. Only partyLabel() is persisted.
+  const members = medics
+    .map((m) => ({ id: m.id, displayName: memberName(m) }))
+    .filter((m) => m.displayName.length > 0)
+    .sort((a, b) => a.displayName.localeCompare(b.displayName))
 
   const create = () => {
-    onCreate({ packedBy: packedBy.trim() || undefined, reviewedBy: reviewedBy.trim() || undefined })
+    onCreate({ packedBy: partyLabel(packedBy) || undefined, reviewedBy: partyLabel(reviewedBy) || undefined })
     onClose()
   }
 
   const body = (
     <div className="divide-y divide-tertiary/8">
-      <PickerInput value={packedBy} onChange={setPackedBy} options={packedOptions} placeholder="Packed by" />
-      <PickerInput value={reviewedBy} onChange={setReviewedBy} options={options} placeholder="Reviewed by" />
+      <PartyPicker
+        members={members}
+        value={packedBy}
+        onChange={setPackedBy}
+        placeholder="Packed by"
+        externalPlaceholder="Off-roster name…"
+      />
+      <PartyPicker
+        members={members}
+        value={reviewedBy}
+        onChange={setReviewedBy}
+        placeholder="Reviewed by"
+        externalPlaceholder="Off-roster name…"
+      />
     </div>
   )
 

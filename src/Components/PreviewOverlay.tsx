@@ -20,7 +20,7 @@ export interface ContextMenuAction {
   closesOnAction?: boolean
 }
 
-export function PopoverHeader({ title, onClose, onBack, headerActions }: { title: string; onClose: () => void; onBack?: () => void; headerActions?: ReactNode }) {
+export function PopoverHeader({ title, onClose, onBack, headerActions, hideClose }: { title: string; onClose: () => void; onBack?: () => void; headerActions?: ReactNode; hideClose?: boolean }) {
   return (
     <div className="flex items-center justify-between px-4 pt-3.5 pb-3">
       <div className="flex items-center gap-1 min-w-0">
@@ -37,13 +37,15 @@ export function PopoverHeader({ title, onClose, onBack, headerActions }: { title
       </div>
       <div className="flex items-center gap-1 shrink-0">
         {headerActions}
-        <button
-          onClick={onClose}
-          className="w-8 h-8 rounded-full flex items-center justify-center text-tertiary hover:text-tertiary active:scale-95 transition-all"
-          aria-label="Close"
-        >
-          <X size={16} />
-        </button>
+        {!hideClose && (
+          <button
+            onClick={onClose}
+            className="w-8 h-8 rounded-full flex items-center justify-center text-tertiary hover:text-tertiary active:scale-95 transition-all"
+            aria-label="Close"
+          >
+            <X size={16} />
+          </button>
+        )}
       </div>
     </div>
   )
@@ -69,6 +71,9 @@ interface PreviewOverlayProps {
   /** Optional overflow control(s) rendered left of the header X (e.g. an ellipsis
    *  menu for object-level Share/Export/Delete). Requires `title`. */
   headerActions?: ReactNode
+  /** Suppress the header's close X — use when a footer action (e.g. a Check submit
+   *  in `rightFooter`) is the single, unambiguous way out. Requires `title`. */
+  hideHeaderClose?: boolean
   /** When provided, shows a back chevron to the left of the title */
   onBack?: () => void
   /** Override the default max-width (340px) of the card */
@@ -118,6 +123,7 @@ export function PreviewOverlay({
   footer,
   title,
   headerActions,
+  hideHeaderClose,
   onBack,
   maxWidth,
   previewMaxHeight,
@@ -220,8 +226,12 @@ export function PreviewOverlay({
     )
   }
 
-  const leading = onAdd && actions.length > 0 ? actions.slice(0, -1) : actions
-  const trailing = onAdd && actions.length > 0 ? actions[actions.length - 1] : null
+  // Footer action order: destructive (danger) actions render first (far left),
+  // then the rest, then the + add button — the "destructive far-left, add next"
+  // convention. Array.sort is stable, so same-rank actions keep their order.
+  const orderedActions = [...actions].sort(
+    (a, b) => (a.variant === 'danger' ? 0 : 1) - (b.variant === 'danger' ? 0 : 1),
+  )
 
   return (
     <BaseOverlay isOpen={isOpen} onClose={onClose} zIndex={zIndex} containerRef={containerRef}>
@@ -296,7 +306,7 @@ export function PreviewOverlay({
                     (e.g. an OverlayStack drill-down screen with no title). */}
                 <div className="bg-themewhite rounded-2xl overflow-hidden min-h-0">
                   {(title || onBack || headerActions) && (
-                    <PopoverHeader title={title ?? ''} onClose={onClose} onBack={onBack} headerActions={headerActions} />
+                    <PopoverHeader title={title ?? ''} onClose={onClose} onBack={onBack} headerActions={headerActions} hideClose={hideHeaderClose} />
                   )}
                   {searchPlaceholder && preview && (
                     <div className="border-b border-tertiary/10 px-2 py-1.5 flex items-center gap-1.5">
@@ -366,7 +376,7 @@ export function PreviewOverlay({
                     footer
                   ) : (actions.length > 0 || onAdd) ? (
                     <div className="flex gap-1 bg-themewhite rounded-2xl px-1.5 py-1.5">
-                      {leading.map(renderAction)}
+                      {orderedActions.map(renderAction)}
                       {onAdd && (
                         <button
                           onClick={() => setAddOpen(prev => !prev)}
@@ -377,7 +387,6 @@ export function PreviewOverlay({
                           <Plus size={16} className={addOpen ? 'text-themegreen' : 'text-themeblue2'} />
                         </button>
                       )}
-                      {trailing && renderAction(trailing)}
                     </div>
                   ) : (
                     <div />

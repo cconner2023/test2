@@ -4,6 +4,7 @@ import { fetchClinicLedger } from '../lib/propertyService'
 import { getLocalPropertyItems, getLocalPropertyLocations } from '../lib/offlineDb'
 import { usePropertyStore } from '../stores/usePropertyStore'
 import { groupHandReceipts, groupTurnIns, type TurnInFold } from '../Utilities/handReceipts'
+import { isLinContainer, isAuthTarget, isZoneShadow } from '../Utilities/propertyAuthorized'
 import { useInvalidation } from '../stores/useInvalidationStore'
 import type { CustodyLedgerEntry, HandReceipt, HolderInfo, PropertyItem } from '../Types/PropertyTypes'
 
@@ -86,6 +87,13 @@ export function useHandReceipts(clinicId?: string | null): HandReceiptData {
     const loadItems = getLocalPropertyItems(clinicId).then((items) => {
       const map = new Map<string, ReceiptItem>()
       for (const r of items) {
+        // Only REAL physical property is signable on a DA 2062 — abstract PHR entities
+        // (LIN headers, location-less authorized targets, zone-shadow identities) are the
+        // hand-receipt structure, not discrete stock, and must never appear as pickable
+        // items. Filtering here keeps the whole custody/2062 surface (itemsById feeds the
+        // Add-item picker + receipt rendering + liveIds) to real property only. A real
+        // signed item carries its LIN via its parent + NSN — the identity survives.
+        if (isLinContainer(r) || isAuthTarget(r) || isZoneShadow(r)) continue
         map.set(r.id, {
           id: r.id,
           name: r.name,

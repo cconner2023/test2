@@ -112,6 +112,15 @@ export interface PropertyItem {
    *  left to enter the turn-in staging zone. Restored verbatim on un-stage; cleared on
    *  verify (gone for good). null = not a full-moved staged item. Bare uuid, no FK. */
   turn_in_origin_location_id?: string | null
+  /** ZONE-SHADOW marker. When set, this item IS the hand-receipt identity of the
+   *  property_locations zone with this id — a vehicle/case/bag/aid-bag that is itself
+   *  accountable property. Such a shadow is a COUNTED COMPONENT (parent_item_id = its
+   *  parent LIN, quantity_authorized = 1, quantity = 1), NOT a LIN header — the box is a
+   *  component of TCMC, not the set. This field, not isLinContainer, is what distinguishes
+   *  the shadow from loose stock located in the same zone; it also excludes the shadow from
+   *  map/tree pins (the zone already draws itself). Bare uuid, no FK (survives out-of-order
+   *  offline sync); reaped when the zone is deleted. See v2/property zone-shadow-component. */
+  represents_location_id?: string | null
   notes: string | null
   created_at: string
   updated_at: string

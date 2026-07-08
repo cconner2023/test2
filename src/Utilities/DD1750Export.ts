@@ -2,9 +2,10 @@
  * DD Form 1750 (Packing List, SEP 70) PDF generation.
  *
  * Mirrors DA2062Export: load the DD1750 template, overlay text at mapped
- * coordinates (page-space, origin = bottom-left). One packing list = one zone's
- * contents (flat: top-level items whose location_id === the zone). Generated on
- * demand from live contents — no stored record.
+ * coordinates (page-space, origin = bottom-left). One packing list = one zone (the
+ * END ITEM) and everything packed inside it — its contents plus each child zone's
+ * LIN-component line and their nested contents (the caller flattens the subtree;
+ * see collectDD1750Lines). Generated on demand from live contents — no stored record.
  *
  * PAGE POLICY (per USR): the template PDF has TWO pages — page 0 is the FORM,
  * page 1 is the "NOTES TO CONSIGNEE" reverse. We use ONLY page 0. When the item

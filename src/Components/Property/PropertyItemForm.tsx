@@ -271,8 +271,10 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
       condition_code: conditionCode,
       // An authorized line is a location-less TARGET — never carries a location (its physical
       // stock does). This also converts a legacy authorized-at-a-zone item into a pure target
-      // on edit, which is the decoupled-model migration.
-      location_id: authActive ? null : (locationId || null),
+      // on edit, which is the decoupled-model migration. EXCEPT a ZONE-SHADOW (a zone that is
+      // a counted component — represents_location_id set): it stays located AT its zone so it
+      // self-counts present and never collapses into a location-less target.
+      location_id: (authActive && !editingItem?.represents_location_id) ? null : (locationId || null),
       current_holder_id: holderId || null,
       parent_item_id: parentItemId || null,
       expiry_date: expiryDate || null,
@@ -336,6 +338,13 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
           serial_number: isSerialized ? (serialNumbers[0]?.trim() || null) : null,
           quantity: isSerialized ? 1 : Math.max(minQuantity, parseInt(quantity) || 0),
         })
+        // ZONE-SHADOW reverse-sync: renaming a zone's component line here keeps the zone name in
+        // step, so the zone and its hand-receipt component never split (mirrors the zone form's
+        // forward sync). Keys on represents_location_id — the zone-shadow identity marker.
+        if (editingItem.represents_location_id) {
+          const loc = locations.find((l) => l.id === editingItem.represents_location_id)
+          if (loc && name.trim() && loc.name !== name.trim()) await editLocation(loc.id, { name: name.trim() })
+        }
         onClose()
       } else if (!isSerialized) {
         const created = await addItem({

@@ -12,7 +12,7 @@ import { useAuthStore } from '../stores/useAuthStore'
 import { useInvalidation } from '../stores/useInvalidationStore'
 import { getLocalPropertyItems, getLocalPropertyLocations } from '../lib/offlineDb'
 import { ROOT_LOCATION_NAME } from '../Types/PropertyTypes'
-import { isAuthTarget } from '../Utilities/propertyAuthorized'
+import { isLinContainer, isAuthTarget, isZoneShadow } from '../Utilities/propertyAuthorized'
 import { useHandReceipts } from './useHandReceipts'
 import { useClinicMedics } from './useClinicMedics'
 import { useAuth } from './useAuth'
@@ -478,7 +478,7 @@ export function useSearch() {
         let itemCount = 0
         for (const item of propItems) {
             if (itemCount >= 20) break
-            if (item.deleted_at || item.turned_in_at || isAuthTarget(item)) continue
+            if (item.deleted_at || item.turned_in_at || isLinContainer(item) || isAuthTarget(item) || isZoneShadow(item)) continue
             const locName = item.location_id ? locNameById.get(item.location_id) : null
             const hit =
                 item.name.toLowerCase().includes(q) ||

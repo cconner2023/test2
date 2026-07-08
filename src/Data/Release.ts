@@ -18,10 +18,10 @@ export interface ReleaseNoteTypes {
 }
 
 export const ReleaseNotes: ReleaseNoteTypes[] = [
-    { version: '2.7.1', type: 'planned', sectionId: '', text: 'Echelon Supervisors can re-organize their force structure (i.e. add/purge clusters, create/unlink accounts)' },
-    { version: '2.7.1', type: 'planned', sectionId: '', text: 'medication dispensed quantities linked to CVIII: track your BAS expendature and create easy plan tags or order sets based on what you currently have in stock' },
-    { version: '2.7.1', type: 'started', sectionId: '', text: 'CVIII order 3161 matching turn-in. For use with DCAMS' },
-    { version: '2.7.1', type: 'started', sectionId: '', text: 'Seed SOAP content based on algorithm decision making (i.e. if \'A-1 sore throat, yes to tonsillar exudate\' via the algorithm, then HPI reports the symptom, and physical exam records the abnormal finding.' },
+    { version: '2.7.1', type: 'planned', sectionId: 'clinic-management', text: 'Echelon Supervisors can re-organize their force structure (i.e. add/purge clusters, create/unlink accounts)' },
+    { version: '2.7.1', type: 'planned', sectionId: 'writing-notes', text: 'medication dispensed quantities linked to CVIII: track your BAS expendature and create easy plan tags or order sets based on what you currently have in stock' },
+    { version: '2.7.1', type: 'started', sectionId: 'property-book', text: 'CVIII order 3161 matching turn-in. For use with DCAMS' },
+    { version: '2.7.1', type: 'started', sectionId: 'writing-notes', text: 'Seed SOAP content based on algorithm decision making (i.e. if \'A-1 sore throat, yes to tonsillar exudate\' via the algorithm, then HPI reports the symptom, and physical exam records the abnormal finding.' },
     { version: '2.7.1', type: 'added', tier: 'supervisor', sectionId: 'soldier-loaning', text: 'Supervisors at BDE and higher can now view child cluster training metrics via the supervisor panel. Supervisors can also create new accounts or unlink accounts for child clusters. Only applicable at same level and down (i.e. DIV can manage down, BDE can manage down)' },
     { version: '2.7.1', type: 'added', sectionId: 'property-accountability', text: 'Property accountability: cluster primary hand receipt, shortages, DA 2062 sign-out, DA 3161 turn-in, DD 1750 packing list, and personal property' },
     { version: '2.7.0', type: 'changed', sectionId: 'event-subtasks', text: 'sub-tasks in calendar events. Custom cluster PCC/PCIs so you can apply sub-tasks to an event' },

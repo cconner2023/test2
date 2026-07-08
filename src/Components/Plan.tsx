@@ -3,8 +3,7 @@ import { Plus, Check, RotateCcw, GripVertical, X } from 'lucide-react';
 import type { PlanOrderTags, PlanOrderSet, PlanBlockKey, TextExpander } from '../Data/User';
 import { PLAN_ORDER_CATEGORIES, PLAN_ORDER_LABELS } from '../Data/User';
 import { PreviewOverlay } from './PreviewOverlay';
-import { PlanAllBlocksPreview, CategoryPicker } from './PlanBlockPreview';
-import { CATEGORY_META } from './Settings/PlanTagManager';
+import { PlanAllBlocksPreview } from './PlanBlockPreview';
 import { ListItemRow } from '@/Components/primitives/ListItemRow';
 import { SwipeToDeleteRow } from '@/Components/primitives/SwipeToDeleteRow';
 import { ExpandableInput } from '@/Components/primitives/ExpandableInput';
@@ -220,10 +219,13 @@ interface ActiveItemEntry {
     catLabel: string;
 }
 
-function ActiveItemsCard({ items, onToggle, onReorder }: {
+function ActiveItemsCard({ items, onToggle, onReorder, bare = false }: {
     items: ActiveItemEntry[];
     onToggle: (catKey: string, tag: string) => void;
     onReorder: (catKey: string, fromIdx: number, toIdx: number) => void;
+    /** Drop the floating-card chrome + inner scroll so the rows sit inside a host
+     *  card (the consolidated Plan overlay). The host provides the scroll. */
+    bare?: boolean;
 }) {
     const dragRef = useRef<{
         index: number;
@@ -268,15 +270,14 @@ function ActiveItemsCard({ items, onToggle, onReorder }: {
         setDragOffset(0);
     }, [items, onReorder]);
 
-    return (
-        <div className="w-full rounded-2xl bg-themewhite shadow-xl border border-tertiary/10 overflow-hidden shrink-0">
-            <div
-                className="overflow-y-auto overscroll-contain"
-                style={{ maxHeight: '160px' }}
-                onPointerMove={handleDragMove}
-                onPointerUp={handleDragEnd}
-                onPointerCancel={handleDragEnd}
-            >
+    const list = (
+        <div
+            className={bare ? 'rounded-xl overflow-hidden' : 'overflow-y-auto overscroll-contain'}
+            style={bare ? undefined : { maxHeight: '160px' }}
+            onPointerMove={handleDragMove}
+            onPointerUp={handleDragEnd}
+            onPointerCancel={handleDragEnd}
+        >
                 {items.map(({ tag, catKey, catLabel }, i) => {
                     const isDragging = dragIndex === i;
                     return (
@@ -304,7 +305,12 @@ function ActiveItemsCard({ items, onToggle, onReorder }: {
                         </div>
                     );
                 })}
-            </div>
+        </div>
+    );
+    if (bare) return list;
+    return (
+        <div className="w-full rounded-2xl bg-themewhite shadow-xl border border-tertiary/10 overflow-hidden shrink-0">
+            {list}
         </div>
     );
 }
@@ -627,68 +633,58 @@ export const Plan = ({ orderTags, instructionTags, orderSets = [], initialText, 
                 onClose={() => setShowFabPopover(false)}
                 anchorRect={fabAnchorRect}
                 maxWidth={520}
-                previewMaxHeight="200px"
+                previewMaxHeight="55dvh"
                 title="Plan"
-                headerCard={
-                    <>
-                        {orderSets.length > 0 && (
-                            <div className="w-full rounded-2xl bg-themewhite shadow-xl border border-tertiary/10 overflow-hidden shrink-0">
-                                <div className="py-2 px-3">
-                                    <p className="text-[9pt] md:text-[9pt] font-semibold text-tertiary uppercase tracking-wider mb-2">Order Sets</p>
-                                    <ChipBar>
-                                        {orderSets.map(os => {
-                                            const isActive = activeSetIds.has(os.id);
-                                            return (
-                                                <Chip
-                                                    key={os.id}
-                                                    active={isActive}
-                                                    onClick={() => applyOrderSet(os)}
-                                                >
-                                                    {os.name}
-                                                    {os.sourceCollides && (
-                                                        <span className={`ml-1 text-[8pt] ${isActive ? 'text-white/80' : 'text-themeblue2/80'}`}>· {os.sourceClinicName ?? 'Personal'}</span>
-                                                    )}
-                                                </Chip>
-                                            );
-                                        })}
-                                    </ChipBar>
-                                </div>
+                searchPlaceholder="Search items..."
+                preview={(filter, clearFilter) => (
+                    // One consolidated card: Order Sets → Selected → Available, all
+                    // inside the overlay's inner card (grounded on OrderSet creation).
+                    // Order Sets + Selected hide while searching to focus the results.
+                    <div className="py-1.5">
+                        {!filter && orderSets.length > 0 && (
+                            <div className="px-3 pb-2.5">
+                                <p className="text-[9pt] font-semibold text-tertiary uppercase tracking-wider pb-1.5">Order Sets</p>
+                                <ChipBar>
+                                    {orderSets.map(os => {
+                                        const isActive = activeSetIds.has(os.id);
+                                        return (
+                                            <Chip key={os.id} active={isActive} onClick={() => applyOrderSet(os)}>
+                                                {os.name}
+                                                {os.sourceCollides && (
+                                                    <span className={`ml-1 text-[8pt] ${isActive ? 'text-white/80' : 'text-themeblue2/80'}`}>· {os.sourceClinicName ?? 'Personal'}</span>
+                                                )}
+                                            </Chip>
+                                        );
+                                    })}
+                                </ChipBar>
                             </div>
                         )}
-                        {activeItems.length > 0 && (
-                            <ActiveItemsCard
-                                items={activeItems}
-                                onToggle={(catKey, tag) => toggleTag(catKey as PlanBlockKey, tag)}
-                                onReorder={(catKey, from, to) => reorderTag(catKey as PlanBlockKey, from, to)}
-                            />
+                        {!filter && activeItems.length > 0 && (
+                            <div className="px-3 pb-2.5">
+                                <p className="text-[9pt] font-semibold text-tertiary uppercase tracking-wider pb-1.5">Selected</p>
+                                <ActiveItemsCard
+                                    items={activeItems}
+                                    onToggle={(catKey, tag) => toggleTag(catKey as PlanBlockKey, tag)}
+                                    onReorder={(catKey, from, to) => reorderTag(catKey as PlanBlockKey, from, to)}
+                                    bare
+                                />
+                            </div>
                         )}
-                    </>
-                }
-                searchPlaceholder="Search items..."
-                searchPrefix={
-                    <CategoryPicker
-                        value={addTarget}
-                        variant="icon"
-                        categories={allCategories.map(c => ({
-                            key: c.key,
-                            label: c.label,
-                            icon: CATEGORY_META[c.key as PlanBlockKey].icon,
-                            color: CATEGORY_META[c.key as PlanBlockKey].color,
-                            bg: CATEGORY_META[c.key as PlanBlockKey].bg,
-                        }))}
-                        onChange={(key) => { setAddCategory(key as PlanBlockKey | null); setActiveTab(key as PlanBlockKey | null); }}
-                    />
-                }
-                preview={(filter, clearFilter) => (
-                    <PlanAllBlocksPreview
-                        categories={allCategories}
-                        filter={filter}
-                        onToggleTag={(catKey, tag) => {
-                            toggleTag(catKey as PlanBlockKey, tag);
-                            clearFilter();
-                        }}
-                        activeTab={activeTab}
-                    />
+                        <div>
+                            {!filter && (orderSets.length > 0 || activeItems.length > 0) && (
+                                <p className="px-3 text-[9pt] font-semibold text-tertiary uppercase tracking-wider pb-0.5">Available</p>
+                            )}
+                            <PlanAllBlocksPreview
+                                categories={allCategories}
+                                filter={filter}
+                                onToggleTag={(catKey, tag) => {
+                                    toggleTag(catKey as PlanBlockKey, tag);
+                                    clearFilter();
+                                }}
+                                activeTab={activeTab}
+                            />
+                        </div>
+                    </div>
                 )}
                 onAdd={handleAdd}
                 addPlaceholder="Add custom item..."

@@ -33,6 +33,7 @@ import { getAssociatedClinicCode } from '../../lib/clinicAssociationService'
 import { listLocations, type AdminLocation } from '../../lib/adminService'
 import { invalidate } from '../../stores/useInvalidationStore'
 import { SubClusterManager } from '../SubClusterManager'
+import { SubordinateClustersManager } from './Supervisor/SubordinateClustersManager'
 import { useSubClusters } from '../../Hooks/useSubClusters'
 import { createSubCluster, renameSubCluster, deleteSubCluster } from '../../lib/subClusterService'
 import { ErrorDisplay } from '@/Components/primitives/ErrorDisplay'
@@ -942,6 +943,15 @@ export function ClinicPanel({
               </ActionPill>
             </div>
           </section>
+        )}
+
+        {/* ── Subordinate Clusters (echelon children) — roster mgmt, own clinic ── */}
+        {isSupervisorRole && clinicId && !isSurrogateContext && (
+          <SubordinateClustersManager
+            clinicId={clinicId}
+            isSupervisor={isSupervisorRole}
+            currentUserId={user?.id ?? null}
+          />
         )}
 
       </div>

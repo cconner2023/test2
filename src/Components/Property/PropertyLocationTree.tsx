@@ -6,7 +6,7 @@ import type { LocalPropertyLocation, LocalPropertyItem, HolderInfo } from '../..
 import { itemAlert } from '../../Types/PropertyTypes'
 import { isStructuralZone } from './levelUtils'
 import { itemPassesLens } from '../../Utilities/subCluster'
-import { isLinContainer, isAuthTarget } from '../../Utilities/propertyAuthorized'
+import { isLinContainer, isAuthTarget, isZoneShadow } from '../../Utilities/propertyAuthorized'
 import { useVehicleDispatches } from '../../Hooks/useVehicleDispatches'
 import { DispatchDot } from './DispatchDot'
 
@@ -91,7 +91,7 @@ export function PropertyLocationTree({
   // every tree surface (main rail, Locations sheet, and the scoped location detail, which is
   // fed the unfiltered store items). Also keeps a component's LIN parent out of `presentIds`,
   // so the component renders at its own location instead of nesting under an absent header.
-  const items = useMemo(() => itemsRaw.filter((i) => !isLinContainer(i) && !isAuthTarget(i)), [itemsRaw])
+  const items = useMemo(() => itemsRaw.filter((i) => !isLinContainer(i) && !isAuthTarget(i) && !isZoneShadow(i)), [itemsRaw])
 
   // Personnel starts collapsed so a large roster doesn't bury the physical zones.
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set(['__personnel__']))

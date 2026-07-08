@@ -84,6 +84,9 @@ function localItem(item: PropertyItem, syncStatus: SyncStatus = 'pending'): Loca
     turned_in_at: item.turned_in_at ?? null,
     // Coerce legacy rows cached before turn_in_origin_location_id existed.
     turn_in_origin_location_id: item.turn_in_origin_location_id ?? null,
+    // Coerce legacy IDB rows cached before represents_location_id existed. null = not a
+    // zone-shadow (ordinary item). Set = this item IS a zone's hand-receipt component.
+    represents_location_id: item.represents_location_id ?? null,
     _sync_status: syncStatus,
     _sync_retry_count: 0,
     _last_sync_error: null,

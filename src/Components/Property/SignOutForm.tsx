@@ -2,8 +2,7 @@ import { useState, useMemo, useCallback, useEffect, useContext, forwardRef, useI
 import { Check, ChevronDown, MapPin, Minus, Plus } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import { TextInput } from '@/Components/primitives/FormInputs'
-import { ActionPill } from '@/Components/primitives/ActionPill'
-import { ActionButton } from '@/Components/primitives/ActionButton'
+import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill'
 import { StackNavContext } from '@/Components/stackNav'
 import { PreviewOverlay } from '../PreviewOverlay'
 import { ToggleSwitch } from '../Settings/ToggleSwitch'
@@ -13,6 +12,7 @@ import { usePropertyStore } from '../../stores/usePropertyStore'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { useDA2062Export } from '../../Hooks/useDA2062Export'
 import { PartyPicker, type Party } from './PartyPicker'
+import { isLinContainer } from '../../Utilities/propertyAuthorized'
 import type { HolderInfo, LocalPropertyItem } from '../../Types/PropertyTypes'
 
 /* ── Shared picker rows — one source for the desktop PreviewOverlay fallback AND the
@@ -48,57 +48,76 @@ function ItemRows({ items, filter, quantities, onToggle, onSetQty, locationName 
         const max = Math.max(1, i.quantity)
         const loc = locationName(i.location_id)
         const out = i.signed_out_external || !!i.current_holder_id
-        const showStepper = selected && max > 1
+        // Middle line = nomenclature (the doctrinal role), falling back to serial / NSN so
+        // the row always says WHAT the item is — same name · nomenclature · identity order
+        // as the item detail + Cluster Hand Receipt cards.
+        const identity = i.nomenclature
+          ? i.nomenclature
+          : i.serial_number
+            ? `S/N ${i.serial_number}`
+            : i.nsn
+              ? `Material/NSN ${i.nsn}`
+              : null
         return (
           <div
             key={i.id}
-            className="w-full flex items-center gap-3 px-4 py-2.5 active:bg-tertiary/5 border-b border-primary/6 last:border-b-0"
+            className="w-full flex items-center gap-3 px-4 py-3 active:bg-tertiary/5 border-b border-primary/6 last:border-b-0"
           >
             <button
               type="button"
               onClick={() => onToggle(i.id)}
-              className="flex items-center gap-3 min-w-0 flex-1 text-left"
+              className="flex items-start gap-3 min-w-0 flex-1 text-left"
             >
               <span
-                className={`w-5 h-5 rounded-md shrink-0 flex items-center justify-center border ${
+                className={`w-5 h-5 mt-0.5 rounded-md shrink-0 flex items-center justify-center border ${
                   selected ? 'bg-themeblue3 border-themeblue3' : 'border-tertiary/40'
                 }`}
               >
                 {selected && <Check size={14} className="text-white" />}
               </span>
+              {/* name · nomenclature · location — one field per line, no crammed subline. */}
               <span className="min-w-0 flex-1">
                 <span className="block text-sm text-primary truncate">{i.name}</span>
+                {identity && <span className="block text-[10pt] text-tertiary truncate">{identity}</span>}
                 <span className="block text-[10pt] text-tertiary truncate">
-                  {i.serial_number ? `S/N ${i.serial_number}` : i.nsn ? `Material/NSN ${i.nsn}` : 'No Material/NSN'}
+                  {loc ? `usually ${loc}` : 'Unplaced'}
                   {max > 1 ? ` · ${max} on hand` : ''}
-                  {loc ? ` · usually ${loc}` : ''}
                   {out ? ' · already out' : ''}
                 </span>
               </span>
             </button>
-            {showStepper && (
-              <span className="flex items-center gap-2 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => onSetQty(i.id, (qty ?? 1) - 1, max)}
-                  disabled={(qty ?? 1) <= 1}
-                  aria-label="Decrease quantity"
-                  className="w-6 h-6 rounded-full flex items-center justify-center text-tertiary active:scale-90 transition-all disabled:opacity-30"
-                >
-                  <Minus size={14} />
-                </button>
-                <span className="text-[10pt] text-tertiary tabular-nums w-8 text-center">
-                  {qty} / {max}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => onSetQty(i.id, (qty ?? 1) + 1, max)}
-                  disabled={(qty ?? 1) >= max}
-                  aria-label="Increase quantity"
-                  className="w-6 h-6 rounded-full flex items-center justify-center text-tertiary active:scale-90 transition-all disabled:opacity-30"
-                >
-                  <Plus size={14} />
-                </button>
+            {/* Quantity gets its own column on the right — three-line rows leave room for a
+                full-size stepper instead of squeezing it against the label. */}
+            {selected && (
+              <span className="flex flex-col items-end gap-1 shrink-0">
+                <span className="text-[9pt] uppercase tracking-wide text-tertiary">Qty</span>
+                {max > 1 ? (
+                  <span className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => onSetQty(i.id, (qty ?? 1) - 1, max)}
+                      disabled={(qty ?? 1) <= 1}
+                      aria-label="Decrease quantity"
+                      className="w-8 h-8 rounded-full flex items-center justify-center border border-tertiary/30 text-tertiary active:scale-90 transition-all disabled:opacity-30"
+                    >
+                      <Minus size={15} />
+                    </button>
+                    <span className="text-sm text-primary tabular-nums w-12 text-center">
+                      {qty} / {max}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => onSetQty(i.id, (qty ?? 1) + 1, max)}
+                      disabled={(qty ?? 1) >= max}
+                      aria-label="Increase quantity"
+                      className="w-8 h-8 rounded-full flex items-center justify-center border border-tertiary/30 text-tertiary active:scale-90 transition-all disabled:opacity-30"
+                    >
+                      <Plus size={15} />
+                    </button>
+                  </span>
+                ) : (
+                  <span className="text-sm text-primary tabular-nums">1</span>
+                )}
               </span>
             )}
           </div>
@@ -210,9 +229,10 @@ export const SignOutForm = forwardRef<SignOutFormHandle, SignOutFormProps>(funct
   )
 
   // Only top-level items are signable (components ride their parent). Turned-in items
-  // have left the books, so they're never signable.
+  // have left the books, so they're never signable. LIN containers are pure hand-receipt
+  // headers, not property we hold — you sign out the actual equipment, never the LIN.
   const signableItems = useMemo(
-    () => store.items.filter((i) => !i.parent_item_id && !i.turned_in_at),
+    () => store.items.filter((i) => !i.parent_item_id && !i.turned_in_at && !isLinContainer(i)),
     [store.items],
   )
 
@@ -261,10 +281,13 @@ export const SignOutForm = forwardRef<SignOutFormHandle, SignOutFormProps>(funct
       stackNav.pushScreen({
         title: 'Items',
         searchPlaceholder: 'Search items…',
+        // Match the property save-header primitive (HeaderPill + green Check PillButton) —
+        // NOT ActionPill/ActionButton — so the drilled item-picker header reads identical to
+        // every other property form header the sheet hosts.
         rightFooter: (_p, nav) => (
-          <ActionPill>
-            <ActionButton icon={Check} label="Done" onClick={nav.pop} />
-          </ActionPill>
+          <HeaderPill>
+            <PillButton icon={Check} iconSize={18} accent="success" label="Done" onClick={nav.pop} />
+          </HeaderPill>
         ),
         render: (_p, _nav, filter = '') => (
           <ItemsScreen

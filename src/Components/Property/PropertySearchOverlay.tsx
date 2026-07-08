@@ -10,7 +10,7 @@ import { Section, SectionCard } from '@/Components/primitives/Section'
 import { EmptyState } from '@/Components/primitives/EmptyState'
 import type { LocalPropertyItem, LocalPropertyLocation, HolderInfo, HandReceipt } from '../../Types/PropertyTypes'
 import { expiryStatus } from '../../Types/PropertyTypes'
-import { isAuthTarget } from '../../Utilities/propertyAuthorized'
+import { isLinContainer, isAuthTarget, isZoneShadow } from '../../Utilities/propertyAuthorized'
 import type { ReceiptItem } from '../../Hooks/useHandReceipts'
 
 interface PropertySearchOverlayProps {
@@ -72,7 +72,9 @@ export function PropertySearchOverlay({
         // location) have no physical item to route to, so skip them too — but real physical
         // stock DOES surface even when it's a sub-component parented under a LIN.
         if (i.deleted_at || i.turned_in_at) return false
+        if (isLinContainer(i)) return false
         if (isAuthTarget(i)) return false
+        if (isZoneShadow(i)) return false
         const holder = i.current_holder_id ? holders?.get(i.current_holder_id) : null
         const locName = i.location_id ? locationNameMap.get(i.location_id) : null
         return (

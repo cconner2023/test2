@@ -67,21 +67,33 @@ export const PropertyLocationForm = forwardRef<PropertyLocationFormHandle, Prope
   const [kind, setKind] = useState<'area' | 'vehicle'>(
     editingLocation?.kind === 'vehicle' ? 'vehicle' : 'area',
   )
-  // ANY zone can also BE a LIN (signed for, with authorized BII) — a vehicle, a Pelican case,
-  // an aid bag. LIN-ness is orthogonal to `kind`. A zone's PHR identity lives on a SHADOW
-  // LIN-item linked by location_id = this zone; the zone's LIN code is stored there (locations
-  // have no lin column). Entering a LIN here mints/syncs that shadow on save, so the zone appears
-  // in the Cluster Hand Receipt and can carry authorized components. Clearing it reaps the shadow.
+  // A zone can also sign onto the Cluster Hand Receipt as a COMPONENT of a LIN — a vehicle, a
+  // med case, an aid bag that is itself accountable property. It attaches UNDER a parent LIN as
+  // one counted line (the TCMC box is a component of TCMC, never the whole set). Its identity
+  // lives on a SHADOW item marked represents_location_id = this zone; that shadow is a counted
+  // component (parent_item_id = the LIN, quantity_authorized 1, on-hand 1), NOT a LIN header.
   const existingShadow = useMemo(
-    () => (editingLocation ? store.items.find((i) => i.location_id === editingLocation.id && isLinContainer(i)) ?? null : null),
+    () =>
+      editingLocation
+        ? store.items.find((i) => i.represents_location_id === editingLocation.id) ??
+          // Legacy rescue: pre-model zones minted their shadow as a top-level LIN header.
+          store.items.find((i) => i.location_id === editingLocation.id && isLinContainer(i)) ??
+          null
+        : null,
     [editingLocation, store.items],
   )
-  const [lin, setLin] = useState(existingShadow?.lin ?? '')
-  // The zone's LIN is chosen the same way new-item entry picks one: reuse an EXISTING LIN
-  // (its code copies onto this zone's shadow — identical med cases / vehicles share a LIN, kept
-  // apart by NSN/serial) or "+ New LIN" to type a fresh code. Every isLinContainer is offered
-  // except this zone's own shadow. linPick drives the UI only; `lin` stays the saved code.
-  const linOptions = useMemo(
+  // A legacy header shadow (the zone as its own top-level LIN) is RESCUED into a component by
+  // picking a parent LIN; left untouched it's grandfathered (no-op on save).
+  const isLegacyHeader = !!existingShadow && isLinContainer(existingShadow)
+  // '' = not on hand receipt (reap any shadow). '__self__' = keep a legacy header as-is.
+  // Else = the parent LIN this zone is a component of. Seeds from the existing shadow.
+  const [parentLin, setParentLin] = useState<string>(
+    existingShadow?.parent_item_id ?? (isLegacyHeader ? '__self__' : ''),
+  )
+  const [role, setRole] = useState(existingShadow?.nomenclature ?? '')
+  const [nsn, setNsn] = useState(existingShadow?.nsn ?? '')
+  // The LINs this zone can be a component of — every LIN container except this zone's own shadow.
+  const parentLinOptions = useMemo(
     () =>
       store.items
         .filter((i) => isLinContainer(i) && i.id !== existingShadow?.id)
@@ -89,16 +101,26 @@ export const PropertyLocationForm = forwardRef<PropertyLocationFormHandle, Prope
         .map((i) => ({ value: i.id, label: i.lin ? `${i.name} · LIN ${i.lin}` : i.name })),
     [store.items, existingShadow?.id],
   )
-  // '' = not on the hand receipt, '__new__' = type a fresh code, or an existing LIN item id =
-  // reuse its code. Seeds to '__new__' when this zone already carries a code so the established
-  // value shows editable (a zone-shadow is its own LIN, never matched back into the list).
-  const [linPick, setLinPick] = useState<string>(existingShadow?.lin ? '__new__' : '')
-  const pickLin = useCallback((choice: string) => {
-    setLinPick(choice)
-    if (choice === '') { setLin(''); return }
-    if (choice === '__new__') return
-    setLin(store.items.find((i) => i.id === choice)?.lin ?? '')
-  }, [store.items])
+  // Authorized component ROLES already under the chosen LIN (distinct nomenclatures). Picking one
+  // quick-fills the role and inherits its NSN so this zone counts toward that (LIN + NSN) line.
+  const roleOptions = useMemo(() => {
+    if (!parentLin || parentLin === '__self__') return [] as { value: string; label: string }[]
+    const roles = new Set<string>()
+    for (const i of store.items) {
+      if (i.parent_item_id === parentLin && i.quantity_authorized != null && i.nomenclature && !i.deleted_at && !i.turned_in_at) {
+        roles.add(i.nomenclature)
+      }
+    }
+    return [...roles].sort((a, b) => a.localeCompare(b)).map((r) => ({ value: r, label: r }))
+  }, [store.items, parentLin])
+  const pickRole = useCallback((r: string) => {
+    setRole(r)
+    if (!r) return
+    const auth = store.items.find(
+      (i) => i.parent_item_id === parentLin && i.nomenclature === r && i.quantity_authorized != null && !i.deleted_at && !i.turned_in_at,
+    )
+    if (auth?.nsn) setNsn(auth.nsn)
+  }, [store.items, parentLin])
   const [isSaving, setIsSaving] = useState(false)
   // Zone photo — the map-tile background. Staged locally (raw resize, NO crop) and
   // committed on Save; create seeds null. resizeImage preserves aspect ratio.
@@ -145,15 +167,20 @@ export const PropertyLocationForm = forwardRef<PropertyLocationFormHandle, Prope
       .map((l) => ({ value: l.id, label: l.name }))
   }, [store.locations, editingLocation])
 
-    // Mint/sync/reap this zone's shadow LIN-item (its PHR identity) — kind-agnostic. name/LIN
-    // edits keep the shadow in step; the shadow is what surfaces the zone in the Cluster Hand
-    // Receipt. Clearing the LIN reaps the shadow (same detach-then-remove cascade removeLocation
-    // uses, so authorized BII survive as loose stock under this zone rather than being deleted).
+    // Mint / convert / reap this zone's hand-receipt COMPONENT shadow. A zone attaches to the
+    // Cluster Hand Receipt as one counted component UNDER a parent LIN (not as its own LIN). The
+    // shadow carries represents_location_id = this zone (its identity marker + map/tree pin
+    // exclusion) and is a counted component: parent_item_id = the LIN, quantity_authorized 1,
+    // quantity 1, located AT the zone so it self-counts present (never a location-less target).
     const syncShadow = async (zoneId: string, zoneName: string) => {
       if (!store.clinicId) return
-      const linCode = lin.trim()
-      const shadow = store.items.find((i) => i.location_id === zoneId && isLinContainer(i))
-      if (!linCode) {
+      const shadow =
+        store.items.find((i) => i.represents_location_id === zoneId) ??
+        store.items.find((i) => i.location_id === zoneId && isLinContainer(i)) ?? // legacy header
+        null
+      // Not on the hand receipt → reap any shadow, stranding its authorized BII as loose stock
+      // (detach + de-authorize first so removeItem doesn't cascade-delete them).
+      if (parentLin === '') {
         if (shadow) {
           for (const comp of store.items.filter((i) => i.parent_item_id === shadow.id)) {
             await store.editItem(comp.id, { parent_item_id: null, quantity_authorized: null })
@@ -162,30 +189,49 @@ export const PropertyLocationForm = forwardRef<PropertyLocationFormHandle, Prope
         }
         return
       }
+      // A legacy header left untouched — grandfather it (no conversion requested).
+      if (parentLin === '__self__') return
+      // Attach as a component of parentLin. Convert an existing shadow (incl. a legacy header:
+      // flatten its BII up to the parent LIN so the box becomes a pure counted leaf), else mint.
+      const roleVal = role.trim() || null
+      const nsnVal = nsn.trim() || null
       if (shadow) {
-        await store.editItem(shadow.id, { name: zoneName, lin: linCode })
+        for (const comp of store.items.filter((i) => i.parent_item_id === shadow.id)) {
+          await store.editItem(comp.id, { parent_item_id: parentLin })
+        }
+        await store.editItem(shadow.id, {
+          name: zoneName,
+          nomenclature: roleVal,
+          nsn: nsnVal,
+          parent_item_id: parentLin,
+          quantity_authorized: 1,
+          quantity: 1,
+          location_id: zoneId,
+          represents_location_id: zoneId,
+        })
         return
       }
       await store.addItem({
         clinic_id: store.clinicId,
         sub_cluster_id: null,
         name: zoneName,
-        nomenclature: null,
-        nsn: null,
-        lin: linCode,
+        nomenclature: roleVal,
+        nsn: nsnVal,
+        lin: null,
         condition_code: 'serviceable',
         location_id: zoneId,
         current_holder_id: null,
-        parent_item_id: null,
+        parent_item_id: parentLin,
+        represents_location_id: zoneId,
         expiry_date: null,
         notes: null,
         is_serialized: false,
         item_type: 'DI',
         unit_of_issue: null,
         pack_size: null,
-        quantity_authorized: null,
+        quantity_authorized: 1,
         serial_number: null,
-        quantity: 0,
+        quantity: 1,
         location_tag_id: null,
         photo_url: null,
         visual_fingerprint: null,
@@ -253,7 +299,7 @@ export const PropertyLocationForm = forwardRef<PropertyLocationFormHandle, Prope
     } finally {
       setIsSaving(false)
     }
-  }, [name, parentId, kind, lin, isLevel, photoData, isEdit, editingLocation, pendingTag, store, onClose])
+  }, [name, parentId, kind, parentLin, role, nsn, isLevel, photoData, isEdit, editingLocation, pendingTag, store, onClose])
 
   useImperativeHandle(ref, () => ({ submit: handleSave }), [handleSave])
 
@@ -285,25 +331,41 @@ export const PropertyLocationForm = forwardRef<PropertyLocationFormHandle, Prope
             placeholder="Type"
           />
         )}
-        {/* Any zone can also BE a LIN — its LIN code signs it onto the cluster hand receipt and
-            lets it carry authorized BII (a vehicle, a med case, an aid bag). Pick an existing LIN
-            to reuse its code, "+ New LIN" to type a fresh one, or leave "Not on hand receipt" to
-            keep it a plain container zone; clearing an existing code reaps the shadow. */}
+        {/* A zone can sign onto the Cluster Hand Receipt as a COMPONENT of a LIN (a vehicle, a
+            med case, an aid bag — one counted line under its parent LIN, not its own set). Pick
+            the parent LIN, then the component role + NSN. "Not on hand receipt" reaps the shadow. */}
         {!isLevel && (
           <>
-            <PickerInput
-              value={linPick}
-              onChange={pickLin}
-              options={[
-                { value: '', label: 'Not on hand receipt' },
-                ...linOptions,
-                { value: '__new__', label: '+ New LIN' },
-              ]}
-              placeholder="Hand-receipt LIN (optional)"
-              searchable
-            />
-            {linPick === '__new__' && (
-              <TextInput value={lin} onChange={setLin} placeholder="LIN (e.g. M30499)" />
+            {parentLinOptions.length === 0 && !isLegacyHeader ? (
+              <div className="px-4 py-3 text-[11pt] md:text-xs text-tertiary border-b border-primary/6 last:border-b-0">
+                Build a LIN in the hand receipt first to sign this zone on as a component.
+              </div>
+            ) : (
+              <PickerInput
+                value={parentLin}
+                onChange={setParentLin}
+                options={[
+                  { value: '', label: 'Not on hand receipt' },
+                  ...(isLegacyHeader ? [{ value: '__self__', label: 'Its own LIN (legacy — pick a LIN to convert)' }] : []),
+                  ...parentLinOptions,
+                ]}
+                placeholder="Component of LIN (optional)"
+                searchable
+              />
+            )}
+            {parentLin && parentLin !== '__self__' && (
+              <>
+                {roleOptions.length > 0 && (
+                  <PickerInput
+                    value={roleOptions.some((o) => o.value === role) ? role : ''}
+                    onChange={pickRole}
+                    options={[{ value: '', label: 'New role…' }, ...roleOptions]}
+                    placeholder="Role (authorized component)"
+                  />
+                )}
+                <TextInput value={role} onChange={setRole} placeholder="Role / nomenclature (e.g. Aid Bag)" />
+                <TextInput value={nsn} onChange={setNsn} placeholder="NSN (optional)" />
+              </>
             )}
           </>
         )}
