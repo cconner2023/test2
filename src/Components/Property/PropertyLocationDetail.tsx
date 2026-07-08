@@ -32,9 +32,11 @@ const toDD1750Line = (it: LocalPropertyItem): DD1750Item => ({
 /**
  * Collect DD 1750 lines for a zone SUBTREE (the end item + everything packed
  * inside it), pre-order:
- *   1. the zone's direct contents — live, top-level (a packed SKO stays one line),
- *      excluding zone-shadows (a shadow is emitted as its child zone's component
- *      line, below — never as loose stock here);
+ *   1. the zone's direct contents — live, excluding zone-shadows (a shadow is
+ *      emitted as its child zone's component line, below — never as loose stock
+ *      here). A child is folded into its parent's line ONLY when that parent is a
+ *      packed set physically present in this subtree; a LIN-component filler (parent
+ *      LIN/shadow not listed here) is emitted as its own line;
  *   2. for each child zone: if it's a LIN component (has a zone-shadow) emit that
  *      shadow as the component line, then recurse into the child.
  * So zone A → A's items, then child zone B (as a LIN-component line), then B's
@@ -46,6 +48,33 @@ function collectDD1750Lines(
   items: LocalPropertyItem[],
   locations: LocalPropertyLocation[],
 ): DD1750Item[] {
+  // Zone ids in this subtree — gathered first so a content item can tell a PACKED
+  // SKO (its container is itself a physical line IN this list → child rides it, one
+  // line) from a LIN-COMPONENT filler (its parent LIN is a standalone item-LIN with
+  // location_id null, or a zone-shadow — never emitted here, so the filler must be
+  // its own line). Suppressing on `parent_item_id !== null` alone dropped the latter.
+  const zoneIds = new Set<string>()
+  const collectZones = (zoneId: string) => {
+    if (zoneIds.has(zoneId)) return
+    zoneIds.add(zoneId)
+    for (const l of locations) if (l.parent_id === zoneId && !l.deleted_at) collectZones(l.id)
+  }
+  collectZones(rootId)
+  // Ids of items that DO appear as their own physical line in the subtree (live,
+  // located in a subtree zone, not a shadow). A content item is suppressed ONLY when
+  // its parent is one of these — i.e. it is packed inside a set that is itself listed.
+  const presentIds = new Set(
+    items
+      .filter(
+        (it) =>
+          it.location_id != null &&
+          zoneIds.has(it.location_id) &&
+          !it.deleted_at &&
+          !it.turned_in_at &&
+          !it.represents_location_id,
+      )
+      .map((it) => it.id),
+  )
   const seen = new Set<string>() // cycle guard (offline sync could theoretically loop parent_id)
   const walk = (zoneId: string): DD1750Item[] => {
     if (seen.has(zoneId)) return []
@@ -56,8 +85,8 @@ function collectDD1750Lines(
         it.location_id === zoneId &&
         !it.deleted_at &&
         !it.turned_in_at &&
-        it.parent_item_id === null &&
-        !it.represents_location_id,
+        !it.represents_location_id &&
+        (it.parent_item_id === null || !presentIds.has(it.parent_item_id)),
     )
     out.push(...contents.map(toDD1750Line))
     const children = locations.filter((l) => l.parent_id === zoneId && !l.deleted_at)
