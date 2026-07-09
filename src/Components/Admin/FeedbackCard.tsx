@@ -1,68 +1,16 @@
-import { useCallback, useRef, useState, type ReactNode } from 'react'
-import { MessageSquare, Star, Trash2, Mail, MessageCircle } from 'lucide-react'
-import { PreviewOverlay } from '../PreviewOverlay'
-import { ActionPill } from '@/Components/primitives/ActionPill'
-import { ActionButton } from '@/Components/primitives/ActionButton'
+import { MessageSquare, Star } from 'lucide-react'
 import type { FeedbackRow } from '../../lib/feedbackService'
-import { buildMailtoHref } from '../../lib/mailto'
 
 export interface FeedbackCardProps {
   feedback: FeedbackRow
-  email: string | null
-  expandedId: string | null
-  setExpandedId: (id: string | null) => void
-  setConfirmDeleteId: (id: string | null) => void
-  setContextMenu: (v: { feedbackId: string; rect: DOMRect; clone: ReactNode } | null) => void
-  /** Open an in-app system-message compose for this feedback's author. Only
-   *  wired for authed feedback (user_id present) when messaging is available. */
-  onChat?: (anchorRect: DOMRect | null) => void
+  onOpen: (feedback: FeedbackRow) => void
 }
 
-export function FeedbackCard({
-  feedback,
-  email,
-  expandedId,
-  setExpandedId,
-  setConfirmDeleteId,
-  setContextMenu,
-  onChat,
-}: FeedbackCardProps) {
-  const isExpanded = expandedId === feedback.id
-  const cardRef = useRef<HTMLDivElement>(null)
-  const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null)
-
-  const longPressTimer = useRef<number | null>(null)
-  const preventTap = useRef(false)
-  const openMenu = () => {
-    if (!cardRef.current) return
-    setContextMenu({
-      feedbackId: feedback.id,
-      rect: cardRef.current.getBoundingClientRect(),
-      clone: (
-        <div className="bg-themewhite">
-          <div className="flex items-center gap-3 px-4 py-3.5">
-            <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-themeblue2/10">
-              <MessageSquare size={16} className="text-themeblue2" />
-            </div>
-            <span className="flex-1 min-w-0 text-sm font-medium text-primary truncate">
-              {feedback.display_name || 'Anonymous'}
-            </span>
-          </div>
-        </div>
-      ),
-    })
-  }
-  const clearLongPress = () => {
-    if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null }
-  }
-
-  const handleTap = useCallback(() => {
-    setAnchorRect(cardRef.current?.getBoundingClientRect() ?? null)
-    setExpandedId(isExpanded ? null : feedback.id)
-  }, [isExpanded, setExpandedId, feedback.id])
-
-  const handleClose = useCallback(() => setExpandedId(null), [setExpandedId])
-
+/**
+ * Feedback row — icon + author + rating + comment preview. Tapping opens the
+ * feedback detail in the drawer's detail pane / Sheet.
+ */
+export function FeedbackCard({ feedback, onOpen }: FeedbackCardProps) {
   const summary =
     feedback.comments ||
     feedback.most_useful_feature ||
@@ -75,122 +23,25 @@ export function FeedbackCard({
     : null
 
   return (
-    <>
-      <div
-        ref={cardRef}
-        onClick={() => { if (preventTap.current) { preventTap.current = false; return } handleTap() }}
-        onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); openMenu() }}
-        onTouchStart={() => { preventTap.current = false; longPressTimer.current = window.setTimeout(() => { preventTap.current = true; openMenu() }, 500) }}
-        onTouchEnd={clearLongPress}
-        onTouchMove={clearLongPress}
-        className="transition-all hover:bg-themeblue2/5 cursor-pointer select-none"
-      >
-        <div className="flex items-center gap-3 px-4 py-3.5">
-          <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-themeblue2/10">
-            <MessageSquare size={16} className="text-themeblue2" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-primary truncate">
-              {feedback.display_name || 'Anonymous'}
-            </p>
-            {stars && (
-              <div className="flex items-center gap-1 mt-0.5">
-                {stars.map((filled, i) => (
-                  <Star
-                    key={i}
-                    size={10}
-                    className={filled ? 'text-themeblue2 fill-themeblue2' : 'text-themeblue2/20'}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {summary && (
-          <p className="text-[10pt] font-normal text-tertiary px-4 pb-2 line-clamp-2">{summary}</p>
-        )}
+    <button
+      type="button"
+      onClick={() => onOpen(feedback)}
+      className="flex items-center gap-3 w-full text-left px-4 py-3 hover:bg-themeblue2/5 active:scale-[0.99] transition-all select-none"
+    >
+      <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-themeblue2/10">
+        <MessageSquare size={16} className="text-themeblue2" />
       </div>
-
-      <PreviewOverlay
-        isOpen={isExpanded}
-        onClose={handleClose}
-        anchorRect={anchorRect}
-        title="User feedback"
-        maxWidth={420}
-        previewMaxHeight="65dvh"
-        footer={
-          <ActionPill>
-            {email && (
-              <ActionButton
-                icon={Mail}
-                label="Email"
-                href={buildMailtoHref({ to: email, subject: '[feedback] -  Medical Operations Web Application', body: `${feedback.display_name || ''},\n\nThanks for the feedback.\n\n` })}
-              />
-            )}
-            {onChat && (
-              <ActionButton
-                icon={MessageCircle}
-                label="Chat"
-                onClick={() => {
-                  const rect = cardRef.current?.getBoundingClientRect() ?? null
-                  handleClose()
-                  onChat(rect)
-                }}
-              />
-            )}
-            <ActionButton
-              icon={Trash2}
-              label="Delete"
-              variant="danger"
-              onClick={() => setConfirmDeleteId(feedback.id)}
-            />
-          </ActionPill>
-        }
-      >
-        <div className="px-4 py-3 space-y-3" onClick={(e) => e.stopPropagation()}>
-          {stars && (
-            <div className="flex items-center gap-1">
-              {stars.map((filled, i) => (
-                <Star
-                  key={i}
-                  size={16}
-                  className={filled ? 'text-themeblue2 fill-themeblue2' : 'text-themeblue2/20'}
-                />
-              ))}
-            </div>
-          )}
-
-          {feedback.most_useful_feature && (
-            <div>
-              <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Most useful</p>
-              <p className="text-[10pt] text-primary whitespace-pre-wrap">{feedback.most_useful_feature}</p>
-            </div>
-          )}
-          {feedback.desired_feature && (
-            <div>
-              <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Desired feature</p>
-              <p className="text-[10pt] text-primary whitespace-pre-wrap">{feedback.desired_feature}</p>
-            </div>
-          )}
-          {feedback.needs_improvement && (
-            <div>
-              <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Needs improvement</p>
-              <p className="text-[10pt] text-primary whitespace-pre-wrap">{feedback.needs_improvement}</p>
-            </div>
-          )}
-          {feedback.comments && (
-            <div>
-              <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Comments</p>
-              <p className="text-[10pt] text-primary whitespace-pre-wrap">{feedback.comments}</p>
-            </div>
-          )}
-
-          <p className="text-[10pt] font-normal text-tertiary">
-            Submitted: {new Date(feedback.created_at).toLocaleString()}
-          </p>
-        </div>
-      </PreviewOverlay>
-    </>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium text-primary truncate">{feedback.display_name || 'Anonymous'}</p>
+        {stars && (
+          <div className="flex items-center gap-1 mt-0.5">
+            {stars.map((filled, i) => (
+              <Star key={i} size={10} className={filled ? 'text-themeblue2 fill-themeblue2' : 'text-themeblue2/20'} />
+            ))}
+          </div>
+        )}
+        {summary && <p className="text-[9pt] text-tertiary mt-0.5 truncate">{summary}</p>}
+      </div>
+    </button>
   )
 }

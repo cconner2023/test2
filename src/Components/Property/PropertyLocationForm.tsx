@@ -195,6 +195,25 @@ export const PropertyLocationForm = forwardRef<PropertyLocationFormHandle, Prope
       // flatten its BII up to the parent LIN so the box becomes a pure counted leaf), else mint.
       const roleVal = role.trim() || null
       const nsnVal = nsn.trim() || null
+      // Don't mint a SECOND authorized line when this role already exists as an authorized
+      // component under the LIN — the zone should FILL that component, not duplicate it. An NSN
+      // match folds (shared LIN+NSN key), so the shadow rides as physical stock
+      // (quantity_authorized null) toward the existing target's on-hand. A brand-new role has no
+      // target, so the shadow carries the authorization itself (quantity_authorized 1) and IS the
+      // new component line. (No NSN → can't fold reliably → still mint a line rather than vanish.)
+      const nsnKey = nsnVal?.toLowerCase()
+      const fillsExisting =
+        !!nsnKey &&
+        store.items.some(
+          (i) =>
+            i.id !== shadow?.id &&
+            i.parent_item_id === parentLin &&
+            i.quantity_authorized != null &&
+            !i.deleted_at &&
+            !i.turned_in_at &&
+            (i.nsn ?? '').trim().toLowerCase() === nsnKey,
+        )
+      const shadowAuthQty = fillsExisting ? null : 1
       if (shadow) {
         for (const comp of store.items.filter((i) => i.parent_item_id === shadow.id)) {
           await store.editItem(comp.id, { parent_item_id: parentLin })
@@ -204,7 +223,7 @@ export const PropertyLocationForm = forwardRef<PropertyLocationFormHandle, Prope
           nomenclature: roleVal,
           nsn: nsnVal,
           parent_item_id: parentLin,
-          quantity_authorized: 1,
+          quantity_authorized: shadowAuthQty,
           quantity: 1,
           location_id: zoneId,
           represents_location_id: zoneId,
@@ -229,7 +248,7 @@ export const PropertyLocationForm = forwardRef<PropertyLocationFormHandle, Prope
         item_type: 'DI',
         unit_of_issue: null,
         pack_size: null,
-        quantity_authorized: 1,
+        quantity_authorized: shadowAuthQty,
         serial_number: null,
         quantity: 1,
         location_tag_id: null,

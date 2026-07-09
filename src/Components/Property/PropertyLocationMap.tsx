@@ -19,16 +19,15 @@ import { fetchAllLocationTags, fetchLocationTags, upsertLocationTags } from '../
 import { buildTagIndex, findLCA } from '../../lib/tagIndex'
 import type { TagIndex } from '../../lib/tagIndex'
 import { ActionButton } from '@/Components/primitives/ActionButton'
-import { LocationTagPhoto } from './LocationTagPhoto'
+import { LocationTagPhoto, ItemCallout } from './LocationTagPhoto'
 import { CanvasEditOverlay } from './CanvasEditOverlay'
 import type { CanvasEditHandle } from './CanvasEditOverlay'
 import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
-import { FloorSwitcher } from './FloorSwitcher'
 import { GlassBand } from '@/Components/primitives/GlassBand'
-import { collectSuppressedIds, findLevelContainer, getLevels, resolveActiveLevel, nextFloorOrdinal } from './levelUtils'
+import { collectSuppressedIds, computeExplodeOffsets, getLevels, nextFloorOrdinal } from './levelUtils'
+import type { ExplodeRect } from './levelUtils'
 import { createLogger } from '../../Utilities/Logger'
 import type { LocalPropertyItem, LocalPropertyLocation, PropertyLocation, LocationTag } from '../../Types/PropertyTypes'
-import { itemAlert } from '../../Types/PropertyTypes'
 
 const logger = createLogger('PropertyLocationMap')
 
@@ -88,9 +87,9 @@ const EditItemPin = memo(function EditItemPin({ pin, item, containerRef, selecte
   }, [onMove, pin.target_id, containerRef])
 
   const isDragging = dragOffset !== null && (dragState.current?.moved ?? false)
-  // Expired / expiring (≤30d) / depleted (0 on hand) → red tag (matches view mode).
-  const alert = itemAlert(item)
 
+  // The wrapper's origin sits ON the pin point (no centering translate) — ItemCallout self-anchors
+  // its dot there and floats the bubble off it. Drag just nudges the whole wrapper by the offset.
   return (
     <div
       data-item-pin
@@ -98,36 +97,46 @@ const EditItemPin = memo(function EditItemPin({ pin, item, containerRef, selecte
       style={{
         left: `${pin.x * 100}%`,
         top: `${pin.y * 100}%`,
-        transform: dragOffset
-          ? `translate(calc(-50% + ${dragOffset.dx}px), calc(-50% + ${dragOffset.dy}px))`
-          : 'translate(-50%, -50%)',
+        transform: dragOffset ? `translate(${dragOffset.dx}px, ${dragOffset.dy}px)` : undefined,
       }}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       onClick={draggable ? undefined : (e) => { e.stopPropagation(); onToggleSelect(item) }}
     >
-      <div className={['px-2 py-1 rounded-full text-[9pt] font-medium shadow-sm backdrop-blur-sm min-h-[28px] flex items-center gap-1 transition-transform border', selected ? 'ring-2 ring-themeblue2 ring-offset-1' : '', alert ? 'bg-themeredred/90 text-white border-themeredred' : selected ? 'bg-themeblue3/20 text-primary border-themeblue2' : 'bg-themewhite3/95 text-primary border-themeblue3/40', isDragging ? 'shadow-md scale-105' : 'active:scale-95'].join(' ')}>
-        <span className="whitespace-nowrap max-w-[90px] truncate">{item.name}</span>
-        {item.quantity !== 1 && (
-          <span className={['shrink-0 text-[8pt] font-semibold px-1 rounded-full leading-tight', alert ? 'bg-white/25 text-white' : 'text-themeblue1 bg-themeblue3/15'].join(' ')}>×{item.quantity}</span>
-        )}
-      </div>
+      <ItemCallout item={item} anchorX={pin.x} anchorY={pin.y} selected={selected} dragging={isDragging} />
     </div>
   )
 })
 
 // ── LOD helpers (pure functions, no hooks) ────────────────────
 
-/** Recursively flatten all nested tags into world-space 0..1 coords. */
-function flattenToWorld(tagIndex: TagIndex, rootId: string): LocationTag[] {
+/** Exploded-shelf descriptor: on the given container's canvas, each level's stored
+ *  full-extent tag is replaced by a staggered fan rect so all floors show at once. */
+interface ExplodeSpec {
+  containerId: string
+  rects: Map<string, ExplodeRect>
+}
+
+/** Recursively flatten all nested tags into world-space 0..1 coords. When `explode` is
+ *  set, the named container's levels are fanned into a staggered shelf instead of stacked. */
+function flattenToWorld(tagIndex: TagIndex, rootId: string, explode?: ExplodeSpec): LocationTag[] {
   const result: LocationTag[] = []
 
   function recurse(canvasId: string, px: number, py: number, pw: number, ph: number) {
     const tags = tagIndex.byCanvas.get(canvasId)
     if (!tags) return
 
-    for (const tag of tags) {
+    // On the exploded container's canvas, paint floors ground-last (frontmost) so the
+    // fan reads as a cascade; the offset rects are looked up per tag below.
+    const exploding = explode && canvasId === explode.containerId
+    const list = exploding
+      ? [...tags].sort(
+          (a, b) => (explode!.rects.get(a.target_id)?.z ?? -1) - (explode!.rects.get(b.target_id)?.z ?? -1),
+        )
+      : tags
+
+    for (const tag of list) {
       const tw = tag.width ?? 0
       const th = tag.height ?? 0
 
@@ -139,10 +148,18 @@ function flattenToWorld(tagIndex: TagIndex, rootId: string): LocationTag[] {
 
       if (tw <= 0 || th <= 0) continue
 
-      const wx = px + tag.x * pw
-      const wy = py + tag.y * ph
-      const ww = tw * pw
-      const wh = th * ph
+      // A level on the exploded container gets its fanned rect in place of the stored
+      // full-extent (0,0,1,1); its whole subtree then composes off the offset rect.
+      const ov = exploding ? explode!.rects.get(tag.target_id) : undefined
+      const rx = ov ? ov.x : tag.x
+      const ry = ov ? ov.y : tag.y
+      const rw = ov ? ov.width : tw
+      const rh = ov ? ov.height : th
+
+      const wx = px + rx * pw
+      const wy = py + ry * ph
+      const ww = rw * pw
+      const wh = rh * ph
 
       result.push({ ...tag, x: wx, y: wy, width: ww, height: wh })
 
@@ -354,8 +371,7 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
     return tagIndex.byCanvas.get(rootLocationId) ?? []
   }, [tagIndex, rootLocationId])
 
-  // ── Suppressed locations — every inactive level + its subtree (floor switcher) ──
-  // Geometry-free: derived from the parent_id tree + kind/ordinal + active-level map.
+  // ── Personnel + Turn-In zones hidden from the overview ──
   // Personnel (member) zones AND the system Turn-In staging zone — never tiled on the
   // company overview, in view OR edit. Personnel live in the top carousel; the Turn-In
   // zone lives in the tree/sheet ("if exists" — only when populated). Selecting one
@@ -367,21 +383,79 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
     [locations],
   )
 
+  // ── Exploded-shelf state ──
+  // The container zone IS floor 1; its levels are upper floors. Selecting a building that
+  // has ≥1 upper floor — OR selecting one of its floors — EXPLODES it: the floors fan
+  // up-and-right out of the base (see computeExplodeOffsets), all visible at once. The fan
+  // STAYS while you move between floors; the selected floor is surfaced (raised + framed).
+  // At rest (nothing on the building selected) every floor is hidden — base = floor 1.
+  const explodeContainerId = useMemo(() => {
+    const sel = store.selectedZoneId
+    if (!sel) return null
+    // Any selection INSIDE a floor (the floor, or a zone/item nested within it) keeps that
+    // floor's BUILDING exploded — so the level stays fanned and a zone within a level renders
+    // AND zooms at its offset position. Collapsing here would snap the level back to full
+    // extent, leaving the just-computed zoom offset from where the zone lands.
+    let cur: string | null = sel
+    let guard = 0
+    while (cur && guard++ < 64) {
+      const loc = locations.find((l) => l.id === cur)
+      if (!loc) break
+      if (loc.kind === 'level' && loc.parent_id) return loc.parent_id
+      cur = loc.parent_id ?? null
+    }
+    // Otherwise the selection is the building itself → explode if it has any floors.
+    return locations.some((l) => l.parent_id === sel && l.kind === 'level') ? sel : null
+  }, [store.selectedZoneId, locations])
+
+  // The surfaced floor = the level of the exploded building that the selection sits on
+  // (the floor itself, or the floor an inner zone/item belongs to).
+  const surfacedLevelId = useMemo(() => {
+    const sel = store.selectedZoneId
+    if (!sel || !explodeContainerId) return null
+    let cur: string | null = sel
+    let guard = 0
+    while (cur && guard++ < 64) {
+      const loc = locations.find((l) => l.id === cur)
+      if (!loc) break
+      if (loc.kind === 'level' && loc.parent_id === explodeContainerId) return loc.id
+      cur = loc.parent_id ?? null
+    }
+    return null
+  }, [store.selectedZoneId, explodeContainerId, locations])
+
+  const explode = useMemo((): ExplodeSpec | undefined => {
+    if (!explodeContainerId) return undefined
+    const rects = computeExplodeOffsets(getLevels(locations, explodeContainerId), surfacedLevelId)
+    return rects.size > 0 ? { containerId: explodeContainerId, rects } : undefined
+  }, [explodeContainerId, surfacedLevelId, locations])
+
+  // Fanned floor tiles must render OPAQUE so they clip/occlude the floors beneath (a
+  // shelf of drawers, not a translucent stack) — passed to LocationTagPhoto.
+  const opaqueZoneIds = useMemo(
+    () => (explode ? new Set(explode.rects.keys()) : undefined),
+    [explode],
+  )
+  // Ref so a canvas tap can tell whether a tapped floor belongs to the exploded building.
+  const explodeContainerIdRef = useRef(explodeContainerId)
+  explodeContainerIdRef.current = explodeContainerId
+
   const suppressedIds = useMemo(
-    () => collectSuppressedIds(locations, store.activeLevelByContainer, rootLocationId),
-    [locations, store.activeLevelByContainer, rootLocationId],
+    () => collectSuppressedIds(locations, rootLocationId, explodeContainerId, store.selectedZoneId, surfacedLevelId),
+    [locations, rootLocationId, explodeContainerId, store.selectedZoneId, surfacedLevelId],
   )
 
   // ── All tags in world coords (for zoom lookup + toolbar label) ──
-  // Inactive-floor tags are filtered out (by both target and canvas) so only the
-  // active level of each building renders — everything downstream (LOD, zoom, edit,
-  // auto-pin) then operates as if the hidden floors simply don't exist.
+  // Upper-floor tags are filtered out (by both target and canvas) so a building shows as
+  // its floor-1 footprint — UNLESS it's the exploded selection (all floors fan out) or a
+  // floor you've drilled into (that one floor shows). Everything downstream (LOD, zoom,
+  // edit, auto-pin) then operates as if the hidden floors simply don't exist.
   const allWorldTags: LocationTag[] = useMemo(() => {
     if (!tagIndex || !rootLocationId) return []
-    const flat = flattenToWorld(tagIndex, rootLocationId)
+    const flat = flattenToWorld(tagIndex, rootLocationId, explode)
     if (suppressedIds.size === 0) return flat
     return flat.filter((t) => !suppressedIds.has(t.target_id) && !suppressedIds.has(t.location_id))
-  }, [tagIndex, rootLocationId, suppressedIds])
+  }, [tagIndex, rootLocationId, suppressedIds, explode])
   const allWorldTagsRef = useRef(allWorldTags)
   allWorldTagsRef.current = allWorldTags
 
@@ -645,6 +719,31 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
     [zoomToRect],
   )
 
+  // ── Expand a building's tag to include its fanned floors ──
+  // Grow the base tag to also cover its fanned floors (which spill up-and-right past the
+  // footprint) so it flows through the SAME zoom path as every other zone (zoomToTag /
+  // zoomViaLCA) — just framing a rect that reaches the highest level. Zones with no floors
+  // are returned unchanged. Reads live refs, so it needs no deps.
+  const expandTagForFan = useCallback((tag: LocationTag): LocationTag => {
+    const levels = getLevels(locationsRef.current, tag.target_id)
+    if (levels.length === 0) return tag
+    const pw = tag.width ?? 0
+    const ph = tag.height ?? 0
+    let minX = tag.x
+    let minY = tag.y
+    let maxX = tag.x + pw
+    let maxY = tag.y + ph
+    for (const r of computeExplodeOffsets(levels).values()) {
+      const wx = tag.x + r.x * pw
+      const wy = tag.y + r.y * ph
+      minX = Math.min(minX, wx)
+      minY = Math.min(minY, wy)
+      maxX = Math.max(maxX, wx + r.width * pw)
+      maxY = Math.max(maxY, wy + r.height * ph)
+    }
+    return { ...tag, x: minX, y: minY, width: maxX - minX, height: maxY - minY }
+  }, [])
+
   // Item focus box = a fraction of its containing zone, sized PER-AXIS (so it matches
   // the zone's aspect ratio) and CLAMPED to stay inside the zone. The item truly lives
   // inside its zone, so its frame must too: a box that's < the zone on both axes always
@@ -800,18 +899,34 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
   // ── Zone tap → select + zoom ──
   const handleZoneTap = useCallback(
     (targetId: string) => {
-      // Tapping already-selected zone → deselect only, no zoom change
+      // Tapping already-selected zone → step out one level (inside an exploded building)
+      // or deselect. Backing out of a zone-within-a-floor returns to the floor, not overview.
       if (targetId === store.selectedZoneId) {
-        store.selectZone(null)
+        if (!stepOutRef.current()) store.selectZone(null)
+        return
+      }
+
+      // Tapping a floor in the already-exploded fan → SURFACE it: just select it (which
+      // lifts it to the top + reveals its contents via the explode/suppression memos). NO
+      // camera move — the whole fan is already framed at the right zoom + x/y, so a re-zoom
+      // to the floor would only jar; changing the surfaced level is enough.
+      const tappedLoc = locationsRef.current.find((l) => l.id === targetId)
+      if (tappedLoc?.kind === 'level' && tappedLoc.parent_id === explodeContainerIdRef.current) {
+        store.setActiveLevel(tappedLoc.parent_id, targetId)
+        store.selectZone(targetId)
         return
       }
 
       const prevId = store.selectedZoneId
       store.selectZone(targetId)
-      const tag =
+
+      const baseTag =
         allWorldTags.find((t) => t.target_id === targetId) ??
         childZoneAutoTagsRef.current.find((t) => t.target_id === targetId)
-      if (!tag) return
+      if (!baseTag) return
+      // A building with floors zooms via the SAME path as any zone — just to a rect grown
+      // to include its highest fanned floor (expandTagForFan); plain zones are unchanged.
+      const tag = expandTagForFan(baseTag)
 
       // If navigating between siblings/unrelated zones, use shared-parent animation
       if (prevId && prevId !== targetId) {
@@ -820,7 +935,7 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
         zoomToTag(tag)
       }
     },
-    [store, allWorldTags, zoomToTag, zoomViaLCA],
+    [store, allWorldTags, zoomToTag, zoomViaLCA, expandTagForFan],
   )
 
   // Canvas zone tap entry point. On desktop, handlePanEnd has already handled the
@@ -911,11 +1026,13 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
     // A selected tag-less sub-zone lives in childZoneAutoTags, not allWorldTags. Consult
     // both so the re-fit zooms to it instead of falling through to handleResetZoom — which
     // deselects (selectZone(null)) and would close the right pane the selection just opened.
+    // expandTagForFan grows a building's rect to include its fanned floors (no-op for plain
+    // zones), so a resize re-frames the whole fan instead of clipping the top floor.
     const selTag = sel
       ? (allWorldTagsRef.current.find((tg) => tg.target_id === sel)
           ?? childZoneAutoTagsRef.current.find((tg) => tg.target_id === sel))
       : null
-    if (selTag) zoomToTag(selTag)
+    if (selTag) zoomToTag(expandTagForFan(selTag))
     // Only re-fit to root when nothing is selected — never deselect on a mere resize.
     else if (!sel) handleResetZoom()
   }
@@ -953,16 +1070,36 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
     store.selectZone(targetId)
     if (skipZoom) return true
 
-    // Reuse the SAME zoom-to logic as a direct canvas zone tap (handleZoneTap):
-    // travel from the current selection to the target via their lowest common
-    // ancestor. This unifies every external nav source — rail/sheet tree, the
-    // detail-pane child rows, the breadcrumb, and search — with the map tap, so
-    // navigation animates the same way both forwards down and back up the tree.
-    if (prevId && prevId !== targetId) zoomViaLCA(prevId, targetId, tag)
-    else zoomToTag(tag)
+    // Reuse the SAME zoom-to logic as a direct canvas zone tap (handleZoneTap): travel from
+    // the current selection to the target via their lowest common ancestor. A building with
+    // floors just frames a rect grown to include its highest fanned floor (expandTagForFan);
+    // plain zones are unchanged. This unifies every nav source — rail/sheet tree, detail-pane
+    // rows, breadcrumb, search, and the map tap — so they animate the same, down and up.
+    const framed = expandTagForFan(tag)
+    if (prevId && prevId !== targetId) zoomViaLCA(prevId, targetId, framed)
+    else zoomToTag(framed)
 
     return true
-  }, [allWorldTags, store, zoomViaLCA, zoomToTag])
+  }, [allWorldTags, store, zoomViaLCA, zoomToTag, expandTagForFan])
+
+  // ── Step out one level — the reverse of drilling in ──
+  // Inside an exploded building, "backing out" (tap the selected zone, tap empty canvas)
+  // climbs the tree one step instead of dropping straight to the overview: a zone within a
+  // floor → the floor (level view), a floor → the whole building fan, the building →
+  // overview. Uses the shared zoom (executeNavigation), so each step animates like any nav.
+  // Returns false outside the levels mode so callers fall back to the plain deselect.
+  const stepOutRef = useRef<() => boolean>(() => false)
+  stepOutRef.current = () => {
+    const sel = store.selectedZoneId
+    if (!sel || !explodeContainerIdRef.current) return false
+    const parent = locationsRef.current.find((l) => l.id === sel)?.parent_id ?? null
+    if (!parent || parent === rootLocationId) {
+      handleResetZoom() // at the building → zoom back out to the overview
+      return true
+    }
+    executeNavigation(parent) // → the level, or the building, framed via the shared zoom
+    return true
+  }
 
   // ── External item focus — the imperative equivalent of a canvas pin tap ──
   // Mirrors handleItemTap, but reachable from PropertyPanel for selections that
@@ -1016,16 +1153,6 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
   }, [store, focusItemPin, executeNavigation, activateAncestorFloors])
 
   // ── Imperative handle for external navigation (tree clicks, breadcrumbs) ──
-  // ── Floor switcher: activate a level + zoom to it once its tag is live ──
-  // setActiveLevel mutates the suppression set → allWorldTags recomputes to include
-  // the newly-active floor; pendingNavRef lets the deferred-nav effect zoom once it lands.
-  const handleSelectLevel = useCallback((containerId: string, levelId: string) => {
-    if (levelId === store.selectedZoneId) return
-    store.setActiveLevel(containerId, levelId)
-    store.selectZone(levelId)
-    pendingNavRef.current = levelId
-  }, [store])
-
   const handleAddFloor = useCallback(async (containerId: string) => {
     const ord = nextFloorOrdinal(getLevels(locationsRef.current, containerId))
     const created = await store.addLevel(containerId, `Floor ${ord}`, ord)
@@ -1503,7 +1630,8 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
           } else if (d.zoneId) {
             handleZoneTap(d.zoneId)
           } else if (store.selectedZoneId) {
-            store.selectZone(null)
+            // Empty-canvas tap → step out one level inside a building, else deselect.
+            if (!stepOutRef.current()) store.selectZone(null)
           }
         }
       }
@@ -1534,7 +1662,8 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
     if ((e.target as HTMLElement).closest('[data-zone-target]')) return
     if ((e.target as HTMLElement).closest('[data-zoom-controls]')) return
     if (store.selectedZoneId) {
-      store.selectZone(null)
+      // Empty-canvas tap → step out one level inside a building, else deselect.
+      if (!stepOutRef.current()) store.selectZone(null)
     }
   }, [isEditing, store])
 
@@ -1805,15 +1934,6 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
       ?? 'Canvas'
     : 'All Items'
 
-  // ── Floor switcher state (building-local) ──
-  // Container = nearest level-bearing ancestor of the selection; falls back to a
-  // plain structural zone so the very first floor can be added to make it a building.
-  const levelContainerId = findLevelContainer(store.selectedZoneId, locations, rootLocationId)
-  const containerLevels = levelContainerId ? getLevels(locations, levelContainerId) : []
-  const activeLevelId = levelContainerId
-    ? resolveActiveLevel(containerLevels, store.activeLevelByContainer, levelContainerId)
-    : null
-
   // Item-selection toolbar context (edit mode). While items are selected, the zone
   // buttons hide (zoneSel forced to 0) and the item action group takes over. Merge
   // is offered only for two stackable pins: non-serialized, same name + nsn.
@@ -1953,6 +2073,7 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
                   onItemTap={handleCanvasItemTap}
                   selectedItemId={focusedItemId}
                   dispatchStatusByLocation={dispatchStatusByLocation}
+                  opaqueZoneIds={opaqueZoneIds}
                 />
 
                 {(!rootLocationId || !tagIndex) && (
@@ -2020,16 +2141,8 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
           </div>
         )}
 
-        {/* Floor switcher — Genshin-style vertical level stack, building-local.
-            Pure selector: renders only once the in-scope container actually has
-            floors. Adding a floor lives in the zone context menu. View mode only. */}
-        {!isEditing && levelContainerId && containerLevels.length > 0 && (
-          <FloorSwitcher
-            levels={containerLevels}
-            activeLevelId={activeLevelId}
-            onSelect={(levelId) => handleSelectLevel(levelContainerId, levelId)}
-          />
-        )}
+        {/* Levels are shown as an exploded fan (computeExplodeOffsets) when the building
+            is selected — selecting a floor in the fan drills in. No separate switcher rail. */}
 
         {/* Edit mode toolbar — only visible when editing. Mobile clears the floating
             glass header via --drawer-header-h (same offset as the view-mode edit

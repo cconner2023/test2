@@ -31,6 +31,12 @@ import { ActionPill } from '@/Components/primitives/ActionPill'
 interface MedevacFormProps {
   value?: MedevacRequest | null
   onChange: (req: MedevacRequest) => void
+  /**
+   * Render the inline W/P (wartime/peacetime) mode toggle at the top of the form.
+   * Default true. The KB 9-line surface sets this false because it drives mode
+   * from the drawer's BottomIsland instead (see KnowledgeBaseDrawer).
+   */
+  showModeToggle?: boolean
 }
 
 const SMOKE_COLOR_HEX: Record<typeof SMOKE_COLORS[number], string> = {
@@ -129,12 +135,12 @@ function lineSummary(line: number, req: MedevacRequest): { text: string; blank: 
 }
 
 // ── Public component ───────────────────────────────────────────────────────
-export function MedevacForm({ value, onChange }: MedevacFormProps) {
+export function MedevacForm({ value, onChange, showModeToggle = true }: MedevacFormProps) {
   const isMobile = useIsMobile()
   const req = value ?? emptyMedevacRequest()
   const update = (patch: Partial<MedevacRequest>) => onChange({ ...req, ...patch })
 
-  return <MedevacFormInner req={req} update={update} isMobile={isMobile} onChange={onChange} />
+  return <MedevacFormInner req={req} update={update} isMobile={isMobile} onChange={onChange} showModeToggle={showModeToggle} />
 }
 
 // ── Master list view ───────────────────────────────────────────────────────
@@ -143,11 +149,13 @@ function MedevacFormInner({
   update,
   isMobile,
   onChange,
+  showModeToggle,
 }: {
   req: MedevacRequest
   update: (patch: Partial<MedevacRequest>) => void
   isMobile: boolean
   onChange: (req: MedevacRequest) => void
+  showModeToggle: boolean
 }) {
   const [activeLine, setActiveLine] = useState<number | null>(null)
   const anchorRef = useRef<DOMRect | null>(null)
@@ -202,28 +210,32 @@ function MedevacFormInner({
   return (
     <div className="space-y-3">
 
-      {/* Mode toggle */}
-      <div className="flex items-center justify-end">
-        <ActionPill>
-          {(['wartime', 'peacetime'] as MedevacMode[]).map(m => {
-            const isActive = req.mode === m
-            return (
-              <button
-                key={m}
-                type="button"
-                aria-label={m === 'wartime' ? 'Wartime' : 'Peacetime'}
-                title={m === 'wartime' ? 'Wartime' : 'Peacetime'}
-                onClick={() => update({ mode: m })}
-                className={`w-9 h-9 rounded-full flex items-center justify-center transition-all active:scale-95 text-[10pt] font-bold ${
-                  isActive ? 'bg-themeblue2 text-white' : 'bg-themeblue2/8 text-primary'
-                }`}
-              >
-                {m === 'wartime' ? 'W' : 'P'}
-              </button>
-            )
-          })}
-        </ActionPill>
-      </div>
+      {/* Mode toggle (W/P). Rendered inline for embedded consumers (calendar
+          EventForm, map FeatureEditor). The KB 9-line hides this and drives mode
+          from the drawer's BottomIsland instead (showModeToggle=false). */}
+      {showModeToggle && (
+        <div className="flex items-center justify-end">
+          <ActionPill>
+            {(['wartime', 'peacetime'] as MedevacMode[]).map(m => {
+              const isActive = req.mode === m
+              return (
+                <button
+                  key={m}
+                  type="button"
+                  aria-label={m === 'wartime' ? 'Wartime' : 'Peacetime'}
+                  title={m === 'wartime' ? 'Wartime' : 'Peacetime'}
+                  onClick={() => update({ mode: m })}
+                  className={`w-9 h-9 rounded-full flex items-center justify-center transition-all active:scale-95 text-[10pt] font-bold ${
+                    isActive ? 'bg-themeblue2 text-white' : 'bg-themeblue2/8 text-primary'
+                  }`}
+                >
+                  {m === 'wartime' ? 'W' : 'P'}
+                </button>
+              )
+            })}
+          </ActionPill>
+        </div>
+      )}
 
       {/* 9-row master list */}
       <SectionCard>

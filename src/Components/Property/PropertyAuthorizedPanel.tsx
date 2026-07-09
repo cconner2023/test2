@@ -5,7 +5,7 @@ import { SearchInput } from '@/Components/primitives/SearchInput'
 import { LiftedRowMenu } from '@/Components/primitives/LiftedRowMenu'
 import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
 import { usePropertyStore } from '../../stores/usePropertyStore'
-import { groupAuthorized } from '../../Utilities/propertyAuthorized'
+import { groupAuthorized, isAuthTarget, lineKeyOf } from '../../Utilities/propertyAuthorized'
 import type { LocalPropertyItem } from '../../Types/PropertyTypes'
 
 interface PropertyAuthorizedPanelProps {
@@ -30,10 +30,11 @@ interface PropertyAuthorizedPanelProps {
  *  Hosted in the Property right pane (desktop) / detail sheet (mobile); the host owns the
  *  header (ellipsis · + · close) and the view/edit morph. Offline-first; persists across devices.
  *
- *  DELETE semantics: a COMPONENT "Delete" DE-AUTHORIZES (clears quantity_authorized) — it stays
- *  on-hand as excess, never removed. A LIN "Delete" removes the LIN from the receipt (confirm):
- *  its components detach + de-authorize (survive as loose stock), then the LIN container is
- *  removed — for a vehicle-LIN this un-LINs the vehicle; its zone remains. */
+ *  DELETE semantics: a COMPONENT "Delete" STRIPS the LIN association from every item filling the
+ *  line (parent_item_id/lin cleared → drops into the Unassigned/top-level bucket, kept on-hand)
+ *  and removes the bare location-less authorized target; the filler is never de-authorized in
+ *  place and never deleted. A LIN "Delete" (confirm) does the same to every child, then removes
+ *  the LIN container — for a vehicle-LIN this un-LINs the vehicle; its zone remains. */
 export function PropertyAuthorizedPanel({ onEdit, onView }: PropertyAuthorizedPanelProps) {
   const { items, editItem, removeItem } = usePropertyStore(
     useShallow((s) => ({ items: s.items, editItem: s.editItem, removeItem: s.removeItem })),
@@ -76,18 +77,33 @@ export function PropertyAuthorizedPanel({ onEdit, onView }: PropertyAuthorizedPa
   const [menu, setMenu] = useState<{ item: LocalPropertyItem; kind: 'lin' | 'component'; rect: DOMRect } | null>(null)
   const openMenu = (item: LocalPropertyItem, kind: 'lin' | 'component', rect: DOMRect) => setMenu({ item, kind, rect })
 
-  // Component "Delete" = de-authorize (stays on-hand as excess), NEVER delete the item.
-  const deauthorize = (itemId: string) => { void editItem(itemId, { quantity_authorized: null }) }
+  // Component "Delete" = STRIP the LIN association from everything filling this line so the
+  // physical stock drops into the Unassigned (top-level) bucket; the location-less authorized
+  // TARGET (a bare requirement marker with no stock) is removed. Never de-authorize-in-place,
+  // never delete a filler. "Everything filling this line" = live items under the same LIN that
+  // fold to the same (LIN + NSN) key as the tapped row.
+  const deleteComponent = async (comp: LocalPropertyItem) => {
+    const key = lineKeyOf(comp)
+    const members = items.filter(
+      (i) => !i.deleted_at && !i.turned_in_at && i.parent_item_id === comp.parent_item_id && lineKeyOf(i) === key,
+    )
+    for (const m of members) {
+      if (isAuthTarget(m)) await removeItem(m.id)
+      else await editItem(m.id, { parent_item_id: null, lin: null, quantity_authorized: null })
+    }
+  }
 
-  // LIN "Delete" (confirmed) = remove the LIN container after detaching + de-authorizing its
-  // components so removeItem doesn't cascade-delete them (they survive as loose stock).
+  // LIN "Delete" (confirmed) = strip every child's LIN association so it lands in Unassigned
+  // (kept on-hand), remove the location-less authorized targets, then remove the LIN container.
+  // Detaching before removeItem also stops removeItem's cascade from tombstoning the survivors.
   const [pendingDeleteLin, setPendingDeleteLin] = useState<LocalPropertyItem | null>(null)
   const confirmDeleteLin = async () => {
     const lin = pendingDeleteLin
     setPendingDeleteLin(null)
     if (!lin) return
-    for (const comp of items.filter((i) => i.parent_item_id === lin.id)) {
-      await editItem(comp.id, { parent_item_id: null, quantity_authorized: null })
+    for (const child of items.filter((i) => i.parent_item_id === lin.id && !i.deleted_at && !i.turned_in_at)) {
+      if (isAuthTarget(child)) await removeItem(child.id)
+      else await editItem(child.id, { parent_item_id: null, lin: null, quantity_authorized: null })
     }
     await removeItem(lin.id)
   }
@@ -142,6 +158,11 @@ export function PropertyAuthorizedPanel({ onEdit, onView }: PropertyAuthorizedPa
                   <span className="block text-[10pt] font-bold text-primary truncate">{g.skoName ?? 'Top-level items'}</span>
                   {container?.lin && <span className="block text-[9pt] text-tertiary">LIN {container.lin}</span>}
                 </button>
+                {/* Fill rollup for the whole LIN — Σ on-hand vs Σ authorized (base units) as a
+                    single right-aligned percent, mirroring the component rows' on-hand / auth. */}
+                {g.authorizedBaseTotal > 0 && (
+                  <span className="text-[10pt] font-medium text-tertiary tabular-nums shrink-0">{g.fillPercent}%</span>
+                )}
                 {container && (
                   <button
                     type="button"
@@ -206,14 +227,14 @@ export function PropertyAuthorizedPanel({ onEdit, onView }: PropertyAuthorizedPa
             { key: 'edit', label: 'Edit', icon: Pencil, onAction: () => onEdit(menu.item) },
             menu.kind === 'lin'
               ? { key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => setPendingDeleteLin(menu.item) }
-              : { key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => deauthorize(menu.item.id) },
+              : { key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => { void deleteComponent(menu.item) } },
           ]}
         />
       )}
 
       <ConfirmDialog
         visible={!!pendingDeleteLin}
-        title="Remove this LIN from the hand receipt? Its items stay on-hand (de-authorized)."
+        title="Remove this LIN from the hand receipt? Its items move to Unassigned (kept on-hand)."
         confirmLabel="Remove"
         variant="danger"
         onConfirm={confirmDeleteLin}

@@ -192,7 +192,7 @@ export const NotificationSettingsPanel = () => {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className={`text-sm font-medium ${devAlerts ? 'text-primary' : 'text-tertiary'}`}>Dev Alerts</p>
-                      <p className="text-[9pt] text-tertiary mt-0.5">Login alerts, account requests, and feedback</p>
+                      <p className="text-[9pt] text-tertiary mt-0.5">Account requests and feedback</p>
                     </div>
                     <ToggleSwitch checked={devAlerts} />
                   </div>

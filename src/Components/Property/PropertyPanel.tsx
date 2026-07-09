@@ -546,6 +546,32 @@ export const PropertyPanel = memo(function PropertyPanel({
     if (searchFocused) setPropertyTab('map')
   }, [searchFocused])
 
+  // The map canvas is UNMOUNTED while the Custody tab / a roster detail shows (both
+  // platforms), so mapRef is null at tap time. `cameraTo` runs the focus/navigate NOW
+  // when the map is mounted (map tab), else it flips to the map tab and DEFERS the op
+  // to the effect below — fired once the map remounts. Every camera-moving path (tree
+  // select, search result, custody card) routes through this, so selecting from the
+  // Sign-outs tab actually zooms instead of just opening the detail.
+  type CameraOp = { kind: 'item' | 'zone'; id: string } | { kind: 'reset' }
+  const pendingCameraRef = useRef<CameraOp | null>(null)
+  const runCamera = useCallback((c: CameraOp) => {
+    if (c.kind === 'item') mapRef.current?.focusItem(c.id)
+    else if (c.kind === 'zone') mapRef.current?.navigateToZone(c.id)
+    else mapRef.current?.resetZoom()
+  }, [])
+  const cameraTo = useCallback((c: CameraOp) => {
+    if (propertyTab === 'map' && mapRef.current) { runCamera(c); return }
+    pendingCameraRef.current = c
+    setPropertyTab('map')
+  }, [propertyTab, runCamera])
+  useEffect(() => {
+    if (propertyTab === 'map' && pendingCameraRef.current) {
+      const c = pendingCameraRef.current
+      pendingCameraRef.current = null
+      runCamera(c)
+    }
+  }, [propertyTab, runCamera])
+
   const handleSelectItem = useCallback((item: LocalPropertyItem) => {
     // Selecting an item ALWAYS surfaces it on the canvas: drop any full-pane book view
     // (Cluster Hand Receipt / Shortages) sitting over the map, and leave the Sign-outs
@@ -565,14 +591,15 @@ export const PropertyPanel = memo(function PropertyPanel({
         pendingItemZoneRef.current = targetZone
         setTimeout(() => { pendingItemZoneRef.current = null }, 0)
       }
-      // Drill the canvas in on the item itself (not just its zone) — mirrors a
-      // canvas pin tap. focusItem navigates to the zone first when needed.
-      mapRef.current?.focusItem(item.id)
+      // Drill the canvas in on the item itself (not just its zone) — mirrors a canvas
+      // pin tap. Deferred through cameraTo so it still fires when the item was picked
+      // from the Sign-outs tab / tree while the map was unmounted.
+      cameraTo({ kind: 'item', id: item.id })
     }
     // Mobile: nest the item inside the location sheet (back returns to the zone).
     if (isMobile) { setMobileItem(item); return }
     onSelectItem(item)
-  }, [isMobile, onSelectItem, selectedLocationId])
+  }, [isMobile, onSelectItem, selectedLocationId, cameraTo])
 
   // Global-search / cross-domain deep-link: focus a specific item on the canvas by id.
   // Routes through handleSelectItem so the canvas navigates to the item's PARENT ZONE
@@ -586,20 +613,30 @@ export const PropertyPanel = memo(function PropertyPanel({
     })
   }, [onRegisterFocusItem, store.items, handleSelectItem])
 
-  // Locate a signed-out item from the hand-receipts tree section: surface it on the
-  // canvas (navigate + select, like any item tap). On mobile, dismiss the Locations
-  // sheet so the map is revealed — "target the signed-out equipment".
+  // Locate a signed-out / used / expiring item from a Custody card: clear the roster
+  // panes, then surface it on the canvas (select + zoom, like any item tap).
+  // handleSelectItem/cameraTo defer the camera op when the map is unmounted (custody
+  // tab), so this fires correctly from the Sign-outs tab on both platforms.
   const handleLocateReceiptItem = useCallback((receiptItem: ReceiptItem) => {
-    // Close any open roster detail first so the item detail isn't masked by the
-    // (earlier-precedence) receipt/record pane.
     setSelectedReceiptId(null)
     setSelectedRecord(null)
+    setSelectedTurnInId(null)
     const full = store.items.find(i => i.id === receiptItem.id)
     if (full) handleSelectItem(full)
-    else if (receiptItem.location_id) mapRef.current?.navigateToZone(receiptItem.location_id)
-    // Leave the sign-outs tab and surface the map (desktop center pane / mobile canvas).
-    setPropertyTab('map')
-  }, [store.items, handleSelectItem])
+    else if (receiptItem.location_id) cameraTo({ kind: 'zone', id: receiptItem.location_id })
+  }, [store.items, handleSelectItem, cameraTo])
+
+  // Locate a PMCS / dispatch record's SUBJECT from its detail's item card: a vehicle
+  // record (subjectType 'location') flies to + selects the vehicle zone; a stock-item
+  // PMCS focuses + selects the item.
+  const handleLocateSubject = useCallback((rec: SelectedRecord) => {
+    setSelectedReceiptId(null)
+    setSelectedRecord(null)
+    setSelectedTurnInId(null)
+    if (rec.event.subjectType === 'location') { cameraTo({ kind: 'zone', id: rec.event.subjectId }); return }
+    const full = store.items.find(i => i.id === rec.event.subjectId)
+    if (full) handleSelectItem(full)
+  }, [store.items, handleSelectItem, cameraTo])
 
   // Open a Custody-roster card's detail in the host surface (right pane desktop /
   // sheet mobile). Clears the other card kind + any open item/zone/form so the detail
@@ -712,9 +749,11 @@ export const PropertyPanel = memo(function PropertyPanel({
   // (where DD 1750 / Print label live). The zone sibling of handleScanLocate.
   const handleScanLocateZone = useCallback((zoneId: string) => {
     setShowScanner(false)
-    setPropertyTab('map')
-    mapRef.current?.navigateToZone(zoneId)
-  }, [])
+    // Route through cameraTo: if the scan was launched from the Sign-outs tab the map is
+    // unmounted, so setPropertyTab('map') + an immediate navigateToZone races the remount
+    // (mapRef still null) and no-ops. cameraTo defers the nav to the remount instead.
+    cameraTo({ kind: 'zone', id: zoneId })
+  }, [cameraTo])
 
   // Shared camera overlay (fixed inset-0) — rendered in both layouts.
   const scannerEl = showScanner ? (
@@ -776,9 +815,13 @@ export const PropertyPanel = memo(function PropertyPanel({
   // Tree location tap (desktop) → navigate the canvas to that zone; re-tap clears.
   // Selection state itself flows back from the canvas via onSelectZone → selectedLocationId.
   const handleSelectLocationDesktop = useCallback((loc: LocalPropertyLocation) => {
-    if (selectedLocationId === loc.id) mapRef.current?.resetZoom()
-    else mapRef.current?.navigateToZone(loc.id)
-  }, [selectedLocationId])
+    // Route through cameraTo so a tree tap works even when the Sign-outs (custody) tab
+    // is showing — the map is unmounted then (mapRef null), so a direct navigateToZone
+    // is a silent no-op. cameraTo flips to the map tab and defers the nav to the remount.
+    // Re-tap-to-reset only applies when the map is already the live surface.
+    if (propertyTab === 'map' && selectedLocationId === loc.id) mapRef.current?.resetZoom()
+    else cameraTo({ kind: 'zone', id: loc.id })
+  }, [propertyTab, selectedLocationId, cameraTo])
 
   const openLocMenu = useCallback((e: React.MouseEvent) => {
     setLocMenu({ rect: e.currentTarget.getBoundingClientRect() })
@@ -1082,7 +1125,7 @@ export const PropertyPanel = memo(function PropertyPanel({
                 activeLocationId={selectedLocationId}
                 onSelectLocation={handleSelectLocationDesktop}
                 onSelectItem={handleSelectItem}
-                onSelectAll={() => mapRef.current?.resetZoom()}
+                onSelectAll={() => cameraTo({ kind: 'reset' })}
                 allSelected={!selectedLocationId}
                 onEditLocation={handleEditLocation}
                 onOpenItemMenu={(item, rect) => openItemMenu(item, rect, { view: true })}
@@ -1348,6 +1391,7 @@ export const PropertyPanel = memo(function PropertyPanel({
                     ref={recordDetailRef}
                     record={selectedRecord}
                     onDeleted={closeRosterDetail}
+                    onLocateSubject={() => handleLocateSubject(selectedRecord)}
                   />
                 </div>
               </>
@@ -1864,8 +1908,8 @@ export const PropertyPanel = memo(function PropertyPanel({
               clinicName={clinicName}
               activeLocationId={selectedLocationId}
               allSelected={!selectedLocationId}
-              onSelectAll={() => mapRef.current?.resetZoom()}
-              onSelectLocation={(loc) => mapRef.current?.navigateToZone(loc.id)}
+              onSelectAll={() => cameraTo({ kind: 'reset' })}
+              onSelectLocation={(loc) => cameraTo({ kind: 'zone', id: loc.id })}
               onSelectItem={(item) => handleSelectItem(item)}
               onEditLocation={handleEditLocation}
               onOpenItemMenu={(item, rect) => openItemMenu(item, rect, { view: true })}
@@ -1927,6 +1971,7 @@ export const PropertyPanel = memo(function PropertyPanel({
             ref={recordDetailRef}
             record={selectedRecord}
             onDeleted={closeRosterDetail}
+            onLocateSubject={() => handleLocateSubject(selectedRecord)}
           />
         ) : selectedTurnIn ? (
           <PropertyTurnInDetail

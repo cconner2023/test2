@@ -5,18 +5,18 @@ import { useInvalidation } from '../../stores/useInvalidationStore'
 import { AdminSystemConversationsList } from './AdminSystemConversationsList'
 import { AdminRequestsList } from './AdminRequestsList'
 import type { AccountRequest } from '../../lib/accountRequestService'
+import type { FeedbackRow } from '../../lib/feedbackService'
+import type { FeatureVoteSuggestion } from '../../lib/featureVotingService'
 
 interface AdminSortRailProps {
   /** Open the admin settings sheet (locations management). */
   onOpenSettings: () => void
   /** Open a system-conversation thread (detail pane / view). */
   onSelectSystemPeer: (peerId: string) => void
-  /** Fired after a request approval succeeds — opens the new user. */
-  onApproved: (
-    userId: string,
-    request: AccountRequest,
-    configured: { roles: string[]; clinicId: string | null; warnings: string[] },
-  ) => void
+  /** Open a triage item in the drawer detail pane / Sheet. */
+  onOpenRequest: (request: AccountRequest) => void
+  onOpenFeedback: (feedback: FeedbackRow) => void
+  onOpenSuggestion: (suggestion: FeatureVoteSuggestion) => void
   /** Shared search — filters every section. */
   searchQuery?: string
   /** Highlights the currently-open system thread. */
@@ -38,7 +38,9 @@ const FEEDBACK_KINDS = ['suggestion', 'feedback'] as const
 export function AdminSortRail({
   onOpenSettings,
   onSelectSystemPeer,
-  onApproved,
+  onOpenRequest,
+  onOpenFeedback,
+  onOpenSuggestion,
   searchQuery,
   activeSystemPeerId,
 }: AdminSortRailProps) {
@@ -86,7 +88,9 @@ export function AdminSortRail({
           bareLabel="Requests"
           kinds={REQUEST_KINDS}
           searchQuery={searchQuery}
-          onApproved={onApproved}
+          onOpenRequest={onOpenRequest}
+          onOpenFeedback={onOpenFeedback}
+          onOpenSuggestion={onOpenSuggestion}
         />
 
         <AdminRequestsList
@@ -94,6 +98,9 @@ export function AdminSortRail({
           bareLabel="Feedback"
           kinds={FEEDBACK_KINDS}
           searchQuery={searchQuery}
+          onOpenRequest={onOpenRequest}
+          onOpenFeedback={onOpenFeedback}
+          onOpenSuggestion={onOpenSuggestion}
         />
 
         <AdminSystemConversationsList

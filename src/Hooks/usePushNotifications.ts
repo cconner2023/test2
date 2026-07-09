@@ -51,7 +51,7 @@ export function usePushNotifications() {
         // generic duplicate here and let that rich banner be the sole one.
         const url = event.data.url as string | undefined
         if (url?.includes('view=messages')) return
-        // Admin-routed pushes (new_account / new_feedback / user_login all land on
+        // Admin-routed pushes (new_account / new_feedback both land on
         // view=admin) carry server-originated rows the admin drawer can't otherwise
         // know about — it has no realtime subscription. Bust the 'requests' gen so
         // an OPEN AdminRequestsList re-pulls (the combined requests+feedback+

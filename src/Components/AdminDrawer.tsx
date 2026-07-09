@@ -32,10 +32,15 @@ import { AdminSortRail } from './Admin/AdminSortRail'
 import { AdminFeatureVotesSection } from './Admin/AdminFeatureVotesSection'
 import { AdminSettingsContent } from './Admin/AdminSettingsContent'
 import { AdminSystemConversationView } from './Admin/AdminSystemConversationView'
+import { RequestDetail } from './Admin/RequestDetail'
+import { FeedbackDetail } from './Admin/FeedbackDetail'
+import { SuggestionDetail } from './Admin/SuggestionDetail'
 import { useMessagingStore } from '../stores/useMessagingStore'
 import { getDisplayName } from '../Utilities/nameUtils'
 import type { AdminUser, AdminClinic, AdminLocation } from '../lib/adminService'
 import type { AccountRequest } from '../lib/accountRequestService'
+import type { FeedbackRow } from '../lib/feedbackService'
+import type { FeatureVoteSuggestion } from '../lib/featureVotingService'
 
 export type AdminView =
     | 'admin'
@@ -44,6 +49,9 @@ export type AdminView =
     | 'admin-location-detail'
     | 'admin-settings'
     | 'admin-system-conversation'
+    | 'admin-request-detail'
+    | 'admin-feedback-detail'
+    | 'admin-suggestion-detail'
 
 // Island: directory · votes. The Directory tab IS the main content list — an
 // org-rooted cluster ⊃ sub-cluster ⊃ user tree (AdminSummary) with location
@@ -82,6 +90,14 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
     const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null)
     const [selectedClinic, setSelectedClinic] = useState<AdminClinic | null>(null)
     const [selectedLocation, setSelectedLocation] = useState<AdminLocation | null>(null)
+    // Triage detail selection — request / feedback / suggestion opened from the
+    // inbox rail. Each rides the same responsive detail pane / Sheet as the
+    // entity details. The active detail publishes its header actions (primary
+    // commit + ellipsis extras) via onHeaderActions → feedHeaderActions.
+    const [selectedRequest, setSelectedRequest] = useState<AccountRequest | null>(null)
+    const [selectedFeedback, setSelectedFeedback] = useState<FeedbackRow | null>(null)
+    const [selectedSuggestion, setSelectedSuggestion] = useState<FeatureVoteSuggestion | null>(null)
+    const [feedHeaderActions, setFeedHeaderActions] = useState<ReactNode>(null)
     // Active system-conversation peer when view === 'admin-system-conversation'.
     const [selectedSystemPeerId, setSelectedSystemPeerId] = useState<string | null>(null)
     const systemPeerProfile = useMessagingStore(s =>
@@ -322,6 +338,41 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         setView('admin-location-detail')
     }, [handleSlideAnimation, locationEdit, clearTrail])
 
+    // Triage detail opens — request / feedback / suggestion from the inbox rail.
+    // Top-level entries (clear the lateral trail), riding the responsive detail
+    // pane / Sheet. Each detail publishes its own header actions on mount.
+    const openFeedDetail = useCallback((v: AdminView) => {
+        clearTrail()
+        setSelectedUser(null)
+        setSelectedClinic(null)
+        setSelectedLocation(null)
+        setSelectedSystemPeerId(null)
+        setFeedHeaderActions(null)
+        handleSlideAnimation('left')
+        setView(v)
+    }, [clearTrail, handleSlideAnimation])
+
+    const handleOpenRequest = useCallback((request: AccountRequest) => {
+        setSelectedRequest(request)
+        setSelectedFeedback(null)
+        setSelectedSuggestion(null)
+        openFeedDetail('admin-request-detail')
+    }, [openFeedDetail])
+
+    const handleOpenFeedback = useCallback((feedback: FeedbackRow) => {
+        setSelectedFeedback(feedback)
+        setSelectedRequest(null)
+        setSelectedSuggestion(null)
+        openFeedDetail('admin-feedback-detail')
+    }, [openFeedDetail])
+
+    const handleOpenSuggestion = useCallback((suggestion: FeatureVoteSuggestion) => {
+        setSelectedSuggestion(suggestion)
+        setSelectedRequest(null)
+        setSelectedFeedback(null)
+        openFeedDetail('admin-suggestion-detail')
+    }, [openFeedDetail])
+
     const navigateBack = useCallback(() => {
         clinicEdit.reset()
         userEdit.reset()
@@ -333,6 +384,10 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
             setSelectedClinic(null)
             setSelectedLocation(null)
             setSelectedSystemPeerId(null)
+            setSelectedRequest(null)
+            setSelectedFeedback(null)
+            setSelectedSuggestion(null)
+            setFeedHeaderActions(null)
             setClusterCreatePrefill(null)
             setUserCreatePrefillClinicId(null)
             clearTrail()
@@ -393,6 +448,10 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         setSelectedClinic(null)
         setSelectedLocation(null)
         setSelectedSystemPeerId(null)
+        setSelectedRequest(null)
+        setSelectedFeedback(null)
+        setSelectedSuggestion(null)
+        setFeedHeaderActions(null)
         setClusterCreatePrefill(null)
         setUserCreatePrefillClinicId(null)
         setSlideDirection('')
@@ -461,7 +520,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
     const isUserCreateMode = view === 'admin-user-detail' && selectedUser === null
     const isClinicCreateMode = view === 'admin-clinic-detail' && selectedClinic === null
     const isLocationCreateMode = view === 'admin-location-detail' && selectedLocation === null
-    const isDetailView = view === 'admin-user-detail' || view === 'admin-clinic-detail' || view === 'admin-location-detail' || view === 'admin-settings' || view === 'admin-system-conversation'
+    const isDetailView = view === 'admin-user-detail' || view === 'admin-clinic-detail' || view === 'admin-location-detail' || view === 'admin-settings' || view === 'admin-system-conversation' || view === 'admin-request-detail' || view === 'admin-feedback-detail' || view === 'admin-suggestion-detail'
     const desktopDetailPaneOpen = !isMobile && isDetailView
     // Left inbox rail (search + settings + counts + requests/feedback/messages)
     // is persistent across all tabs — the drawer's standing triage surface. It
@@ -486,8 +545,18 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         if (view === 'admin-system-conversation') {
             return systemPeerProfile ? getDisplayName(systemPeerProfile) : 'System thread'
         }
+        if (view === 'admin-request-detail') {
+            if (!selectedRequest) return 'Request'
+            return selectedRequest.request_type === 'support'
+                ? 'Support request'
+                : selectedRequest.status === 'pending'
+                    ? 'Approve request'
+                    : 'Rejected request'
+        }
+        if (view === 'admin-feedback-detail') return 'User feedback'
+        if (view === 'admin-suggestion-detail') return 'Feature suggestion'
         return ''
-    }, [view, selectedUser, selectedClinic, selectedLocation, systemPeerProfile])
+    }, [view, selectedUser, selectedClinic, selectedLocation, systemPeerProfile, selectedRequest])
 
     /** Breadcrumb crumb in the desktop detail header. When the user reached
      * this detail by hopping from another detail (CPT Conner → his cluster →
@@ -573,8 +642,13 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                 />
             )
         }
+        // Triage details publish their own header actions (primary commit +
+        // ellipsis extras) via onHeaderActions → feedHeaderActions.
+        if (view === 'admin-request-detail' || view === 'admin-feedback-detail' || view === 'admin-suggestion-detail') {
+            return feedHeaderActions
+        }
         return undefined
-    }, [view, selectedUser, userEdit, clinicEdit, locationEdit, isUserCreateMode, isClinicCreateMode, isLocationCreateMode, handleClose, handleBack, currentUserId, isMobile])
+    }, [view, selectedUser, userEdit, clinicEdit, locationEdit, isUserCreateMode, isClinicCreateMode, isLocationCreateMode, handleClose, handleBack, currentUserId, isMobile, feedHeaderActions])
 
     // Header config per view
     // Desktop always shows the "Admin Panel" header — detail views get their own
@@ -595,6 +669,9 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
             case 'admin-clinic-detail':
             case 'admin-location-detail':
             case 'admin-settings':
+            case 'admin-request-detail':
+            case 'admin-feedback-detail':
+            case 'admin-suggestion-detail':
                 return {
                     title: 'Admin Panel',
                     // Rail button summons the sort rail (counts + system
@@ -745,6 +822,35 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                 ? <div className="pt-1 pb-8">{settings}</div>
                 : <ScrollPane className="py-3 pb-8">{settings}</ScrollPane>
         }
+        if (view === 'admin-request-detail' && selectedRequest) {
+            return wrap(
+                <RequestDetail
+                    request={selectedRequest}
+                    onApproved={handleRequestApproved}
+                    onClose={handleBack}
+                    onHeaderActions={setFeedHeaderActions}
+                />
+            )
+        }
+        if (view === 'admin-feedback-detail' && selectedFeedback) {
+            return wrap(
+                <FeedbackDetail
+                    feedback={selectedFeedback}
+                    onClose={handleBack}
+                    onOpenConversation={isDevRole ? handleSelectSystemPeer : undefined}
+                    onHeaderActions={setFeedHeaderActions}
+                />
+            )
+        }
+        if (view === 'admin-suggestion-detail' && selectedSuggestion) {
+            return wrap(
+                <SuggestionDetail
+                    suggestion={selectedSuggestion}
+                    onClose={handleBack}
+                    onHeaderActions={setFeedHeaderActions}
+                />
+            )
+        }
         if (view === 'admin-system-conversation' && selectedSystemPeerId) {
             // ChatDetailView owns its own scroll; do NOT wrap in ScrollPane.
             // On mobile the glass header floats over the top — offset the chat
@@ -787,7 +893,10 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         view === 'admin-user-detail' ||
         view === 'admin-clinic-detail' ||
         view === 'admin-location-detail' ||
-        view === 'admin-settings'
+        view === 'admin-settings' ||
+        view === 'admin-request-detail' ||
+        view === 'admin-feedback-detail' ||
+        view === 'admin-suggestion-detail'
     )
 
     // Mobile detail-Sheet breadcrumb: the lateral trail as clickable crumbs
@@ -958,7 +1067,9 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                                     <AdminSortRail
                                         onOpenSettings={handleOpenSettings}
                                         onSelectSystemPeer={handleSelectSystemPeer}
-                                        onApproved={handleRequestApproved}
+                                        onOpenRequest={handleOpenRequest}
+                                        onOpenFeedback={handleOpenFeedback}
+                                        onOpenSuggestion={handleOpenSuggestion}
                                         searchQuery={searchQuery}
                                         activeSystemPeerId={selectedSystemPeerId}
                                     />
@@ -1071,7 +1182,9 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                         <AdminSortRail
                             onOpenSettings={() => { setShowNavSheet(false); handleOpenSettings() }}
                             onSelectSystemPeer={(peerId) => { setShowNavSheet(false); handleSelectSystemPeer(peerId) }}
-                            onApproved={(userId, request, configured) => { setShowNavSheet(false); handleRequestApproved(userId, request, configured) }}
+                            onOpenRequest={(request) => { setShowNavSheet(false); handleOpenRequest(request) }}
+                            onOpenFeedback={(feedback) => { setShowNavSheet(false); handleOpenFeedback(feedback) }}
+                            onOpenSuggestion={(suggestion) => { setShowNavSheet(false); handleOpenSuggestion(suggestion) }}
                             searchQuery={searchQuery}
                             activeSystemPeerId={selectedSystemPeerId}
                         />

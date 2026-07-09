@@ -48,16 +48,11 @@ function ItemRows({ items, filter, quantities, onToggle, onSetQty, locationName 
         const max = Math.max(1, i.quantity)
         const loc = locationName(i.location_id)
         const out = i.signed_out_external || !!i.current_holder_id
-        // Middle line = nomenclature (the doctrinal role), falling back to serial / NSN so
-        // the row always says WHAT the item is — same name · nomenclature · identity order
-        // as the item detail + Cluster Hand Receipt cards.
-        const identity = i.nomenclature
-          ? i.nomenclature
-          : i.serial_number
-            ? `S/N ${i.serial_number}`
-            : i.nsn
-              ? `Material/NSN ${i.nsn}`
-              : null
+        // Serial | material identity line — mirrors the standard property item card.
+        const serialMaterial = [
+          i.serial_number ? `S/N ${i.serial_number}` : null,
+          i.nsn ? `Material/NSN ${i.nsn}` : null,
+        ].filter(Boolean).join(' | ')
         return (
           <div
             key={i.id}
@@ -75,20 +70,21 @@ function ItemRows({ items, filter, quantities, onToggle, onSetQty, locationName 
               >
                 {selected && <Check size={14} className="text-white" />}
               </span>
-              {/* name · nomenclature · location — one field per line, no crammed subline. */}
+              {/* name / nomenclature / location / serial | material — the standard
+                  property item card, one field per line. Quantity rides the right column. */}
               <span className="min-w-0 flex-1">
                 <span className="block text-sm text-primary truncate">{i.name}</span>
-                {identity && <span className="block text-[10pt] text-tertiary truncate">{identity}</span>}
+                {i.nomenclature && <span className="block text-[10pt] text-tertiary truncate">{i.nomenclature}</span>}
                 <span className="block text-[10pt] text-tertiary truncate">
-                  {loc ? `usually ${loc}` : 'Unplaced'}
-                  {max > 1 ? ` · ${max} on hand` : ''}
+                  {loc || 'Unplaced'}
                   {out ? ' · already out' : ''}
                 </span>
+                {serialMaterial && <span className="block text-[10pt] text-tertiary truncate">{serialMaterial}</span>}
               </span>
             </button>
-            {/* Quantity gets its own column on the right — three-line rows leave room for a
-                full-size stepper instead of squeezing it against the label. */}
-            {selected && (
+            {/* Right column: the on-hand quantity when browsing (how we normally show it),
+                swapped for the full-size stepper once the item is selected. */}
+            {selected ? (
               <span className="flex flex-col items-end gap-1 shrink-0">
                 <span className="text-[9pt] uppercase tracking-wide text-tertiary">Qty</span>
                 {max > 1 ? (
@@ -119,6 +115,8 @@ function ItemRows({ items, filter, quantities, onToggle, onSetQty, locationName 
                   <span className="text-sm text-primary tabular-nums">1</span>
                 )}
               </span>
+            ) : (
+              max > 1 && <span className="text-sm text-primary tabular-nums shrink-0">{i.quantity}</span>
             )}
           </div>
         )

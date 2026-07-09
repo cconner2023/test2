@@ -11,7 +11,6 @@ import { useAuthStore } from '../stores/useAuthStore'
 import { createLogger } from '../Utilities/Logger'
 import { hashWithSalt, verifyHash } from './cryptoUtils'
 import { secureSet, secureGet, secureRemove } from './secureStorage'
-import { fireNotification } from './notifyDispatcher'
 import { deriveAndStoreBackupKey } from './signal/backupService'
 import { generateVaultIdentity, uploadVaultDevice, deriveAndCacheVaultKey, ensureVaultExists, setVaultKeyReady } from './signal/vaultDevice'
 import { succeed, fail, getErrorMessage as getErrMsg, type ServiceResult } from './result'
@@ -157,7 +156,7 @@ export async function signIn(
     password,
   })
 
-  // Fire-and-forget: notify dev users of login
+  // Post-login setup: cache secrets and warm the message vault.
   if (!error && data.user) {
     // Store password hash for offline lock-screen verification
     storePasswordHash(password).catch(() => {})
@@ -180,13 +179,6 @@ export async function signIn(
     // sign-in: it's wrapped with a SHARED dev key fetched lazily during
     // ensureSystemIdentity (is_dev-gated `get_system_shared`). See
     // systemIdentity.ts bootstrapInternal.
-
-    fireNotification({
-      type: 'user_login',
-      name: null,
-      email,
-      author_id: data.user.id,
-    })
   }
 
   return {

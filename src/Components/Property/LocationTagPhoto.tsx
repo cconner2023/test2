@@ -31,6 +31,10 @@ interface LocationTagPhotoProps {
   /** target_id (vehicle location id) → current open-dispatch status, for the
    *  expiring/expired red-dot on the zone tile. Vehicles only; absent = no dot. */
   dispatchStatusByLocation?: Map<string, DispatchStatus>
+  /** Zone target_ids that must render OPAQUE (solid fill) rather than the usual
+   *  translucent tint — used for exploded floor tiles so they CLIP the floor beneath
+   *  instead of blending through it. */
+  opaqueZoneIds?: Set<string>
 }
 
 /** SVG composite shape — uniform fill + outer contour, no overlap darkening */
@@ -86,44 +90,94 @@ function CompositeZoneSVG({ rects, selected, id, photo }: { rects: ZoneRect[]; s
   )
 }
 
-/** Item badge in view mode — tap-only, no drag. Dragging is handled by EditItemPin in edit mode. */
+/**
+ * ItemCallout — chat-bubble item marker shared by view + edit mode.
+ *
+ * A precise anchor dot marks the item's exact point at a fixed screen size (so the spot reads
+ * accurately at any zoom); a rounded speech bubble with a tail floats off it — like a chat
+ * message — carrying the name + quantity. The bubble sits above the anchor (below it near the
+ * zone's top edge) and left/right-aligns near the side edges so it never overhangs. Selection is
+ * a corner dot (orthogonal to the red expiring/expired/depleted fill). The caller owns the
+ * positioned wrapper (its origin = the anchor point) plus the tap/drag handlers.
+ */
+export function ItemCallout({ item, anchorX, anchorY, selected, dragging }: {
+  item: LocalPropertyItem
+  /** Pin coords in the parent's 0..1 space — drive which way the bubble points so it stays on-canvas. */
+  anchorX: number
+  anchorY: number
+  selected?: boolean
+  /** Edit-mode drag in progress → lift the bubble (scale + heavier shadow) instead of the tap press. */
+  dragging?: boolean
+}) {
+  // Expired / expiring (≤30d) / depleted (0 on hand) → red.
+  const alert = itemAlert(item)
+  const below = anchorY < 0.2 // near the top edge → hang the bubble below the anchor
+  const align: 'left' | 'center' | 'right' = anchorX < 0.25 ? 'left' : anchorX > 0.75 ? 'right' : 'center'
+
+  const GAP = 8 // px between the anchor dot and the bubble edge (the tail spans it)
+  const INSET = 16 // px from the bubble's near edge to the tail, for side-aligned bubbles
+
+  // Offset the bubble wrapper off the anchor point (the wrapper's origin).
+  const tx = align === 'center' ? '-50%' : align === 'left' ? `-${INSET}px` : `calc(-100% + ${INSET}px)`
+  const ty = below ? `${GAP}px` : `calc(-100% - ${GAP}px)`
+  // Tail rides the edge nearest the anchor, sitting over the anchor's x within the bubble.
+  const tailX = align === 'right' ? { right: INSET } : { left: align === 'center' ? '50%' : INSET }
+  const tailTransform = `translate(${align === 'right' ? '50%' : '-50%'}, ${below ? '-50%' : '50%'}) rotate(45deg)`
+
+  const surface = alert ? 'bg-themeredred/90 border-themeredred' : 'bg-themewhite3/90 border-themeblue3/30'
+
+  return (
+    <>
+      {/* Anchor dot — the item's exact point, fixed screen size = zoom-independent precision. */}
+      <span
+        className={`absolute top-0 left-0 w-2.5 h-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full ring-2 ring-themewhite3 shadow-sm ${
+          alert ? 'bg-themeredred' : 'bg-themeblue1'
+        }`}
+      />
+      {/* Position wrapper — keeps `transform` free on the bubble itself for the press/drag scale. */}
+      <div className="absolute top-0 left-0" style={{ transform: `translate(${tx}, ${ty})` }}>
+        <div
+          className={`relative px-2.5 py-1 rounded-2xl text-[9pt] font-medium shadow-sm backdrop-blur-sm min-h-[24px] min-w-[52px] max-w-[140px] flex items-center gap-1 border transition-transform ${surface} ${
+            alert ? 'text-white' : 'text-primary'
+          } ${dragging ? 'scale-105 shadow-md' : 'active:scale-95'}`}
+        >
+          {/* Selection = a corner indicator, NOT a bubble-fill — never fights the red alert fill. */}
+          {selected && (
+            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-themeblue1 ring-2 ring-themewhite3 z-10" />
+          )}
+          {/* Chat-bubble tail — a rotated square whose two outer sides continue the bubble border. */}
+          <span
+            className={`absolute w-2.5 h-2.5 ${surface} ${below ? 'border-t border-l' : 'border-b border-r'}`}
+            style={{ ...(below ? { top: 0 } : { bottom: 0 }), ...tailX, transform: tailTransform }}
+          />
+          <span className="whitespace-nowrap truncate">{item.name}</span>
+          {/* Show the count when it's not a single unit — incl. ×0 so a depleted tag reads its emptiness. */}
+          {item.quantity !== 1 && (
+            <span className={`shrink-0 text-[8pt] font-semibold px-1 rounded-full leading-tight ${
+              alert ? 'bg-white/25 text-white' : 'text-themeblue1 bg-themeblue3/15'
+            }`}>×{item.quantity}</span>
+          )}
+        </div>
+      </div>
+    </>
+  )
+}
+
+/** Item callout in view mode — tap-only, no drag (drag is handled by EditItemPin in edit mode). */
 function ItemPin({ pin, item, onTap, selected }: {
   pin: LocationTag
   item: LocalPropertyItem
   onTap: (item: LocalPropertyItem) => void
   selected?: boolean
 }) {
-  // Expired / expiring (≤30d) / depleted (0 on hand) → red tag.
-  const alert = itemAlert(item)
   return (
     <div
       data-item-target={item.id}
       className={`absolute select-none cursor-pointer ${selected ? 'z-30' : 'z-20'}`}
-      style={{
-        left: `${pin.x * 100}%`,
-        top: `${pin.y * 100}%`,
-        transform: 'translate(-50%, -50%)',
-      }}
+      style={{ left: `${pin.x * 100}%`, top: `${pin.y * 100}%` }}
       onClick={(e) => { e.stopPropagation(); onTap(item) }}
     >
-      <div
-        className={`relative px-2 py-1 rounded-full text-[9pt] font-medium shadow-sm backdrop-blur-sm min-h-[28px] flex items-center gap-1 active:scale-95 transition-transform border ${
-          alert ? 'bg-themeredred/90 text-white border-themeredred' : 'bg-themewhite3/90 text-primary border-themeblue3/30'
-        }`}
-      >
-        {/* Selection = a corner indicator, NOT a pill-fill — so it never fights the
-            red alert (depleted/expired) fill for the same surface. */}
-        {selected && (
-          <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-themeblue1 ring-2 ring-themewhite3" />
-        )}
-        <span className="whitespace-nowrap max-w-[90px] truncate">{item.name}</span>
-        {/* Show the count when it's not a single unit — incl. ×0 so a depleted tag reads its emptiness. */}
-        {item.quantity !== 1 && (
-          <span className={`shrink-0 text-[8pt] font-semibold px-1 rounded-full leading-tight ${
-            alert ? 'bg-white/25 text-white' : 'text-themeblue1 bg-themeblue3/15'
-          }`}>×{item.quantity}</span>
-        )}
-      </div>
+      <ItemCallout item={item} anchorX={pin.x} anchorY={pin.y} selected={selected} />
     </div>
   )
 }
@@ -138,6 +192,7 @@ export const LocationTagPhoto = memo(function LocationTagPhoto({
   onItemTap,
   selectedItemId,
   dispatchStatusByLocation,
+  opaqueZoneIds,
 }: LocationTagPhotoProps) {
   const zones = tags.filter((t) => (t.width ?? 0) > 0 && (t.height ?? 0) > 0)
   const itemPins = tags.filter((t) => t.target_type === 'item')
@@ -179,6 +234,8 @@ export const LocationTagPhoto = memo(function LocationTagPhoto({
         const isSelected = tag.target_id === selectedZoneId
         const isComposite = tag.rects && tag.rects.length > 0
         const photo = photoMap?.get(tag.target_id)
+        // Exploded floor tiles render opaque so they occlude (clip) the floor beneath.
+        const isOpaque = opaqueZoneIds?.has(tag.target_id)
 
         return (
           <div
@@ -190,14 +247,24 @@ export const LocationTagPhoto = memo(function LocationTagPhoto({
             }}
             className={[
               'absolute cursor-pointer transition-shadow duration-150 overflow-hidden group',
+              isOpaque && !isComposite ? 'shadow-md' : '',
               isComposite
                 ? ''
                 : [
                     'rounded-lg border',
                     isSelected
                       ? 'ring-2 ring-themeyellow border-themeyellow/50'
-                      : 'border-themeblue3/30 hover:bg-themeblue3/15',
-                    !photo && (isSelected ? 'bg-themeyellow/20' : 'bg-themeblue3/10'),
+                      // hover:bg would REPLACE an opaque floor's solid underlay on hover and
+                      // make it see-through — only the translucent (non-opaque) tiles get it.
+                      : `border-themeblue3/30 ${isOpaque ? '' : 'hover:bg-themeblue3/15'}`,
+                    // Opaque (fanned floor) → solid underlay so it occludes; the matching
+                    // blue/yellow tint rides on top as an overlay (below). Otherwise the usual tint.
+                    !photo &&
+                      (isOpaque
+                        ? 'bg-themewhite2 dark:bg-themewhite3'
+                        : isSelected
+                          ? 'bg-themeyellow/20'
+                          : 'bg-themeblue3/10'),
                   ].filter(Boolean).join(' '),
             ].join(' ')}
             style={{
@@ -217,6 +284,12 @@ export const LocationTagPhoto = memo(function LocationTagPhoto({
             )}
             {isSelected && photo && !isComposite && (
               <div className="absolute inset-0 bg-themeyellow/20 pointer-events-none" />
+            )}
+            {/* Opaque floor tile: lay the SAME blue/yellow tint the base zone uses OVER the
+                solid underlay, so the fanned floors read as one material with floor 1 rather
+                than as bare white cards. The underlay does the occluding; the tint does the colour. */}
+            {isOpaque && !isComposite && !photo && (
+              <div className={`absolute inset-0 pointer-events-none ${isSelected ? 'bg-themeyellow/20' : 'bg-themeblue3/10'}`} />
             )}
             {/* Title hidden once selected — distracting and already shown in the sheet/right pane */}
             {!isSelected && (

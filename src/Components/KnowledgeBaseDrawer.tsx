@@ -12,7 +12,9 @@ import { useSwipeBack } from '../Hooks/useSwipeBack'
 import { VitalSignsCalculator, type VitalSignsCalculatorHandle } from './VitalSignsCalculator'
 import { BurnCalculator } from './BurnCalculator'
 import { HeatCategoryCalculator } from './HeatCategoryCalculator'
-import { NineLineKB, NineLineExport } from './Reports/NineLineKB'
+import { NineLineKB, NineLineExport, hasContent as nineLineHasContent } from './Reports/NineLineKB'
+import { AddFab } from '@/Components/primitives/AddFab'
+import { BottomIsland, IslandButton } from '@/Components/primitives/BottomIsland'
 import { DatePickerCalendar } from '@/Components/primitives/FormInputs'
 import { PreviewOverlay } from './PreviewOverlay'
 import { type ContextMenuItem } from '@/Components/primitives/ContextMenu'
@@ -358,7 +360,6 @@ export function KnowledgeBaseDrawer({
                     <NineLineKB
                         req={medevacReq}
                         onChange={setMedevacReq}
-                        onReview={() => { handleSlideAnimation('left'); setView('report-9line-review') }}
                     />
                 )}
                 {view === 'report-9line-review' && (
@@ -368,6 +369,45 @@ export function KnowledgeBaseDrawer({
                     />
                 )}
             </ContentWrapper>
+
+            {/* 9-line BottomIsland — persistent W/P (wartime/peacetime) mode switcher,
+                with the "Review" FAB nested in the island's fab slot (calendar pattern).
+                Sibling of ContentWrapper so it anchors to the drawer panel and stays put
+                while the form scrolls. The Review action is gated on form content; the
+                mode tabs are always available. Glass footer feathers scroll behind it. */}
+            {view === 'report-9line' && (
+                <BottomIsland
+                    glass
+                    z="z-20"
+                    role="tablist"
+                    ariaLabel="MEDEVAC mode"
+                    fab={nineLineHasContent(medevacReq) ? (
+                        <AddFab
+                            icon={ChevronRight}
+                            label="Review"
+                            onClick={() => { handleSlideAnimation('left'); setView('report-9line-review') }}
+                            className="absolute right-4"
+                        />
+                    ) : undefined}
+                >
+                    <IslandButton
+                        role="tab"
+                        active={medevacReq.mode === 'wartime'}
+                        onClick={() => setMedevacReq({ ...medevacReq, mode: 'wartime' })}
+                        label="Wartime"
+                    >
+                        <span className="text-[11pt] font-bold">W</span>
+                    </IslandButton>
+                    <IslandButton
+                        role="tab"
+                        active={medevacReq.mode === 'peacetime'}
+                        onClick={() => setMedevacReq({ ...medevacReq, mode: 'peacetime' })}
+                        label="Peacetime"
+                    >
+                        <span className="text-[11pt] font-bold">P</span>
+                    </IslandButton>
+                </BottomIsland>
+            )}
 
             {/* Overlay calculators/references */}
             <PreviewOverlay

@@ -49,6 +49,14 @@ export interface AuthGroup {
   /** SKO parent's name; null = top-level bucket (rendered as "Top-level items"). */
   skoName: string | null
   lines: AuthLine[]
+  /** Σ authorizedBase over the group's lines — the LIN's total required base (EA) qty. */
+  authorizedBaseTotal: number
+  /** Σ min(onHand, authorizedBase) over the lines — how much of the requirement is FILLED
+   *  (per-line capped so an overage on one component can't mask a shortfall on another). */
+  filledBase: number
+  /** Group fill as a whole-number percent (0–100), filledBase / authorizedBaseTotal. 0 when
+   *  nothing is authorized yet (a freshly-built, component-less LIN). */
+  fillPercent: number
 }
 
 export interface AuthorizedList {
@@ -189,17 +197,25 @@ export function groupAuthorized(items: LocalPropertyItem[]): AuthorizedList {
 
   const groups: AuthGroup[] = []
   for (const [parentId, lines] of byParent) {
-    // Sort by LIN (the MTOE ordering); untagged lines sink to the bottom, then name.
-    lines.sort((a, b) => {
-      if (a.lin && b.lin) return a.lin.localeCompare(b.lin) || a.name.localeCompare(b.name)
-      if (a.lin) return -1
-      if (b.lin) return 1
-      return a.name.localeCompare(b.name)
-    })
+    // Components list ALPHABETICALLY by name (nomenclature/NSN break ties) — a plain A→Z
+    // read within each LIN, not the MTOE/LIN-code ordering.
+    lines.sort((a, b) =>
+      a.name.localeCompare(b.name) ||
+      (a.nomenclature ?? '').localeCompare(b.nomenclature ?? '') ||
+      (a.nsn ?? '').localeCompare(b.nsn ?? ''),
+    )
+    // Per-LIN fill rollup: Σ authorized vs Σ filled (each line capped at its own authorized so
+    // an overage can't paper over another component's shortfall).
+    const authorizedBaseTotal = lines.reduce((s, l) => s + l.authorizedBase, 0)
+    const filledBase = lines.reduce((s, l) => s + Math.min(l.onHand, l.authorizedBase), 0)
+    const fillPercent = authorizedBaseTotal > 0 ? Math.round((filledBase / authorizedBaseTotal) * 100) : 0
     groups.push({
       skoId: parentId,
       skoName: parentId ? nameById.get(parentId) ?? null : null,
       lines,
+      authorizedBaseTotal,
+      filledBase,
+      fillPercent,
     })
   }
   // SKO groups alpha by name; the top-level (null) bucket always sorts last.

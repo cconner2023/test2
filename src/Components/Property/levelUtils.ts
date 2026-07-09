@@ -1,11 +1,14 @@
 /**
- * Pure helpers for full-size "level" sub-zones (building floors).
+ * Pure helpers for full-size "level" sub-zones (upper building floors).
  *
- * A level (kind='level') occupies its parent's whole footprint via a full-extent
- * 0..1 zone tag. Sibling levels stack on the same footprint; only the ACTIVE level
- * for a container renders — the others (and their whole subtrees) are suppressed,
- * giving a Genshin-style floor switcher. All derivation here is geometry-free:
- * it works off the parent_id tree + kind + ordinal only.
+ * MODEL: the container zone IS floor 1 (the base / ground / basement). A level
+ * (kind='level') is an ADDITIONAL floor stacked ON TOP of it — stored as a full-extent
+ * 0..1 zone tag on the container's canvas. At rest every level is suppressed, so the
+ * container zone shows as itself (floor 1). Selecting the container EXPLODES it: the
+ * levels fan up-and-right out of the base (see computeExplodeOffsets), all visible at
+ * once as a shelf of drawers; tapping one drills into that floor (it then renders alone,
+ * full-extent, over the base). All derivation here is geometry-free — parent_id tree +
+ * kind + ordinal only.
  */
 import { ROOT_LOCATION_NAME } from '../../Types/PropertyTypes'
 import type { LocalPropertyLocation } from '../../Types/PropertyTypes'
@@ -31,57 +34,36 @@ function descendantIds(parentId: string, locations: LocalPropertyLocation[]): st
 }
 
 /**
- * Resolve the active level id for a container: the stored choice if still valid,
- * else the ground floor (ordinal === 1) if present, else the lowest ordinal.
- */
-export function resolveActiveLevel(
-  levels: LocalPropertyLocation[],
-  activeMap: Record<string, string>,
-  containerId: string,
-): string | null {
-  if (levels.length === 0) return null
-  const stored = activeMap[containerId]
-  if (stored && levels.some((l) => l.id === stored)) return stored
-  const ground = levels.find((l) => (l.ordinal ?? 0) === 1)
-  return (ground ?? levels[0]).id
-}
-
-/**
- * Nearest ancestor-or-self of `startId` (walking parent_id) that has ≥1 level child.
- * Falls back to the root canvas. Returns null when no level container is in scope —
- * keeps the floor switcher pinned to the building while you drill through its floors.
- */
-export function findLevelContainer(
-  startId: string | null,
-  locations: LocalPropertyLocation[],
-  rootLocationId: string | null,
-): string | null {
-  const hasLevels = (id: string) =>
-    locations.some((l) => l.parent_id === id && l.kind === 'level')
-
-  let cur: string | null = startId ?? rootLocationId
-  let guard = 0
-  while (cur && guard++ < 64) {
-    if (hasLevels(cur)) return cur
-    const loc = locations.find((l) => l.id === cur)
-    cur = loc?.parent_id ?? null
-  }
-  if (rootLocationId && hasLevels(rootLocationId)) return rootLocationId
-  return null
-}
-
-/**
- * The set of location ids whose tags must be hidden: every inactive level plus its
- * entire subtree, across all level-containers. Map tags are filtered by both their
- * target_id and their canvas (location_id) against this set.
+ * The set of location ids whose tags must be hidden, so the container zone reads as
+ * floor 1 and upper floors only appear when you explode or enter them. Map tags are
+ * filtered by both their target_id and their canvas (location_id) against this set.
+ *
+ * Per container:
+ *  - EXPLODED (containerId === explodeContainerId): keep every floor TILE (they fan out),
+ *    but show CONTENTS only for the surfaced floor — other floors read as closed tiles.
+ *  - DRILLED IN: the one level on the current selection's ancestry stays; the rest hide.
+ *  - AT REST: suppress ALL levels — the container zone itself shows (it IS floor 1).
  */
 export function collectSuppressedIds(
   locations: LocalPropertyLocation[],
-  activeMap: Record<string, string>,
   rootLocationId: string | null,
+  explodeContainerId: string | null,
+  selectedZoneId: string | null,
+  surfacedLevelId: string | null,
 ): Set<string> {
   const suppressed = new Set<string>()
   if (!rootLocationId) return suppressed
+
+  // Levels on the current selection's ancestry — the floor(s) you've drilled into.
+  const pathLevels = new Set<string>()
+  let cur: string | null = selectedZoneId
+  let guard = 0
+  while (cur && guard++ < 64) {
+    const loc = locations.find((l) => l.id === cur)
+    if (!loc) break
+    if (loc.kind === 'level') pathLevels.add(loc.id)
+    cur = loc.parent_id ?? null
+  }
 
   // Group level locations by their container (parent_id).
   const byContainer = new Map<string, LocalPropertyLocation[]>()
@@ -93,15 +75,73 @@ export function collectSuppressedIds(
   }
 
   for (const [containerId, levels] of byContainer) {
-    const sorted = [...levels].sort((a, b) => (a.ordinal ?? 0) - (b.ordinal ?? 0))
-    const active = resolveActiveLevel(sorted, activeMap, containerId)
-    for (const lvl of sorted) {
+    if (containerId === explodeContainerId) {
+      // Keep every floor TILE; hide the CONTENTS of every floor except the surfaced one,
+      // so unfocused floors stay as clean closed drawers in the fan.
+      for (const lvl of levels) {
+        if (lvl.id === surfacedLevelId) continue
+        for (const d of descendantIds(lvl.id, locations)) suppressed.add(d)
+      }
+      continue
+    }
+    // Otherwise keep only the floor you're inside (on the selection path); hide the rest.
+    // No drilled floor → hide them all so the container zone (floor 1) shows.
+    const active = levels.find((l) => pathLevels.has(l.id))?.id ?? null
+    for (const lvl of levels) {
       if (lvl.id === active) continue
       suppressed.add(lvl.id)
       for (const d of descendantIds(lvl.id, locations)) suppressed.add(d)
     }
   }
   return suppressed
+}
+
+/** A fanned floor rect, in the container's canvas-relative (0..1) space. May extend
+ *  past 0..1 (floors fan OUT of the footprint) — the caller frames the union. */
+export interface ExplodeRect {
+  x: number
+  y: number
+  width: number
+  height: number
+  /** Paint order — larger draws later (on top). Higher floors sit on top. */
+  z: number
+}
+
+/** How far each successive floor drifts off the base, as a fraction of the footprint. */
+const EXPLODE_STEP_X = 0.24
+const EXPLODE_STEP_Y = 0.24
+
+/**
+ * Fan a container's upper floors OUT of its footprint for the exploded-shelf view. The
+ * container zone itself is floor 1 (drawn at its own full footprint, not returned here);
+ * each level stacks ON TOP, offset up-and-right by an incremental step and kept the SAME
+ * size as the footprint, so it overlaps and CLIPS the floor below (tiles render opaque —
+ * this is occlusion, not transparency). Higher floors paint on top and expose the lower
+ * floor's down-left corner as a tap target. Rects intentionally spill past 0..1; the
+ * caller unions them with the base to frame the whole fan. Keyed by level id.
+ *
+ * `surfacedId` (the selected floor) keeps its fanned position but is lifted to the TOP of
+ * the paint order so it's fully revealed — nothing occludes the floor you're focused on.
+ */
+export function computeExplodeOffsets(
+  levels: LocalPropertyLocation[],
+  surfacedId?: string | null,
+): Map<string, ExplodeRect> {
+  const map = new Map<string, ExplodeRect>()
+  const sorted = [...levels].sort((a, b) => (a.ordinal ?? 0) - (b.ordinal ?? 0))
+
+  sorted.forEach((lvl, j) => {
+    const step = j + 1 // floor 1 is the container zone; the first level sits one step up
+    map.set(lvl.id, {
+      x: step * EXPLODE_STEP_X, // right
+      y: -step * EXPLODE_STEP_Y, // up
+      width: 1,
+      height: 1,
+      // Higher floor → later → painted on top; the surfaced floor jumps above all of them.
+      z: lvl.id === surfacedId ? sorted.length : j,
+    })
+  })
+  return map
 }
 
 /** Short stack label for a floor: 3 → "3F", -1 → "B1", 0 → first letter of name. */

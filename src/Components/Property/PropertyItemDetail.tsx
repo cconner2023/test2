@@ -235,6 +235,9 @@ export function PropertyItemDetail({ item, locations, holders, items, onViewComp
                 <>
                   <div className="min-w-0 flex-1">
                     <span className={`block text-primary truncate ${isMobile ? 'text-sm' : 'text-[10pt]'}`}>{f.name}</span>
+                    {/* Serial is the ONLY identity that isn't self-evident in this LIN/NSN
+                        context — surface it so two like stacks are tellable apart. */}
+                    {f.serial_number && <span className="block text-[9pt] text-tertiary truncate">{f.serial_number}</span>}
                     <span className="block text-[9pt] text-tertiary truncate">{place}</span>
                   </div>
                   <span className="text-[10pt] font-medium text-secondary shrink-0 tabular-nums">×{f.quantity}</span>

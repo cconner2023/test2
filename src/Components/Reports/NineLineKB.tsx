@@ -1,6 +1,6 @@
 // src/Components/Reports/NineLineKB.tsx
 import { useState, useRef } from 'react'
-import { Copy, Check, ChevronRight, Printer, RefreshCw, Image } from 'lucide-react'
+import { Copy, Check, Printer, RefreshCw, Image } from 'lucide-react'
 import { MedevacForm } from '../Medevac/MedevacForm'
 import { ActionButton } from '@/Components/primitives/ActionButton'
 import { BarcodeDisplay } from '../Barcode'
@@ -11,7 +11,9 @@ import { medevacToText, medevacToCompact, copyToClipboard, printReport } from '.
 import { ActionPill } from '@/Components/primitives/ActionPill'
 import { OverlayActionMenu } from '@/Components/primitives/OverlayActionMenu'
 
-function hasContent(req: MedevacRequest): boolean {
+/** True once the 9-line has enough content to be worth reviewing. The KB drawer
+ *  uses this to gate the floating "Review" FAB (see KnowledgeBaseDrawer). */
+export function hasContent(req: MedevacRequest): boolean {
   return !!(req.l1 || req.l2f || req.l2c || medevacPatientTotal(req) > 0)
 }
 
@@ -20,27 +22,13 @@ function hasContent(req: MedevacRequest): boolean {
 interface NineLineKBProps {
   req: MedevacRequest
   onChange: (req: MedevacRequest) => void
-  onReview: () => void
 }
 
-export function NineLineKB({ req, onChange, onReview }: NineLineKBProps) {
+export function NineLineKB({ req, onChange }: NineLineKBProps) {
   return (
-    <div className="px-4 py-4 space-y-4">
-      <MedevacForm value={req} onChange={onChange} />
-      {hasContent(req) && (
-        <div className="flex justify-end pb-2">
-          <ActionPill>
-            <button
-              type="button"
-              onClick={onReview}
-              aria-label="Review"
-              className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 active:scale-95 transition-all bg-themeblue2 text-white"
-            >
-              <ChevronRight className="w-5 h-5" />
-            </button>
-          </ActionPill>
-        </div>
-      )}
+    // pb-28 clears the KB drawer's glass BottomIsland (W/P mode + Review FAB).
+    <div className="px-4 pt-4 pb-28 space-y-4">
+      <MedevacForm value={req} onChange={onChange} showModeToggle={false} />
     </div>
   )
 }
