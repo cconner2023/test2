@@ -1,18 +1,12 @@
-import { useState, useMemo, forwardRef, useImperativeHandle } from 'react'
-import { FileText, Trash2, MapPin, ChevronRight, AlertTriangle, Wrench, type LucideIcon } from 'lucide-react'
-import { RecordSummaryCard } from './RecordPreview'
+import { useMemo, forwardRef, useImperativeHandle, useState } from 'react'
+import { Trash2, MapPin, ChevronRight, type LucideIcon } from 'lucide-react'
+import { RecordReviewBody } from './RecordPreview'
 import { LiftedRowMenu } from '@/Components/primitives/LiftedRowMenu'
 import { type ContextMenuItem } from '@/Components/primitives/ContextMenu'
 import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
-import { SectionCard, SectionHeader } from '@/Components/primitives/Section'
+import { SectionHeader } from '@/Components/primitives/Section'
 import { usePropertyStore } from '../../stores/usePropertyStore'
-import { downloadDecryptedAttachment } from '../../lib/signal'
-import { pmcsOpened, pmcsCorrected } from '../../lib/pmcsFold'
-import type { PmcsDoc } from '../../lib/propertyService'
 import type { AuditEvent } from '../../lib/auditTypes'
-import { createLogger } from '../../Utilities/Logger'
-
-const logger = createLogger('PropertyRecordDetail')
 
 export interface PropertyRecordDetailHandle {
   /** Open the action menu (Delete) anchored to the host header's ellipsis button.
@@ -30,56 +24,6 @@ export interface SelectedRecord {
   tint: string
   /** Detail meta line (readings / exp date). */
   detail: string
-}
-
-function docOf(e: AuditEvent): PmcsDoc | null {
-  const d = e.payload?.doc
-  return d && typeof d === 'object' && typeof (d as PmcsDoc).path === 'string' ? (d as PmcsDoc) : null
-}
-
-/** Short, local-midnight day for date-only payload fields (exp_date / returned_at),
- *  so the shown day can't drift a day earlier in negative-offset timezones. */
-function fmtDay(dateOnly: string): string {
-  const d = new Date(dateOnly.length <= 10 ? `${dateOnly}T00:00:00` : dateOnly)
-  if (!Number.isFinite(d.getTime())) return dateOnly
-  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
-}
-
-/** The structured readings the summary line collapses — one label/value row each,
- *  built from the record's payload per kind (PMCS readings / dispatch open / close). */
-function infoRows(event: AuditEvent): { label: string; value: string }[] {
-  const p = event.payload ?? {}
-  const rows: { label: string; value: string }[] = []
-  const push = (label: string, value: string | null) => {
-    if (value) rows.push({ label, value })
-  }
-  const num = (v: unknown, suffix = ''): string | null =>
-    typeof v === 'number' ? `${v.toLocaleString()}${suffix}` : null
-  const text = (v: unknown): string | null => (typeof v === 'string' && v ? v : null)
-
-  switch (event.eventType) {
-    case 'pmcs.clear':
-      push('Mileage', num(p.mileage, ' mi'))
-      push('Fuel', num(p.fuelLevel, '%'))
-      push('Operator', text(p.operator))
-      push('Mechanic', text(p.mechanic))
-      break
-    case 'dispatch.opened':
-      push('Status', 'On dispatch')
-      push('Expires', typeof p.exp_date === 'string' && p.exp_date ? fmtDay(p.exp_date) : null)
-      push('Odometer out', num(p.odo_out, ' mi'))
-      push('Operator', text(p.operator))
-      push('TC', text(p.tc))
-      push('Note', text(p.note))
-      break
-    case 'dispatch.closed':
-      push('Status', 'Returned')
-      push('Returned', typeof p.returned_at === 'string' && p.returned_at ? fmtDay(p.returned_at) : null)
-      push('Odometer in', num(p.odo_in, ' mi'))
-      push('Note', text(p.note))
-      break
-  }
-  return rows
 }
 
 interface PropertyRecordDetailProps {
@@ -116,11 +60,7 @@ export const PropertyRecordDetail = forwardRef<PropertyRecordDetailHandle, Prope
     }), [])
 
     const { event, label, Icon, tint, detail } = record
-    const doc = docOf(event)
     const isDispatch = event.eventType.startsWith('dispatch')
-    const rows = useMemo(() => infoRows(event), [event])
-    const faultsOpened = useMemo(() => (event.eventType === 'pmcs.clear' ? pmcsOpened(event) : []), [event])
-    const faultsCorrected = useMemo(() => (event.eventType === 'pmcs.clear' ? pmcsCorrected(event) : []), [event])
 
     // The subject the record is about — a vehicle (location) or a stock item — resolved
     // to a name + its location for the tappable "locate on the map" card. Falls back to
@@ -145,74 +85,13 @@ export const PropertyRecordDetail = forwardRef<PropertyRecordDetailHandle, Prope
       onDeleted()
     }
 
-    // Decrypt + open an attached 5988E / dispatch form in a new tab.
-    const openDoc = async () => {
-      if (!doc || busy) return
-      setBusy(true)
-      const res = await downloadDecryptedAttachment(doc.path, doc.key)
-      setBusy(false)
-      if (!res.ok) { logger.warn('document download failed:', res.error); return }
-      const blob = doc.mime ? new Blob([res.data], { type: doc.mime }) : res.data
-      const url = URL.createObjectURL(blob)
-      window.open(url, '_blank')
-      setTimeout(() => URL.revokeObjectURL(url), 60_000)
-    }
-
     const menuItems: ContextMenuItem[] = [
       { key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => setConfirmOpen(true) },
     ]
 
     return (
       <div className="flex flex-col h-full px-3 py-3 space-y-3 overflow-y-auto">
-        <RecordSummaryCard Icon={Icon} tint={tint} label={label} detail={detail} occurredAt={event.occurredAt} />
-
-        {/* Information — the readings the roster line collapses, one row each, plus the
-            PMCS faults this check found / corrected (red for a new fault). */}
-        {(rows.length > 0 || faultsOpened.length > 0 || faultsCorrected.length > 0) && (
-          <div>
-            <SectionHeader>{isDispatch ? 'Dispatch information' : 'PMCS information'}</SectionHeader>
-            <SectionCard className="divide-y divide-tertiary/8 mt-2">
-              {rows.map((r) => (
-                <div key={r.label} className="flex items-center justify-between gap-3 px-4 py-2.5">
-                  <span className="text-[10pt] text-tertiary shrink-0">{r.label}</span>
-                  <span className="text-[10pt] text-primary text-right min-w-0 truncate">{r.value}</span>
-                </div>
-              ))}
-              {faultsCorrected.map((f) => (
-                <div key={`c-${f.id}`} className="flex items-start gap-2.5 px-4 py-2.5">
-                  <Wrench size={14} className="text-themeblue2 shrink-0 mt-0.5" />
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-[10pt] text-primary">{f.description}</span>
-                    <span className="block text-[9pt] text-tertiary">Corrected{f.note ? ` · ${f.note}` : ''}</span>
-                  </span>
-                </div>
-              ))}
-              {faultsOpened.map((f) => (
-                <div key={`o-${f.id}`} className="flex items-start gap-2.5 px-4 py-2.5">
-                  <AlertTriangle size={14} className="text-themered shrink-0 mt-0.5" />
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-[10pt] text-primary">{f.description}</span>
-                    <span className="block text-[9pt] text-themered">New fault</span>
-                  </span>
-                </div>
-              ))}
-            </SectionCard>
-          </div>
-        )}
-
-        {doc && (
-          <button
-            type="button"
-            onClick={openDoc}
-            disabled={busy}
-            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-themeblue3/8 text-themeblue2 active:scale-[0.98] transition-all disabled:opacity-40"
-          >
-            <FileText size={15} className="shrink-0" />
-            <span className="flex-1 min-w-0 text-left text-sm font-medium truncate">
-              {doc.name || (isDispatch ? 'Open dispatch form' : 'Open 5988E')}
-            </span>
-          </button>
-        )}
+        <RecordReviewBody event={event} label={label} Icon={Icon} tint={tint} detail={detail} />
 
         {/* Subject — the vehicle/item this record is about. Tap flies the map to it and
             selects it (leaves the custody tab), matching a Signed-Out / Expired card tap. */}

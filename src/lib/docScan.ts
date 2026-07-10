@@ -195,7 +195,7 @@ function solveLinear(A: number[][], b: number[]): number[] | null {
       for (let c = col; c <= n; c++) M[r][c] -= f * M[col][c]
     }
   }
-  return M.map((r, i) => r[n] / r[i][i])
+  return M.map((r, i) => r[n] / r[i])
 }
 
 /** 3×3 homography (length-9, h[8]=1) mapping the `from` quad onto the `to` quad. */
@@ -282,8 +282,9 @@ export function warpQuad(src: RasterImage, quad: Quad, outW: number, outH: numbe
     { x: 0, y: outH },
   ]
   const h = homography(dstRect, srcPx)
-  if (!h) {
-    // Degenerate quad — fall back to a straight stretch.
+  if (!h || h.some((v) => !Number.isFinite(v))) {
+    // Degenerate quad (or a non-finite solve) — fall back to a straight stretch
+    // rather than warping with NaN, which the canvas treats as an identity draw.
     ctx.drawImage(src.canvas, 0, 0, outW, outH)
     return out
   }

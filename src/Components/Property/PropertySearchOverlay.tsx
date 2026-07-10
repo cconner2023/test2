@@ -184,6 +184,9 @@ export function PropertySearchOverlay({
                   {itemResults.map((item, i) => {
                     const exp = expiryStatus(item.expiry_date ?? null)
                     const meta: { text: string; className?: string }[] = []
+                    // Serial number leads — it's the primary physical identifier for a
+                    // serialized item, and the same `S/N …` form the Sign-outs cards use.
+                    if (item.serial_number) meta.push({ text: `S/N ${item.serial_number}`, className: 'text-primary font-medium' })
                     if (item.nsn) meta.push({ text: `Material/NSN ${item.nsn}` })
                     if (item.lin) meta.push({ text: `LIN ${item.lin}` })
                     meta.push({ text: `Qty ${item.quantity}` })

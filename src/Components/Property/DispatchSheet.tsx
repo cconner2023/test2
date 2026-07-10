@@ -365,8 +365,9 @@ export function DispatchSheet({ isOpen, onClose, subjectId, clinicId, containerR
       render: () => historyBody,
     },
     record: {
-      // The tapped dispatch opens directly in its editable form ("Dispatch" title);
-      // the back chevron + X ride the header.
+      // The tapped dispatch opens in its review card ("Dispatch" title) — summary +
+      // readings + Open dispatch form; Edit (footer) flips to the form. Back + X ride
+      // the header.
       title: recordView.title ?? undefined,
       onBack: (nav: StackNav) => { nav.pop(); setPreviewEvent(null) },
       footer: recordView.footer,

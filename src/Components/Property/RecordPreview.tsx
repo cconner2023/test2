@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { Pencil, Trash2, X, Check, FileText, Paperclip, type LucideIcon } from 'lucide-react'
+import { Pencil, Trash2, X, Check, FileText, Paperclip, AlertTriangle, Wrench, type LucideIcon } from 'lucide-react'
 import type { AuditEvent } from '../../lib/auditTypes'
 import { usePropertyStore } from '../../stores/usePropertyStore'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { useClinicMedics } from '../../Hooks/useClinicMedics'
 import { downloadDecryptedAttachment, uploadEncryptedAttachment } from '../../lib/signal'
+import { pmcsOpened, pmcsCorrected } from '../../lib/pmcsFold'
 import type { PmcsDoc } from '../../lib/propertyService'
 import { PreviewOverlay } from '../PreviewOverlay'
 import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
@@ -13,7 +14,7 @@ import { PillButton } from '@/Components/primitives/HeaderPill'
 import { TextInput, PickerInput, DatePickerInput } from '@/Components/primitives/FormInputs'
 import { FuelMeter } from '@/Components/DomainInputs'
 import { DocScanner } from './DocScanner'
-import { SectionCard } from '@/Components/primitives/Section'
+import { SectionCard, SectionHeader } from '@/Components/primitives/Section'
 import { createLogger } from '../../Utilities/Logger'
 
 const logger = createLogger('RecordPreview')
@@ -31,15 +32,17 @@ const logger = createLogger('RecordPreview')
  *
  * The three property record types that carry their own intake form — a PMCS check
  * (pmcs.clear) and a dispatch open/close (dispatch.opened / dispatch.closed) — open
- * DIRECTLY in an editable form pre-filled from the event's payload: Save commits a
- * full-payload edit (editPmcsEntry → updateAuditEvent, which preserves occurred_at,
- * so the recorded date never moves) and Delete confirms a hard delete. PMCS edit
- * exposes the scalar readings + the 5988E only (mileage, fuel, operator, mechanic,
- * doc); recorded faults carry through unchanged so the cross-check fold still
- * resolves. Every other row (transfers, custody, legacy fault text) keeps the
- * view → edit/delete shape: a view card, optional free-text edit for the legacy
- * fault.opened / fault.corrected rows, and a delete. Any row whose payload carries
- * an attachment gets a "View document" action that decrypts + opens it. All deletes
+ * into the SAME rich REVIEW card the Custody roster shows (RecordReviewBody: a
+ * summary card + a readings/faults "information" section + a prominent Open 5988E /
+ * dispatch-form button), with Edit + Delete in the footer. Edit flips into the
+ * editable form pre-filled from the payload; Save commits a full-payload edit
+ * (editPmcsEntry → updateAuditEvent, which preserves occurred_at, so the recorded
+ * date never moves). PMCS edit exposes the scalar readings + the 5988E only
+ * (mileage, fuel, operator, mechanic, doc); recorded faults carry through unchanged
+ * so the cross-check fold still resolves. A lifted-row menu can still route straight
+ * to the form via initialAction='edit'. Every other row (transfers, custody, legacy
+ * fault text) keeps the view → edit/delete shape: a view card, optional free-text
+ * edit for the legacy fault.opened / fault.corrected rows, and a delete. All deletes
  * hard-remove through the store, bumping the `properties` generation so the host
  * list refetches.
  */
@@ -146,8 +149,13 @@ export function useRecordPreview({ event, onClose, label, detail, Icon, tint, in
   useEffect(() => {
     if (!event) return
     const p = event.payload ?? {}
-    const canEditText = event.eventType === 'fault.opened' || event.eventType === 'fault.corrected'
-    setMode(initialAction === 'edit' && canEditText ? 'edit' : 'view')
+    const et = event.eventType
+    const isForm = et === 'pmcs.clear' || et === 'dispatch.opened' || et === 'dispatch.closed'
+    const canEditText = et === 'fault.opened' || et === 'fault.corrected'
+    // A form-carrying record opens in the REVIEW card by default; only an explicit
+    // initialAction='edit' (a lifted-row Edit) jumps straight into its form. Legacy
+    // fault rows still honor edit for their free-text field.
+    setMode(initialAction === 'edit' && (isForm || canEditText) ? 'edit' : 'view')
     setConfirmOpen(initialAction === 'delete')
     setBusy(false)
     setEditText(event.eventType === 'fault.opened' ? str(p.description) : str(p.note))
@@ -354,9 +362,18 @@ export function useRecordPreview({ event, onClose, label, detail, Icon, tint, in
   ) : null
 
   let body: ReactNode
-  if (formKind) {
-    // Property records that carry an intake form open straight into it.
+  if (formKind && mode === 'edit') {
+    // Editing a form-carrying record — its pre-filled intake form.
     body = formBody
+  } else if (formKind) {
+    // Default: the shared rich REVIEW card (summary + readings/faults info section +
+    // Open 5988E/dispatch-form button), identical to the Custody-roster detail. Edit
+    // (footer) flips to the form above.
+    body = event ? (
+      <div className="px-3 py-3 space-y-3">
+        <RecordReviewBody event={event} label={label} Icon={Icon} tint={tint} detail={detail} />
+      </div>
+    ) : null
   } else if (mode === 'edit') {
     body = (
       <div className="flex items-center gap-2 px-3 py-3">
@@ -410,7 +427,7 @@ export function useRecordPreview({ event, onClose, label, detail, Icon, tint, in
   // LEFT (Scan/Replace the doc + Delete), the success Save PillButton RIGHT — same
   // primitives the Record/Dispatch intake uses. Other rows keep the legacy left pill
   // (Edit when free-text + Delete) in view mode only; the dismiss X rides the right.
-  const footer = formKind ? (
+  const footer = formKind && mode === 'edit' ? (
     <div className="flex gap-1 bg-themewhite rounded-2xl px-1.5 py-1.5">
       <ActionButton
         icon={docName ? FileText : Paperclip}
@@ -418,6 +435,12 @@ export function useRecordPreview({ event, onClose, label, detail, Icon, tint, in
         variant="default"
         onClick={() => setScannerOpen(true)}
       />
+      <ActionButton icon={Trash2} label="Delete" variant="danger" onClick={() => setConfirmOpen(true)} />
+    </div>
+  ) : formKind ? (
+    // Review mode for a form-carrying record: Edit flips into the form, Delete removes.
+    <div className="flex gap-1 bg-themewhite rounded-2xl px-1.5 py-1.5">
+      <ActionButton icon={Pencil} label="Edit" variant="default" onClick={() => setMode('edit')} />
       <ActionButton icon={Trash2} label="Delete" variant="danger" onClick={() => setConfirmOpen(true)} />
     </div>
   ) : mode === 'view' ? (
@@ -430,8 +453,8 @@ export function useRecordPreview({ event, onClose, label, detail, Icon, tint, in
   ) : undefined
 
   // Right footer — the familiar success PillButton (mirrors "Record PMCS" / "Dispatch"
-  // / "Return"), disabled until the required fields are set. Forms only.
-  const rightFooter = formKind ? (
+  // / "Return"), disabled until the required fields are set. Only while editing a form.
+  const rightFooter = formKind && mode === 'edit' ? (
     <div className="bg-themewhite rounded-2xl px-1.5 py-1.5">
       <PillButton icon={Check} iconSize={16} accent="success" disabled={!canSave || busy} onClick={saveForm} label="Save" />
     </div>
@@ -528,4 +551,143 @@ function fmtDate(iso: string): string {
   return d.toLocaleDateString('en-US', {
     month: 'short', day: 'numeric', ...(sameYear ? {} : { year: 'numeric' }),
   })
+}
+
+/** Short, local-midnight day for date-only payload fields (exp_date / returned_at),
+ *  so the shown day can't drift a day earlier in negative-offset timezones. */
+function fmtDay(dateOnly: string): string {
+  const d = new Date(dateOnly.length <= 10 ? `${dateOnly}T00:00:00` : dateOnly)
+  if (!Number.isFinite(d.getTime())) return dateOnly
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+/** The structured readings the summary line collapses — one label/value row each,
+ *  built from the record's payload per kind (PMCS readings / dispatch open / close). */
+function infoRows(event: AuditEvent): { label: string; value: string }[] {
+  const p = event.payload ?? {}
+  const rows: { label: string; value: string }[] = []
+  const push = (label: string, value: string | null) => {
+    if (value) rows.push({ label, value })
+  }
+  const num = (v: unknown, suffix = ''): string | null =>
+    typeof v === 'number' ? `${v.toLocaleString()}${suffix}` : null
+  const text = (v: unknown): string | null => (typeof v === 'string' && v ? v : null)
+
+  switch (event.eventType) {
+    case 'pmcs.clear':
+      push('Mileage', num(p.mileage, ' mi'))
+      push('Fuel', num(p.fuelLevel, '%'))
+      push('Operator', text(p.operator))
+      push('Mechanic', text(p.mechanic))
+      break
+    case 'dispatch.opened':
+      push('Status', 'On dispatch')
+      push('Expires', typeof p.exp_date === 'string' && p.exp_date ? fmtDay(p.exp_date) : null)
+      push('Odometer out', num(p.odo_out, ' mi'))
+      push('Operator', text(p.operator))
+      push('TC', text(p.tc))
+      push('Note', text(p.note))
+      break
+    case 'dispatch.closed':
+      push('Status', 'Returned')
+      push('Returned', typeof p.returned_at === 'string' && p.returned_at ? fmtDay(p.returned_at) : null)
+      push('Odometer in', num(p.odo_in, ' mi'))
+      push('Note', text(p.note))
+      break
+  }
+  return rows
+}
+
+/**
+ * RecordReviewBody — the canonical READ view of a PMCS / dispatch record: the summary
+ * card, an "information" section listing every reading the roster line collapses (plus
+ * the PMCS faults this check found / corrected), and the attached 5988E / dispatch
+ * form as an openable button. Shared by BOTH the record-preview overlay (PMCS/Dispatch
+ * history + item/vehicle timeline via useRecordPreview) AND the Custody-roster pane
+ * detail (PropertyRecordDetail) so a reviewed record looks identical everywhere. Emits
+ * a bare card stack — the host wraps it in its own padded/scrolling container (and adds
+ * its own extras, e.g. the roster's tap-to-locate subject card).
+ */
+export function RecordReviewBody({ event, label, Icon, tint, detail }: {
+  event: AuditEvent
+  label: string
+  Icon: LucideIcon
+  /** Icon chip classes (bg + text), matching the list row. */
+  tint: string
+  /** Detail meta line (readings / exp date). */
+  detail?: string
+}) {
+  const [busy, setBusy] = useState(false)
+  const doc = docOf(event)
+  const isDispatch = event.eventType.startsWith('dispatch')
+  const rows = useMemo(() => infoRows(event), [event])
+  const faultsOpened = useMemo(() => (event.eventType === 'pmcs.clear' ? pmcsOpened(event) : []), [event])
+  const faultsCorrected = useMemo(() => (event.eventType === 'pmcs.clear' ? pmcsCorrected(event) : []), [event])
+
+  // Decrypt + open an attached 5988E / dispatch form in a new tab.
+  const openDoc = async () => {
+    if (!doc || busy) return
+    setBusy(true)
+    const res = await downloadDecryptedAttachment(doc.path, doc.key)
+    setBusy(false)
+    if (!res.ok) { logger.warn('document download failed:', res.error); return }
+    const blob = doc.mime ? new Blob([res.data], { type: doc.mime }) : res.data
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank')
+    setTimeout(() => URL.revokeObjectURL(url), 60_000)
+  }
+
+  return (
+    <>
+      <RecordSummaryCard Icon={Icon} tint={tint} label={label} detail={detail} occurredAt={event.occurredAt} />
+
+      {/* Information — the readings the roster line collapses, one row each, plus the
+          PMCS faults this check found / corrected (red for a new fault). */}
+      {(rows.length > 0 || faultsOpened.length > 0 || faultsCorrected.length > 0) && (
+        <div>
+          <SectionHeader>{isDispatch ? 'Dispatch information' : 'PMCS information'}</SectionHeader>
+          <SectionCard className="divide-y divide-tertiary/8 mt-2">
+            {rows.map((r) => (
+              <div key={r.label} className="flex items-center justify-between gap-3 px-4 py-2.5">
+                <span className="text-[10pt] text-tertiary shrink-0">{r.label}</span>
+                <span className="text-[10pt] text-primary text-right min-w-0 truncate">{r.value}</span>
+              </div>
+            ))}
+            {faultsCorrected.map((f) => (
+              <div key={`c-${f.id}`} className="flex items-start gap-2.5 px-4 py-2.5">
+                <Wrench size={14} className="text-themeblue2 shrink-0 mt-0.5" />
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[10pt] text-primary">{f.description}</span>
+                  <span className="block text-[9pt] text-tertiary">Corrected{f.note ? ` · ${f.note}` : ''}</span>
+                </span>
+              </div>
+            ))}
+            {faultsOpened.map((f) => (
+              <div key={`o-${f.id}`} className="flex items-start gap-2.5 px-4 py-2.5">
+                <AlertTriangle size={14} className="text-themered shrink-0 mt-0.5" />
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[10pt] text-primary">{f.description}</span>
+                  <span className="block text-[9pt] text-themered">New fault</span>
+                </span>
+              </div>
+            ))}
+          </SectionCard>
+        </div>
+      )}
+
+      {doc && (
+        <button
+          type="button"
+          onClick={openDoc}
+          disabled={busy}
+          className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-themeblue3/8 text-themeblue2 active:scale-[0.98] transition-all disabled:opacity-40"
+        >
+          <FileText size={15} className="shrink-0" />
+          <span className="flex-1 min-w-0 text-left text-sm font-medium truncate">
+            {doc.name || (isDispatch ? 'Open dispatch form' : 'Open 5988E')}
+          </span>
+        </button>
+      )}
+    </>
+  )
 }

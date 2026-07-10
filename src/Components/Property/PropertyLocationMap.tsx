@@ -661,6 +661,24 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
   const visibleTagsWithPinsRef = useRef<LocationTag[]>([])
   visibleTagsWithPinsRef.current = visibleTagsWithPins
 
+  // ── Final render list ──
+  // When a building is EXPLODED its floors ARE the building — so drop the base zone's own
+  // tile and any floor-1 (direct, non-level) contents drawn on it, leaving only the fanned
+  // level shelf. A drawer zone with three drawers reads as three drawers, not three drawers
+  // sitting inside a fourth box; its loose base contents (which the fan would occlude and
+  // bury) stop competing for the eye. Levels are exempt (their target_id is a fan rect) and
+  // the surfaced floor's own contents live on the LEVEL's canvas, not the container's, so
+  // they survive. Strip here only — allWorldTags (zoom / step-out lookups) and
+  // visibleTagsWithPins (deferred focus effects) keep the base tile so nav still resolves it.
+  const renderTags = useMemo(() => {
+    const all = [...visibleTagsWithPins, ...childZoneAutoTags]
+    if (!explode) return all
+    const c = explode.containerId
+    return all.filter(
+      (t) => !(t.target_id === c || (t.location_id === c && !explode.rects.has(t.target_id))),
+    )
+  }, [visibleTagsWithPins, childZoneAutoTags, explode])
+
   // ── Zoom to a world-coord rect { x, y, width, height } ──
   const zoomToRect = useCallback(
     (rect: { x: number; y: number; width: number; height: number }, smooth = true, bottomInset = 0) => {
@@ -2064,7 +2082,7 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
             <div className="relative" style={{ width: totalW, height: totalH }}>
               <div className="absolute" style={{ left: padX, top: padY, width: contentW, height: contentH }}>
                 <LocationTagPhoto
-                  tags={[...visibleTagsWithPins, ...childZoneAutoTags]}
+                  tags={renderTags}
                   selectedZoneId={store.selectedZoneId}
                   onZoneTap={handleCanvasZoneTap}
                   scale={1}

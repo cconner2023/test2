@@ -466,8 +466,8 @@ export function PmcsSheet({ isOpen, onClose, subjectType = 'item', subjectId, cl
       render: () => historyBody,
     },
     record: {
-      // The tapped check opens directly in its editable form ("PMCS" title); the
-      // back chevron + X ride the header.
+      // The tapped check opens in its review card ("PMCS" title) — summary + readings
+      // + Open 5988E; Edit (footer) flips to the form. Back chevron + X ride the header.
       title: recordView.title ?? undefined,
       onBack: (nav: StackNav) => { nav.pop(); setPreviewEvent(null) },
       footer: recordView.footer,
