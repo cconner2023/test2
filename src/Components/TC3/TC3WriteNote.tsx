@@ -14,7 +14,9 @@ import { CasualtyQueue } from './CasualtyQueue'
 import type { TC3Card } from '../../Types/TC3Types'
 import type { UserTypes } from '../../Data/User'
 import { ActionPill } from '@/Components/primitives/ActionPill'
-import { ChevronDown } from 'lucide-react'
+import { Section, SectionCard } from '@/Components/primitives/Section'
+import { BottomIsland, IslandButton } from '@/Components/primitives/BottomIsland'
+import { ChevronDown, User, Layers } from 'lucide-react'
 
 const INJURY_COLORS: Record<string, string> = {
   GSW: '#ef4444',
@@ -41,21 +43,20 @@ interface TC3CardSectionProps {
   isAuthenticated: boolean
   /** When set, renders a labeled header above the content (bulk mode) */
   label?: string
-  /** True only for the live active card — renders the sticky casualty switcher + 9-line scope toggle. */
+  /** True only for the live active card — renders the sticky casualty switcher. */
   activeContext?: boolean
+  /** MASCAL 9-line scope, owned by the drawer's BottomIsland. Active card only. */
+  scope?: 'this' | 'rollup'
 }
 
-function TC3CardSection({ card, profile, userId, isAuthenticated, label, activeContext }: TC3CardSectionProps) {
+function TC3CardSection({ card, profile, userId, isAuthenticated, label, activeContext, scope }: TC3CardSectionProps) {
   const [copiedTarget, setCopiedTarget] = useState<'preview' | 'encoded' | null>(null)
   const [copiedMist, setCopiedMist] = useState(false)
   const [shareStatus, setShareStatus] = useState<'idle' | 'sharing' | 'shared'>('idle')
   const [encodedText, setEncodedText] = useState('')
-  const [scope, setScope] = useState<'this' | 'rollup'>('rollup')
   const [queueOpen, setQueueOpen] = useState(false)
 
   const queue = useTC3Store((s) => s.casualtyQueue)
-  const isMascal = queue.length > 0
-  const total = queue.length + 1
   const activeNumber = useMemo(() => {
     const all = [card, ...queue.map((q) => q.card)].sort((a, b) => a.createdAt.localeCompare(b.createdAt))
     return Math.max(1, all.findIndex((c) => c.id === card.id) + 1)
@@ -124,9 +125,9 @@ function TC3CardSection({ card, profile, userId, isAuthenticated, label, activeC
 
   return (
     <div className="space-y-4">
-      {/* Active-card sticky header: which casualty + 9-line scope */}
+      {/* Active-card sticky header: which casualty (scope lives in the BottomIsland) */}
       {activeContext && (
-        <div className="sticky top-0 z-20 -mx-1 flex items-center justify-between gap-2 py-2 px-1 bg-themewhite2/95 backdrop-blur-sm border-b border-tertiary/10">
+        <div className="sticky top-0 z-20 -mx-1 flex items-center gap-2 py-2 px-1 bg-themewhite2/95 backdrop-blur-sm border-b border-tertiary/10">
           <button
             type="button"
             onClick={() => setQueueOpen(true)}
@@ -136,24 +137,6 @@ function TC3CardSection({ card, profile, userId, isAuthenticated, label, activeC
             <span className="text-sm font-semibold text-primary truncate">#{activeNumber} · {casualtyLabel}</span>
             <ChevronDown size={14} className="text-tertiary shrink-0" />
           </button>
-          {isMascal && (
-            <div className="flex items-center p-0.5 rounded-full bg-themewhite3 border border-tertiary/10 shrink-0">
-              <button
-                type="button"
-                onClick={() => setScope('this')}
-                className={`px-2.5 py-1 rounded-full text-[9pt] font-semibold transition-colors ${scope === 'this' ? 'bg-themeblue2 text-white' : 'text-tertiary'}`}
-              >
-                This
-              </button>
-              <button
-                type="button"
-                onClick={() => setScope('rollup')}
-                className={`px-2.5 py-1 rounded-full text-[9pt] font-semibold transition-colors ${scope === 'rollup' ? 'bg-themeblue2 text-white' : 'text-tertiary'}`}
-              >
-                Roll-up · {total}
-              </button>
-            </div>
-          )}
         </div>
       )}
       {activeContext && <CasualtyQueue isOpen={queueOpen} onClose={() => setQueueOpen(false)} />}
@@ -169,59 +152,56 @@ function TC3CardSection({ card, profile, userId, isAuthenticated, label, activeC
 
       {/* Body diagram with markers */}
       {hasMarkers && (
-        <div className="rounded-xl border border-tertiary/15 bg-themewhite p-3">
-          <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase mb-2">Injury Diagram</p>
-          <TC3BodyDiagramSvg markers={card.markers} readOnly compact />
-          <div className="mt-2 pt-2 border-t border-tertiary/10 flex flex-wrap gap-x-3 gap-y-1">
-            {card.markers.map((m, i) => {
-              const region = m.bodyRegion ? getRegionLabel(m.bodyRegion) : `(${Math.round(m.x)}%, ${Math.round(m.y)}%)`
-              const markerLabel = [...m.injuries, ...m.procedures].join(', ') || 'Marker'
-              const color = m.injuries.length > 0
-                ? (INJURY_COLORS[m.injuries[0]] ?? '#6b7280')
-                : m.procedures.length > 0 ? '#22c55e' : '#f59e0b'
-              return (
-                <div key={m.id} className="flex items-center gap-1">
-                  <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
-                  <span className="text-[9pt] md:text-[9pt] text-tertiary">{i + 1}. {markerLabel} ({region})</span>
-                </div>
-              )
-            })}
-          </div>
-        </div>
+        <Section title="Injury Diagram" className="">
+          <SectionCard className="p-3">
+            <TC3BodyDiagramSvg markers={card.markers} readOnly compact />
+            <div className="mt-2 pt-2 border-t border-tertiary/10 flex flex-wrap gap-x-3 gap-y-1">
+              {card.markers.map((m, i) => {
+                const region = m.bodyRegion ? getRegionLabel(m.bodyRegion) : `(${Math.round(m.x)}%, ${Math.round(m.y)}%)`
+                const markerLabel = [...m.injuries, ...m.procedures].join(', ') || 'Marker'
+                const color = m.injuries.length > 0
+                  ? (INJURY_COLORS[m.injuries[0]] ?? '#6b7280')
+                  : m.procedures.length > 0 ? '#22c55e' : '#f59e0b'
+                return (
+                  <div key={m.id} className="flex items-center gap-1">
+                    <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                    <span className="text-[9pt] md:text-[9pt] text-tertiary">{i + 1}. {markerLabel} ({region})</span>
+                  </div>
+                )
+              })}
+            </div>
+          </SectionCard>
+        </Section>
       )}
 
       {/* Note text */}
-      <section>
-        <div className="pb-2 flex items-center gap-2">
-          <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Note Preview</p>
-        </div>
+      <Section title="Note Preview" className="">
         <div className="relative">
-          <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+          <SectionCard>
             <pre className="px-4 pt-3 pb-4 text-tertiary text-[9pt] whitespace-pre-wrap">
               {noteText || 'No content'}
             </pre>
-          </div>
+          </SectionCard>
           <ActionPill shadow="sm" placement="overlay">
             <ActionIconButton onClick={handleCopyMist} status={copiedMist ? 'done' : 'idle'} variant="pdf" title="Copy MIST Handoff" />
             <ActionIconButton onClick={() => handleCopy(noteText, 'preview')} status={copiedTarget === 'preview' ? 'done' : 'idle'} variant="copy" title="Copy note text" />
           </ActionPill>
         </div>
-      </section>
+      </Section>
 
       {/* Auto-derived 9-line MEDEVAC */}
-      <TC3NineLine card={card} scope={activeContext ? scope : undefined} />
+      <Section title="9-Line MEDEVAC" className="">
+        <TC3NineLine card={card} scope={activeContext ? scope : undefined} />
+      </Section>
 
       {/* Encoded barcode */}
-      <section>
-        <div className="pb-2 flex items-center gap-2">
-          <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Encoded Note</p>
-        </div>
+      <Section title="Encoded Note" className="">
         <div className="relative">
-          <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+          <SectionCard>
             <div className="px-3 pt-3 pb-4">
               {encodedText && <BarcodeDisplay encodedText={encodedText} layout={encodedText.length > 300 ? 'col' : 'row'} />}
             </div>
-          </div>
+          </SectionCard>
           <ActionPill shadow="sm" placement="overlay">
             <ActionIconButton onClick={() => handleCopy(encodedText, 'encoded')} status={copiedTarget === 'encoded' ? 'done' : 'idle'} variant="copy" title="Copy encoded text" />
             {typeof navigator.share === 'function' && (
@@ -229,7 +209,7 @@ function TC3CardSection({ card, profile, userId, isAuthenticated, label, activeC
             )}
           </ActionPill>
         </div>
-      </section>
+      </Section>
     </div>
   )
 }
@@ -247,12 +227,18 @@ interface TC3WriteNoteProps {
 
 export const TC3WriteNote = memo(function TC3WriteNote({ isVisible, onClose, card: cardProp, cards }: TC3WriteNoteProps) {
   const storeCard = useTC3Store((s) => s.card)
+  const queue = useTC3Store((s) => s.casualtyQueue)
   const profile = useAuthStore((s) => s.profile)
   const userId = useAuthStore((s) => s.user?.id)
   const isAuthenticated = useAuthStore(selectIsAuthenticated)
+  const [scope, setScope] = useState<'this' | 'rollup'>('rollup')
 
   const isBulk = cards && cards.length > 1
   const effectiveCards = isBulk ? cards : [cardProp ?? storeCard]
+
+  // MASCAL scope island shows only for the live active card with a non-empty queue.
+  const isMascal = !isBulk && !cardProp && queue.length > 0
+  const total = queue.length + 1
 
   const title = isBulk
     ? `TC3 Export — ${cards.length} Casualties`
@@ -267,25 +253,44 @@ export const TC3WriteNote = memo(function TC3WriteNote({ isVisible, onClose, car
       fullHeight="90dvh"
       mobileClassName="flex flex-col bg-themewhite2"
       header={{ title }}
-      contentPadding="standard"
+      scrollDisabled
     >
-      <div className="space-y-8">
-        {effectiveCards.map((c, i) => {
-          const name = [c.casualty.lastName, c.casualty.firstName].filter(Boolean).join(', ') || `Casualty #${i + 1}`
-          return (
-            <div key={c.id}>
-              {isBulk && i > 0 && <div className="border-t border-tertiary/10 -mt-4 mb-8" />}
-              <TC3CardSection
-                card={c}
-                profile={profile}
-                userId={userId}
-                isAuthenticated={isAuthenticated}
-                label={isBulk ? name : undefined}
-                activeContext={!isBulk && c.id === storeCard.id}
-              />
-            </div>
-          )
-        })}
+      <div className="h-full relative flex flex-col">
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain px-4 py-3 md:p-5 pb-28">
+          <div className="space-y-8">
+            {effectiveCards.map((c, i) => {
+              const name = [c.casualty.lastName, c.casualty.firstName].filter(Boolean).join(', ') || `Casualty #${i + 1}`
+              return (
+                <div key={c.id}>
+                  {isBulk && i > 0 && <div className="border-t border-tertiary/10 -mt-4 mb-8" />}
+                  <TC3CardSection
+                    card={c}
+                    profile={profile}
+                    userId={userId}
+                    isAuthenticated={isAuthenticated}
+                    label={isBulk ? name : undefined}
+                    activeContext={!isBulk && c.id === storeCard.id}
+                    scope={scope}
+                  />
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
+        {isMascal && (
+          <BottomIsland glass z="z-20" role="tablist" ariaLabel="9-line scope">
+            <IslandButton role="tab" active={scope === 'this'} onClick={() => setScope('this')} label="This casualty">
+              <User className="w-5 h-5" />
+            </IslandButton>
+            <IslandButton role="tab" active={scope === 'rollup'} onClick={() => setScope('rollup')} label={`Roll-up · ${total} casualties`}>
+              <span className="relative">
+                <Layers className="w-5 h-5" />
+                <span className="absolute -top-1.5 -right-2 min-w-[15px] h-[15px] px-1 rounded-full bg-themeblue2 text-white text-[8pt] font-bold leading-[15px] text-center">{total}</span>
+              </span>
+            </IslandButton>
+          </BottomIsland>
+        )}
       </div>
     </BaseDrawer>
   )

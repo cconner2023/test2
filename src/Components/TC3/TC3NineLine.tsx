@@ -146,14 +146,6 @@ export const TC3NineLine = memo(function TC3NineLine({ card, cards, scope }: TC3
 
   return (
     <div className="relative">
-      {(readOnly || isMascal) && (
-        <div className="mb-2 px-1">
-          <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">
-            {readOnly ? '9-Line · This Casualty' : `9-Line · Roll-up (${sessionCards.length})`}
-          </p>
-        </div>
-      )}
-
       <MedevacCard data={projection} onLineClick={readOnly ? undefined : handleLineClick} />
 
       {!readOnly && undercount && (
