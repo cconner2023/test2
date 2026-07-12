@@ -322,7 +322,10 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
   const showPropertyWidget = useFeatureGate('propertyAccountability')
   const allEvents = useCalendarStore(s => s.events)
   const updateEvent = useCalendarStore(s => s.updateEvent)
-  const userId = useAuthStore(s => s.user?.id)
+  // Prefer the sync-hydrated local session id: it carries the account id before
+  // the async auth round-trip populates `user`, so "my tasks" filters from the
+  // IDB-cached events on first paint instead of flashing "No tasks today".
+  const userId = useAuthStore(s => s.user?.id ?? s.localSession?.userId)
   const events = allEvents
   const isSupervisor = useAuthStore(s => s.isSupervisorRole)
   const overviewWidgets = useAuthStore(s => s.profile?.overviewWidgets)

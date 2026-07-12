@@ -15,13 +15,18 @@
  * (the tree), so it is made measurable here WITHOUT a schema change: it is minted
  * a synthetic `training_completions` key — `algo:<id>:run` — and synthesized into
  * EvaluationStep-compatible task data so the existing supervisor GO/NO_GO flow
- * grades it like any STP.
+ * grades it like any STP. The run walk emits ONE graded step per tree node — red
+ * flags, each decision question, each action — so the supervisor walks the soldier
+ * through the entire algorithm (buildRunWalkSteps); a generic rubric is only a
+ * fallback for algorithms with no tree.
  *
  * Cross-links: src/Utilities/algorithmStp.ts (STP mapping), supervisorHelpers.ts
  * (buildAlgorithmCompetency rollup), EvaluationStep.tsx (getEvaluableTaskData).
  */
 import { catData } from '../Data/CatData'
 import type { subCatDataTypes } from '../Types/CatTypes'
+import { Algorithm } from '../Data/Algorithms'
+import type { AlgorithmOptions } from '../Types/AlgorithmTypes'
 import { getAlgorithmStpTaskNumbers } from './algorithmStp'
 import { getTaskData, isTaskTestable, type TaskTrainingData, type PerformanceStep } from '../Data/TrainingData'
 
@@ -67,7 +72,11 @@ export function parseAlgoDimKey(key: string): { algorithmId: string; dim: AlgoSy
   return { algorithmId, dim }
 }
 
-/** The doctrinal rubric for the "run the decision tree" dimension. */
+/**
+ * Fallback rubric for the "run the decision tree" dimension — used only when an
+ * algorithm has no decision tree in Algorithms.ts. Normally the run walk emits a
+ * graded step per tree node (see buildRunWalkSteps).
+ */
 const RUN_RUBRIC: readonly string[] = [
   'Gathers the correct branch data at each decision point',
   'Follows the doctrinal path to the correct disposition',
@@ -83,9 +92,59 @@ function findAlgorithm(algorithmId: string): subCatDataTypes | undefined {
   return undefined
 }
 
-/** Backing texts for a synthetic dimension ([] when the algorithm has none). */
-function dimTexts(algo: subCatDataTypes, dim: AlgoSynthDim): string[] {
-  if (dim === 'run') return [...RUN_RUBRIC]
+/** Find an algorithm's decision-tree cards by its id (the `id`, e.g. "A-1"). */
+function findAlgorithmTree(algorithmId: string): AlgorithmOptions[] | undefined {
+  return Algorithm.find((a) => a.id === algorithmId)?.options
+}
+
+/**
+ * Graded steps for the "run the algorithm" walk: one linear pass over the
+ * algorithm's decision tree (Algorithms.ts), emitting a graded step per node so
+ * the supervisor walks the soldier through the whole tree —
+ *   • rf card     → one step per red-flag finding  ("Recognizes red flag — …")
+ *   • action card → one step per action item        ("Performs — …")
+ *   • decision    → one step for the branch question, its criteria as a note.
+ * Cards are walked in array order (matching how the tree renders), so every node
+ * is graded regardless of the branch a live patient would take — a full-tree
+ * competency check, not a single-path replay. Returns [] when the algorithm has
+ * no tree (caller falls back to RUN_RUBRIC).
+ */
+function buildRunWalkSteps(algorithmId: string): PerformanceStep[] {
+  const cards = findAlgorithmTree(algorithmId)
+  if (!cards || cards.length === 0) return []
+
+  const steps: PerformanceStep[] = []
+  const push = (text: string, extra?: Partial<PerformanceStep>) => {
+    const clean = text.trim()
+    if (!clean) return
+    steps.push({ number: String(steps.length + 1), text: clean, ...extra })
+  }
+
+  for (const card of cards) {
+    const items = (card.questionOptions ?? [])
+      .map((q) => (q.text ?? '').trim())
+      .filter(Boolean)
+
+    if (card.type === 'rf') {
+      if (items.length > 0) items.forEach((it) => push(`Recognizes red flag — ${it}`))
+      else push(`Recognizes red flags — ${card.text}`)
+    } else if (card.type === 'action') {
+      if (items.length > 0) items.forEach((it) => push(`Performs — ${it}`))
+      else push(`Performs — ${card.text}`)
+    } else {
+      // initial | choice | count — a branch decision node
+      push(card.text, items.length > 0 ? { note: `Assesses: ${items.join('; ')}` } : undefined)
+    }
+  }
+  return steps
+}
+
+/**
+ * Backing texts for the legacy synthetic dimensions ([] when none). Only
+ * redflags/ddx flow through here now (back-compat synthesis); the `run` dim
+ * builds its steps from the decision tree via buildRunWalkSteps.
+ */
+function dimTexts(algo: subCatDataTypes, dim: 'redflags' | 'ddx'): string[] {
   const list = dim === 'redflags' ? algo.redFlags : algo.DDX
   return (list ?? []).map((x) => (x.text ?? '').trim()).filter(Boolean)
 }
@@ -100,16 +159,21 @@ function dimTexts(algo: subCatDataTypes, dim: AlgoSynthDim): string[] {
 export function synthesizeAlgoTaskData(algorithmId: string, dim: AlgoSynthDim): TaskTrainingData | undefined {
   const algo = findAlgorithm(algorithmId)
   if (!algo) return undefined
-  const texts = dimTexts(algo, dim)
-  if (texts.length === 0) return undefined
 
-  const stem = dim === 'redflags' ? 'Recognizes red flag — '
-    : dim === 'ddx' ? 'Considers differential — '
-    : ''
-  const performanceSteps: PerformanceStep[] = texts.map((t, i) => ({
-    number: String(i + 1),
-    text: `${stem}${t}`,
-  }))
+  let performanceSteps: PerformanceStep[]
+  if (dim === 'run') {
+    // Walk the actual decision tree, one graded step per node. Only when the
+    // algorithm has no tree do we fall back to the generic rubric.
+    const walk = buildRunWalkSteps(algorithmId)
+    performanceSteps = walk.length > 0
+      ? walk
+      : RUN_RUBRIC.map((t, i) => ({ number: String(i + 1), text: t }))
+  } else {
+    const texts = dimTexts(algo, dim)
+    if (texts.length === 0) return undefined
+    const stem = dim === 'redflags' ? 'Recognizes red flag — ' : 'Considers differential — '
+    performanceSteps = texts.map((t, i) => ({ number: String(i + 1), text: `${stem}${t}` }))
+  }
   const name = (algo.text ?? algorithmId).trim() || algorithmId
   return {
     taskNumber: algoDimKey(algorithmId, dim),

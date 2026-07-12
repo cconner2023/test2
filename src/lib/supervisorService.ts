@@ -93,6 +93,7 @@ export async function updateSupervisorClinic(
     })
 
     if (error) return fail(error.message)
+    bustClinicDetails(clinicId)
     return succeed()
   } catch (error) {
     logger.error('Failed to update clinic:', error)
@@ -102,20 +103,46 @@ export async function updateSupervisorClinic(
 
 // ─── List Clinic Members ───────────────────────────────────────────────────
 
+// Child-clinic roster read (ChildClinicRosterSheet), uncached and re-issued on
+// every sheet open. Short-TTL module cache + inflight dedup; add/remove-member
+// busts the entry so the roster reflects the supervisor's own change immediately.
+const CLINIC_MEMBERS_TTL_MS = 60_000
+const clinicMembersCache = new Map<string, { at: number; members: ClinicMember[] }>()
+const clinicMembersInflight = new Map<string, Promise<ServiceResult<{ members: ClinicMember[] }>>>()
+
+/** Drop a clinic's cached member roster after a membership mutation. */
+function bustClinicMembers(clinicId: string): void {
+  clinicMembersCache.delete(clinicId)
+  clinicMembersInflight.delete(clinicId)
+}
+
 export async function listClinicMembers(
   clinicId: string
 ): Promise<ServiceResult<{ members: ClinicMember[] }>> {
-  try {
-    const { data, error } = await supabase.rpc('supervisor_list_clinic_members', {
-      p_clinic_id: clinicId,
-    })
+  const cached = clinicMembersCache.get(clinicId)
+  if (cached && Date.now() - cached.at < CLINIC_MEMBERS_TTL_MS) return succeed({ members: cached.members })
+  const existing = clinicMembersInflight.get(clinicId)
+  if (existing) return existing
 
-    if (error) return fail(error.message)
-    return succeed({ members: (data as ClinicMember[] | null) ?? [] })
-  } catch (error) {
-    logger.error('Failed to list clinic members:', error)
-    return fail(getErrorMessage(error))
-  }
+  const p = (async (): Promise<ServiceResult<{ members: ClinicMember[] }>> => {
+    try {
+      const { data, error } = await supabase.rpc('supervisor_list_clinic_members', {
+        p_clinic_id: clinicId,
+      })
+
+      if (error) return fail(error.message)
+      const members = (data as ClinicMember[] | null) ?? []
+      clinicMembersCache.set(clinicId, { at: Date.now(), members })
+      return succeed({ members })
+    } catch (error) {
+      logger.error('Failed to list clinic members:', error)
+      return fail(getErrorMessage(error))
+    } finally {
+      clinicMembersInflight.delete(clinicId)
+    }
+  })()
+  clinicMembersInflight.set(clinicId, p)
+  return p
 }
 
 // ─── Add Member ────────────────────────────────────────────────────────────
@@ -131,6 +158,7 @@ export async function addClinicMember(
     })
 
     if (error) return fail(error.message)
+    bustClinicMembers(clinicId)
     return succeed()
   } catch (error) {
     logger.error('Failed to add clinic member:', error)
@@ -151,6 +179,7 @@ export async function removeClinicMember(
     })
 
     if (error) return fail(error.message)
+    bustClinicMembers(clinicId)
     return succeed()
   } catch (error) {
     logger.error('Failed to remove clinic member:', error)
@@ -365,38 +394,69 @@ export interface ClinicPreCombatCheck {
   items: PCCItem[]
 }
 
+// SupervisorDrawer calls getClinicDetails for the home clinic AND every nearby/
+// associated clinic on each open (ClinicPanel + MapOverlayPanel repeat it), so a
+// single open fans out into N single-row clinics GETs, re-issued on every reopen.
+// A short-TTL module cache (mirrors useLoanClinicContent's Map) dedups the fan-out
+// within a session and across quick reopens; supervisor edits bust the entry so a
+// self-edit reads fresh. Cross-supervisor edits converge within the TTL.
+const CLINIC_DETAILS_TTL_MS = 60_000
+const clinicDetailsCache = new Map<string, { at: number; data: ClinicDetails }>()
+const clinicDetailsInflight = new Map<string, Promise<ClinicDetails>>()
+
+/** Drop a clinic's cached details after a mutation so the next read is fresh. */
+export function bustClinicDetails(clinicId: string): void {
+  clinicDetailsCache.delete(clinicId)
+  clinicDetailsInflight.delete(clinicId)
+}
+
 export async function getClinicDetails(
   clinicId: string
 ): Promise<ClinicDetails> {
-  try {
-    const { data } = await supabase
-      .from('clinics')
-      .select('name, uics, location, location_id, encryption_key, associated_clinic_ids, huddle_tasks')
-      .eq('id', clinicId)
-      .single()
+  const cached = clinicDetailsCache.get(clinicId)
+  if (cached && Date.now() - cached.at < CLINIC_DETAILS_TTL_MS) return cached.data
+  const existing = clinicDetailsInflight.get(clinicId)
+  if (existing) return existing
 
-    if (!data) return { name: null, uics: [], location: null, location_id: null, associatedClinicIds: [], huddleTasks: [] }
+  const p = (async (): Promise<ClinicDetails> => {
+    try {
+      const { data } = await supabase
+        .from('clinics')
+        .select('name, uics, location, location_id, encryption_key, associated_clinic_ids, huddle_tasks')
+        .eq('id', clinicId)
+        .single()
 
-    let location: string | null = data.location ?? null
-    if (location && data.encryption_key) {
-      try {
-        location = await decryptWithRawKey(data.encryption_key, location)
-      } catch {
-        location = null
+      if (!data) return { name: null, uics: [], location: null, location_id: null, associatedClinicIds: [], huddleTasks: [] }
+
+      let location: string | null = data.location ?? null
+      if (location && data.encryption_key) {
+        try {
+          location = await decryptWithRawKey(data.encryption_key, location)
+        } catch {
+          location = null
+        }
       }
-    }
 
-    return {
-      name: data.name ?? null,
-      uics: data.uics ?? [],
-      location,
-      location_id: (data as { location_id?: string | null }).location_id ?? null,
-      associatedClinicIds: data.associated_clinic_ids ?? [],
-      huddleTasks: ((data as { huddle_tasks?: ClinicHuddleTask[] }).huddle_tasks as ClinicHuddleTask[]) ?? [],
+      const details: ClinicDetails = {
+        name: data.name ?? null,
+        uics: data.uics ?? [],
+        location,
+        location_id: (data as { location_id?: string | null }).location_id ?? null,
+        associatedClinicIds: data.associated_clinic_ids ?? [],
+        huddleTasks: ((data as { huddle_tasks?: ClinicHuddleTask[] }).huddle_tasks as ClinicHuddleTask[]) ?? [],
+      }
+      // Only cache a real row — leave the empty/error fallback uncached so a
+      // transient failure retries on the next read.
+      clinicDetailsCache.set(clinicId, { at: Date.now(), data: details })
+      return details
+    } catch {
+      return { name: null, uics: [], location: null, location_id: null, associatedClinicIds: [], huddleTasks: [] }
+    } finally {
+      clinicDetailsInflight.delete(clinicId)
     }
-  } catch {
-    return { name: null, uics: [], location: null, location_id: null, associatedClinicIds: [], huddleTasks: [] }
-  }
+  })()
+  clinicDetailsInflight.set(clinicId, p)
+  return p
 }
 
 // ─── Update Clinic Location ID (dedicated RPC) ─────────────────────────────
@@ -411,6 +471,7 @@ export async function updateSupervisorClinicLocationId(
       p_location_id: locationId,
     })
     if (error) return fail(error.message)
+    bustClinicDetails(clinicId)
     return succeed()
   } catch (error) {
     logger.error('Failed to update clinic location:', error)
@@ -431,6 +492,7 @@ export async function updateSupervisorClinicHuddleTasks(
       p_tasks: tasks,
     })
     if (error) return fail(error.message)
+    bustClinicDetails(clinicId)
     return succeed()
   } catch (error) {
     logger.error('Failed to update clinic huddle tasks:', error)

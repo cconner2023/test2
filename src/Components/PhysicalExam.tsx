@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Check, RotateCcw, Plus, AlertTriangle, ChevronRight, Trash2, GripVertical, Activity } from 'lucide-react';
+import { Check, RotateCcw, Plus, AlertTriangle, ChevronRight, Trash2, GripVertical, Activity, MoreHorizontal } from 'lucide-react';
 import { PreviewOverlay } from './PreviewOverlay';
 import type { ContextMenuAction } from './PreviewOverlay';
 import { ExamBlockPreview } from './ExamBlockPreview';
@@ -7,6 +7,8 @@ import { ListItemRow } from '@/Components/primitives/ListItemRow';
 import { SwipeToDeleteRow } from '@/Components/primitives/SwipeToDeleteRow';
 import { ActionPill } from '@/Components/primitives/ActionPill';
 import { ActionButton } from '@/Components/primitives/ActionButton';
+import { AnchoredMenu } from '@/Components/primitives/LiftedRowMenu';
+import type { ContextMenuItem } from '@/Components/primitives/ContextMenu';
 import { VitalSignsCalculator } from './VitalSignsCalculator';
 import { DatePickerCalendar } from '@/Components/primitives/FormInputs';
 import type { getColorClasses } from '../Utilities/ColorUtilities';
@@ -595,6 +597,7 @@ export function PhysicalExam({
     // ── Block picker (template mode) ─────────────────────────
     const [showBlockPicker, setShowBlockPicker] = useState(false);
     const [blockPickerAnchorRect, setBlockPickerAnchorRect] = useState<DOMRect | null>(null);
+    const [examMenuOpen, setExamMenuOpen] = useState(false);
     const cardActionPillRef = useRef<HTMLDivElement>(null);
 
     // ── Vital Signs picker (template mode — pinned first row, separate from +) ──
@@ -826,24 +829,24 @@ export function PhysicalExam({
         });
     };
 
-    const examStatus = useMemo((): 'not-examined' | 'all-normal' | 'all-abnormal' | 'has-abnormal' => {
-        const allStates = Object.values(blockStates);
-        const examined = allStates.filter(s => s.status !== 'not-examined');
-        if (examined.length === 0) return 'not-examined';
-        if (examined.every(s => s.status === 'abnormal') && examined.length === allStates.length) return 'all-abnormal';
-        if (examined.some(s => s.status === 'abnormal')) return 'has-abnormal';
-        return 'all-normal';
-    }, [blockStates]);
-
-    const cycleExamStatus = () => {
-        if (examStatus === 'not-examined') {
-            markAllNormal();
-        } else if (examStatus === 'all-normal') {
-            markAllAbnormal();
-        } else {
-            resetAllBlocks();
+    const openBlockPicker = () => {
+        if (cardActionPillRef.current) {
+            setBlockPickerAnchorRect(cardActionPillRef.current.getBoundingClientRect());
         }
+        setShowBlockPicker(true);
     };
+
+    // Floating overlay ellipsis menu for the whole exam — All Normal / All Abnormal
+    // / Reset (the old cycle button's three states, now discrete), plus Add system
+    // in template mode. Matches the OverlayHeaderMenu / AnchoredMenu ellipsis primitive.
+    const examMenuItems: ContextMenuItem[] = [
+        { key: 'allNormal', label: 'All Normal', icon: Check, onAction: markAllNormal },
+        { key: 'allAbnormal', label: 'All Abnormal', icon: AlertTriangle, onAction: markAllAbnormal },
+        { key: 'reset', label: 'Reset', icon: RotateCcw, onAction: resetAllBlocks },
+        ...(mode === 'template' && onBlockKeysChange
+            ? [{ key: 'add', label: 'Add system', icon: Plus, onAction: openBlockPicker } as ContextMenuItem]
+            : []),
+    ];
 
     // ── Flat block list for popover navigation ────────────────
     type FlatEntry = { viewBlock: PEBlock; key: string; isAdded?: boolean };
@@ -1142,35 +1145,21 @@ export function PhysicalExam({
                     <ActionPill ref={cardActionPillRef} shadow="sm" placement="overlay">
                         <button
                             type="button"
-                            onClick={cycleExamStatus}
-                            aria-label="Cycle exam status"
-                            className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 active:scale-95 transition-all ${
-                                examStatus === 'all-normal'
-                                    ? 'bg-themegreen text-white'
-                                    : examStatus === 'all-abnormal'
-                                    ? 'bg-themeredred text-white'
-                                    : examStatus === 'has-abnormal'
-                                    ? 'bg-themeredred/20 text-themeredred'
-                                    : 'bg-tertiary/10 text-tertiary'
-                            }`}
+                            onClick={() => setExamMenuOpen(true)}
+                            aria-label="Exam actions"
+                            className="rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
                         >
-                            {examStatus === 'all-abnormal' || examStatus === 'has-abnormal'
-                                ? <AlertTriangle size={18} strokeWidth={2.5} />
-                                : <Check size={18} strokeWidth={2.5} />}
+                            <MoreHorizontal />
                         </button>
-                        {mode === 'template' && onBlockKeysChange && (
-                            <ActionButton
-                                icon={Plus}
-                                label="Add system"
-                                onClick={() => {
-                                    if (cardActionPillRef.current) {
-                                        setBlockPickerAnchorRect(cardActionPillRef.current.getBoundingClientRect());
-                                    }
-                                    setShowBlockPicker(true);
-                                }}
-                            />
-                        )}
                     </ActionPill>
+                    <AnchoredMenu
+                        isOpen={examMenuOpen}
+                        anchorRef={cardActionPillRef}
+                        items={examMenuItems}
+                        onClose={() => setExamMenuOpen(false)}
+                        layout="list"
+                        align="right"
+                    />
                 </div>
             )}
 

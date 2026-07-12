@@ -1186,8 +1186,7 @@ export type Database = {
           last_name: string | null
           middle_initial: string | null
           needs_password_setup: boolean
-          note_include_hpi: boolean | null
-          note_include_plan: boolean | null
+          seed_algorithm_note: boolean | null
           note_template_clinic_ids: string[] | null
           notify_calendar_assignments: boolean
           notify_clinic_notes: boolean | null
@@ -1229,8 +1228,7 @@ export type Database = {
           last_name?: string | null
           middle_initial?: string | null
           needs_password_setup?: boolean
-          note_include_hpi?: boolean | null
-          note_include_plan?: boolean | null
+          seed_algorithm_note?: boolean | null
           note_template_clinic_ids?: string[] | null
           notify_calendar_assignments?: boolean
           notify_clinic_notes?: boolean | null
@@ -1272,8 +1270,7 @@ export type Database = {
           last_name?: string | null
           middle_initial?: string | null
           needs_password_setup?: boolean
-          note_include_hpi?: boolean | null
-          note_include_plan?: boolean | null
+          seed_algorithm_note?: boolean | null
           note_template_clinic_ids?: string[] | null
           notify_calendar_assignments?: boolean
           notify_clinic_notes?: boolean | null

@@ -15,6 +15,7 @@ import { supabase } from '../lib/supabase'
 import {
   fetchClinicItems,
   createItem,
+  createItemsBatch,
   updateItem,
   deleteItem,
   fetchClinicLocations,
@@ -54,6 +55,7 @@ import { getLocalPropertyItems, getLocalPropertyLocations } from '../lib/offline
 import { invalidate, useInvalidationStore } from './useInvalidationStore'
 import { createLogger } from '../Utilities/Logger'
 import { isLinContainer } from '../Utilities/propertyAuthorized'
+import type { ReconcilePlan } from '../Utilities/PropertyCSV'
 
 const logger = createLogger('PropertyStore')
 
@@ -94,6 +96,10 @@ interface PropertyState {
   init: () => Promise<void>
   addItem: (data: Omit<PropertyItem, 'id' | 'created_at' | 'updated_at' | 'signed_out_external' | 'owner_user_id' | 'quantity_authorized' | 'turned_in_at' | 'item_type' | 'unit_of_issue' | 'pack_size'> & { quantity_authorized?: number | null; item_type?: ItemType; unit_of_issue?: UnitOfIssue | null; pack_size?: number | null }) => Promise<LocalPropertyItem | null>
   editItem: (id: string, updates: Partial<PropertyItem>, opts?: { skipAudit?: boolean }) => Promise<void>
+  /** Apply a reconciled CSV import in one shot: batch-creates LIN containers + new items
+   *  (coalesced vault fan-out), applies merges/de-auths, then commits ONE state update.
+   *  Returns the number of applied operations. */
+  applyImport: (plan: ReconcilePlan) => Promise<number>
   removeItem: (id: string) => Promise<void>
   addLocation: (data: Omit<PropertyLocation, 'id' | 'created_at' | 'updated_at'>) => Promise<{ success: boolean; location?: LocalPropertyLocation }>
   addLevel: (parentId: string, name: string, ordinal: number) => Promise<LocalPropertyLocation | null>
@@ -190,13 +196,18 @@ export const usePropertyStore = create<PropertyState>((set, get) => ({
     set({ isLoading: true })
 
     try {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('clinic_id')
-        .eq('id', user.id)
-        .maybeSingle()
-
-      const clinicId = profile?.clinic_id
+      // clinic_id is already resolved at login (useAuthStore.clinic_id, sync-hydrated
+      // from cached roles). Reuse it instead of a duplicate profiles GET; only fall
+      // back to the wire if the store hasn't populated it yet (init before profile).
+      let clinicId = useAuthStore.getState().clinicId ?? null
+      if (!clinicId) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('clinic_id')
+          .eq('id', user.id)
+          .maybeSingle()
+        clinicId = profile?.clinic_id ?? null
+      }
       if (!clinicId) {
         logger.warn('No clinic_id found for user')
         set({ isLoading: false })
@@ -317,6 +328,100 @@ export const usePropertyStore = create<PropertyState>((set, get) => ({
     if (result.success) {
       set({ items: get().items.map(i => i.id === id ? result.item : i) })
     }
+  },
+
+  applyImport: async (plan) => {
+    const user = useAuthStore.getState().user
+    const { clinicId, locations, items } = get()
+    if (!user || !clinicId) return 0
+
+    // Locations referenced by CREATE rows — auto-created by name (same as the single-item CSV
+    // path). Created via the service directly so they don't each trigger their own set().
+    const visibleLocs = locations.filter(l => l.name !== ROOT_LOCATION_NAME && !l.is_turn_in_zone)
+    const locMap = new Map<string, string>()
+    for (const l of visibleLocs) locMap.set(l.name.toLowerCase(), l.id)
+    const neededNames = [...new Set(
+      plan.creates.map(r => r.location.trim()).filter(n => n !== '' && !locMap.has(n.toLowerCase()))
+    )]
+    const newLocations: LocalPropertyLocation[] = []
+    for (const name of neededNames) {
+      const res = await createLocation(
+        { clinic_id: clinicId, parent_id: null, name, photo_data: null, holder_user_id: null, created_by: '' },
+        user.id,
+      )
+      if (res.success && res.location) {
+        locMap.set(name.toLowerCase(), res.location.id)
+        newLocations.push(res.location)
+      }
+    }
+
+    // Existing LIN containers, then batch-create the ones the plan flagged as missing.
+    const containerMap = new Map<string, string>()
+    for (const it of items) {
+      if (!it.deleted_at && !it.turned_in_at && isLinContainer(it) && it.lin) {
+        containerMap.set(it.lin.trim().toLowerCase(), it.id)
+      }
+    }
+    const containerRows = await createItemsBatch(
+      plan.linContainers.map(lin => ({
+        clinic_id: clinicId, name: lin, nomenclature: null, nsn: null, lin,
+        condition_code: 'serviceable' as const, location_id: null, current_holder_id: null,
+        parent_item_id: null, expiry_date: null, notes: null, is_serialized: false, serial_number: null,
+        quantity: 0, location_tag_id: null, photo_url: null, visual_fingerprint: null, sub_cluster_id: null,
+        quantity_authorized: null, item_type: 'DI' as const, unit_of_issue: null, pack_size: null,
+      })),
+      user.id,
+    )
+    plan.linContainers.forEach((lin, i) => {
+      const c = containerRows[i]
+      if (c) containerMap.set(lin.trim().toLowerCase(), c.id)
+    })
+
+    // New items — one coalesced batch, each parented under its LIN container.
+    const createRows = await createItemsBatch(
+      plan.creates.map(row => {
+        const locationId = row.location.trim() ? (locMap.get(row.location.trim().toLowerCase()) ?? null) : null
+        const parentId = row.lin.trim() ? (containerMap.get(row.lin.trim().toLowerCase()) ?? null) : null
+        return {
+          clinic_id: clinicId, name: row.name, nomenclature: row.nomenclature || null, nsn: row.nsn || null,
+          lin: row.lin || null, condition_code: 'serviceable' as const, location_id: locationId,
+          current_holder_id: null, parent_item_id: parentId, expiry_date: null, notes: null,
+          is_serialized: row.itemType === 'SI' || !!row.serialNumber.trim(),
+          serial_number: row.serialNumber || null, quantity: row.quantity, location_tag_id: null,
+          photo_url: null, visual_fingerprint: null, sub_cluster_id: null,
+          quantity_authorized: row.quantityAuthorized, item_type: row.itemType ?? undefined,
+          unit_of_issue: row.unitOfIssue, pack_size: row.packSize,
+        }
+      }),
+      user.id,
+    )
+
+    // Merges + de-auths — each is a per-item vault update (retract-old + refan, order-sensitive),
+    // so NOT coalesced; they still fold into the single state update below.
+    const updatedById = new Map<string, LocalPropertyItem>()
+    for (const m of plan.merges) {
+      const res = await updateItem(m.itemId, {
+        ...(m.qtyChanged ? { quantity: m.newQty } : {}),
+        ...(m.authChanged ? { quantity_authorized: m.newAuth } : {}),
+      }, user.id)
+      if (res.success) updatedById.set(m.itemId, res.item)
+    }
+    for (const d of plan.deauthorizes) {
+      const res = await updateItem(d.itemId, { quantity_authorized: null }, user.id)
+      if (res.success) updatedById.set(d.itemId, res.item)
+    }
+
+    // ONE state update for the whole import — no per-item re-render storm.
+    set(s => ({
+      locations: newLocations.length ? [...s.locations, ...newLocations] : s.locations,
+      items: [
+        ...containerRows,
+        ...createRows,
+        ...s.items.map(i => updatedById.get(i.id) ?? i),
+      ],
+    }))
+
+    return plan.linContainers.length + plan.creates.length + plan.merges.length + plan.deauthorizes.length
   },
 
   recordPmcs: async (subjectType, subjectId, readings) => {

@@ -553,8 +553,15 @@ export interface UseMessagesReturn {
 const store = useMessagingStore.getState
 
 export function useMessages(): UseMessagesReturn {
-  const { user, isAuthenticated, clinicId, surrogateClinicIds, isDevRole } = useAuth()
+  const { user, localSession, isAuthenticated, clinicId, surrogateClinicIds, isDevRole } = useAuth()
   const userId = user?.id ?? null
+  // IDB is keyed by the stable account id, which the sync-hydrated local session
+  // carries before the async auth round-trip sets `user`. Hydrate the message
+  // cache off this so the home Messages widget paints from IDB on first mount
+  // instead of waiting for the network. Same account guaranteed: localSession is
+  // cleared on logout, so it can only be the returning user here. Realtime still
+  // uses `userId` (it needs the live Supabase JWT, which only exists post-auth).
+  const hydrationUserId = user?.id ?? localSession?.userId ?? null
   const isPageVisible = usePageVisibility()
 
   // System-inbox drain is admin-scoped: AdminDrawer / AdminUserDetail /
@@ -799,14 +806,15 @@ export function useMessages(): UseMessagesReturn {
     onDelete: removeMessagesByOriginIds,
   })
 
-  // Hydrate from IDB on mount and re-hydrate after backup restore
+  // Hydrate from IDB on mount and re-hydrate after backup restore. Keyed on the
+  // eager id so the cache paints before the async auth round-trip completes.
   useEffect(() => {
-    if (!userId) return
+    if (!hydrationUserId) return
 
     let cancelled = false
 
     async function hydrate() {
-      await useMessagingStore.getState().hydrateFromIdb(userId!)
+      await useMessagingStore.getState().hydrateFromIdb(hydrationUserId!)
       if (!cancelled) markHydrationComplete()
     }
 
@@ -821,7 +829,7 @@ export function useMessages(): UseMessagesReturn {
       cancelled = true
       window.removeEventListener('backup-restored', onBackupRestored)
     }
-  }, [userId])
+  }, [hydrationUserId])
 
   // Hydrate groups from Supabase on mount
   const refreshGroups = useCallback(async () => {

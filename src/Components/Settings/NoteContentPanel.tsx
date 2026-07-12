@@ -1,6 +1,8 @@
-import { ClipboardList, TextCursorInput, ChevronRight, LayoutTemplate, ClipboardCheck, Home, Building2 } from 'lucide-react';
+import { ClipboardList, TextCursorInput, ChevronRight, LayoutTemplate, ClipboardCheck, Home, Building2, Sparkles } from 'lucide-react';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useTemplateSubscription } from '../../Hooks/useTemplateSubscription';
+import { useUserProfile } from '../../Hooks/useUserProfile';
+import { useBetaFlag } from '../../lib/betaFeatures';
 import { SettingsToggleRow } from './SettingsToggleRow';
 
 interface NoteContentPanelProps {
@@ -13,6 +15,17 @@ export const NoteContentPanel = ({ onNavigate }: NoteContentPanelProps) => {
     const isDevRole = useAuthStore((s) => s.isDevRole);
     const canSeeChecklists = isSupervisorRole || isDevRole;
     const { isLoaned, memberships, toggle } = useTemplateSubscription();
+
+    // Algorithm → note seeding: opt-in switch. Beta-gated (dev-only) while
+    // per-algorithm tagging rolls out; opens to all when the flag is promoted.
+    const seedBetaVisible = useBetaFlag('algorithmNoteRouting');
+    const { profile, updateProfile, syncProfileField } = useUserProfile();
+    const seedOn = profile?.seedAlgorithmNote === true; // default off
+    const toggleSeed = () => {
+        const next = !seedOn;
+        updateProfile({ seedAlgorithmNote: next });        // instant local (memory + localStorage)
+        syncProfileField({ seed_algorithm_note: next });   // cross-device push
+    };
 
     const sections: Array<{
         icon: typeof ClipboardList;
@@ -40,6 +53,16 @@ export const NoteContentPanel = ({ onNavigate }: NoteContentPanelProps) => {
                 <p className="text-[10pt] text-tertiary leading-relaxed">
                     Configure your note sections.
                 </p>
+
+                {seedBetaVisible && (
+                    <SettingsToggleRow
+                        icon={Sparkles}
+                        label="Seed note from algorithm"
+                        subtitle="Auto-fill HPI, exam, and plan from your triage answers"
+                        checked={seedOn}
+                        onChange={toggleSeed}
+                    />
+                )}
 
                 <div className="rounded-2xl bg-themewhite2 overflow-hidden">
                     {sections.map((section) => {

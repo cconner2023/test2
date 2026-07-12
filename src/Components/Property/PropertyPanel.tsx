@@ -39,7 +39,7 @@ import { ItemActionMenu, type ItemActionMenuHandle } from './ItemActionMenu'
 import { Da2062Detail, da2062DetailSubtitle, type Da2062DetailHandle } from './Da2062Detail'
 import { PropertyRecordDetail, type PropertyRecordDetailHandle, type SelectedRecord } from './PropertyRecordDetail'
 import { PropertyTurnInDetail, type PropertyTurnInDetailHandle, type PendingTurnIn } from './PropertyTurnInDetail'
-import { PropertyCSVImport } from './PropertyCSVImportDrawer'
+import { PropertyCSVImport, type PropertyCSVImportHandle } from './PropertyCSVImportDrawer'
 import { PropertyShortagePanel, type PropertyShortageHandle } from './PropertyShortagePanel'
 import { PropertyAuthorizedPanel } from './PropertyAuthorizedPanel'
 import { isLinContainer, isAuthTarget, isZoneShadow } from '../../Utilities/propertyAuthorized'
@@ -382,6 +382,12 @@ export const PropertyPanel = memo(function PropertyPanel({
   const [authView, setAuthView] = useState<LocalPropertyItem | null>(null)
   const [authImport, setAuthImport] = useState(false)
   const authFormRef = useRef<PropertyItemFormHandle>(null)
+  // CSV import (standalone importOpen OR authImport morph — one mounts at a time): a single ref
+  // drives its apply() from the host header check, `csvImportReady` gates when that check shows.
+  const csvImportRef = useRef<PropertyCSVImportHandle>(null)
+  const [csvImportReady, setCsvImportReady] = useState(false)
+  // Review table is showing → header gains a back `<` (to the document pick) + actions ellipsis.
+  const [csvImportInPreview, setCsvImportInPreview] = useState(false)
   const openAuthAdd = useCallback(() => { setAuthImport(false); setAuthView(null); setAuthForm({ item: null, parentId: null }) }, [])
   const openAuthEdit = useCallback((item: LocalPropertyItem) => { setAuthImport(false); setAuthView(null); setAuthForm({ item, parentId: item.parent_item_id ?? null }) }, [])
   const openAuthView = useCallback((item: LocalPropertyItem) => { setAuthImport(false); setAuthForm(null); setAuthView(item) }, [])
@@ -1437,15 +1443,26 @@ export const PropertyPanel = memo(function PropertyPanel({
                 so it covers the pane without entangling the other branches. */}
             {importOpen && (
               <div className="absolute inset-0 z-10 flex flex-col bg-themewhite3">
-                <div className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-tertiary/10">
-                  <p className="text-sm font-medium text-primary truncate">Import Property CSV</p>
+                <div className="shrink-0 flex items-center justify-between gap-2 px-4 py-3 border-b border-tertiary/10">
+                  <div className="flex items-center gap-2 min-w-0">
+                    {csvImportInPreview && (
+                      <>
+                        <button onClick={() => csvImportRef.current?.back()} aria-label="Back" className="w-9 h-9 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all shrink-0">
+                          <ChevronLeft size={20} />
+                        </button>
+                        <PillButton icon={MoreHorizontal} iconSize={16} onClick={() => csvImportRef.current?.openMenu()} label="Import actions" />
+                      </>
+                    )}
+                    <p className="text-sm font-medium text-primary truncate">Import Property CSV</p>
+                  </div>
                   <HeaderPill>
+                    {csvImportReady && <PillButton icon={Check} iconSize={16} accent="success" onClick={() => csvImportRef.current?.apply()} label="Import" />}
                     <PillButton icon={X} iconSize={16} onClick={() => setImportOpen(false)} label="Close" />
                   </HeaderPill>
                 </div>
                 <div className="flex-1 min-h-0 overflow-y-auto">
                   <div className="px-4 py-4 pb-8">
-                    <PropertyCSVImport onClose={() => setImportOpen(false)} />
+                    <PropertyCSVImport ref={csvImportRef} onReadyChange={setCsvImportReady} onInPreviewChange={setCsvImportInPreview} onClose={() => setImportOpen(false)} />
                   </div>
                 </div>
               </div>
@@ -1480,15 +1497,19 @@ export const PropertyPanel = memo(function PropertyPanel({
                     // Morph header — back returns to the list; Save persists a form.
                     <>
                       <div className="flex items-center gap-2 min-w-0">
-                        <button onClick={closeAuthMorph} aria-label="Back" className="w-9 h-9 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all shrink-0">
+                        <button onClick={authImport ? () => csvImportRef.current?.back() : closeAuthMorph} aria-label="Back" className="w-9 h-9 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all shrink-0">
                           <ChevronLeft size={20} />
                         </button>
+                        {authImport && csvImportInPreview && (
+                          <PillButton icon={MoreHorizontal} iconSize={16} onClick={() => csvImportRef.current?.openMenu()} label="Import actions" />
+                        )}
                         <p className="text-sm font-medium text-primary truncate">
                           {authForm ? (authForm.item ? 'Edit authorized item' : 'Add authorized item') : authView ? authView.name : 'Import Property CSV'}
                         </p>
                       </div>
                       <HeaderPill>
                         {authForm && <PillButton icon={Check} iconSize={16} accent="success" onClick={() => authFormRef.current?.submit()} label="Save" />}
+                        {authImport && csvImportReady && <PillButton icon={Check} iconSize={16} accent="success" onClick={() => csvImportRef.current?.apply()} label="Import" />}
                         {authView && (
                           <span className="inline-flex" onClick={(e) => setAuthViewMenu({ rect: (e.currentTarget as HTMLElement).getBoundingClientRect() })}>
                             <PillButton icon={MoreHorizontal} iconSize={16} onClick={() => {}} label="More actions" />
@@ -1535,7 +1556,7 @@ export const PropertyPanel = memo(function PropertyPanel({
                         onLocateFiller={handleSelectItem}
                       />
                     ) : authImport ? (
-                      <PropertyCSVImport onClose={closeAuthMorph} />
+                      <PropertyCSVImport ref={csvImportRef} onReadyChange={setCsvImportReady} onInPreviewChange={setCsvImportInPreview} onClose={closeAuthMorph} />
                     ) : (
                       <PropertyAuthorizedPanel
                         onClose={() => setAuthorizedOpen(false)}
@@ -1835,11 +1856,35 @@ export const PropertyPanel = memo(function PropertyPanel({
             <button onClick={closeMobileForm} aria-label="Cancel" className="w-9 h-9 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all">
               <ChevronLeft size={20} />
             </button>
+          ) : importOpen ? (
+            csvImportInPreview ? (
+              <div className="flex items-center gap-1">
+                <button onClick={() => csvImportRef.current?.back()} aria-label="Back" className="w-9 h-9 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all">
+                  <ChevronLeft size={20} />
+                </button>
+                <HeaderPill>
+                  <PillButton icon={MoreHorizontal} iconSize={18} onClick={() => csvImportRef.current?.openMenu()} label="Import actions" />
+                </HeaderPill>
+              </div>
+            ) : undefined
           ) : authorizedOpen ? (
             (authForm || authView || authImport) ? (
-              <button onClick={closeAuthMorph} aria-label="Back" className="w-9 h-9 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all">
-                <ChevronLeft size={20} />
-              </button>
+              authImport ? (
+                <div className="flex items-center gap-1">
+                  <button onClick={() => csvImportRef.current?.back()} aria-label="Back" className="w-9 h-9 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all">
+                    <ChevronLeft size={20} />
+                  </button>
+                  {csvImportInPreview && (
+                    <HeaderPill>
+                      <PillButton icon={MoreHorizontal} iconSize={18} onClick={() => csvImportRef.current?.openMenu()} label="Import actions" />
+                    </HeaderPill>
+                  )}
+                </div>
+              ) : (
+                <button onClick={closeAuthMorph} aria-label="Back" className="w-9 h-9 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all">
+                  <ChevronLeft size={20} />
+                </button>
+              )
             ) : (
               <HeaderPill>
                 <PillButton icon={Download} iconSize={18} onClick={openAuthImport} label="Import from CSV" />
@@ -1877,12 +1922,16 @@ export const PropertyPanel = memo(function PropertyPanel({
             </span>
           ) : signOutOpen ? (
             <PillButton icon={Check} iconSize={18} accent="success" onClick={() => signOutFormRef.current?.submit()} label="Sign out" />
+          ) : importOpen ? (
+            csvImportReady ? <PillButton icon={Check} iconSize={18} accent="success" onClick={() => csvImportRef.current?.apply()} label="Import" /> : undefined
           ) : authorizedOpen ? (
             // + folds before the sheet's built-in Close → "+ · close" on the right;
             // Save while a form is morphed in; nothing while viewing or importing.
             authForm ? (
               <PillButton icon={Check} iconSize={18} accent="success" onClick={() => authFormRef.current?.submit()} label="Save" />
-            ) : authImport ? undefined : authView ? (
+            ) : authImport ? (
+              csvImportReady ? <PillButton icon={Check} iconSize={18} accent="success" onClick={() => csvImportRef.current?.apply()} label="Import" /> : undefined
+            ) : authView ? (
               <span className="inline-flex" onClick={(e) => setAuthViewMenu({ rect: (e.currentTarget as HTMLElement).getBoundingClientRect() })}>
                 <PillButton icon={MoreHorizontal} iconSize={18} onClick={() => {}} label="More actions" />
               </span>
@@ -1930,7 +1979,7 @@ export const PropertyPanel = memo(function PropertyPanel({
             <Da2062PdfView preview={da2062Preview} />
           </div>
         ) : importOpen ? (
-          <PropertyCSVImport onClose={() => setImportOpen(false)} />
+          <PropertyCSVImport ref={csvImportRef} onReadyChange={setCsvImportReady} onInPreviewChange={setCsvImportInPreview} onClose={() => setImportOpen(false)} />
         ) : shortageOpen ? (
           <PropertyShortagePanel ref={shortageRef} onClose={() => setShortageOpen(false)} stagedTurnInIds={turnInItemIds} onLocate={handleSelectItem} />
         ) : authorizedOpen ? (
@@ -1948,7 +1997,7 @@ export const PropertyPanel = memo(function PropertyPanel({
               onLocateFiller={handleSelectItem}
             />
           ) : authImport ? (
-            <PropertyCSVImport onClose={closeAuthMorph} />
+            <PropertyCSVImport ref={csvImportRef} onReadyChange={setCsvImportReady} onInPreviewChange={setCsvImportInPreview} onClose={closeAuthMorph} />
           ) : (
             <PropertyAuthorizedPanel
               onClose={() => setAuthorizedOpen(false)}

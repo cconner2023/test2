@@ -282,7 +282,23 @@ export async function fetchAllCycles(): Promise<Result<FeatureVoteCycle[]>> {
   }
 }
 
-export async function fetchCandidates(cycleId: string): Promise<Result<FeatureVoteCandidate[]>> {
+export async function fetchCandidates(cycleId: string, opts?: { preferLocal?: boolean }): Promise<Result<FeatureVoteCandidate[]>> {
+  // Candidates are immutable for the life of a cycle. For a CLOSED cycle the IDB
+  // write-through is authoritative, so serve it directly and skip the network —
+  // the admin console reloads every cycle on each open, and past cycles never
+  // change. Only fall through to the wire when the local projection is empty
+  // (cold device that has never opened the console).
+  if (opts?.preferLocal) {
+    const local = await getLocalFeatureVoteCandidates(cycleId)
+    if (local.length > 0) {
+      return ok(
+        local
+          .map((r) => rowToCandidate(r as unknown as Record<string, unknown>))
+          .sort((a, b) => a.sortOrder - b.sortOrder)
+      )
+    }
+  }
+
   const { data, error } = await supabase
     .from('feature_vote_candidates')
     .select('*')
@@ -366,7 +382,33 @@ export async function fetchVoters(cycleId: string): Promise<Result<VotersByCandi
   return ok(out)
 }
 
-export async function fetchTally(cycleId: string): Promise<Result<VoteTally>> {
+// A CLOSED cycle's tally is frozen (no new votes after close), so persist it once
+// and serve from localStorage on later console opens — zero egress vs a full
+// feature_votes re-pull per past cycle per open. Keyed per cycle; cleared when the
+// cycle is deleted (clearClosedTally in deleteCycle).
+const CLOSED_TALLY_PREFIX = 'adtmc_fvtally_'
+
+function loadClosedTally(cycleId: string): VoteTally | null {
+  try {
+    const raw = localStorage.getItem(CLOSED_TALLY_PREFIX + cycleId)
+    return raw ? (JSON.parse(raw) as VoteTally) : null
+  } catch { return null }
+}
+
+function saveClosedTally(cycleId: string, tally: VoteTally): void {
+  try { localStorage.setItem(CLOSED_TALLY_PREFIX + cycleId, JSON.stringify(tally)) } catch { /* quota */ }
+}
+
+function clearClosedTally(cycleId: string): void {
+  try { localStorage.removeItem(CLOSED_TALLY_PREFIX + cycleId) } catch { /* ignore */ }
+}
+
+export async function fetchTally(cycleId: string, opts?: { cacheClosed?: boolean }): Promise<Result<VoteTally>> {
+  if (opts?.cacheClosed) {
+    const cached = loadClosedTally(cycleId)
+    if (cached) return ok(cached)
+  }
+
   const { data, error } = await supabase
     .from('feature_votes')
     .select('candidate_id')
@@ -378,7 +420,24 @@ export async function fetchTally(cycleId: string): Promise<Result<VoteTally>> {
     const cid = row.candidate_id as string
     tally[cid] = (tally[cid] ?? 0) + 1
   }
+  if (opts?.cacheClosed) saveClosedTally(cycleId, tally)
   return ok(tally)
+}
+
+/** Load a cycle's admin-console data (candidates + tally). CLOSED cycles are
+ *  immutable → served from IDB + localStorage with no egress; the single ACTIVE
+ *  cycle stays live on the wire. */
+export async function fetchCycleData(
+  cycleId: string,
+  isClosed: boolean,
+): Promise<Result<{ candidates: FeatureVoteCandidate[]; tally: VoteTally }>> {
+  const [candRes, tallyRes] = await Promise.all([
+    fetchCandidates(cycleId, { preferLocal: isClosed }),
+    fetchTally(cycleId, { cacheClosed: isClosed }),
+  ])
+  if (!candRes.ok) return err(candRes.error)
+  if (!tallyRes.ok) return err(tallyRes.error)
+  return ok({ candidates: candRes.data, tally: tallyRes.data })
 }
 
 export async function fetchSuggestions(opts?: { status?: FeatureVoteSuggestionStatus; userId?: string }): Promise<Result<FeatureVoteSuggestion[]>> {
@@ -647,6 +706,7 @@ export async function deleteCycle(cycleId: string): Promise<ServiceResult> {
   const { error } = await supabase.from('feature_vote_cycles').delete().eq('id', cycleId)
   if (error) return fail(error.message)
   await deleteLocalFeatureVoteCycle(cycleId)
+  clearClosedTally(cycleId)
   clearCyclesCache()
   return succeed()
 }

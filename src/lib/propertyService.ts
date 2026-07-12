@@ -38,7 +38,7 @@ import {
   setLocalTagCanvasVersion,
 } from './offlineDb'
 import { processSyncQueue, isOnline } from './syncService'
-import { resolvePropertyTargetClinics, sendPropertyEvent, deletePropertyVaultMessages } from './propertyVault'
+import { resolvePropertyTargetClinics, sendPropertyEvent, sendPropertyEventsBatch, deletePropertyVaultMessages, type PropertyBatchEvent } from './propertyVault'
 import { queuePendingPropertySend, addItemTombstone, addZoneTombstone } from './propertyEventStore'
 import { getItemTombstones, getZoneTombstones } from './propertyEventRouting'
 import { useAuthStore } from '../stores/useAuthStore'
@@ -288,6 +288,111 @@ export async function createItem(
   } catch (err) {
     return fail(String(err))
   }
+}
+
+/** The create payload shape shared by createItem + createItemsBatch. */
+export type CreateItemData = Parameters<typeof createItem>[0]
+
+/**
+ * Bulk create — the CSV-import fast path. Same per-item local writes as createItem
+ * (IDB row + spine sync-queue row + `item.created` audit), but the clinic-vault fan-out is
+ * COALESCED into a single sendPropertyEventsBatch pass: the per-clinic device fetch + session
+ * prune are paid once for the whole import instead of once per item, and immediateSync runs
+ * once at the end. Any entity the batch send couldn't deliver is queued for the reconnect drain
+ * (same fallback as the per-item fanProperty path).
+ *
+ * Returns the created local rows in input order so the store can fold them into a SINGLE state
+ * update (one re-render) rather than one set() per item.
+ */
+export async function createItemsBatch(
+  dataList: CreateItemData[],
+  userId: string,
+): Promise<LocalPropertyItem[]> {
+  if (dataList.length === 0) return []
+
+  const now = new Date().toISOString()
+  const created: LocalPropertyItem[] = []
+  const events: PropertyBatchEvent[] = []
+  // Parallel to `events`: the reconnect-drain fallback for each, replayed if the send misses.
+  const fallbacks: Array<{ originId: string; entity: 'item'; action: 'c'; payload: PropertyEventPayload; holderIds: string[]; authoringClinicId: string | null }> = []
+
+  for (const data of dataList) {
+    const holderIds = data.current_holder_id ? [data.current_holder_id] : []
+    const targets = await resolvePropertyTargetClinics(data.clinic_id, holderIds)
+    const originId = crypto.randomUUID()
+    const item: PropertyItem = {
+      ...data,
+      signed_out_external: false,
+      owner_user_id: null,
+      quantity_authorized: data.quantity_authorized ?? null,
+      item_type: data.item_type ?? 'DI',
+      unit_of_issue: data.unit_of_issue ?? null,
+      pack_size: data.pack_size ?? null,
+      turned_in_at: null,
+      id: crypto.randomUUID(),
+      created_at: now,
+      updated_at: now,
+      target_clinic_ids: targets,
+      originId,
+    }
+
+    const local = localItem(item)
+    await saveLocalPropertyItem(local)
+
+    await addToSyncQueue({
+      user_id: userId,
+      action: 'create',
+      table_name: 'property_items',
+      record_id: item.id,
+      payload: toSpine(item as unknown as Record<string, unknown>),
+    })
+
+    const payload: PropertyEventPayload = {
+      id: item.id, clinic_id: item.clinic_id, target_clinic_ids: targets, originId,
+      data: toEnvelope(item as unknown as Record<string, unknown>),
+    }
+    events.push({ action: 'c', entity: 'item', payload })
+    fallbacks.push({ originId, entity: 'item', action: 'c', payload, holderIds: holderIds.filter(Boolean), authoringClinicId: item.clinic_id })
+
+    // Lifecycle event for the item timeline (best-effort; never throws).
+    await emitAudit(
+      {
+        clinicId: item.clinic_id,
+        actorId: userId,
+        domain: 'property',
+        eventType: 'item.created',
+        subjectType: 'item',
+        subjectId: item.id,
+        occurredAt: now,
+        payload: {
+          name: item.name,
+          nsn: item.nsn,
+          serial_number: item.serial_number,
+          quantity: item.quantity,
+          is_serialized: item.is_serialized,
+          condition_code: item.condition_code,
+          location_id: item.location_id,
+          parent_item_id: item.parent_item_id,
+        },
+      },
+      userId,
+    )
+
+    created.push(local)
+  }
+
+  // ONE coalesced fan-out for the whole import; queue whatever didn't reach a device.
+  const sent = await sendPropertyEventsBatch(userId, events)
+  for (const fb of fallbacks) {
+    if (sent.has(fb.originId)) continue
+    await queuePendingPropertySend({
+      key: `${fb.entity}:${fb.payload.id}`, entity: fb.entity, action: fb.action, payload: fb.payload,
+      holderIds: fb.holderIds, authoringClinicId: fb.authoringClinicId,
+    }).catch(() => {})
+  }
+
+  immediateSync(userId)
+  return created
 }
 
 /** Fields whose change is worth an `item.edited` timeline event (location +

@@ -191,8 +191,10 @@ export const WriteNotePage = ({
     const symptomCode = selectedSymptom?.icon || 'A-1';
 
     // Route tagged algorithm list items (questionOptions.noteTag) into HPI/PE.
-    // Dev-gated (beta) while per-algorithm tagging rolls out.
-    const noteRoutingEnabled = useBetaFlag('algorithmNoteRouting');
+    // Dev-gated (beta) while per-algorithm tagging rolls out AND opt-in per medic
+    // via Settings → App Content (profiles.seed_algorithm_note, default off).
+    const noteRoutingEnabled = useBetaFlag('algorithmNoteRouting')
+        && editorProfile?.seedAlgorithmNote === true;
     const algoRouting = useMemo(
         () => noteRoutingEnabled
             ? composeAlgorithmNoteRouting(algorithmOptions, cardStates, selectedSymptom?.text, disposition.type, disposition.text)

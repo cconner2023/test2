@@ -336,7 +336,7 @@ async function fetchProfileFromSupabase(userId: string): Promise<{ profile: User
   // Note-blocks columns (text_expanders / plan_* / provider_note_templates) are
   // intentionally NOT selected here — they're version-gated below via
   // app_content_version so the large JSONB only rides the wire when it changed.
-  const PROFILE_SELECT = 'first_name, last_name, middle_initial, credential, component, rank, uic, roles, clinic_id, surrogate_clinic_id, sub_cluster_id, clinic:clinics!profiles_clinic_id_fkey(name), pin_hash, pin_salt, ack_version_accepted, notify_dev_alerts, notify_calendar_assignments, app_content_version, needs_password_setup, favorite_medications, overview_widgets, theme, swipe_actions, allow_calls, avatar_id, avatar_blob'
+  const PROFILE_SELECT = 'first_name, last_name, middle_initial, credential, component, rank, uic, roles, clinic_id, surrogate_clinic_id, sub_cluster_id, clinic:clinics!profiles_clinic_id_fkey(name), pin_hash, pin_salt, ack_version_accepted, notify_dev_alerts, notify_calendar_assignments, app_content_version, needs_password_setup, favorite_medications, overview_widgets, theme, swipe_actions, allow_calls, seed_algorithm_note, avatar_id, avatar_blob, note_template_clinic_ids'
   const { data, error: fetchError } = await supabase
     .from('profiles')
     .select(PROFILE_SELECT)
@@ -366,6 +366,12 @@ async function fetchProfileFromSupabase(userId: string): Promise<{ profile: User
     // profile with no avatar is distinguishable from "not loaded yet" (undefined).
     profile.avatarId = ((data as Record<string, unknown>).avatar_id as string | null) ?? null
     profile.avatarBlob = ((data as Record<string, unknown>).avatar_blob as AvatarBlob | null) ?? null
+    // Template-source subscriptions (loaned users pick which clinics' note content
+    // they merge). Folded into PROFILE_SELECT — the column is present on both
+    // backends — so it no longer costs a second GET /profiles per login. `!= null`
+    // guard keeps it a no-op if a row somehow lacks the field (→ home-only default).
+    const noteTemplateIds = (data as Record<string, unknown>).note_template_clinic_ids as string[] | null | undefined
+    if (noteTemplateIds != null) profile.noteTemplateClinicIds = noteTemplateIds
 
     // Resolve all active loan clinics in one join select on the new table.
     // Falls back to the legacy single-slot profiles.surrogate_clinic_id if the
@@ -417,6 +423,7 @@ async function fetchProfileFromSupabase(userId: string): Promise<{ profile: User
     if (typeof sec.theme === 'string') profile.theme = sec.theme
     if (sec.swipe_actions != null) profile.swipeActions = sec.swipe_actions as UserTypes['swipeActions']
     profile.allowCalls = sec.allow_calls !== false // default true when null/undefined
+    profile.seedAlgorithmNote = sec.seed_algorithm_note === true // default false when null/undefined
     if (sec.needs_password_setup === true) needsPasswordSetup = true
 
     // ── Personal note-blocks (version-gated) ──────────────────────────────
@@ -504,20 +511,7 @@ async function fetchProfileFromSupabase(userId: string): Promise<{ profile: User
 
   if (appCacheDirty) saveAppContentCache(appCache)
 
-  // Template-source subscriptions (loaned users pick which clinics' note content
-  // they merge). Read in isolation + error-tolerant so it stays a no-op until the
-  // `note_template_clinic_ids` column is migrated — never breaks the profile load.
-  try {
-    const { data: subData } = await supabase
-      .from('profiles')
-      .select('note_template_clinic_ids')
-      .eq('id', userId)
-      .single()
-    const ids = (subData as { note_template_clinic_ids?: string[] | null } | null)?.note_template_clinic_ids
-    if (ids != null) profile.noteTemplateClinicIds = ids
-  } catch {
-    // column not yet present — leave undefined → home-only default in the merge
-  }
+  // (note_template_clinic_ids is now read as part of PROFILE_SELECT above.)
 
   return { profile, roles, clinicId, surrogateClinicIds, loanReadOk, needsPasswordSetup, clinicTextExpanders, clinicPlanOrderTags, clinicPlanInstructionTags, clinicPlanOrderSets }
 }

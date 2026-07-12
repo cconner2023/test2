@@ -114,25 +114,6 @@ export async function clearOwnAvatarBlob(): Promise<boolean> {
   }
 }
 
-/** Read the signed-in user's own avatar blob (used on login to rehydrate a
- *  custom photo when localStorage has none — e.g. a fresh device). */
-export async function fetchOwnAvatarBlob(): Promise<AvatarBlob | null> {
-  try {
-    const { data: auth } = await supabase.auth.getUser()
-    const userId = auth.user?.id
-    if (!userId) return null
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('avatar_blob')
-      .eq('id', userId)
-      .single()
-    if (error || !data) return null
-    return (data.avatar_blob as AvatarBlob | null) ?? null
-  } catch {
-    return null
-  }
-}
-
 /** Decrypt an avatar blob into a renderable base64 data URL (memoized by `enc`).
  *  Returns null if the barcode key is unavailable or decryption fails. */
 export async function decryptAvatarToUrl(blob: AvatarBlob): Promise<string | null> {

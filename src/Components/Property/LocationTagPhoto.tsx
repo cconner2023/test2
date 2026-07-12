@@ -144,10 +144,8 @@ export function ItemCallout({ item, anchorX, anchorY, selected, dragging }: {
             alert ? 'text-white' : 'text-primary'
           } ${dragging ? 'scale-105 shadow-md' : 'active:scale-95'}`}
         >
-          {/* Selection = a corner indicator, NOT a bubble-fill — never fights the red alert fill. */}
-          {selected && (
-            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-themeblue1 ring-2 ring-themewhite3 z-10" />
-          )}
+          {/* Selection is shown by the anchor dot alone (connected to the bubble by the tail) —
+              the earlier top-right corner dot double-marked the same selection, so it's dropped. */}
           {/* Chat-bubble tail — a rotated square whose two outer sides continue the bubble border. */}
           <span
             className={`absolute w-2.5 h-2.5 ${surface} ${below ? 'border-t border-l' : 'border-b border-r'}`}

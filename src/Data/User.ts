@@ -185,6 +185,14 @@ export interface UserTypes {
      */
     allowCalls?: boolean
     /**
+     * Whether tagged algorithm answers seed the custom note's HPI/PE/Plan
+     * sections (see Utilities/algorithmNoteRouting). Off by default — the medic
+     * opts in from Settings → App Content. Synced to profiles.seed_algorithm_note
+     * (same train as `theme`/`swipeActions`). undefined/null → treated as false.
+     * Gated additionally by the `algorithmNoteRouting` beta flag while in beta.
+     */
+    seedAlgorithmNote?: boolean
+    /**
      * Avatar selector: a preset avatar id, 'initials', or 'custom'. Lives on the
      * profiles row; the single profiles-row realtime sub (useProfileRealtime)
      * applies cross-device changes as a delta. undefined = profile not loaded

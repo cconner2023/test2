@@ -8,6 +8,48 @@ import { isLinContainer, isAuthTarget, isZoneShadow } from '../Utilities/propert
 import { useInvalidation } from '../stores/useInvalidationStore'
 import type { CustodyLedgerEntry, HandReceipt, HolderInfo, PropertyItem } from '../Types/PropertyTypes'
 
+/**
+ * Clinic roster cache keyed by clinicId, tagged with the `users` invalidation
+ * generation it was fetched for. The roster (profiles) does NOT change on a
+ * `properties` bump, so without this a full clinic-roster GET fired on every
+ * property mutation — and on every remote peer change routed through the
+ * clinic-vault drain — while the always-mounted Custody/dev-search surfaces
+ * held useHandReceipts open. We only hit the wire when the roster is stale for
+ * the current `users` generation; property churn now re-reads it for free.
+ */
+const rosterCache = new Map<string, { gen: number; map: Map<string, HolderInfo> }>()
+
+async function loadClinicRoster(clinicId: string, usersGen: number): Promise<Map<string, HolderInfo>> {
+  const cached = rosterCache.get(clinicId)
+  if (cached && cached.gen === usersGen) return cached.map
+
+  const { data } = await supabase
+    .from('profiles')
+    .select('id, rank, first_name, last_name')
+    .eq('clinic_id', clinicId)
+
+  const map = new Map<string, HolderInfo>()
+  for (const p of data ?? []) {
+    map.set(p.id, {
+      id: p.id,
+      rank: p.rank,
+      firstName: p.first_name,
+      lastName: p.last_name,
+      displayName: [p.rank, p.last_name, p.first_name].filter(Boolean).join(' '),
+    })
+  }
+  // Offline / RLS-empty → fall back to the property store's in-memory roster so
+  // internal recipient labels still resolve. Best-effort getState (not a
+  // subscription), so the Settings surface still works without store init. Don't
+  // cache an empty/fallback result — a later warm read should retry the wire.
+  if (map.size === 0) {
+    for (const [id, info] of usePropertyStore.getState().holders) map.set(id, info)
+    return map
+  }
+  rosterCache.set(clinicId, { gen: usersGen, map })
+  return map
+}
+
 /** Lean item row carried for receipt rendering + reprint. `expiry_date` feeds the
  *  Custody panel's "Expired" section (30-day expiry window via expiryStatus);
  *  `turned_in_at` + `sub_cluster_id` drive the DA 3161 turn-in fold + grouping. */
@@ -37,6 +79,7 @@ export interface HandReceiptData {
  */
 export function useHandReceipts(clinicId?: string | null): HandReceiptData {
   const propertiesGen = useInvalidation('properties')
+  const usersGen = useInvalidation('users')
   const [receipts, setReceipts] = useState<HandReceipt[]>([])
   const [turnIns, setTurnIns] = useState<TurnInFold>({ pending: [], history: [] })
   const [itemsById, setItemsById] = useState<Map<string, ReceiptItem>>(new Map())
@@ -58,29 +101,9 @@ export function useHandReceipts(clinicId?: string | null): HandReceiptData {
     let cancelled = false
     setLoading(true)
 
-    const loadMembers = supabase
-      .from('profiles')
-      .select('id, rank, first_name, last_name')
-      .eq('clinic_id', clinicId)
-      .then(({ data }) => {
-        const map = new Map<string, HolderInfo>()
-        for (const p of data ?? []) {
-          map.set(p.id, {
-            id: p.id,
-            rank: p.rank,
-            firstName: p.first_name,
-            lastName: p.last_name,
-            displayName: [p.rank, p.last_name, p.first_name].filter(Boolean).join(' '),
-          })
-        }
-        // Offline / RLS-empty → fall back to the property store's in-memory roster
-        // so internal recipient labels still resolve. Best-effort getState (not a
-        // subscription), so the Settings surface still works without store init.
-        if (map.size === 0) {
-          for (const [id, info] of usePropertyStore.getState().holders) map.set(id, info)
-        }
-        return map
-      })
+    // Roster is served from the (clinicId, usersGen) cache — a `properties` bump
+    // no longer re-pulls it. See loadClinicRoster above.
+    const loadMembers = loadClinicRoster(clinicId, usersGen)
 
     // Items + locations come from the IDB projection (offline-first, and
     // store-independent so the Settings surface works without the property store).
@@ -138,7 +161,7 @@ export function useHandReceipts(clinicId?: string | null): HandReceiptData {
     return () => {
       cancelled = true
     }
-  }, [clinicId, propertiesGen, tick])
+  }, [clinicId, propertiesGen, usersGen, tick])
 
   return { receipts, turnIns, itemsById, locationNameById, membersById, loading, refetch }
 }

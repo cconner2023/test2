@@ -22,10 +22,18 @@ interface WarmEntry {
   credential?: IntakeCredentialMetadata | null
   outsideContactOn?: boolean
   roster?: string[]
+  /** When prewarm last hit the wire for this clinic (TTL gate). */
+  warmedAt?: number
 }
 
 const cache = new Map<string, WarmEntry>()
 const inflight = new Map<string, Promise<void>>()
+
+// On-call presence is Tier-3 (live-ish), but the messaging drawer re-mounts and
+// re-prewarms on EVERY open — the hottest surface in a comms app. A short TTL
+// collapses rapid reopen/close churn (each open re-issued clinics.select('oncall')
+// + the status RPC) while presence stays current within the window.
+const WARM_TTL_MS = 45_000
 
 // `undefined` return = cache miss (never warmed). `null` credential = warmed,
 // no credential exists. Callers distinguish the two to decide loud vs silent load.
@@ -60,6 +68,10 @@ export function prewarmMessagingSettings(clinicId: string | null, includeCredent
   if (!clinicId) return Promise.resolve()
   const existing = inflight.get(clinicId)
   if (existing) return existing
+  // Fresh within the TTL → the components already seed from the warm cache, so
+  // skip the redundant reads on a quick reopen.
+  const warm = cache.get(clinicId)
+  if (warm?.warmedAt && Date.now() - warm.warmedAt < WARM_TTL_MS) return Promise.resolve()
   const p = (async () => {
     const [statusRes, rosterRes, credRes] = await Promise.all([
       getOutsideContactStatus(clinicId),
@@ -70,6 +82,7 @@ export function prewarmMessagingSettings(clinicId: string | null, includeCredent
     if (statusRes.ok) entry.outsideContactOn = statusRes.data.oncall_enabled || statusRes.data.outside_message_enabled
     entry.roster = ((rosterRes.data as { oncall?: string[] } | null)?.oncall) ?? entry.roster ?? []
     if (credRes && credRes.ok) entry.credential = credRes.data
+    entry.warmedAt = Date.now()
     cache.set(clinicId, entry)
   })().finally(() => { inflight.delete(clinicId) })
   inflight.set(clinicId, p)

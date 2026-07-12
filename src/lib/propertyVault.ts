@@ -170,6 +170,94 @@ export async function sendPropertyEvent(
   return anySent ? originId : null
 }
 
+/** One entity to fan out in a coalesced batch. payload.originId is pre-stamped by the
+ *  caller so the local row, spine, and envelope share the id (same contract as sendPropertyEvent). */
+export interface PropertyBatchEvent {
+  action: 'c' | 'u' | 'd'
+  entity: PropertyEntity
+  payload: PropertyEventPayload
+}
+
+/**
+ * Coalesced fan-out for many property entities authored in ONE operation (CSV import).
+ *
+ * Same wire format as sendPropertyEvent — still N independent per-entity vault messages,
+ * so the receiver drain / replay is unchanged — but the per-clinic device fetch + session
+ * prune happen ONCE per clinic instead of once per entity, and the network sends run
+ * concurrently. Encryption stays SEQUENTIAL per clinic: the Double Ratchet is stateful, so
+ * two entities' encrypts against the same clinic session must not interleave. Only the
+ * post-encrypt sendMessageFanOut inserts (pure DB writes) are parallelized.
+ *
+ * Returns the set of originIds that reached ≥1 device — the caller queues the rest for the
+ * reconnect drain (mirrors fanProperty's queuePendingPropertySend fallback).
+ */
+export async function sendPropertyEventsBatch(
+  userId: string | null,
+  events: PropertyBatchEvent[],
+): Promise<Set<string>> {
+  const sentOriginIds = new Set<string>()
+  if (!userId || events.length === 0) return sentOriginIds
+
+  const localDeviceId = useMessagingStore.getState().localDeviceId
+  const clinicDeviceId = useMessagingStore.getState().clinicDeviceId
+  if (!localDeviceId || !clinicDeviceId) return sentOriginIds
+
+  const actionMap = { c: 'create', u: 'update', d: 'delete' } as const
+
+  // Serialize + stamp originId once per event; resolve its target clinics (same priority as
+  // sendPropertyEvent: target_clinic_ids > clinic_id).
+  interface Prepared { originId: string; serialized: string; clinics: string[] }
+  const prepared: Prepared[] = events.map(ev => {
+    const content: PropertyEventContent = {
+      type: 'property_event', action: actionMap[ev.action], entity: ev.entity, data: ev.payload,
+    }
+    const clinics = (ev.payload.target_clinic_ids && ev.payload.target_clinic_ids.length > 0)
+      ? Array.from(new Set(ev.payload.target_clinic_ids))
+      : (ev.payload.clinic_id ? [ev.payload.clinic_id] : [])
+    return { originId: ev.payload.originId ?? crypto.randomUUID(), serialized: serializeContent(content), clinics }
+  })
+
+  // Group by clinic so the device fetch + prune are paid once per clinic, not once per event.
+  const byClinic = new Map<string, Prepared[]>()
+  for (const p of prepared) {
+    for (const c of p.clinics) {
+      const arr = byClinic.get(c)
+      if (arr) arr.push(p)
+      else byClinic.set(c, [p])
+    }
+  }
+
+  for (const [targetClinicId, clinicEvents] of byClinic) {
+    try {
+      const devicesResult = await fetchPeerDevices(targetClinicId)
+      if (!devicesResult.ok || devicesResult.data.length === 0) {
+        logger.warn(`No clinic devices for property batch fan-out to ${targetClinicId}`)
+        continue
+      }
+      await pruneClinicSessions(targetClinicId, new Set(devicesResult.data.map(d => d.deviceId)))
+      const targetDevices = devicesResult.data.filter(d => d.deviceId !== clinicDeviceId)
+      if (targetDevices.length === 0) continue
+
+      // Encrypt SEQUENTIALLY (ratchet is stateful), collect the network sends, then await them
+      // together — the sends only insert already-sealed envelopes, so they're safe to parallelize.
+      const sends: Promise<{ originId: string; ok: boolean }>[] = []
+      for (const p of clinicEvents) {
+        const inputs = await encryptForAllClinicDevices(targetClinicId, targetDevices, p.serialized, userId)
+        if (inputs.length === 0) continue
+        sends.push(
+          sendMessageFanOut(userId, clinicDeviceId, targetClinicId, inputs, targetClinicId, p.originId, true)
+            .then(res => ({ originId: p.originId, ok: res.ok }))
+            .catch(() => ({ originId: p.originId, ok: false })),
+        )
+      }
+      for (const r of await Promise.all(sends)) if (r.ok) sentOriginIds.add(r.originId)
+    } catch (e) {
+      logger.warn(`Failed property batch fan-out to ${targetClinicId}:`, e instanceof Error ? e.message : e)
+    }
+  }
+  return sentOriginIds
+}
+
 /** Hard-delete vault messages by origin id (used on retract to drop the old fan-out). */
 export async function deletePropertyVaultMessages(originIds: string[], clinicId: string): Promise<void> {
   if (originIds.length === 0 || !clinicId) return

@@ -26,6 +26,7 @@ import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
 import { GlassBand } from '@/Components/primitives/GlassBand'
 import { collectSuppressedIds, computeExplodeOffsets, getLevels, levelShortLabel, nextFloorOrdinal } from './levelUtils'
 import type { ExplodeRect } from './levelUtils'
+import { FloorSlider } from './FloorSlider'
 import { createLogger } from '../../Utilities/Logger'
 import type { LocalPropertyItem, LocalPropertyLocation, PropertyLocation, LocationTag } from '../../Types/PropertyTypes'
 
@@ -2222,31 +2223,14 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
         )}
 
         {/* Levels are shown as an exploded fan (computeExplodeOffsets) when the building is
-            selected; this rail is the deterministic toggle over the same floors. Right edge,
-            vertically centred so it clears the top-right edit button and bottom controls.
-            Highest floor on top, ground (G) at the bottom. Driven by explodeContainerId, so it
-            appears identically for a canvas tap or a list/tree selection. */}
+            selected; this slider is the deterministic toggle over the same floors — a vertical
+            "elevator" the thumb rides up (higher floor) / down (ground). Sits just below the
+            top-right edit button on the same right edge. Drag snaps to floor notches and
+            surfaces each floor live; every notch is also tappable. Driven by explodeContainerId,
+            so it appears identically for a canvas tap or a list/tree selection. */}
         {!isEditing && floorRail && (
-          <div className="absolute right-3 top-1/2 -translate-y-1/2 z-20 flex flex-col gap-1.5">
-            {floorRail.map((f) => {
-              const active = f.id === activeFloorId
-              return (
-                <button
-                  key={f.id}
-                  onClick={() => handleSelectFloor(f.id)}
-                  className={`w-9 h-9 rounded-lg flex items-center justify-center text-[9pt] font-semibold shadow-sm active:scale-95 transition-all backdrop-blur-sm ${
-                    active
-                      ? 'bg-themeblue3 text-white'
-                      : 'bg-themewhite2/90 dark:bg-themewhite3/90 text-primary'
-                  }`}
-                  title={`Floor ${f.label}`}
-                  aria-label={`Floor ${f.label}`}
-                  aria-pressed={active}
-                >
-                  {f.label}
-                </button>
-              )
-            })}
+          <div className={`absolute right-3 z-20 ${isMobile ? 'top-[calc(var(--drawer-header-h,3.5rem)+3.75rem)]' : 'top-[3.75rem]'}`}>
+            <FloorSlider entries={floorRail} activeId={activeFloorId} onSelect={handleSelectFloor} />
           </div>
         )}
 

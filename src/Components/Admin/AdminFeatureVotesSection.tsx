@@ -13,8 +13,7 @@ import { Check, Lightbulb, Loader2, Lock, Pencil, Plus, Trash2, Users, X } from 
 import { useAuthStore } from '../../stores/useAuthStore'
 import {
   fetchAllCycles,
-  fetchCandidates,
-  fetchTally,
+  fetchCycleData,
   fetchVoters,
   createCycle,
   closeCycle,
@@ -87,16 +86,13 @@ export function AdminFeatureVotesSection() {
     return []
   }, [])
 
-  const loadCycleData = useCallback(async (cycleId: string) => {
-    const [candRes, tallyRes] = await Promise.all([
-      fetchCandidates(cycleId),
-      fetchTally(cycleId),
-    ])
-    if (candRes.ok && tallyRes.ok) {
-      setCycleData((prev) => ({
-        ...prev,
-        [cycleId]: { candidates: candRes.data, tally: tallyRes.data },
-      }))
+  // isClosed defaults false: every mutation call site operates on the active cycle.
+  // Closed cycles are served cache-first (IDB candidates + localStorage tally) with
+  // no egress; the active cycle stays live.
+  const loadCycleData = useCallback(async (cycleId: string, isClosed = false) => {
+    const result = await fetchCycleData(cycleId, isClosed)
+    if (result.ok) {
+      setCycleData((prev) => ({ ...prev, [cycleId]: result.data }))
     }
   }, [])
 
@@ -108,7 +104,14 @@ export function AdminFeatureVotesSection() {
     (async () => {
       setLoading(true)
       const cs = await loadCycles()
-      await Promise.all(cs.map((c) => loadCycleData(c.id)))
+      // Only load data for the cycles actually rendered (active + the 10 most
+      // recent closed), not the entire cycle history.
+      const active = cs.filter((c) => c.closedAt == null)
+      const closed = cs.filter((c) => c.closedAt != null).slice(0, 10)
+      await Promise.all([
+        ...active.map((c) => loadCycleData(c.id, false)),
+        ...closed.map((c) => loadCycleData(c.id, true)),
+      ])
       setLoading(false)
     })()
     // eslint-disable-next-line react-hooks/exhaustive-deps

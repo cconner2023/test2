@@ -1158,9 +1158,12 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: []
             },
             {
-                text: "Are red flags present or is there significant MOI?",
+                text: "Do any of the following apply?",
                 type: "initial",
-                questionOptions: [],
+                questionOptions: [
+                    { text: "Red flags" },
+                    { text: "Significant MOI" }
+                ],
                 answerOptions: [
                     {
                         text: "Yes",
@@ -1265,9 +1268,12 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: []
             },
             {
-                text: "Red flags or significant MOI?",
+                text: "Do any of the following apply?",
                 type: "initial",
-                questionOptions: [],
+                questionOptions: [
+                    { text: "Red flags" },
+                    { text: "Significant MOI" }
+                ],
                 answerOptions: [
                     {
                         text: "Yes",
