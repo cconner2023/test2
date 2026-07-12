@@ -3,6 +3,7 @@ import { Building2, Check, Pencil, Trash2, Loader2, Camera, Send, ArrowRightLeft
 import { OverlayStack, type StackNav } from '@/Components/primitives/OverlayStack'
 import { ActionButton } from '@/Components/primitives/ActionButton'
 import { ActionPill } from '@/Components/primitives/ActionPill'
+import { buildOverlayActionRail, type OverlayRailAction } from '@/Components/primitives/OverlayActionRail'
 import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
 import { ErrorPill } from '@/Components/primitives/ErrorPill'
 import { PickerInput } from '@/Components/primitives/FormInputs'
@@ -561,42 +562,56 @@ export function MemberEditPopover({
   // ConfirmDialog stays a z-stacked INTERRUPT, rendered inside its screen body so
   // OverlayStackContext floors it above the card. Back clears the screen's flag and
   // pops; the header X closes the whole stack (handleClose resets all flags).
-  // With cluster actions hidden, edit mode leaves no footer buttons (Reset is
-  // non-edit-only) — drop the footer entirely so no empty shadow box floats.
-  const detailFooter = profile && !(hideClusterActions && editMode) ? (
-    <div className="flex gap-1 bg-themewhite rounded-2xl shadow-lg px-1.5 py-1.5">
-      {!hideClusterActions && !editMode && (
-        <ActionButton
-          icon={Send}
-          label={activeLoans.length > 0 ? `Loans (${activeLoans.length}/4)` : 'Loans'}
-          onClick={() => { setLoansMode(true); navRef.current?.push('loans') }}
-        />
-      )}
-      {!hideClusterActions && loanState !== 'loaned-in' && !editMode && (
-        <ActionButton icon={ArrowRightLeft} label="Transfer" onClick={() => { setMoveMode('transfer'); navRef.current?.push('transfer') }} />
-      )}
-      {!editMode && (
-        <ActionButton
-          icon={KeyRound}
-          label="Reset password"
-          onClick={() => {
-            resetPw.reset()
-            setResetError(null)
-            setResetMode(true)
-            navRef.current?.push('reset')
-          }}
-        />
-      )}
-      {!hideClusterActions && (
-        <ActionButton
-          icon={Trash2}
-          label={removeLabel}
-          variant="danger"
-          onClick={() => setConfirmDelete(true)}
-        />
-      )}
-    </div>
-  ) : undefined
+  //
+  // The detail actions used to pile up to FOUR ActionButtons in the footer. They
+  // now feed OverlayActionRail: the reserved destructive/reset pair (Remove · Reset)
+  // stays in the footer, and the rest (Loans · Transfer) collapse into the header's
+  // left ellipsis. Empty buckets yield undefined slots (no empty pill, no stray
+  // ellipsis), so edit mode / hidden-cluster surfaces render only what applies.
+  const detailActions: OverlayRailAction[] = []
+  if (profile) {
+    if (!hideClusterActions && !editMode) {
+      detailActions.push({
+        key: 'loans',
+        icon: Send,
+        label: activeLoans.length > 0 ? `Loans (${activeLoans.length}/4)` : 'Loans',
+        onClick: () => { setLoansMode(true); navRef.current?.push('loans') },
+      })
+    }
+    if (!hideClusterActions && loanState !== 'loaned-in' && !editMode) {
+      detailActions.push({
+        key: 'transfer',
+        icon: ArrowRightLeft,
+        label: 'Transfer',
+        onClick: () => { setMoveMode('transfer'); navRef.current?.push('transfer') },
+      })
+    }
+    if (!editMode) {
+      detailActions.push({
+        key: 'reset',
+        icon: KeyRound,
+        label: 'Reset password',
+        reserved: true,
+        onClick: () => {
+          resetPw.reset()
+          setResetError(null)
+          setResetMode(true)
+          navRef.current?.push('reset')
+        },
+      })
+    }
+    if (!hideClusterActions) {
+      detailActions.push({
+        key: 'remove',
+        icon: Trash2,
+        label: removeLabel,
+        reserved: true,
+        variant: 'danger',
+        onClick: () => setConfirmDelete(true),
+      })
+    }
+  }
+  const detailRail = buildOverlayActionRail(detailActions)
 
   const detailRightFooter = profile ? (
     <ActionPill>
@@ -972,7 +987,8 @@ export function MemberEditPopover({
   const screens = {
     detail: {
       title,
-      footer: detailFooter,
+      footer: detailRail.footer,
+      headerLeft: detailRail.headerLeft,
       rightFooter: detailRightFooter,
       render: () => (
         <>

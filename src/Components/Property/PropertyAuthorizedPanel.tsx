@@ -4,6 +4,7 @@ import { ChevronRight, ChevronDown, MoreHorizontal, Eye, Pencil, Trash2 } from '
 import { SearchInput } from '@/Components/primitives/SearchInput'
 import { LiftedRowMenu } from '@/Components/primitives/LiftedRowMenu'
 import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
+import { FillBar } from '@/Components/primitives/FillBar'
 import { usePropertyStore } from '../../stores/usePropertyStore'
 import { groupAuthorized, isAuthTarget, lineKeyOf } from '../../Utilities/propertyAuthorized'
 import type { LocalPropertyItem } from '../../Types/PropertyTypes'
@@ -159,9 +160,9 @@ export function PropertyAuthorizedPanel({ onEdit, onView }: PropertyAuthorizedPa
                   {container?.lin && <span className="block text-[9pt] text-tertiary">LIN {container.lin}</span>}
                 </button>
                 {/* Fill rollup for the whole LIN — Σ on-hand vs Σ authorized (base units) as a
-                    single right-aligned percent, mirroring the component rows' on-hand / auth. */}
+                    two-tone completion bar, mirroring the supervisor readiness bars. */}
                 {g.authorizedBaseTotal > 0 && (
-                  <span className="text-[10pt] font-medium text-tertiary tabular-nums shrink-0">{g.fillPercent}%</span>
+                  <FillBar percent={g.fillPercent} className="w-28 shrink-0" />
                 )}
                 {container && (
                   <button
@@ -195,10 +196,19 @@ export function PropertyAuthorizedPanel({ onEdit, onView }: PropertyAuthorizedPa
                         {l.nomenclature && <span className="block text-[9pt] text-tertiary truncate">{l.nomenclature}</span>}
                         {l.nsn && <span className="block text-[9pt] text-tertiary truncate">Material/NSN {l.nsn}</span>}
                       </button>
-                      {/* On-hand / authorized, both in base (EA) units so the pair is directly comparable. */}
-                      <span className="text-[10pt] text-tertiary tabular-nums shrink-0">
-                        {l.onHand} / {l.authorizedBase}
-                      </span>
+                      {/* On-hand / authorized (base EA units, directly comparable) as a fill bar —
+                          the count stays the trailing value; the bar reads red when short. */}
+                      {l.authorizedBase > 0 ? (
+                        <FillBar
+                          percent={Math.round((Math.min(l.onHand, l.authorizedBase) / l.authorizedBase) * 100)}
+                          value={`${l.onHand} / ${l.authorizedBase}`}
+                          className="w-28 shrink-0"
+                        />
+                      ) : (
+                        <span className="text-[10pt] text-tertiary tabular-nums shrink-0">
+                          {l.onHand} / {l.authorizedBase}
+                        </span>
+                      )}
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); comp && openMenu(comp, 'component', (e.currentTarget as HTMLElement).getBoundingClientRect()) }}

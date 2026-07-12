@@ -82,6 +82,7 @@ export function OverlayStack({
         title={stack.title}
         onBack={stack.onBack}
         headerActions={stack.headerActions}
+        headerLeft={stack.headerLeft}
         footer={stack.footer}
         rightFooter={stack.rightFooter}
         maxWidth={stack.screenMaxWidth ?? maxWidth}

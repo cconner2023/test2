@@ -128,12 +128,15 @@ export function ItemCallout({ item, anchorX, anchorY, selected, dragging }: {
 
   return (
     <>
-      {/* Anchor dot — the item's exact point, fixed screen size = zoom-independent precision. */}
-      <span
-        className={`absolute top-0 left-0 w-2.5 h-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full ring-2 ring-themewhite3 shadow-sm ${
-          alert ? 'bg-themeredred' : 'bg-themeblue1'
-        }`}
-      />
+      {/* Anchor dot — the item's exact point. Only the SELECTED item gets it; on every
+          unselected pin it just reads as clutter, so unselected items show the bubble alone. */}
+      {selected && (
+        <span
+          className={`absolute top-0 left-0 w-2.5 h-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full ring-2 ring-themewhite3 shadow-sm ${
+            alert ? 'bg-themeredred' : 'bg-themeblue1'
+          }`}
+        />
+      )}
       {/* Position wrapper — keeps `transform` free on the bubble itself for the press/drag scale. */}
       <div className="absolute top-0 left-0" style={{ transform: `translate(${tx}, ${ty})` }}>
         <div

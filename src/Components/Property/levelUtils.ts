@@ -120,12 +120,15 @@ const EXPLODE_STEP_Y = 0.24
  * floor's down-left corner as a tap target. Rects intentionally spill past 0..1; the
  * caller unions them with the base to frame the whole fan. Keyed by level id.
  *
- * `surfacedId` (the selected floor) keeps its fanned position but is lifted to the TOP of
- * the paint order so it's fully revealed — nothing occludes the floor you're focused on.
+ * Paint order is a STRICT staircase (z = j, higher floor on top). The selected floor is
+ * deliberately NOT lifted above its neighbours: lifting it to the top of the stack covered
+ * the down-left peek of every floor above it, so surfacing a lower floor made the upper
+ * floors visually vanish. Keeping the natural order means every floor always keeps its
+ * peek/tap corner; the surfaced floor is instead marked by its selection ring/tint (in
+ * LocationTagPhoto) and reachable at any time from the floor-switcher rail.
  */
 export function computeExplodeOffsets(
   levels: LocalPropertyLocation[],
-  surfacedId?: string | null,
 ): Map<string, ExplodeRect> {
   const map = new Map<string, ExplodeRect>()
   const sorted = [...levels].sort((a, b) => (a.ordinal ?? 0) - (b.ordinal ?? 0))
@@ -137,8 +140,7 @@ export function computeExplodeOffsets(
       y: -step * EXPLODE_STEP_Y, // up
       width: 1,
       height: 1,
-      // Higher floor → later → painted on top; the surfaced floor jumps above all of them.
-      z: lvl.id === surfacedId ? sorted.length : j,
+      z: j, // higher floor → later → painted on top; strict staircase, no surfaced-lift
     })
   })
   return map

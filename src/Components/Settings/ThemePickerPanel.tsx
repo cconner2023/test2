@@ -24,13 +24,6 @@ const THEME_DEFS: {
         light: { bg: '#fcf9f2', surface: '#f6f0e4', accent: '#af3a03', text: '#3c3836' },
     },
     {
-        name: 'forest',
-        label: 'Forest',
-        tagline: 'Extended Jungle Operations',
-        dark:  { bg: '#0e0f0e', surface: '#161816', accent: '#34a27c', text: '#d2dad4' },
-        light: { bg: '#fcfcfa', surface: '#f2f3f0', accent: '#166e52', text: '#121412' },
-    },
-    {
         name: 'void',
         label: 'Void',
         tagline: 'Tactical Neural Network',
@@ -43,13 +36,6 @@ const THEME_DEFS: {
             tagline: 'Lightweight Operations',
             dark: { bg: '#0c0f12', surface: '#141a20', accent: '#54887c', text: '#c8d6d4' },
             light: { bg: '#f8f6f0', surface: '#ece8de', accent: '#306458', text: '#12120e' },
-        },
-        {
-            name: 'urban',
-            label: 'Urban',
-            tagline: 'Familiar Terrain Command',
-            dark: { bg: '#0e0d0c', surface: '#161412', accent: '#84644e', text: '#dcd4c8' },
-            light: { bg: '#f0ece4', surface: '#e0dace', accent: '#5a4230', text: '#12100c' },
         },
         {
             name: 'topo',

@@ -7,7 +7,8 @@ import { ErrorDisplay } from '@/Components/primitives/ErrorDisplay'
 import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill'
 import { OverlayHeaderMenu } from '@/Components/primitives/OverlayHeaderMenu'
 import type { ContextMenuItem } from '@/Components/primitives/ContextMenu'
-import { StepResults, type StepResult } from './StepResults'
+import { HudLoader } from '@/Components/primitives/HudLoader'
+import type { StepResult } from './StepResults'
 import { credentials, components, ranksByComponent } from '../../Data/User'
 import type { Component } from '../../Data/User'
 import {
@@ -220,10 +221,15 @@ export function RequestDetail({ request, onApproved, onClose, onHeaderActions }:
 
     setProcessing(false)
 
-    const allOk = next.every(s => s.ok)
+    const failed = next.filter(s => !s.ok)
     invalidate('requests', 'users')
-    if (allOk) {
+    if (failed.length === 0) {
+      // Full success — parent morphs the surface into the created user; no
+      // checklist. The account already exists, so a re-tap of Approve skips the
+      // done steps (alreadyOk) and only re-runs whatever failed.
       onApproved?.(userId, request, { roles: chosenRoles, clinicId: selectedClinicId, warnings: [] })
+    } else {
+      setError(`Couldn't finish: ${failed.map(s => s.label).join(', ')}. Tap Approve to retry the remaining steps.`)
     }
   }, [
     request, email, firstName, lastName, middleInitial, credential, component, rank, uic,
@@ -231,16 +237,12 @@ export function RequestDetail({ request, onApproved, onClose, onHeaderActions }:
   ])
 
   const handleApprove = useCallback(() => {
+    if (processing) return
     if (!isValidEmail(email)) { setError('Enter a valid email address.'); return }
     if (uic.trim().length !== 6) { setError('UIC must be exactly 6 characters.'); return }
     if (roles.length === 0) { setError('Select at least one role.'); return }
     runApproveSteps()
-  }, [email, uic, roles, runApproveSteps])
-
-  const handleRetryFailed = useCallback(() => {
-    setStepResults(prev => prev.map(s => s.ok ? s : { ...s, error: undefined }))
-    runApproveSteps()
-  }, [runApproveSteps])
+  }, [processing, email, uic, roles, runApproveSteps])
 
   const handleReject = useCallback(async () => {
     const reason = rejectReason.trim()
@@ -284,9 +286,6 @@ export function RequestDetail({ request, onApproved, onClose, onHeaderActions }:
       setError(`Failed to delete: ${result.error}`)
     }
   }, [request.id, onClose])
-
-  const accountCreated = approvedUserId !== null
-  const hasFailedSteps = stepResults.some(s => !s.ok)
 
   const mailtoBody = `${(isSupport
     ? [request.first_name, request.last_name]
@@ -336,18 +335,17 @@ export function RequestDetail({ request, onApproved, onClose, onHeaderActions }:
   // ── Render ──────────────────────────────────────────────
   return (
     <>
-    <div className={processing ? 'opacity-50 pointer-events-none' : undefined}>
+    {/* While a commit is in flight the body IS the HUD (no step checklist — that
+        pattern lives nowhere else in the app). On full-success approve the parent
+        morphs the surface into the created user; any partial failure clears the
+        HUD and surfaces inline (error above), with Approve as the retry. */}
+    {processing ? (
+      <div className="flex items-center justify-center py-16">
+        <HudLoader size={120} />
+      </div>
+    ) : (
+    <div>
       {error && <div className="pb-3"><ErrorDisplay message={error} /></div>}
-
-      {stepResults.length > 0 && (
-        <div className="pb-3">
-          <StepResults
-            steps={stepResults}
-            onRetry={hasFailedSteps ? handleRetryFailed : undefined}
-            retrying={processing}
-          />
-        </div>
-      )}
 
       <div className="rounded-2xl bg-themewhite2 overflow-hidden">
         {/* Support request body */}
@@ -443,6 +441,7 @@ export function RequestDetail({ request, onApproved, onClose, onHeaderActions }:
         )}
       </div>
     </div>
+    )}
 
       <ConfirmDialog
         visible={confirmReject}

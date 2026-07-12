@@ -21,17 +21,11 @@ const TILE_THEMES: Record<`${ThemeName}-${ThemeMode}`, TileTheme> = {
   'ironclad-light':   { background: [248, 242, 225], foreground: [38,  28,  15 ], accent: [160, 100, 20 ] },
   'ironclad-dark':    { background: [30,  26,  20 ], foreground: [215, 205, 188], accent: [180, 120, 35 ] },
 
-  'forest-light':     { background: [240, 244, 238], foreground: [12,  22,  12 ], accent: [40,  120, 85 ] },
-  'forest-dark':      { background: [14,  16,  14 ], foreground: [205, 220, 205], accent: [50,  145, 105] },
-
   'void-light':       { background: [238, 242, 248], foreground: [10,  12,  22 ], accent: [0,   100, 140] },
   'void-dark':        { background: [10,  12,  16 ], foreground: [195, 218, 235], accent: [0,   140, 175] },
 
   'slipstream-light': { background: [242, 244, 240], foreground: [10,  18,  28 ], accent: [55,  105, 95 ] },
   'slipstream-dark':  { background: [14,  18,  22 ], foreground: [205, 220, 230], accent: [70,  130, 118] },
-
-  'urban-light':      { background: [244, 240, 232], foreground: [28,  20,  12 ], accent: [110, 80,  55 ] },
-  'urban-dark':       { background: [14,  13,  11 ], foreground: [218, 208, 192], accent: [130, 98,  76 ] },
 
   'topo-light':       { background: [241, 234, 211], foreground: [28,  24,  12 ], accent: [96,  88,  36 ] },
   'topo-dark':        { background: [12,  16,  10 ], foreground: [220, 212, 188], accent: [164, 148, 76 ] },

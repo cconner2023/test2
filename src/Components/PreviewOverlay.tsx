@@ -20,7 +20,7 @@ export interface ContextMenuAction {
   closesOnAction?: boolean
 }
 
-export function PopoverHeader({ title, onClose, onBack, headerActions, hideClose }: { title: string; onClose: () => void; onBack?: () => void; headerActions?: ReactNode; hideClose?: boolean }) {
+export function PopoverHeader({ title, onClose, onBack, headerLeft, headerActions, hideClose }: { title: string; onClose: () => void; onBack?: () => void; headerLeft?: ReactNode; headerActions?: ReactNode; hideClose?: boolean }) {
   return (
     <div className="flex items-center justify-between px-4 pt-3.5 pb-3">
       <div className="flex items-center gap-1 min-w-0">
@@ -33,6 +33,7 @@ export function PopoverHeader({ title, onClose, onBack, headerActions, hideClose
             <ChevronLeft size={16} />
           </button>
         )}
+        {headerLeft}
         <span className="text-sm font-medium text-primary truncate">{title}</span>
       </div>
       <div className="flex items-center gap-1 shrink-0">
@@ -71,6 +72,9 @@ interface PreviewOverlayProps {
   /** Optional overflow control(s) rendered left of the header X (e.g. an ellipsis
    *  menu for object-level Share/Export/Delete). Requires `title`. */
   headerActions?: ReactNode
+  /** Optional leading control(s) rendered left of the title / right of the back
+   *  chevron (e.g. an OverlayActionRail ellipsis holding overflow footer actions). */
+  headerLeft?: ReactNode
   /** Suppress the header's close X — use when a footer action (e.g. a Check submit
    *  in `rightFooter`) is the single, unambiguous way out. Requires `title`. */
   hideHeaderClose?: boolean
@@ -123,6 +127,7 @@ export function PreviewOverlay({
   footer,
   title,
   headerActions,
+  headerLeft,
   hideHeaderClose,
   onBack,
   maxWidth,
@@ -305,8 +310,8 @@ export function PreviewOverlay({
                     header also appears for a back chevron / header actions alone
                     (e.g. an OverlayStack drill-down screen with no title). */}
                 <div className="bg-themewhite rounded-2xl overflow-hidden min-h-0">
-                  {(title || onBack || headerActions) && (
-                    <PopoverHeader title={title ?? ''} onClose={onClose} onBack={onBack} headerActions={headerActions} hideClose={hideHeaderClose} />
+                  {(title || onBack || headerActions || headerLeft) && (
+                    <PopoverHeader title={title ?? ''} onClose={onClose} onBack={onBack} headerLeft={headerLeft} headerActions={headerActions} hideClose={hideHeaderClose} />
                   )}
                   {searchPlaceholder && preview && (
                     <div className="border-b border-tertiary/10 px-2 py-1.5 flex items-center gap-1.5">
@@ -396,7 +401,7 @@ export function PreviewOverlay({
                       when the header already provides its own X) */}
                   {rightFooter ? (
                     rightFooter
-                  ) : !(title || onBack || headerActions) ? (
+                  ) : !(title || onBack || headerActions || headerLeft) ? (
                     <button
                       onClick={onClose}
                       className="w-9 h-9 rounded-full flex items-center justify-center bg-themewhite text-tertiary hover:text-tertiary active:scale-95 transition-all"

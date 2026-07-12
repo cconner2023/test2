@@ -325,6 +325,38 @@ export function AdminSummary({
     })
   }, [q, unassignedUsers])
 
+  // Search is DISCRETE ITEMS, not a filtered tree — a query flattens the org
+  // into the flat set of clusters + users that match, so "find a person/cluster
+  // fast" doesn't make you read a force-expanded hierarchy. The tree render is
+  // used only when NOT searching. Users span assigned + unassigned (the flat set
+  // subsumes the Unassigned block).
+  const flatResults = useMemo(() => {
+    if (!q) return null
+    const userMatches = (u: AdminUser) => {
+      const name = `${u.first_name ?? ''} ${u.last_name ?? ''}`.toLowerCase()
+      return name.includes(q)
+        || (u.email ?? '').toLowerCase().includes(q)
+        || (u.rank ?? '').toLowerCase().includes(q)
+        || (u.uic ?? '').toLowerCase().includes(q)
+        || (u.clinic_name ?? '').toLowerCase().includes(q)
+    }
+    const clinicMatches = (c: AdminClinic) => {
+      const loc = c.location_id ? (locationsById.get(c.location_id)?.display_name ?? '') : ''
+      return c.name.toLowerCase().includes(q) || loc.toLowerCase().includes(q)
+    }
+    const matchedClinics = clinics
+      .filter(clinicMatches)
+      .sort((a, b) => a.name.localeCompare(b.name))
+    const matchedUsers = users
+      .filter(userMatches)
+      .sort((a, b) => {
+        const na = `${a.last_name ?? ''} ${a.first_name ?? ''}`.trim()
+        const nb = `${b.last_name ?? ''} ${b.first_name ?? ''}`.trim()
+        return na.localeCompare(nb)
+      })
+    return { matchedClinics, matchedUsers }
+  }, [q, clinics, users, locationsById])
+
   // ── Row renderers ───────────────────────────────────────────────────────
   function renderUserLeaf(user: AdminUser, depth: number) {
     const name = [user.first_name, user.last_name].filter(Boolean).join(' ') || user.email
@@ -382,6 +414,36 @@ export function AdminSummary({
         </div>
         {expandable && !isCollapsed && su.users.map(u => renderUserLeaf(u, depth + 1))}
       </div>
+    )
+  }
+
+  // Flat cluster row — the search-results counterpart to a tree node (no
+  // chevron, no children). Same select + long-press/right-click menu as the tree.
+  function renderClusterRow(clinic: AdminClinic) {
+    const count = usersByClinic.get(clinic.id) ?? 0
+    const loc = clinic.location_id ? locationsById.get(clinic.location_id) : undefined
+    const isActive = activeClinicId === clinic.id
+    return (
+      <button
+        key={clinic.id}
+        onClick={() => { if (preventTap.current) { preventTap.current = false; return } onSelectClinic(clinic) }}
+        onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); openClinicMenu(clinic, e.currentTarget as HTMLElement) }}
+        onTouchStart={(e) => { const el = e.currentTarget as HTMLElement; preventTap.current = false; longPressTimer.current = window.setTimeout(() => { preventTap.current = true; openClinicMenu(clinic, el) }, 500) }}
+        onTouchEnd={clearLongPress}
+        onTouchMove={clearLongPress}
+        className={`flex items-center gap-2 w-full py-2 pl-4 pr-4 text-left cursor-pointer transition-all active:scale-[0.98] ${
+          isActive ? 'bg-themeblue3/8 border-l-2 border-l-themeblue3' : 'hover:bg-secondary/5'
+        }`}
+      >
+        <Building2 size={14} className="text-tertiary shrink-0" />
+        <span className="text-[10pt] font-medium text-primary truncate">{clinic.name}</span>
+        {loc && (
+          <span className="inline-flex items-center text-[8.5pt] text-themeblue2 bg-themeblue2/10 rounded-full px-1.5 py-0.5 shrink min-w-0 max-w-[45%]">
+            <span className="truncate">{loc.display_name}</span>
+          </span>
+        )}
+        <span className="ml-auto text-[9pt] font-normal text-tertiary tabular-nums shrink-0">{count}</span>
+      </button>
     )
   }
 
@@ -473,33 +535,53 @@ export function AdminSummary({
   return (
     <div className="relative flex flex-col h-full">
       <LoadingOverlay visible={showLoading} />
-      {/* Tree — pb clears the bottom island that floats over the center pane. */}
+      {/* pb clears the bottom island that floats over the center pane. */}
       <div className="flex-1 overflow-y-auto pb-24">
-        {displayRoots.map(node => renderNode(node, 0))}
+        {searching && flatResults ? (
+          // Discrete search results — flat clusters + users, not a filtered tree.
+          flatResults.matchedClinics.length > 0 || flatResults.matchedUsers.length > 0 ? (
+            <>
+              {flatResults.matchedClinics.length > 0 && (
+                <>
+                  <p className="px-4 pt-3 pb-1 text-[9pt] font-semibold uppercase tracking-wider text-tertiary">Clusters</p>
+                  {flatResults.matchedClinics.map(renderClusterRow)}
+                </>
+              )}
+              {flatResults.matchedUsers.length > 0 && (
+                <>
+                  <p className="px-4 pt-3 pb-1 text-[9pt] font-semibold uppercase tracking-wider text-tertiary">Users</p>
+                  {flatResults.matchedUsers.map(u => renderUserLeaf(u, 0))}
+                </>
+              )}
+            </>
+          ) : (
+            <p className="px-4 py-6 text-center text-[10pt] text-tertiary">No matches</p>
+          )
+        ) : (
+          <>
+            {displayRoots.map(node => renderNode(node, 0))}
 
-        {/* Unassigned users — an expandable inline block of selectable leaves. */}
-        {displayUnassigned.length > 0 && (
-          <div>
-            <button
-              onClick={() => setShowUnassigned(!showUnassigned)}
-              aria-expanded={searching || showUnassigned}
-              aria-label={`${showUnassigned ? 'Collapse' : 'Expand'} unassigned users`}
-              className="flex items-center gap-2 w-full py-2 pr-4 text-left cursor-pointer transition-all active:scale-[0.98] hover:bg-secondary/5"
-              style={{ paddingLeft: '16px' }}
-            >
-              <span className="p-0.5 text-tertiary shrink-0">
-                {(searching || showUnassigned) ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-              </span>
-              <AlertTriangle size={14} className="text-themeredred shrink-0" />
-              <span className="text-[10pt] font-medium text-themeredred flex-1">Unassigned</span>
-              <span className="text-[9pt] font-normal text-tertiary tabular-nums shrink-0">{displayUnassigned.length}</span>
-            </button>
-            {(searching || showUnassigned) && displayUnassigned.map(u => renderUserLeaf(u, 1))}
-          </div>
-        )}
-
-        {searching && displayRoots.length === 0 && displayUnassigned.length === 0 && (
-          <p className="px-4 py-6 text-center text-[10pt] text-tertiary">No matches</p>
+            {/* Unassigned users — an expandable inline block of selectable leaves. */}
+            {displayUnassigned.length > 0 && (
+              <div>
+                <button
+                  onClick={() => setShowUnassigned(!showUnassigned)}
+                  aria-expanded={showUnassigned}
+                  aria-label={`${showUnassigned ? 'Collapse' : 'Expand'} unassigned users`}
+                  className="flex items-center gap-2 w-full py-2 pr-4 text-left cursor-pointer transition-all active:scale-[0.98] hover:bg-secondary/5"
+                  style={{ paddingLeft: '16px' }}
+                >
+                  <span className="p-0.5 text-tertiary shrink-0">
+                    {showUnassigned ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                  </span>
+                  <AlertTriangle size={14} className="text-themeredred shrink-0" />
+                  <span className="text-[10pt] font-medium text-themeredred flex-1">Unassigned</span>
+                  <span className="text-[9pt] font-normal text-tertiary tabular-nums shrink-0">{displayUnassigned.length}</span>
+                </button>
+                {showUnassigned && displayUnassigned.map(u => renderUserLeaf(u, 1))}
+              </div>
+            )}
+          </>
         )}
       </div>
 

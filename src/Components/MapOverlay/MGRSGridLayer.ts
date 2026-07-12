@@ -29,17 +29,11 @@ const GRID_THEMES: Record<`${ThemeName}-${ThemeMode}`, GridTheme> = {
   'ironclad-light':   { lineColor: 'rgba(160,100,20,0.80)',    lineColorMajor: 'rgba(160,100,20,1.00)',    labelColor: '#8B6010', labelBg: 'rgba(248,242,225,0.9)' },
   'ironclad-dark':    { lineColor: 'rgba(218,140,38,0.75)',    lineColorMajor: 'rgba(218,140,38,0.95)',    labelColor: '#C8901A', labelBg: 'rgba(30,26,20,0.9)' },
 
-  'forest-light':     { lineColor: 'rgba(22,110,82,0.78)',     lineColorMajor: 'rgba(22,110,82,1.00)',     labelColor: '#166E52', labelBg: 'rgba(240,244,238,0.9)' },
-  'forest-dark':      { lineColor: 'rgba(52,162,124,0.75)',    lineColorMajor: 'rgba(52,162,124,0.95)',    labelColor: '#34A27C', labelBg: 'rgba(14,16,14,0.9)' },
-
   'void-light':       { lineColor: 'rgba(0,110,148,0.78)',     lineColorMajor: 'rgba(0,110,148,1.00)',     labelColor: '#006E94', labelBg: 'rgba(238,242,248,0.9)' },
   'void-dark':        { lineColor: 'rgba(0,164,190,0.75)',     lineColorMajor: 'rgba(0,164,190,0.95)',     labelColor: '#00A4BE', labelBg: 'rgba(10,12,16,0.9)' },
 
   'slipstream-light': { lineColor: 'rgba(48,100,88,0.78)',     lineColorMajor: 'rgba(48,100,88,1.00)',     labelColor: '#306458', labelBg: 'rgba(242,244,240,0.9)' },
   'slipstream-dark':  { lineColor: 'rgba(84,136,124,0.75)',    lineColorMajor: 'rgba(84,136,124,0.95)',    labelColor: '#54887C', labelBg: 'rgba(14,18,22,0.9)' },
-
-  'urban-light':      { lineColor: 'rgba(90,66,48,0.78)',      lineColorMajor: 'rgba(90,66,48,1.00)',      labelColor: '#5A4230', labelBg: 'rgba(244,240,232,0.9)' },
-  'urban-dark':       { lineColor: 'rgba(132,100,78,0.75)',    lineColorMajor: 'rgba(132,100,78,0.95)',    labelColor: '#84644E', labelBg: 'rgba(14,13,11,0.9)' },
 
   'topo-light':       { lineColor: 'rgba(96,88,36,0.80)',      lineColorMajor: 'rgba(96,88,36,1.00)',      labelColor: '#605824', labelBg: 'rgba(241,234,211,0.9)' },
   'topo-dark':        { lineColor: 'rgba(164,148,76,0.75)',    lineColorMajor: 'rgba(164,148,76,0.95)',    labelColor: '#A4944C', labelBg: 'rgba(12,16,10,0.9)' },

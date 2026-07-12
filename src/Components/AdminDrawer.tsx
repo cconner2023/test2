@@ -414,6 +414,18 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         guardNav(navigateBack)
     }, [guardNav, navigateBack])
 
+    // Triage details (request/feedback/suggestion) are opened FROM the inbox
+    // (desktop left rail / mobile nav sheet), so their back returns to that list
+    // — not the directory. On desktop the rail re-expands automatically once the
+    // detail pane closes; on mobile we re-summon the nav sheet. Used for the back
+    // affordance AND each triage detail's own onClose (after reject/delete/etc.).
+    const handleBackToInbox = useCallback(() => {
+        guardNav(() => {
+            navigateBack()
+            if (isMobile) setShowNavSheet(true)
+        })
+    }, [guardNav, navigateBack, isMobile])
+
     // Open the settings surface (locations management) — a detail view, so it
     // rides the responsive detail pane (desktop) / sheet (mobile) like the
     // entity details. Guarded so an in-progress edit isn't silently dropped.
@@ -517,10 +529,26 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         </HeaderPill>
     ), [])
 
+    // Back-to-inbox affordance for the mobile triage detail Sheet — the request/
+    // feedback/suggestion detail publishes its own header actions (which hides the
+    // Sheet's Close), so it otherwise has no visible return path to the list.
+    const backToInboxButton = useMemo(() => (
+        <button
+            type="button"
+            onClick={handleBackToInbox}
+            aria-label="Back to inbox"
+            className="w-9 h-9 -ml-1 rounded-full flex items-center justify-center hover:bg-tertiary/10 text-tertiary active:scale-95 shrink-0"
+        >
+            <ChevronLeft size={18} />
+        </button>
+    ), [handleBackToInbox])
+
     const isUserCreateMode = view === 'admin-user-detail' && selectedUser === null
     const isClinicCreateMode = view === 'admin-clinic-detail' && selectedClinic === null
     const isLocationCreateMode = view === 'admin-location-detail' && selectedLocation === null
     const isDetailView = view === 'admin-user-detail' || view === 'admin-clinic-detail' || view === 'admin-location-detail' || view === 'admin-settings' || view === 'admin-system-conversation' || view === 'admin-request-detail' || view === 'admin-feedback-detail' || view === 'admin-suggestion-detail'
+    // Triage details come from the inbox rail, so their back goes to the inbox.
+    const isTriageView = view === 'admin-request-detail' || view === 'admin-feedback-detail' || view === 'admin-suggestion-detail'
     const desktopDetailPaneOpen = !isMobile && isDetailView
     // Left inbox rail (search + settings + counts + requests/feedback/messages)
     // is persistent across all tabs — the drawer's standing triage surface. It
@@ -827,7 +855,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                 <RequestDetail
                     request={selectedRequest}
                     onApproved={handleRequestApproved}
-                    onClose={handleBack}
+                    onClose={handleBackToInbox}
                     onHeaderActions={setFeedHeaderActions}
                 />
             )
@@ -836,7 +864,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
             return wrap(
                 <FeedbackDetail
                     feedback={selectedFeedback}
-                    onClose={handleBack}
+                    onClose={handleBackToInbox}
                     onOpenConversation={isDevRole ? handleSelectSystemPeer : undefined}
                     onHeaderActions={setFeedHeaderActions}
                 />
@@ -846,7 +874,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
             return wrap(
                 <SuggestionDetail
                     suggestion={selectedSuggestion}
-                    onClose={handleBack}
+                    onClose={handleBackToInbox}
                     onHeaderActions={setFeedHeaderActions}
                 />
             )
@@ -1089,7 +1117,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                                 <div className="flex items-center gap-2 px-3 py-2 border-b border-primary/10">
                                     <button
                                         type="button"
-                                        onClick={handleBack}
+                                        onClick={isTriageView ? handleBackToInbox : handleBack}
                                         aria-label="Close detail"
                                         className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-tertiary/10 text-tertiary active:scale-95 shrink-0"
                                     >
@@ -1143,12 +1171,19 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         {isMobile && (
             <Sheet
                 isOpen={detailSheetOpen}
-                onClose={handleBack}
+                onClose={isTriageView ? handleBackToInbox : handleBack}
                 height="fit"
-                maxHeight={60}
+                // Taller cap + stronger dim so the sheet reads unambiguously as an
+                // overlay above the list (the list shares the drawer bg, so a weak
+                // scrim was distracting / not obviously an overlay).
+                maxHeight={88}
                 backdrop="dismiss"
+                backdropOpacity={0.6}
                 title={detailTitle}
                 titleNode={sheetTitleNode}
+                // Triage details hide the Sheet Close (they publish their own
+                // header actions), so give them an explicit back-to-inbox arrow.
+                leftContent={isTriageView ? backToInboxButton : undefined}
                 rightContent={detailHeaderActions}
                 hideClose={!!detailHeaderActions}
                 // Portals to body — must clear the mobileFullScreen drawer
@@ -1169,12 +1204,13 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                 isOpen={showNavSheet}
                 onClose={() => setShowNavSheet(false)}
                 height="fit"
-                maxHeight={60}
+                maxHeight={88}
                 backdrop="dismiss"
+                backdropOpacity={0.6}
                 title="Inbox"
                 zIndex={1200}
             >
-                <div className="flex flex-col" style={{ height: '52dvh' }}>
+                <div className="flex flex-col" style={{ height: '78dvh' }}>
                     <div className="px-3 pt-1 pb-2 shrink-0">
                         <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Search..." />
                     </div>

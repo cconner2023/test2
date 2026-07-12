@@ -24,7 +24,7 @@ import { CanvasEditOverlay } from './CanvasEditOverlay'
 import type { CanvasEditHandle } from './CanvasEditOverlay'
 import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
 import { GlassBand } from '@/Components/primitives/GlassBand'
-import { collectSuppressedIds, computeExplodeOffsets, getLevels, nextFloorOrdinal } from './levelUtils'
+import { collectSuppressedIds, computeExplodeOffsets, getLevels, levelShortLabel, nextFloorOrdinal } from './levelUtils'
 import type { ExplodeRect } from './levelUtils'
 import { createLogger } from '../../Utilities/Logger'
 import type { LocalPropertyItem, LocalPropertyLocation, PropertyLocation, LocationTag } from '../../Types/PropertyTypes'
@@ -426,9 +426,9 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
 
   const explode = useMemo((): ExplodeSpec | undefined => {
     if (!explodeContainerId) return undefined
-    const rects = computeExplodeOffsets(getLevels(locations, explodeContainerId), surfacedLevelId)
+    const rects = computeExplodeOffsets(getLevels(locations, explodeContainerId))
     return rects.size > 0 ? { containerId: explodeContainerId, rects } : undefined
-  }, [explodeContainerId, surfacedLevelId, locations])
+  }, [explodeContainerId, locations])
 
   // Fanned floor tiles must render OPAQUE so they clip/occlude the floors beneath (a
   // shelf of drawers, not a translucent stack) — passed to LocationTagPhoto.
@@ -443,6 +443,46 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
   const suppressedIds = useMemo(
     () => collectSuppressedIds(locations, rootLocationId, explodeContainerId, store.selectedZoneId, surfacedLevelId),
     [locations, rootLocationId, explodeContainerId, store.selectedZoneId, surfacedLevelId],
+  )
+
+  // ── Floor switcher rail ──
+  // A pill per floor of the exploded building — ground (the container itself) plus each
+  // level — highest at the top (Genshin-style). Shown whenever a building is exploded,
+  // driven purely by explodeContainerId, so the SAME rail appears whether the building was
+  // reached from the canvas or a list/tree row. It's the deterministic toggle a bare canvas
+  // tap on a fanned tile lacked: even when the surfaced floor visually overlaps its
+  // neighbours in the fan, every level stays one tap away here.
+  const floorRail = useMemo(() => {
+    if (!explodeContainerId) return null
+    const container = locations.find((l) => l.id === explodeContainerId)
+    if (!container) return null
+    const levels = getLevels(locations, explodeContainerId)
+    if (levels.length === 0) return null
+    const entries = [
+      ...levels.map((l) => ({ id: l.id, label: levelShortLabel(l), height: l.ordinal ?? 0 })),
+      { id: container.id, label: 'G', height: 0 },
+    ]
+    entries.sort((a, b) => b.height - a.height)
+    return entries
+  }, [explodeContainerId, locations])
+
+  // The pill highlighted in the rail — the surfaced floor, or ground (the container) when no
+  // level is surfaced.
+  const activeFloorId = surfacedLevelId ?? explodeContainerId
+
+  // Surface a floor from the rail. No camera move — the whole fan is already framed at the
+  // right zoom (mirrors tapping a fanned tile on the canvas); ground re-selects the container.
+  const handleSelectFloor = useCallback(
+    (id: string) => {
+      if (!explodeContainerId) return
+      if (id === explodeContainerId) {
+        store.selectZone(explodeContainerId)
+      } else {
+        store.setActiveLevel(explodeContainerId, id)
+        store.selectZone(id)
+      }
+    },
+    [store, explodeContainerId],
   )
 
   // ── All tags in world coords (for zoom lookup + toolbar label) ──
@@ -681,7 +721,7 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
 
   // ── Zoom to a world-coord rect { x, y, width, height } ──
   const zoomToRect = useCallback(
-    (rect: { x: number; y: number; width: number; height: number }, smooth = true, bottomInset = 0) => {
+    (rect: { x: number; y: number; width: number; height: number }, smooth = true, bottomInset = 0, center = false) => {
       const container = scrollRef.current
       if (!container || !rect.width || !rect.height) return
 
@@ -718,12 +758,21 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
       // size so scrollTo doesn't clamp short of the target.
       const contentW = vpW * newScale
       const contentH = vpH * newScale
+      // Default framing is top-left aligned (slack falls to the right/bottom) — predictable
+      // for plain zones. `center` distributes the slack evenly so a rect whose occupied mass
+      // doesn't fill its bounding box sits centred: an exploded fan's tiles run along the
+      // bottom-left→top-right diagonal, leaving the bbox's top-left corner empty, so top-left
+      // framing shoved the building down-and-right. Centre uses the visible band (minus the
+      // mobile header/sheet insets) so the fit still clears the floating chrome.
+      const visH = bottomInset > 0 ? Math.max(1, vpH - topInset - bottomInset) : vpH - topInset
+      const padX = center ? Math.max(PADDING, (vpW - rect.width * contentW) / 2) : PADDING
+      const padTop = center ? topInset + Math.max(0, (visH - rect.height * contentH) / 2) : topInset
       requestAnimationFrame(() => requestAnimationFrame(() => {
         const el = scrollRef.current
         if (!el) return
         el.scrollTo({
-          left: vpW + rect.x * contentW - PADDING,
-          top: vpH + rect.y * contentH - topInset,
+          left: vpW + rect.x * contentW - padX,
+          top: vpH + rect.y * contentH - padTop,
           behavior: smooth ? 'smooth' : 'instant',
         })
       }))
@@ -731,9 +780,10 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
     [],
   )
 
-  /** Convenience — zoom to a LocationTag */
+  /** Convenience — zoom to a LocationTag. `center` frames a spilled fan's bbox centred. */
   const zoomToTag = useCallback(
-    (tag: LocationTag) => zoomToRect({ x: tag.x, y: tag.y, width: tag.width ?? 0, height: tag.height ?? 0 }),
+    (tag: LocationTag, center = false) =>
+      zoomToRect({ x: tag.x, y: tag.y, width: tag.width ?? 0, height: tag.height ?? 0 }, true, 0, center),
     [zoomToRect],
   )
 
@@ -858,23 +908,23 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
 
   // ── Shared-parent zoom: zoom out to LCA, pause, then zoom in to target ──
   const zoomViaLCA = useCallback(
-    (fromId: string, toId: string, toTag: LocationTag) => {
+    (fromId: string, toId: string, toTag: LocationTag, center = false) => {
       if (!tagIndex || !rootLocationId) {
-        zoomToTag(toTag)
+        zoomToTag(toTag, center)
         return
       }
 
       const lca = findLCA(tagIndex, fromId, toId)
       if (!lca || lca === fromId || lca === toId) {
         // Direct ancestor — just zoom straight
-        zoomToTag(toTag)
+        zoomToTag(toTag, center)
         return
       }
 
       // Find LCA tag to zoom out to first
       const lcaTag = allWorldTags.find((t) => t.target_id === lca)
       if (!lcaTag) {
-        zoomToTag(toTag)
+        zoomToTag(toTag, center)
         return
       }
 
@@ -884,7 +934,7 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
 
       if (!container) {
         zoomToTag(lcaTag)
-        zoomToTag(toTag)
+        zoomToTag(toTag, center)
         return
       }
 
@@ -894,7 +944,7 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
       const onZoomOutEnd = () => {
         container.removeEventListener('scrollend', onZoomOutEnd)
         store.setTransitionState('zooming-in')
-        zoomToTag(toTag)
+        zoomToTag(toTag, center)
 
         const onZoomInEnd = () => {
           container.removeEventListener('scrollend', onZoomInEnd)
@@ -944,13 +994,16 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
       if (!baseTag) return
       // A building with floors zooms via the SAME path as any zone — just to a rect grown
       // to include its highest fanned floor (expandTagForFan); plain zones are unchanged.
+      // expandTagForFan returns the SAME tag reference for a floorless zone, so an identity
+      // check flags a real fan → centre its (diagonally-filled) bbox instead of top-left.
       const tag = expandTagForFan(baseTag)
+      const isFan = tag !== baseTag
 
       // If navigating between siblings/unrelated zones, use shared-parent animation
       if (prevId && prevId !== targetId) {
-        zoomViaLCA(prevId, targetId, tag)
+        zoomViaLCA(prevId, targetId, tag, isFan)
       } else {
-        zoomToTag(tag)
+        zoomToTag(tag, isFan)
       }
     },
     [store, allWorldTags, zoomToTag, zoomViaLCA, expandTagForFan],
@@ -1050,7 +1103,10 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
       ? (allWorldTagsRef.current.find((tg) => tg.target_id === sel)
           ?? childZoneAutoTagsRef.current.find((tg) => tg.target_id === sel))
       : null
-    if (selTag) zoomToTag(expandTagForFan(selTag))
+    if (selTag) {
+      const framed = expandTagForFan(selTag)
+      zoomToTag(framed, framed !== selTag) // centre the fan bbox on re-fit too
+    }
     // Only re-fit to root when nothing is selected — never deselect on a mere resize.
     else if (!sel) handleResetZoom()
   }
@@ -1094,8 +1150,9 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
     // plain zones are unchanged. This unifies every nav source — rail/sheet tree, detail-pane
     // rows, breadcrumb, search, and the map tap — so they animate the same, down and up.
     const framed = expandTagForFan(tag)
-    if (prevId && prevId !== targetId) zoomViaLCA(prevId, targetId, framed)
-    else zoomToTag(framed)
+    const isFan = framed !== tag // identity check: a real fan → centre its diagonal bbox
+    if (prevId && prevId !== targetId) zoomViaLCA(prevId, targetId, framed, isFan)
+    else zoomToTag(framed, isFan)
 
     return true
   }, [allWorldTags, store, zoomViaLCA, zoomToTag, expandTagForFan])
@@ -2159,8 +2216,34 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
           </div>
         )}
 
-        {/* Levels are shown as an exploded fan (computeExplodeOffsets) when the building
-            is selected — selecting a floor in the fan drills in. No separate switcher rail. */}
+        {/* Levels are shown as an exploded fan (computeExplodeOffsets) when the building is
+            selected; this rail is the deterministic toggle over the same floors. Right edge,
+            vertically centred so it clears the top-right edit button and bottom controls.
+            Highest floor on top, ground (G) at the bottom. Driven by explodeContainerId, so it
+            appears identically for a canvas tap or a list/tree selection. */}
+        {!isEditing && floorRail && (
+          <div className="absolute right-3 top-1/2 -translate-y-1/2 z-20 flex flex-col gap-1.5">
+            {floorRail.map((f) => {
+              const active = f.id === activeFloorId
+              return (
+                <button
+                  key={f.id}
+                  onClick={() => handleSelectFloor(f.id)}
+                  className={`w-9 h-9 rounded-lg flex items-center justify-center text-[9pt] font-semibold shadow-sm active:scale-95 transition-all backdrop-blur-sm ${
+                    active
+                      ? 'bg-themeblue3 text-white'
+                      : 'bg-themewhite2/90 dark:bg-themewhite3/90 text-primary'
+                  }`}
+                  title={`Floor ${f.label}`}
+                  aria-label={`Floor ${f.label}`}
+                  aria-pressed={active}
+                >
+                  {f.label}
+                </button>
+              )
+            })}
+          </div>
+        )}
 
         {/* Edit mode toolbar — only visible when editing. Mobile clears the floating
             glass header via --drawer-header-h (same offset as the view-mode edit

@@ -28,7 +28,8 @@ import { type ContextMenuItem } from '@/Components/primitives/ContextMenu'
 import { AnchoredMenu } from '@/Components/primitives/LiftedRowMenu'
 import { OverlayActionMenu } from '@/Components/primitives/OverlayActionMenu'
 import { formatLastActive, RoleBadge, SupervisorCreatedBadge } from './adminUtils'
-import { StepResults, type StepResult } from './StepResults'
+import { HudLoader } from '@/Components/primitives/HudLoader'
+import type { StepResult } from './StepResults'
 import { useResetPasswordFlow } from '../../Hooks/useResetPasswordFlow'
 import { useMessagesContext } from '../../Hooks/MessagesContext'
 import { drainSystemInbox } from '../../lib/signal/systemIdentity'
@@ -282,6 +283,7 @@ export function AdminUserDetail({
   const closeEditOverlay = useCallback(() => {
     setEditAnchor(null)
     setStepResults([])
+    setError(null)
     onEditingChange(false)
   }, [onEditingChange])
 
@@ -569,8 +571,8 @@ export function AdminUserDetail({
 
     const anyFailed = next.some(s => !s.ok)
     if (!anyFailed) {
-      // Brief pause so the admin sees the all-green panel before the overlay
-      // dismisses — confirms every step stuck.
+      // Brief HUD hold so the save reads as deliberate before the overlay
+      // dismisses, rather than blinking shut the instant the last write lands.
       await new Promise(resolve => setTimeout(resolve, 600))
       setStepResults([])
       setSaving(false)
@@ -580,8 +582,10 @@ export function AdminUserDetail({
     }
 
     setSaving(false)
-    // Partial failure — overlay reverts from modal mode to form+steps so the
-    // admin can adjust and retry. The alreadyOk() guard skips the successes.
+    // Partial failure — the HUD clears and the form returns with an inline error
+    // naming what didn't stick (no step checklist). Re-tapping Save retries only
+    // the failures (alreadyOk() skips the successes).
+    setError(`Couldn't finish: ${next.filter(s => !s.ok).map(s => s.label).join(', ')}. Tap Save to retry.`)
   }, [user, editEmail, editFirstName, editLastName, editMiddleInitial, editCredential, editComponent, editRank, editUic, editClinicId, editLoanClinicIds, originalLoanClinicIds, editRoles, editSection, currentSection, onEditingChange, loadData, isCreateMode, createEmail, createPassword, onCreated, stepResults])
 
   // ── Save requested trigger ───────────────────────────────────────────
@@ -722,7 +726,12 @@ export function AdminUserDetail({
             if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openEditOverlay() }
           } : undefined}
         >
-          {isCreateMode && editing ? (
+          {isCreateMode && editing && saving ? (
+            // Create runs behind the HUD (single step — no checklist).
+            <div className="flex items-center justify-center py-16">
+              <HudLoader size={120} />
+            </div>
+          ) : isCreateMode && editing ? (
             // Legacy inline create form — Phase 3 will move this to an overlay anchored to the FAB.
             <div>
               <TextInput value={createEmail} onChange={setCreateEmail} placeholder="Email *" type="email" required />
@@ -869,10 +878,10 @@ export function AdminUserDetail({
       </PreviewOverlay>
 
       {/* Edit overlay — tap user card → form fields here. Footer owns Save+Delete.
-          During an in-flight save (or while any step is still pending) the
-          overlay morphs to a modal-style loading view: form + footer hide and
-          only the StepResults remain. On full success a 600ms pause shows the
-          all-green panel before the overlay auto-closes. */}
+          During an in-flight save (or while any step is still pending) the form +
+          footer hide and the HUD loader takes the body. On full success the
+          overlay auto-closes; on partial failure the form returns with an inline
+          error and Save re-runs only the failures. */}
       {(() => {
         const overlayPending = saving || stepResults.some(s => s.pending)
         return (
@@ -910,17 +919,17 @@ export function AdminUserDetail({
       >
         {editAnchor && user && (
           <div>
-            {stepResults.length > 0 && (
-              <div className="px-4 pt-3 pb-3">
-                <StepResults
-                  steps={stepResults}
-                  onRetry={!overlayPending && stepResults.some(s => !s.ok) ? handleSave : undefined}
-                  retrying={saving}
-                />
+            {overlayPending && (
+              // The save runs behind the HUD (no step checklist — that pattern
+              // lives nowhere else in the app). On failure the HUD clears and the
+              // form returns with an inline error; on success the overlay closes.
+              <div className="flex items-center justify-center py-16">
+                <HudLoader size={120} />
               </div>
             )}
             {!overlayPending && (
               <>
+            {error && <div className="px-4 pt-3"><ErrorDisplay message={error} /></div>}
             <div className="flex items-center gap-3 px-4 py-3 border-b border-primary/6">
               <UserAvatar
                 avatarId={user.avatar_id}
