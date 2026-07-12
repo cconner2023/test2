@@ -46,7 +46,7 @@ export function authorizedBaseUnits(quantityAuthorized: number | null, packSize:
 export interface AuthGroup {
   /** SKO parent item id; null = the top-level (parentless) bucket. */
   skoId: string | null
-  /** SKO parent's name; null = top-level bucket (rendered as "Top-level items"). */
+  /** SKO parent's name; null = the top-level bucket (custom/wishlist pars — rendered as "Custom"). */
   skoName: string | null
   lines: AuthLine[]
   /** Σ authorizedBase over the group's lines — the LIN's total required base (EA) qty. */
@@ -102,6 +102,28 @@ export function isZoneShadow(it: {
   turned_in_at: string | null
 }): boolean {
   return !!it.represents_location_id && !it.deleted_at && !it.turned_in_at
+}
+
+/** A CUSTOM (wishlist / provider-par) line: a tracked item (quantity_authorized set) that sits
+ *  TOP-LEVEL — no LIN parent. This is the "I like to keep ~30 of these on hand, reorder when I'm
+ *  low" stock a provider wants that ISN'T on the MTOE/PHR (e.g. Zofran ODT). It reuses the
+ *  authorized-qty machinery with NO new column: the desired par IS quantity_authorized, on-hand
+ *  is the row's own count, and it folds into the same "x of par" shortage math. Distinct from a
+ *  LIN component (parent_item_id set) and a LIN container (quantity_authorized null). The one
+ *  behavioural difference: a custom line is self-ordered, so it never lands on the DA 2062 supply
+ *  shortage annex (you reorder it from the pharmacy, you don't requisition it). Live rows only. */
+export function isCustomPar(it: {
+  parent_item_id: string | null
+  quantity_authorized: number | null
+  deleted_at?: string | null
+  turned_in_at: string | null
+}): boolean {
+  return (
+    it.parent_item_id == null &&
+    it.quantity_authorized != null &&
+    !it.deleted_at &&
+    !it.turned_in_at
+  )
 }
 
 /** An AUTHORIZED TARGET (decoupled model): a tracked line (quantity_authorized set) with NO

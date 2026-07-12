@@ -70,6 +70,7 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
     const importTriggerRef = useRef<(() => void) | null>(null)
     const navigateZoneTriggerRef = useRef<((zoneId: string) => void) | null>(null)
     const openCustodyTriggerRef = useRef<(() => void) | null>(null)
+    const openShortagesTriggerRef = useRef<(() => void) | null>(null)
     const focusItemTriggerRef = useRef<((itemId: string) => void) | null>(null)
     const initRef = useRef(false)
 
@@ -149,6 +150,17 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
         })
         return () => cancelAnimationFrame(raf)
     }, [isVisible, propertyDrawerCustody, clearPropertyDeepLink])
+
+    // Deep-link from the mission-overview property widget → the Shortages report.
+    const propertyDrawerShortages = useNavigationStore(s => s.propertyDrawerShortages)
+    useEffect(() => {
+        if (!isVisible || !propertyDrawerShortages) return
+        const raf = requestAnimationFrame(() => {
+            openShortagesTriggerRef.current?.()
+            clearPropertyDeepLink()
+        })
+        return () => cancelAnimationFrame(raf)
+    }, [isVisible, propertyDrawerShortages, clearPropertyDeepLink])
 
     const handleSelectItem = useCallback((item: LocalPropertyItem) => {
         setSelectedItem(item)
@@ -310,6 +322,7 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                         onRegisterImport={(t) => { importTriggerRef.current = t }}
                         onRegisterNavigateZone={(t) => { navigateZoneTriggerRef.current = t }}
                         onRegisterOpenCustody={(t) => { openCustodyTriggerRef.current = t }}
+                        onRegisterOpenShortages={(t) => { openShortagesTriggerRef.current = t }}
                         onRegisterFocusItem={(t) => { focusItemTriggerRef.current = t }}
                     />
                 ) : (
@@ -332,6 +345,7 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                         onRegisterImport={(t) => { importTriggerRef.current = t }}
                         onRegisterNavigateZone={(t) => { navigateZoneTriggerRef.current = t }}
                         onRegisterOpenCustody={(t) => { openCustodyTriggerRef.current = t }}
+                        onRegisterOpenShortages={(t) => { openShortagesTriggerRef.current = t }}
                         onRegisterFocusItem={(t) => { focusItemTriggerRef.current = t }}
                     />
                 )}

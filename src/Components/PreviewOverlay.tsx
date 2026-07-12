@@ -94,6 +94,12 @@ interface PreviewOverlayProps {
   supplemental?: ReactNode
   /** When provided, shows an "Add" button in the action pill that reveals an inline input */
   onAdd?: (value: string) => void
+  /** Bump to imperatively open (reveal + focus) the inline add input — e.g. when the
+   *  "Add" affordance lives in a header ellipsis menu instead of the footer +. */
+  addOpenSignal?: number
+  /** Suppress the footer + button while keeping the inline add input available via
+   *  `addOpenSignal`. Use when the Add affordance is folded into a header menu. */
+  hideAddButton?: boolean
   /** Placeholder for the add input */
   addPlaceholder?: string
   /** Optional element rendered before the add input (e.g. category selector) */
@@ -137,6 +143,8 @@ export function PreviewOverlay({
   headerCard,
   supplemental,
   onAdd,
+  addOpenSignal,
+  hideAddButton,
   addPlaceholder = 'New item...',
   addPrefix,
   containerRef,
@@ -166,6 +174,16 @@ export function PreviewOverlay({
       requestAnimationFrame(() => addInputRef.current?.focus())
     }
   }, [addOpen])
+
+  // Reveal the add input on demand (header-menu "Add" trigger). Skip the initial
+  // mount value so the input doesn't spring open just from being rendered.
+  const lastAddSignalRef = useRef(addOpenSignal)
+  useEffect(() => {
+    if (addOpenSignal === undefined) return
+    if (lastAddSignalRef.current === addOpenSignal) return
+    lastAddSignalRef.current = addOpenSignal
+    if (onAdd) setAddOpen(true)
+  }, [addOpenSignal, onAdd])
 
   const handleAddConfirm = useCallback(() => {
     const trimmed = addValue.trim()
@@ -379,10 +397,10 @@ export function PreviewOverlay({
                 <div className="flex items-center justify-between px-0.5">
                   {footer ? (
                     footer
-                  ) : (actions.length > 0 || onAdd) ? (
+                  ) : (actions.length > 0 || (onAdd && !hideAddButton)) ? (
                     <div className="flex gap-1 bg-themewhite rounded-2xl px-1.5 py-1.5">
                       {orderedActions.map(renderAction)}
-                      {onAdd && (
+                      {onAdd && !hideAddButton && (
                         <button
                           onClick={() => setAddOpen(prev => !prev)}
                           className={`w-9 h-9 rounded-full flex items-center justify-center transition-all active:scale-95 ${

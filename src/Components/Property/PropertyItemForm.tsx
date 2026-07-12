@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback, useEffect, forwardRef, useImperativeHan
 import { X, Square, CheckSquare, Plus } from 'lucide-react'
 import { TextInput, PickerInput, DatePickerInput } from '@/Components/primitives/FormInputs'
 import { usePropertyStore } from '../../stores/usePropertyStore'
-import { isLinContainer } from '../../Utilities/propertyAuthorized'
+import { isCustomPar, isLinContainer } from '../../Utilities/propertyAuthorized'
 import { useShallow } from 'zustand/react/shallow'
 import type { LocalPropertyItem, ItemType, UnitOfIssue } from '../../Types/PropertyTypes'
 import { ROOT_LOCATION_NAME } from '../../Types/PropertyTypes'
@@ -108,9 +108,18 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
   // authorization-tracked (it carries no quantity_authorized, so it never multiplies or
   // contributes its own shortage; only its component lines do).
   const isNewLin = authAddFlow && parentItemId === ''
+  // Adding a CUSTOM (wishlist / provider-par) item — a top-level tracked line that isn't on the
+  // MTOE (e.g. "keep ~30 Zofran ODT, reorder when low"). Reuses the authorized-qty machinery: the
+  // desired par is quantity_authorized, but unlike an MTOE target it carries its OWN on-hand count
+  // (no LIN, no separate located stock to derive from). Selected via the '__custom__' sentinel in
+  // the LIN picker; parent_item_id resolves to null on save.
+  const isCustomAdd = authAddFlow && parentItemId === '__custom__'
   // Editing an existing LIN container (standalone item-LIN or a vehicle shadow) — the same
   // minimal name + LIN surface as building one; all stockable fields stay hidden.
   const editingIsLin = !!editingItem && isLinContainer(editingItem)
+  // A custom line, whether being added or edited — drives the "carries its own on-hand" field
+  // visibility (a custom par shows the Quantity field, an MTOE target hides it).
+  const isCustom = isCustomAdd || (!!editingItem && isCustomPar(editingItem))
   const [quantityAuthorized, setQuantityAuthorized] = useState(
     editingItem?.quantity_authorized != null ? String(editingItem.quantity_authorized) : ''
   )
@@ -257,6 +266,9 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
     if (!name.trim() || !clinicId) return
     // A LIN needs a Line Item Number — that code is what marks it as a PHR container.
     if ((isNewLin || editingIsLin) && !lin.trim()) return
+    // A custom (wishlist) item needs its desired par — that quantity_authorized is what makes it a
+    // tracked line (blank → it would save as untracked loose stock, not a wishlist par).
+    if (isCustomAdd && !quantityAuthorized.trim()) return
     setIsSaving(true)
 
     // Authorized (BOM) context allows on-hand 0 — an authorized-but-unreceived line is a
@@ -274,9 +286,12 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
       // on edit, which is the decoupled-model migration. EXCEPT a ZONE-SHADOW (a zone that is
       // a counted component — represents_location_id set): it stays located AT its zone so it
       // self-counts present and never collapses into a location-less target.
-      location_id: (authActive && !editingItem?.represents_location_id) ? null : (locationId || null),
+      // A custom (wishlist) line carries its OWN on-hand, so it is NOT a location-less target — it
+      // keeps whatever location it's given (may be none). Only MTOE targets collapse to null.
+      location_id: (authActive && !isCustom && !editingItem?.represents_location_id) ? null : (locationId || null),
       current_holder_id: holderId || null,
-      parent_item_id: parentItemId || null,
+      // '__custom__' is a picker sentinel, not a real parent — a custom line is top-level (null).
+      parent_item_id: (parentItemId && parentItemId !== '__custom__') ? parentItemId : null,
       expiry_date: expiryDate || null,
       notes: notes.trim() || null,
       is_serialized: isSerialized,
@@ -402,6 +417,7 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
     name, nomenclature, nsn, lin, serialNumbers, quantity,
     locationId, holderId, parentItemId, notes, expiryDate, isSerialized,
     itemType, unitOfIssue, packSize, authActive, quantityAuthorized, isNewLin, editingIsLin,
+    isCustomAdd, isCustom,
     isEdit, editingItem, clinicId, addItem, editItem, editLocation, locations, onClose, onEnrollNew, conditionCode,
   ])
 
@@ -431,21 +447,26 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
         </div>
       ) : authAddFlow ? (
         <>
-          {/* PHR pick 1 — which LIN (hand receipt) this belongs to. With no LINs yet the flow
-              FORCES building one first (no picker, prompt shown); once LINs exist the picker
-              defaults to assigning under one, with "+ New LIN" as an explicit choice. */}
-          {authorizedLinOptions.length === 0 ? (
+          {/* PHR pick 1 — which LIN (hand receipt) this belongs to, OR a Custom (wishlist) item
+              that isn't on the MTOE. With no LINs yet the prompt steers to building one first, but
+              the picker still offers New LIN + Custom so a wishlist par can be started any time.
+              Once LINs exist the picker defaults to assigning under one. */}
+          {authorizedLinOptions.length === 0 && (
             <p className="px-4 py-3 text-[10pt] text-tertiary border-b border-primary/6">
               Build your hand receipt first — add a LIN you're signed for, then assign items to it.
+              Or add a <span className="font-medium">Custom</span> item you want to keep stocked.
             </p>
-          ) : (
-            <PickerInput
-              value={parentItemId}
-              onChange={setParentItemId}
-              options={[...authorizedLinOptions, { value: '', label: '+ New LIN (top-level)' }]}
-              placeholder="Which LIN (hand receipt)"
-            />
           )}
+          <PickerInput
+            value={parentItemId}
+            onChange={setParentItemId}
+            options={[
+              ...authorizedLinOptions,
+              { value: '', label: '+ New LIN (top-level)' },
+              { value: '__custom__', label: '+ Custom item (wishlist)' },
+            ]}
+            placeholder="Which LIN (hand receipt)"
+          />
           {parentItemId === '' ? (
             /* Declaring a new LIN the cluster is signed for — the set / end-item itself. */
             <div className="flex items-stretch border-b border-primary/6">
@@ -456,6 +477,15 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
                 <TextInput value={lin} onChange={setLin} placeholder="LIN * (e.g. M30499)" required />
               </div>
             </div>
+          ) : isCustomAdd ? (
+            /* CUSTOM (wishlist) item — a top-level par that isn't on the MTOE. Name + optional
+               category/NSN here; the desired par (quantity_authorized) and on-hand count are the
+               stockable fields below. */
+            <>
+              <TextInput value={name} onChange={setName} placeholder="Item name * (e.g. Zofran ODT)" required />
+              <TextInput value={nomenclature} onChange={setNomenclature} placeholder="Category (optional, e.g. Antiemetic)" />
+              <TextInput value={nsn} onChange={setNsn} placeholder="Material/NSN (optional)" />
+            </>
           ) : (
             /* PHR pick 2 — the authorized component within the LIN. Role = nomenclature
                (quick-fill from existing roles or type a new one); name = the product held. */
@@ -547,7 +577,7 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
           inputMode="numeric"
           value={quantityAuthorized}
           onChange={setQuantityAuthorized}
-          placeholder="Authorized qty (BOM)"
+          placeholder={isCustom ? 'Desired qty (par) *' : 'Authorized qty (BOM)'}
         />
       )}
 
@@ -624,9 +654,10 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
         </div>
       ) : (
         <>
-          {/* On-hand qty is a physical-stock field — a target has none (derived from stock). */}
-          {!authActive && (
-            <TextInput type="number" value={quantity} onChange={setQuantity} placeholder="Quantity" />
+          {/* On-hand qty is a physical-stock field — an MTOE target has none (derived from stock),
+              but a custom (wishlist) par carries its own count, so it shows here. */}
+          {(!authActive || isCustom) && (
+            <TextInput type="number" value={quantity} onChange={setQuantity} placeholder={isCustom ? 'On hand now' : 'Quantity'} />
           )}
           <div className="flex items-stretch border-b border-primary/6">
             <div className="flex-1 min-w-0">

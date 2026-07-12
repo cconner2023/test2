@@ -32,7 +32,7 @@ interface AlgorithmCoverageViewProps {
 
 /**
  * Team-level drill-down for one algorithm: each soldier's composite competency
- * (STP + red flags + ddx + run), worst-first. Tapping a soldier offers Evaluate
+ * (STP + algorithm run), worst-first. Tapping a soldier offers Evaluate
  * (cascades to STPs) or Schedule. The algorithm peer of CoverageTasksView's
  * soldier-list, reached from the Coverage Gaps "Algorithm Coverage" subsection.
  */

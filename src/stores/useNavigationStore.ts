@@ -87,6 +87,7 @@ const CLOSE_ALL_DRAWERS = {
     propertyDrawerItemId: null as string | null,
     propertyDrawerZoneId: null as string | null,
     propertyDrawerCustody: false,
+    propertyDrawerShortages: false,
     showLoRaDrawer: false,
     showTC3Drawer: false,
     showMapOverlayDrawer: false,
@@ -138,6 +139,7 @@ interface NavigationState {
     propertyDrawerItemId: string | null
     propertyDrawerZoneId: string | null
     propertyDrawerCustody: boolean
+    propertyDrawerShortages: boolean
     showLoRaDrawer: boolean
     showTC3Drawer: boolean
     showMapOverlayDrawer: boolean
@@ -193,6 +195,8 @@ interface NavigationActions {
     openPropertyZone: (zoneId: string) => void
     /** Open the property drawer straight to the Custody / DA 2062 tab (search). */
     openPropertyCustody: () => void
+    /** Open the property drawer straight to the Shortages report (mission overview). */
+    openPropertyShortages: () => void
     clearPropertyDeepLink: () => void
     setShowLoRaDrawer: (show: boolean) => void
     setShowTC3Drawer: (show: boolean) => void
@@ -251,6 +255,7 @@ export const useNavigationStore = create<NavigationStore>()((set, get) => ({
     propertyDrawerItemId: null,
     propertyDrawerZoneId: null,
     propertyDrawerCustody: false,
+    propertyDrawerShortages: false,
     showLoRaDrawer: false,
     showTC3Drawer: false,
     showMapOverlayDrawer: false,
@@ -477,6 +482,7 @@ export const useNavigationStore = create<NavigationStore>()((set, get) => ({
         propertyDrawerItemId: show ? (itemId ?? null) : null,
         propertyDrawerZoneId: null,
         propertyDrawerCustody: false,
+        propertyDrawerShortages: false,
     })),
 
     clearPropertyDrawerItemId: () => set({ propertyDrawerItemId: null }),
@@ -488,6 +494,7 @@ export const useNavigationStore = create<NavigationStore>()((set, get) => ({
         propertyDrawerItemId: null,
         propertyDrawerZoneId: zoneId,
         propertyDrawerCustody: false,
+        propertyDrawerShortages: false,
     })),
 
     openPropertyCustody: () => set((s) => ({
@@ -497,9 +504,20 @@ export const useNavigationStore = create<NavigationStore>()((set, get) => ({
         propertyDrawerItemId: null,
         propertyDrawerZoneId: null,
         propertyDrawerCustody: true,
+        propertyDrawerShortages: false,
     })),
 
-    clearPropertyDeepLink: () => set({ propertyDrawerZoneId: null, propertyDrawerCustody: false }),
+    openPropertyShortages: () => set((s) => ({
+        ...CLOSE_ALL_DRAWERS,
+        ...PRESERVED_FIELDS(s),
+        showPropertyDrawer: true,
+        propertyDrawerItemId: null,
+        propertyDrawerZoneId: null,
+        propertyDrawerCustody: false,
+        propertyDrawerShortages: true,
+    })),
+
+    clearPropertyDeepLink: () => set({ propertyDrawerZoneId: null, propertyDrawerCustody: false, propertyDrawerShortages: false }),
 
     setShowLoRaDrawer: (show) => set((s) => ({
         ...(show ? CLOSE_ALL_DRAWERS : {}),

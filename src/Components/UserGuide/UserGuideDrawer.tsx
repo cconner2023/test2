@@ -12,6 +12,7 @@ import {
     USER_GUIDE_VERSION,
     type GuideBlock,
     type GuideChapter,
+    type GuideInline,
     type GuideSection,
 } from '@/Data/UserGuide';
 import { UserGuideTree } from './UserGuideTree';
@@ -22,11 +23,24 @@ interface UserGuideDrawerProps {
     onClose: () => void;
 }
 
+/** Flatten inline content to searchable plain text — string spans verbatim, button
+ *  segments contributing their label (or icon key) so "delete button" still matches. */
+const inlineText = (content: GuideInline): string =>
+    typeof content === 'string'
+        ? content
+        : content
+            .map((seg) =>
+                typeof seg === 'string' ? seg
+                    : typeof seg.btn === 'string' ? seg.btn
+                        : seg.btn.label ?? seg.btn.icon,
+            )
+            .join(' ');
+
 /** True if any p/sub/note text or list/steps item contains the query. */
 const blocksMatch = (blocks: GuideBlock[] | undefined, q: string): boolean =>
     (blocks ?? []).some((b) =>
-        'text' in b ? b.text.toLowerCase().includes(q)
-            : 'items' in b ? b.items.some((i) => i.toLowerCase().includes(q))
+        'text' in b ? inlineText(b.text).toLowerCase().includes(q)
+            : 'items' in b ? b.items.some((i) => inlineText(i).toLowerCase().includes(q))
                 : false,
     );
 

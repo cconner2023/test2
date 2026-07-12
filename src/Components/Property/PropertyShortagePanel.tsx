@@ -2,7 +2,6 @@ import { useMemo, useState, forwardRef, useImperativeHandle } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { ChevronRight, ChevronDown, FileText, PackageCheck, ClipboardList } from 'lucide-react'
 import { SearchInput } from '@/Components/primitives/SearchInput'
-import { FillBar } from '@/Components/primitives/FillBar'
 import { LiftedRowMenu } from '@/Components/primitives/LiftedRowMenu'
 import { type ContextMenuItem } from '@/Components/primitives/ContextMenu'
 import { usePropertyStore } from '../../stores/usePropertyStore'
@@ -66,7 +65,7 @@ export const PropertyShortagePanel = forwardRef<PropertyShortageHandle, Property
 
     // Group the short lines under their LIN (SKO parent) so the report reads as a tree that
     // matches the hand receipt. The rep item's parent_item_id resolves the LIN container
-    // (its name + LIN code); lines with no parent fall into a "Top-level items" bucket last.
+    // (its name + LIN code); lines with no parent (custom/wishlist pars) fall into a "Custom" bucket last.
     const groups = useMemo<ShortGroup[]>(() => {
       const map = new Map<string, ShortGroup>()
       for (const l of report.lines) {
@@ -122,7 +121,9 @@ export const PropertyShortagePanel = forwardRef<PropertyShortageHandle, Property
 
     const exportAnnex = () => {
       const params: DA2062Params = {
-        items: report.lines.map(l => ({
+        // Custom (wishlist) lines are self-ordered from the pharmacy — never requisitioned from
+        // supply, so they're excluded from the DA 2062 shortage annex.
+        items: report.lines.filter(l => !l.custom).map(l => ({
           name: l.name,
           nomenclature: l.nomenclature,
           nsn: l.nsn,
@@ -195,7 +196,7 @@ export const PropertyShortagePanel = forwardRef<PropertyShortageHandle, Property
                     {isCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
                   </button>
                   <div className="min-w-0 flex-1">
-                    <span className="block text-[10pt] font-bold text-primary truncate">{g.linName ?? 'Top-level items'}</span>
+                    <span className="block text-[10pt] font-bold text-primary truncate">{g.linName ?? 'Custom'}</span>
                     {g.lin && <span className="block text-[9pt] text-tertiary">LIN {g.lin}</span>}
                   </div>
                   {/* LIN rollup — total short across this LIN's lines (all red; the panel only
@@ -224,14 +225,9 @@ export const PropertyShortagePanel = forwardRef<PropertyShortageHandle, Property
                           {l.nomenclature && <span className="block text-[9pt] text-tertiary truncate">{l.nomenclature}</span>}
                           {l.nsn && <span className="block text-[9pt] text-tertiary truncate">Material/NSN {l.nsn}</span>}
                         </button>
-                        {/* Fill bar — how much of the authorized qty is on hand; the signed
-                            shortfall stays the trailing value, always red. */}
-                        <FillBar
-                          percent={l.authorized > 0 ? Math.round((Math.min(l.onHand, l.authorized) / l.authorized) * 100) : 0}
-                          value={`-${l.short}`}
-                          valueClassName="text-themeredred"
-                          className="w-28 shrink-0"
-                        />
+                        {/* Signed shortfall only — the completion bar lives on the LIN rollup
+                            header, not per short line. */}
+                        <span className="text-[10pt] font-semibold text-themeredred tabular-nums shrink-0">-{l.short}</span>
                       </div>
                     )
                   })}

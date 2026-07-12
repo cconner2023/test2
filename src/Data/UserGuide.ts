@@ -26,17 +26,41 @@
  * falls back to `src` when omitted.
  */
 
+import type { GuideIconName } from '../Components/UserGuide/guideIcons';
+
+/**
+ * Decorative replica of a button the user will actually tap. Rendered icon-only
+ * (matching the real ActionButton variant colors) so readers recognize the
+ * control on screen — it is NOT interactive. `label` feeds the tooltip / screen
+ * reader; set it when the icon alone is ambiguous.
+ */
+export interface GuideButton {
+    icon: GuideIconName;
+    variant?: 'default' | 'danger' | 'success';
+    label?: string;
+}
+
+/** Shorthand: a bare icon key (`'plus'`) or a full GuideButton for variant/label. */
+export type GuideButtonRef = GuideIconName | GuideButton;
+
+/**
+ * Inline text that MAY carry button replicas. A plain string is the common case
+ * (and keeps every existing block valid); an array interleaves text spans with
+ * `{ btn }` segments: `['Tap ', { btn: 'plus' }, ' to add a patient.']`.
+ */
+export type GuideInline = string | Array<string | { btn: GuideButtonRef }>;
+
 export type GuideBlock =
     /** Body paragraph. */
-    | { kind: 'p'; text: string }
+    | { kind: 'p'; text: GuideInline }
     /** Bold inline header inside a section/subsection. */
     | { kind: 'sub'; text: string }
     /** Bulleted list. */
-    | { kind: 'list'; items: string[] }
+    | { kind: 'list'; items: GuideInline[] }
     /** Numbered, do-this-then-that steps. */
-    | { kind: 'steps'; items: string[] }
+    | { kind: 'steps'; items: GuideInline[] }
     /** Highlighted callout / tip / caveat. */
-    | { kind: 'note'; text: string }
+    | { kind: 'note'; text: GuideInline }
     /**
      * Inline figure. Desktop floats it into the paragraph flow on the given side
      * (default right) using `src`. Mobile can't afford the width, so it renders as
@@ -172,7 +196,7 @@ export const UserGuide: GuideChapter[] = [
                     { kind: 'p', text: 'The calendar carries your cluster\'s schedule — coverage, ranges, duty locations, appointments, and training. The bar across the bottom (the "island") switches between Month, Day, and Troops to Task and carries the round + button for creating events.' },
                     { kind: 'sub', text: 'Create an event' },
                     { kind: 'steps', items: [
-                        'Tap the round + ("Add event") on the bottom island, then tap New Event. (Or long-press a day to get a quick "Add Event" that pre-fills that date.)',
+                        ['Tap the round ', { btn: 'plus' }, ' ("Add event") on the bottom island, then tap New Event. (Or long-press a day to get a quick "Add Event" that pre-fills that date.)'],
                         'Enter an Event title (required) and pick a Category — Training, Duty, Range, Appointment, Mission, MEDEVAC, Huddle, Leave, or Other.',
                         'Set the time: toggle All day, or set Start date / time and End date / time. Pick a color swatch if you want to code it.',
                         'Optionally add a Location (links a map overlay), Description / OPORD notes, Equipment (property items), and Personnel (who is assigned).',
@@ -182,7 +206,7 @@ export const UserGuide: GuideChapter[] = [
                     { kind: 'sub', text: 'Edit, move, or delete' },
                     { kind: 'steps', items: [
                         'Tap an event to open its detail view.',
-                        'Tap the … (More) menu for Edit, Move, Share to chat, Add to phone calendar, or Delete.',
+                        ['Tap the ', { btn: 'more-horizontal' }, ' (More) menu for Edit, Move, Share to chat, Add to phone calendar, or Delete.'],
                         'Edit reopens the form (with a Status row — Pending / Active / Done / Cancelled). Change what you need and Save.',
                         'Move puts you in move-mode — tap a day in the month view to relocate the event.',
                         'Delete asks you to confirm ("Delete event?"); it is removed for every cluster member.',

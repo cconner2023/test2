@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { ChevronRight, ClipboardCheck, CalendarPlus } from 'lucide-react'
+import { ChevronRight, ClipboardCheck, CalendarPlus, CheckCircle2, Circle, CircleDot, XCircle, type LucideIcon } from 'lucide-react'
 import { listAlgorithmsWithStp } from '../../../Utilities/algorithmStp'
 import { ActionButton } from '@/Components/primitives/ActionButton'
 import { ActionPill } from '@/Components/primitives/ActionPill'
@@ -14,10 +14,46 @@ function readinessTextColor(pct: number): string {
   return pct >= 50 ? 'text-themeblue3' : 'text-themeredred'
 }
 
+// ─── Drill-down signal row ───────────────────────────────────────────────────
+// The per-algorithm drill shows three plain-language signals instead of the old
+// STP/red-flags/DDX/run competency bars (red flags + DDX aren't GO/NO_GO
+// testable). Each row = icon + label + right-aligned status. USR 2026-07-12.
+type SignalTone = 'good' | 'warn' | 'bad' | 'muted'
+
+const TONE_TEXT: Record<SignalTone, string> = {
+  good: 'text-themegreen',
+  warn: 'text-themeyellow',
+  bad: 'text-themeredred',
+  muted: 'text-tertiary',
+}
+
+function SignalRow({
+  icon: Icon,
+  label,
+  value,
+  tone,
+}: {
+  icon: LucideIcon
+  label: string
+  value: string
+  tone: SignalTone
+}) {
+  return (
+    <div className="flex items-center gap-3 px-1 py-2">
+      <Icon size={16} className={`${TONE_TEXT[tone]} shrink-0`} />
+      <span className="text-sm text-primary flex-1 min-w-0 truncate">{label}</span>
+      <span className={`text-[9pt] font-semibold shrink-0 ${TONE_TEXT[tone]}`}>{value}</span>
+    </div>
+  )
+}
+
 interface SoldierAlgorithmListProps {
   /** This soldier's per-algorithm composite competency (sorted; we regroup). */
   competency: AlgorithmCompetency[]
-  /** Evaluate a whole algorithm — cascades through its STPs + synthetic dims. */
+  /** training_item_ids this soldier has a `read` completion for. An algorithm id
+   *  in this set means the medic has run/read that algorithm (logNow). */
+  ranAlgorithmIds: Set<string>
+  /** Evaluate a whole algorithm — cascades through its STPs + the run dimension. */
   onEvaluateAlgorithm?: (algorithmId: string, algorithmName: string) => void
   /** Schedule algorithm training for this soldier (prefilled calendar event). */
   onScheduleAlgorithm?: (algorithmId: string, algorithmName: string) => void
@@ -32,6 +68,7 @@ interface SoldierAlgorithmListProps {
  */
 export function SoldierAlgorithmList({
   competency,
+  ranAlgorithmIds,
   onEvaluateAlgorithm,
   onScheduleAlgorithm,
 }: SoldierAlgorithmListProps) {
@@ -97,7 +134,7 @@ export function SoldierAlgorithmList({
         ))
       )}
 
-      {/* Algorithm competency drill-down — per-dimension breakdown + evaluate/schedule */}
+      {/* Algorithm drill-down — three plain signals + evaluate/schedule */}
       <PreviewOverlay
         isOpen={!!detail}
         onClose={() => setDetail(null)}
@@ -136,26 +173,41 @@ export function SoldierAlgorithmList({
           ) : undefined
         }
       >
-        {detail && (
-          <div className="space-y-3 py-1">
-            {detail.comp.dims.map((d) => {
-              const dimPct = d.total ? Math.round((d.validated / d.total) * 100) : 0
-              return (
-                <div key={d.dim} className="flex items-center gap-3">
-                  <span className="text-sm text-primary w-28 shrink-0 truncate">{d.label}</span>
-                  <div className="flex-1 min-w-0">
-                    <div className="h-1.5 rounded-full bg-tertiary/10 overflow-hidden">
-                      <div className={`h-full rounded-full ${readinessColor(dimPct)}`} style={{ width: `${dimPct}%` }} />
-                    </div>
-                  </div>
-                  <span className={`text-[9pt] font-medium w-10 text-right shrink-0 ${d.met ? 'text-themegreen' : readinessTextColor(dimPct)}`}>
-                    {d.validated}/{d.total}
-                  </span>
-                </div>
-              )
-            })}
-          </div>
-        )}
+        {detail && (() => {
+          const comp = detail.comp
+          const stpDim = comp.dims.find((d) => d.dim === 'stp')
+          const runDim = comp.dims.find((d) => d.dim === 'run')
+          const ran = ranAlgorithmIds.has(comp.id)
+
+          // 1. Did they do the STPs? — supervisor test-GO on the mapped STP tasks.
+          const stp: { tone: SignalTone; icon: LucideIcon; value: string } = !stpDim
+            ? { tone: 'muted', icon: Circle, value: 'No STP tasks' }
+            : stpDim.met
+              ? { tone: 'good', icon: CheckCircle2, value: `${stpDim.validated}/${stpDim.total}` }
+              : stpDim.validated > 0
+                ? { tone: 'warn', icon: CircleDot, value: `${stpDim.validated}/${stpDim.total}` }
+                : { tone: 'muted', icon: Circle, value: `0/${stpDim.total}` }
+
+          // 3. Have they been evaluated? — a supervisor `test` on the run-through.
+          const evalSig: { tone: SignalTone; icon: LucideIcon; value: string } = !runDim?.graded
+            ? { tone: 'muted', icon: Circle, value: 'Not evaluated' }
+            : runDim.met
+              ? { tone: 'good', icon: CheckCircle2, value: 'GO' }
+              : { tone: 'bad', icon: XCircle, value: 'NO-GO' }
+
+          return (
+            <div className="py-1 divide-y divide-tertiary/8">
+              <SignalRow icon={stp.icon} label="STPs completed" value={stp.value} tone={stp.tone} />
+              <SignalRow
+                icon={ran ? CheckCircle2 : Circle}
+                label="Ran the algorithm"
+                value={ran ? 'Yes' : 'Not yet'}
+                tone={ran ? 'good' : 'muted'}
+              />
+              <SignalRow icon={evalSig.icon} label="Evaluated" value={evalSig.value} tone={evalSig.tone} />
+            </div>
+          )
+        })()}
       </PreviewOverlay>
     </div>
   )

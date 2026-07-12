@@ -214,7 +214,7 @@ export function SoldierProfile({
     })
   }, [certs])
 
-  /** Per-algorithm composite competency for this soldier (STP + red flags + ddx + run). */
+  /** Per-algorithm composite competency for this soldier (STP + algorithm run). */
   const algorithmCompetency = useMemo(() => buildAlgorithmCompetency(tests), [tests])
   const algorithmTrainedCount = useMemo(
     () => algorithmCompetency.filter(a => a.status === 'trained').length,

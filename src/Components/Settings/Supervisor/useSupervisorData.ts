@@ -44,6 +44,9 @@ export interface SupervisorData {
   certsForSoldier: (userId: string) => Certification[]
   /** Get test history for a specific soldier */
   testsForSoldier: (userId: string) => TrainingCompletionUI[]
+  /** Get `read` completions for a soldier — includes algorithm-id reads (a medic
+   *  running/reading an algorithm, via useAlgorithmMetrics.logNow) and STP reads. */
+  readsForSoldier: (userId: string) => TrainingCompletionUI[]
   /** Get assignments for a specific soldier */
   assignmentsForSoldier: (userId: string) => TrainingCompletionUI[]
   /** Get overdue items: expired/expiring certs + NO_GO tests */
@@ -73,6 +76,7 @@ export interface SupervisorData {
 export function useSupervisorData(): SupervisorData {
   const [certs, setCerts] = useState<Certification[]>([])
   const [tests, setTests] = useState<TrainingCompletionUI[]>([])
+  const [reads, setReads] = useState<TrainingCompletionUI[]>([])
   const [assignments, setAssignments] = useState<TrainingCompletionUI[]>([])
 
   const { medics: allLocationMedics, loading: medicsLoading } = useClinicMedics()
@@ -159,6 +163,7 @@ export function useSupervisorData(): SupervisorData {
       ])
       setCerts(certsData)
       setTests(folded.filter((c) => c.completionType === 'test'))
+      setReads(folded.filter((c) => c.completionType === 'read'))
       setAssignments(folded.filter((c) => c.completionType === 'assignment'))
     } catch (err) {
       logger.error('Failed to fetch certs/tests:', err)
@@ -179,6 +184,10 @@ export function useSupervisorData(): SupervisorData {
   const testsForSoldier = useCallback((userId: string) => {
     return tests.filter(t => t.userId === userId)
   }, [tests])
+
+  const readsForSoldier = useCallback((userId: string) => {
+    return reads.filter(r => r.userId === userId)
+  }, [reads])
 
   const assignmentsForSoldier = useCallback((userId: string) => {
     return assignments.filter(a => a.userId === userId)
@@ -244,6 +253,7 @@ export function useSupervisorData(): SupervisorData {
     tests,
     certsForSoldier,
     testsForSoldier,
+    readsForSoldier,
     assignmentsForSoldier,
     overdueItems,
     resolveName,

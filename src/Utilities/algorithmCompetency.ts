@@ -1,18 +1,21 @@
 /**
  * algorithmCompetency — treats an ADTMC algorithm as a composite training
- * CATEGORY (like "Medication Management"), scored as the sum of four dimensions:
+ * CATEGORY (like "Medication Management"), scored as the sum of two dimensions:
  *
  *   • STP data      — the algorithm's mapped STP tasks (real `test` completions)
- *   • Red flags     — recognizing the escalation triggers (synthetic dim)
- *   • Differentials — the DDX the medic must consider (synthetic dim)
  *   • Algorithm run — executing the decision tree to disposition (synthetic dim)
  *
- * STPs are already gradeable. The three non-STP dimensions are display-only text
- * in CatData (`redFlags[]`, `DDX[]`) or live in Algorithms.ts (the tree), so they
- * are made measurable here WITHOUT a schema change: each is minted a synthetic
- * `training_completions` key — `algo:<id>:redflags|ddx|run` — and synthesized into
+ * NOTE (2026-07-12, USR): Red flags and Differentials USED TO be synthetic
+ * competency dimensions here, but they aren't genuinely testable via a GO/NO_GO
+ * rubric, so they were dropped from the scored model — `ALGO_SYNTH_DIMS` is now
+ * just `run`. Their labels/synthesis helpers remain (below) so any historical
+ * `algo:<id>:redflags|ddx` completions still parse, but nothing new grades them.
+ *
+ * STPs are already gradeable. The Algorithm-run dimension lives in Algorithms.ts
+ * (the tree), so it is made measurable here WITHOUT a schema change: it is minted
+ * a synthetic `training_completions` key — `algo:<id>:run` — and synthesized into
  * EvaluationStep-compatible task data so the existing supervisor GO/NO_GO flow
- * grades them like any STP.
+ * grades it like any STP.
  *
  * Cross-links: src/Utilities/algorithmStp.ts (STP mapping), supervisorHelpers.ts
  * (buildAlgorithmCompetency rollup), EvaluationStep.tsx (getEvaluableTaskData).
@@ -24,7 +27,11 @@ import { getTaskData, isTaskTestable, type TaskTrainingData, type PerformanceSte
 
 /** Synthetic (non-STP) competency dimensions of an algorithm. */
 export type AlgoSynthDim = 'redflags' | 'ddx' | 'run'
-export const ALGO_SYNTH_DIMS: readonly AlgoSynthDim[] = ['redflags', 'ddx', 'run']
+// Only `run` is a scored dimension. `redflags`/`ddx` are retained in the type +
+// label/synthesis helpers for back-compat with any historical completions, but
+// they are NOT in this list, so buildAlgorithmCompetency + listAlgorithmEvalUnits
+// no longer score or evaluate them (USR 2026-07-12 — not GO/NO_GO testable).
+export const ALGO_SYNTH_DIMS: readonly AlgoSynthDim[] = ['run']
 
 const ALGO_KEY_PREFIX = 'algo:'
 

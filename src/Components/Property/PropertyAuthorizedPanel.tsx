@@ -156,7 +156,7 @@ export function PropertyAuthorizedPanel({ onEdit, onView }: PropertyAuthorizedPa
                   className="min-w-0 flex-1 text-left"
                   onClick={() => container && onView(container)}
                 >
-                  <span className="block text-[10pt] font-bold text-primary truncate">{g.skoName ?? 'Top-level items'}</span>
+                  <span className="block text-[10pt] font-bold text-primary truncate">{g.skoName ?? 'Custom'}</span>
                   {container?.lin && <span className="block text-[9pt] text-tertiary">LIN {container.lin}</span>}
                 </button>
                 {/* Fill rollup for the whole LIN — Σ on-hand vs Σ authorized (base units) as a
@@ -196,19 +196,11 @@ export function PropertyAuthorizedPanel({ onEdit, onView }: PropertyAuthorizedPa
                         {l.nomenclature && <span className="block text-[9pt] text-tertiary truncate">{l.nomenclature}</span>}
                         {l.nsn && <span className="block text-[9pt] text-tertiary truncate">Material/NSN {l.nsn}</span>}
                       </button>
-                      {/* On-hand / authorized (base EA units, directly comparable) as a fill bar —
-                          the count stays the trailing value; the bar reads red when short. */}
-                      {l.authorizedBase > 0 ? (
-                        <FillBar
-                          percent={Math.round((Math.min(l.onHand, l.authorizedBase) / l.authorizedBase) * 100)}
-                          value={`${l.onHand} / ${l.authorizedBase}`}
-                          className="w-28 shrink-0"
-                        />
-                      ) : (
-                        <span className="text-[10pt] text-tertiary tabular-nums shrink-0">
-                          {l.onHand} / {l.authorizedBase}
-                        </span>
-                      )}
+                      {/* On-hand / authorized (base EA units) as a plain count — the completion
+                          bar lives only on the LIN rollup header, not per component. */}
+                      <span className="text-[10pt] text-tertiary tabular-nums shrink-0">
+                        {l.onHand} / {l.authorizedBase}
+                      </span>
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); comp && openMenu(comp, 'component', (e.currentTarget as HTMLElement).getBoundingClientRect()) }}

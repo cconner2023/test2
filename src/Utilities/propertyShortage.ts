@@ -13,7 +13,7 @@
  *           many sets it's short in (count-local, order-global).
  */
 import type { LocalPropertyItem } from '../Types/PropertyTypes'
-import { authorizedBaseUnits, lineKeyOf } from './propertyAuthorized'
+import { authorizedBaseUnits, isCustomPar, lineKeyOf } from './propertyAuthorized'
 
 export interface ShortageLine {
   /** Representative item id for the aggregated (LIN+NSN) line — a React key, not a 1:1
@@ -29,6 +29,10 @@ export interface ShortageLine {
   short: number
   /** SKO/LIN parent name when this line is a kit component; null = top-level. */
   skoName: string | null
+  /** CUSTOM (wishlist / provider-par) line — top-level tracked stock that isn't on the MTOE
+   *  (see isCustomPar). Surfaces short like any other line, but is EXCLUDED from the DA 2062
+   *  supply annex (self-ordered, not requisitioned) and groups under the "Custom" branch. */
+  custom: boolean
 }
 
 export interface OrderLine {
@@ -125,6 +129,7 @@ export function computeShortages(
       onHand: a.onHand,
       short,
       skoName: it.parent_item_id ? nameById.get(it.parent_item_id) ?? null : null,
+      custom: isCustomPar(it),
     })
   }
   lines.sort((a, b) => b.short - a.short)
@@ -143,8 +148,11 @@ export function computeShortages(
     }
     return a
   }
-  for (const it of live) ensure(it).onHand += onHandOf(it)
-  for (const it of tracked) ensure(it).authorized += authBase(it)
+  // Custom (wishlist) lines are self-ordered — keep them out of the cluster requisition entirely
+  // (both the on-hand pool and the authorized demand). Loose stock (quantity_authorized null) is
+  // NOT custom, so it still counts toward what you already hold.
+  for (const it of live) if (!isCustomPar(it)) ensure(it).onHand += onHandOf(it)
+  for (const it of tracked) if (!isCustomPar(it)) ensure(it).authorized += authBase(it)
 
   const orders: OrderLine[] = []
   for (const a of agg.values()) {

@@ -1,7 +1,8 @@
-import { useState, type ReactNode } from 'react';
+import { Fragment, useState, type ReactNode } from 'react';
 import { Image as ImageIcon, ImageOff } from 'lucide-react';
 import { PreviewOverlay } from '../PreviewOverlay';
-import type { GuideBlock, GuideChapter } from '../../Data/UserGuide';
+import type { GuideBlock, GuideButtonRef, GuideChapter, GuideInline } from '../../Data/UserGuide';
+import { GuideIconRegistry } from './guideIcons';
 
 interface UserGuideBodyProps {
     /** Already role-gated + search-filtered chapters. */
@@ -68,6 +69,46 @@ function GuidePreviewImg({ preview }: { preview: PreviewState }) {
     );
 }
 
+/** Variant colors lifted from primitives/ActionButton so the replica reads as the real control. */
+const GUIDE_BTN_STYLES: Record<NonNullable<Exclude<GuideButtonRef, string>['variant']>, string> = {
+    default: 'bg-themeblue2/8 text-primary',
+    danger: 'bg-themeredred/8 text-themeredred',
+    success: 'bg-themeblue2 text-white',
+};
+
+/** Humanize an icon key for the fallback tooltip/label ('trash-2' → 'Trash 2'). */
+const humanizeIcon = (key: string) => key.replace(/-/g, ' ').replace(/^\w/, (c) => c.toUpperCase());
+
+/**
+ * Decorative, icon-only replica of a real ActionButton, sized in `em` so it rides
+ * the text line. Not interactive (role="img"); `label` drives tooltip + a11y.
+ */
+function GuideButtonGlyph({ btn }: { btn: GuideButtonRef }) {
+    const b = typeof btn === 'string' ? { icon: btn } : btn;
+    const Icon = GuideIconRegistry[b.icon];
+    const label = b.label ?? `${humanizeIcon(b.icon)} button`;
+    return (
+        <span
+            role="img"
+            aria-label={label}
+            title={label}
+            className={`inline-flex items-center justify-center align-middle w-[1.55em] h-[1.55em] mx-[0.15em] -my-[0.2em] rounded-full ${GUIDE_BTN_STYLES[b.variant ?? 'default']}`}
+        >
+            <Icon className="w-[0.95em] h-[0.95em]" />
+        </span>
+    );
+}
+
+/** A string renders verbatim; a segment array interleaves text with button replicas. */
+function renderInline(content: GuideInline): ReactNode {
+    if (typeof content === 'string') return content;
+    return content.map((seg, i) =>
+        typeof seg === 'string'
+            ? <Fragment key={i}>{seg}</Fragment>
+            : <GuideButtonGlyph key={i} btn={seg.btn} />,
+    );
+}
+
 /** Renders the guide body like a PDF. Images float inline on desktop; on mobile they collapse to an "Image" link that opens the figure full-size in a primitive PreviewOverlay. */
 export function UserGuideBody({ chapters, isMobile }: UserGuideBodyProps) {
     const [preview, setPreview] = useState<PreviewState | null>(null);
@@ -100,14 +141,14 @@ export function UserGuideBody({ chapters, isMobile }: UserGuideBodyProps) {
             case 'sub':
                 return <p key={key} className="text-[10.5pt] font-semibold text-primary mt-4 mb-1.5">{block.text}</p>;
             case 'p':
-                return <p key={key} className="text-[10.5pt] text-secondary leading-relaxed mb-2.5">{block.text}</p>;
+                return <p key={key} className="text-[10.5pt] text-secondary leading-relaxed mb-2.5">{renderInline(block.text)}</p>;
             case 'list':
                 return (
                     <ul key={key} className="mb-2.5 space-y-1.5">
                         {block.items.map((item, i) => (
                             <li key={i} className="flex gap-2.5 text-[10.5pt] text-secondary leading-relaxed">
                                 <span className="shrink-0 mt-[0.55em] w-1 h-1 rounded-full bg-tertiary/60" />
-                                <span>{item}</span>
+                                <span>{renderInline(item)}</span>
                             </li>
                         ))}
                     </ul>
@@ -118,7 +159,7 @@ export function UserGuideBody({ chapters, isMobile }: UserGuideBodyProps) {
                         {block.items.map((item, i) => (
                             <li key={i} className="flex gap-2.5 text-[10.5pt] text-secondary leading-relaxed">
                                 <span className="shrink-0 text-tertiary tabular-nums">{i + 1}.</span>
-                                <span>{item}</span>
+                                <span>{renderInline(item)}</span>
                             </li>
                         ))}
                     </ol>
@@ -128,7 +169,7 @@ export function UserGuideBody({ chapters, isMobile }: UserGuideBodyProps) {
                 // marks it as an aside without introducing a second text color.
                 return (
                     <p key={key} className="text-[10.5pt] text-secondary leading-relaxed mb-2.5 pl-3 border-l-2 border-themeblue2/30">
-                        {block.text}
+                        {renderInline(block.text)}
                     </p>
                 );
         }

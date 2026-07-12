@@ -74,11 +74,12 @@ export function groupEncounters(events: CalendarEvent[]): EncounterGroup[] {
 
 // ─── Algorithm Competency (composite category) ───────────────────────────────
 // Treats an algorithm as a training CATEGORY (like "Medication Management"),
-// scored as the SUM of four dimensions: STP data + red flags + differentials +
-// algorithm run. Distinct from the Encounter Log (which counts how often an
-// algorithm was LOGGED). Each dimension is derived from supervisor `test`
-// completions: STP dims read the mapped STP task numbers; the synthetic dims read
-// `algo:<id>:<dim>` keys (see Utilities/algorithmCompetency).
+// scored as the SUM of two dimensions: STP data + algorithm run. (Red flags +
+// differentials were dropped from the scored model 2026-07-12 — not GO/NO_GO
+// testable; see Utilities/algorithmCompetency ALGO_SYNTH_DIMS.) Distinct from the
+// Encounter Log (which counts how often an algorithm was LOGGED). Each dimension
+// is derived from supervisor `test` completions: the STP dim reads the mapped STP
+// task numbers; the run dim reads the `algo:<id>:run` key.
 
 export type AlgorithmCompetencyLevel = 'trained' | 'partial' | 'untrained'
 
@@ -91,6 +92,10 @@ export interface AlgorithmDimScore {
   total: number
   /** True when every graded item in the dimension is GO. */
   met: boolean
+  /** True when a supervisor `test` completion exists for this dimension at all
+   *  (regardless of GO/NO_GO) — i.e. it has actually been evaluated. Lets the
+   *  per-soldier drill distinguish "not evaluated" from "evaluated all NO_GO". */
+  graded: boolean
 }
 
 export interface AlgorithmCompetency {
@@ -130,7 +135,8 @@ export function buildAlgorithmCompetency(
     const stpKeys = a.taskNumbers.filter(isTaskTestable)
     if (stpKeys.length > 0) {
       const validated = stpKeys.filter((tn) => latestByTask.get(tn)?.result === 'GO').length
-      dims.push({ dim: 'stp', label: 'STP data', validated, total: stpKeys.length, met: validated >= stpKeys.length })
+      const graded = stpKeys.some((tn) => latestByTask.has(tn))
+      dims.push({ dim: 'stp', label: 'STP data', validated, total: stpKeys.length, met: validated >= stpKeys.length, graded })
     }
 
     // Synthetic dimensions — only those with backing content.
@@ -139,7 +145,8 @@ export function buildAlgorithmCompetency(
       if (!data) continue
       const total = data.gradedSteps?.length ?? 0
       const validated = synthValidated(latestByTask.get(algoDimKey(a.id, dim)), total)
-      dims.push({ dim, label: algoDimLabel(dim), validated, total, met: total > 0 && validated >= total })
+      const graded = latestByTask.has(algoDimKey(a.id, dim))
+      dims.push({ dim, label: algoDimLabel(dim), validated, total, met: total > 0 && validated >= total, graded })
     }
 
     const totalItems = dims.reduce((s, d) => s + d.total, 0)

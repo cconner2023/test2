@@ -195,16 +195,15 @@ export interface UserTypes {
     avatarBlob?: AvatarBlob | null
 }
 
-export type OverviewWidgetId = 'task-list' | 'map-overlay' | 'kanban' | 'week-view' | 'messages' | 'weather' | 'huddle'
+export type OverviewWidgetId = 'task-list' | 'map-overlay' | 'week-view' | 'property' | 'messages' | 'weather'
 
 export const OVERVIEW_WIDGET_META: Record<OverviewWidgetId, { label: string; subtitle: string; disabled?: boolean }> = {
   'task-list':   { label: 'Task List',    subtitle: 'Your assigned tasks for the day' },
   'map-overlay': { label: 'Map',          subtitle: 'Mission area map thumbnail' },
-  'kanban':      { label: 'Kanban',       subtitle: 'Events grouped by status' },
   'week-view':   { label: 'Week View',    subtitle: '7-day event summary strip' },
+  'property':    { label: 'Property',     subtitle: 'Shortages & expiring dispatches' },
   'messages':    { label: 'Messages',     subtitle: 'Recent encrypted messages' },
   'weather':     { label: 'Weather',      subtitle: 'Current temp, humidity & heat category' },
-  'huddle':      { label: 'Daily Huddle', subtitle: "Today's huddle by station" },
 }
 
 // NOTE: order matters — noteParser.ts encodes credential by array index.

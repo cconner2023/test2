@@ -161,6 +161,7 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
     clinicName,
     certsForSoldier,
     testsForSoldier,
+    readsForSoldier,
     assignmentsForSoldier,
     resolveName,
     updateCert,
@@ -798,6 +799,7 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
           <ScrollPane className={scrollPaneCls}>
             <SoldierAlgorithmList
               competency={buildAlgorithmCompetency(testsForSoldier(soldier.id))}
+              ranAlgorithmIds={new Set(readsForSoldier(soldier.id).map(r => r.trainingItemId))}
               onEvaluateAlgorithm={(algorithmId, algorithmName) => handleEvaluateAlgorithm(soldier, algorithmId, algorithmName)}
               onScheduleAlgorithm={(algorithmId, algorithmName) => handleScheduleAlgorithm(soldier, algorithmId, algorithmName)}
             />

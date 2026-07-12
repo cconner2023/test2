@@ -426,9 +426,9 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
 
   const explode = useMemo((): ExplodeSpec | undefined => {
     if (!explodeContainerId) return undefined
-    const rects = computeExplodeOffsets(getLevels(locations, explodeContainerId))
+    const rects = computeExplodeOffsets(getLevels(locations, explodeContainerId), surfacedLevelId)
     return rects.size > 0 ? { containerId: explodeContainerId, rects } : undefined
-  }, [explodeContainerId, locations])
+  }, [explodeContainerId, surfacedLevelId, locations])
 
   // Fanned floor tiles must render OPAQUE so they clip/occlude the floors beneath (a
   // shelf of drawers, not a translucent stack) — passed to LocationTagPhoto.
@@ -543,6 +543,11 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
       // Personnel + Turn-In zones never tile the overview — shown only once navigated
       // into (via carousel / tree / sheet); their contents then render via LOD/auto-pin.
       if (hiddenOverviewZoneIds.has(tag.target_id) && tag.target_id !== selectedId && !ancestorIds.has(tag.target_id)) return false
+      // Exploded building: every fanned floor tile stays visible regardless of LOD. The
+      // whole shelf is the current focus, so surfacing one floor (which makes the SELECTED
+      // level — not the container — the selection) must not let its sibling floors fall
+      // through to the LOD threshold and get culled, leaving only the surfaced floor.
+      if (opaqueZoneIds?.has(tag.target_id)) return true
       const depth = depthOf.get(tag.target_id) ?? 0
       // Top-level zones (and root-canvas items) always visible
       if (depth === 0) return true
@@ -557,7 +562,7 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
       const parentFill = Math.max((parent.width ?? 0), (parent.height ?? 0)) * canvasScale
       return parentFill >= LOD_FILL_THRESHOLD
     })
-  }, [allWorldTags, rootLocationId, canvasScale, store.selectedZoneId, hiddenOverviewZoneIds])
+  }, [allWorldTags, rootLocationId, canvasScale, store.selectedZoneId, hiddenOverviewZoneIds, opaqueZoneIds])
 
   // ── Auto-rendered child zones (walks the full tag-less ancestry) ──
   // Child locations with NO drawn zone tag get a default grid rectangle laid out inside

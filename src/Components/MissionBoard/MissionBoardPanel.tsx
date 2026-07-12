@@ -1,6 +1,6 @@
 import { useCallback, useState, useEffect, useRef, useMemo } from 'react'
 import type { ReactNode } from 'react'
-import { ChevronLeft, ChevronRight, Pencil, Pin, Plus, Trash2, Users, MessageSquare, Map as MapIcon } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Pencil, Pin, Plus, Trash2, Users, MessageSquare, Map as MapIcon, Package } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useAuth } from '../../Hooks/useAuth'
 import { useNavigationStore } from '../../stores/useNavigationStore'
@@ -18,7 +18,6 @@ import type { OverviewWidgetId } from '../../Data/User'
 import { GESTURE_THRESHOLDS } from '../../Utilities/GestureUtils'
 import { useMessagingStore } from '../../stores/useMessagingStore'
 import { useClinicMedics } from '../../Hooks/useClinicMedics'
-import { useClinicHuddleTasks } from '../../Hooks/useClinicHuddleTasks'
 import { useLongPress } from '../../Hooks/useLongPress'
 import { getDisplayName } from '../../Utilities/nameUtils'
 import { lastActivityMessage, activityPreview } from '../../Utilities/conversationActivity'
@@ -28,6 +27,8 @@ import type { ClinicMedic } from '../../Types/SupervisorTestTypes'
 import type { GroupInfo } from '../../lib/signal/groupTypes'
 import { MissionMapCard } from './MissionMapCard'
 import { WeatherWidget } from './WeatherWidget'
+import { PropertyWidget } from './PropertyWidget'
+import { useFeatureGate } from '../../lib/featureGate'
 import {
   TaskRow, statusMenuItems,
   offsetDate,
@@ -42,16 +43,15 @@ import { ActionPill } from '@/Components/primitives/ActionPill'
 import { EmptyState } from '@/Components/primitives/EmptyState'
 
 const TASK_PREVIEW_LIMIT = 4
-const KANBAN_PREVIEW_LIMIT = 3
 const WEEK_PREVIEW_LIMIT = 3
 
 const EVENT_CLONE_W = 300
 const EVENT_CLONE_H = 60
 
 /** Re-center a fixed EVENT_CLONE_W×H box on the press point and clamp to the
- *  viewport, so the four differently-rendered event surfaces (task row, kanban
- *  card, week bar, huddle row) all lift as the SAME tidy clone card. Mirrors
- *  CalendarPanel's compactAnchorRect / generic-EventClone approach. */
+ *  viewport, so the differently-rendered event surfaces (task row, week bar)
+ *  all lift as the SAME tidy clone card. Mirrors CalendarPanel's
+ *  compactAnchorRect / generic-EventClone approach. */
 function compactAnchorRect(r: DOMRect, w: number, h: number): DOMRect {
   const vw = window.innerWidth
   const vh = window.innerHeight
@@ -61,8 +61,7 @@ function compactAnchorRect(r: DOMRect, w: number, h: number): DOMRect {
 }
 
 /** Generic lifted-row clone for a mission event — category stripe + title +
- *  time. Same card regardless of which widget (task / kanban / week / huddle)
- *  was pressed. */
+ *  time. Same card regardless of which widget (task / week) was pressed. */
 function MissionEventClone({ event, stripe }: { event: CalendarEvent; stripe: string }) {
   const time = event.all_day
     ? 'All day'
@@ -292,29 +291,6 @@ function MessagesWidget({ action }: { action: WidgetActionDescriptor | null }) {
   )
 }
 
-function KanbanCard({ event, onTap, onMenu }: {
-  event: CalendarEvent
-  onTap: () => void
-  onMenu: (rect: DOMRect) => void
-}) {
-  const pressRef = useRef<MenuPressState | null>(null)
-  const { resolve: resolveCategoryColor } = useCategoryColors()
-  const stripe = resolveCategoryColor(event.category, event.color).solid
-  const isDone = event.status === 'completed' || event.status === 'cancelled'
-  return (
-    <button
-      {...menuPressHandlers(onMenu, pressRef, { onTap })}
-      className={`flex items-stretch text-left rounded overflow-hidden border border-themeblue3/10 active:scale-[0.98] w-full transition-opacity duration-100 ${isDone ? 'opacity-50' : ''}`}
-    >
-      <div className={`w-1 shrink-0 ${stripe}`} />
-      <div className="flex-1 min-w-0 px-1.5 py-1 bg-themewhite2">
-        <p className="text-[9pt] font-medium text-primary truncate leading-tight">{event.title}</p>
-        <p className="text-[9pt] text-secondary tabular-nums leading-tight">{event.start_time.slice(11, 16)}</p>
-      </div>
-    </button>
-  )
-}
-
 function getWeekDays(date: Date): Date[] {
   const d = new Date(date)
   const day = d.getDay()
@@ -342,6 +318,8 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
   const requestNewCalendarEvent = useNavigationStore(s => s.requestNewCalendarEvent)
   const setShowMapOverlayDrawer = useNavigationStore(s => s.setShowMapOverlayDrawer)
   const setShowMessagesDrawer = useNavigationStore(s => s.setShowMessagesDrawer)
+  const setShowPropertyDrawer = useNavigationStore(s => s.setShowPropertyDrawer)
+  const showPropertyWidget = useFeatureGate('propertyAccountability')
   const allEvents = useCalendarStore(s => s.events)
   const updateEvent = useCalendarStore(s => s.updateEvent)
   const userId = useAuthStore(s => s.user?.id)
@@ -350,13 +328,6 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
   const overviewWidgets = useAuthStore(s => s.profile?.overviewWidgets)
   const { sendEvent: vaultSendEvent, deleteEvents: vaultDeleteEvents } = useCalendarVault()
   const { deleteEvent: calendarDeleteEvent } = useCalendarWrite()
-  const huddleTasks = useClinicHuddleTasks()
-  const { medics: clinicMedics } = useClinicMedics()
-  const medicById = useMemo(() => {
-    const m = new Map<string, ClinicMedic>()
-    for (const med of clinicMedics) m.set(med.id, med)
-    return m
-  }, [clinicMedics])
   const [confirmDeleteEvent, setConfirmDeleteEvent] = useState<string | null>(null)
 
   const [missionOverlayFeatures, setMissionOverlayFeatures] = useState<OverlayFeature[]>([])
@@ -364,10 +335,9 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
   const [selectedDate, setSelectedDate] = useState(() => new Date())
   const [eventMenu, setEventMenu] = useState<{ event: CalendarEvent; rect: DOMRect } | null>(null)
 
-  // Shared press buckets for the inline event surfaces (week bars, huddle rows).
+  // Shared press bucket for the inline event surfaces (week bars).
   // Only one press is active at a time, so one ref per surface is enough.
   const weekPressRef = useRef<MenuPressState | null>(null)
-  const huddlePressRef = useRef<MenuPressState | null>(null)
 
   const openEventMenu = useCallback((event: CalendarEvent, rect: DOMRect) => {
     setEventMenu({ event, rect: compactAnchorRect(rect, EVENT_CLONE_W, EVENT_CLONE_H) })
@@ -474,12 +444,15 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
   if (!isAuthenticated) return null
   if (overviewWidgets === null) return null
 
-  const DEFAULT_WIDGETS: OverviewWidgetId[] = ['kanban', 'messages']
-  const VALID_IDS: OverviewWidgetId[] = ['task-list', 'map-overlay', 'kanban', 'week-view', 'messages', 'weather', 'huddle']
+  const DEFAULT_WIDGETS: OverviewWidgetId[] = ['task-list', 'messages']
+  const VALID_IDS: OverviewWidgetId[] = ['task-list', 'map-overlay', 'week-view', 'property', 'messages', 'weather']
   const widgets: OverviewWidgetId[] = Array.from(new Set(
     (overviewWidgets ?? DEFAULT_WIDGETS)
-      .map(id => (id as string) === 'gantt' ? 'kanban' : id)
+      .map(id => (id as string) === 'gantt' || (id as string) === 'kanban' ? 'week-view' : id)
       .filter((id): id is OverviewWidgetId => (VALID_IDS as string[]).includes(id))
+      // Property widget rides the propertyAccountability staged rollout — hide it
+      // where the gate is off even if a stored profile still lists it.
+      .filter(id => id !== 'property' || showPropertyWidget)
   ))
 
   const renderActionOverlay = (id: OverviewWidgetId) => {
@@ -535,68 +508,6 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
             {renderActionOverlay(id)}
           </div>
         )
-
-      case 'kanban': {
-        if (allDayEvents.length === 0) {
-          const action = widgetAction(id)
-          return <EmptyState key="kanban" title={`No events ${isToday ? 'today' : 'this day'}`} action={action} bordered={false} />
-        }
-        const byStart = (a: CalendarEvent, b: CalendarEvent) => a.start_time.localeCompare(b.start_time)
-        const cols = [
-          { id: 'pending', label: 'Pending', events: allDayEvents.filter(e => e.status === 'pending').sort(byStart) },
-          { id: 'active',  label: 'Active',  events: allDayEvents.filter(e => e.status === 'in_progress').sort(byStart) },
-          { id: 'done',    label: 'Done',    events: allDayEvents.filter(e => e.status === 'completed' || e.status === 'cancelled').sort(byStart) },
-        ]
-        return (
-          <div key="kanban" className="flex flex-col relative">
-            <div className="flex divide-x divide-themeblue3/8">
-              {cols.map(col => (
-                <div key={col.id} className="flex-1 min-w-0 flex items-center justify-center gap-1 px-2 py-1.5 border-b border-themeblue3/8">
-                  <span className="text-[9pt] font-semibold text-secondary uppercase tracking-wide leading-none">{col.label}</span>
-                  {col.events.length > 0 && (
-                    <span className="text-[9pt] text-tertiary tabular-nums">{col.events.length}</span>
-                  )}
-                </div>
-              ))}
-            </div>
-            <div className="flex divide-x divide-themeblue3/8 min-h-[70px]">
-              {cols.map(col => {
-                const shown = col.events.slice(0, KANBAN_PREVIEW_LIMIT)
-                const extra = col.events.length - shown.length
-                return (
-                  <div key={col.id} className="flex-1 min-w-0 flex flex-col gap-px p-1">
-                    {col.events.length === 0 ? (
-                      <div className="flex items-center justify-center py-3">
-                        <span className="text-[9pt] text-tertiary/40">—</span>
-                      </div>
-                    ) : (
-                      <>
-                        {shown.map(event => (
-                          <KanbanCard
-                            key={event.id}
-                            event={event}
-                            onTap={() => handleEventClick(event.id)}
-                            onMenu={(rect) => openEventMenu(event, rect)}
-                          />
-                        ))}
-                        {extra > 0 && (
-                          <button
-                            onClick={() => openCalendarOnDate(selectedDate)}
-                            className="text-[9pt] font-medium text-secondary text-left px-1 py-0.5 active:text-themeblue1"
-                          >
-                            +{extra} more
-                          </button>
-                        )}
-                      </>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-            {renderActionOverlay(id)}
-          </div>
-        )
-      }
 
       case 'week-view': {
         const weekDays = getWeekDays(selectedDate)
@@ -727,6 +638,9 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
         )
       }
 
+      case 'property':
+        return <PropertyWidget key="property" action={widgetAction(id)} />
+
       case 'messages':
         return <MessagesWidget key="messages" action={widgetAction(id)} />
 
@@ -737,64 +651,6 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
             {renderActionOverlay(id)}
           </div>
         )
-
-      case 'huddle': {
-        const huddleEvents = allDayEvents
-          .filter(e => e.category === 'huddle')
-          .sort((a, b) => a.start_time.localeCompare(b.start_time))
-        if (huddleEvents.length === 0) {
-          const action = widgetAction(id)
-          return <EmptyState key="huddle" title={`No huddle ${isToday ? 'today' : 'this day'}`} action={action} bordered={false} />
-        }
-        const taskOrder = new Map(huddleTasks.map((t, i) => [t.id, { name: t.name, sort: t.sort_order ?? i }]))
-        const groups = new Map<string, { label: string; sort: number; events: CalendarEvent[] }>()
-        for (const ev of huddleEvents) {
-          const tid = ev.huddle_task_id ?? null
-          if (tid && taskOrder.has(tid)) {
-            const { name, sort } = taskOrder.get(tid)!
-            if (!groups.has(tid)) groups.set(tid, { label: name, sort, events: [] })
-            groups.get(tid)!.events.push(ev)
-          } else {
-            const key = '__pairing__'
-            if (!groups.has(key)) groups.set(key, { label: 'Provider pairing', sort: -1, events: [] })
-            groups.get(key)!.events.push(ev)
-          }
-        }
-        const ordered = Array.from(groups.values()).sort((a, b) => a.sort - b.sort)
-        return (
-          <div key="huddle" className="px-2.5 py-2 flex flex-col gap-2 relative">
-            {renderActionOverlay(id)}
-            {ordered.map((g, gi) => (
-              <div key={gi} className="flex flex-col gap-0.5">
-                <div className="text-[9pt] font-semibold uppercase tracking-wide text-secondary px-0.5">{g.label}</div>
-                {g.events.map(ev => {
-                  const assignedNames = ev.assigned_to
-                    .map(uid => medicById.get(uid))
-                    .filter((m): m is ClinicMedic => !!m)
-                    .map(getDisplayName)
-                  const titleDiffers = ev.title && ev.title.trim() && ev.title.trim() !== g.label.trim()
-                  const primary = assignedNames.length > 0
-                    ? assignedNames.join(', ')
-                    : (titleDiffers ? ev.title : 'Unassigned')
-                  const primaryClass = assignedNames.length === 0 && !titleDiffers
-                    ? 'text-[10pt] text-tertiary italic truncate'
-                    : 'text-[10pt] text-primary truncate'
-                  return (
-                    <button
-                      key={ev.id}
-                      {...menuPressHandlers((rect) => openEventMenu(ev, rect), huddlePressRef, { onTap: () => handleEventClick(ev.id) })}
-                      className="flex items-center gap-2 text-left rounded px-1.5 py-1 active:bg-themeblue2/10"
-                    >
-                      <span className="text-[9pt] text-secondary tabular-nums shrink-0">{ev.start_time.slice(11, 16)}</span>
-                      <span className={primaryClass}>{primary}</span>
-                    </button>
-                  )
-                })}
-              </div>
-            ))}
-          </div>
-        )
-      }
 
       default:
         return null
@@ -821,14 +677,14 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
   const widgetAction = (id: OverviewWidgetId): WidgetActionDescriptor | null => {
     switch (id) {
       case 'task-list':
-      case 'kanban':
       case 'week-view':
-      case 'huddle':
         return { icon: Plus, label: 'New Event', onClick: requestNewCalendarEvent }
       case 'messages':
         return { icon: MessageSquare, label: 'Open Messages', onClick: () => setShowMessagesDrawer(true) }
       case 'map-overlay':
         return { icon: MapIcon, label: 'Open Map', onClick: () => setShowMapOverlayDrawer(true, missionOverlayId) }
+      case 'property':
+        return { icon: Package, label: 'Open Property', onClick: () => setShowPropertyDrawer(true) }
       case 'weather':
         return null
       default:

@@ -82,6 +82,8 @@ interface PropertyPanelProps {
   onRegisterNavigateZone?: (trigger: (zoneId: string) => void) => void
   /** Register a trigger to open the Custody / DA 2062 tab (global-search deep-link). */
   onRegisterOpenCustody?: (trigger: () => void) => void
+  /** Register a trigger to open the Shortages report (mission-overview deep-link). */
+  onRegisterOpenShortages?: (trigger: () => void) => void
   /** Register a trigger to focus a specific item on the canvas by id (global-search /
    *  cross-domain deep-link). Routes through the same path as an in-drawer search tap. */
   onRegisterFocusItem?: (trigger: (itemId: string) => void) => void
@@ -109,6 +111,7 @@ export const PropertyPanel = memo(function PropertyPanel({
   onRegisterImport,
   onRegisterNavigateZone,
   onRegisterOpenCustody,
+  onRegisterOpenShortages,
   onRegisterFocusItem,
 }: PropertyPanelProps) {
   const store = usePropertyStore(
@@ -511,6 +514,9 @@ export const PropertyPanel = memo(function PropertyPanel({
     setAuthorizedOpen(false)
     setShortageOpen(true)
   }, [store])
+  useEffect(() => {
+    onRegisterOpenShortages?.(() => openShortages())
+  }, [onRegisterOpenShortages, openShortages])
   const openAuthorized = useCallback(() => {
     setMobileItem(null)
     setMobileForm(null)
