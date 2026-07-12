@@ -19,11 +19,9 @@ interface ExamBlockPreviewProps {
   onToggleNormal: (findingKey: string) => void;
   onToggleAbnormal: (abnormalKey: string) => void;
   onSpecifyChange?: (abnormalKey: string, value: string) => void;
-  /** When true, the block is edited as a single free-text narrative (the whole
-   *  system's PE portion) instead of the normal/abnormal grid. Bound to
-   *  `state.findings`. Toggled from the header ellipsis menu, not a tap row. */
-  freeText?: boolean;
-  onFreeTextChange?: (value: string) => void;
+  /** Mark every finding normal / abnormal — renders a tap row atop the block. */
+  onAllNormal?: () => void;
+  onAllAbnormal?: () => void;
 }
 
 export const ExamBlockPreview: React.FC<ExamBlockPreviewProps> = ({
@@ -33,25 +31,9 @@ export const ExamBlockPreview: React.FC<ExamBlockPreviewProps> = ({
   onToggleNormal,
   onToggleAbnormal,
   onSpecifyChange,
-  freeText,
-  onFreeTextChange,
+  onAllNormal,
+  onAllAbnormal,
 }) => {
-  // Free-text mode — one narrative box for the entire system, no grid / filter.
-  if (freeText) {
-    return (
-      <div className="p-3">
-        <textarea
-          value={state.findings}
-          onChange={(e) => onFreeTextChange?.(e.target.value)}
-          placeholder="Describe this system's exam findings…"
-          rows={5}
-          autoFocus
-          className="w-full text-[10pt] text-primary bg-themewhite2 border border-tertiary/15 rounded-xl px-3 py-2.5 leading-relaxed focus:outline-none focus:border-themeblue3/40 resize-none"
-        />
-      </div>
-    );
-  }
-
   const lowerFilter = filter.toLowerCase();
   const filtered = lowerFilter
     ? block.findings.filter((f: PEFinding) => {
@@ -67,6 +49,26 @@ export const ExamBlockPreview: React.FC<ExamBlockPreviewProps> = ({
           The block label is owned by the hosting overlay header, not repeated here. */}
       {filtered.length > 0 ? (
         <div className="mb-4 border border-tertiary/10 rounded-xl overflow-hidden">
+          {/* Quick actions — mark the whole block normal / abnormal. Not a finding
+              row; sits above the first, aligned to the normal / abnormal columns. */}
+          {(onAllNormal || onAllAbnormal) && (
+            <div className="grid grid-cols-[7rem_1fr] border-b border-tertiary/10">
+              <button
+                type="button"
+                onClick={onAllNormal}
+                className="text-left px-3 py-2 active:bg-tertiary/5 transition-colors"
+              >
+                <span className="text-[9pt] font-medium text-secondary">All Normal</span>
+              </button>
+              <button
+                type="button"
+                onClick={onAllAbnormal}
+                className="text-left px-3 py-2 border-l border-tertiary/10 active:bg-tertiary/5 transition-colors"
+              >
+                <span className="text-[9pt] font-medium text-secondary">All Abnormal</span>
+              </button>
+            </div>
+          )}
           {filtered.map((finding: PEFinding, i: number) => {
             const abnormalCount = Math.max(finding.abnormals.length, 1);
             const hasNormal = !!finding.normal;

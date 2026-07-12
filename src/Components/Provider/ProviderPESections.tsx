@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from 'react';
-import { Check, Plus, GripVertical, MoreHorizontal, RotateCcw, Trash2, ChevronLeft, ChevronRight, AlertTriangle, PenLine, List } from 'lucide-react';
+import { Check, Plus, GripVertical, MoreHorizontal, RotateCcw, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { SearchInput } from '@/Components/primitives/SearchInput';
 import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill';
 import { ListItemRow } from '@/Components/primitives/ListItemRow';
@@ -293,27 +293,10 @@ export function PECenter({ selectedBlockKeys, items, onOpenSelector, onOpenBlock
 }
 
 // Header ellipsis for the findings screen — Refresh (reset block) + Remove.
-function PEBlockMenu({ isFreeText, onAllNormal, onAllAbnormal, onToggleFreeText, onRefresh, onRemove }: {
-  isFreeText: boolean;
-  onAllNormal: () => void;
-  onAllAbnormal: () => void;
-  onToggleFreeText: () => void;
-  onRefresh: () => void;
-  onRemove: () => void;
-}) {
+function PEBlockMenu({ onRefresh, onRemove }: { onRefresh: () => void; onRemove: () => void }) {
   const [open, setOpen] = useState(false);
   const anchor = useRef<HTMLDivElement>(null);
-  // All Normal / All Abnormal fold in here (the old in-block tap-bar); free-text
-  // mode collapses them to a single "Structured findings" switch-back.
-  const findingItems: ContextMenuItem[] = isFreeText
-    ? [{ key: 'structured', label: 'Structured findings', icon: List, onAction: onToggleFreeText }]
-    : [
-        { key: 'allNormal', label: 'All Normal', icon: Check, onAction: onAllNormal },
-        { key: 'allAbnormal', label: 'All Abnormal', icon: AlertTriangle, onAction: onAllAbnormal },
-        { key: 'freetext', label: 'Free text', icon: PenLine, onAction: onToggleFreeText },
-      ];
   const items: ContextMenuItem[] = [
-    ...findingItems,
     { key: 'refresh', label: 'Refresh', icon: RotateCcw, onAction: onRefresh },
     { key: 'remove', label: 'Remove', icon: Trash2, destructive: true, onAction: onRemove },
   ];
@@ -382,35 +365,6 @@ export function usePEPaneScreens({
     commit({ ...base.items, [blockKey]: nextState }, selectedBlockKeys);
   };
 
-  // Free-text mode (per block) — the whole system's PE portion as one narrative,
-  // bound to PEItemState.findings. Seeded from stored state (free-text findings +
-  // no chip selections), toggled thereafter from the header ellipsis.
-  const [freeTextKeys, setFreeTextKeys] = useState<Set<string>>(() => {
-    const s = new Set<string>();
-    for (const [key, st] of Object.entries(base.items)) {
-      if (st.findings.trim() && st.selectedNormals.length === 0 && st.selectedAbnormals.length === 0) s.add(key);
-    }
-    return s;
-  });
-
-  const toggleFreeText = (blockKey: string) => {
-    const next = new Set(freeTextKeys);
-    if (next.has(blockKey)) {
-      next.delete(blockKey);
-    } else {
-      next.add(blockKey);
-      // Entering free text drops chip selections — findings owns the line now.
-      const cur = base.items[blockKey] ?? defaultItemState();
-      applyItem(blockKey, { ...cur, selectedNormals: [], selectedAbnormals: [], specifyDetails: {}, status: cur.findings.trim() ? 'abnormal' : 'not-examined' });
-    }
-    setFreeTextKeys(next);
-  };
-
-  const setFreeTextValue = (blockKey: string, value: string) => {
-    const cur = base.items[blockKey] ?? defaultItemState();
-    applyItem(blockKey, { ...cur, findings: value, selectedNormals: [], selectedAbnormals: [], status: value.trim() ? 'abnormal' : 'not-examined' });
-  };
-
   // Drag reorder (from the center cards) — the selected-systems order drives both
   // the card list and the generated exam text (generatePEText iterates blockKeys).
   const reorder = (keys: string[]) => commit(base.items, keys);
@@ -439,24 +393,14 @@ export function usePEPaneScreens({
     },
     [BLOCK_KEY]: {
       title: (p: { blockKey: string }) => getMasterBlockByKey(p?.blockKey)?.label ?? 'System',
-      // Ellipsis (All Normal · All Abnormal · Free text · Refresh · Remove) rides the
-      // header's LEFT, matching the ellipsis-left convention; progression ‹ › are
-      // header icons on the right beside Close.
-      headerLeft: (p: { blockKey: string }, nav: StackNav) => {
-        const master = getMasterBlockByKey(p.blockKey);
-        if (!master) return null;
-        const view = toViewBlock(master);
-        return (
-          <PEBlockMenu
-            isFreeText={freeTextKeys.has(p.blockKey)}
-            onAllNormal={() => applyItem(p.blockKey, allNormalState(view))}
-            onAllAbnormal={() => applyItem(p.blockKey, allAbnormalState(view))}
-            onToggleFreeText={() => toggleFreeText(p.blockKey)}
-            onRefresh={() => applyItem(p.blockKey, defaultItemState())}
-            onRemove={() => removeSystem(p.blockKey, nav)}
-          />
-        );
-      },
+      // Ellipsis (Refresh · Remove) rides the header's LEFT, matching the ellipsis-left
+      // convention; progression ‹ › are header icons on the right beside Close.
+      headerLeft: (p: { blockKey: string }, nav: StackNav) => (
+        <PEBlockMenu
+          onRefresh={() => applyItem(p.blockKey, defaultItemState())}
+          onRemove={() => removeSystem(p.blockKey, nav)}
+        />
+      ),
       headerActions: (p: { blockKey: string }, nav: StackNav) => {
         const idx = selectedBlockKeys.indexOf(p.blockKey);
         const hasPrev = idx > 0;
@@ -483,11 +427,11 @@ export function usePEPaneScreens({
           <ExamBlockPreview
             block={view}
             state={{ ...st, specifyDetails: st.specifyDetails ?? {} }}
-            freeText={freeTextKeys.has(p.blockKey)}
-            onFreeTextChange={v => setFreeTextValue(p.blockKey, v)}
             onToggleNormal={fk => applyItem(p.blockKey, toggleNormal(st, view, fk))}
             onToggleAbnormal={ak => applyItem(p.blockKey, toggleAbnormal(st, view, ak))}
             onSpecifyChange={(ak, v) => applyItem(p.blockKey, setSpecify(st, ak, v))}
+            onAllNormal={() => applyItem(p.blockKey, allNormalState(view))}
+            onAllAbnormal={() => applyItem(p.blockKey, allAbnormalState(view))}
           />
         );
       },

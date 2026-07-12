@@ -1,10 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Check, RotateCcw, Plus, AlertTriangle, ChevronRight, Trash2, GripVertical, Activity, PenLine, List } from 'lucide-react';
+import { Check, RotateCcw, Plus, AlertTriangle, ChevronRight, Trash2, GripVertical, Activity } from 'lucide-react';
 import { PreviewOverlay } from './PreviewOverlay';
 import type { ContextMenuAction } from './PreviewOverlay';
 import { ExamBlockPreview } from './ExamBlockPreview';
-import { OverlayHeaderMenu } from '@/Components/primitives/OverlayHeaderMenu';
-import type { ContextMenuItem } from '@/Components/primitives/ContextMenu';
 import { ListItemRow } from '@/Components/primitives/ListItemRow';
 import { SwipeToDeleteRow } from '@/Components/primitives/SwipeToDeleteRow';
 import { ActionPill } from '@/Components/primitives/ActionPill';
@@ -574,17 +572,6 @@ export function PhysicalExam({
 
     const [blockStates, setBlockStates] = useState<Record<string, ItemState>>(() => parsed.blockStates);
 
-    // Blocks edited as a single free-text narrative rather than the finding grid.
-    // Seeded from the initial state (a block with free-text findings and no chip
-    // selections reads as free text); toggled thereafter from the header ellipsis.
-    const [freeTextBlocks, setFreeTextBlocks] = useState<Set<string>>(() => {
-        const s = new Set<string>();
-        for (const [key, st] of Object.entries(parsed.blockStates)) {
-            if (st.findings.trim() && st.selectedNormals.length === 0 && st.selectedAbnormals.length === 0) s.add(key);
-        }
-        return s;
-    });
-
     const [laterality, setLaterality] = useState<Laterality>(() => parsed.laterality);
     const [spineRegion, setSpineRegion] = useState<SpineRegion>(() => parsed.spineRegion);
     const [additional, setAdditional] = useState(() => parsed.additional);
@@ -810,27 +797,6 @@ export function PhysicalExam({
         });
     };
 
-    // ── Free-text mode (per block) ────────────────────────────
-    const enterFreeText = useCallback((key: string) => {
-        setFreeTextBlocks(prev => new Set(prev).add(key));
-        // Drop chip selections — free text owns the whole system's line now.
-        setBlockStates(prev => {
-            const cur = prev[key] ?? defaultItemState();
-            return { ...prev, [key]: { ...cur, selectedNormals: [], selectedAbnormals: [], specifyDetails: {}, status: cur.findings.trim() ? 'abnormal' : 'not-examined' } };
-        });
-    }, []);
-
-    const exitFreeText = useCallback((key: string) => {
-        setFreeTextBlocks(prev => { const next = new Set(prev); next.delete(key); return next; });
-    }, []);
-
-    const setFreeTextValue = useCallback((key: string, value: string) => {
-        setBlockStates(prev => {
-            const cur = prev[key] ?? defaultItemState();
-            return { ...prev, [key]: { ...cur, findings: value, selectedNormals: [], selectedAbnormals: [], status: value.trim() ? 'abnormal' : 'not-examined' } };
-        });
-    }, []);
-
     // ── Bulk actions ──────────────────────────────────────────
     const markAllNormal = () => {
         setBlockStates(prev => {
@@ -946,9 +912,6 @@ export function PhysicalExam({
     // ── Lifted popover state ──────────────────────────────────
     const [editingIndex, setEditingIndex] = useState<number | null>(null);
     const [popoverAnchorRect, setPopoverAnchorRect] = useState<DOMRect | null>(null);
-    // Bumped to imperatively reveal the overlay's inline "add finding" input from
-    // the header ellipsis menu (the footer + is folded into that menu now).
-    const [addOpenSignal, setAddOpenSignal] = useState(0);
 
     const handleRowTap = useCallback((index: number, rect: DOMRect) => {
         setPopoverAnchorRect(rect);
@@ -959,25 +922,6 @@ export function PhysicalExam({
     const editingState = editingEntry ? (blockStates[editingEntry.key] ?? defaultItemState()) : null;
     const editingIsFirst = editingIndex === 0;
     const editingIsLast = editingIndex !== null && editingIndex === flatBlockList.length - 1;
-    const editingIsFreeText = editingEntry ? freeTextBlocks.has(editingEntry.key) : false;
-
-    // Header ellipsis (lifted-row) menu — replaces the block's old "All Normal /
-    // All Abnormal" tap-bar and the footer + add. In free-text mode it collapses
-    // to a single "Structured findings" switch-back.
-    const blockMenuItems = useMemo((): ContextMenuItem[] => {
-        if (!editingEntry) return [];
-        const key = editingEntry.key;
-        if (editingIsFreeText) {
-            return [{ key: 'structured', label: 'Structured findings', icon: List, onAction: () => exitFreeText(key) }];
-        }
-        const augmented = augmentBlock(editingEntry.viewBlock, key);
-        return [
-            { key: 'allNormal', label: 'All Normal', icon: Check, onAction: () => setBlockStates(prev => ({ ...prev, [key]: allNormalsSelected(augmented.findings) })) },
-            { key: 'allAbnormal', label: 'All Abnormal', icon: AlertTriangle, onAction: () => setBlockStates(prev => ({ ...prev, [key]: allAbnormalsSelected(augmented.findings) })) },
-            { key: 'add', label: 'Add finding', icon: Plus, onAction: () => setAddOpenSignal(s => s + 1) },
-            { key: 'freetext', label: 'Free text', icon: PenLine, onAction: () => enterFreeText(key) },
-        ];
-    }, [editingEntry, editingIsFreeText, augmentBlock, exitFreeText, enterFreeText]);
 
     const deleteBlock = useCallback((entry: FlatEntry) => {
         setAddedBlocks(prev => prev.filter(b => b.key !== entry.key));
@@ -1239,24 +1183,18 @@ export function PhysicalExam({
                     maxWidth={520}
                     title={editingEntry.viewBlock.label}
                     onBack={!editingIsFirst ? () => setEditingIndex(i => (i ?? 0) - 1) : undefined}
-                    headerActions={
-                        <div className="flex items-center gap-1">
-                            <OverlayHeaderMenu items={blockMenuItems} />
-                            {!editingIsLast && (
-                                <button
-                                    type="button"
-                                    onClick={() => setEditingIndex(i => (i ?? 0) + 1)}
-                                    className="w-8 h-8 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
-                                    aria-label="Next system"
-                                >
-                                    <ChevronRight size={16} />
-                                </button>
-                            )}
-                        </div>
-                    }
+                    headerActions={!editingIsLast ? (
+                        <button
+                            type="button"
+                            onClick={() => setEditingIndex(i => (i ?? 0) + 1)}
+                            className="w-8 h-8 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
+                            aria-label="Next system"
+                        >
+                            <ChevronRight size={16} />
+                        </button>
+                    ) : undefined}
                     hideHeaderClose
-                    searchPlaceholder={editingIsFreeText ? undefined : 'Filter findings...'}
-                    addOpenSignal={addOpenSignal}
+                    searchPlaceholder="Filter findings..."
                     preview={(filter, clearFilter) => {
                         const augmented = augmentBlock(editingEntry.viewBlock, editingEntry.key);
                         return (
@@ -1264,17 +1202,16 @@ export function PhysicalExam({
                                 block={augmented}
                                 state={editingState}
                                 filter={filter}
-                                freeText={editingIsFreeText}
-                                onFreeTextChange={(v) => setFreeTextValue(editingEntry.key, v)}
                                 onToggleNormal={(fk) => { toggleNormal(editingEntry.key, fk, augmented); clearFilter(); }}
                                 onToggleAbnormal={(ak) => { toggleAbnormal(editingEntry.key, ak, augmented); clearFilter(); }}
                                 onSpecifyChange={(ak, v) => setSpecifyDetail(editingEntry.key, ak, v)}
+                                onAllNormal={() => { setBlockStates(prev => ({ ...prev, [editingEntry.key]: allNormalsSelected(augmented.findings) })); clearFilter(); }}
+                                onAllAbnormal={() => { setBlockStates(prev => ({ ...prev, [editingEntry.key]: allAbnormalsSelected(augmented.findings) })); clearFilter(); }}
                             />
                         );
                     }}
                     actions={popoverActions}
-                    onAdd={editingIsFreeText ? undefined : (value) => addCustomFinding(editingEntry.key, value)}
-                    hideAddButton
+                    onAdd={(value) => addCustomFinding(editingEntry.key, value)}
                     addPlaceholder="Add custom finding..."
                     rightFooter={
                         <ActionPill>
