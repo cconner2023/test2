@@ -974,7 +974,7 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
         isOpen={!!clinicEditAnchor}
         anchorRect={clinicEditAnchor}
         clinicId={clinicId}
-        initialName={clinicNameFromAuth ?? clinicName ?? ''}
+        initialName={clinicName ?? clinicNameFromAuth ?? ''}
         initialLocation={clinicDetails.location}
         initialLocationId={clinicDetails.location_id}
         initialUics={clinicDetails.uics}

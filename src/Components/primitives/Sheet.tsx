@@ -376,7 +376,12 @@ export function Sheet({
     const fitBody = (
         <div
             className="min-h-0 overflow-y-auto overscroll-y-contain"
-            style={{ maxHeight: `calc(min(${maxHeight}dvh, 100dvh - 1.5rem) - ${fitChromeH}px)` }}
+            // svh (small viewport), NOT dvh: dvh shrinks when the iOS keyboard opens,
+            // which collapsed the whole fit sheet on input focus (the height animated
+            // down via transition-[…,height] — jarring). svh is the static small-viewport
+            // unit, so the cap holds steady with the keyboard up. CSS-only per the plain-CSS
+            // keyboard resolution (no JS viewport hooks — see the reverted useIOSKeyboard saga).
+            style={{ maxHeight: `calc(min(${maxHeight}svh, 100svh - 1.5rem) - ${fitChromeH}px)` }}
         >
             {children}
         </div>
@@ -455,7 +460,10 @@ export function Sheet({
                         zIndex: zIndex + 1,
                         bottom: 'max(0.5rem, calc(var(--sab, 0px) + 0.5rem))',
                         height: isSnap ? `${heightDvh}dvh` : undefined,
-                        maxHeight: isSnap ? undefined : `min(${maxHeight}dvh, calc(100dvh - 1.5rem))`,
+                        // fit cap uses svh (small viewport) so the iOS keyboard doesn't
+                        // shrink the sheet on input focus — see fitBody note above. Must
+                        // match fitBody's unit or the card and its scroll body disagree.
+                        maxHeight: isSnap ? undefined : `min(${maxHeight}svh, calc(100svh - 1.5rem))`,
                         transform: translate,
                         borderRadius: '1.5rem',
                         boxShadow: '0 4px 30px rgba(0, 0, 0, 0.12)',

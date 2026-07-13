@@ -945,8 +945,12 @@ export function ClinicPanel({
           </section>
         )}
 
-        {/* ── Subordinate Clusters (echelon children) — roster mgmt, own clinic ── */}
-        {isSupervisorRole && clinicId && !isSurrogateContext && (
+        {/* ── Subordinate Clusters (echelon children) — roster mgmt. Renders for the
+             operating-as clinic (home OR a loan cluster you supervise); the child RPC
+             is subtree-authorized via auth_supervisor_scope_ids, not own-clinic bound,
+             and SubordinateClustersManager renders nothing when there are no children
+             (or the clinic is out of server scope). ── */}
+        {isSupervisorRole && clinicId && (
           <SubordinateClustersManager
             clinicId={clinicId}
             isSupervisor={isSupervisorRole}

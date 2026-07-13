@@ -165,17 +165,20 @@ export function ItemCallout({ item, anchorX, anchorY, selected, dragging }: {
 }
 
 /** Item callout in view mode — tap-only, no drag (drag is handled by EditItemPin in edit mode). */
-function ItemPin({ pin, item, onTap, selected }: {
+function ItemPin({ pin, item, onTap, selected, zIndex }: {
   pin: LocationTag
   item: LocalPropertyItem
   onTap: (item: LocalPropertyItem) => void
   selected?: boolean
+  /** Stack order — always above every zone tile (tiles carry zIndex = their array index,
+   *  which is unbounded; a fixed class let opaque exploded-floor tiles bury unselected pins). */
+  zIndex: number
 }) {
   return (
     <div
       data-item-target={item.id}
-      className={`absolute select-none cursor-pointer ${selected ? 'z-30' : 'z-20'}`}
-      style={{ left: `${pin.x * 100}%`, top: `${pin.y * 100}%` }}
+      className="absolute select-none cursor-pointer"
+      style={{ left: `${pin.x * 100}%`, top: `${pin.y * 100}%`, zIndex }}
       onClick={(e) => { e.stopPropagation(); onTap(item) }}
     >
       <ItemCallout item={item} anchorX={pin.x} anchorY={pin.y} selected={selected} />
@@ -313,17 +316,22 @@ export const LocationTagPhoto = memo(function LocationTagPhoto({
         )
       })}
 
-      {/* Item pins — spatially positioned, tap-only in view mode */}
+      {/* Item pins — spatially positioned, tap-only in view mode. Zone tiles carry
+          zIndex = their array index (0..zones.length-1); pins therefore start ABOVE the
+          topmost tile so an opaque exploded-floor tile (highest index in the fan) can't
+          bury them. The selected pin rides one higher still. */}
       {itemPins.map((pin) => {
         const item = itemById.get(pin.target_id)
         if (!item) return null
+        const isSelected = item.id === selectedItemId
         return (
           <ItemPin
             key={pin.id}
             pin={pin}
             item={item}
             onTap={onItemTap ?? (() => {})}
-            selected={item.id === selectedItemId}
+            selected={isSelected}
+            zIndex={zones.length + (isSelected ? 2 : 1)}
           />
         )
       })}

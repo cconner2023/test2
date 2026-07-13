@@ -310,7 +310,14 @@ export function PropertyLocationTree({
         <span className="w-[18px] shrink-0 flex items-center justify-center">
           {alert && <span className={`w-1.5 h-1.5 rounded-full ${alertDotCls}`} />}
         </span>
-        <span className={`text-[10pt] truncate flex-1 ${alert ? `${alertTextCls} font-medium` : 'text-primary'}`}>{item.name}</span>
+        {/* Name over a secondary serial line — a bare name is ambiguous in the tree when
+            two items share it; the serial pins down exactly which physical item this row is. */}
+        <div className="flex-1 min-w-0">
+          <div className={`text-[10pt] truncate ${alert ? `${alertTextCls} font-medium` : 'text-primary'}`}>{item.name}</div>
+          {item.serial_number && (
+            <div className="text-[8pt] text-tertiary truncate tabular-nums">SN {item.serial_number}</div>
+          )}
+        </div>
         {/* Quantity — matches the title font; hidden when depleted (the OUT tag covers it). */}
         {item.quantity > 0 && (
           <span className="text-[10pt] text-tertiary tabular-nums shrink-0">{item.quantity}</span>

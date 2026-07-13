@@ -91,7 +91,13 @@ export function useSupervisorData(): SupervisorData {
   // showing all-location medics before the supervisor's own clinic is known.
   const currentUserId = user?.id ?? null
   const isSupervisor = isSupervisorRole
-  const clinicName = authProfile.clinicName ?? null
+  // Name must follow the toggle, not stay pinned to the home clinic. When
+  // operating-as a loaned clinic, resolve its name from the loan pairs
+  // (profile.surrogateClinics); home context falls back to profile.clinicName.
+  const clinicName = supervisingClinicId && supervisingClinicId !== userClinicId
+    ? (authProfile.surrogateClinics?.find(c => c.id === supervisingClinicId)?.name
+        ?? authProfile.clinicName ?? null)
+    : (authProfile.clinicName ?? null)
   const loading = authLoading || (!!user && !userClinicId)
 
   const currentUserProfile = useMemo<ClinicMedic | null>(() => {

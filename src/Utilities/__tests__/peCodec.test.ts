@@ -49,17 +49,25 @@ function canonicalKeys(cat: PEState['categoryLetter'], code: string): string[] {
 // 1. Format detection
 // ---------------------------------------------------------------------------
 
-describe('v8 format detection', () => {
-    it('encoded string starts with "8:" for any category', () => {
+describe('v9 format detection', () => {
+    it('encoded string starts with "9:" for any category', () => {
         const encoded = encodePEState(makeState(), 'A-1');
-        expect(encoded.startsWith('8:')).toBe(true);
+        expect(encoded.startsWith('9:')).toBe(true);
     });
 
-    it('decodePEState returns null for non-v8 strings', () => {
+    it('decodePEState returns null for unsupported version prefixes', () => {
         expect(decodePEState('6:A,R,,,,,,,~0~0~~', 'A-1')).toBeNull();
         expect(decodePEState('7:A,R,F,,,,,,,~~', 'A-1')).toBeNull();
         expect(decodePEState('some random text', 'A-1')).toBeNull();
         expect(decodePEState('', 'A-1')).toBeNull();
+    });
+
+    it('still decodes legacy v8 strings (fill-defaults behavior)', () => {
+        // Legacy v8 all-normal exam: empty body, decoder fills canonical blocks normal.
+        const decoded = decodePEState('8:A,R,F,,,,,,,~~', 'A-1');
+        expect(decoded).not.toBeNull();
+        const keys = canonicalKeys('A', 'A-1');
+        expect(decoded!.items[keys[0]]?.status).toBe('normal');
     });
 });
 
@@ -68,7 +76,7 @@ describe('v8 format detection', () => {
 // ---------------------------------------------------------------------------
 
 describe('All normal encoding', () => {
-    it('all-normal exam produces empty PE body between tildes', () => {
+    it('all-normal examined exam writes an explicit marker per block', () => {
         const keys = canonicalKeys('A', 'A-1');
         const items: Record<string, PEItemState> = {};
         for (const key of keys) items[key] = normalItem(key);
@@ -76,7 +84,8 @@ describe('All normal encoding', () => {
         const state = makeState({ items });
         const encoded = encodePEState(state, 'A-1');
         const sections = encoded.split('~');
-        expect(sections[1]).toBe('');
+        // v9: examined-normal blocks are recorded, so the body is NOT empty.
+        expect(sections[1]).not.toBe('');
     });
 
     it('roundtrip preserves all-normal state', () => {
@@ -93,14 +102,36 @@ describe('All normal encoding', () => {
         }
     });
 
-    it('empty state encodes and decodes — unlisted blocks filled as all normal', () => {
+    it('empty (nothing examined) state decodes to no materialized blocks', () => {
+        // v9 core fix: a barcode carrying no examined systems must NOT invent
+        // "all normal" blocks — the decoded note stays in sync with the live note.
         const state = makeState();
         const decoded = roundtrip(state)!;
         expect(decoded).not.toBeNull();
-        const keys = canonicalKeys('A', 'A-1');
-        for (const key of keys) {
-            expect(decoded.items[key]?.status).toBe('normal');
-        }
+        expect(Object.keys(decoded.items)).toHaveLength(0);
+    });
+
+    it('not-examined template systems are omitted on decode', () => {
+        // gen examined-normal, cv examined-abnormal, pulm present in the template
+        // but never examined → must not come back as Normal.
+        const state = makeState({
+            mode: 'template',
+            blockKeys: ['gen', 'cv', 'pulm'],
+            items: {
+                gen: normalItem('gen'),
+                cv: {
+                    status: 'abnormal',
+                    selectedNormals: [],
+                    selectedAbnormals: ['tachycardia'],
+                    findings: '',
+                },
+                // pulm intentionally absent — not examined
+            },
+        });
+        const decoded = roundtrip(state)!;
+        expect(decoded.items.gen?.status).toBe('normal');
+        expect(decoded.items.cv?.status).toBe('abnormal');
+        expect(decoded.items.pulm).toBeUndefined();
     });
 });
 
@@ -373,17 +404,17 @@ describe('Template mode roundtrip', () => {
 // 11. Size comparison
 // ---------------------------------------------------------------------------
 
-describe('v8 size efficiency', () => {
-    it('all-normal exam is significantly shorter than v7 would be', () => {
+describe('v9 size efficiency', () => {
+    it('all-normal exam stays far shorter than its rendered text', () => {
         const keys = canonicalKeys('A', 'A-1');
         const items: Record<string, PEItemState> = {};
         for (const key of keys) items[key] = normalItem(key);
 
         const state = makeState({ items });
         const encoded = encodePEState(state, 'A-1');
-        // All normal = empty PE body, so the string should be compact
-        const peBody = encoded.split('~')[1];
-        expect(peBody).toBe('');
+        // v9 records a compact "{idx}:" marker per examined-normal block — much
+        // smaller than the full rendered exam text, even if no longer empty.
+        expect(encoded.length).toBeLessThan(renderPEStateToText(state).length);
     });
 });
 

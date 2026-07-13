@@ -1236,7 +1236,12 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
   // ── Imperative handle for external navigation (tree clicks, breadcrumbs) ──
   const handleAddFloor = useCallback(async (containerId: string) => {
     const ord = nextFloorOrdinal(getLevels(locationsRef.current, containerId))
-    const created = await store.addLevel(containerId, `Floor ${ord}`, ord)
+    // Prefix the floor name with its container so two buildings' floors never read as
+    // duplicates in the tree ("Bldg A · Floor 1" vs "Bldg B · Floor 1"). The container is
+    // the building zone (or the parent floor, for a wing) — its name disambiguates.
+    const container = locationsRef.current.find((l) => l.id === containerId)
+    const name = container ? `${container.name} · Floor ${ord}` : `Floor ${ord}`
+    const created = await store.addLevel(containerId, name, ord)
     if (!created) return
     store.setActiveLevel(containerId, created.id)
     store.selectZone(created.id)

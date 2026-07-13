@@ -1,6 +1,15 @@
 // Utilities/peCodec.ts
-// Physical Exam compact encoding/decoding — v8 (index-based condensed format).
-// v8 encodes only deviations from the "all examined, all normal" default.
+// Physical Exam compact encoding/decoding — v9 (index-based condensed format).
+// v9 records every EXAMINED block explicitly (examined-normal blocks emit a bare
+// "{idx}:" marker); blocks that were never examined are simply absent and are NOT
+// reconstructed on decode. This keeps the decoded note in lockstep with the live
+// note text, which likewise omits not-examined systems.
+//
+// v8 (legacy) encoded only deviations and filled every unlisted canonical block as
+// "all normal" on decode — that fill couldn't distinguish "examined-normal" from
+// "not-examined", so template systems the medic never touched came back as Normal.
+// v8 decode is retained (with its fill-defaults behavior) so pre-existing barcodes
+// still read correctly; the encoder only ever emits v9.
 // v6/v7 deleted — no legacy barcodes to support.
 
 import { compressText, decompressText } from './textCodec';
@@ -63,11 +72,13 @@ function getCanonicalBlocks(state: Pick<PEState, 'mode' | 'blockKeys' | 'categor
 }
 
 // ---------------------------------------------------------------------------
-// V8 encoder
+// V9 encoder
 // ---------------------------------------------------------------------------
-// Format: 8:{cat},{lat}[/{spine}],{mode},{vitalsCsv}~{peBody}~{compressedAdditional}
+// Format: 9:{cat},{lat}[/{spine}],{mode},{vitalsCsv}~{peBody}~{compressedAdditional}
+// Every examined block appears in peBody: examined-normal blocks emit a bare
+// "{idx}:" (or "{idx}[assessed]:" when partial); not-examined blocks are absent.
 
-/** Encode PE state into compact v8 string. symptomCode needed for focused mode canonical resolution. */
+/** Encode PE state into compact v9 string. symptomCode needed for focused mode canonical resolution. */
 export function encodePEState(state: PEState, symptomCode?: string): string {
     const mode: 'focused' | 'template' = state.mode ?? 'focused';
     const { categoryLetter, laterality, spineRegion, vitals, items, additional } = state;
@@ -134,8 +145,9 @@ export function encodePEState(state: PEState, symptomCode?: string): string {
         const hasFreeText = itemState.findings.trim().length > 0;
         const isPartial = assessedIndices.length < allFindings.length;
 
-        // Skip blocks that are fully normal with no free text (the default)
-        if (abnormalIndices.length === 0 && !hasFreeText) continue;
+        // v9: examined-normal blocks are NOT skipped — they emit a bare "{idx}:"
+        // marker so decode can tell "examined, normal" from "never examined".
+        // (itemState was already filtered to status !== 'not-examined' above.)
 
         let entry = idxToChar(blockIdx);
 
@@ -169,14 +181,17 @@ export function encodePEState(state: PEState, symptomCode?: string): string {
     const peBody = reorderPrefix + entries.join('-');
     const add64 = additional.trim() ? compressText(additional.trim()) : '';
 
-    return `8:${categoryLetter},${latField},${modeField},${vitalsCsv}~${peBody}~${add64}`;
+    return `9:${categoryLetter},${latField},${modeField},${vitalsCsv}~${peBody}~${add64}`;
 }
 
 // ---------------------------------------------------------------------------
-// V8 decoder
+// V8/V9 decoder
 // ---------------------------------------------------------------------------
+// Shared body parser. `fillDefaults` reproduces the legacy v8 behaviour of
+// reconstructing every unlisted canonical block as "all normal"; v9 passes false
+// so only explicitly-encoded (examined) blocks are materialized.
 
-function decodePEStateV8(data: string, symptomCode: string): PEState | null {
+function decodePEStateBody(data: string, symptomCode: string, fillDefaults: boolean): PEState | null {
     const sections = data.split('~');
     if (sections.length < 3) return null;
 
@@ -337,16 +352,19 @@ function decodePEStateV8(data: string, symptomCode: string): PEState | null {
         }
     }
 
-    // Fill in default blocks (unlisted = all examined, all normal)
-    for (let i = 0; i < canonical.length; i++) {
-        if (explicitBlocks.has(i)) continue;
-        const block = canonical[i];
-        items[block.key] = {
-            status: 'normal',
-            selectedNormals: block.findings.map(f => f.key),
-            selectedAbnormals: [],
-            findings: '',
-        };
+    // Legacy v8 only: fill unlisted canonical blocks as "all examined, all normal".
+    // v9 skips this — unlisted blocks were never examined and must stay absent.
+    if (fillDefaults) {
+        for (let i = 0; i < canonical.length; i++) {
+            if (explicitBlocks.has(i)) continue;
+            const block = canonical[i];
+            items[block.key] = {
+                status: 'normal',
+                selectedNormals: block.findings.map(f => f.key),
+                selectedAbnormals: [],
+                findings: '',
+            };
+        }
     }
 
     const additional = sections[2] ? decompressText(sections[2]) : '';
@@ -368,9 +386,10 @@ function decodePEStateV8(data: string, symptomCode: string): PEState | null {
 // Public decode dispatcher
 // ---------------------------------------------------------------------------
 
-/** Decode a compact PE string (v8) back into PEState. Returns null on parse failure. */
+/** Decode a compact PE string (v9, or legacy v8) back into PEState. Returns null on parse failure. */
 export function decodePEState(encoded: string, symptomCode: string): PEState | null {
-    if (encoded.startsWith('8:')) return decodePEStateV8(encoded.substring(2), symptomCode);
+    if (encoded.startsWith('9:')) return decodePEStateBody(encoded.substring(2), symptomCode, false);
+    if (encoded.startsWith('8:')) return decodePEStateBody(encoded.substring(2), symptomCode, true);
     return null;
 }
 
