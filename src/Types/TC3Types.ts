@@ -216,6 +216,12 @@ export interface TC3Card {
     priority: EvacPriority
   }
 
+  // Triage disposition — Expectant (black). Kept OFF `evacuation` on purpose: the
+  // 9-line evac field has no Expectant band and must not carry one (it flows into
+  // DD1380/MIST). Expectant is a separate axis that sinks the casualty to the foot
+  // of the triage ladder regardless of evac precedence.
+  expectant: boolean
+
   // OTHER section (DD 1380)
   other: {
     combatPillPack: boolean

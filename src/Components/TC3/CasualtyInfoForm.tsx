@@ -64,6 +64,8 @@ export const CasualtyInfoForm = memo(function CasualtyInfoForm() {
   const updateCasualty = useTC3Store((s) => s.updateCasualty)
   const evacuation = useTC3Store((s) => s.card.evacuation)
   const updateEvacuation = useTC3Store((s) => s.updateEvacuation)
+  const expectant = useTC3Store((s) => s.card.expectant)
+  const setExpectant = useTC3Store((s) => s.setExpectant)
 
   // Reverse of the FeatureEditor TC3 link: find the casualty pin (if any) whose
   // opaque tc3_card_id points back at this card, so the medic can see — and tap
@@ -86,6 +88,7 @@ export const CasualtyInfoForm = memo(function CasualtyInfoForm() {
 
   const [draft, setDraft] = useState({ ...EMPTY_CASUALTY })
   const [draftEvac, setDraftEvac] = useState<EvacPriority>('Urgent')
+  const [draftExpectant, setDraftExpectant] = useState(false)
 
   const openPopover = useCallback((ref: React.RefObject<HTMLElement | null>) => {
     const { battleRosterNo, lastName, firstName, unit, sex, bloodType, service, allergies, dateTimeOfInjury, dateTimeOfTreatment } = casualty
@@ -96,21 +99,25 @@ export const CasualtyInfoForm = memo(function CasualtyInfoForm() {
       dateTimeOfTreatment: dateTimeOfTreatment || now,
     })
     setDraftEvac(evacuation.priority)
+    setDraftExpectant(expectant)
     setAnchorRect(ref.current?.getBoundingClientRect() ?? null)
     setPopoverVisible(true)
-  }, [casualty, evacuation.priority])
+  }, [casualty, evacuation.priority, expectant])
 
   const handleAccept = useCallback(() => {
     updateCasualty(draft)
     updateEvacuation({ priority: draftEvac })
-  }, [draft, draftEvac, updateCasualty, updateEvacuation])
+    setExpectant(draftExpectant)
+  }, [draft, draftEvac, draftExpectant, updateCasualty, updateEvacuation, setExpectant])
 
   const handleReset = useCallback(() => {
     setDraft({ ...EMPTY_CASUALTY })
     setDraftEvac('Urgent')
+    setDraftExpectant(false)
     updateCasualty(EMPTY_CASUALTY)
     updateEvacuation({ priority: 'Urgent' })
-  }, [updateCasualty, updateEvacuation])
+    setExpectant(false)
+  }, [updateCasualty, updateEvacuation, setExpectant])
 
   const updateDraft = useCallback((fields: Partial<typeof draft>) => {
     setDraft(prev => ({ ...prev, ...fields }))
@@ -136,7 +143,11 @@ export const CasualtyInfoForm = memo(function CasualtyInfoForm() {
           className="w-full rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden text-left active:scale-95 transition-all hover:bg-themeblue2/5"
         >
           <div className="flex items-center gap-3 px-4 py-3">
-            {evacuation.priority ? (
+            {expectant ? (
+              <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-neutral-800">
+                <span className="text-[14pt] font-medium text-white">E</span>
+              </div>
+            ) : evacuation.priority ? (
               <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10`}>
                 <span className="text-[14pt] font-medium text-tertiary">
                   {evacuation.priority === 'Urgent' ? 'U' : evacuation.priority === 'Priority' ? 'P' : 'R'}
@@ -206,27 +217,46 @@ export const CasualtyInfoForm = memo(function CasualtyInfoForm() {
         title="Casualty Info"
         preview={
           <div>
-            {/* EVAC Priority */}
+            {/* Triage — EVAC precedence (U/P/R) + Expectant. Expectant is a
+                separate disposition (sinks to the foot of the ladder), so it is
+                mutually exclusive with an evac priority here. */}
             <div className="px-4 py-3 border-b border-primary/6">
-              <span className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest">EVAC Priority</span>
+              <span className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest">Triage</span>
               <div className="mt-1.5 flex overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
-                {EVAC_OPTIONS.map((opt) => (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    onClick={() => setDraftEvac(prev => prev === opt.value ? '' : opt.value)}
-                    className={`shrink-0 px-4 py-1.5 transition-colors ${
-                      draftEvac === opt.value ? opt.color : 'active:bg-tertiary/5'
-                    }`}
-                    title={`EVAC: ${opt.label}`}
-                  >
-                    <span className={`text-[9pt] transition-colors ${
-                      draftEvac === opt.value ? 'text-white font-medium' : 'text-secondary'
-                    }`}>
-                      {opt.label}
-                    </span>
-                  </button>
-                ))}
+                {EVAC_OPTIONS.map((opt) => {
+                  const selected = draftEvac === opt.value && !draftExpectant
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => { setDraftExpectant(false); setDraftEvac(prev => prev === opt.value ? '' : opt.value) }}
+                      className={`shrink-0 px-4 py-1.5 transition-colors ${
+                        selected ? opt.color : 'active:bg-tertiary/5'
+                      }`}
+                      title={`EVAC: ${opt.label}`}
+                    >
+                      <span className={`text-[9pt] transition-colors ${
+                        selected ? 'text-white font-medium' : 'text-secondary'
+                      }`}>
+                        {opt.label}
+                      </span>
+                    </button>
+                  )
+                })}
+                <button
+                  type="button"
+                  onClick={() => setDraftExpectant(v => !v)}
+                  className={`shrink-0 px-4 py-1.5 transition-colors ${
+                    draftExpectant ? 'bg-neutral-800' : 'active:bg-tertiary/5'
+                  }`}
+                  title="Expectant"
+                >
+                  <span className={`text-[9pt] transition-colors ${
+                    draftExpectant ? 'text-white font-medium' : 'text-secondary'
+                  }`}>
+                    E
+                  </span>
+                </button>
               </div>
             </div>
 

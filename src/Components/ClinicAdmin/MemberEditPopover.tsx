@@ -649,7 +649,7 @@ export function MemberEditPopover({
                     type="email"
                     value={editEmail}
                     onChange={(e) => setEditEmail(e.target.value)}
-                    placeholder="name@example.mil"
+                    placeholder="Email"
                     autoCapitalize="off"
                     autoCorrect="off"
                     spellCheck={false}

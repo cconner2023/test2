@@ -776,7 +776,7 @@ export const ProfilePage = ({
                                 type="email"
                                 value={newEmail}
                                 onChange={(e) => setNewEmail(e.target.value)}
-                                placeholder="name@example.mil"
+                                placeholder="Email"
                                 autoCapitalize="off"
                                 autoCorrect="off"
                                 spellCheck={false}

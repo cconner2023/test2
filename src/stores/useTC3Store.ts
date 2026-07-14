@@ -303,6 +303,7 @@ export function createEmptyCard(): TC3Card {
     evacuation: {
       priority: 'Urgent',
     },
+    expectant: false,
     other: {
       combatPillPack: false,
       eyeShield: { applied: false, side: '' },
@@ -413,6 +414,9 @@ interface TC3Actions {
 
   // Evacuation
   updateEvacuation: (fields: Partial<TC3Card['evacuation']>) => void
+
+  // Triage — Expectant disposition (bottom of the ladder, distinct from evac)
+  setExpectant: (value: boolean) => void
 
   // OTHER section
   updateOther: (fields: Partial<TC3Card['other']>) => void
@@ -793,6 +797,11 @@ export const useTC3Store = create<TC3Store>()((set, get) => ({
   // Evacuation
   updateEvacuation: (fields) => {
     set((s) => ({ card: { ...s.card, evacuation: { ...s.card.evacuation, ...fields } } }))
+    saveActiveCard(get().card)
+  },
+
+  setExpectant: (value) => {
+    set((s) => ({ card: { ...s.card, expectant: value } }))
     saveActiveCard(get().card)
   },
 

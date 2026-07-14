@@ -435,6 +435,12 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
   const lastSavedFeaturesRef = useRef<OverlayFeature[]>([]);
   const lastSavedMetadataRef = useRef<{ name: string; center: [number, number]; zoom: number; floors?: OverlayFloor[] } | null>(null);
   const overlayCreatedRef = useRef<Set<string>>(new Set());
+  // Resolves once the OPEN overlay's row is guaranteed to exist in IDB. On
+  // handleNewOverlay the empty-overlay writeOverlay is fired unawaited, so a
+  // point dropped immediately after "New overlay" could race ahead of the row
+  // and be dropped by upsertFeature's unknown-overlay guard. Auto-commit awaits
+  // this first. handleOpenOverlay sets it resolved (row already persisted).
+  const overlayReadyRef = useRef<Promise<unknown>>(Promise.resolve());
   const [confirmDeleteOverlayId, setConfirmDeleteOverlayId] = useState<string | null>(null);
   // Carries the feature's HOME overlay id (not necessarily the one open in the
   // editor) so a tree-delete targets the right overlay — mirrors how
@@ -725,6 +731,61 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
     return lvl != null && lvl !== 0 ? { ...f, level: lvl } : f;
   }, []);
 
+  // Persist a single feature straight to IDB + the vault via the per-feature
+  // envelope, after the overlay row itself is guaranteed to exist (guards the
+  // create→drop race). Used by the auto-commit paths below.
+  const persistFeature = useCallback((feature: OverlayFeature) => {
+    if (!user || !activeClinicId || !overlayId) return;
+    const oid = overlayId;
+    const cid = activeClinicId;
+    void (async () => {
+      await overlayReadyRef.current;
+      await upsertFeature({ overlayId: oid, clinicId: cid, feature });
+      setOverlays(prev => prev.map(o => o.id === oid
+        ? { ...o, features: o.features.some(f => f.id === feature.id)
+            ? o.features.map(f => f.id === feature.id ? feature : f)
+            : [...o.features, feature] }
+        : o));
+    })();
+  }, [user, activeClinicId, overlayId, upsertFeature]);
+
+  // Auto-commit a freshly CREATED feature: append it to the live list, advance
+  // the diff baseline, and persist it immediately. Adding a point/route/area to
+  // an already-persisted overlay therefore never sits in draft or trips the
+  // discard-on-close gate — the user's "assigning a point shouldn't nag" ask.
+  // Edits to EXISTING features still ride draft mode (handleSaveClick). Because
+  // the change is folded into the baseline, isDirty is untouched (stays false if
+  // clean, stays true if other real edits are pending). Mirrors performCopyFeature.
+  const commitNewFeature = useCallback((raw: OverlayFeature) => {
+    const feature = stampFloor(raw);
+    // Always a fresh-UUID append, so the setFeatures below always produces a new
+    // reference — the dirty-watcher runs and consumes the armed skipDirtyRef
+    // (no dangling flag). Baseline advances in lockstep so the add reads as saved.
+    skipDirtyRef.current = true;
+    setFeatures(prev => [...prev, feature]);
+    lastSavedFeaturesRef.current = [...lastSavedFeaturesRef.current, feature];
+    persistFeature(feature);
+    return feature;
+  }, [stampFloor, persistFeature]);
+
+  // Does the live overlay still have draft-tracked divergence from the baseline?
+  // isDirty in this component is only ever flipped by the features watcher and
+  // the floor add/delete handlers — pan/zoom (metadata) never sets it — so this
+  // mirrors that: features diff OR floors diff, deliberately NOT metadata. Used
+  // to recompute isDirty when a feature is folded into the baseline without a
+  // setFeatures reset (e.g. finishRoute committing a just-drawn route/area).
+  const hasPendingChanges = useCallback((nextFeatures: OverlayFeature[]) => {
+    const prev = lastSavedFeaturesRef.current;
+    if (prev.length !== nextFeatures.length) return true;
+    const prevById = new Map(prev.map(f => [f.id, f]));
+    for (const f of nextFeatures) {
+      const old = prevById.get(f.id);
+      if (!old || JSON.stringify(old) !== JSON.stringify(f)) return true;
+    }
+    const savedFloors = lastSavedMetadataRef.current?.floors ?? [];
+    return JSON.stringify(savedFloors) !== JSON.stringify(overlayFloors);
+  }, [overlayFloors]);
+
   const recorder = useTrackRecorder({
     overlayId,
     gps: gpsPosition ? { lat: gpsPosition.lat, lng: gpsPosition.lng, accuracy: gpsPosition.accuracy } : null,
@@ -758,9 +819,9 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
       created_at: now,
       updated_at: now,
     };
-    setFeatures(prev => [...prev, stampFloor(recordedFeature)]);
+    commitNewFeature(recordedFeature);
     setDrawMode('pan');
-  }, [overlayId, recorder]);
+  }, [overlayId, recorder, commitNewFeature]);
 
   // ── Load overlays + auto-navigate to viewer on first open ──
   useEffect(() => {
@@ -954,10 +1015,15 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
     // writeOverlay's invalidate('mapOverlays') re-runs the load effect, and the
     // optimistic setOverlays makes it appear instantly.
     if (user && activeClinicId) {
-      writeOverlay({ overlayId: id, clinicId: activeClinicId, name, center, zoom: mapZoom, features: [], floors: [] })
+      // Capture the create promise so auto-committed features (commitNewFeature)
+      // wait for the overlay row to land in IDB before upserting — otherwise
+      // upsertFeature's unknown-overlay guard would silently drop the point.
+      overlayReadyRef.current = writeOverlay({ overlayId: id, clinicId: activeClinicId, name, center, zoom: mapZoom, features: [], floors: [] })
         .then(saved => {
           if (saved) setOverlays(prev => prev.some(o => o.id === saved.id) ? prev : [...prev, saved]);
         });
+    } else {
+      overlayReadyRef.current = Promise.resolve();
     }
   }, [startWatching, initialCenter, mapCenter, mapZoom, user, activeClinicId, writeOverlay, resetInProgressDrawing]);
 
@@ -992,7 +1058,9 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
     setTempRoute(null);
     skipDirtyRef.current = true;
     // Seed diff-baselines: the overlay already exists in IDB and on the vault,
-    // so subsequent edits go straight to per-feature envelopes.
+    // so subsequent edits go straight to per-feature envelopes. The row is
+    // already persisted, so auto-commit needn't wait on anything.
+    overlayReadyRef.current = Promise.resolve();
     overlayCreatedRef.current.add(overlay.id);
     lastSavedFeaturesRef.current = overlay.features;
     lastSavedMetadataRef.current = { name: overlay.name, center: overlay.center, zoom: overlay.zoom, floors: overlay.floors };
@@ -1112,26 +1180,26 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
     if (!overlayId) return;
     const now = new Date().toISOString();
     const id = crypto.randomUUID();
-    setFeatures(prev => {
-      const wptIndex = prev.filter(f => f.type === 'waypoint').length + 1;
-      const feature: OverlayFeature = {
-        id,
-        overlay_id: overlayId,
-        type: 'waypoint',
-        geometry: [[lat, lng]],
-        label: `Point ${wptIndex}`,
-        waypoint_type: pinType,
-        style: { ...DEFAULT_FEATURE_STYLE },
-        created_at: now,
-        updated_at: now,
-      };
-      return [...prev, stampFloor(feature)];
-    });
+    const wptIndex = features.filter(f => f.type === 'waypoint').length + 1;
+    const feature: OverlayFeature = {
+      id,
+      overlay_id: overlayId,
+      type: 'waypoint',
+      geometry: [[lat, lng]],
+      label: `Point ${wptIndex}`,
+      waypoint_type: pinType,
+      style: { ...DEFAULT_FEATURE_STYLE },
+      created_at: now,
+      updated_at: now,
+    };
+    // Dropping a point is a complete addition — commit it right away instead of
+    // parking it in draft (no Save tap, no discard-on-close nag).
+    commitNewFeature(feature);
     setSelectedFeatureId(id);
     // After placement the feature drawer/panel takes over editing, so the
     // on-map glyph picker is redundant — dismiss it.
     setPinPickerPage(null);
-  }, [overlayId, pinType]);
+  }, [overlayId, pinType, features, commitNewFeature]);
 
   // Push the current points into history and replace with `next`. Declared
   // before handleMapClick so its dependency array can reference this without
@@ -1164,20 +1232,18 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
         if (px < SNAP_PX) {
           const id = crypto.randomUUID();
           const closingPoints = [...tempRoute.points];
-          setFeatures(prev => {
-            const areaIndex = prev.filter(f => f.type === 'area').length + 1;
-            const feature: OverlayFeature = {
-              id,
-              overlay_id: overlayId,
-              type: 'area',
-              geometry: closingPoints,
-              label: `Area ${areaIndex}`,
-              style: { ...DEFAULT_FEATURE_STYLE },
-              created_at: now,
-              updated_at: now,
-            };
-            return [...prev, stampFloor(feature)];
-          });
+          const areaIndex = features.filter(f => f.type === 'area').length + 1;
+          const feature: OverlayFeature = {
+            id,
+            overlay_id: overlayId,
+            type: 'area',
+            geometry: closingPoints,
+            label: `Area ${areaIndex}`,
+            style: { ...DEFAULT_FEATURE_STYLE },
+            created_at: now,
+            updated_at: now,
+          };
+          commitNewFeature(feature);
           setTempRoute(null);
           setSelectedFeatureId(id);
           return;
@@ -1300,7 +1366,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
         setTempPoint({ lat, lng });
       }
     }
-  }, [drawMode, overlayId, measurePoints, features, pinType, isMobile, dropPinAt, tempRoute, commitTempRouteChange]);
+  }, [drawMode, overlayId, measurePoints, features, pinType, isMobile, dropPinAt, tempRoute, commitTempRouteChange, commitNewFeature]);
 
   // Long-press / right-click → drop a transient temp point regardless of
   // pan mode. Does not commit a waypoint; user promotes via the drawer.
@@ -1365,45 +1431,41 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
     if (!overlayId || !tempRoute || tempRoute.points.length < 2) return;
     const now = new Date().toISOString();
     const id = crypto.randomUUID();
-    setFeatures(prev => {
-      const routeIndex = prev.filter(f => f.type === 'route').length + 1;
-      const feature: OverlayFeature = {
-        id,
-        overlay_id: overlayId,
-        type: 'route',
-        geometry: [...tempRoute.points],
-        label: `Route ${routeIndex}`,
-        style: { ...DEFAULT_FEATURE_STYLE },
-        created_at: now,
-        updated_at: now,
-      };
-      return [...prev, stampFloor(feature)];
-    });
+    const routeIndex = features.filter(f => f.type === 'route').length + 1;
+    const feature: OverlayFeature = {
+      id,
+      overlay_id: overlayId,
+      type: 'route',
+      geometry: [...tempRoute.points],
+      label: `Route ${routeIndex}`,
+      style: { ...DEFAULT_FEATURE_STYLE },
+      created_at: now,
+      updated_at: now,
+    };
+    commitNewFeature(feature);
     setTempRoute(null);
     setSelectedFeatureId(id);
-  }, [overlayId, tempRoute]);
+  }, [overlayId, tempRoute, features, commitNewFeature]);
 
   const handleSaveTempRouteAsArea = useCallback(() => {
     if (!overlayId || !tempRoute || tempRoute.points.length < 3) return;
     const now = new Date().toISOString();
     const id = crypto.randomUUID();
-    setFeatures(prev => {
-      const areaIndex = prev.filter(f => f.type === 'area').length + 1;
-      const feature: OverlayFeature = {
-        id,
-        overlay_id: overlayId,
-        type: 'area',
-        geometry: [...tempRoute.points],
-        label: `Area ${areaIndex}`,
-        style: { ...DEFAULT_FEATURE_STYLE },
-        created_at: now,
-        updated_at: now,
-      };
-      return [...prev, stampFloor(feature)];
-    });
+    const areaIndex = features.filter(f => f.type === 'area').length + 1;
+    const feature: OverlayFeature = {
+      id,
+      overlay_id: overlayId,
+      type: 'area',
+      geometry: [...tempRoute.points],
+      label: `Area ${areaIndex}`,
+      style: { ...DEFAULT_FEATURE_STYLE },
+      created_at: now,
+      updated_at: now,
+    };
+    commitNewFeature(feature);
     setTempRoute(null);
     setSelectedFeatureId(id);
-  }, [overlayId, tempRoute]);
+  }, [overlayId, tempRoute, features, commitNewFeature]);
 
   // ── Finish route/area ──
   // Called when the user toggles out of route/area mode. Routes auto-finalize
@@ -1412,10 +1474,29 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
     const ipId = inProgressFeatureId.current;
     const minPoints = drawMode === 'area' ? 3 : 2;
     if (ipId && inProgressGeometry.current.length >= minPoints) {
+      // A completed route/area is a fresh addition — commit it like a dropped
+      // point rather than leaving it in draft. The feature already lives in
+      // `features` (added on the first vertex, mutated since), so fold it into
+      // the baseline + persist, then recompute isDirty precisely.
+      const finished = features.find(f => f.id === ipId);
+      if (finished) {
+        lastSavedFeaturesRef.current = lastSavedFeaturesRef.current.some(f => f.id === ipId)
+          ? lastSavedFeaturesRef.current.map(f => f.id === ipId ? finished : f)
+          : [...lastSavedFeaturesRef.current, finished];
+        persistFeature(finished);
+        setIsDirty(hasPendingChanges(features));
+      }
       setSelectedFeatureId(ipId);
+    } else if (ipId) {
+      // Too short to be a valid feature — drop the degenerate stub instead of
+      // leaving it dangling in the draft.
+      const cleaned = features.filter(f => f.id !== ipId);
+      skipDirtyRef.current = true;
+      setFeatures(cleaned);
+      setIsDirty(hasPendingChanges(cleaned));
     }
     resetInProgressDrawing();
-  }, [drawMode, resetInProgressDrawing]);
+  }, [drawMode, features, persistFeature, hasPendingChanges, resetInProgressDrawing]);
 
   const handleSaveClick = useCallback(async () => {
     if (!overlayId || !user || !activeClinicId) return;
@@ -1457,10 +1538,10 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
           }
           return [...prev, saved];
         });
-        // First save landed — clear draft state exactly like the diff branch
-        // below. Without this the new overlay stays isDirty=true, so the
-        // close-gate keeps firing "Discard unsaved changes?" after a save.
-        skipDirtyRef.current = true;
+        // First save landed — clear draft state. NOTE: do NOT arm skipDirtyRef
+        // here. Save doesn't call setFeatures, so no dirty-watcher run would
+        // consume the flag — it would dangle and swallow the dirty-flip on the
+        // user's NEXT edit, silently losing it on close.
         setIsDirty(false);
       } else {
         setSaveError('Failed to save overlay');
@@ -1516,7 +1597,8 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
     setOverlays(prev => prev.map(o => o.id === overlayId
       ? { ...o, name, center: mapCenter, zoom: mapZoom, features, floors: overlayFloors, updated_at: new Date().toISOString() }
       : o));
-    skipDirtyRef.current = true;
+    // Do NOT arm skipDirtyRef — Save doesn't setFeatures, so the flag would
+    // dangle and swallow the dirty-flip on the next edit (silent data loss).
     setIsDirty(false);
     } finally {
       setSavingOverlay(false);

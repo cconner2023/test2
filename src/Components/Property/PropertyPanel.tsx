@@ -379,6 +379,9 @@ export const PropertyPanel = memo(function PropertyPanel({
   const [importBulkLocationId, setImportBulkLocationId] = useState<string | null>(null)
   // Bulk-EDIT: the existing items seeded into the grid (zone "Edit items"). Non-null → edit mode.
   const [importEditItems, setImportEditItems] = useState<LocalPropertyItem[] | null>(null)
+  // Bulk-EDIT: the zone it was launched from — the header back `<` returns to that zone detail
+  // (rather than closing to the list), since edit-multiple is always entered from a zone.
+  const [importEditLocationId, setImportEditLocationId] = useState<string | null>(null)
   const [shortageOpen, setShortageOpen] = useState(false)
   const [authorizedOpen, setAuthorizedOpen] = useState(false)
   // Authorized surface MORPH: the add/edit item form, the read-only item detail, OR the
@@ -871,8 +874,27 @@ export const PropertyPanel = memo(function PropertyPanel({
     setAuthorizedOpen(false)
     setImportBulk(false)
     setImportEditItems(editItems)
+    setImportEditLocationId(locId)
     setImportOpen(true)
   }, [store, zoneEditItems])
+
+  // Header back `<` for the standalone import surface. Multi-edit returns to the zone it was
+  // launched from (reopen the zone detail); CSV / multi-add defer to the wizard's own back
+  // (CSV preview → pick; multi-add closes to the list — no prior sheet survives openBulkAdd).
+  const handleImportBack = useCallback(() => {
+    if (importEditItems) {
+      const loc = importEditLocationId
+      setImportOpen(false)
+      setImportEditItems(null)
+      setImportEditLocationId(null)
+      if (loc) {
+        setSelectedLocationId(loc)
+        cameraTo({ kind: 'zone', id: loc })
+      }
+      return
+    }
+    csvImportRef.current?.back()
+  }, [importEditItems, importEditLocationId, cameraTo])
 
   // Tree location tap (desktop) → navigate the canvas to that zone; re-tap clears.
   // Selection state itself flows back from the canvas via onSelectZone → selectedLocationId.
@@ -1498,12 +1520,9 @@ export const PropertyPanel = memo(function PropertyPanel({
                 <div className="shrink-0 flex items-center justify-between gap-2 px-4 py-3 border-b border-tertiary/10">
                   <div className="flex items-center gap-2 min-w-0">
                     {csvImportInPreview && (
-                      <>
-                        <button onClick={() => csvImportRef.current?.back()} aria-label="Back" className="w-9 h-9 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all shrink-0">
-                          <ChevronLeft size={20} />
-                        </button>
-                        <PillButton icon={MoreHorizontal} iconSize={16} onClick={() => csvImportRef.current?.openMenu()} label="Import actions" />
-                      </>
+                      <button onClick={handleImportBack} aria-label="Back" className="w-9 h-9 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all shrink-0">
+                        <ChevronLeft size={20} />
+                      </button>
                     )}
                     <p className="text-sm font-medium text-primary truncate">{importEditItems ? 'Edit items' : importBulk ? 'Add items' : 'Import Property CSV'}</p>
                   </div>
@@ -1910,14 +1929,9 @@ export const PropertyPanel = memo(function PropertyPanel({
             </button>
           ) : importOpen ? (
             csvImportInPreview ? (
-              <div className="flex items-center gap-1">
-                <button onClick={() => csvImportRef.current?.back()} aria-label="Back" className="w-9 h-9 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all">
-                  <ChevronLeft size={20} />
-                </button>
-                <HeaderPill>
-                  <PillButton icon={MoreHorizontal} iconSize={18} onClick={() => csvImportRef.current?.openMenu()} label="Import actions" />
-                </HeaderPill>
-              </div>
+              <button onClick={handleImportBack} aria-label="Back" className="w-9 h-9 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all">
+                <ChevronLeft size={20} />
+              </button>
             ) : undefined
           ) : authorizedOpen ? (
             (authForm || authView || authImport) ? (
@@ -1992,10 +2006,13 @@ export const PropertyPanel = memo(function PropertyPanel({
             )
           ) : mobileForm ? (
             mobileForm.kind === 'item' && !store.editingItem ? (
-              <HeaderPill>
+              // Bare fragment — the Sheet folds `actions` + its own Close into ONE
+              // HeaderPill (Sheet.tsx). A nested HeaderPill here draws a second border
+              // inside that pill (bordered-bar-in-a-bordered-bar).
+              <>
                 <PillButton icon={Rows3} iconSize={18} onClick={openBulkAdd} label="Add multiple" />
                 <PillButton icon={Check} iconSize={18} accent="success" onClick={() => itemFormRef.current?.submit()} label="Save" />
-              </HeaderPill>
+              </>
             ) : (
               <PillButton
                 icon={Check}
@@ -2038,7 +2055,11 @@ export const PropertyPanel = memo(function PropertyPanel({
             <Da2062PdfView preview={da2062Preview} />
           </div>
         ) : importOpen ? (
-          <PropertyCSVImport ref={csvImportRef} bulk={importBulk} defaultLocationId={importBulkLocationId} editItems={importEditItems ?? undefined} onReadyChange={setCsvImportReady} onInPreviewChange={setCsvImportInPreview} onClose={() => setImportOpen(false)} />
+          // PropertyCSVImport is host-padded (desktop pane wraps it px-4 py-4 pb-8) —
+          // the mobile sheet must supply the same so its rows/summary don't hug the edges.
+          <div className="px-4 py-4 pb-8">
+            <PropertyCSVImport ref={csvImportRef} bulk={importBulk} defaultLocationId={importBulkLocationId} editItems={importEditItems ?? undefined} onReadyChange={setCsvImportReady} onInPreviewChange={setCsvImportInPreview} onClose={() => setImportOpen(false)} />
+          </div>
         ) : shortageOpen ? (
           <PropertyShortagePanel ref={shortageRef} onClose={() => setShortageOpen(false)} stagedTurnInIds={turnInItemIds} onLocate={handleSelectItem} />
         ) : authorizedOpen ? (
@@ -2056,7 +2077,9 @@ export const PropertyPanel = memo(function PropertyPanel({
               onLocateFiller={handleSelectItem}
             />
           ) : authImport ? (
-            <PropertyCSVImport ref={csvImportRef} onReadyChange={setCsvImportReady} onInPreviewChange={setCsvImportInPreview} onClose={closeAuthMorph} />
+            <div className="px-4 py-4 pb-8">
+              <PropertyCSVImport ref={csvImportRef} onReadyChange={setCsvImportReady} onInPreviewChange={setCsvImportInPreview} onClose={closeAuthMorph} />
+            </div>
           ) : (
             <PropertyAuthorizedPanel
               onClose={() => setAuthorizedOpen(false)}

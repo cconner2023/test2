@@ -5,12 +5,7 @@ import { SearchInput } from '@/Components/primitives/SearchInput'
 import { LiftedRowMenu } from '@/Components/primitives/LiftedRowMenu'
 import { type ContextMenuItem } from '@/Components/primitives/ContextMenu'
 import type { TC3Card } from '../../Types/TC3Types'
-
-const PRIORITY_COLOR: Record<string, string> = {
-  Urgent: 'bg-themeredred',
-  Priority: 'bg-amber-500',
-  Routine: 'bg-themegreen',
-}
+import { orderByPriority, buildCasualtyStops, bandOf, BAND_META } from './casualtyOrder'
 
 function casualtyName(card: TC3Card): string {
   return [card.casualty.lastName, card.casualty.firstName].filter(Boolean).join(', ')
@@ -45,13 +40,13 @@ export const CasualtyList = memo(function CasualtyList({ onAfterSelect, variant 
 
   const hoverActions = variant === 'pane'
 
-  // Stable order: sort all casualties by creation time
+  // Triage order: sort by evac-priority band, then creation time within a band.
   const all = useMemo(
     () =>
-      [
+      orderByPriority([
         { card, isActive: true },
         ...casualtyQueue.map((e) => ({ card: e.card, isActive: false })),
-      ].sort((a, b) => a.card.createdAt.localeCompare(b.card.createdAt)),
+      ]),
     [card, casualtyQueue],
   )
 
@@ -61,8 +56,11 @@ export const CasualtyList = memo(function CasualtyList({ onAfterSelect, variant 
     return all.filter(({ card: c }) => (casualtyName(c) || 'unknown').toLowerCase().includes(q))
   }, [all, query])
 
-  // Number is the position in the full roster, not the filtered view.
-  const numberOf = (id: string) => all.findIndex(({ card: c }) => c.id === id) + 1
+  // Evac-priority label (U1, P1, R2, …) per casualty — same convention as the slider.
+  const labelById = useMemo(
+    () => new Map(buildCasualtyStops(all.map(({ card: c }) => c)).map((s) => [s.id, s.label])),
+    [all],
+  )
 
   const handleSelect = (cardId: string, isActive: boolean) => {
     if (!isActive) restoreFromQueue(cardId)
@@ -107,24 +105,27 @@ export const CasualtyList = memo(function CasualtyList({ onAfterSelect, variant 
     hoverActions ? 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100' : ''
   }`
 
-  const bodyClass =
-    variant === 'sheet'
-      ? 'max-h-[52dvh] overflow-y-auto overscroll-y-contain'
-      : 'flex-1 min-h-0 overflow-y-auto'
+  // In a sheet the Sheet's own fit-body is the scroll region (it has the iOS
+  // scroll-region fix) — nesting a second capped scroller here fights it: the
+  // sheet's overflow-hidden card clips the inner region before its cap is hit,
+  // so rows past what fits are unreachable. Let the rows flow and the Sheet
+  // scroll them; the search pins via sticky. The pane keeps its own flex scroll.
+  const bodyClass = variant === 'sheet' ? '' : 'flex-1 min-h-0 overflow-y-auto'
 
   return (
     <div className={`flex flex-col min-h-0${variant === 'pane' ? ' h-full' : ''}`}>
-      <div className="shrink-0 px-3 pt-3 pb-2">
+      <div className={`shrink-0 px-3 pt-3 pb-2${variant === 'sheet' ? ' sticky top-0 z-10 bg-themewhite3' : ''}`}>
         <SearchInput value={query} onChange={setQuery} placeholder="Search casualties…" />
       </div>
 
       <div className={bodyClass}>
         <div className="flex flex-col py-1">
           {filtered.map(({ card: c, isActive }) => {
-            const number = numberOf(c.id)
+            const code = labelById.get(c.id) ?? ''
             const name = casualtyName(c)
-            const dotColor = c.evacuation.priority
-              ? PRIORITY_COLOR[c.evacuation.priority]
+            const band = bandOf(c)
+            const dotColor = band
+              ? BAND_META[band]?.color ?? 'bg-tertiary/40'
               : isActive ? 'bg-themeblue2' : 'bg-tertiary/40'
             return (
               <div
@@ -148,7 +149,7 @@ export const CasualtyList = memo(function CasualtyList({ onAfterSelect, variant 
                   <span className={`w-2 h-2 rounded-full ${dotColor}`} />
                 </span>
                 <span className="text-[10pt] font-medium text-primary truncate flex-1">
-                  Casualty {number}
+                  {code}
                   {name && <span className="text-tertiary font-normal"> · {name}</span>}
                 </span>
                 <button
@@ -182,7 +183,7 @@ export const CasualtyList = memo(function CasualtyList({ onAfterSelect, variant 
             <div className="flex items-center gap-2 px-3 py-2 bg-themewhite">
               <Crosshair size={16} className="text-tertiary shrink-0" />
               <span className="flex-1 min-w-0 text-[10pt] font-medium text-primary truncate">
-                Casualty {numberOf(menuCard.card.id)}
+                {labelById.get(menuCard.card.id) ?? ''}
                 {casualtyName(menuCard.card) ? ` · ${casualtyName(menuCard.card)}` : ''}
               </span>
             </div>

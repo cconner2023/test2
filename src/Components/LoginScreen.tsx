@@ -326,7 +326,7 @@ export function LoginScreen() {
                           value={email}
                           onChange={setEmail}
                           type="email"
-                          placeholder="your.email@mail.mil *"
+                          placeholder="Email *"
                           required
                         />
                         <PasswordInput
@@ -390,7 +390,7 @@ export function LoginScreen() {
                     value={email}
                     onChange={setEmail}
                     type="email"
-                    placeholder="your.email@mail.mil"
+                    placeholder="Email"
                   />
                   <div className="flex items-center justify-end gap-2 px-3 py-2">
                     <button
@@ -477,7 +477,7 @@ export function LoginScreen() {
                         value={helpEmail}
                         onChange={setHelpEmail}
                         type="email"
-                        placeholder="your.email@mail.mil *"
+                        placeholder="Email *"
                         required
                       />
                       <label className="block border-b border-primary/6">

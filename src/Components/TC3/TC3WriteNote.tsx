@@ -11,6 +11,7 @@ import { encryptBarcode } from '../../Utilities/barcodeCodec'
 import { TC3BodyDiagramSvg } from './TC3BodyDiagramSvg'
 import { TC3NineLine } from './TC3NineLine'
 import { CasualtyQueue } from './CasualtyQueue'
+import { orderByPriority, buildCasualtyStops, bandOf, BAND_META } from './casualtyOrder'
 import type { TC3Card } from '../../Types/TC3Types'
 import type { UserTypes } from '../../Data/User'
 import { ActionPill } from '@/Components/primitives/ActionPill'
@@ -26,12 +27,6 @@ const INJURY_COLORS: Record<string, string> = {
   fracture: '#8b5cf6',
   amputation: '#dc2626',
   other: '#6b7280',
-}
-
-const PRIORITY_COLOR: Record<string, string> = {
-  Urgent: 'bg-themeredred',
-  Priority: 'bg-amber-500',
-  Routine: 'bg-themegreen',
 }
 
 // ── Single-card section — owns its own encode/copy/share state ────────────
@@ -120,9 +115,10 @@ function TC3CardSection({ card, profile, userId, isAuthenticated, label, activeC
       {/* Bulk mode label */}
       {label && (
         <div className="flex items-center gap-2 px-1">
-          <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${priority ? PRIORITY_COLOR[priority] : 'bg-tertiary/30'}`} />
+          <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${bandOf(card) ? BAND_META[bandOf(card)]?.color ?? 'bg-tertiary/30' : 'bg-tertiary/30'}`} />
           <p className="text-sm font-semibold text-primary">{label}</p>
-          {priority && <span className="text-[9pt] text-secondary">— {priority}</span>}
+          {card.expectant ? <span className="text-[9pt] text-secondary">— Expectant</span>
+            : priority && <span className="text-[9pt] text-secondary">— {priority}</span>}
         </div>
       )}
 
@@ -220,12 +216,11 @@ export const TC3WriteNote = memo(function TC3WriteNote({ isVisible, onClose, car
   const isMascal = !isBulk && !cardProp && queue.length > 0
   const total = queue.length + 1
 
-  const activeNumber = useMemo(() => {
-    const all = [storeCard, ...queue.map((q) => q.card)].sort((a, b) => a.createdAt.localeCompare(b.createdAt))
-    return Math.max(1, all.findIndex((c) => c.id === storeCard.id) + 1)
+  const activeCode = useMemo(() => {
+    const ordered = orderByPriority([{ card: storeCard }, ...queue.map((q) => ({ card: q.card }))]).map((r) => r.card)
+    return buildCasualtyStops(ordered).find((s) => s.id === storeCard.id)?.label ?? ''
   }, [storeCard, queue])
   const activeLabel = [storeCard.casualty.lastName, storeCard.casualty.firstName].filter(Boolean).join(', ') || 'Unknown'
-  const activePriority = storeCard.evacuation.priority
 
   const title = isBulk
     ? `TC3 Export — ${cards.length} Casualties`
@@ -241,8 +236,8 @@ export const TC3WriteNote = memo(function TC3WriteNote({ isVisible, onClose, car
       onClick={() => setQueueOpen(true)}
       className="flex items-center gap-2 min-w-0 -ml-1 px-2 py-1 rounded-full hover:bg-themeblue2/5 active:scale-95 transition-transform"
     >
-      <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${activePriority ? PRIORITY_COLOR[activePriority] : 'bg-tertiary/30'}`} />
-      <span className="truncate text-[13pt] md:text-[11pt] font-semibold text-primary">#{activeNumber} · {activeLabel}</span>
+      <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${bandOf(storeCard) ? BAND_META[bandOf(storeCard)]?.color ?? 'bg-tertiary/30' : 'bg-tertiary/30'}`} />
+      <span className="truncate text-[13pt] md:text-[11pt] font-semibold text-primary">{activeCode} · {activeLabel}</span>
       <ChevronDown size={16} className="text-tertiary shrink-0" />
     </button>
   ) : undefined

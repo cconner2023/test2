@@ -159,9 +159,10 @@ export function encodeTC3Card(card: TC3Card, userId?: string): string {
     parts.push(`W${compressText(vStrs.join(';'))}`)
   }
 
-  // E: Evacuation
-  if (card.evacuation.priority) {
-    parts.push(`E${card.evacuation.priority}`)
+  // E: Evacuation priority (+ `~X` Expectant flag). `-` placeholder keeps the
+  // segment valid when a casualty is Expectant with no evac precedence set.
+  if (card.evacuation.priority || card.expectant) {
+    parts.push(`E${card.evacuation.priority || '-'}${card.expectant ? '~X' : ''}`)
   }
 
   // N: Notes
@@ -231,6 +232,7 @@ export function parseTC3Encoding(encoded: string): ParsedTC3 | null {
     medications: [],
     vitals: [],
     evacuation: { priority: '' },
+    expectant: false,
     other: {
       combatPillPack: false,
       eyeShield: { applied: false, side: '' },
@@ -465,8 +467,10 @@ export function parseTC3Encoding(encoded: string): ParsedTC3 | null {
         break
       }
       case 'E': {
-        const prio = value.split('~')[0]
+        const subs = value.split('~')
+        const prio = subs[0]
         card.evacuation.priority = (prio === '-' ? '' : prio) as EvacPriority
+        card.expectant = subs.includes('X')
         break
       }
       case 'N':

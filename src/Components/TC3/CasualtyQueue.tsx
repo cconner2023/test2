@@ -4,12 +4,7 @@ import { useTC3Store } from '../../stores/useTC3Store'
 import { PreviewOverlay } from '../PreviewOverlay'
 import { ActionButton } from '@/Components/primitives/ActionButton'
 import type { TC3Card } from '../../Types/TC3Types'
-
-const PRIORITY_COLOR: Record<string, string> = {
-  Urgent: 'bg-themeredred',
-  Priority: 'bg-amber-500',
-  Routine: 'bg-themegreen',
-}
+import { orderByPriority, buildCasualtyStops, bandOf, BAND_META } from './casualtyOrder'
 
 function casualtyName(card: TC3Card): string {
   return [card.casualty.lastName, card.casualty.firstName].filter(Boolean).join(', ') || 'Unknown'
@@ -17,7 +12,7 @@ function casualtyName(card: TC3Card): string {
 
 interface CasualtyRowProps {
   card: TC3Card
-  number: number
+  label: string
   isActive: boolean
   onSelect: () => void
   onReset: () => void
@@ -25,10 +20,10 @@ interface CasualtyRowProps {
   onViewNote: () => void
 }
 
-function CasualtyRow({ card, number, isActive, onSelect, onReset, onDiscard, onViewNote }: CasualtyRowProps) {
-  const priority = card.evacuation.priority
-  const dotColor = priority
-    ? PRIORITY_COLOR[priority]
+function CasualtyRow({ card, label, isActive, onSelect, onReset, onDiscard, onViewNote }: CasualtyRowProps) {
+  const band = bandOf(card)
+  const dotColor = band
+    ? BAND_META[band]?.color ?? 'bg-tertiary/30'
     : isActive ? 'bg-themeblue2' : 'bg-tertiary/30'
 
   return (
@@ -44,7 +39,7 @@ function CasualtyRow({ card, number, isActive, onSelect, onReset, onDiscard, onV
     >
       <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${isActive ? 'ring-2 ring-themeblue2/30' : ''} ${dotColor}`} />
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-primary truncate">Casualty #{number}</p>
+        <p className="text-sm font-medium text-primary truncate">{label}</p>
         <p className="text-[9pt] text-secondary mt-0.5 truncate">{casualtyName(card)}</p>
       </div>
       <div className="flex items-center gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
@@ -72,11 +67,13 @@ export const CasualtyQueue = memo(function CasualtyQueue({ isOpen, onClose }: Ca
   const openExportForCard = useTC3Store((s) => s.openExportForCard)
   const openExportForCards = useTC3Store((s) => s.openExportForCards)
 
-  // Stable order: sort all casualties by creation time
-  const all = [
+  // Triage order: sort by evac-priority band, then creation time within a band.
+  const all = orderByPriority([
     { card, isActive: true },
     ...casualtyQueue.map((e) => ({ card: e.card, isActive: false })),
-  ].sort((a, b) => a.card.createdAt.localeCompare(b.card.createdAt))
+  ])
+  // Evac-priority label (U1, P1, R2, …) per casualty — same convention as the slider.
+  const labelById = new Map(buildCasualtyStops(all.map(({ card: c }) => c)).map((s) => [s.id, s.label]))
 
   const handleSelect = (cardId: string) => {
     restoreFromQueue(cardId)
@@ -107,11 +104,11 @@ export const CasualtyQueue = memo(function CasualtyQueue({ isOpen, onClose }: Ca
       previewMaxHeight="50dvh"
       actions={actions}
     >
-      {all.map(({ card: c, isActive }, i) => (
+      {all.map(({ card: c, isActive }) => (
         <CasualtyRow
           key={c.id}
           card={c}
-          number={i + 1}
+          label={labelById.get(c.id) ?? ''}
           isActive={isActive}
           onSelect={() => handleSelect(c.id)}
           onReset={isActive ? resetCard : () => handleSelect(c.id)}
