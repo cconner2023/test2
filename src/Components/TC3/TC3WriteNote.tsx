@@ -54,14 +54,6 @@ function TC3CardSection({ card, profile, userId, isAuthenticated, label, activeC
   const [copiedMist, setCopiedMist] = useState(false)
   const [shareStatus, setShareStatus] = useState<'idle' | 'sharing' | 'shared'>('idle')
   const [encodedText, setEncodedText] = useState('')
-  const [queueOpen, setQueueOpen] = useState(false)
-
-  const queue = useTC3Store((s) => s.casualtyQueue)
-  const activeNumber = useMemo(() => {
-    const all = [card, ...queue.map((q) => q.card)].sort((a, b) => a.createdAt.localeCompare(b.createdAt))
-    return Math.max(1, all.findIndex((c) => c.id === card.id) + 1)
-  }, [card, queue])
-  const casualtyLabel = [card.casualty.lastName, card.casualty.firstName].filter(Boolean).join(', ') || 'Unknown'
 
   const noteText = useMemo(() => formatTC3Note(card, profile), [card, profile])
   const compactString = useMemo(() => encodeTC3Card(card, userId), [card, userId])
@@ -125,22 +117,6 @@ function TC3CardSection({ card, profile, userId, isAuthenticated, label, activeC
 
   return (
     <div className="space-y-4">
-      {/* Active-card sticky header: which casualty (scope lives in the BottomIsland) */}
-      {activeContext && (
-        <div className="sticky top-0 z-20 -mx-1 flex items-center gap-2 py-2 px-1 bg-themewhite2/95 backdrop-blur-sm border-b border-tertiary/10">
-          <button
-            type="button"
-            onClick={() => setQueueOpen(true)}
-            className="flex items-center gap-2 min-w-0 px-1.5 py-1 rounded-full hover:bg-themeblue2/5 active:scale-95 transition-transform"
-          >
-            <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${priority ? PRIORITY_COLOR[priority] : 'bg-tertiary/30'}`} />
-            <span className="text-sm font-semibold text-primary truncate">#{activeNumber} · {casualtyLabel}</span>
-            <ChevronDown size={14} className="text-tertiary shrink-0" />
-          </button>
-        </div>
-      )}
-      {activeContext && <CasualtyQueue isOpen={queueOpen} onClose={() => setQueueOpen(false)} />}
-
       {/* Bulk mode label */}
       {label && (
         <div className="flex items-center gap-2 px-1">
@@ -232,13 +208,24 @@ export const TC3WriteNote = memo(function TC3WriteNote({ isVisible, onClose, car
   const userId = useAuthStore((s) => s.user?.id)
   const isAuthenticated = useAuthStore(selectIsAuthenticated)
   const [scope, setScope] = useState<'this' | 'rollup'>('rollup')
+  const [queueOpen, setQueueOpen] = useState(false)
 
   const isBulk = cards && cards.length > 1
   const effectiveCards = isBulk ? cards : [cardProp ?? storeCard]
 
+  // The live active card carries a casualty switcher in the drawer header itself.
+  const isLiveActive = !isBulk && (cardProp ?? storeCard).id === storeCard.id
+
   // MASCAL scope island shows only for the live active card with a non-empty queue.
   const isMascal = !isBulk && !cardProp && queue.length > 0
   const total = queue.length + 1
+
+  const activeNumber = useMemo(() => {
+    const all = [storeCard, ...queue.map((q) => q.card)].sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+    return Math.max(1, all.findIndex((c) => c.id === storeCard.id) + 1)
+  }, [storeCard, queue])
+  const activeLabel = [storeCard.casualty.lastName, storeCard.casualty.firstName].filter(Boolean).join(', ') || 'Unknown'
+  const activePriority = storeCard.evacuation.priority
 
   const title = isBulk
     ? `TC3 Export — ${cards.length} Casualties`
@@ -246,15 +233,30 @@ export const TC3WriteNote = memo(function TC3WriteNote({ isVisible, onClose, car
     ? `TC3 — ${[cardProp.casualty.lastName, cardProp.casualty.firstName].filter(Boolean).join(', ') || 'Unknown'}`
     : 'TC3 Card — Export'
 
+  // On the live card the header title becomes the casualty switcher (opens the
+  // roster). Other cards use the plain title — no second in-body header needed.
+  const titleNode = isLiveActive ? (
+    <button
+      type="button"
+      onClick={() => setQueueOpen(true)}
+      className="flex items-center gap-2 min-w-0 -ml-1 px-2 py-1 rounded-full hover:bg-themeblue2/5 active:scale-95 transition-transform"
+    >
+      <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${activePriority ? PRIORITY_COLOR[activePriority] : 'bg-tertiary/30'}`} />
+      <span className="truncate text-[13pt] md:text-[11pt] font-semibold text-primary">#{activeNumber} · {activeLabel}</span>
+      <ChevronDown size={16} className="text-tertiary shrink-0" />
+    </button>
+  ) : undefined
+
   return (
     <BaseDrawer
       isVisible={isVisible}
       onClose={onClose}
       fullHeight="90dvh"
       mobileClassName="flex flex-col bg-themewhite2"
-      header={{ title }}
+      header={{ title, titleNode }}
       scrollDisabled
     >
+      {isLiveActive && <CasualtyQueue isOpen={queueOpen} onClose={() => setQueueOpen(false)} />}
       <div className="h-full relative flex flex-col">
         <div className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain px-4 py-3 md:p-5 pb-28">
           <div className="space-y-8">

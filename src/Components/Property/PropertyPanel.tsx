@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo, memo, type CSSProperties } from 'react'
-import { X, MoreHorizontal, Check, ChevronLeft, Map as MapIcon, Camera, ClipboardList, Download, Plus, Pencil } from 'lucide-react'
+import { X, MoreHorizontal, Check, ChevronLeft, Map as MapIcon, Camera, ClipboardList, Download, Plus, Pencil, Rows3 } from 'lucide-react'
 import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
 import { LiftedRowMenu } from '@/Components/primitives/LiftedRowMenu'
 import { AddFab } from '@/Components/primitives/AddFab'
@@ -371,6 +371,14 @@ export const PropertyPanel = memo(function PropertyPanel({
   // CSV import, hosted in the SAME detail surface (right pane desktop / detail
   // sheet mobile) — mirrors signOutOpen / da2062Preview.
   const [importOpen, setImportOpen] = useState(false)
+  // Bulk manual-entry mode for the import surface: the New Item form's "Add multiple"
+  // header action flips into the same surface with an empty editable grid (no CSV pick
+  // step). false = classic CSV import. importBulkLocationId carries the zone the form was
+  // launched at so the grid's rows default their Location to it.
+  const [importBulk, setImportBulk] = useState(false)
+  const [importBulkLocationId, setImportBulkLocationId] = useState<string | null>(null)
+  // Bulk-EDIT: the existing items seeded into the grid (zone "Edit items"). Non-null → edit mode.
+  const [importEditItems, setImportEditItems] = useState<LocalPropertyItem[] | null>(null)
   const [shortageOpen, setShortageOpen] = useState(false)
   const [authorizedOpen, setAuthorizedOpen] = useState(false)
   // Authorized surface MORPH: the add/edit item form, the read-only item detail, OR the
@@ -501,6 +509,8 @@ export const PropertyPanel = memo(function PropertyPanel({
       setSignOutOpen(false)
       setShortageOpen(false)
       setAuthorizedOpen(false)
+      setImportBulk(false)
+      setImportEditItems(null)
       setImportOpen(true)
     })
   }, [onRegisterImport, store])
@@ -824,6 +834,46 @@ export const PropertyPanel = memo(function PropertyPanel({
     onAddItem()
   }, [store, isMobile, onAddItem, openMobileItemForm])
 
+  // New Item form header "Add multiple" → flip the single form into the bulk grid,
+  // carrying the zone it was launched at (defaultLocationId) so the grid's rows default
+  // their Location there. Only offered on a fresh new item (gated at the pill).
+  const openBulkAdd = useCallback(() => {
+    setImportBulkLocationId(store.defaultLocationId ?? null)
+    store.setEditingItem(null)
+    if (isMobile) closeMobileForm()
+    else onBack()
+    setImportBulk(true)
+    setImportEditItems(null)
+    setImportOpen(true)
+  }, [store, isMobile, closeMobileForm, onBack])
+
+  // A zone's editable stock items (exclude containers, authorized-only wishlist pars, zone
+  // shadows, and gone stock) — the set "Edit items" seeds into the grid.
+  const zoneEditItems = useCallback((locId: string) =>
+    store.items.filter(i =>
+      i.location_id === locId && !i.deleted_at && !i.turned_in_at &&
+      !isLinContainer(i) && !isAuthTarget(i) && !isZoneShadow(i)
+    ), [store.items])
+
+  // Zone detail "Edit items" → open the grid (import surface) in edit mode seeded with that
+  // zone's items. Same sole-occupant clearing as the Import / Shortages triggers.
+  const openEditItems = useCallback((locId: string) => {
+    const editItems = zoneEditItems(locId)
+    if (!editItems.length) return
+    setMobileItem(null)
+    setMobileForm(null)
+    store.setEditingItem(null)
+    setEditLocationTarget(null)
+    setSelectedLocationId(null)
+    mapRef.current?.clearSelection()
+    setSignOutOpen(false)
+    setShortageOpen(false)
+    setAuthorizedOpen(false)
+    setImportBulk(false)
+    setImportEditItems(editItems)
+    setImportOpen(true)
+  }, [store, zoneEditItems])
+
   // Tree location tap (desktop) → navigate the canvas to that zone; re-tap clears.
   // Selection state itself flows back from the canvas via onSelectZone → selectedLocationId.
   const handleSelectLocationDesktop = useCallback((loc: LocalPropertyLocation) => {
@@ -968,6 +1018,7 @@ export const PropertyPanel = memo(function PropertyPanel({
     canDelete: !!onDeleteItem && !loc.is_default_zone,
     onEdit: () => handleEditLocation(loc),
     onNewItem: () => handleAddItemAtLocation(loc.id),
+    onEditItems: zoneEditItems(loc.id).length ? () => openEditItems(loc.id) : undefined,
     onNewArea: () => handleAddChildLocation(loc.id),
     canAddLevel: isStructuralZone(loc),
     onAddLevel: () => mapRef.current?.addFloorTo(loc.id),
@@ -1295,6 +1346,7 @@ export const PropertyPanel = memo(function PropertyPanel({
                     {store.editingItem ? 'Edit Item' : 'New Item'}
                   </p>
                   <HeaderPill>
+                    {!store.editingItem && <PillButton icon={Rows3} iconSize={16} onClick={openBulkAdd} label="Add multiple" />}
                     <PillButton icon={X} iconSize={16} onClick={() => { store.setEditingItem(null); onBack() }} label="Cancel" />
                     <PillButton icon={Check} iconSize={16} accent="success" onClick={() => itemFormRef.current?.submit()} label="Save" />
                   </HeaderPill>
@@ -1453,16 +1505,16 @@ export const PropertyPanel = memo(function PropertyPanel({
                         <PillButton icon={MoreHorizontal} iconSize={16} onClick={() => csvImportRef.current?.openMenu()} label="Import actions" />
                       </>
                     )}
-                    <p className="text-sm font-medium text-primary truncate">Import Property CSV</p>
+                    <p className="text-sm font-medium text-primary truncate">{importEditItems ? 'Edit items' : importBulk ? 'Add items' : 'Import Property CSV'}</p>
                   </div>
                   <HeaderPill>
-                    {csvImportReady && <PillButton icon={Check} iconSize={16} accent="success" onClick={() => csvImportRef.current?.apply()} label="Import" />}
+                    {csvImportReady && <PillButton icon={Check} iconSize={16} accent="success" onClick={() => csvImportRef.current?.apply()} label={importEditItems ? 'Save' : importBulk ? 'Add' : 'Import'} />}
                     <PillButton icon={X} iconSize={16} onClick={() => setImportOpen(false)} label="Close" />
                   </HeaderPill>
                 </div>
                 <div className="flex-1 min-h-0 overflow-y-auto">
                   <div className="px-4 py-4 pb-8">
-                    <PropertyCSVImport ref={csvImportRef} onReadyChange={setCsvImportReady} onInPreviewChange={setCsvImportInPreview} onClose={() => setImportOpen(false)} />
+                    <PropertyCSVImport ref={csvImportRef} bulk={importBulk} defaultLocationId={importBulkLocationId} editItems={importEditItems ?? undefined} onReadyChange={setCsvImportReady} onInPreviewChange={setCsvImportInPreview} onClose={() => setImportOpen(false)} />
                   </div>
                 </div>
               </div>
@@ -1776,7 +1828,7 @@ export const PropertyPanel = memo(function PropertyPanel({
             : da2062Preview
             ? da2062Preview.filename
             : importOpen
-            ? 'Import Property CSV'
+            ? (importEditItems ? 'Edit items' : importBulk ? 'Add items' : 'Import Property CSV')
             : shortageOpen
             ? 'Shortages'
             : authorizedOpen
@@ -1923,7 +1975,7 @@ export const PropertyPanel = memo(function PropertyPanel({
           ) : signOutOpen ? (
             <PillButton icon={Check} iconSize={18} accent="success" onClick={() => signOutFormRef.current?.submit()} label="Sign out" />
           ) : importOpen ? (
-            csvImportReady ? <PillButton icon={Check} iconSize={18} accent="success" onClick={() => csvImportRef.current?.apply()} label="Import" /> : undefined
+            csvImportReady ? <PillButton icon={Check} iconSize={18} accent="success" onClick={() => csvImportRef.current?.apply()} label={importEditItems ? 'Save' : importBulk ? 'Add' : 'Import'} /> : undefined
           ) : authorizedOpen ? (
             // + folds before the sheet's built-in Close → "+ · close" on the right;
             // Save while a form is morphed in; nothing while viewing or importing.
@@ -1939,13 +1991,20 @@ export const PropertyPanel = memo(function PropertyPanel({
               <PillButton icon={Plus} iconSize={18} onClick={openAuthAdd} label="Add authorized item" />
             )
           ) : mobileForm ? (
-            <PillButton
-              icon={Check}
-              iconSize={18}
-              accent="success"
-              onClick={() => (mobileForm.kind === 'item' ? itemFormRef.current : locationFormRef.current)?.submit()}
-              label="Save"
-            />
+            mobileForm.kind === 'item' && !store.editingItem ? (
+              <HeaderPill>
+                <PillButton icon={Rows3} iconSize={18} onClick={openBulkAdd} label="Add multiple" />
+                <PillButton icon={Check} iconSize={18} accent="success" onClick={() => itemFormRef.current?.submit()} label="Save" />
+              </HeaderPill>
+            ) : (
+              <PillButton
+                icon={Check}
+                iconSize={18}
+                accent="success"
+                onClick={() => (mobileForm.kind === 'item' ? itemFormRef.current : locationFormRef.current)?.submit()}
+                label="Save"
+              />
+            )
           ) : undefined
         }
       >
@@ -1979,7 +2038,7 @@ export const PropertyPanel = memo(function PropertyPanel({
             <Da2062PdfView preview={da2062Preview} />
           </div>
         ) : importOpen ? (
-          <PropertyCSVImport ref={csvImportRef} onReadyChange={setCsvImportReady} onInPreviewChange={setCsvImportInPreview} onClose={() => setImportOpen(false)} />
+          <PropertyCSVImport ref={csvImportRef} bulk={importBulk} defaultLocationId={importBulkLocationId} editItems={importEditItems ?? undefined} onReadyChange={setCsvImportReady} onInPreviewChange={setCsvImportInPreview} onClose={() => setImportOpen(false)} />
         ) : shortageOpen ? (
           <PropertyShortagePanel ref={shortageRef} onClose={() => setShortageOpen(false)} stagedTurnInIds={turnInItemIds} onLocate={handleSelectItem} />
         ) : authorizedOpen ? (

@@ -919,8 +919,11 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
 
   const handleNewOverlay = useCallback((opts?: { recenter?: boolean }) => {
     const id = crypto.randomUUID();
+    const center = initialCenter ?? mapCenter;
+    // Default-name unnamed overlays to today's date (renameable from the tree).
+    const name = new Date().toISOString().slice(0, 10);
     setOverlayId(id);
-    setOverlayName('');
+    setOverlayName(name);
     setFeatures([]);
     setActiveFloor(null);
     setOverlayFloors([]);
@@ -928,11 +931,12 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
     setSelectedFeatureId(null);
     setSearchQuery('');
     setTempRoute(null);
-    // Reset diff-baselines so the first autosave runs the bulk-create path
-    // (writeOverlay) which lands the overlay record + initial features on the
-    // vault in one envelope.
+    // The overlay is persisted immediately below, so mark it created and seed
+    // clean diff-baselines: subsequent feature edits ride the per-feature diff
+    // branch (upsertFeature) and the draft starts non-dirty.
+    overlayCreatedRef.current.add(id);
     lastSavedFeaturesRef.current = [];
-    lastSavedMetadataRef.current = null;
+    lastSavedMetadataRef.current = { name, center, zoom: mapZoom, floors: [] };
     resetInProgressDrawing();
     setView('viewer');
     setShowPopover(false);
@@ -943,9 +947,19 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
     if (opts?.recenter && initialCenter) {
       setTimeout(() => mapRef.current?.flyTo(initialCenter[0], initialCenter[1], 12), 400);
     }
-    // New-overlay flow: autosave names it on first feature mutation.
     skipDirtyRef.current = true;
-  }, [startWatching, initialCenter]);
+    setIsDirty(false);
+    // "New overlay = new overlay" — land the (empty) overlay on IDB + the vault
+    // right away so it populates the tree without requiring a feature first.
+    // writeOverlay's invalidate('mapOverlays') re-runs the load effect, and the
+    // optimistic setOverlays makes it appear instantly.
+    if (user && activeClinicId) {
+      writeOverlay({ overlayId: id, clinicId: activeClinicId, name, center, zoom: mapZoom, features: [], floors: [] })
+        .then(saved => {
+          if (saved) setOverlays(prev => prev.some(o => o.id === saved.id) ? prev : [...prev, saved]);
+        });
+    }
+  }, [startWatching, initialCenter, mapCenter, mapZoom, user, activeClinicId, writeOverlay, resetInProgressDrawing]);
 
   // Single zoom-to-feature routine shared by every selection entry point
   // (tree/settings select, on-map icon tap, open-from-message). Waypoints fly
@@ -1443,6 +1457,11 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
           }
           return [...prev, saved];
         });
+        // First save landed — clear draft state exactly like the diff branch
+        // below. Without this the new overlay stays isDirty=true, so the
+        // close-gate keeps firing "Discard unsaved changes?" after a save.
+        skipDirtyRef.current = true;
+        setIsDirty(false);
       } else {
         setSaveError('Failed to save overlay');
       }

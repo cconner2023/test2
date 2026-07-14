@@ -322,6 +322,30 @@ input, textarea, [contenteditable="true"] {
   touch-action: manipulation;
 }
 
+/* Opt back in to a visible, thin horizontal scrollbar on desktop for wide
+   scroll regions (e.g. the CSV import review table). Overrides the global
+   `*::-webkit-scrollbar { display: none }` for this element only. On touch,
+   pair with .touch-pan-xy so a horizontal swipe can actually pan it. */
+.x-scrollbar {
+  scrollbar-width: thin;                 /* Firefox */
+  /* Themed via --color-tertiary so the bar tracks every palette. */
+  scrollbar-color: color-mix(in srgb, var(--color-tertiary) 45%, transparent) transparent;
+}
+.x-scrollbar::-webkit-scrollbar {
+  display: block;
+  height: 8px;
+}
+.x-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.x-scrollbar::-webkit-scrollbar-thumb {
+  background-color: color-mix(in srgb, var(--color-tertiary) 45%, transparent);
+  border-radius: 999px;
+}
+.x-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: color-mix(in srgb, var(--color-tertiary) 70%, transparent);
+}
+
 /* Drag handle areas: disable all default touch behaviors */
 [data-drag-zone] {
   touch-action: none;

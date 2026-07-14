@@ -19,8 +19,11 @@ function escapeCSVField(value: string): string {
 const CSV_HEADERS = [
   'Item Name', 'Nomenclature', 'NSN', 'LIN',
   'Quantity', 'Quantity Authorized', 'Serial Number', 'Location',
-  'Item Type', 'Unit of Issue', 'Pack Size',
+  'Item Type', 'Unit of Issue', 'Pack Size', 'Expiration Date',
 ] as const
+
+/** ISO calendar date (YYYY-MM-DD) — the shape DatePickerInput emits and expiry_date stores. */
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
 export function exportPropertyCSV(
   items: LocalPropertyItem[],
@@ -53,6 +56,7 @@ export function exportPropertyCSV(
         item.item_type ?? 'DI',
         item.unit_of_issue ?? '',
         item.pack_size == null ? '' : String(item.pack_size),
+        escapeCSVField(item.expiry_date ?? ''),
       ]
     })
 
@@ -69,6 +73,11 @@ export function downloadCSVTemplate(): void {
 // ── Parse / Import ──────────────────────────────────────────
 
 export interface ParsedRow {
+  /** Bulk-EDIT only — the id of the existing item this row edits. Set when the grid is seeded
+   *  from existing items (zone "Edit items"). A row with an itemId is matched by id (NOT content),
+   *  so renaming/re-keying it updates that exact item in place instead of forking a duplicate;
+   *  it also never drives the de-authorize sweep. Undefined for CSV import + bulk-add (create). */
+  itemId?: string
   name: string
   nomenclature: string
   nsn: string
@@ -84,6 +93,8 @@ export interface ParsedRow {
   unitOfIssue: UnitOfIssue | null
   /** Base units per issue unit. null = column blank → 1. */
   packSize: number | null
+  /** Expiry date, ISO YYYY-MM-DD. '' = column blank / not tracked. */
+  expiryDate: string
 }
 
 /** Logical column → accepted header names (lowercased, trimmed). The parser maps by
@@ -101,6 +112,7 @@ const COLUMN_ALIASES: Record<keyof ParsedRow, string[]> = {
   itemType: ['item type', 'type', 'class'],
   unitOfIssue: ['unit of issue', 'ui', 'unit', 'u/i'],
   packSize: ['pack size', 'pack', 'issue qty', 'pack qty', 'per issue'],
+  expiryDate: ['expiration date', 'expiry date', 'expiration', 'expiry', 'exp', 'exp date'],
 }
 
 export interface ParseResult {
@@ -148,6 +160,7 @@ function parseCSVText(text: string): ParseResult {
     itemType: colIndex('itemType'),
     unitOfIssue: colIndex('unitOfIssue'),
     packSize: colIndex('packSize'),
+    expiryDate: colIndex('expiryDate'),
   }
 
   const dataLines = lines.slice(1)
@@ -228,6 +241,18 @@ function parseCSVText(text: string): ParseResult {
       packSize = parsed
     }
 
+    // Expiry is optional — a malformed date is non-blocking: warn and drop the value,
+    // keep the row (a bad expiry shouldn't cost you the whole line-item).
+    const rawExp = cell(fields, idx.expiryDate)
+    let expiryDate = ''
+    if (rawExp !== '') {
+      if (ISO_DATE_RE.test(rawExp) && !Number.isNaN(Date.parse(rawExp))) {
+        expiryDate = rawExp
+      } else {
+        errors.push(`Row ${lineNum}: Expiration Date must be YYYY-MM-DD (got "${rawExp}") — left blank`)
+      }
+    }
+
     rows.push({
       name,
       nomenclature: cell(fields, idx.nomenclature),
@@ -240,6 +265,7 @@ function parseCSVText(text: string): ParseResult {
       itemType,
       unitOfIssue,
       packSize,
+      expiryDate,
     })
   }
 
@@ -354,6 +380,9 @@ export interface ReconcilePlan {
   creates: ParsedRow[]
   merges: MergeUpdate[]
   deauthorizes: Deauthorize[]
+  /** Bulk-EDIT rows (each carries an itemId) — id-keyed in-place updates. applyImport resolves
+   *  each row's location/LIN and updates only the fields that actually changed. */
+  updates: ParsedRow[]
 }
 
 function norm(s: string | null | undefined): string {
@@ -433,8 +462,18 @@ export function reconcileImport(
 
   const creates: ParsedRow[] = []
   const merges: MergeUpdate[] = []
+  const updates: ParsedRow[] = []
+
+  // EDIT rows are id-keyed: reserve their items up front so no content row can match them and
+  // the de-authorize sweep skips them (they're being explicitly maintained, not omitted).
+  for (const row of rows) if (row.itemId) consumed.add(row.itemId)
 
   for (const row of rows) {
+    // Bulk-EDIT: matched by id, not content — an in-place field update, never a create/merge.
+    if (row.itemId) {
+      updates.push(row)
+      continue
+    }
     const serial = norm(row.serialNumber)
     const key = rowScope(row) + '||' + identOf(row.nsn, row.name)
     // ROLE SPLIT: an authorized row consults only tracked lines; a stock row only loose stock.
@@ -476,8 +515,10 @@ export function reconcileImport(
   // De-authorize BOM-omitted lines — SCOPED to the LINs this upload addresses, and only when the
   // upload carries authorized rows (a pure stock/receipt sheet never touches the BOM). Serialized
   // authorizations are matched 1:1 and never swept by a fungible BOM upload.
+  // Only CONTENT rows (a BOM sheet) drive de-auth — an edit row is a targeted in-place update,
+  // not a declaration of the whole receipt, so it must never sweep sibling lines out of the BOM.
   const authScopes = new Set<string>()
-  for (const row of rows) if (row.quantityAuthorized != null) authScopes.add(rowScope(row))
+  for (const row of rows) if (!row.itemId && row.quantityAuthorized != null) authScopes.add(rowScope(row))
   const deauthorizes: Deauthorize[] = []
   if (authScopes.size > 0) {
     for (const it of live) {
@@ -489,7 +530,7 @@ export function reconcileImport(
     }
   }
 
-  return { linContainers, creates, merges, deauthorizes }
+  return { linContainers, creates, merges, deauthorizes, updates }
 }
 
 // ── Shortage order-list export ──────────────────────────────

@@ -1,5 +1,5 @@
 import { useState, useCallback, forwardRef, useImperativeHandle, type RefObject } from 'react'
-import { Pencil, Package, FolderPlus, Trash2, Layers, Wrench, Route, ClipboardList, QrCode, Download } from 'lucide-react'
+import { Pencil, Package, FolderPlus, Trash2, Layers, Wrench, Route, ClipboardList, QrCode, Download, Rows3 } from 'lucide-react'
 import type { ContextMenuItem } from '@/Components/primitives/ContextMenu'
 import type { LocalPropertyItem, LocalPropertyLocation, HolderInfo } from '../../Types/PropertyTypes'
 import { isZoneShadow } from '../../Utilities/propertyAuthorized'
@@ -303,6 +303,8 @@ export function buildLocationMenuItems(opts: {
   canDelete: boolean
   onEdit: () => void
   onNewItem: () => void
+  /** Bulk-edit every item in this zone in the grid. Shown only when passed (zone has items). */
+  onEditItems?: () => void
   onNewArea: () => void
   /** Add a building floor (kind='level') to this zone. Shown only when canAddLevel. */
   onAddLevel?: () => void
@@ -334,6 +336,9 @@ export function buildLocationMenuItems(opts: {
       ? [{ key: 'print-label', label: 'Print label', icon: QrCode, onAction: opts.onPrintLabel } as ContextMenuItem]
       : []),
     { key: 'new-item', label: 'New item', icon: Package, onAction: opts.onNewItem },
+    ...(opts.onEditItems
+      ? [{ key: 'edit-items', label: 'Edit items', icon: Rows3, onAction: opts.onEditItems } as ContextMenuItem]
+      : []),
     { key: 'new-area', label: 'New area', icon: FolderPlus, onAction: opts.onNewArea },
     ...(opts.canAddLevel && opts.onAddLevel
       ? [{ key: 'add-level', label: 'Add level', icon: Layers, onAction: opts.onAddLevel } as ContextMenuItem]

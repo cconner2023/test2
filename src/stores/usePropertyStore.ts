@@ -341,7 +341,7 @@ export const usePropertyStore = create<PropertyState>((set, get) => ({
     const locMap = new Map<string, string>()
     for (const l of visibleLocs) locMap.set(l.name.toLowerCase(), l.id)
     const neededNames = [...new Set(
-      plan.creates.map(r => r.location.trim()).filter(n => n !== '' && !locMap.has(n.toLowerCase()))
+      [...plan.creates, ...plan.updates].map(r => r.location.trim()).filter(n => n !== '' && !locMap.has(n.toLowerCase()))
     )]
     const newLocations: LocalPropertyLocation[] = []
     for (const name of neededNames) {
@@ -385,7 +385,7 @@ export const usePropertyStore = create<PropertyState>((set, get) => ({
         return {
           clinic_id: clinicId, name: row.name, nomenclature: row.nomenclature || null, nsn: row.nsn || null,
           lin: row.lin || null, condition_code: 'serviceable' as const, location_id: locationId,
-          current_holder_id: null, parent_item_id: parentId, expiry_date: null, notes: null,
+          current_holder_id: null, parent_item_id: parentId, expiry_date: row.expiryDate?.trim() || null, notes: null,
           is_serialized: row.itemType === 'SI' || !!row.serialNumber.trim(),
           serial_number: row.serialNumber || null, quantity: row.quantity, location_tag_id: null,
           photo_url: null, visual_fingerprint: null, sub_cluster_id: null,
@@ -411,17 +411,76 @@ export const usePropertyStore = create<PropertyState>((set, get) => ({
       if (res.success) updatedById.set(d.itemId, res.item)
     }
 
+    // Bulk-EDIT rows — id-keyed in-place updates. Resolve location/LIN, diff vs the live item,
+    // update only the fields that ACTUALLY changed (unchanged items don't re-fan or emit a
+    // spurious item.edited). A LIN change re-parents to that receipt's container (created on
+    // demand); an unchanged LIN never touches parent_item_id (leaves decoupled stock as-is).
+    const itemById = new Map(items.map(i => [i.id, i]))
+    const onDemandContainers: LocalPropertyItem[] = []
+    let updateCount = 0
+    for (const u of plan.updates) {
+      if (!u.itemId) continue
+      const cur = itemById.get(u.itemId)
+      if (!cur) continue
+      const patch: Partial<PropertyItem> = {}
+
+      if (cur.name !== u.name) patch.name = u.name
+      if ((cur.nomenclature ?? null) !== (u.nomenclature || null)) patch.nomenclature = u.nomenclature || null
+      if ((cur.nsn ?? null) !== (u.nsn || null)) patch.nsn = u.nsn || null
+
+      // LIN re-link — ONLY when the code changed. Resolve or create the container, set lin +
+      // parent_item_id together so they never desync.
+      const curLin = cur.lin ?? null
+      const newLin = u.lin.trim() || null
+      if (curLin !== newLin) {
+        patch.lin = newLin
+        let parentId: string | null = null
+        if (newLin) {
+          parentId = containerMap.get(newLin.toLowerCase()) ?? null
+          if (!parentId) {
+            const [c] = await createItemsBatch([{
+              clinic_id: clinicId, name: newLin, nomenclature: null, nsn: null, lin: newLin,
+              condition_code: 'serviceable' as const, location_id: null, current_holder_id: null,
+              parent_item_id: null, expiry_date: null, notes: null, is_serialized: false, serial_number: null,
+              quantity: 0, location_tag_id: null, photo_url: null, visual_fingerprint: null, sub_cluster_id: null,
+              quantity_authorized: null, item_type: 'DI' as const, unit_of_issue: null, pack_size: null,
+            }], user.id)
+            if (c) { parentId = c.id; containerMap.set(newLin.toLowerCase(), c.id); onDemandContainers.push(c) }
+          }
+        }
+        patch.parent_item_id = parentId
+      }
+
+      const locId = u.location.trim() ? (locMap.get(u.location.trim().toLowerCase()) ?? null) : null
+      if ((cur.location_id ?? null) !== locId) patch.location_id = locId
+
+      const isSerial = u.itemType === 'SI' || !!u.serialNumber.trim()
+      if (!!cur.is_serialized !== isSerial) patch.is_serialized = isSerial
+      if ((cur.serial_number ?? null) !== (u.serialNumber || null)) patch.serial_number = u.serialNumber || null
+      if (cur.quantity !== u.quantity) patch.quantity = u.quantity
+      if ((cur.quantity_authorized ?? null) !== (u.quantityAuthorized ?? null)) patch.quantity_authorized = u.quantityAuthorized ?? null
+      if ((cur.expiry_date ?? null) !== (u.expiryDate?.trim() || null)) patch.expiry_date = u.expiryDate?.trim() || null
+      if (u.itemType && u.itemType !== cur.item_type) patch.item_type = u.itemType
+      if ((cur.unit_of_issue ?? null) !== (u.unitOfIssue ?? null)) patch.unit_of_issue = u.unitOfIssue ?? null
+      if ((cur.pack_size ?? null) !== (u.packSize ?? null)) patch.pack_size = u.packSize ?? null
+
+      if (Object.keys(patch).length === 0) continue
+      const res = await updateItem(u.itemId, patch, user.id)
+      if (res.success) { updatedById.set(u.itemId, res.item); updateCount++ }
+    }
+
     // ONE state update for the whole import — no per-item re-render storm.
     set(s => ({
       locations: newLocations.length ? [...s.locations, ...newLocations] : s.locations,
       items: [
         ...containerRows,
+        ...onDemandContainers,
         ...createRows,
         ...s.items.map(i => updatedById.get(i.id) ?? i),
       ],
     }))
 
-    return plan.linContainers.length + plan.creates.length + plan.merges.length + plan.deauthorizes.length
+    return plan.linContainers.length + plan.creates.length + plan.merges.length + plan.deauthorizes.length + updateCount
   },
 
   recordPmcs: async (subjectType, subjectId, readings) => {
