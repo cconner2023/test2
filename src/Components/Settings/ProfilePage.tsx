@@ -19,6 +19,7 @@ import { PreviewOverlay } from '../PreviewOverlay';
 import { ActionPill } from '@/Components/primitives/ActionPill'
 import { SkeletonRows } from '@/Components/primitives/Skeleton';
 import { CertificationRow } from '../Certifications/CertificationRow';
+import { MyReadinessSection } from './MyReadinessSection';
 import { CertOverlayFields } from '../Certifications/CertOverlayFields';
 import { emptyCertForm } from '../Certifications/certHelpers';
 import type { CertFormData } from '../Certifications/certHelpers';
@@ -506,6 +507,11 @@ export const ProfilePage = ({
                     </ActionPill>
                     </div>
                 </section>
+
+                {/* Readiness — read-only self view of the same stats a supervisor
+                    sees (SoldierProfile), computed from the user's own delta-synced
+                    training completions + certs. */}
+                <MyReadinessSection certs={certs} />
 
 
                 {/* Account Actions */}

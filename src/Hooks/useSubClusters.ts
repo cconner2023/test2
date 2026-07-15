@@ -40,11 +40,11 @@ export function clearSubClusterSnapshots(): void {
   idbHydrated = false
 }
 
-function fetchAndCache(key: string): Promise<SubCluster[]> {
+function fetchAndCache(key: string, clinicId: string): Promise<SubCluster[]> {
   const existing = inflight.get(key)
   if (existing) return existing
 
-  const p = fetchSubClusters()
+  const p = fetchSubClusters(clinicId)
     .then(res => {
       inflight.delete(key)
       // Don't cache failures — let the next mount retry instead of pinning [].
@@ -69,15 +69,19 @@ function fetchAndCache(key: string): Promise<SubCluster[]> {
 
 export function useSubClusters() {
   const userId = useAuthStore(s => s.user?.id ?? null)
+  const clinicId = useAuthStore(s => s.clinicId)
   const gen = useInvalidation('subClusters')
-  const key = userId ? `${userId}::${gen}` : ''
+  // clinicId is part of the key so a home-clinic change yields a fresh key →
+  // fresh fetch, and never reuses the previous clinic's in-memory snapshot
+  // (a clinic switch bumps neither userId nor the generation counter).
+  const key = userId && clinicId ? `${userId}::${clinicId}::${gen}` : ''
   const [subClusters, setSubClusters] = useState<SubCluster[]>(() => (key && snapshots.get(key)) || [])
   // Cold start (no snapshot for this generation yet) shows the spinner; warm
   // remounts and cache hits paint instantly without one.
   const [loading, setLoading] = useState(() => !!key && !snapshots.has(key))
 
   const load = useCallback(async () => {
-    if (!key) { setSubClusters([]); setLoading(false); return }
+    if (!key || !clinicId) { setSubClusters([]); setLoading(false); return }
 
     const cached = snapshots.get(key)
     if (cached) { setSubClusters(cached); setLoading(false); return }
@@ -89,24 +93,24 @@ export function useSubClusters() {
       const persisted = await loadCachedSubClusters()
       if (persisted.length > 0 && !snapshots.has(key)) setSubClusters(persisted)
     }
-    const fresh = await fetchAndCache(key)
+    const fresh = await fetchAndCache(key, clinicId)
     setSubClusters(fresh)
     setLoading(false)
-  }, [key])
+  }, [key, clinicId])
 
   useEffect(() => { void load() }, [load])
 
   // Force a network refetch regardless of cache (e.g. pull-to-refresh). Mutations
   // should prefer invalidate('subClusters'), which refreshes every consumer.
   const refresh = useCallback(async () => {
-    if (!key) return
+    if (!key || !clinicId) return
     snapshots.delete(key)
     inflight.delete(key)
     setLoading(true)
-    const fresh = await fetchAndCache(key)
+    const fresh = await fetchAndCache(key, clinicId)
     setSubClusters(fresh)
     setLoading(false)
-  }, [key])
+  }, [key, clinicId])
 
   return { subClusters, loading, refresh }
 }

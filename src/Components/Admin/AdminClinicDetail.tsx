@@ -10,8 +10,9 @@ import { useEffect, useCallback, useMemo, useState, useRef } from 'react'
 import { X, Plus, RefreshCw, Check, Trash2, ChevronRight, Building2, Key, MessageSquare } from 'lucide-react'
 import { UserRow } from '../UserRow'
 import { ActionButton } from '@/Components/primitives/ActionButton'
-import { listClinics, listAllUsers, listLocations, updateClinic, createClinic, rescueClinicAssociationsByLocation, listClinicLoans, clinicHasVault, rescueClinicVault, setUserClinic } from '../../lib/adminService'
+import { listClinics, listAllUsers, listLocations, updateClinic, createClinic, rescueClinicAssociationsByLocation, listClinicLoans, clinicHasVault, rescueClinicVault, setUserClinic, getAllAccountRequests } from '../../lib/adminService'
 import type { AdminUser, AdminClinic, AdminLocation } from '../../lib/adminService'
+import type { AccountRequest } from '../../lib/accountRequestService'
 import { formatLastActive } from './adminUtils'
 import { TextInput } from '@/Components/primitives/FormInputs'
 import { UicPinInput } from '@/Components/DomainInputs'
@@ -74,6 +75,9 @@ interface AdminClinicDetailProps {
   /** Called from the Assigned Users section "Create user" action — opens the
    *  AdminUserDetail create flow with clinic_id prefilled to this cluster. */
   onCreateUserInCluster?: (clinicId: string) => void
+  /** Called from the UIC-matched pending-requests list — opens the account
+   *  request in the approve flow so it can be pulled into this cluster. */
+  onSelectRequest?: (request: AccountRequest) => void
 }
 
 const AdminClinicDetail = ({
@@ -91,10 +95,13 @@ const AdminClinicDetail = ({
   createPrefill,
   onCreateRelatedCluster,
   onCreateUserInCluster,
+  onSelectRequest,
 }: AdminClinicDetailProps) => {
   const [clinics, setClinics] = useState<AdminClinic[]>([])
   const [users, setUsers] = useState<AdminUser[]>([])
   const [locations, setLocations] = useState<AdminLocation[]>([])
+  const [pendingRequests, setPendingRequests] = useState<AccountRequest[]>([])
+  const requestsGen = useInvalidation('requests')
   const [loanedInUserIds, setLoanedInUserIds] = useState<string[]>([])
   /** user_id -> loan target clinic_ids (only for users whose home is this clinic) */
   const [loanedOutMap, setLoanedOutMap] = useState<Map<string, string[]>>(new Map())
@@ -192,14 +199,16 @@ const AdminClinicDetail = ({
 
   /** Load clinics, users, and the location taxonomy. */
   const loadData = useCallback(async () => {
-    const [fetchedClinics, fetchedUsers, fetchedLocations] = await Promise.all([
+    const [fetchedClinics, fetchedUsers, fetchedLocations, fetchedRequests] = await Promise.all([
       listClinics(),
       listAllUsers(),
       listLocations(),
+      getAllAccountRequests('pending'),
     ])
     setClinics(fetchedClinics)
     setUsers(fetchedUsers)
     setLocations(fetchedLocations)
+    setPendingRequests(fetchedRequests)
 
     if (!isCreateMode && clinic?.id) {
       const refreshed = fetchedClinics.find((c) => c.id === clinic.id)
@@ -220,7 +229,7 @@ const AdminClinicDetail = ({
 
   useEffect(() => {
     loadData()
-  }, [loadData, usersGen])
+  }, [loadData, usersGen, requestsGen])
 
   // ── Edit overlay ↔ editing prop sync ─────────────────────────────────
   // External editing=true opens the overlay (for existing records); editing=false
@@ -631,6 +640,40 @@ const AdminClinicDetail = ({
                 >
                   {assigningUserId === u.id ? 'Assigning… ' : ''}
                   {[u.rank, u.first_name, u.last_name].filter(Boolean).join(' ') || u.email}
+                </button>
+              ))}
+            </div>
+          </div>
+        )
+      })()}
+
+      {/* Pending account requests whose self-reported UIC matches one of this
+          cluster's UICs. Distinct from the suggested-users list above (those are
+          already-created accounts) — these are unapproved requests. Tap a row to
+          open the approve flow, where the UIC auto-selects this cluster. */}
+      {editUics.length > 0 && onSelectRequest && (() => {
+        const uicSet = new Set(editUics)
+        const matches = pendingRequests.filter(
+          r => r.request_type === 'new_account' && r.uic && uicSet.has(r.uic.toUpperCase()),
+        )
+        if (matches.length === 0) return null
+        return (
+          <div className="px-4 py-3 bg-themeyellow/5 border-b border-primary/6">
+            <p className="text-[9pt] text-themeyellow font-medium mb-1">
+              {matches.length} pending request{matches.length !== 1 ? 's' : ''} self-report these UICs
+            </p>
+            <p className="text-[9pt] text-tertiary mb-1.5">
+              Tap a request to review and approve it into this cluster.
+            </p>
+            <div className="space-y-0.5">
+              {matches.map(r => (
+                <button
+                  key={r.id}
+                  type="button"
+                  onClick={() => onSelectRequest(r)}
+                  className="w-full text-left text-[9pt] text-primary hover:text-themeyellow transition-colors"
+                >
+                  {[r.rank, r.first_name, r.last_name].filter(Boolean).join(' ') || r.email}
                 </button>
               ))}
             </div>

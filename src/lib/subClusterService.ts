@@ -19,11 +19,17 @@ export interface SubCluster {
   created_at: string
 }
 
-/** Read the caller's clinic sub-cluster list (RLS-scoped to own clinic). */
-export async function fetchSubClusters(): Promise<Result<SubCluster[]>> {
+/** Read the caller's clinic sub-cluster list, scoped to the passed clinic.
+ *  The `sub_clusters_select` RLS policy grants dev a cross-clinic read
+ *  carve-out, so an unfiltered select would leak EVERY clinic's sub-clusters
+ *  into a dev's own-clinic view. Filter explicitly so this own-clinic hook only
+ *  ever returns the caller's clinic — the dev carve-out is only for the admin
+ *  cross-clinic reads (fetchAllSubClusters / fetchClinicSubClusters). */
+export async function fetchSubClusters(clinicId: string): Promise<Result<SubCluster[]>> {
   const { data, error } = await supabase
     .from('sub_clusters')
     .select('id, clinic_id, name, created_at')
+    .eq('clinic_id', clinicId)
     .order('name', { ascending: true })
   if (error) {
     logger.warn('fetchSubClusters failed:', error.message)

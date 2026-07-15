@@ -371,6 +371,29 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         enterUserDetail(null, true, clinicId)
     }, [enterUserDetail, view, selectedClinic])
 
+    // Lateral open — from a cluster's UIC-matched pending-requests list. Opens
+    // the account request in the approve flow, pushing the originating cluster
+    // onto the trail so approving (or backing out) returns to it. Mirrors
+    // handleOpenRequest but preserves the trail instead of clearing it.
+    const handleOpenRequestFromCluster = useCallback((request: AccountRequest) => {
+        setTrail(prev => {
+            if (view === 'admin-clinic-detail' && selectedClinic) {
+                return [...prev, { kind: 'clinic', clinic: selectedClinic, label: selectedClinic.name || 'Cluster' }].slice(-TRAIL_MAX)
+            }
+            return prev
+        })
+        setSelectedRequest(request)
+        setSelectedFeedback(null)
+        setSelectedSuggestion(null)
+        setSelectedUser(null)
+        setSelectedClinic(null)
+        setSelectedLocation(null)
+        setSelectedSystemPeerId(null)
+        setFeedHeaderActions(null)
+        handleSlideAnimation('left')
+        setView('admin-request-detail')
+    }, [view, selectedClinic, handleSlideAnimation])
+
     const handleSelectSystemPeer = useCallback((peerId: string) => {
         clearTrail()
         setSelectedSystemPeerId(peerId)
@@ -878,6 +901,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                         createPrefill={clusterCreatePrefill}
                         onCreateRelatedCluster={handleCreateRelatedCluster}
                         onCreateUserInCluster={handleCreateUserInCluster}
+                        onSelectRequest={handleOpenRequestFromCluster}
                     />
             )
         }

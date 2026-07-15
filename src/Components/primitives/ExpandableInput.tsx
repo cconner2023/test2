@@ -1,8 +1,9 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { X } from 'lucide-react';
+import { X, Variable } from 'lucide-react';
 import { useTextExpander } from '@/Hooks/useTextExpander';
 import { useTemplateSession } from '@/Hooks/useTemplateSession';
 import { TextExpanderSuggestion } from '@/Components/TextExpanderSuggestion';
+import { TextTemplatePicker } from '@/Components/TextTemplatePicker';
 import { TemplateOverlay } from '@/Components/TemplateOverlay';
 import type { TextExpander } from '@/Data/User';
 
@@ -31,6 +32,7 @@ export function ExpandableInput({
 }: ExpandableInputProps) {
     const [cursorPosition, setCursorPosition] = useState(0);
     const [focused, setFocused] = useState(false);
+    const [pickerOpen, setPickerOpen] = useState(false);
     const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
 
     const { suggestions, selectedIndex, accept, dismiss, selectNext, selectPrev } =
@@ -50,6 +52,9 @@ export function ExpandableInput({
     const hasSuggestions = suggestions.length > 0 && !templateSession.isActive;
     const hasValue = value.trim().length > 0;
     const showClose = focused || hasValue;
+    // Browse affordance: only on multiline note editors that actually have templates,
+    // and hidden while a template fill session is running.
+    const showTemplatesTrigger = multiline && expanders.length > 0 && !templateSession.isActive;
 
     const applyCursor = useCallback((pos: number) => {
         setCursorPosition(pos);
@@ -86,6 +91,25 @@ export function ExpandableInput({
         onChange(result.newText);
         applyCursor(result.newCursorPosition);
     }, [accept, suggestions, selectedIndex, onChange, startSession, applyCursor]);
+
+    // Browse-picker insertion — no typed abbreviation to replace, so insert at the
+    // caret (or end of text). A templated entry kicks off its fill session, just
+    // like accepting one from the abbreviation suggestion list.
+    const handlePick = useCallback((expander: TextExpander) => {
+        const raw = inputRef.current?.selectionStart;
+        const pos = Math.min(typeof raw === 'number' ? raw : value.length, value.length);
+        if (expander.template && expander.template.length > 0) {
+            const tmpl = startSession(value, pos, expander.template);
+            onChange(tmpl.newText);
+            applyCursor(tmpl.cursorPosition);
+        } else {
+            const newText = value.slice(0, pos) + expander.expansion + value.slice(pos);
+            onChange(newText);
+            applyCursor(pos + expander.expansion.length);
+        }
+        setPickerOpen(false);
+        requestAnimationFrame(() => inputRef.current?.focus());
+    }, [value, onChange, startSession, applyCursor]);
 
     const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
         // --- Template session keyboard handlers ---
@@ -239,6 +263,24 @@ export function ExpandableInput({
                     }}
                     onDismissDropdown={dismissDropdown}
                     onEndSession={endSession}
+                />
+            )}
+            {showTemplatesTrigger && !hasSuggestions && (
+                <button
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => setPickerOpen((o) => !o)}
+                    className={`absolute bottom-2 left-2 z-10 w-7 h-7 rounded-full flex items-center justify-center bg-themewhite/90 backdrop-blur-sm border border-themeblue2/20 shadow-sm active:scale-95 transition-colors ${pickerOpen ? 'text-themeblue2 bg-themeblue2/10' : 'text-tertiary'}`}
+                    aria-label="Browse text templates"
+                >
+                    <Variable size={15} />
+                </button>
+            )}
+            {pickerOpen && (
+                <TextTemplatePicker
+                    expanders={expanders}
+                    onPick={handlePick}
+                    onClose={() => setPickerOpen(false)}
                 />
             )}
         </div>

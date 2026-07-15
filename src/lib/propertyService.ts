@@ -1187,11 +1187,81 @@ async function rehomeMemberZone(
   for (const id of subtree) {
     if (id !== zone.id) await updateLocation(id, { clinic_id: newClinicId }, userId)
   }
-  // 3) carry the owner's own items
+  // 3) carry ALL the owner's own items. Personal property (owner_user_id === me)
+  //    TRAVELS with its owner regardless of where it sits — inside the re-homing
+  //    zone, the clinic pool (location null), or another old-cluster zone. Keep the
+  //    location only when it re-homes with us (in the subtree); otherwise drop the
+  //    item into the new clinic's pool so it can't dangle at a stranded location.
   for (const item of items) {
-    if (item.location_id && subtree.has(item.location_id) && item.owner_user_id === userId) {
-      await updateItem(item.id, { clinic_id: newClinicId }, userId, { skipAudit: true })
+    if (item.owner_user_id !== userId) continue
+    const locTravels = item.location_id != null && subtree.has(item.location_id)
+    await updateItem(
+      item.id,
+      locTravels ? { clinic_id: newClinicId } : { clinic_id: newClinicId, location_id: null },
+      userId,
+      { skipAudit: true },
+    )
+  }
+}
+
+/**
+ * COLD-DEVICE ADOPT — spine fallback for the PCS re-home. When the arriving user
+ * has NO local copy of a prior member-zone (fresh device / cleared cache / a device
+ * that never loaded the losing cluster), hydrate it from spine so rehomeMemberZone
+ * can adopt + re-publish it, instead of ensureMemberLocations minting a fresh EMPTY
+ * zone. Minting empty is the "personal zone wiped on cluster switch" bug — the
+ * owner's real zone + owner-marked items are left stranded in the losing cluster.
+ *
+ * Only rows the OWNER/HOLDER self-RLS clauses expose are reachable off-cluster:
+ * property_locations WHERE holder_user_id = auth.uid() and property_items WHERE
+ * owner_user_id = auth.uid(). Sub-zones (holder_user_id null) are NOT exposed by
+ * RLS, so un-owned sub-zone structure can't be recovered cold — a known limitation
+ * until the self-clause is widened to the subtree. Returns the hydrated FOREIGN
+ * member-zones (those not already in the current clinic), oldest-first.
+ * See personal-zone-pcs-rehome.md §5 Phase 1/3 (the deferred cold-device spine pull).
+ */
+async function hydrateOwnPortableProperty(
+  userId: string,
+  currentClinicId: string,
+): Promise<LocalPropertyLocation[]> {
+  if (!isOnline()) return []
+  try {
+    const [locRes, itemRes] = await Promise.all([
+      supabase.from('property_locations').select('*')
+        .eq('holder_user_id', userId).is('deleted_at', null),
+      supabase.from('property_items').select('*')
+        .eq('owner_user_id', userId).is('deleted_at', null),
+    ])
+
+    const db = await getDb()
+    const out: LocalPropertyLocation[] = []
+
+    if (locRes.data) {
+      const tomb = getZoneTombstones()
+      for (const rec of locRes.data) {
+        if (tomb.has(rec.id) || rec.clinic_id === currentClinicId) continue
+        const existing = await db.get('propertyLocations', rec.id)
+        if (existing && existing._sync_status === 'pending') { out.push(existing); continue }
+        const local = localLocation(rec as PropertyLocation, 'synced')
+        await saveLocalPropertyLocation(local)
+        out.push(local)
+      }
     }
+    if (itemRes.data) {
+      const tomb = getItemTombstones()
+      for (const rec of itemRes.data) {
+        if (tomb.has(rec.id) || rec.clinic_id === currentClinicId) continue
+        const existing = await db.get('propertyItems', rec.id)
+        if (existing && existing._sync_status === 'pending') continue
+        await saveLocalPropertyItem(localItem(rec as PropertyItem, 'synced'))
+      }
+    }
+
+    out.sort((a, b) => (a.created_at ?? '').localeCompare(b.created_at ?? ''))
+    return out
+  } catch (err) {
+    logger.warn('Cold-device portable-property adopt failed:', err)
+    return []
   }
 }
 
@@ -1285,6 +1355,32 @@ export async function ensureMemberLocations(
   for (const member of members) {
     const existing = memberLocMap.get(member.id)
     if (existing) {
+      // COLD-DEVICE RE-ADOPT: my current-cluster member-zone may be a fresh EMPTY
+      // placeholder — minted by ensureMemberLocations before my prior zone was
+      // reachable, or by a teammate's device in a PCS race — while my real, older
+      // zone still lives in the losing cluster (readable on spine via the holder
+      // self-RLS clause). Pull + re-home it so my identity and owner-marked items
+      // land here, then reap the empty placeholder. Gated on an EMPTY existing zone
+      // (mirrors the dedup emptiness test) so a content-bearing zone is never
+      // silently displaced. This is what self-heals a switch that already minted.
+      if (member.id === userId && isOnline()) {
+        const sub = collectSubtreeLocationIds(existing.id, allLocs)
+        const clinicItems = await getLocalPropertyItems(clinicId)
+        const hasChild = allLocs.some(l => l.id !== existing.id && sub.has(l.id))
+        const hasItems = clinicItems.some(i => i.location_id && sub.has(i.location_id))
+        if (!hasChild && !hasItems) {
+          const older = (await hydrateOwnPortableProperty(userId, clinicId)).find(
+            l => !l.deleted_at && l.clinic_id !== clinicId
+              && (l.created_at ?? '') < (existing.created_at ?? ''),
+          )
+          if (older) {
+            await rehomeMemberZone(older, clinicId, rootLocationId, userId)
+            await cascadeDeleteLocation(existing.id, userId, clinicId)
+            desiredTiles.push({ id: older.id, name: member.displayName })
+            continue
+          }
+        }
+      }
       if (existing.name !== member.displayName) {
         await updateLocation(existing.id, { name: member.displayName }, userId)
       }
@@ -1296,11 +1392,18 @@ export async function ensureMemberLocations(
       // ADOPT-NOT-RECREATE: I may already own a member-zone keyed to my previous
       // cluster (PCS in transit). Re-home it here from my own local copy instead of
       // minting an empty one — carrying my structure + my items, stranding cluster
-      // gear. (Cold device: not in IDB → falls through to a fresh create; the spine
-      // self-clause re-home is a later refinement.)
-      const mine = (await getAllLocalPropertyLocations()).find(
+      // gear.
+      let mine = (await getAllLocalPropertyLocations()).find(
         l => l.holder_user_id === userId && l.clinic_id !== clinicId && !l.deleted_at,
       )
+      // COLD DEVICE: my prior zone isn't in local IDB. Pull it (+ my owned items)
+      // from spine via the owner/holder self-RLS clauses before falling through to a
+      // fresh empty mint — otherwise my real zone + owner-marked gear stay stranded
+      // in the losing cluster ("personal zone wiped on cluster switch").
+      if (!mine) {
+        const hydrated = await hydrateOwnPortableProperty(userId, clinicId)
+        mine = hydrated.find(l => !l.deleted_at && l.clinic_id !== clinicId)
+      }
       if (mine) {
         await rehomeMemberZone(mine, clinicId, rootLocationId, userId)
         desiredTiles.push({ id: mine.id, name: member.displayName })
