@@ -28,6 +28,7 @@ export const UI_TIMING = {
     COPY_FEEDBACK: 2000,       // copy button reset
     DELETE_CONFIRM_TIMEOUT: 5000, // delete confirmation auto-reset
     SLIDE_ANIMATION: 300,      // slide transition duration
+    SHEET_MORPH: 150,          // admin unified-sheet body crossfade (per half)
     AUTOFOCUS_DELAY: 100,      // input focus delays
     SAVE_ERROR_DURATION: 3000, // save error feedback display time
     AFTER_SAVE_DELAY: 800,     // delay before after-save callback

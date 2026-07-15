@@ -128,7 +128,7 @@ export const UserGuide: GuideChapter[] = [
                         blocks: [
                             { kind: 'list', items: [
                                 'The side navigation opens the major areas — calendar, messages, map, property, triage, training, and your clinical tools.',
-                                'Settings (the gear) holds your profile, preferences, security, and this User Guide.',
+                                ['Settings ', { btn: 'settings' }, ' (the gear) holds your profile, preferences, security, and this User Guide.'],
                                 'A red indicator on an item means something needs your attention.',
                                 'On desktop most tools open a two-pane drawer (a list on the left, detail on the right); on mobile the detail slides up as a sheet. The controls are the same either way.',
                             ] },
@@ -193,14 +193,14 @@ export const UserGuide: GuideChapter[] = [
                 summary: 'Month, day, and troops views; creating, editing, and deleting events.',
                 blocks: [
                     { kind: 'image', src: 'calendar-month.png', srcMobile: 'calendar-month-mobile.png', alt: 'Calendar month view', caption: 'The month view.', side: 'right' },
-                    { kind: 'p', text: 'The calendar carries your cluster\'s schedule — coverage, ranges, duty locations, appointments, and training. The bar across the bottom (the "island") switches between Month, Day, and Troops to Task and carries the round + button for creating events.' },
+                    { kind: 'p', text: ['The calendar carries your cluster\'s schedule — coverage, ranges, duty locations, appointments, and training. The bar across the bottom (the "island") switches between Month, Day, and Troops to Task and carries the round ', { btn: 'plus' }, ' button for creating events.'] },
                     { kind: 'sub', text: 'Create an event' },
                     { kind: 'steps', items: [
                         ['Tap the round ', { btn: 'plus' }, ' ("Add event") on the bottom island, then tap New Event. (Or long-press a day to get a quick "Add Event" that pre-fills that date.)'],
                         'Enter an Event title (required) and pick a Category — Training, Duty, Range, Appointment, Mission, MEDEVAC, Huddle, Leave, or Other.',
                         'Set the time: toggle All day, or set Start date / time and End date / time. Pick a color swatch if you want to code it.',
                         'Optionally add a Location (links a map overlay), Description / OPORD notes, Equipment (property items), and Personnel (who is assigned).',
-                        'Save with the check pill in the header. The event syncs to everyone in your cluster.',
+                        ['Save with the ', { btn: 'check' }, ' check pill in the header. The event syncs to everyone in your cluster.'],
                     ] },
                     { kind: 'note', text: 'If you belong to more than one cluster, a Cluster picker appears so you can choose which schedule the event lands on. Pick MEDEVAC as the category to attach a 9-line to the event.' },
                     { kind: 'sub', text: 'Edit, move, or delete' },
@@ -222,18 +222,18 @@ export const UserGuide: GuideChapter[] = [
                                 'Day — a single day; the layout can switch to a three-day span or a flat Summary read-out.',
                                 'Troops to Task — the day\'s positions with personnel matched to them.',
                             ] },
-                            { kind: 'p', text: 'The sliders icon on the island opens View options, which change with the active view: Month toggles weekends shown/hidden; Day switches between Single day, Triple day, and Summary; Troops to Task sets the time cells (Hourly / 20-minute / Daily) and rows (All personnel / Huddle only).' },
+                            { kind: 'p', text: ['The ', { btn: 'sliders' }, ' sliders icon on the island opens View options, which change with the active view: Month toggles weekends shown/hidden; Day switches between Single day, Triple day, and Summary; Troops to Task sets the time cells (Hourly / 20-minute / Daily) and rows (All personnel / Huddle only).'] },
                         ],
                     },
                     {
                         id: 'calendar-import/export',
                         title: 'Importing / exporting a schedule',
                         blocks: [
-                            { kind: 'p', text: 'Bring an existing schedule in from a spreadsheet, or export the calendar for handoff. Both live under the + button in the Data submenu.' },
+                            { kind: 'p', text: ['Bring an existing schedule in from a spreadsheet, or export the calendar for handoff. Both live under the ', { btn: 'plus' }, ' button in the Data submenu.'] },
                             { kind: 'steps', items: [
-                                'Tap + → Data → Import CSV. Drop a CSV (or tap to browse); a Download template link gives you the exact columns.',
+                                ['Tap ', { btn: 'plus' }, ' → Data → Import CSV. Drop a CSV (or tap to browse); a Download template link gives you the exact columns.'],
                                 'Review the preview table (Title / Date / Time / Category) and any skipped rows, then tap "Import N events".',
-                                'To export, tap + → Data → Export .ics for the whole calendar, or Export Troops-to-Task .csv for the day\'s assignments.',
+                                ['To export, tap ', { btn: 'plus' }, ' → Data → Export .ics for the whole calendar, or Export Troops-to-Task .csv for the day\'s assignments.'],
                             ] },
                         ],
                     },
@@ -248,7 +248,7 @@ export const UserGuide: GuideChapter[] = [
                     { kind: 'p', text: 'The Tasks card on an event is a checklist that rides along with it — the concrete things that have to happen. You can add items one at a time or seed the whole list from a saved cluster Checklist (your PCC/PCI packing list).' },
                     { kind: 'steps', items: [
                         'Open or create an event and find the Tasks card.',
-                        'Tap the + (Add task). To reuse a standard list, pick one of your cluster\'s Checklists at the top — every item seeds onto the event.',
+                        ['Tap the ', { btn: 'plus' }, ' (Add task). To reuse a standard list, pick one of your cluster\'s Checklists at the top — every item seeds onto the event.'],
                         'For a one-off item, tap Add new and choose Add equipment, Add location, or Add free text.',
                         'Assignees check items off as they\'re completed — status is shared with the cluster.',
                     ] },
@@ -281,15 +281,15 @@ export const UserGuide: GuideChapter[] = [
                     { kind: 'p', text: 'Supervisors can generate provider appointment slots in bulk — a template that lays down open appointment blocks across the days you choose — and clear them back out when plans change.' },
                     { kind: 'sub', text: 'Define appointment types first' },
                     { kind: 'steps', items: [
-                        'Open the calendar\'s Settings (gear) → the Appointment Types section.',
+                        ['Open the calendar\'s Settings ', { btn: 'settings' }, ' (gear) → the Appointment Types section.'],
                         'Tap New appointment type, enter a Type name (e.g. "20-min in-person") and a Duration in minutes, then Save.',
                     ] },
                     { kind: 'sub', text: 'Generate the slots' },
                     { kind: 'steps', items: [
-                        'Tap + → Templates → Provider Template.',
+                        ['Tap ', { btn: 'plus' }, ' → Templates → Provider Template.'],
                         'Pick the Provider and the Appointment type, then set the Start date / time and End date / time.',
                         'Review the preview of generated slots (tap a slot to Remove it), then tap Generate in the header.',
-                        'To pull slots back out, use + → Templates → Clear Templates, pick the provider(s) and a date range, and Clear.',
+                        ['To pull slots back out, use ', { btn: 'plus' }, ' → Templates → Clear Templates, pick the provider(s) and a date range, and Clear.'],
                     ] },
                 ],
             },
@@ -319,8 +319,8 @@ export const UserGuide: GuideChapter[] = [
                         title: 'Photos, voice notes & sharing',
                         blocks: [
                             { kind: 'list', items: [
-                                'Tap the + in the composer to attach a photo, or share a calendar event or a map overlay straight into the chat.',
-                                'Hold the mic button to record a voice note.',
+                                ['Tap the ', { btn: 'plus' }, ' in the composer to attach a photo, or share a calendar event or a map overlay straight into the chat.'],
+                                ['Hold the ', { btn: 'mic' }, ' mic button to record a voice note.'],
                                 'Share a property item, event, or overlay from that object\'s own menu ("Share to chat") — pick recipients and send. The other person taps through to it.',
                                 'Long-press a message to Reply, Forward, Copy, Save media, or Delete.',
                             ] },
@@ -349,7 +349,7 @@ export const UserGuide: GuideChapter[] = [
                         'Later, open the group and tap Group info to manage it.',
                     ] },
                     { kind: 'list', items: [
-                        'Rename the group with the pencil.',
+                        ['Rename the group with the ', { btn: 'pencil' }, ' pencil.'],
                         'Add members by Email or User Code.',
                         'Make a member primary (the admin badge), or Leave the group yourself.',
                         'A primary member can Purge the group.',
@@ -410,7 +410,7 @@ export const UserGuide: GuideChapter[] = [
                     { kind: 'steps', items: [
                         'Open a symptom category and choose the complaint. (The symptom screen also links General Information, Differentials, and MEDCOM / STP training.)',
                         'Work the question cards top to bottom. Choice cards take an option; Action Required cards take Performed (green check) or Deferred / Not Indicated (red X); Screening Tool cards open a scored screener.',
-                        'When a disposition card appears, tap the Continue chevron to open the note builder.',
+                        ['When a disposition card appears, tap the ', { btn: 'chevron-right' }, ' Continue chevron to open the note builder.'],
                     ] },
                 ],
             },
@@ -444,7 +444,7 @@ export const UserGuide: GuideChapter[] = [
                     { kind: 'steps', items: [
                         'Open Knowledge Base and use the Search field, or tap a category group.',
                         'Tap Medications, then search or tap a drug to open its detail.',
-                        'Use Pin in the header to save a medication to your Pinned list for fast recall.',
+                        ['Use ', { btn: 'pin' }, ' Pin in the header to save a medication to your Pinned list for fast recall.'],
                     ] },
                 ],
             },
@@ -463,7 +463,7 @@ export const UserGuide: GuideChapter[] = [
                     ] },
                     { kind: 'steps', items: [
                         'Fill the section cards on the Full Note tab.',
-                        'Tap Next; choose Include DM or Exclude DM to control whether decision-making is embedded.',
+                        ['Tap ', { btn: 'chevron-right' }, ' Next; choose Include DM or Exclude DM to control whether decision-making is embedded.'],
                         'On the final page, Done offers to Log training against your record.',
                     ] },
                 ],
@@ -494,7 +494,7 @@ export const UserGuide: GuideChapter[] = [
                     { kind: 'steps', items: [
                         'Open the Provider drawer and tap Import Medic Note, then paste or scan the encoded note and Decode.',
                         'The medic\'s note shows read-only under each section (HPI / Physical Exam / Assessment / Plan); type your additions in each box. Apply a template if you use one.',
-                        'Tap Next to reach Note Output — your signature is appended.',
+                        ['Tap ', { btn: 'chevron-right' }, ' Next to reach Note Output — your signature is appended.'],
                         'Copy the note text, Export SF600 PDF, or copy the encoded note / barcode to hand off or paste into the EHR.',
                     ] },
                 ],
@@ -580,7 +580,7 @@ export const UserGuide: GuideChapter[] = [
                     { kind: 'image', src: 'map-overlay.png', srcMobile: 'map-overlay-mobile.png', alt: 'Map overlay', caption: 'A navigation overlay.', side: 'left' },
                     { kind: 'p', text: 'The map holds full MGRS / UTM navigation overlays that download for offline use and export for sharing.' },
                     { kind: 'steps', items: [
-                        'Tap the add button → Add to map → New overlay to create one.',
+                        ['Tap the ', { btn: 'plus' }, ' add button → Add to map → New overlay to create one.'],
                         'Use Import to bring in GPX/KML, a Geo-PDF, or MBTiles tiles.',
                         'On an overlay\'s row menu you can View / Hide, Rename, Share to chat, Link to event, Add floor, or download / remove offline tiles.',
                         'Link an overlay to a calendar event — a range or a duty location — so it opens straight from the schedule.',
@@ -611,7 +611,7 @@ export const UserGuide: GuideChapter[] = [
                     { kind: 'image', src: 'map-waypoints.png', srcMobile: 'map-waypoints-mobile.png', alt: 'Waypoint glyph picker', caption: 'The pin library.', side: 'left' },
                     { kind: 'p', text: 'Mark up the map with a full library of pins — LZ, PZ, DZ, CCP, rally, objective, casualty, supply, hazard, target, and more — plus routes and areas.' },
                     { kind: 'steps', items: [
-                        'Tap the add button → New feature → Drop pin, then tap the map and pick the glyph.',
+                        ['Tap the ', { btn: 'plus' }, ' add button → New feature → Drop pin, then tap the map and pick the glyph.'],
                         'Choose Route and tap successive points to get per-leg distance and bearing, then Save as route.',
                         'Choose Area and tap points to mark a zone, then Save as area.',
                         'Edit a feature to rename it, recolor it, link a TC3 card or events, or reassign its floor.',
@@ -643,16 +643,16 @@ export const UserGuide: GuideChapter[] = [
                 summary: 'Organize items by location, room, and vehicle.',
                 blocks: [
                     { kind: 'image', src: 'property-book.png', srcMobile: 'property-book-mobile.png', alt: 'Property location tree', caption: 'The location tree.', side: 'left' },
-                    { kind: 'p', text: 'The property book answers "where is everything." Items live in a tree of locations — buildings, rooms, and vehicles — that you build to match your footprint. The Add button (+) opens the "Add to Property Book" sheet with New Item, New Location, and the Data & labels tools.' },
+                    { kind: 'p', text: ['The property book answers "where is everything." Items live in a tree of locations — buildings, rooms, and vehicles — that you build to match your footprint. The Add button ', { btn: 'plus' }, ' opens the "Add to Property Book" sheet with New Item, New Location, and the Data & labels tools.'] },
                     { kind: 'sub', text: 'Add a location (building, room, or zone)' },
                     { kind: 'steps', items: [
-                        'Tap + → New Location.',
+                        ['Tap ', { btn: 'plus' }, ' → New Location.'],
                         'Enter a Location name and, to nest it (a room inside a building), pick the building under Parent location.',
                         'Leave Type on Area for buildings, rooms, and zones. Optionally attach a photo to use as the map tile, then Save.',
                     ] },
                     { kind: 'sub', text: 'Add an item and place it' },
                     { kind: 'steps', items: [
-                        'Tap + → New Item (or a location\'s menu → New item).',
+                        ['Tap ', { btn: 'plus' }, ' → New Item (or a location\'s menu → New item).'],
                         'Fill Item name, Nomenclature, and Material/NSN and LIN. Set the class — Consumable, Durable, or Sensitive.',
                         'Turn on Track individually (serialized) for serial-numbered gear and add each serial; otherwise set a Quantity and Unit of issue (EA, SET, PR…).',
                         'Pick the Location to place it in, optionally a Holder and a Parent item, then Save.',
@@ -666,7 +666,7 @@ export const UserGuide: GuideChapter[] = [
                         blocks: [
                             { kind: 'p', text: 'A vehicle is just a location with its Type set to Vehicle. Once it exists, it carries its own maintenance and dispatch timeline, and its BII can be signed onto the hand receipt.' },
                             { kind: 'steps', items: [
-                                'Tap + → New Location, name it (put the bumper number in the name — there is no separate bumper field), and set Type to Vehicle.',
+                                ['Tap ', { btn: 'plus' }, ' → New Location, name it (put the bumper number in the name — there is no separate bumper field), and set Type to Vehicle.'],
                                 'Optionally pick a Hand-receipt LIN so the vehicle carries its authorized BII, then Save.',
                                 'On the vehicle, open its menu for PMCS and Dispatch (both show only for vehicles), plus New item to load its BII.',
                             ] },
@@ -680,7 +680,7 @@ export const UserGuide: GuideChapter[] = [
                             { kind: 'steps', items: [
                                 'Open the vehicle\'s menu → PMCS.',
                                 'Enter Mileage and fuel level, pick the Operator (and Mechanic), and use Report a fault to stage any faults.',
-                                'Tap Record PMCS — the readings and faults commit as one event. Tap an open fault\'s X later to mark it corrected.',
+                                ['Tap Record PMCS — the readings and faults commit as one event. Tap an open fault\'s ', { btn: { icon: 'x', variant: 'danger' } }, ' later to mark it corrected.'],
                             ] },
                             { kind: 'note', text: 'Recent dispatch and PMCS activity also surface on the Sign-outs tab under their own groups.' },
                         ],
@@ -729,7 +729,7 @@ export const UserGuide: GuideChapter[] = [
                             { kind: 'image', src: 'property-da2062.png', srcMobile: 'property-da2062-mobile.png', alt: 'DA 2062 sign-out', caption: 'Signing items out.', side: 'left' },
                             { kind: 'p', text: 'A DA 2062 hand receipt signs one or more items to a person — inside your cluster or outside it — and produces the printable document.' },
                             { kind: 'steps', items: [
-                                'Tap + → New DA 2062.',
+                                ['Tap ', { btn: 'plus' }, ' → New DA 2062.'],
                                 'Under "Sign to", pick a cluster member, or add an outside recipient by name.',
                                 'Select the items (each with a quantity capped at on-hand). Toggle "Move to recipient\'s zone" if the item physically leaves its location, and add notes.',
                                 'Tap Sign out — the recipient signs on the signature pad, and the app builds the 2062 to print or export.',
@@ -774,10 +774,10 @@ export const UserGuide: GuideChapter[] = [
                     { kind: 'image', src: 'property-scan.png', srcMobile: 'property-scan-mobile.png', alt: 'Item scanner', caption: 'Scanning to locate an item.', side: 'right' },
                     { kind: 'p', text: 'Scan an item to find it fast, and move data in and out in bulk.' },
                     { kind: 'steps', items: [
-                        'Tap the Camera button and point it at an item\'s printed label to locate it on the map or mark it expended.',
+                        ['Tap the ', { btn: 'camera' }, ' Camera button and point it at an item\'s printed label to locate it on the map or mark it expended.'],
                         'Enroll an item in Visual ID (item menu → Logistics → Enroll Visual ID) so the camera can recognize it later without a barcode.',
-                        'Print labels from + → Data & labels → Print labels (or a single item / zone from its menu), choosing Address or File-folder stock.',
-                        'Import or export the book as CSV from + → Data & labels. Import is an upsert (merge), never a wipe.',
+                        ['Print labels from ', { btn: 'plus' }, ' → Data & labels → Print labels (or a single item / zone from its menu), choosing Address or File-folder stock.'],
+                        ['Import or export the book as CSV from ', { btn: 'plus' }, ' → Data & labels. Import is an upsert (merge), never a wipe.'],
                     ] },
                 ],
             },
@@ -866,7 +866,7 @@ export const UserGuide: GuideChapter[] = [
                         blocks: [
                             { kind: 'steps', items: [
                                 'In the Users list, tap a member to open their card.',
-                                'Tap Edit (pencil) to change their email, Component, Rank, Roles (Supervisor / Provider — Medic is always implied), and Section, then Save.',
+                                ['Tap Edit ', { btn: 'pencil' }, ' to change their email, Component, Rank, Roles (Supervisor / Provider — Medic is always implied), and Section, then Save.'],
                                 'Use Reset password to set a new password (it takes effect immediately; the user is not notified).',
                                 'Use Remove — or swipe the row left — to take them off the cluster ("Remove from cluster?").',
                             ] },

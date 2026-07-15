@@ -1,9 +1,7 @@
 import { useMemo, useState, forwardRef, useImperativeHandle } from 'react'
 import { useShallow } from 'zustand/react/shallow'
-import { ChevronRight, ChevronDown, FileText, PackageCheck, ClipboardList } from 'lucide-react'
+import { ChevronRight, ChevronDown, PackageCheck, ClipboardList } from 'lucide-react'
 import { SearchInput } from '@/Components/primitives/SearchInput'
-import { LiftedRowMenu } from '@/Components/primitives/LiftedRowMenu'
-import { type ContextMenuItem } from '@/Components/primitives/ContextMenu'
 import { usePropertyStore } from '../../stores/usePropertyStore'
 import { useDA2062Export } from '../../Hooks/useDA2062Export'
 import { Da2062Preview } from './Da2062Preview'
@@ -12,10 +10,11 @@ import type { DA2062Params } from '../../Utilities/DA2062Export'
 import type { HolderInfo, LocalPropertyItem } from '../../Types/PropertyTypes'
 
 export interface PropertyShortageHandle {
-  /** Open the action menu (DA 2062 shortage annex) anchored to the host header's
-   *  ellipsis. The host renders the trigger; the menu + its export/preview live here so
-   *  the annex stays co-located with the report it's built from. */
-  openMenu: (anchor: DOMRect) => void
+  /** Generate the DA 2062 shortage annex (its only report action). The host renders the
+   *  trigger as a direct Download pill — matching the Authorized items header's "Import
+   *  from CSV" idiom — while the export/preview live here, co-located with the report
+   *  they're built from. */
+  exportAnnex: () => void
 }
 
 interface PropertyShortagePanelProps {
@@ -53,8 +52,8 @@ function annexHolder(displayName: string): HolderInfo {
  *  Shortage = authorized − on-hand, a pure client fold over the already-loaded items
  *  (see computeShortages). A line TAP opens the line's detail (onLocate → host
  *  handleSelectItem), where the "On hand" section lists the located stacks that ARE present
- *  (and taps through to locate each on the map). The DA 2062 shortage annex export lives in
- *  the host header's ellipsis (opened via the openMenu handle). Hosted in the
+ *  (and taps through to locate each on the map). The DA 2062 shortage annex export fires
+ *  from the host header's direct Download pill (via the exportAnnex handle). Hosted in the
  *  Property right pane (desktop) / detail sheet (mobile) by PropertyPanel. */
 export const PropertyShortagePanel = forwardRef<PropertyShortageHandle, PropertyShortagePanelProps>(
   function PropertyShortagePanel({ stagedTurnInIds, onLocate }, ref) {
@@ -138,15 +137,9 @@ export const PropertyShortagePanel = forwardRef<PropertyShortageHandle, Property
       void exportDA2062(params)
     }
 
-    // Action menu (host-triggered ellipsis) — the DA 2062 shortage annex export.
-    const [menuAnchor, setMenuAnchor] = useState<{ rect: DOMRect } | null>(null)
-    useImperativeHandle(ref, () => ({
-      openMenu: (anchor: DOMRect) => setMenuAnchor({ rect: anchor }),
-    }), [])
-
-    const menuItems: ContextMenuItem[] = [
-      { key: 'annex', label: 'DA 2062 shortage annex', icon: FileText, onAction: exportAnnex },
-    ]
+    // Host-triggered from the header's direct Download pill — the DA 2062 shortage annex
+    // is the report's only action, so no ellipsis/menu wraps it (matches Authorized items).
+    useImperativeHandle(ref, () => ({ exportAnnex }))
 
     // Nothing authorized yet → point the user at the BOM upload.
     if (report.trackedCount === 0) {
@@ -235,18 +228,6 @@ export const PropertyShortagePanel = forwardRef<PropertyShortageHandle, Property
             )
           })}
         </div>
-
-        {/* Action menu — opened from the host header ellipsis (openMenu handle). */}
-        {menuAnchor && (
-          <LiftedRowMenu
-            isOpen
-            anchorRect={menuAnchor.rect}
-            onClose={() => setMenuAnchor(null)}
-            layout="list"
-            align="right"
-            items={menuItems}
-          />
-        )}
 
         <Da2062Preview
           preview={da2062Preview}

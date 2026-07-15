@@ -20,7 +20,7 @@ import {
     ChevronLeft, ChevronRight, ChevronDown, Search, Filter, Save, Send,
     Camera, ScanLine, Printer, RefreshCw, RotateCcw, Undo2, History, Share2,
     Settings, Bell, User, Users, Calendar, MessageSquare, MapPin, Navigation,
-    Route, Info, List, Package, Play, Pin, type LucideIcon,
+    Route, Info, List, Package, Play, Pin, SlidersHorizontal, Mic, type LucideIcon,
 } from 'lucide-react';
 
 export const GuideIconRegistry = {
@@ -61,6 +61,8 @@ export const GuideIconRegistry = {
     package: Package,
     play: Play,
     pin: Pin,
+    sliders: SlidersHorizontal,
+    mic: Mic,
 } satisfies Record<string, LucideIcon>;
 
 /** Every valid icon key the guide can name. Author-time autocomplete + typo-proofing. */

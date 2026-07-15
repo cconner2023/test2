@@ -2040,7 +2040,12 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
         {/* Scrollable canvas */}
         <div
           ref={scrollRef}
-          className={`absolute inset-0 overflow-auto bg-themewhite2 ${isEditing ? (isDrawing ? 'cursor-crosshair' : isResizing ? 'cursor-nwse-resize' : isMoving ? 'cursor-move' : 'cursor-default') : 'cursor-default'}`}
+          // `isolate` gives the canvas its own stacking context so the inline zIndex
+          // values on zone/level tiles + item pins (LocationTagPhoto) stay trapped
+          // inside it and can never paint over the floating chrome (FloorSlider z-20,
+          // controls z-20/z-30). Without this, a building with enough levels produces
+          // tiles whose zIndex >= 20 that hid the floor slider.
+          className={`absolute inset-0 isolate overflow-auto bg-themewhite2 ${isEditing ? (isDrawing ? 'cursor-crosshair' : isResizing ? 'cursor-nwse-resize' : isMoving ? 'cursor-move' : 'cursor-default') : 'cursor-default'}`}
           style={{ touchAction: (isDrawing || isMoving || isResizing || itemMoveMode) ? 'none' : 'pan-x pan-y' }}
           onPointerDown={handlePanStart}
           onPointerMove={handlePanMove}

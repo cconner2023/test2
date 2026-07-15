@@ -5,7 +5,7 @@ import { LiftedRowMenu } from '@/Components/primitives/LiftedRowMenu'
 import type { LocalPropertyLocation, LocalPropertyItem, HolderInfo } from '../../Types/PropertyTypes'
 import { itemAlert } from '../../Types/PropertyTypes'
 import { isStructuralZone } from './levelUtils'
-import { itemPassesLens } from '../../Utilities/subCluster'
+import { itemPassesLens, itemIsMine } from '../../Utilities/subCluster'
 import { isLinContainer, isAuthTarget, isZoneShadow } from '../../Utilities/propertyAuthorized'
 import { useVehicleDispatches } from '../../Hooks/useVehicleDispatches'
 import { DispatchDot } from './DispatchDot'
@@ -33,11 +33,14 @@ interface PropertyLocationTreeProps {
   onSelectAll?: () => void
   allSelected?: boolean
   /** "My property" filter: when on, prune the tree to items the user OWNS
-   *  (`owner_user_id`) OR HOLDS by custody (`current_holder_id`), plus the zones on
-   *  their path. */
+   *  (`owner_user_id`), HOLDS by custody (`current_holder_id`), or STORES in their
+   *  member-zone (`myZoneIds`), plus the zones on their path. */
   mineOnly?: boolean
   /** The viewer's user id — needed to evaluate the "My property" filter. */
   currentUserId?: string | null
+  /** The viewer's member-zone location ids (self + descendants), from
+   *  `collectHolderZoneIds`. Items placed in these zones count as "mine". */
+  myZoneIds?: Set<string> | null
   /** Pre-resolved sub-cluster (platoon/squad) lens: an array narrows the tree to
    *  items in those sub-clusters (HQ/common items always pass); null/undefined =
    *  no narrowing. Render-only; see Utilities/subCluster.ts + v2/supervisor. */
@@ -78,6 +81,7 @@ export function PropertyLocationTree({
   allSelected,
   mineOnly,
   currentUserId,
+  myZoneIds,
   subClusterLens,
   primaryClinicId,
   onEditLocation,
@@ -219,10 +223,10 @@ export function PropertyLocationTree({
         !!locName(i.location_id ?? null)?.toLowerCase().includes(q)
       )
     }
-    // "My property" = owned by the viewer (owner_user_id) OR held by the viewer via
-    // custody (current_holder_id).
-    const isMine = (i: LocalPropertyItem) =>
-      i.owner_user_id === currentUserId || i.current_holder_id === currentUserId
+    // "My property" = owned by the viewer (owner_user_id), held via custody
+    // (current_holder_id), OR stored in the viewer's member-zone (myZoneIds).
+    // Shared with displayItems via itemIsMine so tree + map can't drift.
+    const isMine = (i: LocalPropertyItem) => itemIsMine(i, { currentUserId, myZoneIds })
     // Squad lens — shared with the map canvas via itemPassesLens so the two surfaces
     // can't drift. Cross-cluster (foreign clinic_id), viewer-owned/held, and HQ/common
     // (sub_cluster_id == null) items always bypass; null lens = no narrowing.
@@ -253,7 +257,7 @@ export function PropertyLocationTree({
       displayUnassigned: unassignedItems.filter(showItem),
       displayRootItems: rootItems.filter(showItem),
     }
-  }, [isSearching, mineActive, subActive, subClusterLens, primaryClinicId, currentUserId, q, roots, memberNodes, unassignedItems, rootItems, locations, holders])
+  }, [isSearching, mineActive, subActive, subClusterLens, primaryClinicId, currentUserId, myZoneIds, q, roots, memberNodes, unassignedItems, rootItems, locations, holders])
 
   // Ellipsis button — hover-revealed in the desktop rail, always shown elsewhere.
   const actionBtnCls = `w-7 h-7 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all shrink-0 ${

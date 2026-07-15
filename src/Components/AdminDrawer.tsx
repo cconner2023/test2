@@ -81,6 +81,64 @@ interface AdminDrawerProps {
     onClose: () => void
 }
 
+/**
+ * Body crossfade for the unified mobile admin sheet. The Sheet vessel (and its
+ * header) stay mounted; only the BODY morphs between screens. On a
+ * `transitionKey` change it freezes the outgoing body, fades it out, swaps in
+ * the incoming body, then fades that in — so inbox → detail and detail → detail
+ * read as one continuous surface instead of separate sheets sliding up/down.
+ * Same-key re-renders (edit-mode toggles, async data) pass straight through with
+ * no fade. Flash-free: the fade-out is armed synchronously on the key-change
+ * render, so the incoming screen never paints at full opacity before the
+ * outgoing one dissolves.
+ */
+function MorphSheetBody({
+    transitionKey,
+    children,
+    duration = UI_TIMING.SHEET_MORPH,
+}: {
+    transitionKey: string
+    children: ReactNode
+    duration?: number
+}) {
+    const [committedKey, setCommittedKey] = useState(transitionKey)
+    const [fading, setFading] = useState(false)
+    const [frozen, setFrozen] = useState<ReactNode>(null)
+    const liveNode = useRef<ReactNode>(children)
+
+    // Retain the latest body while the key is stable so the NEXT transition
+    // freezes the correct OUTGOING screen — not the incoming one that already
+    // flowed in on the key-change render.
+    if (!fading && transitionKey === committedKey) liveNode.current = children
+
+    // Key changed → arm the fade-out during render. Doing it here (not in an
+    // effect) means the incoming screen never paints a frame at full opacity
+    // before the outgoing one dissolves.
+    if (transitionKey !== committedKey && !fading) {
+        setFrozen(liveNode.current)
+        setFading(true)
+    }
+
+    useEffect(() => {
+        if (!fading) return
+        const t = window.setTimeout(() => {
+            setCommittedKey(transitionKey)
+            setFrozen(null)
+            setFading(false)
+        }, duration)
+        return () => window.clearTimeout(t)
+    }, [fading, transitionKey, duration])
+
+    return (
+        <div
+            className="transition-opacity ease-out"
+            style={{ opacity: fading ? 0 : 1, transitionDuration: `${duration}ms` }}
+        >
+            {fading ? frozen : children}
+        </div>
+    )
+}
+
 export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
     const [view, setView] = useState<AdminView>('admin')
     const [activeTab, setActiveTab] = useState<AdminTab>('directory')
@@ -952,6 +1010,73 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         </div>
     )
 
+    // ── Unified mobile sheet (inbox + every detail screen in ONE vessel) ──
+    // Previously the inbox and the detail views were separate <Sheet>s, so
+    // moving between them slid one down and the other up ("all different
+    // sheets"). Now a single sheet stays mounted and its body morphs between
+    // screens (MorphSheetBody). detailScreen = the active detail (null on inbox).
+    const detailScreen =
+        view === 'admin-user-detail' ? 'user'
+        : view === 'admin-clinic-detail' ? 'clinic'
+        : view === 'admin-location-detail' ? 'location'
+        : view === 'admin-settings' ? 'settings'
+        : view === 'admin-request-detail' ? 'request'
+        : view === 'admin-feedback-detail' ? 'feedback'
+        : view === 'admin-suggestion-detail' ? 'suggestion'
+        : null
+    const sheetShowsInbox = detailScreen === null && showNavSheet
+    const mobileSheetOpen = isMobile && (detailScreen !== null || showNavSheet)
+
+    // Morph key — changes when the SHOWN screen or its entity changes, so even a
+    // same-type hop (user A → user B, cluster → sister cluster) crossfades. Held
+    // at its last value while the sheet slides closed (rawSheetKey null) so a
+    // dismiss doesn't trigger a spurious fade on the way down.
+    const rawSheetKey =
+        detailScreen === 'user' ? `user:${selectedUser?.id ?? 'new'}`
+        : detailScreen === 'clinic' ? `clinic:${selectedClinic?.id ?? 'new'}`
+        : detailScreen === 'location' ? `location:${selectedLocation?.id ?? 'new'}`
+        : detailScreen === 'settings' ? 'settings'
+        : detailScreen === 'request' ? `request:${selectedRequest?.id ?? ''}`
+        : detailScreen === 'feedback' ? `feedback:${selectedFeedback?.id ?? ''}`
+        : detailScreen === 'suggestion' ? `suggestion:${selectedSuggestion?.id ?? ''}`
+        : showNavSheet ? 'inbox'
+        : null
+    const lastSheetKey = useRef('inbox')
+    if (rawSheetKey) lastSheetKey.current = rawSheetKey
+    const sheetKey = rawSheetKey ?? lastSheetKey.current
+
+    // Sheet-level dismiss (drag handle / backdrop tap). Inbox → close it; a
+    // triage detail → back to the inbox; any other detail → back (which lands on
+    // the inbox if that's where it was opened from, else the list).
+    const sheetOnClose = sheetShowsInbox
+        ? () => setShowNavSheet(false)
+        : isTriageView
+            ? handleBackToInbox
+            : handleBack
+
+    // Inbox body (the sort rail) — the Sheet chrome supplies the header, so this
+    // is bare content. Selecting a triage/settings row keeps the sheet up and
+    // morphs to that detail (no setShowNavSheet(false), so back returns here); a
+    // system peer opens the full-panel chat, so it closes the inbox first.
+    const inboxBody = (
+        <div className="flex flex-col" style={{ height: '78dvh' }}>
+            <div className="px-3 pt-2 pb-2 shrink-0">
+                <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Search..." />
+            </div>
+            <div className="flex-1 min-h-0">
+                <AdminSortRail
+                    onOpenSettings={handleOpenSettings}
+                    onSelectSystemPeer={(peerId) => { setShowNavSheet(false); handleSelectSystemPeer(peerId) }}
+                    onOpenRequest={handleOpenRequest}
+                    onOpenFeedback={handleOpenFeedback}
+                    onOpenSuggestion={handleOpenSuggestion}
+                    searchQuery={searchQuery}
+                    activeSystemPeerId={selectedSystemPeerId}
+                />
+            </div>
+        </div>
+    )
+
     // Bottom island — tab switcher (centered) + FAB (right), matching Property/Calendar pattern
     const bottomIsland = (
         <BottomIsland
@@ -1160,72 +1285,37 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
             />
         </BaseDrawer>
 
-        {/* Mobile detail Sheet — user/clinic/location detail overlays the list
-            instead of switching panels (the desktop R-pane → mobile Sheet).
-            Unlike map/property (live distinct content underneath = no scrim
-            needed), the admin list shares the drawer bg, so a dimming scrim
-            (backdrop="dismiss") is required for figure/ground separation; tap
-            scrim, header Close, or drag-down to dismiss. Breadcrumb (lateral
-            trail) rides the header above the entity name. Portals to body, so
-            it sits outside BaseDrawer in the tree. */}
+        {/* Mobile unified sheet — ONE vessel hosting the inbox rail AND every
+            detail screen. The Sheet (and its header) stay mounted while the BODY
+            morphs between screens via MorphSheetBody, so inbox ⇄ detail and
+            detail ⇄ detail read as a single continuous surface instead of
+            separate sheets sliding up/down ("all different sheets"). The header
+            (title/breadcrumb + actions + close) is supplied by the Sheet chrome
+            and switches per the live screen; the crossfade covers the body. A
+            dimming scrim (backdrop="dismiss") separates figure/ground since the
+            list shares the drawer bg; tap scrim, header Close, or drag to
+            dismiss. Portals to body (z-1200) to clear the mobileFullScreen
+            drawer (z-60) — matches the overlay-sheet convention (Property/Map). */}
         {isMobile && (
             <Sheet
-                isOpen={detailSheetOpen}
-                onClose={isTriageView ? handleBackToInbox : handleBack}
+                isOpen={mobileSheetOpen}
+                onClose={sheetOnClose}
                 height="fit"
-                // Taller cap + stronger dim so the sheet reads unambiguously as an
-                // overlay above the list (the list shares the drawer bg, so a weak
-                // scrim was distracting / not obviously an overlay).
                 maxHeight={88}
                 backdrop="dismiss"
                 backdropOpacity={0.6}
-                title={detailTitle}
-                titleNode={sheetTitleNode}
+                title={sheetShowsInbox ? 'Inbox' : detailTitle}
+                titleNode={sheetShowsInbox ? undefined : sheetTitleNode}
                 // Triage details hide the Sheet Close (they publish their own
                 // header actions), so give them an explicit back-to-inbox arrow.
-                leftContent={isTriageView ? backToInboxButton : undefined}
-                rightContent={detailHeaderActions}
-                hideClose={!!detailHeaderActions}
-                // Portals to body — must clear the mobileFullScreen drawer
-                // (z-60). Matches the overlay-sheet convention (Property/Map).
+                leftContent={!sheetShowsInbox && isTriageView ? backToInboxButton : undefined}
+                rightContent={sheetShowsInbox ? undefined : detailHeaderActions}
+                hideClose={sheetShowsInbox ? false : !!detailHeaderActions}
                 zIndex={1200}
             >
-                {renderDetailContent(true)}
-            </Sheet>
-        )}
-
-        {/* Mobile nav sheet — the slide-out mirror of the desktop left pane:
-            the inbox rail (settings + counts + requests/feedback/messages),
-            reachable from any tab via the header rail. The directory tree itself
-            is the Directory tab's full-screen main view, so it isn't duplicated
-            here. Selecting a row closes the sheet and opens its detail. */}
-        {isMobile && (
-            <Sheet
-                isOpen={showNavSheet}
-                onClose={() => setShowNavSheet(false)}
-                height="fit"
-                maxHeight={88}
-                backdrop="dismiss"
-                backdropOpacity={0.6}
-                title="Inbox"
-                zIndex={1200}
-            >
-                <div className="flex flex-col" style={{ height: '78dvh' }}>
-                    <div className="px-3 pt-1 pb-2 shrink-0">
-                        <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Search..." />
-                    </div>
-                    <div className="flex-1 min-h-0">
-                        <AdminSortRail
-                            onOpenSettings={() => { setShowNavSheet(false); handleOpenSettings() }}
-                            onSelectSystemPeer={(peerId) => { setShowNavSheet(false); handleSelectSystemPeer(peerId) }}
-                            onOpenRequest={(request) => { setShowNavSheet(false); handleOpenRequest(request) }}
-                            onOpenFeedback={(feedback) => { setShowNavSheet(false); handleOpenFeedback(feedback) }}
-                            onOpenSuggestion={(suggestion) => { setShowNavSheet(false); handleOpenSuggestion(suggestion) }}
-                            searchQuery={searchQuery}
-                            activeSystemPeerId={selectedSystemPeerId}
-                        />
-                    </div>
-                </div>
+                <MorphSheetBody transitionKey={sheetKey}>
+                    {sheetShowsInbox ? inboxBody : renderDetailContent(true)}
+                </MorphSheetBody>
             </Sheet>
         )}
 

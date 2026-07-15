@@ -25,6 +25,7 @@ import { PropertyLocationDetail, buildLocationMenuItems, type PropertyLocationDe
 import { PropertyItemForm, type PropertyItemFormHandle } from './PropertyItemForm'
 import { PropertyLocationMap, type MapNavHandle } from './PropertyLocationMap'
 import { isStructuralZone } from './levelUtils'
+import { collectHolderZoneIds, itemIsMine } from '../../Utilities/subCluster'
 import { Sheet } from '@/Components/primitives/Sheet'
 import { useStack } from '@/Components/primitives/useStack'
 import { LayeredStackBody } from '@/Components/primitives/LayeredStackBody'
@@ -275,9 +276,15 @@ export const PropertyPanel = memo(function PropertyPanel({
       })
   }, [visibleLocations, store.holders])
 
+  // The viewer's member-zone location ids (self + descendants) — resolved once and
+  // shared by displayItems and the tree so "My property" counts anything stored in
+  // the viewer's own zone, not just what they own or hold.
+  const myZoneIds = useMemo(() => collectHolderZoneIds(store.locations, currentUserId), [store.locations, currentUserId])
+
   // Item scope for the canvas + tree — the SINGLE source both surfaces read, so map
   // and tree can't drift. One render-only narrowing:
-  //   • "My property" → viewer-owned (owner_user_id) or held (current_holder_id)
+  //   • "My property" → viewer owns (owner_user_id), holds (current_holder_id), or
+  //     stores it in their member-zone (myZoneIds)
   // Off → the full set (turn-in / LIN-container exclusions still apply below).
   const displayItems = useMemo(() => {
     // Turned-in items (turned_in_at set) have left the books — they drop out of the
@@ -295,9 +302,9 @@ export const PropertyPanel = memo(function PropertyPanel({
     const turnInZoneIds = new Set(store.locations.filter(l => l.is_turn_in_zone).map(l => l.id))
     const atTurnIn = (i: LocalPropertyItem) => i.location_id != null && turnInZoneIds.has(i.location_id)
     if (mineOnly && currentUserId)
-      items = items.filter(i => atTurnIn(i) || i.owner_user_id === currentUserId || i.current_holder_id === currentUserId)
+      items = items.filter(i => atTurnIn(i) || itemIsMine(i, { currentUserId, myZoneIds }))
     return items
-  }, [mineOnly, currentUserId, store.items, store.locations])
+  }, [mineOnly, currentUserId, myZoneIds, store.items, store.locations])
 
   // The TREE (rail + Locations sheet) lists physical/shared zones PLUS the personnel
   // zones (the tree groups the latter under a collapsible "Personnel" node) — so the one
@@ -1207,6 +1214,9 @@ export const PropertyPanel = memo(function PropertyPanel({
                 holders={store.holders}
                 searchQuery=""
                 hoverActions
+                mineOnly={mineOnly}
+                currentUserId={currentUserId}
+                myZoneIds={myZoneIds}
                 activeLocationId={selectedLocationId}
                 onSelectLocation={handleSelectLocationDesktop}
                 onSelectItem={handleSelectItem}
@@ -1545,9 +1555,7 @@ export const PropertyPanel = memo(function PropertyPanel({
                 <div className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-tertiary/10">
                   <p className="text-sm font-medium text-primary truncate">Shortages</p>
                   <HeaderPill>
-                    <span className="inline-flex" onClick={(e) => shortageRef.current?.openMenu((e.currentTarget as HTMLElement).getBoundingClientRect())}>
-                      <PillButton icon={MoreHorizontal} iconSize={16} onClick={() => {}} label="More actions" />
-                    </span>
+                    <PillButton icon={Download} iconSize={16} onClick={() => shortageRef.current?.exportAnnex()} label="DA 2062 shortage annex" />
                     <PillButton icon={X} iconSize={16} onClick={() => setShortageOpen(false)} label="Close" />
                   </HeaderPill>
                 </div>
@@ -1983,9 +1991,7 @@ export const PropertyPanel = memo(function PropertyPanel({
           ) : da2062Preview ? (
             <PillButton icon={Download} iconSize={18} accent="info" onClick={saveReprint} label="Save" />
           ) : shortageOpen ? (
-            <span className="inline-flex" onClick={(e) => shortageRef.current?.openMenu((e.currentTarget as HTMLElement).getBoundingClientRect())}>
-              <PillButton icon={MoreHorizontal} iconSize={18} onClick={() => {}} label="More actions" />
-            </span>
+            <PillButton icon={Download} iconSize={18} onClick={() => shortageRef.current?.exportAnnex()} label="DA 2062 shortage annex" />
           ) : signOutOpen ? (
             <PillButton icon={Check} iconSize={18} accent="success" onClick={() => signOutFormRef.current?.submit()} label="Sign out" />
           ) : importOpen ? (
@@ -2037,6 +2043,9 @@ export const PropertyPanel = memo(function PropertyPanel({
               locations={treeLocations}
               items={displayItems}
               clinicName={clinicName}
+              mineOnly={mineOnly}
+              currentUserId={currentUserId}
+              myZoneIds={myZoneIds}
               activeLocationId={selectedLocationId}
               allSelected={!selectedLocationId}
               onSelectAll={() => cameraTo({ kind: 'reset' })}

@@ -68,3 +68,54 @@ export function itemPassesLens(
   if (item.sub_cluster_id == null) return true
   return lens.includes(item.sub_cluster_id)
 }
+
+/**
+ * Location ids that make up the viewer's PERSONAL member-zone(s): every zone whose
+ * `holder_user_id` is the viewer, PLUS all descendant zones under them. Feeds the
+ * "My property" filter so anything physically placed in the viewer's own zone counts
+ * as theirs — not just items they own outright or hold by custody. Empty when there
+ * is no user id. Skips soft-deleted zones.
+ */
+export function collectHolderZoneIds(
+  locations: Array<{ id: string; parent_id: string | null; holder_user_id?: string | null; deleted_at?: string | null }>,
+  userId: string | null | undefined,
+): Set<string> {
+  const out = new Set<string>()
+  if (!userId) return out
+  const childrenByParent = new Map<string | null, string[]>()
+  for (const l of locations) {
+    if (l.deleted_at) continue
+    const arr = childrenByParent.get(l.parent_id)
+    if (arr) arr.push(l.id)
+    else childrenByParent.set(l.parent_id, [l.id])
+  }
+  const stack = locations.filter((l) => !l.deleted_at && l.holder_user_id === userId).map((l) => l.id)
+  while (stack.length) {
+    const id = stack.pop()!
+    if (out.has(id)) continue
+    out.add(id)
+    const kids = childrenByParent.get(id)
+    if (kids) for (const k of kids) stack.push(k)
+  }
+  return out
+}
+
+/**
+ * The "My property" test — the SINGLE source the tree AND the map filter on, so the
+ * two surfaces can't drift. An item is the viewer's when they:
+ *   - OWN it            → owner_user_id === me (personal property, travels on PCS)
+ *   - are SIGNED FOR it → current_holder_id === me (custody holder)
+ *   - STORE it          → it sits in the viewer's member-zone or a sub-zone under it
+ * Staged turn-in stock is a separate clinic-wide bypass handled by the caller.
+ */
+export function itemIsMine(
+  item: { owner_user_id?: string | null; current_holder_id?: string | null; location_id?: string | null },
+  opts: { currentUserId: string | null | undefined; myZoneIds?: Set<string> | null },
+): boolean {
+  const { currentUserId, myZoneIds } = opts
+  if (!currentUserId) return false
+  if (item.owner_user_id === currentUserId) return true
+  if (item.current_holder_id === currentUserId) return true
+  if (myZoneIds && item.location_id != null && myZoneIds.has(item.location_id)) return true
+  return false
+}
