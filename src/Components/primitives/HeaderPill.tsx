@@ -1,6 +1,16 @@
 import type { LucideIcon } from 'lucide-react'
-import { Children, type ReactNode } from 'react'
+import { Children, createContext, useContext, type ReactNode } from 'react'
 import { useIsMobile } from '@/Hooks/useIsMobile'
+
+/** When true, PillButton/HeaderPill render their DESKTOP treatment even on a
+ *  mobile viewport: no capsule bubble, desktop sizing, and `accent` as a tinted
+ *  underline (never a filled circle). The Sheet primitive provides this around
+ *  its header so header actions — including consumer-passed ones — un-bubble
+ *  without touching every call site. Default false = viewport-driven as before. */
+const ForceDesktopChrome = createContext(false)
+export function DesktopChrome({ children }: { children: ReactNode }) {
+    return <ForceDesktopChrome.Provider value={true}>{children}</ForceDesktopChrome.Provider>
+}
 
 type AccentTone = 'success' | 'info' | 'danger'
 
@@ -35,7 +45,8 @@ interface PillButtonProps {
 }
 
 export function PillButton({ icon: Icon, onClick, label, variant = 'default', iconSize, compact, disabled, circleBg, accent }: PillButtonProps) {
-    const isMobile = useIsMobile()
+    const forceDesktop = useContext(ForceDesktopChrome)
+    const isMobile = useIsMobile() && !forceDesktop
     const size = compact
         ? (isMobile ? 'w-[2.4375rem] h-[2.4375rem]' : 'w-8 h-8')  // 39px mobile, 32px desktop
         : (isMobile ? 'w-[2.6875rem] h-[2.6875rem]' : 'w-9 h-9')  // 43px mobile, 36px desktop
@@ -81,7 +92,8 @@ export function PillButton({ icon: Icon, onClick, label, variant = 'default', ic
 }
 
 export function HeaderPill({ children, multi }: { children: ReactNode; multi?: boolean }) {
-    const isMobile = useIsMobile()
+    const forceDesktop = useContext(ForceDesktopChrome)
+    const isMobile = useIsMobile() && !forceDesktop
     const isMulti = multi ?? Children.toArray(children).filter(Boolean).length > 1
 
     if (!isMobile) return <div className="flex items-center gap-0.5">{children}</div>

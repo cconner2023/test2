@@ -29,7 +29,7 @@ import { useEffect, useRef, useState, useCallback, type ReactNode } from 'react'
 import { createPortal } from 'react-dom';
 import { animated } from '@react-spring/web';
 import { X, ChevronUp, ChevronDown } from 'lucide-react';
-import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill';
+import { HeaderPill, PillButton, DesktopChrome } from '@/Components/primitives/HeaderPill';
 import { HudLoader } from '@/Components/primitives/HudLoader';
 import { useLoadingMorph } from '@/Components/primitives/useLoadingMorph';
 import { DRAWER_TIMING } from '@/Utilities/constants';
@@ -338,36 +338,39 @@ export function Sheet({
         <div ref={fitChromeRef} className="shrink-0">
             {/* Plain in-flow header. Drag handle (optional) is the drag-zone; the
                 title row appears only if it has content. */}
+            {/* Invisible grab strip — the drag-zone survives (swipe-to-dismiss
+                lives here) but the visible handle bar is gone. */}
             {draggable && (
                 <div
-                    className="flex justify-center pt-2 pb-1"
+                    className="pt-3 pb-1"
                     data-drag-zone
+                    aria-hidden
                     style={{ touchAction: 'none' }}
                     onTouchStart={onTouchStart}
                     onTouchMove={onTouchMove}
                     onTouchEnd={onTouchEnd}
-                >
-                    <div className="w-9 h-1 rounded-full bg-tertiary/25" />
-                </div>
+                />
             )}
             {(title || titleNode || leftContent || rightContent || actions || !hideClose) && (
-                <div className="flex items-center justify-between gap-2 px-4 pt-1 pb-2 border-b border-primary/6">
-                    <div className="flex items-center gap-2 min-w-0">
-                        {leftContent && <div className="shrink-0">{leftContent}</div>}
-                        {titleNode
-                            ? <div className="min-w-0 flex-1">{titleNode}</div>
-                            : title && <span className="truncate text-[13pt] font-semibold text-primary min-w-0">{title}</span>}
+                <DesktopChrome>
+                    <div className="flex items-center justify-between gap-2 px-4 pt-1 pb-2 border-b border-primary/6">
+                        <div className="flex items-center gap-2 min-w-0">
+                            {leftContent && <div className="shrink-0">{leftContent}</div>}
+                            {titleNode
+                                ? <div className="min-w-0 flex-1">{titleNode}</div>
+                                : title && <span className="truncate text-[13pt] font-semibold text-primary min-w-0">{title}</span>}
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                            {rightContent}
+                            {!hideClose && (
+                                <HeaderPill>
+                                    {actions}
+                                    <PillButton icon={X} onClick={handleClose} label="Close" />
+                                </HeaderPill>
+                            )}
+                        </div>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                        {rightContent}
-                        {!hideClose && (
-                            <HeaderPill>
-                                {actions}
-                                <PillButton icon={X} onClick={handleClose} label="Close" />
-                            </HeaderPill>
-                        )}
-                    </div>
-                </div>
+                </DesktopChrome>
             )}
         </div>
     );
@@ -480,40 +483,43 @@ export function Sheet({
                                 ref={headerRef}
                                 className="absolute top-0 inset-x-0 z-10 backdrop-blur-[2px] bg-themewhite3/15"
                             >
+                                {/* Invisible grab/toggle strip — handle bar gone;
+                                    the tap-to-toggle target + chevron remain. */}
                                 <button
                                     type="button"
                                     onClick={toggleExpanded}
                                     disabled={!canToggle}
                                     aria-label={canToggle ? (isFull ? 'Minimize' : 'Expand') : undefined}
-                                    className="w-full flex items-center justify-center gap-1.5 pt-1.5 pb-1 disabled:cursor-default"
+                                    className="w-full flex items-center justify-center pt-3 pb-1 disabled:cursor-default"
                                     style={{ touchAction: 'manipulation' }}
                                 >
-                                    <div className="w-9 h-1 rounded-full bg-tertiary/25" />
                                     {canToggle && (
                                         isFull
                                             ? <ChevronDown size={12} className="text-tertiary/50" />
                                             : <ChevronUp size={12} className="text-tertiary/50" />
                                     )}
                                 </button>
-                                <div className="px-4 pb-2">
-                                    <div className="flex items-center justify-between gap-2">
-                                        <div className="flex items-center gap-2 min-w-0">
-                                            {leftContent && <div className="shrink-0">{leftContent}</div>}
-                                            {titleNode
-                                                ? <div className="min-w-0 flex-1">{titleNode}</div>
-                                                : <h2 className="truncate text-[13pt] font-semibold text-primary min-w-0">{title}</h2>}
-                                        </div>
-                                        <div className="flex items-center gap-2 shrink-0">
-                                            {rightContent}
-                                            {!hideClose && (
-                                                <HeaderPill>
-                                                    {actions}
-                                                    <PillButton icon={X} onClick={handleClose} label="Close" />
-                                                </HeaderPill>
-                                            )}
+                                <DesktopChrome>
+                                    <div className="px-4 pb-2">
+                                        <div className="flex items-center justify-between gap-2">
+                                            <div className="flex items-center gap-2 min-w-0">
+                                                {leftContent && <div className="shrink-0">{leftContent}</div>}
+                                                {titleNode
+                                                    ? <div className="min-w-0 flex-1">{titleNode}</div>
+                                                    : <h2 className="truncate text-[13pt] font-semibold text-primary min-w-0">{title}</h2>}
+                                            </div>
+                                            <div className="flex items-center gap-2 shrink-0">
+                                                {rightContent}
+                                                {!hideClose && (
+                                                    <HeaderPill>
+                                                        {actions}
+                                                        <PillButton icon={X} onClick={handleClose} label="Close" />
+                                                    </HeaderPill>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
+                                </DesktopChrome>
                             </div>
                             {/* Scroll body — fills the sheet behind the glass header. */}
                             <div

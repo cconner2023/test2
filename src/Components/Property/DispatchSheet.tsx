@@ -14,6 +14,7 @@ import { useClinicMedics } from '../../Hooks/useClinicMedics'
 import { OverlayStack, type StackNav } from '@/Components/primitives/OverlayStack'
 import { useRecordPreview } from './RecordPreview'
 import { DocScanner } from './DocScanner'
+import { ensurePdfFile } from '../../lib/docScan'
 import { ActionButton } from '@/Components/primitives/ActionButton'
 import { PillButton } from '@/Components/primitives/HeaderPill'
 import { SectionCard } from '@/Components/primitives/Section'
@@ -144,13 +145,14 @@ export function DispatchSheet({ isOpen, onClose, subjectId, clinicId, containerR
   // null on failure (caller aborts and shows docError).
   const uploadDoc = async (file: File): Promise<PmcsDoc | null> => {
     if (!userId) return null
-    const up = await uploadEncryptedAttachment(userId, file)
+    const pdf = await ensurePdfFile(file)
+    const up = await uploadEncryptedAttachment(userId, pdf)
     if (!up.ok) {
       logger.warn('dispatch doc upload failed:', up.error)
       setDocError('Could not upload the document — try again.')
       return null
     }
-    return { path: up.data.path, key: up.data.key, mime: file.type || undefined, name: file.name }
+    return { path: up.data.path, key: up.data.key, mime: pdf.type || undefined, name: pdf.name }
   }
 
   const handleOpen = async () => {

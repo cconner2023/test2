@@ -14,6 +14,7 @@ import { PillButton } from '@/Components/primitives/HeaderPill'
 import { TextInput, PickerInput, DatePickerInput } from '@/Components/primitives/FormInputs'
 import { FuelMeter } from '@/Components/DomainInputs'
 import { DocScanner } from './DocScanner'
+import { ensurePdfFile } from '../../lib/docScan'
 import { SectionCard, SectionHeader } from '@/Components/primitives/Section'
 import { createLogger } from '../../Utilities/Logger'
 
@@ -214,14 +215,15 @@ export function useRecordPreview({ event, onClose, label, detail, Icon, tint, in
     let resolvedDoc: PmcsDoc | undefined
     if (newDocFile) {
       if (!userId) { setDocError('Could not upload the document — try again.'); setBusy(false); return }
-      const up = await uploadEncryptedAttachment(userId, newDocFile)
+      const pdf = await ensurePdfFile(newDocFile)
+      const up = await uploadEncryptedAttachment(userId, pdf)
       if (!up.ok) {
         logger.warn('record doc upload failed:', up.error)
         setDocError('Could not upload the document — try again.')
         setBusy(false)
         return
       }
-      resolvedDoc = { path: up.data.path, key: up.data.key, mime: newDocFile.type || undefined, name: newDocFile.name }
+      resolvedDoc = { path: up.data.path, key: up.data.key, mime: pdf.type || undefined, name: pdf.name }
     } else if (doc && !docRemoved) {
       resolvedDoc = doc
     }

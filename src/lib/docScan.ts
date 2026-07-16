@@ -464,6 +464,22 @@ export function scanFileName(title: string): string {
 }
 
 /**
+ * Normalise an attachment File to a PDF for storage/export. A file that is
+ * already a PDF passes through untouched; an image is decoded and wrapped into a
+ * single-page PDF (same embed pipeline as a scan) so every stored PMCS / dispatch
+ * document is a PDF and always exports/opens as one — an image blob otherwise
+ * won't open in a new tab reliably. Anything non-image, non-PDF is returned as-is.
+ */
+export async function ensurePdfFile(file: File, title?: string): Promise<File> {
+  if (file.type === 'application/pdf') return file
+  if (!file.type.startsWith('image/')) return file
+  const img = await fileToCanvas(file)
+  const jpeg = img.canvas.toDataURL('image/jpeg', 0.9)
+  const base = (title ?? file.name).replace(/\.[^.]+$/, '')
+  return assembleScanPdf([jpeg], base)
+}
+
+/**
  * Assemble the rendered pages (JPEG data URLs) into one multi-page PDF, returned
  * as a File ready for the encrypted-attachment pipeline. Each PDF page is sized
  * to its image's pixel dimensions (1px = 1pt) so nothing is distorted.

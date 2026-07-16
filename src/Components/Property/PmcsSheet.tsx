@@ -15,6 +15,7 @@ import { FuelMeter } from '@/Components/DomainInputs'
 import { OverlayStack, type StackNav } from '@/Components/primitives/OverlayStack'
 import { useRecordPreview } from './RecordPreview'
 import { DocScanner } from './DocScanner'
+import { ensurePdfFile } from '../../lib/docScan'
 import { ActionButton } from '@/Components/primitives/ActionButton'
 import { PillButton } from '@/Components/primitives/HeaderPill'
 import { SectionCard } from '@/Components/primitives/Section'
@@ -196,14 +197,15 @@ export function PmcsSheet({ isOpen, onClose, subjectType = 'item', subjectId, cl
     // payload below). Abort the record if the upload fails so nothing logs without it.
     let doc: PmcsDoc | undefined
     if (docFile && userId) {
-      const up = await uploadEncryptedAttachment(userId, docFile)
+      const pdf = await ensurePdfFile(docFile)
+      const up = await uploadEncryptedAttachment(userId, pdf)
       if (!up.ok) {
         logger.warn('5988E upload failed:', up.error)
         setDocError('Could not upload the document — try again.')
         setBusy(false)
         return
       }
-      doc = { path: up.data.path, key: up.data.key, mime: docFile.type || undefined, name: docFile.name }
+      doc = { path: up.data.path, key: up.data.key, mime: pdf.type || undefined, name: pdf.name }
     }
 
     const miles = parseInt(mileage, 10)
