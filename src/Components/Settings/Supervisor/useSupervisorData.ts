@@ -11,13 +11,16 @@ import {
   buildTestableTaskMap,
   buildCompetencyMatrix,
   computeTeamMetrics,
+  rollupEncounterReads,
   type FlatTask,
   type SoldierCompetency,
   type TeamMetrics,
+  type EncounterRollup,
 } from './supervisorHelpers'
 import { getExpirationStatus } from '../../Certifications/certHelpers'
 import type { ClinicMedic } from '../../../Types/SupervisorTestTypes'
 import type { Certification } from '../../../Data/User'
+import type { AuditEvent } from '../../../lib/auditTypes'
 
 const logger = createLogger('useSupervisorData')
 
@@ -69,6 +72,9 @@ export interface SupervisorData {
   competencyMatrix: SoldierCompetency[]
   /** Aggregate team metrics */
   teamMetrics: TeamMetrics
+  /** Clinic-wide algorithm-encounter roll-up by body-system category (occurrence
+   *  counts from the raw event stream, not the fold). */
+  encounterRollup: EncounterRollup
   /** Map of subject area -> testable tasks (only tasks with gradedSteps) */
   testableTaskMap: Map<string, FlatTask[]>
 }
@@ -78,6 +84,9 @@ export function useSupervisorData(): SupervisorData {
   const [tests, setTests] = useState<TrainingCompletionUI[]>([])
   const [reads, setReads] = useState<TrainingCompletionUI[]>([])
   const [assignments, setAssignments] = useState<TrainingCompletionUI[]>([])
+  // Raw (unfolded) training events — kept so the encounter roll-up can count
+  // every occurrence (the fold collapses repeats). See rollupEncounterReads.
+  const [trainingEvents, setTrainingEvents] = useState<AuditEvent[]>([])
 
   const { medics: allLocationMedics, loading: medicsLoading } = useClinicMedics()
   const { user, clinicId: userClinicId, supervisingClinicId, isSupervisorRole, profile: authProfile, loading: authLoading } = useAuth()
@@ -161,13 +170,15 @@ export function useSupervisorData(): SupervisorData {
       // loaned-in soldier's work graded in THIS clinic (those events carry this
       // clinic's id and are decryptable; their home-clinic events are not, by
       // design). Certs are not event-sourced yet, so they still fetch directly.
-      const [certsData, folded] = await Promise.all([
+      const [certsData, rawEvents] = await Promise.all([
         fetchClinicCertifications(allIds),
         foldClinicId
-          ? fetchAuditByClinicDomain(foldClinicId, 'training').then(foldTrainingState).then(enrichCalendarLinks)
-          : Promise.resolve([] as TrainingCompletionUI[]),
+          ? fetchAuditByClinicDomain(foldClinicId, 'training')
+          : Promise.resolve([] as AuditEvent[]),
       ])
+      const folded = await enrichCalendarLinks(foldTrainingState(rawEvents))
       setCerts(certsData)
+      setTrainingEvents(rawEvents)
       setTests(folded.filter((c) => c.completionType === 'test'))
       setReads(folded.filter((c) => c.completionType === 'read'))
       setAssignments(folded.filter((c) => c.completionType === 'assignment'))
@@ -247,6 +258,11 @@ export function useSupervisorData(): SupervisorData {
     [medics, tests, certs, testableTaskMap, overdueItems]
   )
 
+  const encounterRollup = useMemo(
+    () => rollupEncounterReads(trainingEvents),
+    [trainingEvents]
+  )
+
   return {
     loading: loading || medicsLoading,
     isSupervisor,
@@ -271,6 +287,7 @@ export function useSupervisorData(): SupervisorData {
     refreshData: fetchCertsAndTests,
     competencyMatrix,
     teamMetrics,
+    encounterRollup,
     testableTaskMap,
   }
 }

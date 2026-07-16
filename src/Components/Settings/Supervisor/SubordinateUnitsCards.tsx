@@ -65,6 +65,11 @@ function ChildCard({ card, onOpen, active }: { card: ChildClinicCard; onOpen: ()
             {summary && <span> · updated {agoLabel(summary.computed_at)}</span>}
           </p>
         </div>
+        {summary && !!summary.encounters_today && (
+          <span className="shrink-0 text-[9pt] font-medium px-2 py-0.5 rounded-full bg-themeblue3/10 text-themeblue3">
+            {summary.encounters_today} enc today
+          </span>
+        )}
         {summary && summary.coverage_gap_count > 0 && (
           <span className="shrink-0 text-[9pt] font-medium px-2 py-0.5 rounded-full bg-themeredred/10 text-themeredred">
             {summary.coverage_gap_count} gap{summary.coverage_gap_count === 1 ? '' : 's'}

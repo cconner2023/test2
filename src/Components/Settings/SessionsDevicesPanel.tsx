@@ -336,7 +336,7 @@ export function SessionsDevicesPanel() {
                       {device.deviceLabel || 'Unknown'}
                     </span>
                     {/* No badges — current/vault/primary read as plain meta text. */}
-                    <div className="flex items-center gap-2 mt-0.5">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
                       <span className={`inline-block w-1.5 h-1.5 rounded-full ${activity.color}`} />
                       <span className="text-[9pt] text-tertiary">{activity.label}</span>
                       {isCurrent && (

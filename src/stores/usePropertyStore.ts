@@ -29,6 +29,7 @@ import {
   ensureMemberLocations,
   ensureDefaultClusterZone,
   ensureTurnInZone,
+  healReservedZonePlacement,
   reconcileLocationsFromTags,
   updateFingerprint,
   recordExpendedEntry,
@@ -269,6 +270,9 @@ export const usePropertyStore = create<PropertyState>((set, get) => ({
       await ensureDefaultClusterZone(clinicId, user.id, rootLoc.id)
       // Ensure the cluster's DA 3161 turn-in staging zone exists (conditionally rendered)
       await ensureTurnInZone(clinicId, user.id)
+      // Migrate any reserved-family tiles (personnel + turn-in) stranded in the old top
+      // grid into the hidden bottom band. Idempotent geometry-only heal; no-op once packed.
+      await healReservedZonePlacement(clinicId, user.id, rootLoc.id)
       const freshLocations = await fetchClinicLocations(clinicId)
       set({ locations: freshLocations, isLoading: false })
 

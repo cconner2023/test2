@@ -38,6 +38,7 @@ import {
   setLocalTagCanvasVersion,
 } from './offlineDb'
 import { processSyncQueue, isOnline } from './syncService'
+import { computeReservedBandTile } from './propertyGeometry'
 import { resolvePropertyTargetClinics, sendPropertyEvent, sendPropertyEventsBatch, deletePropertyVaultMessages, type PropertyBatchEvent } from './propertyVault'
 import { queuePendingPropertySend, addItemTombstone, addZoneTombstone } from './propertyEventStore'
 import { getItemTombstones, getZoneTombstones } from './propertyEventRouting'
@@ -1436,20 +1437,23 @@ export async function ensureMemberLocations(
   const missingTiles = desiredTiles.filter(z => !taggedTargets.has(z.id))
   if (missingTiles.length === 0) return
 
-  const zoneCount = existingTags.filter(t => t.target_type === 'location').length
+  // Personnel zones are RESERVED family → the hidden bottom band, not the top grid.
+  // Band index counts only already-tiled reserved zones (holder_user_id OR
+  // is_turn_in_zone), so it never collides with (or is inflated by) user-drawn zones.
+  const reservedIds = new Set(
+    allLocs.filter(l => l.holder_user_id != null || l.is_turn_in_zone).map(l => l.id),
+  )
+  const reservedTagCount = existingTags.filter(
+    t => t.target_type === 'location' && reservedIds.has(t.target_id),
+  ).length
   const additionalTags = missingTiles.map(({ id: locId, name }, i) => {
-    const idx = zoneCount + i
-    const col = idx % 4
-    const row = Math.floor(idx / 4)
+    const tile = computeReservedBandTile(reservedTagCount + i)
     return {
       id: crypto.randomUUID(),
       location_id: rootLocationId,
       target_type: 'location' as const,
       target_id: locId,
-      x: 0.05 + col * 0.23,
-      y: 0.05 + row * 0.18,
-      width: 0.2,
-      height: 0.14,
+      ...tile,
       label: name,
     }
   })
@@ -1499,9 +1503,16 @@ export async function ensureDefaultClusterZone(
 
   // Place its zone tile on the root canvas, after any existing zones.
   const existingTags = await fetchLocationTags(rootLocationId)
-  const zoneCount = existingTags.filter(t => t.target_type === 'location').length
-  const col = zoneCount % 4
-  const row = Math.floor(zoneCount / 4)
+  // BAS stays in the TOP grid, but its index must count only NON-reserved tiles so
+  // the reserved-family band (personnel + turn-in zones) never inflates its slot.
+  const reservedIds = new Set(
+    allLocs.filter(l => l.holder_user_id != null || l.is_turn_in_zone).map(l => l.id),
+  )
+  const normalCount = existingTags.filter(
+    t => t.target_type === 'location' && !reservedIds.has(t.target_id),
+  ).length
+  const col = normalCount % 4
+  const row = Math.floor(normalCount / 4)
   await upsertLocationTags(rootLocationId, [
     ...existingTags,
     {
@@ -1569,9 +1580,15 @@ async function syncTurnInZoneTag(clinicId: string, userId: string): Promise<void
   const tags = await fetchLocationTags(root.id)
   const hasTag = tags.some(t => t.target_type === 'location' && t.target_id === zone.id)
   if (populated && !hasTag) {
-    const zoneCount = tags.filter(t => t.target_type === 'location').length
-    const col = zoneCount % 4
-    const row = Math.floor(zoneCount / 4)
+    // Turn-in zone is RESERVED family → hidden bottom band, indexed by the count of
+    // already-tiled reserved zones (personnel + turn-in), NOT all tags.
+    const reservedIds = new Set(
+      locs.filter(l => l.holder_user_id != null || l.is_turn_in_zone).map(l => l.id),
+    )
+    const bandIndex = tags.filter(
+      t => t.target_type === 'location' && reservedIds.has(t.target_id),
+    ).length
+    const tile = computeReservedBandTile(bandIndex)
     await upsertLocationTags(root.id, [
       ...tags,
       {
@@ -1579,16 +1596,72 @@ async function syncTurnInZoneTag(clinicId: string, userId: string): Promise<void
         location_id: root.id,
         target_type: 'location' as const,
         target_id: zone.id,
-        x: 0.05 + col * 0.23,
-        y: 0.05 + row * 0.18,
-        width: 0.2,
-        height: 0.14,
+        ...tile,
         label: TURN_IN_ZONE_NAME,
       },
     ])
   } else if (!populated && hasTag) {
     await upsertLocationTags(root.id, tags.filter(t => !(t.target_type === 'location' && t.target_id === zone.id)))
   }
+}
+
+/**
+ * One-time, idempotent HEAL that migrates any reserved-family root tiles (personnel
+ * zones with holder_user_id set + the turn-in staging zone) into the hidden bottom
+ * band. The band placers ({@link ensureMemberLocations}, syncTurnInZoneTag) are
+ * place-if-MISSING, so a reserved zone tiled by the OLD top grid before the band
+ * existed stays stranded up top and never migrates. This packs every reserved tile
+ * into contiguous band slots.
+ *
+ * Slot assignment is deterministic across devices: reserved tags are sorted by a
+ * STABLE key (target_id) before indexing, because location-tags fan out vault-
+ * authoritative to peers — a non-deterministic order would make geometry flip-flop
+ * device-to-device. Geometry-only: writes tile x/y/width/height, preserves every
+ * other tag field, and NEVER deletes a zone row or emits a tombstone/deleted_at
+ * (DEPARTED-ZONE STORAGE CONTRACT — tag != zone identity). Writes only when a
+ * reserved tile is off its computed slot; a fully-packed canvas is a no-op.
+ */
+export async function healReservedZonePlacement(
+  clinicId: string,
+  userId: string,
+  rootLocationId: string,
+): Promise<void> {
+  const allLocs = await getLocalPropertyLocations(clinicId)
+  const reservedIds = new Set(
+    allLocs.filter(l => l.holder_user_id != null || l.is_turn_in_zone).map(l => l.id),
+  )
+  // Guard: nothing reserved yet (empty/transient fetch) → don't churn geometry.
+  if (reservedIds.size === 0) return
+
+  const existingTags = await fetchLocationTags(rootLocationId)
+  const reservedTags = existingTags.filter(
+    t => t.target_type === 'location' && reservedIds.has(t.target_id),
+  )
+  if (reservedTags.length === 0) return
+
+  // STABLE, device-deterministic ordering — see doc-comment. Do not remove.
+  const sorted = [...reservedTags].sort((a, b) =>
+    a.target_id < b.target_id ? -1 : a.target_id > b.target_id ? 1 : 0,
+  )
+
+  const tileByTagId = new Map<string, ReturnType<typeof computeReservedBandTile>>()
+  let needsWrite = false
+  sorted.forEach((tag, i) => {
+    const tile = computeReservedBandTile(i)
+    tileByTagId.set(tag.id, tile)
+    // Diff on {x,y} only — minimize churn; a tile already at its slot is skipped.
+    if (tag.x !== tile.x || tag.y !== tile.y) needsWrite = true
+  })
+  if (!needsWrite) return
+
+  // Full-replace the canvas: reserved tiles snap to their computed band slot
+  // (x/y/width/height from computeReservedBandTile), every other field + every
+  // non-reserved tag passes through untouched.
+  const nextTags = existingTags.map(t => {
+    const tile = tileByTagId.get(t.id)
+    return tile ? { ...t, ...tile } : t
+  })
+  await upsertLocationTags(rootLocationId, nextTags)
 }
 
 /**

@@ -42,6 +42,24 @@ export interface AlgorithmStpEntry {
 }
 
 /**
+ * Map EVERY algorithm id (e.g. "A-1") to its parent body-system category display
+ * name (the catData category's `text`, e.g. "EAR, NOSE, THROAT"). Unlike
+ * listAlgorithmsWithStp this includes algorithms with NO mapped STPs — an
+ * encounter can be logged against any algorithm, so the roll-up needs the full
+ * set. First occurrence wins (matches getAlgorithmStpTasks' find semantics).
+ */
+export function buildAlgorithmCategoryMap(): Map<string, string> {
+  const map = new Map<string, string>()
+  for (const category of catData) {
+    const catName = (category.text ?? '').trim() || 'Other'
+    for (const c of category.contents) {
+      if (!map.has(c.icon)) map.set(c.icon, catName)
+    }
+  }
+  return map
+}
+
+/**
  * Every algorithm that maps to at least one STP task, in catData render order.
  * Deduped by id (first occurrence wins, matching getAlgorithmStpTasks' find).
  * Used by supervisor surfaces to show trained-or-not per algorithm.

@@ -1,5 +1,4 @@
 import { Fragment, useState, type ReactNode } from 'react';
-import { Image as ImageIcon, ImageOff } from 'lucide-react';
 import { PreviewOverlay } from '../PreviewOverlay';
 import type { GuideBlock, GuideButtonRef, GuideChapter, GuideInline } from '../../Data/UserGuide';
 import { GuideIconRegistry } from './guideIcons';
@@ -32,12 +31,13 @@ const resolveGuideSrc = (src: string): string =>
  *  placeholder so a referenced-but-not-yet-added screenshot never breaks layout. */
 function GuideFigure({ block }: { block: Extract<GuideBlock, { kind: 'image' }> }) {
     const [failed, setFailed] = useState(false);
-    const side = block.side ?? 'right';
+    // Always float right: list/step bars live in the left gutter, so a left-floated
+    // figure would collide with them. `block.side` is intentionally ignored to keep
+    // the bar ↔ figure layout consistent across every section.
     return (
-        <figure className={`w-2/5 max-w-[280px] mb-2 ${side === 'right' ? 'float-right ml-5' : 'float-left mr-5'}`}>
+        <figure className="w-2/5 max-w-[280px] mb-2 float-right ml-5">
             {failed ? (
                 <div className="flex flex-col items-center justify-center gap-1 h-40 rounded-xl border border-dashed border-tertiary/25 bg-tertiary/5">
-                    <ImageOff size={16} className="text-tertiary/50" />
                     <p className="text-[8.5pt] text-tertiary">Image pending · {block.src}</p>
                 </div>
             ) : (
@@ -61,7 +61,6 @@ function GuidePreviewImg({ preview }: { preview: PreviewState }) {
     const [failed, setFailed] = useState(false);
     return failed ? (
         <div className="flex flex-col items-center justify-center gap-1.5 h-48 rounded-xl border border-dashed border-tertiary/25 bg-tertiary/5">
-            <ImageOff size={20} className="text-tertiary/50" />
             <p className="text-[9pt] text-tertiary">Image pending · {preview.src}</p>
         </div>
     ) : (
@@ -125,7 +124,6 @@ export function UserGuideBody({ chapters, isMobile }: UserGuideBodyProps) {
                     onClick={(e) => setPreview({ src: mobileSrc, alt: block.alt, caption: block.caption, rect: e.currentTarget.getBoundingClientRect() })}
                     className="inline-flex items-center gap-1.5 my-1 text-[10.5pt] font-medium text-themeblue2 active:scale-95 transition-transform"
                 >
-                    <ImageIcon size={14} className="shrink-0" />
                     {block.caption || block.alt || 'Image'}
                 </button>
             );
@@ -143,32 +141,33 @@ export function UserGuideBody({ chapters, isMobile }: UserGuideBodyProps) {
             case 'p':
                 return <p key={key} className="text-[10.5pt] text-secondary leading-relaxed mb-2.5">{renderInline(block.text)}</p>;
             case 'list':
+                // Per-item bar: each item carries its own left bar segment so the
+                // group reads as discrete points rather than one continuous rule.
                 return (
-                    <ul key={key} className="mb-2.5 space-y-1.5">
+                    <ul key={key} className="mb-2.5 space-y-2">
                         {block.items.map((item, i) => (
-                            <li key={i} className="flex gap-2.5 text-[10.5pt] text-secondary leading-relaxed">
-                                <span className="shrink-0 mt-[0.55em] w-1 h-1 rounded-full bg-tertiary/60" />
-                                <span>{renderInline(item)}</span>
+                            <li key={i} className="pl-3 border-l-2 border-themeblue2/30 text-[10.5pt] text-secondary leading-relaxed">
+                                {renderInline(item)}
                             </li>
                         ))}
                     </ul>
                 );
             case 'steps':
+                // Ordered, but rendered like lists: per-item bar segments, no numbers.
                 return (
-                    <ol key={key} className="mb-2.5 space-y-1.5">
+                    <ol key={key} className="mb-2.5 space-y-2">
                         {block.items.map((item, i) => (
-                            <li key={i} className="flex gap-2.5 text-[10.5pt] text-secondary leading-relaxed">
-                                <span className="shrink-0 text-tertiary tabular-nums">{i + 1}.</span>
-                                <span>{renderInline(item)}</span>
+                            <li key={i} className="pl-3 border-l-2 border-themeblue2/30 text-[10.5pt] text-secondary leading-relaxed">
+                                {renderInline(item)}
                             </li>
                         ))}
                     </ol>
                 );
             case 'note':
-                // Kept plain to preserve the single-body-style PDF feel — a thin rule
-                // marks it as an aside without introducing a second text color.
+                // Level-2 aside: a further addition to the block above it. Indented deeper
+                // than the level-1 bar and given a lighter bar so it reads as nested.
                 return (
-                    <p key={key} className="text-[10.5pt] text-secondary leading-relaxed mb-2.5 pl-3 border-l-2 border-themeblue2/30">
+                    <p key={key} className="text-[10.5pt] text-secondary leading-relaxed mb-2.5 ml-5 pl-3 border-l-2 border-themeblue2/15">
                         {renderInline(block.text)}
                     </p>
                 );

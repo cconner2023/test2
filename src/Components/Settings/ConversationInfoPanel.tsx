@@ -1,7 +1,10 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { X, UserPlus, UserMinus, LogOut, Pencil, Check, Mail, Hash, Send, ShieldCheck, ShieldOff, Trash2, Image as ImageIcon, Mic, ChevronRight } from 'lucide-react'
+import { X, UserPlus, UserMinus, LogOut, Pencil, Check, Mail, Hash, Send, ShieldCheck, ShieldOff, Trash2, Image as ImageIcon, Mic, ChevronRight, ChevronLeft } from 'lucide-react'
 import { UserAvatar } from './UserAvatar'
 import { PreviewOverlay } from '../PreviewOverlay'
+import { Sheet } from '@/Components/primitives/Sheet'
+import { PillButton } from '@/Components/primitives/HeaderPill'
+import { useIsMobile } from '../../Hooks/useIsMobile'
 import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
 import { supabase } from '../../lib/supabase'
 import { useMessagingStore } from '../../stores/useMessagingStore'
@@ -125,6 +128,7 @@ export function ConversationInfoPanel({
   const [confirmLeave, setConfirmLeave] = useState(false)
   const [pendingRemove, setPendingRemove] = useState<string | null>(null)
   const [view, setView] = useState<MediaView>('root')
+  const isMobile = useIsMobile()
 
   const isPrimary = members.some(m => m.userId === userId && m.role === 'admin')
   const primaryCount = members.filter(m => m.role === 'admin').length
@@ -285,6 +289,13 @@ export function ConversationInfoPanel({
         },
       ]
     : []
+
+  // Sheet's `actions` slot takes rendered nodes (folded into the close HeaderPill),
+  // whereas PreviewOverlay takes the descriptor array above. Map the one source of
+  // truth to PillButtons for the mobile Sheet surface.
+  const sheetActions = actions.map(a => (
+    <PillButton key={a.key} icon={a.icon} variant={a.variant} onClick={a.onAction} label={a.label} compact />
+  ))
 
   // ── Media sub-views (morph) ────────────────────────────────────────────────
   const photosGrid = (
@@ -539,7 +550,74 @@ export function ConversationInfoPanel({
     </>
   )
 
-  return (
+  // Shared body — one node hosted in BOTH surfaces (mimics MessagesDrawer's
+  // settingsContent). Mobile → bottom Sheet, desktop → PreviewOverlay.
+  const infoBody = (
+    <div className="pb-2">
+      {view === 'photos' ? photosGrid : view === 'voice' ? voiceList : (
+        <>
+          {group ? groupGovernance : directIdentity}
+          {mediaSection}
+        </>
+      )}
+
+      {group && (
+        <>
+          <ConfirmDialog
+            visible={confirmPurge}
+            title="Purge this group?"
+            subtitle="Deletes the conversation and all its messages for everyone. This can't be undone."
+            confirmLabel="Purge"
+            variant="danger"
+            onConfirm={handlePurge}
+            onCancel={() => setConfirmPurge(false)}
+          />
+
+          <ConfirmDialog
+            visible={confirmLeave}
+            title="Leave this group?"
+            subtitle="You'll stop receiving its messages. Rejoining needs another member to add you back."
+            confirmLabel="Leave"
+            variant="danger"
+            onConfirm={() => { setConfirmLeave(false); if (onLeave) onLeave(group.groupId) }}
+            onCancel={() => setConfirmLeave(false)}
+          />
+
+          <ConfirmDialog
+            visible={!!pendingRemove}
+            title="Remove this member?"
+            subtitle="They lose access to the group and its messages."
+            confirmLabel="Remove"
+            variant="danger"
+            onConfirm={() => { const id = pendingRemove; setPendingRemove(null); if (id) handleRemoveMember(id) }}
+            onCancel={() => setPendingRemove(null)}
+          />
+        </>
+      )}
+    </div>
+  )
+
+  // Mobile Sheet + desktop PreviewOverlay, both hosting infoBody — matches the
+  // messaging-settings surface (2026-06-30 mobile settings-icon standard). Sheet
+  // has no onBack, so the media-drill-down back button rides leftContent; the
+  // nested purge/leave/remove ConfirmDialogs auto-stack above via the Sheet's
+  // published OverlayStackContext ceiling.
+  return isMobile ? (
+    <Sheet
+      isOpen={isOpen}
+      onClose={onClose}
+      title={title}
+      height="fit"
+      maxHeight={60}
+      zIndex={1200}
+      leftContent={view === 'root' ? undefined : (
+        <PillButton icon={ChevronLeft} onClick={() => setView('root')} label="Back" compact />
+      )}
+      actions={sheetActions}
+    >
+      {infoBody}
+    </Sheet>
+  ) : (
     <PreviewOverlay
       isOpen={isOpen}
       onClose={onClose}
@@ -548,50 +626,7 @@ export function ConversationInfoPanel({
       onBack={view === 'root' ? undefined : () => setView('root')}
       previewMaxHeight="55dvh"
       actions={actions}
-      preview={
-        <div className="pb-2">
-          {view === 'photos' ? photosGrid : view === 'voice' ? voiceList : (
-            <>
-              {group ? groupGovernance : directIdentity}
-              {mediaSection}
-            </>
-          )}
-
-          {group && (
-            <>
-              <ConfirmDialog
-                visible={confirmPurge}
-                title="Purge this group?"
-                subtitle="Deletes the conversation and all its messages for everyone. This can't be undone."
-                confirmLabel="Purge"
-                variant="danger"
-                onConfirm={handlePurge}
-                onCancel={() => setConfirmPurge(false)}
-              />
-
-              <ConfirmDialog
-                visible={confirmLeave}
-                title="Leave this group?"
-                subtitle="You'll stop receiving its messages. Rejoining needs another member to add you back."
-                confirmLabel="Leave"
-                variant="danger"
-                onConfirm={() => { setConfirmLeave(false); if (onLeave) onLeave(group.groupId) }}
-                onCancel={() => setConfirmLeave(false)}
-              />
-
-              <ConfirmDialog
-                visible={!!pendingRemove}
-                title="Remove this member?"
-                subtitle="They lose access to the group and its messages."
-                confirmLabel="Remove"
-                variant="danger"
-                onConfirm={() => { const id = pendingRemove; setPendingRemove(null); if (id) handleRemoveMember(id) }}
-                onCancel={() => setPendingRemove(null)}
-              />
-            </>
-          )}
-        </div>
-      }
+      preview={infoBody}
     />
   )
 }

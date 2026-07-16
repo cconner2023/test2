@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo, type ReactNode } from 'react'
 import { Building2, Package, ClipboardCheck, Award, Activity, Calendar, History } from 'lucide-react'
 import { SkeletonRows } from '@/Components/primitives/Skeleton'
+import { LoadingOverlay } from '@/Components/primitives/LoadingOverlay'
 import { getAuditBySubjectLocal, fetchAuditBySubject } from '../../lib/auditService'
 import type { AuditEvent, AuditDomain } from '../../lib/auditTypes'
 import type { CalendarEvent } from '../../Types/CalendarTypes'

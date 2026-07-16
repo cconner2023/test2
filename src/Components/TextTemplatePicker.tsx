@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
-import { Layers, X } from 'lucide-react';
+import { X } from 'lucide-react';
 import { SearchInput } from '@/Components/primitives/SearchInput';
+import { expansionPreview } from '@/Components/Settings/TextExpanderManager';
 import type { TextExpander } from '@/Data/User';
 
 /** A text template carrying merge provenance (see useMergedNoteContent.MergedTextExpander). */
@@ -13,15 +14,6 @@ interface TextTemplatePickerProps {
     expanders: PickableExpander[];
     onPick: (expander: TextExpander) => void;
     onClose: () => void;
-}
-
-function previewOf(e: PickableExpander): string {
-    if (e.template && e.template.length > 0) return `${e.template.length} step template`;
-    const firstLine = e.expansion.split('\n')[0];
-    const isMultiLine = e.expansion.includes('\n');
-    return firstLine.length > 80
-        ? firstLine.slice(0, 77) + '...'
-        : firstLine + (isMultiLine ? ' ...' : '');
 }
 
 /**
@@ -76,29 +68,24 @@ export const TextTemplatePicker = ({ expanders, onPick, onClose }: TextTemplateP
                         </div>
                     ) : (
                         filtered.map((s, i) => {
-                            const hasTemplate = !!s.template && s.template.length > 0;
                             const sourceLabel = s.sourceClinicName ?? null;
                             return (
                                 <div
                                     key={`${s.abbr}-${i}`}
                                     onClick={() => onPick(s)}
-                                    className={`flex items-center gap-2 px-3 py-2 cursor-pointer active:bg-themeblue2/12 ${i > 0 ? 'border-t border-tertiary/8' : ''}`}
+                                    className={`px-3 py-2 cursor-pointer transition-colors active:bg-themeblue2/12 ${i > 0 ? 'border-t border-tertiary/8' : ''}`}
                                 >
-                                    <code className="shrink-0 text-[9pt] font-mono font-semibold bg-themeblue2/10 text-themeblue2 px-1.5 py-0.5 rounded self-start mt-0.5">
-                                        {s.abbr}
-                                    </code>
-                                    {hasTemplate && (
-                                        <span className="shrink-0 self-start mt-0.5">
-                                            <Layers size={11} className="text-themepurple/70" />
-                                        </span>
-                                    )}
-                                    <span className="text-tertiary text-[10pt] shrink-0 self-start mt-0.5">&rarr;</span>
-                                    <span className="text-sm text-tertiary truncate flex-1 min-w-0">{previewOf(s)}</span>
-                                    {sourceLabel && (
-                                        <span className="shrink-0 self-start mt-0.5 text-[8pt] font-medium text-themeblue2/80 bg-themeblue2/8 px-1.5 py-0.5 rounded-full max-w-[6rem] truncate">
-                                            {sourceLabel}
-                                        </span>
-                                    )}
+                                    <div className="flex items-center gap-1.5">
+                                        <p className="text-sm font-medium text-primary truncate">{s.abbr}</p>
+                                        {sourceLabel && (
+                                            <span className="shrink-0 text-[8pt] font-medium text-themeblue2/80 bg-themeblue2/8 px-1.5 py-0.5 rounded-full max-w-[6rem] truncate">
+                                                {sourceLabel}
+                                            </span>
+                                        )}
+                                    </div>
+                                    <p className="text-[9pt] text-tertiary mt-0.5 leading-relaxed line-clamp-2">
+                                        {expansionPreview(s)}
+                                    </p>
                                 </div>
                             );
                         })

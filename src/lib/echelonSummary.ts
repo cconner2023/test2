@@ -32,6 +32,11 @@ export interface EchelonReadinessSummary {
   coverage_gap_count: number
   /** Assigned personnel count at compute time. */
   medic_count: number
+  /** Algorithm encounters logged across the child clinic on the CHILD's local
+   *  current day, at compute time. Aggregate count only — no soldier identity, no
+   *  patient data — so it stays inside the de-identified-aggregate echelon shape.
+   *  Optional for back-compat with summaries fanned before this field existed. */
+  encounters_today?: number
   /** ISO — when the CHILD computed the numbers (drives staleness display). */
   computed_at: string
   /** ISO — when the PARENT stored it on consume. Set by the cache, not the wire. */
@@ -50,5 +55,6 @@ export function summaryValueKey(s: EchelonReadinessSummary): string {
     s.cert_pct,
     s.coverage_gap_count,
     s.medic_count,
+    s.encounters_today ?? 0,
   ].join('|')
 }

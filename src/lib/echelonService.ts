@@ -19,6 +19,7 @@ import { createLogger } from '../Utilities/Logger'
 import {
   buildTestableTaskMap,
   computeTeamMetrics,
+  rollupEncounterReads,
 } from '../Components/Settings/Supervisor/supervisorHelpers'
 import { getExpirationStatus } from '../Components/Certifications/certHelpers'
 import type { ClinicMedic } from '../Types/SupervisorTestTypes'
@@ -100,10 +101,14 @@ export async function computeReadinessSummary(
     if (medics.length === 0) return null
 
     const userIds = medics.map((m) => m.id)
-    const [certs, folded] = await Promise.all([
+    const [certs, trainingEvents] = await Promise.all([
       fetchClinicCertifications(userIds),
-      fetchAuditByClinicDomain(clinicId, 'training').then(foldTrainingState),
+      fetchAuditByClinicDomain(clinicId, 'training'),
     ])
+    // Fold once for readiness; count encounters from the SAME raw events (the
+    // fold collapses repeat reads, so it can't give occurrence totals).
+    const folded = foldTrainingState(trainingEvents)
+    const encounters_today = rollupEncounterReads(trainingEvents).totalToday
 
     const testableTaskMap = buildTestableTaskMap()
     const overdueItems = (userId: string) => {
@@ -126,6 +131,7 @@ export async function computeReadinessSummary(
       cert_pct: m.certCompliancePercent,
       coverage_gap_count,
       medic_count: m.totalMedics,
+      encounters_today,
       computed_at: new Date().toISOString(),
     }
   } catch (err) {

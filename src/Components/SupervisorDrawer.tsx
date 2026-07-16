@@ -19,6 +19,7 @@ import { EvaluateFlow } from './Settings/Supervisor/EvaluateFlow'
 import { AlgorithmEvaluateFlow } from './Settings/Supervisor/AlgorithmEvaluateFlow'
 import { TeamReporting } from './Settings/Supervisor/TeamReporting'
 import { SubordinateUnitsCards } from './Settings/Supervisor/SubordinateUnitsCards'
+import { EncounterRollupCard } from './Settings/Supervisor/EncounterRollupCard'
 import { ChildClinicRosterBody } from './Settings/Supervisor/ChildClinicRosterSheet'
 import { CoverageTasksView } from './Settings/Supervisor/CoverageTasksView'
 import { AlgorithmCoverageView } from './Settings/Supervisor/AlgorithmCoverageView'
@@ -170,6 +171,7 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
     removeCert,
     refreshData,
     teamMetrics,
+    encounterRollup,
     testableTaskMap,
   } = useSupervisorData()
   const loading = useMinLoadTime(_loading)
@@ -598,6 +600,11 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
         currentUserId={currentUserId ?? undefined}
         showClusterSwitch={isMobile}
       />
+      {/* Algorithm-encounter roll-up by body-system category (renders nothing
+          if no encounters logged). */}
+      <div className="mt-5">
+        <EncounterRollupCard rollup={encounterRollup} />
+      </div>
       {/* Echelon roll-up: direct child clusters (renders nothing if none).
           Desktop drills into the right pane; mobile keeps the local Sheet. */}
       <div className="mt-5">

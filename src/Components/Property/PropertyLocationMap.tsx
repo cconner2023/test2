@@ -16,6 +16,7 @@ import { useIsMobile } from '../../Hooks/useIsMobile'
 import { useVehicleDispatches } from '../../Hooks/useVehicleDispatches'
 import type { DispatchStatus } from '../../lib/dispatchFold'
 import { fetchAllLocationTags, fetchLocationTags, upsertLocationTags } from '../../lib/propertyService'
+import { rectIntersectsReservedBand, bumpRectAboveReservedBand } from '../../lib/propertyGeometry'
 import { buildTagIndex, findLCA } from '../../lib/tagIndex'
 import type { TagIndex } from '../../lib/tagIndex'
 import { ActionButton } from '@/Components/primitives/ActionButton'
@@ -1519,8 +1520,17 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
   const handleDrawOnceComplete = useCallback((rect: { x: number; y: number; width: number; height: number }) => {
     const canvasId = editCanvasId
     handleExitEdit()
-    if (canvasId) onZoneDrawnRef.current?.(rect, canvasId)
-  }, [editCanvasId, handleExitEdit])
+    if (canvasId) {
+      // ROOT/overview only: keep a freshly drawn cluster zone OUT of the reserved bottom
+      // band (personnel + turn-in tiles live there) before handing it to the sheet/persist
+      // flow. Nested/parent-local canvases draw in a different local 0..1 space → exempt.
+      const outRect =
+        canvasId === rootLocationId && rectIntersectsReservedBand(rect)
+          ? bumpRectAboveReservedBand(rect)
+          : rect
+      onZoneDrawnRef.current?.(outRect, canvasId)
+    }
+  }, [editCanvasId, rootLocationId, handleExitEdit])
 
   // ── Nested edit: external name prompt handlers ──
   const handleExternalNameConfirm = useCallback(() => {
@@ -1585,6 +1595,22 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
         }
         for (const id of mergedAwayIds) {
           await onDeleteLocation(id)
+        }
+      }
+
+      // Safety net (ROOT/overview canvas only): a committed cluster zone must not sit in
+      // the reserved bottom band (personnel + turn-in tiles live there). Any location rect
+      // whose bottom still dips into the band after the edit is bumped straight up so it
+      // clears it — width/height preserved. Nested/parent-local canvases use a different
+      // local 0..1 space and are exempt, so this is gated on the root canvasId.
+      if (canvasId === rootLocationId) {
+        for (let i = 0; i < resolvedTags.length; i++) {
+          const t = resolvedTags[i]
+          if (t.target_type !== 'location') continue
+          const h = t.height ?? 0
+          if (h <= 0 || !rectIntersectsReservedBand({ y: t.y, height: h })) continue
+          const bumped = bumpRectAboveReservedBand({ x: t.x, y: t.y, width: t.width ?? 0, height: h })
+          resolvedTags[i] = { ...t, y: bumped.y }
         }
       }
 

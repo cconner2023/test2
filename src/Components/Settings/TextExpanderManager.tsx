@@ -7,10 +7,10 @@ import { LiftedRowMenu } from '@/Components/primitives/LiftedRowMenu';
 import { liftPressHandlers, type LiftPressState, type LiftSnapshot } from '../liftPress';
 import type { ContextMenuItem } from '@/Components/primitives/ContextMenu';
 
-const hasBranches = (e: TextExpander): boolean =>
+export const hasBranches = (e: TextExpander): boolean =>
     !!(e.template && e.template.length > 0 && !isFlatTemplate(e.template));
 
-const expansionPreview = (e: TextExpander): string => {
+export const expansionPreview = (e: TextExpander): string => {
     if (e.template && e.template.length > 0) {
         return e.template.map(n => {
             switch (n.type) {

@@ -6,7 +6,8 @@ import type { TrainingCompletionUI } from '../../../lib/trainingService'
 import type { Certification } from '../../../Data/User'
 import type { CalendarEvent } from '../../../Types/CalendarTypes'
 import { getExpirationStatus } from '../../Certifications/certHelpers'
-import { listAlgorithmsWithStp } from '../../../Utilities/algorithmStp'
+import { listAlgorithmsWithStp, buildAlgorithmCategoryMap } from '../../../Utilities/algorithmStp'
+import type { AuditEvent } from '../../../lib/auditTypes'
 import {
   ALGO_SYNTH_DIMS,
   algoDimKey,
@@ -70,6 +71,73 @@ export function groupEncounters(events: CalendarEvent[]): EncounterGroup[] {
     }
   }
   return Array.from(byAlgo.values()).sort((a, b) => b.lastAt.localeCompare(a.lastAt))
+}
+
+// ─── Encounter Roll-up by body-system category (from RAW audit events) ────────
+// An algorithm encounter is logged as a `read.recorded` training event keyed by
+// the algorithm id (useAlgorithmMetrics.logNow). Each encounter is a DISTINCT
+// event, so occurrence totals MUST be counted from the raw event stream — the
+// trainingFold collapses repeat reads of the same (user, algorithm) into one row
+// and would undercount. STP-task reads share the event type but their
+// training_item_id is a task number (not in the algorithm category map) and are
+// skipped here. Aggregate counts only — no soldier identity — so this roll-up is
+// safe to fan up the echelon as a de-identified summary.
+
+export interface EncounterCategoryRollup {
+  /** Body-system category display name (catData category text). */
+  category: string
+  /** Total encounters logged in this category across the fetched window. */
+  count: number
+  /** Encounters logged on the local current calendar day. */
+  today: number
+}
+
+export interface EncounterRollup {
+  /** Per-category rows, most-logged first. */
+  categories: EncounterCategoryRollup[]
+  /** Total encounters across all categories. */
+  total: number
+  /** Total encounters logged today (local). */
+  totalToday: number
+}
+
+/** Local start-of-day epoch ms for "today" bucketing. */
+function startOfLocalDay(): number {
+  const d = new Date()
+  d.setHours(0, 0, 0, 0)
+  return d.getTime()
+}
+
+/**
+ * Roll algorithm-encounter reads up by body-system category. Pass the RAW,
+ * unfolded training audit events (see note above). Returns aggregate counts only.
+ */
+export function rollupEncounterReads(events: AuditEvent[]): EncounterRollup {
+  const catMap = buildAlgorithmCategoryMap()
+  const dayStart = startOfLocalDay()
+  const byCat = new Map<string, EncounterCategoryRollup>()
+  let total = 0
+  let totalToday = 0
+
+  for (const e of events) {
+    if (e.eventType !== 'read.recorded') continue
+    const item = e.payload?.training_item_id as string | undefined
+    if (!item) continue
+    const category = catMap.get(item)
+    if (!category) continue // STP read, not an algorithm encounter
+    const isToday = new Date(e.occurredAt).getTime() >= dayStart
+    const row = byCat.get(category) ?? { category, count: 0, today: 0 }
+    row.count += 1
+    if (isToday) row.today += 1
+    byCat.set(category, row)
+    total += 1
+    if (isToday) totalToday += 1
+  }
+
+  const categories = [...byCat.values()].sort(
+    (a, b) => b.count - a.count || a.category.localeCompare(b.category),
+  )
+  return { categories, total, totalToday }
 }
 
 // ─── Algorithm Competency (composite category) ───────────────────────────────
