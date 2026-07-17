@@ -258,7 +258,11 @@ describe('Note Encoding round-trips', () => {
         const states = buildCardStates();
         const opts: NoteEncodeOptions = {
             includeAlgorithm: true,
-            includeDecisionMaking: true,
+            // The decision-making flag is derived from DDx content, not passed in:
+            // encodeNoteState sets bit 2 when selectedDdx/customDdx is non-empty.
+            // (includeDecisionMaking is a NoteAssemblyOptions field for the
+            // formatter, and was never part of NoteEncodeOptions.)
+            selectedDdx: ['Tension headache'],
             customNote: 'Some note',
         };
 

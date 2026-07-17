@@ -28,8 +28,9 @@ const resolveGuideSrc = (src: string): string =>
     /^(https?:|data:|blob:|\/)/.test(src) ? src : `${import.meta.env.BASE_URL}userGuide/${src}`;
 
 /** Desktop inline figure — floats into the paragraph; degrades to a "pending"
- *  placeholder so a referenced-but-not-yet-added screenshot never breaks layout. */
-function GuideFigure({ block }: { block: Extract<GuideBlock, { kind: 'image' }> }) {
+ *  placeholder so a referenced-but-not-yet-added screenshot never breaks layout.
+ *  When `onOpen` is set the image is clickable and opens full-size in the preview overlay. */
+function GuideFigure({ block, onOpen }: { block: Extract<GuideBlock, { kind: 'image' }>; onOpen?: () => void }) {
     const [failed, setFailed] = useState(false);
     // Always float right: list/step bars live in the left gutter, so a left-floated
     // figure would collide with them. `block.side` is intentionally ignored to keep
@@ -41,13 +42,20 @@ function GuideFigure({ block }: { block: Extract<GuideBlock, { kind: 'image' }> 
                     <p className="text-[8.5pt] text-tertiary">Image pending · {block.src}</p>
                 </div>
             ) : (
-                <img
-                    src={resolveGuideSrc(block.src)}
-                    alt={block.alt}
-                    loading="lazy"
-                    onError={() => setFailed(true)}
-                    className="w-full rounded-xl border border-tertiary/15"
-                />
+                <button
+                    type="button"
+                    onClick={onOpen}
+                    aria-label={`Enlarge image: ${block.alt}`}
+                    className="block w-full cursor-zoom-in rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-themeblue2/50"
+                >
+                    <img
+                        src={resolveGuideSrc(block.src)}
+                        alt={block.alt}
+                        loading="lazy"
+                        onError={() => setFailed(true)}
+                        className="w-full rounded-xl border border-tertiary/15 transition-opacity hover:opacity-90"
+                    />
+                </button>
             )}
             {block.caption && (
                 <figcaption className="mt-1 text-[9pt] text-tertiary leading-snug">{block.caption}</figcaption>
@@ -128,8 +136,15 @@ export function UserGuideBody({ chapters, isMobile }: UserGuideBodyProps) {
                 </button>
             );
         }
-        // Desktop: float the figure into the paragraph flow.
-        return <GuideFigure key={key} block={block} />;
+        // Desktop: float the figure into the paragraph flow; click enlarges it in the
+        // same PreviewOverlay the mobile link uses (full desktop src, centered).
+        return (
+            <GuideFigure
+                key={key}
+                block={block}
+                onOpen={() => setPreview({ src: block.src, alt: block.alt, caption: block.caption, rect: null })}
+            />
+        );
     };
 
     const renderBlock = (block: GuideBlock, key: number): ReactNode => {
@@ -203,7 +218,7 @@ export function UserGuideBody({ chapters, isMobile }: UserGuideBodyProps) {
                 ))}
             </article>
 
-            {/* Mobile figure preview */}
+            {/* Figure preview — mobile "Image" link and desktop click-to-enlarge both open it. */}
             <PreviewOverlay
                 isOpen={!!preview}
                 onClose={() => setPreview(null)}
@@ -214,9 +229,6 @@ export function UserGuideBody({ chapters, isMobile }: UserGuideBodyProps) {
                 {preview && (
                     <div className="p-2">
                         <GuidePreviewImg preview={preview} />
-                        {preview.caption && (
-                            <p className="mt-2 px-1 text-[9.5pt] text-tertiary leading-snug">{preview.caption}</p>
-                        )}
                     </div>
                 )}
             </PreviewOverlay>

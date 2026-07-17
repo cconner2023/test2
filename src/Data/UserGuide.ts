@@ -108,7 +108,7 @@ export const UserGuide: GuideChapter[] = [
             {
                 id: 'the-basics',
                 title: 'The basics',
-                summary: 'What the app is, how it works offline, and where things live.',
+                summary: 'What the app is, how it works offline, how to install it, and where things live.',
                 blocks: [
                     { kind: 'p', text: 'This is an offline-first platform for medical operations — triage, training, communications, navigation, and property. Everything you do is encrypted to your device first and syncs when you have a connection, so you can keep working with no signal.' },
                 ],
@@ -120,6 +120,21 @@ export const UserGuide: GuideChapter[] = [
                             { kind: 'p', text: 'Anything you create, edit, or delete (except encounter documentation) is encrypted, queued locally, and pushed to the server the moment you reconnect. You never lose work by going dark. Check Settings → Local Storage to see cached data and sync status.' },
                             { kind: 'note', text: 'We build frequently and remove bugs as we find them. If your device flashes a second loading screen, that was a silent update.' },
                             { kind: 'note', text: 'When a new version is ready you will see an "Update Available" card — install it to get the latest features.' },
+                        ],
+                    },
+                    {
+                        id: 'installing',
+                        title: 'How to install',
+                        blocks: [
+                            { kind: 'p', text: 'You can use everything in the browser, but installing puts an icon on your home screen and opens the app full-screen — faster to launch and more reliable offline. Installing is recommended.' },
+                            { kind: 'sub', text: 'iPhone / iPad' },
+                            { kind: 'steps', items: [
+                                'Open the app in Safari — installing only works from Safari on iPhone and iPad.',
+                                'Tap the Share button, then choose "Add to Home Screen".',
+                                'Tap "Add", then open the app from its new home-screen icon.',
+                            ] },
+                            { kind: 'sub', text: 'Android / desktop' },
+                            { kind: 'p', text: 'In Chrome or Edge the app offers to install itself — tap Install when prompted, or use the install icon in the address bar (desktop) or the "Install app" / "Add to Home screen" menu item (Android).' },
                         ],
                     },
                     {
@@ -138,8 +153,8 @@ export const UserGuide: GuideChapter[] = [
             },
             {
                 id: 'accounts-roles',
-                title: 'Accounts, clusters & roles',
-                summary: 'Clusters group your team; your role decides what you can do.',
+                title: 'Account structure',
+                summary: 'Accounts, clusters, roles, your profile, and account actions including deleting your account.',
                 blocks: [
                     { kind: 'p', text: 'Your account belongs to a cluster — the team you share a schedule, messages, and property book with. Nearby clusters are associated automatically on creation; they surface in your messaging so you can always reach out for help.' },
                     { kind: 'sub', text: 'Roles' },
@@ -150,35 +165,504 @@ export const UserGuide: GuideChapter[] = [
                     ] },
                     { kind: 'note', text: 'You don\'t self-register into a cluster. A supervisor adds you (see "Adding people to your cluster"). Guest users can still open the app but only reach TC3, the knowledge base, and ADTMC.' },
                 ],
-            },
-            {
-                id: 'app-security',
-                title: 'App lock & unlocking',
-                summary: 'App Lock, a PIN, and Face / Touch unlock.',
-                blocks: [
-                    { kind: 'image', src: 'app-security.png', srcMobile: 'app-security-mobile.png', alt: 'Security settings', caption: 'Settings → Security.', side: 'right' },
-                    { kind: 'p', text: 'Because this may hold operational data, you can protect it behind a screen lock. Find these under Settings → Security.' },
-                    { kind: 'steps', items: [
-                        'Open Settings → Security.',
-                        'Turn on App Lock — it requires an unlock when you reopen the app or after inactivity.',
-                        'Optionally set a PIN to use as your unlock code instead of your password.',
-                        'Turn on Face / Touch to unlock with your device biometrics.',
-                    ] },
-                    { kind: 'note', text: 'Biometric unlock needs App Lock turned on. Face / Touch is independent of the PIN.' },
+                subsections: [
+                    {
+                        id: 'your-profile',
+                        title: 'Your profile',
+                        blocks: [
+                            { kind: 'p', text: 'Open your profile by tapping your name card at the top of Settings. It shows your photo, name, credential, and cluster, plus your user ID and a QR code others can scan to start a conversation with you.' },
+                            { kind: 'list', items: [
+                                'Tap Edit Photo to set an avatar.',
+                                ['Use the card\'s menu ', { btn: 'more-horizontal' }, ' for Copy user ID, Share ID QR, or Request profile change.'],
+                                'Your certifications live on this page too — see "Certifications".',
+                            ] },
+                            { kind: 'note', text: 'Name, rank, and role changes go through your supervisor: Request profile change submits the edit for them to apply, so personnel records stay consistent across the cluster.' },
+                        ],
+                    },
+                    {
+                        id: 'account-actions',
+                        title: 'Managing your account',
+                        blocks: [
+                            { kind: 'p', text: 'The account actions at the bottom of your profile handle your sign-in details and leaving.' },
+                            { kind: 'list', items: [
+                                'Reset Password — set a new password. (Locked out instead? Reset from the login screen — see "Password recovery".)',
+                                'Email — change the email address on your account.',
+                                'Sign Out — signs this device out. From your primary device it signs out all linked devices; your conversations are backed up and restored on next login.',
+                            ] },
+                            { kind: 'sub', text: 'Deleting your account' },
+                            { kind: 'p', text: 'Delete Account permanently removes your account and all its server-side data. Tap Delete Account, confirm the warning, then enter your passcode if you have one set.' },
+                            { kind: 'note', text: 'Deleting is immediate and cannot be undone — there is no recovery. If you only want to leave this device, Sign Out instead.' },
+                        ],
+                    },
                 ],
             },
             {
-                id: 'linked-devices',
-                title: 'Linked devices',
-                summary: 'Sign in on a second device by scanning a QR code.',
+                id: 'security',
+                title: 'Security',
+                summary: 'Recover a forgotten password, lock the app behind a PIN or Face / Touch, and link a second device.',
                 blocks: [
-                    { kind: 'image', src: 'linked-devices.png', srcMobile: 'linked-devices-mobile.png', alt: 'Linked devices QR', caption: 'Scanning to link a device.', side: 'left' },
-                    { kind: 'p', text: 'Linked Devices lets you sign in on another device without re-typing your password. You need a device that is already signed in.' },
-                    { kind: 'steps', items: [
-                        'On the new device, open the login screen and choose to link a device — it shows a QR code.',
-                        'On your signed-in device, open Settings → Linked Devices and scan that code.',
-                        'The new device signs in and your information is recovered.',
+                    { kind: 'p', text: 'Because this may hold operational data, you control how it is protected and how you get back in. Most of these live under Settings → Security.' },
+                ],
+                subsections: [
+                    {
+                        id: 'password-recovery',
+                        title: 'Password recovery',
+                        blocks: [
+                            { kind: 'p', text: 'Forgot your password? Reset it yourself from the login screen — no supervisor needed.' },
+                            { kind: 'steps', items: [
+                                'On the login screen, tap "Forgot password?" and enter your email.',
+                                'Open the reset link we email you — it is single-use and expires in 24 hours.',
+                                'Set a new password of at least 12 characters.',
+                            ] },
+                            { kind: 'note', text: 'Open the reset link on the device you normally use. Your data is encrypted to that device, so resetting there keeps everything intact. Resetting on a brand-new device signs you in fresh and cannot recover data that only existed on your old device.' },
+                        ],
+                    },
+                    {
+                        id: 'app-security',
+                        title: 'App lock & unlocking',
+                        blocks: [
+                            { kind: 'image', src: 'app-security.png', srcMobile: 'app-security-mobile.png', alt: 'Security settings', caption: 'Settings → Security.', side: 'right' },
+                            { kind: 'p', text: 'You can protect the app behind a screen lock. Find these under Settings → Security.' },
+                            { kind: 'steps', items: [
+                                'Open Settings → Security.',
+                                'Turn on App Lock — it requires an unlock when you reopen the app or after inactivity.',
+                                'Optionally set a PIN to use as your unlock code instead of your password.',
+                                'Turn on Face / Touch to unlock with your device biometrics.',
+                            ] },
+                            { kind: 'note', text: 'Biometric unlock needs App Lock turned on. Face / Touch is independent of the PIN.' },
+                        ],
+                    },
+                    {
+                        id: 'linked-devices',
+                        title: 'Linked devices',
+                        blocks: [
+                            { kind: 'image', src: 'linked-devices.png', srcMobile: 'linked-devices-mobile.png', alt: 'Linked devices QR', caption: 'Scanning to link a device.', side: 'left' },
+                            { kind: 'p', text: 'Linked Devices lets you sign in on another device without re-typing your password. You need a device that is already signed in.' },
+                            { kind: 'steps', items: [
+                                'On the new device, open the login screen and choose to link a device — it shows a QR code.',
+                                'On your signed-in device, open Settings → Linked Devices and scan that code.',
+                                'The new device signs in and your information is recovered.',
+                            ] },
+                        ],
+                    },
+                ],
+            },
+        ],
+    },
+    {
+        id: 'supervisors',
+        label: 'For supervisors',
+        sections: [
+            {
+                id: 'team-readiness',
+                title: 'Team readiness',
+                summary: 'See your team\'s training, certs, and coverage at a glance.',
+                tier: 'supervisor',
+                blocks: [
+                    { kind: 'image', src: 'team-readiness.png', srcMobile: 'team-readiness-mobile.png', alt: 'Team readiness view', caption: 'The team-lead lens.', side: 'left' },
+                    { kind: 'p', text: 'The Supervisor drawer is your team-lead lens: readiness, certifications, coverage, and per-soldier training status in one place. Training completions update live, so you see progress as it happens.' },
+                    { kind: 'list', items: [
+                        'A cluster overview card shows Readiness and Compliance bars (red below 50%).',
+                        'Soldier Readiness lists each person worst-first, with badges for loaned in / out and overdue items. Tap a soldier for their certs, tests, assignments, and timeline.',
+                        'Coverage Gaps breaks down subject-area coverage; drill in to evaluate tasks (Go / No-Go) or algorithms, or schedule training onto the calendar.',
                     ] },
+                ],
+            },
+            {
+                id: 'clinic-management',
+                title: 'Managing your cluster',
+                summary: 'Add people, manage personnel and roles, and shape cluster surfaces.',
+                tier: 'supervisor',
+                blocks: [
+                    { kind: 'image', src: 'clinic-management.png', srcMobile: 'clinic-management-mobile.png', alt: 'Cluster settings', caption: 'Cluster management.', side: 'right' },
+                    { kind: 'p', text: 'Open Settings → Clusters → your cluster ("Manage cluster and personnel") to reach the cluster panel. This is where you add people, set roles, organize sub-units, and authorize outside contact.' },
+                ],
+                subsections: [
+                    {
+                        id: 'cluster-add-members',
+                        title: 'Adding people to your cluster',
+                        blocks: [
+                            { kind: 'p', text: 'There is no self-registration — you add people. Adding is by email: if the person already has an account you attach them; if not, you create the account for them. (Your cluster\'s invite code / QR is for associating with other clusters, not for adding individuals.)' },
+                            { kind: 'steps', items: [
+                                'In the cluster panel\'s Users section, tap Add member.',
+                                'Type the person\'s email and tap Add.',
+                                'If an account exists, they\'re added immediately.',
+                                'If not, the card becomes a New user form — set a Password (12+ chars), First / Last / MI, Credential, Component, Rank, and UIC, and toggle Supervisor or Provider if needed. Tap Create & add.',
+                            ] },
+                            { kind: 'note', text: 'Everyone gets the Medic role by default. Adding someone who belongs to another cluster reassigns them to yours.' },
+                        ],
+                    },
+                    {
+                        id: 'cluster-personnel',
+                        title: 'Managing personnel & roles',
+                        blocks: [
+                            { kind: 'steps', items: [
+                                'In the Users list, tap a member to open their card.',
+                                ['Tap Edit ', { btn: 'pencil' }, ' to change their email, Component, Rank, Roles (Supervisor / Provider — Medic is always implied), and Section, then Save.'],
+                                'Use Reset password to set a new password (it takes effect immediately; the user is not notified).',
+                                'Use Remove — or swipe the row left — to take them off the cluster ("Remove from cluster?").',
+                            ] },
+                            { kind: 'note', text: 'Organize platoons and squads under the Sub-units section (Add sub-unit); deleting a sub-unit moves its members to HQ / Unassigned.' },
+                        ],
+                    },
+                    {
+                        id: 'cluster-associate',
+                        title: 'Associating with other clusters',
+                        blocks: [
+                            { kind: 'p', text: 'Associating clusters lets you message and loan people between them. Each cluster has a rotating invite code and QR on its main card.' },
+                            { kind: 'steps', items: [
+                                'Share your invite: use the cluster card\'s menu → Copy invite code or Share QR image.',
+                                'To link another cluster, tap Associate a cluster and enter their invite code, or scan / upload their QR, then Associate.',
+                                'Remove a link by swiping it or using Disassociate.',
+                            ] },
+                        ],
+                    },
+                ],
+            },
+            {
+                id: 'soldier-loaning',
+                title: 'Loaning soldiers between clusters',
+                summary: 'Assign a primary cluster and transfer people across associated clusters.',
+                tier: 'supervisor',
+                blocks: [
+                    { kind: 'image', src: 'soldier-loaning.png', srcMobile: 'soldier-loaning-mobile.png', alt: 'Loaning a soldier', caption: 'Transferring across clusters.', side: 'left' },
+                    { kind: 'p', text: 'Supervisors can loan soldiers to associated clusters while keeping ownership clear. Open a member\'s card to reach the loan and transfer actions.' },
+                    { kind: 'steps', items: [
+                        'Open the member\'s card and tap Loans (up to 4) to toggle which associated clusters they\'re loaned to — or add one by cluster code.',
+                        'Use Transfer to change a soldier\'s home cluster entirely (this ends every active loan).',
+                        'A loaned-in soldier\'s remove action reads End loan, which sends them back to their home cluster.',
+                    ] },
+                    { kind: 'note', text: 'If you\'re loaned to other clusters yourself, use the Switch cluster / "Operating as" control on the cluster card to manage each cluster\'s schedule and personnel in turn.' },
+                ],
+            },
+        ],
+    },
+    {
+        id: 'providers',
+        label: 'For providers',
+        sections: [
+            {
+                id: 'provider-sign',
+                title: 'Reviewing & signing',
+                summary: 'Providers import a medic note, edit, and sign.',
+                tier: 'provider',
+                blocks: [
+                    { kind: 'image', src: 'provider-sign.png', srcMobile: 'provider-sign-mobile.png', alt: 'Provider review and sign', caption: 'Reviewing a medic note.', side: 'left' },
+                    { kind: 'p', text: 'Providers close the loop on a medic\'s note: decrypt it, add your own assessment and edits, and sign it off.' },
+                    { kind: 'steps', items: [
+                        'Open the Provider drawer and tap Import Medic Note, then paste or scan the encoded note and Decode.',
+                        'The medic\'s note shows read-only under each section (HPI / Physical Exam / Assessment / Plan); type your additions in each box. Apply a template if you use one.',
+                        ['Tap ', { btn: 'chevron-right' }, ' Next to reach Note Output — your signature is appended.'],
+                        'Copy the note text, Export SF600 PDF, or copy the encoded note / barcode to hand off or paste into the EHR.',
+                    ] },
+                ],
+            },
+        ],
+    },
+    {
+        id: 'triage',
+        label: 'Triage & documentation',
+        sections: [
+            {
+                id: 'triage-algorithms',
+                title: 'ADTMC',
+                summary: 'MEDCOM PAM 40-7-21 sick-call decision trees.',
+                blocks: [
+                    { kind: 'image', src: 'adtmc.png', srcMobile: 'adtmc-mobile.png', alt: 'ADTMC algorithm question card', caption: 'Working an algorithm.', side: 'right' },
+                    { kind: 'p', text: 'The clinical engine walks you through an encounter using ADTMC sick-call decision trees. Pick the presenting symptom and answer the questions.' },
+                    { kind: 'steps', items: [
+                        'Open a symptom category and choose the complaint. (The symptom screen also links General Information, Differentials, and MEDCOM / STP training.)',
+                        'Work the question cards top to bottom. Choice cards take an option; Action Required cards take Performed (green check) or Deferred / Not Indicated (red X); Screening Tool cards open a scored screener.',
+                        ['When a disposition card appears, tap the ', { btn: 'chevron-right' }, ' Continue chevron to open the note builder.'],
+                    ] },
+                ],
+            },
+            {
+                id: 'screeners',
+                title: 'Screeners',
+                summary: 'Standard screening instruments, scored for you.',
+                blocks: [
+                    { kind: 'image', src: 'screeners.png', srcMobile: 'screeners-mobile.png', alt: 'A screener', caption: 'A scored screener.', side: 'left' },
+                    { kind: 'p', text: 'Common screening instruments are built in and scored as you go. When an algorithm reaches a Screening Tool card, the result drops straight into the encounter.' },
+                    { kind: 'steps', items: [
+                        'On a Screening Tool card, tap Start Screening.',
+                        'Answer each question — a running Score and interpretation show at the top. (PHQ-2 extends to PHQ-9 automatically when it needs to.)',
+                        'Tap Complete Screening; the card reads Completed with the score and carries into the note.',
+                    ] },
+                    { kind: 'list', items: [
+                        'GAD-7 and PHQ-2 / PHQ-9 for anxiety and depression.',
+                        'MACE 2 for concussion screening.',
+                        'AUDIT-C for alcohol use.',
+                    ] },
+                    { kind: 'note', text: 'You can also open any screener from the knowledge base for reference; the score only flows into an encounter when you launch it from an algorithm card.' },
+                ],
+            },
+            {
+                id: 'knowledge-base',
+                title: 'Knowledge base & medications',
+                summary: 'Reference for medications, guidelines, screeners, and calculators.',
+                blocks: [
+                    { kind: 'image', src: 'knowledge-base.png', srcMobile: 'knowledge-base-mobile.png', alt: 'Knowledge base', caption: 'The reference shelf.', side: 'right' },
+                    { kind: 'p', text: 'The knowledge base is your reference shelf — medications, training references (STP 8-68W13), the screening tools, calculators (Conversions, Burn Assessment, Heat Category), and the 9-Line MEDEVAC report.' },
+                    { kind: 'steps', items: [
+                        'Open Knowledge Base and use the Search field, or tap a category group.',
+                        'Tap Medications, then search or tap a drug to open its detail.',
+                        ['Use ', { btn: 'pin' }, ' Pin in the header to save a medication to your Pinned list for fast recall.'],
+                    ] },
+                ],
+            },
+            {
+                id: 'writing-notes',
+                title: 'Writing a note',
+                summary: 'Assemble a documentation note from the encounter.',
+                blocks: [
+                    { kind: 'image', src: 'note-builder.png', srcMobile: 'note-builder-mobile.png', alt: 'Note builder', caption: 'Assembling a note.', side: 'left' },
+                    { kind: 'p', text: 'The note builder assembles your documentation from the encounter — the algorithm path seeds the history, exam, and plan, and you fill in the rest. The Full Note tab shows the sections; the Decision Making tab shows how you got there.' },
+                    { kind: 'list', items: [
+                        'History of Present Illness — tap Add HPI.',
+                        'Physical Exam — each body-system block toggles Normal / Abnormal; pick findings and "(specify…)" for detail. A Vital Signs block is included.',
+                        'Assessment — a free-text impression, plus a Differential Diagnosis you build from suggestions or custom entries.',
+                        'Plan — order-set blocks for Meds, Lab, Radiology, Referral, Instructions, and Follow-up.',
+                    ] },
+                    { kind: 'steps', items: [
+                        'Fill the section cards on the Full Note tab.',
+                        ['Tap ', { btn: 'chevron-right' }, ' Next; choose Include DM or Exclude DM to control whether decision-making is embedded.'],
+                        'On the final page, Done offers to Log training against your record.',
+                    ] },
+                ],
+            },
+            {
+                id: 'app-content',
+                title: 'Customizing your note content',
+                summary: 'Build order sets, autotext, templates, and checklists under Settings → App Content.',
+                blocks: [
+                    { kind: 'p', text: 'The note builder\'s building blocks are yours to shape. Open Settings → App Content to set up what the Plan section and autotext offer, so your routine documentation is a tap instead of retyping.' },
+                    { kind: 'sub', text: 'Plan — order tags & order sets' },
+                    { kind: 'p', text: 'Build reusable order sets for the Plan — grouped Meds, Lab, Radiology, Referral, Instructions, and Follow-up orders — and the tags that organize them, so a standard plan drops in as one set.' },
+                    { kind: 'sub', text: 'Text Templates' },
+                    { kind: 'p', text: 'Autotext shortcuts expand into longer boilerplate as you type in a note — define a short trigger and the full text it stands for.' },
+                    { kind: 'sub', text: 'Provider Templates' },
+                    { kind: 'p', text: 'Providers can save note skeletons built from their shortcuts and apply one while reviewing and signing.' },
+                    { kind: 'sub', text: 'Checklists' },
+                    { kind: 'p', text: 'Supervisors build reusable checklists — your PCC/PCI lists — that drop onto a calendar event as a ready-made task list. See "Sub-tasks & checklists".' },
+                    { kind: 'note', text: 'If you are loaned to other clusters, a Template sources control lets you choose which clusters\' text templates and order sets mix into your notes. Your own personal blocks are always included.' },
+                ],
+            },
+            {
+                id: 'sharing-notes',
+                title: 'Sharing & importing a note',
+                summary: 'Export as SF 600 / DD 689, a data matrix, or encoded text; import by barcode.',
+                blocks: [
+                    { kind: 'image', src: 'note-export.png', srcMobile: 'note-export-mobile.png', alt: 'Note export options', caption: 'Export options for a note.', side: 'right' },
+                    { kind: 'p', text: 'A finished note gives you an encoded string, a data-matrix barcode, and the plain text. We do not store this information on our server, so it moves device-to-device with you.' },
+                    { kind: 'steps', items: [
+                        'From the Note Preview, Copy note text or Export SF600 PDF.',
+                        'From the Encoded Note, Copy encoded text, Share note as image, or Export DD689 PDF.',
+                        'On the receiving device, use the import bar — Scan barcode, Upload image, or paste the code — then Decode to keep working on it.',
+                        'Or copy the plain text and paste it directly into the EHR.',
+                    ] },
+                ],
+            },
+        ],
+    },
+    {
+        id: 'field-care',
+        label: 'Trauma & field care',
+        sections: [
+            {
+                id: 'tc3',
+                title: 'TC3 cards',
+                summary: 'Manage vitals and treatment across time for prolonged care.',
+                blocks: [
+                    { kind: 'image', src: 'tc3-card.png', srcMobile: 'tc3-card-mobile.png', alt: 'TC3 card', caption: 'A TC3 card.', side: 'right' },
+                    { kind: 'p', text: 'TC3 cards track treatment across time so the record matches prolonged field-care documentation. A card is one scrolling column you fill top to bottom.' },
+                    { kind: 'steps', items: [
+                        'Open TC3 and tap Add casualty details to fill Casualty Information — EVAC priority, name, battle roster number, sex, blood type, unit, and allergies.',
+                        'Add mechanism — pick from the Select All That Apply list (GSW, Blast, Burn, Fall, MVC, IED, and more).',
+                        'Tap the body diagram to place injury, treatment, and IV/IO markers.',
+                        'Add interventions under MARCH (Hemorrhage / Airway / Breathing / Circulation), including meds, fluids, and blood products with quick-add chips.',
+                        'Record vitals as timestamped entries so you see the trend over the length of care.',
+                        'Export the card with Export Note & Barcode to transfer it.',
+                    ] },
+                    { kind: 'note', text: 'Link a card to a map drop point from the map (a waypoint\'s "Link active casualty card"). The Heat Category calculator lives in the knowledge base if you need WBGT/heat guidance alongside a card.' },
+                ],
+                subsections: [
+                    {
+                        id: 'tc3-card-detail',
+                        title: 'Running multiple casualties',
+                        blocks: [
+                            { kind: 'p', text: 'The Casualties roster in the TC3 header keeps each card separate so you can move between them during a MASCAL.' },
+                            { kind: 'list', items: [
+                                'Tap New casualty to start another card; each row reads "Casualty N · Name".',
+                                'A row\'s menu offers View note, Reset card, or Discard.',
+                                'Export all hands off the whole queue at once.',
+                            ] },
+                        ],
+                    },
+                ],
+            },
+            {
+                id: 'medevac-9line',
+                title: '9-line MEDEVAC',
+                summary: 'Build, export, and import a 9-line request.',
+                blocks: [
+                    { kind: 'image', src: 'medevac-9line.png', srcMobile: 'medevac-9line-mobile.png', alt: '9-line MEDEVAC builder', caption: 'The 9-line builder.', side: 'left' },
+                    { kind: 'p', text: 'The 9-line builder walks you through a complete request. Open it from the knowledge base ("9-Line MEDEVAC"), from a PZ/LZ map pin ("Build MEDEVAC"), or by choosing MEDEVAC as an event category.' },
+                    { kind: 'steps', items: [
+                        'Choose the mode — W (Wartime) or P (Peacetime) — top-right.',
+                        'Tap each numbered line and fill it: pickup site (with Use current location), radio, patients by precedence and type, special equipment, security or wound info, marking method, nationality, and NBC / terrain.',
+                        'Use Next line / Clear line / Accept as you move through.',
+                        'Review and export the completed request to hand off, or pre-fill line 1 from a map pin.',
+                    ] },
+                ],
+            },
+            {
+                id: 'burn-calculator',
+                title: 'Burn calculator',
+                summary: 'Estimate total body surface area burned and fluids.',
+                blocks: [
+                    { kind: 'image', src: 'burn-calculator.png', srcMobile: 'burn-calculator-mobile.png', alt: 'Burn calculator body diagram', caption: 'Marking TBSA.', side: 'right' },
+                    { kind: 'p', text: 'Open Burn Assessment in the knowledge base. Mark the affected regions on the body diagram and it works out the total body surface area (TBSA) for you.' },
+                    { kind: 'steps', items: [
+                        'Tap the burned regions on the body diagram — the Measurements panel shows a running TBSA %.',
+                        'Enter the patient weight in pounds (it converts to kilograms).',
+                        'Read the Rule of Ten (initial rate, titrated to urine output) and the Parkland Formula (24-hour volume split first-8 / next-16 hours).',
+                    ] },
+                ],
+            },
+        ],
+    },
+    {
+        id: 'training',
+        label: 'Training & readiness',
+        sections: [
+            {
+                id: 'training-completions',
+                title: 'Training completions',
+                summary: 'Track completed training, tied to the calendar.',
+                blocks: [
+                    { kind: 'image', src: 'training-completions.png', srcMobile: 'training-completions-mobile.png', alt: 'Training completions', caption: 'A training record.', side: 'left' },
+                    { kind: 'p', text: 'Training you complete is tracked against your record. Open a task to see its Conditions, Standards, and Performance Steps; an assigned task shows a Due / Overdue banner.' },
+                    { kind: 'steps', items: [
+                        'Open an STP task from the knowledge base (STP 8-68W13) or your training list.',
+                        'Work through it and tap Mark as Completed (or scroll to the end).',
+                        'If the task was scheduled on the calendar, completing it flips that event to done automatically, so the schedule and the record stay in step.',
+                    ] },
+                ],
+            },
+            {
+                id: 'certifications',
+                title: 'Certifications',
+                summary: 'Expiration-aware certification tracking.',
+                blocks: [
+                    { kind: 'image', src: 'certifications.png', srcMobile: 'certifications-mobile.png', alt: 'Certifications list', caption: 'Certs and their status.', side: 'right' },
+                    { kind: 'p', text: 'Certifications track what you\'re current on and warn before they lapse. Manage them in Settings → Profile → Certifications.' },
+                    { kind: 'steps', items: [
+                        'Tap Add certification.',
+                        'Fill the Certification title, Cert #, Issued date, and Expires date, and mark it Primary if it\'s your main credential.',
+                        'Save. Each cert shows a status pill — Valid, Expiring, or Expired — so nothing quietly goes out of date.',
+                    ] },
+                ],
+            },
+        ],
+    },
+    {
+        id: 'communications',
+        label: 'Messaging',
+        sections: [
+            {
+                id: 'messaging',
+                title: 'Messaging',
+                summary: 'Secure messages inside and outside your cluster.',
+                blocks: [
+                    { kind: 'image', src: 'messaging.png', srcMobile: 'messaging-mobile.png', alt: 'Messaging conversation', caption: 'A conversation.', side: 'right' },
+                    { kind: 'p', text: 'Messaging is end-to-end encrypted. Your cluster and associated clusters surface automatically, and you can always start a conversation by looking someone up.' },
+                    { kind: 'steps', items: [
+                        'Open Messages and tap New.',
+                        'Search your contacts, or use one of the lookup options: Scan QR Code, Enter User Code, or an email lookup.',
+                        'Pick the person to open the conversation.',
+                    ] },
+                    { kind: 'note', text: 'Users who haven\'t logged in yet won\'t be messagable.' },
+                ],
+                subsections: [
+                    {
+                        id: 'messaging-media',
+                        title: 'Photos, voice notes & sharing',
+                        blocks: [
+                            { kind: 'list', items: [
+                                ['Tap the ', { btn: 'plus' }, ' in the composer to attach a photo, or share a calendar event or a map overlay straight into the chat.'],
+                                ['Hold the ', { btn: 'mic' }, ' mic button to record a voice note.'],
+                                'Share a property item, event, or overlay from that object\'s own menu ("Share to chat") — pick recipients and send. The other person taps through to it.',
+                                'Long-press a message to Reply, Forward, Copy, Save media, or Delete.',
+                            ] },
+                            { kind: 'note', text: 'The app doesn\'t keep a file locker. Attachments live in the conversation where you sent them, not a separate documents area.' },
+                        ],
+                    },
+                    {
+                        id: 'messaging-self-notes',
+                        title: 'Notes to self',
+                        blocks: [
+                            { kind: 'p', text: 'Your "Notes" conversation is a private thread with yourself — a quick place to stash a reminder or a scratch message that stays on your account. Start a new message and pick your own Notes row.' },
+                        ],
+                    },
+                ],
+            },
+            {
+                id: 'message-groups',
+                title: 'Group conversations',
+                summary: 'Create a group and manage who is in it.',
+                blocks: [
+                    { kind: 'image', src: 'group-info.png', srcMobile: 'group-info-mobile.png', alt: 'Group info page', caption: 'Managing a group.', side: 'left' },
+                    { kind: 'p', text: 'Groups are shared conversations for a team or a task.' },
+                    { kind: 'steps', items: [
+                        'Tap New → New Group.',
+                        'Enter a Group name, tick the members to include, and tap Create Group.',
+                        'Later, open the group and tap Group info to manage it.',
+                    ] },
+                    { kind: 'list', items: [
+                        ['Rename the group with the ', { btn: 'pencil' }, ' pencil.'],
+                        'Add members by Email or User Code.',
+                        'Make a member primary (the admin badge), or Leave the group yourself.',
+                        'A primary member can Purge the group.',
+                    ] },
+                ],
+            },
+            {
+                id: 'outside-contacts',
+                title: 'Outside contacts',
+                summary: 'Let people without an account reach your cluster.',
+                blocks: [
+                    { kind: 'image', src: 'outside-contacts.png', srcMobile: 'outside-contacts-mobile.png', alt: 'Outside contact link', caption: 'The outside front door.', side: 'right' },
+                    { kind: 'p', text: 'Outside contacts let people who don\'t have an account reach your cluster through a secure link and passphrase your supervisor publishes.' },
+                    { kind: 'list', items: [
+                        'A message from an outside contact routes to whoever is on-call in the cluster.',
+                        'An event request from an outside contact goes to the cluster supervisors, who can add it to the calendar or decline it.',
+                    ] },
+                    { kind: 'p', text: 'This keeps the medics reachable. The supervisor can rotate the keys or kill the link at any time; if outside contact isn\'t authorized, the cluster is unreachable from the outside.' },
+                ],
+            },
+            {
+                id: 'on-call',
+                title: 'On-call & the roster',
+                summary: 'Publish a secure inbound link and control who gets notified.',
+                tier: 'supervisor',
+                blocks: [
+                    { kind: 'image', src: 'on-call.png', srcMobile: 'on-call-mobile.png', alt: 'On-call roster', caption: 'The on-call roster.', side: 'left' },
+                    { kind: 'p', text: 'Supervisors publish a secure link plus passphrase so people outside the cluster can reach it, and control who gets the notifications. This lives in the Outside contact section of your cluster panel (Settings → Clusters → your cluster).' },
+                    { kind: 'sub', text: 'Publish the link' },
+                    { kind: 'steps', items: [
+                        'In the Outside contact section, tap Mint event intake.',
+                        'Type a Passphrase and Confirm it (or tap Random), then tap Mint.',
+                        'The card now shows the Unit code, a Submission URL, and a QR — share those with the people who need to reach you.',
+                        'Turn on the channels you want: Allow event requests, Allow text messaging, and (where available) Allow calls.',
+                    ] },
+                    { kind: 'sub', text: 'Manage the roster' },
+                    { kind: 'steps', items: [
+                        'Once a channel is enabled, each person in the Users list gains an on-call toggle.',
+                        'Toggle people on or off as shifts change — off-shift members stop getting these notifications.',
+                        'Rotate the passcode or passphrase, or Kill credential, from the section\'s menu when keys need to change.',
+                    ] },
+                    { kind: 'note', text: 'Rotating the passcode invalidates the current QR — reprint your poster after you rotate.' },
                 ],
             },
         ],
@@ -296,279 +780,6 @@ export const UserGuide: GuideChapter[] = [
         ],
     },
     {
-        id: 'communications',
-        label: 'Communications',
-        sections: [
-            {
-                id: 'messaging',
-                title: 'Messaging',
-                summary: 'Secure messages inside and outside your cluster.',
-                blocks: [
-                    { kind: 'image', src: 'messaging.png', srcMobile: 'messaging-mobile.png', alt: 'Messaging conversation', caption: 'A conversation.', side: 'right' },
-                    { kind: 'p', text: 'Messaging is end-to-end encrypted. Your cluster and associated clusters surface automatically, and you can always start a conversation by looking someone up.' },
-                    { kind: 'steps', items: [
-                        'Open Messages and tap New.',
-                        'Search your contacts, or use one of the lookup options: Scan QR Code, Enter User Code, or an email lookup.',
-                        'Pick the person to open the conversation.',
-                    ] },
-                    { kind: 'note', text: 'Users who haven\'t logged in yet won\'t be messagable.' },
-                ],
-                subsections: [
-                    {
-                        id: 'messaging-media',
-                        title: 'Photos, voice notes & sharing',
-                        blocks: [
-                            { kind: 'list', items: [
-                                ['Tap the ', { btn: 'plus' }, ' in the composer to attach a photo, or share a calendar event or a map overlay straight into the chat.'],
-                                ['Hold the ', { btn: 'mic' }, ' mic button to record a voice note.'],
-                                'Share a property item, event, or overlay from that object\'s own menu ("Share to chat") — pick recipients and send. The other person taps through to it.',
-                                'Long-press a message to Reply, Forward, Copy, Save media, or Delete.',
-                            ] },
-                            { kind: 'note', text: 'The app doesn\'t keep a file locker. Attachments live in the conversation where you sent them, not a separate documents area.' },
-                        ],
-                    },
-                    {
-                        id: 'messaging-self-notes',
-                        title: 'Notes to self',
-                        blocks: [
-                            { kind: 'p', text: 'Your "Notes" conversation is a private thread with yourself — a quick place to stash a reminder or a scratch message that stays on your account. Start a new message and pick your own Notes row.' },
-                        ],
-                    },
-                ],
-            },
-            {
-                id: 'message-groups',
-                title: 'Group conversations',
-                summary: 'Create a group and manage who is in it.',
-                blocks: [
-                    { kind: 'image', src: 'group-info.png', srcMobile: 'group-info-mobile.png', alt: 'Group info page', caption: 'Managing a group.', side: 'left' },
-                    { kind: 'p', text: 'Groups are shared conversations for a team or a task.' },
-                    { kind: 'steps', items: [
-                        'Tap New → New Group.',
-                        'Enter a Group name, tick the members to include, and tap Create Group.',
-                        'Later, open the group and tap Group info to manage it.',
-                    ] },
-                    { kind: 'list', items: [
-                        ['Rename the group with the ', { btn: 'pencil' }, ' pencil.'],
-                        'Add members by Email or User Code.',
-                        'Make a member primary (the admin badge), or Leave the group yourself.',
-                        'A primary member can Purge the group.',
-                    ] },
-                ],
-            },
-            {
-                id: 'outside-contacts',
-                title: 'Outside contacts',
-                summary: 'Let people without an account reach your cluster.',
-                blocks: [
-                    { kind: 'image', src: 'outside-contacts.png', srcMobile: 'outside-contacts-mobile.png', alt: 'Outside contact link', caption: 'The outside front door.', side: 'right' },
-                    { kind: 'p', text: 'Outside contacts let people who don\'t have an account reach your cluster through a secure link and passphrase your supervisor publishes.' },
-                    { kind: 'list', items: [
-                        'A message from an outside contact routes to whoever is on-call in the cluster.',
-                        'An event request from an outside contact goes to the cluster supervisors, who can add it to the calendar or decline it.',
-                    ] },
-                    { kind: 'p', text: 'This keeps the medics reachable. The supervisor can rotate the keys or kill the link at any time; if outside contact isn\'t authorized, the cluster is unreachable from the outside.' },
-                ],
-            },
-            {
-                id: 'on-call',
-                title: 'On-call & the roster',
-                summary: 'Publish a secure inbound link and control who gets notified.',
-                tier: 'supervisor',
-                blocks: [
-                    { kind: 'image', src: 'on-call.png', srcMobile: 'on-call-mobile.png', alt: 'On-call roster', caption: 'The on-call roster.', side: 'left' },
-                    { kind: 'p', text: 'Supervisors publish a secure link plus passphrase so people outside the cluster can reach it, and control who gets the notifications. This lives in the Outside contact section of your cluster panel (Settings → Clusters → your cluster).' },
-                    { kind: 'sub', text: 'Publish the link' },
-                    { kind: 'steps', items: [
-                        'In the Outside contact section, tap Mint event intake.',
-                        'Type a Passphrase and Confirm it (or tap Random), then tap Mint.',
-                        'The card now shows the Unit code, a Submission URL, and a QR — share those with the people who need to reach you.',
-                        'Turn on the channels you want: Allow event requests, Allow text messaging, and (where available) Allow calls.',
-                    ] },
-                    { kind: 'sub', text: 'Manage the roster' },
-                    { kind: 'steps', items: [
-                        'Once a channel is enabled, each person in the Users list gains an on-call toggle.',
-                        'Toggle people on or off as shifts change — off-shift members stop getting these notifications.',
-                        'Rotate the passcode or passphrase, or Kill credential, from the section\'s menu when keys need to change.',
-                    ] },
-                    { kind: 'note', text: 'Rotating the passcode invalidates the current QR — reprint your poster after you rotate.' },
-                ],
-            },
-        ],
-    },
-    {
-        id: 'triage',
-        label: 'Triage & documentation',
-        sections: [
-            {
-                id: 'triage-algorithms',
-                title: 'ADTMC',
-                summary: 'MEDCOM PAM 40-7-21 sick-call decision trees.',
-                blocks: [
-                    { kind: 'image', src: 'adtmc.png', srcMobile: 'adtmc-mobile.png', alt: 'ADTMC algorithm question card', caption: 'Working an algorithm.', side: 'right' },
-                    { kind: 'p', text: 'The clinical engine walks you through an encounter using ADTMC sick-call decision trees. Pick the presenting symptom and answer the questions.' },
-                    { kind: 'steps', items: [
-                        'Open a symptom category and choose the complaint. (The symptom screen also links General Information, Differentials, and MEDCOM / STP training.)',
-                        'Work the question cards top to bottom. Choice cards take an option; Action Required cards take Performed (green check) or Deferred / Not Indicated (red X); Screening Tool cards open a scored screener.',
-                        ['When a disposition card appears, tap the ', { btn: 'chevron-right' }, ' Continue chevron to open the note builder.'],
-                    ] },
-                ],
-            },
-            {
-                id: 'screeners',
-                title: 'Screeners',
-                summary: 'Standard screening instruments, scored for you.',
-                blocks: [
-                    { kind: 'image', src: 'screeners.png', srcMobile: 'screeners-mobile.png', alt: 'A screener', caption: 'A scored screener.', side: 'left' },
-                    { kind: 'p', text: 'Common screening instruments are built in and scored as you go. When an algorithm reaches a Screening Tool card, the result drops straight into the encounter.' },
-                    { kind: 'steps', items: [
-                        'On a Screening Tool card, tap Start Screening.',
-                        'Answer each question — a running Score and interpretation show at the top. (PHQ-2 extends to PHQ-9 automatically when it needs to.)',
-                        'Tap Complete Screening; the card reads Completed with the score and carries into the note.',
-                    ] },
-                    { kind: 'list', items: [
-                        'GAD-7 and PHQ-2 / PHQ-9 for anxiety and depression.',
-                        'MACE 2 for concussion screening.',
-                        'AUDIT-C for alcohol use.',
-                    ] },
-                    { kind: 'note', text: 'You can also open any screener from the knowledge base for reference; the score only flows into an encounter when you launch it from an algorithm card.' },
-                ],
-            },
-            {
-                id: 'knowledge-base',
-                title: 'Knowledge base & medications',
-                summary: 'Reference for medications, guidelines, screeners, and calculators.',
-                blocks: [
-                    { kind: 'image', src: 'knowledge-base.png', srcMobile: 'knowledge-base-mobile.png', alt: 'Knowledge base', caption: 'The reference shelf.', side: 'right' },
-                    { kind: 'p', text: 'The knowledge base is your reference shelf — medications, training references (STP 8-68W13), the screening tools, calculators (Conversions, Burn Assessment, Heat Category), and the 9-Line MEDEVAC report.' },
-                    { kind: 'steps', items: [
-                        'Open Knowledge Base and use the Search field, or tap a category group.',
-                        'Tap Medications, then search or tap a drug to open its detail.',
-                        ['Use ', { btn: 'pin' }, ' Pin in the header to save a medication to your Pinned list for fast recall.'],
-                    ] },
-                ],
-            },
-            {
-                id: 'writing-notes',
-                title: 'Writing a note',
-                summary: 'Assemble a documentation note from the encounter.',
-                blocks: [
-                    { kind: 'image', src: 'note-builder.png', srcMobile: 'note-builder-mobile.png', alt: 'Note builder', caption: 'Assembling a note.', side: 'left' },
-                    { kind: 'p', text: 'The note builder assembles your documentation from the encounter — the algorithm path seeds the history, exam, and plan, and you fill in the rest. The Full Note tab shows the sections; the Decision Making tab shows how you got there.' },
-                    { kind: 'list', items: [
-                        'History of Present Illness — tap Add HPI.',
-                        'Physical Exam — each body-system block toggles Normal / Abnormal; pick findings and "(specify…)" for detail. A Vital Signs block is included.',
-                        'Assessment — a free-text impression, plus a Differential Diagnosis you build from suggestions or custom entries.',
-                        'Plan — order-set blocks for Meds, Lab, Radiology, Referral, Instructions, and Follow-up.',
-                    ] },
-                    { kind: 'steps', items: [
-                        'Fill the section cards on the Full Note tab.',
-                        ['Tap ', { btn: 'chevron-right' }, ' Next; choose Include DM or Exclude DM to control whether decision-making is embedded.'],
-                        'On the final page, Done offers to Log training against your record.',
-                    ] },
-                ],
-            },
-            {
-                id: 'sharing-notes',
-                title: 'Sharing & importing a note',
-                summary: 'Export as SF 600 / DD 689, a data matrix, or encoded text; import by barcode.',
-                blocks: [
-                    { kind: 'image', src: 'note-export.png', srcMobile: 'note-export-mobile.png', alt: 'Note export options', caption: 'Export options for a note.', side: 'right' },
-                    { kind: 'p', text: 'A finished note gives you an encoded string, a data-matrix barcode, and the plain text. We do not store this information on our server, so it moves device-to-device with you.' },
-                    { kind: 'steps', items: [
-                        'From the Note Preview, Copy note text or Export SF600 PDF.',
-                        'From the Encoded Note, Copy encoded text, Share note as image, or Export DD689 PDF.',
-                        'On the receiving device, use the import bar — Scan barcode, Upload image, or paste the code — then Decode to keep working on it.',
-                        'Or copy the plain text and paste it directly into the EHR.',
-                    ] },
-                ],
-            },
-            {
-                id: 'provider-sign',
-                title: 'Reviewing & signing',
-                summary: 'Providers import a medic note, edit, and sign.',
-                tier: 'provider',
-                blocks: [
-                    { kind: 'image', src: 'provider-sign.png', srcMobile: 'provider-sign-mobile.png', alt: 'Provider review and sign', caption: 'Reviewing a medic note.', side: 'left' },
-                    { kind: 'p', text: 'Providers close the loop on a medic\'s note: decrypt it, add your own assessment and edits, and sign it off.' },
-                    { kind: 'steps', items: [
-                        'Open the Provider drawer and tap Import Medic Note, then paste or scan the encoded note and Decode.',
-                        'The medic\'s note shows read-only under each section (HPI / Physical Exam / Assessment / Plan); type your additions in each box. Apply a template if you use one.',
-                        ['Tap ', { btn: 'chevron-right' }, ' Next to reach Note Output — your signature is appended.'],
-                        'Copy the note text, Export SF600 PDF, or copy the encoded note / barcode to hand off or paste into the EHR.',
-                    ] },
-                ],
-            },
-        ],
-    },
-    {
-        id: 'field-care',
-        label: 'Trauma & field care',
-        sections: [
-            {
-                id: 'tc3',
-                title: 'TC3 cards',
-                summary: 'Manage vitals and treatment across time for prolonged care.',
-                blocks: [
-                    { kind: 'image', src: 'tc3-card.png', srcMobile: 'tc3-card-mobile.png', alt: 'TC3 card', caption: 'A TC3 card.', side: 'right' },
-                    { kind: 'p', text: 'TC3 cards track treatment across time so the record matches prolonged field-care documentation. A card is one scrolling column you fill top to bottom.' },
-                    { kind: 'steps', items: [
-                        'Open TC3 and tap Add casualty details to fill Casualty Information — EVAC priority, name, battle roster number, sex, blood type, unit, and allergies.',
-                        'Add mechanism — pick from the Select All That Apply list (GSW, Blast, Burn, Fall, MVC, IED, and more).',
-                        'Tap the body diagram to place injury, treatment, and IV/IO markers.',
-                        'Add interventions under MARCH (Hemorrhage / Airway / Breathing / Circulation), including meds, fluids, and blood products with quick-add chips.',
-                        'Record vitals as timestamped entries so you see the trend over the length of care.',
-                        'Export the card with Export Note & Barcode to transfer it.',
-                    ] },
-                    { kind: 'note', text: 'Link a card to a map drop point from the map (a waypoint\'s "Link active casualty card"). The Heat Category calculator lives in the knowledge base if you need WBGT/heat guidance alongside a card.' },
-                ],
-                subsections: [
-                    {
-                        id: 'tc3-card-detail',
-                        title: 'Running multiple casualties',
-                        blocks: [
-                            { kind: 'p', text: 'The Casualties roster in the TC3 header keeps each card separate so you can move between them during a MASCAL.' },
-                            { kind: 'list', items: [
-                                'Tap New casualty to start another card; each row reads "Casualty N · Name".',
-                                'A row\'s menu offers View note, Reset card, or Discard.',
-                                'Export all hands off the whole queue at once.',
-                            ] },
-                        ],
-                    },
-                ],
-            },
-            {
-                id: 'medevac-9line',
-                title: '9-line MEDEVAC',
-                summary: 'Build, export, and import a 9-line request.',
-                blocks: [
-                    { kind: 'image', src: 'medevac-9line.png', srcMobile: 'medevac-9line-mobile.png', alt: '9-line MEDEVAC builder', caption: 'The 9-line builder.', side: 'left' },
-                    { kind: 'p', text: 'The 9-line builder walks you through a complete request. Open it from the knowledge base ("9-Line MEDEVAC"), from a PZ/LZ map pin ("Build MEDEVAC"), or by choosing MEDEVAC as an event category.' },
-                    { kind: 'steps', items: [
-                        'Choose the mode — W (Wartime) or P (Peacetime) — top-right.',
-                        'Tap each numbered line and fill it: pickup site (with Use current location), radio, patients by precedence and type, special equipment, security or wound info, marking method, nationality, and NBC / terrain.',
-                        'Use Next line / Clear line / Accept as you move through.',
-                        'Review and export the completed request to hand off, or pre-fill line 1 from a map pin.',
-                    ] },
-                ],
-            },
-            {
-                id: 'burn-calculator',
-                title: 'Burn calculator',
-                summary: 'Estimate total body surface area burned and fluids.',
-                blocks: [
-                    { kind: 'image', src: 'burn-calculator.png', srcMobile: 'burn-calculator-mobile.png', alt: 'Burn calculator body diagram', caption: 'Marking TBSA.', side: 'right' },
-                    { kind: 'p', text: 'Open Burn Assessment in the knowledge base. Mark the affected regions on the body diagram and it works out the total body surface area (TBSA) for you.' },
-                    { kind: 'steps', items: [
-                        'Tap the burned regions on the body diagram — the Measurements panel shows a running TBSA %.',
-                        'Enter the patient weight in pounds (it converts to kilograms).',
-                        'Read the Rule of Ten (initial rate, titrated to urine output) and the Parkland Formula (24-hour volume split first-8 / next-16 hours).',
-                    ] },
-                ],
-            },
-        ],
-    },
-    {
         id: 'map',
         label: 'Map & navigation',
         sections: [
@@ -635,7 +846,7 @@ export const UserGuide: GuideChapter[] = [
     },
     {
         id: 'property',
-        label: 'Property',
+        label: 'Property and Class VIII',
         sections: [
             {
                 id: 'property-book',
@@ -779,128 +990,6 @@ export const UserGuide: GuideChapter[] = [
                         ['Print labels from ', { btn: 'plus' }, ' → Data & labels → Print labels (or a single item / zone from its menu), choosing Address or File-folder stock.'],
                         ['Import or export the book as CSV from ', { btn: 'plus' }, ' → Data & labels. Import is an upsert (merge), never a wipe.'],
                     ] },
-                ],
-            },
-        ],
-    },
-    {
-        id: 'training',
-        label: 'Training & readiness',
-        sections: [
-            {
-                id: 'training-completions',
-                title: 'Training completions',
-                summary: 'Track completed training, tied to the calendar.',
-                blocks: [
-                    { kind: 'image', src: 'training-completions.png', srcMobile: 'training-completions-mobile.png', alt: 'Training completions', caption: 'A training record.', side: 'left' },
-                    { kind: 'p', text: 'Training you complete is tracked against your record. Open a task to see its Conditions, Standards, and Performance Steps; an assigned task shows a Due / Overdue banner.' },
-                    { kind: 'steps', items: [
-                        'Open an STP task from the knowledge base (STP 8-68W13) or your training list.',
-                        'Work through it and tap Mark as Completed (or scroll to the end).',
-                        'If the task was scheduled on the calendar, completing it flips that event to done automatically, so the schedule and the record stay in step.',
-                    ] },
-                ],
-            },
-            {
-                id: 'certifications',
-                title: 'Certifications',
-                summary: 'Expiration-aware certification tracking.',
-                blocks: [
-                    { kind: 'image', src: 'certifications.png', srcMobile: 'certifications-mobile.png', alt: 'Certifications list', caption: 'Certs and their status.', side: 'right' },
-                    { kind: 'p', text: 'Certifications track what you\'re current on and warn before they lapse. Manage them in Settings → Profile → Certifications.' },
-                    { kind: 'steps', items: [
-                        'Tap Add certification.',
-                        'Fill the Certification title, Cert #, Issued date, and Expires date, and mark it Primary if it\'s your main credential.',
-                        'Save. Each cert shows a status pill — Valid, Expiring, or Expired — so nothing quietly goes out of date.',
-                    ] },
-                ],
-            },
-        ],
-    },
-    {
-        id: 'supervisors',
-        label: 'For supervisors',
-        sections: [
-            {
-                id: 'team-readiness',
-                title: 'Team readiness',
-                summary: 'See your team\'s training, certs, and coverage at a glance.',
-                tier: 'supervisor',
-                blocks: [
-                    { kind: 'image', src: 'team-readiness.png', srcMobile: 'team-readiness-mobile.png', alt: 'Team readiness view', caption: 'The team-lead lens.', side: 'left' },
-                    { kind: 'p', text: 'The Supervisor drawer is your team-lead lens: readiness, certifications, coverage, and per-soldier training status in one place. Training completions update live, so you see progress as it happens.' },
-                    { kind: 'list', items: [
-                        'A cluster overview card shows Readiness and Compliance bars (red below 50%).',
-                        'Soldier Readiness lists each person worst-first, with badges for loaned in / out and overdue items. Tap a soldier for their certs, tests, assignments, and timeline.',
-                        'Coverage Gaps breaks down subject-area coverage; drill in to evaluate tasks (Go / No-Go) or algorithms, or schedule training onto the calendar.',
-                    ] },
-                ],
-            },
-            {
-                id: 'clinic-management',
-                title: 'Managing your cluster',
-                summary: 'Add people, manage personnel and roles, and shape cluster surfaces.',
-                tier: 'supervisor',
-                blocks: [
-                    { kind: 'image', src: 'clinic-management.png', srcMobile: 'clinic-management-mobile.png', alt: 'Cluster settings', caption: 'Cluster management.', side: 'right' },
-                    { kind: 'p', text: 'Open Settings → Clusters → your cluster ("Manage cluster and personnel") to reach the cluster panel. This is where you add people, set roles, organize sub-units, and authorize outside contact.' },
-                ],
-                subsections: [
-                    {
-                        id: 'cluster-add-members',
-                        title: 'Adding people to your cluster',
-                        blocks: [
-                            { kind: 'p', text: 'There is no self-registration — you add people. Adding is by email: if the person already has an account you attach them; if not, you create the account for them. (Your cluster\'s invite code / QR is for associating with other clusters, not for adding individuals.)' },
-                            { kind: 'steps', items: [
-                                'In the cluster panel\'s Users section, tap Add member.',
-                                'Type the person\'s email and tap Add.',
-                                'If an account exists, they\'re added immediately.',
-                                'If not, the card becomes a New user form — set a Password (12+ chars), First / Last / MI, Credential, Component, Rank, and UIC, and toggle Supervisor or Provider if needed. Tap Create & add.',
-                            ] },
-                            { kind: 'note', text: 'Everyone gets the Medic role by default. Adding someone who belongs to another cluster reassigns them to yours.' },
-                        ],
-                    },
-                    {
-                        id: 'cluster-personnel',
-                        title: 'Managing personnel & roles',
-                        blocks: [
-                            { kind: 'steps', items: [
-                                'In the Users list, tap a member to open their card.',
-                                ['Tap Edit ', { btn: 'pencil' }, ' to change their email, Component, Rank, Roles (Supervisor / Provider — Medic is always implied), and Section, then Save.'],
-                                'Use Reset password to set a new password (it takes effect immediately; the user is not notified).',
-                                'Use Remove — or swipe the row left — to take them off the cluster ("Remove from cluster?").',
-                            ] },
-                            { kind: 'note', text: 'Organize platoons and squads under the Sub-units section (Add sub-unit); deleting a sub-unit moves its members to HQ / Unassigned.' },
-                        ],
-                    },
-                    {
-                        id: 'cluster-associate',
-                        title: 'Associating with other clusters',
-                        blocks: [
-                            { kind: 'p', text: 'Associating clusters lets you message and loan people between them. Each cluster has a rotating invite code and QR on its main card.' },
-                            { kind: 'steps', items: [
-                                'Share your invite: use the cluster card\'s menu → Copy invite code or Share QR image.',
-                                'To link another cluster, tap Associate a cluster and enter their invite code, or scan / upload their QR, then Associate.',
-                                'Remove a link by swiping it or using Disassociate.',
-                            ] },
-                        ],
-                    },
-                ],
-            },
-            {
-                id: 'soldier-loaning',
-                title: 'Loaning soldiers between clusters',
-                summary: 'Assign a primary cluster and transfer people across associated clusters.',
-                tier: 'supervisor',
-                blocks: [
-                    { kind: 'image', src: 'soldier-loaning.png', srcMobile: 'soldier-loaning-mobile.png', alt: 'Loaning a soldier', caption: 'Transferring across clusters.', side: 'left' },
-                    { kind: 'p', text: 'Supervisors can loan soldiers to associated clusters while keeping ownership clear. Open a member\'s card to reach the loan and transfer actions.' },
-                    { kind: 'steps', items: [
-                        'Open the member\'s card and tap Loans (up to 4) to toggle which associated clusters they\'re loaned to — or add one by cluster code.',
-                        'Use Transfer to change a soldier\'s home cluster entirely (this ends every active loan).',
-                        'A loaned-in soldier\'s remove action reads End loan, which sends them back to their home cluster.',
-                    ] },
-                    { kind: 'note', text: 'If you\'re loaned to other clusters yourself, use the Switch cluster / "Operating as" control on the cluster card to manage each cluster\'s schedule and personnel in turn.' },
                 ],
             },
         ],

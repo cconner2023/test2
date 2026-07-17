@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
@@ -12,6 +13,14 @@ const BUILD_ID = 'A1'
 
 export default defineConfig({
   base: '/test2/',
+  test: {
+    // jsdom, not the vitest default 'node': importing useAuthStore runs
+    // init() at module scope, which touches sessionStorage/localStorage.
+    // Under 'node' those are undefined and the suite throws before any
+    // test registers.
+    environment: 'jsdom',
+    setupFiles: ['./src/test/setup.ts'],
+  },
   resolve: {
     // @/ -> src/ (matches tsconfig paths). Uses cwd-relative resolve() to
     // mirror the existing input resolution above.
