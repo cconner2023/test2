@@ -165,6 +165,15 @@ export function initSW(): void {
     onRegistered(r) {
       logger.info('Service Worker registered:', r?.scope)
       patch({ registration: r })
+      // Self-heal appBuildId. It's otherwise stamped only in onOfflineReady,
+      // which fires on first install only — never on updates — so any install
+      // predating the stamp stays null forever, and isForcedUpdate() then
+      // force-applies EVERY update silently (the update prompt never shows).
+      // A controlled page is a known, post-auth install (sw.ts already
+      // skip-waits genuine pre-auth builds via the sw-meta gate before
+      // onNeedRefresh can fire), so stamping here is safe and lets updates
+      // prompt as intended. Mirrors sw.ts stamping sw-meta on every activate.
+      if (navigator.serviceWorker.controller) stampBuildId()
       if (r) {
         setInterval(() => {
           logger.debug('Checking for updates...')
