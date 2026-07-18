@@ -1,4 +1,4 @@
-import { ClipboardList, TextCursorInput, ChevronRight, LayoutTemplate, ClipboardCheck, Home, Building2, Sparkles } from 'lucide-react';
+import { ClipboardList, TextCursorInput, ChevronRight, LayoutTemplate, Home, Building2, Sparkles } from 'lucide-react';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useTemplateSubscription } from '../../Hooks/useTemplateSubscription';
 import { useUserProfile } from '../../Hooks/useUserProfile';
@@ -11,9 +11,6 @@ interface NoteContentPanelProps {
 
 export const NoteContentPanel = ({ onNavigate }: NoteContentPanelProps) => {
     const isProviderRole = useAuthStore((s) => s.isProviderRole);
-    const isSupervisorRole = useAuthStore((s) => s.isSupervisorRole);
-    const isDevRole = useAuthStore((s) => s.isDevRole);
-    const canSeeChecklists = isSupervisorRole || isDevRole;
     const { isLoaned, memberships, toggle } = useTemplateSubscription();
 
     // Algorithm → note seeding: opt-in switch. Beta-gated (dev-only) while
@@ -119,29 +116,6 @@ export const NoteContentPanel = ({ onNavigate }: NoteContentPanelProps) => {
                         </div>
                     )}
 
-                    {canSeeChecklists && (
-                        <div
-                            className="flex items-center gap-3 px-4 py-3.5 cursor-pointer transition-all active:scale-95 hover:bg-themeblue2/5"
-                            onClick={() => onNavigate?.('checklists')}
-                            role="button"
-                            tabIndex={0}
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter' || e.key === ' ') {
-                                    e.preventDefault();
-                                    onNavigate?.('checklists');
-                                }
-                            }}
-                        >
-                            <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-themeblue2/15">
-                                <ClipboardCheck size={18} className="text-themeblue2" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium text-primary">Checklists</p>
-                                <p className="text-[9pt] text-tertiary mt-0.5">Reusable checks for calendar events</p>
-                            </div>
-                            <ChevronRight size={16} className="text-tertiary shrink-0" />
-                        </div>
-                    )}
                 </div>
 
                 {isLoaned && (

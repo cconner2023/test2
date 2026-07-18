@@ -27,7 +27,6 @@ const NOUN: Record<NoteBlocksCSVKind, string> = {
   templates: 'text templates',
   orderSets: 'order sets',
   providerTemplates: 'provider templates',
-  checklists: 'checklists',
 }
 
 export function NoteBlocksCSVImportDrawer({ visible, onClose, kind }: Props) {

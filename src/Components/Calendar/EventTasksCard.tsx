@@ -1,8 +1,7 @@
 import { useMemo, useRef, useState } from 'react'
-import { Check, ListChecks, MapPin, Package, Plus, Type, X } from 'lucide-react'
+import { Check, MapPin, Package, Plus, Type, X } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { EventSubtask } from '../../Types/CalendarTypes'
-import type { ClinicPreCombatCheck } from '../../lib/supervisorService'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { usePropertyStore } from '../../stores/usePropertyStore'
 import { PreviewOverlay, type ContextMenuAction } from '../PreviewOverlay'
@@ -14,8 +13,6 @@ interface Props {
   subtasks: EventSubtask[]
   /** Persist the full next list. Detail view writes through the event; the form mirrors into form data. */
   onChange: (next: EventSubtask[]) => void
-  /** Clinic Checklists available to seed standardized items. Empty/undefined hides the seed picker. */
-  templates?: ClinicPreCombatCheck[]
   /** Event assignees — anyone here may tick. */
   assignedIds: string[]
   /** add / remove / seed permission (isEventEditable). Ticking is gated separately on assignee membership. */
@@ -31,14 +28,11 @@ const KIND_META: Record<ItemKind, { label: string; icon: LucideIcon }> = {
   task:              { label: 'Free text', icon: Type },
 }
 
-export function EventTasksCard({ subtasks, onChange, templates = [], assignedIds, canEdit, isMobile }: Props) {
+export function EventTasksCard({ subtasks, onChange, assignedIds, canEdit, isMobile }: Props) {
   const currentUserId = useAuthStore(s => s.user?.id ?? null)
   const propertyItems = usePropertyStore(s => s.items)
   const propertyLocations = usePropertyStore(s => s.locations)
   const addBtnRef = useRef<HTMLButtonElement>(null)
-  const addFabRef = useRef<HTMLDivElement>(null)
-  const [overlayOpen, setOverlayOpen] = useState(false)
-  const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null)
   const [addMenu, setAddMenu] = useState<{ anchor: DOMRect; kind: ItemKind | null } | null>(null)
   const [freeTextDraft, setFreeTextDraft] = useState('')
 
@@ -78,29 +72,13 @@ export function EventTasksCard({ subtasks, onChange, templates = [], assignedIds
     setFreeTextDraft('')
   }
 
-  const seed = (templateId: string) => {
-    const tpl = templates.find(t => t.id === templateId)
-    if (!tpl || !canEdit) return
-    let sort = subtasks.reduce((m, s) => Math.max(m, s.sort_order ?? 0), 0)
-    const seeded: EventSubtask[] = tpl.items.map(item => {
-      sort += 1
-      const base = { id: crypto.randomUUID(), source: 'standardized' as const, template_id: tpl.id, sort_order: sort }
-      if (item.kind === 'task')              return { ...base, kind: 'task',              label: item.label }
-      if (item.kind === 'property_location') return { ...base, kind: 'property_location', ref: item.ref }
-      return { ...base, kind: 'property_item', ref: item.ref, label_override: item.label_override ?? null }
-    })
-    onChange([...subtasks, ...seeded])
-    setOverlayOpen(false)
-  }
-
   const sorted = useMemo(
     () => [...subtasks].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)),
     [subtasks],
   )
 
-  const openOverlay = (anchor: HTMLElement) => {
-    setAnchorRect(anchor.getBoundingClientRect())
-    setOverlayOpen(true)
+  const openAdd = (anchor: HTMLElement) => {
+    setAddMenu({ anchor: anchor.getBoundingClientRect(), kind: null })
   }
 
   const activeKind = addMenu?.kind ?? null
@@ -126,35 +104,6 @@ export function EventTasksCard({ subtasks, onChange, templates = [], assignedIds
 
   // Nothing to show and nothing the user can do → render nothing.
   if (sorted.length === 0 && !canEdit) return null
-
-  // "Select from cluster" — tap a clinic checklist to seed its items.
-  const templatePreview = (filter: string) => {
-    const lc = filter.trim().toLowerCase()
-    const visible = lc ? templates.filter(t => t.name.toLowerCase().includes(lc)) : templates
-    if (visible.length === 0) {
-      return (
-        <p className="px-4 py-6 text-[10pt] text-tertiary text-center">
-          {templates.length === 0 ? 'No checklists. Tap + to add a task.' : 'No matches'}
-        </p>
-      )
-    }
-    return (
-      <div className="px-2 py-1.5">
-        {visible.map(t => (
-          <button
-            key={t.id}
-            type="button"
-            onClick={() => seed(t.id)}
-            className="w-full text-left px-2 py-2 rounded-lg flex items-center gap-2.5 active:scale-[0.98] hover:bg-tertiary/5 transition-all"
-          >
-            <ListChecks size={15} className="text-themeblue3 shrink-0" />
-            <span className="flex-1 min-w-0 truncate text-[10pt] font-medium text-primary">{t.name}</span>
-            <span className="shrink-0 text-[9pt] text-tertiary">{t.items.length}</span>
-          </button>
-        ))}
-      </div>
-    )
-  }
 
   const taskRows = sorted.map((sub) => {
     const Icon = KIND_META[sub.kind].icon
@@ -201,7 +150,7 @@ export function EventTasksCard({ subtasks, onChange, templates = [], assignedIds
           <button
             ref={addBtnRef}
             type="button"
-            onClick={() => addBtnRef.current && openOverlay(addBtnRef.current)}
+            onClick={() => addBtnRef.current && openAdd(addBtnRef.current)}
             aria-label="Add task"
             className="shrink-0 w-7 h-7 rounded-full bg-themeblue3 flex items-center justify-center active:scale-90 transition-transform"
           >
@@ -222,30 +171,7 @@ export function EventTasksCard({ subtasks, onChange, templates = [], assignedIds
         <p className="pt-2 text-[9pt] text-tertiary">Only event assignees can tick tasks.</p>
       )}
 
-      {/* Add overlay — "select from cluster" (checklist seed) up top, "+" opens the add-new step flow. */}
-      <PreviewOverlay
-        isOpen={overlayOpen}
-        onClose={() => setOverlayOpen(false)}
-        anchorRect={anchorRect}
-        title="Add task"
-        preview={templatePreview}
-        searchPlaceholder={templates.length > 6 ? 'Search checklists…' : undefined}
-        previewMaxHeight="32dvh"
-        rightFooter={
-          <ActionPill ref={addFabRef} shadow="lg">
-            <ActionButton
-              icon={Plus}
-              label="Add new"
-              onClick={() => {
-                const rect = addFabRef.current?.getBoundingClientRect()
-                if (rect) setAddMenu({ anchor: rect, kind: null })
-              }}
-            />
-          </ActionPill>
-        }
-      />
-
-      {/* Add-new picker — morphs between kind selection and ref / free-text picker (same as PCC editor). */}
+      {/* Add picker — morphs between kind selection and ref / free-text picker. */}
       {addMenu && (
         <PreviewOverlay
           isOpen

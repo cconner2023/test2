@@ -1,11 +1,11 @@
 import { useRef, useState, type ReactNode } from 'react'
-import { MoreHorizontal, MessageSquare, FileSpreadsheet, FileDown } from 'lucide-react'
+import { MoreHorizontal, MessageSquare, FileSpreadsheet } from 'lucide-react'
 import { ActionButton } from '@/Components/primitives/ActionButton'
 import { AnchoredMenu } from '@/Components/primitives/LiftedRowMenu'
 import type { ContextMenuItem } from '@/Components/primitives/ContextMenu'
 import { useNoteBlocksTransfer } from '../../Hooks/useNoteBlocksTransfer'
 import { NoteBlocksCSVImportDrawer } from './NoteBlocksCSVImportDrawer'
-import { exportTemplatesCSV, exportOrderSetsCSV, downloadNoteBlocksTemplate, type NoteBlocksCSVKind } from '../../Utilities/noteBlocksCSV'
+import { exportTemplatesCSV, exportOrderSetsCSV, type NoteBlocksCSVKind } from '../../Utilities/noteBlocksCSV'
 import type { NoteBlocksData } from '../../lib/objectBundle'
 
 interface Props {
@@ -45,8 +45,8 @@ export function useNoteBlocksTransferItems({ data, baseName, hasData, kind }: Pr
       { key: 'share', label: 'Share to chat', icon: MessageSquare, onAction: () => share(data, `my ${baseName}`) },
       { key: 'export-csv', label: 'Export CSV', icon: FileSpreadsheet, onAction: exportCSV },
     ] : []),
+    // Template download lives inside the import drawer itself — no separate item.
     { key: 'import-csv', label: 'Import CSV', icon: FileSpreadsheet, onAction: () => setCsvImportOpen(true) },
-    { key: 'csv-template', label: 'Download CSV template', icon: FileDown, onAction: () => downloadNoteBlocksTemplate(kind) },
   ]
 
   const overlays = (

@@ -10,7 +10,6 @@ import { usePropertyStore } from '../../stores/usePropertyStore'
 import { exportEventConop, gatherLinkedGeometry } from '../../lib/conop/exportEventConop'
 import type { OverlayFeature } from '../../Types/MapOverlayTypes'
 import type { CalendarEvent, EventStatus, EventSubtask } from '../../Types/CalendarTypes'
-import type { ClinicPreCombatCheck } from '../../lib/supervisorService'
 import { EventTasksCard } from './EventTasksCard'
 import { AnchoredMenu } from '@/Components/primitives/LiftedRowMenu'
 import { buildEventMenuItems, buildEventStatusReactions } from './eventMenu'
@@ -58,8 +57,6 @@ interface EventDetailPanelProps {
   onStatusChange?: (id: string, next: EventStatus) => void
   /** Subtask writer. Receives the full next list to persist on the event. */
   onUpdateSubtasks?: (id: string, next: EventSubtask[]) => void
-  /** Clinic Checklists available to seed standardized tasks. */
-  checklistTemplates?: ClinicPreCombatCheck[]
   assignedNames?: AssignedPerson[]
   linkedPropertyItems?: LinkedPropertyItem[]
   /** Active clinic overlays — used to resolve names + coords for linked_overlays / linked_features. */
@@ -88,7 +85,7 @@ function formatDateTime(iso: string, allDay: boolean): string {
     ' at ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
 }
 
-export function EventDetailPanel({ event, onClose, onEdit, onDelete, onMove, onCancelTemplate, apptTypeNames = [], canDeleteTemplate, onStatusChange, onUpdateSubtasks, checklistTemplates = [], assignedNames = [], linkedPropertyItems = [], overlayOptions, roomAnchor, inSheet }: EventDetailPanelProps) {
+export function EventDetailPanel({ event, onClose, onEdit, onDelete, onMove, onCancelTemplate, apptTypeNames = [], canDeleteTemplate, onStatusChange, onUpdateSubtasks, assignedNames = [], linkedPropertyItems = [], overlayOptions, roomAnchor, inSheet }: EventDetailPanelProps) {
   const isMobile = useIsMobile()
   const txt = isMobile ? 'text-sm' : 'text-[10pt]'
   const rowPad = isMobile ? 'px-4 py-3' : 'px-3 py-2.5'
@@ -401,7 +398,6 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete, onMove, onC
               <div className={rowPad}>
                 <EventTasksCard
                   subtasks={event.subtasks ?? []}
-                  templates={checklistTemplates}
                   assignedIds={event.assigned_to ?? []}
                   canEdit={false}
                   onChange={(next) => onUpdateSubtasks(event.id, next)}

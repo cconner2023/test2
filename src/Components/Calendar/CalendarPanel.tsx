@@ -42,7 +42,6 @@ import { useClinicMedics } from '../../Hooks/useClinicMedics'
 import { useClinicGroupedMedics } from '../../Hooks/useClinicGroupedMedics'
 import { useClinicZones, defaultZoneId } from '../../Hooks/useClinicZones'
 import { useClinicHuddleTasks } from '../../Hooks/useClinicHuddleTasks'
-import { useClinicPreCombatChecks } from '../../Hooks/useClinicPreCombatChecks'
 import { usePropertyStore } from '../../stores/usePropertyStore'
 import { useCalendarSync } from '../../Hooks/useCalendarSync'
 import { useCalendarWrite } from '../../Hooks/useCalendarWrite'
@@ -345,11 +344,6 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
   const huddleTaskFormOptions: HuddleTaskOption[] = useMemo(
     () => sortedHuddleTasks.map(t => ({ id: t.id, name: t.name })),
     [sortedHuddleTasks],
-  )
-  const pccTemplates = useClinicPreCombatChecks(activeClinicId)
-  const sortedPccTemplates = useMemo(
-    () => [...pccTemplates].sort((a, b) => a.sort_order - b.sort_order),
-    [pccTemplates],
   )
 
   // Medic name resolver — shared across detail panel and form
@@ -1276,7 +1270,6 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
               overlayOptions={overlayOptions}
               roomOptions={roomFormOptions}
               huddleTaskOptions={huddleTaskFormOptions}
-              checklistTemplates={sortedPccTemplates}
               clinicOptions={clinicFormOptions}
               onCreateOverlay={handleCreateOverlayForEvent}
               onTitleChange={setFormTitle}
@@ -1296,7 +1289,6 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
               overlayOptions={overlayOptions}
               roomOptions={roomFormOptions}
               huddleTaskOptions={huddleTaskFormOptions}
-              checklistTemplates={sortedPccTemplates}
               clinicOptions={clinicFormOptions}
               onCreateOverlay={handleCreateOverlayForEvent}
               onTitleChange={setFormTitle}
@@ -1721,7 +1713,6 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                 canDeleteTemplate={isSupervisor}
                 onStatusChange={handleEventStatusChange}
                 onUpdateSubtasks={handleUpdateEventSubtasks}
-                checklistTemplates={sortedPccTemplates}
                 assignedNames={resolveAssigned(dayDrawerEvent.assigned_to)}
                 linkedPropertyItems={resolvePropertyItems(dayDrawerEvent.property_item_ids ?? [])}
                 overlayOptions={overlayOptions}
@@ -1790,7 +1781,6 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                       overlayOptions={overlayOptions}
                       roomOptions={roomFormOptions}
                 huddleTaskOptions={huddleTaskFormOptions}
-                checklistTemplates={sortedPccTemplates}
                 clinicOptions={clinicFormOptions}
                 onCreateOverlay={handleCreateOverlayForEvent}
                 onTitleChange={setFormTitle}
@@ -1811,7 +1801,6 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                     canDeleteTemplate={isSupervisor}
                     onStatusChange={handleEventStatusChange}
                   onUpdateSubtasks={handleUpdateEventSubtasks}
-                  checklistTemplates={sortedPccTemplates}
                     assignedNames={resolveAssigned(selectedEvent.assigned_to)}
                     linkedPropertyItems={resolvePropertyItems(selectedEvent.property_item_ids ?? [])}
                     overlayOptions={overlayOptions}

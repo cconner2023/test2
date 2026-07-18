@@ -6,7 +6,6 @@ import type { EventFormData, EventCategory, EventStatus } from '../../Types/Cale
 import { EventTasksCard } from './EventTasksCard'
 import { createEmptyFormData, EVENT_CATEGORIES, MILITARY_TIME_OPTIONS, militaryToHHMM, hhmmToMilitary, CATEGORY_SWATCH_IDS, CATEGORY_SWATCHES } from '../../Types/CalendarTypes'
 import { useCategoryColors } from '../../Hooks/useCategoryColors'
-import type { ClinicPreCombatCheck } from '../../lib/supervisorService'
 import { TextInput, PickerInput, DatePickerInput, TimeInput } from '@/Components/primitives/FormInputs'
 import { useIsMobile } from '../../Hooks/useIsMobile'
 import { MedevacForm } from '../Medevac/MedevacForm'
@@ -77,8 +76,6 @@ interface EventFormProps {
   huddleTaskOptions?: HuddleTaskOption[]
   /** Clinics the user can write events into (assigned + surrogate when loaned). Picker hidden when length < 2 or editing. */
   clinicOptions?: ClinicOption[]
-  /** Clinic Checklists available to seed standardized tasks (clinics.pre_combat_checks). */
-  checklistTemplates?: ClinicPreCombatCheck[]
   /**
    * Footer Add action for the Location picker — receives the typed name and
    * returns the new overlay's id so the picker can auto-link it.
@@ -92,7 +89,7 @@ interface EventFormProps {
 }
 
 export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
-  function EventForm({ initialData, onSave, isEditing, medics, propertyItems, overlayOptions, roomOptions, huddleTaskOptions, clinicOptions, checklistTemplates, onCreateOverlay, onTitleChange, subClusterApplicable }, ref) {
+  function EventForm({ initialData, onSave, isEditing, medics, propertyItems, overlayOptions, roomOptions, huddleTaskOptions, clinicOptions, onCreateOverlay, onTitleChange, subClusterApplicable }, ref) {
     const isMobile = useIsMobile()
     const { resolve: resolveCategoryColor } = useCategoryColors()
     const { subClusters } = useSubClusters()
@@ -433,7 +430,6 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
             <div className="px-4 py-3 border-b border-primary/6">
               <EventTasksCard
                 subtasks={form.subtasks ?? []}
-                templates={checklistTemplates}
                 assignedIds={form.assigned_to}
                 canEdit
                 onChange={next => updateField('subtasks', next)}

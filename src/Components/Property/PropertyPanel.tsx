@@ -21,10 +21,10 @@ import type { TurnInDoc } from '../../Types/PropertyTypes'
 import { PropertyBreadcrumb } from './PropertyBreadcrumb'
 import { PropertySearchOverlay } from './PropertySearchOverlay'
 import { PropertyLocationForm, type PropertyLocationFormHandle, type PendingZoneTag } from './PropertyLocationForm'
-import { PropertyLocationDetail, buildLocationMenuItems, type PropertyLocationDetailHandle } from './PropertyLocationDetail'
+import { PropertyLocationDetail } from './PropertyLocationDetail'
+import { LocationActionMenu, type LocationActionMenuHandle } from './LocationActionMenu'
 import { PropertyItemForm, type PropertyItemFormHandle } from './PropertyItemForm'
 import { PropertyLocationMap, type MapNavHandle } from './PropertyLocationMap'
-import { isStructuralZone } from './levelUtils'
 import { collectHolderZoneIds, itemIsMine } from '../../Utilities/subCluster'
 import { Sheet } from '@/Components/primitives/Sheet'
 import { useStack } from '@/Components/primitives/useStack'
@@ -318,7 +318,7 @@ export const PropertyPanel = memo(function PropertyPanel({
   const locationFormRef = useRef<PropertyLocationFormHandle>(null)
   const signOutFormRef = useRef<SignOutFormHandle>(null)
   const itemActionRef = useRef<ItemActionMenuHandle>(null)
-  const locDetailRef = useRef<PropertyLocationDetailHandle>(null)
+  const locationActionRef = useRef<LocationActionMenuHandle>(null)
   const da2062DetailRef = useRef<Da2062DetailHandle>(null)
   const recordDetailRef = useRef<PropertyRecordDetailHandle>(null)
   const turnInDetailRef = useRef<PropertyTurnInDetailHandle>(null)
@@ -432,9 +432,6 @@ export const PropertyPanel = memo(function PropertyPanel({
   // so it re-derives live from the pending fold (curating an item shrinks it; the pane
   // auto-closes when the turn-in empties / completes).
   const [selectedTurnInId, setSelectedTurnInId] = useState<string | null>(null)
-  // Selected-location action menu (header ellipsis) anchor. Photo add/change/remove
-  // now lives in the zone Edit form (PropertyLocationForm), not this menu.
-  const [locMenu, setLocMenu] = useState<{ rect: DOMRect } | null>(null)
 
   // Mobile: open a nested form in the location sheet (seeds the store the form reads).
   const openMobileItemForm = useCallback((item: LocalPropertyItem | null, locationId: string | null) => {
@@ -914,8 +911,8 @@ export const PropertyPanel = memo(function PropertyPanel({
     else cameraTo({ kind: 'zone', id: loc.id })
   }, [propertyTab, selectedLocationId, cameraTo])
 
-  const openLocMenu = useCallback((e: React.MouseEvent) => {
-    setLocMenu({ rect: e.currentTarget.getBoundingClientRect() })
+  const openLocationMenu = useCallback((loc: LocalPropertyLocation, rect: DOMRect) => {
+    locationActionRef.current?.openMenu(loc, rect)
   }, [])
 
   // Breadcrumb (in the detail header) → navigate the canvas to an ancestor zone,
@@ -1040,24 +1037,6 @@ export const PropertyPanel = memo(function PropertyPanel({
 
   const selectedLocation = selectedLocationId ? visibleLocations.find(l => l.id === selectedLocationId) ?? null : null
 
-  // Selected-zone action menu items — shared by the desktop pane header + mobile sheet header.
-  const locMenuItems = (loc: LocalPropertyLocation) => buildLocationMenuItems({
-    location: loc,
-    // The default cluster zone (BAS) is a standing concept — never deletable.
-    canDelete: !!onDeleteItem && !loc.is_default_zone,
-    onEdit: () => handleEditLocation(loc),
-    onNewItem: () => handleAddItemAtLocation(loc.id),
-    onEditItems: zoneEditItems(loc.id).length ? () => openEditItems(loc.id) : undefined,
-    onNewArea: () => handleAddChildLocation(loc.id),
-    canAddLevel: isStructuralZone(loc),
-    onAddLevel: () => mapRef.current?.addFloorTo(loc.id),
-    onDelete: () => setPendingDeleteLocId(loc.id),
-    onPmcs: () => locDetailRef.current?.openPmcs(),
-    onDispatch: () => locDetailRef.current?.openDispatch(),
-    onDD1750: () => locDetailRef.current?.openDD1750(),
-    onPrintLabel: () => locDetailRef.current?.openPrintLabel(),
-  })
-
   // Trayed FAB in a positioning wrapper — matches Calendar/Admin's add FAB
   // (bordered translucent tray, md size). The SAB padding rides the wrapper.
   const addFab = onOpenAddSheet ? (
@@ -1094,6 +1073,26 @@ export const PropertyPanel = memo(function PropertyPanel({
         onStageTurnIn={onDeleteItem ? (it) => handleStageTurnIn(it) : undefined}
       />
     </>
+  )
+
+  // The one shared zone action menu + its co-located overlays (PMCS · Dispatch · DD 1750
+  // · zone label) — the location sibling of itemActionMenuEl. Mounted once per layout and
+  // opened from the tree rows (main + scoped detail sub-tree) and the zone-detail header
+  // via openLocationMenu, so a zone's full action set is identical on every surface.
+  const locationActionMenuEl = (
+    <LocationActionMenu
+      ref={locationActionRef}
+      items={store.items}
+      locations={visibleLocations}
+      containerRef={panelRef}
+      onEdit={handleEditLocation}
+      onNewItem={(loc) => handleAddItemAtLocation(loc.id)}
+      onNewArea={(loc) => handleAddChildLocation(loc.id)}
+      onAddLevel={(loc) => mapRef.current?.addFloorTo(loc.id)}
+      onEditItems={(loc) => openEditItems(loc.id)}
+      onDelete={(loc) => setPendingDeleteLocId(loc.id)}
+      canDelete={!!onDeleteItem}
+    />
   )
 
   // The bottom-island tabs (Map · Camera · Sign-outs) — identical on both platforms.
@@ -1222,12 +1221,8 @@ export const PropertyPanel = memo(function PropertyPanel({
                 onSelectItem={handleSelectItem}
                 onSelectAll={() => cameraTo({ kind: 'reset' })}
                 allSelected={!selectedLocationId}
-                onEditLocation={handleEditLocation}
                 onOpenItemMenu={(item, rect) => openItemMenu(item, rect, { view: true })}
-                onDeleteLocation={onDeleteItem ? (locId) => setPendingDeleteLocId(locId) : undefined}
-                onAddChildLocation={handleAddChildLocation}
-                onAddLevel={(id) => mapRef.current?.addFloorTo(id)}
-                onAddItemAtLocation={handleAddItemAtLocation}
+                onOpenLocationMenu={openLocationMenu}
               />
             </div>
           </div>
@@ -1408,7 +1403,7 @@ export const PropertyPanel = memo(function PropertyPanel({
                     <p className="truncate text-sm font-medium text-primary">{selectedLocation.name}</p>
                   </div>
                   <HeaderPill>
-                    <span className="inline-flex" onClick={openLocMenu}>
+                    <span className="inline-flex" onClick={(e) => openLocationMenu(selectedLocation, (e.currentTarget as HTMLElement).getBoundingClientRect())}>
                       <PillButton icon={MoreHorizontal} iconSize={16} onClick={() => {}} label="More actions" />
                     </span>
                     <PillButton icon={X} iconSize={16} onClick={closeLocationDetail} label="Close" />
@@ -1416,19 +1411,14 @@ export const PropertyPanel = memo(function PropertyPanel({
                 </div>
                 <div className="flex-1 min-h-0 overflow-y-auto">
                   <PropertyLocationDetail
-                    ref={locDetailRef}
                     location={selectedLocation}
                     locations={visibleLocations}
                     items={store.items}
                     holders={store.holders}
                     onNavigateZone={(id) => mapRef.current?.navigateToZone(id)}
                     onSelectItem={handleSelectItem}
-                    onEditLocation={handleEditLocation}
                     onOpenItemMenu={(item, rect) => openItemMenu(item, rect, { view: true })}
-                    onDeleteLocation={onDeleteItem ? (locId) => setPendingDeleteLocId(locId) : undefined}
-                    onAddChildLocation={handleAddChildLocation}
-                    onAddItemAtLocation={handleAddItemAtLocation}
-                    drawerRef={panelRef}
+                    onOpenLocationMenu={openLocationMenu}
                   />
                 </div>
               </>
@@ -1667,16 +1657,7 @@ export const PropertyPanel = memo(function PropertyPanel({
           </div>
         </div>
 
-        {locMenu && selectedLocation && (
-          <LiftedRowMenu
-            isOpen
-            anchorRect={locMenu.rect}
-            onClose={() => setLocMenu(null)}
-            layout="list"
-            align="right"
-            items={locMenuItems(selectedLocation)}
-          />
-        )}
+        {locationActionMenuEl}
         {/* Auth-view header ellipsis — LIN: Add item (to LIN) + Edit LIN; component/item: Edit. */}
         {authViewMenu && authView && (
           <LiftedRowMenu
@@ -1977,7 +1958,9 @@ export const PropertyPanel = memo(function PropertyPanel({
                     ? (e) => turnInDetailRef.current?.openMenu((e.currentTarget as HTMLElement).getBoundingClientRect())
                     : mobileItem
                     ? (e) => openItemMenu(mobileItem, (e.currentTarget as HTMLElement).getBoundingClientRect())
-                    : openLocMenu
+                    : selectedLocation
+                    ? (e) => openLocationMenu(selectedLocation, (e.currentTarget as HTMLElement).getBoundingClientRect())
+                    : undefined
                 }
               >
                 <PillButton icon={MoreHorizontal} iconSize={18} onClick={() => {}} label="More actions" />
@@ -2051,12 +2034,8 @@ export const PropertyPanel = memo(function PropertyPanel({
               onSelectAll={() => cameraTo({ kind: 'reset' })}
               onSelectLocation={(loc) => cameraTo({ kind: 'zone', id: loc.id })}
               onSelectItem={(item) => handleSelectItem(item)}
-              onEditLocation={handleEditLocation}
               onOpenItemMenu={(item, rect) => openItemMenu(item, rect, { view: true })}
-              onDeleteLocation={onDeleteItem ? (locId) => setPendingDeleteLocId(locId) : undefined}
-              onAddChildLocation={handleAddChildLocation}
-              onAddLevel={(id) => mapRef.current?.addFloorTo(id)}
-              onAddItemAtLocation={handleAddItemAtLocation}
+              onOpenLocationMenu={openLocationMenu}
             />
           </>
         ) : da2062Preview ? (
@@ -2143,33 +2122,19 @@ export const PropertyPanel = memo(function PropertyPanel({
           />
         ) : selectedLocation ? (
           <PropertyLocationDetail
-            ref={locDetailRef}
             location={selectedLocation}
             locations={visibleLocations}
             items={store.items}
             holders={store.holders}
             onNavigateZone={(id) => mapRef.current?.navigateToZone(id)}
             onSelectItem={handleSelectItem}
-            onEditLocation={handleEditLocation}
             onOpenItemMenu={(item, rect) => openItemMenu(item, rect, { view: true })}
-            onDeleteLocation={onDeleteItem ? (locId) => setPendingDeleteLocId(locId) : undefined}
-            onAddChildLocation={handleAddChildLocation}
-            onAddItemAtLocation={handleAddItemAtLocation}
-            drawerRef={panelRef}
+            onOpenLocationMenu={openLocationMenu}
           />
         ) : null}
       </Sheet>
 
-      {locMenu && selectedLocation && (
-        <LiftedRowMenu
-          isOpen
-          anchorRect={locMenu.rect}
-          onClose={() => setLocMenu(null)}
-          layout="list"
-          align="right"
-          items={locMenuItems(selectedLocation)}
-        />
-      )}
+      {locationActionMenuEl}
       {/* Auth-view header ellipsis — LIN: Add item (to LIN) + Edit LIN; component/item: Edit. */}
       {authViewMenu && authView && (
         <LiftedRowMenu

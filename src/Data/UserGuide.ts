@@ -98,7 +98,7 @@ export interface GuideChapter {
     sections: GuideSection[];
 }
 
-export const USER_GUIDE_VERSION = '2.7.1';
+export const USER_GUIDE_VERSION = '2.7.2';
 
 export const UserGuide: GuideChapter[] = [
     {
@@ -149,6 +149,36 @@ export const UserGuide: GuideChapter[] = [
                             ] },
                         ],
                     },
+                ],
+            },
+            {
+                id: 'desktop-shortcuts',
+                title: 'Desktop keyboard shortcuts',
+                summary: 'Keyboard shortcuts for desktop — Ctrl+Alt letter keys jump between tools, Esc backs out one level.',
+                blocks: [
+                    { kind: 'p', text: 'On a computer you can jump straight to any tool from the keyboard — no need to open the side navigation. These shortcuts are desktop-only; on a phone or tablet, use the side navigation.' },
+                    { kind: 'sub', text: 'Jump to a tool' },
+                    { kind: 'p', text: 'Hold Ctrl and Alt together, then press the letter:' },
+                    { kind: 'list', items: [
+                        'Ctrl + Alt + C — Calendar',
+                        'Ctrl + Alt + M — Messages',
+                        'Ctrl + Alt + P — Property book',
+                        'Ctrl + Alt + K — Knowledge base',
+                        'Ctrl + Alt + T — TC3',
+                        'Ctrl + Alt + O — Map overlay',
+                        'Ctrl + Alt + I — Import note',
+                        'Ctrl + Alt + S — Settings',
+                    ] },
+                    { kind: 'sub', text: 'Role tools' },
+                    { kind: 'p', text: 'These open only if you hold the matching role:' },
+                    { kind: 'list', items: [
+                        'Ctrl + Alt + R — Provider',
+                        'Ctrl + Alt + U — Supervisor',
+                        'Ctrl + Alt + A — Admin',
+                    ] },
+                    { kind: 'sub', text: 'Backing out' },
+                    { kind: 'p', text: 'Press Esc to step back one level — it closes the open tool or menu and returns you to where you were, one layer at a time. Esc is not a "home" button; press it again to keep backing out.' },
+                    { kind: 'note', text: 'Shortcuts are ignored while you are typing in a text field, so they never interfere with writing a message or note.' },
                 ],
             },
             {

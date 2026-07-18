@@ -3,11 +3,10 @@
  * frozen `.json` bundle (objectBundle.ts). Mirrors PropertyCSV.ts: flat header +
  * rows, a downloadable starter template, and a forgiving parser.
  *
- * FOUR kinds (selected by NoteBlocksCSVKind), two write destinations:
+ * THREE kinds (selected by NoteBlocksCSVKind), two write destinations:
  *   - 'templates'        TextExpander[]        → note-blocks bundle → ingest
  *   - 'orderSets'        PlanOrderSet[] + tags  → note-blocks bundle → ingest
  *   - 'providerTemplates ProviderNoteTemplate[] → profile (personal only)
- *   - 'checklists'       ClinicPreCombatCheck[] → clinic config (supervisor)
  * This module owns ONLY parse/serialize; the write (+ dedup + scope) lives in
  * useNoteBlocksCsvImport. Output previews are a single unified row shape so the
  * import drawer can render any kind without branching.
@@ -22,8 +21,8 @@
  *   IF [Field: a | b] = b: → inline gate (defines the choice inline; not inserted)
  *
  * PORTABLE REFERENCES: provider templates name their plan order set (not its id)
- * and their PE blocks by label; checklists name property items/locations. Ids are
- * resolved against the importer's own world at parse time (see CsvParseCtx).
+ * and their PE blocks by label. Ids are resolved against the importer's own world
+ * at parse time (see CsvParseCtx).
  *
  * NO PHI: app content is operational text only — the same reason it may travel as
  * a frozen value / plaintext file at all.
@@ -34,25 +33,14 @@ import { PLAN_ORDER_CATEGORIES } from '../Data/User'
 import type { TemplateNode, ChoiceNode, BranchNode } from '../Data/TemplateTypes'
 import { getChoiceLabels } from './templateEngine'
 import { MASTER_BLOCKS } from '../Data/PhysicalExamData'
-import type { PCCItem } from '../lib/supervisorService'
 import type { NoteBlocksData } from '../lib/objectBundle'
 
-export type NoteBlocksCSVKind = 'templates' | 'orderSets' | 'providerTemplates' | 'checklists'
-
-/** A parsed checklist before it is given an id / sort_order at merge time. */
-export interface ChecklistImport {
-  name: string
-  items: PCCItem[]
-}
+export type NoteBlocksCSVKind = 'templates' | 'orderSets' | 'providerTemplates'
 
 /** Name→id lookups the parser uses to resolve portable references. */
 export interface CsvParseCtx {
   /** Plan order set name (lowercased) → id, for provider templates. */
   orderSetIdByName?: Map<string, string>
-  /** Property item name (lowercased) → id, for checklists. */
-  propertyItemIdByName?: Map<string, string>
-  /** Property location name (lowercased) → id, for checklists. */
-  propertyLocationIdByName?: Map<string, string>
 }
 
 // ── Low-level CSV (shares the shape of PropertyCSV's helpers) ────────────────
@@ -322,8 +310,6 @@ const PROVIDER_HEADERS = [
   'Assessment Shortcuts', 'Assessment Text', 'Plan Order Set', 'Plan Shortcuts', 'Plan Text',
 ] as const
 
-const CHECKLIST_HEADERS = ['Name', 'Items'] as const
-
 // ── Export ───────────────────────────────────────────────────────────────────
 
 export function exportTemplatesCSV(expanders: TextExpander[]): void {
@@ -355,22 +341,6 @@ export function exportProviderTemplatesCSV(templates: ProviderNoteTemplate[], or
   download([PROVIDER_HEADERS.join(','), ...rows], 'provider-templates')
 }
 
-export function exportChecklistsCSV(
-  checklists: { name: string; items: PCCItem[] }[],
-  itemNameById: Map<string, string>,
-  locationNameById: Map<string, string>,
-): void {
-  const rows = checklists.map(c => {
-    const items = c.items.map(it => {
-      if (it.kind === 'task') return it.label
-      if (it.kind === 'property_item') return `item:${it.label_override ?? itemNameById.get(it.ref) ?? '(deleted)'}`
-      return `location:${locationNameById.get(it.ref) ?? '(deleted)'}`
-    })
-    return buildRow([c.name, items.join('; ')], CHECKLIST_HEADERS.length)
-  })
-  download([CHECKLIST_HEADERS.join(','), ...rows], 'checklists')
-}
-
 function download(lines: string[], base: string): void {
   downloadCSVString(lines.join('\r\n'), `${base}-${new Date().toISOString().slice(0, 10)}.csv`)
 }
@@ -390,16 +360,11 @@ export function downloadNoteBlocksTemplate(kind: NoteBlocksCSVKind): void {
       ORDER_SET_HEADERS.join(','),
       buildRow(['URI', 'Acetaminophen 1000mg; Ibuprofen 800mg', '', '', '', 'RTC if worsening', 'Rest, fluids'], ORDER_SET_HEADERS.length),
     ], 'order-sets-import')
-  } else if (kind === 'providerTemplates') {
+  } else {
     download([
       PROVIDER_HEADERS.join(','),
       buildRow(['Sick Call', 'hpi', '', 'General; HEENT', '', '', '', 'URI', 'plan', ''], PROVIDER_HEADERS.length),
     ], 'provider-templates-import')
-  } else {
-    download([
-      CHECKLIST_HEADERS.join(','),
-      buildRow(['Field Sick Call', 'item:Aid Bag; location:Conex 4; Brief OPORD'], CHECKLIST_HEADERS.length),
-    ], 'checklists-import')
   }
 }
 
@@ -419,8 +384,6 @@ export interface NoteBlocksCsvParse {
   data?: NoteBlocksData
   /** Payload for 'providerTemplates'. */
   providerTemplates?: ProviderNoteTemplate[]
-  /** Payload for 'checklists'. */
-  checklists?: ChecklistImport[]
   errors: string[]
   warnings: string[]
   previews: CsvPreviewRow[]
@@ -434,7 +397,6 @@ const HEADER_HINTS: Record<NoteBlocksCSVKind, (norm: string[]) => boolean> = {
   templates: norm => norm.includes('abbr') || norm.includes('body'),
   orderSets: norm => norm.includes('name') && ORDER_SET_COLUMNS.some(c => norm.includes(c.header.toLowerCase())),
   providerTemplates: norm => norm.includes('name') && norm.some(h => h.includes('hpi') || h.includes('assessment')),
-  checklists: norm => norm.includes('name') && norm.includes('items'),
 }
 
 export function parseNoteBlocksCSV(file: File, kind: NoteBlocksCSVKind, ctx: CsvParseCtx = {}): Promise<NoteBlocksCsvParse> {
@@ -460,8 +422,7 @@ function parseText(text: string, kind: NoteBlocksCSVKind, ctx: CsvParseCtx): Not
   const dataLines = lines.slice(1)
   if (kind === 'templates') return parseTemplateRows(kind, dataLines, errors, warnings)
   if (kind === 'orderSets') return parseOrderSetRows(kind, dataLines, errors, warnings)
-  if (kind === 'providerTemplates') return parseProviderRows(kind, dataLines, errors, warnings, ctx)
-  return parseChecklistRows(kind, dataLines, errors, warnings, ctx)
+  return parseProviderRows(kind, dataLines, errors, warnings, ctx)
 }
 
 function dedupeName(name: string, seen: Set<string>, lineNum: number, noun: string, warnings: string[]): boolean {
@@ -608,45 +569,4 @@ function parseProviderRows(kind: NoteBlocksCSVKind, dataLines: string[], errors:
   }
 
   return { kind, providerTemplates: templates, errors, warnings, previews }
-}
-
-function parseChecklistRows(kind: NoteBlocksCSVKind, dataLines: string[], errors: string[], warnings: string[], ctx: CsvParseCtx): NoteBlocksCsvParse {
-  const checklists: ChecklistImport[] = []
-  const previews: CsvPreviewRow[] = []
-  const seen = new Set<string>()
-
-  for (let i = 0; i < dataLines.length; i++) {
-    const lineNum = i + 2
-    const f = parseCSVRow(dataLines[i])
-    if (f.every(x => x.trim() === '')) continue
-
-    const name = (f[0] ?? '').trim()
-    if (!name) { errors.push(`Row ${lineNum}: Name is required`); continue }
-    if (!dedupeName(name, seen, lineNum, 'checklist', warnings)) continue
-
-    const items: PCCItem[] = []
-    for (const raw of splitList(f[1] ?? '')) {
-      const id = crypto.randomUUID()
-      const lower = raw.toLowerCase()
-      if (lower.startsWith('item:')) {
-        const itemName = raw.slice(5).trim()
-        const ref = ctx.propertyItemIdByName?.get(itemName.toLowerCase())
-        if (ref) items.push({ id, kind: 'property_item', ref, label_override: itemName })
-        else warnings.push(`Row ${lineNum} ("${name}"): equipment "${itemName}" not found — skipped`)
-      } else if (lower.startsWith('location:')) {
-        const locName = raw.slice(9).trim()
-        const ref = ctx.propertyLocationIdByName?.get(locName.toLowerCase())
-        if (ref) items.push({ id, kind: 'property_location', ref })
-        else warnings.push(`Row ${lineNum} ("${name}"): location "${locName}" not found — skipped`)
-      } else {
-        const label = lower.startsWith('task:') ? raw.slice(5).trim() : raw
-        if (label) items.push({ id, kind: 'task', label })
-      }
-    }
-
-    checklists.push({ name, items })
-    previews.push({ primary: name, secondary: `${items.length} item${items.length === 1 ? '' : 's'}` })
-  }
-
-  return { kind, checklists, errors, warnings, previews }
 }

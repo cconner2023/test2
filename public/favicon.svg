@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Adaptive tab favicon: themeblue3 (dark anchor) on light tabs,
+       themeblue2 (bright) on dark tabs. Transparent background. -->
+  <style>
+    .ring { fill: none; stroke: #00425C; }      /* themeblue3 — light */
+    .bars { fill: #00425C; }
+    @media (prefers-color-scheme: dark) {
+      .ring { stroke: #158EAC; }                /* themeblue2 — dark */
+      .bars { fill: #158EAC; }
+    }
+  </style>
+  <!-- ring -->
+  <circle class="ring" cx="256" cy="256" r="203" stroke-width="11" />
+  <!-- star of life: three rounded bars at 0/60/120 -->
+  <g class="bars">
+    <rect x="204" y="64" width="104" height="384" rx="16" ry="16" />
+    <rect x="204" y="64" width="104" height="384" rx="16" ry="16"
+          transform="rotate(60 256 256)" />
+    <rect x="204" y="64" width="104" height="384" rx="16" ry="16"
+          transform="rotate(120 256 256)" />
+  </g>
+</svg>

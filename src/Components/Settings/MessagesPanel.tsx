@@ -1,11 +1,10 @@
 import { useState, useRef, useEffect, useCallback, memo, useImperativeHandle, forwardRef, useMemo } from 'react'
 import type { ReactNode } from 'react'
-import { Trash2, Headset, Play, MessageSquare, Info, ChevronLeft, ChevronRight, ChevronDown, Pin, Users, Check, QrCode, Mail, Send, Plus, Hash, Settings } from 'lucide-react'
+import { Trash2, Headset, Play, MessageSquare, Info, ChevronLeft, ChevronRight, ChevronDown, Pin, Users, Check, Plus, Settings } from 'lucide-react'
 import { useSpring, animated } from '@react-spring/web'
 import { SearchInput } from '@/Components/primitives/SearchInput'
 import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill'
 import { useClinicMedics } from '../../Hooks/useClinicMedics'
-import { supabase } from '../../lib/supabase'
 import { useMessagesContext } from '../../Hooks/MessagesContext'
 import { useMessagingStore } from '../../stores/useMessagingStore'
 import { useAuthStore } from '../../stores/useAuthStore'
@@ -24,7 +23,6 @@ import { useAvatar } from '../../Utilities/AvatarContext'
 import type { ContextMenuItem } from '@/Components/primitives/ContextMenu'
 import { LiftedRowMenu } from '@/Components/primitives/LiftedRowMenu'
 import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
-import { TextInput } from '@/Components/primitives/FormInputs'
 import { useClinicGroupedMedics } from '../../Hooks/useClinicGroupedMedics'
 import { useSubClusters } from '../../Hooks/useSubClusters'
 import { usePeerAvailability, type UnavailableReason } from '../../Hooks/usePeerAvailability'
@@ -38,8 +36,7 @@ import type { ClinicMedic } from '../../Types/SupervisorTestTypes'
 import type { DecryptedSignalMessage } from '../../lib/signal/transportTypes'
 import type { MessageContent } from '../../lib/signal/messageContent'
 import type { GroupInfo, GroupMember } from '../../lib/signal/groupTypes'
-import { useBarcodeScanner } from '../../Hooks/useBarcodeScanner'
-import { fetchProfileById } from '../../lib/peerLookup'
+import { useOffRosterAdd } from '../Messages/useOffRosterAdd'
 import { SYSTEM_USER_ID } from '../../lib/signal/systemIdentity'
 import { isSystemMessage, isOutsideOriginCard } from '../../Hooks/useAdminSystemConversations'
 import { lastActivityMessage, activityPreview } from '../../Utilities/conversationActivity'
@@ -1053,27 +1050,10 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
   const [groupName, setGroupName] = useState('')
   const [groupSelectedIds, setGroupSelectedIds] = useState<Set<string>>(new Set())
   const [groupCreating, setGroupCreating] = useState(false)
+  const [groupCreateError, setGroupCreateError] = useState<string | null>(null)
   const [showGroupInfo, setShowGroupInfo] = useState(false)
-  const [qrScanOpen, setQrScanOpen] = useState(false)
-  const [qrLookupError, setQrLookupError] = useState<string | null>(null)
-  const qrVideoRef = useRef<HTMLVideoElement>(null)
-  const [emailLookupError, setEmailLookupError] = useState<string | null>(null)
-  const [emailLookupLoading, setEmailLookupLoading] = useState(false)
-  const [emailValue, setEmailValue] = useState('')
-  const [codeValue, setCodeValue] = useState('')
-  const [codeLookupError, setCodeLookupError] = useState<string | null>(null)
-  const [codeLookupLoading, setCodeLookupLoading] = useState(false)
   // Live nav of the new-message morph stack — handlers push/reset screens on it.
   const stackNavRef = useRef<StackNav | null>(null)
-
-  const {
-    isScanning: qrIsScanning,
-    error: qrScanError,
-    result: qrScanResult,
-    startScanning: qrStartScanning,
-    stopScanning: qrStopScanning,
-    clearResult: qrClearResult,
-  } = useBarcodeScanner()
 
   useImperativeHandle(ref, () => ({
     openNew: () => { setShowNewMsg(true); setNewMsgMode('contacts') },
@@ -1086,6 +1066,7 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
   const groups = useMessagingStore(s => s.groups)
   const sendingMap = useMessagingStore(s => s.sendingMap)
   const isDevRole = useAuthStore(s => s.isDevRole)
+  const currentUserId = useAuthStore(s => s.user?.id ?? null)
 
   // Dev users see system traffic in the AdminDrawer, never in personal
   // Messages — strip it here so the conversation list, search, and any
@@ -1168,96 +1149,24 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
     callActions?.startCall({ userId: entry.peerId, displayName: getDisplayName(entry.peer) })
   }, [callActions])
 
-  const closeEmailLookup = useCallback(() => {
-    setEmailValue('')
-    setEmailLookupError(null)
-    setEmailLookupLoading(false)
-  }, [])
-
-  const closeCodeLookup = useCallback(() => {
-    setCodeValue('')
-    setCodeLookupError(null)
-    setCodeLookupLoading(false)
-  }, [])
-
-  // Routes a discovered user (from QR / email / code lookup) based on mode:
-  // contacts → open the chat; group → add to the in-progress group selection.
+  // Routes a discovered off-roster user based on mode: contacts → open the chat;
+  // group → add to the in-progress group selection. The shared useOffRosterAdd
+  // primitive handles peer-profile resolution and tearing the lookup stack back
+  // down; this only decides what the found user MEANS here.
   const handlePickedUser = useCallback((medic: ClinicMedic) => {
-    useMessagingStore.getState().setPeerProfile(medic)
     if (newMsgMode === 'group') {
       setGroupSelectedIds(prev => {
         const next = new Set(prev)
         next.add(medic.id)
         return next
       })
-      // Tear down the lookup sub-flow and morph back to the group builder (root).
-      setQrScanOpen(false)
-      qrStopScanning()
-      qrClearResult()
-      closeEmailLookup()
-      closeCodeLookup()
-      stackNavRef.current?.reset()
     } else {
       setShowNewMsg(false)
       onSelectPeer(medic)
     }
-  }, [newMsgMode, onSelectPeer, qrStopScanning, qrClearResult, closeEmailLookup, closeCodeLookup])
+  }, [newMsgMode, onSelectPeer])
 
-  const handleEmailLookup = useCallback(async () => {
-    const email = emailValue.trim().toLowerCase()
-    setEmailLookupError(null)
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      setEmailLookupError('Enter a valid email address')
-      return
-    }
-    setEmailLookupLoading(true)
-    try {
-      const { data, error } = await supabase.rpc('search_users', { query: email })
-      if (error || !data) { setEmailLookupError('Lookup failed'); return }
-      const match = (data as Array<{ id: string; email?: string | null; first_name: string | null; last_name: string | null; middle_initial: string | null; rank: string | null; credential: string | null; avatar_id: string | null; clinic_id: string | null; clinic_name: string | null }>)
-        .find(r => r.email?.toLowerCase() === email)
-      if (!match) { setEmailLookupError('No user found with that email'); return }
-      const medic: ClinicMedic = {
-        id: match.id,
-        firstName: match.first_name,
-        lastName: match.last_name,
-        middleInitial: match.middle_initial,
-        rank: match.rank,
-        credential: match.credential,
-        avatarId: match.avatar_id ?? null,
-        clinicId: match.clinic_id ?? undefined,
-        clinicName: match.clinic_name ?? undefined,
-      }
-      setEmailValue('')
-      handlePickedUser(medic)
-    } catch {
-      setEmailLookupError('Lookup failed')
-    } finally {
-      setEmailLookupLoading(false)
-    }
-  }, [emailValue, handlePickedUser])
-
-  const handleCodeLookup = useCallback(async () => {
-    const code = codeValue.trim()
-    setCodeLookupError(null)
-    if (!code) {
-      setCodeLookupError('Enter a user code')
-      return
-    }
-    setCodeLookupLoading(true)
-    try {
-      const medic = await fetchProfileById(code)
-      if (!medic) {
-        setCodeLookupError('No user found with that code')
-        return
-      }
-      handlePickedUser(medic)
-    } catch {
-      setCodeLookupError('Lookup failed')
-    } finally {
-      setCodeLookupLoading(false)
-    }
-  }, [codeValue, handlePickedUser])
+  const offRoster = useOffRosterAdd({ navRef: stackNavRef, onFound: handlePickedUser })
 
   const toggleGroupMember = useCallback((id: string) => {
     setGroupSelectedIds(prev => {
@@ -1273,9 +1182,11 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
     const trimmed = groupName.trim()
     if (!trimmed || groupSelectedIds.size === 0 || groupCreating) return
     setGroupCreating(true)
+    setGroupCreateError(null)
     const id = await messagesCtx.createGroup(trimmed, [...groupSelectedIds])
     setGroupCreating(false)
     if (id) setShowNewMsg(false)
+    else setGroupCreateError('Could not create the group. Please try again.')
   }, [messagesCtx, groupName, groupSelectedIds, groupCreating])
 
   // Fade transition for the right content area when view changes.
@@ -1292,24 +1203,6 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
       contentApi.start({ opacity: 1, from: { opacity: 0 }, config: { tension: 300, friction: 26 } })
     }
   }, [view, contentApi])
-
-  useEffect(() => {
-    if (!qrScanResult || !qrScanOpen) return
-
-    const userId = qrScanResult.trim()
-    setQrLookupError(null)
-
-    fetchProfileById(userId).then(medic => {
-      if (!medic) {
-        setQrLookupError('User not found')
-        qrClearResult()
-        return
-      }
-      setQrScanOpen(false)
-      qrClearResult()
-      handlePickedUser(medic)
-    })
-  }, [qrScanResult, qrScanOpen, qrClearResult, handlePickedUser])
 
   if (!messagesCtx) {
     return (
@@ -1507,7 +1400,7 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
           screens (drill-down primitive) instead of a boolean/ternary machine. */}
       <OverlayStack
         isOpen={showNewMsg}
-        onClose={() => { setShowNewMsg(false); setNewMsgMode('contacts'); setQrScanOpen(false); qrStopScanning(); qrClearResult(); closeEmailLookup(); closeCodeLookup() }}
+        onClose={() => { setShowNewMsg(false); setNewMsgMode('contacts'); offRoster.reset() }}
         anchorRect={null}
         initial={{ key: 'main' }}
         navRef={stackNavRef}
@@ -1520,7 +1413,7 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
             title: newMsgMode === 'group' ? 'New Group' : 'New Message',
             searchPlaceholder: 'Search contacts...',
             onBack: newMsgMode === 'group'
-              ? () => { setNewMsgMode('contacts'); setGroupSelectedIds(new Set()) }
+              ? () => { setNewMsgMode('contacts'); setGroupSelectedIds(new Set()); setGroupCreateError(null) }
               : undefined,
             footer: (_p, nav) => (
               <ActionPill>
@@ -1528,10 +1421,10 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
                   <ActionButton
                     icon={Users}
                     label="New Group"
-                    onClick={() => { setNewMsgMode('group'); setGroupName(''); setGroupSelectedIds(new Set()) }}
+                    onClick={() => { setNewMsgMode('group'); setGroupName(''); setGroupSelectedIds(new Set()); setGroupCreateError(null) }}
                   />
                 )}
-                <ActionButton icon={Plus} label="Add" onClick={() => nav.push('addPicker')} />
+                <ActionButton icon={Plus} label="Add" onClick={() => offRoster.openMethods(nav)} />
               </ActionPill>
             ),
             rightFooter: newMsgMode === 'group' ? (
@@ -1549,7 +1442,7 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
               // System is a synthetic pseudo-user injected into peerProfiles for
               // name/avatar resolution of existing system conversations. It must
               // never appear as a startable contact in the new-conversation picker.
-              const rosterMedics = allMedics.filter(m => m.id !== SYSTEM_USER_ID)
+              const rosterMedics = allMedics.filter(m => m.id !== SYSTEM_USER_ID && m.id !== currentUserId)
               const filtered = q
                 ? rosterMedics.filter(m =>
                     m.firstName?.toLowerCase().includes(q) ||
@@ -1571,6 +1464,9 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
                         className="w-full px-4 py-2 rounded-full bg-themewhite2 text-sm text-primary
                                    placeholder:text-tertiary outline-none focus:ring-1 focus:ring-themeblue2/40 transition-all"
                       />
+                      {groupCreateError && (
+                        <p className="px-1 pt-2 text-[10pt] text-red-500">{groupCreateError}</p>
+                      )}
                     </div>
                   )}
                   {filtered.map(medic => (
@@ -1605,142 +1501,9 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
               )
             },
           },
-          // Add a contact off-roster: pick a lookup method, then drill into it.
-          addPicker: {
-            title: 'Add Contact',
-            render: (_p, nav) => {
-              const pickerRows: Array<{ key: string; label: string; icon: typeof QrCode; onClick: () => void }> = [
-                {
-                  key: 'scan-qr',
-                  label: 'Scan QR Code',
-                  icon: QrCode,
-                  onClick: () => {
-                    setQrScanOpen(true)
-                    setQrLookupError(null)
-                    nav.push('qrScan')
-                    requestAnimationFrame(() => {
-                      if (qrVideoRef.current) qrStartScanning(qrVideoRef.current)
-                    })
-                  },
-                },
-                {
-                  key: 'by-email',
-                  label: 'Find by Email',
-                  icon: Mail,
-                  onClick: () => {
-                    setEmailLookupError(null)
-                    setEmailValue('')
-                    nav.push('emailLookup')
-                  },
-                },
-                {
-                  key: 'by-code',
-                  label: 'Enter User Code',
-                  icon: Hash,
-                  onClick: () => {
-                    setCodeLookupError(null)
-                    setCodeValue('')
-                    nav.push('codeLookup')
-                  },
-                },
-              ]
-              return (
-                <div className="py-1">
-                  {pickerRows.map(row => (
-                    <button
-                      key={row.key}
-                      onClick={row.onClick}
-                      className="flex items-center w-full px-4 py-2.5 gap-3 text-left hover:bg-themewhite2 active:scale-95 transition-all"
-                    >
-                      <div className="w-8 h-8 rounded-full bg-themewhite2 flex items-center justify-center shrink-0">
-                        <row.icon className="w-4 h-4 text-themeblue2" />
-                      </div>
-                      <span className="flex-1 text-sm text-primary">{row.label}</span>
-                    </button>
-                  ))}
-                </div>
-              )
-            },
-          },
-          qrScan: {
-            title: 'Scan QR Code',
-            onBack: (nav) => { qrStopScanning(); setQrScanOpen(false); qrClearResult(); setQrLookupError(null); nav.pop() },
-            render: () => (
-              <div className="px-4 py-3 space-y-2">
-                <p className="text-[10pt] text-tertiary">
-                  Scan another user's QR code to open a conversation.
-                </p>
-                <div className="relative w-full aspect-video rounded-lg overflow-hidden bg-black/5 border border-tertiary/10">
-                  <video
-                    ref={qrVideoRef}
-                    className="absolute inset-0 w-full h-full object-cover"
-                    playsInline
-                    muted
-                  />
-                  {!qrIsScanning && !qrScanError && (
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <p className="text-[10pt] text-tertiary">Starting camera…</p>
-                    </div>
-                  )}
-                </div>
-                {(qrScanError || qrLookupError) && (
-                  <p className="text-[10pt] text-themeredred">{qrScanError || qrLookupError}</p>
-                )}
-              </div>
-            ),
-          },
-          emailLookup: {
-            title: 'Find by Email',
-            onBack: (nav) => { closeEmailLookup(); nav.pop() },
-            rightFooter: (
-              <ActionPill>
-                <ActionButton
-                  icon={Send}
-                  label="Find User"
-                  variant={(!emailValue.trim() || emailLookupLoading) ? 'disabled' : 'default'}
-                  onClick={handleEmailLookup}
-                />
-              </ActionPill>
-            ),
-            render: () => (
-              <div className="px-1 py-1">
-                <TextInput
-                  label="Email"
-                  value={emailValue}
-                  onChange={(v) => { setEmailValue(v); if (emailLookupError) setEmailLookupError(null) }}
-                  placeholder="user@example.com"
-                  type="email"
-                  inputMode="email"
-                  hint={emailLookupLoading ? 'Looking up email…' : emailLookupError}
-                />
-              </div>
-            ),
-          },
-          codeLookup: {
-            title: 'Enter User Code',
-            onBack: (nav) => { closeCodeLookup(); nav.pop() },
-            rightFooter: (
-              <ActionPill>
-                <ActionButton
-                  icon={Send}
-                  label="Find User"
-                  variant={(!codeValue.trim() || codeLookupLoading) ? 'disabled' : 'default'}
-                  onClick={handleCodeLookup}
-                />
-              </ActionPill>
-            ),
-            render: () => (
-              <div className="px-1 py-1">
-                <TextInput
-                  label="User Code"
-                  value={codeValue}
-                  onChange={(v) => { setCodeValue(v); if (codeLookupError) setCodeLookupError(null) }}
-                  placeholder="Paste user code"
-                  hint={codeLookupLoading ? 'Looking up user…' : codeLookupError}
-                />
-              </div>
-            ),
-          },
+          // Off-roster add (Scan QR / Email / Code) — the shared useOffRosterAdd
+          // drill screens, identical to the group Add-member flow.
+          ...offRoster.screens,
         }}
       />
 

@@ -6,6 +6,7 @@ import { HeaderPill } from '@/Components/primitives/HeaderPill'
 import { OverlayHeaderMenu } from '@/Components/primitives/OverlayHeaderMenu'
 import type { ContextMenuItem } from '@/Components/primitives/ContextMenu'
 import { deleteFeedback, type FeedbackRow } from '../../lib/feedbackService'
+import { downloadDecryptedFeedbackImage } from '../../lib/feedbackAttachmentService'
 import { listAllUsers } from '../../lib/adminService'
 import { buildMailtoHref } from '../../lib/mailto'
 import { invalidate, useInvalidation } from '../../stores/useInvalidationStore'
@@ -32,7 +33,31 @@ export function FeedbackDetail({ feedback, onClose, onOpenConversation, onHeader
   const [processing, setProcessing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [imageUrls, setImageUrls] = useState<string[]>([])
   const messagesCtx = useMessagesContext()
+
+  // Decrypt attached images (dev-only via bucket RLS) into object URLs for display.
+  useEffect(() => {
+    const attachments = feedback.attachments
+    if (!attachments?.length) { setImageUrls([]); return }
+    let cancelled = false
+    const urls: string[] = []
+    void (async () => {
+      for (const a of attachments) {
+        const res = await downloadDecryptedFeedbackImage(a.path, a.key)
+        if (cancelled) break
+        if (res.ok) {
+          const url = URL.createObjectURL(res.data)
+          urls.push(url)
+          setImageUrls([...urls])
+        }
+      }
+    })()
+    return () => {
+      cancelled = true
+      urls.forEach((u) => URL.revokeObjectURL(u))
+    }
+  }, [feedback.attachments])
 
   useEffect(() => {
     if (!feedback.user_id) { setEmail(null); return }
@@ -47,7 +72,7 @@ export function FeedbackDetail({ feedback, onClose, onOpenConversation, onHeader
 
   const handleDelete = useCallback(async () => {
     setProcessing(true)
-    const result = await deleteFeedback(feedback.id)
+    const result = await deleteFeedback(feedback.id, feedback.attachments)
     setProcessing(false)
     if (result.success) {
       setConfirmDelete(false)
@@ -56,7 +81,7 @@ export function FeedbackDetail({ feedback, onClose, onOpenConversation, onHeader
     } else {
       setError(`Failed to delete: ${result.error}`)
     }
-  }, [feedback.id, onClose])
+  }, [feedback.id, feedback.attachments, onClose])
 
   const canMessage = !!(messagesCtx && feedback.user_id && onOpenConversation)
 
@@ -128,6 +153,23 @@ export function FeedbackDetail({ feedback, onClose, onOpenConversation, onHeader
           <div>
             <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Comments</p>
             <p className="text-[10pt] text-primary whitespace-pre-wrap">{feedback.comments}</p>
+          </div>
+        )}
+
+        {imageUrls.length > 0 && (
+          <div>
+            <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Attachments</p>
+            <div className="mt-1 flex flex-wrap gap-2">
+              {imageUrls.map((url, i) => (
+                <a key={i} href={url} target="_blank" rel="noreferrer" className="block">
+                  <img
+                    src={url}
+                    alt={`Attachment ${i + 1}`}
+                    className="w-20 h-20 rounded-lg object-cover border border-tertiary/15"
+                  />
+                </a>
+              ))}
+            </div>
           </div>
         )}
 

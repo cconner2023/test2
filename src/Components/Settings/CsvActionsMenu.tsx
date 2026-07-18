@@ -1,10 +1,10 @@
 import { useRef, useState, type ReactNode } from 'react'
-import { MoreHorizontal, FileSpreadsheet, FileDown } from 'lucide-react'
+import { MoreHorizontal, FileSpreadsheet } from 'lucide-react'
 import { ActionButton } from '@/Components/primitives/ActionButton'
 import { AnchoredMenu } from '@/Components/primitives/LiftedRowMenu'
 import type { ContextMenuItem } from '@/Components/primitives/ContextMenu'
 import { NoteBlocksCSVImportDrawer } from './NoteBlocksCSVImportDrawer'
-import { downloadNoteBlocksTemplate, type NoteBlocksCSVKind } from '../../Utilities/noteBlocksCSV'
+import type { NoteBlocksCSVKind } from '../../Utilities/noteBlocksCSV'
 
 interface Props {
   kind: NoteBlocksCSVKind
@@ -16,7 +16,7 @@ interface Props {
 
 /**
  * CSV-only transfer actions for app-content kinds that don't ride the cross-cluster
- * JSON bundle (provider templates, checklists). Returns the menu items plus the
+ * JSON bundle (provider templates). Returns the menu items plus the
  * import drawer so callers can fold the items into a consolidated corner ⋯
  * (OverlayActionMenu) and render the drawer once. Bundle-based Share-to-chat lives
  * in NoteBlocksTransferMenu instead.
@@ -26,8 +26,8 @@ export function useCsvActionsItems({ kind, onExportCsv, hasData }: Props): { ite
 
   const items: ContextMenuItem[] = [
     ...(hasData ? [{ key: 'export-csv', label: 'Export CSV', icon: FileSpreadsheet, onAction: onExportCsv }] : []),
+    // Template download lives inside the import drawer itself — no separate item (mirrors NoteBlocksTransferMenu).
     { key: 'import-csv', label: 'Import CSV', icon: FileSpreadsheet, onAction: () => setImportOpen(true) },
-    { key: 'csv-template', label: 'Download CSV template', icon: FileDown, onAction: () => downloadNoteBlocksTemplate(kind) },
   ]
 
   const importDrawer = <NoteBlocksCSVImportDrawer visible={importOpen} onClose={() => setImportOpen(false)} kind={kind} />
@@ -37,8 +37,8 @@ export function useCsvActionsItems({ kind, onExportCsv, hasData }: Props): { ite
 
 /**
  * Standalone CSV ⋯ trigger (its own ellipsis + overlay). Used where the CSV actions
- * stand alone in a corner pill (e.g. Checklists). Where they share a pill with other
- * actions, use `useCsvActionsItems` and fold the items into one OverlayActionMenu.
+ * stand alone in a corner pill. Where they share a pill with other actions, use
+ * `useCsvActionsItems` and fold the items into one OverlayActionMenu.
  */
 export function CsvActionsMenu(props: Props) {
   const triggerRef = useRef<HTMLSpanElement>(null)

@@ -7458,8 +7458,8 @@ export const Algorithm: AlgorithmType[] = [
                 text: "Red Flags",
                 type: "rf",
                 questionOptions: [
-                    { text: "Fever" },
-                    { text: "Pus/redness/swelling" }
+                    { text: "Fever", noteTag: { target: 'pe', findingKey: 'genAfebrile', abnormalKey: 'genFebrile' } },
+                    { text: "Pus/redness/swelling", noteTag: { target: 'hpi', label: 'pus, redness, or swelling at the suture site' } }
                 ],
                 answerOptions: []
             },
@@ -7540,9 +7540,9 @@ export const Algorithm: AlgorithmType[] = [
                 text: "Red Flags",
                 type: "rf",
                 questionOptions: [
-                    { text: "Airway Swelling" },
-                    { text: "Wheezing" },
-                    { text: "Anaphylaxis" }
+                    { text: "Airway Swelling", noteTag: { target: 'hpi', label: 'airway swelling' } },
+                    { text: "Wheezing", noteTag: { target: 'pe', findingKey: 'noWheezes', abnormalKey: 'wheezing' } },
+                    { text: "Anaphylaxis", noteTag: { target: 'hpi', label: 'anaphylaxis' } }
                 ],
                 answerOptions: []
             },
@@ -7551,10 +7551,10 @@ export const Algorithm: AlgorithmType[] = [
                 type: "initial",
                 questionOptions: [
                     { text: "Red Flags" },
-                    { text: "Blistering" },
-                    { text: "Oral involvement" },
-                    { text: "Petechiae" },
-                    { text: "Fever" }
+                    { text: "Blistering", noteTag: { target: 'hpi', label: 'blistering' } },
+                    { text: "Oral involvement", noteTag: { target: 'hpi', label: 'oral involvement' } },
+                    { text: "Petechiae", noteTag: { target: 'pe', findingKey: 'noRashes', abnormalKey: 'petechiae' } },
+                    { text: "Fever", noteTag: { target: 'pe', findingKey: 'genAfebrile', abnormalKey: 'genFebrile' } }
                 ],
                 answerOptions: [
                     {
@@ -7592,8 +7592,8 @@ export const Algorithm: AlgorithmType[] = [
                 text: "Do any of the following apply?",
                 type: "choice",
                 questionOptions: [
-                    { text: "No new medication within 2 weeks" },
-                    { text: "Itchy rash with other symptoms" }
+                    { text: "No new medication within 2 weeks", noteTag: { target: 'hpi', label: 'no new medication started within 2 weeks' } },
+                    { text: "Itchy rash with other symptoms", noteTag: { target: 'hpi', label: 'itchy rash with other symptoms' } }
                 ],
                 answerOptions: [
                     {
@@ -7672,10 +7672,10 @@ export const Algorithm: AlgorithmType[] = [
                 text: "Red Flags",
                 type: "rf",
                 questionOptions: [
-                    { text: "Trouble Breathing" },
-                    { text: "AMS, Drowsy" },
-                    { text: "High Risk Location" },
-                    { text: "Circumferential Burn" }
+                    { text: "Trouble Breathing", noteTag: { target: 'hpi', label: 'difficulty breathing' } },
+                    { text: "AMS, Drowsy", noteTag: { target: 'pe', findingKey: 'aoX4', abnormalKey: 'confused' } },
+                    { text: "High Risk Location", noteTag: { target: 'hpi', label: 'burn in a high-risk location' } },
+                    { text: "Circumferential Burn", noteTag: { target: 'pe', findingKey: 'skinIntact', abnormalKey: 'burn' } }
                 ],
                 answerOptions: []
             },
@@ -7684,10 +7684,10 @@ export const Algorithm: AlgorithmType[] = [
                 type: "initial",
                 questionOptions: [
                     { text: "Red flags present" },
-                    { text: "Deep 2nd and 3rd degree" },
-                    { text: "> 10% of body" },
-                    { text: "Trauma" },
-                    { text: "Severe pain" }
+                    { text: "Deep 2nd and 3rd degree", noteTag: { target: 'hpi', label: 'deep second- or third-degree burn' } },
+                    { text: "> 10% of body", noteTag: { target: 'hpi', label: 'burn over >10% of body surface area' } },
+                    { text: "Trauma", noteTag: { target: 'hpi', label: 'associated trauma' } },
+                    { text: "Severe pain", noteTag: { target: 'hpi', label: 'severe pain' } }
                 ],
                 answerOptions: [
                     {
@@ -7719,11 +7719,11 @@ export const Algorithm: AlgorithmType[] = [
                 text: "Do any of the following apply?",
                 type: "choice",
                 questionOptions: [
-                    { text: "Second degree burn" },
-                    { text: "Secondary infection" },
-                    { text: "Sunburn >25% of body" },
-                    { text: "Exhaustion" },
-                    { text: "Unable to perform duties" }
+                    { text: "Second degree burn", noteTag: { target: 'hpi', label: 'second-degree burn' } },
+                    { text: "Secondary infection", noteTag: { target: 'hpi', label: 'signs of secondary infection' } },
+                    { text: "Sunburn >25% of body", noteTag: { target: 'hpi', label: 'sunburn over >25% of body surface area' } },
+                    { text: "Exhaustion", noteTag: { target: 'hpi', label: 'exhaustion' } },
+                    { text: "Unable to perform duties", noteTag: { target: 'hpi', label: 'unable to perform duties' } }
                 ],
                 answerOptions: [
                     {
@@ -7772,8 +7772,8 @@ export const Algorithm: AlgorithmType[] = [
                 text: "Red Flags",
                 type: "rf",
                 questionOptions: [
-                    { text: "Fever/malaise" },
-                    { text: "Epidermal sloughing" }
+                    { text: "Fever/malaise", noteTag: [{ target: 'pe', findingKey: 'genAfebrile', abnormalKey: 'genFebrile' }, { target: 'hpi', label: 'malaise' }] },
+                    { text: "Epidermal sloughing", noteTag: { target: 'hpi', label: 'epidermal sloughing' } }
                 ],
                 answerOptions: []
             },
@@ -7782,10 +7782,10 @@ export const Algorithm: AlgorithmType[] = [
                 type: "initial",
                 questionOptions: [
                     { text: "Red flags" },
-                    { text: "Flu like symptoms" },
-                    { text: "Painful erythematous macules" },
-                    { text: "Trauma" },
-                    { text: "Exposure to new medications" }
+                    { text: "Flu like symptoms", noteTag: { target: 'hpi', label: 'flu-like symptoms' } },
+                    { text: "Painful erythematous macules", noteTag: { target: 'pe', findingKey: 'noRashes', abnormalKey: 'erythema' } },
+                    { text: "Trauma", noteTag: { target: 'hpi', label: 'trauma' } },
+                    { text: "Exposure to new medications", noteTag: { target: 'hpi', label: 'exposure to new medications' } }
                 ],
                 answerOptions: [
                     {
@@ -7818,8 +7818,8 @@ export const Algorithm: AlgorithmType[] = [
                 text: "Do any of the following apply?",
                 type: "choice",
                 questionOptions: [
-                    { text: "Large open blister" },
-                    { text: "Erythema or other signs of infection" }
+                    { text: "Large open blister", noteTag: { target: 'hpi', label: 'large open blister' } },
+                    { text: "Erythema or other signs of infection", noteTag: { target: 'pe', findingKey: 'noRashes', abnormalKey: 'erythema' } }
                 ],
                 answerOptions: [
                     {
@@ -7898,9 +7898,9 @@ export const Algorithm: AlgorithmType[] = [
                 type: "initial",
                 questionOptions: [
                     { text: "Red flags" },
-                    { text: "Diabetes mellitus" },
-                    { text: "Decreased peripheral sensation to light touch" },
-                    { text: "Lesion freely bleeds with paring" }
+                    { text: "Diabetes mellitus", noteTag: { target: 'hpi', label: 'diabetes mellitus' } },
+                    { text: "Decreased peripheral sensation to light touch", noteTag: { target: 'pe', findingKey: 'intactToLightTouch', abnormalKey: 'decreasedSensationSpecify' } },
+                    { text: "Lesion freely bleeds with paring", noteTag: { target: 'hpi', label: 'lesion freely bleeds with paring' } }
                 ],
                 answerOptions: [
                     {
@@ -7932,11 +7932,11 @@ export const Algorithm: AlgorithmType[] = [
                 text: "Do any of the following apply?",
                 type: "choice",
                 questionOptions: [
-                    { text: "Plantar wart" },
-                    { text: "Interfere with normal duty" },
-                    { text: "Bunion" },
-                    { text: "Mallet or hammer toe" },
-                    { text: "Decreased toe motion" }
+                    { text: "Plantar wart", noteTag: { target: 'hpi', label: 'plantar wart' } },
+                    { text: "Interfere with normal duty", noteTag: { target: 'hpi', label: 'interferes with normal duty' } },
+                    { text: "Bunion", noteTag: { target: 'hpi', label: 'bunion' } },
+                    { text: "Mallet or hammer toe", noteTag: { target: 'hpi', label: 'mallet or hammer toe' } },
+                    { text: "Decreased toe motion", noteTag: { target: 'pe', findingKey: 'normalRom', abnormalKey: 'limitedRom' } }
                 ],
                 answerOptions: [
                     {
@@ -7993,12 +7993,12 @@ export const Algorithm: AlgorithmType[] = [
                 text: "Do any of the following apply?",
                 type: "initial",
                 questionOptions: [
-                    { text: "Bleeding" },
-                    { text: "Sensitive area" },
-                    { text: "> 10 warts" },
-                    { text: "Upcoming mission limiting treatment" },
-                    { text: "Signs of infection or inflammation" },
-                    { text: "Treatment > 12 weeks" }
+                    { text: "Bleeding", noteTag: { target: 'hpi', label: 'bleeding' } },
+                    { text: "Sensitive area", noteTag: { target: 'hpi', label: 'wart in a sensitive area' } },
+                    { text: "> 10 warts", noteTag: { target: 'hpi', label: 'more than 10 warts' } },
+                    { text: "Upcoming mission limiting treatment", noteTag: { target: 'hpi', label: 'upcoming mission limiting treatment' } },
+                    { text: "Signs of infection or inflammation", noteTag: { target: 'hpi', label: 'signs of infection or inflammation around the wart' } },
+                    { text: "Treatment > 12 weeks", noteTag: { target: 'hpi', label: 'treatment exceeding 12 weeks' } }
                 ],
                 answerOptions: [
                     {
@@ -8025,10 +8025,10 @@ export const Algorithm: AlgorithmType[] = [
                 text: "Do any of the following apply?",
                 type: "choice",
                 questionOptions: [
-                    { text: "> 3 warts" },
-                    { text: "Treatment > 4 weeks" },
+                    { text: "> 3 warts", noteTag: { target: 'hpi', label: 'more than 3 warts' } },
+                    { text: "Treatment > 4 weeks", noteTag: { target: 'hpi', label: 'treatment exceeding 4 weeks' } },
                     { text: "Medic not trained on procedure" },
-                    { text: "Complication from prior treatment" }
+                    { text: "Complication from prior treatment", noteTag: { target: 'hpi', label: 'complication from prior treatment' } }
                 ],
                 answerOptions: [
                     {
@@ -8073,9 +8073,9 @@ export const Algorithm: AlgorithmType[] = [
                 text: "Red Flags",
                 type: "rf",
                 questionOptions: [
-                    { text: "Red Streaks up Foot" },
-                    { text: "Gangrene" },
-                    { text: "Black Eschar" }
+                    { text: "Red Streaks up Foot", noteTag: { target: 'hpi', label: 'red streaks up the foot' } },
+                    { text: "Gangrene", noteTag: { target: 'hpi', label: 'gangrene' } },
+                    { text: "Black Eschar", noteTag: { target: 'hpi', label: 'black eschar' } }
                 ],
                 answerOptions: []
             },
@@ -8090,12 +8090,12 @@ export const Algorithm: AlgorithmType[] = [
                 type: "initial",
                 questionOptions: [
                     { text: "Red flags present" },
-                    { text: "Cellulitis" },
-                    { text: "Immunocompromised" },
-                    { text: "Diabetic" },
-                    { text: "Severe infection" },
-                    { text: "Recurrent ingrown nail" },
-                    { text: "Severe pain, limping" }
+                    { text: "Cellulitis", noteTag: { target: 'pe', findingKey: 'noLesions', abnormalKey: 'cellulitis' } },
+                    { text: "Immunocompromised", noteTag: { target: 'hpi', label: 'immunocompromised' } },
+                    { text: "Diabetic", noteTag: { target: 'hpi', label: 'diabetic' } },
+                    { text: "Severe infection", noteTag: { target: 'hpi', label: 'severe infection' } },
+                    { text: "Recurrent ingrown nail", noteTag: { target: 'hpi', label: 'recurrent ingrown toenail' } },
+                    { text: "Severe pain, limping", noteTag: { target: 'hpi', label: 'severe pain and limping' } }
                 ],
                 answerOptions: [
                     {
@@ -8127,8 +8127,8 @@ export const Algorithm: AlgorithmType[] = [
                 text: "Do any of the following apply?",
                 type: "choice",
                 questionOptions: [
-                    { text: "Moderate infection" },
-                    { text: "Limitations to duty" }
+                    { text: "Moderate infection", noteTag: { target: 'hpi', label: 'moderate infection' } },
+                    { text: "Limitations to duty", noteTag: { target: 'hpi', label: 'limitations to duty' } }
                 ],
                 answerOptions: [
                     {
@@ -8175,7 +8175,7 @@ export const Algorithm: AlgorithmType[] = [
                 text: "Red Flags",
                 type: "rf",
                 questionOptions: [
-                    { text: "Altered mental status" },
+                    { text: "Altered mental status", noteTag: { target: 'pe', findingKey: 'aoX4', abnormalKey: 'confused' } },
                     { text: "Abnormal vital signs" }
                 ],
                 answerOptions: []
@@ -8184,9 +8184,9 @@ export const Algorithm: AlgorithmType[] = [
                 text: "Do any of the following apply?",
                 type: "initial",
                 questionOptions: [
-                    { text: "Patient appears confused, delirious, or unresponsive" },
-                    { text: "Dry skin" },
-                    { text: "Temperature > 103°F" }
+                    { text: "Patient appears confused, delirious, or unresponsive", noteTag: { target: 'pe', findingKey: 'aoX4', abnormalKey: 'confused' } },
+                    { text: "Dry skin", noteTag: { target: 'hpi', label: 'dry skin (absence of sweating)' } },
+                    { text: "Temperature > 103°F", noteTag: { target: 'pe', findingKey: 'genAfebrile', abnormalKey: 'genFebrile' } }
                 ],
                 answerOptions: [
                     {
@@ -8228,8 +8228,8 @@ export const Algorithm: AlgorithmType[] = [
                 text: "Do any of the following apply?",
                 type: "choice",
                 questionOptions: [
-                    { text: "Is the patient sweating profusely; do they complain of headache, weakness, dizziness, and/or nausea" },
-                    { text: "Is the patient complaining of painful cramps of the extremities and/or abdominal muscles and is their body temperature normal" }
+                    { text: "Is the patient sweating profusely; do they complain of headache, weakness, dizziness, and/or nausea", noteTag: [{ target: 'pe', findingKey: 'skinDry', abnormalKey: 'diaphoretic' }, { target: 'hpi', label: 'headache, weakness, dizziness, or nausea' }] },
+                    { text: "Is the patient complaining of painful cramps of the extremities and/or abdominal muscles and is their body temperature normal", noteTag: { target: 'hpi', label: 'painful muscle cramps of the extremities or abdomen with a normal body temperature' } }
                 ],
                 answerOptions: [
                     {
@@ -8273,11 +8273,11 @@ export const Algorithm: AlgorithmType[] = [
                 text: "Red Flags",
                 type: "rf",
                 questionOptions: [
-                    { text: "T< 96° F" },
-                    { text: "Altered Mental Status" },
+                    { text: "T< 96° F", noteTag: { target: 'hpi', label: 'core temperature below 96°F' } },
+                    { text: "Altered Mental Status", noteTag: { target: 'pe', findingKey: 'aoX4', abnormalKey: 'confused' } },
                     { text: "Abnormal Vital Signs" },
-                    { text: "Frostbite" },
-                    { text: "Trauma" }
+                    { text: "Frostbite", noteTag: { target: 'pe', findingKey: 'skinIntact', abnormalKey: 'frostbite' } },
+                    { text: "Trauma", noteTag: { target: 'hpi', label: 'trauma' } }
                 ],
                 answerOptions: []
             },
@@ -8292,8 +8292,8 @@ export const Algorithm: AlgorithmType[] = [
                 type: "initial",
                 questionOptions: [
                     { text: "Red Flags" },
-                    { text: "Neurologic Symptoms" },
-                    { text: "Infection" }
+                    { text: "Neurologic Symptoms", noteTag: { target: 'hpi', label: 'neurologic symptoms' } },
+                    { text: "Infection", noteTag: { target: 'hpi', label: 'signs of infection' } }
                 ],
                 answerOptions: [
                     {
@@ -8334,9 +8334,9 @@ export const Algorithm: AlgorithmType[] = [
                 text: "Do any of the following apply?",
                 type: "choice",
                 questionOptions: [
-                    { text: "H/O psych meds or narcotics" },
-                    { text: "H/O alcohol abuse" },
-                    { text: "Severe Pain" }
+                    { text: "H/O psych meds or narcotics", noteTag: { target: 'hpi', label: 'history of psychiatric medication or narcotic use' } },
+                    { text: "H/O alcohol abuse", noteTag: { target: 'hpi', label: 'history of alcohol abuse' } },
+                    { text: "Severe Pain", noteTag: { target: 'hpi', label: 'severe pain' } }
                 ],
                 answerOptions: [
                     {
@@ -8411,11 +8411,11 @@ export const Algorithm: AlgorithmType[] = [
                 text: "Red Flags",
                 type: "rf",
                 questionOptions: [
-                    { text: "Gangrene/Necrosis" },
-                    { text: "Hemorrhagic Blisters" },
-                    { text: "Hypothermia" },
-                    { text: "Frostbite" },
-                    { text: "Trauma" }
+                    { text: "Gangrene/Necrosis", noteTag: { target: 'hpi', label: 'gangrene or necrosis' } },
+                    { text: "Hemorrhagic Blisters", noteTag: { target: 'hpi', label: 'hemorrhagic blisters' } },
+                    { text: "Hypothermia", noteTag: { target: 'hpi', label: 'hypothermia' } },
+                    { text: "Frostbite", noteTag: { target: 'pe', findingKey: 'skinIntact', abnormalKey: 'frostbite' } },
+                    { text: "Trauma", noteTag: { target: 'hpi', label: 'trauma' } }
                 ],
                 answerOptions: []
             },
@@ -8430,8 +8430,8 @@ export const Algorithm: AlgorithmType[] = [
                 type: "initial",
                 questionOptions: [
                     { text: "Red Flags" },
-                    { text: "Severe pain" },
-                    { text: "Signs of infection" }
+                    { text: "Severe pain", noteTag: { target: 'hpi', label: 'severe pain' } },
+                    { text: "Signs of infection", noteTag: { target: 'hpi', label: 'signs of infection' } }
                 ],
                 answerOptions: [
                     {
@@ -8469,9 +8469,9 @@ export const Algorithm: AlgorithmType[] = [
                 text: "Do any of the following apply?",
                 type: "choice",
                 questionOptions: [
-                    { text: "Unable to perform duties" },
-                    { text: "Symptom > 1 week" },
-                    { text: "Pain not controlled" }
+                    { text: "Unable to perform duties", noteTag: { target: 'hpi', label: 'unable to perform duties' } },
+                    { text: "Symptom > 1 week", noteTag: { target: 'hpi', label: 'symptoms lasting longer than 1 week' } },
+                    { text: "Pain not controlled", noteTag: { target: 'hpi', label: 'pain not controlled' } }
                 ],
                 answerOptions: [
                     {
@@ -8527,9 +8527,9 @@ export const Algorithm: AlgorithmType[] = [
                 text: "Do any of the following apply?",
                 type: "initial",
                 questionOptions: [
-                    { text: "Diffuse symptoms" },
-                    { text: "Not exposed to dry wind" },
-                    { text: "Signs of infection" }
+                    { text: "Diffuse symptoms", noteTag: { target: 'hpi', label: 'diffuse symptoms' } },
+                    { text: "Not exposed to dry wind", noteTag: { target: 'hpi', label: 'not exposed to dry wind' } },
+                    { text: "Signs of infection", noteTag: { target: 'hpi', label: 'signs of infection' } }
                 ],
                 answerOptions: [
                     {
@@ -8579,10 +8579,10 @@ export const Algorithm: AlgorithmType[] = [
                 text: "Do any of the following apply?",
                 type: "initial",
                 questionOptions: [
-                    { text: "White or greyish-yellow color" },
-                    { text: "Hard, or waxy to touch" },
-                    { text: "Blisters, cyanosis after rewarming" },
-                    { text: "Hypothermia" }
+                    { text: "White or greyish-yellow color", noteTag: { target: 'hpi', label: 'white or grayish-yellow skin color' } },
+                    { text: "Hard, or waxy to touch", noteTag: { target: 'hpi', label: 'skin hard or waxy to the touch' } },
+                    { text: "Blisters, cyanosis after rewarming", noteTag: [{ target: 'pe', findingKey: 'appropriateColor', abnormalKey: 'cyanosisDerm' }, { target: 'hpi', label: 'blisters after rewarming' }] },
+                    { text: "Hypothermia", noteTag: { target: 'hpi', label: 'hypothermia' } }
                 ],
                 answerOptions: [
                     {
@@ -8638,8 +8638,8 @@ export const Algorithm: AlgorithmType[] = [
                 text: "Do any of the following apply?",
                 type: "initial",
                 questionOptions: [
-                    { text: "Secondary infection" },
-                    { text: "No nits or lice seen" }
+                    { text: "Secondary infection", noteTag: { target: 'hpi', label: 'signs of secondary infection' } },
+                    { text: "No nits or lice seen", noteTag: { target: 'hpi', label: 'no nits or lice seen on exam' } }
                 ],
                 answerOptions: [
                     {
@@ -8722,8 +8722,8 @@ export const Algorithm: AlgorithmType[] = [
                 text: "Red Flags",
                 type: "rf",
                 questionOptions: [
-                    { text: "Swelling of Lips or Tongue" },
-                    { text: "Trouble Breathing" },
+                    { text: "Swelling of Lips or Tongue", noteTag: { target: 'hpi', label: 'swelling of the lips or tongue' } },
+                    { text: "Trouble Breathing", noteTag: { target: 'hpi', label: 'difficulty breathing' } },
                     { text: "Abnormal Vital Signs" }
                 ],
                 answerOptions: []
@@ -8732,9 +8732,9 @@ export const Algorithm: AlgorithmType[] = [
                 text: "Do any of the following apply?",
                 type: "initial",
                 questionOptions: [
-                    { text: "Wheezing, SOB" },
-                    { text: "Hives, H/O allergy" },
-                    { text: "Poisonous insects" }
+                    { text: "Wheezing, SOB", noteTag: [{ target: 'pe', findingKey: 'noWheezes', abnormalKey: 'wheezing' }, { target: 'hpi', label: 'shortness of breath' }] },
+                    { text: "Hives, H/O allergy", noteTag: { target: 'hpi', label: 'hives or history of allergy' } },
+                    { text: "Poisonous insects", noteTag: { target: 'hpi', label: 'exposure to poisonous insects' } }
                 ],
                 answerOptions: [
                     {
@@ -8772,8 +8772,8 @@ export const Algorithm: AlgorithmType[] = [
                 text: "Do any of the following apply?",
                 type: "choice",
                 questionOptions: [
-                    { text: "No signs of bite" },
-                    { text: "Blister, ulcer, pain" }
+                    { text: "No signs of bite", noteTag: { target: 'hpi', label: 'no visible signs of a bite' } },
+                    { text: "Blister, ulcer, pain", noteTag: { target: 'hpi', label: 'blister, ulcer, or pain at the site' } }
                 ],
                 answerOptions: [
                     {
@@ -8817,8 +8817,8 @@ export const Algorithm: AlgorithmType[] = [
                 text: "Red Flags",
                 type: "rf",
                 questionOptions: [
-                    { text: "Known Infection" },
-                    { text: "High Risk Contact" }
+                    { text: "Known Infection", noteTag: { target: 'hpi', label: 'known infection in the source' } },
+                    { text: "High Risk Contact", noteTag: { target: 'hpi', label: 'high-risk contact' } }
                 ],
                 answerOptions: []
             },
@@ -8827,9 +8827,9 @@ export const Algorithm: AlgorithmType[] = [
                 type: "initial",
                 questionOptions: [
                     { text: "Red Flags" },
-                    { text: "High risk exposure" },
-                    { text: "Exposure with HIV" },
-                    { text: "In a lab" }
+                    { text: "High risk exposure", noteTag: { target: 'hpi', label: 'high-risk exposure' } },
+                    { text: "Exposure with HIV", noteTag: { target: 'hpi', label: 'exposure involving HIV' } },
+                    { text: "In a lab", noteTag: { target: 'hpi', label: 'exposure occurred in a laboratory' } }
                 ],
                 answerOptions: [
                     {
@@ -8873,8 +8873,8 @@ export const Algorithm: AlgorithmType[] = [
                 text: "Do any of the following apply?",
                 type: "choice",
                 questionOptions: [
-                    { text: ">7 days from exposure" },
-                    { text: "No risk exposure" }
+                    { text: ">7 days from exposure", noteTag: { target: 'hpi', label: 'more than 7 days since exposure' } },
+                    { text: "No risk exposure", noteTag: { target: 'hpi', label: 'no-risk exposure' } }
                 ],
                 answerOptions: [
                     {
@@ -8930,11 +8930,11 @@ export const Algorithm: AlgorithmType[] = [
                 text: "Red Flags",
                 type: "rf",
                 questionOptions: [
-                    { text: "Exposed Pulp" },
-                    { text: "Avulsed Tooth" },
-                    { text: "Severe Pain" },
-                    { text: "Trauma" },
-                    { text: "Chest Pain, SOB" }
+                    { text: "Exposed Pulp", noteTag: { target: 'hpi', label: 'exposed pulp' } },
+                    { text: "Avulsed Tooth", noteTag: { target: 'hpi', label: 'avulsed tooth' } },
+                    { text: "Severe Pain", noteTag: { target: 'hpi', label: 'severe pain' } },
+                    { text: "Trauma", noteTag: { target: 'hpi', label: 'trauma' } },
+                    { text: "Chest Pain, SOB", noteTag: { target: 'hpi', label: 'chest pain and shortness of breath' } }
                 ],
                 answerOptions: []
             },
@@ -8943,9 +8943,9 @@ export const Algorithm: AlgorithmType[] = [
                 type: "initial",
                 questionOptions: [
                     { text: "Red Flags" },
-                    { text: "Loose tooth" },
-                    { text: "Abscess/ infection" },
-                    { text: "Gingivitis, periodontitis" }
+                    { text: "Loose tooth", noteTag: { target: 'hpi', label: 'loose tooth' } },
+                    { text: "Abscess/ infection", noteTag: { target: 'hpi', label: 'dental abscess or infection' } },
+                    { text: "Gingivitis, periodontitis", noteTag: { target: 'hpi', label: 'gingivitis or periodontitis' } }
                 ],
                 answerOptions: [
                     {
@@ -8978,9 +8978,9 @@ export const Algorithm: AlgorithmType[] = [
                 text: "Do any of the following apply?",
                 type: "choice",
                 questionOptions: [
-                    { text: "Broken tooth" },
+                    { text: "Broken tooth", noteTag: { target: 'hpi', label: 'broken tooth' } },
                     { text: "Issue not below" },
-                    { text: "Jaw pain not from trauma" }
+                    { text: "Jaw pain not from trauma", noteTag: { target: 'hpi', label: 'jaw pain not from trauma' } }
                 ],
                 answerOptions: [
                     {
@@ -9039,8 +9039,8 @@ export const Algorithm: AlgorithmType[] = [
                 text: "Red Flags",
                 type: "rf",
                 questionOptions: [
-                    { text: "Diffuse" },
-                    { text: "Bloody Diarrhea" }
+                    { text: "Diffuse", noteTag: { target: 'hpi', label: 'diffuse lesions' } },
+                    { text: "Bloody Diarrhea", noteTag: { target: 'hpi', label: 'bloody diarrhea' } }
                 ],
                 answerOptions: []
             },
@@ -9055,11 +9055,11 @@ export const Algorithm: AlgorithmType[] = [
                 type: "initial",
                 questionOptions: [
                     { text: "Red Flags" },
-                    { text: "Painless" },
-                    { text: "Also located in groin" },
-                    { text: "H/O bloody diarrhea" },
-                    { text: "Diffuse rash" },
-                    { text: ">2 weeks" }
+                    { text: "Painless", noteTag: { target: 'hpi', label: 'painless lesion' } },
+                    { text: "Also located in groin", noteTag: { target: 'hpi', label: 'lesions also located in the groin' } },
+                    { text: "H/O bloody diarrhea", noteTag: { target: 'hpi', label: 'history of bloody diarrhea' } },
+                    { text: "Diffuse rash", noteTag: { target: 'hpi', label: 'diffuse rash' } },
+                    { text: ">2 weeks", noteTag: { target: 'hpi', label: 'lesions present more than 2 weeks' } }
                 ],
                 answerOptions: [
                     {
@@ -9091,8 +9091,8 @@ export const Algorithm: AlgorithmType[] = [
                 text: "Do any of the following apply?",
                 type: "choice",
                 questionOptions: [
-                    { text: "Cluster of ulcers" },
-                    { text: ">5mm ulcer" }
+                    { text: "Cluster of ulcers", noteTag: { target: 'pe', findingKey: 'noMassesOrLesions', abnormalKey: 'oralLesionUlcer' } },
+                    { text: ">5mm ulcer", noteTag: { target: 'hpi', label: 'oral ulcer larger than 5 mm' } }
                 ],
                 answerOptions: [
                     {
@@ -9190,7 +9190,7 @@ export const Algorithm: AlgorithmType[] = [
                 text: "Do any of the following apply?",
                 type: "choice",
                 questionOptions: [
-                    { text: "Acute condition that failed initial treatment" },
+                    { text: "Acute condition that failed initial treatment", noteTag: { target: 'hpi', label: 'acute condition that failed initial treatment' } },
                     { text: "Prescription" }
                 ],
                 answerOptions: [
@@ -9379,13 +9379,13 @@ export const Algorithm: AlgorithmType[] = [
                 text: "Do any of the following apply?",
                 type: "initial",
                 questionOptions: [
-                    { text: "Multiple body areas" },
-                    { text: "Unexplained weight loss" },
-                    { text: "Supraclavicular" },
-                    { text: "Posterior Cervical" },
-                    { text: "Not mobile" },
-                    { text: "Not soft" },
-                    { text: "No recent infection" }
+                    { text: "Multiple body areas", noteTag: { target: 'pe', findingKey: 'noGeneralizedLad', abnormalKey: 'generalizedLad' } },
+                    { text: "Unexplained weight loss", noteTag: { target: 'hpi', label: 'unexplained weight loss' } },
+                    { text: "Supraclavicular", noteTag: { target: 'hpi', label: 'supraclavicular lymphadenopathy' } },
+                    { text: "Posterior Cervical", noteTag: { target: 'pe', findingKey: 'noCervicalLad', abnormalKey: 'cervicalLadLymph' } },
+                    { text: "Not mobile", noteTag: { target: 'hpi', label: 'non-mobile (fixed) lymph node' } },
+                    { text: "Not soft", noteTag: { target: 'hpi', label: 'firm or rubbery lymph node' } },
+                    { text: "No recent infection", noteTag: { target: 'hpi', label: 'no recent infection' } }
                 ],
                 answerOptions: [
                     {
@@ -9446,9 +9446,9 @@ export const Algorithm: AlgorithmType[] = [
                 text: "Do any of the following apply?",
                 type: "initial",
                 questionOptions: [
-                    { text: "Greater than 150/90" },
-                    { text: "Lower than 90 systolic" },
-                    { text: "Difference > 15 mmHg between arms" }
+                    { text: "Greater than 150/90", noteTag: { target: 'hpi', label: 'blood pressure greater than 150/90' } },
+                    { text: "Lower than 90 systolic", noteTag: { target: 'hpi', label: 'systolic blood pressure below 90' } },
+                    { text: "Difference > 15 mmHg between arms", noteTag: { target: 'hpi', label: 'blood pressure difference greater than 15 mmHg between arms' } }
                 ],
                 answerOptions: [
                     {
@@ -9482,7 +9482,7 @@ export const Algorithm: AlgorithmType[] = [
                 type: "choice",
                 questionOptions: [
                     { text: "Last day of 5 day blood pressure check" },
-                    { text: "Orthostatic Hypotension" }
+                    { text: "Orthostatic Hypotension", noteTag: { target: 'hpi', label: 'orthostatic hypotension' } }
                 ],
                 answerOptions: [
                     {
@@ -9614,10 +9614,10 @@ export const Algorithm: AlgorithmType[] = [
                 text: "Do any of the following apply?",
                 type: "initial",
                 questionOptions: [
-                    { text: "Enrolled in ABCP" },
-                    { text: "BMI > 30 and not muscular build" },
-                    { text: "Struggling with weight for >6 months" },
-                    { text: "H/O failing Ht/Wt/Tape" }
+                    { text: "Enrolled in ABCP", noteTag: { target: 'hpi', label: 'enrolled in the Army Body Composition Program' } },
+                    { text: "BMI > 30 and not muscular build", noteTag: { target: 'hpi', label: 'BMI over 30 (non-muscular build)' } },
+                    { text: "Struggling with weight for >6 months", noteTag: { target: 'hpi', label: 'struggling with weight for more than 6 months' } },
+                    { text: "H/O failing Ht/Wt/Tape", noteTag: { target: 'hpi', label: 'history of failing height/weight/tape' } }
                 ],
                 answerOptions: [
                     {
@@ -9653,9 +9653,9 @@ export const Algorithm: AlgorithmType[] = [
                 text: "Do any of the following apply?",
                 type: "choice",
                 questionOptions: [
-                    { text: "New Issue" },
-                    { text: "BMI > or equal to 25" },
-                    { text: "Recent profile" }
+                    { text: "New Issue", noteTag: { target: 'hpi', label: 'new weight-control concern' } },
+                    { text: "BMI > or equal to 25", noteTag: { target: 'hpi', label: 'BMI 25 or greater' } },
+                    { text: "Recent profile", noteTag: { target: 'hpi', label: 'recent profile' } }
                 ],
                 answerOptions: [
                     {
@@ -9712,10 +9712,10 @@ export const Algorithm: AlgorithmType[] = [
                 text: "Do any of the following apply?",
                 type: "initial",
                 questionOptions: [
-                    { text: "Appears sick, AMS, uncomfortable" },
-                    { text: "HR > 100, RR > 20" },
-                    { text: "BP > 150/90" },
-                    { text: "Moderate - Severe pain" }
+                    { text: "Appears sick, AMS, uncomfortable", noteTag: [{ target: 'pe', findingKey: 'aoX4', abnormalKey: 'confused' }, { target: 'pe', findingKey: 'noAcuteDistress', abnormalKey: 'acuteDistress' }] },
+                    { text: "HR > 100, RR > 20", noteTag: [{ target: 'pe', findingKey: 'normalRate', abnormalKey: 'tachycardia' }, { target: 'pe', findingKey: 'nonLaboredRespirations', abnormalKey: 'tachypnea' }] },
+                    { text: "BP > 150/90", noteTag: { target: 'hpi', label: 'blood pressure greater than 150/90' } },
+                    { text: "Moderate - Severe pain", noteTag: { target: 'hpi', label: 'moderate to severe pain' } }
                 ],
                 answerOptions: [
                     {
@@ -9844,21 +9844,21 @@ export const Algorithm: AlgorithmType[] = [
                 text: "Red Flags",
                 type: "rf",
                 questionOptions: [
-                    { text: 'Abnormal Vital Signs/Fever > 101°F' },
-                    { text: 'Shortness of Breath' },
-                    { text: 'Cough with or without blood clots or frank blood' },
-                    { text: 'Stiff neck' },
-                    { text: 'Altered mental status' },
-                    { text: 'Cyanosis' },
-                    { text: 'Ancillary muscle use' },
-                    { text: 'SIRS criteria' },
-                    { text: 'Airway Swelling' },
-                    { text: 'Hives' },
-                    { text: 'heat injury' },
-                    { text: 'light sensitivity' },
-                    { text: 'pregnant' },
-                    { text: 'Seizure' },
-                    { text: 'Lightheaded' },
+                    { text: 'Abnormal Vital Signs/Fever > 101°F', noteTag: { target: 'hpi', label: 'abnormal vital signs or fever > 101°F' } },
+                    { text: 'Shortness of Breath', noteTag: { target: 'hpi', label: 'shortness of breath' } },
+                    { text: 'Cough with or without blood clots or frank blood', noteTag: { target: 'hpi', label: 'cough with or without hemoptysis' } },
+                    { text: 'Stiff neck', noteTag: { target: 'hpi', label: 'stiff neck' } },
+                    { text: 'Altered mental status', noteTag: { target: 'pe', findingKey: 'aoX4', abnormalKey: 'confused' } },
+                    { text: 'Cyanosis', noteTag: { target: 'pe', findingKey: 'appropriateColor', abnormalKey: 'cyanosisDerm' } },
+                    { text: 'Ancillary muscle use', noteTag: { target: 'pe', findingKey: 'noAccessoryMuscleUse', abnormalKey: 'accessoryMuscleUse' } },
+                    { text: 'SIRS criteria', noteTag: { target: 'hpi', label: 'meets SIRS criteria' } },
+                    { text: 'Airway Swelling', noteTag: { target: 'hpi', label: 'airway swelling' } },
+                    { text: 'Hives', noteTag: { target: 'hpi', label: 'hives' } },
+                    { text: 'heat injury', noteTag: { target: 'hpi', label: 'heat injury' } },
+                    { text: 'light sensitivity', noteTag: { target: 'hpi', label: 'light sensitivity (photophobia)' } },
+                    { text: 'pregnant', noteTag: { target: 'hpi', label: 'pregnant' } },
+                    { text: 'Seizure', noteTag: { target: 'hpi', label: 'seizure' } },
+                    { text: 'Lightheaded', noteTag: { target: 'hpi', label: 'lightheadedness' } },
                 ],
                 answerOptions: []
             },
@@ -9866,9 +9866,9 @@ export const Algorithm: AlgorithmType[] = [
                 text: "Do any of the following apply?",
                 type: "initial",
                 questionOptions: [
-                    { text: "Fever > 101°F " },
-                    { text: "Cough" },
-                    { text: "shortness of breath" },
+                    { text: "Fever > 101°F ", noteTag: { target: 'pe', findingKey: 'genAfebrile', abnormalKey: 'genFebrile' } },
+                    { text: "Cough", noteTag: { target: 'hpi', label: 'cough' } },
+                    { text: "shortness of breath", noteTag: { target: 'hpi', label: 'shortness of breath' } },
                 ],
                 answerOptions: [
                     {
@@ -9944,8 +9944,8 @@ export const Algorithm: AlgorithmType[] = [
                 text: "Do any of the following apply?",
                 type: "initial",
                 questionOptions: [
-                    { text: "Worsening on treatment" },
-                    { text: "Previously saw provider or AEM" }
+                    { text: "Worsening on treatment", noteTag: { target: 'hpi', label: 'worsening on treatment' } },
+                    { text: "Previously saw provider or AEM", noteTag: { target: 'hpi', label: 'previously seen by provider or AEM' } }
                 ],
                 answerOptions: [
                     {
@@ -10017,8 +10017,8 @@ export const Algorithm: AlgorithmType[] = [
                 type: "initial",
                 questionOptions: [
                     { text: "Screening dispositioned as provider now" },
-                    { text: "Condition worsening" },
-                    { text: "Not improving" }
+                    { text: "Condition worsening", noteTag: { target: 'hpi', label: 'condition worsening' } },
+                    { text: "Not improving", noteTag: { target: 'hpi', label: 'not improving' } }
                 ],
                 answerOptions: [
                     {

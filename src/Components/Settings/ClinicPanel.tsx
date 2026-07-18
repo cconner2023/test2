@@ -10,6 +10,8 @@ import {
   Copy,
   Share2,
   ArrowLeftRight,
+  MapPin,
+  X,
 } from 'lucide-react'
 import bwipjs from 'bwip-js'
 import { useAuth } from '../../Hooks/useAuth'
@@ -26,6 +28,8 @@ import {
   getClinicDetails,
   removeSoldierFromClinic,
   endLoanFromClinic,
+  listColocatedClinics,
+  type ColocatedClinic,
 } from '../../lib/supervisorService'
 import { getAssociatedClinicCode } from '../../lib/clinicAssociationService'
 // listLocations is an authenticated read of the canonical post taxonomy;
@@ -469,6 +473,8 @@ export function ClinicPanel({
     if (clinicId) {
       const d = await getClinicDetails(clinicId)
       setClinicAssociatedIds(d.associatedClinicIds)
+      // Drop the freshly-associated cluster from the co-located suggestions.
+      listColocatedClinics(clinicId).then((r) => setColocated(r.success ? r.clinics : []))
     }
     refreshMedics()
     closeAssocPopover()
@@ -700,6 +706,43 @@ export function ClinicPanel({
     })
   }, [nearbyClinicMap]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ─── Co-located clusters (same post, not yet associated) ──────────
+  // After a supervisor moves their cluster's location, surface the other
+  // clusters at that post as a non-blocking suggestion. Associating still
+  // goes through the invite-code exchange — co-location is discovery, not
+  // consent — so the banner just routes into that flow.
+  const [colocated, setColocated] = useState<ColocatedClinic[]>([])
+  const [colocatedDismissedLoc, setColocatedDismissedLoc] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!clinicId || !isSupervisorRole || !clinicLocationId) {
+      setColocated([])
+      return
+    }
+    let cancelled = false
+    // A dismissal is scoped to the location it was dismissed at, so a later
+    // move to a new post re-surfaces the banner.
+    try {
+      setColocatedDismissedLoc(localStorage.getItem(`beacon:colocatedDismiss:${clinicId}`))
+    } catch { /* storage unavailable (private mode) — treat as not dismissed */ }
+    listColocatedClinics(clinicId).then((r) => {
+      if (cancelled) return
+      setColocated(r.success ? r.clinics : [])
+    })
+    return () => { cancelled = true }
+  }, [clinicId, isSupervisorRole, clinicLocationId])
+
+  const dismissColocated = useCallback(() => {
+    if (!clinicId || !clinicLocationId) return
+    try {
+      localStorage.setItem(`beacon:colocatedDismiss:${clinicId}`, clinicLocationId)
+    } catch { /* ignore */ }
+    setColocatedDismissedLoc(clinicLocationId)
+  }, [clinicId, clinicLocationId])
+
+  const showColocatedBanner =
+    colocated.length > 0 && !!clinicLocationId && colocatedDismissedLoc !== clinicLocationId
+
   const memberCount = members.length
 
   return (
@@ -819,7 +862,44 @@ export function ClinicPanel({
         <section>
           <div className="pb-2 flex items-center gap-2">
             <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Associated</p>
+            {showColocatedBanner && <span className="w-1.5 h-1.5 rounded-full bg-themered" />}
           </div>
+          {showColocatedBanner && (
+            <div className="mb-2 rounded-xl bg-themeblue2/8 border border-themeblue2/20 px-3.5 py-3">
+              <div className="flex items-start gap-2.5">
+                <div className="w-7 h-7 rounded-full bg-themeblue2/12 flex items-center justify-center shrink-0 mt-0.5">
+                  <MapPin size={14} className="text-themeblue2" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[10pt] text-primary leading-snug">
+                    {colocated.length === 1 ? '1 cluster is' : `${colocated.length} clusters are`} also at{' '}
+                    <span className="font-medium">
+                      {selectedLocation?.display_name || clinicLocation || 'this location'}
+                    </span>
+                    .
+                  </p>
+                  <p className="text-[9pt] text-tertiary truncate mt-0.5">
+                    {colocated.map((c) => c.name).join(', ')}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={openAssocAddPopover}
+                    className="mt-2 text-[10pt] font-medium text-themeblue2 active:opacity-70 transition-opacity"
+                  >
+                    Exchange codes to associate
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  onClick={dismissColocated}
+                  aria-label="Dismiss"
+                  className="w-7 h-7 rounded-full flex items-center justify-center text-tertiary hover:bg-primary/5 active:scale-95 transition-all shrink-0"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            </div>
+          )}
           <div className="relative"><div className="rounded-xl bg-themewhite2 overflow-hidden">
             <div className="px-4 py-3">
               {nearbyClinicMap.length === 0 ? (

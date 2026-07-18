@@ -41,15 +41,15 @@ export const features = {
     hooks: ['useCalendarSync', 'useCalendarVault'],
   },
 
-  preCombatChecks: {
-    label: 'Checklists', // event to-do; standardized items seed from clinic Checklist templates
+  eventChecklists: {
+    label: 'Event Checklists', // per-event to-do list (event.subtasks); custom items only
     store: 'useCalendarStore', // subtasks live on calendar events (event.subtasks)
-    services: ['supervisorService'],
-    tables: ['clinics'], // templates stored in clinics.pre_combat_checks jsonb (legacy column name)
+    services: [],
+    tables: [], // no dedicated table — subtasks ride the calendar event payload
     idb: ['adtmc-calendar-events'], // subtask list + tick state ride the calendar event payload
-    components: 'Components/Calendar/', // EventTasksCard (event), PreCombatChecksSection (template CRUD)
-    drawer: null, // template CRUD lives in CalendarClinicEditor; add/seed/tick in EventForm + EventDetailPanel via EventTasksCard
-    hooks: ['useClinicPreCombatChecks'],
+    components: 'Components/Calendar/', // EventTasksCard (add/tick/remove in EventForm + EventDetailPanel)
+    drawer: null,
+    hooks: [],
   },
 
   mapOverlay: {

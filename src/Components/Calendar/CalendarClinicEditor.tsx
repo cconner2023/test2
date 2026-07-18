@@ -15,19 +15,15 @@ import { ActionPill } from '@/Components/primitives/ActionPill'
 import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
 import { ErrorPill } from '@/Components/primitives/ErrorPill'
 import { PreviewOverlay } from '../PreviewOverlay'
-import { PreCombatChecksSection } from './PreCombatChecksSection'
 import { CategoryColorSettings } from './CategoryColorSettings'
 
-// Which slice of clinic config this editor renders.
-//  - 'clinic'   → Checklists only (now surfaced via Settings → App Content →
-//                 Checklists, which renders PreCombatChecksSection directly)
-//  - 'calendar' → Huddle Tasks, Rooms, Appointment Types, Category Colors (CalendarDrawer settings)
-// Each section lives in exactly one surface so clinic management holds only
-// clinic concerns and calendar settings hold only calendar concerns.
+// Which slice of clinic config this editor renders. Only 'calendar' remains
+// (Huddle Tasks, Rooms, Appointment Types, Category Colors — CalendarDrawer
+// settings). The former 'clinic' variant rendered the standalone Checklists
+// template library, which was cut; the prop is kept for call-site stability.
 export type ClinicEditorVariant = 'clinic' | 'calendar'
 
-export function CalendarClinicEditor({ variant = 'clinic' }: { variant?: ClinicEditorVariant } = {}) {
-  const showClinic = variant === 'clinic'
+export function CalendarClinicEditor({ variant = 'calendar' }: { variant?: ClinicEditorVariant } = {}) {
   const showCalendar = variant === 'calendar'
   // Pivot on the supervisor toggle so editing huddle tasks / appointment types
   // targets the active clinic context (assigned by default, surrogate when toggled).
@@ -192,8 +188,6 @@ export function CalendarClinicEditor({ variant = 'clinic' }: { variant?: ClinicE
           <ErrorPill>{error}</ErrorPill>
         </div>
       )}
-
-      {showClinic && <PreCombatChecksSection />}
 
       {showCalendar && <section>
         <div className="pb-2">

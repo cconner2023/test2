@@ -375,25 +375,6 @@ export interface ClinicAppointmentType {
   sort_order: number
 }
 
-/**
- * Supervisor-authored clinic Checklist template (e.g. "Pre-Mission"). Surfaced
- * in the UI as a "Checklist"; stored on clinics.pre_combat_checks (jsonb) — the
- * column + RPC keep their legacy pre_combat_checks names. Its items seed an
- * event's subtasks (event.subtasks, source:'standardized'), snapshot-copied so
- * later template edits do not retro-mutate already-seeded events.
- */
-export type PCCItem =
-  | { id: string; kind: 'property_item';     ref: string; label_override?: string | null }
-  | { id: string; kind: 'property_location'; ref: string }
-  | { id: string; kind: 'task';              label: string }
-
-export interface ClinicPreCombatCheck {
-  id: string
-  name: string
-  sort_order: number
-  items: PCCItem[]
-}
-
 // SupervisorDrawer calls getClinicDetails for the home clinic AND every nearby/
 // associated clinic on each open (ClinicPanel + MapOverlayPanel repeat it), so a
 // single open fans out into N single-row clinics GETs, re-issued on every reopen.
@@ -480,6 +461,50 @@ export async function updateSupervisorClinicLocationId(
 }
 
 
+// ─── Co-located clusters (same canonical location, not yet associated) ──────
+
+export interface ColocatedClinic {
+  clinicId: string
+  name: string
+  uics: string[]
+  memberCount: number
+}
+
+/**
+ * Clusters that share this cluster's canonical location_id but are NOT already
+ * associated (nor the cluster itself). Powers the post-move "suggest a nearby
+ * cluster" banner. Read-only discovery — associating still goes through the
+ * invite-code exchange (co-location is not consent).
+ */
+export async function listColocatedClinics(
+  clinicId: string,
+): Promise<ServiceResult<{ clinics: ColocatedClinic[] }>> {
+  try {
+    const { data, error } = await supabase.rpc('supervisor_list_colocated_clinics', {
+      p_clinic_id: clinicId,
+    })
+    if (error) return fail(error.message)
+    const rows = (data ?? []) as {
+      clinic_id: string
+      name: string
+      uics: string[] | null
+      member_count: number | null
+    }[]
+    return succeed({
+      clinics: rows.map((r) => ({
+        clinicId: r.clinic_id,
+        name: r.name,
+        uics: r.uics ?? [],
+        memberCount: r.member_count ?? 0,
+      })),
+    })
+  } catch (error) {
+    logger.error('Failed to list co-located clusters:', error)
+    return fail(getErrorMessage(error))
+  }
+}
+
+
 // ─── Update Clinic Huddle Tasks (dedicated RPC) ────────────────────────────
 
 export async function updateSupervisorClinicHuddleTasks(
@@ -496,25 +521,6 @@ export async function updateSupervisorClinicHuddleTasks(
     return succeed()
   } catch (error) {
     logger.error('Failed to update clinic huddle tasks:', error)
-    return fail(getErrorMessage(error))
-  }
-}
-
-// ─── Update Clinic Pre-Combat Checks (dedicated RPC) ──────────────────────
-
-export async function updateSupervisorClinicPreCombatChecks(
-  clinicId: string,
-  pcc: ClinicPreCombatCheck[],
-): Promise<ServiceResult> {
-  try {
-    const { error } = await supabase.rpc('supervisor_update_clinic_pre_combat_checks', {
-      p_clinic_id: clinicId,
-      p_pcc: pcc,
-    })
-    if (error) return fail(error.message)
-    return succeed()
-  } catch (error) {
-    logger.error('Failed to update clinic pre-combat checks:', error)
     return fail(getErrorMessage(error))
   }
 }

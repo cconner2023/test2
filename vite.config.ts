@@ -8,7 +8,7 @@ import { createHash } from 'crypto'
 import { resolve } from 'path'
 import { hudSplashMarkup } from './src/lib/hudGeometry'
 
-const APP_VERSION = '2.7.1'
+const APP_VERSION = '2.7.2'
 const BUILD_ID = 'A1'
 
 export default defineConfig({

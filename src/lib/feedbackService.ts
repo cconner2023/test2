@@ -5,6 +5,7 @@ import { fireNotification } from './notifyDispatcher'
 import { fromSupabase, succeed, fail, type ServiceResult } from './result'
 import { getErrorMessage } from '../Utilities/errorUtils'
 import { deltaRead, revalidateDeltaCache, localStorageBase, type DeltaCacheConfig } from './deltaCache'
+import { uploadEncryptedFeedbackImage, deleteFeedbackImages, type FeedbackAttachment } from './feedbackAttachmentService'
 
 const logger = createLogger('FeedbackService')
 
@@ -14,6 +15,8 @@ export interface FeedbackSubmission {
   most_useful_feature?: string | null
   desired_feature?: string | null
   needs_improvement?: string | null
+  /** JPEG blobs to encrypt + attach. Auth users only (bucket insert needs auth). */
+  imageBlobs?: Blob[]
 }
 
 export interface FeedbackRow {
@@ -25,6 +28,7 @@ export interface FeedbackRow {
   most_useful_feature: string | null
   desired_feature: string | null
   needs_improvement: string | null
+  attachments: FeedbackAttachment[] | null
   created_at: string
 }
 
@@ -87,6 +91,20 @@ export async function submitFeedback(
       display_name = profileResult.ok ? profileResult.data.display_name : null
     }
 
+    // Encrypt + upload any images first (auth only — the bucket rejects anon
+    // inserts). A single failed upload aborts the whole submission so the row
+    // never references a missing blob.
+    let attachments: FeedbackAttachment[] | null = null
+    if (user_id && data.imageBlobs?.length) {
+      const uploaded: FeedbackAttachment[] = []
+      for (const blob of data.imageBlobs) {
+        const res = await uploadEncryptedFeedbackImage(user_id, blob)
+        if (!res.ok) return fail(res.error)
+        uploaded.push(res.data)
+      }
+      attachments = uploaded
+    }
+
     const { error: insertError } = await supabase.from('feedback').insert({
       user_id,
       display_name,
@@ -95,6 +113,7 @@ export async function submitFeedback(
       most_useful_feature: data.most_useful_feature?.trim() || null,
       desired_feature: data.desired_feature?.trim() || null,
       needs_improvement: data.needs_improvement?.trim() || null,
+      attachments,
     })
 
     if (insertError) return fail(insertError.message)
@@ -114,9 +133,19 @@ export async function submitFeedback(
 
 /**
  * Delete a feedback row. Dev-only via RLS.
+ * Also purges any encrypted image blobs from storage (best-effort, so a
+ * storage failure never blocks the row delete). Pass the row's attachments so
+ * we know which blobs to drop; the soft-deleted row keeps its now-dangling
+ * paths but is filtered out of the list, so nothing tries to decrypt them.
  */
-export async function deleteFeedback(id: string): Promise<ServiceResult> {
+export async function deleteFeedback(
+  id: string,
+  attachments?: FeedbackAttachment[] | null,
+): Promise<ServiceResult> {
   try {
+    if (attachments?.length) {
+      await deleteFeedbackImages(attachments.map((a) => a.path))
+    }
     // Soft-delete: stamp archived_at so the tombstone rides the updated_at delta
     // (the BEFORE UPDATE trigger bumps updated_at). Dev-gated by feedback_update_dev RLS.
     const { error } = await supabase

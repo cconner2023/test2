@@ -19,7 +19,6 @@ import { useAuth } from './useAuth'
 import type {
   ClinicAppointmentType,
   ClinicHuddleTask,
-  ClinicPreCombatCheck,
 } from '../lib/supervisorService'
 import type { CategoryColorMap } from '../Types/CalendarTypes'
 
@@ -28,7 +27,6 @@ export interface ClinicConfig {
   appointmentTypes: ClinicAppointmentType[]
   huddleTasks: ClinicHuddleTask[]
   categoryColors: CategoryColorMap
-  preCombatChecks: ClinicPreCombatCheck[]
 }
 
 // Stable empty snapshot — shared reference so "no clinic" renders never churn
@@ -38,11 +36,10 @@ const EMPTY: ClinicConfig = {
   appointmentTypes: [],
   huddleTasks: [],
   categoryColors: {},
-  preCombatChecks: [],
 }
 
 const CLINIC_CONFIG_COLUMNS =
-  'name, appointment_types, huddle_tasks, calendar_category_colors, pre_combat_checks'
+  'name, appointment_types, huddle_tasks, calendar_category_colors'
 
 // Resolved snapshots + in-flight promises, both keyed `${clinicId}::${gen}`.
 // One round-trip per (clinic, invalidation generation), shared across hooks.
@@ -65,8 +62,8 @@ function subscribePatch(clinicId: string, fn: (cfg: ClinicConfig) => void): () =
 /**
  * Optimistically apply a known-good clinic-config change WITHOUT a refetch.
  *
- * The clinic-config write RPCs (rooms / huddle tasks / appointment types /
- * pre-combat checks) are blind column replaces, so after a successful write the
+ * The clinic-config write RPCs (rooms / huddle tasks / appointment types) are
+ * blind column replaces, so after a successful write the
  * server value === exactly what we sent. Calling `invalidate('clinics')` would
  * bump the global generation and force EVERY clinic reader (ClinicPanel,
  * category colors, useClinicConfig) to GET /clinics again — wasted egress for a
@@ -105,7 +102,6 @@ function fetchClinicConfig(clinicId: string, key: string): Promise<ClinicConfig>
         appointmentTypes: (data.appointment_types as ClinicAppointmentType[]) ?? [],
         huddleTasks: (data.huddle_tasks as ClinicHuddleTask[]) ?? [],
         categoryColors: (data.calendar_category_colors as CategoryColorMap) ?? {},
-        preCombatChecks: (data.pre_combat_checks as ClinicPreCombatCheck[]) ?? [],
       }
       snapshots.set(key, cfg)
       // Bound the map: drop older generations for this clinic.

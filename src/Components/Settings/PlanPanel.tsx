@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
-import { Check, X, User, Building2 } from 'lucide-react';
+import { Check, X, User, Building2, Plus } from 'lucide-react';
 import { useUserProfile } from '../../Hooks/useUserProfile';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useEditableClinicContent } from '../../Hooks/useEditableClinicContent';
@@ -149,8 +149,16 @@ export const PlanPanel = () => {
             return { ...os, presets: nextPresets };
         });
 
-    const addTag = useCallback((scope: Scope, key: PlanBlockKey, tag: string) => {
-        mutateTags(scope, key, (cur) => cur.includes(tag) ? cur : [...cur, tag]);
+    // Batch add — appends every novel tag in one mutateTags pass (one write /
+    // one sync), skipping blanks, in-batch dupes, and any already present.
+    const addTags = useCallback((scope: Scope, key: PlanBlockKey, tags: string[]) => {
+        const clean = [...new Set(tags.map(t => t.trim()).filter(Boolean))];
+        if (clean.length === 0) return;
+        mutateTags(scope, key, (cur) => {
+            const have = new Set(cur);
+            const add = clean.filter(t => !have.has(t));
+            return add.length > 0 ? [...cur, ...add] : cur;
+        });
     }, [mutateTags]);
 
     const renameTag = useCallback((scope: Scope, key: PlanBlockKey, original: string, next: string) => {
@@ -171,6 +179,50 @@ export const PlanPanel = () => {
             writePersonal({ planOrderSets: cascadeDeleteFromSets(planOrderSets, key, tag) });
         }
     }, [mutateTags, clinicPlanOrderSets, planOrderSets, writeClinic, writePersonal]);
+
+    // Batch delete — resolve each tag's scope, then commit ONE write per scope
+    // (tags + instructions + order-set cascade folded together) instead of the
+    // 2·N writes/syncs a per-item loop would fire.
+    const deleteTags = useCallback((items: Array<{ key: PlanBlockKey; tag: string }>) => {
+        if (items.length === 0) return;
+        const personalByKey = new Map<PlanBlockKey, Set<string>>();
+        const clinicByKey = new Map<PlanBlockKey, Set<string>>();
+        for (const { key, tag } of items) {
+            const isClinic = clinicTagSets[key]?.has(tag) ?? false;
+            const bucket = isClinic ? clinicByKey : personalByKey;
+            (bucket.get(key) ?? bucket.set(key, new Set()).get(key)!).add(tag);
+        }
+
+        const commit = (
+            byKey: Map<PlanBlockKey, Set<string>>,
+            baseOrderTags: PlanOrderTags,
+            baseInstr: string[],
+            baseSets: PlanOrderSet[],
+            write: (u: { planOrderTags?: PlanOrderTags; planInstructionTags?: string[]; planOrderSets?: PlanOrderSet[] }) => void,
+        ) => {
+            if (byKey.size === 0) return;
+            let nextOrderTags = baseOrderTags;
+            let nextInstr = baseInstr;
+            let sets = baseSets;
+            let touchedOrderTags = false;
+            for (const [key, tags] of byKey) {
+                if (key === 'instructions') {
+                    nextInstr = nextInstr.filter(t => !tags.has(t));
+                } else {
+                    nextOrderTags = { ...nextOrderTags, [key]: (nextOrderTags[key] ?? []).filter(t => !tags.has(t)) };
+                    touchedOrderTags = true;
+                }
+                for (const tag of tags) sets = cascadeDeleteFromSets(sets, key, tag);
+            }
+            const updates: { planOrderTags?: PlanOrderTags; planInstructionTags?: string[]; planOrderSets?: PlanOrderSet[] } = { planOrderSets: sets };
+            if (touchedOrderTags) updates.planOrderTags = nextOrderTags;
+            if (byKey.has('instructions')) updates.planInstructionTags = nextInstr;
+            write(updates);
+        };
+
+        commit(personalByKey, planOrderTags, planInstructionTags, planOrderSets, writePersonal);
+        commit(clinicByKey, clinicPlanOrderTags ?? EMPTY_TAGS, clinicPlanInstructionTags ?? [], clinicPlanOrderSets ?? [], writeClinic);
+    }, [clinicTagSets, planOrderTags, planInstructionTags, planOrderSets, clinicPlanOrderTags, clinicPlanInstructionTags, clinicPlanOrderSets, writePersonal, writeClinic]);
 
     const upsertOrderSet = useCallback((scope: Scope, set: PlanOrderSet) => {
         if (scope === 'clinic') {
@@ -256,6 +308,7 @@ export const PlanPanel = () => {
                         onTapNew={(anchor) => setTagPopover({ mode: 'new', anchor: anchor.getBoundingClientRect() })}
                         onShareItem={(key, tag) => transfer.share(tagToData(key, tag), tag)}
                         onDeleteItem={(key, tag) => deleteTag((clinicTagSets[key]?.has(tag) ?? false) ? 'clinic' : 'personal', key, tag)}
+                        onDeleteMany={deleteTags}
                     />
             </div>
 
@@ -264,7 +317,7 @@ export const PlanPanel = () => {
                 onClose={() => setTagPopover(null)}
                 isSupervisorRole={!!isSupervisorRole}
                 hasClinic={!!clinicId}
-                onSubmitNew={(scope, key, tag) => { addTag(scope, key, tag); setTagPopover(null); }}
+                onSubmitMany={(scope, key, tags) => { addTags(scope, key, tags); setTagPopover(null); }}
                 onRename={(scope, key, original, next) => { renameTag(scope, key, original, next); setTagPopover(null); }}
             />
 
@@ -293,45 +346,66 @@ function tagToData(key: PlanBlockKey, tag: string): { planOrderTags?: PlanOrderT
 
 // ── Tag edit / new popover ─────────────────────────────────────────
 
-function TagEditPopover({ state, onClose, isSupervisorRole, hasClinic, onSubmitNew, onRename }: {
+function TagEditPopover({ state, onClose, isSupervisorRole, hasClinic, onSubmitMany, onRename }: {
     state: TagPopover | null;
     onClose: () => void;
     isSupervisorRole: boolean;
     hasClinic: boolean;
-    onSubmitNew: (scope: Scope, key: PlanBlockKey, tag: string) => void;
+    onSubmitMany: (scope: Scope, key: PlanBlockKey, tags: string[]) => void;
     onRename: (scope: Scope, key: PlanBlockKey, original: string, next: string) => void;
 }) {
-    const [name, setName] = useState('');
+    // New mode builds an array (one row per tag); edit mode is a single row.
+    const [values, setValues] = useState<string[]>(['']);
     const [category, setCategory] = useState<PlanBlockKey>('meds');
     const [scope, setScope] = useState<Scope>('personal');
+    const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+    const focusIdxRef = useRef<number | null>(null);
     const supervisorScopeAvailable = isSupervisorRole && hasClinic;
 
     useEffect(() => {
         if (!state) return;
         if (state.mode === 'edit') {
-            setName(state.original);
+            setValues([state.original]);
             setCategory(state.key);
             setScope(state.isClinic ? 'clinic' : 'personal');
         } else {
-            setName('');
+            setValues(['']);
             setCategory('meds');
             setScope('personal');
         }
     }, [state]);
 
-    const trimmed = name.trim();
+    // Focus a freshly-appended row once it renders.
+    useEffect(() => {
+        const idx = focusIdxRef.current;
+        if (idx == null) return;
+        focusIdxRef.current = null;
+        requestAnimationFrame(() => inputRefs.current[idx]?.focus());
+    }, [values.length]);
+
     const isOpen = !!state;
     const isEdit = state?.mode === 'edit';
-    const canSave = !!trimmed && (!isEdit || trimmed !== (state as Extract<TagPopover, { mode: 'edit' }>).original);
+    const original = isEdit ? (state as Extract<TagPopover, { mode: 'edit' }>).original : '';
+
+    // Trimmed, de-duped, blank-free — the array Save commits.
+    const cleaned = useMemo(() => [...new Set(values.map(v => v.trim()).filter(Boolean))], [values]);
+    const lastFilled = values[values.length - 1]?.trim().length > 0;
+    const canSave = isEdit
+        ? (!!cleaned[0] && cleaned[0] !== original)
+        : cleaned.length > 0;
+
+    const setValueAt = (i: number, v: string) =>
+        setValues(prev => prev.map((x, idx) => (idx === i ? v : x)));
+    const addRow = () => setValues(prev => { focusIdxRef.current = prev.length; return [...prev, '']; });
+    const removeRow = (i: number) =>
+        setValues(prev => (prev.length <= 1 ? prev : prev.filter((_, idx) => idx !== i)));
 
     const handleSave = () => {
-        if (!state) return;
+        if (!state || !canSave) return;
         if (state.mode === 'edit') {
-            if (!trimmed || trimmed === state.original) return;
-            onRename(scope, state.key, state.original, trimmed);
+            onRename(scope, state.key, state.original, cleaned[0]);
         } else {
-            if (!trimmed) return;
-            onSubmitNew(scope, category, trimmed);
+            onSubmitMany(scope, category, cleaned);
         }
     };
 
@@ -380,6 +454,14 @@ function TagEditPopover({ state, onClose, isSupervisorRole, hasClinic, onSubmitN
             title={editTitle}
             maxWidth={360}
             headerActions={<OverlayHeaderMenu items={modifierItems} />}
+            // Left footer — "Add additional" appends a shapeable row for the next
+            // tag. Rendered only once the current last row has content (no dimmed
+            // dead-end, no stacked blanks); the array grows one non-empty row at a time.
+            footer={!isEdit && lastFilled ? (
+                <ActionPill>
+                    <ActionButton icon={Plus} label="Add additional" onClick={addRow} />
+                </ActionPill>
+            ) : undefined}
             rightFooter={
                 <ActionPill>
                     <ActionButton
@@ -391,22 +473,58 @@ function TagEditPopover({ state, onClose, isSupervisorRole, hasClinic, onSubmitN
                 </ActionPill>
             }
         >
-            <div className="flex items-center gap-2 px-3 py-2">
-                {isEdit && editMeta && (
-                    <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${editMeta.bg}`}>
-                        <editMeta.icon size={14} className={editMeta.color} />
-                    </div>
-                )}
-                <input
-                    autoFocus
-                    type="text"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleSave(); } }}
-                    placeholder={placeholder}
-                    className="flex-1 bg-transparent text-primary placeholder:text-tertiary focus:outline-none text-sm min-w-0"
-                />
-            </div>
+            {isEdit ? (
+                <div className="flex items-center gap-2 px-3 py-2">
+                    {editMeta && (
+                        <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${editMeta.bg}`}>
+                            <editMeta.icon size={14} className={editMeta.color} />
+                        </div>
+                    )}
+                    <input
+                        autoFocus
+                        type="text"
+                        value={values[0] ?? ''}
+                        onChange={(e) => setValueAt(0, e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleSave(); } }}
+                        placeholder={placeholder}
+                        className="flex-1 bg-transparent text-primary placeholder:text-tertiary focus:outline-none text-sm min-w-0"
+                    />
+                </div>
+            ) : (
+                <div className="py-1">
+                    {values.map((val, i) => (
+                        <div key={i} className="flex items-center gap-2 px-3 py-1.5">
+                            <input
+                                autoFocus={i === 0}
+                                ref={(el) => { inputRefs.current[i] = el; }}
+                                type="text"
+                                value={val}
+                                onChange={(e) => setValueAt(i, e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (e.key !== 'Enter') return;
+                                    e.preventDefault();
+                                    // Enter builds the list: a filled last row spawns the
+                                    // next; otherwise it commits.
+                                    if (i === values.length - 1 && val.trim()) addRow();
+                                    else handleSave();
+                                }}
+                                placeholder={placeholder}
+                                className="flex-1 bg-transparent text-primary placeholder:text-tertiary focus:outline-none text-sm min-w-0"
+                            />
+                            {values.length > 1 && (
+                                <button
+                                    type="button"
+                                    onClick={() => removeRow(i)}
+                                    className="shrink-0 p-1 text-tertiary active:text-themeredred transition-colors"
+                                    aria-label="Remove"
+                                >
+                                    <X size={12} />
+                                </button>
+                            )}
+                        </div>
+                    ))}
+                </div>
+            )}
         </PreviewOverlay>
     );
 }

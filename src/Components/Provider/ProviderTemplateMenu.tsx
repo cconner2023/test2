@@ -7,7 +7,7 @@ import { exportProviderTemplatesCSV } from '../../Utilities/noteBlocksCSV'
 import type { ProviderNoteTemplate, PlanOrderSet } from '../../Data/User'
 
 /**
- * Template actions menu — New · Export CSV · Import CSV · Download CSV template.
+ * Template actions menu — New · Export CSV · Import CSV.
  * One trigger, two skins: a settings gear beside the desktop rail search, or an
  * ellipsis in the mobile Templates sheet header (per the same actions). Replaces
  * the bare circular "+" so New sits alongside the CSV transfer actions in a single

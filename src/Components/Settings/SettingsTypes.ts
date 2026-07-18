@@ -30,7 +30,6 @@ export const PANEL = {
     OVERVIEW_WIDGETS: 36,
     STORAGE: 37,
     FEATURE_VOTES: 38,
-    CHECKLISTS: 39,
     /** About → User Guide. Opens the top-level UserGuideDrawer, not a Settings sub-panel. */
     USER_GUIDE: 40,
 } as const;
@@ -60,7 +59,6 @@ export const PANEL_TARGET: Partial<Record<PanelId, string>> = {
     [PANEL.TOGGLE_THEME]: 'theme-picker',
     [PANEL.STORAGE]: 'storage',
     [PANEL.FEATURE_VOTES]: 'feature-votes',
-    [PANEL.CHECKLISTS]: 'checklists',
 };
 
 export type SettingsItem =

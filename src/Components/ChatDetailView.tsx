@@ -413,11 +413,19 @@ export function ChatDetailView({
   // Availability logic
   const unavailableParticipants = participants.filter(p => !p.available)
   const allUnavailable = participants.length > 0 && unavailableParticipants.length === participants.length
-  const someUnavailable = unavailableParticipants.length > 0 && !allUnavailable
+
+  // Fully blocking the composer is only correct for 1:1 chats, where an
+  // unavailable peer means the message has literally nowhere to go. In a GROUP
+  // we never block: the send skips members whose vault isn't provisioned yet and
+  // still delivers to everyone reachable, so keep the composer live and only warn.
+  const blockOnUnavailable = allUnavailable && !isSelfChat && !conversationIsGroup
+  // Show the warning banner whenever anyone is unreachable but we're still able
+  // to send (i.e. not fully blocked) — covers "some" in 1:1 and "some or all" in groups.
+  const showUnavailableBanner = unavailableParticipants.length > 0 && !blockOnUnavailable
 
   const inputDisabled = sending
     || !signalReady
-    || (allUnavailable && !isSelfChat)
+    || blockOnUnavailable
 
   const canUploadImage = !hideImageUpload && (!requestFlow || requestFlow.status === 'accepted' || requestFlow.status === 'none' || !!isSelfChat)
 
@@ -431,7 +439,7 @@ export function ChatDetailView({
     if (requestFlow?.status === 'sent') {
       return `Waiting for ${requestFlow.peerName ?? 'this user'} to accept your request`
     }
-    if (allUnavailable && !isSelfChat) {
+    if (blockOnUnavailable) {
       if (unavailableParticipants.length === 1 && participants.length === 1) {
         const p = unavailableParticipants[0]
         const name = requestFlow?.peerName ?? p.displayName
@@ -483,7 +491,7 @@ export function ChatDetailView({
             nothing at the top edge (no hard CSS line) without masking the
             composer content above it. Desktop renders a plain flex child. */}
         <GlassBand edge="bottom" className="inset-0 md:hidden" />
-        {someUnavailable && <UnavailableBanner participants={participants} />}
+        {showUnavailableBanner && <UnavailableBanner participants={participants} />}
 
         {replyingTo && !activeThreadId && (
           <div className="px-4 pt-2 flex items-center gap-2">

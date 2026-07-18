@@ -789,6 +789,7 @@ export type Database = {
       feedback: {
         Row: {
           archived_at: string | null
+          attachments: Json | null
           comments: string | null
           created_at: string
           desired_feature: string | null
@@ -802,6 +803,7 @@ export type Database = {
         }
         Insert: {
           archived_at?: string | null
+          attachments?: Json | null
           comments?: string | null
           created_at?: string
           desired_feature?: string | null
@@ -815,6 +817,7 @@ export type Database = {
         }
         Update: {
           archived_at?: string | null
+          attachments?: Json | null
           comments?: string | null
           created_at?: string
           desired_feature?: string | null
@@ -2599,6 +2602,15 @@ export type Database = {
       supervisor_list_clinic_members: {
         Args: { p_clinic_id: string }
         Returns: Json
+      }
+      supervisor_list_colocated_clinics: {
+        Args: { p_clinic_id: string }
+        Returns: {
+          clinic_id: string
+          name: string
+          uics: string[]
+          member_count: number
+        }[]
       }
       supervisor_loan_user: {
         Args: { p_target_clinic_code: string; p_user_id: string }

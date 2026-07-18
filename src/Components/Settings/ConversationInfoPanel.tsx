@@ -1,14 +1,16 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
-import { X, UserPlus, UserMinus, LogOut, Pencil, Check, Mail, Hash, Send, ShieldCheck, ShieldOff, Trash2, Image as ImageIcon, Mic, ChevronRight, ChevronLeft } from 'lucide-react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { X, LogOut, Plus, Star, Pencil, Check, UserPlus, Trash2, Image as ImageIcon, Mic, ChevronRight } from 'lucide-react'
 import { UserAvatar } from './UserAvatar'
-import { PreviewOverlay } from '../PreviewOverlay'
-import { Sheet } from '@/Components/primitives/Sheet'
+import { getDisplayName } from '../../Utilities/nameUtils'
+import { OverlayStack, type StackNav } from '@/Components/primitives/OverlayStack'
+import { SheetStack } from '@/Components/primitives/SheetStack'
+import type { StackScreen } from '@/Components/stackNav'
 import { PillButton } from '@/Components/primitives/HeaderPill'
+import { ActionPill } from '@/Components/primitives/ActionPill'
+import { ActionButton } from '@/Components/primitives/ActionButton'
 import { useIsMobile } from '../../Hooks/useIsMobile'
 import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
-import { supabase } from '../../lib/supabase'
-import { useMessagingStore } from '../../stores/useMessagingStore'
-import { fetchProfileById } from '../../lib/peerLookup'
+import { useOffRosterAdd } from '../Messages/useOffRosterAdd'
 import { relativeShort } from '../../Utilities/conversationActivity'
 import type { GroupInfo, GroupMember } from '../../lib/signal/groupTypes'
 import type { ClinicMedic } from '../../Types/SupervisorTestTypes'
@@ -51,7 +53,6 @@ interface ConversationInfoPanelProps {
   fetchMembers?: (groupId: string) => Promise<GroupMember[]>
 }
 
-type MediaView = 'root' | 'photos' | 'voice'
 
 function getMemberName(member: GroupMember): string {
   const parts: string[] = []
@@ -116,23 +117,39 @@ export function ConversationInfoPanel({
   fetchMembers,
 }: ConversationInfoPanelProps) {
   const [members, setMembers] = useState<GroupMember[]>([])
-  const [showAddPicker, setShowAddPicker] = useState(false)
-  const [editingName, setEditingName] = useState(false)
+  const [groupEditing, setGroupEditing] = useState(false)
   const [nameText, setNameText] = useState(group?.name ?? '')
-  const [lookupMode, setLookupMode] = useState<'none' | 'email' | 'code'>('none')
-  const [lookupValue, setLookupValue] = useState('')
-  const [lookupError, setLookupError] = useState<string | null>(null)
-  const [lookupLoading, setLookupLoading] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
   const [confirmPurge, setConfirmPurge] = useState(false)
   const [confirmLeave, setConfirmLeave] = useState(false)
   const [pendingRemove, setPendingRemove] = useState<string | null>(null)
-  const [view, setView] = useState<MediaView>('root')
   const isMobile = useIsMobile()
+
+  // The drill "morph" runs on the shared useStack engine (OverlayStack card on
+  // desktop / SheetStack bottom-sheet on mobile). navRef drives handler-initiated
+  // navigation (Add action) from outside a screen render.
+  const navRef = useRef<StackNav | null>(null)
 
   const isPrimary = members.some(m => m.userId === userId && m.role === 'admin')
   const primaryCount = members.filter(m => m.role === 'admin').length
-  const memberIds = new Set(members.map(m => m.userId))
+  const memberIds = useMemo(() => new Set(members.map(m => m.userId)), [members])
+
+  const handleAddMember = useCallback(async (memberId: string) => {
+    if (!group || !onAddMember || !fetchMembers) return
+    await onAddMember(group.groupId, memberId)
+    setMembers(await fetchMembers(group.groupId))
+  }, [group, onAddMember, fetchMembers])
+
+  // Off-roster add (Scan QR / Email / Code) — the shared drill that the New
+  // Message / New Group builder also uses. It resolves the peer and morphs the
+  // card back to root; we only say a found user means "add them as a member".
+  const offRoster = useOffRosterAdd({
+    navRef,
+    onFound: (medic) => { handleAddMember(medic.id) },
+    isPresent: (id) => memberIds.has(id),
+    presentMessage: 'Already in group',
+    methodsTitle: 'Add member',
+  })
 
   // Shared-media index — a derived read over the thread, never a store. Newest first.
   const media = useMemo(() => {
@@ -150,10 +167,13 @@ export function ConversationInfoPanel({
   const groupId = group?.groupId
   useEffect(() => {
     if (!isOpen) return
-    setView('root')
     setActionError(null)
     setConfirmPurge(false)
+    setGroupEditing(false)
+    offRoster.reset()
     if (groupId && fetchMembers) fetchMembers(groupId).then(setMembers)
+    // offRoster.reset is stable; excluded to keep this an isOpen/group effect.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, groupId, fetchMembers])
 
   const handleRename = useCallback(async () => {
@@ -162,15 +182,22 @@ export function ConversationInfoPanel({
     if (trimmed && trimmed !== group.name) {
       await onRename(group.groupId, trimmed)
     }
-    setEditingName(false)
   }, [nameText, group, onRename])
 
-  const handleAddMember = useCallback(async (memberId: string) => {
-    if (!group || !onAddMember || !fetchMembers) return
-    await onAddMember(group.groupId, memberId)
-    setMembers(await fetchMembers(group.groupId))
-    setShowAddPicker(false)
-  }, [group, onAddMember, fetchMembers])
+  const enterGroupEdit = useCallback(() => {
+    if (!group) return
+    setNameText(group.name)
+    setActionError(null)
+    setGroupEditing(true)
+  }, [group])
+
+  const exitGroupEdit = useCallback(() => {
+    setGroupEditing(false)
+    offRoster.reset()
+    setActionError(null)
+    // offRoster.reset is stable.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const handleRemoveMember = useCallback(async (memberId: string) => {
     if (!group || !onRemoveMember || !fetchMembers) return
@@ -202,61 +229,10 @@ export function ConversationInfoPanel({
     // on success the parent navigates away and this panel unmounts
   }, [group, onPurge])
 
-  const closeAddPicker = useCallback(() => {
-    setShowAddPicker(false)
-    setLookupMode('none')
-    setLookupValue('')
-    setLookupError(null)
+  // Drill into the add-member process (morph) — push the 'add' roster screen.
+  const openAddFlow = useCallback(() => {
+    navRef.current?.push('add')
   }, [])
-
-  const handleLookup = useCallback(async () => {
-    const value = lookupValue.trim()
-    setLookupError(null)
-    if (!value) return
-    if (lookupMode === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.toLowerCase())) {
-      setLookupError('Enter a valid email')
-      return
-    }
-    setLookupLoading(true)
-    try {
-      let medic: ClinicMedic | null = null
-      if (lookupMode === 'email') {
-        const { data, error } = await supabase.rpc('search_users', { query: value.toLowerCase() })
-        if (error || !data) { setLookupError('Lookup failed'); return }
-        const match = (data as Array<{ id: string; email?: string | null; first_name: string | null; last_name: string | null; middle_initial: string | null; rank: string | null; credential: string | null; avatar_id: string | null; clinic_id: string | null; clinic_name: string | null }>)
-          .find(r => r.email?.toLowerCase() === value.toLowerCase())
-        if (!match) { setLookupError('No user found with that email'); return }
-        medic = {
-          id: match.id,
-          firstName: match.first_name,
-          lastName: match.last_name,
-          middleInitial: match.middle_initial,
-          rank: match.rank,
-          credential: match.credential,
-          avatarId: match.avatar_id ?? null,
-          clinicId: match.clinic_id ?? undefined,
-          clinicName: match.clinic_name ?? undefined,
-        }
-      } else if (lookupMode === 'code') {
-        medic = await fetchProfileById(value)
-        if (!medic) { setLookupError('No user found with that code'); return }
-      }
-      if (medic) {
-        if (memberIds.has(medic.id)) {
-          setLookupError('Already in group')
-          return
-        }
-        useMessagingStore.getState().setPeerProfile(medic)
-        await handleAddMember(medic.id)
-        setLookupValue('')
-        setLookupMode('none')
-      }
-    } catch {
-      setLookupError('Lookup failed')
-    } finally {
-      setLookupLoading(false)
-    }
-  }, [lookupMode, lookupValue, memberIds, handleAddMember])
 
   const nonMemberMedics = medics.filter(m => !memberIds.has(m.id))
 
@@ -266,36 +242,71 @@ export function ConversationInfoPanel({
   }, [onJumpToMessage, onClose])
 
   const rootTitle = group ? 'Group Info' : (peer?.name ?? 'Info')
-  const title = view === 'photos' ? 'Photos' : view === 'voice' ? 'Voice notes' : rootTitle
 
-  // Governance actions live on the root of a group only.
-  const actions = view === 'root' && group
-    ? [
-        ...(isPrimary ? [{
-          key: 'purge',
-          label: 'Purge group',
-          icon: Trash2,
-          variant: 'danger' as const,
-          closesOnAction: false,
-          onAction: () => setConfirmPurge(true),
-        }] : []),
-        {
-          key: 'leave',
-          label: 'Leave',
-          icon: LogOut,
-          variant: 'danger' as const,
-          closesOnAction: false,
-          onAction: () => setConfirmLeave(true),
-        },
-      ]
+  // Root chrome (shown only at the stack root). LEFT slot = the destructive/additive
+  // actions (danger-first): Purge/Leave in read mode, Add member while editing.
+  // RIGHT slot = the single non-destructive primary action, opposite the danger
+  // cluster: Edit → Confirm (primaries only).
+  const leftActions = group
+    ? (groupEditing
+        ? [{
+            key: 'add',
+            label: 'Add member',
+            icon: Plus,
+            closesOnAction: false,
+            onAction: openAddFlow,
+          }]
+        : [
+            ...(isPrimary ? [{
+              key: 'purge',
+              label: 'Purge group',
+              icon: Trash2,
+              variant: 'danger' as const,
+              closesOnAction: false,
+              onAction: () => setConfirmPurge(true),
+            }] : []),
+            {
+              key: 'leave',
+              label: 'Leave',
+              icon: LogOut,
+              variant: 'danger' as const,
+              closesOnAction: false,
+              onAction: () => setConfirmLeave(true),
+            },
+          ])
     : []
 
-  // Sheet's `actions` slot takes rendered nodes (folded into the close HeaderPill),
-  // whereas PreviewOverlay takes the descriptor array above. Map the one source of
-  // truth to PillButtons for the mobile Sheet surface.
-  const sheetActions = actions.map(a => (
-    <PillButton key={a.key} icon={a.icon} variant={a.variant} onClick={a.onAction} label={a.label} compact />
-  ))
+  const rightAction = group && isPrimary
+    ? (groupEditing
+        ? { key: 'confirm', label: 'Confirm', icon: Check, onAction: exitGroupEdit }
+        : { key: 'edit', label: 'Edit', icon: Pencil, onAction: enterGroupEdit })
+    : null
+
+  // Root chrome nodes. Desktop OverlayStack reads the root screen's footer (left)
+  // + rightFooter (right) slots; mobile SheetStack shows the host's rootLeftContent
+  // + rootRightContent. Same data, two renderings, preserving the left/right split.
+  const leftFooterNode = leftActions.length > 0 ? (
+    <ActionPill>
+      {leftActions.map(a => (
+        <ActionButton key={a.key} icon={a.icon} label={a.label} variant={a.variant} onClick={a.onAction} />
+      ))}
+    </ActionPill>
+  ) : undefined
+  const rightFooterNode = rightAction ? (
+    <ActionPill>
+      <ActionButton icon={rightAction.icon} label={rightAction.label} onClick={rightAction.onAction} />
+    </ActionPill>
+  ) : undefined
+  const sheetLeftContent = leftActions.length > 0 ? (
+    <div className="flex items-center gap-1">
+      {leftActions.map(a => (
+        <PillButton key={a.key} icon={a.icon} variant={a.variant} onClick={a.onAction} label={a.label} compact />
+      ))}
+    </div>
+  ) : undefined
+  const sheetRightContent = rightAction ? (
+    <PillButton icon={rightAction.icon} label={rightAction.label} onClick={rightAction.onAction} compact />
+  ) : undefined
 
   // ── Media sub-views (morph) ────────────────────────────────────────────────
   const photosGrid = (
@@ -343,6 +354,42 @@ export function ConversationInfoPanel({
     </div>
   )
 
+  // ── Add-member roster screen (useStack) — roster already excludes current
+  //    members. The 'add' screen declares a searchPlaceholder, so the shell pins
+  //    its own search box and hands the live filter into render(). Off-roster
+  //    (QR / Email / Code) drills further via the shared useOffRosterAdd screens,
+  //    reached from this screen's footer — identical to the New Message flow. ───
+  const renderAddRoster = (filter: string) => {
+    const q = filter.trim().toLowerCase()
+    const list = q
+      ? nonMemberMedics.filter(m =>
+          m.firstName?.toLowerCase().includes(q) ||
+          m.lastName?.toLowerCase().includes(q) ||
+          m.rank?.toLowerCase().includes(q) ||
+          [m.rank, m.lastName].filter(Boolean).join(' ').toLowerCase().includes(q)
+        )
+      : nonMemberMedics
+    return (
+      <div className="py-1">
+        {list.map(medic => (
+          <button
+            key={medic.id}
+            onClick={() => handleAddMember(medic.id)}
+            className="flex items-center w-full px-4 py-2.5 gap-3 text-left hover:bg-themewhite2 active:scale-95 transition-all"
+          >
+            <UserAvatar avatarId={medic.avatarId} avatarBlob={medic.avatarBlob} userId={medic.id} firstName={medic.firstName} lastName={medic.lastName} className="w-8 h-8" />
+            <span className="flex-1 text-sm text-primary truncate">{getDisplayName(medic)}</span>
+          </button>
+        ))}
+        {list.length === 0 && (
+          <p className="text-[10pt] text-tertiary text-center py-6">
+            {q ? 'No contacts found' : 'Everyone in the cluster is already in the group'}
+          </p>
+        )}
+      </div>
+    )
+  }
+
   // ── Root view (governance / identity + shared media) ───────────────────────
   const mediaSection = isDevRole && (
     <div className="pb-1">
@@ -352,10 +399,10 @@ export function ConversationInfoPanel({
       ) : (
         <div className="mx-4 border border-primary/10 rounded-xl overflow-hidden">
           {media.photos.length > 0 && (
-            <MediaCategoryRow icon={ImageIcon} label="Photos" count={media.photos.length} onClick={() => setView('photos')} />
+            <MediaCategoryRow icon={ImageIcon} label="Photos" count={media.photos.length} onClick={() => navRef.current?.push('photos')} />
           )}
           {media.voice.length > 0 && (
-            <MediaCategoryRow icon={Mic} label="Voice notes" count={media.voice.length} onClick={() => setView('voice')} />
+            <MediaCategoryRow icon={Mic} label="Voice notes" count={media.voice.length} onClick={() => navRef.current?.push('voice')} />
           )}
         </div>
       )}
@@ -371,129 +418,32 @@ export function ConversationInfoPanel({
 
   const groupGovernance = group && (
     <>
-      {/* Group name */}
-      <div className="px-4 py-3 flex items-center gap-3">
-        {editingName ? (
-          <div className="flex-1 flex items-center gap-2">
-            <input
-              type="text"
-              value={nameText}
-              onChange={e => setNameText(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') handleRename() }}
-              autoFocus
-              className="flex-1 px-3 py-1.5 rounded-lg bg-themewhite2 text-sm text-primary outline-none
-                         focus:ring-1 focus:ring-themeblue2/40"
-            />
-            <button onClick={handleRename} className="p-1.5 rounded-full hover:bg-primary/5">
-              <Check size={16} className="text-themeblue2" />
-            </button>
-            <button onClick={() => { setEditingName(false); setNameText(group.name) }} className="p-1.5 rounded-full hover:bg-primary/5">
-              <X size={16} className="text-tertiary" />
-            </button>
-          </div>
+      {/* Group name — editable inline while in edit mode, read-only otherwise. */}
+      <div className="px-4 py-3">
+        {groupEditing ? (
+          <input
+            type="text"
+            value={nameText}
+            onChange={e => setNameText(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') { handleRename(); e.currentTarget.blur() } }}
+            onBlur={handleRename}
+            placeholder="Group name"
+            className="w-full px-3 py-1.5 rounded-lg bg-themewhite2 text-base font-medium text-primary outline-none
+                       focus:ring-1 focus:ring-themeblue2/40"
+          />
         ) : (
-          <>
-            <p className="flex-1 text-base font-medium text-primary">{group.name}</p>
-            {isPrimary && (
-              <button onClick={() => setEditingName(true)} className="p-1.5 rounded-full hover:bg-primary/5">
-                <Pencil size={14} className="text-tertiary" />
-              </button>
-            )}
-          </>
+          <p className="text-base font-medium text-primary">{group.name}</p>
         )}
       </div>
 
       {/* Members list */}
       <div className="px-4">
-        <div className="flex items-center justify-between mb-2">
+        <div className="mb-2">
           <p className="text-[10pt] text-tertiary">{members.length} members</p>
-          {isPrimary && (
-            <button
-              onClick={() => showAddPicker ? closeAddPicker() : setShowAddPicker(true)}
-              className="flex items-center gap-1 text-[10pt] text-themeblue2 hover:text-themeblue2/80"
-            >
-              <UserPlus size={12} />
-              Add
-            </button>
-          )}
         </div>
 
         {actionError && (
           <p className="mb-2 text-[10pt] text-themeredred">{actionError}</p>
-        )}
-
-        {/* Add member picker */}
-        {showAddPicker && (
-          <div className="mb-3 space-y-2">
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => { setLookupMode('email'); setLookupValue(''); setLookupError(null) }}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10pt] transition-colors
-                           ${lookupMode === 'email' ? 'bg-themeblue2 text-white' : 'bg-themewhite2 text-tertiary'}`}
-              >
-                <Mail size={12} />
-                Email
-              </button>
-              <button
-                onClick={() => { setLookupMode('code'); setLookupValue(''); setLookupError(null) }}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10pt] transition-colors
-                           ${lookupMode === 'code' ? 'bg-themeblue2 text-white' : 'bg-themewhite2 text-tertiary'}`}
-              >
-                <Hash size={12} />
-                User Code
-              </button>
-            </div>
-
-            {lookupMode !== 'none' && (
-              <div>
-                <div className="flex items-center gap-2">
-                  <input
-                    type={lookupMode === 'email' ? 'email' : 'text'}
-                    inputMode={lookupMode === 'email' ? 'email' : 'text'}
-                    value={lookupValue}
-                    onChange={e => { setLookupValue(e.target.value); if (lookupError) setLookupError(null) }}
-                    onKeyDown={e => { if (e.key === 'Enter' && lookupValue.trim() && !lookupLoading) { e.preventDefault(); handleLookup() } }}
-                    placeholder={lookupMode === 'email' ? 'user@example.com' : 'Paste user code'}
-                    autoFocus
-                    className="flex-1 px-3 py-2 rounded-lg bg-themewhite2 text-sm text-primary
-                               outline-none focus:ring-1 focus:ring-themeblue2/40 placeholder:text-tertiary"
-                  />
-                  {lookupValue.trim() && !lookupLoading && (
-                    <button
-                      onClick={handleLookup}
-                      className="w-9 h-9 rounded-full bg-themeblue2 text-white flex items-center justify-center
-                                 active:scale-95 transition-all shrink-0"
-                    >
-                      <Send size={14} />
-                    </button>
-                  )}
-                </div>
-                {(lookupError || lookupLoading) && (
-                  <p className={`mt-1 text-[10pt] ${lookupError ? 'text-themeredred' : 'text-tertiary'}`}>
-                    {lookupLoading ? 'Looking up…' : lookupError}
-                  </p>
-                )}
-              </div>
-            )}
-
-            {nonMemberMedics.length > 0 && (
-              <div className="border border-primary/10 rounded-xl overflow-hidden">
-                {nonMemberMedics.map(medic => (
-                  <button
-                    key={medic.id}
-                    onClick={() => handleAddMember(medic.id)}
-                    className="flex items-center w-full px-3 py-2 gap-2 hover:bg-themewhite2 transition-colors"
-                  >
-                    <UserAvatar avatarId={medic.avatarId} avatarBlob={medic.avatarBlob} userId={medic.id} firstName={medic.firstName} lastName={medic.lastName} className="w-7 h-7" />
-                    <span className="flex-1 text-sm text-primary truncate">
-                      {[medic.rank, medic.lastName].filter(Boolean).join(' ') || medic.firstName || 'Unknown'}
-                    </span>
-                    <UserPlus size={14} className="text-themeblue2/60" />
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
         )}
 
         {/* Current members */}
@@ -511,18 +461,22 @@ export function ConversationInfoPanel({
                 <span className="text-[9pt] text-themeblue2 font-medium">Primary</span>
               )}
             </div>
-            {isPrimary && (
-              <div className="flex items-center gap-0.5 shrink-0">
+            {groupEditing && isPrimary && (
+              <div className="flex items-center gap-1 shrink-0">
+                {/* ★ primary toggle — filled = primary; last primary is locked (can't strand the group). */}
                 {member.role === 'admin' ? (
-                  // Demote — hidden for the last primary (can't strand the group)
-                  primaryCount > 1 && (
+                  primaryCount > 1 ? (
                     <button
                       onClick={() => handleDemote(member.userId)}
                       title="Remove primary"
                       className="p-1.5 rounded-full hover:bg-primary/5 active:scale-95 transition-all"
                     >
-                      <ShieldOff size={14} className="text-tertiary" />
+                      <Star size={15} className="text-themeblue2 fill-themeblue2" />
                     </button>
+                  ) : (
+                    <span className="p-1.5" title="Last primary">
+                      <Star size={15} className="text-themeblue2 fill-themeblue2" />
+                    </span>
                   )
                 ) : (
                   <button
@@ -530,16 +484,17 @@ export function ConversationInfoPanel({
                     title="Make primary"
                     className="p-1.5 rounded-full hover:bg-themeblue2/10 active:scale-95 transition-all"
                   >
-                    <ShieldCheck size={14} className="text-themeblue2" />
+                    <Star size={15} className="text-tertiary" />
                   </button>
                 )}
+                {/* × remove — never self */}
                 {member.userId !== userId && (
                   <button
                     onClick={() => setPendingRemove(member.userId)}
                     title="Remove from group"
                     className="p-1.5 rounded-full hover:bg-themeredred/10 active:scale-95 transition-all"
                   >
-                    <UserMinus size={14} className="text-red-400" />
+                    <X size={15} className="text-red-400" />
                   </button>
                 )}
               </div>
@@ -550,17 +505,13 @@ export function ConversationInfoPanel({
     </>
   )
 
-  // Shared body — one node hosted in BOTH surfaces (mimics MessagesDrawer's
-  // settingsContent). Mobile → bottom Sheet, desktop → PreviewOverlay.
-  const infoBody = (
+  // The root screen body (governance/identity + shared media). The purge/leave/
+  // remove ConfirmDialogs live here so they render inside the shell's stacking
+  // context; they're only ever triggered from the root, which stays mounted.
+  const rootBody = (
     <div className="pb-2">
-      {view === 'photos' ? photosGrid : view === 'voice' ? voiceList : (
-        <>
-          {group ? groupGovernance : directIdentity}
-          {mediaSection}
-        </>
-      )}
-
+      {group ? groupGovernance : directIdentity}
+      {mediaSection}
       {group && (
         <>
           <ConfirmDialog
@@ -597,36 +548,60 @@ export function ConversationInfoPanel({
     </div>
   )
 
-  // Mobile Sheet + desktop PreviewOverlay, both hosting infoBody — matches the
-  // messaging-settings surface (2026-06-30 mobile settings-icon standard). Sheet
-  // has no onBack, so the media-drill-down back button rides leftContent; the
-  // nested purge/leave/remove ConfirmDialogs auto-stack above via the Sheet's
-  // published OverlayStackContext ceiling.
+  // Drill-down screens for the shared useStack engine. Chrome (title/back/footer)
+  // is read fresh each render, so these closures over host state stay live. Root
+  // chrome differs per shell: OverlayStack reads the root screen's footer/rightFooter;
+  // SheetStack shows rootLeftContent/rootRightContent (below). The off-roster
+  // (QR / Email / Code) screens come from useOffRosterAdd — the same primitive the
+  // New Message / New Group builder uses.
+  const screens: Record<string, StackScreen> = {
+    root: {
+      title: rootTitle,
+      footer: leftFooterNode,
+      rightFooter: rightFooterNode,
+      render: () => rootBody,
+    },
+    photos: { title: 'Photos', render: () => photosGrid },
+    voice: { title: 'Voice notes', render: () => voiceList },
+    add: {
+      title: 'Add member',
+      searchPlaceholder: 'Filter roster…',
+      footer: (_p, nav) => (
+        <ActionPill>
+          <ActionButton icon={UserPlus} label="Off-roster" onClick={() => offRoster.openMethods(nav)} />
+        </ActionPill>
+      ),
+      render: (_p, _nav, filter) => renderAddRoster(filter),
+    },
+    ...offRoster.screens,
+  }
+
+  // SheetStack (mobile bottom-sheet) / OverlayStack (desktop card) shell the SAME
+  // drill engine, so both morph identically. Root chrome = the governance actions;
+  // drilled screens surface their own title/back/footer via the engine.
   return isMobile ? (
-    <Sheet
+    <SheetStack
       isOpen={isOpen}
       onClose={onClose}
-      title={title}
+      initial={{ key: 'root' }}
+      screens={screens}
+      navRef={navRef}
+      rootTitle={rootTitle}
+      rootLeftContent={sheetLeftContent}
+      rootRightContent={sheetRightContent}
       height="fit"
       maxHeight={60}
       zIndex={1200}
-      leftContent={view === 'root' ? undefined : (
-        <PillButton icon={ChevronLeft} onClick={() => setView('root')} label="Back" compact />
-      )}
-      actions={sheetActions}
-    >
-      {infoBody}
-    </Sheet>
+    />
   ) : (
-    <PreviewOverlay
+    <OverlayStack
       isOpen={isOpen}
       onClose={onClose}
+      initial={{ key: 'root' }}
+      screens={screens}
+      navRef={navRef}
       anchorRect={null}
-      title={title}
-      onBack={view === 'root' ? undefined : () => setView('root')}
       previewMaxHeight="55dvh"
-      actions={actions}
-      preview={infoBody}
     />
   )
 }

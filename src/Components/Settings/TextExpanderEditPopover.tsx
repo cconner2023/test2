@@ -155,9 +155,15 @@ export const TextExpanderEditPopover = ({
         ? !expansion.trim() || !abbr.trim()
         : templateNodes.length === 0 || !abbr.trim();
 
+    // Surface scope in the title when the author can choose it (supervisor),
+    // mirroring Plan Tags' "New Cluster/Personal …" so it's clear whether the
+    // shortcut being authored is personal or cluster-wide. Reacts live as the
+    // scope submenu toggles.
+    const scopeWord = source === 'clinic' ? 'Cluster' : 'Personal';
+    const kindWord = mode === 'template' ? 'template' : 'shortcut';
     const titleText = isNew
-        ? (mode === 'template' ? 'New template' : 'New shortcut')
-        : (mode === 'template' ? 'Edit template' : 'Edit shortcut');
+        ? (isSupervisorRole ? `New ${scopeWord} ${kindWord}` : `New ${kindWord}`)
+        : (isSupervisorRole ? `Edit ${scopeWord} ${kindWord}` : `Edit ${kindWord}`);
 
     // Modifiers (scope + type) live in the header ellipsis — lifted-row submenus,
     // not footer toggles. Footer stays focused on the primary commit (Save, right).

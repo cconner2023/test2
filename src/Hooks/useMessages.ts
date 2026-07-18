@@ -341,14 +341,17 @@ async function encryptAndSendCallSignal(
  * Ensure we have a sender key for the group, generating and distributing one if needed.
  *
  * Distribution is sent via pairwise 1:1 sessions to every group member who does not
- * yet have our key. Returns the sender key state ready for encryption.
+ * yet have our key. A member with no usable key bundle yet (vault not provisioned)
+ * cannot receive the distribution — such members are SKIPPED, never fatal, and their
+ * userIds are returned so the caller can surface a non-blocking notice. The group
+ * send proceeds for everyone who is reachable.
  */
 async function ensureSenderKey(
   userId: string,
   localDeviceId: string,
   groupId: string,
   members: GroupMember[],
-): Promise<void> {
+): Promise<string[]> {
   let senderKey = await loadSenderKey(groupId, userId, localDeviceId)
 
   if (!senderKey) {
@@ -359,13 +362,20 @@ async function ensureSenderKey(
   const dist = createDistribution(senderKey)
   const distJson = JSON.stringify(dist)
 
-  // Distribute to all group members (excluding current device)
+  // Distribute to all group members (excluding current device). Track members we
+  // could not reach so the caller can explain why they won't get messages.
+  const undeliverable: string[] = []
   const otherMembers = members.filter(m => m.userId !== userId)
   for (const member of otherMembers) {
     const devicesResult = await fetchPeerDevices(member.userId)
-    if (!devicesResult.ok) continue
+    const devices = devicesResult.ok ? devicesResult.data : []
+    if (devices.length === 0) {
+      // No published device at all — user hasn't set up secure messaging yet.
+      undeliverable.push(member.userId)
+      continue
+    }
 
-    const fanOutInputs = await encryptForAllDevices(member.userId, devicesResult.data, distJson, userId)
+    const fanOutInputs = await encryptForAllDevices(member.userId, devices, distJson, userId)
     for (const input of fanOutInputs) {
       input.messageType = 'sender-key-distribution'
     }
@@ -373,6 +383,9 @@ async function ensureSenderKey(
       await sendMessageFanOut(userId, localDeviceId, member.userId, fanOutInputs, groupId, undefined, true).catch(e =>
         logger.warn(`Failed to distribute sender key to ${member.userId}:`, e instanceof Error ? e.message : e)
       )
+    } else {
+      // Devices exist but none had a usable key bundle (vault not populated yet).
+      undeliverable.push(member.userId)
     }
   }
 
@@ -390,6 +403,8 @@ async function ensureSenderKey(
       }
     }
   }
+
+  return undeliverable
 }
 
 /**
@@ -410,8 +425,22 @@ async function encryptAndSendToGroupMembers(
   members: GroupMember[],
   silent?: boolean,
 ): Promise<Result<string>> {
-  // Ensure sender key exists and all members have a copy
-  await ensureSenderKey(userId, localDeviceId, groupId, members)
+  // Ensure sender key exists and every member with a usable bundle gets a copy.
+  // Members whose vault isn't provisioned yet are skipped (not fatal) and reported
+  // so we can explain the gap without blocking the send. A distribution failure
+  // must never abort the whole send — proceed best-effort.
+  let undeliverable: string[] = []
+  try {
+    undeliverable = await ensureSenderKey(userId, localDeviceId, groupId, members)
+  } catch (e) {
+    logger.warn(`ensureSenderKey failed for group ${groupId}; sending best-effort:`, e instanceof Error ? e.message : e)
+  }
+  if (undeliverable.length > 0) {
+    // Not fatal: these members have no usable key bundle yet (vault not provisioned).
+    // The send proceeds for everyone reachable; usePeerAvailability drives the
+    // user-facing "can't receive messages yet" banner independently.
+    logger.info(`Group ${groupId}: ${undeliverable.length} member(s) unreachable (no vault yet), skipped.`)
+  }
 
   // Encrypt once with sender key
   const senderKeyMsg = await senderKeyEncrypt(groupId, userId, localDeviceId, serialized)

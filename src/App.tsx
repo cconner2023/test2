@@ -13,6 +13,7 @@ import { useSearch } from './Hooks/useSearch'
 import { useNavigation } from './Hooks/useNavigation'
 import { useNavigationStore } from './stores/useNavigationStore'
 import { useSwipeNavigation } from './Hooks/useSwipeNavigation'
+import { useDesktopHotkeys } from './Hooks/useDesktopHotkeys'
 import { useMenuSlide, MENU_NAV_WIDTH_MOBILE, MENU_NAV_WIDTH_DESKTOP } from './Hooks/useMenuSlide'
 import { useMessagesSlide } from './Hooks/useMessagesSlide'
 import UpdateNotification from './Components/UpdateNotification'
@@ -101,7 +102,7 @@ function AppContent() {
 
   const navigation = useNavigation()
   const search = useSearch()
-  const { user } = useAuth()
+  const { user, isAuthenticated, isProviderRole, isSupervisorRole, isDevRole } = useAuth()
   // Single owner of live profile sync (avatar deltas + role/clinic refresh).
   // Mounted once here so useProfileAvatar no longer opens its own channel.
   useProfileRealtime(user?.id)
@@ -304,6 +305,16 @@ case 'mapOverlay':
         break
     }
   }, [navigation.isMobile, navigation.toggleImportExpanded, navigation.setShowSettings, navigation.setShowTC3Drawer, handleKnowledgeBaseClick, handleMessagesClick, handlePropertyClick, handleMapOverlayClick, handleCalendarClick, handleSupervisorClick, handleAdminClick])
+
+  // Desktop keyboard hotkeys: Ctrl+Alt+<letter> jumps to drawers, Esc backs out one layer.
+  useDesktopHotkeys({
+    isMobile: navigation.isMobile,
+    isAuthenticated,
+    isProviderRole,
+    isSupervisorRole,
+    isDevRole,
+    dispatch: handleMenuItemClick,
+  })
 
   // Callback for notification toast tap — opens MessagesDrawer to the target conversation
   const handleNotificationTap = useCallback((n: MessageNotification) => {

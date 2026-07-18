@@ -1,6 +1,7 @@
-import { useState } from 'react'
-import { Star, Check, CheckCircle, RefreshCw } from 'lucide-react'
+import { useState, useRef } from 'react'
+import { Star, Check, CheckCircle, RefreshCw, ImagePlus, X } from 'lucide-react'
 import { submitFeedback } from '../../lib/feedbackService'
+import { ActionButton } from '@/Components/primitives/ActionButton'
 import { ErrorDisplay } from '@/Components/primitives/ErrorDisplay'
 import { TextInput } from '@/Components/primitives/FormInputs'
 import { SectionCard, SectionHeader } from '@/Components/primitives/Section'
@@ -14,6 +15,8 @@ export const FeedbackPanel = () => {
   const [mostUseful, setMostUseful] = useState('')
   const [desiredFeature, setDesiredFeature] = useState('')
   const [needsImprovement, setNeedsImprovement] = useState('')
+  // Staged images as resized JPEG data URLs; encrypted + uploaded on submit.
+  const [images, setImages] = useState<string[]>([])
 
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
@@ -22,8 +25,25 @@ export const FeedbackPanel = () => {
   const userId = useAuthStore((s) => s.user?.id)
   const markFeedbackEngagement = useFeatureVotesStore((s) => s.markFeedbackEngagement)
 
+  const MAX_IMAGES = 6
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const handlePickImages = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? [])
+    e.target.value = '' // allow re-picking the same file
+    if (!files.length) return
+    const { resizeImage } = await import('../../Utilities/imageUtils')
+    const picked = files.slice(0, MAX_IMAGES - images.length)
+    const urls = await Promise.all(picked.map((f) => resizeImage(f, 1200, 0.7)))
+    setImages((prev) => [...prev, ...urls])
+  }
+
+  const removeImage = (i: number) =>
+    setImages((prev) => prev.filter((_, idx) => idx !== i))
+
   const hasContent =
     rating > 0 ||
+    images.length > 0 ||
     [mostUseful, desiredFeature, needsImprovement, comments].some((v) => v.trim())
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -33,12 +53,14 @@ export const FeedbackPanel = () => {
     setSubmitting(true)
     setError(null)
 
+    const { dataUrlToBlob } = await import('../../Utilities/imageUtils')
     const result = await submitFeedback({
       rating,
       comments: comments || null,
       most_useful_feature: mostUseful || null,
       desired_feature: desiredFeature || null,
       needs_improvement: needsImprovement || null,
+      imageBlobs: images.map(dataUrlToBlob),
     })
 
     setSubmitting(false)
@@ -128,6 +150,52 @@ export const FeedbackPanel = () => {
                 className="w-full bg-transparent px-4 py-3 text-base md:text-sm text-primary placeholder:text-tertiary focus:outline-none resize-none"
               />
             </label>
+
+            {/* Images — optional screenshots/photos to illustrate the feedback.
+                Encrypted client-side and uploaded on submit. */}
+            <div className="px-4 py-3 border-b border-primary/6">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                onChange={handlePickImages}
+              />
+              <div className="flex items-center justify-between">
+                <span className="text-[10pt] text-secondary">
+                  Photos{images.length > 0 ? ` · ${images.length}` : ''}
+                </span>
+                {images.length < MAX_IMAGES && (
+                  <ActionButton
+                    icon={ImagePlus}
+                    label="Add photos"
+                    onClick={() => fileInputRef.current?.click()}
+                  />
+                )}
+              </div>
+              {images.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-3">
+                  {images.map((src, i) => (
+                    <div key={i} className="relative w-16 h-16">
+                      <img
+                        src={src}
+                        alt=""
+                        className="w-16 h-16 rounded-lg object-cover border border-tertiary/15"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeImage(i)}
+                        aria-label="Remove image"
+                        className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-primary text-white flex items-center justify-center active:scale-95"
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
 
             {/* Submit — full-row reveal once any content is present */}
             <div className={`flex items-center justify-end gap-2 px-3 overflow-hidden transition-all duration-300 ease-out ${

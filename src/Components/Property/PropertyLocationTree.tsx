@@ -1,10 +1,7 @@
 import { useState, useMemo, useCallback } from 'react'
-import { ChevronRight, ChevronDown, Pencil, Trash2, FolderPlus, PackagePlus, MoreHorizontal, FolderClosed, Layers } from 'lucide-react'
-import { type ContextMenuItem } from '@/Components/primitives/ContextMenu'
-import { LiftedRowMenu } from '@/Components/primitives/LiftedRowMenu'
+import { ChevronRight, ChevronDown, MoreHorizontal } from 'lucide-react'
 import type { LocalPropertyLocation, LocalPropertyItem, HolderInfo } from '../../Types/PropertyTypes'
 import { itemAlert } from '../../Types/PropertyTypes'
-import { isStructuralZone } from './levelUtils'
 import { itemPassesLens, itemIsMine } from '../../Utilities/subCluster'
 import { isLinContainer, isAuthTarget, isZoneShadow } from '../../Utilities/propertyAuthorized'
 import { useVehicleDispatches } from '../../Hooks/useVehicleDispatches'
@@ -48,16 +45,13 @@ interface PropertyLocationTreeProps {
   /** Viewer's PRIMARY clinic id — the squad lens only narrows items in this clinic;
    *  cross-cluster (followed) items bypass it. */
   primaryClinicId?: string | null
-  /** Open the location edit form (name + parent) — no longer an inline rename. */
-  onEditLocation?: (loc: LocalPropertyLocation) => void
   /** Open the shared item action menu (View · Edit · Split/Merge · Expend · … ·
    *  Delete) anchored to the row — the panel hosts the menu + its sheets. */
   onOpenItemMenu?: (item: LocalPropertyItem, rect: DOMRect) => void
-  onDeleteLocation?: (locId: string) => void
-  onAddChildLocation?: (parentId: string | null) => void
-  /** Add a building floor (kind='level') to a structural zone. */
-  onAddLevel?: (containerId: string) => void
-  onAddItemAtLocation?: (locationId: string | null) => void
+  /** Open the shared zone action menu (Edit · PMCS · DD 1750 · New item · … ·
+   *  Delete) anchored to a location row — the panel hosts the menu + its overlays.
+   *  This is the sole gate for a row's ellipsis / right-click menu. */
+  onOpenLocationMenu?: (loc: LocalPropertyLocation, rect: DOMRect) => void
 }
 
 interface TreeNode {
@@ -84,12 +78,8 @@ export function PropertyLocationTree({
   myZoneIds,
   subClusterLens,
   primaryClinicId,
-  onEditLocation,
   onOpenItemMenu,
-  onDeleteLocation,
-  onAddChildLocation,
-  onAddLevel,
-  onAddItemAtLocation,
+  onOpenLocationMenu,
 }: PropertyLocationTreeProps) {
   // LIN containers are PHR headers, never discrete placeable property — exclude them from
   // every tree surface (main rail, Locations sheet, and the scoped location detail, which is
@@ -101,13 +91,6 @@ export function PropertyLocationTree({
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set(['__personnel__']))
   // Current open dispatches per vehicle → the row red-dot (expiring/expired).
   const dispatches = useVehicleDispatches(locations[0]?.clinic_id ?? null)
-  const [contextMenu, setContextMenu] = useState<{ kind: 'location' | 'item'; id: string; rect: DOMRect } | null>(null)
-
-  // Open the lifted row menu anchored to a row element's bounding rect.
-  const openRowMenu = useCallback((kind: 'location' | 'item', id: string, anchor: HTMLElement | null) => {
-    if (anchor) setContextMenu({ kind, id, rect: anchor.getBoundingClientRect() })
-  }, [])
-
   const toggleCollapse = useCallback((id: string) => {
     setCollapsed((prev) => {
       const next = new Set(prev)
@@ -371,7 +354,7 @@ export function PropertyLocationTree({
           }`}
           style={{ paddingLeft: `${rowPadLeft(depth)}px` }}
           data-prop-row
-          onContextMenu={!isMember && !isSystemZone ? (e) => { e.preventDefault(); e.stopPropagation(); if (onEditLocation || onDeleteLocation || onAddChildLocation || onAddItemAtLocation) openRowMenu('location', node.location.id, e.currentTarget as HTMLElement) } : undefined}
+          onContextMenu={!isMember && !isSystemZone && onOpenLocationMenu ? (e) => { e.preventDefault(); e.stopPropagation(); onOpenLocationMenu(node.location, (e.currentTarget as HTMLElement).getBoundingClientRect()) } : undefined}
         >
           {/* Chevron */}
           {hasChildren ? (
@@ -400,9 +383,9 @@ export function PropertyLocationTree({
           </div>
 
           {/* Row actions — ellipsis menu */}
-          {!isMember && !isSystemZone && (onEditLocation || onDeleteLocation || onAddChildLocation || onAddItemAtLocation) && (
+          {!isMember && !isSystemZone && onOpenLocationMenu && (
             <button
-              onClick={(e) => { e.stopPropagation(); openRowMenu('location', node.location.id, (e.currentTarget as HTMLElement).closest('[data-prop-row]') as HTMLElement | null) }}
+              onClick={(e) => { e.stopPropagation(); const row = (e.currentTarget as HTMLElement).closest('[data-prop-row]') as HTMLElement | null; if (row) onOpenLocationMenu(node.location, row.getBoundingClientRect()) }}
               aria-label="More actions"
               className={actionBtnCls}
             >
@@ -502,40 +485,6 @@ export function PropertyLocationTree({
         </div>
       )}
 
-      {/* Lifted row menu — ellipsis / right-click on location and item rows */}
-      {contextMenu && (() => {
-        if (contextMenu.kind === 'location') {
-          const loc = locations.find(l => l.id === contextMenu.id)
-          // The turn-in staging zone is system-managed — no add/edit/delete actions.
-          if (!loc || loc.holder_user_id || loc.is_turn_in_zone) return null
-          const menuItems: ContextMenuItem[] = [
-            ...(onAddChildLocation ? [{ key: 'add-area', label: 'New Area', icon: FolderPlus, onAction: () => onAddChildLocation(loc.id) }] : []),
-            ...(onAddLevel && isStructuralZone(loc) ? [{ key: 'add-level', label: 'Add level', icon: Layers, onAction: () => onAddLevel(loc.id) }] : []),
-            ...(onAddItemAtLocation ? [{ key: 'add-item', label: 'New Item', icon: PackagePlus, onAction: () => onAddItemAtLocation(loc.id) }] : []),
-            ...(onEditLocation ? [{ key: 'edit', label: 'Edit', icon: Pencil, onAction: () => onEditLocation(loc) }] : []),
-            // The default cluster zone (BAS) is a standing concept — never deletable.
-            ...(onDeleteLocation && !loc.is_default_zone ? [{ key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => onDeleteLocation(loc.id) }] : []),
-          ]
-          return (
-            <LiftedRowMenu
-              isOpen
-              layout="list"
-              anchorRect={contextMenu.rect}
-              onClose={() => setContextMenu(null)}
-              items={menuItems}
-              row={(
-                <div className="flex items-center gap-2 px-3 py-2 bg-themewhite">
-                  <FolderClosed size={16} className="text-tertiary shrink-0" />
-                  <span className="flex-1 min-w-0 text-[10pt] font-medium text-primary truncate">{loc.name}</span>
-                </div>
-              )}
-            />
-          )
-        }
-        // Item rows delegate to the panel-hosted shared menu (onOpenItemMenu); only
-        // location rows open this inline menu.
-        return null
-      })()}
     </div>
   )
 }

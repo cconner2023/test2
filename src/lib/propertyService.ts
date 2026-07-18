@@ -2464,7 +2464,18 @@ type CustodyState = { signed_out_external: boolean; current_holder_id: string | 
  */
 
 /** Sign `signQty` of `item` OUT. Serialized → flip the holder flags in place; non-
- *  serialized → decrement on-hand (custody lives on the ledger row, not the item). */
+ *  serialized → decrement on-hand (custody lives on the ledger row, not the item).
+ *
+ *  LOCATION on a "real" sign-out (moveToLocationId set = recipient's member-zone):
+ *   - SERIALIZED, or a WHOLE-stack non-serialized move (nothing stays on-hand) → the
+ *     single record relocates (custody flags / on-hand-0 + the new location_id).
+ *   - PARTIAL non-serialized move → the remainder MUST stay at the source zone, so we
+ *     canNOT relocate the shared stack record (that dragged the leftover stock to the
+ *     recipient's zone — the bug this branch fixes). Instead: decrement the source in
+ *     place (location untouched) and spawn a NEW stack carrying the moved qty at the
+ *     destination. The custody ledger stays on the SOURCE stack (the caller records
+ *     sign_down against it) — the new item is just relocated physical stock, so a
+ *     later sign-in returns the qty to the source. */
 async function applyOutbound(
   item: LocalPropertyItem,
   signQty: number,
@@ -2472,17 +2483,48 @@ async function applyOutbound(
   userId: string,
   moveToLocationId?: string | null,
 ): Promise<void> {
-  // A "real" sign-out relocates the item to the recipient's member-zone; a sign-
-  // over (custody only) leaves location_id untouched. moveToLocationId is the
-  // resolved member-zone (null when signing over / external / no zone).
-  const locationPatch =
-    moveToLocationId && moveToLocationId !== item.location_id ? { location_id: moveToLocationId } : {}
+  const moving = !!moveToLocationId && moveToLocationId !== item.location_id
+  const locationPatch = moving ? { location_id: moveToLocationId } : {}
   if (item.is_serialized) {
     await updateItem(item.id, { ...custody, ...locationPatch }, userId, { skipAudit: true })
-  } else {
-    const onHand = Math.max(0, item.quantity - Math.max(1, signQty))
-    await updateItem(item.id, { quantity: onHand, ...locationPatch }, userId, { skipAudit: true })
+    return
   }
+  const signed = Math.max(1, signQty)
+  const onHand = Math.max(0, item.quantity - signed)
+  // PARTIAL "real" move (stock stays behind): split the moved qty off as a new stack
+  // at the destination and leave the source stack's location alone.
+  if (moving && onHand > 0) {
+    await updateItem(item.id, { quantity: onHand }, userId, { skipAudit: true })
+    await createItem(
+      {
+        clinic_id: item.clinic_id,
+        name: item.name,
+        nomenclature: item.nomenclature,
+        nsn: item.nsn,
+        lin: item.lin,
+        serial_number: null,
+        quantity: signed,
+        is_serialized: false,
+        condition_code: item.condition_code,
+        parent_item_id: item.parent_item_id,
+        location_id: moveToLocationId,
+        current_holder_id: item.current_holder_id,
+        location_tag_id: null,
+        photo_url: item.photo_url,
+        visual_fingerprint: null,
+        expiry_date: item.expiry_date,
+        notes: item.notes,
+        item_type: item.item_type,
+        unit_of_issue: item.unit_of_issue,
+        pack_size: item.pack_size,
+      },
+      userId,
+    )
+    return
+  }
+  // Sign-over (no move) or a whole-stack move → the one record decrements (to 0 on a
+  // full sign-out) and, when moving, relocates.
+  await updateItem(item.id, { quantity: onHand, ...locationPatch }, userId, { skipAudit: true })
 }
 
 /** Return `qty` of `item` to stock. Serialized → clear the holder flags; non-
@@ -2547,6 +2589,38 @@ function netOutstandingQty(rows: LocalCustodyEntry[], itemId: string): number {
     else if (r.action === 'sign_up') net -= Math.max(1, r.quantity_delta ?? 1)
   }
   return Math.max(0, net)
+}
+
+/** Delete the split-off destination stack that a PARTIAL "real" (move-to-zone) sign-out
+ *  created for `sourceItem` at recipient `toHolderId`'s member-zone (applyOutbound
+ *  partial-move branch). Every return path (sign-in, drop-from-receipt, delete-receipt)
+ *  puts the moved qty back on the SOURCE stack via applyReturn, which would DOUBLE-COUNT
+ *  against that still-standing physical stack — so the return also removes it. Delete
+ *  only, no merge. Matched by member-zone + identity + EXACT moved qty (the stack was
+ *  created with quantity = the receipt's sign_down qty) so it can't touch unrelated
+ *  stock. No-ops for a serialized unit / sign-over / whole-stack move (no separate stack
+ *  was made) or an external recipient (no member-zone). Pass `allItems` read AFTER any
+ *  custody-row purge (the property item itself is untouched by that purge). */
+async function removeMovedStack(
+  sourceItem: LocalPropertyItem,
+  toHolderId: string | null,
+  movedQty: number,
+  allItems: LocalPropertyItem[],
+  locs: LocalPropertyLocation[],
+  userId: string,
+): Promise<void> {
+  if (sourceItem.is_serialized || !toHolderId) return
+  const memberZoneId = locs.find((l) => l.holder_user_id === toHolderId && !l.deleted_at)?.id ?? null
+  if (!memberZoneId) return
+  const moved = allItems.find((i) =>
+    i.id !== sourceItem.id &&
+    !i.is_serialized &&
+    i.location_id === memberZoneId &&
+    i.quantity === movedQty &&
+    i.name.toLowerCase() === sourceItem.name.toLowerCase() &&
+    (sourceItem.nsn ? i.nsn === sourceItem.nsn : !i.nsn),
+  )
+  if (moved) await deleteItem(moved.id, userId)
 }
 
 // ── SKO subtree = the accountability atom (settles the DA 2062 parent_id question;
@@ -2723,7 +2797,9 @@ export async function signInReceipt(
   try {
     if (itemIds.length === 0) return fail('No items on receipt')
     const signDowns = await getLocalCustodyByReceipt(handReceiptId)
-    const itemsById = new Map((await getLocalPropertyItems(clinicId)).map((i) => [i.id, i]))
+    const allItems = await getLocalPropertyItems(clinicId)
+    const itemsById = new Map(allItems.map((i) => [i.id, i]))
+    const locs = await getLocalPropertyLocations(clinicId)
     for (const itemId of itemIds) {
       const qty = signedOutQty(signDowns, itemId)
       const ledgerResult = await recordLedgerEntry(
@@ -2748,6 +2824,14 @@ export async function signInReceipt(
       // re-place at the chosen destination zone when one was picked.
       const item = itemsById.get(itemId)
       if (item) await applyReturn(item, qty, userId, toLocationId)
+
+      // The moved qty is now back on the source (applyReturn above); if this was a
+      // PARTIAL move-to-zone sign-out, also delete the split-off stack it left at the
+      // recipient's member-zone so the returned qty isn't double-counted.
+      if (item) {
+        const sd = signDowns.find((r) => r.action === 'sign_down' && r.item_id === itemId)
+        await removeMovedStack(item, sd?.to_holder_id ?? null, qty, allItems, locs, userId)
+      }
     }
     return succeed()
   } catch (err) {
@@ -3136,11 +3220,20 @@ export async function removeReceiptItem(
     const rows = (await getLocalCustodyByReceipt(handReceiptId)).filter((r) => r.item_id === itemId)
     if (rows.length === 0) return fail('Item not found on receipt')
     const qty = signedOutQty(rows, itemId)
+    // Recipient captured BEFORE the purge wipes the rows — needed to locate any
+    // split-off move-to-zone stack afterwards.
+    const toHolder = rows.find((r) => r.action === 'sign_down')?.to_holder_id ?? null
     await purgeCustodyRows(rows, clinicId, userId, true)
     // No sign_up row — the receipt record is gone; just put the item back on-hand
     // (stack) or clear its holder (serialized). Read the item AFTER purge.
-    const item = (await getLocalPropertyItems(clinicId)).find((i) => i.id === itemId)
-    if (item) await applyReturn(item, qty, userId)
+    const allItems = await getLocalPropertyItems(clinicId)
+    const item = allItems.find((i) => i.id === itemId)
+    if (item) {
+      await applyReturn(item, qty, userId)
+      // Drop the split-off destination stack a partial move-to-zone left behind, so the
+      // qty put back on the source isn't double-counted.
+      await removeMovedStack(item, toHolder, qty, allItems, await getLocalPropertyLocations(clinicId), userId)
+    }
     await immediateSync(userId)
     return succeed()
   } catch (err) {
@@ -3234,13 +3327,24 @@ export async function deleteHandReceipt(
     // Net qty STILL OUT per item, captured BEFORE the purge wipes the rows. Returned
     // receipts net to 0 → their delete is a pure document/timeline purge.
     const qtyByItem = new Map(itemIds.map((id) => [id, netOutstandingQty(rows, id)]))
+    // Recipient per item captured BEFORE the purge — used to reconcile move-to-zone stacks.
+    const toHolderByItem = new Map(
+      itemIds.map((id) => [id, rows.find((r) => r.action === 'sign_down' && r.item_id === id)?.to_holder_id ?? null]),
+    )
     await purgeCustodyRows(rows, clinicId, userId, true)
-    const itemsById = new Map((await getLocalPropertyItems(clinicId)).map((i) => [i.id, i]))
+    const allItems = await getLocalPropertyItems(clinicId)
+    const itemsById = new Map(allItems.map((i) => [i.id, i]))
+    const locs = await getLocalPropertyLocations(clinicId)
     for (const itemId of itemIds) {
       const out = qtyByItem.get(itemId) ?? 0
       if (out <= 0) continue // already signed in — don't re-return stock / re-clear holder
       const item = itemsById.get(itemId)
-      if (item) await applyReturn(item, out, userId)
+      if (item) {
+        await applyReturn(item, out, userId)
+        // Delete the split-off destination stack a partial move-to-zone left behind
+        // (returned receipts skip via out<=0 — sign-in already removed it).
+        await removeMovedStack(item, toHolderByItem.get(itemId) ?? null, out, allItems, locs, userId)
+      }
     }
     await immediateSync(userId)
     return succeed()
