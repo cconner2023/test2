@@ -22,6 +22,8 @@ import { useShareToChat } from '../Messages/ShareToChatPicker'
 import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
 import { ActionSheet } from '@/Components/primitives/ActionSheet'
 import { BaseDrawer } from '@/Components/primitives/BaseDrawer'
+import { SlideRevealPane } from '@/Components/primitives/SlideRevealPane'
+import { useEscBackout } from '../../Hooks/useEscBackout'
 import { Sheet } from '@/Components/primitives/Sheet'
 import { useStack } from '@/Components/primitives/useStack'
 import { StackNavContext } from '../stackNav'
@@ -1244,6 +1246,8 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
   const showBlockDrawer = isMobile && panelView === 'block'
   const showImportDrawer = isMobile && panelView === 'import'
   const showDesktopPanel = !isMobile && (panelView === 'detail' || panelView === 'form' || panelView === 'template' || panelView === 'block' || panelView === 'import')
+  // Desktop Esc: close the right pane (form/detail/template/import) before the drawer closes.
+  useEscBackout(showDesktopPanel, handleDetailBack)
 
   // ── Mobile edit/create surface = a MOUNT-PRESERVING drill stack ──
   // The day-drawer Sheet hosts EventForm as the stack's ROOT frame; its selectors
@@ -1733,11 +1737,14 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
 
         </div>
 
-        {/* Desktop right panel — form or detail alongside calendar */}
+        {/* Desktop right panel — form or detail slides in alongside calendar */}
         {!isMobile && (
-          <div className={`shrink-0 border-l border-primary/10 flex flex-col bg-themewhite3 transition-all duration-300 ${
-            showDesktopPanel ? 'w-[380px] opacity-100' : 'w-0 opacity-0 overflow-hidden border-l-0'
-          }`}>
+          <SlideRevealPane
+            open={showDesktopPanel}
+            side="right"
+            width={380}
+            className="border-l border-primary/10 bg-themewhite3"
+          >
             {showDesktopPanel && (
               panelView === 'form' ? (
                 <div className="relative flex flex-col flex-1 min-h-0">
@@ -1877,7 +1884,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                 </div>
               ) : null
             )}
-          </div>
+          </SlideRevealPane>
         )}
       </div>
 

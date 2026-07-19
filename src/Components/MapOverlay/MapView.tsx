@@ -684,7 +684,9 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
     L.circleMarker([lat, lng], GPS_MARKER_STYLE).addTo(group);
   }, [gpsPosition]);
 
-  // Sync presence markers — field positions from mission event's field_positions
+  // Sync presence markers — opt-in self-locations from the clinic presence
+  // overlay. Positions persist until the owner updates/removes them, so markers
+  // stay clearly visible; age is surfaced in the tooltip rather than by fading.
   useEffect(() => {
     const group = presenceLayerRef.current;
     group.clearLayers();
@@ -695,9 +697,10 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
     for (const marker of presenceMarkers) {
       const ageMs = now - new Date(marker.timestamp).getTime();
       const ageMin = ageMs / 60_000;
-      const fillOpacity = Math.max(0.15, 0.9 - ageMin * 0.025);
-      // Decay ring grows from 50m to 1000m over ~32 min
-      const decayRadius = Math.min(1000, 50 + ageMin * 30);
+      // Persist model: never fade below a clearly-legible floor.
+      const fillOpacity = Math.max(0.6, 0.9 - ageMin * 0.005);
+      // Gentle uncertainty ring, capped small — position is user-asserted, not tracked.
+      const decayRadius = Math.min(150, 50 + ageMin * 2);
 
       // Uncertainty ring
       L.circle([marker.lat, marker.lng], {

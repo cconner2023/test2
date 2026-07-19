@@ -22,14 +22,26 @@ export function SubordinateClustersManager({
   clinicId,
   isSupervisor,
   currentUserId,
+  onSelectChild,
+  activeChildId,
 }: {
   clinicId: string | null
   isSupervisor: boolean
   currentUserId: string | null
+  /** When provided (desktop), tapping a card routes the drill to the Settings
+   *  right pane instead of opening the local Sheet. */
+  onSelectChild?: (child: { id: string; name: string }) => void
+  /** Highlights the card whose roster is open in the right pane (desktop). */
+  activeChildId?: string | null
 }) {
   const { cards } = useEchelonSummaries(clinicId, isSupervisor)
   const [openChild, setOpenChild] = useState<{ id: string; name: string } | null>(null)
   if (cards.length === 0) return null
+
+  const handleOpen = (child: { id: string; name: string }) => {
+    if (onSelectChild) onSelectChild(child)
+    else setOpenChild(child)
+  }
 
   return (
     <section>
@@ -43,8 +55,10 @@ export function SubordinateClustersManager({
               <button
                 key={card.clinicId}
                 type="button"
-                onClick={() => setOpenChild({ id: card.clinicId, name: card.clinicName })}
-                className="w-full flex items-center gap-3 py-2 px-2 rounded-lg text-left hover:bg-secondary/5 active:scale-95 transition-all"
+                onClick={() => handleOpen({ id: card.clinicId, name: card.clinicName })}
+                className={`w-full flex items-center gap-3 py-2 px-2 rounded-lg text-left hover:bg-secondary/5 active:scale-95 transition-all ${
+                  card.clinicId === activeChildId ? 'bg-themeblue3/8' : ''
+                }`}
               >
                 <div className="w-8 h-8 rounded-full flex items-center justify-center bg-tertiary/10 shrink-0">
                   <Building2 size={14} className="text-tertiary" />
@@ -62,7 +76,8 @@ export function SubordinateClustersManager({
         </div>
       </div>
 
-      {openChild && (
+      {/* Mobile host: inline Sheet. Desktop routes to the right pane via onSelectChild. */}
+      {!onSelectChild && openChild && (
         <ChildClinicRosterSheet
           clinicId={openChild.id}
           clinicName={openChild.name}

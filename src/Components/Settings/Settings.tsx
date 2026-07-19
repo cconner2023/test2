@@ -1,6 +1,9 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import { Palette, Shield, Lock, MessageSquare, Bell, Stethoscope, Scale, X, Building2, Check, Radio, LayoutDashboard, HardDrive, Smartphone, BookOpen } from 'lucide-react';
+import { Palette, Shield, Lock, MessageSquare, Bell, Stethoscope, Scale, X, Building2, Check, Radio, LayoutDashboard, HardDrive, Smartphone, BookOpen, ChevronLeft } from 'lucide-react';
 import { BaseDrawer } from '@/Components/primitives/BaseDrawer';
+import { useIsMobile } from '../../Hooks/useIsMobile';
+import { ChildClinicRosterBody } from './Supervisor/ChildClinicRosterSheet';
+import { TimelineDetailPane } from '../Timeline/UserTimeline';
 import { resizeImage } from '../../Hooks/useProfileAvatar';
 import { useAvatar } from '../../Utilities/AvatarContext';
 import { useUserProfile } from '../../Hooks/useUserProfile';
@@ -26,8 +29,11 @@ import { PANEL, PANEL_TARGET, type PanelId, type SettingsItem } from './Settings
 import { UI_TIMING } from '../../Utilities/constants';
 import { useBetaFlag } from '../../lib/betaFeatures';
 import { MainSettingsPanel } from './MainSettingsPanel';
+import { SettingsRail } from './SettingsRail';
 import { AvatarPickerPanel } from './AvatarPickerPanel';
 import { ContentWrapper } from '@/Components/primitives/ContentWrapper';
+import { SlideRevealPane } from '@/Components/primitives/SlideRevealPane';
+import { useEscBackout } from '../../Hooks/useEscBackout';
 import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill';
 import { SessionsDevicesPanel } from './SessionsDevicesPanel';
 import { ClinicPanel } from './ClinicPanel';
@@ -47,6 +53,15 @@ interface SettingsDrawerProps {
     initialPanel?: 'main' | 'release-notes' | 'user-profile' | 'feedback' | 'feature-votes' | 'clinic';
 }
 
+/** Desktop right-pane content. The center keeps its own `activePanel`; this is
+ *  the nested detail drilled from within a panel (mobile routes these through
+ *  the center slide-push / local Sheet instead, so `detailView` stays 'none'). */
+type DetailView =
+    | { kind: 'none' }
+    | { kind: 'child-cluster'; id: string; name: string }
+    | { kind: 'app-content'; panel: 'plan-settings' | 'text-templates' | 'provider-templates' }
+    | { kind: 'user-timeline'; subjectId: string; clinicId?: string; title: string };
+
 export const Settings = ({
     isVisible,
     onClose,
@@ -54,7 +69,15 @@ export const Settings = ({
 }: SettingsDrawerProps) => {
     const { currentAvatar, setAvatar, avatarList, customImage, isCustom, setCustomImage, clearCustomImage } = useAvatar();
     const { themeName } = useTheme();
+    const isMobile = useIsMobile();
     const [activePanel, setActivePanel] = useState<'main' | 'release-notes' | 'avatar-picker' | 'user-profile' | 'pin-setup' | 'notification-settings' | 'feedback' | 'note-content' | 'privacy-policy' | 'sessions-devices' | 'clinic' | 'lora' | 'plan-settings' | 'text-templates' | 'provider-templates' | 'overview-widgets' | 'theme-picker' | 'storage' | 'feature-votes'>('main');
+    // Desktop three-pane right detail. Never set on mobile (drills slide-push /
+    // use a local Sheet instead). See DetailView above.
+    const [detailView, setDetailView] = useState<DetailView>({ kind: 'none' });
+    const detailOpen = detailView.kind !== 'none';
+    const closeDetail = useCallback(() => setDetailView({ kind: 'none' }), []);
+    // Desktop Esc: collapse the right detail pane first; a second Esc closes the drawer.
+    useEscBackout(!isMobile && detailOpen, closeDetail);
     // The User Guide is its own top-level drawer (opened from the About row / release
     // notes), not a Settings sub-panel — so opening it just flips a nav-store flag.
     const setShowUserGuideDrawer = useNavigationStore((s) => s.setShowUserGuideDrawer);
@@ -120,22 +143,49 @@ export const Settings = ({
         prevVisibleRef.current = isVisible;
     }, [isVisible, initialPanel]);
 
+    // Stale-guard: switching the operating cluster (cluster switcher) invalidates
+    // any open child-cluster roster in the desktop right pane.
+    useEffect(() => { setDetailView({ kind: 'none' }); }, [clinicId]);
+
     const handleSlideAnimation = useCallback((direction: 'left' | 'right') => {
         setSlideDirection(direction);
         setTimeout(() => setSlideDirection(''), UI_TIMING.SLIDE_ANIMATION);
     }, []);
 
+    /** Desktop rail → center switch. Resets clinic editing (mirrors the clinic
+     *  back handler) and closes any open detail pane; guards an unsaved cluster
+     *  before leaving since desktop has no header back button to hang it on. */
+    const navigateCenter = useCallback((target: typeof activePanel) => {
+        const go = () => {
+            setActivePanel(target);
+            setDetailView({ kind: 'none' });
+            setClinicEditing(false);
+            setClinicDeleteSelection(new Set());
+            setClinicAddingMember(false);
+        };
+        if (activePanel === 'clinic' && clinicHasPending) guardedClinicAction(go);
+        else go();
+    }, [activePanel, clinicHasPending, guardedClinicAction]);
+
 const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
         if (id === PANEL.CLOSE) { closeDrawer(); return; }
-        if (id === PANEL.BACK_TO_MAIN) { handleSlideAnimation('right'); setActivePanel('main'); return; }
+        if (id === PANEL.BACK_TO_MAIN) {
+            if (isMobile) { handleSlideAnimation('right'); setActivePanel('main'); }
+            else navigateCenter('main');
+            return;
+        }
 
         // Look up the target panel name from the constant map
         const target = PANEL_TARGET[id];
         if (target) {
-            handleSlideAnimation('left');
-            setActivePanel(target as typeof activePanel);
+            if (isMobile) {
+                handleSlideAnimation('left');
+                setActivePanel(target as typeof activePanel);
+            } else {
+                navigateCenter(target as typeof activePanel);
+            }
         }
-    }, [handleSlideAnimation]);
+    }, [handleSlideAnimation, isMobile, navigateCenter]);
 
     const buildSettingsOptions = useCallback((closeDrawer: () => void): SettingsItem[] => {
         /** Shorthand for a standard menu option that navigates to a panel. */
@@ -246,17 +296,19 @@ const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
     const handleClose = useCallback(() => {
         setActivePanel('main');
         setSlideDirection('');
+        setDetailView({ kind: 'none' });
 
         setClinicEditing(false);
         setClinicDeleteSelection(new Set());
         onClose();
     }, [onClose]);
 
-    /** Shorthand: back button that slides right to a target panel (default: 'main'). */
+    /** Shorthand: back button that slides right to a target panel (default: 'main').
+     *  Desktop suppresses the back button — the rail IS the navigation. */
     const backTo = useCallback((target: typeof activePanel = 'main') => ({
-        showBack: true as const,
+        showBack: isMobile as boolean,
         onBack: () => { handleSlideAnimation('right'); setActivePanel(target); },
-    }), [handleSlideAnimation]);
+    }), [handleSlideAnimation, isMobile]);
 
     const headerConfig = useMemo(() => {
         switch (activePanel) {
@@ -312,7 +364,7 @@ const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
             case 'clinic': {
                 const doClinicBack = () => { handleSlideAnimation('right'); setClinicEditing(false); setClinicDeleteSelection(new Set()); setActivePanel('main'); };
                 const clinicBackTo = {
-                    showBack: true as const,
+                    showBack: isMobile as boolean,
                     onBack: () => guardedClinicAction(doClinicBack),
                 };
                 if (isSupervisorRole) {
@@ -347,7 +399,7 @@ const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
             }
 
         }
-    }, [activePanel, backTo, handleClose, isSupervisorRole, clinicEditing, handleSlideAnimation, guardedClinicAction]);
+    }, [activePanel, backTo, handleClose, isSupervisorRole, clinicEditing, handleSlideAnimation, guardedClinicAction, isMobile]);
 
     return (<>
         <BaseDrawer
@@ -356,56 +408,55 @@ const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
             fullHeight="90dvh"
             disableDrag={false}
             desktopPosition="left"
+            desktopWidth="w-[90%]"
             header={headerConfig}
             scrollDisabled
-            glassHeader
+            glassHeader={isMobile}
         >
-            {(handleClose) => (
-                <div className="h-full overflow-y-auto overscroll-y-contain">
-                <ContentWrapper slideDirection={slideDirection} swipeHandlers={activePanel !== 'main' ? swipeHandlers : undefined}>
-                    {(() => {
-                        // Component lookup map — maps each panel name to its rendered JSX.
-                        // Replaces the previous 18-branch ternary chain.
-                        const panelMap: Partial<Record<typeof activePanel, React.ReactNode>> = {
+            {(handleClose) => {
+                // Component lookup map — maps each panel name to its rendered JSX.
+                // Mobile indexes by activePanel (slide-push); desktop uses the same
+                // map for the rail ('main') and the center (selected panel).
+                // Shared by the mobile menu card (MainSettingsPanel) and the desktop
+                // rail (SettingsRail) \u2014 one source of truth for the menu + profile.
+                const mainPanelProps = {
+                    settingsOptions: buildSettingsOptions(handleClose),
+                    onItemClick: (id: PanelId) => handleItemClick(id, handleClose),
+                    displayName: isAuthenticated
+                        ? (profile.lastName
+                            ? `${profile.rank ? profile.rank + ' ' : ''}${profile.lastName}${profile.firstName ? ', ' + profile.firstName.charAt(0) + '.' : ''}`
+                            : 'Set Up Profile')
+                        : 'Guest',
+                    displaySub: isAuthenticated
+                        ? (profile.credential
+                            ? `${profile.credential}${profile.component ? ' \u00b7 ' + profile.component : ''}`
+                            : 'Tap to set up')
+                        : 'Tap to log out',
+                    onAvatarClick: () => {
+                        // Guests have no profile to personalize \u2014 the whole card
+                        // (avatar included) is a logout affordance, not a setup path.
+                        if (!isAuthenticated) {
+                            useAuthStore.setState({ isGuest: false });
+                            handleClose();
+                        } else {
+                            handleItemClick(PANEL.AVATAR_PICKER, handleClose);
+                        }
+                    },
+                    onProfileClick: () => {
+                        if (!isAuthenticated) {
+                            // Exit guest mode to show the LoginScreen
+                            useAuthStore.setState({ isGuest: false });
+                            handleClose();
+                        } else {
+                            handleItemClick(PANEL.USER_PROFILE, handleClose);
+                        }
+                    },
+                    isConnected: isSupabaseConnected,
+                };
+
+                const panelMap: Partial<Record<typeof activePanel, React.ReactNode>> = {
                             'main': (
-                                <MainSettingsPanel
-                                    settingsOptions={buildSettingsOptions(handleClose)}
-                                    onItemClick={(id) => handleItemClick(id, handleClose)}
-                                    displayName={
-                                        isAuthenticated
-                                            ? (profile.lastName
-                                                ? `${profile.rank ? profile.rank + ' ' : ''}${profile.lastName}${profile.firstName ? ', ' + profile.firstName.charAt(0) + '.' : ''}`
-                                                : 'Set Up Profile')
-                                            : 'Guest'
-                                    }
-                                    displaySub={
-                                        isAuthenticated
-                                            ? (profile.credential
-                                                ? `${profile.credential}${profile.component ? ' \u00b7 ' + profile.component : ''}`
-                                                : 'Tap to set up')
-                                            : 'Tap to log out'
-                                    }
-                                    onAvatarClick={() => {
-                                        // Guests have no profile to personalize \u2014 the whole card
-                                        // (avatar included) is a logout affordance, not a setup path.
-                                        if (!isAuthenticated) {
-                                            useAuthStore.setState({ isGuest: false });
-                                            handleClose();
-                                        } else {
-                                            handleItemClick(PANEL.AVATAR_PICKER, handleClose);
-                                        }
-                                    }}
-                                    onProfileClick={() => {
-                                        if (!isAuthenticated) {
-                                            // Exit guest mode to show the LoginScreen
-                                            useAuthStore.setState({ isGuest: false });
-                                            handleClose();
-                                        } else {
-                                            handleItemClick(PANEL.USER_PROFILE, handleClose);
-                                        }
-                                    }}
-                                    isConnected={isSupabaseConnected}
-                                />
+                                <MainSettingsPanel {...mainPanelProps} activeId={!isMobile ? activePanel : undefined} />
                             ),
                             'user-profile': (
                                 <ProfilePage
@@ -420,6 +471,7 @@ const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
                                         handleClose();
                                         return { success: true };
                                     }}
+                                    onViewTimeline={isMobile ? undefined : () => setDetailView({ kind: 'user-timeline', subjectId: user?.id ?? '', clinicId: clinicId ?? undefined, title: 'Timeline' })}
                                 />
                             ),
                             'avatar-picker': (
@@ -452,9 +504,14 @@ const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
                             'note-content': (
                                 <NoteContentPanel
                                     onNavigate={(panel) => {
-                                        handleSlideAnimation('left');
-                                        setActivePanel(panel as typeof activePanel);
+                                        if (isMobile) {
+                                            handleSlideAnimation('left');
+                                            setActivePanel(panel as typeof activePanel);
+                                        } else {
+                                            setDetailView({ kind: 'app-content', panel: panel as 'plan-settings' | 'text-templates' | 'provider-templates' });
+                                        }
                                     }}
+                                    activeSubpage={!isMobile && detailView.kind === 'app-content' ? detailView.panel : undefined}
                                 />
                             ),
                             'overview-widgets': <OverviewWidgetsPanel />,
@@ -478,16 +535,119 @@ const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
                                     addingMember={clinicAddingMember}
                                     onAddingMemberChange={setClinicAddingMember}
                                     onPendingChangesChange={setClinicHasPending}
+                                    onOpenChild={isMobile ? undefined : (child) => setDetailView({ kind: 'child-cluster', id: child.id, name: child.name })}
+                                    activeChildId={detailView.kind === 'child-cluster' ? detailView.id : undefined}
                                 />
                             ),
-                        };
-                        return panelMap[activePanel] ?? null;
-                    })()}
+                };
 
-                    {/* Pre-mounted panels — data loads when Settings opens, hidden until active */}
-                </ContentWrapper>
-                </div>
-            )}
+                // Desktop panes zero out the glass-header offset token: on desktop
+                // BaseDrawer renders a solid in-flow header (glassHeader=isMobile) and
+                // never publishes --drawer-header-h, so each panel's
+                // pt-[calc(var(--drawer-header-h,3.5rem)+…)] collapses to the +… floor.
+                const paneStyle = { ['--drawer-header-h' as string]: '0px' } as React.CSSProperties;
+
+                // Desktop right pane: nested detail drilled from the center panel.
+                const renderDetail = () => {
+                    if (detailView.kind === 'child-cluster') {
+                        return (
+                            <ChildClinicRosterBody
+                                key={detailView.id}
+                                clinicId={detailView.id}
+                                currentUserId={user?.id ?? null}
+                                title={detailView.name}
+                                onBack={closeDetail}
+                            />
+                        );
+                    }
+                    if (detailView.kind === 'user-timeline') {
+                        return (
+                            <TimelineDetailPane
+                                subjectId={detailView.subjectId}
+                                clinicId={detailView.clinicId}
+                                title={detailView.title}
+                                onBack={closeDetail}
+                            />
+                        );
+                    }
+                    if (detailView.kind === 'app-content') {
+                        const titleMap: Record<typeof detailView.panel, string> = {
+                            'plan-settings': 'Plan',
+                            'text-templates': 'Text Templates',
+                            'provider-templates': 'Provider Templates',
+                        };
+                        return (
+                            <div className="flex h-full flex-col">
+                                <div className="shrink-0 flex items-center gap-2 px-4 py-3 border-b border-tertiary/10">
+                                    <button
+                                        onClick={closeDetail}
+                                        className="w-8 h-8 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all shrink-0"
+                                        aria-label="Back"
+                                    >
+                                        <ChevronLeft size={18} />
+                                    </button>
+                                    <p className="flex-1 min-w-0 text-sm font-semibold text-primary truncate">{titleMap[detailView.panel]}</p>
+                                </div>
+                                <div className="flex-1 min-h-0 overflow-y-auto">
+                                    {detailView.panel === 'plan-settings' && <PlanPanel />}
+                                    {detailView.panel === 'text-templates' && <TextTemplatesPanel />}
+                                    {detailView.panel === 'provider-templates' && <ProviderTemplatesPanel />}
+                                </div>
+                            </div>
+                        );
+                    }
+                    return null;
+                };
+
+                return (
+                    <div className={isMobile ? 'h-full overflow-y-auto overscroll-y-contain' : 'h-full'}>
+                    <ContentWrapper
+                        slideDirection={isMobile ? slideDirection : ''}
+                        swipeHandlers={isMobile && activePanel !== 'main' ? swipeHandlers : undefined}
+                    >
+                        {isMobile ? (
+                            panelMap[activePanel] ?? null
+                        ) : (
+                            <div className="flex h-full">
+                                {/* Left rail — condensed settings tree + search. Collapses
+                                    (slides out left) when the right detail pane opens. */}
+                                <SlideRevealPane
+                                    open={!detailOpen}
+                                    side="left"
+                                    width={300}
+                                    keepMounted
+                                    className="border-r border-tertiary/10 bg-themewhite3/50"
+                                    style={paneStyle}
+                                >
+                                    <SettingsRail {...mainPanelProps} activeId={activePanel} />
+                                </SlideRevealPane>
+                                {/* Center — the selected top-level panel. */}
+                                <div className="flex-1 min-w-0 flex flex-col overflow-hidden" style={paneStyle}>
+                                    {activePanel === 'main' ? (
+                                        <div className="h-full flex items-center justify-center px-6 text-center text-sm text-tertiary">
+                                            Select a setting
+                                        </div>
+                                    ) : (
+                                        panelMap[activePanel] ?? null
+                                    )}
+                                </div>
+                                {/* Right — nested detail (child roster / App Content subpage);
+                                    slides in from the right as the rail collapses. */}
+                                <SlideRevealPane
+                                    open={detailOpen}
+                                    side="right"
+                                    width={420}
+                                    className="border-l border-primary/10 bg-themewhite3"
+                                    style={paneStyle}
+                                >
+                                    {renderDetail()}
+                                </SlideRevealPane>
+                            </div>
+                        )}
+                    </ContentWrapper>
+                    </div>
+                );
+            }}
         </BaseDrawer>
         <ConfirmDialog
             visible={showUnsavedGuard}

@@ -1,5 +1,5 @@
 import { ChevronRight } from 'lucide-react';
-import { PANEL, type PanelId, type SettingsItem } from './SettingsTypes';
+import { PANEL, PANEL_TARGET, type PanelId, type SettingsItem } from './SettingsTypes';
 import { useAvatar } from '../../Utilities/AvatarContext';
 import { useAuth } from '../../Hooks/useAuth';
 import { getInitials } from '../../Utilities/nameUtils';
@@ -12,6 +12,9 @@ export interface MainSettingsPanelProps {
     onAvatarClick: () => void;
     onProfileClick: () => void;
     isConnected?: boolean;
+    /** Desktop rail: the currently-selected center panel slug — highlights the
+     *  matching menu row. Undefined on mobile (no persistent selection). */
+    activeId?: string;
 }
 
 export const MainSettingsPanel = ({
@@ -22,6 +25,7 @@ export const MainSettingsPanel = ({
     onAvatarClick,
     onProfileClick,
     isConnected,
+    activeId,
 }: MainSettingsPanelProps) => {
     const { currentAvatar, customImage, isCustom, isInitials } = useAvatar();
     const { profile } = useAuth();
@@ -86,7 +90,9 @@ export const MainSettingsPanel = ({
                                     item.action();
                                     onItemClick(item.id);
                                 }}
-                                className={`flex items-center gap-3 w-full px-4 py-3.5 transition-all active:scale-95 hover:bg-themeblue2/5`}
+                                className={`flex items-center gap-3 w-full px-4 py-3.5 transition-all active:scale-95 hover:bg-themeblue2/5 ${
+                                    activeId != null && PANEL_TARGET[item.id] === activeId ? 'bg-themeblue3/8' : ''
+                                }`}
                             >
                                 <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
                                     <div className={item.color}>{item.icon}</div>
@@ -130,7 +136,7 @@ export const MainSettingsPanel = ({
                                     className={`flex items-center gap-3 w-full px-4 py-3.5 transition-all ${item.disabled
                                             ? 'opacity-50 cursor-not-allowed'
                                             : 'active:scale-95 hover:bg-themeblue2/5'
-                                        }`}
+                                        } ${activeId != null && !item.disabled && PANEL_TARGET[item.id] === activeId ? 'bg-themeblue3/8' : ''}`}
                                 >
                                     <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
                                         <div className={`${item.disabled ? 'text-tertiary' : item.color}`}>

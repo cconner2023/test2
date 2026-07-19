@@ -7,9 +7,12 @@ import { SettingsToggleRow } from './SettingsToggleRow';
 
 interface NoteContentPanelProps {
     onNavigate?: (panel: string) => void;
+    /** Desktop: the subpage currently open in the right pane — highlights its row.
+     *  Undefined on mobile (subpages slide-push, no persistent selection). */
+    activeSubpage?: string;
 }
 
-export const NoteContentPanel = ({ onNavigate }: NoteContentPanelProps) => {
+export const NoteContentPanel = ({ onNavigate, activeSubpage }: NoteContentPanelProps) => {
     const isProviderRole = useAuthStore((s) => s.isProviderRole);
     const { isLoaned, memberships, toggle } = useTemplateSubscription();
 
@@ -67,7 +70,9 @@ export const NoteContentPanel = ({ onNavigate }: NoteContentPanelProps) => {
                         return (
                             <div
                                 key={section.label}
-                                className="flex items-center gap-3 px-4 py-3.5 cursor-pointer transition-all active:scale-95 hover:bg-themeblue2/5"
+                                className={`flex items-center gap-3 px-4 py-3.5 cursor-pointer transition-all active:scale-95 hover:bg-themeblue2/5 ${
+                                    activeSubpage === section.navigateTo ? 'bg-themeblue3/8' : ''
+                                }`}
                                 onClick={() => onNavigate?.(section.navigateTo)}
                                 role="button"
                                 tabIndex={0}
@@ -94,7 +99,9 @@ export const NoteContentPanel = ({ onNavigate }: NoteContentPanelProps) => {
 
                     {isProviderRole && (
                         <div
-                            className="flex items-center gap-3 px-4 py-3.5 cursor-pointer transition-all active:scale-95 hover:bg-themeblue2/5"
+                            className={`flex items-center gap-3 px-4 py-3.5 cursor-pointer transition-all active:scale-95 hover:bg-themeblue2/5 ${
+                                activeSubpage === 'provider-templates' ? 'bg-themeblue3/8' : ''
+                            }`}
                             onClick={() => onNavigate?.('provider-templates')}
                             role="button"
                             tabIndex={0}

@@ -47,6 +47,8 @@ import { isLinContainer, isAuthTarget, isZoneShadow } from '../../Utilities/prop
 import { SignOutForm, type SignOutFormHandle } from './SignOutForm'
 import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill'
 import { SearchInput } from '@/Components/primitives/SearchInput'
+import { SlideRevealPane } from '@/Components/primitives/SlideRevealPane'
+import { useEscBackout } from '../../Hooks/useEscBackout'
 
 export type PropertyView = 'property' | 'property-detail' | 'property-form'
 
@@ -1174,10 +1176,27 @@ export const PropertyPanel = memo(function PropertyPanel({
     </StackNavContext.Provider>
   )
 
+  // Desktop right-pane open state — the rail collapses while any detail/editor/overlay is up.
+  const railCollapsed = view === 'property-form' || view === 'property-detail' || !!editLocationTarget || !!selectedLocation || signOutOpen || importOpen || shortageOpen || authorizedOpen || !!da2062Preview || !!selectedReceipt || !!selectedRecord || !!selectedTurnIn
+  // Desktop Esc: back out the open right pane one layer before the drawer closes.
+  // Priority mirrors render precedence — absolute overlays (import/shortage/authorized/
+  // reprint) first, then the location/sign-out editors, then roster + item/location details.
+  useEscBackout(!isMobile && railCollapsed, () => {
+    if (importOpen) { setImportOpen(false); return }
+    if (shortageOpen) { setShortageOpen(false); return }
+    if (authorizedOpen) { setAuthorizedOpen(false); return }
+    if (da2062Preview) { clearDA2062Preview(); return }
+    if (editLocationTarget) { setEditLocationTarget(null); return }
+    if (signOutOpen) { setSignOutOpen(false); return }
+    if (selectedReceipt || selectedRecord || selectedTurnIn) { closeRosterDetail(); return }
+    if (view === 'property-form') { store.setEditingItem(null); onBack(); return }
+    if (view === 'property-detail') { onBack(); closeLocationDetail(); return }
+    if (selectedLocation) { closeLocationDetail(); return }
+  })
+
   // Desktop layout — left rail (location tree) · center map · right pane (detail/form),
   // mirroring MapOverlayPanel: the rail collapses while the right pane is open.
   if (!isMobile) {
-    const railCollapsed = view === 'property-form' || view === 'property-detail' || !!editLocationTarget || !!selectedLocation || signOutOpen || importOpen || shortageOpen || authorizedOpen || !!da2062Preview || !!selectedReceipt || !!selectedRecord || !!selectedTurnIn
     // When the rail search has a query, the results take over the CENTER pane
     // (mirrors mobile's overlay) instead of filtering the rail tree in place. The
     // rail keeps the full tree for navigation context; results route to the right pane.
@@ -1185,9 +1204,13 @@ export const PropertyPanel = memo(function PropertyPanel({
     return (
       <>
         <div ref={panelRef} className="flex h-full relative">
-          <div className={`shrink-0 border-r border-tertiary/10 flex flex-col bg-themewhite3/50 transition-all duration-300 ${
-            railCollapsed ? 'w-0 opacity-0 overflow-hidden border-r-0' : 'w-[260px] opacity-100'
-          }`}>
+          <SlideRevealPane
+            open={!railCollapsed}
+            side="left"
+            width={260}
+            keepMounted
+            className="border-r border-tertiary/10 bg-themewhite3/50"
+          >
             {/* Location tree is always present in the rail (reached by search here);
                 it is no longer an island tab. */}
             <div className="shrink-0 px-3 pt-2 pb-1">
@@ -1225,7 +1248,7 @@ export const PropertyPanel = memo(function PropertyPanel({
                 onOpenLocationMenu={openLocationMenu}
               />
             </div>
-          </div>
+          </SlideRevealPane>
 
           <div className="flex-1 min-w-0 relative">
             {/* The island cycles Map (canvas) ↔ Sign-outs (custody); Camera is
@@ -1294,9 +1317,13 @@ export const PropertyPanel = memo(function PropertyPanel({
             )}
           </div>
 
-          <div ref={detailPaneRef} className={`shrink-0 border-l border-primary/10 flex flex-col bg-themewhite3 transition-all duration-300 relative ${
-            railCollapsed ? 'w-[380px] opacity-100' : 'w-0 opacity-0 overflow-hidden border-l-0'
-          }`}>
+          <SlideRevealPane
+            ref={detailPaneRef}
+            open={railCollapsed}
+            side="right"
+            width={380}
+            className="border-l border-primary/10 bg-themewhite3 relative"
+          >
             <LoadingOverlay visible={formSaving} />
             {editLocationTarget && (
               <>
@@ -1654,7 +1681,7 @@ export const PropertyPanel = memo(function PropertyPanel({
                 </div>
               </div>
             )}
-          </div>
+          </SlideRevealPane>
         </div>
 
         {locationActionMenuEl}

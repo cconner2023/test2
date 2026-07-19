@@ -3,6 +3,7 @@ import { Users, Plus, Download, X } from 'lucide-react'
 import { BaseDrawer } from '@/Components/primitives/BaseDrawer'
 import { Sheet } from '@/Components/primitives/Sheet'
 import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill'
+import { SlideRevealPane } from '@/Components/primitives/SlideRevealPane'
 import { useIsMobile } from '../../Hooks/useIsMobile'
 import { useTC3Store } from '../../stores/useTC3Store'
 import { TC3CardColumn } from './TC3CardColumn'
@@ -138,14 +139,16 @@ export const TC3Drawer = memo(function TC3Drawer({ isVisible, onClose }: TC3Draw
           </div>
         ) : (
           <div className="flex h-full relative">
-            {/* Left — roster rail; collapses when a sub-editor opens the right pane. */}
-            <div
-              className={`shrink-0 border-r border-primary/10 bg-themewhite3 flex flex-col transition-all duration-300 ${
-                detailOpen ? 'w-0 opacity-0 overflow-hidden border-r-0' : 'w-72 opacity-100'
-              }`}
+            {/* Left — roster rail; collapses (slides out left) when a sub-editor opens the right pane. */}
+            <SlideRevealPane
+              open={!detailOpen}
+              side="left"
+              width={288}
+              keepMounted
+              className="border-r border-primary/10 bg-themewhite3"
             >
               <CasualtyList variant="pane" />
-            </div>
+            </SlideRevealPane>
             {/* Main — selected casualty's DD1380 card, one scrollable column.
                 (No slider here — the left roster rail is the desktop switcher.) */}
             <div className="flex-1 min-w-0 h-full">
@@ -153,11 +156,12 @@ export const TC3Drawer = memo(function TC3Drawer({ isVisible, onClose }: TC3Draw
             </div>
             {/* Right — docked detail pane; sub-editors render in directly
                 (EventDetailPanel-style) via a portal into paneRef. */}
-            <div
+            <SlideRevealPane
               ref={paneRef}
-              className={`shrink-0 border-l border-primary/10 bg-themewhite3 flex flex-col transition-all duration-300 ${
-                detailOpen ? 'w-[380px] opacity-100' : 'w-0 opacity-0 overflow-hidden border-l-0'
-              }`}
+              open={detailOpen}
+              side="right"
+              width={380}
+              className="border-l border-primary/10 bg-themewhite3"
             />
           </div>
         )}

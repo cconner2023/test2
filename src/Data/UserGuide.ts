@@ -464,7 +464,7 @@ export const UserGuide: GuideChapter[] = [
             {
                 id: 'app-content',
                 title: 'Customizing your note content',
-                summary: 'Build order sets, autotext, templates, and checklists under Settings → App Content.',
+                summary: 'Build order sets, autotext, and templates under Settings → App Content.',
                 blocks: [
                     { kind: 'p', text: 'The note builder\'s building blocks are yours to shape. Open Settings → App Content to set up what the Plan section and autotext offer, so your routine documentation is a tap instead of retyping.' },
                     { kind: 'sub', text: 'Plan — order tags & order sets' },
@@ -473,8 +473,6 @@ export const UserGuide: GuideChapter[] = [
                     { kind: 'p', text: 'Autotext shortcuts expand into longer boilerplate as you type in a note — define a short trigger and the full text it stands for.' },
                     { kind: 'sub', text: 'Provider Templates' },
                     { kind: 'p', text: 'Providers can save note skeletons built from their shortcuts and apply one while reviewing and signing.' },
-                    { kind: 'sub', text: 'Checklists' },
-                    { kind: 'p', text: 'Supervisors build reusable checklists — your PCC/PCI lists — that drop onto a calendar event as a ready-made task list. See "Sub-tasks & checklists".' },
                     { kind: 'note', text: 'If you are loaned to other clusters, a Template sources control lets you choose which clusters\' text templates and order sets mix into your notes. Your own personal blocks are always included.' },
                 ],
             },
@@ -755,18 +753,16 @@ export const UserGuide: GuideChapter[] = [
             },
             {
                 id: 'event-subtasks',
-                title: 'Sub-tasks & checklists',
-                summary: 'Break an event into sub-tasks or reuse a saved cluster checklist (PCC/PCI).',
+                title: 'Sub-tasks',
+                summary: 'Break an event into a shared checklist of sub-tasks.',
                 blocks: [
                     { kind: 'image', src: 'event-subtasks.png', srcMobile: 'event-subtasks-mobile.png', alt: 'Event tasks card', caption: 'Tasks on an event.', side: 'left' },
-                    { kind: 'p', text: 'The Tasks card on an event is a checklist that rides along with it — the concrete things that have to happen. You can add items one at a time or seed the whole list from a saved cluster Checklist (your PCC/PCI packing list).' },
+                    { kind: 'p', text: 'The Tasks card on an event is a checklist that rides along with it — the concrete things that have to happen. Add items one at a time as the event takes shape.' },
                     { kind: 'steps', items: [
                         'Open or create an event and find the Tasks card.',
-                        ['Tap the ', { btn: 'plus' }, ' (Add task). To reuse a standard list, pick one of your cluster\'s Checklists at the top — every item seeds onto the event.'],
-                        'For a one-off item, tap Add new and choose Add equipment, Add location, or Add free text.',
+                        ['Tap the ', { btn: 'plus' }, ' (Add task), then choose Add equipment, Add location, or Add free text.'],
                         'Assignees check items off as they\'re completed — status is shared with the cluster.',
                     ] },
-                    { kind: 'note', text: 'Build a checklist once and drop it onto any event instead of re-typing the same items. Cluster checklists themselves are created and edited under Settings → App Content → Checklists (New checklist → Add check → Equipment / Location / Free text).' },
                 ],
             },
             {

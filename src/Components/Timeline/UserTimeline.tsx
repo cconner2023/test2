@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, type ReactNode } from 'react'
-import { Building2, Package, ClipboardCheck, Award, Activity, Calendar, History } from 'lucide-react'
+import { Building2, Package, ClipboardCheck, Award, Activity, Calendar, History, ChevronLeft } from 'lucide-react'
 import { SkeletonRows } from '@/Components/primitives/Skeleton'
 import { LoadingOverlay } from '@/Components/primitives/LoadingOverlay'
 import { getAuditBySubjectLocal, fetchAuditBySubject } from '../../lib/auditService'
@@ -347,6 +347,36 @@ export function TimelineFullView({ rows, loading = false }: { rows: TimelineRowD
         </div>
       )}
       <LoadingOverlay visible={loading} size={120} />
+    </div>
+  )
+}
+
+/** Desktop right-pane host for the full timeline. Self-fetches the subject's spine
+ *  (so a host can drop it into a detail pane without threading rows) and renders a
+ *  back header over the searchable TimelineFullView — mirrors the SupervisorDrawer
+ *  timeline pane / the Settings app-content detail header. */
+export function TimelineDetailPane({ subjectId, clinicId, title = 'Timeline', onBack }: {
+  subjectId: string
+  clinicId?: string
+  title?: string
+  onBack: () => void
+}) {
+  const { allRows, loading } = useSubjectTimelineRows({ subjectId, clinicId: clinicId ?? '' })
+  return (
+    <div className="flex h-full flex-col">
+      <div className="shrink-0 flex items-center gap-2 px-4 py-3 border-b border-tertiary/10">
+        <button
+          onClick={onBack}
+          className="w-8 h-8 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all shrink-0"
+          aria-label="Back"
+        >
+          <ChevronLeft size={18} />
+        </button>
+        <p className="flex-1 min-w-0 text-sm font-semibold text-primary truncate">{title}</p>
+      </div>
+      <div className="flex-1 min-h-0 overflow-y-auto">
+        <TimelineFullView rows={allRows} loading={loading} />
+      </div>
     </div>
   )
 }

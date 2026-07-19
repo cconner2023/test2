@@ -68,6 +68,11 @@ interface ClinicPanelProps {
   addingMember: boolean
   onAddingMemberChange: (v: boolean) => void
   onPendingChangesChange?: (hasPending: boolean) => void
+  /** Desktop: routes a subordinate-cluster drill to the Settings right pane
+   *  instead of the local bottom Sheet. Undefined on mobile → Sheet is used. */
+  onOpenChild?: (child: { id: string; name: string }) => void
+  /** Desktop: highlights the child whose roster is open in the right pane. */
+  activeChildId?: string | null
 }
 
 export function ClinicPanel({
@@ -80,6 +85,8 @@ export function ClinicPanel({
   addingMember,
   onAddingMemberChange,
   onPendingChangesChange,
+  onOpenChild,
+  activeChildId,
 }: ClinicPanelProps) {
   const { user, clinicId: assignedClinicId, surrogateClinicIds, supervisingClinicId, profile, isSupervisorRole, setSupervisingClinic } = useAuth()
   // The supervisor toggle picks which clinic this panel administers. For
@@ -1035,6 +1042,8 @@ export function ClinicPanel({
             clinicId={clinicId}
             isSupervisor={isSupervisorRole}
             currentUserId={user?.id ?? null}
+            onSelectChild={onOpenChild}
+            activeChildId={activeChildId}
           />
         )}
 

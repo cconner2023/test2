@@ -4,6 +4,7 @@ import { BaseDrawer, ScrollPane } from '@/Components/primitives/BaseDrawer'
 import { Sheet } from '@/Components/primitives/Sheet'
 import { BottomIsland, IslandButton } from '@/Components/primitives/BottomIsland'
 import { AddFab } from '@/Components/primitives/AddFab'
+import { SlideRevealPane } from '@/Components/primitives/SlideRevealPane'
 import { SearchInput } from '@/Components/primitives/SearchInput'
 import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill'
 import { DetailHeaderActions } from './Admin/DetailHeaderActions'
@@ -13,6 +14,7 @@ import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
 import { ActionSheet } from '@/Components/primitives/ActionSheet'
 import { useSwipeBack } from '../Hooks/useSwipeBack'
 import { useIsMobile } from '../Hooks/useIsMobile'
+import { useEscBackout } from '../Hooks/useEscBackout'
 import { usePageVisibility } from '../Hooks/usePageVisibility'
 import { UI_TIMING } from '../Utilities/constants'
 import { deleteClinic, deleteUser, listClinics, listLocations } from '../lib/adminService'
@@ -635,6 +637,9 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
     // is persistent across all tabs — the drawer's standing triage surface. It
     // only yields when a detail pane slides in (to give the tree + detail room).
     const desktopTreeOpen = !isMobile && !desktopDetailPaneOpen
+    // Desktop Esc: close the detail pane (triage → inbox, else back one level)
+    // before the drawer itself closes. Mirrors the pane's own back button.
+    useEscBackout(desktopDetailPaneOpen, isTriageView ? handleBackToInbox : handleBack)
 
     const detailTitle = useMemo(() => {
         if (view === 'admin-user-detail') {
@@ -1228,14 +1233,13 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                         <div className="flex h-full">
                             {/* Left pane — the inbox rail (settings + counts +
                                 requests/feedback/messages) + search. Persistent
-                                across tabs; collapses when a detail pane slides in. */}
-                            <div
-                                aria-hidden={!desktopTreeOpen}
-                                className={`shrink-0 border-r border-primary/10 bg-themewhite3 overflow-hidden flex flex-col transition-[width,opacity] duration-300 ${
-                                    desktopTreeOpen
-                                        ? 'w-60 opacity-100'
-                                        : 'w-0 opacity-0 border-r-0'
-                                }`}
+                                across tabs; collapses (slides out left) when a detail pane opens. */}
+                            <SlideRevealPane
+                                open={desktopTreeOpen}
+                                side="left"
+                                width={240}
+                                keepMounted
+                                className="border-r border-primary/10 bg-themewhite3"
                             >
                                 <div className="shrink-0 px-3 pt-3 pb-2">
                                     <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Search..." />
@@ -1251,17 +1255,15 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                                         activeSystemPeerId={selectedSystemPeerId}
                                     />
                                 </div>
-                            </div>
+                            </SlideRevealPane>
                             <div className="flex-1 min-w-0 overflow-hidden">
                                 {renderMainView()}
                             </div>
-                            <div
-                                aria-hidden={!desktopDetailPaneOpen}
-                                className={`shrink-0 border-l border-primary/10 bg-themewhite3 overflow-hidden flex flex-col transition-[width,opacity] duration-300 relative ${
-                                    desktopDetailPaneOpen
-                                        ? 'w-[320px] opacity-100'
-                                        : 'w-0 opacity-0 border-l-0'
-                                }`}
+                            <SlideRevealPane
+                                open={desktopDetailPaneOpen}
+                                side="right"
+                                width={320}
+                                className="border-l border-primary/10 bg-themewhite3 relative"
                             >
                                 <div className="flex items-center gap-2 px-3 py-2 border-b border-primary/10">
                                     <button
@@ -1292,7 +1294,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                                 <div className="flex-1 min-h-0 overflow-hidden">
                                     {renderDetailContent()}
                                 </div>
-                            </div>
+                            </SlideRevealPane>
                         </div>
                     ) : (
                         renderContent()

@@ -8,6 +8,7 @@ import { Sheet } from '@/Components/primitives/Sheet'
 import { CalendarPanel } from './Calendar/CalendarPanel'
 import { MiniCalendar } from './Calendar/MiniCalendar'
 import { SearchInput } from '@/Components/primitives/SearchInput'
+import { SlideRevealPane } from '@/Components/primitives/SlideRevealPane'
 import { useCalendarStore } from '../stores/useCalendarStore'
 import { useNavigationStore } from '../stores/useNavigationStore'
 import { useIsMobile } from '../Hooks/useIsMobile'
@@ -360,9 +361,16 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
         >
             <div className="relative h-full">
                 <div className="flex absolute inset-0 overflow-hidden">
-                    {/* Contextual sidebar — desktop only, hidden for troops-to-task (has its own personnel column) */}
+                    {/* Contextual sidebar — desktop only, hidden for troops-to-task (has its own personnel column).
+                        Collapses (slides out left) when the schedule opens its right pane. */}
                     {!isMobile && viewMode !== 'troops' && (
-                        <div className={`shrink-0 flex flex-col border-r border-primary/10 transition-all duration-300 ${rightPanelOpen ? 'w-0 opacity-0 overflow-hidden border-r-0' : 'w-60'}`}>
+                        <SlideRevealPane
+                            open={!rightPanelOpen}
+                            side="left"
+                            width={240}
+                            keepMounted
+                            className="border-r border-primary/10"
+                        >
                             <div className="shrink-0 flex items-center gap-1.5 px-3 pt-2 pb-1">
                                 <div className="flex-1 min-w-0">
                                     <SearchInput
@@ -397,7 +405,7 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
                                 {hasHuddleEvents && categoryFilterPanel}
                                 {personnelFilterPanel}
                             </div>
-                        </div>
+                        </SlideRevealPane>
                     )}
 
                     {/* Schedule — right pane (or full width on mobile) */}

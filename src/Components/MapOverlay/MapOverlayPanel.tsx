@@ -20,12 +20,15 @@ import { Sheet } from '@/Components/primitives/Sheet';
 import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill';
 import { SearchInput } from '@/Components/primitives/SearchInput';
 import { ContentWrapper } from '@/Components/primitives/ContentWrapper';
+import { SlideRevealPane } from '@/Components/primitives/SlideRevealPane';
+import { useEscBackout } from '../../Hooks/useEscBackout';
 import { ErrorDisplay } from '@/Components/primitives/ErrorDisplay';
 import { TextInput } from '@/Components/primitives/FormInputs';
 import { useGeolocation } from '../../Hooks/useGeolocation';
 import { useIsMobile } from '../../Hooks/useIsMobile';
 import { useAuth } from '../../Hooks/useAuth';
 import { getOverlays } from '../../lib/mapOverlayService';
+import { getLocalMapOverlay } from '../../lib/offlineDb';
 import { useMapOverlayWrite } from '../../Hooks/useMapOverlayWrite';
 import { useMapOverlaySync } from '../../Hooks/useMapOverlaySync';
 import { useInvalidation } from '../../stores/useInvalidationStore';
@@ -45,7 +48,15 @@ import { DEFAULT_FEATURE_STYLE, WAYPOINT_LABELS, PIN_GLYPHS } from '../../Types/
 import { WaypointIcon } from './WaypointIcon';
 import MapView from './MapView';
 import type { MapViewHandle, PresenceMarker } from './MapView';
-import { useLocationPublisher } from '../../Hooks/useLocationPublisher';
+import {
+  presenceOverlayId,
+  isPresenceOverlayId,
+  presenceFeatureId,
+  parsePresenceUserId,
+  buildPresenceOverlayParams,
+  buildPresenceFeature,
+} from '../../lib/presenceOverlay';
+import { useBetaFlag } from '../../lib/betaFeatures';
 import { useCalendarStore } from '../../stores/useCalendarStore';
 import { useMapPrefsStore } from '../../stores/useMapPrefsStore';
 import { formatBearing } from '../../lib/declination';
@@ -465,17 +476,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
     ? { lat: position.lat, lng: position.lng, accuracy: position.accuracy }
     : null;
 
-  // ── Location sharing ──
-  const [isSharing, setIsSharing] = useState(false);
-  const [hasManuallySetSharing, setHasManuallySetSharing] = useState(false);
   const allEvents = useCalendarStore(s => s.events);
-  // Find the calendar event that owns this overlay (structured_location.overlay_id)
-  const linkedEvent = overlayId
-    ? (allEvents.find(e =>
-        e.structured_location?.overlay_id === overlayId &&
-        (!activeClinicId || e.clinic_id === activeClinicId)
-      ) ?? null)
-    : null;
 
   // Inverse-link surface — overlay-id → linked CalendarEvent(s). Drives the
   // calendar chip on each overlay row and the link/unlink actions.
@@ -581,23 +582,11 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
     return set;
   }, [featureLinksEditor, allEvents]);
 
-  // Phase 4.3a — auto-share when the linked event is in_progress AND the
-  // current user is a participant. Manual toggles win — once the user
-  // touches the share button we never auto-flip again for this session.
-  useEffect(() => {
-    if (hasManuallySetSharing) return;
-    if (!linkedEvent || !user) return;
-    const userIsParticipant = linkedEvent.assigned_to.includes(user.id);
-    const eventActive = linkedEvent.status === 'in_progress';
-    setIsSharing(userIsParticipant && eventActive);
-  }, [linkedEvent?.id, linkedEvent?.status, linkedEvent?.assigned_to, user?.id, hasManuallySetSharing]);
-
-  const handleToggleSharing = useCallback(() => {
-    setHasManuallySetSharing(true);
-    setIsSharing(prev => !prev);
-  }, []);
-
-  // ── User identity for presence markers ──
+  // ── Team presence (opt-in self-location, decoupled from mission events) ──
+  // Dev-gated until validated in prod: gates both the "Add my location" pill and
+  // the rendering of teammates' presence markers.
+  const presenceBeta = useBetaFlag('teamPresence');
+  // Identity labels for rendering teammates' markers.
   const [userLabels, setUserLabels] = useState<Map<string, string>>(new Map());
   useEffect(() => {
     loadCachedClinicUsers().then(users => {
@@ -608,18 +597,66 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
     });
   }, []);
 
-  // Derive presence markers from the event's field_positions for all participants
-  const presenceMarkers: PresenceMarker[] = linkedEvent?.field_positions
-    ? Object.entries(linkedEvent.field_positions).map(([userId, pos]) => ({
-        userId,
-        lat: pos.lat,
-        lng: pos.lng,
-        timestamp: pos.timestamp,
-        label: userLabels.get(userId) || pos.mgrs || userId.slice(0, 8),
-      }))
-    : [];
+  // Standing per-clinic presence overlay (system-managed; hidden from the tree).
+  const presenceOverlay = activeClinicId
+    ? overlays.find(o => o.id === presenceOverlayId(activeClinicId)) ?? null
+    : null;
 
-  useLocationPublisher(linkedEvent?.id ?? null, user?.id ?? null, position, isSharing);
+  // Presence markers render on ANY view via MapView's dedicated presence layer —
+  // decoupled from whichever overlay is active. Persist until the owner changes.
+  const presenceMarkers: PresenceMarker[] = (presenceBeta ? (presenceOverlay?.features ?? []) : [])
+    .map(f => {
+      const uid = parsePresenceUserId(f.id);
+      const point = f.geometry[0];
+      if (!uid || !point) return null;
+      return {
+        userId: uid,
+        lat: point[0],
+        lng: point[1],
+        timestamp: f.updated_at,
+        label: userLabels.get(uid) || f.mgrs || uid.slice(0, 8),
+      };
+    })
+    .filter((m): m is PresenceMarker => m !== null);
+
+  const myLocationShared = user != null && presenceMarkers.some(m => m.userId === user.id);
+
+  // Add or move the current user's own marker. Reuses the live GPS fix — the
+  // browser geolocation prompt is acquire-consent, this deliberate tap is
+  // transmit-consent. There is NO continuous publisher: a position only ever
+  // leaves the device on this action.
+  const handleAddOrUpdateMyLocation = useCallback(async () => {
+    if (!user || !activeClinicId || !position) return;
+    const cid = activeClinicId;
+    const pid = presenceOverlayId(cid);
+    const label = userLabels.get(user.id) || user.id.slice(0, 8);
+    // upsertFeature needs the overlay to exist locally first. Create it empty
+    // ONLY when truly absent (fresh IDB read, not the stale render closure): a
+    // bulk writeOverlay carries features:[], so recreating an already-populated
+    // presence overlay would wipe teammates' markers.
+    if (!(await getLocalMapOverlay(pid))) {
+      await writeOverlay(buildPresenceOverlayParams(cid, [position.lat, position.lng], Math.max(mapZoom, 13)));
+    }
+    const feature = buildPresenceFeature({
+      clinicId: cid, userId: user.id, label, lat: position.lat, lng: position.lng, now: new Date().toISOString(),
+    });
+    await upsertFeature({ overlayId: pid, clinicId: cid, feature });
+    // Reflect authoritative IDB state (our marker + any teammates' already there).
+    const updated = await getLocalMapOverlay(pid);
+    if (updated) {
+      setOverlays(prev => prev.some(o => o.id === pid) ? prev.map(o => o.id === pid ? updated : o) : [...prev, updated]);
+    }
+  }, [user, activeClinicId, position, userLabels, mapZoom, writeOverlay, upsertFeature]);
+
+  // Retract the current user's marker. No GPS fix required.
+  const handleRemoveMyLocation = useCallback(async () => {
+    if (!user || !activeClinicId) return;
+    const cid = activeClinicId;
+    const pid = presenceOverlayId(cid);
+    await removeFeature({ overlayId: pid, clinicId: cid, featureId: presenceFeatureId(user.id) });
+    const updated = await getLocalMapOverlay(pid);
+    setOverlays(prev => prev.map(o => o.id === pid ? (updated ?? o) : o));
+  }, [user, activeClinicId, removeFeature]);
 
   // Register every persisted imported basemap (Phase 3) when the panel opens
   // so the user's MBTiles / geo-PDF imports show up in the basemap selector.
@@ -851,13 +888,18 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
           } else {
             handleNewOverlay({ recenter: true });
           }
-        } else if (loaded.length > 0) {
-          const latest = loaded.reduce((best, o) =>
-            new Date(o.updated_at) > new Date(best.updated_at) ? o : best
-          );
-          handleOpenOverlay(latest as MapOverlay);
         } else {
-          handleNewOverlay({ recenter: true });
+          // Never auto-open the system-managed presence overlay — it isn't an
+          // editable, user-facing overlay.
+          const openable = loaded.filter(o => !isPresenceOverlayId(o.id));
+          if (openable.length > 0) {
+            const latest = openable.reduce((best, o) =>
+              new Date(o.updated_at) > new Date(best.updated_at) ? o : best
+            );
+            handleOpenOverlay(latest as MapOverlay);
+          } else {
+            handleNewOverlay({ recenter: true });
+          }
         }
       }
     });
@@ -1151,7 +1193,6 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
 
   const performClose = useCallback(() => {
     stopWatching();
-    setIsSharing(false);
     setDrawMode('pan');
     setSelectedFeatureId(null);
     setMeasurePoints([]);
@@ -1803,6 +1844,16 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
     if (isMobile) setShowMobileTree(true);
   }, [drawMode, handleModeChange, isMobile]);
 
+  // Desktop Esc: back out the open right pane one layer — geo-PDF overlay first
+  // (it sits on top), then the feature editor / temp point / temp route — before
+  // the drawer itself closes.
+  useEscBackout(!isMobile && !!(selectedFeature || tempPoint || tempRoute || geoPdfFormOpen), () => {
+    if (geoPdfFormOpen) { setGeoPdfFormOpen(false); return; }
+    if (selectedFeature) { handleCloseFeatureEditor(); return; }
+    if (tempPoint) { handleCloseTempPoint(); return; }
+    if (tempRoute) { handleCloseTempRoute(); return; }
+  });
+
   // ── Delete selected ──
   const handleDeleteSelected = useCallback(() => {
     if (!selectedFeatureId || !overlayId) return;
@@ -2016,8 +2067,13 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
 
   const isDrawInProgress = (drawMode === 'route' || drawMode === 'area') && inProgressFeatureId.current !== null;
 
+  // User-facing overlay list — hides the system-managed presence overlay from
+  // the tree, copy targets, and the read-only render (presence renders via the
+  // dedicated presenceMarkers layer instead).
+  const userOverlays = useMemo(() => overlays.filter(o => !isPresenceOverlayId(o.id)), [overlays]);
+
   // Read-only features from other visible overlays (excludes the active overlay — those are editable)
-  const visibleReadOnlyFeatures = overlays
+  const visibleReadOnlyFeatures = userOverlays
     .filter(o => visibleOverlayIds.has(o.id) && o.id !== overlayId)
     .flatMap(o => o.features);
 
@@ -2118,11 +2174,16 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
               ...visibleReadOnlyFeatures.filter(f => f.type === 'waypoint'),
             ]}
           />
-          {/* Desktop left pane — search/layers row + overlay tree, mirrors CalendarDrawer rail */}
+          {/* Desktop left pane — search/layers row + overlay tree, mirrors CalendarDrawer rail.
+              Collapses (slides out left) when a feature/temp/geo-PDF editor opens the right pane. */}
           {!isMobile && (
-            <div className={`shrink-0 border-r border-primary/10 bg-themewhite3 flex flex-col transition-[width,opacity] duration-300 overflow-hidden ${
-              (selectedFeature || tempPoint || tempRoute || geoPdfFormOpen) ? 'w-0 opacity-0 border-r-0' : 'w-60 opacity-100'
-            }`}>
+            <SlideRevealPane
+              open={!(selectedFeature || tempPoint || tempRoute || geoPdfFormOpen)}
+              side="left"
+              width={240}
+              keepMounted
+              className="border-r border-primary/10 bg-themewhite3"
+            >
               <div className="shrink-0 flex items-center gap-1.5 px-3 pt-2 pb-1">
                 <div className="flex-1 min-w-0">
                   <SearchInput
@@ -2173,7 +2234,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                 </div>
               )}
               <MapOverlayTree
-                overlays={overlays}
+                overlays={userOverlays}
                 activeOverlayId={overlayId}
                 visibleOverlayIds={visibleOverlayIds}
                 selectedFeatureId={selectedFeatureId}
@@ -2227,7 +2288,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                 title="Linked events (feature)"
                 zIndex={1100}
               />
-            </div>
+            </SlideRevealPane>
           )}
           <div className="flex flex-col flex-1 min-w-0 relative">
             {/* Error feedback */}
@@ -2408,7 +2469,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                       <section>
                         <p className="px-4 pt-3 pb-1 text-[9pt] tracking-widest uppercase text-tertiary">Overlays</p>
                         <MapOverlayTree
-                          overlays={overlays}
+                          overlays={userOverlays}
                           activeOverlayId={overlayId}
                           visibleOverlayIds={visibleOverlayIds}
                           selectedFeatureId={selectedFeatureId}
@@ -2531,22 +2592,40 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
 
               {/* ── Bottom-right: contextual stack + Add FAB ── */}
               <div className="absolute bottom-4 right-4 z-[1002] flex flex-col items-end gap-1.5 pb-[max(0rem,var(--sab,0px))] pointer-events-none">
-                {/* Share toggle — only when overlay is linked to a mission event */}
-                {linkedEvent && (
-                  <button
-                    type="button"
-                    onClick={handleToggleSharing}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10pt] font-medium
-                      shadow-sm active:scale-95 transition-all pointer-events-auto
-                      ${isSharing
-                        ? 'bg-themegreen text-white'
-                        : 'bg-themewhite border border-tertiary/20 text-tertiary'
-                      }`}
-                    title={isSharing ? 'Stop sharing position' : 'Share my position'}
-                  >
-                    <RadioTower size={13} className={isSharing ? 'animate-pulse' : ''} />
-                    {isSharing ? 'Sharing' : 'Share'}
-                  </button>
+                {/* Your location — opt-in self-position, shared to the clinic.
+                    Each tap is a deliberate transmit-consent; contextual pills
+                    render only when usable (no disabled states). */}
+                {user && activeClinicId && presenceBeta && (
+                  <div className="flex items-center gap-1.5 pointer-events-auto">
+                    {position && (
+                      <button
+                        type="button"
+                        onClick={handleAddOrUpdateMyLocation}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10pt] font-medium
+                          shadow-sm active:scale-95 transition-all
+                          ${myLocationShared
+                            ? 'bg-themegreen text-white'
+                            : 'bg-themewhite border border-tertiary/20 text-tertiary'
+                          }`}
+                        title={myLocationShared ? 'Update my location' : 'Add my location'}
+                      >
+                        {myLocationShared
+                          ? <><RadioTower size={13} /> Update</>
+                          : <><MapPin size={13} /> Add my location</>}
+                      </button>
+                    )}
+                    {myLocationShared && (
+                      <button
+                        type="button"
+                        onClick={handleRemoveMyLocation}
+                        className="flex items-center justify-center w-9 h-9 rounded-full shadow-sm
+                          active:scale-95 transition-all bg-themewhite border border-tertiary/20 text-tertiary"
+                        title="Remove my location"
+                      >
+                        <X size={14} />
+                      </button>
+                    )}
+                  </div>
                 )}
 
                 {/* Undo last vertex — visible while drawing a route/area */}
@@ -2695,7 +2774,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                   other overlay (the source is excluded — copying onto itself
                   is a no-op). */}
               {copyFeatureTarget && (() => {
-                const targets = overlays.filter(o => o.id !== copyFeatureTarget.sourceOverlayId);
+                const targets = userOverlays.filter(o => o.id !== copyFeatureTarget.sourceOverlayId);
                 const options: ActionSheetOption[] = [
                   { key: 'new-overlay', label: 'New overlay', icon: Plus, onAction: () => performCopyFeature('new') },
                   ...targets.map(o => ({
@@ -2848,12 +2927,15 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
             </div>
           </div>
 
-          {/* Desktop right pane — animated slide/collapse, mirrors CalendarPanel.
+          {/* Desktop right pane — slides in from the right, mirrors CalendarPanel.
               Map column is flex-1 so it reflows as this pane opens/closes. */}
           {!isMobile && (
-            <div className={`shrink-0 border-l border-primary/10 flex flex-col bg-themewhite3 transition-[width,opacity] duration-300 overflow-hidden relative ${
-              (selectedFeature || tempPoint || tempRoute || geoPdfFormOpen) ? 'w-[320px] opacity-100' : 'w-0 opacity-0 border-l-0'
-            }`}>
+            <SlideRevealPane
+              open={!!(selectedFeature || tempPoint || tempRoute || geoPdfFormOpen)}
+              side="right"
+              width={320}
+              className="border-l border-primary/10 bg-themewhite3 relative"
+            >
               {!selectedFeature && tempPoint && (
                 <div className="relative flex flex-col flex-1 min-h-0">
                   <div className="shrink-0 flex items-center gap-1 px-3 py-2 border-b border-tertiary/10">
@@ -2999,7 +3081,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                   </div>
                 </div>
               )}
-            </div>
+            </SlideRevealPane>
           )}
 
           </div>

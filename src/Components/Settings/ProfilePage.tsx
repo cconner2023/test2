@@ -36,12 +36,16 @@ interface ProfilePageProps {
     onAvatarClick: () => void;
     onSignOut: () => void;
     onDeleteAccount: () => Promise<{ success: boolean; error?: string }>;
+    /** Desktop: dock the readiness timeline in the Settings right pane. Undefined
+     *  on mobile → the timeline uses its own bottom Sheet. */
+    onViewTimeline?: () => void;
 }
 
 export const ProfilePage = ({
     onAvatarClick,
     onSignOut,
     onDeleteAccount,
+    onViewTimeline,
 }: ProfilePageProps) => {
     const isMobile = useIsMobile();
     const { currentAvatar, customImage, isCustom, isInitials } = useAvatar();
@@ -511,7 +515,7 @@ export const ProfilePage = ({
                 {/* Readiness — read-only self view of the same stats a supervisor
                     sees (SoldierProfile), computed from the user's own delta-synced
                     training completions + certs. */}
-                <MyReadinessSection certs={certs} />
+                <MyReadinessSection certs={certs} onViewTimeline={onViewTimeline} />
 
 
                 {/* Account Actions */}

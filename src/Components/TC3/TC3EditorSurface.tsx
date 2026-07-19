@@ -8,6 +8,7 @@ import { SearchInput } from '@/Components/primitives/SearchInput'
 import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill'
 import { TextInput } from '@/Components/primitives/FormInputs'
 import { useTC3Detail } from './TC3DetailContext'
+import { useEscBackout } from '../../Hooks/useEscBackout'
 
 // Reuse PreviewOverlay's prop surface so the TC3 forms remain drop-ins, plus a
 // structured `saveAction` so the surface owns the Save button markup (rendered
@@ -33,6 +34,10 @@ export function TC3EditorSurface(props: Props) {
   const detail = useTC3Detail()
 
   const { isOpen, onClose } = props
+
+  // Desktop Esc: while this editor is the open docked pane, close it (collapsing
+  // back to the roster rail) before the TC3 drawer itself closes.
+  useEscBackout(!isMobile && !!detail && isOpen, onClose)
 
   // Desktop: while open, collapse the rail and open the right pane. Guarded on
   // `isOpen` so each surface contributes exactly one +1/-1 across its open span.

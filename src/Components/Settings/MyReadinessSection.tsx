@@ -49,7 +49,12 @@ function algoStatusClass(status: AlgorithmCompetencyLevel): string {
  * down from the host (ProfilePage already loads them); the timeline self-fetches
  * its own subject audit (read-through cached).
  */
-export function MyReadinessSection({ certs }: { certs: Certification[] }) {
+export function MyReadinessSection({ certs, onViewTimeline }: {
+  certs: Certification[]
+  /** Desktop: dock the full timeline in the Settings right pane instead of the
+   *  bottom Sheet. Undefined on mobile → UserTimeline falls back to its Sheet. */
+  onViewTimeline?: () => void
+}) {
   const userId = useAuthStore(s => s.user?.id ?? null)
   const clinicId = useAuthStore(s => s.clinicId)
   const { completions } = useTrainingCompletions()
@@ -312,8 +317,10 @@ export function MyReadinessSection({ certs }: { certs: Certification[] }) {
           )}
         </div>
 
-        {/* Lifecycle timeline — self-fetches its own subject audit (offline-first) */}
-        <UserTimeline subjectId={userId} clinicId={clinicId ?? undefined} title="Timeline" />
+        {/* Lifecycle timeline — self-fetches its own subject audit (offline-first).
+            Desktop docks "View all" in the Settings right pane (onViewTimeline);
+            mobile omits it → UserTimeline opens its own bottom Sheet. */}
+        <UserTimeline subjectId={userId} clinicId={clinicId ?? undefined} title="Timeline" onViewAll={onViewTimeline} />
       </div>
     </section>
   )

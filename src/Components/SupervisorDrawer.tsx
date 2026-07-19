@@ -4,8 +4,10 @@ import { BaseDrawer, ScrollPane } from '@/Components/primitives/BaseDrawer'
 import { ContentWrapper } from '@/Components/primitives/ContentWrapper'
 import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill'
 import { SearchInput } from '@/Components/primitives/SearchInput'
+import { SlideRevealPane } from '@/Components/primitives/SlideRevealPane'
 import { useSwipeBack } from '../Hooks/useSwipeBack'
 import { useIsMobile } from '../Hooks/useIsMobile'
+import { useEscBackout } from '../Hooks/useEscBackout'
 import { UI_TIMING } from '../Utilities/constants'
 import { useTrainingCompletions } from '../Hooks/useTrainingCompletions'
 import { useCalendarStore } from '../stores/useCalendarStore'
@@ -423,6 +425,9 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
   // any task flow. When active, the left tree rail collapses; the center dashboard
   // persists. Mirrors ProviderDrawer's selectedTemplate → rail-collapse mechanic.
   const rightActive = view.screen !== 'main' || treeSelection.type === 'soldier' || !!selectedChild
+  // Desktop Esc: back out one detail layer (handleBack steps through internal
+  // screens, ending in soldier-deselect) before the drawer itself closes.
+  useEscBackout(!isMobile && rightActive, handleBack)
 
   const handleTreeSelect = useCallback((selection: TreeSelection) => {
     setSelectedChild(null)
@@ -927,10 +932,14 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
                 tree rail | persistent dashboard | soldier/flow detail. */}
             {!isMobile && !loading && isSupervisor ? (
               <div className="flex h-full">
-                {/* Left rail — personnel tree; collapses when the right pane is active. */}
-                <div className={`shrink-0 border-r border-tertiary/10 flex flex-col bg-themewhite3/50 transition-all duration-300 ${
-                  rightActive ? 'w-0 opacity-0 overflow-hidden border-r-0' : 'w-[260px] opacity-100'
-                }`}>
+                {/* Left rail — personnel tree; collapses (slides out left) when the right pane is active. */}
+                <SlideRevealPane
+                  open={!rightActive}
+                  side="left"
+                  width={260}
+                  keepMounted
+                  className="border-r border-tertiary/10 bg-themewhite3/50"
+                >
                   <div className="shrink-0 flex items-center gap-1.5 px-3 py-2 border-b border-primary/10">
                     <div className="flex-1 min-w-0">
                       <SearchInput
@@ -956,18 +965,21 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
                       searchQuery={treeSearch}
                     />
                   </div>
-                </div>
+                </SlideRevealPane>
                 {/* Center — persistent team dashboard (never swaps). */}
                 <div className="flex-1 min-w-0 overflow-y-auto">
                   {renderDashboard()}
                 </div>
                 {/* Right pane — active drill (soldier profile / task flow / timeline);
-                    opens as the left rail collapses. */}
-                <div className={`shrink-0 border-l border-primary/10 flex flex-col bg-themewhite3 transition-all duration-300 ${
-                  rightActive ? 'w-[380px] opacity-100' : 'w-0 opacity-0 overflow-hidden border-l-0'
-                }`}>
+                    slides in from the right as the left rail collapses. */}
+                <SlideRevealPane
+                  open={rightActive}
+                  side="right"
+                  width={380}
+                  className="border-l border-primary/10 bg-themewhite3"
+                >
                   {rightActive && renderRightDetail()}
-                </div>
+                </SlideRevealPane>
               </div>
             ) : (
               renderContent()

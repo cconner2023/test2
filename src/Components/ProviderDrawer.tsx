@@ -10,10 +10,12 @@ import { SearchInput } from '@/Components/primitives/SearchInput'
 import { ActionPill } from '@/Components/primitives/ActionPill'
 import { ActionButton } from '@/Components/primitives/ActionButton'
 import { AddFab } from '@/Components/primitives/AddFab'
+import { SlideRevealPane } from '@/Components/primitives/SlideRevealPane'
 import { useStack } from '@/Components/primitives/useStack'
 import { type StackNav, type StackScreen } from './stackNav'
 import { useSwipeBack } from '../Hooks/useSwipeBack'
 import { useIsMobile } from '../Hooks/useIsMobile'
+import { useEscBackout } from '../Hooks/useEscBackout'
 import { useBarcodeImport } from '../Hooks/useBarcodeImport'
 import { UI_TIMING } from '../Utilities/constants'
 import { ProviderNote, type ProviderSection } from './Provider/ProviderNote'
@@ -121,6 +123,8 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
     setPaneScreen(null)
     setTemplateEditState(null)
   }, [])
+  // Desktop Esc: close the right editor pane first; a second Esc closes the drawer.
+  useEscBackout(!isMobile && paneOpen, closePane)
 
   const handleTemplateSave = useCallback((entry: ProviderNoteTemplate, isNew: boolean) => {
     const current = profile.providerNoteTemplates ?? []
@@ -608,11 +612,15 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
       <div className="relative h-full">
         {!isMobile ? (
           <div className="flex h-full">
-            {/* Left rail — template search + tree. Collapses when the right pane
-                opens (rail-collapse 3-pane primitive). */}
-            <div className={`shrink-0 border-r border-tertiary/10 flex flex-col bg-themewhite3/50 transition-all duration-300 ${
-              paneOpen ? 'w-0 opacity-0 overflow-hidden border-r-0' : 'w-[260px] opacity-100'
-            }`}>
+            {/* Left rail — template search + tree. Collapses (slides out left) when
+                the right pane opens (rail-collapse 3-pane primitive). */}
+            <SlideRevealPane
+              open={!paneOpen}
+              side="left"
+              width={260}
+              keepMounted
+              className="border-r border-tertiary/10 bg-themewhite3/50"
+            >
               <div className="shrink-0 px-3 pt-2 pb-1 flex items-center gap-2">
                 <SearchInput
                   value={templateSearch}
@@ -639,7 +647,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
                   hoverActions
                 />
               </div>
-            </div>
+            </SlideRevealPane>
 
             {/* Center — note summary (editing routes into the right pane) */}
             <div className="relative flex-1 min-w-0 flex flex-col min-h-0">
@@ -681,10 +689,14 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
               </div>
             </div>
 
-            {/* Right pane — detail / template editor / section editor / output */}
-            <div className={`shrink-0 border-l border-primary/10 flex flex-col bg-themewhite3 transition-all duration-300 ${
-              paneOpen ? 'w-[380px] opacity-100' : 'w-0 opacity-0 overflow-hidden border-l-0'
-            }`}>
+            {/* Right pane — detail / template editor / section editor / output;
+                slides in from the right as the rail collapses. */}
+            <SlideRevealPane
+              open={paneOpen}
+              side="right"
+              width={380}
+              className="border-l border-primary/10 bg-themewhite3"
+            >
               {paneOpen && paneStack.hasScreen && (
                 <>
                   <div className="shrink-0 flex items-center gap-2 px-4 py-3 border-b border-tertiary/10">
@@ -717,7 +729,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
                   )}
                 </>
               )}
-            </div>
+            </SlideRevealPane>
           </div>
         ) : (
             <ContentWrapper

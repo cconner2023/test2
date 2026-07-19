@@ -47,6 +47,10 @@ export const BETA_FEATURES = {
    *  auto-populate the custom note's HPI/PE sections from the YES/NO answers.
    *  Dev-only while tagging is rolled out per algorithm; flip to false to open to all. */
   algorithmNoteRouting: true,
+  /** Team Presence — opt-in self-location on the map overlay. Dev-only while it's
+   *  being validated in prod; gates both the "Add my location" pill and the
+   *  rendering of teammates' presence markers. Flip to false to open to all. */
+  teamPresence: true,
 } as const
 
 export type BetaFeature = keyof typeof BETA_FEATURES
