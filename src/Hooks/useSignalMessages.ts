@@ -23,6 +23,7 @@ import { processIncomingMessage, encryptMessage } from '../lib/signal/session'
 import { processClinicIncomingMessage } from '../lib/signal/clinicSession'
 import { drainSystemInbox, SYSTEM_USER_ID } from '../lib/signal/systemIdentity'
 import { processSenderKeyDistribution, senderKeyDecrypt } from '../lib/signal/senderKey'
+import { getGroupSecretMeta, setGroupSecret } from '../lib/signal/groupNameCrypto'
 import { useMessagingStore } from '../stores/useMessagingStore'
 import type { SealedEnvelope } from '../lib/signal/sealedSender'
 import type { SignalMessageRow, DecryptedSignalMessage } from '../lib/signal/transportTypes'
@@ -68,11 +69,13 @@ async function sendDeliveryReceipt(
   messageIds: string[],
   myUuid: string,
   myDeviceId: string,
+  originIds?: string[],
 ): Promise<void> {
   try {
     const payload = JSON.stringify({
       __type: 'delivery-receipt',
       messageIds,
+      ...(originIds && originIds.length > 0 && { originIds }),
       deliveredAt: new Date().toISOString(),
     })
     const envelope = await encryptMessage(senderUuid, senderDeviceId, payload, myUuid)
@@ -103,9 +106,24 @@ interface UseSignalMessagesOptions {
   isPageVisible: boolean
   onMessage: (message: DecryptedSignalMessage) => void
   onDelete?: (messageIds: string[]) => void
+  /** We received a group message we can't decrypt for lack of a sender key —
+   *  ask the sender (peerId) to re-distribute for this group. */
+  onSenderKeyMissing?: (groupId: string, peerId: string) => void
+  /** A peer (requesterId) asked us to re-distribute our sender key for a group. */
+  onSenderKeyRequest?: (groupId: string, requesterId: string) => void
 }
 
-async function decryptRow(row: SignalMessageRow, myUuid: string): Promise<DecryptedSignalMessage | null> {
+/** Control-plane side-effects decryptRow may trigger (retry-receipt flow). */
+interface DecryptSideEffects {
+  onSenderKeyMissing?: (groupId: string, peerId: string) => void
+  onSenderKeyRequest?: (groupId: string, requesterId: string) => void
+}
+
+async function decryptRow(
+  row: SignalMessageRow,
+  myUuid: string,
+  sideEffects?: DecryptSideEffects,
+): Promise<DecryptedSignalMessage | null> {
   try {
     // ─── Plaintext early-exit: SYSTEM-authored control messages ─────
     // Event-intake REQUESTS are now real per-device SealedEnvelopes authored by
@@ -377,6 +395,7 @@ async function decryptRow(row: SignalMessageRow, myUuid: string): Promise<Decryp
         readAt: row.read_at,
         _deliveryReceipt: {
           messageIds: parsed.messageIds as string[],
+          originIds: parsed.originIds as string[] | undefined,
           deliveredAt: parsed.deliveredAt as string,
         },
       }
@@ -406,6 +425,18 @@ async function decryptRow(row: SignalMessageRow, myUuid: string): Promise<Decryp
         }
         await processSenderKeyDistribution(dist, memberIds)
         logger.debug(`Stored sender key distribution from ${senderUuid} for group ${groupId}`)
+
+        // Adopt the piggybacked group-name secret. Epoch-gated: only take it when
+        // its epoch exceeds our stored one (or we have none), so the creator's
+        // baseline propagates and a post-removal rotated secret supersedes it.
+        if (dist.groupSecret && groupId) {
+          const incomingEpoch = dist.secretEpoch ?? 0
+          const existing = await getGroupSecretMeta(groupId)
+          if (!existing || incomingEpoch > existing.epoch) {
+            await setGroupSecret(groupId, dist.groupSecret, incomingEpoch)
+            logger.debug(`Adopted group-name secret for ${groupId} at epoch ${incomingEpoch}`)
+          }
+        }
       } catch (e) {
         logger.warn(`Failed to process sender-key-distribution from ${senderUuid}:`, e instanceof Error ? e.message : e)
       }
@@ -427,6 +458,24 @@ async function decryptRow(row: SignalMessageRow, myUuid: string): Promise<Decryp
         logger.warn(`Failed to process call-signal ${row.id}:`, e instanceof Error ? e.message : e)
       }
       // Never user-visible.
+      return null
+    }
+
+    // Sender-key re-distribution request (retry-receipt): a group member who
+    // could not decrypt one of OUR group messages asks us to re-send our sender
+    // key. Rides the pairwise session as control-plane (like sender-key-
+    // distribution / call-signal). Decrypt, route to the re-distribution handler,
+    // never surface as a chat message.
+    if (row.message_type === 'sender-key-request') {
+      try {
+        const { plaintext: rawPlaintext, senderUuid } = await processIncomingMessage(
+          senderDeviceId, envelope, myUuid
+        )
+        const body = JSON.parse(rawPlaintext) as { type?: string; groupId?: string }
+        if (body.groupId) sideEffects?.onSenderKeyRequest?.(body.groupId, senderUuid)
+      } catch (e) {
+        logger.warn(`Failed to process sender-key-request ${row.id}:`, e instanceof Error ? e.message : e)
+      }
       return null
     }
 
@@ -457,6 +506,16 @@ async function decryptRow(row: SignalMessageRow, myUuid: string): Promise<Decryp
         }
       } catch (e) {
         logger.error(`Failed to decrypt sender-key-message ${row.id}:`, e instanceof Error ? e.message : e)
+        // No sender-key state for this sender ⇒ we missed their distribution.
+        // Fire the retry-receipt so the sender re-distributes (Signal-style).
+        // Other failures (signature/chain) are not fixed by re-distribution.
+        const senderId = (row.payload as unknown as SenderKeyMessage)?.senderId
+        if (
+          row.group_id && senderId &&
+          e instanceof Error && e.message.includes('No sender key')
+        ) {
+          sideEffects?.onSenderKeyMissing?.(row.group_id, senderId)
+        }
         errorBus.emit({
           code: ErrorCode.DECRYPT_FAILED,
           source: 'decryptRow:sender-key-message',
@@ -487,6 +546,7 @@ async function decryptRow(row: SignalMessageRow, myUuid: string): Promise<Decryp
           readAt: row.read_at,
           _deliveryReceipt: {
             messageIds: parsed.messageIds as string[],
+            originIds: parsed.originIds as string[] | undefined,
             deliveredAt: parsed.deliveredAt as string,
           },
         }
@@ -533,6 +593,8 @@ export function useSignalMessages({
   isPageVisible,
   onMessage,
   onDelete,
+  onSenderKeyMissing,
+  onSenderKeyRequest,
 }: UseSignalMessagesOptions): void {
   const onMessageRef = useRef(onMessage)
   useEffect(() => {
@@ -543,6 +605,23 @@ export function useSignalMessages({
   useEffect(() => {
     onDeleteRef.current = onDelete
   }, [onDelete])
+
+  const onSenderKeyMissingRef = useRef(onSenderKeyMissing)
+  useEffect(() => {
+    onSenderKeyMissingRef.current = onSenderKeyMissing
+  }, [onSenderKeyMissing])
+
+  const onSenderKeyRequestRef = useRef(onSenderKeyRequest)
+  useEffect(() => {
+    onSenderKeyRequestRef.current = onSenderKeyRequest
+  }, [onSenderKeyRequest])
+
+  // Stable side-effects object handed to decryptRow — reads via refs so it never
+  // goes stale across renders.
+  const decryptSideEffectsRef = useRef<DecryptSideEffects>({
+    onSenderKeyMissing: (g, p) => onSenderKeyMissingRef.current?.(g, p),
+    onSenderKeyRequest: (g, r) => onSenderKeyRequestRef.current?.(g, r),
+  })
 
   const localDeviceIdRef = useRef(localDeviceId)
   useEffect(() => {
@@ -681,7 +760,7 @@ export function useSignalMessages({
       for (const row of result.data) {
         if (processedIds.current.has(row.id)) continue
         trackProcessed(row.id)
-        const decrypted = await decryptRow(row, userId)
+        const decrypted = await decryptRow(row, userId, decryptSideEffectsRef.current)
         // Null return means non-visible (sender-key-distribution) or decrypt failure.
         // Only mark-read for non-recoverable types — leave handshake/session failures
         // unread so the next session's catch-up retries after pre-keys replenish,
@@ -689,7 +768,7 @@ export function useSignalMessages({
         // (e.g. recipient on a fresh provisional tab) permanently loses the row,
         // which is exactly how request-accepted disappears and the gate sticks.
         if (!decrypted) {
-          if (row.message_type === 'sender-key-distribution' || row.message_type === 'call-signal') {
+          if (row.message_type === 'sender-key-distribution' || row.message_type === 'call-signal' || row.message_type === 'sender-key-request') {
             processedRowIds.push(row.id)
           }
           continue
@@ -729,6 +808,7 @@ export function useSignalMessages({
               [row.id],
               userIdRef.current,
               localDeviceId,
+              row.origin_id ? [row.origin_id] : undefined,
             ).catch(() => {})
           }
         }
@@ -822,9 +902,9 @@ export function useSignalMessages({
       if (processedIds.current.has(row.id)) return
       trackProcessed(row.id)
 
-      decryptRow(row, myUuid).then((decrypted) => {
+      decryptRow(row, myUuid, decryptSideEffectsRef.current).then((decrypted) => {
         if (!decrypted) {
-          if (row.message_type === 'sender-key-distribution' || row.message_type === 'call-signal') {
+          if (row.message_type === 'sender-key-distribution' || row.message_type === 'call-signal' || row.message_type === 'sender-key-request') {
             markMessagesRead([row.id]).catch(() => {})
           }
           return
@@ -865,6 +945,7 @@ export function useSignalMessages({
             [row.id],
             myUuid,
             myDeviceId,
+            row.origin_id ? [row.origin_id] : undefined,
           ).catch(() => {})
         }
       })
@@ -897,14 +978,14 @@ export function useSignalMessages({
       }
       trackProcessed(row.id)
 
-      decryptRow(row, myUuid).then((decrypted) => {
+      decryptRow(row, myUuid, decryptSideEffectsRef.current).then((decrypted) => {
         if (!decrypted) {
           // Null means non-visible (sender-key-distribution) or decrypt failure.
           // Only mark-read for non-recoverable types — handshake/session failures
           // stay unread so catch-up retries on the next session (after sessions
           // restore from backup, pre-keys replenish, etc.). Marking them read here
           // is how request-accepted rows on fresh-X3DH paths disappear permanently.
-          if (row.message_type === 'sender-key-distribution' || row.message_type === 'call-signal') {
+          if (row.message_type === 'sender-key-distribution' || row.message_type === 'call-signal' || row.message_type === 'sender-key-request') {
             markMessagesRead([row.id]).catch(() => {})
           }
           return
@@ -950,6 +1031,7 @@ export function useSignalMessages({
             [row.id],
             myUuid,
             myDeviceId,
+            row.origin_id ? [row.origin_id] : undefined,
           ).catch(() => {})
         }
       })

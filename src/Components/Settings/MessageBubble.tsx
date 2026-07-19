@@ -846,7 +846,13 @@ export function MessageBubble({
                   <Clock size={10} className="opacity-60" />
                 )}
                 {isOwn && message.messageType !== 'request' && message.status === 'delivered' && (
-                  <CheckCheck size={10} className="opacity-60" />
+                  <span className="flex items-center gap-0.5">
+                    <CheckCheck size={10} className="opacity-60" />
+                    {/* Group messages: show how many members have received it. */}
+                    {message.groupId && (message.deliveredTo?.length ?? 0) > 0 && (
+                      <span className="text-[8pt] leading-none opacity-60">{message.deliveredTo!.length}</span>
+                    )}
+                  </span>
                 )}
                 {isOwn && message.messageType !== 'request' && message.status !== 'sending' && message.status !== 'delivered' && (
                   <Check size={10} className="opacity-60" />

@@ -597,7 +597,7 @@ export const Plan = ({ orderTags, instructionTags, orderSets = [], initialText, 
                             onClick={() => addPillRef.current && openFabFromAnchor(addPillRef.current)}
                         />
                     </ActionPill>
-                    <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+                    <div className="rounded-2xl bg-themewhite2 overflow-hidden">
                         <div
                             ref={listRef}
                             className="px-4 py-3"

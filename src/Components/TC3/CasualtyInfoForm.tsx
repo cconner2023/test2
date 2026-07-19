@@ -140,7 +140,7 @@ export const CasualtyInfoForm = memo(function CasualtyInfoForm() {
           ref={cardRef}
           type="button"
           onClick={() => openPopover(cardRef)}
-          className="w-full rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden text-left active:scale-95 transition-all hover:bg-themeblue2/5"
+          className="w-full rounded-2xl bg-themewhite2 overflow-hidden text-left active:scale-95 transition-all hover:bg-themeblue2/5"
         >
           <div className="flex items-center gap-3 px-4 py-3">
             {expectant ? (
@@ -195,7 +195,7 @@ export const CasualtyInfoForm = memo(function CasualtyInfoForm() {
         <button
           type="button"
           onClick={() => setShowMapOverlayDrawer(true, pinned.overlayId, pinned.feature.id)}
-          className="mt-2 w-full rounded-2xl border border-themeblue3/10 overflow-hidden text-left active:scale-95 transition-all"
+          className="mt-2 w-full rounded-2xl overflow-hidden text-left active:scale-95 transition-all"
         >
           <OverlaySnapshot features={[pinned.feature]} width={320} height={110} fill />
           <div className="flex items-center gap-2 px-4 py-2 bg-themewhite2">

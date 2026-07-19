@@ -51,6 +51,7 @@ import {
 } from '../lib/signal/keyManager'
 import {
   generateSenderKey,
+  rotateSenderKey,
   createDistribution,
   processSenderKeyDistribution,
   senderKeyEncrypt,
@@ -58,14 +59,22 @@ import {
 } from '../lib/signal/senderKey'
 import {
   loadSenderKey,
+  loadSenderKeysForGroup,
+  deleteSenderKey,
   deleteSenderKeysForGroup,
 } from '../lib/signal/senderKeyStore'
+import {
+  getGroupSecretMeta,
+  setGroupSecret,
+  deleteGroupSecret,
+  generateGroupSecret,
+} from '../lib/signal/groupNameCrypto'
 import type { SenderKeyMessage, SenderKeyDistribution } from '../lib/signal/types'
 import {
   saveMessage,
   updateReadAt,
   updateMessageText,
-  updateMessageStatus as updateMessageStatusInDb,
+  markDelivered,
   deleteMessages as deleteMessagesFromDb,
   deleteMessagesByOriginId as deleteMessagesByOriginIdFromDb,
 } from '../lib/signal/messageStore'
@@ -98,6 +107,11 @@ import type { PeerBundleRpcResult } from '../lib/signal/transportTypes'
 import { useMessagingStore } from '../stores/useMessagingStore'
 
 const logger = createLogger('Messages')
+
+/** Min interval between sender-key re-distribution requests for the same
+ *  (groupId:senderId) pair — prevents a burst of undecryptable group messages
+ *  from firing a storm of requests. */
+const SENDER_KEY_REQUEST_THROTTLE_MS = 30_000
 
 export type RequestStatus = 'none' | 'sent' | 'received' | 'accepted'
 
@@ -351,15 +365,39 @@ async function ensureSenderKey(
   localDeviceId: string,
   groupId: string,
   members: GroupMember[],
+  keyEpoch = 0,
 ): Promise<string[]> {
   let senderKey = await loadSenderKey(groupId, userId, localDeviceId)
 
   if (!senderKey) {
-    senderKey = await generateSenderKey(groupId, userId, localDeviceId)
-    logger.info(`Generated new sender key for group ${groupId}`)
+    senderKey = await generateSenderKey(groupId, userId, localDeviceId, keyEpoch)
+    logger.info(`Generated new sender key for group ${groupId} at epoch ${keyEpoch}`)
+  } else if ((senderKey.epoch ?? 0) < keyEpoch) {
+    // Membership shrank (a member was removed/left) since our key was minted.
+    // Rotate for forward secrecy so the departed member cannot follow our chain,
+    // and drop any sender keys we still hold for members no longer in the group
+    // (closes the "removed member's messages still decrypt" path client-side).
+    const prevEpoch = senderKey.epoch ?? 0
+    senderKey = await rotateSenderKey(groupId, userId, localDeviceId, keyEpoch)
+    logger.info(`Rotated sender key for group ${groupId}: epoch ${prevEpoch} -> ${keyEpoch}`)
+    const currentMemberIds = new Set(members.map(m => m.userId))
+    const held = await loadSenderKeysForGroup(groupId)
+    for (const sk of held) {
+      if (!currentMemberIds.has(sk.memberId)) {
+        await deleteSenderKey(groupId, sk.memberId, sk.deviceId).catch(() => {})
+      }
+    }
   }
 
   const dist = createDistribution(senderKey)
+  // Piggyback the per-group name secret so every member can decrypt the group
+  // name. Only attached when we currently hold it; recipients adopt it only if
+  // its epoch exceeds their own (rotated secret supersedes).
+  const secretMeta = await getGroupSecretMeta(groupId)
+  if (secretMeta) {
+    dist.groupSecret = secretMeta.secret
+    dist.secretEpoch = secretMeta.epoch
+  }
   const distJson = JSON.stringify(dist)
 
   // Distribute to all group members (excluding current device). Track members we
@@ -430,8 +468,9 @@ async function encryptAndSendToGroupMembers(
   // so we can explain the gap without blocking the send. A distribution failure
   // must never abort the whole send — proceed best-effort.
   let undeliverable: string[] = []
+  const keyEpoch = useMessagingStore.getState().groups[groupId]?.keyEpoch ?? 0
   try {
-    undeliverable = await ensureSenderKey(userId, localDeviceId, groupId, members)
+    undeliverable = await ensureSenderKey(userId, localDeviceId, groupId, members, keyEpoch)
   } catch (e) {
     logger.warn(`ensureSenderKey failed for group ${groupId}; sending best-effort:`, e instanceof Error ? e.message : e)
   }
@@ -581,6 +620,22 @@ export interface UseMessagesReturn {
 // Stable module-level reference to Zustand getState — never changes, safe to omit from deps.
 const store = useMessagingStore.getState
 
+/**
+ * Local teardown for a group we are no longer part of (purge / leave / removed).
+ * Standard delete treatment: drop the conversation from state + IDB and write a
+ * tombstone (blocks resurrection from a vault drain / realtime echo), remove the
+ * group from the list, and delete its group-scoped crypto (sender keys + name
+ * secret). Server-side rows are handled separately: purge_message_group deletes
+ * them for a purge, and the reap_orphaned_group_messages cron sweeps a removed
+ * member's undrained copies.
+ */
+async function purgeLocalGroup(groupId: string): Promise<void> {
+  await store().deleteConversation(groupId).catch(() => {})
+  store().removeGroup(groupId)
+  await deleteSenderKeysForGroup(groupId).catch(() => {})
+  await deleteGroupSecret(groupId).catch(() => {})
+}
+
 export function useMessages(): UseMessagesReturn {
   const { user, localSession, isAuthenticated, clinicId, surrogateClinicIds, isDevRole } = useAuth()
   const userId = user?.id ?? null
@@ -609,6 +664,16 @@ export function useMessages(): UseMessagesReturn {
 
   // Track which peer's chat is currently open (for auto-mark-read)
   const activePeerRef = useRef<string | null>(null)
+
+  // Group IDs seen in the last SUCCESSFUL fetch_my_groups. Purge-on-absence
+  // diffs against this (not optimistic store state) so a group is only torn down
+  // when it genuinely disappears between two server fetches — never when it's
+  // merely newly-created locally or absent from a racing fetch.
+  const serverGroupIdsRef = useRef<Set<string>>(new Set())
+
+  // Throttle re-distribution requests per (groupId:senderId) so a burst of
+  // undecryptable group messages triggers at most one request per window.
+  const senderKeyRequestAtRef = useRef<Map<string, number>>(new Map())
 
   // External listener ref — MessagesContext sets this to fire notifications
   const onIncomingRef = useRef<((msg: DecryptedSignalMessage) => void) | null>(null)
@@ -649,11 +714,14 @@ export function useMessages(): UseMessagesReturn {
 
   /** Handle incoming message — delivery receipts, read-syncs, calendar routing, then addMessage. */
   const handleIncomingMessage = useCallback(async (msg: DecryptedSignalMessage) => {
-    // Delivery receipt
+    // Delivery receipt — match by originId (shared across the group fan-out) so
+    // EVERY member's receipt lands on the sender's copy, and accumulate the
+    // delivering member into the persisted deliveredTo delta cache.
     if (msg._deliveryReceipt) {
-      const { messageIds } = msg._deliveryReceipt
-      store().applyDeliveryReceipt(messageIds)
-      updateMessageStatusInDb(messageIds, 'delivered').catch(() => {})
+      const { messageIds, originIds } = msg._deliveryReceipt
+      const deliveredBy = msg.senderId
+      const affected = store().applyDeliveryReceipt({ messageIds, originIds, deliveredBy })
+      if (affected.length > 0) markDelivered(affected, deliveredBy).catch(() => {})
       markMessagesRead([msg.id]).catch(() => {})
       return
     }
@@ -821,6 +889,60 @@ export function useMessages(): UseMessagesReturn {
     }
   }, [])
 
+  // Retry-receipt (Signal-style): we received a group message we cannot decrypt
+  // because we hold no sender key for that sender (we missed their distribution —
+  // e.g. our device was provisioned after their send). Ask the sender to
+  // re-distribute. Throttled per (groupId:senderId) so a burst of undecryptable
+  // messages produces at most one request per window.
+  const requestSenderKeyRedistribution = useCallback(async (groupId: string, peerId: string) => {
+    const localDeviceId = useMessagingStore.getState().localDeviceId
+    if (!userId || !localDeviceId || !groupId || peerId === userId) return
+    const throttleKey = `${groupId}:${peerId}`
+    const now = Date.now()
+    const last = senderKeyRequestAtRef.current.get(throttleKey) ?? 0
+    if (now - last < SENDER_KEY_REQUEST_THROTTLE_MS) return
+    senderKeyRequestAtRef.current.set(throttleKey, now)
+
+    try {
+      const devicesResult = await fetchPeerDevices(peerId)
+      const devices = devicesResult.ok ? devicesResult.data : []
+      if (devices.length === 0) return
+      // Pairwise control message (no group_id on the wire → not a group send, so
+      // the membership gate never applies). Payload carries the target groupId.
+      const body = JSON.stringify({ type: 'sender-key-request', groupId })
+      const fanOutInputs = await encryptForAllDevices(peerId, devices, body, userId)
+      for (const input of fanOutInputs) input.messageType = 'sender-key-request'
+      if (fanOutInputs.length > 0) {
+        await sendMessageFanOut(userId, localDeviceId, peerId, fanOutInputs, undefined, undefined, true).catch(() => {})
+        logger.info(`Requested sender-key re-distribution from ${peerId} for group ${groupId}`)
+      }
+    } catch (e) {
+      logger.warn('requestSenderKeyRedistribution failed:', e instanceof Error ? e.message : e)
+    }
+  }, [userId])
+
+  // Peer asked us to re-distribute our sender key for a group (they missed our
+  // original distribution). Re-run ensureSenderKey, which regenerates if needed
+  // and fans a fresh distribution (with the group-name secret) to all members.
+  const handleSenderKeyRequest = useCallback(async (groupId: string, requesterId: string) => {
+    const localDeviceId = useMessagingStore.getState().localDeviceId
+    if (!userId || !localDeviceId || !groupId) return
+    try {
+      const membersResult = await fetchGroupMembersRpc(groupId)
+      if (!membersResult.ok) return
+      // Only honor requests from actual group members.
+      if (!membersResult.data.some(m => m.userId === requesterId)) {
+        logger.warn(`Ignoring sender-key-request for ${groupId} from non-member ${requesterId}`)
+        return
+      }
+      const keyEpoch = useMessagingStore.getState().groups[groupId]?.keyEpoch ?? 0
+      await ensureSenderKey(userId, localDeviceId, groupId, membersResult.data, keyEpoch)
+      logger.info(`Re-distributed sender key for group ${groupId} on request from ${requesterId}`)
+    } catch (e) {
+      logger.warn('handleSenderKeyRequest failed:', e instanceof Error ? e.message : e)
+    }
+  }, [userId])
+
   // Subscribe to realtime incoming messages
   useSignalMessages({
     userId,
@@ -833,6 +955,8 @@ export function useMessages(): UseMessagesReturn {
     isPageVisible,
     onMessage: handleIncomingMessage,
     onDelete: removeMessagesByOriginIds,
+    onSenderKeyMissing: requestSenderKeyRedistribution,
+    onSenderKeyRequest: handleSenderKeyRequest,
   })
 
   // Hydrate from IDB on mount and re-hydrate after backup restore. Keyed on the
@@ -871,7 +995,27 @@ export function useMessages(): UseMessagesReturn {
     for (const g of result.data) {
       map[g.groupId] = g
     }
+    const currentIds = new Set(result.data.map(g => g.groupId))
+
+    // Purge-on-absence: a group present in the PREVIOUS successful server fetch
+    // but gone from this one means we were removed (or left). Diffing against the
+    // last server fetch — not optimistic store state — avoids tearing down a
+    // freshly-created or not-yet-fetched group (which would wrongly tombstone it
+    // and suppress its history via addMessage's tombstone guard). System groups
+    // are auto-managed and never purged this way. First fetch after login has an
+    // empty prev set, so nothing is purged on cold start.
+    const prevServerIds = serverGroupIdsRef.current
+    const prevGroups = store().groups
+    const vanished = [...prevServerIds].filter(id => !currentIds.has(id))
+    serverGroupIdsRef.current = currentIds
+
     useMessagingStore.getState().setGroups(map)
+
+    for (const gid of vanished) {
+      if (prevGroups[gid]?.systemType != null) continue // never purge system groups
+      logger.info(`Group ${gid} no longer accessible — purging local group state`)
+      await purgeLocalGroup(gid)
+    }
   }, [])
 
   useEffect(() => {
@@ -2511,7 +2655,9 @@ export function useMessages(): UseMessagesReturn {
       logger.error('leaveGroup failed:', result.error)
       return
     }
-    store().removeGroup(groupId)
+    // We are no longer a member — tear down local conversation + crypto so old
+    // messages don't linger in IDB and can't resurrect.
+    await purgeLocalGroup(groupId)
   }, [])
 
   /** Rename a group. */
@@ -2544,7 +2690,32 @@ export function useMessages(): UseMessagesReturn {
       logger.error('removeGroupMember failed:', result.error)
       return
     }
+    // Server bumped key_epoch; pull the new epoch + (still old-secret-decrypted) name.
     await refreshGroups()
+
+    // Rotate the group-name secret to the new epoch so the removed member can no
+    // longer decrypt future name changes. Best-effort and single-authored (only
+    // the remover mints it, avoiding divergence): requires that we currently hold
+    // the old secret and the current name decrypted cleanly. Message-content
+    // forward secrecy is independent — each remaining member rotates its own
+    // sender key lazily on next send via ensureSenderKey.
+    try {
+      const g = useMessagingStore.getState().groups[groupId]
+      const oldMeta = await getGroupSecretMeta(groupId)
+      const newEpoch = g?.keyEpoch ?? 0
+      if (g && oldMeta && g.name && !g.name.startsWith('genc:')) {
+        const newSecret = generateGroupSecret()
+        await setGroupSecret(groupId, newSecret, newEpoch)
+        const renameResult = await renameGroupRpc(groupId, g.name)
+        if (!renameResult.ok) {
+          // Roll back so the name stays decryptable for everyone who had the old secret.
+          await setGroupSecret(groupId, oldMeta.secret, oldMeta.epoch)
+          logger.warn('Group-name secret rotation rename failed; rolled back:', renameResult.error)
+        }
+      }
+    } catch (e) {
+      logger.warn('Group-name secret rotation skipped:', e instanceof Error ? e.message : e)
+    }
   }, [refreshGroups])
 
   /** Promote a member to primary. */
@@ -2576,7 +2747,9 @@ export function useMessages(): UseMessagesReturn {
       logger.error('purgeGroup failed:', result.error)
       return { ok: false, error: result.error }
     }
-    store().removeGroup(groupId)
+    // Server rows are gone (purge RPC); tear down all local traces so nothing
+    // lingers in IDB or resurrects from a vault drain.
+    await purgeLocalGroup(groupId)
     return { ok: true }
   }, [])
 

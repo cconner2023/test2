@@ -57,7 +57,7 @@ export const TC3CardColumn = memo(function TC3CardColumn() {
           {markerCount > 0 && (
             <div className="space-y-1.5">
               <SectionHeader>Markers</SectionHeader>
-              <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden divide-y divide-tertiary/8">
+              <div className="rounded-2xl bg-themewhite2 overflow-hidden divide-y divide-tertiary/8">
                 {card.markers.map((m) => {
                   const typeLabel = summarizeMarker(m)
                   const regionLabel = m.bodyRegion ? getRegionLabel(m.bodyRegion) : null
@@ -95,7 +95,7 @@ export const TC3CardColumn = memo(function TC3CardColumn() {
             <button
               type="button"
               onClick={() => openExport()}
-              className="w-full rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden text-left active:scale-95 transition-all hover:bg-themeblue2/5"
+              className="w-full rounded-2xl bg-themewhite2 overflow-hidden text-left active:scale-95 transition-all hover:bg-themeblue2/5"
             >
               <div className="flex items-center gap-3 px-4 py-3.5">
                 <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">

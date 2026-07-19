@@ -12,6 +12,9 @@ export interface GroupInfo {
   createdAt: string
   memberCount: number
   systemType?: 'calendar' | 'system' | 'oncall' | null
+  /** Membership epoch — bumped server-side on every member removal/leave.
+   *  Absent on pre-epoch rows → treated as 0. Drives lazy sender-key rotation. */
+  keyEpoch?: number
 }
 
 export interface GroupMember {

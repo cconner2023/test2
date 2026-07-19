@@ -18,6 +18,7 @@ export type SignalMessageType =
   | 'receipt'                   // Delivery receipt (not user-visible, no push notification)
   | 'sender-key-distribution'   // Sender key distribution via 1:1 pairwise session
   | 'sender-key-message'        // Group message encrypted with sender key (pre-encrypted, no Double Ratchet)
+  | 'sender-key-request'        // Retry-receipt: recipient asks sender to re-distribute its sender key for a group (control-plane, never user-visible)
   | 'clinic-vault'              // Clinic entity shared-key message (symmetric AES, no Signal session required)
   | 'system'                    // System-authored notice (dev-only insert; renders as centered card, no reply)
   | 'call-signal'               // WebRTC call signaling (offer/answer/ice/hangup/decline) — control-plane, never user-visible, decrypted-through-session like sender-key-distribution
@@ -118,6 +119,12 @@ export interface DecryptedSignalMessage {
   readAt: string | null
   /** Delivery status for outgoing messages (undefined = legacy, rendered as 'sent'; incoming messages are always undefined). */
   status?: 'sending' | 'sent' | 'delivered'
+  /** Member userIds that have acknowledged delivery of this outgoing message.
+   *  Accumulated incrementally from delivery receipts (a persisted delta cache —
+   *  never re-fetched from the server) and matched by originId across the group
+   *  fan-out. For 1:1 this holds 0 or 1 entry; for groups it drives "delivered
+   *  to N/M". Absent on incoming messages. */
+  deliveredTo?: string[]
   /** Root message ID this message is a reply to (thread ID). */
   threadId?: string
   /** Short preview of the root message text (for display without lookup). */
@@ -132,6 +139,9 @@ export interface DecryptedSignalMessage {
   reactions?: Record<string, string[]>
   /** Populated on read-sync messages — signals that peer's messages were read on another device. */
   _readSync?: { peerId: string; messageIds: string[]; readAt: string }
-  /** Present when this message is a delivery receipt (not a user-visible message). */
-  _deliveryReceipt?: { messageIds: string[]; deliveredAt: string }
+  /** Present when this message is a delivery receipt (not a user-visible message).
+   *  originIds are the shared fan-out identities of the acked messages — the
+   *  sender matches on these so EVERY group member's receipt lands on the right
+   *  message (messageIds are per-recipient row ids, kept for back-compat). */
+  _deliveryReceipt?: { messageIds: string[]; originIds?: string[]; deliveredAt: string }
 }

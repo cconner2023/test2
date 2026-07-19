@@ -910,7 +910,7 @@ export const MARCHForm = memo(function MARCHForm() {
             action={{ icon: Plus, label: 'Add intervention', onClick: (anchor) => handleFab(anchor) }}
           />
         ) : (
-          <div className="relative rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+          <div className="relative rounded-2xl bg-themewhite2 overflow-hidden">
             {rows.map((row, idx) => renderRow(row, idx, idx === rows.length - 1))}
             <div
               ref={fabRef}

@@ -10,6 +10,13 @@ const enc = new TextEncoder()
 
 // ---- Group Secret IDB helpers ----
 
+/** Stored group-secret record. `epoch` is the membership epoch the secret was
+ *  minted under; absent on legacy records → treated as 0. */
+export interface GroupSecretMeta {
+  secret: string
+  epoch: number
+}
+
 /** Retrieve the stored random secret for a group, or null if absent. */
 export async function getGroupSecret(groupId: string): Promise<string | null> {
   try {
@@ -22,13 +29,36 @@ export async function getGroupSecret(groupId: string): Promise<string | null> {
   }
 }
 
-/** Persist a group secret. */
-export async function setGroupSecret(groupId: string, secret: string): Promise<void> {
+/** Retrieve the secret plus its epoch, or null if absent. */
+export async function getGroupSecretMeta(groupId: string): Promise<GroupSecretMeta | null> {
   try {
     const db = await getDb()
-    await db.put('groupSecrets', { groupId, secret }, groupId)
+    const row = await db.get('groupSecrets', groupId)
+    if (!row?.secret) return null
+    return { secret: row.secret, epoch: row.epoch ?? 0 }
+  } catch (err) {
+    logger.warn('Failed to load group secret meta:', err)
+    return null
+  }
+}
+
+/** Persist a group secret tagged with the membership epoch it belongs to. */
+export async function setGroupSecret(groupId: string, secret: string, epoch = 0): Promise<void> {
+  try {
+    const db = await getDb()
+    await db.put('groupSecrets', { groupId, secret, epoch }, groupId)
   } catch (err) {
     logger.warn('Failed to save group secret:', err)
+  }
+}
+
+/** Delete a group secret (e.g. on removal/leave cleanup). No-op if absent. */
+export async function deleteGroupSecret(groupId: string): Promise<void> {
+  try {
+    const db = await getDb()
+    await db.delete('groupSecrets', groupId)
+  } catch (err) {
+    logger.warn('Failed to delete group secret:', err)
   }
 }
 

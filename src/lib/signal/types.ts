@@ -213,6 +213,9 @@ export interface SenderKeyState {
   /** ECDSA P-256 signing private key — present only for OUR own sender keys.
    *  Non-extractable; stored by structured-clone in IndexedDB. */
   signingPrivateKey?: CryptoKey
+  /** Membership epoch (message_groups.key_epoch) this key was minted under.
+   *  Absent on pre-epoch keys → treated as 0. Drives lazy rotation on removal. */
+  epoch?: number
   createdAt: string
 }
 
@@ -238,6 +241,13 @@ export interface SenderKeyDistribution {
   iteration: number
   /** ECDSA P-256 signing public key (SPKI base64) — used to verify future messages. */
   signingPublicKey: string
+  /** Per-group symmetric secret for group-NAME encryption (base64). Piggybacked
+   *  on the distribution so every member can decrypt the group name. Present only
+   *  when the distributing member currently holds the secret. */
+  groupSecret?: string
+  /** Epoch of the attached groupSecret. Recipients adopt a secret only when its
+   *  epoch exceeds their locally-stored one, so a rotated secret supersedes. */
+  secretEpoch?: number
 }
 
 /**

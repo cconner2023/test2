@@ -224,11 +224,13 @@ function buildSignedPayload(
  * @param groupId  - Group this key belongs to
  * @param memberId - Our own user ID
  * @param deviceId - Our own device ID
+ * @param epoch    - Membership epoch this key is minted under (default 0)
  */
 export async function generateSenderKey(
   groupId: string,
   memberId: string,
-  deviceId: string
+  deviceId: string,
+  epoch = 0
 ): Promise<SenderKeyState> {
   // 1. Generate a random 256-bit chain key
   const chainKeyBytes = crypto.getRandomValues(new Uint8Array(32))
@@ -262,6 +264,7 @@ export async function generateSenderKey(
     iteration: 0,
     signingPublicKey,
     signingPrivateKey: nonExtractablePrivate,
+    epoch,
     createdAt: new Date().toISOString(),
   }
 
@@ -513,14 +516,16 @@ export async function senderKeyDecrypt(message: SenderKeyMessage): Promise<strin
  * @param groupId  - Group to rotate the key for
  * @param memberId - Member whose key is being rotated (must be our own)
  * @param deviceId - Device whose key is being rotated
+ * @param epoch    - Membership epoch the fresh key is minted under (default 0)
  */
 export async function rotateSenderKey(
   groupId: string,
   memberId: string,
-  deviceId: string
+  deviceId: string,
+  epoch = 0
 ): Promise<SenderKeyState> {
-  const newKey = await generateSenderKey(groupId, memberId, deviceId)
-  logger.info(`Rotated sender key for group ${groupId} member ${memberId} device ${deviceId}`)
+  const newKey = await generateSenderKey(groupId, memberId, deviceId, epoch)
+  logger.info(`Rotated sender key for group ${groupId} member ${memberId} device ${deviceId} at epoch ${epoch}`)
   return newKey
 }
 

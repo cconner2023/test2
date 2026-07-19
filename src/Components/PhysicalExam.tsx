@@ -1051,7 +1051,7 @@ export function PhysicalExam({
                 /* Empty state owned by parent — picker is auto-opened via initialPickerAnchor. */
                 null
             ) : (
-                <div className="relative"><div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+                <div className="relative"><div className="rounded-2xl bg-themewhite2 overflow-hidden">
                     <div className="px-4 py-3">
                         <div className="flex flex-col gap-2 mb-2">
                             {/* MSK laterality / spine region selector (focused mode, category B) */}

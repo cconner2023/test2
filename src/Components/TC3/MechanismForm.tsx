@@ -82,7 +82,7 @@ export const MechanismForm = memo(function MechanismForm() {
       {/* Section card */}
       {populated ? (
         <div className="relative">
-          <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+          <div className="rounded-2xl bg-themewhite2 overflow-hidden">
             <button
               ref={cardRef}
               type="button"

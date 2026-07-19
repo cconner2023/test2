@@ -413,6 +413,36 @@ export async function loadUnreadCounts(
 
 // ---- Update ----
 
+/** Persist a delivery-receipt delta: union `deliveredBy` into each message's
+ *  deliveredTo cache and mark it 'delivered'. Keyed by message id (O(1) per id,
+ *  no scan / no server round-trip) — a pure local delta cache so group delivery
+ *  status survives reload without re-fetching. */
+export async function markDelivered(
+  messageIds: string[],
+  deliveredBy: string,
+): Promise<void> {
+  if (messageIds.length === 0) return
+  try {
+    const db = await getDb()
+    const tx = db.transaction('messages', 'readwrite')
+    await Promise.all(
+      messageIds.map(async (id) => {
+        const msg = await tx.store.get(id)
+        if (!msg) return
+        const deliveredTo = msg.deliveredTo ?? []
+        if (deliveredBy && !deliveredTo.includes(deliveredBy)) {
+          msg.deliveredTo = [...deliveredTo, deliveredBy]
+        }
+        msg.status = 'delivered'
+        await tx.store.put(msg)
+      }),
+    )
+    await tx.done
+  } catch (err) {
+    logger.warn('Failed to persist delivery delta:', err)
+  }
+}
+
 /** Update readAt on stored messages. */
 export async function updateReadAt(
   messageIds: string[],

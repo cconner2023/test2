@@ -7,6 +7,7 @@ import { ActionPill } from '@/Components/primitives/ActionPill'
 import { SearchInput } from '@/Components/primitives/SearchInput'
 import { PopoverHeader } from '@/Components/PreviewOverlay'
 import { MenuItemButton, contextMenuItemVariant, type ContextMenuItem, type MenuCardRow, type SearchLevelSpec } from '@/Components/primitives/ContextMenu'
+export type { SearchLevelSpec, MenuCardRow } from '@/Components/primitives/ContextMenu'
 
 interface AnchoredMenuProps {
   isOpen: boolean
@@ -43,6 +44,11 @@ interface AnchoredMenuProps {
   backdrop?: 'dim' | 'plain'
   /** Optional uppercase section header at the top of a list card (selectors). */
   header?: string
+  /** Open the menu DIRECTLY into a searchable card list (list layout only) — the
+   *  filter field + scrollable cards are the ROOT level, no tap-through. Use when the
+   *  whole surface is a "browse & pick from a filtered list" (e.g. the note-editor
+   *  text-template picker). When set, `items` is ignored for the root. */
+  rootSearch?: SearchLevelSpec
 }
 
 const MENU_H = 52    // ActionPill height (36px button + padding)
@@ -152,7 +158,7 @@ function MenuCardListRow({ row, onSelect }: { row: MenuCardRow; onSelect: (row: 
  *
  * `LiftedRowMenu` is a back-compat alias for callers that pass a clone.
  */
-export function AnchoredMenu({ isOpen, anchorRect: anchorRectProp, anchorRef, row, items, onClose, bare = false, align = 'left', layout = 'pill', reactions, backdrop, header }: AnchoredMenuProps) {
+export function AnchoredMenu({ isOpen, anchorRect: anchorRectProp, anchorRef, row, items, onClose, bare = false, align = 'left', layout = 'pill', reactions, backdrop, header, rootSearch }: AnchoredMenuProps) {
   const [visible, setVisible] = useState(false)
   // Live-anchor rect — re-measured from `anchorRef` on any reflow (see prop doc).
   const [liveRect, setLiveRect] = useState<DOMRect | null>(null)
@@ -170,7 +176,9 @@ export function AnchoredMenu({ isOpen, anchorRect: anchorRectProp, anchorRef, ro
   const showReactRow = isList && atRoot && !!reactions?.length
   const showHeader = isList && atRoot && !!header
 
-  const ROOT: Level = { kind: 'menu', key: 'root', items, reactRow: showReactRow, sectionHeader: showHeader }
+  const ROOT: Level = rootSearch
+    ? { kind: 'search', key: 'root', spec: rootSearch }
+    : { kind: 'menu', key: 'root', items, reactRow: showReactRow, sectionHeader: showHeader }
   const current: Level = stack[stack.length - 1] ?? ROOT
   const activeItems = current.kind === 'menu' ? current.items : items
 
@@ -266,7 +274,7 @@ export function AnchoredMenu({ isOpen, anchorRect: anchorRectProp, anchorRef, ro
   // Widen the card when the menu drills into searchable card lists (label/sub rows
   // need room); plain menus keep the tight 216 width. Constant across the flow so a
   // drill never jumps the width.
-  const hasSearch = items.some((i) => i.search)
+  const hasSearch = !!rootSearch || items.some((i) => i.search)
   const listW = hasSearch ? SEARCH_W : LIST_W
   const menuH = isList
     ? (current.kind === 'search'
@@ -372,7 +380,7 @@ export function AnchoredMenu({ isOpen, anchorRect: anchorRectProp, anchorRef, ro
       const rows = lvl.spec.rows(query)
       return (
         <div>
-          <PopoverHeader title={lvl.spec.title} onBack={back} onClose={onClose} />
+          <PopoverHeader title={lvl.spec.title} onBack={lvl.key === 'root' ? undefined : back} onClose={onClose} />
           <div className="border-b border-tertiary/10 px-2 py-1.5">
             <SearchInput
               value={query}
@@ -381,7 +389,15 @@ export function AnchoredMenu({ isOpen, anchorRect: anchorRectProp, anchorRef, ro
               className="!bg-transparent !border-transparent !shadow-none text-[10pt]"
             />
           </div>
-          <div className="overflow-y-auto overscroll-contain" style={{ height: SEARCH_BODY_H }}>
+          {/* Drill-in search levels keep a FIXED body (constant height so typing
+              never re-places a deeply-anchored card). A ROOT search — the whole
+              surface is the picker — instead FITS its content up to the same cap,
+              then scrolls, so it hugs like every other AnchoredMenu list and rides
+              the shared height-spring morph. */}
+          <div
+            className="overflow-y-auto overscroll-contain"
+            style={lvl.key === 'root' ? { maxHeight: SEARCH_BODY_H } : { height: SEARCH_BODY_H }}
+          >
             {rows.length === 0 ? (
               <p className="text-[10pt] text-tertiary text-center py-10">{lvl.spec.emptyText ?? 'No results'}</p>
             ) : (

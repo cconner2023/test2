@@ -36,7 +36,7 @@ import { useBetaFlag } from '../lib/betaFeatures';
 type DispositionType = dispositionType['type'];
 
 const SECTION_LABEL_CLASS = 'text-[9pt] font-semibold text-primary uppercase tracking-wider';
-const CARD_CLASS = 'relative rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden';
+const CARD_CLASS = 'relative rounded-2xl bg-themewhite2 overflow-hidden';
 const TEXTAREA_CLASS =
     'w-full bg-transparent px-4 py-3 text-base md:text-sm text-primary placeholder:text-tertiary ' +
     'focus:outline-none resize-none overflow-hidden min-h-[200px]';
@@ -568,7 +568,7 @@ export const WriteNotePage = ({
                                                     ) },
                                                 ]}
                                             />
-                                            <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+                                            <div className="rounded-2xl bg-themewhite2 overflow-hidden">
                                                 <div className="px-4 pt-3 pb-3 text-tertiary text-[9pt] whitespace-pre-wrap max-h-48 overflow-y-auto">
                                                     {previewNote || "No content selected"}
                                                 </div>
@@ -611,7 +611,7 @@ export const WriteNotePage = ({
                                                     ) },
                                                 ]}
                                             />
-                                            <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+                                            <div className="rounded-2xl bg-themewhite2 overflow-hidden">
                                                 <div className="px-4 pt-3 pb-3">
                                                 <NoteBarcodeGenerator
                                                     algorithmOptions={algorithmOptions}

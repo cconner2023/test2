@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { X, Variable } from 'lucide-react';
+import { X, Brackets } from 'lucide-react';
 import { useTextExpander } from '@/Hooks/useTextExpander';
 import { useTemplateSession } from '@/Hooks/useTemplateSession';
 import { TextExpanderSuggestion } from '@/Components/TextExpanderSuggestion';
@@ -34,6 +34,7 @@ export function ExpandableInput({
     const [focused, setFocused] = useState(false);
     const [pickerOpen, setPickerOpen] = useState(false);
     const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
+    const triggerRef = useRef<HTMLButtonElement>(null);
 
     const { suggestions, selectedIndex, accept, dismiss, selectNext, selectPrev } =
         useTextExpander({ text: value, cursorPosition, expanders });
@@ -267,22 +268,23 @@ export function ExpandableInput({
             )}
             {showTemplatesTrigger && !hasSuggestions && (
                 <button
+                    ref={triggerRef}
                     type="button"
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={() => setPickerOpen((o) => !o)}
-                    className={`absolute bottom-2 left-2 z-10 w-7 h-7 rounded-full flex items-center justify-center bg-themewhite/90 backdrop-blur-sm border border-themeblue2/20 shadow-sm active:scale-95 transition-colors ${pickerOpen ? 'text-themeblue2 bg-themeblue2/10' : 'text-tertiary'}`}
+                    className={`absolute bottom-3 left-4 z-10 w-7 h-7 rounded-md flex items-center justify-center bg-themewhite2 active:scale-95 transition-colors ${pickerOpen ? 'text-themeblue2 bg-themeblue2/10' : 'text-tertiary'}`}
                     aria-label="Browse text templates"
                 >
-                    <Variable size={15} />
+                    <Brackets size={16} />
                 </button>
             )}
-            {pickerOpen && (
-                <TextTemplatePicker
-                    expanders={expanders}
-                    onPick={handlePick}
-                    onClose={() => setPickerOpen(false)}
-                />
-            )}
+            <TextTemplatePicker
+                isOpen={pickerOpen}
+                anchorRef={triggerRef}
+                expanders={expanders}
+                onPick={handlePick}
+                onClose={() => setPickerOpen(false)}
+            />
         </div>
     );
 }

@@ -206,7 +206,7 @@ function VitalsTrend({ sets, bio, onSelect }: { sets: TC3VitalSet[]; bio: { ht: 
   return (
     <div
       ref={scrollRef}
-      className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-x-auto"
+      className="rounded-2xl bg-themewhite2 overflow-x-auto"
       style={{ scrollbarWidth: 'none' }}
     >
       <div className="flex min-w-max">

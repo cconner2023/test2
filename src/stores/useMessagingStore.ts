@@ -97,8 +97,11 @@ interface MessagingActions {
   /** Apply a remote read-sync: update readAt on specific messages and clear unread. */
   applyReadSync: (peerId: string, messageIds: string[], readAt: string) => void
 
-  /** Update delivery status on outgoing messages. */
-  applyDeliveryReceipt: (messageIds: string[]) => void
+  /** Fold a delivery receipt onto outgoing messages. Matches by originId
+   *  (shared across the group fan-out) or id, unions the delivering member into
+   *  each message's deliveredTo delta cache, and sets status 'delivered'.
+   *  Returns the in-state message ids affected so the caller can persist. */
+  applyDeliveryReceipt: (params: { messageIds?: string[]; originIds?: string[]; deliveredBy?: string }) => string[]
 
   /** Remove messages from state by their IDs. */
   deleteMessages: (conversationKey: string, messageIds: string[]) => void
@@ -203,7 +206,11 @@ export const useMessagingStore = create<MessagingStore>()((set, get) => ({
     // backstop so no path — a stale cached bundle, an offline-queue replay, a
     // future drain branch — can ever render the raw sender-key-distribution JSON
     // (chainKey/signingPublicKey) as a chat bubble.
-    if (msg.messageType === 'sender-key-distribution' || msg.messageType === 'sender-key-message') {
+    if (
+      msg.messageType === 'sender-key-distribution' ||
+      msg.messageType === 'sender-key-message' ||
+      msg.messageType === 'sender-key-request'
+    ) {
       return
     }
     const { deletedConversations, deletedOrigins, conversations, localUserId, systemGroupIds } = get()
@@ -337,21 +344,35 @@ export const useMessagingStore = create<MessagingStore>()((set, get) => ({
     })
   },
 
-  applyDeliveryReceipt: (messageIds) => {
-    const idSet = new Set(messageIds)
+  applyDeliveryReceipt: ({ messageIds, originIds, deliveredBy }) => {
+    const idSet = new Set(messageIds ?? [])
+    const originSet = new Set(originIds ?? [])
+    const affected: string[] = []
     set(s => {
       let changed = false
       const next = { ...s.conversations }
       for (const [peerId, msgs] of Object.entries(next)) {
-        if (msgs.some(m => idSet.has(m.id))) {
-          next[peerId] = msgs.map(m =>
-            idSet.has(m.id) ? { ...m, status: 'delivered' as const } : m,
-          )
+        let convChanged = false
+        const updated = msgs.map(m => {
+          const match = (m.originId && originSet.has(m.originId)) || idSet.has(m.id)
+          if (!match) return m
+          affected.push(m.id)
+          convChanged = true
+          // Union the delivering member into the persisted delta cache.
+          const deliveredTo = m.deliveredTo ?? []
+          const nextDelivered = deliveredBy && !deliveredTo.includes(deliveredBy)
+            ? [...deliveredTo, deliveredBy]
+            : deliveredTo
+          return { ...m, status: 'delivered' as const, deliveredTo: nextDelivered }
+        })
+        if (convChanged) {
+          next[peerId] = updated
           changed = true
         }
       }
       return changed ? { conversations: next } : s
     })
+    return affected
   },
 
   deleteMessages: (conversationKey, messageIds) => {
