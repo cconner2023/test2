@@ -19,6 +19,7 @@ import { useMessagingStore } from '../stores/useMessagingStore'
 import { supabase } from '../lib/supabase'
 import { createLogger } from '../Utilities/Logger'
 import { onSystemMessage, SYSTEM_USER_ID } from '../lib/signal/systemIdentity'
+import { displayGroupName } from '../lib/signal/groupTypes'
 import type { DecryptedSignalMessage } from '../lib/signal/transportTypes'
 import type { ClinicMedic, VoicemailGreeting, AvatarBlob } from '../Types/SupervisorTestTypes'
 
@@ -135,7 +136,7 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
       const senderName = nameMap.get(msg.senderId) ?? 'Unknown'
       const isGroup = !!msg.groupId
       const groups = useMessagingStore.getState().groups
-      const groupName = isGroup ? (groups[msg.groupId!]?.name ?? 'Group') : undefined
+      const groupName = isGroup ? displayGroupName(groups[msg.groupId!]?.name) : undefined
       const preview = msg.plaintext || 'Photo'
 
       notify({

@@ -20,7 +20,7 @@ import { useIsMobile } from '../Hooks/useIsMobile'
 import { useCallActions } from '../Hooks/CallContext'
 import { useSwipeBack } from '../Hooks/useSwipeBack'
 import type { ClinicMedic } from '../Types/SupervisorTestTypes'
-import type { GroupInfo } from '../lib/signal/groupTypes'
+import { displayGroupName, type GroupInfo } from '../lib/signal/groupTypes'
 
 interface MessagesDrawerProps {
     isVisible: boolean
@@ -102,7 +102,7 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
         setSelectedGroupId(group.groupId)
         setSelectedPeerId(null)
         setPendingScrollMsgId(null)
-        setSelectedPeerName(group.name)
+        setSelectedPeerName(displayGroupName(group.name))
         setView('messages-group-chat')
     }, [])
 

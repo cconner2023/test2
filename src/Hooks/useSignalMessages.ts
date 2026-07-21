@@ -24,6 +24,7 @@ import { processClinicIncomingMessage } from '../lib/signal/clinicSession'
 import { drainSystemInbox, SYSTEM_USER_ID } from '../lib/signal/systemIdentity'
 import { processSenderKeyDistribution, senderKeyDecrypt } from '../lib/signal/senderKey'
 import { getGroupSecretMeta, setGroupSecret } from '../lib/signal/groupNameCrypto'
+import { emitGroupRefresh } from '../lib/signal/groupRefreshBus'
 import { useMessagingStore } from '../stores/useMessagingStore'
 import type { SealedEnvelope } from '../lib/signal/sealedSender'
 import type { SignalMessageRow, DecryptedSignalMessage } from '../lib/signal/transportTypes'
@@ -435,6 +436,10 @@ async function decryptRow(
           if (!existing || incomingEpoch > existing.epoch) {
             await setGroupSecret(groupId, dist.groupSecret, incomingEpoch)
             logger.debug(`Adopted group-name secret for ${groupId} at epoch ${incomingEpoch}`)
+            // Names are decrypted once, at fetch time — whatever is in the store
+            // right now is still ciphertext. Re-hydrate so the name resolves in
+            // this session instead of waiting for the next mount.
+            emitGroupRefresh(groupId)
           }
         }
       } catch (e) {

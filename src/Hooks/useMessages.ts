@@ -69,6 +69,7 @@ import {
   deleteGroupSecret,
   generateGroupSecret,
 } from '../lib/signal/groupNameCrypto'
+import { onGroupRefresh } from '../lib/signal/groupRefreshBus'
 import type { SenderKeyMessage, SenderKeyDistribution } from '../lib/signal/types'
 import {
   saveMessage,
@@ -112,6 +113,17 @@ const logger = createLogger('Messages')
  *  (groupId:senderId) pair — prevents a burst of undecryptable group messages
  *  from firing a storm of requests. */
 const SENDER_KEY_REQUEST_THROTTLE_MS = 30_000
+
+/** Membership-change announcements. These are ordinary group messages sent by
+ *  the actor (the UI already labels the sender), so they read as "Doe: created
+ *  this group". They exist for UX *and* as the transport for the per-group name
+ *  secret: every group send runs ensureSenderKey, which piggybacks the secret on
+ *  its sender-key distribution. Operational vocabulary only — no PHI. */
+const GROUP_ANNOUNCE = {
+  created: 'created this group',
+  memberAdded: 'added a member to this group',
+  memberRemoved: 'removed a member from this group',
+} as const
 
 export type RequestStatus = 'none' | 'sent' | 'received' | 'accepted'
 
@@ -1021,6 +1033,17 @@ export function useMessages(): UseMessagesReturn {
   useEffect(() => {
     if (!userId) return
     refreshGroups().catch(e => logger.warn('Group hydration failed:', e))
+  }, [userId, refreshGroups])
+
+  // A piggybacked group-name secret just landed (or a group we don't know about
+  // yet sent us one). Re-hydrate so the encrypted name resolves in this session.
+  useEffect(() => {
+    if (!userId) return
+    return onGroupRefresh((groupId) => {
+      refreshGroups().catch(e =>
+        logger.warn(`Group re-hydration after secret adoption failed (${groupId}):`, e)
+      )
+    })
   }, [userId, refreshGroups])
 
   /** Build replyTo metadata from a threadId by looking up the root message. */
@@ -2645,8 +2668,16 @@ export function useMessages(): UseMessagesReturn {
       return null
     }
     await refreshGroups()
+    // Announce the group as a real message. Beyond being the expected UX, this
+    // is what carries the per-group name secret to every member: the group send
+    // path runs ensureSenderKey, which piggybacks the secret on the sender-key
+    // distribution. Without a first send, members hold no secret and render the
+    // encrypted name. Best-effort — a failed announcement must not fail create.
+    await sendGroupMessage(result.data.groupId, GROUP_ANNOUNCE.created).catch(e =>
+      logger.warn('Group-created announcement failed:', e instanceof Error ? e.message : e)
+    )
     return result.data.groupId
-  }, [refreshGroups])
+  }, [refreshGroups, sendGroupMessage])
 
   /** Leave a group. */
   const leaveGroupFn = useCallback(async (groupId: string): Promise<void> => {
@@ -2681,7 +2712,12 @@ export function useMessages(): UseMessagesReturn {
       return
     }
     await refreshGroups()
-  }, [refreshGroups])
+    // Same reason as createGroup: this send is what hands the new member the
+    // group-name secret (and a sender key) without waiting for chat traffic.
+    await sendGroupMessage(groupId, GROUP_ANNOUNCE.memberAdded).catch(e =>
+      logger.warn('Member-added announcement failed:', e instanceof Error ? e.message : e)
+    )
+  }, [refreshGroups, sendGroupMessage])
 
   /** Remove a member from a group. */
   const removeGroupMemberFn = useCallback(async (groupId: string, memberId: string): Promise<void> => {
@@ -2716,7 +2752,13 @@ export function useMessages(): UseMessagesReturn {
     } catch (e) {
       logger.warn('Group-name secret rotation skipped:', e instanceof Error ? e.message : e)
     }
-  }, [refreshGroups])
+
+    // Announce AFTER the rotation so this send distributes the NEW secret to the
+    // remaining members (ensureSenderKey reads it from IDB at send time).
+    await sendGroupMessage(groupId, GROUP_ANNOUNCE.memberRemoved).catch(e =>
+      logger.warn('Member-removed announcement failed:', e instanceof Error ? e.message : e)
+    )
+  }, [refreshGroups, sendGroupMessage])
 
   /** Promote a member to primary. */
   const promoteGroupMemberFn = useCallback(async (groupId: string, memberId: string): Promise<{ ok: boolean; error?: string }> => {

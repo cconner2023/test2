@@ -24,7 +24,7 @@ import { lastActivityMessage, activityPreview } from '../../Utilities/conversati
 import { UserAvatar } from '../Settings/UserAvatar'
 import { useProfileAvatar } from '../../Hooks/useProfileAvatar'
 import type { ClinicMedic } from '../../Types/SupervisorTestTypes'
-import type { GroupInfo } from '../../lib/signal/groupTypes'
+import { displayGroupName, type GroupInfo } from '../../lib/signal/groupTypes'
 import { MissionMapCard } from './MissionMapCard'
 import { WeatherWidget } from './WeatherWidget'
 import { PropertyWidget } from './PropertyWidget'
@@ -98,7 +98,7 @@ function ConvRowContent({ entry, lastText, unread, isPinned }: {
   const name = entry.isSelf
     ? 'Notes to Self'
     : entry.type === 'group' && entry.group
-      ? entry.group.name
+      ? displayGroupName(entry.group.name)
       : entry.medic ? getDisplayName(entry.medic) : '?'
 
   return (
@@ -227,7 +227,7 @@ function MessagesWidget({ action }: { action: WidgetActionDescriptor | null }) {
     if (entry.isSelf && localUserId) {
       openMessagesConversation(localUserId, null, 'Notes to Self')
     } else if (entry.type === 'group' && entry.group) {
-      openMessagesConversation(null, entry.group.groupId, entry.group.name)
+      openMessagesConversation(null, entry.group.groupId, displayGroupName(entry.group.name))
     } else if (entry.medic) {
       openMessagesConversation(entry.medic.id, null, getDisplayName(entry.medic))
     }
@@ -437,12 +437,13 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
     if (!event) return
     const updatedEvent: CalendarEvent = { ...event, status, updated_at: new Date().toISOString() }
     const oldOriginIds = event.originId ? [event.originId] : []
-    if (oldOriginIds.length > 0) vaultDeleteEvents(oldOriginIds).catch(() => {})
+    const owningClinic = event.clinic_id ?? clinicId
+    if (oldOriginIds.length > 0 && owningClinic) vaultDeleteEvents(oldOriginIds, owningClinic).catch(() => {})
     vaultSendEvent('c', updatedEvent).then(newOriginId => {
       if (newOriginId) updateEvent(eventId, { originId: newOriginId })
     }).catch(() => {})
     updateEvent(eventId, { status })
-  }, [events, updateEvent, vaultSendEvent, vaultDeleteEvents])
+  }, [events, updateEvent, vaultSendEvent, vaultDeleteEvents, clinicId])
 
   if (!isAuthenticated) return null
   if (overviewWidgets === null) return null

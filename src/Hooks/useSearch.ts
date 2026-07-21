@@ -17,6 +17,7 @@ import { useHandReceipts } from './useHandReceipts'
 import { useClinicMedics } from './useClinicMedics'
 import { useAuth } from './useAuth'
 import { getDisplayName } from '../Utilities/nameUtils'
+import { displayGroupName } from '../lib/signal/groupTypes'
 import type { SearchResultType } from '../Types/CatTypes'
 import type { LocalPropertyItem, LocalPropertyLocation } from '../Types/PropertyTypes'
 import type { ClinicMedic } from '../Types/SupervisorTestTypes'
@@ -326,17 +327,18 @@ export function useSearch() {
         // 2. Group matches by name
         for (const g of Object.values(groups)) {
             if (g.systemType) continue
-            if (g.name.toLowerCase().includes(q)) {
+            const gName = displayGroupName(g.name)
+            if (gName.toLowerCase().includes(q)) {
                 if (matchedKeys.has(g.groupId)) continue
                 matchedKeys.add(g.groupId)
                 out.push({
                     type: 'chat-group',
                     id: g.groupId,
                     icon: '👥',
-                    text: g.name,
+                    text: gName,
                     data: {
                         groupId: g.groupId,
-                        peerName: g.name,
+                        peerName: gName,
                     },
                 })
             }
@@ -355,7 +357,7 @@ export function useSearch() {
                     const isGroup = !!groups[key]
                     const medic = medicMap.get(key)
                     const peerName = isGroup
-                        ? groups[key].name
+                        ? displayGroupName(groups[key].name)
                         : (medic ? getDisplayName(medic) : (key === userId ? 'Notes' : 'Unknown'))
                     out.push({
                         type: 'chat-message',

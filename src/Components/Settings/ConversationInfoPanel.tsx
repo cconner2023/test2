@@ -12,7 +12,7 @@ import { useIsMobile } from '../../Hooks/useIsMobile'
 import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
 import { useOffRosterAdd } from '../Messages/useOffRosterAdd'
 import { relativeShort } from '../../Utilities/conversationActivity'
-import type { GroupInfo, GroupMember } from '../../lib/signal/groupTypes'
+import { displayGroupName, type GroupInfo, type GroupMember } from '../../lib/signal/groupTypes'
 import type { ClinicMedic } from '../../Types/SupervisorTestTypes'
 import type { DecryptedSignalMessage } from '../../lib/signal/transportTypes'
 import type { ImageContent, VoiceContent } from '../../lib/signal/messageContent'
@@ -178,6 +178,10 @@ export function ConversationInfoPanel({
 
   const handleRename = useCallback(async () => {
     if (!group || !onRename) return
+    // We don't hold the group-name secret yet (name is still ciphertext) — renaming
+    // now would re-encrypt under the legacy fallback key and break the name for
+    // everyone who does hold it. Wait for the secret to arrive.
+    if (displayGroupName(group.name) !== group.name) return
     const trimmed = nameText.trim()
     if (trimmed && trimmed !== group.name) {
       await onRename(group.groupId, trimmed)
@@ -186,7 +190,7 @@ export function ConversationInfoPanel({
 
   const enterGroupEdit = useCallback(() => {
     if (!group) return
-    setNameText(group.name)
+    setNameText(displayGroupName(group.name))
     setActionError(null)
     setGroupEditing(true)
   }, [group])
@@ -432,7 +436,7 @@ export function ConversationInfoPanel({
                        focus:ring-1 focus:ring-themeblue2/40"
           />
         ) : (
-          <p className="text-base font-medium text-primary">{group.name}</p>
+          <p className="text-base font-medium text-primary">{displayGroupName(group.name)}</p>
         )}
       </div>
 

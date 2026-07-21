@@ -35,7 +35,7 @@ import { useIsMobile } from '../../Hooks/useIsMobile'
 import type { ClinicMedic } from '../../Types/SupervisorTestTypes'
 import type { DecryptedSignalMessage } from '../../lib/signal/transportTypes'
 import type { MessageContent } from '../../lib/signal/messageContent'
-import type { GroupInfo, GroupMember } from '../../lib/signal/groupTypes'
+import { displayGroupName, type GroupInfo, type GroupMember } from '../../lib/signal/groupTypes'
 import { useOffRosterAdd } from '../Messages/useOffRosterAdd'
 import { SYSTEM_USER_ID } from '../../lib/signal/systemIdentity'
 import { isSystemMessage, isOutsideOriginCard } from '../../Hooks/useAdminSystemConversations'
@@ -296,7 +296,8 @@ function ConversationPane({
     ? { id: userId, firstName: null, lastName: 'Notes', middleInitial: null, rank: null, credential: null, avatarId: currentAvatar.id }
     : null
 
-  const sortedGroups = Object.values(groups).filter(g => !g.systemType).sort((a, b) => a.name.localeCompare(b.name))
+  const sortedGroups = Object.values(groups).filter(g => !g.systemType)
+    .sort((a, b) => displayGroupName(a.name).localeCompare(displayGroupName(b.name)))
 
   // IDs of contacts that have an active conversation (shown in Recent) — hide from Contacts
   const activeConversationIds = useMemo(() => {
@@ -375,7 +376,7 @@ function ConversationPane({
       m.clinicName?.toLowerCase().includes(q) ||
       [m.rank, m.lastName].filter(Boolean).join(' ').toLowerCase().includes(q)
     )
-    const matchedGroups = Object.values(groups).filter(g => !g.systemType && g.name.toLowerCase().includes(q))
+    const matchedGroups = Object.values(groups).filter(g => !g.systemType && displayGroupName(g.name).toLowerCase().includes(q))
 
     // Message content search — deduplicate against name matches
     const alreadyMatched = new Set<string>([
@@ -979,7 +980,7 @@ function GroupChatDetail({
     <div className="md:hidden shrink-0 px-3 py-2 pt-[max(0.5rem,var(--sat,0px))] flex items-center">
       {backButton}
       <div className="flex-1 min-w-0 text-center mx-3">
-        <p className="text-sm font-medium text-primary truncate">{group.name}</p>
+        <p className="text-sm font-medium text-primary truncate">{displayGroupName(group.name)}</p>
         <p className="text-[9pt] text-tertiary">{group.memberCount} members</p>
       </div>
       <div className="rounded-full border border-tertiary/20 bg-themewhite p-0.5 overflow-hidden shrink-0">
@@ -1013,7 +1014,7 @@ function GroupChatDetail({
       desktopHeader={null}
       registerThreadBack={registerThreadBack}
       conversationIsGroup={true}
-      conversationPeerName={group.name}
+      conversationPeerName={displayGroupName(group.name)}
       scrollToMessageId={mediaJumpId ?? scrollToMessageId}
       onScrollConsumed={() => { setMediaJumpId(null); onScrollConsumed?.() }}
     >
