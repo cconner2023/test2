@@ -3,6 +3,7 @@ import { AlertTriangle, Building2, ChevronRight, Plus } from 'lucide-react'
 import { formatMedicName } from './supervisorHelpers'
 import type { ClinicMedic } from '../../../Types/SupervisorTestTypes'
 import type { TeamMetrics } from './supervisorHelpers'
+import { FillBar } from '@/Components/primitives/FillBar'
 import { ActionButton } from '@/Components/primitives/ActionButton'
 import { ActionPill } from '@/Components/primitives/ActionPill'
 import { SwipeToDeleteRow } from '@/Components/primitives/SwipeToDeleteRow'
@@ -12,8 +13,6 @@ interface TeamReportingProps {
   metrics: TeamMetrics
   medics: ClinicMedic[]
   onViewSoldier: (soldier: ClinicMedic) => void
-  testableTaskMap: Map<string, { taskId: string }[]>
-  onNavigateToTask?: (taskId: string) => void
   onNavigateToArea?: (areaName: string) => void
   /** Drill into the per-category algorithm list (A-1…X). The flat algorithm
    *  list is too long to inline, so "Algorithms" is one Coverage-Gaps row. */
@@ -34,23 +33,10 @@ interface TeamReportingProps {
   currentUserId?: string
 }
 
-// Readiness/compliance/coverage use a two-tone scheme: faded operating-clinic
-// blue when passing, red when low. themeblue3 is the same accent the clinic
-// switcher uses to mark the clinic you're operating as.
-function metricBarColor(pct: number): string {
-  return pct >= 50 ? 'bg-themeblue3/50' : 'bg-themeredred'
-}
-
-function metricTextColor(pct: number): string {
-  return pct >= 50 ? 'text-themeblue3' : 'text-themeredred'
-}
-
 export function TeamReporting({
   metrics,
   medics,
   onViewSoldier,
-  testableTaskMap,
-  onNavigateToTask,
   onNavigateToArea,
   onNavigateToAlgorithmList,
   clinicName,
@@ -108,20 +94,8 @@ export function TeamReporting({
           </div>
         </div>
         <div className="flex flex-col gap-1.5 mt-2 ml-11">
-          <div className="flex items-center gap-2">
-            <span className="text-[9pt] text-tertiary w-18 shrink-0">Readiness</span>
-            <div className="flex-1 h-1.5 rounded-full bg-tertiary/10 overflow-hidden">
-              <div className={`h-full rounded-full ${metricBarColor(metrics.teamReadinessPercent)}`} style={{ width: `${metrics.teamReadinessPercent}%` }} />
-            </div>
-            <span className={`text-[9pt] font-medium w-8 text-right ${metricTextColor(metrics.teamReadinessPercent)}`}>{metrics.teamReadinessPercent}%</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-[9pt] text-tertiary w-18 shrink-0">Compliance</span>
-            <div className="flex-1 h-1.5 rounded-full bg-tertiary/10 overflow-hidden">
-              <div className={`h-full rounded-full ${metricBarColor(metrics.certCompliancePercent)}`} style={{ width: `${metrics.certCompliancePercent}%` }} />
-            </div>
-            <span className={`text-[9pt] font-medium w-8 text-right ${metricTextColor(metrics.certCompliancePercent)}`}>{metrics.certCompliancePercent}%</span>
-          </div>
+          <FillBar label="Readiness" percent={metrics.teamReadinessPercent} />
+          <FillBar label="Compliance" percent={metrics.certCompliancePercent} />
         </div>
       </button>
         {showClusterSwitch && (
@@ -180,30 +154,8 @@ export function TeamReporting({
                   )}
                 </div>
                 <div className="shrink-0 w-48 flex flex-col gap-1.5">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[9pt] text-tertiary w-18 shrink-0">Readiness</span>
-                    <div className="flex-1 h-1.5 rounded-full bg-tertiary/10 overflow-hidden">
-                      <div
-                        className={`h-full rounded-full transition-all ${metricBarColor(entry.readinessPercent)}`}
-                        style={{ width: `${entry.readinessPercent}%` }}
-                      />
-                    </div>
-                    <span className={`text-[9pt] font-medium w-8 text-right ${metricTextColor(entry.readinessPercent)}`}>
-                      {entry.readinessPercent}%
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[9pt] text-tertiary w-18 shrink-0">Compliance</span>
-                    <div className="flex-1 h-1.5 rounded-full bg-tertiary/10 overflow-hidden">
-                      <div
-                        className={`h-full rounded-full transition-all ${metricBarColor(entry.compliancePercent)}`}
-                        style={{ width: `${entry.compliancePercent}%` }}
-                      />
-                    </div>
-                    <span className={`text-[9pt] font-medium w-8 text-right ${metricTextColor(entry.compliancePercent)}`}>
-                      {entry.compliancePercent}%
-                    </span>
-                  </div>
+                  <FillBar label="Readiness" percent={entry.readinessPercent} />
+                  <FillBar label="Compliance" percent={entry.compliancePercent} />
                 </div>
               </button>
               </SwipeToDeleteRow>
@@ -222,36 +174,14 @@ export function TeamReporting({
           {sortedGaps.map((gap) => (
             <button
               key={gap.areaName}
-              onClick={() => {
-                if (onNavigateToArea) {
-                  onNavigateToArea(gap.areaName)
-                } else {
-                  const tasks = testableTaskMap.get(gap.areaName)
-                  if (tasks?.[0] && onNavigateToTask) onNavigateToTask(tasks[0].taskId)
-                }
-              }}
-              className="w-full flex items-center gap-3 px-4 py-3 hover:bg-themeblue2/5 text-left active:scale-95 transition-all"
+              onClick={() => onNavigateToArea?.(gap.areaName)}
+              disabled={!onNavigateToArea}
+              className="w-full flex items-center gap-3 px-4 py-3 hover:bg-themeblue2/5 text-left active:scale-95 transition-all disabled:active:scale-100"
             >
               <span className="text-sm text-primary min-w-0 truncate shrink-0 w-36">
                 {gap.areaName}
               </span>
-              <div className="flex-1 min-w-0">
-                <div
-                  className="h-1.5 rounded-full bg-tertiary/10 overflow-hidden"
-                  role="progressbar"
-                  aria-valuenow={gap.coveragePercent}
-                  aria-valuemin={0}
-                  aria-valuemax={100}
-                >
-                  <div
-                    className={`h-full rounded-full transition-all ${metricBarColor(gap.coveragePercent)}`}
-                    style={{ width: `${gap.coveragePercent}%` }}
-                  />
-                </div>
-              </div>
-              <span className={`text-[9pt] font-medium w-8 text-right ${metricTextColor(gap.coveragePercent)}`}>
-                {gap.coveragePercent}%
-              </span>
+              <FillBar className="flex-1 min-w-0" percent={gap.coveragePercent} />
             </button>
           ))}
 
@@ -266,23 +196,7 @@ export function TeamReporting({
               <span className="text-sm font-medium text-primary min-w-0 truncate shrink-0 w-36">
                 Algorithms
               </span>
-              <div className="flex-1 min-w-0">
-                <div
-                  className="h-1.5 rounded-full bg-tertiary/10 overflow-hidden"
-                  role="progressbar"
-                  aria-valuenow={algorithmsAggregatePercent}
-                  aria-valuemin={0}
-                  aria-valuemax={100}
-                >
-                  <div
-                    className={`h-full rounded-full transition-all ${metricBarColor(algorithmsAggregatePercent)}`}
-                    style={{ width: `${algorithmsAggregatePercent}%` }}
-                  />
-                </div>
-              </div>
-              <span className={`text-[9pt] font-medium w-8 text-right ${metricTextColor(algorithmsAggregatePercent)}`}>
-                {algorithmsAggregatePercent}%
-              </span>
+              <FillBar className="flex-1 min-w-0" percent={algorithmsAggregatePercent} />
               <ChevronRight size={16} className="text-tertiary shrink-0" />
             </button>
           )}

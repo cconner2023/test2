@@ -18,7 +18,6 @@ import {
   fetchPeerBundleForDevice,
   sendMessage as sendSignalMessage,
   sendMessageFanOut,
-  sendRawGroupMessage,
   fetchPeerDevices,
   fetchOwnDevices,
   fetchGroupConversation,
@@ -44,6 +43,7 @@ import {
   createOutboundSession,
   encryptMessage,
   hasSession,
+  sealForPeerDevice,
   deleteSessionsForPeer,
 } from '../lib/signal/session'
 import {
@@ -116,9 +116,11 @@ const SENDER_KEY_REQUEST_THROTTLE_MS = 30_000
 
 /** Membership-change announcements. These are ordinary group messages sent by
  *  the actor (the UI already labels the sender), so they read as "Doe: created
- *  this group". They exist for UX *and* as the transport for the per-group name
- *  secret: every group send runs ensureSenderKey, which piggybacks the secret on
- *  its sender-key distribution. Operational vocabulary only — no PHI. */
+ *  this group". They exist for UX *and* to seed the per-group name secret: a send
+ *  that generates or rotates the sender key (group creation, member removal)
+ *  piggybacks the secret on its distribution; an add reuses the existing key, so
+ *  the new member pulls the secret via the retry-receipt self-heal off this
+ *  message. Operational vocabulary only — no PHI. */
 const GROUP_ANNOUNCE = {
   created: 'created this group',
   memberAdded: 'added a member to this group',
@@ -219,6 +221,47 @@ async function encryptForAllDevices(
     }
   }
 
+  return results
+}
+
+/**
+ * Seal a group `sender-key-message` per recipient DEVICE — operator-blind parity
+ * with the 1:1 path. The inner SenderKeyMessage is already sender-key-encrypted
+ * once (O(1)); here we add ONLY the sealed-sender ECIES layer (no Double Ratchet)
+ * per device, so senderId/senderDeviceId/groupId/iteration never appear in
+ * cleartext on the wire. Mirrors {@link encryptForAllDevices}' session-or-bundle
+ * key resolution. Devices with no session and no fetchable bundle are skipped.
+ */
+async function sealSenderKeyForAllDevices(
+  peerId: string,
+  peerDevices: PeerDevice[],
+  senderKeyMsg: SenderKeyMessage,
+  senderUuid: string,
+): Promise<FanOutMessageInput[]> {
+  const results: FanOutMessageInput[] = []
+  const inner = senderKeyMsg as unknown as Record<string, unknown>
+  for (const device of peerDevices) {
+    try {
+      // No session yet ⇒ seal to the peer device's published identity DH key.
+      let fallbackDhKey: string | undefined
+      if (!(await hasSession(peerId, device.deviceId))) {
+        const bundleResult = await fetchPeerBundleForDevice(peerId, device.deviceId)
+        if (!bundleResult.ok) {
+          logger.warn(`No bundle for ${peerId}:${device.deviceId}, skipping sealed group content`)
+          continue
+        }
+        fallbackDhKey = rpcResultToBundle(bundleResult.data).identityDhKey
+      }
+      const sealed = await sealForPeerDevice(peerId, device.deviceId, inner, senderUuid, fallbackDhKey)
+      results.push({
+        recipientDeviceId: device.deviceId,
+        payload: sealed as unknown as Record<string, unknown>,
+        messageType: 'sender-key-message',
+      })
+    } catch (e) {
+      logger.warn(`Failed to seal sender-key-message for ${peerId}:${device.deviceId}:`, e instanceof Error ? e.message : e)
+    }
+  }
   return results
 }
 
@@ -378,11 +421,17 @@ async function ensureSenderKey(
   groupId: string,
   members: GroupMember[],
   keyEpoch = 0,
+  forceRedistribute = false,
 ): Promise<string[]> {
   let senderKey = await loadSenderKey(groupId, userId, localDeviceId)
+  // Track whether the key is genuinely new/rotated this call — the only time a
+  // proactive distribution is required. A send that reuses an already-minted key
+  // must NOT re-fan the distribution (see the gate below).
+  let keyChanged = false
 
   if (!senderKey) {
     senderKey = await generateSenderKey(groupId, userId, localDeviceId, keyEpoch)
+    keyChanged = true
     logger.info(`Generated new sender key for group ${groupId} at epoch ${keyEpoch}`)
   } else if ((senderKey.epoch ?? 0) < keyEpoch) {
     // Membership shrank (a member was removed/left) since our key was minted.
@@ -391,6 +440,7 @@ async function ensureSenderKey(
     // (closes the "removed member's messages still decrypt" path client-side).
     const prevEpoch = senderKey.epoch ?? 0
     senderKey = await rotateSenderKey(groupId, userId, localDeviceId, keyEpoch)
+    keyChanged = true
     logger.info(`Rotated sender key for group ${groupId}: epoch ${prevEpoch} -> ${keyEpoch}`)
     const currentMemberIds = new Set(members.map(m => m.userId))
     const held = await loadSenderKeysForGroup(groupId)
@@ -399,6 +449,24 @@ async function ensureSenderKey(
         await deleteSenderKey(groupId, sk.memberId, sk.deviceId).catch(() => {})
       }
     }
+  }
+
+  // Distribution gate — the fix for the group-send rate-limit blowout.
+  // Distributing re-fans a pairwise sender-key envelope to EVERY member's EVERY
+  // device, and every one of those rows counts against the sender's 120/minute
+  // server rate limit (send_signal_message / send_signal_messages_batch). Doing
+  // that on every send made a single message cost ~2N rate-limit units, so a
+  // unit-sized ("deploy") group blew the limit in one or two messages and ALL
+  // sends — group and 1:1 — then failed with "Rate limit exceeded".
+  //
+  // A distribution is only actually needed when our key is new/rotated, or when
+  // a member explicitly asks for it. In steady state (every member already holds
+  // our current key) a normal send now distributes NOTHING. Members who never
+  // got it — new joiners, freshly-provisioned devices — self-heal: they receive
+  // an undecryptable sender-key-message → onSenderKeyMissing → sender-key-request
+  // → handleSenderKeyRequest calls us with forceRedistribute=true.
+  if (!keyChanged && !forceRedistribute) {
+    return []
   }
 
   const dist = createDistribution(senderKey)
@@ -493,24 +561,30 @@ async function encryptAndSendToGroupMembers(
     logger.info(`Group ${groupId}: ${undeliverable.length} member(s) unreachable (no vault yet), skipped.`)
   }
 
-  // Encrypt once with sender key
+  // Encrypt once with the sender key (O(1) inner ciphertext, reused for everyone).
   const senderKeyMsg = await senderKeyEncrypt(groupId, userId, localDeviceId, serialized)
-  const payload = senderKeyMsg as unknown as Record<string, unknown>
 
-  // Fan out the same ciphertext to all group members (including ourselves for sync)
+  // Fan the SEALED content per recipient DEVICE (operator-blind parity with 1:1):
+  // the outer sealed-sender envelope hides senderId/groupId/iteration on the wire.
+  // Mirrors the sender-key DISTRIBUTION fan (per-member → per-device). All rows
+  // share `originId` so delivery-receipt matching and dedup are unaffected.
   let firstServerId: string | null = null
   const allRecipients = members.filter(m => m.userId !== userId)
 
   for (const member of allRecipients) {
-    const result = await sendRawGroupMessage(
-      userId, member.userId, payload,
-      'sender-key-message', localDeviceId, groupId, originId, silent,
+    const devicesResult = await fetchPeerDevices(member.userId)
+    const devices = devicesResult.ok ? devicesResult.data : []
+    if (devices.length === 0) continue
+    const fanOutInputs = await sealSenderKeyForAllDevices(member.userId, devices, senderKeyMsg, userId)
+    if (fanOutInputs.length === 0) continue
+    const result = await sendMessageFanOut(
+      userId, localDeviceId, member.userId, fanOutInputs, groupId, originId, silent,
     ).catch(e => {
-      logger.warn(`Failed to send sender-key-message to ${member.userId}:`, e instanceof Error ? e.message : e)
-      return errResult<string>(e instanceof Error ? e.message : 'send failed')
+      logger.warn(`Failed to send sealed group content to ${member.userId}:`, e instanceof Error ? e.message : e)
+      return errResult<string[]>(e instanceof Error ? e.message : 'send failed')
     })
-    if (result.ok && !firstServerId) {
-      firstServerId = result.data
+    if (result.ok && result.data.length > 0 && !firstServerId) {
+      firstServerId = result.data[0]
     }
   }
 
@@ -948,7 +1022,7 @@ export function useMessages(): UseMessagesReturn {
         return
       }
       const keyEpoch = useMessagingStore.getState().groups[groupId]?.keyEpoch ?? 0
-      await ensureSenderKey(userId, localDeviceId, groupId, membersResult.data, keyEpoch)
+      await ensureSenderKey(userId, localDeviceId, groupId, membersResult.data, keyEpoch, true)
       logger.info(`Re-distributed sender key for group ${groupId} on request from ${requesterId}`)
     } catch (e) {
       logger.warn('handleSenderKeyRequest failed:', e instanceof Error ? e.message : e)
@@ -2712,8 +2786,12 @@ export function useMessages(): UseMessagesReturn {
       return
     }
     await refreshGroups()
-    // Same reason as createGroup: this send is what hands the new member the
-    // group-name secret (and a sender key) without waiting for chat traffic.
+    // Announce the add. Adding a member does NOT bump the key epoch, so this send
+    // reuses our existing sender key and (post rate-limit fix) does not proactively
+    // re-distribute. The new member instead self-heals off this very message: they
+    // receive our undecryptable sender-key-message → onSenderKeyMissing →
+    // sender-key-request → we redistribute our key + the group-name secret. One
+    // round-trip, no per-send fan-out to the whole group.
     await sendGroupMessage(groupId, GROUP_ANNOUNCE.memberAdded).catch(e =>
       logger.warn('Member-added announcement failed:', e instanceof Error ? e.message : e)
     )

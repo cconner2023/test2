@@ -4,14 +4,18 @@ import { AnchoredMenu } from '@/Components/primitives/LiftedRowMenu'
 import type { ContextMenuItem } from '@/Components/primitives/ContextMenu'
 
 /**
- * Right-header overflow menu for popovers/detail sheets — a single ellipsis that
- * opens an anchored vertical list (AnchoredMenu). Object-level secondary actions
- * (Share, Export, Delete) live here so the footer stays focused on the primary
- * commit. Uses AnchoredMenu (portal @ z-9998) rather than ActionSheet so it layers
- * ABOVE an open PreviewOverlay (Z.POPOVER). Renders nothing when `items` is empty,
- * so callers can pass a conditionally-empty list (new vs. edit mode).
+ * Overflow menu for popovers/detail sheets — a single ellipsis that opens an
+ * anchored vertical list (AnchoredMenu). Object-level secondary actions (Share,
+ * Export, Delete) live here so the footer stays focused on the primary commit.
+ * Uses AnchoredMenu (portal @ z-9998) rather than ActionSheet so it layers ABOVE
+ * an open PreviewOverlay (Z.POPOVER). Renders nothing when `items` is empty, so
+ * callers can pass a conditionally-empty list (new vs. edit mode).
+ *
+ * `align` sets both the header edge the button reads as and the edge the menu
+ * follows — 'right' (default) for a right-header overflow, 'left' for a
+ * left-header ellipsis (the mobile sheet ellipsis-left / close-right idiom).
  */
-export function OverlayHeaderMenu({ items }: { items: ContextMenuItem[] }) {
+export function OverlayHeaderMenu({ items, align = 'right' }: { items: ContextMenuItem[]; align?: 'left' | 'right' }) {
   const btnRef = useRef<HTMLButtonElement>(null)
   const [rect, setRect] = useState<DOMRect | null>(null)
   if (items.length === 0) return null
@@ -32,7 +36,7 @@ export function OverlayHeaderMenu({ items }: { items: ContextMenuItem[] }) {
         items={items}
         onClose={() => setRect(null)}
         layout="list"
-        align="right"
+        align={align}
       />
     </>
   )

@@ -16,6 +16,7 @@ import { CertOverlayFields } from '../../Certifications/CertOverlayFields'
 import { useIsMobile } from '../../../Hooks/useIsMobile'
 import { formatMedicName, getLatestTestByTask, buildAlgorithmCompetency } from './supervisorHelpers'
 import { getExpirationStatus, emptyCertForm, type CertFormData } from '../../Certifications/certHelpers'
+import { FillBar } from '@/Components/primitives/FillBar'
 import type { FlatTask } from './supervisorHelpers'
 import type { ClinicMedic } from '../../../Types/SupervisorTestTypes'
 import type { Certification } from '../../../Data/User'
@@ -25,14 +26,6 @@ import { ActionPill } from '@/Components/primitives/ActionPill'
 import { UserTimeline, type TimelineRowData } from '../../Timeline/UserTimeline'
 
 const logger = createLogger('SoldierProfile')
-
-function readinessColor(pct: number): string {
-  return pct >= 50 ? 'bg-themeblue3/50' : 'bg-themeredred'
-}
-
-function readinessTextColor(pct: number): string {
-  return pct >= 50 ? 'text-themeblue3' : 'text-themeredred'
-}
 
 interface SoldierProfileProps {
   soldier: ClinicMedic
@@ -278,20 +271,8 @@ export function SoldierProfile({
             </p>
           </div>
           <div className="shrink-0 w-48 flex flex-col gap-1.5">
-            <div className="flex items-center gap-2">
-              <span className="text-[9pt] text-tertiary w-18 shrink-0">Readiness</span>
-              <div className="flex-1 h-1.5 rounded-full bg-tertiary/10 overflow-hidden">
-                <div className={`h-full rounded-full ${readinessColor(readinessPercent)}`} style={{ width: `${readinessPercent}%` }} />
-              </div>
-              <span className={`text-[9pt] font-medium w-8 text-right ${readinessTextColor(readinessPercent)}`}>{readinessPercent}%</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-[9pt] text-tertiary w-18 shrink-0">Compliance</span>
-              <div className="flex-1 h-1.5 rounded-full bg-tertiary/10 overflow-hidden">
-                <div className={`h-full rounded-full ${readinessColor(compliancePercent)}`} style={{ width: `${compliancePercent}%` }} />
-              </div>
-              <span className={`text-[9pt] font-medium w-8 text-right ${readinessTextColor(compliancePercent)}`}>{compliancePercent}%</span>
-            </div>
+            <FillBar label="Readiness" percent={readinessPercent} />
+            <FillBar label="Compliance" percent={compliancePercent} />
           </div>
         </div>
       </button>
@@ -426,17 +407,7 @@ export function SoldierProfile({
                 <span className="text-sm text-primary min-w-0 truncate shrink-0 w-36">
                   {cat.areaName}
                 </span>
-                <div className="flex-1 min-w-0">
-                  <div className="h-1.5 rounded-full bg-tertiary/10 overflow-hidden">
-                    <div
-                      className={`h-full rounded-full transition-all ${readinessColor(cat.pct)}`}
-                      style={{ width: `${cat.pct}%` }}
-                    />
-                  </div>
-                </div>
-                <span className={`text-[9pt] font-medium w-12 text-right ${readinessTextColor(cat.pct)}`}>
-                  {cat.passed}/{cat.total}
-                </span>
+                <FillBar className="flex-1 min-w-0" percent={cat.pct} value={`${cat.passed}/${cat.total}`} />
                 <ChevronRight size={14} className="text-tertiary shrink-0" />
               </button>
             ))}
@@ -453,17 +424,11 @@ export function SoldierProfile({
                 <span className="text-sm font-medium text-primary min-w-0 truncate shrink-0 w-36">
                   Algorithms
                 </span>
-                <div className="flex-1 min-w-0">
-                  <div className="h-1.5 rounded-full bg-tertiary/10 overflow-hidden">
-                    <div
-                      className={`h-full rounded-full transition-all ${readinessColor(algorithmsAggregatePercent)}`}
-                      style={{ width: `${algorithmsAggregatePercent}%` }}
-                    />
-                  </div>
-                </div>
-                <span className={`text-[9pt] font-medium w-12 text-right ${readinessTextColor(algorithmsAggregatePercent)}`}>
-                  {algorithmTrainedCount}/{algorithmCompetency.length}
-                </span>
+                <FillBar
+                  className="flex-1 min-w-0"
+                  percent={algorithmsAggregatePercent}
+                  value={`${algorithmTrainedCount}/${algorithmCompetency.length}`}
+                />
                 <ChevronRight size={14} className="text-tertiary shrink-0" />
               </button>
             )}

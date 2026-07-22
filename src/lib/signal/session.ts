@@ -284,6 +284,61 @@ export async function encryptMessage(
   })
 }
 
+/**
+ * Seal an already-encrypted inner payload for a specific peer DEVICE using the
+ * sealed-sender ECIES layer ONLY — no Double Ratchet.
+ *
+ * Used for group `sender-key-message` content: the inner is already sender-key-
+ * encrypted once (O(1)); this wraps it per-recipient-device so the SENDER
+ * identity is invisible to the server, matching the operator-blind guarantee the
+ * 1:1 path already provides. The recipient's per-device identity DH key comes
+ * from an established session; if none exists yet, the caller passes the key from
+ * the peer's published bundle (`peerDhKeyFallback`).
+ *
+ * Read-only w.r.t. session state (unlike encryptMessage, no ratchet advance).
+ *
+ * @throws if no identity DH key is available for the peer device.
+ */
+export async function sealForPeerDevice(
+  peerId: string,
+  peerDeviceId: string,
+  inner: Record<string, unknown>,
+  senderUuid: string,
+  peerDhKeyFallback?: string,
+): Promise<SealedEnvelope> {
+  const identity = await ensureLocalIdentity()
+  const session = await getSession(peerId, peerDeviceId)
+  const peerDhKey = session?.peerIdentityDhKey ?? peerDhKeyFallback
+  if (!peerDhKey) {
+    throw new Error(`sealForPeerDevice: no identity DH key for ${peerId}:${peerDeviceId}`)
+  }
+  return seal(inner, senderUuid, identity, peerId, peerDhKey)
+}
+
+/**
+ * Unseal a SealedEnvelope with our local identity WITHOUT Double-Ratchet
+ * decrypting the inner. Counterpart to {@link sealForPeerDevice} for sealed
+ * group sender-key-messages whose inner is a SenderKeyMessage (sender-key-
+ * encrypted, not ratchet-wrapped).
+ *
+ * Throws 'Sealed sender: cert recipient mismatch' when the envelope is addressed
+ * to a SIBLING device (per-device fan-out) — the caller treats that as benign and
+ * skips. Also throws on tamper / expiry / forged cert.
+ */
+export async function unsealOnly(
+  envelope: SealedEnvelope,
+  myUuid: string,
+): Promise<{ inner: Record<string, unknown>; senderUuid: string }> {
+  const identity = await ensureLocalIdentity()
+  const { inner, senderUuid } = await unseal(
+    envelope,
+    myUuid,
+    identity.dhPrivateKey,
+    identity.dhPublicKeyBase64,
+  )
+  return { inner, senderUuid }
+}
+
 // ---- Unified Inbound Handler ----
 
 /**

@@ -3,6 +3,7 @@ import { ChevronRight, Lock } from 'lucide-react'
 import { isTaskTestable } from '../../../Data/TrainingData'
 import { skillLevelLabels } from '../../../Data/TrainingConstants'
 import { formatMedicName, getLatestTestByTask } from './supervisorHelpers'
+import { FillBar } from '@/Components/primitives/FillBar'
 import { ActionSheet } from '@/Components/primitives/ActionSheet'
 import type { ActionSheetOption } from '@/Components/primitives/ActionSheet'
 import type { FlatTask } from './supervisorHelpers'
@@ -12,14 +13,6 @@ import type { TrainingCompletionUI } from '../../../lib/trainingService'
 type CoverageView =
   | { step: 'task-list' }
   | { step: 'soldier-list'; task: FlatTask }
-
-function readinessColor(pct: number): string {
-  return pct >= 50 ? 'bg-themeblue3/50' : 'bg-themeredred'
-}
-
-function readinessTextColor(pct: number): string {
-  return pct >= 50 ? 'text-themeblue3' : 'text-themeredred'
-}
 
 type CompetencyStatus = 'GO' | 'NO_GO' | 'UNTESTED'
 
@@ -36,9 +29,6 @@ interface CoverageTasksViewProps {
   testsForSoldier: (userId: string) => TrainingCompletionUI[]
   onEvaluate: (soldier: ClinicMedic, taskId: string, taskTitle: string) => void
   onAssign: (soldier: ClinicMedic, taskId: string, taskTitle: string) => void
-  onBack: () => void
-  /** Called when internal navigation changes so parent can update header */
-  onViewChange?: (view: 'task-list' | 'soldier-list', taskTitle?: string) => void
   /** When set, tapping a task shows the action sheet for this soldier directly instead of navigating to the soldier list */
   preSelectedSoldier?: ClinicMedic
 }
@@ -50,23 +40,12 @@ export function CoverageTasksView({
   testsForSoldier,
   onEvaluate,
   onAssign,
-  onBack,
-  onViewChange,
   preSelectedSoldier,
 }: CoverageTasksViewProps) {
   const [view, setView] = useState<CoverageView>({ step: 'task-list' })
   // Action sheet state: soldier + task to act on
   const [sheetSoldier, setSheetSoldier] = useState<ClinicMedic | null>(null)
   const [sheetTask, setSheetTask] = useState<FlatTask | null>(null)
-
-  const navigateTo = useCallback((next: CoverageView) => {
-    setView(next)
-    if (next.step === 'task-list') {
-      onViewChange?.('task-list')
-    } else {
-      onViewChange?.('soldier-list', next.task.title)
-    }
-  }, [onViewChange])
 
   const openSheet = useCallback((soldier: ClinicMedic, task: FlatTask) => {
     setSheetSoldier(soldier)
@@ -98,16 +77,16 @@ export function CoverageTasksView({
     ? `${formatMedicName(sheetSoldier)} · ${sheetTask.title}`
     : ''
 
-  /** For each task, compute how many soldiers passed */
+  /** For each task, compute how many soldiers passed. Fold each medic's latest
+   *  test-by-task ONCE, then read every task out of it — not O(tasks × medics)
+   *  re-folds. */
   const taskCoverage = useMemo(() => {
+    const medicLatest = medics.map(m => getLatestTestByTask(testsForSoldier(m.id)))
     const coverage = new Map<string, { passed: number; total: number }>()
     for (const task of tasks) {
       let passed = 0
-      for (const medic of medics) {
-        const soldierTests = testsForSoldier(medic.id)
-        const latestByTask = getLatestTestByTask(soldierTests)
-        const latest = latestByTask.get(task.taskId)
-        if (latest?.result === 'GO') passed++
+      for (const latestByTask of medicLatest) {
+        if (latestByTask.get(task.taskId)?.result === 'GO') passed++
       }
       coverage.set(task.taskId, { passed, total: medics.length })
     }
@@ -134,14 +113,6 @@ export function CoverageTasksView({
     })
   }, [view, medics, testsForSoldier])
 
-  const handleBack = useCallback(() => {
-    if (view.step === 'soldier-list') {
-      navigateTo({ step: 'task-list' })
-    } else {
-      onBack()
-    }
-  }, [view, navigateTo, onBack])
-
   // ── Soldier list view (coverage flow: area → task → soldiers) ─────────────
 
   if (view.step === 'soldier-list') {
@@ -155,17 +126,11 @@ export function CoverageTasksView({
           <p className="text-sm font-medium text-primary">{task.title}</p>
           <p className="text-[9pt] text-tertiary font-mono">{task.taskId}</p>
           {cov && (
-            <div className="flex items-center gap-2 mt-2">
-              <div className="flex-1 h-1.5 rounded-full bg-tertiary/10 overflow-hidden">
-                <div
-                  className={`h-full rounded-full ${readinessColor(cov.total > 0 ? Math.round((cov.passed / cov.total) * 100) : 0)}`}
-                  style={{ width: `${cov.total > 0 ? (cov.passed / cov.total) * 100 : 0}%` }}
-                />
-              </div>
-              <span className={`text-[9pt] font-medium ${readinessTextColor(cov.total > 0 ? Math.round((cov.passed / cov.total) * 100) : 0)}`}>
-                {cov.passed}/{cov.total}
-              </span>
-            </div>
+            <FillBar
+              className="mt-2"
+              percent={cov.total > 0 ? Math.round((cov.passed / cov.total) * 100) : 0}
+              value={`${cov.passed}/${cov.total}`}
+            />
           )}
         </div>
 
@@ -295,7 +260,7 @@ export function CoverageTasksView({
           return (
             <button
               key={task.taskId}
-              onClick={() => testable && navigateTo({ step: 'soldier-list', task })}
+              onClick={() => testable && setView({ step: 'soldier-list', task })}
               disabled={!testable}
               className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-all
                 ${testable
@@ -318,17 +283,7 @@ export function CoverageTasksView({
                   )}
                 </div>
                 {testable && cov && (
-                  <div className="flex items-center gap-2 mt-1.5">
-                    <div className="flex-1 h-1.5 rounded-full bg-tertiary/10 overflow-hidden">
-                      <div
-                        className={`h-full rounded-full ${readinessColor(pct)}`}
-                        style={{ width: `${pct}%` }}
-                      />
-                    </div>
-                    <span className={`text-[9pt] font-medium ${readinessTextColor(pct)}`}>
-                      {cov.passed}/{cov.total}
-                    </span>
-                  </div>
+                  <FillBar className="mt-1.5" percent={pct} value={`${cov.passed}/${cov.total}`} />
                 )}
               </div>
               <div className="shrink-0 ml-2 flex items-center gap-2">

@@ -19,7 +19,7 @@ import { fetchUnreadMessages, markMessagesRead, deleteMessages as hardDeleteMess
 import { deleteMessagesByOriginId as deleteMessagesByOriginIdFromDb, updateReadAt } from '../lib/signal/messageStore'
 import { scheduleBackup } from '../lib/signal/backupService'
 import { LORA_MESH_ENABLED } from '../lib/featureFlags'
-import { processIncomingMessage, encryptMessage } from '../lib/signal/session'
+import { processIncomingMessage, encryptMessage, unsealOnly } from '../lib/signal/session'
 import { processClinicIncomingMessage } from '../lib/signal/clinicSession'
 import { drainSystemInbox, SYSTEM_USER_ID } from '../lib/signal/systemIdentity'
 import { processSenderKeyDistribution, senderKeyDecrypt } from '../lib/signal/senderKey'
@@ -489,11 +489,52 @@ async function decryptRow(
       return null
     }
 
-    // Sender key message: payload IS the SenderKeyMessage JSON — NOT pairwise encrypted.
-    // Parse and decrypt with senderKeyDecrypt.
+    // Group content. Two wire shapes coexist during the sealed-sender rollout:
+    //   • SealedEnvelope {v,ephemeralKey,ciphertext} — operator-blind (current):
+    //     unseal (ECIES, NO ratchet) → inner SenderKeyMessage; sender is
+    //     authenticated by the cert. Fanned PER DEVICE, so a row addressed to a
+    //     sibling device fails unseal with 'cert recipient mismatch' — benign.
+    //   • legacy raw SenderKeyMessage {groupId,senderId,...} — pre-sealing rows
+    //     and un-updated senders: decrypt directly (back-compat).
     if (row.message_type === 'sender-key-message') {
+      const rawPayload = row.payload as unknown as Record<string, unknown>
+      const isSealed = !!rawPayload && typeof rawPayload === 'object'
+        && 'ephemeralKey' in rawPayload && 'ciphertext' in rawPayload
+
+      let senderKeyMsg: SenderKeyMessage
+      if (isSealed) {
+        try {
+          const { inner, senderUuid } = await unsealOnly(rawPayload as unknown as SealedEnvelope, myUuid)
+          senderKeyMsg = inner as unknown as SenderKeyMessage
+          // Authenticity: the inner sender MUST match the cert-authenticated
+          // sender. Pre-sealing, senderId was attacker-settable cleartext; the
+          // cert now binds it, so a mismatch is a forgery attempt — reject.
+          if (senderKeyMsg.senderId !== senderUuid) {
+            logger.error(`sender-key-message ${row.id}: inner senderId ${senderKeyMsg.senderId} != cert ${senderUuid} — rejecting`)
+            return null
+          }
+        } catch (e) {
+          // Addressed to a SIBLING device (per-device fan-out) — not ours. Skip
+          // silently: no retry, no error surface. The target device opens its copy.
+          if (e instanceof Error && e.message.includes('cert recipient mismatch')) {
+            return null
+          }
+          // Genuine envelope failure (tamper / expiry / forged cert).
+          logger.error(`Failed to unseal sender-key-message ${row.id}:`, e instanceof Error ? e.message : e)
+          errorBus.emit({
+            code: ErrorCode.DECRYPT_FAILED,
+            source: 'decryptRow:sender-key-message:unseal',
+            message: 'A group message envelope could not be opened.',
+            timestamp: Date.now(),
+            metadata: { messageId: row.id, groupId: row.group_id },
+          })
+          return null
+        }
+      } else {
+        senderKeyMsg = rawPayload as unknown as SenderKeyMessage
+      }
+
       try {
-        const senderKeyMsg = row.payload as unknown as SenderKeyMessage
         const rawPlaintext = await senderKeyDecrypt(senderKeyMsg)
         const { plaintext, content, replyTo } = parseMessageContent(rawPlaintext)
         return {
@@ -511,15 +552,15 @@ async function decryptRow(
         }
       } catch (e) {
         logger.error(`Failed to decrypt sender-key-message ${row.id}:`, e instanceof Error ? e.message : e)
-        // No sender-key state for this sender ⇒ we missed their distribution.
-        // Fire the retry-receipt so the sender re-distributes (Signal-style).
-        // Other failures (signature/chain) are not fixed by re-distribution.
-        const senderId = (row.payload as unknown as SenderKeyMessage)?.senderId
+        // We hold no sender-key state for this sender ⇒ we missed their
+        // distribution. Fire the retry-receipt so the sender re-distributes
+        // (Signal-style). Only meaningful now that we KNOW the row was addressed
+        // to us (sealed rows already passed the recipient check on unseal).
         if (
-          row.group_id && senderId &&
+          row.group_id && senderKeyMsg.senderId &&
           e instanceof Error && e.message.includes('No sender key')
         ) {
-          sideEffects?.onSenderKeyMissing?.(row.group_id, senderId)
+          sideEffects?.onSenderKeyMissing?.(row.group_id, senderKeyMsg.senderId)
         }
         errorBus.emit({
           code: ErrorCode.DECRYPT_FAILED,

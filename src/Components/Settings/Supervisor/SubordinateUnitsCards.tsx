@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Building2, ChevronRight, Users } from 'lucide-react'
 import { useEchelonSummaries, type ChildClinicCard } from '../../../Hooks/useEchelonSummaries'
+import { FillBar } from '@/Components/primitives/FillBar'
 import { ChildClinicRosterSheet } from './ChildClinicRosterSheet'
 
 /**
@@ -14,14 +15,6 @@ import { ChildClinicRosterSheet } from './ChildClinicRosterSheet'
  * the parent never decrypts child data — see echelonSummary.ts.
  */
 
-// Two-tone metric scheme, matching TeamReporting.
-function barColor(pct: number): string {
-  return pct >= 50 ? 'bg-themeblue3/50' : 'bg-themeredred'
-}
-function textColor(pct: number): string {
-  return pct >= 50 ? 'text-themeblue3' : 'text-themeredred'
-}
-
 /** Compact "3h ago" / "2d ago" staleness from an ISO timestamp. */
 function agoLabel(iso: string): string {
   const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000)
@@ -30,18 +23,6 @@ function agoLabel(iso: string): string {
   const hrs = Math.floor(mins / 60)
   if (hrs < 24) return `${hrs}h ago`
   return `${Math.floor(hrs / 24)}d ago`
-}
-
-function MetricRow({ label, pct }: { label: string; pct: number }) {
-  return (
-    <div className="flex items-center gap-2">
-      <span className="text-[9pt] text-tertiary w-18 shrink-0">{label}</span>
-      <div className="flex-1 h-1.5 rounded-full bg-tertiary/10 overflow-hidden">
-        <div className={`h-full rounded-full ${barColor(pct)}`} style={{ width: `${pct}%` }} />
-      </div>
-      <span className={`text-[9pt] font-medium w-8 text-right ${textColor(pct)}`}>{pct}%</span>
-    </div>
-  )
 }
 
 function ChildCard({ card, onOpen, active }: { card: ChildClinicCard; onOpen: () => void; active?: boolean }) {
@@ -80,8 +61,8 @@ function ChildCard({ card, onOpen, active }: { card: ChildClinicCard; onOpen: ()
 
       {summary ? (
         <div className="flex flex-col gap-1.5 mt-2 ml-11">
-          <MetricRow label="Readiness" pct={summary.readiness_pct} />
-          <MetricRow label="Compliance" pct={summary.cert_pct} />
+          <FillBar label="Readiness" percent={summary.readiness_pct} />
+          <FillBar label="Compliance" percent={summary.cert_pct} />
         </div>
       ) : (
         <div className="mt-2 ml-11 flex items-center gap-2 text-[9pt] text-tertiary">

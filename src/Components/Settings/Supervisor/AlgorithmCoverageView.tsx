@@ -1,19 +1,12 @@
-import { useMemo, useState, useCallback } from 'react'
+import { useMemo, useState } from 'react'
 import { ChevronRight } from 'lucide-react'
-import { formatMedicName, buildAlgorithmCompetency } from './supervisorHelpers'
+import { formatMedicName, buildAlgorithmCompetency, readinessBarColor } from './supervisorHelpers'
+import { FillBar } from '@/Components/primitives/FillBar'
 import { ActionSheet } from '@/Components/primitives/ActionSheet'
 import type { ActionSheetOption } from '@/Components/primitives/ActionSheet'
 import type { AlgorithmCompetencyLevel } from './supervisorHelpers'
 import type { ClinicMedic } from '../../../Types/SupervisorTestTypes'
 import type { TrainingCompletionUI } from '../../../lib/trainingService'
-
-function readinessColor(pct: number): string {
-  return pct >= 50 ? 'bg-themeblue3/50' : 'bg-themeredred'
-}
-
-function readinessTextColor(pct: number): string {
-  return pct >= 50 ? 'text-themeblue3' : 'text-themeredred'
-}
 
 const statusConfig: Record<AlgorithmCompetencyLevel, { label: string; className: string }> = {
   trained: { label: 'Trained', className: 'bg-themegreen/10 text-themegreen' },
@@ -78,12 +71,7 @@ export function AlgorithmCoverageView({
       <div className="mb-4">
         <p className="text-sm font-medium text-primary">{algorithmName}</p>
         <p className="text-[9pt] text-tertiary font-mono">{algorithmId}</p>
-        <div className="flex items-center gap-2 mt-2">
-          <div className="flex-1 h-1.5 rounded-full bg-tertiary/10 overflow-hidden">
-            <div className={`h-full rounded-full ${readinessColor(teamPct)}`} style={{ width: `${teamPct}%` }} />
-          </div>
-          <span className={`text-[9pt] font-medium ${readinessTextColor(teamPct)}`}>{teamPct}%</span>
-        </div>
+        <FillBar className="mt-2" percent={teamPct} />
       </div>
 
       <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">
@@ -102,8 +90,14 @@ export function AlgorithmCoverageView({
                 {formatMedicName(soldier)}
               </span>
               <div className="flex-1 min-w-0">
-                <div className="h-1.5 rounded-full bg-tertiary/10 overflow-hidden">
-                  <div className={`h-full rounded-full ${readinessColor(pct)}`} style={{ width: `${pct}%` }} />
+                <div
+                  className="h-1.5 rounded-full bg-tertiary/10 overflow-hidden"
+                  role="progressbar"
+                  aria-valuenow={pct}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                >
+                  <div className={`h-full rounded-full transition-all ${readinessBarColor(pct)}`} style={{ width: `${pct}%` }} />
                 </div>
               </div>
               <span className={`text-[9pt] font-semibold px-2 py-0.5 rounded-full shrink-0 ${cfg.className}`}>

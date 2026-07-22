@@ -9,11 +9,9 @@ import { createLogger } from '../../../Utilities/Logger'
 import {
   formatMedicName,
   buildTestableTaskMap,
-  buildCompetencyMatrix,
   computeTeamMetrics,
   rollupEncounterReads,
   type FlatTask,
-  type SoldierCompetency,
   type TeamMetrics,
   type EncounterRollup,
 } from './supervisorHelpers'
@@ -37,8 +35,6 @@ export interface SupervisorData {
   currentUserProfile: ClinicMedic | null
   /** Clinic medics (excluding self — self is in currentUserProfile) */
   medics: ClinicMedic[]
-  /** All clinic users including self (for name resolution) */
-  allClinicUsers: ClinicMedic[]
   /** All certifications for clinic members */
   certs: Certification[]
   /** All test history for clinic members */
@@ -68,8 +64,6 @@ export interface SupervisorData {
   addAssignment: (assignment: TrainingCompletionUI) => void
   /** Refresh certs + tests from server */
   refreshData: () => void
-  /** Competency matrix for all soldiers */
-  competencyMatrix: SoldierCompetency[]
   /** Aggregate team metrics */
   teamMetrics: TeamMetrics
   /** Clinic-wide algorithm-encounter roll-up by body-system category (occurrence
@@ -248,11 +242,6 @@ export function useSupervisorData(): SupervisorData {
   }
   const testableTaskMap = testableTaskMapRef.current
 
-  const competencyMatrix = useMemo(
-    () => buildCompetencyMatrix(medics, tests, testableTaskMap),
-    [medics, tests, testableTaskMap]
-  )
-
   const teamMetrics = useMemo(
     () => computeTeamMetrics(medics, tests, certs, testableTaskMap, overdueItems),
     [medics, tests, certs, testableTaskMap, overdueItems]
@@ -270,7 +259,6 @@ export function useSupervisorData(): SupervisorData {
     clinicName,
     currentUserProfile,
     medics,
-    allClinicUsers,
     certs,
     tests,
     certsForSoldier,
@@ -285,7 +273,6 @@ export function useSupervisorData(): SupervisorData {
     removeCert,
     addAssignment,
     refreshData: fetchCertsAndTests,
-    competencyMatrix,
     teamMetrics,
     encounterRollup,
     testableTaskMap,

@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useEffect } from 'react'
-import { Ban, X, Settings, ChevronLeft } from 'lucide-react'
+import { Ban, X, ChevronLeft } from 'lucide-react'
 import { BaseDrawer, ScrollPane } from '@/Components/primitives/BaseDrawer'
 import { ContentWrapper } from '@/Components/primitives/ContentWrapper'
 import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill'
@@ -595,7 +595,6 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
         metrics={teamMetrics}
         medics={medics}
         onViewSoldier={handleViewProfile}
-        testableTaskMap={testableTaskMap}
         clinicName={clinicName}
         onNavigateToArea={handleNavigateToArea}
         onNavigateToAlgorithmList={handleNavigateToAlgorithmList}
@@ -760,7 +759,6 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
               testsForSoldier={testsForSoldier}
               onEvaluate={handleCoverageEvaluate}
               onAssign={handleCoverageAssign}
-              onBack={handleBack}
               preSelectedSoldier={view.soldier}
             />
           </ScrollPane>
@@ -940,22 +938,12 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
                   keepMounted
                   className="border-r border-tertiary/10 bg-themewhite3/50"
                 >
-                  <div className="shrink-0 flex items-center gap-1.5 px-3 py-2 border-b border-primary/10">
-                    <div className="flex-1 min-w-0">
-                      <SearchInput
-                        value={treeSearch}
-                        onChange={setTreeSearch}
-                        placeholder="Search personnel..."
-                      />
-                    </div>
-                    <button
-                      onClick={() => {}}
-                      className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center transition-colors active:scale-95 text-tertiary hover:text-primary"
-                      aria-label="Supervisor settings"
-                      title="Supervisor settings"
-                    >
-                      <Settings className="w-4 h-4" />
-                    </button>
+                  <div className="shrink-0 px-3 py-2 border-b border-primary/10">
+                    <SearchInput
+                      value={treeSearch}
+                      onChange={setTreeSearch}
+                      placeholder="Search personnel..."
+                    />
                   </div>
                   <div className="flex-1 min-h-0">
                     <SupervisorTree

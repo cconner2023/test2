@@ -1,4 +1,4 @@
-import type { ClinicMedic } from '../../../Types/SupervisorTestTypes'
+﻿import type { ClinicMedic } from '../../../Types/SupervisorTestTypes'
 import { stp68wTraining } from '../../../Data/TrainingTaskList'
 import { categoryOrder } from '../../../Data/TrainingConstants'
 import { isTaskTestable } from '../../../Data/TrainingData'
@@ -16,10 +16,10 @@ import {
   type AlgoSynthDim,
 } from '../../../Utilities/algorithmCompetency'
 
-// ─── Encounter Log (algorithm completions) ───────────────────────────────────
+// â”€â”€â”€ Encounter Log (algorithm completions) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Algorithm "log to calendar" writes a calendar event tagged with
 // encounter_algorithm_id (see useAlgorithmMetrics). These helpers roll those
-// events up for supervisor surfaces. Operational only — title carries the
+// events up for supervisor surfaces. Operational only â€” title carries the
 // algorithm name, never PHI.
 
 /**
@@ -31,56 +31,32 @@ export function isEncounterEvent(e: CalendarEvent): boolean {
   return !!e.encounter_algorithm_id || e.title.startsWith('ADTMC ')
 }
 
-/** Resolve the grouping id for an encounter event (tag, else parsed from title). */
-function encounterAlgorithmId(e: CalendarEvent): string {
-  if (e.encounter_algorithm_id) return e.encounter_algorithm_id
-  // Title shape: `ADTMC ${id} — ${name}` — pull the id between prefix and dash.
-  const dashIdx = e.title.indexOf('—')
-  const head = dashIdx >= 0 ? e.title.slice(0, dashIdx) : e.title
-  return head.replace(/^ADTMC\s+/, '').trim() || e.title
+// â”€â”€â”€ Readiness Color Scale â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ONE two-tone scheme for every supervisor percentage: faded operating-clinic
+// blue when passing, red when low. themeblue3 is the same accent the clinic
+// switcher uses to mark the clinic you're operating as. Matches the FillBar
+// primitive's defaults â€” reach for <FillBar> for the bar itself; these are for
+// the surfaces that color a bare number or pill.
+
+/** At/above this a readiness/coverage percentage reads as passing. */
+export const READINESS_THRESHOLD = 50
+
+export function readinessBarColor(pct: number): string {
+  return pct >= READINESS_THRESHOLD ? 'bg-themeblue3/50' : 'bg-themeredred'
 }
 
-/** Returns only the calendar events that are algorithm encounter records. */
-export function filterEncounters(events: CalendarEvent[]): CalendarEvent[] {
-  return events.filter(isEncounterEvent)
+export function readinessTextColor(pct: number): string {
+  return pct >= READINESS_THRESHOLD ? 'text-themeblue3' : 'text-themeredred'
 }
 
-export interface EncounterGroup {
-  algorithmId: string
-  /** Display label — the algorithm name parsed from the event title. */
-  label: string
-  count: number
-  /** ISO start_time of the most recent encounter in this group. */
-  lastAt: string
-}
-
-/** Group encounter events by algorithm, most-recently-used first. */
-export function groupEncounters(events: CalendarEvent[]): EncounterGroup[] {
-  const byAlgo = new Map<string, EncounterGroup>()
-  for (const e of events) {
-    if (!isEncounterEvent(e)) continue
-    const id = encounterAlgorithmId(e)
-    const dashIdx = e.title.indexOf('—')
-    const label = dashIdx >= 0 ? e.title.slice(dashIdx + 1).trim() : e.title
-    const existing = byAlgo.get(id)
-    if (existing) {
-      existing.count += 1
-      if (e.start_time > existing.lastAt) existing.lastAt = e.start_time
-    } else {
-      byAlgo.set(id, { algorithmId: id, label, count: 1, lastAt: e.start_time })
-    }
-  }
-  return Array.from(byAlgo.values()).sort((a, b) => b.lastAt.localeCompare(a.lastAt))
-}
-
-// ─── Encounter Roll-up by body-system category (from RAW audit events) ────────
+// â”€â”€â”€ Encounter Roll-up by body-system category (from RAW audit events) â”€â”€â”€â”€â”€â”€â”€â”€
 // An algorithm encounter is logged as a `read.recorded` training event keyed by
 // the algorithm id (useAlgorithmMetrics.logNow). Each encounter is a DISTINCT
-// event, so occurrence totals MUST be counted from the raw event stream — the
+// event, so occurrence totals MUST be counted from the raw event stream â€” the
 // trainingFold collapses repeat reads of the same (user, algorithm) into one row
 // and would undercount. STP-task reads share the event type but their
 // training_item_id is a task number (not in the algorithm category map) and are
-// skipped here. Aggregate counts only — no soldier identity — so this roll-up is
+// skipped here. Aggregate counts only â€” no soldier identity â€” so this roll-up is
 // safe to fan up the echelon as a de-identified summary.
 
 export interface EncounterCategoryRollup {
@@ -140,10 +116,10 @@ export function rollupEncounterReads(events: AuditEvent[]): EncounterRollup {
   return { categories, total, totalToday }
 }
 
-// ─── Algorithm Competency (composite category) ───────────────────────────────
+// â”€â”€â”€ Algorithm Competency (composite category) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Treats an algorithm as a training CATEGORY (like "Medication Management"),
 // scored as the SUM of two dimensions: STP data + algorithm run. (Red flags +
-// differentials were dropped from the scored model 2026-07-12 — not GO/NO_GO
+// differentials were dropped from the scored model 2026-07-12 â€” not GO/NO_GO
 // testable; see Utilities/algorithmCompetency ALGO_SYNTH_DIMS.) Distinct from the
 // Encounter Log (which counts how often an algorithm was LOGGED). Each dimension
 // is derived from supervisor `test` completions: the STP dim reads the mapped STP
@@ -161,7 +137,7 @@ export interface AlgorithmDimScore {
   /** True when every graded item in the dimension is GO. */
   met: boolean
   /** True when a supervisor `test` completion exists for this dimension at all
-   *  (regardless of GO/NO_GO) — i.e. it has actually been evaluated. Lets the
+   *  (regardless of GO/NO_GO) â€” i.e. it has actually been evaluated. Lets the
    *  per-soldier drill distinguish "not evaluated" from "evaluated all NO_GO". */
   graded: boolean
 }
@@ -169,7 +145,7 @@ export interface AlgorithmDimScore {
 export interface AlgorithmCompetency {
   id: string
   name: string
-  /** Item-count-weighted composite, 0–100. */
+  /** Item-count-weighted composite, 0â€“100. */
   pct: number
   status: AlgorithmCompetencyLevel
   /** Per-dimension breakdown (only dimensions the algorithm actually has). */
@@ -188,7 +164,7 @@ function synthValidated(latest: TrainingCompletionUI | undefined, total: number)
 /**
  * Per-algorithm composite competency for one soldier, derived from their test
  * completions. Covers every algorithm that maps to STPs. Sorted worst-first
- * (untrained → partial → trained, then higher % first) so gaps surface on top —
+ * (untrained â†’ partial â†’ trained, then higher % first) so gaps surface on top â€”
  * mirrors the Training Competency category ordering.
  */
 export function buildAlgorithmCompetency(
@@ -199,7 +175,7 @@ export function buildAlgorithmCompetency(
   const rows = listAlgorithmsWithStp().map((a): AlgorithmCompetency => {
     const dims: AlgorithmDimScore[] = []
 
-    // STP dimension — real STP completions, testable STPs only.
+    // STP dimension â€” real STP completions, testable STPs only.
     const stpKeys = a.taskNumbers.filter(isTaskTestable)
     if (stpKeys.length > 0) {
       const validated = stpKeys.filter((tn) => latestByTask.get(tn)?.result === 'GO').length
@@ -207,7 +183,7 @@ export function buildAlgorithmCompetency(
       dims.push({ dim: 'stp', label: 'STP data', validated, total: stpKeys.length, met: validated >= stpKeys.length, graded })
     }
 
-    // Synthetic dimensions — only those with backing content.
+    // Synthetic dimensions â€” only those with backing content.
     for (const dim of ALGO_SYNTH_DIMS) {
       const data = synthesizeAlgoTaskData(a.id, dim)
       if (!data) continue
@@ -232,7 +208,7 @@ export function buildAlgorithmCompetency(
   )
 }
 
-// ─── Name Formatting ─────────────────────────────────────────────────────────
+// â”€â”€â”€ Name Formatting â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export function formatMedicName(medic: ClinicMedic): string {
   const parts: string[] = []
@@ -246,7 +222,7 @@ export function formatMedicName(medic: ClinicMedic): string {
   return parts.join(' ') || 'Unknown'
 }
 
-// ─── Testable Tasks ──────────────────────────────────────────────────────────
+// â”€â”€â”€ Testable Tasks â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export interface FlatTask {
   taskId: string
@@ -293,7 +269,7 @@ export function buildTestableTasksByCategory(): Map<string, FlatTask[]> {
   return grouped
 }
 
-// ─── Team Insights Types ──────────────────────────────────────────────────
+// â”€â”€â”€ Team Insights Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export type CompetencyStatus = 'GO' | 'NO_GO' | 'UNTESTED'
 
@@ -318,13 +294,12 @@ export interface TeamMetrics {
   totalMedics: number
   teamReadinessPercent: number
   certCompliancePercent: number
-  evaluationsThisPeriod: number
-  evaluationsLastPeriod: number
   soldierReadiness: SoldierReadinessEntry[]
   subjectAreaGaps: SubjectAreaGap[]
-  /** Per-algorithm team coverage — algorithms surfaced as a peer of subject-area
+  /** Per-algorithm team coverage â€” algorithms surfaced as a peer of subject-area
    *  gaps in the Coverage Gaps surface. Item-weighted across the composite
-   *  competency dimensions (STP + red flags + ddx + run). */
+   *  competency dimensions (STP + run â€” see ALGO_SYNTH_DIMS; red flags + ddx
+   *  were dropped from the scored model 2026-07-12). */
   algorithmGaps: AlgorithmGap[]
 }
 
@@ -349,18 +324,7 @@ export interface AlgorithmGap {
   deficientSoldierIds: string[]
 }
 
-export interface TrendBucket {
-  label: string
-  periodStart: string
-  totalEvaluations: number
-  passCount: number
-  failCount: number
-  passRate: number
-}
-
-export type TrendPeriod = '30d' | '60d' | '90d' | 'all'
-
-// ─── Team Insights Pure Functions ─────────────────────────────────────────
+// â”€â”€â”€ Team Insights Pure Functions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /** Wraps buildTestableTasksByCategory but filters to only tasks with gradedSteps. */
 export function buildTestableTaskMap(): Map<string, FlatTask[]> {
@@ -512,24 +476,6 @@ export function computeTeamMetrics(
   testableTaskMap: Map<string, FlatTask[]>,
   overdueItemsFn: (userId: string) => { expiredCerts: Certification[]; failedTests: TrainingCompletionUI[] }
 ): TeamMetrics {
-  const now = new Date()
-  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
-  const sixtyDaysAgo = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000)
-
-  // Only test completions
-  const testCompletions = tests.filter(t => t.completionType === 'test')
-
-  // Evaluations this period (last 30d) and last period (30-60d)
-  const evaluationsThisPeriod = testCompletions.filter(
-    t => new Date(t.updatedAt) >= thirtyDaysAgo
-  ).length
-  const evaluationsLastPeriod = testCompletions.filter(
-    t => {
-      const d = new Date(t.updatedAt)
-      return d >= sixtyDaysAgo && d < thirtyDaysAgo
-    }
-  ).length
-
   // Per-soldier readiness + compliance
   const matrix = buildCompetencyMatrix(medics, tests, testableTaskMap)
   const soldierReadiness: SoldierReadinessEntry[] = medics.map(m => {
@@ -596,76 +542,8 @@ export function computeTeamMetrics(
     totalMedics: medics.length,
     teamReadinessPercent,
     certCompliancePercent,
-    evaluationsThisPeriod,
-    evaluationsLastPeriod,
     soldierReadiness,
     subjectAreaGaps,
     algorithmGaps: buildAlgorithmGaps(medics, tests),
   }
-}
-
-/** Compute trend buckets for charting. */
-export function computeTrends(
-  tests: TrainingCompletionUI[],
-  period: TrendPeriod,
-  groupBy: 'week' | 'month',
-  soldierId?: string
-): TrendBucket[] {
-  const now = new Date()
-  let cutoff: Date | null = null
-  if (period === '30d') cutoff = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
-  else if (period === '60d') cutoff = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000)
-  else if (period === '90d') cutoff = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000)
-
-  // Filter to test completions, optionally by soldier, optionally by date
-  let filtered = tests.filter(t => t.completionType === 'test')
-  if (soldierId) filtered = filtered.filter(t => t.userId === soldierId)
-  if (cutoff) filtered = filtered.filter(t => new Date(t.updatedAt) >= cutoff)
-
-  if (filtered.length === 0) return []
-
-  // Group into buckets
-  const buckets = new Map<string, { label: string; periodStart: string; pass: number; fail: number }>()
-
-  for (const t of filtered) {
-    const d = new Date(t.updatedAt)
-    let key: string
-    let label: string
-    let periodStart: string
-
-    if (groupBy === 'week') {
-      // Week start = Monday
-      const day = d.getDay()
-      const monday = new Date(d)
-      monday.setDate(d.getDate() - ((day + 6) % 7))
-      key = monday.toISOString().slice(0, 10)
-      periodStart = key
-      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-      label = `${monthNames[monday.getMonth()]} ${monday.getDate()}`
-    } else {
-      key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-      periodStart = `${key}-01`
-      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-      label = `${monthNames[d.getMonth()]} '${String(d.getFullYear()).slice(2)}`
-    }
-
-    if (!buckets.has(key)) {
-      buckets.set(key, { label, periodStart, pass: 0, fail: 0 })
-    }
-    const bucket = buckets.get(key)!
-    if (t.result === 'GO') bucket.pass++
-    else bucket.fail++
-  }
-
-  // Sort by periodStart ascending
-  const sorted = [...buckets.entries()].sort((a, b) => a[1].periodStart.localeCompare(b[1].periodStart))
-
-  return sorted.map(([, b]) => ({
-    label: b.label,
-    periodStart: b.periodStart,
-    totalEvaluations: b.pass + b.fail,
-    passCount: b.pass,
-    failCount: b.fail,
-    passRate: (b.pass + b.fail) > 0 ? Math.round((b.pass / (b.pass + b.fail)) * 100) : 0,
-  }))
 }

@@ -5,9 +5,10 @@ import { getDisplayName } from '../../Utilities/nameUtils'
 import { OverlayStack, type StackNav } from '@/Components/primitives/OverlayStack'
 import { SheetStack } from '@/Components/primitives/SheetStack'
 import type { StackScreen } from '@/Components/stackNav'
-import { PillButton } from '@/Components/primitives/HeaderPill'
 import { ActionPill } from '@/Components/primitives/ActionPill'
 import { ActionButton } from '@/Components/primitives/ActionButton'
+import { OverlayHeaderMenu } from '@/Components/primitives/OverlayHeaderMenu'
+import type { ContextMenuItem } from '@/Components/primitives/ContextMenu'
 import { useIsMobile } from '../../Hooks/useIsMobile'
 import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
 import { useOffRosterAdd } from '../Messages/useOffRosterAdd'
@@ -286,9 +287,9 @@ export function ConversationInfoPanel({
         : { key: 'edit', label: 'Edit', icon: Pencil, onAction: enterGroupEdit })
     : null
 
-  // Root chrome nodes. Desktop OverlayStack reads the root screen's footer (left)
-  // + rightFooter (right) slots; mobile SheetStack shows the host's rootLeftContent
-  // + rootRightContent. Same data, two renderings, preserving the left/right split.
+  // DESKTOP chrome nodes. OverlayStack reads the root screen's footer (left) +
+  // rightFooter (right) slots — the danger-cluster-left / primary-right split is
+  // kept on the roomy desktop card.
   const leftFooterNode = leftActions.length > 0 ? (
     <ActionPill>
       {leftActions.map(a => (
@@ -301,16 +302,31 @@ export function ConversationInfoPanel({
       <ActionButton icon={rightAction.icon} label={rightAction.label} onClick={rightAction.onAction} />
     </ActionPill>
   ) : undefined
-  const sheetLeftContent = leftActions.length > 0 ? (
-    <div className="flex items-center gap-1">
-      {leftActions.map(a => (
-        <PillButton key={a.key} icon={a.icon} variant={a.variant} onClick={a.onAction} label={a.label} compact />
-      ))}
-    </div>
-  ) : undefined
-  const sheetRightContent = rightAction ? (
-    <PillButton icon={rightAction.icon} label={rightAction.label} onClick={rightAction.onAction} compact />
-  ) : undefined
+
+  // MOBILE chrome. The sheet header can't carry the desktop's pill cluster without
+  // crowding, so ALL governance collapses into ONE left ellipsis → lifted menu
+  // (ellipsis-left / Sheet-close-right idiom); the right slot stays empty. Edit/Done
+  // ride the menu too, so the mode toggle isn't a separate header pill. Purge/Leave
+  // stay listed in edit mode (unlike the desktop leftActions, which drop them there).
+  const sheetMenuItems: ContextMenuItem[] = group
+    ? [
+        ...(groupEditing
+          ? [
+              { key: 'add', label: 'Add member', icon: Plus, onAction: openAddFlow },
+              { key: 'done', label: 'Done', icon: Check, onAction: exitGroupEdit },
+            ]
+          : isPrimary
+            ? [{ key: 'edit', label: 'Edit', icon: Pencil, onAction: enterGroupEdit }]
+            : []),
+        ...(isPrimary
+          ? [{ key: 'purge', label: 'Purge group', icon: Trash2, destructive: true, onAction: () => setConfirmPurge(true) }]
+          : []),
+        { key: 'leave', label: 'Leave', icon: LogOut, destructive: true, onAction: () => setConfirmLeave(true) },
+      ]
+    : []
+  const sheetHeaderMenu = sheetMenuItems.length > 0
+    ? <OverlayHeaderMenu items={sheetMenuItems} align="left" />
+    : undefined
 
   // ── Media sub-views (morph) ────────────────────────────────────────────────
   const photosGrid = (
@@ -591,8 +607,7 @@ export function ConversationInfoPanel({
       screens={screens}
       navRef={navRef}
       rootTitle={rootTitle}
-      rootLeftContent={sheetLeftContent}
-      rootRightContent={sheetRightContent}
+      rootLeftContent={sheetHeaderMenu}
       height="fit"
       maxHeight={60}
       zIndex={1200}

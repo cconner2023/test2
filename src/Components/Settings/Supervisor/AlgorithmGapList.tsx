@@ -1,15 +1,8 @@
 import { useMemo } from 'react'
 import { ChevronRight } from 'lucide-react'
 import { listAlgorithmsWithStp } from '../../../Utilities/algorithmStp'
+import { FillBar } from '@/Components/primitives/FillBar'
 import type { AlgorithmGap } from './supervisorHelpers'
-
-function metricBarColor(pct: number): string {
-  return pct >= 50 ? 'bg-themeblue3/50' : 'bg-themeredred'
-}
-
-function metricTextColor(pct: number): string {
-  return pct >= 50 ? 'text-themeblue3' : 'text-themeredred'
-}
 
 interface AlgorithmGapListProps {
   gaps: AlgorithmGap[]
@@ -62,23 +55,7 @@ export function AlgorithmGapList({ gaps, onNavigateToAlgorithm }: AlgorithmGapLi
                 <span className="text-sm text-primary min-w-0 truncate flex-1">
                   {item.name}
                 </span>
-                <div className="w-20 shrink-0">
-                  <div
-                    className="h-1.5 rounded-full bg-tertiary/10 overflow-hidden"
-                    role="progressbar"
-                    aria-valuenow={item.pct}
-                    aria-valuemin={0}
-                    aria-valuemax={100}
-                  >
-                    <div
-                      className={`h-full rounded-full transition-all ${metricBarColor(item.pct)}`}
-                      style={{ width: `${item.pct}%` }}
-                    />
-                  </div>
-                </div>
-                <span className={`text-[9pt] font-medium w-8 text-right ${metricTextColor(item.pct)}`}>
-                  {item.pct}%
-                </span>
+                <FillBar className="w-28 shrink-0" percent={item.pct} />
                 <ChevronRight size={16} className="text-tertiary shrink-0" />
               </button>
             ))}

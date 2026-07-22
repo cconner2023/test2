@@ -4,15 +4,8 @@ import { listAlgorithmsWithStp } from '../../../Utilities/algorithmStp'
 import { ActionButton } from '@/Components/primitives/ActionButton'
 import { ActionPill } from '@/Components/primitives/ActionPill'
 import { PreviewOverlay } from '../../PreviewOverlay'
+import { readinessBarColor, readinessTextColor } from './supervisorHelpers'
 import type { AlgorithmCompetency } from './supervisorHelpers'
-
-function readinessColor(pct: number): string {
-  return pct >= 50 ? 'bg-themeblue3/50' : 'bg-themeredred'
-}
-
-function readinessTextColor(pct: number): string {
-  return pct >= 50 ? 'text-themeblue3' : 'text-themeredred'
-}
 
 // ─── Drill-down signal row ───────────────────────────────────────────────────
 // The per-algorithm drill shows three plain-language signals instead of the old
@@ -117,8 +110,14 @@ export function SoldierAlgorithmList({
                   </span>
                   <span className="text-sm font-medium text-primary min-w-0 truncate flex-1">{a.name}</span>
                   <div className="w-20 shrink-0 hidden sm:block">
-                    <div className="h-1.5 rounded-full bg-tertiary/10 overflow-hidden">
-                      <div className={`h-full rounded-full transition-all ${readinessColor(a.pct)}`} style={{ width: `${a.pct}%` }} />
+                    <div
+                      className="h-1.5 rounded-full bg-tertiary/10 overflow-hidden"
+                      role="progressbar"
+                      aria-valuenow={a.pct}
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                    >
+                      <div className={`h-full rounded-full transition-all ${readinessBarColor(a.pct)}`} style={{ width: `${a.pct}%` }} />
                     </div>
                   </div>
                   <span className={`text-[9pt] font-semibold w-12 text-right shrink-0 ${
