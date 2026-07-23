@@ -140,7 +140,7 @@ interface AuthActions {
   /** Merge fields into the in-memory profile and persist to localStorage. No network. */
   patchProfile: (fields: Partial<UserTypes>) => void
   /** Re-fetch profile from Supabase and update store. */
-  refreshProfile: () => Promise<void>
+  refreshProfile: (opts?: { provisionVaults?: boolean }) => Promise<void>
   /** Clear the password recovery flag (after user sets their password). */
   setPasswordRecovery: (value: boolean) => void
   /** Clear the first-time password setup flag (after new user sets their password). */
@@ -516,6 +516,73 @@ async function fetchProfileFromSupabase(userId: string): Promise<{ profile: User
   return { profile, roles, clinicId, surrogateClinicIds, loanReadOk, needsPasswordSetup, clinicTextExpanders, clinicPlanOrderTags, clinicPlanInstructionTags, clinicPlanOrderSets }
 }
 
+/**
+ * Provision the clinic-vault persona for a set of clinic ids: derive the wrapping
+ * key, ensure the vault peer exists, drain unread, and register this browser as a
+ * clinic linked device. Idempotent per clinic (safe to re-run).
+ *
+ * Called from TWO paths:
+ *  - Login (handleSignedIn) with publishReconcile:true — the drain is authoritative
+ *    truth for the calendar drop-stale prune.
+ *  - Mid-session (refreshProfile) when a supervisor transfer / loan add grows the
+ *    reachable set, with publishReconcile:false — APPEND-ONLY. A mid-session drain
+ *    must never arm the prune: it would blank the warm calendar behind it and, for
+ *    a single newly-gained clinic, wrongly drop every other clinic's cached events
+ *    (they aren't in this partial live-id union).
+ *
+ * Without the mid-session call a supervisor-transferred user keeps their new
+ * clinic_id but has no vault key for it until next login — calendar/roster/property/
+ * clinic-messages all decrypt to nothing (the "unusable while transferring" gap).
+ */
+async function provisionClinicVaults(
+  userId: string,
+  deviceId: string,
+  clinicIds: string[],
+  opts: { publishReconcile: boolean },
+): Promise<{ anyFailed: boolean }> {
+  const { initClinicDeviceBundle } = await import('../lib/signal/clinicDeviceInit')
+  const { useMessagingStore } = await import('./useMessagingStore')
+  const { updateHeartbeatClinicDevice } = await import('../lib/activityHeartbeat')
+  const { updateCleanupClinicDeviceId } = await import('../lib/sessionCleanup')
+  const { cleanupStaleClinicDevices } = await import('../lib/signal/signalService')
+
+  let anyFailed = false
+  for (const cId of clinicIds) {
+    try {
+      const { data: clinicRow } = await supabase
+        .from('clinics')
+        .select('encryption_key')
+        .eq('id', cId)
+        .single()
+      if (!clinicRow?.encryption_key) {
+        // Clinic exists but has no key — skip; don't block other clinics.
+        continue
+      }
+
+      // Derive wrapping key + ensure vault peer + drain unread.
+      // Per-clinic key cache means dual membership doesn't conflict.
+      await deriveAndCacheClinicVaultKey(cId, clinicRow.encryption_key)
+      await ensureClinicVaultExists(cId, clinicRow.encryption_key)
+      await processClinicVaultMessages(cId, { publishReconcile: opts.publishReconcile })
+
+      // Register this browser as a clinic linked device. clinicDeviceId is
+      // `clinic-{userId}-{personalDeviceId}` — same value across clinics. The
+      // same device gets a row under each clinic's user_id.
+      const { clinicDeviceId } = await initClinicDeviceBundle(userId, cId, deviceId)
+      useMessagingStore.getState().setClinicDeviceId(clinicDeviceId)
+      updateHeartbeatClinicDevice(cId, clinicDeviceId)
+      updateCleanupClinicDeviceId(clinicDeviceId)
+
+      // Server-side TTL cleanup of stale clinic devices (per clinic)
+      cleanupStaleClinicDevices(cId).catch(() => {})
+    } catch (e) {
+      anyFailed = true
+      console.error(`Clinic vault init failed for ${cId}:`, e)
+    }
+  }
+  return { anyFailed }
+}
+
 export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
   const handleSignedOut = (wasPrimary: boolean) => {
     // ---- Involuntary sign-out (token expiry, iOS background kill) ----
@@ -715,7 +782,10 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
     if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'PASSWORD_RECOVERY') {
       const isFirstSession = !get().localSession
       startHeartbeat(userId)
-      const profileP = get().refreshProfile()
+      // Login owns clinic-vault provisioning below (with the calendar-replay
+      // prune). Tell refreshProfile to skip its mid-session provisioning so the
+      // two don't race / double-drain on the same login.
+      const profileP = get().refreshProfile({ provisionVaults: false })
 
       // Initialize Signal Protocol keys independently of profile fetch.
       // Signal init runs in the background — the app unlocks after profile only.
@@ -792,47 +862,10 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
               // drain poisons it to null (no prune). No per-device cursor / mode.
               useCalendarStore.getState().setFullReplayLiveIds([])
 
-              const { initClinicDeviceBundle } = await import('../lib/signal/clinicDeviceInit')
-              const { useMessagingStore } = await import('./useMessagingStore')
-              const { updateHeartbeatClinicDevice } = await import('../lib/activityHeartbeat')
-              const { updateCleanupClinicDeviceId } = await import('../lib/sessionCleanup')
-              const { cleanupStaleClinicDevices } = await import('../lib/signal/signalService')
-
-              let anyFailed = false
-
-              for (const cId of clinicIds) {
-                try {
-                  const { data: clinicRow } = await supabase
-                    .from('clinics')
-                    .select('encryption_key')
-                    .eq('id', cId)
-                    .single()
-                  if (!clinicRow?.encryption_key) {
-                    // Clinic exists but has no key — skip; don't block other clinics.
-                    continue
-                  }
-
-                  // Derive wrapping key + ensure vault peer + drain unread.
-                  // Per-clinic key cache means dual membership doesn't conflict.
-                  await deriveAndCacheClinicVaultKey(cId, clinicRow.encryption_key)
-                  await ensureClinicVaultExists(cId, clinicRow.encryption_key)
-                  await processClinicVaultMessages(cId, { publishReconcile: true })
-
-                  // Register this browser as a clinic linked device. clinicDeviceId
-                  // is `clinic-{userId}-{personalDeviceId}` — same value across clinics.
-                  // The same device gets a row under each clinic's user_id.
-                  const { clinicDeviceId } = await initClinicDeviceBundle(userId, cId, initResult.deviceId)
-                  useMessagingStore.getState().setClinicDeviceId(clinicDeviceId)
-                  updateHeartbeatClinicDevice(cId, clinicDeviceId)
-                  updateCleanupClinicDeviceId(clinicDeviceId)
-
-                  // Server-side TTL cleanup of stale clinic devices (per clinic)
-                  cleanupStaleClinicDevices(cId).catch(() => {})
-                } catch (e) {
-                  anyFailed = true
-                  console.error(`Clinic vault init failed for ${cId}:`, e)
-                }
-              }
+              // Login owns the calendar prune — publishReconcile:true.
+              const { anyFailed } = await provisionClinicVaults(
+                userId, initResult.deviceId, clinicIds, { publishReconcile: true },
+              )
 
               // Unlock calendar after all clinics drained. Surface partial failures.
               if (anyFailed) {
@@ -1113,12 +1146,14 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
     invalidate('clinics', 'users', 'training', 'calendar')
   },
 
-  refreshProfile: async () => {
+  refreshProfile: async (opts) => {
+    const provisionVaults = opts?.provisionVaults ?? true
     const user = get().user
     if (!user) return
 
     // Prior reachable membership (from the last persisted roles blob) — diffed
-    // below to detect clusters the user was removed from while away.
+    // below to detect clusters the user was removed from while away, and clusters
+    // newly gained (supervisor transfer / loan add) that need vault provisioning.
     const prevMembership = loadRolesFromStorage()
 
     try {
@@ -1161,6 +1196,36 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
           const { evictClinicData } = await import('../lib/clinicEviction')
           for (const id of dropped) {
             await evictClinicData(id).catch(() => { /* best-effort per clinic */ })
+          }
+        }
+      }
+
+      // Mid-session vault provisioning for NEWLY reachable clusters. When a
+      // supervisor transfers/loans this user, useProfileRealtime fires a
+      // refreshProfile — but state alone doesn't derive the new clinic's vault
+      // key, so its calendar/roster/property/messages stay undecryptable until
+      // next login. Provision the gained clusters here, APPEND-ONLY (login owns
+      // the prune). Skipped when handleSignedIn is the caller (it provisions with
+      // the reconcile). Guarded on deviceId (mid-session localSession) and a real
+      // home clinic: a PCS to ZERO clusters (abandon → clinicId null) has nothing
+      // to provision — the app stays usable on personal data + empty clinic
+      // surfaces, not a hung shell.
+      if (provisionVaults && clinicId) {
+        const deviceId = get().localSession?.deviceId
+        if (deviceId) {
+          const prevReach = new Set<string>(
+            [prevMembership?.clinicId, ...(prevMembership?.surrogateClinicIds ?? [])]
+              .filter((x): x is string => !!x),
+          )
+          const gained = [clinicId, ...surrogateClinicIds].filter((id) => !prevReach.has(id))
+          if (gained.length > 0) {
+            void provisionClinicVaults(user.id, deviceId, gained, { publishReconcile: false })
+              .then(({ anyFailed }) => {
+                if (anyFailed) useCalendarStore.setState({ hydrationError: true })
+                // Fresh clinic data landed in the store via the drain — nudge
+                // dependent surfaces to re-read.
+                invalidate('clinics', 'calendar', 'training', 'users')
+              })
           }
         }
       }

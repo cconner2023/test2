@@ -233,6 +233,40 @@ export async function deleteOwnAccount(): Promise<ServiceResult> {
   }
 }
 
+/**
+ * Self-service cluster departure (PCS out-processing). The signed-in user removes
+ * THEMSELVES from their home cluster via leave_own_cluster (SECURITY DEFINER; nulls
+ * their own clinic_id + uic, and RAISES if they're the sole supervisor so a cluster
+ * can't be orphaned). Lands them in the zero-cluster "between assignments" state —
+ * their gaining unit's supervisor pulls them into the next cluster (no self-join).
+ *
+ * refreshProfile's clean-break eviction is guarded on a NON-NULL home clinic (a null
+ * read is ambiguous with a failed fetch), so it deliberately won't fire on a
+ * leave-to-zero. We therefore evict the left cluster's local data explicitly here,
+ * using the clinic id the RPC echoes back, before refreshing the profile to null.
+ */
+export async function leaveOwnCluster(): Promise<ServiceResult> {
+  try {
+    const user = useAuthStore.getState().user
+    if (!user) return fail('Not authenticated')
+
+    // RPC not yet in generated types — cast to bypass until types regenerate.
+    const { data, error } = await (supabase.rpc as (fn: string) => Promise<{ data: unknown; error: { message: string } | null }>)('leave_own_cluster')
+    if (error) return fail(error.message)
+
+    const leftClinicId = (data as { left_clinic_id?: string } | null)?.left_clinic_id
+    if (leftClinicId) {
+      const { evictClinicData } = await import('./clinicEviction')
+      await evictClinicData(leftClinicId).catch(() => { /* best-effort teardown */ })
+    }
+    await useAuthStore.getState().refreshProfile()
+    return succeed()
+  } catch (e) {
+    logger.error('Failed to leave cluster:', e)
+    return fail(getErrMsg(e))
+  }
+}
+
 /** Loose client-side email shape check — the RPC re-validates authoritatively. */
 function isEmailShape(email: string): boolean {
   return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim())

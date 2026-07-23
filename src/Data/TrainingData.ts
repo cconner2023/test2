@@ -929,6 +929,10 @@ export const trainingTaskData: readonly TaskTrainingData[] = [
     },
     // Airway Management: Maintain a Nasogastric Tube
     {
+        // LEGACY (kept testable until CRON cutover): the Apr 2026 ICTL reassigns 081-000-0125 to
+        // "Treat Massive Hemorrhage". Until the CRON phase-out runs, this Nasogastric-Tube content
+        // stays live under 081-000-0125 so existing completions remain testable and legacy training
+        // is uninterrupted. CRON will flip the number to Massive Hemorrhage at cutover.
         taskNumber: "081-000-0125",
         title: "Maintain a Nasogastric Tube",
         caution: "All body fluids should be considered potentially infectious so always observe body substance isolation precautions by wearing gloves and eye protection as a minimal standard of protection.",
@@ -1315,7 +1319,7 @@ export const trainingTaskData: readonly TaskTrainingData[] = [
     // Medical Management: Treat Common Respiratory Disorders
     {
         taskNumber: "081-68W-0245",
-        title: "Treat Common Respiratory Disorders",
+        title: "Treat a Patient With Cardiorespiratory Complaint",
         caution: "All body fluids should be considered potentially infectious so always observe body substance isolation (BSI) precautions by wearing gloves and eye protection as a minimal standard of protection.",
         conditions: "In an operational environment you must treat a patient with a respiratory complaint. You have performed a patient care handwash and donned the proper personnel protective equipment. You are provided with the patient's medical records, a stethoscope, sphygmomanometer, otoscope and ophthalmoscope, tongue depressors, pen, and Rosdahl's Textbook of Basic Nursing.",
         standards: "Treat common respiratory disorder in accordance with Rosdahl's Textbook of Basic Nursing, without causing further harm or injury to the patient while adhering to all warnings and cautions, without error, using the task GO/NO GO checklist.",
@@ -2225,7 +2229,7 @@ export const trainingTaskData: readonly TaskTrainingData[] = [
     // Medical Management: Treat Abdominal Disorders
     {
         taskNumber: "081-68W-0239",
-        title: "Treat Abdominal Disorders",
+        title: "Treat a Patient With Gastrointestinal Complaint",
         caution: 'All body fluids should be considered potentially infectious so always observe body substance isolation (BSI) precautions by wearing gloves and eye protection as a minimal standard of protection.',
         conditions: 'In an operational environment you must treat a patient with an abdominal complaint. You have performed a patient care handwash and taken BSI precautions. You are provided with a stethoscope, a pen, SF 600 (Chronological Record of Medical Care), and the patient\'s medical record.',
         standards: 'Treat abdominal disorders in accordance with (IAW) Rosdahl\'s Textbook of Basic Nursing, while adhering to all warnings and cautions, without error, using the task GO/NO GO checklist.',
@@ -2345,7 +2349,7 @@ export const trainingTaskData: readonly TaskTrainingData[] = [
     // Medical Management: Treat a Radiation Casualty
     {
         taskNumber: "081-000-0118",
-        title: "Treat a Radiation Casualty",
+        title: "Treat a Casualty With Chemical Biological Radiation Nuclear Exposure",
         caution: 'All body fluids should be considered potentially infectious so always observe body substance isolation precautions by wearing gloves and eye protection as a minimal standard of protection.',
         conditions: 'You are in an operational environment and are required to treat a casualty with symptoms consistent with radiological exposure. You have a fully stocked aid bag, intravenous (IV) administration equipment and fluids, oxygen, suction and ventilation equipment, selected medications, DD Form 1380 (Tactical Combat Casualty Care (TCCC) Card (Instructions)), or electronic medical record (EMR), and personal chemical protective equipment.',
         standards: 'Treat a radiation casualty in accordance with, ATP 4-02.83, while adhering to all warnings and cautions, without error, using the task GO/NO GO checklist.',

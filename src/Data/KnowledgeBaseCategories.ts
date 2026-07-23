@@ -30,6 +30,13 @@ export const kbCategories: KBCategory[] = [
         icon: BookOpen,
         group: 'training',
     },
+    {
+        id: 'ictl',
+        label: '68W SL1 ICTL',
+        description: 'Individual Critical Task List',
+        icon: BookOpen,
+        group: 'training',
+    },
 
     // ── Screening Tools ───────────────────────────────────────
     {

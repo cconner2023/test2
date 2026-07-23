@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import { Palette, Shield, Lock, MessageSquare, Bell, Stethoscope, Scale, X, Building2, Check, Radio, LayoutDashboard, HardDrive, Smartphone, BookOpen, ChevronLeft } from 'lucide-react';
+import { Palette, Shield, Lock, MessageSquare, Bell, Stethoscope, Scale, X, Building2, Check, Radio, LayoutDashboard, HardDrive, Smartphone, BookOpen, ChevronLeft, LogOut } from 'lucide-react';
 import { BaseDrawer } from '@/Components/primitives/BaseDrawer';
 import { useIsMobile } from '../../Hooks/useIsMobile';
 import { ChildClinicRosterBody } from './Supervisor/ChildClinicRosterSheet';
@@ -24,7 +24,7 @@ import { useAuth } from '../../Hooks/useAuth';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { clearAllUserData } from '../../lib/offlineDb';
 import { clearServiceWorkerCaches } from '../../lib/cacheService';
-import { deleteOwnAccount } from '../../lib/authService';
+import { deleteOwnAccount, leaveOwnCluster } from '../../lib/authService';
 import { PANEL, PANEL_TARGET, type PanelId, type SettingsItem } from './SettingsTypes';
 import { UI_TIMING } from '../../Utilities/constants';
 import { useBetaFlag } from '../../lib/betaFeatures';
@@ -95,6 +95,21 @@ export const Settings = ({
     const [clinicHasPending, setClinicHasPending] = useState(false);
     const [showUnsavedGuard, setShowUnsavedGuard] = useState(false);
     const pendingGuardActionRef = useRef<(() => void) | null>(null);
+    // Self-service leave-cluster (#2): confirm + in-flight + error surfaces.
+    const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
+    const [leaving, setLeaving] = useState(false);
+    const [leaveError, setLeaveError] = useState<string | null>(null);
+
+    const handleLeaveCluster = useCallback(async () => {
+        setLeaving(true);
+        const res = await leaveOwnCluster();
+        setLeaving(false);
+        setShowLeaveConfirm(false);
+        // Success needs no toast — the "Leave Cluster" row disappears (clinicId now
+        // null) and the between-assignments banner appears (feedback is the change
+        // itself). Only a failure (e.g. sole-supervisor orphan guard) surfaces.
+        if (!res.success) setLeaveError(res.error || 'Could not leave the cluster.');
+    }, []);
 
     const guardedClinicAction = useCallback((action: () => void) => {
         if (clinicHasPending) {
@@ -210,11 +225,23 @@ const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
             );
         }
 
-        // CLINICS section — cluster management is supervisor-only (dev also sees it).
-        if (isAuthenticated && (isSupervisorRole || isDevRole)) {
+        // CLUSTERS section. Supervisors/dev get full cluster management AND the
+        // self-service leave row; a regular member gets leave only. Everyone with a
+        // cluster can PCS out — supervisors too, regardless of hand-off (USR). When
+        // the user is in no cluster (between assignments) there's nothing here —
+        // awareness + re-entry is the between-assignments banner (a supervisor pulls
+        // them into the next cluster; there's no self-join yet).
+        if (isAuthenticated && clinicId) {
+            items.push({ type: 'header', label: 'Clusters' });
+            if (isSupervisorRole || isDevRole) {
+                items.push(
+                    opt(PANEL.CLINIC, <Building2 size={20} />, profile.clinicName || 'My Cluster', 'Manage cluster and personnel'),
+                );
+            }
             items.push(
-                { type: 'header', label: 'Clusters' },
-                opt(PANEL.CLINIC, <Building2 size={20} />, profile.clinicName || 'My Cluster', 'Manage cluster and personnel'),
+                opt(PANEL.LEAVE_CLUSTER, <LogOut size={20} />, 'Leave Cluster', `Currently in ${profile.clinicName || 'your cluster'}`, {
+                    action: () => setShowLeaveConfirm(true),
+                }),
             );
         }
 
@@ -261,7 +288,7 @@ const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
         }
 
         return items;
-    }, [themeName, handleItemClick, isDevRole, isAuthenticated, isSupervisorRole, profile.clinicName, updateProfile, hasUnvotedCycle, whisperNetVisible, setShowUserGuideDrawer]);
+    }, [themeName, handleItemClick, isDevRole, isAuthenticated, isSupervisorRole, clinicId, profile.clinicName, updateProfile, hasUnvotedCycle, whisperNetVisible, setShowUserGuideDrawer]);
 
     // Swipe-back for sub-panels (mobile touch only)
     const swipeHandlers = useSwipeBack(
@@ -658,6 +685,25 @@ const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
             variant="warning"
             onConfirm={handleGuardConfirm}
             onCancel={handleGuardCancel}
+        />
+        <ConfirmDialog
+            visible={showLeaveConfirm}
+            title={`Leave ${profile.clinicName || 'this cluster'}?`}
+            subtitle="You'll lose access to this cluster's calendar, roster, messages, and property until you join another. Your gaining unit's supervisor adds you to your next cluster."
+            confirmLabel="Leave cluster"
+            cancelLabel="Cancel"
+            variant="danger"
+            processing={leaving}
+            onConfirm={handleLeaveCluster}
+            onCancel={() => setShowLeaveConfirm(false)}
+        />
+        <ConfirmDialog
+            visible={!!leaveError}
+            title="Couldn't leave cluster"
+            subtitle={leaveError ?? undefined}
+            variant="warning"
+            notifyOnly
+            onCancel={() => setLeaveError(null)}
         />
     </>
     );

@@ -26,6 +26,8 @@ import { GAD7, PHQ2, MACE2, AUDITC } from '../Data/SpecTesting'
 import { getScreenerMaxScore, isQuestionScored } from '../Data/SpecTesting'
 import { stp68wTraining } from '../Data/TrainingTaskList'
 import { getTaskData } from '../Data/TrainingData'
+import { getIctlTaskData } from '../Data/ICTLContent'
+import { IctlPanel, type IctlView } from './Settings/IctlPanel'
 import { Check } from 'lucide-react'
 import { UI_TIMING } from '../Utilities/constants'
 import { BURN_CALCULATOR_ENABLED } from '../lib/featureFlags'
@@ -40,6 +42,8 @@ type KBView =
     | 'home'
     | 'training'
     | 'training-detail'
+    | 'ictl'
+    | 'ictl-detail'
     | 'medications'
     | 'medication-detail'
     | 'screener'
@@ -83,6 +87,7 @@ export function KnowledgeBaseDrawer({
     )
     const [view, setView] = useState<KBView>('home')
     const [selectedTask, setSelectedTask] = useState<subjectAreaArrayOptions | null>(null)
+    const [selectedIctlTaskId, setSelectedIctlTaskId] = useState<string | null>(null)
     const [selectedMedication, setSelectedMedication] = useState<medListTypes | null>(null)
     const [activeScreener, setActiveScreener] = useState<ScreenerConfig | null>(null)
     const [slideDirection, setSlideDirection] = useState<'left' | 'right' | ''>('')
@@ -174,6 +179,10 @@ export function KnowledgeBaseDrawer({
                 setView('training')
                 setSelectedTask(null)
                 break
+            case 'ictl':
+                setView('ictl')
+                setSelectedIctlTaskId(null)
+                break
             case '9-line':   setView('report-9line');  break
             default:
                 if (screenerMap[category.id]) {
@@ -189,6 +198,13 @@ export function KnowledgeBaseDrawer({
         setSelectedTask(task)
         handleSlideAnimation('left')
         setView('training-detail')
+    }, [handleSlideAnimation])
+
+    // ── ICTL task selection ──────────────────────────────────────
+    const handleSelectIctlTask = useCallback((taskId: string) => {
+        setSelectedIctlTaskId(taskId)
+        handleSlideAnimation('left')
+        setView('ictl-detail')
     }, [handleSlideAnimation])
 
     // ── Medication selection ─────────────────────────────────────
@@ -207,10 +223,15 @@ export function KnowledgeBaseDrawer({
                 setView('training')
                 setSelectedTask(null)
                 break
+            case 'ictl-detail':
+                setView('ictl')
+                setSelectedIctlTaskId(null)
+                break
             case 'report-9line-review':
                 setView('report-9line')
                 break
             case 'training':
+            case 'ictl':
             case 'medications':
             case 'screener':
             case 'burn':
@@ -235,6 +256,7 @@ export function KnowledgeBaseDrawer({
         setCalculatorOpen(false)
         setView('home')
         setSelectedTask(null)
+        setSelectedIctlTaskId(null)
         setSelectedMedication(null)
         setActiveScreener(null)
         resetMedevacReq()
@@ -256,6 +278,10 @@ export function KnowledgeBaseDrawer({
                 return { title: 'STP 8-68W13-SM-TG', showBack: true, onBack: handleBack }
             case 'training-detail':
                 return { title: selectedTask?.text || 'Task', showBack: true, onBack: handleBack }
+            case 'ictl':
+                return { title: '68W SL1 ICTL', showBack: true, onBack: handleBack }
+            case 'ictl-detail':
+                return { title: (selectedIctlTaskId ? getIctlTaskData(selectedIctlTaskId)?.title : null) || 'Task', showBack: true, onBack: handleBack }
             case 'medications':
                 return { title: tc3Mode ? 'TC3 Medications' : 'Medications', showBack: true, onBack: handleBack }
             case 'medication-detail': {
@@ -290,7 +316,7 @@ export function KnowledgeBaseDrawer({
             default:
                 return { title: 'Knowledge Base' }
         }
-    }, [view, selectedTask, selectedMedication, activeScreener, tc3Mode, handleBack, pinnedKB, togglePinKB])
+    }, [view, selectedTask, selectedIctlTaskId, selectedMedication, activeScreener, tc3Mode, handleBack, pinnedKB, togglePinKB])
 
     return (
         <BaseDrawer
@@ -328,6 +354,21 @@ export function KnowledgeBaseDrawer({
                             view={view as TrainingView}
                             selectedTask={selectedTask}
                             onSelectTask={handleSelectTask}
+                            searchQuery={searchQuery}
+                        />
+                    </>
+                )}
+                {(view === 'ictl' || view === 'ictl-detail') && (
+                    <>
+                        {view === 'ictl' && (
+                            <div className="px-3 py-2">
+                                <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Search..." />
+                            </div>
+                        )}
+                        <IctlPanel
+                            view={view as IctlView}
+                            selectedTaskId={selectedIctlTaskId}
+                            onSelectTask={handleSelectIctlTask}
                             searchQuery={searchQuery}
                         />
                     </>

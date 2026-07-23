@@ -49,6 +49,7 @@ import type { MessageNotification } from './Hooks/useMessageNotifications'
 import { MissionBoardPanel } from './Components/MissionBoard/MissionBoardPanel'
 import { Settings } from './Components/Settings'
 import { FeatureVotePrompt } from './Components/FeatureVoting/FeatureVotePrompt'
+import { BetweenAssignmentsBanner } from './Components/BetweenAssignmentsBanner'
 import { KnowledgeBaseDrawer } from './Components/KnowledgeBaseDrawer'
 import { TrainingDrawer } from './Components/TrainingDrawer'
 import { MessagesDrawer } from './Components/MessagesDrawer'
@@ -861,6 +862,7 @@ case 'mapOverlay':
           navigation.setShowSettings(true)
         }}
       />
+      <BetweenAssignmentsBanner />
     </div>
     </CallProvider>
     </MessagesProvider>
