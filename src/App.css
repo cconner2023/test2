@@ -113,7 +113,7 @@
   --color-themeyellowlow: rgba(236, 196, 48, 0.7);
   --color-themegreen: rgba(52, 186, 116, 1);
   --color-themewhite: rgba(10, 11, 13, 1);       /* neutral near-black */
-  --color-themewhite2: rgba(16, 18, 22, 1);      /* neutral dark surface */
+  --color-themewhite2: rgba(24, 27, 34, 1);      /* neutral dark surface — lifted for visible elevation vs canvas */
   --color-themewhite3: rgba(10, 11, 13, 1);
   --color-themegray1: rgba(28, 32, 40, 1);       /* neutral dark separator */
   --color-themegray2: rgba(40, 46, 58, 1);       /* neutral raised element */
@@ -157,7 +157,7 @@
   --color-themeyellowlow: rgba(218, 188, 72, 0.7);
   --color-themegreen: rgba(56, 168, 108, 1);
   --color-themewhite: rgba(12, 15, 18, 1);       /* deep blue-gray dark */
-  --color-themewhite2: rgba(20, 26, 32, 1);      /* blue-gray panel */
+  --color-themewhite2: rgba(26, 33, 41, 1);      /* blue-gray panel — lifted for visible elevation vs canvas */
   --color-themewhite3: rgba(12, 15, 18, 1);
   --color-themegray1: rgba(32, 42, 50, 1);       /* blue-gray separator */
   --color-themegray2: rgba(46, 58, 68, 1);       /* blue-gray raised element */
@@ -201,7 +201,7 @@
   --color-themeyellowlow: rgba(220, 188, 76, 0.7);
   --color-themegreen: rgba(96, 168, 96, 1);      /* vegetation green */
   --color-themewhite: rgba(12, 16, 10, 1);       /* deep field ink */
-  --color-themewhite2: rgba(20, 26, 16, 1);      /* warm dark surface */
+  --color-themewhite2: rgba(26, 34, 20, 1);      /* warm dark surface — lifted for visible elevation vs canvas */
   --color-themewhite3: rgba(12, 16, 10, 1);
   --color-themegray1: rgba(36, 44, 28, 1);       /* olive-ink separator */
   --color-themegray2: rgba(54, 64, 40, 1);       /* olive-ink raised */
