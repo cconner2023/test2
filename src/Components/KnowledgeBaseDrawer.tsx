@@ -28,6 +28,8 @@ import { stp68wTraining } from '../Data/TrainingTaskList'
 import { getTaskData } from '../Data/TrainingData'
 import { getIctlTaskData } from '../Data/ICTLContent'
 import { IctlPanel, type IctlView } from './Settings/IctlPanel'
+import { TcccModulePanel, type TcccView } from './Settings/TcccModulePanel'
+import { getTcccModule } from '../Data/TcccModules'
 import { Check } from 'lucide-react'
 import { UI_TIMING } from '../Utilities/constants'
 import { BURN_CALCULATOR_ENABLED } from '../lib/featureFlags'
@@ -44,6 +46,8 @@ type KBView =
     | 'training-detail'
     | 'ictl'
     | 'ictl-detail'
+    | 'tccc'
+    | 'tccc-detail'
     | 'medications'
     | 'medication-detail'
     | 'screener'
@@ -88,6 +92,7 @@ export function KnowledgeBaseDrawer({
     const [view, setView] = useState<KBView>('home')
     const [selectedTask, setSelectedTask] = useState<subjectAreaArrayOptions | null>(null)
     const [selectedIctlTaskId, setSelectedIctlTaskId] = useState<string | null>(null)
+    const [selectedTcccKey, setSelectedTcccKey] = useState<string | null>(null)
     const [selectedMedication, setSelectedMedication] = useState<medListTypes | null>(null)
     const [activeScreener, setActiveScreener] = useState<ScreenerConfig | null>(null)
     const [slideDirection, setSlideDirection] = useState<'left' | 'right' | ''>('')
@@ -183,6 +188,10 @@ export function KnowledgeBaseDrawer({
                 setView('ictl')
                 setSelectedIctlTaskId(null)
                 break
+            case 'tccc':
+                setView('tccc')
+                setSelectedTcccKey(null)
+                break
             case '9-line':   setView('report-9line');  break
             default:
                 if (screenerMap[category.id]) {
@@ -207,6 +216,13 @@ export function KnowledgeBaseDrawer({
         setView('ictl-detail')
     }, [handleSlideAnimation])
 
+    // ── TCCC module selection (from the TCCC list or an ICTL deep-link) ──
+    const handleSelectTcccModule = useCallback((moduleKey: string) => {
+        setSelectedTcccKey(moduleKey)
+        handleSlideAnimation('left')
+        setView('tccc-detail')
+    }, [handleSlideAnimation])
+
     // ── Medication selection ─────────────────────────────────────
     const handleMedicationSelect = useCallback((medication: medListTypes) => {
         setSelectedMedication(medication)
@@ -227,11 +243,16 @@ export function KnowledgeBaseDrawer({
                 setView('ictl')
                 setSelectedIctlTaskId(null)
                 break
+            case 'tccc-detail':
+                setView('tccc')
+                setSelectedTcccKey(null)
+                break
             case 'report-9line-review':
                 setView('report-9line')
                 break
             case 'training':
             case 'ictl':
+            case 'tccc':
             case 'medications':
             case 'screener':
             case 'burn':
@@ -257,6 +278,7 @@ export function KnowledgeBaseDrawer({
         setView('home')
         setSelectedTask(null)
         setSelectedIctlTaskId(null)
+        setSelectedTcccKey(null)
         setSelectedMedication(null)
         setActiveScreener(null)
         resetMedevacReq()
@@ -282,6 +304,10 @@ export function KnowledgeBaseDrawer({
                 return { title: '68W SL1 ICTL', showBack: true, onBack: handleBack }
             case 'ictl-detail':
                 return { title: (selectedIctlTaskId ? getIctlTaskData(selectedIctlTaskId)?.title : null) || 'Task', showBack: true, onBack: handleBack }
+            case 'tccc':
+                return { title: 'TCCC', showBack: true, onBack: handleBack }
+            case 'tccc-detail':
+                return { title: (selectedTcccKey ? getTcccModule(selectedTcccKey)?.name : null) || 'TCCC Module', showBack: true, onBack: handleBack }
             case 'medications':
                 return { title: tc3Mode ? 'TC3 Medications' : 'Medications', showBack: true, onBack: handleBack }
             case 'medication-detail': {
@@ -316,7 +342,7 @@ export function KnowledgeBaseDrawer({
             default:
                 return { title: 'Knowledge Base' }
         }
-    }, [view, selectedTask, selectedIctlTaskId, selectedMedication, activeScreener, tc3Mode, handleBack, pinnedKB, togglePinKB])
+    }, [view, selectedTask, selectedIctlTaskId, selectedTcccKey, selectedMedication, activeScreener, tc3Mode, handleBack, pinnedKB, togglePinKB])
 
     return (
         <BaseDrawer
@@ -369,6 +395,22 @@ export function KnowledgeBaseDrawer({
                             view={view as IctlView}
                             selectedTaskId={selectedIctlTaskId}
                             onSelectTask={handleSelectIctlTask}
+                            searchQuery={searchQuery}
+                            onOpenTccc={handleSelectTcccModule}
+                        />
+                    </>
+                )}
+                {(view === 'tccc' || view === 'tccc-detail') && (
+                    <>
+                        {view === 'tccc' && (
+                            <div className="px-3 py-2">
+                                <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Search..." />
+                            </div>
+                        )}
+                        <TcccModulePanel
+                            view={view as TcccView}
+                            selectedModuleKey={selectedTcccKey}
+                            onSelectModule={handleSelectTcccModule}
                             searchQuery={searchQuery}
                         />
                     </>

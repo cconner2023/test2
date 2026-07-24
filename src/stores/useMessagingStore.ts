@@ -34,6 +34,29 @@ import { SYSTEM_USER_ID, SYSTEM_PEER_PROFILE } from '../lib/signal/systemIdentit
 
 const logger = createLogger('MessagingStore')
 
+/**
+ * Recompute the unread count for a single conversation from the messages that
+ * remain in state. Mirrors the counting predicate in addMessage (incoming,
+ * unread, non-system-group, not a request-accepted control row). Used by the
+ * message-delete paths so deleting an unread message — or the last message in a
+ * conversation — reconciles unreadCounts instead of leaving an orphaned tally
+ * that the nav badge (useTotalUnread) keeps summing with no row left to open.
+ */
+function recomputeUnread(
+  conversationKey: string,
+  msgs: DecryptedSignalMessage[],
+  userId: string | null,
+  systemGroupIds: Set<string>,
+): number {
+  if (systemGroupIds.has(conversationKey)) return 0
+  let count = 0
+  for (const m of msgs) {
+    const isIncoming = !userId || m.senderId !== userId
+    if (isIncoming && !m.readAt && m.messageType !== 'request-accepted') count++
+  }
+  return count
+}
+
 // ── State shape ────────────────────────────────────────────────────────────
 
 interface MessagingState {
@@ -381,12 +404,21 @@ export const useMessagingStore = create<MessagingStore>()((set, get) => ({
       const existing = s.conversations[conversationKey]
       if (!existing) return s
       const filtered = existing.filter(m => !idSet.has(m.id))
+      if (filtered.length === existing.length) return s // nothing removed
+      // Reconcile unreadCounts: deleting an unread message must decrement the
+      // tally, and emptying the conversation must drop the key entirely —
+      // otherwise the nav badge stays stuck on a conversation with no row.
+      const unreadCounts = { ...s.unreadCounts }
       if (filtered.length === 0) {
         const next = { ...s.conversations }
         delete next[conversationKey]
-        return { conversations: next }
+        delete unreadCounts[conversationKey]
+        return { conversations: next, unreadCounts }
       }
-      return { conversations: { ...s.conversations, [conversationKey]: filtered } }
+      const unread = recomputeUnread(conversationKey, filtered, s.localUserId, s.systemGroupIds)
+      if (unread > 0) unreadCounts[conversationKey] = unread
+      else delete unreadCounts[conversationKey]
+      return { conversations: { ...s.conversations, [conversationKey]: filtered }, unreadCounts }
     })
   },
 
@@ -417,8 +449,17 @@ export const useMessagingStore = create<MessagingStore>()((set, get) => ({
     const deletedAt = new Date().toISOString()
     set(s => {
       const next: Record<string, DecryptedSignalMessage[]> = {}
+      const unreadCounts = { ...s.unreadCounts }
       for (const [key, msgs] of Object.entries(s.conversations)) {
         const filtered = msgs.filter(m => !(m.originId && originSet.has(m.originId)))
+        if (filtered.length !== msgs.length) {
+          // This conversation lost at least one message — reconcile its unread
+          // tally so a deleted-unread / emptied conversation can't strand the
+          // nav badge on a conversation with no row left to open.
+          const unread = recomputeUnread(key, filtered, s.localUserId, s.systemGroupIds)
+          if (filtered.length === 0 || unread === 0) delete unreadCounts[key]
+          else unreadCounts[key] = unread
+        }
         if (filtered.length > 0) next[key] = filtered
       }
       // Always mirror the origin tombstones into state (symmetric with the IDB
@@ -427,7 +468,7 @@ export const useMessagingStore = create<MessagingStore>()((set, get) => ({
       // the message wasn't currently in live state.
       const deletedOrigins = { ...s.deletedOrigins }
       for (const o of originIds) if (!deletedOrigins[o]) deletedOrigins[o] = deletedAt
-      return { conversations: next, deletedOrigins }
+      return { conversations: next, unreadCounts, deletedOrigins }
     })
   },
 

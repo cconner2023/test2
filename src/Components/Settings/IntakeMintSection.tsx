@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import bwipjs from 'bwip-js/browser'
 import {
-  Copy, Check, RefreshCw, KeyRound, Trash2, Inbox, Dices, Headset, MessageSquare, CalendarPlus,
+  Copy, Check, RefreshCw, KeyRound, Trash2, Inbox, Dices, Headset, MessageSquare, CalendarPlus, Send,
 } from 'lucide-react'
 import { useAuth } from '../../Hooks/useAuth'
 import { useBetaBypass } from '../../lib/betaFeatures'
@@ -22,7 +22,7 @@ import {
   type IntakeCredentialMetadata,
 } from '../../lib/eventIntakeService'
 import { getWarmCredential, setWarmCredential } from '../../lib/messagingSettingsWarm'
-import { enableOncall, disableOncall, enableOutsideMessaging, disableOutsideMessaging, enableIntake, disableIntake } from '../../lib/oncallService'
+import { enableOncall, disableOncall, enableOutsideMessaging, disableOutsideMessaging, enableIntake, disableIntake, enableOutbound, disableOutbound } from '../../lib/oncallService'
 import { ToggleSwitch } from './ToggleSwitch'
 import { OncallGreetingRow } from './OncallGreetingRow'
 import { createLogger } from '../../Utilities/Logger'
@@ -81,6 +81,7 @@ function generatePassphrase(): string {
 export function IntakeMintSection({ clinicId, oncallCount = 0, onOncallEnabledChange }: IntakeMintSectionProps) {
   const { isSupervisorRole } = useAuth()
   const outsideCallBeta = useBetaBypass('outsideCall')
+  const outboundBeta = useBetaBypass('outboundContact')
   // Seed from the warm cache so a pre-warmed open paints immediately. `undefined`
   // = cache miss → show the loading gate as before; a cached value (incl. null)
   // means we already know the credential and skip the blank frame.
@@ -90,6 +91,7 @@ export function IntakeMintSection({ clinicId, oncallCount = 0, onOncallEnabledCh
   const [oncallBusy, setOncallBusy] = useState(false)
   const [msgBusy, setMsgBusy] = useState(false)
   const [intakeBusy, setIntakeBusy] = useState(false)
+  const [outboundBusy, setOutboundBusy] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [formError, setFormError] = useState<string | null>(null)
 
@@ -97,6 +99,7 @@ export function IntakeMintSection({ clinicId, oncallCount = 0, onOncallEnabledCh
   const messageEnabled = credential?.outside_message_enabled === true
   // Defaults true: a credential minted before the column existed has intake on.
   const intakeEnabled = credential?.intake_enabled !== false
+  const outboundEnabled = credential?.outbound_enabled === true
 
   // Anchor rects + open flags for each overlay surface.
   const [mintAnchor, setMintAnchor] = useState<DOMRect | null>(null)
@@ -191,6 +194,19 @@ export function IntakeMintSection({ clinicId, oncallCount = 0, onOncallEnabledCh
       setMsgBusy(false)
     }
   }, [msgBusy, messageEnabled, clinicId, refresh])
+
+  const toggleOutbound = useCallback(async () => {
+    if (outboundBusy) return
+    setOutboundBusy(true)
+    setCredential((c) => (c ? { ...c, outbound_enabled: !outboundEnabled } : c))
+    try {
+      const res = outboundEnabled ? await disableOutbound(clinicId) : await enableOutbound(clinicId)
+      if (res.ok) await refresh(true)
+      else setCredential((c) => (c ? { ...c, outbound_enabled: outboundEnabled } : c))
+    } finally {
+      setOutboundBusy(false)
+    }
+  }, [outboundBusy, outboundEnabled, clinicId, refresh])
 
 
   const url = credential ? intakeUrl(credential.passcode) : ''
@@ -307,7 +323,7 @@ export function IntakeMintSection({ clinicId, oncallCount = 0, onOncallEnabledCh
     } catch (e) { logger.warn('clipboard write failed', e) }
   }, [])
 
-  if (!isSupervisorRole && !outsideCallBeta) return null
+  if (!isSupervisorRole && !outsideCallBeta && !outboundBeta) return null
   if (loading) return null
 
   return (
@@ -494,6 +510,32 @@ export function IntakeMintSection({ clinicId, oncallCount = 0, onOncallEnabledCh
               </div>
               <ToggleSwitch checked={messageEnabled} />
             </div>
+
+            {/* OUTBOUND outside-contact — a clinic member emails a secure 1:1 invite
+                to an outside recipient (reverse of the inbound channels). DEV-GATED
+                (outboundContact beta); server also asserts is_dev() on every leg. */}
+            {outboundBeta && (
+            <div
+              onClick={outboundBusy ? undefined : () => void toggleOutbound()}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => { if (!outboundBusy && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); void toggleOutbound() } }}
+              className={`flex items-center gap-3 px-4 py-3.5 border-t border-primary/6 transition-all ${outboundBusy ? 'opacity-50' : 'cursor-pointer hover:bg-themeblue2/5 active:scale-95'}`}
+            >
+              <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${outboundEnabled ? 'bg-themeblue3/15' : 'bg-tertiary/10'}`}>
+                <Send size={18} className={outboundEnabled ? 'text-themeblue3' : 'text-tertiary'} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className={`text-sm font-medium ${outboundEnabled ? 'text-primary' : 'text-tertiary'}`}>Allow outbound contact</p>
+                <p className="text-[9pt] text-tertiary mt-0.5">
+                  {outboundEnabled
+                    ? 'Members can email a secure 1:1 invite to an outside recipient'
+                    : 'Members cannot start outbound outside contact'}
+                </p>
+              </div>
+              <ToggleSwitch checked={outboundEnabled} />
+            </div>
+            )}
           </div>
 
           <OverlayActionMenu

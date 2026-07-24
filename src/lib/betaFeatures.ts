@@ -51,6 +51,12 @@ export const BETA_FEATURES = {
    *  being validated in prod; gates both the "Add my location" pill and the
    *  rendering of teammates' presence markers. Flip to false to open to all. */
   teamPresence: true,
+  /** Outbound outside-contact — a clinic member emails a secure 1:1 invite to an
+   *  outside recipient (reverse of the inbound QR/passphrase channels). Fully
+   *  dev-gated end-to-end (create_outside_entity / set_outbound_enabled assert
+   *  is_dev()); this flag hides the supervisor toggle + compose surface for
+   *  non-dev until testing completes. Flip to false to promote to supervisors. */
+  outboundContact: true,
 } as const
 
 export type BetaFeature = keyof typeof BETA_FEATURES

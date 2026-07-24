@@ -575,7 +575,7 @@ export function IntakeForm({ supabase, initialPasscode }: IntakeFormProps) {
  * solid data-blocks are scattered around. Pure cosmetic client-side surface
  * (the HTTP shell is always 200); no app branding, no animation.
  */
-function Glitch404() {
+export function Glitch404() {
   const BLUE = 'var(--color-themeblue3)'
   const RED = 'var(--color-themered)'
   const INK = 'var(--color-primary)'
@@ -672,7 +672,7 @@ function Glitch404() {
   )
 }
 
-function Shell({ children }: { children: React.ReactNode }) {
+export function Shell({ children }: { children: React.ReactNode }) {
   return (
     <div
       className="fixed inset-0 z-30 bg-themewhite overflow-y-auto"

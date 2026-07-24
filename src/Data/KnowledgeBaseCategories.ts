@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react'
-import { Pill, BookOpen, Brain, ClipboardList, Calculator, Radio, Thermometer } from 'lucide-react'
+import { Pill, BookOpen, Brain, ClipboardList, Calculator, Radio, Thermometer, Bandage } from 'lucide-react'
 
 export type KBGroup = 'medications' | 'training' | 'screening' | 'calculators' | 'reports'
 
@@ -35,6 +35,13 @@ export const kbCategories: KBCategory[] = [
         label: '68W SL1 ICTL',
         description: 'Individual Critical Task List',
         icon: BookOpen,
+        group: 'training',
+    },
+    {
+        id: 'tccc',
+        label: 'TCCC',
+        description: 'Tactical Combat Casualty Care modules',
+        icon: Bandage,
         group: 'training',
     },
 

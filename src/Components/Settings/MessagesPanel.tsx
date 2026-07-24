@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback, memo, useImperativeHandle, forwardRef, useMemo } from 'react'
 import type { ReactNode } from 'react'
-import { Trash2, Headset, Play, MessageSquare, Info, ChevronLeft, ChevronRight, ChevronDown, Pin, Users, Check, Plus, Settings } from 'lucide-react'
+import { Trash2, Headset, Play, MessageSquare, Info, ChevronLeft, ChevronRight, ChevronDown, Pin, Users, Check, Plus, Settings, Send } from 'lucide-react'
 import { useSpring, animated } from '@react-spring/web'
 import { SearchInput } from '@/Components/primitives/SearchInput'
 import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill'
@@ -37,6 +37,10 @@ import type { DecryptedSignalMessage } from '../../lib/signal/transportTypes'
 import type { MessageContent } from '../../lib/signal/messageContent'
 import { displayGroupName, type GroupInfo, type GroupMember } from '../../lib/signal/groupTypes'
 import { useOffRosterAdd } from '../Messages/useOffRosterAdd'
+import { TextInput } from '@/Components/primitives/FormInputs'
+import { useBetaBypass } from '../../lib/betaFeatures'
+import { createOutboundOutsideEntity, sendOutsideEntityReply } from '../../lib/outsideEntityService'
+import { saveMessage } from '../../lib/signal/messageStore'
 import { SYSTEM_USER_ID } from '../../lib/signal/systemIdentity'
 import { isSystemMessage, isOutsideOriginCard } from '../../Hooks/useAdminSystemConversations'
 import { lastActivityMessage, activityPreview } from '../../Utilities/conversationActivity'
@@ -1053,6 +1057,15 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
   const [groupCreating, setGroupCreating] = useState(false)
   const [groupCreateError, setGroupCreateError] = useState<string | null>(null)
   const [showGroupInfo, setShowGroupInfo] = useState(false)
+  // Outbound outside-contact compose (dev-gated) — email a secure 1:1 invite.
+  const outboundBeta = useBetaBypass('outboundContact')
+  const outboundClinicId = useAuthStore(s => s.clinicId)
+  const [outEmail, setOutEmail] = useState('')
+  const [outLabel, setOutLabel] = useState('')
+  const [outMsg, setOutMsg] = useState('')
+  const [outBusy, setOutBusy] = useState(false)
+  const [outError, setOutError] = useState<string | null>(null)
+  const resetOutbound = useCallback(() => { setOutEmail(''); setOutLabel(''); setOutMsg(''); setOutError(null); setOutBusy(false) }, [])
   // Live nav of the new-message morph stack — handlers push/reset screens on it.
   const stackNavRef = useRef<StackNav | null>(null)
 
@@ -1189,6 +1202,52 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
     if (id) setShowNewMsg(false)
     else setGroupCreateError('Could not create the group. Please try again.')
   }, [messagesCtx, groupName, groupSelectedIds, groupCreating])
+
+  // Mint an outbound outside-contact channel + email the invite, then file the
+  // local medic card (the only home of the channel key) and open it. The card
+  // buckets under recipientId=entity_id; a peerProfile gives it a real title.
+  const handleCreateOutbound = useCallback(async () => {
+    const email = outEmail.trim()
+    if (!outboundClinicId || !currentUserId || !email.includes('@') || outBusy) return
+    setOutBusy(true)
+    setOutError(null)
+    const res = await createOutboundOutsideEntity({ clinicId: outboundClinicId, recipientEmail: email, fromLabel: outLabel.trim() || undefined })
+    if (!res.ok) { setOutBusy(false); setOutError(res.error); return }
+    let content = res.data.content
+    const first = outMsg.trim()
+    if (first) {
+      const sent = await sendOutsideEntityReply(content, first)
+      if (sent.ok) content = { ...content, replies: [sent.data] }
+    }
+    const now = new Date().toISOString()
+    const msg: DecryptedSignalMessage = {
+      id: crypto.randomUUID(),
+      senderId: currentUserId,
+      recipientId: content.entity_id,
+      plaintext: 'Outside contact',
+      content,
+      messageType: 'message',
+      createdAt: now,
+      readAt: null,
+      status: 'sent',
+      originId: crypto.randomUUID(),
+    }
+    const store = useMessagingStore.getState()
+    store.addMessage(msg)
+    void saveMessage(msg, currentUserId).catch(() => {})
+    // Title the synthetic peer so the list row + chat header show the label, not "Unknown".
+    const profile: ClinicMedic = {
+      id: content.entity_id,
+      firstName: content.from_label || 'Outside contact',
+      lastName: null, middleInitial: null, rank: null, credential: null, avatarId: null,
+    }
+    store.setPeerProfile(profile)
+    setOutBusy(false)
+    resetOutbound()
+    setShowNewMsg(false)
+    setNewMsgMode('contacts')
+    onSelectPeer(profile)
+  }, [outEmail, outLabel, outMsg, outBusy, outboundClinicId, currentUserId, resetOutbound, onSelectPeer])
 
   // Fade transition for the right content area when view changes.
   const prevViewRef = useRef(view)
@@ -1401,7 +1460,7 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
           screens (drill-down primitive) instead of a boolean/ternary machine. */}
       <OverlayStack
         isOpen={showNewMsg}
-        onClose={() => { setShowNewMsg(false); setNewMsgMode('contacts'); offRoster.reset() }}
+        onClose={() => { setShowNewMsg(false); setNewMsgMode('contacts'); offRoster.reset(); resetOutbound() }}
         anchorRect={null}
         initial={{ key: 'main' }}
         navRef={stackNavRef}
@@ -1426,6 +1485,9 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
                   />
                 )}
                 <ActionButton icon={Plus} label="Add" onClick={() => offRoster.openMethods(nav)} />
+                {outboundBeta && newMsgMode === 'contacts' && (
+                  <ActionButton icon={Send} label="Outside" onClick={() => { resetOutbound(); nav.push('outbound') }} />
+                )}
               </ActionPill>
             ),
             rightFooter: newMsgMode === 'group' ? (
@@ -1505,6 +1567,54 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
           // Off-roster add (Scan QR / Email / Code) — the shared useOffRosterAdd
           // drill screens, identical to the group Add-member flow.
           ...offRoster.screens,
+
+          // Outbound outside-contact compose (dev-gated) — email a secure 1:1 invite.
+          outbound: {
+            title: 'Outside contact',
+            onBack: (nav) => { resetOutbound(); nav.pop() },
+            rightFooter: (
+              <ActionPill>
+                <ActionButton
+                  icon={Send}
+                  label="Send invite"
+                  variant={(!outEmail.trim().includes('@') || outBusy) ? 'disabled' : 'success'}
+                  onClick={() => void handleCreateOutbound()}
+                />
+              </ActionPill>
+            ),
+            render: () => (
+              <div className="px-1 py-1 space-y-2">
+                <TextInput
+                  label="Recipient email"
+                  value={outEmail}
+                  onChange={(v) => { setOutEmail(v); if (outError) setOutError(null) }}
+                  placeholder="name@example.com"
+                  type="email"
+                  inputMode="email"
+                  hint={outBusy ? 'Sending invite…' : outError}
+                />
+                <TextInput
+                  label="From (shown to recipient)"
+                  value={outLabel}
+                  onChange={setOutLabel}
+                  placeholder="Medical section"
+                />
+                <div className="px-1">
+                  <textarea
+                    value={outMsg}
+                    onChange={(e) => setOutMsg(e.target.value)}
+                    placeholder="First message (optional)"
+                    rows={3}
+                    maxLength={2000}
+                    className="w-full px-3 py-2 rounded-xl bg-themewhite2 text-sm text-primary placeholder:text-tertiary outline-none focus:ring-1 focus:ring-themeblue2/40 resize-none transition-all"
+                  />
+                  <p className="px-1 pt-1.5 text-[9pt] text-themeyellow leading-relaxed">
+                    Operational details only — no patient names or medical details. Military (.mil) addresses are not supported.
+                  </p>
+                </div>
+              </div>
+            ),
+          },
         }}
       />
 

@@ -12,8 +12,8 @@ import type { MainSettingsPanelProps } from './MainSettingsPanel';
  * renders full-width rounded cards with icons, this condenses the same `settingsOptions`
  * into a text tree — no icons — fronted by a primitive SearchInput, matching the
  * AdminSummary / SupervisorTree rail conventions (uppercase section labels, `text-[10pt]`
- * rows, `bg-themeblue3/8 + border-l-themeblue3` active node). Section items indent under
- * their label; base-level items (profile, header-less rows) sit flush.
+ * rows, `bg-themeblue3/8 + border-l-themeblue3` active node). All rows sit flush at `pl-4` —
+ * uppercase section headers alone separate the groups, no indentation.
  *
  * Shares MainSettingsPanelProps so Settings.tsx feeds both surfaces one prop object.
  */
@@ -53,16 +53,14 @@ export function SettingsRail({
         return { topItems: top, sections: secs.filter((s) => s.items.length > 0) };
     }, [settingsOptions, q]);
 
-    const renderRow = (item: Extract<SettingsItem, { type: 'option' }>, indent: boolean) => {
+    const renderRow = (item: Extract<SettingsItem, { type: 'option' }>) => {
         const active = activeId != null && PANEL_TARGET[item.id] === activeId;
         return (
             <button
                 key={item.id}
                 disabled={item.disabled}
                 onClick={() => { if (item.disabled) return; item.action(); onItemClick(item.id); }}
-                className={`flex items-center gap-2 w-full py-2 pr-4 text-left transition-all active:scale-[0.98] ${
-                    indent ? 'pl-8' : 'pl-4'
-                } ${
+                className={`flex items-center gap-2 w-full py-2 pr-4 pl-4 text-left transition-all active:scale-[0.98] ${
                     item.disabled
                         ? 'opacity-50 cursor-not-allowed'
                         : active
@@ -128,7 +126,7 @@ export function SettingsRail({
                 )}
 
                 {/* Top items (before the first section header) — flush, no label above. */}
-                {topItems.map((item) => renderRow(item, false))}
+                {topItems.map((item) => renderRow(item))}
 
                 {/* Labelled sections — items indent under their label. */}
                 {sections.map((section) => (
@@ -136,7 +134,7 @@ export function SettingsRail({
                         <p className="px-4 pt-3 pb-1 text-[9pt] font-semibold uppercase tracking-wider text-tertiary">
                             {section.label}
                         </p>
-                        {section.items.map((item) => renderRow(item, true))}
+                        {section.items.map((item) => renderRow(item))}
                     </div>
                 ))}
 

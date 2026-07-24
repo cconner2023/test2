@@ -85,6 +85,7 @@ import {
 import type { MessageContent, ImageContent, VoiceContent, ReplyTo, OutsideSessionContent } from '../lib/signal/messageContent'
 import type { CallSignalBody } from '../lib/webrtc/callSignalBus'
 import { getOrCreateClinicSystemGroup } from '../lib/systemMessageService'
+import { revokeOutsideEntity } from '../lib/outsideEntityService'
 import {
   SYSTEM_USER_ID,
   ensureSystemIdentity,
@@ -2231,6 +2232,16 @@ export function useMessages(): UseMessagesReturn {
     if (!userId || !localDeviceId) return
 
     const msgs = useMessagingStore.getState().conversations[peerId] ?? []
+
+    // Outbound outside-entity cards: the card holds the ONLY copy of the channel
+    // key (content.medic_priv_jwk). The tombstone delete below destroys that local
+    // copy; revoke the server row too so the wrapped key + any queued messages are
+    // hard-deleted and the channel can't be reopened. Best-effort (Result-returning).
+    for (const id of messageIds) {
+      const c = msgs.find(m => m.id === id)?.content
+      if (c?.type === 'outside_entity') void revokeOutsideEntity(c.entity_id)
+    }
+
     const originIds = messageIds
       .map(id => msgs.find(m => m.id === id)?.originId)
       .filter((oid): oid is string => !!oid)

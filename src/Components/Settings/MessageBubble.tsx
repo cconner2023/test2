@@ -9,6 +9,7 @@ import { IntakeRequestCard } from '../Messages/IntakeRequestCard'
 import { OncallCallCard } from '../Messages/OncallCallCard'
 import { OutsideMessageCard } from '../Messages/OutsideMessageCard'
 import { OutsideSessionCard } from '../Messages/OutsideSessionCard'
+import { OutsideEntityCard } from '../Messages/OutsideEntityCard'
 import type { LucideIcon } from 'lucide-react'
 import { detectFirstDate } from '../../Utilities/dateDetect'
 import { detectEncodedNote } from '../../Utilities/noteDecode'
@@ -346,6 +347,17 @@ export function MessageBubble({
   }
   // Out-of-band session updates fold onto the card — never a standalone bubble.
   if (message.content?.type === 'outside_session_update') return null
+
+  // Outbound outside-entity 1:1 card: medic-emailed secure channel + thread + composer.
+  if (message.content?.type === 'outside_entity') {
+    return (
+      <OutsideEntityCard
+        content={message.content}
+        onLongPress={(x, y, rect, html) => onLongPress?.(message, x, y, rect, html)}
+        messageId={message.id}
+      />
+    )
+  }
 
   // System text notices (operator → user / clinic broadcasts) render as normal
   // chat bubbles — sender-name header (group) or conversation chrome name (1:1)

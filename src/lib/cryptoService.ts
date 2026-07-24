@@ -174,6 +174,17 @@ async function getClinicKey(clinicId: string): Promise<CryptoKey | null> {
 }
 
 /**
+ * Raw base64 of the clinic encryption key, for the few callers that need it as
+ * HKDF/HMAC keying material (the cached CryptoKey is imported NON-extractable, so
+ * it can't be re-exported). Network read — requires online. Used to derive the
+ * outbound outside-entity email-HMAC pepper (dedupe-only; see outsideEmailHmac).
+ * Do NOT use this to re-wrap or persist the key elsewhere.
+ */
+export async function getClinicRawKeyBase64(clinicId: string): Promise<string | null> {
+  return fetchClinicKeyFromServer(clinicId)
+}
+
+/**
  * Prefetch and cache the clinic key for offline readiness.
  * Call this during app initialization when the user's clinic is known.
  */

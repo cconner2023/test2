@@ -150,6 +150,28 @@ export async function disableOutsideMessaging(clinicId: string): Promise<Result<
   return { ok: true, data: true }
 }
 
+/** Enable OUTBOUND outside-contact — lets any clinic member email a secure 1:1
+ *  invite to an outside recipient (reverse of the inbound channels). Dev-gated
+ *  server-side (set_outbound_enabled asserts is_dev()). Flag-only. */
+export async function enableOutbound(clinicId: string): Promise<Result<true>> {
+  const res = await callRpc(
+    () => supabase.rpc('set_outbound_enabled', { p_clinic_id: clinicId, p_enabled: true }),
+    'set_outbound_enabled', logger,
+  )
+  if (!res.ok) return res
+  return { ok: true, data: true }
+}
+
+/** Disable outbound outside-contact. Existing channels keep running until they expire. */
+export async function disableOutbound(clinicId: string): Promise<Result<true>> {
+  const res = await callRpc(
+    () => supabase.rpc('set_outbound_enabled', { p_clinic_id: clinicId, p_enabled: false }),
+    'set_outbound_enabled', logger,
+  )
+  if (!res.ok) return res
+  return { ok: true, data: true }
+}
+
 /** Enable the outside event-request (scheduling intake) channel (GATE 2). Flag-only.
  *  Separate from the credential's existence so a cluster can keep calls/messages live
  *  while closing event intake. */

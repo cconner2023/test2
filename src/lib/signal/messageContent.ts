@@ -413,6 +413,52 @@ export interface OutsideSessionUpdate {
   reply?: OutsideSessionReplyEntry
 }
 
+/** One message in an outbound outside-entity thread, as shown on the medic card. */
+export interface OutsideEntityMessageEntry {
+  /** Server row id (or a local optimistic id for a just-sent message). */
+  id: string
+  /** 'to_outside' = medic→outside (mine), 'to_medic' = outside→medic (theirs). */
+  dir: 'to_outside' | 'to_medic'
+  /** Decrypted body (operational vocabulary only — no PHI). */
+  text: string
+  /** ISO timestamp ('' for a local optimistic send until reconciled). */
+  created_at: string
+}
+
+/**
+ * OUTBOUND outside-entity 1:1 card (medic side). Unlike outside_session (inbound,
+ * system-authored, fan-to-all), this is MEDIC-INITIATED and LOCAL: the medic mints
+ * the channel, emails the invite, and this card is created directly via addMessage
+ * (no server signal row). It is the ONLY home of the channel's medic private key —
+ * `medic_priv_jwk` exists nowhere else, so tombstoning this card destroys the
+ * channel (belt-and-suspenders with the server's 24h expiry / revoke). RECEIVE-
+ * ONLY on the wire: serializeContent throws (it is never sent through the ratchet;
+ * it rides at-rest + encrypted backup as a local card). All fields JSON-serializable.
+ */
+export interface OutsideEntityContent {
+  type: 'outside_entity'
+  /** outside_entities.id — the channel handle for send/poll/revoke RPCs. */
+  entity_id: string
+  /** Medic-chosen sender label the recipient sees (operational). */
+  from_label: string
+  /** Recipient email (plaintext). Lives ONLY here in the medic's E2E card (+ transiently
+   *  in the invite edge fn) — never on the wire, never server-readable. Display only. */
+  recipient_email: string
+  /** Medic per-channel ECDH P-256 public key (base64 SPKI) — a dual-seal target. */
+  medic_pub: string
+  /** Medic per-channel PRIVATE key (JWK). THE ONLY COPY of the channel key — used to
+   *  open outside→medic replies. Card deletion destroys it. */
+  medic_priv_jwk: JsonWebKey
+  /** Outside party's ECDH P-256 public key (base64 SPKI) — the medic→outside seal target. */
+  outside_pub: string
+  /** ISO — channel mint time. */
+  created_at: string
+  /** ISO — server 24h hard expiry; the card flips to a read-only expired state past it. */
+  expires_at: string
+  /** Full thread, both directions — folded from optimistic sends + inbound poll. */
+  replies: OutsideEntityMessageEntry[]
+}
+
 /**
  * Emoji reaction targeting another message. Carries ONLY the target's id, an
  * opaque emoji code, and a remove flag — never any free text, never PHI. It is
@@ -433,7 +479,7 @@ export interface ReactionContent {
   remove?: boolean
 }
 
-export type MessageContent = TextContent | ImageContent | VoiceContent | CalendarEventContent | MapOverlayContent | MapFeatureContent | PropertyEventContent | ReadinessSummaryContent | SharedRefContent | SharedBundleContent | IntakeRequestContent | OncallCallContent | OutsideMessageContent | OutsideSessionContent | OutsideSessionUpdate | ReactionContent
+export type MessageContent = TextContent | ImageContent | VoiceContent | CalendarEventContent | MapOverlayContent | MapFeatureContent | PropertyEventContent | ReadinessSummaryContent | SharedRefContent | SharedBundleContent | IntakeRequestContent | OncallCallContent | OutsideMessageContent | OutsideSessionContent | OutsideSessionUpdate | OutsideEntityContent | ReactionContent
 
 // ---- Compact wire shapes ----
 
@@ -755,6 +801,15 @@ export function serializeContent(content: MessageContent): string {
     // '-reply-sent'), never authored or sent by a client. No wire shape;
     // serializing would be a bug (a client trying to send a system-only card).
     throw new Error('OutsideSession content is receive-only (system-authored); never serialize')
+  }
+
+  if (content.type === 'outside_entity') {
+    // LOCAL-ONLY: the medic-initiated outbound card is created directly via
+    // addMessage and lives at-rest + in encrypted backup; it is NEVER sent through
+    // the ratchet (the E2E transport for this channel is the outsideSeal dual-seal
+    // posted via send_outside_entity_message, not a signal envelope). Serializing
+    // it would be a bug — and would leak medic_priv_jwk onto the wire.
+    throw new Error('OutsideEntity content is local-only; never serialize')
   }
 
   if (content.type === 'oncall_call') {

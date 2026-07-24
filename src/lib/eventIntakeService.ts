@@ -114,6 +114,9 @@ export interface IntakeCredentialMetadata {
   /** GATE-2 "allow event requests" toggle — the scheduling-intake channel. Defaults
    *  true (a credential that predates the column has intake on). */
   intake_enabled?: boolean
+  /** OUTBOUND outside-contact toggle — lets members email a secure 1:1 invite.
+   *  Dev-gated feature; defaults false. */
+  outbound_enabled?: boolean
   /** Duration (s) of the cluster voicemail greeting, or null if none is set. Presence
    *  flag for the settings row — the audio blob is fetched separately via getOncallGreeting. */
   oncall_greeting_dur?: number | null
