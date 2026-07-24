@@ -36,7 +36,8 @@ import { getAssociatedClinicCode } from '../../lib/clinicAssociationService'
 // it lives in adminService for now but is safe for any signed-in caller.
 import { listLocations, type AdminLocation } from '../../lib/adminService'
 import { invalidate } from '../../stores/useInvalidationStore'
-import { SubClusterManager } from '../SubClusterManager'
+import { ClusterRosterSection, type ExtraRosterGroup } from '../ClusterRosterSection'
+import type { SubCluster } from '../../lib/subClusterService'
 import { SubordinateClustersManager } from './Supervisor/SubordinateClustersManager'
 import { useSubClusters } from '../../Hooks/useSubClusters'
 import { createSubCluster, renameSubCluster, deleteSubCluster } from '../../lib/subClusterService'
@@ -56,6 +57,12 @@ import { ClinicIdentityEditPopover } from '../ClinicAdmin/ClinicIdentityEditPopo
 import { MemberEditPopover } from '../ClinicAdmin/MemberEditPopover'
 import { AddMemberPopover } from '../ClinicAdmin/AddMemberPopover'
 import { SwipeToDeleteRow } from '@/Components/primitives/SwipeToDeleteRow'
+
+/** Roster bucket that isn't a sub-unit — tenure, not structure. */
+const LOANED_IN_GROUP = '__loaned_in__'
+/** Stable empty identities so the roster props don't churn per render. */
+const NO_SUB_UNITS: SubCluster[] = []
+const memberSubUnitId = (m: { subClusterId?: string | null }) => m.subClusterId
 
 
 interface ClinicPanelProps {
@@ -323,6 +330,35 @@ export function ClinicPanel({
       </SwipeToDeleteRow>
     )
   }
+
+  // ─── Roster wiring (ClusterRosterSection) ─────────────────────────────
+  // Sub-unit create/rename/delete RPCs target the caller's PRIMARY clinic, so
+  // they're unavailable while operating as a surrogate (loaned) cluster — and
+  // the sub-units we hold would belong to the wrong clinic, so we drop the
+  // grouping entirely rather than mis-bucket the roster.
+  const canManageSubUnits = !!clinicId && isSupervisorRole && !isSurrogateContext
+
+  const loanedInGroup = useMemo<ExtraRosterGroup<(typeof members)[number]>[]>(
+    () => [{ id: LOANED_IN_GROUP, name: 'Loaned in', items: loanedInMembers }],
+    [loanedInMembers],
+  )
+
+  /** Roster row. The Loaned-in bucket owns its own header, so those rows carry
+   *  no redundant "Loaned in" chip — only a loaned-OUT assigned member needs a
+   *  chip, since they sit in a sub-unit group that doesn't say where they are. */
+  const renderRosterRow = useCallback((member: (typeof members)[number], groupId: string) => (
+    groupId === LOANED_IN_GROUP
+      ? renderMemberRow(member, [member.credential, member.clinicName].filter(Boolean).join(' · '), null)
+      : renderMemberRow(
+          member,
+          member.credential || '',
+          member.surrogateClinicId ? (
+            <span className="shrink-0 text-[9pt] px-1.5 py-0.5 rounded-full bg-themeyellow/15 text-themeyellow font-medium border border-themeyellow/30">
+              Loaned out
+            </span>
+          ) : null,
+        )
+  ), [renderMemberRow])
 
   // Associated clinic popover
   const assocFabRef = useRef<HTMLDivElement>(null)
@@ -648,6 +684,14 @@ export function ClinicPanel({
     onAddingMemberChange(true)
   }, [onAddingMemberChange])
 
+  /** Second entry in the roster's ellipsis menu, alongside "New sub-unit".
+   *  Declared here (not with the rest of the roster wiring) because it closes
+   *  over openAddMemberPopover, which anchors to the pill via addMemberFabRef. */
+  const rosterAddActions = useMemo<ContextMenuItem[]>(
+    () => [{ key: 'add-member', label: 'Add member', icon: Plus, onAction: openAddMemberPopover }],
+    [openAddMemberPopover],
+  )
+
   const closeAddMemberPopover = useCallback(() => {
     setAddMemberAnchor(null)
     onAddingMemberChange(false)
@@ -750,8 +794,6 @@ export function ClinicPanel({
   const showColocatedBanner =
     colocated.length > 0 && !!clinicLocationId && colocatedDismissedLoc !== clinicLocationId
 
-  const memberCount = members.length
-
   return (
     <div className="flex flex-col h-full">
       <div className="flex-1 overflow-y-auto px-5 pb-4 space-y-6 pt-[calc(var(--drawer-header-h,3.5rem)+0.75rem)]">
@@ -781,11 +823,12 @@ export function ClinicPanel({
                       <span className="text-tertiary italic">No facility</span>
                     )}
                   </p>
-                  <p className="text-[10pt] text-tertiary mt-0.5">
-                    {isSupervisorRole
-                      ? `${memberCount} personnel`
-                      : (profile.uic || 'No UIC')}
-                  </p>
+                  {/* No headcount here — the Roster below IS the answer, and
+                      count indicators are out per USR. Supervisors get the
+                      cluster's UIC/location line just beneath instead. */}
+                  {!isSupervisorRole && (
+                    <p className="text-[10pt] text-tertiary mt-0.5">{profile.uic || 'No UIC'}</p>
+                  )}
                   {(clinicUics.length > 0 || selectedLocation || clinicLocation) && (
                     <p className="text-[10pt] text-tertiary mt-0.5 truncate">
                       {[clinicUics.join(', '), selectedLocation ? selectedLocation.display_name : clinicLocation].filter(Boolean).join(' · ')}
@@ -951,85 +994,45 @@ export function ClinicPanel({
           </div>
         </section>
 
-        {/* ── Sub-units (platoon/squad) — own clinic, supervisor/dev ─────── */}
-        {isSupervisorRole && clinicId && !isSurrogateContext && (
-          <section>
-            <div className="pb-2 flex items-center gap-2">
-              <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Sub-units</p>
-            </div>
-            <SubClusterManager
-              subClusters={subClusters}
-              onCreate={async (name) => {
-                const r = await createSubCluster(name)
-                if (r.success) invalidate('subClusters')
-                return r.success
-              }}
-              onRename={async (id, name) => {
-                const r = await renameSubCluster(id, name)
-                if (r.success) invalidate('subClusters')
-                return r.success
-              }}
-              onDelete={async (id) => {
-                const r = await deleteSubCluster(id)
-                if (r.success) invalidate('subClusters', 'users')
-                return r.success
-              }}
-            />
-          </section>
-        )}
-
-        {/* ── Users (supervisor-gated) ───────────────────────────── */}
+        {/* ── Roster (supervisor-gated) ────────────────────────────────────
+             ONE section: sub-unit groups (whose ⋯ renames/deletes the sub-unit
+             itself) plus a Loaned-in bucket. Replaces the old separate
+             "Sub-units" manager card + flat "Users" list — the roster showed
+             the groups while the thing that manages them lived elsewhere.
+             In a surrogate (loaned) context the sub-unit RPCs target the
+             caller's OWN primary clinic, so we pass no sub-units and no
+             mutators: the roster degrades to a flat, unmanaged list. */}
         {isSupervisorRole && clinicId && (
-          <section>
-            <div className="pb-2 flex items-center gap-2">
-              <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Users</p>
-            </div>
-
-            <div className="relative"><div className="relative rounded-xl bg-themewhite2 overflow-hidden">
-              <div className="px-4 py-3">
-                {members.length > 0 ? (
-                  <div className="space-y-3">
-                    {assignedMembers.length > 0 && (
-                      <div className="space-y-1">
-                        {assignedMembers.map((member) => renderMemberRow(
-                          member,
-                          member.credential || '',
-                          member.surrogateClinicId ? (
-                            <span className="shrink-0 text-[9pt] px-1.5 py-0.5 rounded-full bg-themeyellow/15 text-themeyellow font-medium border border-themeyellow/30">
-                              Loaned out
-                            </span>
-                          ) : null,
-                        ))}
-                      </div>
-                    )}
-                    {loanedInMembers.length > 0 && (
-                      <div>
-                        <p className="text-[9pt] font-semibold text-tertiary uppercase tracking-wider px-2 mb-1">
-                          Loaned In ({loanedInMembers.length})
-                        </p>
-                        <div className="space-y-1">
-                          {loanedInMembers.map((member) => renderMemberRow(
-                            member,
-                            [member.credential, member.clinicName].filter(Boolean).join(' · '),
-                            <span className="shrink-0 text-[9pt] px-1.5 py-0.5 rounded-full bg-themeblue2/10 text-themeblue2 font-medium border border-themeblue2/30">
-                              Loaned in
-                            </span>,
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <p className="text-[10pt] text-tertiary py-4 text-center">No members assigned</p>
-                )}
-              </div>
-              <LoadingOverlay visible={medicsLoading} size={120} className="rounded-xl" />
-              </div>
-              <ActionPill ref={addMemberFabRef} shadow="sm" placement="overlay">
-                <ActionButton icon={Plus} label="Add member" onClick={openAddMemberPopover} />
-              </ActionPill>
-            </div>
-          </section>
+          <ClusterRosterSection
+            title="Roster"
+            subUnits={canManageSubUnits ? subClusters : NO_SUB_UNITS}
+            members={assignedMembers}
+            subUnitIdOf={memberSubUnitId}
+            extraGroups={loanedInGroup}
+            renderItem={renderRosterRow}
+            itemsClassName="px-2 py-2 space-y-1"
+            cardClassName="rounded-xl bg-themewhite2 overflow-hidden"
+            emptyText="No members assigned"
+            addActions={rosterAddActions}
+            addAnchorRef={addMemberFabRef}
+            onCreateSubUnit={canManageSubUnits ? async (name) => {
+              const r = await createSubCluster(name)
+              if (r.success) invalidate('subClusters')
+              return r.success
+            } : undefined}
+            onRenameSubUnit={canManageSubUnits ? async (id, name) => {
+              const r = await renameSubCluster(id, name)
+              if (r.success) invalidate('subClusters')
+              return r.success
+            } : undefined}
+            onDeleteSubUnit={canManageSubUnits ? async (id) => {
+              const r = await deleteSubCluster(id)
+              if (r.success) invalidate('subClusters', 'users')
+              return r.success
+            } : undefined}
+          >
+            <LoadingOverlay visible={medicsLoading} size={120} className="rounded-xl" />
+          </ClusterRosterSection>
         )}
 
         {/* ── Subordinate Clusters (echelon children) — roster mgmt. Renders for the

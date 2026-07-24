@@ -21,6 +21,11 @@ interface AdminSortRailProps {
   searchQuery?: string
   /** Highlights the currently-open system thread. */
   activeSystemPeerId?: string | null
+  /** Own the scroll (default). Set false when the host is a fit-height surface
+   *  (the mobile inbox Sheet) that must HUG this content — an internal
+   *  flex-1/overflow scroller inside an auto-height parent has no height to
+   *  resolve against and the rail's own scroll would fight the Sheet's. */
+  scroll?: boolean
 }
 
 // Stable kind filters — module constants so they don't re-trigger the lists'
@@ -43,6 +48,7 @@ export function AdminSortRail({
   onOpenSuggestion,
   searchQuery,
   activeSystemPeerId,
+  scroll = true,
 }: AdminSortRailProps) {
   const gen = useInvalidation('users', 'clinics')
   const [userCount, setUserCount] = useState(0)
@@ -57,8 +63,8 @@ export function AdminSortRail({
   useEffect(() => { loadCounts() }, [loadCounts, gen])
 
   return (
-    <div className="flex flex-col h-full min-h-0">
-      <div className="flex-1 min-h-0 overflow-y-auto pb-6">
+    <div className={scroll ? 'flex flex-col h-full min-h-0' : 'flex flex-col'}>
+      <div className={scroll ? 'flex-1 min-h-0 overflow-y-auto pb-6' : 'pb-6'}>
         {/* Locations — opens the locations management sheet. */}
         <button
           onClick={onOpenSettings}

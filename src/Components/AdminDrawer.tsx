@@ -1087,13 +1087,19 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
     // is bare content. Selecting a triage/settings row keeps the sheet up and
     // morphs to that detail (no setShowNavSheet(false), so back returns here); a
     // system peer opens the full-panel chat, so it closes the inbox first.
+    // NOTE: no fixed height here. This body must HUG — the Sheet's own fit cap
+    // (maxHeight) bounds it and the Sheet's content region owns the scroll. A
+    // hardcoded dvh here made the "fit" sheet a fixed slab AND reintroduced the
+    // iOS-keyboard collapse that Sheet's svh caps exist to prevent (the search
+    // input below opens the keyboard). Search stays put via sticky, not flex.
     const inboxBody = (
-        <div className="flex flex-col" style={{ height: '78dvh' }}>
-            <div className="px-3 pt-2 pb-2 shrink-0">
+        <div className="flex flex-col">
+            <div className="sticky top-0 z-10 px-3 pt-2 pb-2 bg-themewhite3">
                 <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Search..." />
             </div>
-            <div className="flex-1 min-h-0">
+            <div>
                 <AdminSortRail
+                    scroll={false}
                     onOpenSettings={handleOpenSettings}
                     onSelectSystemPeer={(peerId) => { setShowNavSheet(false); handleSelectSystemPeer(peerId) }}
                     onOpenRequest={handleOpenRequest}
@@ -1327,7 +1333,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                 isOpen={mobileSheetOpen}
                 onClose={sheetOnClose}
                 height="fit"
-                maxHeight={88}
+                maxHeight={70}
                 backdrop="dismiss"
                 backdropOpacity={0.6}
                 title={sheetShowsInbox ? 'Inbox' : detailTitle}

@@ -1,11 +1,17 @@
-import { useMemo } from 'react'
+import { useMemo, type ReactNode } from 'react'
 import { Check, ChevronRight, Lock } from 'lucide-react'
 import { EmptyState } from '@/Components/primitives/EmptyState'
 import { SectionHeader, SectionCard } from '@/Components/primitives/Section'
 import { ListItemRow } from '@/Components/primitives/ListItemRow'
 import { StepCallout, PerformanceStepItem } from '../TrainingStepComponents'
 import { ictl68wSL1, ICTL_APPROVED_DATE } from '../../Data/ICTL'
-import { getIctlTaskData, getIctlSkillSheet, type IctlTaskData } from '../../Data/ICTLContent'
+import {
+    getIctlTaskData,
+    resolveSkillSheetRef,
+    type IctlTaskData,
+    type IctlSkillSheet,
+    type IctlSkillSheetSection,
+} from '../../Data/ICTLContent'
 
 export type IctlView = 'ictl' | 'ictl-detail'
 
@@ -122,6 +128,100 @@ function IctlList({
     )
 }
 
+// ─── Skill-sheet expansion ───────────────────────────────────────────────────
+
+/**
+ * Label for a run of sheet content. Always open — a medic walking the task needs the steps
+ * and complications in front of them, not behind a tap.
+ */
+function SubBlock({ label, children }: { label: string; children: ReactNode }) {
+    return (
+        <div>
+            <p className="text-[9pt] font-semibold text-tertiary uppercase tracking-wider mb-0.5">{label}</p>
+            {children}
+        </div>
+    )
+}
+
+/** A section-scoped ref (`<sheet>#<section>`) — the branch's steps, under its substep. */
+function SkillSheetSectionBlock({ section }: { section: IctlSkillSheetSection }) {
+    return (
+        <div className="ml-6 mt-1.5 mb-2">
+            <SubBlock label={section.title}>
+                {section.steps.map(step => (
+                    <PerformanceStepItem key={step.number} step={step} />
+                ))}
+            </SubBlock>
+        </div>
+    )
+}
+
+/**
+ * A bare ref (whole sheet) — the general-principles branch plus the module's teaching content,
+ * fronted by a single fidelity disclaimer. The sheet's name and source document are NOT
+ * repeated here: the parent step's own text names the sheet, and the source has a row in
+ * Supporting References.
+ */
+function SkillSheetOverview({ sheet }: { sheet: IctlSkillSheet }) {
+    const d = sheet.didactic
+    // The general-principles branch applies to every wound the sheet covers, so it belongs on
+    // the parent step rather than under any one wound-pattern substep.
+    const general = sheet.sections.find(s => s.key === 'general')
+    return (
+        <div className="mt-1.5 mb-2 space-y-1.5">
+            {/* ONE fidelity disclaimer for the whole sheet. The source document itself is not
+                repeated here — it already has a row in Supporting References below. */}
+            {sheet.derived && (
+                <StepCallout
+                    type="note"
+                    text="Step detail is derived from the TCCC didactic module, not a JTS assessment checklist. See Supporting References."
+                />
+            )}
+
+            {general && general.steps.length > 0 && (
+                <SubBlock label={general.title}>
+                    {general.steps.map(step => (
+                        <PerformanceStepItem key={step.number} step={step} />
+                    ))}
+                </SubBlock>
+            )}
+
+            {d?.complications && d.complications.length > 0 && (
+                <SubBlock label="Complications">
+                    <ul className="space-y-1">
+                        {d.complications.map((c, i) => (
+                            <li key={i} className="text-[10pt] text-primary pl-3 border-l-2 border-orange-500">{c}</li>
+                        ))}
+                    </ul>
+                </SubBlock>
+            )}
+
+            {d?.keyPoints && d.keyPoints.length > 0 && (
+                <SubBlock label="Key Points">
+                    <ul className="space-y-1">
+                        {d.keyPoints.map((k, i) => (
+                            <li key={i} className="text-[10pt] text-primary pl-3 border-l-2 border-themeblue2">{k}</li>
+                        ))}
+                    </ul>
+                </SubBlock>
+            )}
+
+            {d?.checkOnLearning && d.checkOnLearning.length > 0 && (
+                <SubBlock label="Check on Learning">
+                    <div className="space-y-2">
+                        {d.checkOnLearning.map((qa, i) => (
+                            <div key={i}>
+                                <p className="text-[10pt] font-medium text-primary">{qa.q}</p>
+                                <p className="text-[10pt] text-secondary mt-0.5">{qa.a}</p>
+                            </div>
+                        ))}
+                    </div>
+                </SubBlock>
+            )}
+        </div>
+    )
+}
+
 // ─── Read-only task detail (the approved ICTL packet) ────────────────────────
 
 function IctlTaskDetail({ taskData }: { taskData: IctlTaskData }) {
@@ -160,19 +260,13 @@ function IctlTaskDetail({ taskData }: { taskData: IctlTaskData }) {
                 </div>
             )}
 
-            {/* Graded performance measures */}
+            {/* Graded performance measures — same numbered-row grammar as the steps below,
+                so the measure and the step that satisfies it read as one sequence. */}
             <div className="mb-5">
                 <SectionHeader>Performance Measures</SectionHeader>
-                <SectionCard>
-                    {taskData.performanceMeasures.map((m, idx) => (
-                        <div
-                            key={m.number}
-                            className={`px-4 py-3 ${idx > 0 ? 'border-t border-tertiary/8' : ''}`}
-                        >
-                            <p className="text-sm text-primary">{m.text}</p>
-                        </div>
-                    ))}
-                </SectionCard>
+                {taskData.performanceMeasures.map(m => (
+                    <PerformanceStepItem key={m.number} step={m} />
+                ))}
             </div>
 
             {/* Performance steps (narrative; some defer to a JTS skill sheet) */}
@@ -180,15 +274,22 @@ function IctlTaskDetail({ taskData }: { taskData: IctlTaskData }) {
                 <SectionHeader>Performance Steps</SectionHeader>
                 <div className="divide-y divide-tertiary/8">
                     {taskData.performanceSteps.map((step, i) => {
-                        const sheet = step.skillSheetRef ? getIctlSkillSheet(step.skillSheetRef) : undefined
+                        const resolved = step.skillSheetRef ? resolveSkillSheetRef(step.skillSheetRef) : undefined
                         return (
                             <div key={i}>
                                 <PerformanceStepItem step={step} />
-                                {sheet && sheet.pending && !step.isSubStep && (
+                                {resolved?.sheet.pending && !step.isSubStep && (
                                     <StepCallout
                                         type="note"
-                                        text={`Detailed steps come from the ${sheet.name}${sheet.module ? ` (${sheet.module})` : ''} — coming soon.`}
+                                        text={`Detailed steps come from the ${resolved.sheet.name}${resolved.sheet.module ? ` (${resolved.sheet.module})` : ''} — coming soon.`}
                                     />
+                                )}
+                                {/* A section-scoped ref shows that branch's steps; a bare ref (the
+                                    parent step) shows sheet identity + module teaching content. */}
+                                {resolved && !resolved.sheet.pending && (
+                                    resolved.section
+                                        ? <SkillSheetSectionBlock section={resolved.section} />
+                                        : <SkillSheetOverview sheet={resolved.sheet} />
                                 )}
                             </div>
                         )

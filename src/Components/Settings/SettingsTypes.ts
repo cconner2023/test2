@@ -32,9 +32,6 @@ export const PANEL = {
     FEATURE_VOTES: 38,
     /** About → User Guide. Opens the top-level UserGuideDrawer, not a Settings sub-panel. */
     USER_GUIDE: 40,
-    /** Member self-service "Leave Cluster" row. Action-overridden (opens a confirm),
-     *  never routes to a panel — no PANEL_TARGET entry. */
-    LEAVE_CLUSTER: 41,
 } as const;
 
 export type PanelId = (typeof PANEL)[keyof typeof PANEL];

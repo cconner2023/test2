@@ -7,13 +7,13 @@
  */
 
 import { useEffect, useCallback, useMemo, useState, useRef } from 'react'
-import { X, Plus, RefreshCw, Check, Trash2, ChevronRight, Building2, Key, MessageSquare } from 'lucide-react'
+import { X, Plus, RefreshCw, Check, Trash2, ChevronRight, Building2, Key, MessageSquare, ArrowUp, ArrowDown, Link2, UserPlus } from 'lucide-react'
 import { UserRow } from '../UserRow'
+import { formatLastActive } from './adminUtils'
 import { ActionButton } from '@/Components/primitives/ActionButton'
 import { listClinics, listAllUsers, listLocations, updateClinic, createClinic, rescueClinicAssociationsByLocation, listClinicLoans, clinicHasVault, rescueClinicVault, setUserClinic, getAllAccountRequests } from '../../lib/adminService'
 import type { AdminUser, AdminClinic, AdminLocation } from '../../lib/adminService'
 import type { AccountRequest } from '../../lib/accountRequestService'
-import { formatLastActive } from './adminUtils'
 import { TextInput } from '@/Components/primitives/FormInputs'
 import { UicPinInput } from '@/Components/DomainInputs'
 import { ErrorDisplay } from '@/Components/primitives/ErrorDisplay'
@@ -30,8 +30,7 @@ import { useMessagesContext } from '../../Hooks/MessagesContext'
 import { SystemMessageComposePopover } from './SystemMessageComposePopover'
 import { drainSystemInbox } from '../../lib/signal/systemIdentity'
 import { createLogger } from '../../Utilities/Logger'
-import { SubClusterManager } from '../SubClusterManager'
-import { HQ_BUCKET } from '../../Utilities/subCluster'
+import { ClusterRosterSection, type ExtraRosterGroup } from '../ClusterRosterSection'
 import {
   fetchClinicSubClusters,
   adminCreateSubCluster,
@@ -41,6 +40,12 @@ import {
 } from '../../lib/subClusterService'
 
 const systemInboxLogger = createLogger('AdminClinicSystemInbox')
+
+/** Roster buckets that aren't sub-units — tenure, not structure. */
+const LOANED_IN = '__loaned_in__'
+const LOANED_OUT = '__loaned_out__'
+/** Module-scope so it's referentially stable as a ClusterRosterSection prop. */
+const subUnitIdOf = (u: AdminUser) => u.sub_cluster_id
 
 /** Prefill for the create flow when launched from another cluster's
  *  relationship picker. The new cluster is seeded with the right linkage so
@@ -119,19 +124,20 @@ const AdminClinicDetail = ({
   }, [clinicIdForSubUnits])
   useEffect(() => { void loadSubUnits() }, [loadSubUnits])
 
-  // Relationship sections — row tap opens a no-clone AnchoredMenu anchored to
-  // the row rect; section FAB opens a PreviewOverlay picker (needs search).
+  // Related clusters — ONE section for the whole cluster graph (parent, child,
+  // peer). Row tap opens a no-clone AnchoredMenu anchored to the row rect; the
+  // section "+" opens a kind menu, which opens a PreviewOverlay picker (search).
+  type RelKind = 'parent' | 'child' | 'peer'
   type RelAction =
-    | { kind: 'parent-row' | 'child-row' | 'assoc-row'; rect: DOMRect; target: AdminClinic }
+    | { kind: 'row'; rect: DOMRect; target: AdminClinic; rel: RelKind }
+    | { kind: 'add-menu'; rect: DOMRect }
     | { kind: 'add-parent' | 'add-child' | 'add-assoc'; rect: DOMRect }
   const [relAction, setRelAction] = useState<RelAction | null>(null)
   const [relBusy, setRelBusy] = useState(false)
   // Suggested-user assignment (UIC match) — id of the row currently being
   // pulled in as a home-cluster swap, for per-row busy state.
   const [assigningUserId, setAssigningUserId] = useState<string | null>(null)
-  const parentFabRef = useRef<HTMLDivElement>(null)
-  const childFabRef = useRef<HTMLDivElement>(null)
-  const assocFabRef = useRef<HTMLDivElement>(null)
+  const relAddRef = useRef<HTMLDivElement>(null)
 
   // Edit state
   const [editName, setEditName] = useState('')
@@ -427,7 +433,7 @@ const AdminClinicDetail = ({
     setRelBusy(false)
     setRelAction(null)
     if (r.success) refreshRel()
-    else setError(r.error || 'Failed to add sub-cluster')
+    else setError(r.error || 'Failed to add child cluster')
   }, [clinic, refreshRel])
 
   const handleRemoveChild = useCallback(async (childId: string) => {
@@ -454,32 +460,6 @@ const AdminClinicDetail = ({
     () => isCreateMode ? [] : users.filter((u) => u.clinic_id === clinic?.id),
     [users, clinic?.id, isCreateMode],
   )
-
-  /**
-   * Assigned roster bucketed by sub-unit (platoon/squad) — render-only grouping,
-   * NOT an access boundary. `null` when this clinic has no sub-units (caller
-   * renders the flat list). Otherwise: named sub-units in their fetch order
-   * (only those with members), then an HQ / Unassigned bucket last for members
-   * with no — or a now-deleted — sub_cluster_id. See Utilities/subCluster.ts.
-   */
-  const groupedAssigned = useMemo(() => {
-    if (subUnits.length === 0) return null
-    const byKey = new Map<string, AdminUser[]>()
-    const known = new Set(subUnits.map((s) => s.id))
-    for (const u of assignedUsers) {
-      const key = u.sub_cluster_id && known.has(u.sub_cluster_id) ? u.sub_cluster_id : HQ_BUCKET
-      const arr = byKey.get(key)
-      if (arr) arr.push(u)
-      else byKey.set(key, [u])
-    }
-    // Every named sub-unit gets a section (even empty) so the division is always
-    // visible; HQ / Unassigned only appears when it actually holds members.
-    const groups: { id: string; name: string; members: AdminUser[] }[] =
-      subUnits.map((s) => ({ id: s.id, name: s.name, members: byKey.get(s.id) ?? [] }))
-    const hq = byKey.get(HQ_BUCKET)
-    if (hq?.length) groups.push({ id: HQ_BUCKET, name: 'HQ / Unassigned', members: hq })
-    return groups
-  }, [subUnits, assignedUsers])
 
   /** Single parent resolved from parent_clinic_id (null = root). */
   const parentClinic = useMemo(() => {
@@ -535,22 +515,71 @@ const AdminClinicDetail = ({
     return assignedUsers.filter(u => (loanedOutMap.get(u.id)?.length ?? 0) > 0)
   }, [assignedUsers, loanedOutMap, isCreateMode])
 
-  const renderUserRow = (user: AdminUser) => (
-    <UserRow
-      key={user.id}
-      avatarId={user.avatar_id}
-      avatarBlob={user.avatar_blob}
-      userId={user.id}
-      firstName={user.first_name}
-      lastName={user.last_name}
-      middleInitial={user.middle_initial}
-      rank={user.rank}
-      lastActiveAt={user.last_active_at}
-      subtitle={user.credential || user.email || ''}
-      right={<span className="text-[9pt] text-tertiary/50 shrink-0">{formatLastActive(user.last_active_at)}</span>}
-      onClick={() => onSelectUser?.(user)}
-    />
-  )
+  /** Loan buckets, appended after the sub-unit groups. Empty ones are dropped
+   *  by ClusterRosterSection; both seed collapsed. */
+  const loanGroups = useMemo<ExtraRosterGroup<AdminUser>[]>(() => [
+    { id: LOANED_IN, name: 'Loaned in', items: loanedInUsers },
+    { id: LOANED_OUT, name: 'Loaned out', items: loanedOutUsers },
+  ], [loanedInUsers, loanedOutUsers])
+
+  /** Roster row. Loaned-out members carry chips for their target clusters. */
+  const renderRosterRow = useCallback((user: AdminUser, groupId: string) => {
+    const targets = groupId !== LOANED_OUT ? [] : (loanedOutMap.get(user.id) ?? [])
+      .map(id => clinics.find(c => c.id === id))
+      .filter((c): c is AdminClinic => !!c)
+    return (
+      <UserRow
+        key={user.id}
+        avatarId={user.avatar_id}
+        avatarBlob={user.avatar_blob}
+        userId={user.id}
+        firstName={user.first_name}
+        lastName={user.last_name}
+        middleInitial={user.middle_initial}
+        rank={user.rank}
+        lastActiveAt={user.last_active_at}
+        subtitle={user.credential || user.email || ''}
+        meta={targets.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1">
+            {targets.map(t => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onSelectClinic?.(t) }}
+                disabled={!onSelectClinic}
+                className="inline-flex items-center px-1.5 py-0.5 rounded text-[9pt] font-medium border bg-themeblue2/10 text-themeblue2 border-themeblue2/30 hover:bg-themeblue2/20 transition-colors disabled:cursor-default"
+              >
+                {t.name}
+              </button>
+            ))}
+          </div>
+        )}
+        right={<span className="text-[9pt] text-tertiary/50 shrink-0">{formatLastActive(user.last_active_at)}</span>}
+        onClick={() => onSelectUser?.(user)}
+      />
+    )
+  }, [loanedOutMap, clinics, onSelectClinic, onSelectUser])
+
+  /** Second entry in the roster's ellipsis menu, alongside "New sub-unit". */
+  const rosterAddActions = useMemo<ContextMenuItem[]>(() => (
+    onCreateUserInCluster && clinic
+      ? [{ key: 'user', label: 'Create user', icon: UserPlus, onAction: () => onCreateUserInCluster(clinic.id) }]
+      : []
+  ), [onCreateUserInCluster, clinic])
+
+  /**
+   * The whole cluster graph in one list — parent first, then children, then
+   * peers. Was three near-identical card+FAB sections; the "Sub-clusters"
+   * (child clinic, parent_clinic_id) one also collided by name with the
+   * roster's sub-units (sub_cluster_id), which are a different concept.
+   */
+  const relatedClusters = useMemo(() => {
+    const rows: { clinic: AdminClinic; rel: RelKind }[] = []
+    if (parentClinic) rows.push({ clinic: parentClinic, rel: 'parent' })
+    for (const c of subClinics) rows.push({ clinic: c, rel: 'child' })
+    for (const c of associatedClinics) rows.push({ clinic: c, rel: 'peer' })
+    return rows
+  }, [parentClinic, subClinics, associatedClinics])
 
   // Edit form body — shared between inline create flow and the tap-to-edit
   // overlay used for existing records. Keeping it inline (rather than a child
@@ -776,9 +805,6 @@ const AdminClinicDetail = ({
                 ))}
               </div>
             )}
-            <p className="text-[9pt] text-tertiary mt-2">
-              {assignedUsers.length} member{assignedUsers.length !== 1 ? 's' : ''}
-            </p>
           </div>
         ) : null}
         </div>
@@ -823,308 +849,144 @@ const AdminClinicDetail = ({
         {editAnchor && clinic && editFormBody}
       </PreviewOverlay>
 
-      {/* Assigned Users — always rendered (when not in create mode) so the
-          header "Create user" button has a home even when the cluster is empty.
-          When this clinic has sub-units (platoons/squads) the roster groups by
-          them (named sub-units, then HQ / Unassigned); otherwise it's a flat
-          list. Grouping is render-only — every row is still this one clinic's
-          member. The header + button replaces the overlay ActionPill so the add
-          affordance doesn't collide with the first group's label. */}
+      {/* ── Roster ───────────────────────────────────────────────────────
+          ONE section for everyone in this cluster: sub-unit groups (whose ⋯
+          renames/deletes the group itself), HQ / Unassigned, and the two loan
+          buckets. Replaces the old Assigned Users + Sub-units + Loaned In +
+          Loaned Out stack, where the roster showed group headers but the group
+          manager lived in a separate card below it. */}
+      {/* No !editing gate — the edit surface is an anchored overlay now, so
+          collapsing the page behind it would yank the layout out from under. */}
+      {!isCreateMode && clinic && (
+        <ClusterRosterSection
+          subUnits={subUnits}
+          members={assignedUsers}
+          subUnitIdOf={subUnitIdOf}
+          extraGroups={loanGroups}
+          renderItem={renderRosterRow}
+          itemsClassName="divide-y divide-tertiary/10"
+          emptyText="No users assigned."
+          addActions={rosterAddActions}
+          onCreateSubUnit={async (name) => {
+            const r = await adminCreateSubCluster(clinic.id, name)
+            if (r.success) { await loadSubUnits(); invalidate('subClusters') }
+            else setError(r.error)
+            return r.success
+          }}
+          onRenameSubUnit={async (id, name) => {
+            const r = await adminRenameSubCluster(id, name)
+            if (r.success) { await loadSubUnits(); invalidate('subClusters') }
+            else setError(r.error)
+            return r.success
+          }}
+          onDeleteSubUnit={async (id) => {
+            const r = await adminDeleteSubCluster(id)
+            if (r.success) { await loadSubUnits(); invalidate('subClusters', 'users') }
+            else setError(r.error)
+            return r.success
+          }}
+        />
+      )}
+
+      {/* ── Related clusters ─────────────────────────────────────────────
+          Parent, children, and peers in ONE list with a kind chip per row —
+          they're all "another cluster this one is wired to", and three
+          near-identical card+FAB sections read as three unrelated features.
+          The chip also disambiguates a child cluster ("child") from the
+          roster's sub-units above, which used to share the "sub-" name. */}
       {!isCreateMode && clinic && (
         <section className="mt-4">
           <div className="flex items-center gap-2 pb-2">
-            <p className="flex-1 text-[9pt] font-semibold text-primary uppercase tracking-wider">
-              Assigned Users ({assignedUsers.length})
-            </p>
-            {onCreateUserInCluster && (
+            <p className="flex-1 text-[9pt] font-semibold text-primary uppercase tracking-wider">Related clusters</p>
+            <div ref={relAddRef} className="shrink-0">
               <button
                 type="button"
-                onClick={() => onCreateUserInCluster(clinic.id)}
-                aria-label="Create user"
-                className="w-9 h-9 rounded-full flex items-center justify-center bg-themeblue3 text-white active:scale-95 transition-all shrink-0"
+                aria-label="Add related cluster"
+                onClick={() => {
+                  const rect = relAddRef.current?.getBoundingClientRect() ?? null
+                  if (rect) setRelAction({ kind: 'add-menu', rect })
+                }}
+                className="w-9 h-9 rounded-full flex items-center justify-center bg-themeblue3 text-white active:scale-95 transition-all"
               >
                 <Plus size={16} />
               </button>
+            </div>
+          </div>
+          <div className={`rounded-2xl bg-themewhite2 overflow-hidden${relBusy ? ' opacity-50 pointer-events-none' : ''}`}>
+            {relatedClusters.length === 0 ? (
+              <div className="px-4 py-3.5 text-[10pt] text-tertiary">No related clusters.</div>
+            ) : (
+              relatedClusters.map(({ clinic: node, rel: kind }, idx) => {
+                const chip =
+                  kind === 'parent' ? { label: 'parent', cls: 'bg-themeblue3/10 text-themeblue3 border-themeblue3/30', Icon: ArrowUp }
+                  : kind === 'child' ? { label: 'child', cls: 'bg-themeblue2/10 text-themeblue2 border-themeblue2/30', Icon: ArrowDown }
+                  : { label: 'peer', cls: 'bg-tertiary/10 text-tertiary border-tertiary/30', Icon: Link2 }
+                return (
+                  <button
+                    key={`${kind}:${node.id}`}
+                    type="button"
+                    onClick={(e) => {
+                      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                      setRelAction({ kind: 'row', rect, target: node, rel: kind })
+                    }}
+                    className={`flex items-center gap-3 w-full px-4 py-3.5 text-left transition-all active:scale-95 hover:bg-themeblue2/5${idx < relatedClusters.length - 1 ? ' border-b border-primary/6' : ''}`}
+                  >
+                    <span className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${kind === 'parent' ? 'bg-themeblue3/10' : kind === 'child' ? 'bg-themeblue2/10' : 'bg-tertiary/10'}`}>
+                      <Building2 size={18} className={kind === 'parent' ? 'text-themeblue3' : kind === 'child' ? 'text-themeblue2' : 'text-tertiary'} />
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-primary truncate">{node.name}</p>
+                      {node.uics.length > 0 && (
+                        <p className="text-[9pt] text-tertiary mt-0.5 truncate">{node.uics.join(' · ')}</p>
+                      )}
+                    </div>
+                    <span
+                      aria-label={chip.label}
+                      title={chip.label}
+                      className={`shrink-0 inline-flex items-center justify-center w-6 h-6 rounded border ${chip.cls}`}
+                    >
+                      <chip.Icon size={12} />
+                    </span>
+                    <ChevronRight size={16} className="text-tertiary shrink-0" />
+                  </button>
+                )
+              })
             )}
           </div>
-          {groupedAssigned === null ? (
-            <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden divide-y divide-tertiary/10">
-              {assignedUsers.length === 0 ? (
-                <div className="px-4 py-3.5 text-[10pt] text-tertiary">No users assigned.</div>
-              ) : (
-                assignedUsers.map(renderUserRow)
-              )}
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {groupedAssigned.map((g) => (
-                <div key={g.id}>
-                  <p className="px-1 pb-1 text-[8.5pt] font-semibold text-tertiary uppercase tracking-wider">
-                    {g.name} ({g.members.length})
-                  </p>
-                  <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden divide-y divide-tertiary/10">
-                    {g.members.length === 0 ? (
-                      <div className="px-4 py-3 text-[9.5pt] text-tertiary/70">No members</div>
-                    ) : (
-                      g.members.map(renderUserRow)
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
         </section>
       )}
 
-      {/* Sub-units (platoons/squads) — intra-clinic render grouping for THIS
-          clinic. Distinct from the "Sub-clusters" (child-clinic) section below. */}
-      {!isCreateMode && !editing && clinic && (
-        <section className="mt-4">
-          <div className="pb-2">
-            <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">Sub-units (platoon / squad)</p>
-          </div>
-          <SubClusterManager
-            subClusters={subUnits}
-            onCreate={async (name) => {
-              const r = await adminCreateSubCluster(clinic.id, name)
-              if (r.success) { await loadSubUnits(); invalidate('subClusters') }
-              else setError(r.error)
-              return r.success
-            }}
-            onRename={async (id, name) => {
-              const r = await adminRenameSubCluster(id, name)
-              if (r.success) { await loadSubUnits(); invalidate('subClusters') }
-              else setError(r.error)
-              return r.success
-            }}
-            onDelete={async (id) => {
-              const r = await adminDeleteSubCluster(id)
-              if (r.success) { await loadSubUnits(); invalidate('subClusters', 'users') }
-              else setError(r.error)
-              return r.success
-            }}
+      {/* "+" kind menu — which relationship to add. "Set parent" is omitted
+          (not disabled) once a parent exists; remove it from the row first. */}
+      {relAction?.kind === 'add-menu' && (() => {
+        const rect = relAction.rect
+        const items: ContextMenuItem[] = []
+        if (!parentClinic) {
+          items.push({ key: 'parent', label: 'Set parent cluster', icon: ArrowUp, onAction: () => setRelAction({ kind: 'add-parent', rect }) })
+        }
+        items.push({ key: 'child', label: 'Add child cluster', icon: ArrowDown, onAction: () => setRelAction({ kind: 'add-child', rect }) })
+        items.push({ key: 'peer', label: 'Add associated cluster', icon: Link2, onAction: () => setRelAction({ kind: 'add-assoc', rect }) })
+        return (
+          <AnchoredMenu
+            isOpen
+            anchorRect={rect}
+            layout="list"
+            items={items}
+            onClose={() => setRelAction(null)}
           />
-        </section>
-      )}
-
-      {/* Loaned In — read-only reverse view of profile_clinic_loans rows
-          targeting this clinic. Edits happen from AdminUserDetail. */}
-      {!isCreateMode && !editing && loanedInUsers.length > 0 && (
-        <div className="mt-4">
-          <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">
-            Loaned In ({loanedInUsers.length})
-          </p>
-          <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden divide-y divide-tertiary/10">
-            {loanedInUsers.map(renderUserRow)}
-          </div>
-        </div>
-      )}
-
-      {/* Loaned Out — assigned users (home here) currently loaned to another
-          clinic. Each row shows target clinic chips. Edit via the user row. */}
-      {!isCreateMode && !editing && loanedOutUsers.length > 0 && (
-        <div className="mt-4">
-          <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">
-            Loaned Out ({loanedOutUsers.length})
-          </p>
-          <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden divide-y divide-tertiary/10">
-            {loanedOutUsers.map((user) => {
-              const targetIds = loanedOutMap.get(user.id) ?? []
-              const targets = targetIds
-                .map(id => clinics.find(c => c.id === id))
-                .filter((c): c is AdminClinic => !!c)
-              return (
-                <UserRow
-                  key={user.id}
-                  avatarId={user.avatar_id}
-                  avatarBlob={user.avatar_blob}
-                  userId={user.id}
-                  firstName={user.first_name}
-                  lastName={user.last_name}
-                  middleInitial={user.middle_initial}
-                  rank={user.rank}
-                  lastActiveAt={user.last_active_at}
-                  subtitle={user.credential || user.email || ''}
-                  meta={targets.length > 0 && (
-                    <div className="flex flex-wrap items-center gap-1">
-                      {targets.map(t => (
-                        <button
-                          key={t.id}
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); onSelectClinic?.(t) }}
-                          disabled={!onSelectClinic}
-                          className="inline-flex items-center px-1.5 py-0.5 rounded text-[9pt] font-medium border bg-themeblue2/10 text-themeblue2 border-themeblue2/30 hover:bg-themeblue2/20 transition-colors disabled:cursor-default"
-                        >
-                          {t.name}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                  right={<span className="text-[9pt] text-tertiary/50 shrink-0">{formatLastActive(user.last_active_at)}</span>}
-                  onClick={() => onSelectUser?.(user)}
-                />
-              )
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* ── Parent cluster ───────────────────────────────────────────── */}
-      {!isCreateMode && clinic && (
-        <section className="mt-4">
-          <div className="pb-2">
-            <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">Parent</p>
-          </div>
-          <div className="relative">
-            <div className={`rounded-2xl bg-themewhite2 overflow-hidden${relBusy ? ' opacity-50 pointer-events-none' : ''}`}>
-              {parentClinic ? (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-                    setRelAction({ kind: 'parent-row', rect, target: parentClinic })
-                  }}
-                  className="flex items-center gap-3 w-full px-4 py-3.5 text-left transition-all active:scale-95 hover:bg-themeblue2/5"
-                >
-                  <span className="w-9 h-9 rounded-full bg-themeblue3/10 flex items-center justify-center shrink-0">
-                    <Building2 size={18} className="text-themeblue3" />
-                  </span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-primary truncate">{parentClinic.name}</p>
-                    {parentClinic.uics.length > 0 && (
-                      <p className="text-[9pt] text-tertiary mt-0.5 truncate">{parentClinic.uics.join(' · ')}</p>
-                    )}
-                  </div>
-                  <ChevronRight size={16} className="text-tertiary shrink-0" />
-                </button>
-              ) : (
-                <div className="px-4 py-3.5 text-[10pt] text-tertiary">No parent cluster.</div>
-              )}
-            </div>
-            {!parentClinic && (
-              <ActionPill ref={parentFabRef} shadow="sm" placement="overlay">
-                <ActionButton
-                  icon={Plus}
-                  label="Set parent"
-                  onClick={() => {
-                    const rect = parentFabRef.current?.getBoundingClientRect() ?? null
-                    if (rect) setRelAction({ kind: 'add-parent', rect })
-                  }}
-                />
-              </ActionPill>
-            )}
-          </div>
-        </section>
-      )}
-
-      {/* ── Sub-clusters ─────────────────────────────────────────────── */}
-      {!isCreateMode && clinic && (
-        <section className="mt-4">
-          <div className="pb-2">
-            <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">Sub-clusters</p>
-          </div>
-          <div className="relative">
-            <div className={`rounded-2xl bg-themewhite2 overflow-hidden${relBusy ? ' opacity-50 pointer-events-none' : ''}`}>
-              {subClinics.length === 0 ? (
-                <div className="px-4 py-3.5 text-[10pt] text-tertiary">No sub-clusters.</div>
-              ) : (
-                subClinics.map((child, idx) => (
-                  <button
-                    key={child.id}
-                    type="button"
-                    onClick={(e) => {
-                      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-                      setRelAction({ kind: 'child-row', rect, target: child })
-                    }}
-                    className={`flex items-center gap-3 w-full px-4 py-3.5 text-left transition-all active:scale-95 hover:bg-themeblue2/5${idx < subClinics.length - 1 ? ' border-b border-primary/6' : ''}`}
-                  >
-                    <span className="w-9 h-9 rounded-full bg-themeblue2/10 flex items-center justify-center shrink-0">
-                      <Building2 size={18} className="text-themeblue2" />
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-primary truncate">{child.name}</p>
-                      {child.uics.length > 0 && (
-                        <p className="text-[9pt] text-tertiary mt-0.5 truncate">{child.uics.join(' · ')}</p>
-                      )}
-                    </div>
-                    <ChevronRight size={16} className="text-tertiary shrink-0" />
-                  </button>
-                ))
-              )}
-            </div>
-            <ActionPill ref={childFabRef} shadow="sm" placement="overlay">
-              <ActionButton
-                icon={Plus}
-                label="Add sub-cluster"
-                onClick={() => {
-                  const rect = childFabRef.current?.getBoundingClientRect() ?? null
-                  if (rect) setRelAction({ kind: 'add-child', rect })
-                }}
-              />
-            </ActionPill>
-          </div>
-        </section>
-      )}
-
-      {/* ── Associated clusters ──────────────────────────────────────── */}
-      {!isCreateMode && clinic && (
-        <section className="mt-4">
-          <div className="pb-2">
-            <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">Associated</p>
-          </div>
-          <div className="relative">
-            <div className={`rounded-2xl bg-themewhite2 overflow-hidden${relBusy ? ' opacity-50 pointer-events-none' : ''}`}>
-              {associatedClinics.length === 0 ? (
-                <div className="px-4 py-3.5 text-[10pt] text-tertiary">No associated clusters.</div>
-              ) : (
-                associatedClinics.map((peer, idx) => (
-                  <button
-                    key={peer.id}
-                    type="button"
-                    onClick={(e) => {
-                      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-                      setRelAction({ kind: 'assoc-row', rect, target: peer })
-                    }}
-                    className={`flex items-center gap-3 w-full px-4 py-3.5 text-left transition-all active:scale-95 hover:bg-themeblue2/5${idx < associatedClinics.length - 1 ? ' border-b border-primary/6' : ''}`}
-                  >
-                    <span className="w-9 h-9 rounded-full bg-themeblue2/10 flex items-center justify-center shrink-0">
-                      <Building2 size={18} className="text-themeblue2" />
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-primary truncate">{peer.name}</p>
-                      {peer.uics.length > 0 && (
-                        <p className="text-[9pt] text-tertiary mt-0.5 truncate">{peer.uics.join(' · ')}</p>
-                      )}
-                    </div>
-                    <ChevronRight size={16} className="text-tertiary shrink-0" />
-                  </button>
-                ))
-              )}
-            </div>
-            <ActionPill ref={assocFabRef} shadow="sm" placement="overlay">
-              <ActionButton
-                icon={Plus}
-                label="Add associated"
-                onClick={() => {
-                  const rect = assocFabRef.current?.getBoundingClientRect() ?? null
-                  if (rect) setRelAction({ kind: 'add-assoc', rect })
-                }}
-              />
-            </ActionPill>
-          </div>
-        </section>
-      )}
+        )
+      })()}
 
       {/* Row context menu — Open / Remove, anchored to the row (no-clone lift). */}
-      {relAction && (relAction.kind === 'parent-row' || relAction.kind === 'child-row' || relAction.kind === 'assoc-row') && (() => {
-        const target = relAction.target
+      {relAction?.kind === 'row' && (() => {
+        const { target, rel } = relAction
         const removeLabel =
-          relAction.kind === 'parent-row' ? 'Remove parent' :
-          relAction.kind === 'child-row' ? 'Remove sub-cluster' :
+          rel === 'parent' ? 'Remove parent' :
+          rel === 'child' ? 'Remove child cluster' :
           'Remove from associated'
         const onRemove = () => {
-          if (relAction.kind === 'parent-row') return handleSetParent(null)
-          if (relAction.kind === 'child-row') return handleRemoveChild(target.id)
+          if (rel === 'parent') return handleSetParent(null)
+          if (rel === 'child') return handleRemoveChild(target.id)
           return handleSetAssociated(
             (clinic?.associated_clinic_ids ?? []).filter(id => id !== target.id),
           )
@@ -1168,7 +1030,7 @@ const AdminClinicDetail = ({
         maxWidth={320}
         title={
           relAction?.kind === 'add-parent' ? 'Set parent cluster' :
-          relAction?.kind === 'add-child' ? 'Add sub-cluster' :
+          relAction?.kind === 'add-child' ? 'Add child cluster' :
           relAction?.kind === 'add-assoc' ? 'Add associated cluster' :
           ''
         }
@@ -1236,7 +1098,7 @@ const AdminClinicDetail = ({
                 icon={Plus}
                 label={
                   relAction.kind === 'add-parent' ? 'Create new parent cluster' :
-                  relAction.kind === 'add-child' ? 'Create new sub-cluster' :
+                  relAction.kind === 'add-child' ? 'Create new child cluster' :
                   'Create new associated cluster'
                 }
                 onClick={() => {

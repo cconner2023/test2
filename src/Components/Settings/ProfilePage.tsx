@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef } from 'react';
-import { LogOut, ChevronRight, Trash2, Check, Copy, QrCode, Share2, Pencil, RefreshCw, CheckCircle, Plus, KeyRound, Mail } from 'lucide-react';
+import { LogOut, ChevronRight, Trash2, Check, Copy, QrCode, Share2, Pencil, RefreshCw, CheckCircle, Plus, KeyRound, Mail, DoorOpen } from 'lucide-react';
 import bwipjs from 'bwip-js';
 import { useAuth } from '../../Hooks/useAuth';
 import { useAuthStore } from '../../stores/useAuthStore';
@@ -25,7 +25,7 @@ import { emptyCertForm } from '../Certifications/certHelpers';
 import type { CertFormData } from '../Certifications/certHelpers';
 import type { CertInput } from '../../lib/certificationService';
 import { submitProfileChangeRequest } from '../../lib/accountRequestService';
-import { updateOwnEmail } from '../../lib/authService';
+import { updateOwnEmail, leaveOwnCluster } from '../../lib/authService';
 import { isValidEmail } from '../../lib/adminService';
 import { PickerInput, PasswordInput } from '@/Components/primitives/FormInputs';
 import { ErrorDisplay } from '@/Components/primitives/ErrorDisplay';
@@ -49,7 +49,7 @@ export const ProfilePage = ({
 }: ProfilePageProps) => {
     const isMobile = useIsMobile();
     const { currentAvatar, customImage, isCustom, isInitials } = useAvatar();
-    const { profile, user } = useAuth();
+    const { profile, user, clinicId } = useAuth();
     const userEmail = useAuthStore(s => s.user?.email ?? '');
     const deviceRole = useAuthStore(s => s.deviceRole);
 
@@ -57,6 +57,24 @@ export const ProfilePage = ({
 
     // Sign out / delete dialogs
     const [showSignOut, setShowSignOut] = useState(false);
+    // Self-service leave-cluster: confirm + in-flight + error surfaces. Lives here
+    // (account actions, above Sign Out) rather than the Settings Clusters section —
+    // leaving is something you do to your own account, not cluster management.
+    const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
+    const [leaving, setLeaving] = useState(false);
+    const [leaveError, setLeaveError] = useState<string | null>(null);
+
+    const handleLeaveCluster = useCallback(async () => {
+        setLeaving(true);
+        const res = await leaveOwnCluster();
+        setLeaving(false);
+        setShowLeaveConfirm(false);
+        // Success needs no toast — the "Leave Cluster" row disappears (clinicId now
+        // null) and the between-assignments banner appears (feedback is the change
+        // itself). Only a failure (e.g. sole-supervisor orphan guard) surfaces.
+        if (!res.success) setLeaveError(res.error || 'Could not leave the cluster.');
+    }, []);
+
     const [showDeleteDialog, setShowDeleteDialog] = useState(false);
     const [deletePhase, setDeletePhase] = useState<'idle' | 'pin' | 'processing'>('idle');
     const [deleteError, setDeleteError] = useState('');
@@ -569,6 +587,22 @@ export const ProfilePage = ({
                                 </div>
                                 <ChevronRight size={16} className="text-tertiary shrink-0" />
                             </button>
+                            {clinicId && (
+                                <button
+                                    onClick={() => setShowLeaveConfirm(true)}
+                                    className="flex items-center gap-3 w-full px-4 py-3.5 border-t border-tertiary/8 transition-all active:scale-95 hover:bg-themeredred/5"
+                                >
+                                    <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-themeredred/10">
+                                        <DoorOpen size={20} className="text-themeredred" />
+                                    </div>
+                                    <div className="flex-1 min-w-0 text-left">
+                                        <span className="block text-sm font-medium text-themeredred">Leave Cluster</span>
+                                        <span className="block text-[10pt] text-tertiary truncate">
+                                            Currently in {profile?.clinicName || 'your cluster'}
+                                        </span>
+                                    </div>
+                                </button>
+                            )}
                             <button
                                 onClick={deviceRole === 'primary' ? () => setShowSignOut(true) : onSignOut}
                                 className="flex items-center gap-3 w-full px-4 py-3.5 border-t border-tertiary/8 transition-all active:scale-95 hover:bg-themeredred/5"
@@ -595,6 +629,27 @@ export const ProfilePage = ({
                     )}
                 </div>
             </div>
+
+            {/* Leave Cluster Confirm + failure notice */}
+            <ConfirmDialog
+                visible={showLeaveConfirm}
+                title={`Leave ${profile?.clinicName || 'this cluster'}?`}
+                subtitle="You'll lose access to this cluster's calendar, roster, messages, and property until you join another. Your gaining unit's supervisor adds you to your next cluster."
+                confirmLabel="Leave cluster"
+                cancelLabel="Cancel"
+                variant="danger"
+                processing={leaving}
+                onConfirm={handleLeaveCluster}
+                onCancel={() => setShowLeaveConfirm(false)}
+            />
+            <ConfirmDialog
+                visible={!!leaveError}
+                title="Couldn't leave cluster"
+                subtitle={leaveError ?? undefined}
+                variant="warning"
+                notifyOnly
+                onCancel={() => setLeaveError(null)}
+            />
 
             {/* Sign Out Confirm Dialog */}
             <ConfirmDialog
