@@ -1,10 +1,7 @@
 import { memo, useState, useRef, useCallback } from 'react'
-import { Plus, Check, RotateCcw, Crosshair } from 'lucide-react'
+import { Plus, Check, RotateCcw, Crosshair, ChevronRight } from 'lucide-react'
 import { useTC3Store } from '../../stores/useTC3Store'
 import { TC3EditorSurface } from './TC3EditorSurface'
-import { SectionHeader } from '@/Components/primitives/Section'
-import { ActionButton } from '@/Components/primitives/ActionButton'
-import { ActionPill } from '@/Components/primitives/ActionPill'
 import { EmptyState } from '@/Components/primitives/EmptyState'
 import { TextInput } from '@/Components/primitives/FormInputs'
 import type { MechanismType } from '../../Types/TC3Types'
@@ -30,7 +27,6 @@ export const MechanismForm = memo(function MechanismForm() {
 
   const [popoverVisible, setPopoverVisible] = useState(false)
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null)
-  const fabRef = useRef<HTMLDivElement>(null)
   const cardRef = useRef<HTMLButtonElement>(null)
 
   const [draftTypes, setDraftTypes] = useState<MechanismType[]>([])
@@ -69,6 +65,7 @@ export const MechanismForm = memo(function MechanismForm() {
   }, [mechanism.types, toggleMechanism, setMechanismOther])
 
   const populated = mechanism.types.length > 0
+  const showOther = draftTypes.includes('Other')
 
   return (
     <div>
@@ -79,37 +76,34 @@ export const MechanismForm = memo(function MechanismForm() {
         </p>
       </div>
 
-      {/* Section card */}
+      {/* Section card — same shape as Casualty Information: tap the row to edit
+          (chevron affordance), no overlaid add pill. */}
       {populated ? (
-        <div className="relative">
-          <div className="rounded-2xl bg-themewhite2 overflow-hidden">
-            <button
-              ref={cardRef}
-              type="button"
-              onClick={() => openPopover(cardRef)}
-              className="w-full text-left active:scale-95 transition-all hover:bg-themeblue2/5"
-            >
-              <div className="flex items-center gap-3 px-4 py-3.5 pr-12">
-                <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
-                  <Crosshair size={18} className="text-tertiary" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-primary">
-                    {mechanism.types.join(', ')}
-                  </p>
-                  {mechanism.types.includes('Other') && mechanism.otherDescription && (
-                    <p className="text-[9pt] text-tertiary mt-0.5 truncate">
-                      {mechanism.otherDescription}
-                    </p>
-                  )}
-                </div>
+        <button
+          ref={cardRef}
+          type="button"
+          onClick={() => openPopover(cardRef)}
+          className="w-full rounded-2xl bg-themewhite2 overflow-hidden text-left active:scale-95 transition-all hover:bg-themeblue2/5"
+        >
+          <div className="flex items-center gap-3 px-4 py-3">
+            <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
+              <Crosshair size={18} className="text-tertiary" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1.5">
+                <p className="flex-1 min-w-0 text-sm font-medium text-primary truncate">
+                  {mechanism.types.join(', ')}
+                </p>
+                <ChevronRight size={16} className="text-tertiary shrink-0" />
               </div>
-            </button>
+              {mechanism.types.includes('Other') && mechanism.otherDescription && (
+                <p className="text-[9pt] text-secondary truncate mt-0.5">
+                  {mechanism.otherDescription}
+                </p>
+              )}
+            </div>
           </div>
-          <ActionPill ref={fabRef} shadow="sm" placement="overlay">
-            <ActionButton icon={Plus} label="Edit mechanism" onClick={() => openPopover(fabRef)} />
-          </ActionPill>
-        </div>
+        </button>
       ) : (
         <EmptyState
           title="No mechanism recorded"
@@ -129,39 +123,42 @@ export const MechanismForm = memo(function MechanismForm() {
         maxWidth={380}
         title="Mechanism"
         preview={
-          <div className="px-4 py-3 space-y-3">
-            <SectionHeader>Select All That Apply</SectionHeader>
-            <div className="rounded-2xl border border-themeblue3/10 bg-themewhite overflow-hidden divide-y divide-tertiary/8 mt-1.5">
-              {MECHANISM_OPTIONS.map((opt) => {
-                const isSelected = draftTypes.includes(opt.type)
-                return (
-                  <button
-                    key={opt.type}
-                    type="button"
-                    onClick={() => handleToggleDraft(opt.type)}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-themeblue2/5 transition-colors"
-                  >
-                    <span className={`text-sm flex-1 ${isSelected ? 'font-medium text-primary' : 'text-tertiary'}`}>
-                      {opt.label}
-                    </span>
-                    {isSelected && <Check size={14} className="text-themeredred shrink-0" />}
-                  </button>
-                )
-              })}
+          <div>
+            {/* Multi-select, but rendered with the same flat segmented row the
+                Casualty Info editor uses for Sex / Blood Type — no bordered card. */}
+            <div className={`px-4 py-3${showOther ? ' border-b border-primary/6' : ''}`}>
+              <span className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest">Mechanism</span>
+              <div className="mt-1.5 flex overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
+                {MECHANISM_OPTIONS.map((opt) => {
+                  const isSelected = draftTypes.includes(opt.type)
+                  return (
+                    <button
+                      key={opt.type}
+                      type="button"
+                      onClick={() => handleToggleDraft(opt.type)}
+                      className={`shrink-0 px-4 py-1.5 transition-colors ${
+                        isSelected ? 'bg-themeblue3' : 'active:bg-tertiary/5'
+                      }`}
+                      title={`Mechanism: ${opt.label}`}
+                    >
+                      <span className={`text-[9pt] transition-colors ${
+                        isSelected ? 'text-white font-medium' : 'text-secondary'
+                      }`}>
+                        {opt.label}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
             </div>
 
             {/* Other description */}
-            {draftTypes.includes('Other') && (
-              <div className="space-y-1 pt-1">
-                <span className="text-[10pt] font-medium text-tertiary uppercase tracking-wide">Describe Other</span>
-                <TextInput
-                  bare
-                  value={draftOther}
-                  onChange={setDraftOther}
-                  placeholder="Describe mechanism..."
-                  inputClassName="w-full px-4 py-2.5 rounded-xl text-sm bg-themewhite border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none transition-all duration-300 placeholder:text-tertiary"
-                />
-              </div>
+            {showOther && (
+              <TextInput
+                value={draftOther}
+                onChange={setDraftOther}
+                placeholder="Describe mechanism…"
+              />
             )}
           </div>
         }

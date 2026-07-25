@@ -37,6 +37,7 @@ import type {
 } from '../Data/PhysicalExamData';
 import type { TextExpander } from '../Data/User';
 import type { PEState, PEItemState } from '../Types/PETypes';
+import { FooterPill } from '@/Components/primitives/FooterPill'
 
 
 type SystemStatus = 'not-examined' | 'normal' | 'abnormal';
@@ -1203,9 +1204,9 @@ export function PhysicalExam({
                     onAdd={(value) => addCustomFinding(editingEntry.key, value)}
                     addPlaceholder="Add custom finding..."
                     rightFooter={
-                        <ActionPill>
+                        <FooterPill side="right">
                             <ActionButton icon={Check} label="Done" onClick={() => setEditingIndex(null)} />
-                        </ActionPill>
+                        </FooterPill>
                     }
                 />
             )}
@@ -1288,9 +1289,9 @@ export function PhysicalExam({
                         variant: 'danger',
                     }]}
                     rightFooter={
-                        <ActionPill>
+                        <FooterPill side="right">
                             <ActionButton icon={Check} label="Done" onClick={() => setShowBlockPicker(false)} />
-                        </ActionPill>
+                        </FooterPill>
                     }
                 />
             )}
@@ -1343,9 +1344,9 @@ export function PhysicalExam({
                         variant: 'danger',
                     }]}
                     rightFooter={vitalsView === 'lmp' ? undefined : (
-                        <ActionPill>
+                        <FooterPill side="right">
                             <ActionButton icon={Check} label="Done" onClick={() => setShowVitalsPicker(false)} />
-                        </ActionPill>
+                        </FooterPill>
                     )}
                 />
             )}
@@ -1387,9 +1388,9 @@ export function PhysicalExam({
                         );
                     }}
                     rightFooter={
-                        <ActionPill>
+                        <FooterPill side="right">
                             <ActionButton icon={Check} label="Done" onClick={() => setShowAddPicker(false)} />
-                        </ActionPill>
+                        </FooterPill>
                     }
                 />
             )}

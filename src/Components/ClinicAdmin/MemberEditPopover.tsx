@@ -1,8 +1,8 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { Building2, Check, Pencil, Trash2, Loader2, Camera, Send, ArrowRightLeft, KeyRound, AlertCircle, Home } from 'lucide-react'
 import { OverlayStack, type StackNav } from '@/Components/primitives/OverlayStack'
+import { FooterPill } from '@/Components/primitives/FooterPill'
 import { ActionButton } from '@/Components/primitives/ActionButton'
-import { ActionPill } from '@/Components/primitives/ActionPill'
 import { buildOverlayActionRail, type OverlayRailAction } from '@/Components/primitives/OverlayActionRail'
 import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
 import { ErrorPill } from '@/Components/primitives/ErrorPill'
@@ -614,17 +614,17 @@ export function MemberEditPopover({
   const detailRail = buildOverlayActionRail(detailActions)
 
   const detailRightFooter = profile ? (
-    <ActionPill>
+    <FooterPill side="right">
       <ActionButton
         icon={editMode ? Check : Pencil}
         label={editMode ? (saving ? 'Saving…' : 'Save') : 'Edit'}
-        variant={editMode ? (saving ? 'disabled' : 'success') : 'default'}
+        variant={editMode ? (saving ? 'disabled' : 'confirm') : 'default'}
         onClick={() => {
           if (editMode) handleSave()
           else setEditMode(true)
         }}
       />
-    </ActionPill>
+    </FooterPill>
   ) : undefined
 
   const detailBody = (
@@ -1011,14 +1011,14 @@ export function MemberEditPopover({
       previewMaxHeight: '60dvh',
       onBack: (nav: StackNav) => { if (!loansApplying) { setLoansMode(false); nav.pop() } },
       rightFooter: (
-        <ActionPill>
+        <FooterPill side="right">
           <ActionButton
             icon={loansApplying ? Loader2 : Check}
             label={overCap ? `Over limit (${postSaveCount}/4)` : 'Save'}
-            variant={overCap || loansApplying ? 'disabled' : 'success'}
+            variant={overCap || loansApplying ? 'disabled' : 'confirm'}
             onClick={applyLoanChanges}
           />
-        </ActionPill>
+        </FooterPill>
       ),
       render: () => (
         <>
@@ -1048,24 +1048,24 @@ export function MemberEditPopover({
       previewMaxHeight: '60dvh',
       onBack: (nav: StackNav) => { closeMove(); nav.pop() },
       footer: (
-        <div className="flex gap-1 bg-themewhite rounded-2xl shadow-lg px-1.5 py-1.5">
+        <FooterPill>
           <ActionButton
             icon={Camera}
             label={scanning ? 'Stop scan' : 'Scan QR'}
             variant={scanning ? 'success' : 'default'}
             onClick={handleToggleScan}
           />
-        </div>
+        </FooterPill>
       ),
       rightFooter: (
-        <ActionPill>
+        <FooterPill side="right">
           <ActionButton
             icon={moveSaving ? Loader2 : Check}
             label="Transfer"
-            variant={!moveCode || moveSaving ? 'disabled' : 'success'}
+            variant={!moveCode || moveSaving ? 'disabled' : 'confirm'}
             onClick={() => submitMove(moveCode)}
           />
-        </ActionPill>
+        </FooterPill>
       ),
       render: () => transferBody,
     },

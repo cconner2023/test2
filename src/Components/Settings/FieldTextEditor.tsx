@@ -4,8 +4,8 @@ import { TextCursor, ChevronDown, Trash2, Check } from 'lucide-react';
 import { Z, OverlayStackContext } from '@/Components/primitives/BaseOverlay';
 import { StackNavContext } from '../stackNav';
 import { ActionButton } from '@/Components/primitives/ActionButton';
-import { ActionPill } from '@/Components/primitives/ActionPill';
 import type { FieldInfo } from '../../Utilities/templateParser';
+import { FooterPill } from '@/Components/primitives/FooterPill'
 
 // ─── Segment helpers ─────────────────────────────────────────────────
 
@@ -411,14 +411,14 @@ export const FieldTextEditor = forwardRef<FieldEditorHandle, FieldTextEditorProp
         stackNav.pushScreen({
             title: label,
             footer: (_p, nav) => (
-                <ActionPill>
+                <FooterPill>
                     <ActionButton icon={Trash2} label="Delete" variant="danger" onClick={() => { handleDeleteField(label); nav.pop(); }} />
-                </ActionPill>
+                </FooterPill>
             ),
             rightFooter: (_p, nav) => (
-                <ActionPill>
-                    <ActionButton icon={Check} label="Done" variant="success" onClick={() => nav.pop()} />
-                </ActionPill>
+                <FooterPill side="right">
+                    <ActionButton icon={Check} label="Done" variant="confirm" onClick={() => nav.pop()} />
+                </FooterPill>
             ),
             render: () => (
                 <PillEditBody label={label} field={field} onSetDefault={(v) => handleSetDefault(label, v)} />

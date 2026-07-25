@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Copy, Check, Download, Printer, Plus, X } from 'lucide-react'
 import { ActionButton } from '@/Components/primitives/ActionButton'
 import { Section, SectionCard } from '@/Components/primitives/Section'
+import { TextArea } from '@/Components/primitives/FormInputs'
 import type { Opord, OpordTask } from '../../Types/ReportTypes'
 import { emptyOpord } from '../../Types/ReportTypes'
 import { opordToText, copyToClipboard, downloadAsText, printReport } from '../../lib/reportExport'
@@ -31,12 +32,14 @@ function LabeledTextarea({ label, value, onChange, placeholder = '', rows = 2, l
   return (
     <div className={`px-4 py-3 ${last ? '' : 'border-b border-primary/6'}`}>
       <p className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest mb-1.5">{label}</p>
-      <textarea
+      <TextArea
+        bare
         rows={rows}
         value={value}
-        onChange={e => onChange(e.target.value)}
+        onChange={onChange}
         placeholder={placeholder}
-        className="w-full bg-transparent text-sm text-primary placeholder:text-tertiary focus:outline-none resize-none"
+        ariaLabel={label}
+        inputClassName="w-full bg-transparent text-base md:text-sm text-primary placeholder:text-tertiary focus:outline-none resize-none"
       />
     </div>
   )
@@ -400,16 +403,13 @@ export function OpordReport() {
       {/* Notes + export */}
       <Section title="Notes" className="mb-0">
         <SectionCard>
-          <div className="px-4 py-3">
-            <textarea
-              value={report.notes ?? ''}
-              onChange={e => update({ notes: e.target.value })}
-              placeholder="Additional notes..."
-              rows={2}
-              className="w-full bg-transparent text-sm text-primary placeholder:text-tertiary focus:outline-none resize-none"
-            />
-          </div>
-          <div className="border-t border-primary/6 flex items-center justify-end px-3 py-2">
+          <TextArea
+            value={report.notes ?? ''}
+            onChange={v => update({ notes: v })}
+            placeholder="Additional notes..."
+            rows={2}
+          />
+          <div className="flex items-center justify-end px-3 py-2">
             <ActionPill>
               <ActionButton icon={copied ? Check : Copy} label="Copy" onClick={onCopy} variant={copied ? 'success' : 'default'} />
               <ActionButton icon={Download} label="Download" onClick={onDownload} />

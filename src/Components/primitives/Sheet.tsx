@@ -34,6 +34,7 @@ import { HudLoader } from '@/Components/primitives/HudLoader';
 import { useLoadingMorph } from '@/Components/primitives/useLoadingMorph';
 import { DRAWER_TIMING } from '@/Utilities/constants';
 import { Z, OverlayStackContext, STACK_BUMP } from '@/Components/primitives/BaseOverlay';
+import { Scrim } from '@/Components/primitives/Scrim';
 
 type SheetHeight = 'fit' | 'snap';
 type SheetBackdrop = 'dismiss' | 'block' | 'none';
@@ -70,8 +71,6 @@ interface SheetProps {
     /** Backdrop behavior. 'dismiss' = tap closes (default), 'block' = dims but
      *  non-dismissing, 'none' = no backdrop (surface underneath stays live). */
     backdrop?: SheetBackdrop;
-    /** Backdrop opacity when shown. Default 0.5 (dismiss) / 0.4 (block). */
-    backdropOpacity?: number;
 
     /** 'fit' only: show the drag handle + enable drag-down-to-dismiss. Default true. */
     draggable?: boolean;
@@ -101,7 +100,6 @@ export function Sheet({
     rightContent,
     actions,
     backdrop = height === 'snap' ? 'block' : 'dismiss',
-    backdropOpacity,
     draggable = true,
     // Snap sheets historically open nested over a BaseDrawer (which tops out
     // around z-[1010]) — default high so they aren't trapped underneath. Fit
@@ -320,10 +318,6 @@ export function Sheet({
 
     if (!isMounted && !isOpen) return null;
 
-    // Frosted dim — mirrors LiftedRowMenu's clone scrim (bg-black/45 + 6px blur)
-    // so block/dismiss sheets soft-blur what's underneath (e.g. a calendar
-    // BottomIsland/FAB) instead of leaving it visible through a weak flat dim.
-    const resolvedBackdropOpacity = backdropOpacity ?? 0.45;
     const heightDvh = isSnap ? (isFull ? expanded : peek) : undefined;
 
     // Slide transform. Fit mode adds the live drag offset (px) on top of the
@@ -398,13 +392,9 @@ export function Sheet({
             {/* Backdrop — omitted entirely for 'none' so what's underneath stays
                 interactive. 'dismiss' closes on tap; 'block' is non-dismissing. */}
             {backdrop !== 'none' && (
-                <div
-                    className="fixed inset-0 bg-black backdrop-blur-[6px] transition-opacity duration-300 ease-out"
-                    style={{
-                        zIndex,
-                        opacity: shown ? resolvedBackdropOpacity : 0,
-                        pointerEvents: shown ? 'auto' : 'none',
-                    }}
+                <Scrim
+                    progress={shown ? 1 : 0}
+                    zIndex={zIndex}
                     onClick={backdrop === 'dismiss' ? handleClose : undefined}
                 />
             )}

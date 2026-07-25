@@ -58,4 +58,10 @@ export interface ClinicMedic {
   subClusterId?: string | null
   /** True when the medic's assigned clinic is outside the caller's reach but their surrogate matches one of the caller's clinics. */
   isLoanedIn?: boolean
+  /** Set ONLY on the synthetic peer for an outbound outside-contact (email) channel.
+   *  Holds the cluster name the outside recipient sees as the sender. Its presence
+   *  marks this peer as an outside-entity channel; the conversation header (list
+   *  row stays the recipient email) uses it, and it renders via
+   *  OutsideEntityConversation rather than the standard 1:1 ChatDetail. */
+  outsideFromLabel?: string | null
 }

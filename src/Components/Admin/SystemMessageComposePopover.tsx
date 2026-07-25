@@ -10,7 +10,7 @@
 import { useEffect, useState } from 'react'
 import { Check, RefreshCw } from 'lucide-react'
 import { PreviewOverlay } from '../PreviewOverlay'
-import { ActionPill } from '@/Components/primitives/ActionPill'
+import { FooterPill } from '@/Components/primitives/FooterPill'
 import { ActionButton } from '@/Components/primitives/ActionButton'
 import { TextInput } from '@/Components/primitives/FormInputs'
 
@@ -53,14 +53,14 @@ export function SystemMessageComposePopover({ anchorRect, title, onClose, onSend
       maxWidth={360}
       rightFooter={
         anchorRect ? (
-          <ActionPill shadow="sm">
+          <FooterPill side="right">
             <ActionButton
               icon={sending ? RefreshCw : Check}
               label={sending ? 'Sending…' : 'Send'}
-              variant={canSend ? 'success' : 'disabled'}
+              variant={canSend ? 'confirm' : 'disabled'}
               onClick={handleSend}
             />
-          </ActionPill>
+          </FooterPill>
         ) : undefined
       }
     >

@@ -6,6 +6,7 @@ import type { StepResult } from '../../../Types/SupervisorTestTypes'
 import { StepCallout } from '../../TrainingStepComponents'
 import { SectionHeader } from '@/Components/primitives/Section'
 import { ActionPill } from '@/Components/primitives/ActionPill'
+import { TextArea } from '@/Components/primitives/FormInputs'
 
 // ─── EvaluationStep ──────────────────────────────────────────────────────────
 
@@ -168,12 +169,13 @@ export function EvaluationStep({
         {/* Supervisor Notes */}
         <div className="mb-5">
           <SectionHeader>Supervisor Notes (Optional)</SectionHeader>
-          <textarea
+          <TextArea
+            bare
             value={notes}
-            onChange={(e) => setNotes(e.target.value)}
+            onChange={setNotes}
             placeholder="Additional comments or observations..."
             rows={3}
-            className="w-full px-3 py-2.5 rounded-lg bg-themewhite2 text-primary text-sm
+            inputClassName="w-full px-3 py-2.5 rounded-lg bg-transparent text-primary text-base md:text-sm
                        border border-tertiary/10 focus:border-themeblue2 focus:outline-none
                        transition-colors placeholder:text-tertiary resize-none"
           />
@@ -181,7 +183,7 @@ export function EvaluationStep({
       </div>
 
       {/* Sticky bottom bar */}
-      <div className="sticky bottom-0 left-0 right-0 bg-themewhite border-t border-primary/6 px-4 py-3">
+      <div className="sticky bottom-0 left-0 right-0 bg-themewhite3 border-t border-primary/6 px-4 py-3">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0 flex-1">
             <span className="text-sm text-tertiary truncate">

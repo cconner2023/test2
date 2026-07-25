@@ -445,7 +445,7 @@ export const PropertyCSVImport = forwardRef<PropertyCSVImportHandle, PropertyCSV
                 <table className="text-[10pt] border-collapse" style={{ minWidth: 850 }}>
                   <thead>
                     <tr className="border-b border-tertiary/15 bg-themewhite2/50 text-tertiary">
-                      <th className="sticky left-0 z-10 bg-themewhite2 w-10" />
+                      <th className="sticky left-0 z-10 bg-themewhite3 w-10" />
                       <th className="text-left px-2 py-2 font-medium" style={{ minWidth: 160 }}>Name</th>
                       <th className="text-left px-2 py-2 font-medium" style={{ minWidth: 130 }}>Nomenclature</th>
                       <th className="text-left px-2 py-2 font-medium" style={{ minWidth: 120 }}>NSN</th>

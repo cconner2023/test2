@@ -15,7 +15,7 @@ import { OrderSetManager } from './OrderSetManager';
 import { useClusterEditItem } from './ClusterEditPicker';
 import { useNoteBlocksTransferItems } from './NoteBlocksTransferMenu';
 import { useNoteBlocksTransfer } from '../../Hooks/useNoteBlocksTransfer';
-import { ActionPill } from '@/Components/primitives/ActionPill'
+import { FooterPill } from '@/Components/primitives/FooterPill'
 import { OverlayHeaderMenu } from '@/Components/primitives/OverlayHeaderMenu';
 import type { ContextMenuItem } from '@/Components/primitives/ContextMenu';
 
@@ -458,19 +458,19 @@ function TagEditPopover({ state, onClose, isSupervisorRole, hasClinic, onSubmitM
             // tag. Rendered only once the current last row has content (no dimmed
             // dead-end, no stacked blanks); the array grows one non-empty row at a time.
             footer={!isEdit && lastFilled ? (
-                <ActionPill>
+                <FooterPill>
                     <ActionButton icon={Plus} label="Add additional" onClick={addRow} />
-                </ActionPill>
+                </FooterPill>
             ) : undefined}
             rightFooter={
-                <ActionPill>
+                <FooterPill side="right">
                     <ActionButton
                         icon={Check}
                         label="Save"
-                        variant={canSave ? 'success' : 'disabled'}
+                        variant={canSave ? 'confirm' : 'disabled'}
                         onClick={handleSave}
                     />
-                </ActionPill>
+                </FooterPill>
             }
         >
             {isEdit ? (
@@ -639,7 +639,7 @@ function OrderSetEditPopover({
             searchPlaceholder="Search tags"
             preview={(filter, clearFilter) => (
                 <div>
-                    <div className="sticky top-0 z-10 bg-themewhite">
+                    <div className="sticky top-0 z-10 bg-themewhite3">
                         <TextInput
                             value={name}
                             onChange={setName}
@@ -679,14 +679,14 @@ function OrderSetEditPopover({
             )}
             headerActions={<OverlayHeaderMenu items={modifierItems} />}
             rightFooter={
-                <ActionPill>
+                <FooterPill side="right">
                     <ActionButton
                         icon={Check}
                         label="Save"
-                        variant={canSave ? 'success' : 'disabled'}
+                        variant={canSave ? 'confirm' : 'disabled'}
                         onClick={handleSave}
                     />
-                </ActionPill>
+                </FooterPill>
             }
         />
     );

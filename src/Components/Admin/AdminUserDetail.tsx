@@ -17,6 +17,7 @@ import { UserRow } from '../UserRow'
 import { AdminCertsSection } from './AdminCertsSection'
 import { UserTimeline } from '../Timeline/UserTimeline'
 import { TextInput, PickerInput, MultiPickerInput, PasswordInput } from '@/Components/primitives/FormInputs'
+import { FooterPill } from '@/Components/primitives/FooterPill'
 import { UicPinInput } from '@/Components/DomainInputs'
 import { ErrorDisplay } from '@/Components/primitives/ErrorDisplay'
 import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
@@ -854,14 +855,14 @@ export function AdminUserDetail({
         maxWidth={340}
         rightFooter={
           resetPwAnchor && user ? (
-            <ActionPill shadow="sm">
+            <FooterPill side="right">
               <ActionButton
                 icon={resetPw.processing ? RefreshCw : Check}
                 label={resetPw.processing ? 'Submitting…' : 'Reset password'}
-                variant={resetPw.processing || resetPw.value.length < 12 ? 'disabled' : 'success'}
+                variant={resetPw.processing || resetPw.value.length < 12 ? 'disabled' : 'confirm'}
                 onClick={() => user && resetPw.requestConfirm(user.id)}
               />
-            </ActionPill>
+            </FooterPill>
           ) : undefined
         }
       >
@@ -894,26 +895,26 @@ export function AdminUserDetail({
         previewMaxHeight="70dvh"
         footer={
           editAnchor && user && !overlayPending && onRequestDelete && currentUserId !== user.id ? (
-            <ActionPill shadow="sm">
+            <FooterPill>
               <ActionButton
                 icon={Trash2}
                 label="Delete user"
                 variant="danger"
                 onClick={onRequestDelete}
               />
-            </ActionPill>
+            </FooterPill>
           ) : undefined
         }
         rightFooter={
           editAnchor && user && !overlayPending ? (
-            <ActionPill shadow="sm">
+            <FooterPill side="right">
               <ActionButton
                 icon={stepResults.some(s => !s.ok) ? RefreshCw : Check}
                 label={stepResults.some(s => !s.ok) ? 'Retry failed' : 'Save'}
-                variant="success"
+                variant="confirm"
                 onClick={handleSave}
               />
-            </ActionPill>
+            </FooterPill>
           ) : undefined
         }
       >

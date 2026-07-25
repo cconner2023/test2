@@ -68,7 +68,7 @@ export function AddFab({
   if (!tray) return button
 
   return (
-    <div className={`rounded-full border border-tertiary/20 p-0.5 bg-themewhite shadow-lg pointer-events-auto ${className}`}>
+    <div className={`rounded-full border border-tertiary/15 p-0.5 bg-themewhite shadow-lg pointer-events-auto ${className}`}>
       {button}
     </div>
   )

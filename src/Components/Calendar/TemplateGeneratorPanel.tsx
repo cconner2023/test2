@@ -1,9 +1,9 @@
 import { useState, useMemo, useEffect, useImperativeHandle, forwardRef } from 'react'
 import { Trash2 } from 'lucide-react'
 import { PickerInput, DatePickerInput, TimeInput } from '@/Components/primitives/FormInputs'
+import { FooterPill } from '@/Components/primitives/FooterPill'
 import { SectionCard } from '@/Components/primitives/Section'
 import { PreviewOverlay } from '../PreviewOverlay'
-import { ActionPill } from '@/Components/primitives/ActionPill'
 import { ActionButton } from '@/Components/primitives/ActionButton'
 import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
 import { useAuthStore } from '../../stores/useAuthStore'
@@ -301,7 +301,7 @@ export const TemplateGeneratorPanel = forwardRef<TemplateGeneratorHandle, Templa
           maxWidth={300}
           footer={
             slotPopover ? (
-              <ActionPill>
+              <FooterPill>
                 <ActionButton
                   icon={Trash2}
                   label="Remove slot"
@@ -312,7 +312,7 @@ export const TemplateGeneratorPanel = forwardRef<TemplateGeneratorHandle, Templa
                     setTimeout(() => setConfirmRemoveSlot(slot), 320)
                   }}
                 />
-              </ActionPill>
+              </FooterPill>
             ) : undefined
           }
         >

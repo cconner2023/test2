@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { MapPin, ChevronRight } from 'lucide-react'
+import { MapPin, Palette, ChevronRight } from 'lucide-react'
 import { listClinics, listAllUsers } from '../../lib/adminService'
 import { useInvalidation } from '../../stores/useInvalidationStore'
 import { AdminSystemConversationsList } from './AdminSystemConversationsList'
@@ -11,6 +11,8 @@ import type { FeatureVoteSuggestion } from '../../lib/featureVotingService'
 interface AdminSortRailProps {
   /** Open the admin settings sheet (locations management). */
   onOpenSettings: () => void
+  /** Open the theme palette reference (temporary dev surface). */
+  onOpenPalette: () => void
   /** Open a system-conversation thread (detail pane / view). */
   onSelectSystemPeer: (peerId: string) => void
   /** Open a triage item in the drawer detail pane / Sheet. */
@@ -42,6 +44,7 @@ const FEEDBACK_KINDS = ['suggestion', 'feedback'] as const
  */
 export function AdminSortRail({
   onOpenSettings,
+  onOpenPalette,
   onSelectSystemPeer,
   onOpenRequest,
   onOpenFeedback,
@@ -74,6 +77,18 @@ export function AdminSortRail({
             <MapPin size={16} className="text-tertiary" />
           </div>
           <span className="flex-1 min-w-0 text-sm font-medium text-primary">Locations</span>
+          <ChevronRight size={16} className="text-tertiary shrink-0" />
+        </button>
+
+        {/* Colors — every theme token, light and dark, on one page. Temporary. */}
+        <button
+          onClick={onOpenPalette}
+          className="flex items-center gap-3 w-full text-left px-4 py-3 hover:bg-themeblue2/5 active:scale-[0.99] transition-all"
+        >
+          <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
+            <Palette size={16} className="text-tertiary" />
+          </div>
+          <span className="flex-1 min-w-0 text-sm font-medium text-primary">Color Palette</span>
           <ChevronRight size={16} className="text-tertiary shrink-0" />
         </button>
 

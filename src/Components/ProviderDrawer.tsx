@@ -3,11 +3,11 @@ import { ScanLine, X, LayoutTemplate, Pencil, Check, ChevronLeft, ChevronRight }
 import { ImportInputBar } from './ImportInputBar'
 import { ImportResultPopover } from './ImportResultPopover'
 import { BaseDrawer } from '@/Components/primitives/BaseDrawer'
+import { FooterPill } from '@/Components/primitives/FooterPill'
 import { Sheet } from '@/Components/primitives/Sheet'
 import { ContentWrapper } from '@/Components/primitives/ContentWrapper'
 import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill'
 import { SearchInput } from '@/Components/primitives/SearchInput'
-import { ActionPill } from '@/Components/primitives/ActionPill'
 import { ActionButton } from '@/Components/primitives/ActionButton'
 import { AddFab } from '@/Components/primitives/AddFab'
 import { SlideRevealPane } from '@/Components/primitives/SlideRevealPane'
@@ -459,14 +459,14 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
         />
       ) : null,
       rightFooter: selectedTemplate ? (
-        <ActionPill>
+        <FooterPill side="right">
           <ActionButton
             icon={Check}
             label="Apply"
-            variant="success"
+            variant="confirm"
             onClick={() => { handleApplyTemplate(selectedTemplate); setSelectedTemplateId(null); closePane() }}
           />
-        </ActionPill>
+        </FooterPill>
       ) : undefined,
       render: () => selectedTemplate
         ? <TemplateDetailBody template={selectedTemplate} expanders={profile.textExpanders ?? []} orderSets={profile.planOrderSets} />
@@ -619,7 +619,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
               side="left"
               width={260}
               keepMounted
-              className="border-r border-tertiary/10 bg-themewhite3/50"
+              className="border-r border-tertiary/10 bg-themewhite3"
             >
               <div className="shrink-0 px-3 pt-2 pb-1 flex items-center gap-2">
                 <SearchInput

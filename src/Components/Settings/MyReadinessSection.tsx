@@ -61,7 +61,6 @@ export function MyReadinessSection({ certs, onViewTimeline }: {
 
   const [expandedArea, setExpandedArea] = useState<string | null>(null)
   const [algosExpanded, setAlgosExpanded] = useState(false)
-  const [expandedTestId, setExpandedTestId] = useState<string | null>(null)
 
   const tests = useMemo(
     () => completions.filter((c: TrainingCompletionUI) => c.completionType === 'test'),
@@ -104,14 +103,6 @@ export function MyReadinessSection({ certs, onViewTimeline }: {
     if (algorithmCompetency.length === 0) return 0
     return Math.round(algorithmCompetency.reduce((s, a) => s + a.pct, 0) / algorithmCompetency.length)
   }, [algorithmCompetency])
-
-  const sortedTests = useMemo(
-    () => [...tests].sort((a, b) => {
-      if (a.result !== b.result) return a.result === 'NO_GO' ? -1 : 1
-      return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-    }),
-    [tests],
-  )
 
   if (!userId) return null
 
@@ -250,72 +241,12 @@ export function MyReadinessSection({ certs, onViewTimeline }: {
           )}
         </div>
 
-        {/* Training History — read-only evaluations (tap to expand step results) */}
-        <div>
-          <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">Training History</p>
-          {sortedTests.length === 0 ? (
-            <div className="rounded-2xl bg-themewhite2 overflow-hidden px-4 py-4">
-              <p className="text-[10pt] text-tertiary">No test records yet</p>
-            </div>
-          ) : (
-            <div className="rounded-2xl bg-themewhite2 overflow-hidden">
-              {sortedTests.map((record) => {
-                const isExpanded = expandedTestId === record.id
-                const taskTitle = getTaskData(record.trainingItemId)?.title ?? record.trainingItemId
-                const passed = record.result === 'GO'
-                return (
-                  <div key={record.id}>
-                    <button
-                      onClick={() => setExpandedTestId(isExpanded ? null : record.id)}
-                      className="flex items-center w-full px-4 py-3 text-left hover:bg-themeblue2/5 transition-colors"
-                    >
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-primary truncate">{taskTitle}</p>
-                        <p className="text-[9pt] text-tertiary mt-0.5">{new Date(record.updatedAt).toLocaleDateString()}</p>
-                      </div>
-                      <span className={`shrink-0 ml-2 px-3 py-1 rounded-full text-[10pt] font-bold ${passed ? 'bg-themegreen/15 text-themegreen' : 'bg-themeredred/15 text-themeredred'}`}>
-                        {passed ? 'PASS' : 'FAIL'}
-                      </span>
-                    </button>
-                    {isExpanded && (
-                      <div className="px-4 pb-3 border-t border-tertiary/10">
-                        <p className="text-[9pt] text-tertiary font-mono mt-3 mb-2">{record.trainingItemId}</p>
-                        {record.stepResults && (() => {
-                          const taskDef = getTaskData(record.trainingItemId)
-                          const gradedFilter = taskDef?.gradedSteps ? new Set(taskDef.gradedSteps) : null
-                          const displayResults = gradedFilter
-                            ? record.stepResults.filter(sr => gradedFilter.has(sr.stepNumber))
-                            : record.stepResults
-                          return (
-                            <div className="space-y-1">
-                              {displayResults.map((sr) => (
-                                <div key={sr.stepNumber} className="flex items-center gap-2 py-1">
-                                  <span className="text-[9pt] text-tertiary font-mono w-6 text-right">{sr.stepNumber}</span>
-                                  {sr.result === 'GO' ? (
-                                    <span className="px-2 py-0.5 rounded text-[9pt] font-bold bg-themegreen/15 text-themegreen">GO</span>
-                                  ) : sr.result === 'NO_GO' ? (
-                                    <span className="px-2 py-0.5 rounded text-[9pt] font-bold bg-themeredred/15 text-themeredred">NO GO</span>
-                                  ) : (
-                                    <span className="px-2 py-0.5 rounded text-[9pt] bg-tertiary/10 text-tertiary">--</span>
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                          )
-                        })()}
-                        {record.supervisorNotes && (
-                          <div className="mt-3 p-2 bg-themewhite rounded text-sm">
-                            <span className="text-tertiary">Notes:</span> <span className="text-primary">{record.supervisorNotes}</span>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
+        {/* NO "Training History" list here on purpose — every graded evaluation
+            already lands in the timeline below (test.graded audit events). The
+            per-test PASS/FAIL list was a second rendering of the same records;
+            per-task GO/NO_GO still lives in Training Competency above. The
+            evaluator-side SoldierProfile keeps its history list (it needs the
+            per-record delete). */}
 
         {/* Lifecycle timeline — self-fetches its own subject audit (offline-first).
             Desktop docks "View all" in the Settings right pane (onViewTimeline);

@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo } from 'react'
 import { X, Check, ChevronDown } from 'lucide-react'
 import { PreviewOverlay } from '../PreviewOverlay'
-import { ActionPill } from '@/Components/primitives/ActionPill'
+import { FooterPill } from '@/Components/primitives/FooterPill'
 import { ActionButton } from '@/Components/primitives/ActionButton'
 import type { AdminUser, AdminClinic, AdminLocation } from '../../lib/adminService'
 import { LocationBreadcrumb } from './LocationBreadcrumb'
@@ -337,9 +337,9 @@ export const ClinicMultiPickerInput = ({
           )
         }}
         rightFooter={
-          <ActionPill>
+          <FooterPill side="right">
             <ActionButton icon={Check} label="Done" onClick={close} />
-          </ActionPill>
+          </FooterPill>
         }
       />
     </div>

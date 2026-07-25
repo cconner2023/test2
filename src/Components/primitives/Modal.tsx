@@ -20,7 +20,8 @@ interface ModalProps {
 
 /**
  * Modal — centered card on desktop, bottom-sheet on mobile.
- * Card chrome: bg-themewhite rounded-2xl shadow-2xl border-tertiary/10.
+ * Card chrome: bg-themewhite3 rounded-2xl surface-shadow, borderless —
+ * separation is bg-vs-scrim contrast, not an outline (see App.css ELEVATION).
  * Replaces ad-hoc dual-mode patterns in ConfirmDialog, ProvisionalDeviceModal, etc.
  */
 export function Modal({
@@ -41,7 +42,7 @@ export function Modal({
         if (isMobile) {
           return (
             <div
-              className={`fixed left-0 right-0 bottom-0 bg-themewhite rounded-t-2xl shadow-xl flex flex-col transition-transform duration-300 ease-out`}
+              className={`fixed left-0 right-0 bottom-0 bg-themewhite3 rounded-t-2xl surface-shadow flex flex-col transition-transform duration-300 ease-out`}
               style={{
                 zIndex: baseZ + 1,
                 maxHeight: mobileMaxHeight,
@@ -75,7 +76,7 @@ export function Modal({
             style={{ zIndex: baseZ + 1 }}
           >
             <div
-              className={`pointer-events-auto w-full bg-themewhite rounded-2xl shadow-2xl border border-tertiary/10 flex flex-col transition-all duration-300 ease-out ${
+              className={`pointer-events-auto w-full bg-themewhite3 rounded-2xl surface-shadow flex flex-col transition-all duration-300 ease-out ${
                 open ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
               }`}
               style={{ maxWidth: typeof maxWidth === 'number' ? maxWidth : maxWidth, maxHeight: '85dvh' }}

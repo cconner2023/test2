@@ -31,7 +31,8 @@ interface MenuProps {
 
 /**
  * Menu — desktop-style dropdown / option list, centered.
- * Card chrome: bg-themewhite rounded-2xl shadow-lg border-primary/10.
+ * Card chrome: bg-themewhite3 rounded-2xl surface-shadow, borderless —
+ * separation is bg-vs-scrim contrast, not an outline (see App.css ELEVATION).
  * Each option is a row matching the form-input row pattern (px-4 py-3, border-b last:border-b-0).
  */
 export function Menu({
@@ -60,7 +61,7 @@ export function Menu({
           style={{ zIndex: zIndex + 1 }}
         >
           <div
-            className={`pointer-events-auto w-full bg-themewhite rounded-2xl shadow-lg border border-primary/10 overflow-hidden transition-all duration-200 ease-out ${
+            className={`pointer-events-auto w-full bg-themewhite3 rounded-2xl surface-shadow overflow-hidden transition-all duration-200 ease-out ${
               open ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 translate-y-2'
             }`}
             style={{ maxWidth }}

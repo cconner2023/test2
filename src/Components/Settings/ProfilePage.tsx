@@ -17,6 +17,7 @@ import { ActionButton } from '@/Components/primitives/ActionButton';
 import { OverlayActionMenu } from '@/Components/primitives/OverlayActionMenu';
 import { PreviewOverlay } from '../PreviewOverlay';
 import { ActionPill } from '@/Components/primitives/ActionPill'
+import { FooterPill } from '@/Components/primitives/FooterPill'
 import { SkeletonRows } from '@/Components/primitives/Skeleton';
 import { CertificationRow } from '../Certifications/CertificationRow';
 import { MyReadinessSection } from './MyReadinessSection';
@@ -27,7 +28,7 @@ import type { CertInput } from '../../lib/certificationService';
 import { submitProfileChangeRequest } from '../../lib/accountRequestService';
 import { updateOwnEmail, leaveOwnCluster } from '../../lib/authService';
 import { isValidEmail } from '../../lib/adminService';
-import { PickerInput, PasswordInput } from '@/Components/primitives/FormInputs';
+import { PickerInput, PasswordInput, TextArea } from '@/Components/primitives/FormInputs';
 import { ErrorDisplay } from '@/Components/primitives/ErrorDisplay';
 import { supabase } from '../../lib/supabase';
 import { reEncryptVaultKeys } from '../../lib/signal/vaultDevice';
@@ -138,8 +139,9 @@ export const ProfilePage = ({
         await navigator.clipboard.writeText(user.id)
     }, [user?.id])
 
-    // Profile change-request popover (anchored to the corner pill — the pencil
-    // collapses into the ellipsis menu, so anchor to the pill, not the button)
+    // Profile change-request popover — anchored to its own row in the Account
+    // Actions card (it's an account action like email/password, not a card affordance)
+    const profileRowRef = useRef<HTMLButtonElement>(null)
     const [profileEdit, setProfileEdit] = useState<{ anchor: DOMRect } | null>(null)
     const [pFirstName, setPFirstName] = useState('')
     const [pLastName, setPLastName] = useState('')
@@ -156,7 +158,7 @@ export const ProfilePage = ({
     const componentRanks = pComponent ? ranksByComponent[pComponent as Component] : []
 
     const openProfileEdit = useCallback(() => {
-        if (!toolbarRef.current) return
+        if (!profileRowRef.current) return
         setPFirstName(profile.firstName ?? '')
         setPLastName(profile.lastName ?? '')
         setPMiddleInitial(profile.middleInitial ?? '')
@@ -167,7 +169,7 @@ export const ProfilePage = ({
         setPNotes('')
         setProfileError(null)
         setProfileSubmitted(false)
-        setProfileEdit({ anchor: toolbarRef.current.getBoundingClientRect() })
+        setProfileEdit({ anchor: profileRowRef.current.getBoundingClientRect() })
     }, [profile])
 
     const closeProfileEdit = useCallback(() => {
@@ -483,9 +485,112 @@ export const ProfilePage = ({
                             items={[
                                 { key: 'copy', label: 'Copy user ID', icon: Copy, onAction: handleCopyId },
                                 { key: 'qr', label: 'Share ID QR', icon: QrCode, onAction: openShare },
-                                { key: 'edit', label: 'Request profile change', icon: Pencil, onAction: openProfileEdit },
                             ]}
                         />
+                    )}
+                    </div>
+
+                    {/* Account actions — every action a user can take on their own
+                        account (edit request, credentials, cluster exit, sign out,
+                        delete). Deliberately NOT its own section: these belong to
+                        the identity card above them, so they share the "Profile"
+                        heading rather than introducing a second header. */}
+                    <div className="mt-3 rounded-2xl bg-themewhite2 overflow-hidden">
+                    {deletePhase === 'pin' ? (
+                        <div className="px-4 py-5 flex flex-col items-center">
+                            <PinKeypad
+                                onSubmit={handlePinSubmit}
+                                label="Enter passcode to confirm"
+                                error={deleteError}
+                            />
+                            <button
+                                onClick={resetDelete}
+                                className="mt-4 px-6 py-2.5 rounded-xl border border-tertiary/15 bg-themewhite2 text-tertiary text-sm font-medium active:scale-95 transition-all"
+                            >
+                                Cancel
+                            </button>
+                        </div>
+                    ) : deletePhase === 'processing' ? (
+                        <div className="flex items-center justify-center py-8">
+                            <p className="text-sm text-tertiary animate-pulse">Deleting account...</p>
+                        </div>
+                    ) : (
+                        <>
+                            <button
+                                ref={profileRowRef}
+                                onClick={openProfileEdit}
+                                className="flex items-center gap-3 w-full px-4 py-3.5 transition-all active:scale-95 hover:bg-themeblue2/5"
+                            >
+                                <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
+                                    <Pencil size={20} className="text-tertiary" />
+                                </div>
+                                <span className="flex-1 text-left text-sm font-medium text-primary">
+                                    Request Change
+                                </span>
+                                <ChevronRight size={16} className="text-tertiary shrink-0" />
+                            </button>
+                            <button
+                                ref={pwRowRef}
+                                onClick={openPwEdit}
+                                className="flex items-center gap-3 w-full px-4 py-3.5 border-t border-tertiary/8 transition-all active:scale-95 hover:bg-themeblue2/5"
+                            >
+                                <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
+                                    <KeyRound size={20} className="text-tertiary" />
+                                </div>
+                                <span className="flex-1 text-left text-sm font-medium text-primary">
+                                    Change Password
+                                </span>
+                                <ChevronRight size={16} className="text-tertiary shrink-0" />
+                            </button>
+                            <button
+                                ref={emailRowRef}
+                                onClick={openEmailEdit}
+                                className="flex items-center gap-3 w-full px-4 py-3.5 border-t border-tertiary/8 transition-all active:scale-95 hover:bg-themeblue2/5"
+                            >
+                                <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
+                                    <Mail size={20} className="text-tertiary" />
+                                </div>
+                                <span className="flex-1 text-left text-sm font-medium text-primary">
+                                    Change Email
+                                </span>
+                                <ChevronRight size={16} className="text-tertiary shrink-0" />
+                            </button>
+                            {clinicId && (
+                                <button
+                                    onClick={() => setShowLeaveConfirm(true)}
+                                    className="flex items-center gap-3 w-full px-4 py-3.5 border-t border-tertiary/8 transition-all active:scale-95 hover:bg-themeredred/5"
+                                >
+                                    <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-themeredred/10">
+                                        <DoorOpen size={20} className="text-themeredred" />
+                                    </div>
+                                    <span className="flex-1 text-left text-sm font-medium text-themeredred">
+                                        Leave Cluster
+                                    </span>
+                                </button>
+                            )}
+                            <button
+                                onClick={deviceRole === 'primary' ? () => setShowSignOut(true) : onSignOut}
+                                className="flex items-center gap-3 w-full px-4 py-3.5 border-t border-tertiary/8 transition-all active:scale-95 hover:bg-themeredred/5"
+                            >
+                                <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-themeredred/10">
+                                    <LogOut size={20} className="text-themeredred" />
+                                </div>
+                                <span className="flex-1 text-left text-sm font-medium text-themeredred">
+                                    Sign Out
+                                </span>
+                            </button>
+                            <button
+                                onClick={() => setShowDeleteDialog(true)}
+                                className="flex items-center gap-3 w-full px-4 py-3.5 border-t border-tertiary/8 transition-all active:scale-95 hover:bg-themeredred/5"
+                            >
+                                <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-themeredred/5">
+                                    <Trash2 size={20} className="text-themeredred/60" />
+                                </div>
+                                <span className="flex-1 text-left text-sm font-medium text-themeredred/60">
+                                    Delete Account
+                                </span>
+                            </button>
+                        </>
                     )}
                     </div>
                 </section>
@@ -534,100 +639,6 @@ export const ProfilePage = ({
                     sees (SoldierProfile), computed from the user's own delta-synced
                     training completions + certs. */}
                 <MyReadinessSection certs={certs} onViewTimeline={onViewTimeline} />
-
-
-                {/* Account Actions */}
-                <div className="rounded-2xl bg-themewhite2 overflow-hidden">
-                    {deletePhase === 'pin' ? (
-                        <div className="px-4 py-5 flex flex-col items-center">
-                            <PinKeypad
-                                onSubmit={handlePinSubmit}
-                                label="Enter passcode to confirm"
-                                error={deleteError}
-                            />
-                            <button
-                                onClick={resetDelete}
-                                className="mt-4 px-6 py-2.5 rounded-xl border border-tertiary/15 bg-themewhite2 text-tertiary text-sm font-medium active:scale-95 transition-all"
-                            >
-                                Cancel
-                            </button>
-                        </div>
-                    ) : deletePhase === 'processing' ? (
-                        <div className="flex items-center justify-center py-8">
-                            <p className="text-sm text-tertiary animate-pulse">Deleting account...</p>
-                        </div>
-                    ) : (
-                        <>
-                            <button
-                                ref={pwRowRef}
-                                onClick={openPwEdit}
-                                className="flex items-center gap-3 w-full px-4 py-3.5 transition-all active:scale-95 hover:bg-themeblue2/5"
-                            >
-                                <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
-                                    <KeyRound size={20} className="text-tertiary" />
-                                </div>
-                                <span className="flex-1 text-left text-sm font-medium text-primary">
-                                    Reset Password
-                                </span>
-                                <ChevronRight size={16} className="text-tertiary shrink-0" />
-                            </button>
-                            <button
-                                ref={emailRowRef}
-                                onClick={openEmailEdit}
-                                className="flex items-center gap-3 w-full px-4 py-3.5 border-t border-tertiary/8 transition-all active:scale-95 hover:bg-themeblue2/5"
-                            >
-                                <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
-                                    <Mail size={20} className="text-tertiary" />
-                                </div>
-                                <div className="flex-1 min-w-0 text-left">
-                                    <span className="block text-sm font-medium text-primary">Email</span>
-                                    {userEmail && (
-                                        <span className="block text-[10pt] text-tertiary truncate">{userEmail}</span>
-                                    )}
-                                </div>
-                                <ChevronRight size={16} className="text-tertiary shrink-0" />
-                            </button>
-                            {clinicId && (
-                                <button
-                                    onClick={() => setShowLeaveConfirm(true)}
-                                    className="flex items-center gap-3 w-full px-4 py-3.5 border-t border-tertiary/8 transition-all active:scale-95 hover:bg-themeredred/5"
-                                >
-                                    <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-themeredred/10">
-                                        <DoorOpen size={20} className="text-themeredred" />
-                                    </div>
-                                    <div className="flex-1 min-w-0 text-left">
-                                        <span className="block text-sm font-medium text-themeredred">Leave Cluster</span>
-                                        <span className="block text-[10pt] text-tertiary truncate">
-                                            Currently in {profile?.clinicName || 'your cluster'}
-                                        </span>
-                                    </div>
-                                </button>
-                            )}
-                            <button
-                                onClick={deviceRole === 'primary' ? () => setShowSignOut(true) : onSignOut}
-                                className="flex items-center gap-3 w-full px-4 py-3.5 border-t border-tertiary/8 transition-all active:scale-95 hover:bg-themeredred/5"
-                            >
-                                <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-themeredred/10">
-                                    <LogOut size={20} className="text-themeredred" />
-                                </div>
-                                <span className="flex-1 text-left text-sm font-medium text-themeredred">
-                                    Sign Out
-                                </span>
-                            </button>
-                            <button
-                                onClick={() => setShowDeleteDialog(true)}
-                                className="flex items-center gap-3 w-full px-4 py-3.5 border-t border-tertiary/8 transition-all active:scale-95 hover:bg-themeredred/5"
-                            >
-                                <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-themeredred/5">
-                                    <Trash2 size={20} className="text-themeredred/60" />
-                                </div>
-                                <span className="flex-1 text-left text-sm font-medium text-themeredred/60">
-                                    Delete Account
-                                </span>
-                            </button>
-                        </>
-                    )}
-                </div>
             </div>
 
             {/* Leave Cluster Confirm + failure notice */}
@@ -683,9 +694,9 @@ export const ProfilePage = ({
                 maxWidth={320}
                 rightFooter={
                     sharePopoverAnchor ? (
-                        <ActionPill>
+                        <FooterPill side="right">
                             <ActionButton icon={Share2} label="Share image" onClick={handleShareImage} />
-                        </ActionPill>
+                        </FooterPill>
                     ) : undefined
                 }
             >
@@ -711,14 +722,14 @@ export const ProfilePage = ({
                 previewMaxHeight="70dvh"
                 rightFooter={
                     profileEdit && !profileSubmitted ? (
-                        <ActionPill>
+                        <FooterPill side="right">
                             <ActionButton
                                 icon={profileSubmitting ? RefreshCw : Check}
                                 label={profileSubmitting ? 'Submitting…' : 'Submit'}
-                                variant={profileSubmitting || !profileHasChanges || !profileUicValid ? 'disabled' : 'success'}
+                                variant={profileSubmitting || !profileHasChanges || !profileUicValid ? 'disabled' : 'confirm'}
                                 onClick={handleProfileSubmit}
                             />
-                        </ActionPill>
+                        </FooterPill>
                     ) : undefined
                 }
             >
@@ -797,12 +808,13 @@ export const ProfilePage = ({
                             />
                         </div>
                         <div className={`${isMobile ? 'px-4 py-3' : 'px-3 py-2.5'}`}>
-                            <textarea
+                            <TextArea
+                                bare
                                 value={pNotes}
-                                onChange={(e) => setPNotes(e.target.value)}
+                                onChange={setPNotes}
                                 placeholder="Reason for changes (optional)"
                                 rows={2}
-                                className={`w-full bg-transparent text-primary placeholder:text-tertiary focus:outline-none resize-none ${isMobile ? 'text-base' : 'text-sm'}`}
+                                inputClassName={`w-full bg-transparent text-primary placeholder:text-tertiary focus:outline-none resize-none ${isMobile ? 'text-base' : 'text-sm'}`}
                             />
                         </div>
                     </div>
@@ -818,14 +830,14 @@ export const ProfilePage = ({
                 maxWidth={360}
                 rightFooter={
                     emailAnchor ? (
-                        <ActionPill>
+                        <FooterPill side="right">
                             <ActionButton
                                 icon={Check}
                                 label="Save"
-                                variant={!emailChanged || !emailValid || emailSubmitting ? 'disabled' : 'success'}
+                                variant={!emailChanged || !emailValid || emailSubmitting ? 'disabled' : 'confirm'}
                                 onClick={requestEmailConfirm}
                             />
-                        </ActionPill>
+                        </FooterPill>
                     ) : undefined
                 }
             >
@@ -875,14 +887,14 @@ export const ProfilePage = ({
                 maxWidth={360}
                 rightFooter={
                     pwAnchor && !pwSuccess ? (
-                        <ActionPill>
+                        <FooterPill side="right">
                             <ActionButton
                                 icon={pwSubmitting ? RefreshCw : Check}
                                 label={pwSubmitting ? 'Updating…' : 'Update password'}
-                                variant={!pwValid || pwSubmitting ? 'disabled' : 'success'}
+                                variant={!pwValid || pwSubmitting ? 'disabled' : 'confirm'}
                                 onClick={doPwChange}
                             />
-                        </ActionPill>
+                        </FooterPill>
                     ) : undefined
                 }
             >
@@ -937,14 +949,14 @@ export const ProfilePage = ({
                 previewMaxHeight="60dvh"
                 rightFooter={
                     certAddAnchor ? (
-                        <ActionPill>
+                        <FooterPill side="right">
                             <ActionButton
                                 icon={certSaving ? RefreshCw : Check}
                                 label={certSaving ? 'Saving…' : 'Add'}
-                                variant={certSaving || !certForm.title.trim() ? 'disabled' : 'success'}
+                                variant={certSaving || !certForm.title.trim() ? 'disabled' : 'confirm'}
                                 onClick={handleCertAdd}
                             />
-                        </ActionPill>
+                        </FooterPill>
                     ) : undefined
                 }
             >
@@ -961,7 +973,7 @@ export const ProfilePage = ({
                 previewMaxHeight="60dvh"
                 footer={
                     certEdit && editingCert ? (
-                        <div className="flex gap-1 bg-themewhite rounded-2xl shadow-lg px-1.5 py-1.5">
+                        <FooterPill>
                             <ActionButton
                                 icon={Trash2}
                                 label="Delete certification"
@@ -971,19 +983,19 @@ export const ProfilePage = ({
                                     setPendingDeletePrimary(editingCert.is_primary)
                                 }}
                             />
-                        </div>
+                        </FooterPill>
                     ) : undefined
                 }
                 rightFooter={
                     certEdit && editingCert ? (
-                        <ActionPill>
+                        <FooterPill side="right">
                             <ActionButton
                                 icon={certSaving ? RefreshCw : Check}
                                 label={certSaving ? 'Saving…' : 'Save'}
-                                variant={certSaving || !certForm.title.trim() ? 'disabled' : 'success'}
+                                variant={certSaving || !certForm.title.trim() ? 'disabled' : 'confirm'}
                                 onClick={handleCertEdit}
                             />
-                        </ActionPill>
+                        </FooterPill>
                     ) : undefined
                 }
             >

@@ -1209,7 +1209,7 @@ export const PropertyPanel = memo(function PropertyPanel({
             side="left"
             width={260}
             keepMounted
-            className="border-r border-tertiary/10 bg-themewhite3/50"
+            className="border-r border-tertiary/10 bg-themewhite3"
           >
             {/* Location tree is always present in the rail (reached by search here);
                 it is no longer an island tab. */}
@@ -1929,7 +1929,10 @@ export const PropertyPanel = memo(function PropertyPanel({
         // canvas stays interactive and the body swaps detail↔form in the SAME sheet.
         // Sign-out is a focused task, so dim the canvas (non-dismissing) to block
         // stray taps from selecting items behind it.
-        backdrop={da2062Preview || signOutOpen || importOpen || shortageOpen || authorizedOpen ? 'block' : 'none'}
+        // 'none' exists ONLY so the MAP canvas stays live under a detail sheet. The
+        // Sign-outs tab has no canvas — it's a list — so every sheet there dims
+        // (non-dismissing) via the Scrim primitive, same as the task surfaces.
+        backdrop={da2062Preview || signOutOpen || importOpen || shortageOpen || authorizedOpen || propertyTab === 'custody' ? 'block' : 'none'}
         zIndex={1200}
         // While a picker is drilled the Back chevron owns reversal; a stray drag must
         // not dismiss the whole sheet mid-selection (matches SheetStack).

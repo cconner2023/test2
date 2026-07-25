@@ -11,6 +11,7 @@ import {
 } from '../../lib/supervisorService'
 import { patchClinicConfig } from '../../Hooks/useClinicConfig'
 import { ActionButton } from '@/Components/primitives/ActionButton'
+import { FooterPill } from '@/Components/primitives/FooterPill'
 import { ActionPill } from '@/Components/primitives/ActionPill'
 import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
 import { ErrorPill } from '@/Components/primitives/ErrorPill'
@@ -280,7 +281,7 @@ export function CalendarClinicEditor({ variant = 'calendar' }: { variant?: Clini
         maxWidth={340}
         footer={
           taskPopover && taskPopover.mode === 'edit' ? (
-            <ActionPill>
+            <FooterPill>
               <ActionButton
                 icon={Trash2}
                 label="Delete"
@@ -292,19 +293,19 @@ export function CalendarClinicEditor({ variant = 'calendar' }: { variant?: Clini
                   setTimeout(() => setConfirmDeleteTask(task), 320)
                 }}
               />
-            </ActionPill>
+            </FooterPill>
           ) : undefined
         }
         rightFooter={
           taskPopover ? (
-            <ActionPill>
+            <FooterPill side="right">
               <ActionButton
                 icon={taskSaving ? Loader2 : Check}
                 label={taskSaving ? 'Saving…' : 'Save'}
-                variant={taskSaving || !taskDraftName.trim() ? 'disabled' : 'success'}
+                variant={taskSaving || !taskDraftName.trim() ? 'disabled' : 'confirm'}
                 onClick={handleSaveTask}
               />
-            </ActionPill>
+            </FooterPill>
           ) : undefined
         }
       >
@@ -345,7 +346,7 @@ export function CalendarClinicEditor({ variant = 'calendar' }: { variant?: Clini
         maxWidth={340}
         footer={
           apptPopover && apptPopover.mode === 'edit' ? (
-            <ActionPill>
+            <FooterPill>
               <ActionButton
                 icon={Trash2}
                 label="Delete"
@@ -357,19 +358,19 @@ export function CalendarClinicEditor({ variant = 'calendar' }: { variant?: Clini
                   setTimeout(() => setConfirmDeleteAppt(type), 320)
                 }}
               />
-            </ActionPill>
+            </FooterPill>
           ) : undefined
         }
         rightFooter={
           apptPopover ? (
-            <ActionPill>
+            <FooterPill side="right">
               <ActionButton
                 icon={apptSaving ? Loader2 : Check}
                 label={apptSaving ? 'Saving…' : 'Save'}
-                variant={apptSaving || !apptDraftName.trim() || !(parseInt(apptDraftDuration, 10) > 0) ? 'disabled' : 'success'}
+                variant={apptSaving || !apptDraftName.trim() || !(parseInt(apptDraftDuration, 10) > 0) ? 'disabled' : 'confirm'}
                 onClick={handleSaveAppt}
               />
-            </ActionPill>
+            </FooterPill>
           ) : undefined
         }
       >

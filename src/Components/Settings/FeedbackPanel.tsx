@@ -3,7 +3,7 @@ import { Star, Check, CheckCircle, RefreshCw, ImagePlus, X } from 'lucide-react'
 import { submitFeedback } from '../../lib/feedbackService'
 import { ActionButton } from '@/Components/primitives/ActionButton'
 import { ErrorDisplay } from '@/Components/primitives/ErrorDisplay'
-import { TextInput } from '@/Components/primitives/FormInputs'
+import { TextInput, TextArea } from '@/Components/primitives/FormInputs'
 import { SectionCard, SectionHeader } from '@/Components/primitives/Section'
 import { EmptyState } from '@/Components/primitives/EmptyState'
 import { useAuthStore } from '../../stores/useAuthStore'
@@ -141,15 +141,12 @@ export const FeedbackPanel = () => {
               placeholder="What needs improvement?"
             />
 
-            <label className="block border-b border-primary/6">
-              <textarea
-                value={comments}
-                onChange={(e) => setComments(e.target.value)}
-                placeholder="Additional comments"
-                rows={3}
-                className="w-full bg-transparent px-4 py-3 text-base md:text-sm text-primary placeholder:text-tertiary focus:outline-none resize-none"
-              />
-            </label>
+            <TextArea
+              value={comments}
+              onChange={setComments}
+              placeholder="Additional comments"
+              rows={3}
+            />
 
             {/* Images — optional screenshots/photos to illustrate the feedback.
                 Encrypted client-side and uploaded on submit. */}

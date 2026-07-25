@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback, useEffect, forwardRef, useImperativeHandle } from 'react'
 import { X, Square, CheckSquare, Plus } from 'lucide-react'
-import { TextInput, PickerInput, DatePickerInput } from '@/Components/primitives/FormInputs'
+import { TextInput, TextArea, PickerInput, DatePickerInput } from '@/Components/primitives/FormInputs'
 import { usePropertyStore } from '../../stores/usePropertyStore'
 import { isCustomPar, isLinContainer } from '../../Utilities/propertyAuthorized'
 import { useShallow } from 'zustand/react/shallow'
@@ -725,15 +725,12 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
         </div>
       )}
 
-      <label className="block border-b border-primary/6">
-        <textarea
-          className="w-full bg-transparent px-4 py-3 text-base md:text-sm text-primary placeholder:text-tertiary focus:outline-none resize-none"
-          rows={2}
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          placeholder="Notes"
-        />
-      </label>
+      <TextArea
+        rows={2}
+        value={notes}
+        onChange={setNotes}
+        placeholder="Notes"
+      />
         </>
       )}
       </div>

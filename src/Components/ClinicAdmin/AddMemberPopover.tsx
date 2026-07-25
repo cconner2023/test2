@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { Check, Loader2 } from 'lucide-react'
 import { OverlayStack, type StackScreen, type StackNav } from '@/Components/primitives/OverlayStack'
+import { FooterPill } from '@/Components/primitives/FooterPill'
 import { ActionButton } from '@/Components/primitives/ActionButton'
-import { ActionPill } from '@/Components/primitives/ActionPill'
 import { ErrorPill } from '@/Components/primitives/ErrorPill'
 import { PickerInput } from '@/Components/primitives/FormInputs'
 import { UicPinInput } from '@/Components/DomainInputs'
@@ -176,14 +176,14 @@ export function AddMemberPopover({
     lookup: {
       title: 'Add member',
       rightFooter: (
-        <ActionPill>
+        <FooterPill side="right">
           <ActionButton
             icon={lookupLoading ? Loader2 : Check}
             label={lookupLoading ? 'Checking…' : 'Add'}
-            variant={lookupLoading || !email.trim() ? 'disabled' : 'success'}
+            variant={lookupLoading || !email.trim() ? 'disabled' : 'confirm'}
             onClick={handleLookup}
           />
-        </ActionPill>
+        </FooterPill>
       ),
       render: () => (
         <div>
@@ -216,7 +216,7 @@ export function AddMemberPopover({
       title: 'New user',
       onBack: (nav) => { setFeedback(null); nav.pop() },
       rightFooter: (
-        <ActionPill>
+        <FooterPill side="right">
           <ActionButton
             icon={submitting ? Loader2 : Check}
             label={submitting ? 'Creating…' : 'Create & add'}
@@ -227,7 +227,7 @@ export function AddMemberPopover({
             }
             onClick={handleCreate}
           />
-        </ActionPill>
+        </FooterPill>
       ),
       render: () => (
         <div>

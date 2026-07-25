@@ -936,7 +936,7 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
                   side="left"
                   width={260}
                   keepMounted
-                  className="border-r border-tertiary/10 bg-themewhite3/50"
+                  className="border-r border-tertiary/10 bg-themewhite3"
                 >
                   <div className="shrink-0 px-3 py-2 border-b border-primary/10">
                     <SearchInput

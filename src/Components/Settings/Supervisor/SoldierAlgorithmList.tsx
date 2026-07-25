@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { ChevronRight, ClipboardCheck, CalendarPlus, CheckCircle2, Circle, CircleDot, XCircle, type LucideIcon } from 'lucide-react'
 import { listAlgorithmsWithStp } from '../../../Utilities/algorithmStp'
 import { ActionButton } from '@/Components/primitives/ActionButton'
-import { ActionPill } from '@/Components/primitives/ActionPill'
+import { FooterPill } from '@/Components/primitives/FooterPill'
 import { PreviewOverlay } from '../../PreviewOverlay'
 import { readinessBarColor, readinessTextColor } from './supervisorHelpers'
 import type { AlgorithmCompetency } from './supervisorHelpers'
@@ -142,7 +142,7 @@ export function SoldierAlgorithmList({
         maxWidth={400}
         footer={
           detail && onScheduleAlgorithm ? (
-            <ActionPill>
+            <FooterPill>
               <ActionButton
                 icon={CalendarPlus}
                 label="Schedule"
@@ -152,23 +152,23 @@ export function SoldierAlgorithmList({
                   onScheduleAlgorithm(id, name)
                 }}
               />
-            </ActionPill>
+            </FooterPill>
           ) : undefined
         }
         rightFooter={
           detail && onEvaluateAlgorithm ? (
-            <ActionPill>
+            <FooterPill side="right">
               <ActionButton
                 icon={ClipboardCheck}
                 label="Evaluate"
-                variant="success"
+                variant="confirm"
                 onClick={() => {
                   const { id, name } = detail.comp
                   setDetail(null)
                   onEvaluateAlgorithm(id, name)
                 }}
               />
-            </ActionPill>
+            </FooterPill>
           ) : undefined
         }
       >

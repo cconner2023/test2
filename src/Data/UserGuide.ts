@@ -506,7 +506,7 @@ export const UserGuide: GuideChapter[] = [
                     { kind: 'p', text: 'TC3 cards track treatment across time so the record matches prolonged field-care documentation. A card is one scrolling column you fill top to bottom.' },
                     { kind: 'steps', items: [
                         'Open TC3 and tap Add casualty details to fill Casualty Information — EVAC priority, name, battle roster number, sex, blood type, unit, and allergies.',
-                        'Add mechanism — pick from the Select All That Apply list (GSW, Blast, Burn, Fall, MVC, IED, and more).',
+                        'Add mechanism — tap every mechanism that applies (GSW, Blast, Burn, Fall, MVC, IED, and more); pick Other to describe it.',
                         'Tap the body diagram to place injury, treatment, and IV/IO markers.',
                         'Add interventions under MARCH (Hemorrhage / Airway / Breathing / Circulation), including meds, fluids, and blood products with quick-add chips.',
                         'Record vitals as timestamped entries so you see the trend over the length of care.',

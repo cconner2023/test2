@@ -209,7 +209,7 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete, onMove, onC
   })
   const hasMenu = moreItems.length > 0 || statusReactions.length > 0
 
-  // Flat on the sheet's themewhite3 (no nested card) inside the mobile Sheet;
+  // Flat on the sheet's themewhite3 surface (no nested card) inside the mobile Sheet;
   // the desktop side-panel keeps the SectionCard chrome.
   const Wrapper = (inSheet ? 'div' : SectionCard) as ElementType
 

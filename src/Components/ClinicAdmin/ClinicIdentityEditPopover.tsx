@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react'
 import { Check, Loader2, ChevronDown } from 'lucide-react'
 import { PreviewOverlay } from '../PreviewOverlay'
 import { ActionButton } from '@/Components/primitives/ActionButton'
-import { ActionPill } from '@/Components/primitives/ActionPill'
+import { FooterPill } from '@/Components/primitives/FooterPill'
 import { ErrorPill } from '@/Components/primitives/ErrorPill'
 import {
   getClinicEncryptionKey,
@@ -205,14 +205,14 @@ export function ClinicIdentityEditPopover({
       } : undefined}
       rightFooter={
         isOpen && !isPickMode ? (
-          <ActionPill>
+          <FooterPill side="right">
             <ActionButton
               icon={saving ? Loader2 : Check}
               label={saving ? 'Saving…' : 'Save'}
-              variant={saving || !name.trim() ? 'disabled' : 'success'}
+              variant={saving || !name.trim() ? 'disabled' : 'confirm'}
               onClick={handleSave}
             />
-          </ActionPill>
+          </FooterPill>
         ) : undefined
       }
     >

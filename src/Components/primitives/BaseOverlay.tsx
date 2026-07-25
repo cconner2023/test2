@@ -2,6 +2,7 @@ import { createContext, useContext } from 'react'
 import { createPortal } from 'react-dom'
 import type { ReactNode, RefObject } from 'react'
 import { useOverlay } from '@/Hooks/useOverlay'
+import { Scrim } from '@/Components/primitives/Scrim'
 
 /**
  * z-index tier tokens. Higher = renders on top.
@@ -67,9 +68,11 @@ export function BaseOverlay({
 
   return createPortal(
     <OverlayStackContext.Provider value={childCeiling}>
-      <div
-        className={`${posClass} inset-0 bg-black transition-opacity duration-300 ${open ? 'opacity-80' : 'opacity-0'}`}
-        style={{ zIndex: effectiveZ, pointerEvents: open ? 'auto' : 'none' }}
+      <Scrim
+        progress={open ? 1 : 0}
+        position={posClass}
+        scope={scoped ? 'container' : 'app'}
+        zIndex={effectiveZ}
         onClick={onClose}
       />
       {children(open, effectiveZ)}

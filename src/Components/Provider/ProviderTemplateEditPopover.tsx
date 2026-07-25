@@ -8,12 +8,12 @@ import type { PlanState } from '../../Types/PlanTypes';
 import type { PEState, PEItemState } from '../../Types/PETypes';
 import { usePEPaneScreens, PECenter, makeTemplatePEState } from './ProviderPESections';
 import { usePlanPaneScreens } from './ProviderPlanSections';
-import { ActionPill } from '@/Components/primitives/ActionPill';
 import { ActionButton } from '@/Components/primitives/ActionButton';
 import { PillButton } from '@/Components/primitives/HeaderPill';
 import { OverlayHeaderMenu } from '@/Components/primitives/OverlayHeaderMenu';
 import { OverlayStack, type StackNav, type StackScreen } from '@/Components/primitives/OverlayStack';
-import { TextInput } from '@/Components/primitives/FormInputs';
+import { TextInput, TextArea } from '@/Components/primitives/FormInputs';
+import { FooterPill } from '@/Components/primitives/FooterPill'
 
 // ── Legacy → plain text resolution ──────────────────────────────────────────
 
@@ -193,9 +193,9 @@ export function useProviderTemplateEditorScreens({
                 ? <PillButton icon={Check} iconSize={18} accent="success" label="Save" onClick={handleSave} />
                 : null,
             footer: isEdit && onDelete ? (
-                <ActionPill>
+                <FooterPill>
                     <ActionButton icon={Trash2} label="Delete" variant="danger" onClick={() => onDelete(idRef.current)} />
-                </ActionPill>
+                </FooterPill>
             ) : undefined,
             render: (_: unknown, nav: StackNav) => (
                 <div>
@@ -298,11 +298,13 @@ function RowTextarea({
             <div className="px-4 pt-2.5 text-[9pt] font-semibold text-tertiary uppercase tracking-wider">
                 {label}
             </div>
-            <textarea
+            <TextArea
+                bare
                 value={value}
-                onChange={(e) => onChange(e.target.value)}
+                onChange={onChange}
                 placeholder={placeholder}
-                className="w-full bg-transparent px-4 py-2 pb-3 text-base md:text-sm text-primary placeholder:text-tertiary focus:outline-none resize-none min-h-[4rem] leading-5"
+                ariaLabel={label}
+                inputClassName="w-full bg-transparent px-4 py-2 pb-3 text-base md:text-sm text-primary placeholder:text-tertiary focus:outline-none resize-none min-h-[4rem] leading-5"
             />
         </label>
     );

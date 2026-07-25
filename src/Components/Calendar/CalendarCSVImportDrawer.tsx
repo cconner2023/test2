@@ -153,7 +153,7 @@ export function CalendarCSVImport({ onClose, clinicId, userId }: CalendarCSVImpo
                 <SectionCard>
                   <div className="overflow-y-auto max-h-[30dvh]">
                     <table className="w-full text-[10pt]">
-                      <thead className="sticky top-0 bg-themewhite2 border-b border-tertiary/10">
+                      <thead className="sticky top-0 bg-themewhite3 border-b border-tertiary/10">
                         <tr>
                           <th className="text-left px-3 py-2 text-tertiary font-medium">Title</th>
                           <th className="text-left px-3 py-2 text-tertiary font-medium">Date</th>

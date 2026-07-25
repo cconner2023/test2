@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Check } from 'lucide-react'
 import { OverlayStack } from '@/Components/primitives/OverlayStack'
+import { FooterPill } from '@/Components/primitives/FooterPill'
 import { PillButton } from '@/Components/primitives/HeaderPill'
 import { PartyPicker, partyLabel, type Party } from './PartyPicker'
 import { useClinicMedics } from '../../Hooks/useClinicMedics'
@@ -83,9 +84,9 @@ export function DD1750Sheet({ isOpen, onClose, onCreate, containerRef, zIndex }:
     pick: {
       title: 'DD 1750',
       rightFooter: (
-        <div className="bg-themewhite rounded-2xl px-1.5 py-1.5">
+        <FooterPill side="right">
           <PillButton icon={Check} iconSize={16} accent="success" onClick={create} label="Create" />
-        </div>
+        </FooterPill>
       ),
       render: () => body,
     },

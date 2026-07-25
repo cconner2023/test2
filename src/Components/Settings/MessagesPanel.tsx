@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { Trash2, Headset, Play, MessageSquare, Info, ChevronLeft, ChevronRight, ChevronDown, Pin, Users, Check, Plus, Settings, Send } from 'lucide-react'
 import { useSpring, animated } from '@react-spring/web'
 import { SearchInput } from '@/Components/primitives/SearchInput'
+import { FooterPill } from '@/Components/primitives/FooterPill'
 import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill'
 import { useClinicMedics } from '../../Hooks/useClinicMedics'
 import { useMessagesContext } from '../../Hooks/MessagesContext'
@@ -27,19 +28,23 @@ import { useClinicGroupedMedics } from '../../Hooks/useClinicGroupedMedics'
 import { useSubClusters } from '../../Hooks/useSubClusters'
 import { usePeerAvailability, type UnavailableReason } from '../../Hooks/usePeerAvailability'
 import { ChatDetailView, type ParticipantStatus } from '../ChatDetailView'
+import { OutsideEntityConversation } from '../Messages/OutsideEntityConversation'
 import { OverlayStack, type StackNav } from '@/Components/primitives/OverlayStack'
-import { ActionPill } from '@/Components/primitives/ActionPill'
 import { ActionButton } from '@/Components/primitives/ActionButton'
 import { useLongPress } from '../../Hooks/useLongPress'
 import { useIsMobile } from '../../Hooks/useIsMobile'
 import type { ClinicMedic } from '../../Types/SupervisorTestTypes'
 import type { DecryptedSignalMessage } from '../../lib/signal/transportTypes'
-import type { MessageContent } from '../../lib/signal/messageContent'
+import type { MessageContent, OutsideEntityContent } from '../../lib/signal/messageContent'
 import { displayGroupName, type GroupInfo, type GroupMember } from '../../lib/signal/groupTypes'
 import { useOffRosterAdd } from '../Messages/useOffRosterAdd'
 import { TextInput } from '@/Components/primitives/FormInputs'
+import { ExpandableInput } from '@/Components/primitives/ExpandableInput'
+import { useMergedNoteContent } from '../../Hooks/useMergedNoteContent'
 import { useBetaBypass } from '../../lib/betaFeatures'
-import { createOutboundOutsideEntity, sendOutsideEntityReply } from '../../lib/outsideEntityService'
+import { getEventIntakeCredential } from '../../lib/eventIntakeService'
+import { getWarmCredential, setWarmCredential } from '../../lib/messagingSettingsWarm'
+import { createOutboundOutsideEntity, sendOutsideEntityReply, isMilEmail, MIL_UNSUPPORTED_MESSAGE } from '../../lib/outsideEntityService'
 import { saveMessage } from '../../lib/signal/messageStore'
 import { SYSTEM_USER_ID } from '../../lib/signal/systemIdentity'
 import { isSystemMessage, isOutsideOriginCard } from '../../Hooks/useAdminSystemConversations'
@@ -1060,12 +1065,41 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
   // Outbound outside-contact compose (dev-gated) — email a secure 1:1 invite.
   const outboundBeta = useBetaBypass('outboundContact')
   const outboundClinicId = useAuthStore(s => s.clinicId)
+  // The recipient always sees the cluster name as the sender ("from"). We no longer
+  // let the medic type a free label — from_label is always the clinic/cluster name.
+  const clusterName = ((useAuthStore(s => s.profile.clinicName) ?? '').trim()) || 'Medical section'
   const [outEmail, setOutEmail] = useState('')
-  const [outLabel, setOutLabel] = useState('')
   const [outMsg, setOutMsg] = useState('')
+  // Personal + subscribed-clinic expanders, same corpus the note editors use — the
+  // outbound body is free text a medic types by hand, so it gets the same shortcuts.
+  const { expanders } = useMergedNoteContent()
   const [outBusy, setOutBusy] = useState(false)
   const [outError, setOutError] = useState<string | null>(null)
-  const resetOutbound = useCallback(() => { setOutEmail(''); setOutLabel(''); setOutMsg(''); setOutError(null); setOutBusy(false) }, [])
+  const resetOutbound = useCallback(() => { setOutEmail(''); setOutMsg(''); setOutError(null); setOutBusy(false) }, [])
+  // Military recipients are refused outright — flagged as the medic types so Send
+  // never arms on an address the service and the edge fn will both reject.
+  const outMil = isMilEmail(outEmail)
+  // The beta flag says who MAY see the feature; the cluster's "Allow outbound
+  // contact" master (credential.outbound_enabled) says whether this cluster is
+  // permitted to use it. Both must hold before the compose entry point renders,
+  // otherwise the send fails server-side. Seeded from the messaging-settings warm
+  // cache and re-read each time the composer opens, so a supervisor flipping the
+  // toggle takes effect on the next open.
+  const [outboundAllowed, setOutboundAllowed] = useState(
+    () => getWarmCredential(outboundClinicId)?.outbound_enabled === true,
+  )
+  useEffect(() => {
+    if (!showNewMsg || !outboundBeta || !outboundClinicId) return
+    const warm = getWarmCredential(outboundClinicId)
+    if (warm !== undefined) { setOutboundAllowed(warm?.outbound_enabled === true); return }
+    let alive = true
+    void getEventIntakeCredential(outboundClinicId).then(res => {
+      if (!alive || !res.ok) return
+      setWarmCredential(outboundClinicId, res.data)
+      setOutboundAllowed(res.data?.outbound_enabled === true)
+    })
+    return () => { alive = false }
+  }, [showNewMsg, outboundBeta, outboundClinicId])
   // Live nav of the new-message morph stack — handlers push/reset screens on it.
   const stackNavRef = useRef<StackNav | null>(null)
 
@@ -1209,9 +1243,10 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
   const handleCreateOutbound = useCallback(async () => {
     const email = outEmail.trim()
     if (!outboundClinicId || !currentUserId || !email.includes('@') || outBusy) return
+    if (isMilEmail(email)) { setOutError(MIL_UNSUPPORTED_MESSAGE); return }
     setOutBusy(true)
     setOutError(null)
-    const res = await createOutboundOutsideEntity({ clinicId: outboundClinicId, recipientEmail: email, fromLabel: outLabel.trim() || undefined })
+    const res = await createOutboundOutsideEntity({ clinicId: outboundClinicId, recipientEmail: email, fromLabel: clusterName })
     if (!res.ok) { setOutBusy(false); setOutError(res.error); return }
     let content = res.data.content
     const first = outMsg.trim()
@@ -1224,7 +1259,7 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
       id: crypto.randomUUID(),
       senderId: currentUserId,
       recipientId: content.entity_id,
-      plaintext: 'Outside contact',
+      plaintext: first || 'Secure email sent',
       content,
       messageType: 'message',
       createdAt: now,
@@ -1235,11 +1270,15 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
     const store = useMessagingStore.getState()
     store.addMessage(msg)
     void saveMessage(msg, currentUserId).catch(() => {})
-    // Title the synthetic peer so the list row + chat header show the label, not "Unknown".
+    // Title the synthetic peer. The conversation LIST row shows the recipient email
+    // (who the medic is talking to); the conversation HEADER shows the cluster name
+    // (what the recipient sees as the sender), carried on outsideFromLabel. Its
+    // presence also routes this conversation to OutsideEntityConversation.
     const profile: ClinicMedic = {
       id: content.entity_id,
-      firstName: content.from_label || 'Outside contact',
+      firstName: content.recipient_email || content.from_label || 'Outside contact',
       lastName: null, middleInitial: null, rank: null, credential: null, avatarId: null,
+      outsideFromLabel: content.from_label || clusterName,
     }
     store.setPeerProfile(profile)
     setOutBusy(false)
@@ -1247,7 +1286,7 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
     setShowNewMsg(false)
     setNewMsgMode('contacts')
     onSelectPeer(profile)
-  }, [outEmail, outLabel, outMsg, outBusy, outboundClinicId, currentUserId, resetOutbound, onSelectPeer])
+  }, [outEmail, outMsg, outBusy, outboundClinicId, currentUserId, clusterName, resetOutbound, onSelectPeer])
 
   // Fade transition for the right content area when view changes.
   const prevViewRef = useRef(view)
@@ -1325,12 +1364,26 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
       />
     )
   } else if (view === 'messages-chat' && selectedPeerId) {
+    // Outbound outside-contact (email) channels render as a normal conversation
+    // (cluster-name header, plain bubbles, one pinned composer) rather than the
+    // standard 1:1 chat — the channel isn't a Signal peer. Detected by its single
+    // outside_entity control message, which holds the channel key + reply thread.
+    const outsideCtrl = conversations[selectedPeerId]?.find(m => m.content?.type === 'outside_entity')
     const peer = allMedics.find(m => m.id === selectedPeerId)
     const peerName = peer
       ? [peer.rank, peer.lastName].filter(Boolean).join(' ') || peer.firstName || undefined
       : undefined
 
-    mainContent = (
+    mainContent = outsideCtrl ? (
+      <OutsideEntityConversation
+        content={outsideCtrl.content as OutsideEntityContent}
+        messageId={outsideCtrl.id}
+        clusterName={(outsideCtrl.content as OutsideEntityContent).from_label || peer?.outsideFromLabel || clusterName}
+        deleteMessages={deleteMessages}
+        markAsRead={markAsRead}
+        onBack={onBack}
+      />
+    ) : (
       <ChatDetail
         peerId={selectedPeerId}
         conversations={conversations}
@@ -1476,7 +1529,7 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
               ? () => { setNewMsgMode('contacts'); setGroupSelectedIds(new Set()); setGroupCreateError(null) }
               : undefined,
             footer: (_p, nav) => (
-              <ActionPill>
+              <FooterPill>
                 {newMsgMode === 'contacts' && (
                   <ActionButton
                     icon={Users}
@@ -1485,20 +1538,20 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
                   />
                 )}
                 <ActionButton icon={Plus} label="Add" onClick={() => offRoster.openMethods(nav)} />
-                {outboundBeta && newMsgMode === 'contacts' && (
-                  <ActionButton icon={Send} label="Outside" onClick={() => { resetOutbound(); nav.push('outbound') }} />
+                {outboundBeta && outboundAllowed && newMsgMode === 'contacts' && (
+                  <ActionButton icon={Send} label="Email" onClick={() => { resetOutbound(); nav.push('outbound') }} />
                 )}
-              </ActionPill>
+              </FooterPill>
             ),
             rightFooter: newMsgMode === 'group' ? (
-              <ActionPill>
+              <FooterPill side="right">
                 <ActionButton
                   icon={Check}
                   label="Create Group"
-                  variant={(!groupName.trim() || groupSelectedIds.size === 0 || groupCreating) ? 'disabled' : 'success'}
+                  variant={(!groupName.trim() || groupSelectedIds.size === 0 || groupCreating) ? 'disabled' : 'confirm'}
                   onClick={handleCreateGroup}
                 />
-              </ActionPill>
+              </FooterPill>
             ) : undefined,
             render: (_p, _nav, filter) => {
               const q = filter.toLowerCase()
@@ -1570,20 +1623,23 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
 
           // Outbound outside-contact compose (dev-gated) — email a secure 1:1 invite.
           outbound: {
-            title: 'Outside contact',
+            title: 'Outbound Message',
             onBack: (nav) => { resetOutbound(); nav.pop() },
             rightFooter: (
-              <ActionPill>
+              <FooterPill side="right">
                 <ActionButton
                   icon={Send}
-                  label="Send invite"
-                  variant={(!outEmail.trim().includes('@') || outBusy) ? 'disabled' : 'success'}
+                  label="Send"
+                  variant={(!outEmail.trim().includes('@') || outMil || outBusy) ? 'disabled' : 'confirm'}
                   onClick={() => void handleCreateOutbound()}
                 />
-              </ActionPill>
+              </FooterPill>
             ),
             render: () => (
               <div className="px-1 py-1 space-y-2">
+                <p className="px-2 pb-1 text-[10pt] text-tertiary leading-relaxed">
+                  Send secure messaging to users outside of the application. Military (.mil) addresses are not supported.
+                </p>
                 <TextInput
                   label="Recipient email"
                   value={outEmail}
@@ -1591,27 +1647,22 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
                   placeholder="name@example.com"
                   type="email"
                   inputMode="email"
-                  hint={outBusy ? 'Sending invite…' : outError}
+                  hint={outBusy ? 'Sending invite…' : (outMil ? MIL_UNSUPPORTED_MESSAGE : outError)}
                 />
-                <TextInput
-                  label="From (shown to recipient)"
-                  value={outLabel}
-                  onChange={setOutLabel}
-                  placeholder="Medical section"
-                />
-                <div className="px-1">
-                  <textarea
+                {/* ExpandableInput rather than TextArea so abbreviations and
+                    templates expand here too; it owns no row chrome, so the
+                    surrounding label reproduces the TextArea row. */}
+                <label className="block border-b border-primary/6 last:border-b-0">
+                  <ExpandableInput
                     value={outMsg}
-                    onChange={(e) => setOutMsg(e.target.value)}
-                    placeholder="First message (optional)"
-                    rows={3}
-                    maxLength={2000}
-                    className="w-full px-3 py-2 rounded-xl bg-themewhite2 text-sm text-primary placeholder:text-tertiary outline-none focus:ring-1 focus:ring-themeblue2/40 resize-none transition-all"
+                    onChange={(v) => setOutMsg(v.slice(0, 2000))}
+                    expanders={expanders}
+                    multiline
+                    hideClear
+                    placeholder="Message"
+                    className="w-full min-h-[5rem] bg-transparent px-4 py-3 text-base md:text-sm text-primary placeholder:text-tertiary focus:outline-none resize-none leading-6"
                   />
-                  <p className="px-1 pt-1.5 text-[9pt] text-themeyellow leading-relaxed">
-                    Operational details only — no patient names or medical details. Military (.mil) addresses are not supported.
-                  </p>
-                </div>
+                </label>
               </div>
             ),
           },

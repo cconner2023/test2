@@ -6,7 +6,7 @@ import type { EventFormData, EventCategory, EventStatus } from '../../Types/Cale
 import { EventTasksCard } from './EventTasksCard'
 import { createEmptyFormData, EVENT_CATEGORIES, MILITARY_TIME_OPTIONS, militaryToHHMM, hhmmToMilitary, CATEGORY_SWATCH_IDS, CATEGORY_SWATCHES } from '../../Types/CalendarTypes'
 import { useCategoryColors } from '../../Hooks/useCategoryColors'
-import { TextInput, PickerInput, DatePickerInput, TimeInput } from '@/Components/primitives/FormInputs'
+import { TextInput, TextArea, PickerInput, DatePickerInput, TimeInput } from '@/Components/primitives/FormInputs'
 import { useIsMobile } from '../../Hooks/useIsMobile'
 import { MedevacForm } from '../Medevac/MedevacForm'
 import { emptyMedevacRequest } from '../../Types/MedevacTypes'
@@ -415,15 +415,12 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
           )}
 
           {form.category !== 'medevac' && (
-            <label className="block">
-              <textarea
-                value={form.description}
-                onChange={e => updateField('description', e.target.value)}
-                placeholder="Description / OPORD notes"
-                rows={3}
-                className="w-full bg-transparent px-4 py-3 text-base md:text-sm text-primary placeholder:text-tertiary focus:outline-none resize-none"
-              />
-            </label>
+            <TextArea
+              value={form.description}
+              onChange={v => updateField('description', v)}
+              placeholder="Description / OPORD notes"
+              rows={3}
+            />
           )}
 
           {form.category !== 'medevac' && (

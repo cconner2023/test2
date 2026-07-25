@@ -10,6 +10,7 @@ import { usePropertyStore } from '../../stores/usePropertyStore'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { useInvalidation } from '../../stores/useInvalidationStore'
 import { TextInput } from '@/Components/primitives/FormInputs'
+import { FooterPill } from '@/Components/primitives/FooterPill'
 import { PartyPicker, partyLabel, type Party } from './PartyPicker'
 import { FuelMeter } from '@/Components/DomainInputs'
 import { OverlayStack, type StackNav } from '@/Components/primitives/OverlayStack'
@@ -418,7 +419,7 @@ export function PmcsSheet({ isOpen, onClose, subjectType = 'item', subjectId, cl
       // Scan/Attach + History LEFT, the success/confirm (Record PMCS) RIGHT —
       // present always but DISABLED until the intake is complete.
       footer: (_: unknown, nav: StackNav) => (
-        <div className="flex gap-1 bg-themewhite rounded-2xl px-1.5 py-1.5">
+        <FooterPill>
           <ActionButton
             icon={docFile ? FileText : Paperclip}
             label={docFile ? 'Replace 5988E' : 'Scan 5988E'}
@@ -431,12 +432,12 @@ export function PmcsSheet({ isOpen, onClose, subjectType = 'item', subjectId, cl
             variant="default"
             onClick={() => nav.push('history')}
           />
-        </div>
+        </FooterPill>
       ),
       rightFooter: (
-        <div className="bg-themewhite rounded-2xl px-1.5 py-1.5">
+        <FooterPill side="right">
           <PillButton icon={Check} iconSize={16} accent="success" disabled={!canSubmit} onClick={handleRecord} label="Record PMCS" />
-        </div>
+        </FooterPill>
       ),
       render: () => (
         <>

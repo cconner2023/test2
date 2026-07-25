@@ -5,7 +5,6 @@ import { PIIWarningBanner } from '../PIIWarningBanner';
 import { ExpandableInput } from '@/Components/primitives/ExpandableInput';
 import { PhysicalExam } from '../PhysicalExam';
 import { Plan } from '../Plan';
-import { ActionPill } from '@/Components/primitives/ActionPill';
 import { ActionButton } from '@/Components/primitives/ActionButton';
 import { EmptyState } from '@/Components/primitives/EmptyState';
 import { PreviewOverlay } from '../PreviewOverlay';
@@ -14,6 +13,7 @@ import { getColorClasses } from '../../Utilities/ColorUtilities';
 import type { TextExpander } from '../../Data/User';
 import type { ImportedMedicNote } from '../ProviderDrawer';
 import type { PEState } from '../../Types/PETypes';
+import { FooterPill } from '@/Components/primitives/FooterPill'
 
 /** The four editable provider-note sections — the pane-editor routing key. */
 export type ProviderSection = 'hpi' | 'pe' | 'assessment' | 'plan';
@@ -124,9 +124,9 @@ function TextSectionCard({ addLabel, value, onChange, expanders, placeholder }: 
           },
         ]}
         rightFooter={
-          <ActionPill>
+          <FooterPill side="right">
             <ActionButton icon={Check} label="Done" onClick={() => setIsOpen(false)} />
-          </ActionPill>
+          </FooterPill>
         }
       >
         <ExpandableInput

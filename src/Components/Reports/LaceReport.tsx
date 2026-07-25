@@ -7,7 +7,7 @@ import { emptyLaceReport, DEFAULT_AMMO_TYPES } from '../../Types/ReportTypes'
 import type { LaceReport as LaceReportType, LaceEquipmentLine } from '../../Types/ReportTypes'
 import { laceToText, copyToClipboard, downloadAsText, printReport } from '../../lib/reportExport'
 import { ActionPill } from '@/Components/primitives/ActionPill'
-import { TextInput } from '@/Components/primitives/FormInputs'
+import { TextInput, TextArea } from '@/Components/primitives/FormInputs'
 
 const rowCx = 'flex items-center justify-between border-b border-primary/6 last:border-0 px-4 py-3'
 
@@ -15,7 +15,7 @@ const inputInlineCx =
   'flex-1 text-right bg-transparent text-primary placeholder:text-tertiary focus:outline-none text-sm'
 
 const numberInputCx =
-  'w-14 text-center rounded-md border border-themeblue3/10 bg-themewhite3 text-primary focus:border-themeblue1/30 focus:outline-none transition-all py-1.5 text-sm'
+  'w-14 text-center rounded-md border border-themeblue3/10 bg-transparent text-primary focus:border-themeblue1/30 focus:outline-none transition-all py-1.5 text-sm'
 
 function PillToggle({
   on,
@@ -323,16 +323,13 @@ export function LaceReport() {
       {/* Notes + export */}
       <Section title="Notes" className="mb-0">
         <SectionCard>
-          <div className="px-4 py-3">
-            <textarea
-              value={report.notes ?? ''}
-              onChange={e => update({ notes: e.target.value })}
-              placeholder="Additional notes…"
-              rows={3}
-              className="w-full bg-transparent text-sm text-primary placeholder:text-tertiary focus:outline-none resize-none"
-            />
-          </div>
-          <div className="border-t border-primary/6 flex items-center justify-end px-3 py-2">
+          <TextArea
+            value={report.notes ?? ''}
+            onChange={v => update({ notes: v })}
+            placeholder="Additional notes…"
+            rows={3}
+          />
+          <div className="flex items-center justify-end px-3 py-2">
             <ActionPill>
               <ActionButton icon={copied ? Check : Copy} label="Copy" onClick={handleCopy} variant={copied ? 'success' : 'default'} />
               <ActionButton icon={Download} label="Download" onClick={handleDownload} />

@@ -100,8 +100,8 @@ export function HeaderPill({ children, multi }: { children: ReactNode; multi?: b
 
     return (
         <div className={isMulti
-            ? 'rounded-full bg-themewhite border border-tertiary/20 flex items-center px-1 py-0.5 gap-1'
-            : 'rounded-full bg-themewhite border border-tertiary/20 flex items-center justify-center p-0.5 aspect-square'
+            ? 'rounded-full bg-themewhite border border-tertiary/15 flex items-center px-1 py-0.5 gap-1'
+            : 'rounded-full bg-themewhite border border-tertiary/15 flex items-center justify-center p-0.5 aspect-square'
         }>
             {children}
         </div>
@@ -112,7 +112,7 @@ export function VerticalPill({ children }: { children: ReactNode }) {
     const isMobile = useIsMobile()
     return (
         <div className={isMobile
-            ? 'rounded-full bg-themewhite border border-tertiary/20 flex flex-col items-center p-0.5'
+            ? 'rounded-full bg-themewhite border border-tertiary/15 flex flex-col items-center p-0.5'
             : 'flex flex-col items-center'
         }>
             {children}

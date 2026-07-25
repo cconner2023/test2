@@ -5,6 +5,7 @@ import type { ReactNode, RefObject } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { ActionPill } from '@/Components/primitives/ActionPill'
 import { SearchInput } from '@/Components/primitives/SearchInput'
+import { Scrim } from '@/Components/primitives/Scrim'
 import { PopoverHeader } from '@/Components/PreviewOverlay'
 import { MenuItemButton, contextMenuItemVariant, type ContextMenuItem, type MenuCardRow, type SearchLevelSpec } from '@/Components/primitives/ContextMenu'
 export type { SearchLevelSpec, MenuCardRow } from '@/Components/primitives/ContextMenu'
@@ -441,9 +442,19 @@ export function AnchoredMenu({ isOpen, anchorRect: anchorRectProp, anchorRef, ro
   return createPortal(
     <div className="fixed inset-0" style={{ zIndex: 9998 }}>
       {/* Backdrop — dim+blur for peek, transparent catcher for dropdowns */}
+      {/* Scrim is visual only (interactive={false}); the catcher below owns
+          dismissal, because this menu closes on PRESS (mousedown/touchstart)
+          rather than click — Scrim's onClick would fire too late. */}
+      {dimmed && (
+        <Scrim
+          progress={visible ? 1 : 0}
+          position="absolute"
+          interactive={false}
+          transition="opacity 200ms ease-out"
+        />
+      )}
       <div
-        className={`absolute inset-0 ${dimmed ? 'bg-black/45 backdrop-blur-[6px]' : ''}`}
-        style={dimmed ? { opacity: visible ? 1 : 0, transition: 'opacity 200ms ease-out' } : undefined}
+        className="absolute inset-0"
         onMouseDown={onClose}
         onTouchStart={onClose}
       />
@@ -454,7 +465,7 @@ export function AnchoredMenu({ isOpen, anchorRect: anchorRectProp, anchorRef, ro
           className={
             bare
               ? 'absolute pointer-events-none'
-              : 'absolute rounded-2xl bg-themewhite overflow-hidden pointer-events-none ring-1 ring-black/5'
+              : 'absolute rounded-2xl bg-themewhite3 overflow-hidden pointer-events-none'
           }
           style={{
             left: anchorRect.left,
@@ -477,7 +488,7 @@ export function AnchoredMenu({ isOpen, anchorRect: anchorRectProp, anchorRef, ro
       {isList ? (
         <animated.div
           ref={menuRef}
-          className="absolute rounded-2xl bg-themewhite overflow-hidden ring-1 ring-black/5 select-none"
+          className="absolute rounded-2xl bg-themewhite3 overflow-hidden select-none"
           style={{
             left: menuLeft,
             // Down/peek: top is fixed, height grows downward. Open-up: keep the bottom

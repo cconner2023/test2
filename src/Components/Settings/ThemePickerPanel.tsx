@@ -12,13 +12,13 @@ const THEME_DEFS: {
     {
         name: 'default',
         label: 'Default',
-        tagline: 'Baseline Medical Network',
+        tagline: 'Baseline',
         dark:  { bg: '#0f1923', surface: '#19232d', accent: '#158eac', text: '#cbd1d6' },
         light: { bg: '#fffbfb', surface: '#f0f2f5', accent: '#00425c', text: '#1e1e23' },
     },
     {
         name: 'ironclad',
-        label: 'Ironclad',
+        label: 'Desert',
         tagline: 'Desert Command',
         dark:  { bg: '#1d2021', surface: '#282828', accent: '#fe8019', text: '#ebdbb2' },
         light: { bg: '#fcf9f2', surface: '#f6f0e4', accent: '#af3a03', text: '#3c3836' },
@@ -26,7 +26,7 @@ const THEME_DEFS: {
     {
         name: 'void',
         label: 'Void',
-        tagline: 'Tactical Neural Network',
+        tagline: 'Tactical Network',
         dark:  { bg: '#0a0b0d', surface: '#101216', accent: '#00d4e8', text: '#d8e0e8' },
         light: { bg: '#f5f6f8', surface: '#e8eaee', accent: '#006e94', text: '#0c0e12' },
     },
@@ -40,7 +40,7 @@ const THEME_DEFS: {
         {
             name: 'topo',
             label: 'Topo',
-            tagline: 'Topographic Survey',
+            tagline: 'Urban Environment',
             dark: { bg: '#0c100a', surface: '#141a10', accent: '#a4944c', text: '#dcd4bc' },
             light: { bg: '#f1ead3', surface: '#e7dec4', accent: '#605824', text: '#1c180c' },
         },
@@ -51,6 +51,7 @@ export function ThemePickerPanel() {
     const { syncProfileField } = useUserProfile();
 
     return (
+        <div className="h-full overflow-y-auto">
         <div className="px-5 pb-4 space-y-3 pt-[calc(var(--drawer-header-h,3.5rem)+0.75rem)]">
             {THEME_DEFS.map((def) => {
                 const isSelected = themeName === def.name;
@@ -148,6 +149,7 @@ export function ThemePickerPanel() {
                     </div>
                 );
             })}
+        </div>
         </div>
     );
 }

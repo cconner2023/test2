@@ -57,6 +57,21 @@ function importMedicPriv(jwk: JsonWebKey): Promise<CryptoKey> {
 
 const HOURS_24_MS = 24 * 60 * 60 * 1000
 
+/** Message shown wherever a .mil recipient is refused — composer hint and service error. */
+export const MIL_UNSUPPORTED_MESSAGE = 'Military (.mil) addresses are not supported for outbound contact.'
+
+/**
+ * True for any military recipient. Mirrors the outside-invite-send edge fn's hard
+ * reject so the composer can refuse BEFORE a channel is minted — the server check
+ * still stands as the authority, but hitting it leaves a live orphan channel behind.
+ * Slightly stricter than the edge rule: a bare `mil` domain and a trailing root dot
+ * (`army.mil.`) count too.
+ */
+export function isMilEmail(email: string): boolean {
+  const domain = email.trim().toLowerCase().split('@')[1]?.replace(/\.$/, '') ?? ''
+  return domain === 'mil' || domain.endsWith('.mil')
+}
+
 export interface CreateOutboundParams {
   clinicId: string
   recipientEmail: string
@@ -83,6 +98,9 @@ export async function createOutboundOutsideEntity(
   const { clinicId, recipientEmail } = params
   const fromLabel = (params.fromLabel ?? '').trim() || 'Medical section'
   const email = recipientEmail.trim().toLowerCase()
+  // Refuse before minting: the edge fn rejects .mil too, but only after
+  // create_outside_entity has already provisioned a channel nobody can use.
+  if (isMilEmail(email)) return { ok: false, error: MIL_UNSUPPORTED_MESSAGE }
 
   try {
     // Two keypairs: the outside party's (private wrapped for the server) and the
@@ -126,7 +144,7 @@ export async function createOutboundOutsideEntity(
     if (sendErr || !(sendRes as { ok?: boolean } | null)?.ok) {
       const reason = (sendRes as { reason?: string } | null)?.reason
       return { ok: false, error: reason === 'mil_unsupported'
-        ? 'Military (.mil) addresses are not supported for outbound contact.'
+        ? MIL_UNSUPPORTED_MESSAGE
         : 'The channel was created but the invite email could not be sent.' }
     }
 

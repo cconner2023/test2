@@ -43,7 +43,7 @@ export function BottomIsland({ children, fab, z = 'z-20', barClassName = '', rol
       <div
         role={role}
         aria-label={ariaLabel}
-        className={`flex items-center gap-1 rounded-full bg-themewhite2/90 dark:bg-themewhite3/90 backdrop-blur-sm border border-tertiary/20 px-1 py-1 shadow-lg pointer-events-auto ${barClassName}`}
+        className={`flex items-center gap-1 rounded-full bg-themewhite3/90 backdrop-blur-sm px-1 py-1 surface-shadow pointer-events-auto ${barClassName}`}
       >
         {children}
       </div>

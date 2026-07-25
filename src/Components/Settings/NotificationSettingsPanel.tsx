@@ -6,6 +6,7 @@ import { useAuth } from '../../Hooks/useAuth'
 import { isMessageSoundsEnabled, setMessageSoundsEnabled } from '../../lib/soundService'
 import { ToggleSwitch } from './ToggleSwitch'
 import { ErrorDisplay } from '@/Components/primitives/ErrorDisplay'
+import { SectionCard } from '@/Components/primitives/Section'
 import { UI_TIMING } from '../../Utilities/constants'
 
 export const NotificationSettingsPanel = () => {
@@ -103,7 +104,7 @@ export const NotificationSettingsPanel = () => {
 
         {/* ── Notifications Block ─────────────────────────────────── */}
         {isSupported && isAuthenticated && (
-          <div className={`rounded-xl border overflow-hidden transition-all ${loading ? 'opacity-50 pointer-events-none' : ''} border-tertiary/15 bg-themewhite2`}>
+          <SectionCard className={`transition-all ${loading ? 'opacity-50 pointer-events-none' : ''}`}>
 
             {/* Master toggle — the device subscription on/off */}
             <div
@@ -199,7 +200,7 @@ export const NotificationSettingsPanel = () => {
                 )}
               </>
             )}
-          </div>
+          </SectionCard>
         )}
       </div>
     </div>

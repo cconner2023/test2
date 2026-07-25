@@ -41,6 +41,7 @@ import { LiftedRowMenu } from '@/Components/primitives/LiftedRowMenu'
 import { ActionButton } from '@/Components/primitives/ActionButton'
 import { ActionPill } from '@/Components/primitives/ActionPill'
 import { EmptyState } from '@/Components/primitives/EmptyState'
+import { SectionCard } from '@/Components/primitives/Section'
 
 const TASK_PREVIEW_LIMIT = 4
 const WEEK_PREVIEW_LIMIT = 3
@@ -697,7 +698,7 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
   }
 
   return (
-    <div className="rounded-xl overflow-hidden border border-themeblue3/10 bg-themewhite2">
+    <SectionCard>
       {widgets.length === 0 ? (
         <div className="flex items-center justify-center h-[80px]">
           <span className="text-[10pt] text-secondary">No widgets selected</span>
@@ -761,6 +762,6 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
       {!standalone && (
         <div className="mt-2 border-t border-themeblue3/8" />
       )}
-    </div>
+    </SectionCard>
   )
 }

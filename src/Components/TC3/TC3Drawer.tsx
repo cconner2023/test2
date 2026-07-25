@@ -27,9 +27,9 @@ interface TC3DrawerProps {
  *   • RIGHT — docked detail pane. Card sub-editors (TC3EditorSurface) portal in
  *             via `paneRef`; while any is open the rail collapses and the pane
  *             opens (registerDetail ref-count → detailOpen).
- * Mobile: full-screen glass-header drawer — casualties (left) + close (right);
- *   the casualties pill opens a bottom Sheet roster (New / Export All ride its
- *   header as no-fill pills). Body = the same single scrollable card column;
+ * Mobile: full-screen glass-header drawer — casualties (left) + New / Export All
+ *   / close in the top-right pill, matching desktop. The casualties pill opens a
+ *   bottom Sheet roster. Body = the same single scrollable card column;
  *   sub-editors open as Sheets.
  */
 export const TC3Drawer = memo(function TC3Drawer({ isVisible, onClose }: TC3DrawerProps) {
@@ -103,6 +103,15 @@ export const TC3Drawer = memo(function TC3Drawer({ isVisible, onClose }: TC3Draw
             <PillButton icon={Users} onClick={() => setRosterOpen(true)} label="Casualties" />
           </HeaderPill>
         ),
+        // Same top-right cluster as desktop — New (+ Export all when MASCAL)
+        // ride the close pill rather than hiding inside the roster sheet.
+        hideDefaultClose: true,
+        rightContent: (
+          <HeaderPill>
+            {rosterActions}
+            <PillButton icon={X} onClick={onClose} label="Close" />
+          </HeaderPill>
+        ),
       }
     : {
         title: 'TC3',
@@ -128,8 +137,11 @@ export const TC3Drawer = memo(function TC3Drawer({ isVisible, onClose }: TC3Draw
         scrollDisabled
       >
         {isMobile ? (
-          // Single scrollable card column, cleared below the floating glass header.
-          <div className="relative h-full" style={{ paddingTop: 'var(--drawer-header-h, 0px)' }}>
+          // Single scrollable card column. The glass-header clearance lives INSIDE
+          // TC3CardColumn (not here) so the card scrolls UNDER the frosted band —
+          // padding the wrapper instead parks the content below the header and the
+          // glass has nothing to blur.
+          <div className="relative h-full">
             <TC3CardColumn />
             {isMASCAL && (
               <div className="absolute right-3 z-20 top-[calc(var(--drawer-header-h,3.5rem)+1rem)]">
@@ -174,7 +186,6 @@ export const TC3Drawer = memo(function TC3Drawer({ isVisible, onClose }: TC3Draw
           title="Casualties"
           maxHeight={60}
           zIndex={1200}
-          actions={rosterActions}
         >
           <CasualtyList variant="sheet" onAfterSelect={() => setRosterOpen(false)} />
         </Sheet>

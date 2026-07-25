@@ -26,6 +26,8 @@ import { BottomIsland, IslandButton } from '@/Components/primitives/BottomIsland
 import { AddFab } from '@/Components/primitives/AddFab';
 import { OverlayActionMenu } from '@/Components/primitives/OverlayActionMenu';
 import { EmptyState } from '@/Components/primitives/EmptyState';
+import { ActionButton } from '@/Components/primitives/ActionButton';
+import { FooterPill } from '@/Components/primitives/FooterPill';
 import type { TextExpander } from '../Data/User';
 import { getBlocksForFocusedExam, getCategoryFromSymptomCode } from '../Data/PhysicalExamData';
 import type { CategoryLetter } from '../Data/PhysicalExamData';
@@ -88,8 +90,12 @@ function TextSectionCard({ addLabel, value, onChange, expanders, placeholder }: 
                 previewMaxHeight="50dvh"
                 actions={[
                     { key: 'reset', label: 'Reset', icon: RotateCcw, onAction: () => onChange(''), closesOnAction: false },
-                    { key: 'done', label: 'Done', icon: Check, onAction: () => setIsOpen(false), closesOnAction: false },
                 ]}
+                rightFooter={
+                    <FooterPill side="right">
+                        <ActionButton icon={Check} label="Done" onClick={() => setIsOpen(false)} />
+                    </FooterPill>
+                }
             >
                 <ExpandableInput
                     value={value}

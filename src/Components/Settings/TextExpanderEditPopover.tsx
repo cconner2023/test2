@@ -16,7 +16,7 @@ import { FieldTextEditor, type FieldEditorHandle } from './FieldTextEditor';
 import { InsertFieldForm, FieldInsertFooter, buildFieldInfo, emptyInsertDraft, type InsertDraft, type FieldType } from './InsertFieldButton';
 import { ActionButton } from '@/Components/primitives/ActionButton';
 import { OverlayStack, type StackNav } from '@/Components/primitives/OverlayStack';
-import { ActionPill } from '@/Components/primitives/ActionPill'
+import { FooterPill } from '@/Components/primitives/FooterPill'
 import { OverlayHeaderMenu } from '@/Components/primitives/OverlayHeaderMenu';
 import type { ContextMenuItem } from '@/Components/primitives/ContextMenu';
 import { TextInput } from '@/Components/primitives/FormInputs';
@@ -243,23 +243,23 @@ export const TextExpanderEditPopover = ({
                 />
             ),
             rightFooter: insertFormStage ? (
-                <ActionPill>
+                <FooterPill side="right">
                     <ActionButton
                         icon={Check}
                         label="Insert"
-                        variant={insertValid ? 'success' : 'disabled'}
+                        variant={insertValid ? 'confirm' : 'disabled'}
                         onClick={insertValid ? commitInsert : () => {}}
                     />
-                </ActionPill>
+                </FooterPill>
             ) : (
-                <ActionPill>
+                <FooterPill side="right">
                     <ActionButton
                         icon={Check}
                         label="Save"
-                        variant={saveDisabled ? 'disabled' : 'success'}
+                        variant={saveDisabled ? 'disabled' : 'confirm'}
                         onClick={saveDisabled ? () => {} : handleSave}
                     />
-                </ActionPill>
+                </FooterPill>
             ),
             render: (_: unknown, nav: StackNav) => (
                 <div className="px-4 pb-3 space-y-3">

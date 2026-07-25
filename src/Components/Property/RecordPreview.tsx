@@ -9,6 +9,7 @@ import { pmcsOpened, pmcsCorrected } from '../../lib/pmcsFold'
 import type { PmcsDoc } from '../../lib/propertyService'
 import { PreviewOverlay } from '../PreviewOverlay'
 import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
+import { FooterPill } from '@/Components/primitives/FooterPill'
 import { ActionButton } from '@/Components/primitives/ActionButton'
 import { PillButton } from '@/Components/primitives/HeaderPill'
 import { TextInput, PickerInput, DatePickerInput } from '@/Components/primitives/FormInputs'
@@ -430,7 +431,7 @@ export function useRecordPreview({ event, onClose, label, detail, Icon, tint, in
   // primitives the Record/Dispatch intake uses. Other rows keep the legacy left pill
   // (Edit when free-text + Delete) in view mode only; the dismiss X rides the right.
   const footer = formKind && mode === 'edit' ? (
-    <div className="flex gap-1 bg-themewhite rounded-2xl px-1.5 py-1.5">
+    <FooterPill>
       <ActionButton
         icon={docName ? FileText : Paperclip}
         label={docName ? `Replace ${docFormLabel}` : `Scan ${docFormLabel}`}
@@ -438,28 +439,28 @@ export function useRecordPreview({ event, onClose, label, detail, Icon, tint, in
         onClick={() => setScannerOpen(true)}
       />
       <ActionButton icon={Trash2} label="Delete" variant="danger" onClick={() => setConfirmOpen(true)} />
-    </div>
+    </FooterPill>
   ) : formKind ? (
     // Review mode for a form-carrying record: Edit flips into the form, Delete removes.
-    <div className="flex gap-1 bg-themewhite rounded-2xl px-1.5 py-1.5">
+    <FooterPill>
       <ActionButton icon={Pencil} label="Edit" variant="default" onClick={() => setMode('edit')} />
       <ActionButton icon={Trash2} label="Delete" variant="danger" onClick={() => setConfirmOpen(true)} />
-    </div>
+    </FooterPill>
   ) : mode === 'view' ? (
-    <div className="flex gap-1 bg-themewhite rounded-2xl px-1.5 py-1.5">
+    <FooterPill>
       {editable && (
         <ActionButton icon={Pencil} label="Edit" variant="default" onClick={() => setMode('edit')} />
       )}
       <ActionButton icon={Trash2} label="Delete" variant="danger" onClick={() => setConfirmOpen(true)} />
-    </div>
+    </FooterPill>
   ) : undefined
 
   // Right footer — the familiar success PillButton (mirrors "Record PMCS" / "Dispatch"
   // / "Return"), disabled until the required fields are set. Only while editing a form.
   const rightFooter = formKind && mode === 'edit' ? (
-    <div className="bg-themewhite rounded-2xl px-1.5 py-1.5">
+    <FooterPill side="right">
       <PillButton icon={Check} iconSize={16} accent="success" disabled={!canSave || busy} onClick={saveForm} label="Save" />
-    </div>
+    </FooterPill>
   ) : undefined
 
   // Canonical destructive-confirm primitive. Placed INSIDE the host overlay's

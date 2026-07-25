@@ -9,6 +9,7 @@ import {
 } from '../../lib/docScan'
 import { openCamera, closeCamera } from '../../lib/vision/camera'
 import { OverlayStack, type StackNav } from '@/Components/primitives/OverlayStack'
+import { FooterPill } from '@/Components/primitives/FooterPill'
 import { TextInput } from '@/Components/primitives/FormInputs'
 import { ActionButton } from '@/Components/primitives/ActionButton'
 import { PillButton } from '@/Components/primitives/HeaderPill'
@@ -211,15 +212,15 @@ export function DocScanner({ isOpen, onClose, onComplete, formLabel, containerRe
     review: {
       title: 'Scan',
       footer: (_: unknown, nav: StackNav) => (
-        <div className="flex gap-1 bg-themewhite rounded-2xl px-1.5 py-1.5">
+        <FooterPill>
           <ActionButton icon={Camera} label="Camera" variant={busy ? 'disabled' : 'default'} onClick={() => nav.push('camera')} />
           <ActionButton icon={Images} label="Photos" variant={busy ? 'disabled' : 'default'} onClick={() => libraryInputRef.current?.click()} />
-        </div>
+        </FooterPill>
       ),
       rightFooter: (
-        <div className="bg-themewhite rounded-2xl px-1.5 py-1.5">
+        <FooterPill side="right">
           <PillButton icon={Check} iconSize={16} accent="success" disabled={!pages.length || busy} onClick={handleSave} label="Save document" />
-        </div>
+        </FooterPill>
       ),
       render: () => (
         <>
@@ -246,14 +247,14 @@ export function DocScanner({ isOpen, onClose, onComplete, formLabel, containerRe
       // Back drops the in-flight draft before returning to review.
       onBack: (nav: StackNav) => { setDraft(null); nav.pop() },
       footer: (
-        <div className="flex gap-1 bg-themewhite rounded-2xl px-1.5 py-1.5">
+        <FooterPill>
           <ActionButton icon={Crop} label="Auto-detect" variant="default" onClick={() => draft && setDraft({ ...draft, quad: detectDocumentQuad(draft.src) })} />
-        </div>
+        </FooterPill>
       ),
       rightFooter: (
-        <div className="bg-themewhite rounded-2xl px-1.5 py-1.5">
+        <FooterPill side="right">
           <PillButton icon={ArrowRight} iconSize={18} accent="info" onClick={toEnhance} label="Next" />
-        </div>
+        </FooterPill>
       ),
       render: () => draft ? <CropView draft={draft} onQuad={(quad) => setDraft({ ...draft, quad })} /> : null,
     },
@@ -261,9 +262,9 @@ export function DocScanner({ isOpen, onClose, onComplete, formLabel, containerRe
       title: 'Enhance',
       // Back (→ crop) keeps the draft, so the default pop is right.
       rightFooter: (
-        <div className="bg-themewhite rounded-2xl px-1.5 py-1.5">
+        <FooterPill side="right">
           <PillButton icon={Check} iconSize={16} accent="success" onClick={commitPage} label={draft?.id ? 'Done' : 'Add page'} />
-        </div>
+        </FooterPill>
       ),
       render: () => draft?.previewBase ? <EnhanceView draft={draft} onFilter={(filter) => setDraft({ ...draft, filter })} /> : null,
     },

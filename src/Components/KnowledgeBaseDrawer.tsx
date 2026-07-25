@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import { ChevronRight, RotateCcw, Pin, Pill, BookOpen, MoreHorizontal } from 'lucide-react'
 import { SearchInput } from '@/Components/primitives/SearchInput'
+import { FooterPill } from '@/Components/primitives/FooterPill'
 import { ActionButton } from '@/Components/primitives/ActionButton'
 import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill'
 import { BaseDrawer } from '@/Components/primitives/BaseDrawer'
@@ -501,9 +502,9 @@ export function KnowledgeBaseDrawer({
                 onBack={lmpPicker ? () => setLmpPicker(false) : undefined}
                 maxWidth={390}
                 footer={lmpPicker ? undefined : (
-                    <div className="bg-themewhite rounded-2xl shadow-lg px-1.5 py-1.5">
+                    <FooterPill>
                         <ActionButton icon={RotateCcw} label="Clear" onClick={() => vsRef.current?.reset()} />
-                    </div>
+                    </FooterPill>
                 )}
             >
                 {lmpPicker ? (

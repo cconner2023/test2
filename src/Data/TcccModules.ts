@@ -263,6 +263,24 @@ export const tcccModules: TcccModule[] = [
       ],
     },
   },
+  {
+    // Referenced by 081-000-1025 (Administer Blood Products) steps 2–4. Source skill sheet not
+    // yet transcribed — pending, so referencing steps show the rolled-up measure + "coming soon".
+    key: 'tccc-hemorrhagic-shock-resuscitation',
+    name: 'JTS Hemorrhagic Shock Fluid Resuscitation Skill Sheet',
+    module: 'TCCC Module 11: Hemorrhagic Shock Fluid Resuscitation in TFC',
+    pending: true,
+    sections: [],
+  },
+  {
+    // Referenced by 081-000-1025 (Administer Blood Products) step 7. Source skill sheet not yet
+    // transcribed — pending.
+    key: 'tccc-documentation',
+    name: 'JTS Documentation Skill Sheet',
+    module: 'TCCC Module 23: Documentation',
+    pending: true,
+    sections: [],
+  },
 ]
 
 export function getTcccModule(key: string): TcccModule | undefined {

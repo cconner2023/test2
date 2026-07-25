@@ -104,7 +104,7 @@ export function ActionSheet({ visible, title, options, onClose, zIndex = Z.MODAL
     // List-style rows — mirrors the calendar filter options (and the intake-form
     // channel picker): full-bleed rows in a bordered card, icon + left-aligned
     // label, divider between rows.
-    <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 divide-y divide-themeblue3/10 overflow-hidden">
+    <div className="rounded-2xl bg-themewhite2 divide-y divide-themeblue3/10 overflow-hidden">
       {opts.map((opt) => {
         const isDanger = opt.variant === 'danger'
         const Icon = opt.icon

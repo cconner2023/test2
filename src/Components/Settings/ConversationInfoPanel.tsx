@@ -3,9 +3,9 @@ import { X, LogOut, Plus, Star, Pencil, Check, UserPlus, Trash2, Image as ImageI
 import { UserAvatar } from './UserAvatar'
 import { getDisplayName } from '../../Utilities/nameUtils'
 import { OverlayStack, type StackNav } from '@/Components/primitives/OverlayStack'
+import { FooterPill } from '@/Components/primitives/FooterPill'
 import { SheetStack } from '@/Components/primitives/SheetStack'
 import type { StackScreen } from '@/Components/stackNav'
-import { ActionPill } from '@/Components/primitives/ActionPill'
 import { ActionButton } from '@/Components/primitives/ActionButton'
 import { OverlayHeaderMenu } from '@/Components/primitives/OverlayHeaderMenu'
 import type { ContextMenuItem } from '@/Components/primitives/ContextMenu'
@@ -291,16 +291,22 @@ export function ConversationInfoPanel({
   // rightFooter (right) slots — the danger-cluster-left / primary-right split is
   // kept on the roomy desktop card.
   const leftFooterNode = leftActions.length > 0 ? (
-    <ActionPill>
+    <FooterPill>
       {leftActions.map(a => (
         <ActionButton key={a.key} icon={a.icon} label={a.label} variant={a.variant} onClick={a.onAction} />
       ))}
-    </ActionPill>
+    </FooterPill>
   ) : undefined
   const rightFooterNode = rightAction ? (
-    <ActionPill>
-      <ActionButton icon={rightAction.icon} label={rightAction.label} onClick={rightAction.onAction} />
-    </ActionPill>
+    <FooterPill side="right">
+      {/* Confirm commits the rename; Edit only enters the mode. */}
+      <ActionButton
+        icon={rightAction.icon}
+        label={rightAction.label}
+        variant={groupEditing ? 'confirm' : 'default'}
+        onClick={rightAction.onAction}
+      />
+    </FooterPill>
   ) : undefined
 
   // MOBILE chrome. The sheet header can't carry the desktop's pill cluster without
@@ -587,9 +593,9 @@ export function ConversationInfoPanel({
       title: 'Add member',
       searchPlaceholder: 'Filter roster…',
       footer: (_p, nav) => (
-        <ActionPill>
+        <FooterPill>
           <ActionButton icon={UserPlus} label="Off-roster" onClick={() => offRoster.openMethods(nav)} />
-        </ActionPill>
+        </FooterPill>
       ),
       render: (_p, _nav, filter) => renderAddRoster(filter),
     },

@@ -2,7 +2,7 @@ import { useEffect, useCallback, useState, useRef } from 'react'
 import { MapPin, Check, ChevronRight, ChevronLeft, RefreshCw, Loader, X, Plus } from 'lucide-react'
 import { latLngToMgrs } from '../../lib/mgrsFormat'
 import { SectionCard } from '@/Components/primitives/Section'
-import { TextInput } from '@/Components/primitives/FormInputs'
+import { TextInput, TextArea } from '@/Components/primitives/FormInputs'
 import { PreviewOverlay } from '../PreviewOverlay'
 import type { ContextMenuAction } from '../PreviewOverlay'
 import { useIsMobile } from '../../Hooks/useIsMobile'
@@ -416,7 +416,7 @@ export function LineEditor({
     )
   }
 
-  const inputCx = `w-full rounded-full border border-themeblue3/10 bg-themewhite2 text-primary placeholder:text-tertiary focus:border-themeblue1/30 focus:outline-none transition-all duration-200 ${
+  const inputCx = `w-full rounded-full border border-themeblue3/10 bg-transparent text-primary placeholder:text-tertiary focus:border-themeblue1/30 focus:outline-none transition-all duration-200 ${
     isMobile ? 'py-2.5 px-4 text-sm' : 'py-2 px-3 text-[10pt]'
   }`
 
@@ -725,12 +725,13 @@ export function LineEditor({
       if (req.mode === 'peacetime') {
         return (
           <div className="px-4 py-3">
-            <textarea
+            <TextArea
+              bare
               value={req.l9p ?? ''}
-              onChange={e => update({ l9p: e.target.value })}
+              onChange={v => update({ l9p: v })}
               placeholder="Detailed terrain feature description at pickup site"
               rows={4}
-              className={`w-full rounded-xl border border-themeblue3/10 bg-themewhite2 text-primary placeholder:text-tertiary focus:border-themeblue1/30 focus:outline-none transition-all duration-200 resize-none px-3 py-2 ${isMobile ? 'text-sm' : 'text-[10pt]'}`}
+              inputClassName={`w-full rounded-xl border border-themeblue3/10 bg-transparent text-primary placeholder:text-tertiary focus:border-themeblue1/30 focus:outline-none transition-all duration-200 resize-none px-3 py-2 ${isMobile ? 'text-sm' : 'text-[10pt]'}`}
             />
           </div>
         )

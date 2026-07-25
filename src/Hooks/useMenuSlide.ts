@@ -111,7 +111,11 @@ export function useMenuSlide({ enabled, isOpen, onOpen, onClose, width = MENU_NA
     position,
     isDragging,
     transition,
-    backdropOpacity: Math.min(position / width, 1) * 0.95,
+    // TRAVEL fraction (0 -> 1) for <Scrim progress>, NOT a dim level — the tint
+    // lives in Scrim's class (the nav uses variant="solid", 94% black, no blur).
+    // Multiplying a dim level in here would park the element at fractional
+    // opacity, which is what composited the blur away. See Scrim.tsx.
+    backdropProgress: Math.min(position / width, 1),
     backdropTransition: isDragging ? 'none' : OPACITY_TRANSITION,
     closeHandlers: enabled && isOpen ? closeBind() : {},
     width,

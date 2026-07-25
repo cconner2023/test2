@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { ChevronRight } from 'lucide-react';
 import { ImportInputBar } from '../ImportInputBar';
+import { TextArea } from '@/Components/primitives/FormInputs';
 import { parseNoteEncoding, findAlgorithmByCode, findSymptomByCode, reconstructCardStates } from '../../Utilities/noteParser';
 import { isEncryptedBarcode, decryptBarcode } from '../../Utilities/NoteCodec';
 import { assembleNote, formatSignature } from '../../Utilities/NoteFormatter';
@@ -63,11 +64,12 @@ function OverlaySection({
         </div>
       )}
 
-      <textarea
+      <TextArea
+        bare
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={onChange}
         placeholder={placeholder}
-        className="w-full min-h-[80px] md:min-h-[56px] rounded-xl border border-themeblue3/10 shadow-xs bg-themewhite p-3 text-sm text-primary placeholder:text-tertiary focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none resize-none transition-all duration-300"
+        inputClassName="w-full min-h-[80px] md:min-h-[56px] rounded-xl border border-themeblue3/10 shadow-xs bg-transparent p-3 text-base md:text-sm text-primary placeholder:text-tertiary focus:border-themeblue1/30 focus:outline-none resize-none transition-all duration-300"
       />
     </div>
   );

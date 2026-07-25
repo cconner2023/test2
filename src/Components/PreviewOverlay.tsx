@@ -6,6 +6,7 @@ import type { LucideIcon } from 'lucide-react'
 import { SearchInput } from '@/Components/primitives/SearchInput'
 import { BaseOverlay, Z } from '@/Components/primitives/BaseOverlay'
 import { ActionButton } from '@/Components/primitives/ActionButton'
+import { FooterPill } from '@/Components/primitives/FooterPill'
 import { HudLoader } from '@/Components/primitives/HudLoader'
 import { useLoadingMorph } from '@/Components/primitives/useLoadingMorph'
 import { TextInput } from '@/Components/primitives/FormInputs'
@@ -294,7 +295,7 @@ export function PreviewOverlay({
               {/* Outer shell — wrapped for the optional loading morph (puck→shell).
                   Wrappers are transparent passthrough when not morphing. */}
               <animated.div
-                className={morphActive ? 'relative bg-themewhite rounded-2xl overflow-hidden mx-auto' : ''}
+                className={morphActive ? 'relative bg-themewhite3 rounded-2xl overflow-hidden mx-auto' : ''}
                 style={morphActive ? { width: morph.width, height: morph.height } : undefined}
               >
                 <animated.div
@@ -309,7 +310,7 @@ export function PreviewOverlay({
                 {/* Inner white card — title + search + scrollable preview. The
                     header also appears for a back chevron / header actions alone
                     (e.g. an OverlayStack drill-down screen with no title). */}
-                <div className="bg-themewhite rounded-2xl overflow-hidden min-h-0">
+                <div className="bg-themewhite3 rounded-2xl overflow-hidden min-h-0">
                   {(title || onBack || headerActions || headerLeft) && (
                     <PopoverHeader title={title ?? ''} onClose={onClose} onBack={onBack} headerLeft={headerLeft} headerActions={headerActions} hideClose={hideHeaderClose} />
                   )}
@@ -375,12 +376,12 @@ export function PreviewOverlay({
                 {/* Optional content between inner card and footer */}
                 {supplemental}
 
-                {/* Footer row — actions pill LEFT, dismiss RIGHT */}
+                {/* Action footer: destructive/secondary left, single primary right. */}
                 <div className="flex items-center justify-between px-0.5">
                   {footer ? (
                     footer
                   ) : (actions.length > 0 || onAdd) ? (
-                    <div className="flex gap-1 bg-themewhite rounded-2xl px-1.5 py-1.5">
+                    <FooterPill>
                       {orderedActions.map(renderAction)}
                       {onAdd && (
                         <button
@@ -392,23 +393,25 @@ export function PreviewOverlay({
                           <Plus size={16} className={addOpen ? 'text-themegreen' : 'text-themeblue2'} />
                         </button>
                       )}
-                    </div>
+                    </FooterPill>
                   ) : (
                     <div />
                   )}
 
-                  {/* Right slot — rightFooter wins, otherwise dismiss X (omitted
-                      when the header already provides its own X) */}
+                  {/* rightFooter wins, else the dismiss X, unless the header has one.
+                      The X takes a pill so it matches a consumer's primary in size. */}
                   {rightFooter ? (
                     rightFooter
                   ) : !(title || onBack || headerActions || headerLeft) ? (
-                    <button
-                      onClick={onClose}
-                      className="w-9 h-9 rounded-full flex items-center justify-center bg-themewhite text-tertiary hover:text-tertiary active:scale-95 transition-all"
-                      aria-label="Close"
-                    >
-                      <X size={16} />
-                    </button>
+                    <FooterPill side="right">
+                      <button
+                        onClick={onClose}
+                        className="w-9 h-9 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all"
+                        aria-label="Close"
+                      >
+                        <X size={16} />
+                      </button>
+                    </FooterPill>
                   ) : null}
                 </div>
 

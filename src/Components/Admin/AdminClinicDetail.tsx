@@ -11,6 +11,7 @@ import { X, Plus, RefreshCw, Check, Trash2, ChevronRight, Building2, Key, Messag
 import { UserRow } from '../UserRow'
 import { formatLastActive } from './adminUtils'
 import { ActionButton } from '@/Components/primitives/ActionButton'
+import { FooterPill } from '@/Components/primitives/FooterPill'
 import { listClinics, listAllUsers, listLocations, updateClinic, createClinic, rescueClinicAssociationsByLocation, listClinicLoans, clinicHasVault, rescueClinicVault, setUserClinic, getAllAccountRequests } from '../../lib/adminService'
 import type { AdminUser, AdminClinic, AdminLocation } from '../../lib/adminService'
 import type { AccountRequest } from '../../lib/accountRequestService'
@@ -20,7 +21,6 @@ import { ErrorDisplay } from '@/Components/primitives/ErrorDisplay'
 import { LocationPickerInput } from './AdminPickers'
 import { invalidate, useInvalidation } from '../../stores/useInvalidationStore'
 import { sameStringSet } from '../../Utilities/arrayEquals'
-import { ActionPill } from '@/Components/primitives/ActionPill'
 import { PreviewOverlay } from '../PreviewOverlay'
 import { type ContextMenuItem } from '@/Components/primitives/ContextMenu'
 import { AnchoredMenu } from '@/Components/primitives/LiftedRowMenu'
@@ -823,26 +823,26 @@ const AdminClinicDetail = ({
         previewMaxHeight="70dvh"
         footer={
           editAnchor && clinic && onRequestDelete ? (
-            <ActionPill shadow="sm">
+            <FooterPill>
               <ActionButton
                 icon={Trash2}
                 label="Delete cluster"
                 variant="danger"
                 onClick={() => { setEditAnchor(null); onRequestDelete() }}
               />
-            </ActionPill>
+            </FooterPill>
           ) : undefined
         }
         rightFooter={
           editAnchor && clinic ? (
-            <ActionPill shadow="sm">
+            <FooterPill side="right">
               <ActionButton
                 icon={saving ? RefreshCw : Check}
                 label={saving ? 'Saving…' : 'Save'}
-                variant={saving ? 'disabled' : 'success'}
+                variant={saving ? 'disabled' : 'confirm'}
                 onClick={handleSave}
               />
-            </ActionPill>
+            </FooterPill>
           ) : undefined
         }
       >
@@ -1092,7 +1092,7 @@ const AdminClinicDetail = ({
           )
         }}
         footer={
-          <div className="bg-themewhite rounded-2xl shadow-lg px-1.5 py-1.5 flex flex-col">
+          <FooterPill>
             {onCreateRelatedCluster && clinic && relAction && (relAction.kind === 'add-parent' || relAction.kind === 'add-child' || relAction.kind === 'add-assoc') && (
               <ActionButton
                 icon={Plus}
@@ -1110,7 +1110,7 @@ const AdminClinicDetail = ({
                 }}
               />
             )}
-          </div>
+          </FooterPill>
         }
       />
     </div>

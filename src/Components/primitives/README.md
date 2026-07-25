@@ -1,11 +1,9 @@
 # UI Primitives — build-time guidelines
 
-**Read this before building any new component.** These are the shared building blocks.
-Reach for one of them first; **never hand-roll an equivalent.** If a primitive is close
-but not quite right, extend the primitive — don't fork a one-off in feature code.
+**Read before new component.** **never hand-roll an equivalent.** extend the primitive — don't fork a unique feature.
 
 > Canonical deep reference lives in the palace `v2/conventions` room. This file is the
-> fast, colocated index. When code and this file disagree, the code wins — fix this file.
+> index. code wins — fix this file.
 
 ## The boundary (enforced)
 
@@ -20,9 +18,19 @@ but not quite right, extend the primitive — don't fork a one-off in feature co
 
 ## Catalogue — reach for these
 
-**Actions**
+**Actions** — an action item is one icon button; the container it rides depends on what
+it floats over. Over the scrim, `FooterPill` (raised-surface token). Over a surface,
+`ActionPill` / `HeaderPill` / `AddFab` (canvas token plus hairline). Light themes alias
+the two tokens, so mixing them only shows up in dark. See App.css ELEVATION.
+
 - `ActionButton` — icon (± label) action tile. The atom for card/footer actions.
-- `ActionPill` — action cluster container. `placement="overlay"` rides a card's top edge
+  `variant="success"` is blue: it names the active-toggle state. A commit takes
+  `variant="confirm"` (green, matches `PillButton accent="success"`).
+- `FooterPill` — one slot of an action footer. Left takes destructive and secondary
+  actions, danger first, capped at two; overflow goes to the header ellipsis via
+  `buildOverlayActionRail`. Right takes the single primary, or the dismiss X.
+  `ActionPill` and `HeaderPill` do not belong in a footer slot.
+- `ActionPill` — on-surface action cluster. `placement="overlay"` rides a card's top edge
   (`-translate-y-1/2`); `placement="inline"` sits in flow. Use for custom clusters
   `OverlayActionMenu` can't express.
 - `OverlayActionMenu` — **the** corner-action for a card. Self-consolidates by count:
@@ -32,8 +40,11 @@ but not quite right, extend the primitive — don't fork a one-off in feature co
 
 **Inputs** (`@/Components/primitives/FormInputs`) — self-rowing, iOS-zoom-safe
 - `TextInput` — base text field. Use even inside custom layouts via `bare` mode; never a raw `<input>`.
+- `TextArea` — multi-line sibling of `TextInput` (same self-row, `rows`, optional `autoGrow`).
+  Never a raw `<textarea>`; use `bare` + `inputClassName` for boxed/dense embeds.
 - `PasswordInput` · `PickerInput` (long lists → overlay) · `MultiPickerInput` · `DatePickerInput` / `DatePickerCalendar` · `PinCodeInput` · `TimeInput`
-- Standalone: `SearchInput` · `MobileSearchBar` · `ExpandableInput` (multiline/textarea) · `PinKeypad` · `SignaturePad`
+- Standalone: `SearchInput` · `MobileSearchBar` · `ExpandableInput` (multiline + text-expander/template
+  machinery — note editors only; plain multi-line fields want `TextArea`) · `PinKeypad` · `SignaturePad`
 
 **Containers / overlays**
 - `Modal` · `Sheet` · `BaseDrawer` · `BaseOverlay` · `BottomIsland`
@@ -100,6 +111,10 @@ No → **morph** with `OverlayStack` — a deeper level of the same surface. Han
 10. **Form inputs self-row** (`<label className="block border-b border-primary/6 last:border-b-0">`);
     placeholder IS the label; `text-base md:text-sm` (16px mobile = no iOS auto-zoom). Don't add
     `px-4 py-3` row wrappers around a primitive in consumer code — it already self-rows.
+11. **Multi-line = `TextArea`.** Raw `<textarea>` survives in exactly three places: chat
+    composers (`chat-input-bar` contract), the note editors that need `ExpandableInput`'s
+    expander/template machinery, and the anon intake bundle (`Components/Public/*`, firewalled
+    from main-app imports — it copies the styles instead). Everywhere else, use the primitive.
 
 ## Adding a primitive
 

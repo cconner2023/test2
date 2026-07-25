@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { Check, Crop, ZoomIn } from 'lucide-react'
 import { PreviewOverlay } from './PreviewOverlay'
 import { PillButton } from '@/Components/primitives/HeaderPill'
+import { FooterPill } from '@/Components/primitives/FooterPill'
 import { ActionButton } from '@/Components/primitives/ActionButton'
 import { fileToCanvas, cropToFile, type RasterImage } from '../lib/imageEdit'
 import { createLogger } from '../Utilities/Logger'
@@ -117,12 +118,12 @@ export function ImageEditor({ file, onCancel, onConfirm, containerRef }: ImageEd
         />
       }
       footer={
-        <div className="flex gap-1 bg-themewhite rounded-2xl px-1.5 py-1.5">
+        <FooterPill>
           <ActionButton icon={Crop} label="Reset" variant={src ? 'default' : 'disabled'} onClick={resetEdits} />
-        </div>
+        </FooterPill>
       }
       rightFooter={
-        <div className="bg-themewhite rounded-2xl px-1.5 py-1.5">
+        <FooterPill side="right">
           <PillButton
             icon={Check}
             iconSize={16}
@@ -131,7 +132,7 @@ export function ImageEditor({ file, onCancel, onConfirm, containerRef }: ImageEd
             onClick={handleConfirm}
             label="Send photo"
           />
-        </div>
+        </FooterPill>
       }
     />
   )

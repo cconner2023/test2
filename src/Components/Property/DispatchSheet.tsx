@@ -9,6 +9,7 @@ import { usePropertyStore } from '../../stores/usePropertyStore'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { useInvalidation } from '../../stores/useInvalidationStore'
 import { TextInput, DatePickerInput } from '@/Components/primitives/FormInputs'
+import { FooterPill } from '@/Components/primitives/FooterPill'
 import { PartyPicker, partyLabel, type Party } from './PartyPicker'
 import { useClinicMedics } from '../../Hooks/useClinicMedics'
 import { OverlayStack, type StackNav } from '@/Components/primitives/OverlayStack'
@@ -326,7 +327,7 @@ export function DispatchSheet({ isOpen, onClose, subjectId, clinicId, containerR
       // confirm is present always but DISABLED until usable (Dispatch needs an exp
       // date; Return defaults today so it's always ready).
       footer: (_: unknown, nav: StackNav) => (
-        <div className="flex gap-1 bg-themewhite rounded-2xl px-1.5 py-1.5">
+        <FooterPill>
           <ActionButton
             icon={activeDoc ? FileText : Paperclip}
             label={activeDoc ? 'Replace form' : (current ? 'Scan return form' : 'Scan dispatch form')}
@@ -339,14 +340,14 @@ export function DispatchSheet({ isOpen, onClose, subjectId, clinicId, containerR
             variant="default"
             onClick={() => nav.push('history')}
           />
-        </div>
+        </FooterPill>
       ),
       rightFooter: (
-        <div className="bg-themewhite rounded-2xl px-1.5 py-1.5">
+        <FooterPill side="right">
           {current
             ? <PillButton icon={Check} iconSize={16} accent="success" onClick={handleReturn} label="Return" />
             : <PillButton icon={Check} iconSize={16} accent="success" disabled={!expDate} onClick={handleOpen} label="Dispatch" />}
-        </div>
+        </FooterPill>
       ),
       render: () => (
         <>

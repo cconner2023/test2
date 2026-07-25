@@ -11,7 +11,7 @@ import { useAuthStore } from '../stores/useAuthStore'
 import { signIn } from '../lib/authService'
 import { supabase } from '../lib/supabase'
 import { ErrorDisplay } from '@/Components/primitives/ErrorDisplay'
-import { TextInput, PasswordInput } from '@/Components/primitives/FormInputs'
+import { TextInput, TextArea, PasswordInput } from '@/Components/primitives/FormInputs'
 import { AccountRequestForm } from './Settings/AccountRequestForm'
 import { submitSupportRequest } from '../lib/accountRequestService'
 
@@ -480,16 +480,13 @@ export function LoginScreen() {
                         placeholder="Email *"
                         required
                       />
-                      <label className="block border-b border-primary/6">
-                        <textarea
-                          value={helpNotes}
-                          onChange={(e) => setHelpNotes(e.target.value)}
-                          placeholder="How can we help? *"
-                          required
-                          rows={3}
-                          className="w-full bg-transparent px-4 py-3 text-base md:text-sm text-primary placeholder:text-tertiary focus:outline-none resize-none"
-                        />
-                      </label>
+                      <TextArea
+                        value={helpNotes}
+                        onChange={setHelpNotes}
+                        placeholder="How can we help? *"
+                        required
+                        rows={3}
+                      />
                       <div className="flex items-center justify-end gap-2 px-3 py-2">
                         <button
                           type="button"

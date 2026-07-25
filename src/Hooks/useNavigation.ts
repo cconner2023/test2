@@ -50,6 +50,7 @@ export function useNavigation() {
         messagesInitialPeerId: s.messagesInitialPeerId,
         messagesInitialGroupId: s.messagesInitialGroupId,
         messagesInitialPeerName: s.messagesInitialPeerName,
+        messagesInitialMessageId: s.messagesInitialMessageId,
         showPropertyDrawer: s.showPropertyDrawer,
         showUserGuideDrawer: s.showUserGuideDrawer,
         showAdminDrawer: s.showAdminDrawer,

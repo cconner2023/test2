@@ -20,9 +20,9 @@ import { buildMailtoHref } from '../../lib/mailto'
 import { useResetPasswordFlow } from '../../Hooks/useResetPasswordFlow'
 import { useMessagesContext } from '../../Hooks/MessagesContext'
 import { type ContextMenuItem } from '@/Components/primitives/ContextMenu'
+import { FooterPill } from '@/Components/primitives/FooterPill'
 import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
 import { PreviewOverlay } from '../PreviewOverlay'
-import { ActionPill } from '@/Components/primitives/ActionPill'
 import { ActionButton } from '@/Components/primitives/ActionButton'
 import { PasswordInput } from '@/Components/primitives/FormInputs'
 import { Z } from '@/Components/primitives/BaseOverlay'
@@ -155,14 +155,14 @@ export function useUserActions({ currentUserId, onOpenConversation }: UseUserAct
         maxWidth={340}
         rightFooter={
           resetPwAnchor && resetPwUser ? (
-            <ActionPill shadow="sm">
+            <FooterPill side="right">
               <ActionButton
                 icon={resetPw.processing ? RefreshCw : Check}
                 label={resetPw.processing ? 'Submitting…' : 'Reset password'}
-                variant={resetPw.processing || resetPw.value.length < 12 ? 'disabled' : 'success'}
+                variant={resetPw.processing || resetPw.value.length < 12 ? 'disabled' : 'confirm'}
                 onClick={() => resetPwUser && resetPw.requestConfirm(resetPwUser.id)}
               />
-            </ActionPill>
+            </FooterPill>
           ) : undefined
         }
       >

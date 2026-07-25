@@ -91,7 +91,11 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
         setSelectedGroupId(null)
         setPendingScrollMsgId(null)
         const isSelf = medic.id === user?.id
-        const name = isSelf
+        // Outbound outside-contact channels title the conversation with the cluster
+        // name (what the recipient sees as the sender); the list row stays the email.
+        const name = medic.outsideFromLabel
+            ? medic.outsideFromLabel
+            : isSelf
             ? [profile.rank, profile.lastName].filter(Boolean).join(' ') || profile.firstName || 'Notes'
             : [medic.rank, medic.lastName].filter(Boolean).join(' ') || medic.firstName || 'Chat'
         setSelectedPeerName(name)

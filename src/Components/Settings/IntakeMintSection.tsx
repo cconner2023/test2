@@ -6,8 +6,8 @@ import {
 import { useAuth } from '../../Hooks/useAuth'
 import { useBetaBypass } from '../../lib/betaFeatures'
 import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
+import { FooterPill } from '@/Components/primitives/FooterPill'
 import { EmptyState } from '@/Components/primitives/EmptyState'
-import { ActionPill } from '@/Components/primitives/ActionPill'
 import { ActionButton } from '@/Components/primitives/ActionButton'
 import { OverlayActionMenu } from '@/Components/primitives/OverlayActionMenu'
 import { PreviewOverlay } from '../PreviewOverlay'
@@ -560,23 +560,23 @@ export function IntakeMintSection({ clinicId, oncallCount = 0, onOncallEnabledCh
         title="Mint event intake"
         maxWidth={360}
         footer={
-          <ActionPill>
+          <FooterPill>
             <ActionButton
               icon={Dices}
               label="Random"
               onClick={fillMint}
             />
-          </ActionPill>
+          </FooterPill>
         }
         rightFooter={
-          <ActionPill>
+          <FooterPill side="right">
             <ActionButton
               icon={Check}
               label="Mint"
-              variant={busy ? 'disabled' : 'success'}
+              variant={busy ? 'disabled' : 'confirm'}
               onClick={onMintConfirm}
             />
-          </ActionPill>
+          </FooterPill>
         }
       >
         <div className="px-3 py-2 space-y-2">
@@ -606,23 +606,23 @@ export function IntakeMintSection({ clinicId, oncallCount = 0, onOncallEnabledCh
         title="Rotate passphrase"
         maxWidth={360}
         footer={
-          <ActionPill>
+          <FooterPill>
             <ActionButton
               icon={Dices}
               label="Random"
               onClick={fillRotate}
             />
-          </ActionPill>
+          </FooterPill>
         }
         rightFooter={
-          <ActionPill>
+          <FooterPill side="right">
             <ActionButton
               icon={Check}
               label="Rotate"
-              variant={busy ? 'disabled' : 'success'}
+              variant={busy ? 'disabled' : 'confirm'}
               onClick={onRotatePassphraseConfirm}
             />
-          </ActionPill>
+          </FooterPill>
         }
       >
         <div className="px-3 py-2 space-y-2">

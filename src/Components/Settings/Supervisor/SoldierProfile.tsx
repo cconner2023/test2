@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo, useRef } from 'react'
 import { ChevronRight, ClipboardList, Plus, Check, Trash2, Loader2 } from 'lucide-react'
 import { ActionButton } from '@/Components/primitives/ActionButton'
+import { FooterPill } from '@/Components/primitives/FooterPill'
 import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
 import { PreviewOverlay } from '../../PreviewOverlay'
 import { getTaskData, isTaskTestable } from '../../../Data/TrainingData'
@@ -551,26 +552,26 @@ export function SoldierProfile({
         maxWidth={380}
         footer={
           certPopover?.mode === 'edit' ? (
-            <div className="flex gap-1 bg-themewhite rounded-2xl shadow-lg px-1.5 py-1.5">
+            <FooterPill>
               <ActionButton
                 icon={Trash2}
                 label="Delete"
                 variant="danger"
                 onClick={() => certPopover.cert && setConfirmDeleteCert(certPopover.cert)}
               />
-            </div>
+            </FooterPill>
           ) : undefined
         }
         rightFooter={
           certPopover ? (
-            <ActionPill>
+            <FooterPill side="right">
               <ActionButton
                 icon={certSaving ? Loader2 : Check}
                 label={certSaving ? 'Saving…' : 'Save'}
-                variant={certSaving || !certForm.title.trim() ? 'disabled' : 'success'}
+                variant={certSaving || !certForm.title.trim() ? 'disabled' : 'confirm'}
                 onClick={handleSaveCert}
               />
-            </ActionPill>
+            </FooterPill>
           ) : undefined
         }
       >

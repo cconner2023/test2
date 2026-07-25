@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback, useContext, type ReactNode } 
 import { Eye, EyeOff, ChevronDown, Check, ChevronLeft, ChevronRight } from 'lucide-react'
 import { PreviewOverlay } from '@/Components/PreviewOverlay'
 import { ActionButton } from '@/Components/primitives/ActionButton'
-import { ActionPill } from '@/Components/primitives/ActionPill'
+import { FooterPill } from '@/Components/primitives/FooterPill'
 import { useIsMobile } from '@/Hooks/useIsMobile'
 import { StackNavContext } from '@/Components/stackNav'
 
@@ -73,6 +73,8 @@ export const TextInput = ({
   inputClassName,
   ariaLabel,
   autoFocus,
+  multiline = false,
+  rows = 3,
 }: {
   label?: string
   value: string
@@ -124,6 +126,100 @@ export const TextInput = ({
         </div>
       )}
       {input}
+      {hint && (
+        <span className="block px-4 pb-2 text-[10pt] text-themeredred">{hint}</span>
+      )}
+    </label>
+  )
+}
+
+/* ── Text Area (multi-line free text) ── */
+
+/** Multi-line sibling of `TextInput`. Same self-rowing 9-line spec (border-b row,
+ *  placeholder-is-the-label, iOS-zoom-safe `text-base md:text-sm`) — it is just taller.
+ *  Use this for plain multi-line form fields. Reach for `ExpandableInput` ONLY when the
+ *  field wants text-expander / template machinery (note editors), and leave chat
+ *  composers alone — those are a different contract (`chat-input-bar` + send sibling). */
+export const TextArea = ({
+  label,
+  value,
+  onChange,
+  onBlur,
+  placeholder,
+  maxLength,
+  required = false,
+  rows,
+  hint,
+  bare = false,
+  inputRef,
+  onKeyDown,
+  inputClassName,
+  ariaLabel,
+  autoFocus,
+  autoGrow = false,
+}: {
+  label?: string
+  value: string
+  onChange: (val: string) => void
+  onBlur?: () => void
+  placeholder?: string
+  maxLength?: number
+  required?: boolean
+  /** Visible rows — the field's resting height. Omit for the browser default (2);
+   *  ignored once `autoGrow` takes over. */
+  rows?: number
+  hint?: string | null
+  /** Render just the textarea (no self-row label/border) for embedding in a custom layout. */
+  bare?: boolean
+  inputRef?: React.Ref<HTMLTextAreaElement>
+  onKeyDown?: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void
+  /** Override the textarea className for dense embeds. Pair with `bare`. */
+  inputClassName?: string
+  /** Accessible name for label-less `bare` embeds. */
+  ariaLabel?: string
+  autoFocus?: boolean
+  /** Grow to fit content instead of scrolling inside a fixed height (long-form notes). */
+  autoGrow?: boolean
+}) => {
+  const innerRef = useRef<HTMLTextAreaElement | null>(null)
+
+  // Merge the caller's ref with the one autoGrow needs to measure scrollHeight.
+  const setRefs = useCallback((el: HTMLTextAreaElement | null) => {
+    innerRef.current = el
+    if (typeof inputRef === 'function') inputRef(el)
+    else if (inputRef) (inputRef as React.MutableRefObject<HTMLTextAreaElement | null>).current = el
+  }, [inputRef])
+
+  useEffect(() => {
+    if (!autoGrow) return
+    const el = innerRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${el.scrollHeight}px`
+  }, [value, autoGrow])
+
+  const textarea = (
+    <textarea
+      ref={setRefs}
+      rows={rows}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      onBlur={onBlur}
+      onKeyDown={onKeyDown}
+      autoFocus={autoFocus}
+      placeholder={placeholder ?? label}
+      maxLength={maxLength}
+      required={required}
+      aria-label={ariaLabel}
+      className={inputClassName ?? `w-full bg-transparent px-4 py-3 text-base md:text-sm text-primary placeholder:text-tertiary focus:outline-none resize-none leading-6${autoGrow ? ' overflow-hidden' : ''}`}
+    />
+  )
+
+  if (bare) return textarea
+
+  return (
+    <label className="block border-b border-primary/6 last:border-b-0">
+      {textarea}
       {hint && (
         <span className="block px-4 pb-2 text-[10pt] text-themeredred">{hint}</span>
       )}
@@ -792,9 +888,9 @@ export const MultiPickerInput = ({
       stackNav.pushScreen({
         title: placeholder,
         rightFooter: (_p, nav) => (
-          <ActionPill>
+          <FooterPill side="right">
             <ActionButton icon={Check} label="Done" onClick={nav.pop} />
-          </ActionPill>
+          </FooterPill>
         ),
         render: () => <MultiSelectScreen options={options} initial={value} onChange={onChange} placeholder={placeholder} />,
       })
@@ -830,9 +926,9 @@ export const MultiPickerInput = ({
           maxWidth={280}
           title={placeholder}
           rightFooter={
-            <ActionPill>
+            <FooterPill side="right">
               <ActionButton icon={Check} label="Done" onClick={close} />
-            </ActionPill>
+            </FooterPill>
           }
         >
           <PickerRows options={options} isSelected={(v) => value.includes(v)} onSelect={toggleOption} ariaLabel={placeholder} multi />

@@ -27,12 +27,12 @@ import {
   type VotersByCandidate,
 } from '../../lib/featureVotingService'
 import { EmptyState } from '@/Components/primitives/EmptyState'
+import { FooterPill } from '@/Components/primitives/FooterPill'
 import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
 import { ErrorDisplay } from '@/Components/primitives/ErrorDisplay'
 import { PreviewOverlay } from '../PreviewOverlay'
 import { TextInput } from '@/Components/primitives/FormInputs'
 import { ActionButton } from '@/Components/primitives/ActionButton'
-import { ActionPill } from '@/Components/primitives/ActionPill'
 import { OverlayActionMenu } from '@/Components/primitives/OverlayActionMenu'
 import { type ContextMenuItem } from '@/Components/primitives/ContextMenu'
 
@@ -475,14 +475,14 @@ export function AdminFeatureVotesSection() {
         title="New cycle"
         maxWidth={340}
         rightFooter={
-          <ActionPill>
+          <FooterPill side="right">
             <ActionButton
               icon={busy ? Loader2 : Check}
               label={busy ? 'Saving…' : 'Open cycle'}
               onClick={handleCreateCycle}
-              variant={busy || !newCycleTitle.trim() || trimmedOptionCount === 0 ? 'disabled' : 'success'}
+              variant={busy || !newCycleTitle.trim() || trimmedOptionCount === 0 ? 'disabled' : 'confirm'}
             />
-          </ActionPill>
+          </FooterPill>
         }
       >
         <div>
@@ -538,14 +538,14 @@ export function AdminFeatureVotesSection() {
         maxWidth={340}
         rightFooter={
           addOptionPopover ? (
-            <ActionPill>
+            <FooterPill side="right">
               <ActionButton
                 icon={busy ? Loader2 : Check}
                 label={busy ? 'Saving…' : 'Add option'}
                 onClick={() => handleAddOption(addOptionPopover.cycleId)}
-                variant={busy || !(optionDrafts[addOptionPopover.cycleId] ?? '').trim() ? 'disabled' : 'success'}
+                variant={busy || !(optionDrafts[addOptionPopover.cycleId] ?? '').trim() ? 'disabled' : 'confirm'}
               />
-            </ActionPill>
+            </FooterPill>
           ) : undefined
         }
       >
@@ -571,7 +571,7 @@ export function AdminFeatureVotesSection() {
         previewMaxHeight="50dvh"
         footer={
           optionPopover ? (
-            <ActionPill>
+            <FooterPill>
               <ActionButton
                 icon={Trash2}
                 label="Delete option"
@@ -583,12 +583,12 @@ export function AdminFeatureVotesSection() {
                   })
                 }
               />
-            </ActionPill>
+            </FooterPill>
           ) : undefined
         }
         rightFooter={
           optionPopover ? (
-            <ActionPill>
+            <FooterPill side="right">
               <ActionButton
                 icon={optionEditMode ? Check : Pencil}
                 label={optionEditMode ? 'Save' : 'Edit option'}
@@ -608,7 +608,7 @@ export function AdminFeatureVotesSection() {
                   }
                 }}
               />
-            </ActionPill>
+            </FooterPill>
           ) : undefined
         }
       >

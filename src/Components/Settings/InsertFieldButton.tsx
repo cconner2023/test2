@@ -1,6 +1,7 @@
 import { TextCursor, ChevronDown, X } from 'lucide-react';
 import { ActionButton } from '@/Components/primitives/ActionButton';
 import { ActionPill } from '@/Components/primitives/ActionPill';
+import { TextArea } from '@/Components/primitives/FormInputs';
 import type { FieldInfo } from '../../Utilities/templateParser';
 
 /**
@@ -102,14 +103,12 @@ export function InsertFieldForm({
                 <p className="px-4 py-3 text-[9pt] text-tertiary">Free text typed in at runtime.</p>
             ) : (
                 <>
-                    <label className="block border-b border-primary/6">
-                        <textarea
-                            value={draft.options}
-                            onChange={(e) => onChange({ ...draft, options: e.target.value, defaultValue: '' })}
-                            placeholder={'Options (one per line)\nmild\nmoderate\nsevere'}
-                            className="w-full bg-transparent px-4 py-3 text-base md:text-sm text-primary placeholder:text-tertiary focus:outline-none resize-none min-h-[4rem] leading-5 font-mono"
-                        />
-                    </label>
+                    <TextArea
+                        value={draft.options}
+                        onChange={(v) => onChange({ ...draft, options: v, defaultValue: '' })}
+                        placeholder={'Options (one per line)\nmild\nmoderate\nsevere'}
+                        inputClassName="w-full bg-transparent px-4 py-3 text-base md:text-sm text-primary placeholder:text-tertiary focus:outline-none resize-none min-h-[4rem] leading-5 font-mono"
+                    />
                     {opts.length > 0 && (
                         <div className="px-4 py-3 space-y-1">
                             <p className="text-[9pt] text-tertiary uppercase tracking-wider">Default</p>

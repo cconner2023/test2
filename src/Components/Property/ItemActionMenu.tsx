@@ -1,6 +1,7 @@
 import { useState, useMemo, forwardRef, useImperativeHandle, type RefObject } from 'react'
 import { ScanLine, ArrowRightLeft, GitMerge, Check, MessageSquare, Pencil, Trash2, Wrench, PackageMinus, UserCheck, Users, Eye, Printer, Boxes, Package } from 'lucide-react'
 import { SectionCard } from '@/Components/primitives/Section'
+import { FooterPill } from '@/Components/primitives/FooterPill'
 import { type ContextMenuItem } from '@/Components/primitives/ContextMenu'
 import { LiftedRowMenu } from '@/Components/primitives/LiftedRowMenu'
 import { PreviewOverlay } from '../PreviewOverlay'
@@ -322,7 +323,7 @@ export const ItemActionMenu = forwardRef<ItemActionMenuHandle, ItemActionMenuPro
         title={splitTitle}
         maxWidth={320}
         rightFooter={
-          <div className="bg-themewhite rounded-2xl px-1.5 py-1.5">
+          <FooterPill side="right">
             <PillButton
               icon={ArrowRightLeft}
               iconSize={16}
@@ -331,7 +332,7 @@ export const ItemActionMenu = forwardRef<ItemActionMenuHandle, ItemActionMenuPro
               onClick={handleSplit}
               label={splitQty >= item.quantity ? 'Move all' : `Move ${splitQty}`}
             />
-          </div>
+          </FooterPill>
         }
       >
         <div className="px-4 py-3 space-y-3">
@@ -376,7 +377,7 @@ export const ItemActionMenu = forwardRef<ItemActionMenuHandle, ItemActionMenuPro
         title="Expend"
         maxWidth={320}
         rightFooter={
-          <div className="bg-themewhite rounded-2xl px-1.5 py-1.5">
+          <FooterPill side="right">
             <PillButton
               icon={Check}
               iconSize={16}
@@ -385,7 +386,7 @@ export const ItemActionMenu = forwardRef<ItemActionMenuHandle, ItemActionMenuPro
               onClick={handleExpend}
               label="Expend"
             />
-          </div>
+          </FooterPill>
         }
       >
         <div className="px-4 py-3">

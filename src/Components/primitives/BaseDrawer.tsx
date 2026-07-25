@@ -4,6 +4,7 @@ import { useDrag } from '@use-gesture/react';
 import { X, ChevronLeft } from 'lucide-react';
 import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill';
 import { GlassBand } from '@/Components/primitives/GlassBand';
+import { Scrim } from '@/Components/primitives/Scrim';
 import { GESTURE_THRESHOLDS, clamp } from '@/Utilities/GestureUtils';
 import { DRAWER_TIMING } from '@/Utilities/constants';
 import { useIsMobile } from '@/Hooks/useIsMobile';
@@ -49,21 +50,39 @@ function DrawerHeader({
     isMobile,
     headerFaded,
     mobileFullScreen,
-    hideBorder,
     glass,
-}: DrawerHeaderConfig & { onClose: () => void; isMobile: boolean; headerFaded?: boolean; mobileFullScreen?: boolean; hideBorder?: boolean; glass?: boolean }) {
-    // In glass mode the frosted band hugs the button row, so drop the vertical
-    // padding that would otherwise let the blur extend beyond the buttons.
-    const verticalPad = glass
-        // Glass: add a bottom feather zone so the masked blur fades into nothing
+}: DrawerHeaderConfig & { onClose: () => void; isMobile: boolean; headerFaded?: boolean; mobileFullScreen?: boolean; glass?: boolean }) {
+    // ONE header COLOUR, two backings. Either way the header resolves to the
+    // drawer's own surface (themewhite3) with no divider, so it reads as the top
+    // of the content and never as a separate band:
+    //   glass=false — header sits in flow; paint it opaque themewhite3.
+    //   glass=true  — header FLOATS over content, so it must NOT be opaque or it
+    //                 degrades to a static bar that just hides what passes under
+    //                 it. GlassBand backs it instead: `bg-themewhite3/15` over a
+    //                 themewhite3 surface composites to exactly themewhite3 where
+    //                 nothing is behind it, and to blurred content where
+    //                 something is. Seamless in BOTH themes precisely because the
+    //                 frost tint and the surface are now the same token — that
+    //                 was not true while the raised surface had its own token,
+    //                 and that mismatch is what made glass drift light vs dark.
+    const verticalPad = isMobile
+        // Glass keeps a bottom feather zone so the masked blur fades to nothing
         // below the button row instead of ending on a hard CSS line.
-        ? (isMobile && mobileFullScreen ? 'pt-[max(0.75rem,var(--sat,0px))] pb-4' : 'pb-4')
-        : isMobile
-        ? (mobileFullScreen ? 'pt-[max(0.75rem,var(--sat,0px))] pb-2' : 'pb-2')
-        : 'py-2.5';
-    const horizontalPad = isMobile && mobileFullScreen ? 'px-3' : 'px-5';
+        ? (mobileFullScreen
+            ? `pt-[max(0.75rem,var(--sat,0px))] ${glass ? 'pb-4' : 'pb-2.5'}`
+            : (glass ? 'pb-4' : 'pb-2.5'))
+        : (glass ? 'pt-2.5 pb-4' : 'py-2.5');
+    // Match the content gutters (px-4 mobile / px-5 desktop) so the header's
+    // left edge lines up with the body underneath it.
+    const horizontalPad = isMobile ? 'px-4' : 'px-5';
+    // Desktop only: a hairline under the header so the panel reads as a titled
+    // window rather than one undifferentiated slab. Mobile keeps the seamless
+    // look (the drag handle already marks the top), and glass never gets a line
+    // — a floating frosted band that ends on a hard rule stops reading as glass.
+    // Suppressed while faded so a collapsed header doesn't leave a stray rule.
+    const desktopBorder = !isMobile && !glass && !headerFaded ? ' border-b border-tertiary/10' : '';
     return (
-        <div className={`shrink-0${glass ? ' relative' : ''}`}>
+        <div className={`shrink-0 ${glass ? 'relative' : 'bg-themewhite3'}${desktopBorder}`}>
             {/* Glass: one frosted+masked backdrop covering the WHOLE header (drag
              * handle + title row) so the blur hugs the drawer's top edge and
              * feathers to nothing at the bottom — no transparent strip up top. */}
@@ -87,9 +106,7 @@ function DrawerHeader({
                     transformOrigin: 'top center',
                 }}
             >
-                <div
-                    className={`${horizontalPad} ${verticalPad} ${headerFaded || hideBorder ? '' : 'border-b border-tertiary/10'}`}
-                >
+                <div className={`${horizontalPad} ${verticalPad}`}>
                     <div className="flex items-center justify-between">
                         <div className={`flex items-center gap-2 min-w-0 transition-all duration-200${rightContentFill ? ' w-0 overflow-hidden' : ''}`}>
                             {leftContent && <div className="shrink-0">{leftContent}</div>}
@@ -139,8 +156,6 @@ interface BaseDrawerProps {
     children: ReactNode | DrawerRenderProp;
     fullHeight?: string;
     disableDrag?: boolean;
-    /** Backdrop opacity at full visibility. Default 0.3 */
-    backdropOpacity?: number;
     /** Desktop panel column. 'right' overlays Column B (55%), 'left' overlays Column A (45%). Default 'right' */
     desktopPosition?: 'left' | 'right';
     /** If true, only render mobile drawer (no desktop modal). Default false */
@@ -167,8 +182,13 @@ interface BaseDrawerProps {
     mobileFloating?: boolean;
     /** When true, fades the DrawerHeader content row (title, buttons) while keeping the drag handle visible. */
     headerFaded?: boolean;
-    /** PROTOTYPE: when true, the header floats as a blurred, translucent overlay
-     *  and content scrolls up behind it (iOS large-title style). The header's
+    /** When true, the header floats as a frosted OVERLAY above the content
+     *  (rather than taking flow space) and content scrolls up behind it, blurred
+     *  — iOS large-title style. Use for drawers whose content owns the full box:
+     *  a map, a canvas, a custom scroller. The frost is NOT decoration — a
+     *  floating header that is opaque merely hides what passes under it, which
+     *  is a static bar with extra steps. See DrawerHeader for why the tint is
+     *  seamless in both themes. The
      *  measured height is published as the `--drawer-header-h` CSS var on the
      *  panel root so consumers that own their scroll container (scrollDisabled)
      *  can pad their content with `pt-[var(--drawer-header-h)]`. Opt-in so the
@@ -220,7 +240,6 @@ export function BaseDrawer({
     children,
     fullHeight = '90dvh',
     disableDrag = false,
-    backdropOpacity = 0.95,
     desktopPosition = 'right',
     mobileOnly = false,
     mobileClassName = '',
@@ -425,20 +444,22 @@ export function BaseDrawer({
         <>
             {/* Backdrop */}
             {!noBackdrop && (
-                <div
-                    className={`fixed inset-0 ${zIndex} bg-black ${
-                        useMobileLayout
-                            ? (isDragging ? '' : 'transition-opacity duration-300 ease-out')
-                            : 'transition-opacity duration-250 ease-out'
-                    }`}
-                    style={{
-                        opacity: useMobileLayout
-                            ? (drawerPosition / 100) * backdropOpacity
-                            : desktopOpen ? 0.2 : 0,
-                        pointerEvents: useMobileLayout
-                            ? (drawerPosition > 0 ? 'auto' : 'none')
-                            : (desktopOpen ? 'auto' : 'none'),
-                    }}
+                // progress is the drawer's TRAVEL fraction (0 -> 1), not a dim
+                // level — the tint lives in Scrim's class. Parking this below 1
+                // at rest would composite the paint away. See Scrim.tsx.
+                // 'drawer' (60% black, no blur) is a surface swap like the root
+                // left-nav's 'solid', just less absolute — the shell behind stays
+                // faintly readable. No blur: nothing behind a field this dark is
+                // worth the iOS Safari cost on a layer that rides a drag.
+                <Scrim
+                    variant="drawer"
+                    progress={useMobileLayout
+                        ? drawerPosition / 100
+                        : desktopOpen ? 1 : 0}
+                    zIndexClass={zIndex}
+                    transition={useMobileLayout
+                        ? (isDragging ? 'none' : 'opacity 300ms ease-out')
+                        : 'opacity 250ms ease-out'}
                     onClick={handleClose}
                 />
             )}
@@ -448,8 +469,8 @@ export function BaseDrawer({
                 className={useMobileLayout
                     ? `fixed ${mobileFloating ? 'left-3 right-3' : 'left-0 right-0'} ${zIndex} bg-themewhite3 ${isDragging ? '' : 'transition-all duration-300 ease-out'} ${mobileClassName} ${header ? 'flex flex-col' : ''}`
                     : `absolute ${desktopAlignClass} top-0 ${desktopWidthClass} ${zIndex}
-                        flex flex-col rounded-md border border-tertiary/20
-                        shadow-lg shadow-black/8 backdrop-blur-xl bg-themewhite3/95
+                        flex flex-col rounded-md surface-shadow
+                        bg-themewhite3
                         transform-gpu overflow-hidden text-primary text-sm`
                 }
                 style={useMobileLayout ? {
@@ -485,8 +506,9 @@ export function BaseDrawer({
                 onClick={useMobileLayout ? undefined : (e) => e.stopPropagation()}
             >
                 {header ? (() => {
-                    /* Header rendered once; in glass mode it floats as a blurred
-                     * translucent overlay so content scrolls up behind it. */
+                    /* Header rendered once. With glassHeader it floats as a
+                     * frosted overlay so content scrolls up behind it; otherwise
+                     * it takes flow space, opaque. Same colour either way. */
                     const headerElement = (
                         <div
                             ref={glassHeader ? headerRef : undefined}
@@ -510,15 +532,14 @@ export function BaseDrawer({
                                 isMobile={useMobileLayout}
                                 headerFaded={headerFaded}
                                 mobileFullScreen={mobileFullScreen && useMobileLayout}
-                                hideBorder={glassHeader}
                                 glass={glassHeader}
                             />
                         </div>
                     );
                     return scrollDisabled ? (
                         /* Fixed header + raw children (sidebar layouts manage their own scroll).
-                         * In glass mode the consumer pads its own scroller via
-                         * pt-[var(--drawer-header-h)]. */
+                         * With a floating header the consumer pads its own scroller
+                         * via pt-[var(--drawer-header-h)]. */
                         <>
                             {headerElement}
                             <div className={`flex-1 min-h-0${glassHeader ? ' isolate' : ''}`}>

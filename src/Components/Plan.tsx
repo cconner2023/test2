@@ -13,6 +13,7 @@ import { ActionPill } from '@/Components/primitives/ActionPill';
 import { ActionButton } from '@/Components/primitives/ActionButton';
 import { Chip, ChipBar } from '@/Components/primitives/Chip';
 import type { PlanBlockState, PlanState } from '../Types/PlanTypes';
+import { FooterPill } from '@/Components/primitives/FooterPill'
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -712,9 +713,9 @@ export const Plan = ({ orderTags, instructionTags, orderSets = [], initialText, 
                     },
                 ]}
                 rightFooter={
-                    <ActionPill>
+                    <FooterPill side="right">
                         <ActionButton icon={Check} label="Done" onClick={() => setShowFabPopover(false)} />
-                    </ActionPill>
+                    </FooterPill>
                 }
             />
         </div>

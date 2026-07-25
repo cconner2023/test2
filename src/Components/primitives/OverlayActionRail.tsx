@@ -1,6 +1,7 @@
 import { useState, useRef, type ReactNode } from 'react'
 import { MoreHorizontal, type LucideIcon } from 'lucide-react'
 import { ActionButton } from '@/Components/primitives/ActionButton'
+import { FooterPill } from '@/Components/primitives/FooterPill'
 import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill'
 import { AnchoredMenu } from '@/Components/primitives/LiftedRowMenu'
 import type { ContextMenuItem } from '@/Components/primitives/ContextMenu'
@@ -68,11 +69,11 @@ export function buildOverlayActionRail(actions: OverlayRailAction[]): { footer?:
   }
 
   const footer = reserved.length > 0 ? (
-    <div className="flex gap-1 bg-themewhite rounded-2xl shadow-lg px-1.5 py-1.5">
+    <FooterPill>
       {reserved.map((a) => (
         <ActionButton key={a.key} icon={a.icon} label={a.label} variant={a.variant} onClick={a.onClick} />
       ))}
-    </div>
+    </FooterPill>
   ) : undefined
 
   const menuItems: ContextMenuItem[] = overflow.map((a) => ({

@@ -5,7 +5,8 @@ import { getChoiceLabels, findChoiceByLabel } from '../../Utilities/templateEngi
 import type { StackNav, StackScreen } from '@/Components/primitives/OverlayStack';
 import { ActionButton } from '@/Components/primitives/ActionButton';
 import { ActionPill } from '@/Components/primitives/ActionPill';
-import { TextInput, PickerInput } from '@/Components/primitives/FormInputs';
+import { TextInput, TextArea, PickerInput } from '@/Components/primitives/FormInputs';
+import { FooterPill } from '@/Components/primitives/FooterPill'
 
 /**
  * TemplateBuilder — the note-template authoring tree (text / step / choice / branch
@@ -133,7 +134,7 @@ const nodeTypeLabel = (type: TemplateNode['type']) => {
     }
 };
 
-// ─── Borderless multi-line input matching FormInputs row style ─────────
+// ─── The TextArea primitive, taller and optionally monospaced (raw template text) ──
 const RowTextarea = ({
     value, onChange, placeholder, mono = false,
 }: {
@@ -142,14 +143,12 @@ const RowTextarea = ({
     placeholder?: string;
     mono?: boolean;
 }) => (
-    <label className="block border-b border-primary/6 last:border-b-0">
-        <textarea
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            placeholder={placeholder}
-            className={`w-full bg-transparent px-4 py-3 text-base md:text-sm text-primary placeholder:text-tertiary focus:outline-none resize-none min-h-[5rem] leading-5 ${mono ? 'font-mono' : ''}`}
-        />
-    </label>
+    <TextArea
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        inputClassName={`w-full bg-transparent px-4 py-3 text-base md:text-sm text-primary placeholder:text-tertiary focus:outline-none resize-none min-h-[5rem] leading-5 ${mono ? 'font-mono' : ''}`}
+    />
 );
 
 // ─── A tappable node row (shared by the inline root list + the `tpl-list` screen) ──
@@ -483,14 +482,14 @@ export function makeTemplateScreens({
                 return node ? `Edit ${nodeTypeLabel(node.type)}` : 'Edit';
             },
             footer: (p: { path: ListPath; index: number }, nav: StackNav) => (
-                <ActionPill>
+                <FooterPill>
                     <ActionButton icon={Trash2} label="Delete" variant="danger" onClick={() => { deleteNode(p.path, p.index); upOrClose(nav); }} />
-                </ActionPill>
+                </FooterPill>
             ),
             rightFooter: (_: { path: ListPath; index: number }, nav: StackNav) => (
-                <ActionPill>
-                    <ActionButton icon={Check} label="Done" variant="success" onClick={() => upOrClose(nav)} />
-                </ActionPill>
+                <FooterPill side="right">
+                    <ActionButton icon={Check} label="Done" variant="confirm" onClick={() => upOrClose(nav)} />
+                </FooterPill>
             ),
             render: (p: { path: ListPath; index: number }, nav: StackNav) => {
                 const node = getList(nodes, p.path)[p.index];
@@ -520,9 +519,9 @@ export function makeTemplateScreens({
                 />
             ),
             rightFooter: (_: { path: ListPath }, nav: StackNav) => (
-                <ActionPill>
-                    <ActionButton icon={Check} label="Done" variant="success" onClick={() => nav.pop()} />
-                </ActionPill>
+                <FooterPill side="right">
+                    <ActionButton icon={Check} label="Done" variant="confirm" onClick={() => nav.pop()} />
+                </FooterPill>
             ),
             render: (p: { path: ListPath }, nav: StackNav) => {
                 const list = getList(nodes, p.path);

@@ -1,6 +1,7 @@
 import { Download } from 'lucide-react'
 import { PreviewOverlay } from './PreviewOverlay'
 import { PillButton } from '@/Components/primitives/HeaderPill'
+import { FooterPill } from '@/Components/primitives/FooterPill'
 import { PdfCanvasView } from './PdfCanvasView'
 import type { PdfPreviewData } from '../Hooks/usePdfExport'
 
@@ -42,9 +43,9 @@ export function PdfPreviewModal({ preview, onDownload, onClose, zIndex, generati
       previewMaxHeight="70dvh"
       loading={generating || !preview}
       rightFooter={
-        <div className="bg-themewhite rounded-2xl px-1.5 py-1.5">
+        <FooterPill side="right">
           <PillButton icon={Download} iconSize={16} accent="info" onClick={save} label="Save" />
-        </div>
+        </FooterPill>
       }
     >
       {preview && <PdfCanvasView bytes={preview.bytes} className="bg-themewhite" />}

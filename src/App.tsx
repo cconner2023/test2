@@ -4,6 +4,7 @@ import { DRAWER_TIMING } from './Utilities/constants'
 import './App.css'
 import { NavTop } from './Components/NavTop'
 import { SideNav } from './Components/SideNav'
+import { Scrim } from '@/Components/primitives/Scrim'
 import { SearchResults } from './Components/SearchResults'
 import { ThemeProvider, parseThemeId, useTheme } from './Utilities/ThemeContext'
 import { AvatarProvider } from './Utilities/AvatarContext'
@@ -664,29 +665,42 @@ case 'mapOverlay':
 
           {/* Menu backdrop — overlays content when menu is open, handles tap/drag to close */}
           <div
-            className="absolute inset-0 z-40 bg-black"
+            className="absolute inset-0 z-40"
             style={{
-              opacity: menuSlide.backdropOpacity,
-              transition: menuSlide.backdropTransition,
               pointerEvents: navigation.isMenuOpen ? 'auto' : 'none',
               touchAction: navigation.isMenuOpen ? 'none' : 'auto',
             }}
             onClick={navigation.isMobile ? undefined : navigation.closeMenu}
             {...(navigation.isMobile ? menuSlide.closeHandlers : {})}
-          />
+          >
+            <Scrim
+              progress={menuSlide.backdropProgress}
+              variant="solid"
+              position="absolute"
+              scope="container"
+              interactive={false}
+              transition={menuSlide.backdropTransition}
+            />
+          </div>
 
           {/* Messages backdrop — overlays content when messages is open */}
           {navigation.isMobile && (
             <div
-              className="absolute inset-0 z-40 bg-black"
+              className="absolute inset-0 z-40"
               style={{
-                opacity: messagesSlide.backdropOpacity,
-                transition: messagesSlide.backdropTransition,
                 pointerEvents: (navigation.showMessagesDrawer || messagesSlide.progress > 0) ? 'auto' : 'none',
                 touchAction: (navigation.showMessagesDrawer || messagesSlide.progress > 0) ? 'none' : 'auto',
               }}
               {...messagesSlide.closeHandlers}
-            />
+            >
+              <Scrim
+                progress={messagesSlide.backdropProgress}
+                position="absolute"
+                scope="container"
+                interactive={false}
+                transition={messagesSlide.backdropTransition}
+              />
+            </div>
           )}
           </animated.div>
         </div>

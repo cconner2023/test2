@@ -6,7 +6,7 @@ import { useAuthStore } from '../../stores/useAuthStore'
 import { usePropertyStore } from '../../stores/usePropertyStore'
 import { PreviewOverlay, type ContextMenuAction } from '../PreviewOverlay'
 import { TextInput } from '@/Components/primitives/FormInputs'
-import { ActionPill } from '@/Components/primitives/ActionPill'
+import { FooterPill } from '@/Components/primitives/FooterPill'
 import { ActionButton } from '@/Components/primitives/ActionButton'
 
 interface Props {
@@ -184,17 +184,17 @@ export function EventTasksCard({ subtasks, onChange, assignedIds, canEdit, isMob
           actions={activeKind ? [] : addActions}
           zIndex={95}
           rightFooter={activeKind === 'task' ? (
-            <ActionPill>
+            <FooterPill side="right">
               <ActionButton
                 icon={Check}
                 label="Add"
-                variant={freeTextDraft.trim() ? 'success' : 'disabled'}
+                variant={freeTextDraft.trim() ? 'confirm' : 'disabled'}
                 onClick={() => {
                   if (!freeTextDraft.trim()) return
                   commitNew({ kind: 'task', label: freeTextDraft.trim() })
                 }}
               />
-            </ActionPill>
+            </FooterPill>
           ) : undefined}
         >
           {!activeKind ? (

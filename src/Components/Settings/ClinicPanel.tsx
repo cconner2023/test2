@@ -16,6 +16,7 @@ import {
 import bwipjs from 'bwip-js'
 import { useAuth } from '../../Hooks/useAuth'
 import { ErrorPill } from '@/Components/primitives/ErrorPill'
+import { FooterPill } from '@/Components/primitives/FooterPill'
 import { useClinicInvites } from '../../Hooks/useClinicInvites'
 import { useBarcodeScanner } from '../../Hooks/useBarcodeScanner'
 import { useClinicMedics } from '../../Hooks/useClinicMedics'
@@ -1145,7 +1146,7 @@ export function ClinicPanel({
         previewMaxHeight="60dvh"
         footer={
           assocPopover?.mode === 'info' ? (
-            <div className="flex gap-1 bg-themewhite rounded-2xl shadow-lg px-1.5 py-1.5">
+            <FooterPill>
               <ActionButton
                 icon={Trash2}
                 label="Disassociate"
@@ -1155,9 +1156,9 @@ export function ClinicPanel({
                   clinicName: assocPopover.clinic.clinicName,
                 })}
               />
-            </div>
+            </FooterPill>
           ) : assocPopover?.mode === 'add' ? (
-            <div className="flex gap-1 bg-themewhite rounded-2xl shadow-lg px-1.5 py-1.5">
+            <FooterPill>
               <ActionButton
                 icon={Camera}
                 label={scanning ? 'Stop scan' : 'Scan QR'}
@@ -1169,19 +1170,19 @@ export function ClinicPanel({
                 label="Upload"
                 onClick={handlePhotoUpload}
               />
-            </div>
+            </FooterPill>
           ) : undefined
         }
         rightFooter={
           assocPopover?.mode === 'add' ? (
-            <ActionPill>
+            <FooterPill side="right">
               <ActionButton
                 icon={assocSaving ? Loader2 : Check}
                 label="Associate"
-                variant={!joinCode || assocSaving ? 'disabled' : 'success'}
+                variant={!joinCode || assocSaving ? 'disabled' : 'confirm'}
                 onClick={() => redeemAssocCode(joinCode)}
               />
-            </ActionPill>
+            </FooterPill>
           ) : undefined
         }
       >

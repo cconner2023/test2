@@ -2,7 +2,8 @@ import { useState, useMemo, useCallback, useEffect, useContext, forwardRef, useI
 import { Check, ChevronDown, MapPin, Minus, Plus } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import { TextInput } from '@/Components/primitives/FormInputs'
-import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill'
+import { PillButton } from '@/Components/primitives/HeaderPill'
+import { FooterPill } from '@/Components/primitives/FooterPill'
 import { StackNavContext } from '@/Components/stackNav'
 import { PreviewOverlay } from '../PreviewOverlay'
 import { ToggleSwitch } from '../Settings/ToggleSwitch'
@@ -279,13 +280,12 @@ export const SignOutForm = forwardRef<SignOutFormHandle, SignOutFormProps>(funct
       stackNav.pushScreen({
         title: 'Items',
         searchPlaceholder: 'Search items…',
-        // Match the property save-header primitive (HeaderPill + green Check PillButton) —
-        // NOT ActionPill/ActionButton — so the drilled item-picker header reads identical to
-        // every other property form header the sheet hosts.
+        // FooterPill, not HeaderPill: HeaderPill renders no pill at all on desktop,
+        // which left this action a bare glyph on the scrim.
         rightFooter: (_p, nav) => (
-          <HeaderPill>
+          <FooterPill side="right">
             <PillButton icon={Check} iconSize={18} accent="success" label="Done" onClick={nav.pop} />
-          </HeaderPill>
+          </FooterPill>
         ),
         render: (_p, _nav, filter = '') => (
           <ItemsScreen

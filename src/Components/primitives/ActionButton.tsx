@@ -1,6 +1,6 @@
 import type { LucideIcon } from 'lucide-react'
 
-export type ActionButtonVariant = 'default' | 'danger' | 'disabled' | 'success'
+export type ActionButtonVariant = 'default' | 'danger' | 'disabled' | 'success' | 'confirm'
 
 export interface ActionButtonProps {
   icon: LucideIcon
@@ -15,11 +15,17 @@ export interface ActionButtonProps {
   href?: string
 }
 
+/**
+ * `success` is blue, not green — it names the active-toggle state, not a commit.
+ * Roughly a dozen toggles depend on it, so it can't be repointed. A commit takes
+ * `confirm`, which matches `PillButton` accent="success".
+ */
 const STYLES: Record<ActionButtonVariant, string> = {
   default:  'bg-themeblue2/8 text-primary active:scale-95',
   danger:   'bg-themeredred/8 text-themeredred active:scale-95',
   disabled: 'bg-tertiary/4 text-tertiary cursor-default',
   success:  'bg-themeblue2 text-white active:scale-95',
+  confirm:  'bg-themegreen text-white active:scale-95',
 }
 
 export function ActionButton({ icon: Icon, label, onClick, variant = 'default', iconSize = 16, href }: ActionButtonProps) {

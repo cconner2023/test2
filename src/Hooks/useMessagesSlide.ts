@@ -114,7 +114,10 @@ export function useMessagesSlide({ enabled, isOpen, onOpen, onClose }: UseMessag
     progress,
     isDragging,
     transition,
-    backdropOpacity: progress * 0.95,
+    // TRAVEL fraction (0 -> 1) for <Scrim progress>, NOT a dim level — the 45%
+    // tint lives in Scrim's class. Multiplying a dim level in here would park
+    // the element at fractional opacity and composite the blur away. See Scrim.tsx.
+    backdropProgress: progress,
     backdropTransition: isDragging ? 'none' : OPACITY_TRANSITION,
     closeHandlers: enabled && isOpen ? closeBind() : {},
     handleClose,

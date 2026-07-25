@@ -1,20 +1,22 @@
 import { forwardRef, type HTMLAttributes } from 'react'
 
 interface ActionPillProps extends HTMLAttributes<HTMLDivElement> {
-  /** shadow weight — 'lg' is the default footer/popover style; 'sm' is the embedded/absolute-positioned style */
   shadow?: 'sm' | 'lg'
-  /** 'inline' (default) = caller handles positioning; 'overlay' = self-positions absolutely on the top edge of its relative parent (smaller pill, smaller buttons, smaller icons) */
+  /** 'overlay' self-positions on the top edge of its relative parent, and shrinks
+   *  the pill, buttons and icons to suit a card corner. */
   placement?: 'inline' | 'overlay'
 }
 
 /**
- * Canonical action-row container — wraps ActionButton children in a rounded pill.
- * Footer popover/modal action strip = forward actions only (no Cancel — header X handles it).
+ * Action cluster that sits ON a surface — a card corner, an in-drawer strip.
+ * `bg-themewhite` plus a hairline reads as a well cut into the surface.
  *
- * placement="overlay" — absolute-positioned pill riding the top border / divider of its
- * relative parent. Parent must NOT have overflow-hidden at the level that clips the
- * negative translate; if the bordered card has overflow-hidden, lift the pill out as a
- * sibling under a `relative` wrapper.
+ * Not for an action footer; those hang on the scrim and take the raised-surface
+ * token instead. Use `FooterPill` for the `footer` / `rightFooter` slots.
+ *
+ * placement="overlay" needs a parent without overflow-hidden at the level that
+ * would clip the negative translate. If the bordered card has it, lift the pill
+ * out as a sibling under a `relative` wrapper.
  */
 export const ActionPill = forwardRef<HTMLDivElement, ActionPillProps>(
   function ActionPill({ shadow = 'lg', placement = 'inline', className = '', children, ...rest }, ref) {

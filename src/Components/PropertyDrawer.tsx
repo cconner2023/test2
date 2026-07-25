@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
 import { Pencil, X, Trash2, ChevronLeft, List } from 'lucide-react'
 import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill'
+import { Scrim } from '@/Components/primitives/Scrim'
 import { SearchInput } from '@/Components/primitives/SearchInput'
 import { BaseDrawer } from '@/Components/primitives/BaseDrawer'
 import { PropertyPanel, type PropertyView } from './Property/PropertyPanel'
@@ -430,8 +431,11 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
             />
 
             {enrollingItem && (
-                <div className="fixed inset-0 bg-black/50 flex items-end justify-center pb-8" style={{ zIndex: 1500 }}>
-                    <div className="w-full max-w-md bg-themewhite rounded-3xl p-6 mx-4">
+                <div className="fixed inset-0 flex items-end justify-center pb-8" style={{ zIndex: 1500 }}>
+                    <Scrim progress={1} position="absolute" interactive={false} />
+                    {/* relative: the absolutely-positioned Scrim would otherwise
+                        paint above this statically-positioned flex item. */}
+                    <div className="relative w-full max-w-md bg-themewhite3 rounded-3xl surface-shadow p-6 mx-4">
                         <EnrollScanStep
                             itemId={enrollingItem.id}
                             itemName={enrollingItem.name}

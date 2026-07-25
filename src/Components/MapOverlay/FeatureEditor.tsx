@@ -18,7 +18,7 @@ import { Siren, FileDown as FileDownStripMap } from 'lucide-react';
 import { computeLegs, type Pace } from '../../lib/stripMap/computeLegs';
 import { generateStripMapPdf } from '../../lib/stripMap/generatePdf';
 import { downloadPdfBytes } from '../../Utilities/downloadUtils';
-import { TextInput, PickerInput } from '@/Components/primitives/FormInputs';
+import { TextInput, TextArea, PickerInput } from '@/Components/primitives/FormInputs';
 
 
 interface FeatureEditorProps {
@@ -631,12 +631,13 @@ export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg, l
       {/* Notes — editable in EDIT mode, read-only display in READ mode
           (hidden entirely when no notes exist and the user isn't editing). */}
       {isEditMode ? (
-        <textarea
+        <TextArea
+          bare
           value={feature.notes ?? ''}
-          onChange={(e) => handleNotesChange(e.target.value)}
+          onChange={handleNotesChange}
           rows={3}
           placeholder="Notes"
-          className="w-full px-3 py-2 bg-transparent text-[10pt] text-primary placeholder:text-tertiary resize-none focus:outline-none"
+          inputClassName="w-full px-3 py-2 bg-transparent text-[10pt] text-primary placeholder:text-tertiary resize-none focus:outline-none"
         />
       ) : feature.notes ? (
         <div className="px-3 py-2 text-[10pt] text-primary whitespace-pre-wrap">

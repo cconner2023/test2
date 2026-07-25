@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { GripVertical, X, Plus, Type, TextCursor, ChevronDown, GitBranch, Check, Trash2 } from 'lucide-react';
 import type { TemplateNode, TextNode, StepNode, ChoiceNode, BranchNode } from '../../Data/TemplateTypes';
 import { getChoiceLabels, findChoiceByLabel } from '../../Utilities/templateEngine';
+import { TextArea } from '@/Components/primitives/FormInputs';
 
 const CHOICE_SUGGESTIONS: Record<string, string[]> = {
     severity: ['mild', 'moderate', 'severe'],
@@ -66,7 +67,7 @@ const nodePreview = (node: TemplateNode): string => {
 };
 
 const INPUT_CLASS =
-    'w-full text-sm px-3 py-2 rounded-lg border border-tertiary/10 bg-themewhite outline-none focus:border-themeblue2/30 text-primary placeholder:text-tertiary';
+    'w-full text-sm px-3 py-2 rounded-lg border border-tertiary/10 bg-transparent outline-none focus:border-themeblue2/30 text-primary placeholder:text-tertiary';
 
 // ── Add Step (+) with type picker popover ──
 // Branch option only shows when Choice nodes exist. Tapping Branch
@@ -368,11 +369,12 @@ export const ShortcutStepBuilder = ({ nodes, onChange, rootNodes }: ShortcutStep
                                 }`}>
                                     <div className="px-3 pb-3 space-y-2">
                                         {node.type === 'text' && (
-                                            <textarea
+                                            <TextArea
+                                                bare
                                                 value={node.content}
-                                                onChange={(e) => updateNode(i, { ...node, content: e.target.value })}
+                                                onChange={(v) => updateNode(i, { ...node, content: v })}
                                                 placeholder="Static text to insert..."
-                                                className={`${INPUT_CLASS} min-h-[3rem] resize-none leading-5`}
+                                                inputClassName={`${INPUT_CLASS} min-h-[3rem] resize-none leading-5`}
                                                 autoFocus
                                             />
                                         )}
@@ -398,11 +400,12 @@ export const ShortcutStepBuilder = ({ nodes, onChange, rootNodes }: ShortcutStep
                                                     className={INPUT_CLASS}
                                                     autoFocus
                                                 />
-                                                <textarea
+                                                <TextArea
+                                                    bare
                                                     value={node.options.join('\n')}
-                                                    onChange={(e) => updateNode(i, { ...node, options: e.target.value.split('\n') })}
+                                                    onChange={(v) => updateNode(i, { ...node, options: v.split('\n') })}
                                                     placeholder={"Options (one per line)\nmild\nmoderate\nsevere"}
-                                                    className={`${INPUT_CLASS} min-h-[3rem] resize-none leading-5 font-mono`}
+                                                    inputClassName={`${INPUT_CLASS} min-h-[3rem] resize-none leading-5 font-mono`}
                                                 />
                                                 {node.options.length <= 1 && (
                                                     <div className="flex flex-wrap gap-1">

@@ -273,11 +273,15 @@ export const VitalSignsCalculator = forwardRef<VitalSignsCalculatorHandle, Vital
         ? cells.filter(c => c.key === 'temp' || c.key === 'ht' || c.key === 'wt' || c.key === 'lmp' || c.key === 'bmi')
         : cells
 
+    // Hairlines are cell BORDERS, not a `gap-px` + opaque-cell sandwich — the cells
+    // stay transparent so the grid takes whatever surface hosts it (write-note PE
+    // popover vs. drawer), same as the non-compact rows below. `-mb-px` + clipping
+    // hides the final row's trailing border.
     if (compact) {
         return (
-            <div className="grid grid-cols-2 gap-px bg-primary/6">
+            <div className="grid grid-cols-2 overflow-hidden -mb-px">
                 {visibleCells.map(c => (
-                    <div key={c.key} className={`flex flex-col gap-0.5 px-3 py-2 bg-themewhite ${c.cellClass || ''}`}>
+                    <div key={c.key} className={`flex flex-col gap-0.5 px-3 py-2 border-b border-primary/6 odd:border-r ${c.cellClass || ''}`}>
                         <div className="flex items-baseline justify-between gap-2 min-w-0">
                             {c.labelNode ?? <span className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest shrink-0">{c.label}</span>}
                             {c.hint && (

@@ -22,6 +22,7 @@
 import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Check, Trash2, Layers, MoreHorizontal } from 'lucide-react'
 import { TextInput } from '@/Components/primitives/FormInputs'
+import { FooterPill } from '@/Components/primitives/FooterPill'
 import { ActionPill } from '@/Components/primitives/ActionPill'
 import { ActionButton } from '@/Components/primitives/ActionButton'
 import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
@@ -292,14 +293,14 @@ export function ClusterRosterSection<T>({
         title="New sub-unit"
         maxWidth={320}
         rightFooter={
-          <ActionPill>
+          <FooterPill side="right">
             <ActionButton
               icon={Check}
               label="Add"
-              variant={draft.trim() && !busy ? 'success' : 'disabled'}
+              variant={draft.trim() && !busy ? 'confirm' : 'disabled'}
               onClick={() => void saveAdd()}
             />
-          </ActionPill>
+          </FooterPill>
         }
       >
         {nameField(() => void saveAdd())}
@@ -313,24 +314,24 @@ export function ClusterRosterSection<T>({
         title="Sub-unit"
         maxWidth={320}
         footer={
-          <div className="flex gap-1 bg-themewhite rounded-2xl shadow-lg px-1.5 py-1.5">
+          <FooterPill>
             <ActionButton
               icon={Trash2}
               label="Delete"
               variant="danger"
               onClick={() => { const sc = editTarget?.sc; setEditTarget(null); if (sc) setPendingDelete(sc) }}
             />
-          </div>
+          </FooterPill>
         }
         rightFooter={
-          <ActionPill>
+          <FooterPill side="right">
             <ActionButton
               icon={Check}
               label="Save"
-              variant={draft.trim() && !busy ? 'success' : 'disabled'}
+              variant={draft.trim() && !busy ? 'confirm' : 'disabled'}
               onClick={() => void saveEdit()}
             />
-          </ActionPill>
+          </FooterPill>
         }
       >
         {nameField(() => void saveEdit())}

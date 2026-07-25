@@ -1,9 +1,11 @@
 import { memo } from 'react'
-import { useTQAlerts } from '../../Hooks/useTQAlerts'
+import type { TQAlert } from '../../Hooks/useTQAlerts'
 
-export const TQAlertBanner = memo(function TQAlertBanner() {
-  const { alerts } = useTQAlerts()
-
+/** Presentational — the caller owns `useTQAlerts()`. TC3CardColumn needs the
+ *  same alert list to decide who takes the floating-header clearance (the
+ *  banner when it's up, the scroller otherwise), and running the hook in both
+ *  places would mean two 60s intervals that can disagree for a tick. */
+export const TQAlertBanner = memo(function TQAlertBanner({ alerts }: { alerts: TQAlert[] }) {
   if (alerts.length === 0) return null
 
   const hasCritical = alerts.some((a) => a.isCritical)

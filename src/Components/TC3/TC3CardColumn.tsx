@@ -1,6 +1,7 @@
 import { memo, useState } from 'react'
 import { ChevronRight, Crosshair, FileText } from 'lucide-react'
 import { SectionHeader } from '@/Components/primitives/Section'
+import { useTQAlerts } from '../../Hooks/useTQAlerts'
 import { useTC3Store } from '../../stores/useTC3Store'
 import type { TC3Card } from '../../Types/TC3Types'
 import { CasualtyInfoForm } from './CasualtyInfoForm'
@@ -30,21 +31,43 @@ function isPopulated(card: TC3Card): boolean {
  * · export). Replaces the old desktop 2-column grid and the mobile front/back
  * wizard carousel; used by TC3Drawer on both platforms. The TQ alert banner
  * stays pinned above the scroll; export is the final section.
+ *
+ * SURFACE: themewhite3 — the drawer's own surface, matching the roster rail and
+ * the detail pane either side of it. It is NOT a canvas-coloured full-bleed
+ * center like the map drawers (Property / MapOverlay); TC3 has no canvas, so a
+ * canvas colour here just read as a darker column between two lighter panes.
+ *
+ * HEADER CLEARANCE: on mobile TC3Drawer floats a glass header, so the clearance
+ * lives INSIDE this column rather than on the host wrapper — content has to
+ * scroll UNDER the frosted band or the glass has nothing to blur and degrades
+ * to a static bar. The TQ banner is the one thing that must never sit under it
+ * (a blurred casualty alert is useless), so when a banner is showing IT takes
+ * the clearance and the scroller starts below it. `--drawer-header-h` is only
+ * published while the header floats, so the `0px` fallback makes every one of
+ * these a no-op on desktop.
  */
 export const TC3CardColumn = memo(function TC3CardColumn() {
   const card = useTC3Store((s) => s.card)
   const openExport = useTC3Store((s) => s.openExport)
   const [editingMarker, setEditingMarker] = useState<string | null>(null)
+  const { alerts } = useTQAlerts()
+  const hasTQBanner = alerts.length > 0
 
   const markerCount = card.markers.length
   const hasData = isPopulated(card)
 
   return (
-    <div className="h-full flex flex-col bg-themewhite">
-      <TQAlertBanner />
+    <div
+      className="h-full flex flex-col bg-themewhite3"
+      style={hasTQBanner ? { paddingTop: 'var(--drawer-header-h, 0px)' } : undefined}
+    >
+      <TQAlertBanner alerts={alerts} />
 
       <div className="flex-1 min-h-0 overflow-y-auto">
-        <div className="mx-auto w-full max-w-2xl px-3 py-4 space-y-6">
+        <div
+          className="mx-auto w-full max-w-2xl px-3 pb-4 space-y-6"
+          style={{ paddingTop: hasTQBanner ? '1rem' : 'calc(var(--drawer-header-h, 0px) + 1rem)' }}
+        >
           <CasualtyInfoForm />
 
           <MechanismForm />

@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { XCircle } from 'lucide-react'
+import { Scrim } from '@/Components/primitives/Scrim'
 
 interface IntakeRejectDialogProps {
   visible: boolean
@@ -36,12 +37,9 @@ export function IntakeRejectDialog({
       className="fixed inset-0 flex items-center justify-center px-6"
       style={{ zIndex: 70 }}
     >
+      <Scrim progress={1} position="absolute" onClick={onDismiss} />
       <div
-        className="absolute inset-0 bg-black opacity-80"
-        onClick={onDismiss}
-      />
-      <div
-        className="relative w-full max-w-sm bg-themewhite rounded-2xl shadow-2xl border border-tertiary/10"
+        className="relative w-full max-w-sm bg-themewhite3 rounded-2xl surface-shadow"
       >
         <div className="px-6 py-5 flex flex-col">
           <div className="flex justify-center mb-4">

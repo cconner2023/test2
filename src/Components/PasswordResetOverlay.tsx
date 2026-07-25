@@ -5,7 +5,7 @@ import { useAuthStore } from '../stores/useAuthStore'
 import { deriveAndStoreBackupKey, createBackup } from '../lib/signal/backupService'
 import { reEncryptVaultKeysWithCachedKey } from '../lib/signal/vaultDevice'
 import { PreviewOverlay } from './PreviewOverlay'
-import { ActionPill } from '@/Components/primitives/ActionPill'
+import { FooterPill } from '@/Components/primitives/FooterPill'
 import { ActionButton } from '@/Components/primitives/ActionButton'
 import { PasswordInput } from '@/Components/primitives/FormInputs'
 import { ErrorDisplay } from '@/Components/primitives/ErrorDisplay'
@@ -99,14 +99,14 @@ export default function PasswordResetOverlay() {
       maxWidth={360}
       rightFooter={
         !success ? (
-          <ActionPill>
+          <FooterPill side="right">
             <ActionButton
               icon={submitting ? RefreshCw : Check}
               label={submitting ? 'Updating…' : 'Update password'}
-              variant={!isValid || submitting ? 'disabled' : 'success'}
+              variant={!isValid || submitting ? 'disabled' : 'confirm'}
               onClick={handleSubmit}
             />
-          </ActionPill>
+          </FooterPill>
         ) : undefined
       }
     >

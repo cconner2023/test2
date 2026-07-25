@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Copy, Check, Download, Printer } from 'lucide-react'
 import { ActionButton } from '@/Components/primitives/ActionButton'
 import { Section, SectionCard } from '@/Components/primitives/Section'
+import { TextArea } from '@/Components/primitives/FormInputs'
 import type { Sitrep } from '../../Types/ReportTypes'
 import { emptySitrep } from '../../Types/ReportTypes'
 import { sitrepToText, copyToClipboard, downloadAsText, printReport } from '../../lib/reportExport'
@@ -79,15 +80,12 @@ export function SitrepReport() {
       {/* Situation */}
       <Section title="Situation" className="mb-0">
         <SectionCard>
-          <div className="px-4 py-3">
-            <textarea
-              value={report.situation}
-              onChange={e => update({ situation: e.target.value })}
-              placeholder="Current situation..."
-              rows={4}
-              className="w-full bg-transparent text-sm text-primary placeholder:text-tertiary focus:outline-none resize-none"
-            />
-          </div>
+          <TextArea
+            value={report.situation}
+            onChange={v => update({ situation: v })}
+            placeholder="Current situation..."
+            rows={4}
+          />
         </SectionCard>
       </Section>
 
@@ -170,15 +168,12 @@ export function SitrepReport() {
               </div>
 
               {/* Actions Taken */}
-              <div className="px-4 py-3">
-                <textarea
-                  value={report.actionsTaken ?? ''}
-                  onChange={e => update({ actionsTaken: e.target.value })}
-                  placeholder="Actions taken..."
-                  rows={2}
-                  className="w-full bg-transparent text-sm text-primary placeholder:text-tertiary focus:outline-none resize-none"
-                />
-              </div>
+              <TextArea
+                value={report.actionsTaken ?? ''}
+                onChange={v => update({ actionsTaken: v })}
+                placeholder="Actions taken..."
+                rows={2}
+              />
             </>
           )}
         </SectionCard>
@@ -245,30 +240,24 @@ export function SitrepReport() {
       {/* Assessment */}
       <Section title="Assessment" className="mb-0">
         <SectionCard>
-          <div className="px-4 py-3">
-            <textarea
-              value={report.assessment}
-              onChange={e => update({ assessment: e.target.value })}
-              placeholder="Commander's assessment..."
-              rows={3}
-              className="w-full bg-transparent text-sm text-primary placeholder:text-tertiary focus:outline-none resize-none"
-            />
-          </div>
+          <TextArea
+            value={report.assessment}
+            onChange={v => update({ assessment: v })}
+            placeholder="Commander's assessment..."
+            rows={3}
+          />
         </SectionCard>
       </Section>
 
       {/* Next Action */}
       <Section title="Next Action" className="mb-0">
         <SectionCard>
-          <div className="px-4 py-3 border-b border-primary/6">
-            <textarea
-              value={report.nextAction}
-              onChange={e => update({ nextAction: e.target.value })}
-              placeholder="Planned next action..."
-              rows={2}
-              className="w-full bg-transparent text-sm text-primary placeholder:text-tertiary focus:outline-none resize-none"
-            />
-          </div>
+          <TextArea
+            value={report.nextAction}
+            onChange={v => update({ nextAction: v })}
+            placeholder="Planned next action..."
+            rows={2}
+          />
           <InlineRow label="ETA">
             <input
               type="time"
@@ -283,16 +272,13 @@ export function SitrepReport() {
       {/* Notes + export */}
       <Section title="Notes" className="mb-0">
         <SectionCard>
-          <div className="px-4 py-3">
-            <textarea
-              value={report.notes ?? ''}
-              onChange={e => update({ notes: e.target.value })}
-              placeholder="Additional notes..."
-              rows={2}
-              className="w-full bg-transparent text-sm text-primary placeholder:text-tertiary focus:outline-none resize-none"
-            />
-          </div>
-          <div className="border-t border-primary/6 flex items-center justify-end px-3 py-2">
+          <TextArea
+            value={report.notes ?? ''}
+            onChange={v => update({ notes: v })}
+            placeholder="Additional notes..."
+            rows={2}
+          />
+          <div className="flex items-center justify-end px-3 py-2">
             <ActionPill>
               <ActionButton icon={copied ? Check : Copy} label="Copy" onClick={onCopy} variant={copied ? 'success' : 'default'} />
               <ActionButton icon={Download} label="Download" onClick={onDownload} />

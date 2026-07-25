@@ -16,6 +16,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { ChevronLeft, ChevronRight, ChevronDown, X } from 'lucide-react'
+import { Scrim } from '@/Components/primitives/Scrim'
 
 const DAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
@@ -319,11 +320,7 @@ function IntakeOverlay({
 
   return createPortal(
     <>
-      <div
-        className={`fixed inset-0 bg-black transition-opacity duration-300 ${open ? 'opacity-80' : 'opacity-0'}`}
-        style={{ zIndex: 95, pointerEvents: open ? 'auto' : 'none' }}
-        onClick={onClose}
-      />
+      <Scrim progress={open ? 1 : 0} zIndex={95} onClick={onClose} />
       <div
         className="fixed inset-0 flex flex-col items-center justify-center pointer-events-none px-6 py-10"
         style={{ zIndex: 110 }}

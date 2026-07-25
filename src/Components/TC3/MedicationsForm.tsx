@@ -15,8 +15,8 @@ const MED_ROUTES: MedRoute[] = ['IV', 'IM', 'IO', 'PO', 'IN', 'PR', 'topical']
 
 // Shared field styling for the med/fluid/blood popover text fields (routed through
 // TextInput `bare` + inputClassName — the kit pattern for dense embeds; rounded-md, not a pill).
-const medFieldCx = 'w-full text-base px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none focus:border-themeredred/40 text-tertiary'
-const medFieldFlexCx = 'flex-1 text-base px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none focus:border-themeredred/40 text-tertiary'
+const medFieldCx = 'w-full text-base px-2 py-1.5 rounded-md border border-tertiary/20 bg-transparent outline-none focus:border-themeredred/40 text-tertiary'
+const medFieldFlexCx = 'flex-1 text-base px-2 py-1.5 rounded-md border border-tertiary/20 bg-transparent outline-none focus:border-themeredred/40 text-tertiary'
 
 const CATEGORIZED_MEDS: { category: MedCategory; label: string; meds: { name: string; dose: string; route: MedRoute }[] }[] = [
   {

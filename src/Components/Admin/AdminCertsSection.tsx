@@ -8,6 +8,7 @@ import { useState, useCallback, useRef } from 'react'
 import { Plus, Check, RefreshCw, Trash2 } from 'lucide-react'
 import type { Certification } from '../../Data/User'
 import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
+import { FooterPill } from '@/Components/primitives/FooterPill'
 import { PreviewOverlay } from '../PreviewOverlay'
 import { ActionPill } from '@/Components/primitives/ActionPill'
 import { ActionButton } from '@/Components/primitives/ActionButton'
@@ -152,14 +153,14 @@ export function AdminCertsSection({ userId, certs, onChanged }: AdminCertsSectio
         previewMaxHeight="60dvh"
         rightFooter={
           addAnchor ? (
-            <ActionPill>
+            <FooterPill side="right">
               <ActionButton
                 icon={saving ? RefreshCw : Check}
                 label={saving ? 'Saving…' : 'Add'}
-                variant={saving || !form.title.trim() ? 'disabled' : 'success'}
+                variant={saving || !form.title.trim() ? 'disabled' : 'confirm'}
                 onClick={handleAdd}
               />
-            </ActionPill>
+            </FooterPill>
           ) : undefined
         }
       >
@@ -176,7 +177,7 @@ export function AdminCertsSection({ userId, certs, onChanged }: AdminCertsSectio
         previewMaxHeight="60dvh"
         footer={
           editTarget && editingCert ? (
-            <ActionPill>
+            <FooterPill>
               <ActionButton
                 icon={Trash2}
                 label="Delete certification"
@@ -186,19 +187,19 @@ export function AdminCertsSection({ userId, certs, onChanged }: AdminCertsSectio
                   setPendingDeletePrimary(editingCert.is_primary)
                 }}
               />
-            </ActionPill>
+            </FooterPill>
           ) : undefined
         }
         rightFooter={
           editTarget && editingCert ? (
-            <ActionPill>
+            <FooterPill side="right">
               <ActionButton
                 icon={saving ? RefreshCw : Check}
                 label={saving ? 'Saving…' : 'Save'}
-                variant={saving || !form.title.trim() ? 'disabled' : 'success'}
+                variant={saving || !form.title.trim() ? 'disabled' : 'confirm'}
                 onClick={handleEdit}
               />
-            </ActionPill>
+            </FooterPill>
           ) : undefined
         }
       >
