@@ -157,7 +157,7 @@ export const TC3Drawer = memo(function TC3Drawer({ isVisible, onClose }: TC3Draw
               side="left"
               width={288}
               keepMounted
-              className="border-r border-primary/10 bg-themewhite3"
+              className="border-r border-primary/10 bg-themewhite"
             >
               <CasualtyList variant="pane" />
             </SlideRevealPane>
@@ -173,7 +173,7 @@ export const TC3Drawer = memo(function TC3Drawer({ isVisible, onClose }: TC3Draw
               open={detailOpen}
               side="right"
               width={380}
-              className="border-l border-primary/10 bg-themewhite3"
+              className="border-l border-primary/10 bg-themewhite"
             />
           </div>
         )}

@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowUp, ChevronLeft, Clock, MoreHorizontal, RefreshCw, ShieldCheck, Trash2 } from 'lucide-react'
-import type { OutsideEntityContent, OutsideEntityMessageEntry } from '../../lib/signal/messageContent'
+import type { DecryptedSignalMessage } from '../../lib/signal/transportTypes'
+import type { OutsideEntityMessageEntry } from '../../lib/signal/messageContent'
+import type { OutsideEntityChannel } from '../../lib/outsideEntityChannelStore'
 import { pollOutsideEntityInbound, sendOutsideEntityReply } from '../../lib/outsideEntityService'
 import { useMessagingStore } from '../../stores/useMessagingStore'
 import { saveMessage } from '../../lib/signal/messageStore'
@@ -9,37 +11,42 @@ import { ContextMenu, type ContextMenuItem } from '@/Components/primitives/Conte
 import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
 
 interface Props {
-  /** The single local control message that owns the channel key + reply thread. */
-  content: OutsideEntityContent
-  /** Its local id (conversation key === content.entity_id). */
-  messageId: string
+  /** Channel record — key + metadata. Outlives the messages by design. */
+  channel: OutsideEntityChannel
   /** Cluster name shown as the conversation header (the sender the recipient sees). */
   clusterName: string
-  /** Delete + revoke the channel (routes through useMessages.deleteMessages). */
-  deleteMessages: (conversationKey: string, messageIds: string[]) => void
+  /** Kill switch: revokes server-side, drops the local key, tombstones the thread. */
+  deleteConversation: (conversationKey: string) => void
   /** Clear the conversation's unread state on open. */
   markAsRead: (conversationKey: string) => void
   onBack?: () => void
 }
 
-const POLL_MS = 4000
+/** Liveness poll only — message delivery rides the signal transport. */
+const LIVENESS_MS = 30000
 
 /**
  * Full-conversation medic-side surface for an OUTBOUND outside-contact (email) 1:1.
- * Replaces the old nested `OutsideEntityCard` (a chat card rendered inside a chat) —
- * this reads like a normal 1:1: cluster-name header, plain reply bubbles, one pinned
- * composer. It is NOT wired through ChatDetailView because the channel isn't a Signal
- * peer: sends dual-seal + post via send_outside_entity_message and inbound is drained
- * by poll_outside_entity_inbound. All folds persist through the store + saveMessage
- * (IDB + encrypted backup) — the control message holds the ONLY copy of the channel
- * key (content.medic_priv_jwk), so this persistence is load-bearing. No-PHI applies to
- * the composer (operational vocabulary only). Imports NOTHING from src/lib/signal/*
- * beyond the shared message store.
+ *
+ * Messages here are ORDINARY messages in the store, keyed by the channel's entity_id:
+ * inbound replies arrive as per-device Signal envelopes (outside-entity-relay →
+ * routeOutsideEntityReply) and outbound sends are authored locally alongside the
+ * send_outside_entity_message post. That is why this component no longer owns a
+ * thread: unread counts, the notification toast, the conversation preview, backup and
+ * per-message delete are all the stock paths, and this file only supplies the chrome
+ * and the composer.
+ *
+ * It is still NOT wired through ChatDetailView, because the channel is not a Signal
+ * peer — sends go out ECIES-sealed via RPC, not through the ratchet.
+ *
+ * The polling that remains is deliberately narrow: a LIVENESS check (has the channel
+ * been revoked or expired?) plus a one-shot catch-up drain on open for anything
+ * authored while this device had no keyed bundle. Neither is the delivery path.
  */
-export function OutsideEntityConversation({ content, messageId, clusterName, deleteMessages, markAsRead, onBack }: Props) {
+export function OutsideEntityConversation({ channel, clusterName, deleteConversation, markAsRead, onBack }: Props) {
   const { user } = useAuth()
   const userId = user?.id ?? ''
-  const peerId = content.entity_id
+  const peerId = channel.entity_id
 
   const [text, setText] = useState('')
   const [sending, setSending] = useState(false)
@@ -48,61 +55,66 @@ export function OutsideEntityConversation({ content, messageId, clusterName, del
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
 
-  const replies = content.replies ?? []
-  const expired = ended || new Date(content.expires_at).getTime() <= Date.now()
+  const messages = useMessagingStore(s => s.conversations[peerId])
+  const thread = useMemo(
+    () => (messages ?? []).filter(m => m.content?.type !== 'outside_entity'),
+    [messages],
+  )
+
+  const expired = ended || new Date(channel.expires_at).getTime() <= Date.now()
   const active = !expired
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
-  // Highest to_medic timestamp already folded — the poll cursor.
-  const lastSeenRef = useRef<string | null>(null)
 
-  // Fold new entries onto the control message and persist (store + IDB/backup). Reads
-  // the LIVE store content so concurrent send/poll folds don't clobber each other.
-  const foldEntries = useCallback((entries: OutsideEntityMessageEntry[]) => {
-    if (entries.length === 0) return
-    const store = useMessagingStore.getState()
-    const existing = store.conversations[peerId]?.find((m) => m.id === messageId)
-    const cur = (existing?.content as OutsideEntityContent | undefined) ?? content
-    const have = new Set(cur.replies.map((r) => r.id))
-    const add = entries.filter((e) => !have.has(e.id))
-    if (add.length === 0) return
-    const merged: OutsideEntityContent = { ...cur, replies: [...cur.replies, ...add] }
-    store.updateMessageContent(peerId, messageId, merged)
-    const updated = store.conversations[peerId]?.find((m) => m.id === messageId)
-    if (updated && userId) void saveMessage(updated, userId).catch(() => {})
-  }, [content, messageId, peerId, userId])
+  /** Author a channel message into the store + IDB as a normal 1:1 message. */
+  const fileMessage = useCallback((entry: OutsideEntityMessageEntry) => {
+    if (!userId) return
+    const mine = entry.dir === 'to_outside'
+    const msg: DecryptedSignalMessage = {
+      id: entry.id,
+      senderId: mine ? userId : peerId,
+      recipientId: mine ? peerId : userId,
+      plaintext: entry.text,
+      content: { type: 'text', text: entry.text },
+      messageType: 'message',
+      createdAt: entry.created_at || new Date().toISOString(),
+      readAt: new Date().toISOString(),
+      status: mine ? 'sent' : undefined,
+      // Row id doubles as the origin: shared with the relayed envelope so the two
+      // delivery paths converge on one message, and tombstoned by a message delete.
+      originId: entry.id,
+    }
+    useMessagingStore.getState().addMessage(msg)
+    void saveMessage(msg, userId).catch(() => {})
+  }, [peerId, userId])
 
   // Clear unread on open.
   useEffect(() => { markAsRead(peerId) }, [peerId, markAsRead])
 
-  // Seed the poll cursor from any to_medic replies already on the card.
-  useEffect(() => {
-    for (const r of replies) {
-      if (r.dir === 'to_medic' && r.created_at && (!lastSeenRef.current || r.created_at > lastSeenRef.current)) {
-        lastSeenRef.current = r.created_at
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  // Poll inbound while the channel is live.
+  // Liveness + catch-up. The drain recovers replies stored while this device had no
+  // keyed bundle (or whose envelope failed to decrypt); addMessage de-dupes by id, so
+  // anything already delivered by envelope is a no-op.
   useEffect(() => {
     if (!active) return
     let cancelled = false
+    const lastSeen = () => {
+      let latest: string | null = null
+      for (const m of useMessagingStore.getState().conversations[peerId] ?? []) {
+        if (m.senderId === peerId && m.createdAt && (!latest || m.createdAt > latest)) latest = m.createdAt
+      }
+      return latest
+    }
     const tick = async () => {
-      const res = await pollOutsideEntityInbound(content, lastSeenRef.current)
+      const res = await pollOutsideEntityInbound(channel, lastSeen())
       if (cancelled || !res) return
       if (!res.active) { setEnded(true); return }
-      for (const e of res.entries) {
-        if (e.created_at && (!lastSeenRef.current || e.created_at > lastSeenRef.current)) lastSeenRef.current = e.created_at
-      }
-      foldEntries(res.entries)
+      for (const e of res.entries) fileMessage(e)
     }
-    const timer = setInterval(() => { void tick() }, POLL_MS)
+    const timer = setInterval(() => { void tick() }, LIVENESS_MS)
     void tick()
     return () => { cancelled = true; clearInterval(timer) }
-  }, [active, content, foldEntries])
+  }, [active, channel, peerId, fileMessage])
 
   // Auto-resize composer + keep the thread pinned to the newest message.
   useEffect(() => {
@@ -112,20 +124,20 @@ export function OutsideEntityConversation({ content, messageId, clusterName, del
   useEffect(() => {
     const el = scrollRef.current
     if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
-  }, [replies.length])
+  }, [thread.length])
 
   const onSend = useCallback(async () => {
     const body = text.trim()
     if (!body || sending || !active) return
     setSending(true)
     setError(null)
-    const res = await sendOutsideEntityReply(content, body)
+    const res = await sendOutsideEntityReply(channel, body)
     setSending(false)
     if (!res.ok) { setError(res.error ?? 'Could not send.'); return }
     setText('')
-    foldEntries([res.data])
+    fileMessage(res.data)
     inputRef.current?.focus()
-  }, [text, sending, active, content, foldEntries])
+  }, [text, sending, active, channel, fileMessage])
 
   const onKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void onSend() }
@@ -135,14 +147,14 @@ export function OutsideEntityConversation({ content, messageId, clusterName, del
     { key: 'delete', label: 'Delete conversation', icon: Trash2, destructive: true, onAction: () => setConfirmDelete(true) },
   ]), [])
 
-  const bubbles = replies.length > 0 && (
+  const bubbles = thread.length > 0 && (
     <div className="space-y-2">
-      {replies.map((r) => {
-        const mine = r.dir === 'to_outside'
+      {thread.map((m) => {
+        const mine = m.senderId === userId
         return (
-          <div key={r.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
+          <div key={m.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
             <div className={`max-w-[80%] rounded-2xl px-3.5 py-2 ${mine ? 'bg-themeblue3 text-white rounded-br-md' : 'bg-themewhite2 text-primary rounded-bl-md'}`}>
-              <p className="text-[11pt] leading-snug whitespace-pre-wrap break-words">{r.text}</p>
+              <p className="text-[11pt] leading-snug whitespace-pre-wrap break-words">{m.plaintext}</p>
             </div>
           </div>
         )
@@ -178,10 +190,10 @@ export function OutsideEntityConversation({ content, messageId, clusterName, del
 
       {/* Thread */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden px-4 pt-3 pb-28 md:pb-3">
-        {replies.length === 0 ? (
+        {thread.length === 0 ? (
           <div className="flex items-center justify-center h-full">
             <p className="text-[10pt] text-tertiary text-center max-w-[80%] leading-relaxed">
-              No messages yet. Anything you send is private to you and {content.recipient_email}.
+              No messages yet. Anything you send is private to you and {channel.recipient_email}.
             </p>
           </div>
         ) : bubbles}
@@ -233,7 +245,7 @@ export function OutsideEntityConversation({ content, messageId, clusterName, del
         title="Delete this secure contact for everyone?"
         confirmLabel="Delete"
         variant="danger"
-        onConfirm={() => { setConfirmDelete(false); deleteMessages(peerId, [messageId]); onBack?.() }}
+        onConfirm={() => { setConfirmDelete(false); deleteConversation(peerId); onBack?.() }}
         onCancel={() => setConfirmDelete(false)}
       />
     </div>

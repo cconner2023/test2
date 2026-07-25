@@ -2182,7 +2182,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
               side="left"
               width={240}
               keepMounted
-              className="border-r border-primary/10 bg-themewhite3"
+              className="border-r border-primary/10 bg-themewhite"
             >
               <div className="shrink-0 flex items-center gap-1.5 px-3 pt-2 pb-1">
                 <div className="flex-1 min-w-0">
@@ -2934,7 +2934,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
               open={!!(selectedFeature || tempPoint || tempRoute || geoPdfFormOpen)}
               side="right"
               width={320}
-              className="border-l border-primary/10 bg-themewhite3 relative"
+              className="border-l border-primary/10 bg-themewhite relative"
             >
               {!selectedFeature && tempPoint && (
                 <div className="relative flex flex-col flex-1 min-h-0">
@@ -3067,7 +3067,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                   collapses, pane opens). Absolute overlay so it covers the
                   feature/temp branches without entangling their conditions. */}
               {geoPdfFormOpen && (
-                <div className="absolute inset-0 z-10 flex flex-col bg-themewhite3">
+                <div className="absolute inset-0 z-10 flex flex-col bg-themewhite">
                   <div className="shrink-0 flex items-center gap-1 px-3 py-2 border-b border-tertiary/10">
                     <div className="text-[10pt] font-semibold text-primary truncate flex-1 min-w-0">Import geo-PDF</div>
                     <HeaderPill>

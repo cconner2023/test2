@@ -2,7 +2,7 @@ import { useState, useCallback, useMemo, useEffect, useRef, type ReactNode } fro
 import { X, Inbox, ChevronLeft, MessageCircleQuestion, Network } from 'lucide-react'
 import { BaseDrawer, ScrollPane } from '@/Components/primitives/BaseDrawer'
 import { Sheet } from '@/Components/primitives/Sheet'
-import { BottomIsland, IslandButton } from '@/Components/primitives/BottomIsland'
+import { BottomIsland } from '@/Components/primitives/BottomIsland'
 import { AddFab } from '@/Components/primitives/AddFab'
 import { SlideRevealPane } from '@/Components/primitives/SlideRevealPane'
 import { SearchInput } from '@/Components/primitives/SearchInput'
@@ -1121,7 +1121,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
     // input below opens the keyboard). Search stays put via sticky, not flex.
     const inboxBody = (
         <div className="flex flex-col">
-            <div className="sticky top-0 z-10 px-3 pt-2 pb-2 bg-themewhite3">
+            <div className="sticky top-0 z-10 px-3 pt-2 pb-2 bg-themewhite">
                 <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Search..." />
             </div>
             <div>
@@ -1143,9 +1143,14 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
     // Bottom island — tab switcher (centered) + FAB (right), matching Property/Calendar pattern
     const bottomIsland = (
         <BottomIsland
-            role="tablist"
             ariaLabel="Admin sections"
             glass
+            activeId={activeTab}
+            onSelect={(id) => handleTabChange(id as AdminTab)}
+            stops={visibleTabs.map((tab) => {
+                const TabIcon = TAB_ICONS[tab]
+                return { id: tab, title: TAB_LABELS[tab], icon: <TabIcon size={18} /> }
+            })}
             fab={
                 // FAB — absolute right, aligned to island. Directory creates
                 // users/clusters/locations; requests/votes don't.
@@ -1153,17 +1158,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                     <AddFab label="Add new" onClick={() => setShowAddSheet(true)} className="absolute right-4" />
                 ) : null
             }
-        >
-            {visibleTabs.map((tab) => {
-                const TabIcon = TAB_ICONS[tab]
-                const label = TAB_LABELS[tab]
-                return (
-                    <IslandButton key={tab} active={activeTab === tab} onClick={() => handleTabChange(tab)} label={label} role="tab">
-                        <TabIcon size={18} />
-                    </IslandButton>
-                )
-            })}
-        </BottomIsland>
+        />
     )
 
     // Votes tab — the feature-vote cycle manager. Requests/feedback/messages now
@@ -1273,7 +1268,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                                 side="left"
                                 width={240}
                                 keepMounted
-                                className="border-r border-primary/10 bg-themewhite3"
+                                className="border-r border-primary/10 bg-themewhite"
                             >
                                 <div className="shrink-0 px-3 pt-3 pb-2">
                                     <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Search..." />
@@ -1298,7 +1293,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                                 open={desktopDetailPaneOpen}
                                 side="right"
                                 width={320}
-                                className="border-l border-primary/10 bg-themewhite3 relative"
+                                className="border-l border-primary/10 bg-themewhite relative"
                             >
                                 <div className="flex items-center gap-2 px-3 py-2 border-b border-primary/10">
                                     <button

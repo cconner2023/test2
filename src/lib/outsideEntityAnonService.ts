@@ -93,15 +93,38 @@ export async function pollOutsideEntity(
 }
 
 /**
- * Send an outside→medic reply. `sealed` is already ECIES-sealed to `medic_pub`
- * (via `sealToOutsidePub`). Server flood-caps at 100 inbound msgs/channel/hr and
- * rejects on expiry/revoke. Returns false on any rejection.
+ * Send an outside→medic reply. `sealed` is already ECIES dual-sealed (via `sealPair`);
+ * nothing downstream can read it — not this function, not the edge, not the server.
+ *
+ * Goes through the `outside-entity-relay` edge fn, which stores the reply AND
+ * re-authors it as a per-device Signal envelope for the owning medic. That relay is
+ * what makes the reply fire a notification, bump unread, update the conversation
+ * preview and reach the medic's other devices; the bare RPC does none of that, it
+ * only writes a row the medic sees if and when they happen to open the thread.
+ *
+ * Falls back to `post_outside_entity_message` if the relay is unreachable (not
+ * deployed on this backend, offline, cold-start timeout) — the reply is still stored
+ * and the medic's catch-up drain surfaces it on next open. Delivery degrades; it
+ * never silently drops.
+ *
+ * Server flood-caps at 100 inbound msgs/channel/hr and rejects on expiry/revoke.
+ * Returns false on any rejection.
  */
 export async function postOutsideEntityMessage(
   supabase: SupabaseClient,
   entityId: string,
   sealed: SealedPair,
 ): Promise<boolean> {
+  try {
+    const { data, error } = await supabase.functions.invoke('outside-entity-relay', {
+      body: { entity_id: entityId, sealed },
+    })
+    if (!error && (data as { ok?: boolean } | null)?.ok === true) return true
+    // A well-formed {ok:false} is a real rejection (expired / revoked / flood-capped),
+    // not a transport failure — retrying via the RPC would be rejected identically.
+    if (!error && data) return false
+  } catch { /* relay unreachable — fall through */ }
+
   const { data, error } = await supabase.rpc('post_outside_entity_message', {
     p_entity_id: entityId,
     p_sealed: sealed,

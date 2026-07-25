@@ -634,7 +634,7 @@ export function TroopsToTaskView({ date, events, medics, huddleTasks, onSelectEv
       <div key={medic.id} className="relative flex border-b border-primary/5" style={{ height: rowHeight }}>
         <div
           className={`sticky left-0 z-[5] shrink-0 flex items-center border-r border-primary/10 transition-colors ${isMobile ? 'gap-3 px-3' : 'gap-2 px-2'} ${
-            isArmed ? 'bg-themeblue3/20 ring-1 ring-inset ring-themeblue3' : 'bg-themewhite3'
+            isArmed ? 'bg-themeblue3/20 ring-1 ring-inset ring-themeblue3' : 'bg-themewhite'
           } ${canArm ? 'cursor-pointer' : ''}`}
           style={{ width: NAME_COL_WIDTH }}
           onClick={canArm ? () => setArmedMedicId(prev => prev === medic.id ? null : medic.id) : undefined}
@@ -708,7 +708,7 @@ export function TroopsToTaskView({ date, events, medics, huddleTasks, onSelectEv
         <button
           type="button"
           onClick={() => toggleGroup(group.id)}
-          className="sticky left-0 z-[6] shrink-0 flex items-center gap-1.5 border-r border-primary/10 bg-themewhite3 px-2 text-left hover:bg-secondary/5 transition-colors"
+          className="sticky left-0 z-[6] shrink-0 flex items-center gap-1.5 border-r border-primary/10 bg-themewhite px-2 text-left hover:bg-secondary/5 transition-colors"
           style={{ width: NAME_COL_WIDTH }}
           title={collapsed ? `Expand ${group.name}` : `Collapse ${group.name}`}
         >
@@ -771,9 +771,9 @@ export function TroopsToTaskView({ date, events, medics, huddleTasks, onSelectEv
         )}
 
         {/* Time header with day boundaries */}
-        <div className="sticky top-0 z-10 flex items-stretch bg-themewhite3 border-b border-primary/10">
+        <div className="sticky top-0 z-10 flex items-stretch bg-themewhite border-b border-primary/10">
           {/* Date nav in personnel column */}
-          <div className="sticky left-0 z-20 shrink-0 border-r border-primary/10 flex items-center justify-between px-1.5 py-1 bg-themewhite3" style={{ width: NAME_COL_WIDTH }}>
+          <div className="sticky left-0 z-20 shrink-0 border-r border-primary/10 flex items-center justify-between px-1.5 py-1 bg-themewhite" style={{ width: NAME_COL_WIDTH }}>
             <button onClick={prevDay} className="w-6 h-6 flex items-center justify-center rounded-full text-tertiary hover:text-primary transition-colors active:scale-95">
               <ChevronLeft className="w-3.5 h-3.5" />
             </button>
@@ -807,7 +807,7 @@ export function TroopsToTaskView({ date, events, medics, huddleTasks, onSelectEv
 
         {/* Huddle band — sticky under the time header, sectioned into Providers + Tasks rows */}
         <div
-          className="flex flex-col border-b border-themeblue3/20 bg-themewhite3"
+          className="flex flex-col border-b border-themeblue3/20 bg-themewhite"
         >
           {/* Band collapse header — toggles the whole huddle section; collapsed → rolls all
               huddle/templated events into one summary lane so scheduled huddles stay visible. */}
@@ -822,7 +822,7 @@ export function TroopsToTaskView({ date, events, medics, huddleTasks, onSelectEv
                 <button
                   type="button"
                   onClick={() => setHuddleCollapsed(c => !c)}
-                  className="sticky left-0 z-[7] shrink-0 flex items-center gap-1.5 border-r border-primary/10 bg-themewhite3 px-2 text-left hover:bg-secondary/5 transition-colors"
+                  className="sticky left-0 z-[7] shrink-0 flex items-center gap-1.5 border-r border-primary/10 bg-themewhite px-2 text-left hover:bg-secondary/5 transition-colors"
                   style={{ width: NAME_COL_WIDTH }}
                   title={huddleCollapsed ? 'Expand huddle' : 'Collapse huddle'}
                 >
@@ -883,7 +883,7 @@ export function TroopsToTaskView({ date, events, medics, huddleTasks, onSelectEv
                 title={isDropTarget ? `Assign ${armedMedic?.lastName ?? ''} to provider huddle` : 'Tap to add provider huddle'}
               >
                 <div
-                  className="sticky left-0 z-[7] shrink-0 flex items-center px-2 border-r border-primary/10 bg-themewhite3"
+                  className="sticky left-0 z-[7] shrink-0 flex items-center px-2 border-r border-primary/10 bg-themewhite"
                   style={{ width: NAME_COL_WIDTH }}
                 >
                   <span className="text-[9pt] font-semibold uppercase tracking-wider text-tertiary truncate">Provider</span>
@@ -969,7 +969,7 @@ export function TroopsToTaskView({ date, events, medics, huddleTasks, onSelectEv
                 title={isDropTarget ? `Assign ${armedMedic?.lastName ?? ''} to ${task.name}` : `Tap to assign someone to ${task.name}`}
               >
                 <div
-                  className="sticky left-0 z-[7] shrink-0 flex items-center px-2 border-r border-primary/10 bg-themewhite3"
+                  className="sticky left-0 z-[7] shrink-0 flex items-center px-2 border-r border-primary/10 bg-themewhite"
                   style={{ width: NAME_COL_WIDTH }}
                 >
                   <span className="text-[9pt] font-semibold uppercase tracking-wider text-tertiary truncate">{task.name}</span>
@@ -1026,7 +1026,7 @@ export function TroopsToTaskView({ date, events, medics, huddleTasks, onSelectEv
             const rowHeight = ROW_PAD * 2 + laneCount * (LANE_HEIGHT_HUDDLE + LANE_GAP)
             return (
               <div className="relative flex border-b border-themeblue3/10" style={{ height: rowHeight }}>
-                <div className="sticky left-0 z-[7] shrink-0 flex items-center px-2 border-r border-primary/10 bg-themewhite3" style={{ width: NAME_COL_WIDTH }}>
+                <div className="sticky left-0 z-[7] shrink-0 flex items-center px-2 border-r border-primary/10 bg-themewhite" style={{ width: NAME_COL_WIDTH }}>
                   <span className="text-[9pt] font-semibold uppercase tracking-wider text-tertiary truncate">Other huddle</span>
                 </div>
                 <div className="flex-1 relative">

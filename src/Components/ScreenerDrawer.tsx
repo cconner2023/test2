@@ -179,7 +179,7 @@ export function ScreenerDrawer({
 
                 {/* Score summary bar — hidden during pre-gate section for gated screeners */}
                 {(!gate || gateOpen) && (
-                    <div className="sticky top-0 z-10 bg-themewhite3 py-2 flex items-center justify-between border-b border-tertiary/10">
+                    <div className="sticky top-0 z-10 bg-themewhite py-2 flex items-center justify-between border-b border-tertiary/10">
                         <div className="text-sm font-medium text-primary">
                             Score: <span className="font-bold">{activeScore}</span>
                             <span className="text-tertiary">/{maxScore}</span>

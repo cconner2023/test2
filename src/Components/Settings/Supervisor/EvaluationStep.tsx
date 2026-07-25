@@ -183,7 +183,7 @@ export function EvaluationStep({
       </div>
 
       {/* Sticky bottom bar */}
-      <div className="sticky bottom-0 left-0 right-0 bg-themewhite3 border-t border-primary/6 px-4 py-3">
+      <div className="sticky bottom-0 left-0 right-0 bg-themewhite border-t border-primary/6 px-4 py-3">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0 flex-1">
             <span className="text-sm text-tertiary truncate">

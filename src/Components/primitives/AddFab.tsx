@@ -1,26 +1,29 @@
 /**
  * AddFab — the canonical bottom-right circular "add" floating action button.
  *
- * Replaces 4 hand-rolled copies that had drifted (Property/Calendar/Admin used
- * a `w-11` button inside a bordered translucent tray; Map used a bare `w-12`
- * mode-toggle button with a status badge). They shared a recipe — square dim +
- * `rounded-full` + centered icon — but none carried `shrink-0`, so any FAB that
- * landed in a flex container (the Map stack) squished off-axis and rendered
- * oblong. This primitive bakes in `shrink-0` so the circle holds everywhere.
+ * Geometry and chrome are borrowed wholesale from {@link SliderRail}: the tray IS
+ * the rail's glass track and the button IS its thumb, at the same diameter with the
+ * same ring. A tray FAB therefore reads as a one-stop rail parked beside the
+ * multi-stop one, and its height matches the bottom island it sits next to.
  *
- * The primitive owns SHAPE + chrome (size, rounding, tray, badge, shrink-0).
- * The CALLER owns PLACEMENT — pass positioning via `className` (e.g.
+ * The primitive owns SHAPE + chrome (size, rounding, tray, badge, shrink-0). The
+ * CALLER owns PLACEMENT — pass positioning via `className` (e.g.
  * `absolute bottom-4 right-4`, or nothing when it's a flex child like Map).
  *
- * - `tray` (default true): wrap the button in the bordered translucent tray
- *   (Property/Calendar/Admin). `tray={false}` for a bare button (Map).
- * - `size`: 'md' = w-11 h-11 (default); 'lg' = w-12 h-12 (Map's larger FAB).
- * - `icon`: glyph component, default `Plus`, rendered at `w-5 h-5`. Map swaps
- *   this per draw mode.
+ * - `tray` (default true): wrap the button in the glass track (Property/Calendar/
+ *   Admin). `tray={false}` for a bare button (Map).
+ * - `size`: 'md' = thumb-sized, matching a rail stop (default); 'lg' = 44px, for
+ *   Map's standalone draw-mode FAB, which carries the canvas on its own.
+ * - `icon`: glyph component, default `Plus`, rendered at `w-5 h-5`. Map swaps this
+ *   per draw mode.
  * - `badge`: optional overlay node (Map's recording dot).
+ *
+ * `shrink-0` is baked in: the Map FAB lives in a `flex flex-col` stack, and without
+ * it a short viewport compressed the height while width held, rendering it oblong.
  */
 import { Plus, type LucideIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
+import { PAD, THUMB } from '@/Components/primitives/SliderRail'
 
 interface AddFabProps {
   onClick: () => void
@@ -28,9 +31,9 @@ interface AddFabProps {
   label?: string
   /** Glyph component; default `Plus`. Rendered at `w-5 h-5`. */
   icon?: LucideIcon
-  /** 'md' = w-11 h-11 (default); 'lg' = w-12 h-12. */
+  /** 'md' = rail-thumb diameter (default); 'lg' = 44px. */
   size?: 'md' | 'lg'
-  /** Wrap in the bordered translucent tray. Default true; pass false for a bare button. */
+  /** Wrap in the glass track. Default true; pass false for a bare button. */
   tray?: boolean
   /** Positioning + extra classes on the OUTERMOST node (tray, or button when tray=false). */
   className?: string
@@ -49,15 +52,17 @@ export function AddFab({
   badge,
   disabled,
 }: AddFabProps) {
-  const dim = size === 'lg' ? 'w-12 h-12' : 'w-11 h-11'
+  const dim = size === 'lg' ? 44 : THUMB
   const button = (
     <button
+      type="button"
       onClick={onClick}
       disabled={disabled}
       aria-label={label}
       title={label}
-      className={`relative shrink-0 ${dim} rounded-full bg-themeblue3 text-white flex items-center justify-center active:scale-95 transition-all duration-200 disabled:opacity-30 ${
-        tray ? '' : `shadow-lg pointer-events-auto ${className}`
+      style={{ width: dim, height: dim }}
+      className={`relative shrink-0 rounded-full bg-themeblue3 text-white flex items-center justify-center ring-1 ring-white/40 shadow-md active:scale-95 transition-all duration-200 disabled:opacity-30 ${
+        tray ? '' : `pointer-events-auto ${className}`
       }`}
     >
       <Icon className="w-5 h-5" />
@@ -68,7 +73,10 @@ export function AddFab({
   if (!tray) return button
 
   return (
-    <div className={`rounded-full border border-tertiary/15 p-0.5 bg-themewhite shadow-lg pointer-events-auto ${className}`}>
+    <div
+      style={{ padding: PAD }}
+      className={`rounded-full border border-white/40 bg-themewhite2/60 shadow-lg backdrop-blur-md pointer-events-auto dark:border-white/10 dark:bg-themewhite3/50 ${className}`}
+    >
       {button}
     </div>
   )

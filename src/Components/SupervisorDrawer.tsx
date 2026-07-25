@@ -936,7 +936,7 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
                   side="left"
                   width={260}
                   keepMounted
-                  className="border-r border-tertiary/10 bg-themewhite3"
+                  className="border-r border-tertiary/10 bg-themewhite"
                 >
                   <div className="shrink-0 px-3 py-2 border-b border-primary/10">
                     <SearchInput
@@ -964,7 +964,7 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
                   open={rightActive}
                   side="right"
                   width={380}
-                  className="border-l border-primary/10 bg-themewhite3"
+                  className="border-l border-primary/10 bg-themewhite"
                 >
                   {rightActive && renderRightDetail()}
                 </SlideRevealPane>

@@ -83,7 +83,7 @@ export function TripleDayView({ date, events, onSelectEvent, onEventContextMenu,
   return (
     <div className="flex flex-col h-full">
       <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto">
-        <div className="sticky top-0 z-10 bg-themewhite3">
+        <div className="sticky top-0 z-10 bg-themewhite">
           {(onPrevDay && onNextDay) ? (
             <div className="flex items-center justify-between px-3 py-2 border-b border-primary/10">
               <button
@@ -164,7 +164,7 @@ export function TripleDayView({ date, events, onSelectEvent, onEventContextMenu,
             {hours.map((h, i) => (
               <span
                 key={h}
-                className="absolute left-2 text-[9pt] font-mono text-tertiary bg-themewhite3 px-0.5"
+                className="absolute left-2 text-[9pt] font-mono text-tertiary bg-themewhite px-0.5"
                 style={{ top: i * HOUR_HEIGHT_PX - 6 }}
               >
                 {formatHour(h)}

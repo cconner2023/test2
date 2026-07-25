@@ -196,7 +196,7 @@ export function UserGuideDrawer({ isVisible, onClose }: UserGuideDrawerProps) {
     }, [isMobile, query, handleClose]);
 
     const emptyState = visibleChapters.length === 0 && (
-        <p className="text-[10.5pt] text-tertiary text-center py-16">No sections match “{query}”.</p>
+        <p className="text-[10pt] text-tertiary text-center py-16">No sections match “{query}”.</p>
     );
 
     return (

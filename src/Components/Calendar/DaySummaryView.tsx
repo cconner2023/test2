@@ -119,7 +119,7 @@ export function DaySummaryView({
   return (
     <div className="flex flex-col h-full">
       {/* Sticky header — mirrors DayView for cross-view consistency */}
-      <div className="sticky top-0 z-10 bg-themewhite3">
+      <div className="sticky top-0 z-10 bg-themewhite">
         {hasNav ? (
           <div className="flex items-center justify-between px-3 py-2 border-b border-primary/10">
             <button

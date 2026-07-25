@@ -29,11 +29,21 @@ import type { CSSProperties } from 'react'
  *     is meant to read as gone: the root left-nav slide-over. There is nothing
  *     worth blurring behind a near-opaque field, and the blur cost on a
  *     full-viewport layer that rides a drag is real on iOS Safari.
- *   • 'drawer' — 60% black, NO blur. BaseDrawer only. A drawer is still a
- *     surface swap, but it leaves a readable trace of where it opened from
- *     instead of the flat black field the nav wants. Same no-blur reasoning as
- *     'solid'; the shell behind is dim, not erased.
- * Adding a fourth variant means adding a NAME here, never a numeric prop.
+ *   • 'drawer' — 60% black, NO blur. BaseDrawer on DESKTOP. A drawer is still a
+ *     surface swap, but the desktop column leaves the shell beside it visible,
+ *     so the scrim leaves a readable trace of where it opened from instead of
+ *     the flat black field the nav wants. Same no-blur reasoning as 'solid'; the
+ *     shell behind is dim, not erased.
+ *   • 'drawer-mobile' — 94% black, NO blur. BaseDrawer on MOBILE. Same value as
+ *     'solid' and a separate NAME on purpose: a mobile drawer covers nearly the
+ *     whole viewport, so what little shows around it is the content the drawer
+ *     replaced, not a peer surface worth keeping legible. 60% was tuned when the
+ *     drawer had its own lifted surface token; now that a drawer paints at
+ *     content level (themewhite, same as the shell) a faint trace reads as the
+ *     drawer's own edge failing rather than as depth. Kept distinct from 'solid'
+ *     because the two answer to different surfaces — retuning the root nav must
+ *     not silently retune every drawer.
+ * Adding a fifth variant means adding a NAME here, never a numeric prop.
  *
  * SCOPE (2026-07-25). A scrim dims the APP, never the browser window. The root
  * left-nav slide-over always got this right — its backdrop is a child of the
@@ -57,8 +67,9 @@ export interface ScrimProps {
     progress: number
     /** Named construction. 'blur' (default) = 45% + 6px blur, for surfaces over
      *  live content. 'solid' = 94% black, no blur, for the root slide-overs.
-     *  'drawer' = 60% black, no blur, for BaseDrawer. */
-    variant?: 'blur' | 'solid' | 'drawer'
+     *  'drawer' = 60% black, no blur, for BaseDrawer on desktop.
+     *  'drawer-mobile' = 94% black, no blur, for BaseDrawer on mobile. */
+    variant?: 'blur' | 'solid' | 'drawer' | 'drawer-mobile'
     /** 'fixed' (default) covers the viewport; 'absolute' scopes to the nearest
      *  positioned ancestor — use inside an already-portaled container.
      *  Ignored under scope='app', which pins to the measured app rect. */
@@ -122,7 +133,7 @@ export function Scrim({
     style,
 }: ScrimProps) {
     const shown = progress > 0
-    const paint = variant === 'solid'
+    const paint = variant === 'solid' || variant === 'drawer-mobile'
         ? 'bg-black/94'
         : variant === 'drawer'
             ? 'bg-black/60'

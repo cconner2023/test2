@@ -3,7 +3,8 @@ import { X, MoreHorizontal, Check, ChevronLeft, Map as MapIcon, Camera, Clipboar
 import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
 import { LiftedRowMenu } from '@/Components/primitives/LiftedRowMenu'
 import { AddFab } from '@/Components/primitives/AddFab'
-import { BottomIsland, IslandButton } from '@/Components/primitives/BottomIsland'
+import { BottomIsland } from '@/Components/primitives/BottomIsland'
+import type { SliderStop } from '@/Components/primitives/SliderRail'
 import { usePropertyStore } from '../../stores/usePropertyStore'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { useShallow } from 'zustand/react/shallow'
@@ -1097,24 +1098,29 @@ export const PropertyPanel = memo(function PropertyPanel({
     />
   )
 
-  // The bottom-island tabs (Map · Camera · Sign-outs) — identical on both platforms.
-  // Map/Sign-outs are persistent tabs (drive propertyTab); Camera is momentary (opens
-  // the scanner overlay, which returns to the map). The location tree is NOT a tab.
-  const renderTabs = () => (
-    <>
-      <IslandButton role="tab" active={propertyTab === 'map'} onClick={() => { closeRosterDetail(); setPropertyTab('map') }} label="Map">
-        <MapIcon className="w-5 h-5" />
-      </IslandButton>
-      <IslandButton role="tab" onClick={() => setShowScanner(true)} label="Camera">
-        <Camera className="w-5 h-5" />
-      </IslandButton>
-      {showAccountability && (
-        <IslandButton role="tab" active={propertyTab === 'custody'} onClick={() => { setMobileItem(null); setMobileForm(null); closeLocationDetail(); closeRosterDetail(); setPropertyTab('custody') }} label="Sign-outs">
-          <ClipboardList className="w-5 h-5" />
-        </IslandButton>
-      )}
-    </>
-  )
+  // The bottom-island rail stops (Map · Camera · Sign-outs) — identical on both
+  // platforms. Map/Sign-outs are persistent tabs (drive propertyTab); Camera is
+  // MOMENTARY — it opens the scanner overlay, which returns to the map, so it must
+  // not fire from a drag merely sweeping across it, and the thumb springs back off
+  // it because propertyTab never becomes 'camera'. The location tree is NOT a tab.
+  const tabStops: SliderStop[] = [
+    { id: 'map', title: 'Map', icon: <MapIcon className="w-5 h-5" /> },
+    { id: 'camera', title: 'Camera', icon: <Camera className="w-5 h-5" />, momentary: true },
+    ...(showAccountability
+      ? [{ id: 'custody', title: 'Sign-outs', icon: <ClipboardList className="w-5 h-5" /> }]
+      : []),
+  ]
+
+  const selectTab = (id: string) => {
+    if (id === 'camera') { setShowScanner(true); return }
+    if (id === 'custody') {
+      setMobileItem(null); setMobileForm(null); closeLocationDetail(); closeRosterDetail()
+      setPropertyTab('custody')
+      return
+    }
+    closeRosterDetail()
+    setPropertyTab('map')
+  }
 
   // ── Mobile form MORPH stack ──────────────────────────────────────────────
   // The one mobile property Sheet has no StackNavContext of its own, so a form's
@@ -1209,7 +1215,7 @@ export const PropertyPanel = memo(function PropertyPanel({
             side="left"
             width={260}
             keepMounted
-            className="border-r border-tertiary/10 bg-themewhite3"
+            className="border-r border-tertiary/10 bg-themewhite"
           >
             {/* Location tree is always present in the rail (reached by search here);
                 it is no longer an island tab. */}
@@ -1309,11 +1315,11 @@ export const PropertyPanel = memo(function PropertyPanel({
               <BottomIsland
                 glass
                 z="z-20"
-                role="tablist"
                 ariaLabel="Property views"
-              >
-                {renderTabs()}
-              </BottomIsland>
+                activeId={propertyTab}
+                onSelect={selectTab}
+                stops={tabStops}
+              />
             )}
           </div>
 
@@ -1322,7 +1328,7 @@ export const PropertyPanel = memo(function PropertyPanel({
             open={railCollapsed}
             side="right"
             width={380}
-            className="border-l border-primary/10 bg-themewhite3 relative"
+            className="border-l border-primary/10 bg-themewhite relative"
           >
             <LoadingOverlay visible={formSaving} />
             {editLocationTarget && (
@@ -1543,7 +1549,7 @@ export const PropertyPanel = memo(function PropertyPanel({
                 opens), mirroring the sign-out / reprint surfaces. Absolute overlay
                 so it covers the pane without entangling the other branches. */}
             {importOpen && (
-              <div className="absolute inset-0 z-10 flex flex-col bg-themewhite3">
+              <div className="absolute inset-0 z-10 flex flex-col bg-themewhite">
                 <div className="shrink-0 flex items-center justify-between gap-2 px-4 py-3 border-b border-tertiary/10">
                   <div className="flex items-center gap-2 min-w-0">
                     {csvImportInPreview && (
@@ -1568,7 +1574,7 @@ export const PropertyPanel = memo(function PropertyPanel({
             {/* Shortages / requisition report — sole occupant of the right pane, same
                 overlay treatment as CSV import. */}
             {shortageOpen && (
-              <div className="absolute inset-0 z-10 flex flex-col bg-themewhite3">
+              <div className="absolute inset-0 z-10 flex flex-col bg-themewhite">
                 <div className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-tertiary/10">
                   <p className="text-sm font-medium text-primary truncate">Shortages</p>
                   <HeaderPill>
@@ -1586,7 +1592,7 @@ export const PropertyPanel = memo(function PropertyPanel({
             {/* Authorized items (BOM) manager — sole occupant of the right pane, same
                 overlay treatment as CSV import / Shortages. */}
             {authorizedOpen && (
-              <div className="absolute inset-0 z-10 flex flex-col bg-themewhite3">
+              <div className="absolute inset-0 z-10 flex flex-col bg-themewhite">
                 <LoadingOverlay visible={formSaving} />
                 <div className="shrink-0 flex items-center justify-between gap-2 px-4 py-3 border-b border-tertiary/10">
                   {authForm || authView || authImport ? (
@@ -1668,7 +1674,7 @@ export const PropertyPanel = memo(function PropertyPanel({
                 Absolute overlay so it covers the pane without entangling the other
                 branches' conditions. */}
             {da2062Preview && (
-              <div className="absolute inset-0 z-10 flex flex-col bg-themewhite3">
+              <div className="absolute inset-0 z-10 flex flex-col bg-themewhite">
                 <div className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-tertiary/10">
                   <p className="text-sm font-medium text-primary truncate">{da2062Preview.filename}</p>
                   <HeaderPill>
@@ -1837,11 +1843,11 @@ export const PropertyPanel = memo(function PropertyPanel({
             glass
             z="z-20"
             fab={propertyTab === 'custody' ? undefined : islandFab}
-            role="tablist"
             ariaLabel="Property views"
-          >
-            {renderTabs()}
-          </BottomIsland>
+            activeId={propertyTab}
+            onSelect={selectTab}
+            stops={tabStops}
+          />
         )}
       </div>
 

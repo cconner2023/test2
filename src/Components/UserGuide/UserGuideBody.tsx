@@ -130,7 +130,7 @@ export function UserGuideBody({ chapters, isMobile }: UserGuideBodyProps) {
                 <button
                     key={key}
                     onClick={(e) => setPreview({ src: mobileSrc, alt: block.alt, caption: block.caption, rect: e.currentTarget.getBoundingClientRect() })}
-                    className="inline-flex items-center gap-1.5 my-1 text-[10.5pt] font-medium text-themeblue2 active:scale-95 transition-transform"
+                    className="inline-flex items-center gap-1.5 my-1 text-[10pt] font-medium text-themeblue2 active:scale-95 transition-transform"
                 >
                     {block.caption || block.alt || 'Image'}
                 </button>
@@ -152,16 +152,16 @@ export function UserGuideBody({ chapters, isMobile }: UserGuideBodyProps) {
             case 'image':
                 return renderImage(block, key);
             case 'sub':
-                return <p key={key} className="text-[10.5pt] font-semibold text-primary mt-4 mb-1.5">{block.text}</p>;
+                return <p key={key} className="text-[10pt] font-semibold text-tertiary mt-4 mb-1.5">{block.text}</p>;
             case 'p':
-                return <p key={key} className="text-[10.5pt] text-secondary leading-relaxed mb-2.5">{renderInline(block.text)}</p>;
+                return <p key={key} className="text-[10pt] text-secondary leading-relaxed mb-2.5">{renderInline(block.text)}</p>;
             case 'list':
                 // Per-item bar: each item carries its own left bar segment so the
                 // group reads as discrete points rather than one continuous rule.
                 return (
                     <ul key={key} className="mb-2.5 space-y-2">
                         {block.items.map((item, i) => (
-                            <li key={i} className="pl-3 border-l-2 border-themeblue2/30 text-[10.5pt] text-secondary leading-relaxed">
+                            <li key={i} className="pl-3 border-l-2 border-themeblue2/30 text-[10pt] text-secondary leading-relaxed">
                                 {renderInline(item)}
                             </li>
                         ))}
@@ -172,7 +172,7 @@ export function UserGuideBody({ chapters, isMobile }: UserGuideBodyProps) {
                 return (
                     <ol key={key} className="mb-2.5 space-y-2">
                         {block.items.map((item, i) => (
-                            <li key={i} className="pl-3 border-l-2 border-themeblue2/30 text-[10.5pt] text-secondary leading-relaxed">
+                            <li key={i} className="pl-3 border-l-2 border-themeblue2/30 text-[10pt] text-secondary leading-relaxed">
                                 {renderInline(item)}
                             </li>
                         ))}
@@ -182,7 +182,7 @@ export function UserGuideBody({ chapters, isMobile }: UserGuideBodyProps) {
                 // Level-2 aside: a further addition to the block above it. Indented deeper
                 // than the level-1 bar and given a lighter bar so it reads as nested.
                 return (
-                    <p key={key} className="text-[10.5pt] text-secondary leading-relaxed mb-2.5 ml-5 pl-3 border-l-2 border-themeblue2/15">
+                    <p key={key} className="text-[10pt] text-secondary leading-relaxed mb-2.5 ml-5 pl-3 border-l-2 border-themeblue2/15">
                         {renderInline(block.text)}
                     </p>
                 );
@@ -200,13 +200,15 @@ export function UserGuideBody({ chapters, isMobile }: UserGuideBodyProps) {
                         {chapter.sections.map((section) => (
                             // scroll-mt clears the floating header so anchored jumps land below it.
                             <div key={section.id} id={`guide-${section.id}`} data-guide-anchor={section.id} className="scroll-mt-24 mb-6">
-                                <h2 className="text-[13pt] font-bold text-primary mb-2.5">{section.title}</h2>
+                                {/* h2/h3 stay headings for the document outline; the styling is
+                                    the app SectionHeader grammar, matching every other panel. */}
+                                <h2 className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2.5">{section.title}</h2>
                                 <div className="overflow-hidden">
                                     {section.blocks?.map((block, i) => renderBlock(block, i))}
                                 </div>
                                 {section.subsections?.map((sub) => (
                                     <div key={sub.id} id={`guide-${sub.id}`} data-guide-anchor={sub.id} className="scroll-mt-24 mt-5">
-                                        <h3 className="text-[11pt] font-bold text-primary mb-1.5">{sub.title}</h3>
+                                        <h3 className="text-[10pt] font-semibold text-primary mb-1.5">{sub.title}</h3>
                                         <div className="overflow-hidden">
                                             {sub.blocks.map((block, i) => renderBlock(block, i))}
                                         </div>

@@ -682,7 +682,7 @@ export function ChatDetailView({
                 nothing at the bottom; the 2px blur edge is imperceptible. */}
             <div
               aria-hidden
-              className="absolute inset-0 -z-10 bg-themewhite3/15"
+              className="absolute inset-0 -z-10 bg-themewhite/15"
               style={{
                 maskImage: 'linear-gradient(to bottom, black 55%, transparent 100%)',
                 WebkitMaskImage: 'linear-gradient(to bottom, black 55%, transparent 100%)',
@@ -690,7 +690,7 @@ export function ChatDetailView({
             />
             {headerOverride ?? (<>{mobileHeader}{desktopHeader}</>)}
             {rootMsg && (
-              <div className="px-2 pt-1 pb-1.5 border-b border-primary/10 bg-themewhite3/85">
+              <div className="px-2 pt-1 pb-1.5 border-b border-primary/10 bg-themewhite/85">
                 <div data-message-id={rootMsg.id}>
                   <MessageBubble
                     message={rootMsg}
@@ -847,7 +847,7 @@ export function ChatDetailView({
       {/* Thread overlay */}
       {showThread && (
         <div
-          className={`absolute inset-0 z-20 flex flex-col bg-themewhite3 transition-opacity duration-200 ${threadClosing ? 'opacity-0' : 'animate-fadeIn'}`}
+          className={`absolute inset-0 z-20 flex flex-col bg-themewhite transition-opacity duration-200 ${threadClosing ? 'opacity-0' : 'animate-fadeIn'}`}
           {...threadSwipeBack}
         >
           {/* Reuse the conversation header (mobile). On desktop the BaseDrawer

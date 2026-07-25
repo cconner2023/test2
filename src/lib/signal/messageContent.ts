@@ -429,11 +429,15 @@ export interface OutsideEntityMessageEntry {
  * OUTBOUND outside-entity 1:1 card (medic side). Unlike outside_session (inbound,
  * system-authored, fan-to-all), this is MEDIC-INITIATED and LOCAL: the medic mints
  * the channel, emails the invite, and this card is created directly via addMessage
- * (no server signal row). It is the ONLY home of the channel's medic private key —
- * `medic_priv_jwk` exists nowhere else, so tombstoning this card destroys the
- * channel (belt-and-suspenders with the server's 24h expiry / revoke). RECEIVE-
- * ONLY on the wire: serializeContent throws (it is never sent through the ratchet;
- * it rides at-rest + encrypted backup as a local card). All fields JSON-serializable.
+ * (no server signal row). RECEIVE-ONLY on the wire: serializeContent throws (it is
+ * never sent through the ratchet; it rides at-rest + encrypted backup as a local
+ * card). All fields JSON-serializable.
+ *
+ * NO LONGER THE HOME OF THE CHANNEL KEY. `medic_priv_jwk` moved to
+ * `outsideEntityChannelStore` (keyed by entity_id) so that deleting messages blanks a
+ * thread without destroying the channel — a key is channel state, not conversation
+ * content. The field survives ONLY as a legacy carrier: cards minted before the move
+ * still have it, and hydration migrates those into the store. New cards omit it.
  */
 export interface OutsideEntityContent {
   type: 'outside_entity'
@@ -446,17 +450,68 @@ export interface OutsideEntityContent {
   recipient_email: string
   /** Medic per-channel ECDH P-256 public key (base64 SPKI) — a dual-seal target. */
   medic_pub: string
-  /** Medic per-channel PRIVATE key (JWK). THE ONLY COPY of the channel key — used to
-   *  open outside→medic replies. Card deletion destroys it. */
-  medic_priv_jwk: JsonWebKey
+  /** LEGACY ONLY — the channel key now lives in `outsideEntityChannelStore`. Present
+   *  on cards minted before the move; hydration migrates it out and new cards never
+   *  set it. Never read this directly: go through the channel store. */
+  medic_priv_jwk?: JsonWebKey
   /** Outside party's ECDH P-256 public key (base64 SPKI) — the medic→outside seal target. */
   outside_pub: string
   /** ISO — channel mint time. */
   created_at: string
   /** ISO — server 24h hard expiry; the card flips to a read-only expired state past it. */
   expires_at: string
-  /** Full thread, both directions — folded from optimistic sends + inbound poll. */
+  /** LEGACY, always `[]` on new cards. The thread is now ORDINARY messages in the
+   *  conversation keyed by entity_id, not an array nested inside this one message —
+   *  that nesting is what made a single delete take the whole thread with it. Kept
+   *  only so pre-migration cards still parse. */
   replies: OutsideEntityMessageEntry[]
+}
+
+/**
+ * One ECIES half of a dual-sealed outside-entity message — the `{ epk, ct }` shape
+ * produced by `outsideSeal.sealToOutsidePub`. NOTE it is NOT the
+ * `{ ephemeralKey, ciphertext }` of a signal SealedEnvelope; the two are unrelated
+ * envelopes that happen to travel nested. Declared structurally rather than imported
+ * so `signal/*` keeps zero dependency on the anon-bundle seal modules.
+ */
+export interface OutsideEntitySealedHalf {
+  /** base64 ephemeral P-256 SPKI public key. */
+  epk: string
+  /** base64 of (12-byte IV ‖ AES-256-GCM ciphertext). */
+  ct: string
+}
+
+/**
+ * An outside→medic reply RELAYED onto the signal transport by the
+ * `outside-entity-relay` edge fn, so the outbound channel gets the stock pipeline
+ * (notification, unread, preview, backup, multi-device) instead of only surfacing
+ * while the medic happens to have the conversation open.
+ *
+ * DOUBLY ENCRYPTED BY DESIGN. The signal envelope is transport — it proves delivery
+ * to this device and nothing more. `sealed` is the ACTUAL end-to-end payload, ECIES-
+ * sealed to the channel's `medic_pub`, whose private half never leaves the medic's
+ * device. The edge relays a blob it cannot read, so this lane is strictly MORE opaque
+ * to the server than the inbound outside lanes (which dropped their inner seal as
+ * redundant — they can, because their senders have no channel key to seal to).
+ *
+ * Only the medic half rides the wire; the `.o` half is addressed to the outside
+ * party's key and would be ciphertext the medic could never open.
+ *
+ * NEVER a bubble. `routeOutsideEntityReply` decrypts it and re-authors a normal
+ * message into the channel's conversation, so the raw form is out-of-band control
+ * traffic (same treatment as reactions / calendar events).
+ */
+export interface OutsideEntityReplyContent {
+  type: 'outside_entity_reply'
+  /** outside_entities.id — the conversation key on the medic side. */
+  entity_id: string
+  /** outside_entity_messages.id — the dedupe + tombstone identity, shared with the
+   *  catch-up drain so the same reply can never land twice or resurrect after delete. */
+  message_id: string
+  /** Medic half of the dual seal. */
+  sealed: OutsideEntitySealedHalf
+  /** ISO — server-stamped row time. */
+  created_at: string
 }
 
 /**
@@ -479,7 +534,7 @@ export interface ReactionContent {
   remove?: boolean
 }
 
-export type MessageContent = TextContent | ImageContent | VoiceContent | CalendarEventContent | MapOverlayContent | MapFeatureContent | PropertyEventContent | ReadinessSummaryContent | SharedRefContent | SharedBundleContent | IntakeRequestContent | OncallCallContent | OutsideMessageContent | OutsideSessionContent | OutsideSessionUpdate | OutsideEntityContent | ReactionContent
+export type MessageContent = TextContent | ImageContent | VoiceContent | CalendarEventContent | MapOverlayContent | MapFeatureContent | PropertyEventContent | ReadinessSummaryContent | SharedRefContent | SharedBundleContent | IntakeRequestContent | OncallCallContent | OutsideMessageContent | OutsideSessionContent | OutsideSessionUpdate | OutsideEntityContent | OutsideEntityReplyContent | ReactionContent
 
 // ---- Compact wire shapes ----
 
@@ -650,7 +705,24 @@ interface WireReaction {
   r?: 1
 }
 
-type WireContent = WireText | WireImage | WireVoice | WireCalendarEvent | WireMapOverlay | WireMapFeature | WirePropertyEvent | WireReadinessSummary | WireSharedRef | WireSharedBundle | WireIntake | WireOutsideMessage | WireOncallCall | WireReaction
+/**
+ * Outside→medic reply, authored by the outside-entity-relay edge fn INSIDE the Signal
+ * envelope. Wire-only: the client never builds one (serializeContent throws), it only
+ * ever parses one. `s` is the medic half of the channel's dual seal, still sealed.
+ */
+interface WireOutsideEntityReply {
+  t: 'oer'
+  /** entity id (== the medic-side conversation key) */
+  e: string
+  /** outside_entity_messages row id */
+  id: string
+  /** medic half of the ECIES dual seal — `{ epk, ct }`, opaque to server and transport */
+  s: { epk: string; ct: string }
+  /** ISO created_at */
+  ts: string
+}
+
+type WireContent = WireText | WireImage | WireVoice | WireCalendarEvent | WireMapOverlay | WireMapFeature | WirePropertyEvent | WireReadinessSummary | WireSharedRef | WireSharedBundle | WireIntake | WireOutsideMessage | WireOutsideEntityReply | WireOncallCall | WireReaction
 
 // ---- Serialization ----
 
@@ -810,6 +882,13 @@ export function serializeContent(content: MessageContent): string {
     // posted via send_outside_entity_message, not a signal envelope). Serializing
     // it would be a bug — and would leak medic_priv_jwk onto the wire.
     throw new Error('OutsideEntity content is local-only; never serialize')
+  }
+
+  if (content.type === 'outside_entity_reply') {
+    // Authored ONLY by the outside-entity-relay edge fn (as the plaintext inside the
+    // SYSTEM sealed envelope). A client reaching here would be trying to forge an
+    // inbound reply onto its own channel — mirrors the outside_session precedent.
+    throw new Error('OutsideEntityReply content is receive-only (edge-authored); never serialize')
   }
 
   if (content.type === 'oncall_call') {
@@ -1037,6 +1116,22 @@ export function parseMessageContent(raw: string): ParsedContent {
           requester_name: wire.n,
           text: wire.d,
         } satisfies OutsideMessageContent,
+      }
+    }
+
+    if (wire.t === 'oer') {
+      return {
+        // Placeholder only — the real preview is the decrypted body, which
+        // routeOutsideEntityReply substitutes when it re-authors this as a normal
+        // message. This string must never reach a bubble or a conversation preview.
+        plaintext: '[outside reply]',
+        content: {
+          type: 'outside_entity_reply',
+          entity_id: wire.e,
+          message_id: wire.id,
+          sealed: wire.s,
+          created_at: wire.ts,
+        } satisfies OutsideEntityReplyContent,
       }
     }
 

@@ -22,7 +22,7 @@ import { X, Plus, Check, RotateCcw, ChevronRight, ClipboardList, FileText } from
 import { PreviewOverlay } from './PreviewOverlay';
 import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog';
 import { PdfPreviewModal } from './PdfPreviewModal';
-import { BottomIsland, IslandButton } from '@/Components/primitives/BottomIsland';
+import { BottomIsland } from '@/Components/primitives/BottomIsland';
 import { AddFab } from '@/Components/primitives/AddFab';
 import { OverlayActionMenu } from '@/Components/primitives/OverlayActionMenu';
 import { EmptyState } from '@/Components/primitives/EmptyState';
@@ -333,14 +333,12 @@ export const WriteNotePage = ({
                     <div className={`w-full px-4 pt-4 pb-32 ${currentPageId !== 'edit' ? 'hidden' : ''}`}>
                         <div className="space-y-4">
                                 {viewMode === 'preview' && (
-                                    <div className="rounded-xl border border-tertiary/15 bg-themewhite2 overflow-hidden px-2 py-2">
-                                        <DecisionMaking
-                                            algorithmOptions={algorithmOptions}
-                                            cardStates={cardStates}
-                                            disposition={disposition}
-                                            dispositionType={disposition.type}
-                                        />
-                                    </div>
+                                    <DecisionMaking
+                                        algorithmOptions={algorithmOptions}
+                                        cardStates={cardStates}
+                                        disposition={disposition}
+                                        dispositionType={disposition.type}
+                                    />
                                 )}
 
                                 {viewMode === 'fullnote' && (
@@ -656,8 +654,13 @@ export const WriteNotePage = ({
                     <BottomIsland
                         glass
                         z="z-20"
-                        role="tablist"
                         ariaLabel="Note view"
+                        activeId={viewMode}
+                        onSelect={(id) => setViewMode(id as typeof viewMode)}
+                        stops={[
+                            { id: 'preview', title: 'Decision Making', icon: <ClipboardList className="w-5 h-5" /> },
+                            { id: 'fullnote', title: 'Full Note', icon: <FileText className="w-5 h-5" /> },
+                        ]}
                         fab={
                             <AddFab
                                 onClick={() => setDmConfirmOpen(true)}
@@ -667,14 +670,7 @@ export const WriteNotePage = ({
                                 className="absolute right-4"
                             />
                         }
-                    >
-                        <IslandButton role="tab" active={viewMode === 'preview'} onClick={() => setViewMode('preview')} label="Decision Making">
-                            <ClipboardList className="w-5 h-5" />
-                        </IslandButton>
-                        <IslandButton role="tab" active={viewMode === 'fullnote'} onClick={() => setViewMode('fullnote')} label="Full Note">
-                            <FileText className="w-5 h-5" />
-                        </IslandButton>
-                    </BottomIsland>
+                    />
                 ) : (
                     // Full Note page (terminal): the Done FAB over the glass footer.
                     <NoteWizardFooter

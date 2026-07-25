@@ -2484,6 +2484,14 @@ export type Database = {
         Args: { p_code: string; p_token: string }
         Returns: Json
       }
+      outside_entity_authorize_and_bundles: {
+        Args: { p_entity_id: string; p_sealed: Json }
+        Returns: Json
+      }
+      outside_entity_insert_rows: {
+        Args: { p_origin_id: string; p_rows: Json }
+        Returns: undefined
+      }
       outside_message_authorize_and_bundles: {
         Args: { p_passcode: string; p_passphrase: string }
         Returns: Json

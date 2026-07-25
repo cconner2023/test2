@@ -86,6 +86,8 @@ import type { MessageContent, ImageContent, VoiceContent, ReplyTo, OutsideSessio
 import type { CallSignalBody } from '../lib/webrtc/callSignalBus'
 import { getOrCreateClinicSystemGroup } from '../lib/systemMessageService'
 import { revokeOutsideEntity } from '../lib/outsideEntityService'
+import { routeOutsideEntityReply } from '../lib/outsideEntityRouting'
+import { getOutsideEntityChannel, removeOutsideEntityChannel } from '../lib/outsideEntityChannelStore'
 import {
   SYSTEM_USER_ID,
   ensureSystemIdentity,
@@ -924,6 +926,44 @@ export function useMessages(): UseMessagesReturn {
         if (updated && userId) saveMessage(updated, userId).catch(() => {})
       }
       markMessagesRead([msg.id]).catch(() => {})
+      return
+    }
+
+    // ── Outbound outside-contact: an outside party's reply, relayed onto this
+    // transport by the outside-entity-relay edge fn. The signal envelope was only
+    // delivery; the body is still ECIES-sealed to the channel key, which lives in
+    // outsideEntityChannelStore (NOT in a message — deleting messages must not kill
+    // the channel). Open it, then re-author as a NORMAL message so unread counts,
+    // the notification toast, the list preview, backup and delete are all the stock
+    // 1:1 paths rather than anything bespoke.
+    if (msg.content?.type === 'outside_entity_reply') {
+      const reply = msg.content
+      // Ack the transport row regardless of whether we can read the body — an
+      // un-ackable row would be redelivered forever.
+      markMessagesRead([msg.id]).catch(() => {})
+      const text = await routeOutsideEntityReply(reply)
+      // No channel key ⇒ revoked, expired, or a device that never held it. Dropping
+      // is correct: this is the kill switch and the 24h expiry working as designed.
+      if (text === null) return
+
+      // Identity is the outside_entity_messages row id, SHARED with the catch-up
+      // drain — so the same reply can arrive by either path exactly once, and an
+      // origin tombstone from a message-delete still blocks resurrection.
+      // senderId = entity_id makes the store bucket this under the channel's
+      // conversation (conversationKey = senderId when senderId !== userId).
+      const relayed: DecryptedSignalMessage = {
+        id: reply.message_id,
+        senderId: reply.entity_id,
+        recipientId: userId,
+        plaintext: text,
+        content: { type: 'text', text },
+        messageType: 'message',
+        createdAt: reply.created_at,
+        readAt: activePeerRef.current === reply.entity_id ? new Date().toISOString() : null,
+        originId: reply.message_id,
+      }
+      addMessage(relayed)
+      if (activePeerRef.current !== reply.entity_id) onIncomingRef.current?.(relayed)
       return
     }
 
@@ -2233,15 +2273,12 @@ export function useMessages(): UseMessagesReturn {
 
     const msgs = useMessagingStore.getState().conversations[peerId] ?? []
 
-    // Outbound outside-entity cards: the card holds the ONLY copy of the channel
-    // key (content.medic_priv_jwk). The tombstone delete below destroys that local
-    // copy; revoke the server row too so the wrapped key + any queued messages are
-    // hard-deleted and the channel can't be reopened. Best-effort (Result-returning).
-    for (const id of messageIds) {
-      const c = msgs.find(m => m.id === id)?.content
-      if (c?.type === 'outside_entity') void revokeOutsideEntity(c.entity_id)
-    }
-
+    // NOTE: deleting MESSAGES never revokes an outbound outside-contact channel.
+    // Blanking a thread is not ending it — the channel key lives in
+    // outsideEntityChannelStore, not in any message, so the conversation stays live
+    // and keeps receiving. Ending a channel is deleteConversation's job (the kill
+    // switch). This was previously a revoke here, which made emptying a thread
+    // silently destroy the channel.
     const originIds = messageIds
       .map(id => msgs.find(m => m.id === id)?.originId)
       .filter((oid): oid is string => !!oid)
@@ -2428,6 +2465,31 @@ export function useMessages(): UseMessagesReturn {
     // Collect originIds BEFORE store().deleteConversation removes messages from state
     const msgs = useMessagingStore.getState().conversations[conversationKey] ?? []
     const originIds = msgs.map(m => m.originId).filter((oid): oid is string => !!oid)
+
+    // OUTBOUND OUTSIDE-CONTACT KILL SWITCH. For these channels the conversation key
+    // IS the entity id, so a conversation delete ends the channel for BOTH sides:
+    // revoke_outside_entity hard-deletes the server row (destroying the outside
+    // party's wrapped key, so their tab flips to the expired view on its next poll)
+    // and the local record dies with it. Awaited, unlike the old fire-and-forget
+    // revoke: once the local key is gone we can never retry, so a silent offline
+    // failure here would leave the outside party talking into a channel nobody can
+    // read until the 24h purge. A failed revoke aborts the delete instead.
+    const channel = await getOutsideEntityChannel(conversationKey).catch(() => null)
+    if (channel) {
+      const revoked = await revokeOutsideEntity(conversationKey)
+      if (!revoked.ok) {
+        logger.warn('Aborting conversation delete — outside channel could not be revoked')
+        errorBus.emit({
+          code: ErrorCode.SYNC_FAILED,
+          source: 'useMessages.deleteConversation',
+          message: 'This secure contact could not be ended. Check your connection and try again.',
+          timestamp: Date.now(),
+          metadata: { conversationKey },
+        })
+        return
+      }
+      await removeOutsideEntityChannel(conversationKey).catch(() => {})
+    }
 
     // Write tombstone to store + IDB, remove from state
     await store().deleteConversation(conversationKey)

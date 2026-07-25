@@ -28,7 +28,7 @@ import { Sheet } from '@/Components/primitives/Sheet'
 import { useStack } from '@/Components/primitives/useStack'
 import { StackNavContext } from '../stackNav'
 import { LayeredStackBody } from '@/Components/primitives/LayeredStackBody'
-import { BottomIsland, IslandButton } from '@/Components/primitives/BottomIsland'
+import { BottomIsland } from '@/Components/primitives/BottomIsland'
 import { AddFab } from '@/Components/primitives/AddFab'
 import { CalendarCSVImport } from './CalendarCSVImportDrawer'
 import { TemplateGeneratorPanel, type TemplateGeneratorHandle } from './TemplateGeneratorPanel'
@@ -1425,11 +1425,12 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
 
           {/* View-config popover — floats above the island, centered. Holds the
               active view's sub-scope options; opened by the island "View options"
-              icon (4th island button). */}
+              icon (the rail's last stop). Offset tracks the rail height (40px)
+              plus the island's bottom inset. */}
           {/* No backdrop — the popover is non-blocking: the calendar stays live and
               scrollable underneath. Dismiss by re-tapping the options button. */}
           {showViewConfig && (
-              <div className="absolute bottom-[4.5rem] inset-x-0 z-50 flex items-end justify-center px-4 pb-[max(0rem,var(--sab,0px))] pointer-events-none">
+              <div className="absolute bottom-[4rem] inset-x-0 z-50 flex items-end justify-center px-4 pb-[max(0rem,var(--sab,0px))] pointer-events-none">
                 <div className="pointer-events-auto w-full max-w-xs rounded-2xl bg-themewhite shadow-lg border border-tertiary/15 p-3 space-y-2.5 animate-fadeIn">
                   {viewMode === 'month' && (
                     <ConfigRow<boolean>
@@ -1481,29 +1482,31 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
               </div>
           )}
 
+          {/* View switcher rail. The options toggle rides the same rail as a
+              momentary stop past a hairline, so a drag sweeping across it cannot
+              pop the panel open — only a tap or a release on it can. While the
+              panel is open the thumb parks there; picking a view closes it so the
+              thumb always sits on what is actually showing. */}
           <BottomIsland
             glass
             z="z-20"
+            ariaLabel="Calendar view"
+            activeId={showViewConfig ? 'options' : viewMode}
+            onSelect={(id) => {
+              if (id === 'options') { setShowViewConfig(o => !o); return }
+              setShowViewConfig(false)
+              selectView(id as 'month' | 'day' | 'troops')
+            }}
+            stops={[
+              { id: 'month', title: 'Month', icon: <CalendarDays className="w-5 h-5" /> },
+              { id: 'day', title: 'Day', icon: <Clock className="w-5 h-5" /> },
+              { id: 'troops', title: 'Troops to Task', icon: <Users2 className="w-5 h-5" /> },
+              { id: 'options', title: 'View options', icon: <SlidersHorizontal className="w-5 h-5" />, momentary: true, dividerBefore: true },
+            ]}
             fab={
               <AddFab label="Add event" onClick={() => setShowAddSheet(true)} className="absolute right-4" />
             }
-          >
-            <IslandButton active={viewMode === 'month'} onClick={() => selectView('month')} label="Month">
-              <CalendarDays className="w-5 h-5" />
-            </IslandButton>
-            <IslandButton active={viewMode === 'day'} onClick={() => selectView('day')} label="Day">
-              <Clock className="w-5 h-5" />
-            </IslandButton>
-            <IslandButton active={viewMode === 'troops'} onClick={() => selectView('troops')} label="Troops to Task">
-              <Users2 className="w-5 h-5" />
-            </IslandButton>
-            {/* Hairline divider — separates the view switcher from the options
-                toggle so the 4th icon reads as "options", not a 4th view. */}
-            <div className="w-px h-6 bg-tertiary/20 mx-0.5 shrink-0" aria-hidden />
-            <IslandButton active={showViewConfig} onClick={() => setShowViewConfig(o => !o)} label="View options">
-              <SlidersHorizontal className="w-5 h-5" />
-            </IslandButton>
-          </BottomIsland>
+          />
 
           {/* Mobile create/edit now live in the day-drawer Sheet below (the edit
               PRIMITIVE) — the old fullscreen create BaseDrawer was removed. */}
@@ -1617,7 +1620,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
               the header (title + Save/Delete pills, built-in Close = Cancel) and
               drag-dismiss is disabled so a stray drag can't discard form input.
               backdrop="block" dims the day drawer underneath so the sheet reads as
-              distinct from it (their themewhite3 backgrounds are identical).
+              distinct from it (their themewhite backgrounds are identical).
               Cancel is an EXPLICIT header pill (not the Sheet's built-in Close):
               it flips dayDrawerView back to 'detail' while showDayDrawer stays
               true, so the Sheet must NOT run its slide-down/unmount close path —
@@ -1743,7 +1746,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
             open={showDesktopPanel}
             side="right"
             width={380}
-            className="border-l border-primary/10 bg-themewhite3"
+            className="border-l border-primary/10 bg-themewhite"
           >
             {showDesktopPanel && (
               panelView === 'form' ? (

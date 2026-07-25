@@ -6,8 +6,10 @@
  *
  * Crypto is the signal-free stack (`outsideEntityKey` wrap/unwrap, `outsideEntitySeal`
  * dual-seal, `outsideSeal` ECIES) — NOTHING from `src/lib/signal/*`. The medic's
- * per-channel private key never leaves the E2E card (`OutsideEntityContent.medic_priv_jwk`);
- * this service only imports it transiently to open inbound replies.
+ * per-channel private key lives in `outsideEntityChannelStore` (encrypted at rest,
+ * keyed by entity_id) and is imported transiently here to open inbound replies. It
+ * used to live inside the card's content; it moved so that deleting messages blanks a
+ * thread without destroying the channel.
  *
  * The medic never persists the fragment_secret or the code (both are emailed by the
  * edge fn and then discarded) — the URL `#k=` fragment is created here only to hand
@@ -21,6 +23,7 @@ import { generateOutsideKeypair, wrapOutsidePriv } from './outsideEntityKey'
 import { sealPair, openAsMedic, type SealedPair } from './outsideEntitySeal'
 import { computeEmailHmac } from './outsideEmailHmac'
 import { getClinicRawKeyBase64 } from './cryptoService'
+import { putOutsideEntityChannel, type OutsideEntityChannel } from './outsideEntityChannelStore'
 import type { OutsideEntityContent, OutsideEntityMessageEntry } from './signal/messageContent'
 
 const logger = createLogger('OutsideEntityService')
@@ -81,8 +84,10 @@ export interface CreateOutboundParams {
 
 export interface CreateOutboundResult {
   entityId: string
-  /** The card content to insert locally via useMessages.addMessage. */
+  /** The card content to insert locally via useMessages.addMessage. Key-free. */
   content: OutsideEntityContent
+  /** The channel record, already persisted to `outsideEntityChannelStore`. */
+  channel: OutsideEntityChannel
 }
 
 /**
@@ -149,8 +154,14 @@ export async function createOutboundOutsideEntity(
     }
 
     const nowIso = new Date().toISOString()
-    const content: OutsideEntityContent = {
-      type: 'outside_entity',
+    const expiresIso = new Date(Date.now() + HOURS_24_MS).toISOString()
+
+    // The channel key goes to its own store, NOT into the card — so deleting the
+    // card (or every message in the thread) blanks the conversation without
+    // destroying the channel. Persisted BEFORE the card is returned: if this write
+    // fails there is no readable channel, so fail the whole mint rather than leave
+    // an invite in someone's inbox that nobody can answer.
+    const channel: OutsideEntityChannel = {
       entity_id: entityId,
       from_label: fromLabel,
       recipient_email: email,
@@ -158,10 +169,28 @@ export async function createOutboundOutsideEntity(
       medic_priv_jwk: medicPrivJwk,
       outside_pub: outside.publicKeyB64,
       created_at: nowIso,
-      expires_at: new Date(Date.now() + HOURS_24_MS).toISOString(),
+      expires_at: expiresIso,
+    }
+    try {
+      await putOutsideEntityChannel(channel)
+    } catch (err) {
+      logger.error('Could not persist the outbound channel key', err)
+      void revokeOutsideEntity(entityId)
+      return { ok: false, error: 'Could not start outbound contact on this device.' }
+    }
+
+    const content: OutsideEntityContent = {
+      type: 'outside_entity',
+      entity_id: entityId,
+      from_label: fromLabel,
+      recipient_email: email,
+      medic_pub: medic.publicKeyB64,
+      outside_pub: outside.publicKeyB64,
+      created_at: nowIso,
+      expires_at: expiresIso,
       replies: [],
     }
-    return { ok: true, data: { entityId, content } }
+    return { ok: true, data: { entityId, content, channel } }
   } catch (err) {
     logger.error('createOutboundOutsideEntity failed', err)
     return { ok: false, error: 'Could not start outbound contact.' }
@@ -170,17 +199,20 @@ export async function createOutboundOutsideEntity(
 
 /**
  * Seal a medic→outside reply to BOTH pubs and post it. On success returns the
- * optimistic entry the caller folds into the card (dir 'to_outside'). Never returns
- * the sealed blob.
+ * optimistic entry the caller turns into a normal local message. Never returns the
+ * sealed blob.
+ *
+ * Keyed on the CHANNEL record, not the card — the card no longer carries key
+ * material and may not even exist (a blanked thread is still a live channel).
  */
 export async function sendOutsideEntityReply(
-  content: OutsideEntityContent,
+  channel: OutsideEntityChannel,
   text: string,
 ): Promise<Result<OutsideEntityMessageEntry>> {
   try {
-    const pair: SealedPair = await sealPair(text, content.medic_pub, content.outside_pub)
+    const pair: SealedPair = await sealPair(text, channel.medic_pub, channel.outside_pub)
     const res = await callRpc<{ ok?: boolean }>(
-      () => supabase.rpc('send_outside_entity_message', { p_entity_id: content.entity_id, p_sealed: pair }),
+      () => supabase.rpc('send_outside_entity_message', { p_entity_id: channel.entity_id, p_sealed: pair }),
       'send_outside_entity_message', logger,
     )
     if (!res.ok) return res
@@ -199,16 +231,22 @@ export interface InboundPollResult {
 }
 
 /**
- * Drain new outside→medic replies for a channel the medic owns, decrypting each
- * with the in-card private key. `active:false` ⇒ expired/revoked (tear the card down
- * to a read-only expired state). Returns null on transport error (keep polling).
+ * CATCH-UP DRAIN for outside→medic replies. Live delivery rides the signal transport
+ * now (outside-entity-relay → per-device envelope → routeOutsideEntityReply), so this
+ * is the backstop, not the main path: it recovers replies authored while this medic
+ * had no keyed device, or whose envelope failed to decrypt. Entry ids are the
+ * outside_entity_messages row ids — the SAME identity the relayed envelope carries —
+ * so a reply recovered here can never double up with its pushed copy.
+ *
+ * `active:false` ⇒ expired/revoked (flip the conversation to its ended state).
+ * Returns null on transport error (safe to retry).
  */
 export async function pollOutsideEntityInbound(
-  content: OutsideEntityContent,
+  channel: OutsideEntityChannel,
   since: string | null,
 ): Promise<InboundPollResult | null> {
   const { data, error } = await supabase.rpc('poll_outside_entity_inbound', {
-    p_entity_id: content.entity_id,
+    p_entity_id: channel.entity_id,
     p_since: since,
   })
   if (error || !data) return null
@@ -218,7 +256,7 @@ export async function pollOutsideEntityInbound(
   if (rows.length === 0) return { active: true, entries: [] }
   let priv: CryptoKey
   try {
-    priv = await importMedicPriv(content.medic_priv_jwk)
+    priv = await importMedicPriv(channel.medic_priv_jwk)
   } catch {
     return { active: true, entries: [] }
   }
@@ -234,9 +272,13 @@ export async function pollOutsideEntityInbound(
 
 /**
  * Hard-revoke the channel server-side (deletes the outside_entities row → destroys
- * wrapped_outside_priv). Pair this with a TOMBSTONE delete of the local card (via
- * useMessages.deleteMessages) so the medic_priv_jwk copy is destroyed too and does
- * not resurrect from an encrypted backup on another device.
+ * wrapped_outside_priv, so the outside party's tab flips to the expired view on its
+ * next poll).
+ *
+ * Pair with `removeOutsideEntityChannel` so the local key dies too and cannot
+ * resurrect from an encrypted backup on another device. `useMessages.deleteConversation`
+ * does both, in that order, and aborts the delete if this call fails — the local key
+ * is the only thing that could ever retry, so it must outlive a failed revoke.
  */
 export async function revokeOutsideEntity(entityId: string): Promise<Result<true>> {
   const res = await callRpc(

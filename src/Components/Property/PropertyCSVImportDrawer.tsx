@@ -445,7 +445,7 @@ export const PropertyCSVImport = forwardRef<PropertyCSVImportHandle, PropertyCSV
                 <table className="text-[10pt] border-collapse" style={{ minWidth: 850 }}>
                   <thead>
                     <tr className="border-b border-tertiary/15 bg-themewhite2/50 text-tertiary">
-                      <th className="sticky left-0 z-10 bg-themewhite3 w-10" />
+                      <th className="sticky left-0 z-10 bg-themewhite w-10" />
                       <th className="text-left px-2 py-2 font-medium" style={{ minWidth: 160 }}>Name</th>
                       <th className="text-left px-2 py-2 font-medium" style={{ minWidth: 130 }}>Nomenclature</th>
                       <th className="text-left px-2 py-2 font-medium" style={{ minWidth: 120 }}>NSN</th>
@@ -466,7 +466,7 @@ export const PropertyCSVImport = forwardRef<PropertyCSVImportHandle, PropertyCSV
                       const blankName = row.name.trim() === ''
                       return (
                         <tr key={row._rid} className="border-b border-tertiary/10 last:border-b-0 align-middle">
-                          <td className="sticky left-0 z-10 bg-themewhite3 pl-1 pr-0.5">
+                          <td className="sticky left-0 z-10 bg-themewhite pl-1 pr-0.5">
                             <button
                               type="button"
                               onClick={() => deleteRow(row._rid)}

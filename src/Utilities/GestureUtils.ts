@@ -62,9 +62,15 @@ export type DragState = {
   locked: boolean | null;
 }
 
-/** Check if a touch target is an interactive element that should prevent gesture tracking. */
+/**
+ * Check if a touch target is an interactive element that should prevent gesture tracking.
+ *
+ * `[role="slider"]` and `[role="tablist"]` cover SliderRail: a horizontal rail drags
+ * along the same axis as a drawer's swipe-to-dismiss, and the drag can begin on the
+ * track's padding rather than on a stop button, so the track itself has to opt out.
+ */
 export function isInteractiveTarget(target: HTMLElement): boolean {
-  return !!target.closest('button, textarea, input, select, [role="checkbox"], [role="button"], [role="slider"]');
+  return !!target.closest('button, textarea, input, select, [role="checkbox"], [role="button"], [role="slider"], [role="tablist"]');
 }
 
 /**

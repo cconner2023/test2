@@ -1,4 +1,9 @@
-// components/DecisionMakingItem.tsx - FIXED VERSION
+// components/DecisionMakingItem.tsx
+//
+// Typography follows the app section grammar, not UserGuideBody's document
+// scale: DDx is a SectionHeader, matching the Full Note tab's section labels in
+// the same drawer. Tiers below it separate by weight and color, never by a size
+// that competes with the drawer title. No card container.
 import { useMemo, memo } from 'react'
 import type { decisionMakingType } from '../Types/AlgorithmTypes'
 import type { medListTypes } from '../Data/MedData'
@@ -23,7 +28,7 @@ function Pill({
 }) {
     return (
         <button
-            className={`px-2 py-0.5 text-[9pt] rounded-full bg-tertiary/5 text-tertiary transition-colors active:scale-95 ${onClick ? 'cursor-pointer' : ''} ${className}`}
+            className={`px-2.5 py-1 text-[10pt] rounded-full bg-tertiary/5 text-tertiary transition-colors active:scale-95 ${onClick ? 'cursor-pointer' : ''} ${className}`}
             onClick={(e) => onClick?.((e.currentTarget as HTMLButtonElement).getBoundingClientRect())}
             type={onClick ? 'button' : undefined}
             title={title}
@@ -33,7 +38,7 @@ function Pill({
     );
 }
 
-function TypeBadge({ item }: {
+function TypeHeading({ item }: {
     item: decisionMakingType;
 }) {
     const typeTextMap: Record<string, string> = {
@@ -46,17 +51,38 @@ function TypeBadge({ item }: {
     if (!typeText) return null;
 
     return (
-        <div className="text-[9pt] font-semibold text-tertiary uppercase tracking-wide mb-1.5">
+        <h3 className="text-[10pt] font-semibold text-primary mb-1.5">
             {typeText}
-        </div>
+        </h3>
+    );
+}
+
+function FieldLabel({ children }: { children: React.ReactNode }) {
+    return (
+        <p className="text-[10pt] font-semibold text-tertiary mt-4 mb-1.5">
+            {children}
+        </p>
+    );
+}
+
+/** Enumerable values, rendered as the guide renders a list block. */
+function ValueList({ values }: { values: string[] }) {
+    return (
+        <ul className="mb-2.5 space-y-2">
+            {values.map((value, i) => (
+                <li key={i} className="pl-3 border-l-2 border-themeblue2/30 text-[10pt] text-secondary leading-relaxed">
+                    {value}
+                </li>
+            ))}
+        </ul>
     );
 }
 
 function TextBlock({ text }: { text: string }) {
     return (
-        <div className="text-[10pt] text-primary leading-relaxed">
+        <p className="text-[10pt] text-secondary leading-relaxed mb-2.5">
             {text}
-        </div>
+        </p>
     );
 }
 
@@ -93,30 +119,28 @@ function ContentSection({
     );
 
     return (
-        <div className="space-y-2">
+        <div>
             {item.text && (
                 <TextBlock text={item.text} />
             )}
 
             {/* Ancillary Findings */}
-            {Object.keys(groupedAncillaryFind).length > 0 && (
-                <div className="space-y-2">
-                    {Object.entries(groupedAncillaryFind).map(([type, items]) => (
-                        <div key={type}>
-                            <div className="text-[9pt] font-semibold text-tertiary uppercase tracking-wide mb-1">{getAncillaryLabel(type)}</div>
-                            <div className="text-[9pt] text-primary">
-                                {items.map(anc => anc.modifier).filter(Boolean).join('; ')}
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            )}
+            {Object.entries(groupedAncillaryFind).map(([type, items]) => {
+                const values = (items ?? []).map(anc => anc.modifier).filter((m): m is string => !!m);
+                if (values.length === 0) return null;
+                return (
+                    <div key={type}>
+                        <FieldLabel>{getAncillaryLabel(type)}</FieldLabel>
+                        <ValueList values={values} />
+                    </div>
+                );
+            })}
 
             {/* Medications */}
             {item.medFind && item.medFind.length > 0 && (
-                <div>
-                    <div className="text-[9pt] font-semibold text-tertiary uppercase tracking-wide mb-1">Medications</div>
-                    <div className="flex flex-wrap gap-1">
+                <div className="mb-2.5">
+                    <FieldLabel>Medications</FieldLabel>
+                    <div className="flex flex-wrap gap-1.5">
                         {item.medFind.map((med, medIndex) => (
                             <Pill
                                 key={medIndex}
@@ -133,48 +157,38 @@ function ContentSection({
             {/* Special Limitations */}
             {item.specLim && item.specLim.length > 0 && (
                 <div>
-                    <div className="text-[9pt] font-semibold text-tertiary uppercase tracking-wide mb-1">Limitations</div>
-                    <div className="text-[9pt] text-primary">
-                        {item.specLim.join('; ')}
-                    </div>
+                    <FieldLabel>Limitations</FieldLabel>
+                    <ValueList values={item.specLim} />
                 </div>
             )}
         </div>
     );
 }
 
-// Main component - each master item is a section: DDx header + card
+// Main component - each master item is a guide-style section: DDx heading, then
+// one subsection per content type.
 export const DecisionMakingItem = memo(function DecisionMakingItem({
     item,
     onMedicationClick,
 }: DecisionMakingItemProps) {
     const hasDDx = item.ddx && item.ddx.length > 0;
     return (
-        <div>
-            {/* DDx as section header above card */}
+        <section>
             {hasDDx && (
-                <div className="pb-2"><SectionHeader>
-                    {item.ddx!.join(' · ')}
-                </SectionHeader></div>
+                <div className="mb-2.5">
+                    <SectionHeader>{item.ddx!.join(' · ')}</SectionHeader>
+                </div>
             )}
 
-            <div className="rounded-2xl bg-themewhite2 overflow-hidden">
-                <div className="px-4 py-3 space-y-3">
-                    {/* Parent section */}
-                    <div>
-                        <TypeBadge item={item} />
-                        <ContentSection item={item} onMedicationClick={onMedicationClick} />
-                    </div>
+            <TypeHeading item={item} />
+            <ContentSection item={item} onMedicationClick={onMedicationClick} />
 
-                    {/* Child section */}
-                    {item.assocMcp && (
-                        <div>
-                            <TypeBadge item={item.assocMcp} />
-                            <ContentSection item={item.assocMcp} onMedicationClick={onMedicationClick} />
-                        </div>
-                    )}
+            {item.assocMcp && (
+                <div className="mt-5">
+                    <TypeHeading item={item.assocMcp} />
+                    <ContentSection item={item.assocMcp} onMedicationClick={onMedicationClick} />
                 </div>
-            </div>
-        </div>
+            )}
+        </section>
     );
 });

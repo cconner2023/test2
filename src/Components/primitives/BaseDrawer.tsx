@@ -53,18 +53,18 @@ function DrawerHeader({
     glass,
 }: DrawerHeaderConfig & { onClose: () => void; isMobile: boolean; headerFaded?: boolean; mobileFullScreen?: boolean; glass?: boolean }) {
     // ONE header COLOUR, two backings. Either way the header resolves to the
-    // drawer's own surface (themewhite3) with no divider, so it reads as the top
+    // drawer's own surface (themewhite) with no divider, so it reads as the top
     // of the content and never as a separate band:
-    //   glass=false — header sits in flow; paint it opaque themewhite3.
+    //   glass=false — header sits in flow; paint it opaque themewhite.
     //   glass=true  — header FLOATS over content, so it must NOT be opaque or it
     //                 degrades to a static bar that just hides what passes under
-    //                 it. GlassBand backs it instead: `bg-themewhite3/15` over a
-    //                 themewhite3 surface composites to exactly themewhite3 where
-    //                 nothing is behind it, and to blurred content where
-    //                 something is. Seamless in BOTH themes precisely because the
-    //                 frost tint and the surface are now the same token — that
-    //                 was not true while the raised surface had its own token,
-    //                 and that mismatch is what made glass drift light vs dark.
+    //                 it. GlassBand backs it instead: its 'content' surface is
+    //                 `bg-themewhite/15`, which over a themewhite surface
+    //                 composites to exactly themewhite where nothing is behind
+    //                 it, and to blurred content where something is. Seamless in
+    //                 BOTH themes only while the frost tint and the surface name
+    //                 the same token — that mismatch is what made glass drift
+    //                 light vs dark before.
     const verticalPad = isMobile
         // Glass keeps a bottom feather zone so the masked blur fades to nothing
         // below the button row instead of ending on a hard CSS line.
@@ -82,7 +82,7 @@ function DrawerHeader({
     // Suppressed while faded so a collapsed header doesn't leave a stray rule.
     const desktopBorder = !isMobile && !glass && !headerFaded ? ' border-b border-tertiary/10' : '';
     return (
-        <div className={`shrink-0 ${glass ? 'relative' : 'bg-themewhite3'}${desktopBorder}`}>
+        <div className={`shrink-0 ${glass ? 'relative' : 'bg-themewhite'}${desktopBorder}`}>
             {/* Glass: one frosted+masked backdrop covering the WHOLE header (drag
              * handle + title row) so the blur hugs the drawer's top edge and
              * feathers to nothing at the bottom — no transparent strip up top. */}
@@ -447,12 +447,15 @@ export function BaseDrawer({
                 // progress is the drawer's TRAVEL fraction (0 -> 1), not a dim
                 // level — the tint lives in Scrim's class. Parking this below 1
                 // at rest would composite the paint away. See Scrim.tsx.
-                // 'drawer' (60% black, no blur) is a surface swap like the root
-                // left-nav's 'solid', just less absolute — the shell behind stays
-                // faintly readable. No blur: nothing behind a field this dark is
-                // worth the iOS Safari cost on a layer that rides a drag.
+                // Both variants are surface swaps like the root left-nav's
+                // 'solid', and neither blurs: nothing behind a field this dark is
+                // worth the iOS Safari cost on a layer that rides a drag. They
+                // differ in how much shell is left to see. Desktop 'drawer' (60%)
+                // keeps the shell beside the column faintly readable; mobile
+                // 'drawer-mobile' (94%) covers nearly the whole viewport, so the
+                // sliver around it is the content being replaced, not context.
                 <Scrim
-                    variant="drawer"
+                    variant={useMobileLayout ? 'drawer-mobile' : 'drawer'}
                     progress={useMobileLayout
                         ? drawerPosition / 100
                         : desktopOpen ? 1 : 0}
@@ -467,10 +470,10 @@ export function BaseDrawer({
             {/* Drawer / Panel — single container that adapts to viewport */}
             <div
                 className={useMobileLayout
-                    ? `fixed ${mobileFloating ? 'left-3 right-3' : 'left-0 right-0'} ${zIndex} bg-themewhite3 ${isDragging ? '' : 'transition-all duration-300 ease-out'} ${mobileClassName} ${header ? 'flex flex-col' : ''}`
+                    ? `fixed ${mobileFloating ? 'left-3 right-3' : 'left-0 right-0'} ${zIndex} bg-themewhite ${isDragging ? '' : 'transition-all duration-300 ease-out'} ${mobileClassName} ${header ? 'flex flex-col' : ''}`
                     : `absolute ${desktopAlignClass} top-0 ${desktopWidthClass} ${zIndex}
                         flex flex-col rounded-md surface-shadow
-                        bg-themewhite3
+                        bg-themewhite
                         transform-gpu overflow-hidden text-primary text-sm`
                 }
                 style={useMobileLayout ? {

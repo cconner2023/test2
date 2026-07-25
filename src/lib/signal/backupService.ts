@@ -29,6 +29,11 @@ import {
 } from './messageStore'
 import { isCalendarEvent, routeCalendarEvent, initCalendarTombstones } from '../calendarRouting'
 import { isMapOverlay, isMapFeature, routeMapOverlay, routeMapFeature, initOverlayTombstones } from '../mapOverlayRouting'
+import {
+  getAllOutsideEntityChannels,
+  putOutsideEntityChannel,
+  type OutsideEntityChannel,
+} from '../outsideEntityChannelStore'
 import type { StoredMessage } from './messageStore'
 
 const logger = createLogger('BackupService')
@@ -403,6 +408,22 @@ interface BackupPayloadV3 {
    *  log across device rebirths so backup restore can't resurrect a deleted
    *  message. See messageStore invariant block. */
   originTombstones: Record<string, string>
+  /**
+   * OPTIONAL — outbound outside-contact channel records (keys + metadata), so a
+   * second device can read an email channel the first device opened. These used to
+   * ride the backup for free because the key sat inside a message; it moved to its
+   * own store, so it has to be carried explicitly.
+   *
+   * DELIBERATELY NOT A VERSION BUMP. `restoreBackup` REJECTS any snapshot whose
+   * version it doesn't recognise, so publishing a v4 would make every device on an
+   * older build silently discard all backups — and since the snapshot is
+   * last-writer-wins per user, one stale device would then overwrite the good one.
+   * An unknown optional key on a v3 payload is ignored by those builds instead.
+   *
+   * Absent on payloads written before this existed, and on any written by an older
+   * build — hence optional, never assumed.
+   */
+  outsideChannels?: OutsideEntityChannel[]
 }
 
 type BackupPayload = BackupPayloadV1 | BackupPayloadV2 | BackupPayloadV3
@@ -499,6 +520,9 @@ async function doCreateBackup(userId: string): Promise<boolean> {
 
     const tombstones = await getAllTombstones()
     const originTombstones = await getAllOriginTombstones()
+    // Live channels only — getAll sweeps expired records, and a 24h-dead channel is
+    // just key material nobody can use.
+    const outsideChannels = await getAllOutsideEntityChannels().catch(() => [])
 
     const payload: BackupPayloadV3 = {
       version: 3,
@@ -506,6 +530,7 @@ async function doCreateBackup(userId: string): Promise<boolean> {
       messages,
       tombstones,
       originTombstones,
+      ...(outsideChannels.length > 0 ? { outsideChannels } : {}),
     }
 
     // Compress, enforce size limit by halving message count
@@ -671,6 +696,7 @@ export async function restoreBackup(userId: string): Promise<void> {
     const seenMessageIds = new Set<string>()
     const mergedTombstones: Record<string, string> = {}
     const mergedOriginTombstones: Record<string, string> = {}
+    const mergedOutsideChannels = new Map<string, OutsideEntityChannel>()
     let foldedCount = 0
 
     for (const snap of snapshots) {
@@ -709,6 +735,17 @@ export async function restoreBackup(userId: string): Promise<void> {
             }
           }
         }
+        // Outbound outside-contact channels. Optional (absent from older payloads);
+        // first snapshot wins per entity since the key never changes for a channel's
+        // 24h life. A conversation delete removes the record locally AND revokes the
+        // server row, so a stale snapshot can only ever restore a dead key.
+        if (candidate.version === 3 && Array.isArray(candidate.outsideChannels)) {
+          for (const ch of candidate.outsideChannels) {
+            if (ch?.entity_id && !mergedOutsideChannels.has(ch.entity_id)) {
+              mergedOutsideChannels.set(ch.entity_id, ch)
+            }
+          }
+        }
         foldedCount++
       } catch (e) {
         logger.warn(`Snapshot at ${snap.created_at} failed to decrypt/parse, skipping:`, e instanceof Error ? e.message : e)
@@ -729,6 +766,16 @@ export async function restoreBackup(userId: string): Promise<void> {
       messages: mergedMessages,
       tombstones: mergedTombstones,
       originTombstones: mergedOriginTombstones,
+      ...(mergedOutsideChannels.size > 0 ? { outsideChannels: [...mergedOutsideChannels.values()] } : {}),
+    }
+
+    // Channel keys before messages: a restored outside reply is undecryptable without
+    // its channel record, and routeOutsideEntityReply drops what it can't open.
+    if (payload.outsideChannels) {
+      for (const ch of payload.outsideChannels) {
+        await putOutsideEntityChannel(ch).catch(() => {})
+      }
+      logger.info(`Restored ${payload.outsideChannels.length} outbound outside-contact channels`)
     }
 
     let restored = 0

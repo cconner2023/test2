@@ -36,7 +36,21 @@ the two tokens, so mixing them only shows up in dark. See App.css ELEVATION.
 - `OverlayActionMenu` — **the** corner-action for a card. Self-consolidates by count:
   0 → nothing, 1 → single inline ActionButton in an overlay pill, 2+ → MoreHorizontal
   ellipsis opening an anchored menu. Never hand-roll `w-9 h-9 rounded-full` corner buttons.
-- `TextButton` — text-label button. `AddFab` — floating add button. `HeaderPill` / `CardActionBar` — header/card action bars.
+- `TextButton` — text-label button. `HeaderPill` / `CardActionBar` — header/card action bars.
+- `AddFab` — floating add button. Its tray is `SliderRail`'s track and its button is that
+  rail's thumb, so a FAB parked beside an island reads as a one-stop rail.
+
+**Selectors**
+- `SliderRail` — **the** discrete selector, horizontal or vertical. Glass track, a thumb
+  that rides to the active stop, full pointer drag that live-selects across stops and snaps.
+  Stops are also tappable. Exports the shared geometry (`STOP` / `THUMB` / `PAD`).
+  A stop that fires an action rather than switching destination gets `momentary`, which
+  makes a drag sweeping across it a no-op. `maxVisible` caps the track and scrolls the window.
+  Never hand-roll a segmented selector or a chip stack — that drift is exactly what this
+  primitive replaced (four recipes: the old island bar, two duplicate vertical sliders, and
+  a map chip rail).
+- Wrappers over it: `BottomIsland` (`stops` mode), `Property/FloorSlider`,
+  `TC3/CasualtyLevelSlider`, `MapOverlay/FloorSelector`.
 
 **Inputs** (`@/Components/primitives/FormInputs`) — self-rowing, iOS-zoom-safe
 - `TextInput` — base text field. Use even inside custom layouts via `bare` mode; never a raw `<input>`.
@@ -47,7 +61,7 @@ the two tokens, so mixing them only shows up in dark. See App.css ELEVATION.
   machinery — note editors only; plain multi-line fields want `TextArea`) · `PinKeypad` · `SignaturePad`
 
 **Containers / overlays**
-- `Modal` · `Sheet` · `BaseDrawer` · `BaseOverlay` · `BottomIsland`
+- `Modal` · `Sheet` · `BaseDrawer` · `BaseOverlay` · `BottomIsland` (a `SliderRail` host — see Selectors)
 - Stack system: `OverlayStack` · `StackBody` · `LayeredStackBody` · `useStack`
 - Menus: `Menu` · `ContextMenu` · `OverlayActionMenu` · `OverlayHeaderMenu` · `LiftedRowMenu` · `ActionSheet`
 

@@ -59,7 +59,13 @@ supabase/
 inline-build/
 .playwright-cli/
 .playwright/
+.graphifyignore
+.gitattributes
 
 # MemPalace per-project files (issue #185)
 mempalace.yaml
 entities.json
+
+# Graphify derived code graph — regenerate with `graphify update .`
+graphify-out/
+

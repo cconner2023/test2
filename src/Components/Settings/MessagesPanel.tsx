@@ -35,7 +35,7 @@ import { useLongPress } from '../../Hooks/useLongPress'
 import { useIsMobile } from '../../Hooks/useIsMobile'
 import type { ClinicMedic } from '../../Types/SupervisorTestTypes'
 import type { DecryptedSignalMessage } from '../../lib/signal/transportTypes'
-import type { MessageContent, OutsideEntityContent } from '../../lib/signal/messageContent'
+import type { MessageContent } from '../../lib/signal/messageContent'
 import { displayGroupName, type GroupInfo, type GroupMember } from '../../lib/signal/groupTypes'
 import { useOffRosterAdd } from '../Messages/useOffRosterAdd'
 import { TextInput } from '@/Components/primitives/FormInputs'
@@ -45,6 +45,7 @@ import { useBetaBypass } from '../../lib/betaFeatures'
 import { getEventIntakeCredential } from '../../lib/eventIntakeService'
 import { getWarmCredential, setWarmCredential } from '../../lib/messagingSettingsWarm'
 import { createOutboundOutsideEntity, sendOutsideEntityReply, isMilEmail, MIL_UNSUPPORTED_MESSAGE } from '../../lib/outsideEntityService'
+import { getAllOutsideEntityChannels, migrateLegacyChannelKeys, type OutsideEntityChannel } from '../../lib/outsideEntityChannelStore'
 import { saveMessage } from '../../lib/signal/messageStore'
 import { SYSTEM_USER_ID } from '../../lib/signal/systemIdentity'
 import { isSystemMessage, isOutsideOriginCard } from '../../Hooks/useAdminSystemConversations'
@@ -1237,9 +1238,37 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
     else setGroupCreateError('Could not create the group. Please try again.')
   }, [messagesCtx, groupName, groupSelectedIds, groupCreating])
 
+  // Outbound outside-contact CHANNEL RECORDS, keyed by entity_id. These carry the
+  // channel key and drive routing. They deliberately outlive their messages — an
+  // emptied thread is still a live channel — so they cannot be derived from
+  // `conversations` and are read from their own store instead.
+  const [outsideChannels, setOutsideChannels] = useState<Record<string, OutsideEntityChannel>>({})
+  const refreshOutsideChannels = useCallback(async () => {
+    const list = await getAllOutsideEntityChannels().catch(() => [])
+    setOutsideChannels(Object.fromEntries(list.map(c => [c.entity_id, c])))
+  }, [])
+  // One-shot on mount: lift keys out of any pre-migration card, THEN read the store,
+  // so a channel opened before the upgrade doesn't go dark mid-life.
+  useEffect(() => {
+    void migrateLegacyChannelKeys(useMessagingStore.getState().conversations)
+      .catch(() => 0)
+      .then(refreshOutsideChannels)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshOutsideChannels])
+
+  // Kill switch wrapper: re-read the store afterwards rather than optimistically
+  // dropping the record, because deleteConversation ABORTS when the server revoke
+  // fails — in that case the channel is still live and must stay in the list.
+  const ctxDeleteConversation = messagesCtx?.deleteConversation
+  const deleteOutsideConversation = useCallback((key: string) => {
+    if (!ctxDeleteConversation) return
+    void Promise.resolve(ctxDeleteConversation(key)).then(refreshOutsideChannels)
+  }, [ctxDeleteConversation, refreshOutsideChannels])
+
   // Mint an outbound outside-contact channel + email the invite, then file the
-  // local medic card (the only home of the channel key) and open it. The card
-  // buckets under recipientId=entity_id; a peerProfile gives it a real title.
+  // local anchor card and open it. The channel KEY goes to outsideEntityChannelStore,
+  // not the card. The card buckets under recipientId=entity_id; a peerProfile gives
+  // it a real title.
   const handleCreateOutbound = useCallback(async () => {
     const email = outEmail.trim()
     if (!outboundClinicId || !currentUserId || !email.includes('@') || outBusy) return
@@ -1248,28 +1277,51 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
     setOutError(null)
     const res = await createOutboundOutsideEntity({ clinicId: outboundClinicId, recipientEmail: email, fromLabel: clusterName })
     if (!res.ok) { setOutBusy(false); setOutError(res.error); return }
-    let content = res.data.content
-    const first = outMsg.trim()
-    if (first) {
-      const sent = await sendOutsideEntityReply(content, first)
-      if (sent.ok) content = { ...content, replies: [sent.data] }
-    }
+    const { content, channel } = res.data
+    setOutsideChannels(prev => ({ ...prev, [channel.entity_id]: channel }))
+
     const now = new Date().toISOString()
+    const store = useMessagingStore.getState()
+
+    // Anchor card — channel metadata only, no key. It exists so a brand-new channel
+    // has something in its conversation; deleting it blanks the thread and leaves the
+    // channel live, which is the whole point of moving the key out.
     const msg: DecryptedSignalMessage = {
       id: crypto.randomUUID(),
       senderId: currentUserId,
       recipientId: content.entity_id,
-      plaintext: first || 'Secure email sent',
+      plaintext: 'Secure email sent',
       content,
       messageType: 'message',
       createdAt: now,
-      readAt: null,
+      readAt: now,
       status: 'sent',
       originId: crypto.randomUUID(),
     }
-    const store = useMessagingStore.getState()
     store.addMessage(msg)
     void saveMessage(msg, currentUserId).catch(() => {})
+
+    // First message (optional) is an ORDINARY message, like every later one.
+    const first = outMsg.trim()
+    if (first) {
+      const sent = await sendOutsideEntityReply(channel, first)
+      if (sent.ok) {
+        const firstMsg: DecryptedSignalMessage = {
+          id: sent.data.id,
+          senderId: currentUserId,
+          recipientId: channel.entity_id,
+          plaintext: first,
+          content: { type: 'text', text: first },
+          messageType: 'message',
+          createdAt: sent.data.created_at || now,
+          readAt: now,
+          status: 'sent',
+          originId: sent.data.id,
+        }
+        store.addMessage(firstMsg)
+        void saveMessage(firstMsg, currentUserId).catch(() => {})
+      }
+    }
     // Title the synthetic peer. The conversation LIST row shows the recipient email
     // (who the medic is talking to); the conversation HEADER shows the cluster name
     // (what the recipient sees as the sender), carried on outsideFromLabel. Its
@@ -1366,20 +1418,20 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
   } else if (view === 'messages-chat' && selectedPeerId) {
     // Outbound outside-contact (email) channels render as a normal conversation
     // (cluster-name header, plain bubbles, one pinned composer) rather than the
-    // standard 1:1 chat — the channel isn't a Signal peer. Detected by its single
-    // outside_entity control message, which holds the channel key + reply thread.
-    const outsideCtrl = conversations[selectedPeerId]?.find(m => m.content?.type === 'outside_entity')
+    // standard 1:1 chat — the channel isn't a Signal peer. Detected by the CHANNEL
+    // RECORD, not by a control message: messages are deletable and the channel must
+    // survive an emptied thread, so a message can no longer be the routing signal.
+    const outsideChannel = outsideChannels[selectedPeerId]
     const peer = allMedics.find(m => m.id === selectedPeerId)
     const peerName = peer
       ? [peer.rank, peer.lastName].filter(Boolean).join(' ') || peer.firstName || undefined
       : undefined
 
-    mainContent = outsideCtrl ? (
+    mainContent = outsideChannel ? (
       <OutsideEntityConversation
-        content={outsideCtrl.content as OutsideEntityContent}
-        messageId={outsideCtrl.id}
-        clusterName={(outsideCtrl.content as OutsideEntityContent).from_label || peer?.outsideFromLabel || clusterName}
-        deleteMessages={deleteMessages}
+        channel={outsideChannel}
+        clusterName={outsideChannel.from_label || peer?.outsideFromLabel || clusterName}
+        deleteConversation={deleteOutsideConversation}
         markAsRead={markAsRead}
         onBack={onBack}
       />

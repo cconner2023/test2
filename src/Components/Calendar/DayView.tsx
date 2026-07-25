@@ -190,7 +190,7 @@ export function DayView({ date, events, onSelectEvent, onMoveEvent, onEventConte
         ref={scrollRef}
         className={`flex-1 min-h-0 ${isDragging ? 'overflow-hidden' : 'overflow-y-auto'}`}
       >
-        <div className="sticky top-0 z-10 bg-themewhite3">
+        <div className="sticky top-0 z-10 bg-themewhite">
           {hasNav ? (
             <div className="flex items-center justify-between px-3 py-2 border-b border-primary/10">
               <button
@@ -284,7 +284,7 @@ export function DayView({ date, events, onSelectEvent, onMoveEvent, onEventConte
               className="absolute left-0 right-0 border-t border-primary/5"
               style={{ top: i * HOUR_HEIGHT_PX }}
             >
-              <span className="absolute -top-2.5 left-2 text-[9pt] font-mono text-tertiary bg-themewhite3 px-0.5">
+              <span className="absolute -top-2.5 left-2 text-[9pt] font-mono text-tertiary bg-themewhite px-0.5">
                 {formatHour(h)}
               </span>
             </div>

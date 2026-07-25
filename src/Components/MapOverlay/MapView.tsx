@@ -924,13 +924,16 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
         </button>
       </div>
 
-      {/* Bottom-center island: basemap | locate | coord readout */}
+      {/* Bottom-center bar: basemap | coord readout | locate. NOT a slider rail —
+          there is no selection axis here (a toggle, a variable-width readout and an
+          action), so BottomIsland's bar mode carries it. Buttons are sized to the
+          rail's thumb so this sits at the same height as every real rail. */}
       <BottomIsland z="z-[1000]" barClassName="max-w-[calc(100%-7rem)]" glass>
           <button
             type="button"
             onClick={() => setShowBasemapPicker(v => !v)}
-            className={`shrink-0 w-9 h-9 rounded-full flex items-center justify-center active:scale-95 transition-all ${
-              showBasemapPicker ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'
+            className={`shrink-0 w-[34px] h-[34px] rounded-full flex items-center justify-center active:scale-95 transition-all ${
+              showBasemapPicker ? 'bg-themeblue3 text-white ring-1 ring-white/40 shadow-md' : 'text-tertiary hover:text-primary'
             }`}
             aria-label="Basemap"
             title="Basemap"
@@ -943,7 +946,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
           <button
             type="button"
             onClick={handleOpenReadout}
-            className="min-w-0 flex items-center gap-1.5 px-2 h-9 rounded-full text-primary text-[10pt] font-mono active:scale-95 transition-all select-none"
+            className="min-w-0 flex items-center gap-1.5 px-2 h-[34px] rounded-full text-primary text-[10pt] font-mono active:scale-95 transition-all select-none"
             aria-label="Show coordinate detail"
           >
             <span className="truncate">{activeCoordText}</span>
@@ -952,7 +955,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
             type="button"
             onClick={handleRecenterGps}
             disabled={!gpsPosition}
-            className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all disabled:opacity-30"
+            className="shrink-0 w-[34px] h-[34px] rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all disabled:opacity-30"
             aria-label="Center on my position"
           >
             <LocateFixed size={16} />
@@ -962,7 +965,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
       {/* Basemap picker — ActionPill row, floats above the island's basemap glyph
           (mirrors the waypoint pin glyph picker convention) */}
       {showBasemapPicker && (
-        <div className="absolute bottom-[4.25rem] inset-x-0 flex items-center justify-center z-[1001] pointer-events-none pb-[max(0rem,var(--sab,0px))]">
+        <div className="absolute bottom-[3.75rem] inset-x-0 flex items-center justify-center z-[1001] pointer-events-none pb-[max(0rem,var(--sab,0px))]">
           <ActionPill className="pointer-events-auto">
             {Object.values(TILE_SOURCES).map((src) => {
               const active = basemapId === src.id;

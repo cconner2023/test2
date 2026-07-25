@@ -76,7 +76,7 @@ export function TC3EditorSurface(props: Props) {
   if (!isMobile && detail) {
     if (!isOpen || !detail.paneRef.current) return null
     return createPortal(
-      <div className="flex flex-col h-full bg-themewhite3">
+      <div className="flex flex-col h-full bg-themewhite">
         <div className="shrink-0 flex items-center gap-2 px-3 py-2 border-b border-primary/10">
           <LeftAction actions={props.actions} onClose={onClose} />
           <span className="text-sm font-medium text-primary truncate min-w-0 flex-1">{props.title}</span>

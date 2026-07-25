@@ -15,7 +15,7 @@ import { BurnCalculator } from './BurnCalculator'
 import { HeatCategoryCalculator } from './HeatCategoryCalculator'
 import { NineLineKB, NineLineExport, hasContent as nineLineHasContent } from './Reports/NineLineKB'
 import { AddFab } from '@/Components/primitives/AddFab'
-import { BottomIsland, IslandButton } from '@/Components/primitives/BottomIsland'
+import { BottomIsland } from '@/Components/primitives/BottomIsland'
 import { DatePickerCalendar } from '@/Components/primitives/FormInputs'
 import { PreviewOverlay } from './PreviewOverlay'
 import { type ContextMenuItem } from '@/Components/primitives/ContextMenu'
@@ -463,8 +463,13 @@ export function KnowledgeBaseDrawer({
                 <BottomIsland
                     glass
                     z="z-20"
-                    role="tablist"
                     ariaLabel="MEDEVAC mode"
+                    activeId={medevacReq.mode}
+                    onSelect={(id) => setMedevacReq({ ...medevacReq, mode: id as typeof medevacReq.mode })}
+                    stops={[
+                        { id: 'wartime', title: 'Wartime', icon: <span className="text-[11pt] font-bold">W</span> },
+                        { id: 'peacetime', title: 'Peacetime', icon: <span className="text-[11pt] font-bold">P</span> },
+                    ]}
                     fab={nineLineHasContent(medevacReq) ? (
                         <AddFab
                             icon={ChevronRight}
@@ -473,24 +478,7 @@ export function KnowledgeBaseDrawer({
                             className="absolute right-4"
                         />
                     ) : undefined}
-                >
-                    <IslandButton
-                        role="tab"
-                        active={medevacReq.mode === 'wartime'}
-                        onClick={() => setMedevacReq({ ...medevacReq, mode: 'wartime' })}
-                        label="Wartime"
-                    >
-                        <span className="text-[11pt] font-bold">W</span>
-                    </IslandButton>
-                    <IslandButton
-                        role="tab"
-                        active={medevacReq.mode === 'peacetime'}
-                        onClick={() => setMedevacReq({ ...medevacReq, mode: 'peacetime' })}
-                        label="Peacetime"
-                    >
-                        <span className="text-[11pt] font-bold">P</span>
-                    </IslandButton>
-                </BottomIsland>
+                />
             )}
 
             {/* Overlay calculators/references */}

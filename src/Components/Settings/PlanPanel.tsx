@@ -639,7 +639,7 @@ function OrderSetEditPopover({
             searchPlaceholder="Search tags"
             preview={(filter, clearFilter) => (
                 <div>
-                    <div className="sticky top-0 z-10 bg-themewhite3">
+                    <div className="sticky top-0 z-10 bg-themewhite">
                         <TextInput
                             value={name}
                             onChange={setName}

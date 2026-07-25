@@ -32,7 +32,7 @@ function isPopulated(card: TC3Card): boolean {
  * wizard carousel; used by TC3Drawer on both platforms. The TQ alert banner
  * stays pinned above the scroll; export is the final section.
  *
- * SURFACE: themewhite3 — the drawer's own surface, matching the roster rail and
+ * SURFACE: themewhite — the drawer's own surface, matching the roster rail and
  * the detail pane either side of it. It is NOT a canvas-coloured full-bleed
  * center like the map drawers (Property / MapOverlay); TC3 has no canvas, so a
  * canvas colour here just read as a darker column between two lighter panes.
@@ -58,7 +58,7 @@ export const TC3CardColumn = memo(function TC3CardColumn() {
 
   return (
     <div
-      className="h-full flex flex-col bg-themewhite3"
+      className="h-full flex flex-col bg-themewhite"
       style={hasTQBanner ? { paddingTop: 'var(--drawer-header-h, 0px)' } : undefined}
     >
       <TQAlertBanner alerts={alerts} />

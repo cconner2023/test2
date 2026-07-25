@@ -16,7 +16,7 @@ import type { TC3Card } from '../../Types/TC3Types'
 import type { UserTypes } from '../../Data/User'
 import { ActionPill } from '@/Components/primitives/ActionPill'
 import { Section, SectionCard } from '@/Components/primitives/Section'
-import { BottomIsland, IslandButton } from '@/Components/primitives/BottomIsland'
+import { BottomIsland } from '@/Components/primitives/BottomIsland'
 import { ChevronDown, User, Layers } from 'lucide-react'
 
 const INJURY_COLORS: Record<string, string> = {
@@ -276,17 +276,24 @@ export const TC3WriteNote = memo(function TC3WriteNote({ isVisible, onClose, car
         </div>
 
         {isMascal && (
-          <BottomIsland glass z="z-20" role="tablist" ariaLabel="9-line scope">
-            <IslandButton role="tab" active={scope === 'this'} onClick={() => setScope('this')} label="This casualty">
-              <User className="w-5 h-5" />
-            </IslandButton>
-            <IslandButton role="tab" active={scope === 'rollup'} onClick={() => setScope('rollup')} label={`Roll-up · ${total} casualties`}>
-              <span className="relative">
-                <Layers className="w-5 h-5" />
-                <span className="absolute -top-1.5 -right-2 min-w-[15px] h-[15px] px-1 rounded-full bg-themeblue2 text-white text-[8pt] font-bold leading-[15px] text-center">{total}</span>
-              </span>
-            </IslandButton>
-          </BottomIsland>
+          <BottomIsland
+            glass
+            z="z-20"
+            ariaLabel="9-line scope"
+            activeId={scope}
+            onSelect={(id) => setScope(id as typeof scope)}
+            stops={[
+              { id: 'this', title: 'This casualty', icon: <User className="w-5 h-5" /> },
+              {
+                id: 'rollup',
+                title: `Roll-up · ${total} casualties`,
+                icon: <Layers className="w-5 h-5" />,
+                badge: (
+                  <span className="absolute -top-0.5 right-0 min-w-[15px] h-[15px] px-1 rounded-full bg-themeblue2 text-white text-[8pt] font-bold leading-[15px] text-center">{total}</span>
+                ),
+              },
+            ]}
+          />
         )}
       </div>
     </BaseDrawer>

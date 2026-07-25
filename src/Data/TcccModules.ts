@@ -281,6 +281,25 @@ export const tcccModules: TcccModule[] = [
     pending: true,
     sections: [],
   },
+  {
+    // Referenced by 081-000-0120 (Perform a Simple (Finger) Thoracostomy) step 2, which addresses
+    // the module's `finger-thoracostomy` section. Source skill sheet not yet transcribed — until
+    // it is, the section-scoped ref degrades to the module-level render.
+    key: 'tccc-respiration-assessment-management',
+    name: 'JTS Respiration Assessment and Management Skill Sheet',
+    module: 'TCCC Module 8: Respiration Assessment and Management in TFC',
+    pending: true,
+    sections: [],
+  },
+  {
+    // Referenced by 081-000-0108 (Treat an Expectant Patient) step 6a — bilateral needle
+    // decompression after death. Source skill sheet not yet transcribed — pending.
+    key: 'tccc-cpr-tfc',
+    name: 'JTS Cardiopulmonary Resuscitation in TFC Skill Sheet',
+    module: 'TCCC Module 22: Cardiopulmonary Resuscitation in TFC',
+    pending: true,
+    sections: [],
+  },
 ]
 
 export function getTcccModule(key: string): TcccModule | undefined {

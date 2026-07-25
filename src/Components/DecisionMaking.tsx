@@ -78,7 +78,7 @@ export function DecisionMaking({
 
     return (
         <div className="h-full w-full">
-            <div className="h-full overflow-y-auto space-y-4">
+            <div className="h-full overflow-y-auto max-w-[64rem] space-y-7">
                 {decisionMakingContent.map((item, index) => (
                     <DecisionMakingItem
                         key={index}

@@ -618,7 +618,7 @@ const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
                                     side="left"
                                     width={300}
                                     keepMounted
-                                    className="border-r border-tertiary/10 bg-themewhite3/50"
+                                    className="border-r border-tertiary/10 bg-themewhite/50"
                                     style={paneStyle}
                                 >
                                     <SettingsRail {...mainPanelProps} activeId={activePanel} />
@@ -639,7 +639,7 @@ const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
                                     open={detailOpen}
                                     side="right"
                                     width={420}
-                                    className="border-l border-primary/10 bg-themewhite3"
+                                    className="border-l border-primary/10 bg-themewhite"
                                     style={paneStyle}
                                 >
                                     {renderDetail()}

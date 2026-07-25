@@ -2,7 +2,7 @@ import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
 import { useSpring, animated } from '@react-spring/web'
 import { ChevronLeft, Plus, X, Play, Headset, Info, Settings, MessageSquare } from 'lucide-react'
 import { BaseDrawer } from '@/Components/primitives/BaseDrawer'
-import { BottomIsland, IslandButton } from '@/Components/primitives/BottomIsland'
+import { BottomIsland } from '@/Components/primitives/BottomIsland'
 import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill'
 import { PreviewOverlay } from './PreviewOverlay'
 import { Sheet } from '@/Components/primitives/Sheet'
@@ -262,7 +262,7 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
     // ── Mobile: full-screen content (animation handled by App.tsx) ────────
     if (isMobile) {
         return (
-            <div className="h-full relative bg-themewhite3" {...contactsSwipeBack}>
+            <div className="h-full relative bg-themewhite" {...contactsSwipeBack}>
                 {/* Floating header — collapses on search focus and when entering a conversation */}
                 <animated.div
                     className="absolute top-0 left-0 right-0 z-10 overflow-hidden"
@@ -276,7 +276,7 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
                         ),
                     }}
                 >
-                    <div className="shrink-0 px-3 py-3 pt-[max(0.75rem,var(--sat,0px))] flex items-center gap-2 backdrop-blur-[2px] bg-themewhite3/15">
+                    <div className="shrink-0 px-3 py-3 pt-[max(0.75rem,var(--sat,0px))] flex items-center gap-2 backdrop-blur-[2px] bg-themewhite/15">
                         <HeaderPill>
                             <PillButton icon={ChevronLeft} onClick={handleClose} label="Back" />
                         </HeaderPill>
@@ -292,13 +292,16 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
                 </div>
                 {/* Bottom-center island: Chat | Calls lens toggle (list view only) */}
                 {view === 'messages' && (
-                    <BottomIsland role="tablist" ariaLabel="Message view" glass>
-                        {([['chat', MessageSquare, 'Chat'], ['calls', Headset, 'Calls']] as const).map(([l, Icon, label]) => (
-                            <IslandButton key={l} active={lens === l} onClick={() => setLens(l)} label={label} role="tab">
-                                <Icon className="w-5 h-5" />
-                            </IslandButton>
-                        ))}
-                    </BottomIsland>
+                    <BottomIsland
+                        ariaLabel="Message view"
+                        glass
+                        activeId={lens}
+                        onSelect={(id) => setLens(id as typeof lens)}
+                        stops={[
+                            { id: 'chat', title: 'Chat', icon: <MessageSquare className="w-5 h-5" /> },
+                            { id: 'calls', title: 'Calls', icon: <Headset className="w-5 h-5" /> },
+                        ]}
+                    />
                 )}
                 {settingsSurface}
             </div>

@@ -619,7 +619,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
               side="left"
               width={260}
               keepMounted
-              className="border-r border-tertiary/10 bg-themewhite3"
+              className="border-r border-tertiary/10 bg-themewhite"
             >
               <div className="shrink-0 px-3 pt-2 pb-1 flex items-center gap-2">
                 <SearchInput
@@ -695,7 +695,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
               open={paneOpen}
               side="right"
               width={380}
-              className="border-l border-primary/10 bg-themewhite3"
+              className="border-l border-primary/10 bg-themewhite"
             >
               {paneOpen && paneStack.hasScreen && (
                 <>
