@@ -287,6 +287,20 @@
    that shadow IS the lift animation's payload. */
 .surface-shadow { box-shadow: 0 4px 30px rgba(0, 0, 0, 0.12); }
 
+/* The rail shadow. Every glass track (SliderRail, BottomIsland bar, AddFab tray,
+   FloorSelector's delete chip) carries this instead of a hairline border: with the
+   stroke gone the shadow is the only thing separating the track from the content
+   scrolling under it, so it pairs a tight contact layer with the diffuse lift.
+   Dark canvases swallow a black shadow, so they get a deeper, wider one. */
+.rail-shadow {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.10), 0 6px 20px -4px rgba(0, 0, 0, 0.22);
+}
+@media (prefers-color-scheme: dark) {
+  .rail-shadow {
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5), 0 10px 28px -6px rgba(0, 0, 0, 0.6);
+  }
+}
+
 @theme {
   --color-themeredred: var(--color-themeredred);
   --color-themered: var(--color-themered);

@@ -436,14 +436,16 @@ export const WriteNotePage = ({
                                     onClose={() => setDdxPopoverVisible(false)}
                                     anchorRect={ddxAnchorRect}
                                     maxWidth={340}
+                                    title="Differential Diagnosis"
                                     preview={(() => {
                                         const combined = [...selectedDdx, ...customDdx];
                                         const unselected = availableDdx.filter(d => !selectedDdx.includes(d));
                                         return (
-                                            <div className="py-1">
+                                            <div className="py-1.5">
                                                 {combined.length > 0 && (
-                                                    <div className="px-4 pb-2 pt-1">
-                                                        <div className="border border-tertiary/10 rounded-xl overflow-hidden">
+                                                    <div className="px-3 pb-2.5">
+                                                        <p className="text-[9pt] font-semibold text-tertiary uppercase tracking-wider pb-1.5">Selected</p>
+                                                        <div className="rounded-xl overflow-hidden">
                                                             {combined.map((dx, i) => (
                                                                 <div
                                                                     key={dx}
@@ -465,18 +467,20 @@ export const WriteNotePage = ({
                                                 )}
 
                                                 {unselected.length > 0 && (
-                                                    <div className="px-4 pb-2">
-                                                        <p className="text-[9pt] md:text-[9pt] font-semibold text-tertiary uppercase tracking-wider mb-1.5">Suggested</p>
-                                                        <div className="border border-tertiary/10 rounded-xl overflow-hidden">
-                                                            {unselected.map((dx, i) => (
+                                                    <div>
+                                                        {combined.length > 0 && (
+                                                            <p className="px-3 text-[9pt] font-semibold text-tertiary uppercase tracking-wider pb-0.5">Suggested</p>
+                                                        )}
+                                                        <div className="px-3 pb-2 space-y-0.5">
+                                                            {unselected.map(dx => (
                                                                 <button
                                                                     key={dx}
                                                                     type="button"
                                                                     onClick={() => toggleDdx(dx)}
-                                                                    className={`flex items-center gap-3 w-full text-left px-4 py-2.5 transition-colors active:scale-[0.98] ${i > 0 ? 'border-t border-tertiary/10' : ''}`}
+                                                                    className="flex items-center gap-2.5 w-full text-left py-1.5 px-2 rounded-lg transition-colors active:scale-[0.98] hover:bg-tertiary/5"
                                                                 >
                                                                     <span className="w-4 h-4 rounded-full shrink-0 ring-[1.5px] ring-inset ring-tertiary/25 bg-transparent" />
-                                                                    <span className="text-[11pt] text-tertiary">{dx}</span>
+                                                                    <span className="text-sm text-primary min-w-0 truncate">{dx}</span>
                                                                 </button>
                                                             ))}
                                                         </div>
@@ -489,14 +493,21 @@ export const WriteNotePage = ({
                                             </div>
                                         );
                                     })()}
-                                    actions={[{
-                                        key: 'done',
-                                        label: 'Done',
-                                        icon: Check,
-                                        onAction: () => setDdxPopoverVisible(false),
-                                    }]}
+                                    actions={(selectedDdx.length > 0 || customDdx.length > 0) ? [{
+                                        key: 'reset',
+                                        label: 'Reset',
+                                        icon: RotateCcw,
+                                        variant: 'danger' as const,
+                                        closesOnAction: false,
+                                        onAction: () => { setSelectedDdx([]); setCustomDdx([]); },
+                                    }] : []}
                                     onAdd={addCustomDdxItem}
                                     addPlaceholder="Add differential..."
+                                    rightFooter={
+                                        <FooterPill side="right">
+                                            <ActionButton icon={Check} label="Done" onClick={() => setDdxPopoverVisible(false)} />
+                                        </FooterPill>
+                                    }
                                 />
 
                                 {/* Plan */}

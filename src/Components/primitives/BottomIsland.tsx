@@ -21,7 +21,7 @@
  */
 import type { ReactNode } from 'react'
 import { GlassBand } from '@/Components/primitives/GlassBand'
-import { PAD, SliderRail, THUMB, type SliderStop } from '@/Components/primitives/SliderRail'
+import { PAD, RAIL_GLASS, SliderRail, THUMB, type SliderStop } from '@/Components/primitives/SliderRail'
 
 interface BottomIslandProps {
   /** Slider mode: the selectable stops. Mutually exclusive with `children`. */
@@ -79,9 +79,9 @@ export function BottomIsland({
         <div
           role={role}
           aria-label={ariaLabel}
-          // Same glass recipe and height as the rail track, so the Map's mixed
-          // toolbar sits at the same altitude as every real slider.
-          className={`flex items-center gap-1 rounded-full border border-white/40 bg-themewhite2/60 shadow-lg backdrop-blur-md pointer-events-auto dark:border-white/10 dark:bg-themewhite3/50 ${barClassName}`}
+          // RAIL_GLASS plus the track's own height, so the Map's mixed toolbar
+          // sits at the same altitude as every real slider.
+          className={`flex items-center gap-1 pointer-events-auto ${RAIL_GLASS} ${barClassName}`}
           style={{ padding: PAD, minHeight: THUMB + 2 * PAD }}
         >
           {children}

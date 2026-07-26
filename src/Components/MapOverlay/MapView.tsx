@@ -6,6 +6,7 @@ import { Plus, Minus, Info, Copy, ClipboardCheck, LocateFixed, Map as MapIcon, G
 import type { LucideIcon } from 'lucide-react';
 import { PreviewOverlay } from '../PreviewOverlay';
 import { BottomIsland } from '@/Components/primitives/BottomIsland';
+import { THUMB } from '@/Components/primitives/SliderRail';
 import { ActionPill } from '@/Components/primitives/ActionPill';
 import { useTheme } from '../../Utilities/ThemeContext';
 import { createThemedTileLayer, getTileTheme } from './ThemedTileLayer';
@@ -932,7 +933,8 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
           <button
             type="button"
             onClick={() => setShowBasemapPicker(v => !v)}
-            className={`shrink-0 w-[34px] h-[34px] rounded-full flex items-center justify-center active:scale-95 transition-all ${
+            style={{ width: THUMB, height: THUMB }}
+            className={`shrink-0 rounded-full flex items-center justify-center active:scale-95 transition-all ${
               showBasemapPicker ? 'bg-themeblue3 text-white ring-1 ring-white/40 shadow-md' : 'text-tertiary hover:text-primary'
             }`}
             aria-label="Basemap"
@@ -946,7 +948,8 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
           <button
             type="button"
             onClick={handleOpenReadout}
-            className="min-w-0 flex items-center gap-1.5 px-2 h-[34px] rounded-full text-primary text-[10pt] font-mono active:scale-95 transition-all select-none"
+            style={{ height: THUMB }}
+            className="min-w-0 flex items-center gap-1.5 px-2 rounded-full text-primary text-[10pt] font-mono active:scale-95 transition-all select-none"
             aria-label="Show coordinate detail"
           >
             <span className="truncate">{activeCoordText}</span>
@@ -955,7 +958,8 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
             type="button"
             onClick={handleRecenterGps}
             disabled={!gpsPosition}
-            className="shrink-0 w-[34px] h-[34px] rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all disabled:opacity-30"
+            style={{ width: THUMB, height: THUMB }}
+            className="shrink-0 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all disabled:opacity-30"
             aria-label="Center on my position"
           >
             <LocateFixed size={16} />

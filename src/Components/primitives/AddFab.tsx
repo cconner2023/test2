@@ -12,8 +12,9 @@
  *
  * - `tray` (default true): wrap the button in the glass track (Property/Calendar/
  *   Admin). `tray={false}` for a bare button (Map).
- * - `size`: 'md' = thumb-sized, matching a rail stop (default); 'lg' = 44px, for
- *   Map's standalone draw-mode FAB, which carries the canvas on its own.
+ * - `size`: 'md' = thumb-sized, matching a rail stop (default); 'lg' = 48px, for
+ *   Map's standalone draw-mode FAB, which carries the canvas on its own — it stays
+ *   a step above the thumb, so it tracks THUMB rather than sitting at a fixed px.
  * - `icon`: glyph component, default `Plus`, rendered at `w-5 h-5`. Map swaps this
  *   per draw mode.
  * - `badge`: optional overlay node (Map's recording dot).
@@ -23,7 +24,7 @@
  */
 import { Plus, type LucideIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { PAD, THUMB } from '@/Components/primitives/SliderRail'
+import { PAD, RAIL_GLASS, THUMB } from '@/Components/primitives/SliderRail'
 
 interface AddFabProps {
   onClick: () => void
@@ -31,7 +32,7 @@ interface AddFabProps {
   label?: string
   /** Glyph component; default `Plus`. Rendered at `w-5 h-5`. */
   icon?: LucideIcon
-  /** 'md' = rail-thumb diameter (default); 'lg' = 44px. */
+  /** 'md' = rail-thumb diameter (default); 'lg' = one step above it. */
   size?: 'md' | 'lg'
   /** Wrap in the glass track. Default true; pass false for a bare button. */
   tray?: boolean
@@ -52,7 +53,7 @@ export function AddFab({
   badge,
   disabled,
 }: AddFabProps) {
-  const dim = size === 'lg' ? 44 : THUMB
+  const dim = size === 'lg' ? THUMB + 8 : THUMB
   const button = (
     <button
       type="button"
@@ -75,7 +76,7 @@ export function AddFab({
   return (
     <div
       style={{ padding: PAD }}
-      className={`rounded-full border border-white/40 bg-themewhite2/60 shadow-lg backdrop-blur-md pointer-events-auto dark:border-white/10 dark:bg-themewhite3/50 ${className}`}
+      className={`pointer-events-auto ${RAIL_GLASS} ${className}`}
     >
       {button}
     </div>

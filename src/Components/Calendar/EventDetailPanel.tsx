@@ -17,7 +17,7 @@ import { SectionHeader, SectionCard } from '@/Components/primitives/Section'
 import { formatShortDayLabel, isEventEditable, isTemplateStructureMutable, isUnscheduledTemplate } from '../../Types/CalendarTypes'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { useNavigationStore } from '../../stores/useNavigationStore'
-import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill'
+import { HeaderPill, PillButton, DesktopChrome } from '@/Components/primitives/HeaderPill'
 import { UserAvatar } from '../Settings/UserAvatar'
 import { shareSingleEvent } from '../../lib/calendarExport'
 import { useIsMobile } from '../../Hooks/useIsMobile'
@@ -217,21 +217,26 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete, onMove, onC
     <div className={inSheet ? '' : 'flex flex-col h-full'}>
       <div className={`flex items-center justify-between px-3 py-2 border-b border-primary/10 ${inSheet ? 'sticky top-0 z-10 bg-themewhite3' : 'shrink-0'}`}>
         {inSheet ? (
-          <>
-            {/* Map-feature-sheet match: ellipsis (More) on the left, Close on the right. */}
-            {hasMenu ? (
+          /* This header stands in for the Sheet's own — the Sheet renders no header
+             in detail mode. DesktopChrome is what Sheet wraps its header in, so the
+             pills flatten here too instead of bubbling into mobile capsules. */
+          <DesktopChrome>
+            <div className="flex items-center justify-between gap-2 w-full">
+              {/* Map-feature-sheet match: ellipsis (More) on the left, Close on the right. */}
+              {hasMenu ? (
+                <HeaderPill>
+                  <div ref={moreBtnRef}>
+                    <PillButton icon={MoreHorizontal} iconSize={18} onClick={openMoreMenu} label="More actions" />
+                  </div>
+                </HeaderPill>
+              ) : <div />}
+              {/* Title-in-header read affordance (mirrors the map overlay header). */}
+              <h2 className="min-w-0 flex-1 truncate text-[13pt] font-semibold text-primary">{event.title}</h2>
               <HeaderPill>
-                <div ref={moreBtnRef}>
-                  <PillButton icon={MoreHorizontal} iconSize={16} onClick={openMoreMenu} label="More actions" />
-                </div>
+                <PillButton icon={X} iconSize={18} onClick={onClose} label="Close" />
               </HeaderPill>
-            ) : <div />}
-            {/* Title-in-header read affordance (mirrors the map overlay header). */}
-            <h2 className="min-w-0 flex-1 px-2 text-sm font-semibold text-primary truncate text-center">{event.title}</h2>
-            <HeaderPill>
-              <PillButton icon={X} iconSize={16} onClick={onClose} label="Close" />
-            </HeaderPill>
-          </>
+            </div>
+          </DesktopChrome>
         ) : (
           <>
             <h2 className="min-w-0 flex-1 mr-2 text-sm font-semibold text-primary truncate">{event.title}</h2>

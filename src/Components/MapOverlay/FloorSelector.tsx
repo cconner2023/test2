@@ -1,5 +1,5 @@
 import { Layers, Trash2 } from 'lucide-react';
-import { PAD, SliderRail, THUMB, type SliderStop } from '@/Components/primitives/SliderRail';
+import { PAD, RAIL_GLASS, SliderRail, THUMB, type SliderStop } from '@/Components/primitives/SliderRail';
 
 /** Human label for a floor level. 0 = ground, negatives = basements. */
 export function floorLabel(level: number): string {
@@ -68,7 +68,7 @@ export function FloorSelector({ floors, activeFloor, onSelect, onDeleteFloor }: 
       {canDelete && (
         <div
           style={{ padding: PAD }}
-          className="rounded-full border border-white/40 bg-themewhite2/60 shadow-lg backdrop-blur-md dark:border-white/10 dark:bg-themewhite3/50"
+          className={RAIL_GLASS}
         >
           <button
             type="button"

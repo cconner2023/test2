@@ -639,7 +639,9 @@ function OrderSetEditPopover({
             searchPlaceholder="Search tags"
             preview={(filter, clearFilter) => (
                 <div>
-                    <div className="sticky top-0 z-10 bg-themewhite">
+                    {/* Sits on the PreviewOverlay card surface — a distinct bg here
+                        reads as a second, standalone search bar under the real one. */}
+                    <div className="sticky top-0 z-10 bg-themewhite3">
                         <TextInput
                             value={name}
                             onChange={setName}

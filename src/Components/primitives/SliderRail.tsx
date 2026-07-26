@@ -28,9 +28,21 @@ import type { ReactNode } from 'react'
 import { useCallback, useRef, useState } from 'react'
 
 /** Center-to-center stop spacing, thumb diameter, track padding (px). */
-export const STOP = 38
-export const THUMB = 34
-export const PAD = 3
+export const STOP = 44
+export const THUMB = 40
+export const PAD = 5
+
+/**
+ * The glass track chrome, shared verbatim by every surface that is "a rail or a
+ * piece of one": this track, the BottomIsland bar, the AddFab tray, the
+ * FloorSelector delete chip. Exported so those cannot drift apart again.
+ *
+ * No border. A hairline stroke on a translucent pill reads as a seam against busy
+ * content (map tiles, photos) and fought the blur; edge definition now comes from
+ * `.rail-shadow` alone, which is why that shadow carries a contact layer.
+ */
+export const RAIL_GLASS =
+  'rounded-full bg-themewhite2/60 rail-shadow backdrop-blur-md dark:bg-themewhite3/50'
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v))
 
@@ -210,7 +222,7 @@ export function SliderRail({
             'aria-valuenow': horizontal ? activeIndex : n - 1 - activeIndex,
           }
         : {})}
-      className={`relative touch-none select-none rounded-full border border-white/40 bg-themewhite2/60 shadow-lg backdrop-blur-md dark:border-white/10 dark:bg-themewhite3/50 ${clip} ${className}`}
+      className={`relative touch-none select-none ${RAIL_GLASS} ${clip} ${className}`}
       style={axis}
     >
       {windowStart > 0 && (
@@ -248,7 +260,7 @@ export function SliderRail({
             if (stop.momentary || stop.id !== activeId) onSelect(stop.id)
           }}
           {...(role === 'tablist' ? { role: 'tab', 'aria-selected': stop.id === activeId } : {})}
-          className={`absolute flex items-center justify-center rounded-full text-[8pt] font-semibold transition-opacity ${
+          className={`absolute flex items-center justify-center rounded-full text-[9pt] font-semibold transition-opacity ${
             stop.id === activeId ? 'opacity-0' : 'text-tertiary/70 active:text-primary'
           }`}
           style={{
@@ -266,7 +278,7 @@ export function SliderRail({
 
       {/* Thumb — the glass lens over the current stop. */}
       <div
-        className={`pointer-events-none absolute flex items-center justify-center rounded-full text-[8pt] font-bold tracking-tight text-white shadow-md ring-1 ring-white/40 ${activeColor}`}
+        className={`pointer-events-none absolute flex items-center justify-center rounded-full text-[9pt] font-bold tracking-tight text-white shadow-md ring-1 ring-white/40 ${activeColor}`}
         style={{
           ...thumbStyle,
           height: THUMB,

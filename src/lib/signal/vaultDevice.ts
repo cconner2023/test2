@@ -34,6 +34,7 @@ import { saveMessage, deleteMessagesByOriginId, getTombstone } from './messageSt
 import { useMessagingStore } from '../../stores/useMessagingStore'
 import { isCalendarEvent, routeCalendarEvent, initCalendarTombstones } from '../calendarRouting'
 import { isMapOverlay, isMapFeature, routeMapOverlay, routeMapFeature, initOverlayTombstones } from '../mapOverlayRouting'
+import { routeOutsideEntityReply } from '../outsideEntityRouting'
 import type { CalendarEventContent, MapOverlayContent, MapFeatureContent } from './messageContent'
 import { parseMessageContent } from './messageContent'
 import type { PublicKeyBundle, InitialMessage, EncryptedMessage, RatchetState, RatchetKeyPair } from './types'
@@ -1178,6 +1179,32 @@ export async function processVaultMessages(userId: string): Promise<number> {
             m => m.id === targetId || m.originId === targetId,
           )
           if (updated) await saveMessage(updated, userId).catch(() => {})
+        }
+      } else if (content?.type === 'outside_entity_reply') {
+        // Relayed outside→medic reply. Its raw form is a placeholder authored by the
+        // relay under the SYSTEM sender, so falling through to the generic branch files
+        // a second '[outside reply]' row keyed under SYSTEM alongside the real message
+        // the live path already delivered — the duplicate the medic sees per reply.
+        // Open the inner seal and re-author under the channel's conversation, exactly
+        // as the live path does. No channel key ⇒ revoked/expired/never held here: drop.
+        const text = await routeOutsideEntityReply(content)
+        if (text !== null) {
+          const relayed: DecryptedSignalMessage = {
+            id: content.message_id,
+            senderId: content.entity_id,
+            recipientId: row.recipient_id,
+            plaintext: text,
+            content: { type: 'text', text },
+            messageType: 'message',
+            createdAt: content.created_at,
+            readAt: null,
+            originId: content.message_id,
+          }
+          const replyTombstoneAt = await getTombstone(content.entity_id)
+          if (!replyTombstoneAt || content.created_at >= replyTombstoneAt) {
+            await saveMessage(relayed, userId)
+            useMessagingStore.getState().addMessage(relayed)
+          }
         }
       } else {
         const isCalEvent = isCalendarEvent(content)
