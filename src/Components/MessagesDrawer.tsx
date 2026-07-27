@@ -12,6 +12,7 @@ import { MessagingOncallSettings } from './Settings/MessagingOncallSettings'
 import { SwipeActionsSection } from './Settings/SwipeActionsSection'
 import { MessagesPanel, type MessagesView, type MessagesPanelHandle, type MessagingLens } from './Settings/MessagesPanel'
 import { useMessagesContext } from '../Hooks/MessagesContext'
+import { useMessagingStore } from '../stores/useMessagingStore'
 import { useAuth } from '../Hooks/useAuth'
 import { useBetaBypass } from '../lib/betaFeatures'
 import { prewarmMessagingSettings } from '../lib/messagingSettingsWarm'
@@ -61,6 +62,13 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
         if (!isVisible || !settingsClinicId) return
         void prewarmMessagingSettings(settingsClinicId, isSupervisorRole || outsideCallBeta)
     }, [isVisible, settingsClinicId, isSupervisorRole, outsideCallBeta])
+    // Outbound outside-contact (email) channels are not callable — the peer id is a
+    // synthetic entity, not a device owner — so the desktop header drops the call
+    // pills. Read off the peer profile (not the selection handler) so a deep link
+    // into one of these conversations is judged the same way.
+    const selectedPeerIsOutside = useMessagingStore(
+        s => !!(selectedPeerId && s.peerProfiles[selectedPeerId]?.outsideFromLabel),
+    )
     const panelRef = useRef<MessagesPanelHandle>(null)
     const isMobile = useIsMobile()
     const callActions = useCallActions()
@@ -186,7 +194,11 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
                 title: selectedPeerName ?? 'Chat',
                 showBack: true,
                 onBack: handleBack,
-                rightContent: callActions ? (
+                rightContent: selectedPeerIsOutside ? (
+                    <HeaderPill>
+                        <PillButton icon={Info} onClick={() => panelRef.current?.showOutsideInfo()} label="Conversation info" compact />
+                    </HeaderPill>
+                ) : callActions ? (
                     <HeaderPill>
                         <PillButton icon={Play} onClick={() => callActions.startVideoCall({ userId: selectedPeerId, displayName: selectedPeerName ?? 'Unknown' })} label="Video call" compact />
                         <PillButton icon={Headset} onClick={() => callActions.startCall({ userId: selectedPeerId, displayName: selectedPeerName ?? 'Unknown' })} label="Voice call" compact />
@@ -216,7 +228,7 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
                 </HeaderPill>
             ),
         }
-    }, [view, selectedPeerId, selectedGroupId, selectedPeerName, handleBack, handleClose, callActions])
+    }, [view, selectedPeerId, selectedGroupId, selectedPeerName, selectedPeerIsOutside, handleBack, handleClose, callActions])
 
     // Messaging settings — mobile Sheet + desktop PreviewOverlay, both share
     // content (mirrors the map-settings standard for mobile settings icons:

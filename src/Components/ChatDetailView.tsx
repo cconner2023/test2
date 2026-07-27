@@ -95,6 +95,10 @@ export interface ChatDetailViewProps {
   scrollToMessageId?: string | null
   /** Called once the scroll target has been honored, so the caller can clear it. */
   onScrollConsumed?: () => void
+  /** Replaces the composer with a centered notice. For conversations that can
+   * close for a reason the participant list can't express — currently an
+   * outbound outside-contact channel whose invite expired or was revoked. */
+  composerBlockedReason?: string
   children?: ReactNode
 }
 
@@ -166,6 +170,7 @@ export function ChatDetailView({
   conversationPeerName,
   scrollToMessageId,
   onScrollConsumed,
+  composerBlockedReason,
   children,
 }: ChatDetailViewProps) {
   const { user, clinicId } = useAuth()
@@ -436,6 +441,7 @@ export function ChatDetailView({
   const placeholder = activeThreadId ? 'Reply in thread...' : 'Type a message...'
 
   const blockedReason: string | null = (() => {
+    if (composerBlockedReason) return composerBlockedReason
     if (requestFlow?.status === 'sent') {
       return `Waiting for ${requestFlow.peerName ?? 'this user'} to accept your request`
     }
@@ -805,6 +811,8 @@ export function ChatDetailView({
             }
           } else if (bundle.bundleKind === 'calendar-event') {
             sharedItems.push({ key: 'add-event', label: 'Add to my calendar', icon: CalendarPlus, onAction: () => void sharedActions.addBundle(bundle) })
+          } else if (bundle.bundleKind === 'property-item') {
+            sharedItems.push({ key: 'add-item', label: 'Add to my property', icon: Package, onAction: () => void sharedActions.addBundle(bundle) })
           } else {
             sharedItems.push({ key: 'add-overlay', label: 'Add to my map', icon: Plus, onAction: () => void sharedActions.addBundle(bundle) })
           }

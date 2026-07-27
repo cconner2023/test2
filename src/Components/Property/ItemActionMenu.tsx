@@ -138,17 +138,25 @@ export const ItemActionMenu = forwardRef<ItemActionMenuHandle, ItemActionMenuPro
     void exportLabels({ items: [{ id: item.id, name: item.name, nsn: item.nsn }], geometry })
   }
 
-  const { share: shareToChat, picker: shareToChatPicker } = useShareToChat()
+  // The picker owns its own PreviewOverlay and takes no containerRef, so it has no
+  // pane to scope into on desktop — pin it to the float tier on both layouts rather
+  // than reusing overlayZ, or the z1200 detail sheet swallows it.
+  const { share: shareToChat, picker: shareToChatPicker } = useShareToChat({ zIndex: 1300 })
   const handleShareToChat = () => {
     if (!item) return
     const qty = item.is_serialized ? (item.serial_number ? `SN ${item.serial_number}` : 'Serialized') : `Qty ${item.quantity}`
-    shareToChat({
-      type: 'shared_ref',
-      refKind: 'property-item',
-      refId: item.id,
-      label: item.name || item.nomenclature || 'Item',
-      subLabel: item.nsn ? `${qty} · Material/NSN ${item.nsn}` : qty,
-    })
+    shareToChat(
+      {
+        type: 'shared_ref',
+        refKind: 'property-item',
+        refId: item.id,
+        label: item.name || item.nomenclature || 'Item',
+        subLabel: item.nsn ? `${qty} · Material/NSN ${item.nsn}` : qty,
+      },
+      // Off-roster recipients can't resolve the live ref against our vault, so
+      // hand the picker a source to freeze into a copy for them.
+      { kind: 'property-item', item },
+    )
   }
 
   const mergeCandidates = useMemo(() =>

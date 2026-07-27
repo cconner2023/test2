@@ -102,6 +102,12 @@ interface MapViewProps {
   onActiveFloorChange?: (floor: number | null) => void;
   /** Delete the active non-base floor (and its features) from the rail. */
   onDeleteFloor?: (level: number) => void;
+  /** Island locate glyph — opens the panel's "My location" surface (mobile
+   *  Sheet / desktop right pane), the same host the feature editor uses. The
+   *  card itself lives in the panel because it owns the presence writes. */
+  onOpenMyLocation?: () => void;
+  /** Tints the locate glyph while this user's marker is on Personnel. */
+  myLocationShared?: boolean;
 }
 
 const DEFAULT_CENTER: [number, number] = [38.8977, -77.0365];
@@ -192,6 +198,8 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
   activeFloor = null,
   onActiveFloorChange,
   onDeleteFloor,
+  onOpenMyLocation,
+  myLocationShared,
 }, ref) {
   const { theme, themeName } = useTheme();
   const bearingReference = useMapPrefsStore(s => s.bearingReference);
@@ -956,11 +964,13 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
           </button>
           <button
             type="button"
-            onClick={handleRecenterGps}
-            disabled={!gpsPosition}
+            onClick={onOpenMyLocation ?? handleRecenterGps}
             style={{ width: THUMB, height: THUMB }}
-            className="shrink-0 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all disabled:opacity-30"
-            aria-label="Center on my position"
+            className={`shrink-0 rounded-full flex items-center justify-center active:scale-95 transition-all ${
+              myLocationShared ? 'text-themegreen' : 'text-tertiary hover:text-primary'
+            }`}
+            aria-label="My location"
+            title="My location"
           >
             <LocateFixed size={16} />
           </button>

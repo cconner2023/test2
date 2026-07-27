@@ -6,7 +6,7 @@ import { latLngToMgrs } from './mgrsFormat'
 /**
  * TEAM PRESENCE — opt-in self-location, decoupled from mission events.
  *
- * Each clinic has one standing "Team Presence" overlay with a deterministic id.
+ * Each clinic has one standing "Personnel" overlay with a deterministic id.
  * Every member owns exactly ONE person-marker feature in it, keyed by a
  * deterministic feature id (`presence:<userId>`), so "Update your location"
  * re-targets the same feature (upsert = move) and "Remove" deletes it.
@@ -20,6 +20,13 @@ import { latLngToMgrs } from './mgrsFormat'
 
 const OVERLAY_PREFIX = 'presence-'
 const FEATURE_PREFIX = 'presence:'
+
+/**
+ * Tree-facing name. Applied at render time as well as on create, so overlays
+ * created under the earlier "Team Presence" name display the current one
+ * without a rewrite (the id is what identifies it, never the name).
+ */
+export const PRESENCE_OVERLAY_NAME = 'Personnel'
 
 /** Deterministic per-clinic presence overlay id. Every member converges here. */
 export function presenceOverlayId(clinicId: string): string {
@@ -53,7 +60,7 @@ export function buildPresenceOverlayParams(
   return {
     overlayId: presenceOverlayId(clinicId),
     clinicId,
-    name: 'Team Presence',
+    name: PRESENCE_OVERLAY_NAME,
     center,
     zoom,
     features: [],

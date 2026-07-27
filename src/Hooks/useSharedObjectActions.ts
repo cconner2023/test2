@@ -3,8 +3,8 @@
  * frozen bundles). Backs the lifted-row menu that opens when a shared-object
  * bubble is tapped: `openRef` navigates to a live-linked object; `addBundle`
  * materializes a frozen bundle into the receiver's own data (calendar event,
- * map overlay, or note-blocks config) and records it in the device ingest log so
- * a re-tap can hide the Add action instead of duplicating.
+ * map overlay, property line, or note-blocks config) and records it in the device
+ * ingest log so a re-tap can hide the Add action instead of duplicating.
  *
  * Previously this logic lived inside the per-bubble cards (SharedBundleCard /
  * NoteBlocksBundleCard). Consolidating the bubbles to a single text+chevron
@@ -18,7 +18,8 @@ import { useAuth } from './useAuth'
 import { useCalendarWrite } from './useCalendarWrite'
 import { useMapOverlayWrite } from './useMapOverlayWrite'
 import { useNoteBlocksIngest, type IngestScope } from './useNoteBlocksIngest'
-import { unpackBundle, bundleToEvent, bundleToOverlay } from '../lib/objectBundle'
+import { unpackBundle, bundleToEvent, bundleToOverlay, bundleToPropertyItem } from '../lib/objectBundle'
+import { usePropertyStore } from '../stores/usePropertyStore'
 import { loadIngested, markIngested } from '../lib/bundleIngestLog'
 import type { SharedRefContent, SharedBundleContent } from '../lib/signal/messageContent'
 import { createLogger } from '../Utilities/Logger'
@@ -61,6 +62,13 @@ export function useSharedObjectActions() {
         await writeEvent(event)
         markIngested(c.contentHash)
         openCalendarEvent(event.id)
+      } else if (b.kind === 'property-item') {
+        // Lands unassigned in the receiver's book — addItem owns the id, the
+        // fan-out targets and the item.created audit row, same as a hand add.
+        const created = await usePropertyStore.getState().addItem(bundleToPropertyItem(b, ctx))
+        if (!created) { logger.warn('Property bundle ingest write failed'); return }
+        markIngested(c.contentHash)
+        setShowPropertyDrawer(true, created.id)
       } else {
         const written = await writeOverlay(bundleToOverlay(b, ctx))
         markIngested(c.contentHash)
@@ -69,7 +77,7 @@ export function useSharedObjectActions() {
     } catch (e) {
       logger.warn('Bundle ingest failed:', e instanceof Error ? e.message : e)
     }
-  }, [user?.id, clinicId, ingest, writeEvent, writeOverlay, openCalendarEvent, setShowMapOverlayDrawer])
+  }, [user?.id, clinicId, ingest, writeEvent, writeOverlay, openCalendarEvent, setShowMapOverlayDrawer, setShowPropertyDrawer])
 
   /** Has this device already materialized the given bundle? */
   const isAdded = useCallback((contentHash: string) => loadIngested().has(contentHash), [])

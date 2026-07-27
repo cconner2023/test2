@@ -47,9 +47,9 @@ export const BETA_FEATURES = {
    *  auto-populate the custom note's HPI/PE sections from the YES/NO answers.
    *  Dev-only while tagging is rolled out per algorithm; flip to false to open to all. */
   algorithmNoteRouting: true,
-  /** Team Presence — opt-in self-location on the map overlay. Dev-only while it's
-   *  being validated in prod; gates both the "Add my location" pill and the
-   *  rendering of teammates' presence markers. Flip to false to open to all. */
+  /** Personnel — opt-in self-location on the map overlay. Dev-only while it's
+   *  being validated in prod; gates the island's share actions, the Personnel
+   *  tree entry, and teammates' markers. Flip to false to open to all. */
   teamPresence: true,
   /** Outbound outside-contact — a clinic member emails a secure 1:1 invite to an
    *  outside recipient (reverse of the inbound QR/passphrase channels). Fully

@@ -63,6 +63,10 @@ const HQ_GROUP_ID = '__hq__'
 export interface MessagesPanelHandle {
   openNew: () => void
   showGroupInfo: () => void
+  /** Open the 1:1 info card for an outbound outside-contact conversation. The
+   *  desktop drawer header has no other route to it — a signal 1:1 reaches its
+   *  info card from the mobile header only. */
+  showOutsideInfo: () => void
 }
 
 interface MessagesPanelProps {
@@ -1063,6 +1067,10 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
   const [groupCreating, setGroupCreating] = useState(false)
   const [groupCreateError, setGroupCreateError] = useState<string | null>(null)
   const [showGroupInfo, setShowGroupInfo] = useState(false)
+  const [showOutsideInfo, setShowOutsideInfo] = useState(false)
+  // Leaving the conversation (including the delete that navigates away while the
+  // card is open) must not leave the next one opening straight into its info card.
+  useEffect(() => { setShowOutsideInfo(false) }, [selectedPeerId])
   // Outbound outside-contact compose (dev-gated) — email a secure 1:1 invite.
   const outboundBeta = useBetaBypass('outboundContact')
   const outboundClinicId = useAuthStore(s => s.clinicId)
@@ -1107,6 +1115,7 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
   useImperativeHandle(ref, () => ({
     openNew: () => { setShowNewMsg(true); setNewMsgMode('contacts') },
     showGroupInfo: () => setShowGroupInfo(true),
+    showOutsideInfo: () => setShowOutsideInfo(true),
   }), [])
 
   // Store subscriptions — before early return so hook order is always stable
@@ -1416,11 +1425,11 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
       />
     )
   } else if (view === 'messages-chat' && selectedPeerId) {
-    // Outbound outside-contact (email) channels render as a normal conversation
-    // (cluster-name header, plain bubbles, one pinned composer) rather than the
-    // standard 1:1 chat — the channel isn't a Signal peer. Detected by the CHANNEL
-    // RECORD, not by a control message: messages are deletable and the channel must
-    // survive an emptied thread, so a message can no longer be the routing signal.
+    // Outbound outside-contact (email) channels render as an ordinary conversation
+    // — same ChatDetailView, only the composer's transport is swapped, because the
+    // channel isn't a Signal peer. Detected by the CHANNEL RECORD, not by a control
+    // message: messages are deletable and the channel must survive an emptied
+    // thread, so a message can no longer be the routing signal.
     const outsideChannel = outsideChannels[selectedPeerId]
     const peer = allMedics.find(m => m.id === selectedPeerId)
     const peerName = peer
@@ -1431,8 +1440,19 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
       <OutsideEntityConversation
         channel={outsideChannel}
         clusterName={outsideChannel.from_label || peer?.outsideFromLabel || clusterName}
+        conversations={conversations}
+        medics={allMedics}
+        sendMessage={sendMessage}
+        editMessage={editMessage}
+        deleteMessages={deleteMessages}
+        fetchHistory={fetchHistory}
         deleteConversation={deleteOutsideConversation}
         markAsRead={markAsRead}
+        showInfo={showOutsideInfo}
+        onShowInfo={setShowOutsideInfo}
+        scrollToMessageId={scrollToMessageId}
+        onScrollConsumed={onScrollConsumed}
+        registerThreadBack={registerThreadBack}
         onBack={onBack}
       />
     ) : (

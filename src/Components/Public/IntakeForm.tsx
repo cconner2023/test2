@@ -321,7 +321,6 @@ export function IntakeForm({ supabase, initialPasscode }: IntakeFormProps) {
                 className="w-full bg-transparent px-4 py-3 text-base md:text-sm text-primary placeholder:text-tertiary focus:outline-none"
               />
             </Row>
-            <HintRow tone="warn">Operational info only — no patient names or medical details.</HintRow>
             <Row>
               <textarea
                 value={messageBody}
@@ -689,11 +688,10 @@ function Row({ children }: { children: React.ReactNode }) {
   return <label className="block border-b border-primary/6 last:border-b-0">{children}</label>
 }
 
-function HintRow({ tone, children }: { tone: 'ok' | 'err' | 'muted' | 'warn'; children: React.ReactNode }) {
+function HintRow({ tone, children }: { tone: 'ok' | 'err' | 'muted'; children: React.ReactNode }) {
   const color =
     tone === 'ok' ? 'text-themegreen'
     : tone === 'err' ? 'text-themeredred'
-    : tone === 'warn' ? 'text-themeyellow'
     : 'text-tertiary'
   return (
     <div className={`px-4 py-2 text-[10pt] leading-relaxed border-b border-primary/6 ${color}`}>

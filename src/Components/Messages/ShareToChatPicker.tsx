@@ -1,18 +1,18 @@
-import { useCallback, useEffect, useState } from 'react'
-import { Check, Send, MessageSquare, X, Plus, Globe } from 'lucide-react'
-import { PreviewOverlay } from '../PreviewOverlay'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Check, Send, MessageSquare, X, UserPlus, Globe } from 'lucide-react'
+import { OverlayStack, type StackNav, type StackScreen } from '@/Components/primitives/OverlayStack'
+import { FooterPill } from '@/Components/primitives/FooterPill'
+import { ActionButton } from '@/Components/primitives/ActionButton'
 import { HudLoader } from '@/Components/primitives/HudLoader'
 import { UserAvatar } from '../Settings/UserAvatar'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { useMessageRoster } from '../../Hooks/useMessageRoster'
 import { useMessagesContext } from '../../Hooks/MessagesContext'
+import { useOffRosterAdd } from './useOffRosterAdd'
 import { getDisplayName } from '../../Utilities/nameUtils'
-import { fetchProfileById } from '../../lib/peerLookup'
 import { packBundle, bundleSourceToBundle, type BundleSource } from '../../lib/objectBundle'
 import type { SharedRefContent, SharedBundleContent } from '../../lib/signal/messageContent'
 import type { ClinicMedic } from '../../Types/SupervisorTestTypes'
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 interface ShareToChatPickerProps {
   isOpen: boolean
@@ -23,7 +23,7 @@ interface ShareToChatPickerProps {
    *  sharing to same-cluster recipients only. */
   bundleSource?: BundleSource | null
   onClose: () => void
-  /** Override the PreviewOverlay z-tier. Bump above a host Sheet (body portal
+  /** Override the OverlayStack z-tier. Bump above a host Sheet (body portal
    *  at z-1200) so the picker isn't trapped underneath it. */
   zIndex?: number
 }
@@ -39,8 +39,11 @@ interface SendResult {
  * Centered modal that lets a user share a SharedRefContent (calendar event,
  * map overlay, map feature, or property item) into one or more cluster
  * conversations. Roster is the shared useMessageRoster primitive (cluster +
- * self row + code-added out-cluster peers). Multi-select
- * → loop sendStructured → completion modal listing succeeded / failed.
+ * self row + off-roster peers). Reaching someone outside the cluster uses the
+ * shared useOffRosterAdd drill — Scan QR / Find by Email / Enter User Code,
+ * the same three screens the New Message builder and the group Add-member flow
+ * use, morphing this card rather than stacking a second overlay. Multi-select
+ * → loop sendStructured → completion screen listing succeeded / failed.
  *
  * No PHI on the wire — only the opaque refId + operator-supplied label travel.
  * No groups in v1.
@@ -54,17 +57,27 @@ export function ShareToChatPicker({ isOpen, content, bundleSource, onClose, zInd
   const [phase, setPhase] = useState<Phase>('pick')
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [results, setResults] = useState<SendResult[]>([])
-  // Out-cluster recipients added by user code (resolved via the global
-  // fetch_profiles_by_ids resolver). These carry a foreign clinicId → the send
-  // loop packs a bundle for them instead of a live ref.
+  // Off-roster recipients resolved by QR / email / user code. These carry a
+  // foreign clinicId → the send loop packs a bundle for them instead of a live ref.
   const [extraPeers, setExtraPeers] = useState<ClinicMedic[]>([])
-  const [lookupBusy, setLookupBusy] = useState(false)
-  const [lookupError, setLookupError] = useState<string | null>(null)
 
-  // Shared roster primitive — self row + cluster + code-added peers, SYSTEM and
+  // Shared nav of the OverlayStack — useOffRosterAdd resets the card to root
+  // through it once a lookup resolves.
+  const navRef = useRef<StackNav | null>(null)
+
+  // Shared roster primitive — self row + cluster + off-roster peers, SYSTEM and
   // dupes dropped, plus the common name/rank/id filter. Same source the forward
   // and new-message pickers use; sharing just layers multi-select on top.
   const { roster, selfMedic, applyFilter } = useMessageRoster({ includeSelf: true, extraPeers })
+
+  // A found user is added to the roster AND pre-selected — the lookup only ever
+  // happens because you meant to send to them.
+  const handleFound = useCallback((medic: ClinicMedic) => {
+    setExtraPeers(prev => prev.some(p => p.id === medic.id) ? prev : [...prev, medic])
+    setSelected(prev => new Set(prev).add(medic.id))
+  }, [])
+
+  const offRoster = useOffRosterAdd({ navRef, onFound: handleFound, methodsTitle: 'Add recipient' })
 
   // Reset internal state on open/close.
   useEffect(() => {
@@ -73,8 +86,9 @@ export function ShareToChatPicker({ isOpen, content, bundleSource, onClose, zInd
     setSelected(new Set())
     setResults([])
     setExtraPeers([])
-    setLookupBusy(false)
-    setLookupError(null)
+    offRoster.reset()
+    // offRoster.reset is stable; excluded to keep this an isOpen effect.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen])
 
   /** A recipient counts as cross-cluster when we know both clinic ids and they
@@ -82,25 +96,6 @@ export function ShareToChatPicker({ isOpen, content, bundleSource, onClose, zInd
   const isCrossCluster = useCallback((m: ClinicMedic): boolean => {
     return !!m.clinicId && !!myClinicId && m.clinicId !== myClinicId
   }, [myClinicId])
-
-  // Resolve a pasted user code (UUID) into an out-cluster recipient.
-  const handleLookup = useCallback(async (code: string) => {
-    const id = code.trim()
-    if (!UUID_RE.test(id)) return
-    if (id === userId || roster.some(m => m.id === id)) return
-    setLookupBusy(true)
-    setLookupError(null)
-    try {
-      const peer = await fetchProfileById(id)
-      if (!peer) { setLookupError('No user found for that code.'); return }
-      setExtraPeers(prev => prev.some(p => p.id === peer.id) ? prev : [...prev, peer])
-      setSelected(prev => new Set(prev).add(peer.id))
-    } catch {
-      setLookupError('Lookup failed. Check the code and try again.')
-    } finally {
-      setLookupBusy(false)
-    }
-  }, [userId, roster])
 
   const toggle = (id: string) => {
     setSelected(prev => {
@@ -179,34 +174,8 @@ export function ShareToChatPicker({ isOpen, content, bundleSource, onClose, zInd
   const shareLabel = content?.label ?? (bundleSource?.kind === 'note-blocks' ? bundleSource.label : '')
 
   const pickList = (q: string) => {
-    const trimmed = q.trim()
-    const isCode = UUID_RE.test(trimmed)
-    const codeNotInRoster = isCode && !roster.some(m => m.id === trimmed) && trimmed !== userId
     const filtered = applyFilter(q)
-
-    // Header affordance: paste a user code (QR payload) to reach a user in
-    // another cluster. Only meaningful when we have source data to bundle.
-    const addByCodeRow = codeNotInRoster && (
-      <button
-        onClick={() => void handleLookup(trimmed)}
-        disabled={lookupBusy || !bundleSource}
-        className="flex items-center w-full px-4 py-2.5 gap-3 text-left hover:bg-themewhite2 active:scale-95 transition-all disabled:opacity-50"
-      >
-        <div className="w-8 h-8 rounded-full bg-themeblue3/10 flex items-center justify-center shrink-0">
-          {lookupBusy
-            ? <div className="w-3.5 h-3.5 rounded-full border-2 border-themeblue3/60 border-t-transparent animate-spin" />
-            : <Plus size={16} className="text-themeblue3" />}
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm text-primary truncate">Add user by code</p>
-          <p className="text-[9pt] text-tertiary truncate">
-            {bundleSource ? 'Reach someone in another cluster' : 'Not shareable across clusters'}
-          </p>
-        </div>
-      </button>
-    )
-
-    if (filtered.length === 0 && !addByCodeRow) {
+    if (filtered.length === 0) {
       return (
         <p className="text-[10pt] text-tertiary text-center py-10">
           {roster.length === 0 ? 'No cluster contacts' : 'No matches'}
@@ -215,10 +184,6 @@ export function ShareToChatPicker({ isOpen, content, bundleSource, onClose, zInd
     }
     return (
       <div className="py-1">
-        {addByCodeRow}
-        {lookupError && (
-          <p className="px-4 py-1.5 text-[9pt] text-themeredred">{lookupError}</p>
-        )}
         {filtered.map(medic => {
           const isSelected = selected.has(medic.id)
           const isSelf = medic.id === selfId
@@ -331,38 +296,54 @@ export function ShareToChatPicker({ isOpen, content, bundleSource, onClose, zInd
     : phase === 'sending' ? 'Sending'
     : `Share ${shareLabel}`.trim()
 
+  // Root chrome is phase-driven; the stack engine re-reads it every render, so
+  // the pick → sending → done transitions morph the same card. Off-roster needs
+  // something to freeze, so it only shows when the object can travel as a bundle.
+  const root: StackScreen = {
+    title,
+    ...(phase === 'pick' ? { searchPlaceholder: 'Search contacts…' } : {}),
+    ...(phase === 'pick' && bundleSource
+      ? {
+          footer: (_p: unknown, nav: StackNav) => (
+            <FooterPill>
+              <ActionButton icon={UserPlus} label="Off-roster" onClick={() => offRoster.openMethods(nav)} />
+            </FooterPill>
+          ),
+        }
+      : {}),
+    ...(phase === 'pick' && ctx && selected.size > 0
+      ? {
+          rightFooter: (
+            <FooterPill side="right">
+              <ActionButton icon={Send} label={`Send to ${selected.size}`} onClick={handleSend} />
+            </FooterPill>
+          ),
+        }
+      : {}),
+    ...(phase === 'done'
+      ? {
+          rightFooter: (
+            <FooterPill side="right">
+              <ActionButton icon={X} label="Done" onClick={onClose} />
+            </FooterPill>
+          ),
+        }
+      : {}),
+    render: (_p: unknown, _nav: StackNav, filter: string) =>
+      phase === 'pick' ? pickList(filter) : phase === 'sending' ? sendingView : doneView,
+  }
+
   return (
-    <PreviewOverlay
+    <OverlayStack
       isOpen={isOpen && (!!content || !!bundleSource)}
       onClose={onClose}
+      initial={{ key: 'root' }}
+      screens={{ root, ...offRoster.screens }}
+      navRef={navRef}
       anchorRect={null}
-      title={title}
       maxWidth={360}
       previewMaxHeight="55dvh"
       {...(zIndex !== undefined ? { zIndex } : {})}
-      {...(phase === 'pick'
-        ? {
-            searchPlaceholder: bundleSource ? 'Search or paste a user code…' : 'Search cluster…',
-            preview: (q: string) => pickList(q),
-            actions: [
-              {
-                key: 'send',
-                label: selected.size > 0 ? `Send to ${selected.size}` : 'Send',
-                icon: Send,
-                onAction: handleSend,
-                closesOnAction: false,
-                variant: (!ctx || selected.size === 0) ? 'disabled' : 'default',
-              },
-            ],
-          }
-        : phase === 'sending'
-        ? { preview: () => sendingView }
-        : {
-            preview: () => doneView,
-            actions: [
-              { key: 'done', label: 'Done', icon: X, onAction: onClose, closesOnAction: false },
-            ],
-          })}
     />
   )
 }
@@ -376,7 +357,7 @@ export function useShareToChat(options?: { zIndex?: number }) {
   const [content, setContent] = useState<SharedRefContent | null>(null)
   const [bundleSource, setBundleSource] = useState<BundleSource | null>(null)
   // share(ref) — same-cluster only. share(ref, source) — also enables sending a
-  // frozen copy to a recipient in another cluster (added by user code).
+  // frozen copy to a recipient in another cluster (found off-roster).
   const share = useCallback((next: SharedRefContent, source?: BundleSource | null) => {
     setContent(next)
     setBundleSource(source ?? null)

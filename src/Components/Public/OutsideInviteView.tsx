@@ -178,7 +178,7 @@ export function OutsideInviteView({ supabase, token, fragment }: OutsideInviteVi
       <Shell>
         <Glitch404 />
         <p className="mt-4 text-[10pt] text-center text-secondary leading-relaxed max-w-xs mx-auto">
-          This secure message has expired or been closed. Ask the medical section to send a new link.
+          This secure message has expired or been closed.
         </p>
       </Shell>
     )
@@ -199,7 +199,7 @@ export function OutsideInviteView({ supabase, token, fragment }: OutsideInviteVi
               <ShieldCheck size={15} className="text-themeblue2 shrink-0" />
               <div className="min-w-0">
                 <p className="text-sm font-medium text-primary truncate">{fromLabel}</p>
-                <p className="text-[9pt] text-tertiary truncate">End-to-end encrypted • no account needed</p>
+                <p className="text-[9pt] text-tertiary truncate">End-to-end encrypted</p>
               </div>
             </div>
 
@@ -223,10 +223,6 @@ export function OutsideInviteView({ supabase, token, fragment }: OutsideInviteVi
                   ))}
                 </div>
               )}
-            </div>
-
-            <div className="px-4 py-2 text-[10pt] leading-relaxed border-t border-primary/6 text-themeyellow">
-              Operational details only — no patient names or medical details.
             </div>
 
             {/* Composer */}

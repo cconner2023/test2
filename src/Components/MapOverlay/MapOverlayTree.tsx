@@ -48,14 +48,17 @@ interface FeatureRowProps {
   /** Open the lifted menu anchored to this row's bounding rect (conversation pattern). */
   onOpenMenu: (rect: DOMRect) => void;
   onClick: () => void;
+  /** Read-only rows (personnel markers) carry no actions — the row is tap-to-locate only. */
+  menuDisabled?: boolean;
   children: React.ReactNode;
 }
 
-function FeatureRow({ featureId, className, style, onOpenMenu, onClick, children }: FeatureRowProps) {
+function FeatureRow({ featureId, className, style, onOpenMenu, onClick, menuDisabled, children }: FeatureRowProps) {
   const rowRef = useRef<HTMLButtonElement>(null);
   const openFromRow = useCallback(() => {
+    if (menuDisabled) return;
     if (rowRef.current) onOpenMenu(rowRef.current.getBoundingClientRect());
-  }, [onOpenMenu]);
+  }, [onOpenMenu, menuDisabled]);
   const { isPressing, ...longPressHandlers } = useLongPress(() => openFromRow());
   return (
     <button
@@ -111,6 +114,10 @@ interface MapOverlayTreeProps {
   /** Add a new (empty) floor to the active overlay — adds depth so the overlay
    *  becomes multi-level. Only offered on the active overlay's menu. */
   onAddFloor?: () => void;
+  /** System-owned overlays (the clinic Personnel overlay) — listed and toggleable
+   *  but never editable: no rename/delete/link/tile actions, and their features
+   *  carry no row menu because they belong to the teammates who dropped them. */
+  readOnlyOverlayIds?: Set<string>;
 }
 
 export function MapOverlayTree({
@@ -137,6 +144,7 @@ export function MapOverlayTree({
   onDeleteFeature,
   onCopyFeatureToOverlay,
   onAddFloor,
+  readOnlyOverlayIds,
 }: MapOverlayTreeProps) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [renamingId, setRenamingId] = useState<string | null>(null);
@@ -225,6 +233,7 @@ export function MapOverlayTree({
             const isRenaming = renamingId === overlay.id;
             const isCached = tileMeta.has(overlay.id);
             const isDownloading = downloadingId === overlay.id;
+            const isReadOnly = !!readOnlyOverlayIds?.has(overlay.id);
 
             return (
               <div key={overlay.id}>
@@ -372,6 +381,7 @@ export function MapOverlayTree({
                     <FeatureRow
                       key={feature.id}
                       featureId={feature.id}
+                      menuDisabled={isReadOnly}
                       onClick={() => onSelectFeature(feature, overlay.id)}
                       onOpenMenu={(rect) => setFeatureContextMenu({
                         overlayId: overlay.id,
@@ -414,7 +424,11 @@ export function MapOverlayTree({
         const cacheBusy = downloadingId !== null && !isDownloading;
         const isLinked = linkedOverlayIds.has(overlay.id);
         const isVisible = visibleOverlayIds.has(overlay.id);
-        const items: ContextMenuItem[] = [
+        const visibilityItem: ContextMenuItem = isVisible
+          ? { key: 'visibility', label: 'Hide on map', icon: EyeOff, onAction: () => onToggleVisible(overlay.id) }
+          : { key: 'visibility', label: 'View on map', icon: Eye, onAction: () => onToggleVisible(overlay.id) };
+        // Personnel is system-owned: show/hide is the only thing the viewer owns.
+        const items: ContextMenuItem[] = readOnlyOverlayIds?.has(overlay.id) ? [visibilityItem] : [
               isVisible
                 ? { key: 'visibility', label: 'Hide on map', icon: EyeOff, onAction: () => onToggleVisible(overlay.id) }
                 : { key: 'visibility', label: 'View on map', icon: Eye, onAction: () => onToggleVisible(overlay.id) },

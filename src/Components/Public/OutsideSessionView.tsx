@@ -256,10 +256,6 @@ export function OutsideSessionView({
           )}
         </div>
 
-        <div className="px-4 py-2 text-[10pt] leading-relaxed border-t border-primary/6 text-themeyellow">
-          Operational details only — no patient names or medical details.
-        </div>
-
         {/* End session */}
         <div className="flex items-center justify-end gap-2 px-3 py-2 border-t border-primary/6">
           <button

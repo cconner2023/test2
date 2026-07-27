@@ -15,13 +15,15 @@
  *    (`message-attachments` bucket; AES key rides inside the E2E Signal message).
  *
  * NO-PHI INVARIANT (enforced at EXPORT): events drop assignees / property /
- * subtasks / mission data; overlays drop `tc3_card_id`. Only operational
- * vocabulary leaves the device. Mirrors the `.ics` export rule (which already
- * strips assignments) and the no-PHI-on-the-map overlay invariant.
+ * subtasks / mission data; overlays drop `tc3_card_id`; property items drop the
+ * holder / owner / zone placement and the enrollment photo + fingerprint. Only
+ * operational vocabulary leaves the device. Mirrors the `.ics` export rule (which
+ * already strips assignments) and the no-PHI-on-the-map overlay invariant.
  */
 
 import type { CalendarEvent, EventCategory } from '../Types/CalendarTypes'
 import type { MapOverlay, OverlayFeature } from '../Types/MapOverlayTypes'
+import type { PropertyItem, ItemType, UnitOfIssue, PropertyCondition } from '../Types/PropertyTypes'
 import type { TextExpander, PlanOrderSet, PlanOrderTags } from '../Data/User'
 import { uploadEncryptedAttachment, downloadDecryptedAttachment } from './signal/attachmentService'
 import { ok, err, type Result } from './result'
@@ -32,6 +34,7 @@ const logger = createLogger('ObjectBundle')
 export const CALENDAR_BUNDLE_SCHEMA = 1
 export const OVERLAY_BUNDLE_SCHEMA = 1
 export const NOTE_BLOCKS_BUNDLE_SCHEMA = 1
+export const PROPERTY_ITEM_BUNDLE_SCHEMA = 1
 
 // ---- Bundle payloads (the frozen value that travels) ----
 
@@ -89,6 +92,40 @@ export interface MapOverlayBundle {
 }
 
 /**
+ * Operational projection of ONE property line. Every id is dropped: the item is
+ * reminted unassigned in the receiver's cluster, so holder / owner / zone /
+ * parent-SKO / zone-shadow links have no meaning outside the sending cluster and
+ * are accountability claims we must not export. The enrollment photo and visual
+ * fingerprint stay home too — they are device-captured imagery, not vocabulary.
+ * Lifecycle state (turn-in, external sign-out, tombstone) is sender-local and
+ * resets on the copy.
+ */
+export interface BundledPropertyItem {
+  name: string
+  nomenclature: string | null
+  nsn: string | null
+  lin: string | null
+  serial_number: string | null
+  quantity: number
+  quantity_authorized: number | null
+  is_serialized: boolean
+  item_type: ItemType
+  unit_of_issue: UnitOfIssue | null
+  pack_size: number | null
+  condition_code: PropertyCondition
+  expiry_date: string | null
+  notes: string | null
+}
+
+export interface PropertyItemBundle {
+  schema: number
+  kind: 'property-item'
+  exportedAt: string
+  sourceCluster: string
+  item: BundledPropertyItem
+}
+
+/**
  * Portable note-building blocks — text expanders ("text templates"), plan order
  * sets, and plan tag lists. Unlike calendar/overlay bundles these are NOT vault
  * objects: they're personal/clinic config with zero PHI and no cluster-local
@@ -110,7 +147,7 @@ export interface NoteBlocksBundle {
   planInstructionTags?: string[]
 }
 
-export type ObjectBundle = CalendarEventBundle | MapOverlayBundle | NoteBlocksBundle
+export type ObjectBundle = CalendarEventBundle | MapOverlayBundle | PropertyItemBundle | NoteBlocksBundle
 
 /** Source object handed to the share picker so it can build a bundle for a
  *  cross-cluster recipient (the picker still sends a live `shared_ref` to
@@ -118,6 +155,7 @@ export type ObjectBundle = CalendarEventBundle | MapOverlayBundle | NoteBlocksBu
 export type BundleSource =
   | { kind: 'calendar-event'; event: CalendarEvent }
   | { kind: 'map-overlay'; overlay: MapOverlay }
+  | { kind: 'property-item'; item: PropertyItem }
   | { kind: 'note-blocks'; blocks: NoteBlocksData; label: string; subLabel?: string }
 
 /** The raw block payload a caller hands the share picker / file exporter. */
@@ -186,6 +224,31 @@ function featureToBundled(f: OverlayFeature): BundledFeature {
   return out
 }
 
+export function propertyItemToBundle(item: PropertyItem, sourceCluster: string, exportedAt: string): PropertyItemBundle {
+  return {
+    schema: PROPERTY_ITEM_BUNDLE_SCHEMA,
+    kind: 'property-item',
+    exportedAt,
+    sourceCluster,
+    item: {
+      name: item.name,
+      nomenclature: item.nomenclature,
+      nsn: item.nsn,
+      lin: item.lin,
+      serial_number: item.serial_number,
+      quantity: item.quantity,
+      quantity_authorized: item.quantity_authorized,
+      is_serialized: item.is_serialized,
+      item_type: item.item_type,
+      unit_of_issue: item.unit_of_issue,
+      pack_size: item.pack_size,
+      condition_code: item.condition_code,
+      expiry_date: item.expiry_date,
+      notes: item.notes,
+    },
+  }
+}
+
 /** Project a raw block payload into a self-contained note-blocks bundle. Drops
  *  empty arrays so the bundle only advertises what it actually carries. */
 export function noteBlocksToBundle(data: NoteBlocksData, sourceCluster: string, exportedAt: string): NoteBlocksBundle {
@@ -201,6 +264,7 @@ export function bundleSourceToBundle(source: BundleSource, sourceCluster: string
   switch (source.kind) {
     case 'calendar-event': return eventToBundle(source.event, sourceCluster, exportedAt)
     case 'map-overlay':    return overlayToBundle(source.overlay, sourceCluster, exportedAt)
+    case 'property-item':  return propertyItemToBundle(source.item, sourceCluster, exportedAt)
     case 'note-blocks':    return noteBlocksToBundle(source.blocks, sourceCluster, exportedAt)
   }
 }
@@ -292,11 +356,58 @@ export function bundleToOverlay(
   }
 }
 
+/**
+ * Remint a property bundle into `addItem` params for the receiver's cluster. The
+ * copy lands UNASSIGNED (no zone, no holder, no parent): zone ids are cluster-
+ * local, and receiving a description of someone else's equipment is not a custody
+ * event — the receiver places and signs for it themselves. Turn-in / external
+ * sign-out state does not travel, so the copy starts clean on the books.
+ */
+export function bundleToPropertyItem(
+  bundle: PropertyItemBundle,
+  ctx: IngestContext,
+): Omit<PropertyItem, 'id' | 'created_at' | 'updated_at' | 'signed_out_external' | 'owner_user_id' | 'turned_in_at'> {
+  const b = bundle.item
+  return {
+    clinic_id: ctx.clinicId,
+    name: b.name,
+    nomenclature: b.nomenclature,
+    nsn: b.nsn,
+    lin: b.lin,
+    serial_number: b.serial_number,
+    quantity: b.quantity,
+    quantity_authorized: b.quantity_authorized,
+    is_serialized: b.is_serialized,
+    item_type: b.item_type,
+    unit_of_issue: b.unit_of_issue,
+    pack_size: b.pack_size,
+    condition_code: b.condition_code,
+    expiry_date: b.expiry_date,
+    notes: b.notes,
+    parent_item_id: null,
+    location_id: null,
+    current_holder_id: null,
+    location_tag_id: null,
+    photo_url: null,
+    visual_fingerprint: null,
+  }
+}
+
 // ---- Labels (for the chat card + conversation preview) ----
 
 export function bundleLabel(bundle: ObjectBundle): { label: string; subLabel?: string } {
   if (bundle.kind === 'calendar-event') {
     return { label: bundle.event.title || 'Event', subLabel: formatEventSub(bundle.event) }
+  }
+  if (bundle.kind === 'property-item') {
+    const i = bundle.item
+    // Same shape the live shared_ref uses, so a same- and cross-cluster share of
+    // the one item read identically in the thread.
+    const qty = i.is_serialized ? (i.serial_number ? `SN ${i.serial_number}` : 'Serialized') : `Qty ${i.quantity}`
+    return {
+      label: i.name || i.nomenclature || 'Item',
+      subLabel: i.nsn ? `${qty} · Material/NSN ${i.nsn}` : qty,
+    }
   }
   if (bundle.kind === 'note-blocks') {
     const c = noteBlocksCounts(bundle)
@@ -403,6 +514,9 @@ export function parseBundle(json: string): ObjectBundle | null {
     }
     if (raw.kind === 'map-overlay' && (raw as MapOverlayBundle).overlay && Array.isArray((raw as MapOverlayBundle).overlay.features)) {
       return raw as MapOverlayBundle
+    }
+    if (raw.kind === 'property-item' && (raw as PropertyItemBundle).item && typeof (raw as PropertyItemBundle).item.name === 'string') {
+      return raw as PropertyItemBundle
     }
     if (raw.kind === 'note-blocks') {
       const nb = raw as NoteBlocksBundle

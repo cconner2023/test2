@@ -112,9 +112,6 @@ export function OutsideSessionCard({ content, messageId, onLongPress }: Props) {
                 <Phone size={13} /> Call back
               </button>
             </div>
-            <div className="px-3.5 pt-1.5 text-[8pt] text-themeyellow leading-relaxed">
-              Operational details only — no patient names or medical details.
-            </div>
             <div className="flex items-end gap-2 px-2.5 py-2">
               <textarea
                 value={text}

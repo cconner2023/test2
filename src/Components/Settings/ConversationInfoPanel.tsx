@@ -24,9 +24,24 @@ type ActionResult = { ok: boolean; error?: string }
 interface DirectPeer {
   userId: string
   name: string
+  /** Second identity line under the name — e.g. the address an outbound
+   *  outside-contact channel actually delivers to. */
+  sub?: string | null
   avatarId?: string | null
   firstName?: string | null
   lastName?: string | null
+}
+
+/** Destructive action for a 1:1, surfaced exactly where a group's Leave/Purge sit:
+ *  footer pill on desktop, header ellipsis menu on mobile. Only conversations that
+ *  can actually be torn down supply one — a signal 1:1 is not revocable, an
+ *  outbound outside-contact channel is. */
+interface DirectAction {
+  label: string
+  confirmTitle: string
+  confirmSubtitle?: string
+  confirmLabel: string
+  onConfirm: () => void
 }
 
 interface ConversationInfoPanelProps {
@@ -40,6 +55,8 @@ interface ConversationInfoPanelProps {
   onJumpToMessage?: (messageId: string) => void
   /** Present for a 1:1 conversation. */
   peer?: DirectPeer
+  /** Present when this 1:1 can be torn down from here (outside-contact channel). */
+  directAction?: DirectAction
   /** Present for a group conversation — enables the governance section. */
   group?: GroupInfo
   userId?: string
@@ -105,6 +122,7 @@ export function ConversationInfoPanel({
   isDevRole,
   onJumpToMessage,
   peer,
+  directAction,
   group,
   userId,
   medics = [],
@@ -123,6 +141,7 @@ export function ConversationInfoPanel({
   const [actionError, setActionError] = useState<string | null>(null)
   const [confirmPurge, setConfirmPurge] = useState(false)
   const [confirmLeave, setConfirmLeave] = useState(false)
+  const [confirmDirect, setConfirmDirect] = useState(false)
   const [pendingRemove, setPendingRemove] = useState<string | null>(null)
   const isMobile = useIsMobile()
 
@@ -170,6 +189,7 @@ export function ConversationInfoPanel({
     if (!isOpen) return
     setActionError(null)
     setConfirmPurge(false)
+    setConfirmDirect(false)
     setGroupEditing(false)
     offRoster.reset()
     if (groupId && fetchMembers) fetchMembers(groupId).then(setMembers)
@@ -279,7 +299,16 @@ export function ConversationInfoPanel({
               onAction: () => setConfirmLeave(true),
             },
           ])
-    : []
+    : directAction
+      ? [{
+          key: 'direct',
+          label: directAction.label,
+          icon: Trash2,
+          variant: 'danger' as const,
+          closesOnAction: false,
+          onAction: () => setConfirmDirect(true),
+        }]
+      : []
 
   const rightAction = group && isPrimary
     ? (groupEditing
@@ -329,7 +358,9 @@ export function ConversationInfoPanel({
           : []),
         { key: 'leave', label: 'Leave', icon: LogOut, destructive: true, onAction: () => setConfirmLeave(true) },
       ]
-    : []
+    : directAction
+      ? [{ key: 'direct', label: directAction.label, icon: Trash2, destructive: true, onAction: () => setConfirmDirect(true) }]
+      : []
   const sheetHeaderMenu = sheetMenuItems.length > 0
     ? <OverlayHeaderMenu items={sheetMenuItems} align="left" />
     : undefined
@@ -438,7 +469,10 @@ export function ConversationInfoPanel({
   const directIdentity = peer && (
     <div className="px-4 py-4 flex items-center gap-3">
       <UserAvatar avatarId={peer.avatarId} firstName={peer.firstName} lastName={peer.lastName} className="w-12 h-12" />
-      <p className="flex-1 text-base font-medium text-primary truncate">{peer.name}</p>
+      <div className="flex-1 min-w-0">
+        <p className="text-base font-medium text-primary truncate">{peer.name}</p>
+        {peer.sub && <p className="text-[10pt] text-tertiary truncate">{peer.sub}</p>}
+      </div>
     </div>
   )
 
@@ -570,6 +604,18 @@ export function ConversationInfoPanel({
             onCancel={() => setPendingRemove(null)}
           />
         </>
+      )}
+
+      {directAction && (
+        <ConfirmDialog
+          visible={confirmDirect}
+          title={directAction.confirmTitle}
+          subtitle={directAction.confirmSubtitle}
+          confirmLabel={directAction.confirmLabel}
+          variant="danger"
+          onConfirm={() => { setConfirmDirect(false); directAction.onConfirm() }}
+          onCancel={() => setConfirmDirect(false)}
+        />
       )}
     </div>
   )

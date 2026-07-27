@@ -204,7 +204,10 @@ export function MessageBubble({
       return { typeLabel, name: c.label, detail: c.subLabel ?? null }
     }
     if (c?.type === 'shared_bundle') {
-      const typeLabel = c.bundleKind === 'note-blocks' ? 'Template' : c.bundleKind === 'calendar-event' ? 'Event' : 'Map'
+      const typeLabel = c.bundleKind === 'note-blocks' ? 'Template'
+        : c.bundleKind === 'calendar-event' ? 'Event'
+        : c.bundleKind === 'property-item' ? 'Property'
+        : 'Map'
       return { typeLabel, name: c.label, detail: c.subLabel ?? null }
     }
     return null

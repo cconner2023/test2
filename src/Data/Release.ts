@@ -18,13 +18,11 @@ export interface ReleaseNoteTypes {
 }
 
 export const ReleaseNotes: ReleaseNoteTypes[] = [
-    { version: '2.7.2', type: 'bug', sectionId: '', text: 'Group Messaging corrected' },
-    { version: '2.7.2', type: 'bug', sectionId: 'property-book', text: 'DA2062 logic corrected' },
+    { version: '2.7.3', type: 'added', sectionId: 'writing-notes', text: 'Prolonged Field Care and updated ICTLs: in progress' },
+    { version: '2.7.3', type: 'added', sectionId: 'outside-contacts', text: 'Create an encrypted message to someone outside the app by email (they open a channel through a link). Expires and is purged after 24 hours.' },
+    { version: '2.7.3', type: 'added', sectionId: 'writing-notes', text: '(optional. See settings) Seed SOAP content based on algorithm decision making. (i.e. if \'A-1 sore throat, yes to tonsillar exudate\' via the algorithm, then HPI reports the symptom, and physical exam records the abnormal finding. (ETA 15AUG)'},
     { version: '2.7.2', type: 'added', sectionId: 'desktop-shortcuts', text: 'Desktop keyboard shortcuts: hold Ctrl+Alt and press a letter to jump straight to a tool. Desktop only at current; see the user guide for a complete list.' },
     { version: '2.7.2', type: 'added', sectionId: 'clinic-management', text: 'Relocate your cluster (i.e. deployment, rotation) to see new units in that area. Will require those cluster keys kept by supervisors.' },
-    { version: '2.7.2', type: 'started', sectionId: 'writing-notes', text: 'Prolonged Field Care in Knowledge Base (ETA depends on deployedmedicine)' },
-    { version: '2.7.2', type: 'started', sectionId: 'writing-notes', text: 'Seed SOAP content based on algorithm decision making (i.e. if \'A-1 sore throat, yes to tonsillar exudate\' via the algorithm, then HPI reports the symptom, and physical exam records the abnormal finding. (ETA 15AUG)' },
-    { version: '2.7.2', type: 'started', sectionId: 'writing-notes', text: 'medication dispensed quantities linked to CVIII: track your BAS expendature based on what you currently have in stock (ETA 20AUG)' },
     { version: '2.7.1', type: 'added', sectionId: 'property-book', text: 'CVIII order 3161 matching turn-in. For use with DCAMS' },
     { version: '2.7.1', type: 'added', tier: 'supervisor', sectionId: 'soldier-loaning', text: 'Supervisors at BDE and higher can now view child cluster training metrics via the supervisor panel. Supervisors can also create new accounts or unlink accounts for child clusters. Only applicable at same level and down (i.e. DIV can manage down, BDE can manage down)' },
     { version: '2.7.1', type: 'added', sectionId: 'property-accountability', text: 'Property accountability: cluster primary hand receipt, shortages, DA 2062 sign-out, DA 3161 turn-in, DD 1750 packing list, and personal property' },
