@@ -4,6 +4,7 @@ import { useTC3Store } from '../../stores/useTC3Store'
 import { TC3EditorSurface } from './TC3EditorSurface'
 import { EmptyState } from '@/Components/primitives/EmptyState'
 import { TextInput } from '@/Components/primitives/FormInputs'
+import { Chip, ChipBar } from '@/Components/primitives/Chip'
 import type { MechanismType } from '../../Types/TC3Types'
 
 const MECHANISM_OPTIONS: { type: MechanismType; label: string }[] = [
@@ -128,28 +129,18 @@ export const MechanismForm = memo(function MechanismForm() {
                 Casualty Info editor uses for Sex / Blood Type — no bordered card. */}
             <div className={`px-4 py-3${showOther ? ' border-b border-primary/6' : ''}`}>
               <span className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest">Mechanism</span>
-              <div className="mt-1.5 flex overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
-                {MECHANISM_OPTIONS.map((opt) => {
-                  const isSelected = draftTypes.includes(opt.type)
-                  return (
-                    <button
-                      key={opt.type}
-                      type="button"
-                      onClick={() => handleToggleDraft(opt.type)}
-                      className={`shrink-0 px-4 py-1.5 transition-colors ${
-                        isSelected ? 'bg-themeblue3' : 'active:bg-tertiary/5'
-                      }`}
-                      title={`Mechanism: ${opt.label}`}
-                    >
-                      <span className={`text-[9pt] transition-colors ${
-                        isSelected ? 'text-white font-medium' : 'text-secondary'
-                      }`}>
-                        {opt.label}
-                      </span>
-                    </button>
-                  )
-                })}
-              </div>
+              <ChipBar className="mt-1.5">
+                {MECHANISM_OPTIONS.map((opt) => (
+                  <Chip
+                    key={opt.type}
+                    active={draftTypes.includes(opt.type)}
+                    title={`Mechanism: ${opt.label}`}
+                    onClick={() => handleToggleDraft(opt.type)}
+                  >
+                    {opt.label}
+                  </Chip>
+                ))}
+              </ChipBar>
             </div>
 
             {/* Other description */}

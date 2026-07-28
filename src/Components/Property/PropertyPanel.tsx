@@ -49,6 +49,7 @@ import { SignOutForm, type SignOutFormHandle } from './SignOutForm'
 import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill'
 import { SearchInput } from '@/Components/primitives/SearchInput'
 import { SlideRevealPane } from '@/Components/primitives/SlideRevealPane'
+import { PaneHeader } from '@/Components/primitives/PaneHeader'
 import { useEscBackout } from '../../Hooks/useEscBackout'
 
 export type PropertyView = 'property' | 'property-detail' | 'property-form'
@@ -1333,15 +1334,15 @@ export const PropertyPanel = memo(function PropertyPanel({
             <LoadingOverlay visible={formSaving} />
             {editLocationTarget && (
               <>
-                <div className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-tertiary/10">
-                  <p className="text-sm font-medium text-primary">
-                    {editLocationTarget.loc ? 'Edit Location' : 'New Location'}
-                  </p>
-                  <HeaderPill>
-                    <PillButton icon={X} iconSize={16} onClick={() => setEditLocationTarget(null)} label="Cancel" />
-                    <PillButton icon={Check} iconSize={16} accent="success" onClick={() => locationFormRef.current?.submit()} label="Save" />
-                  </HeaderPill>
-                </div>
+                <PaneHeader
+                  title={editLocationTarget.loc ? 'Edit Location' : 'New Location'}
+                  actions={
+                    <HeaderPill>
+                      <PillButton icon={X} iconSize={16} onClick={() => setEditLocationTarget(null)} label="Cancel" />
+                      <PillButton icon={Check} iconSize={16} accent="success" onClick={() => locationFormRef.current?.submit()} label="Save" />
+                    </HeaderPill>
+                  }
+                />
                 <div className="flex-1 min-h-0 overflow-y-auto">
                   <PropertyLocationForm
                     ref={locationFormRef}
@@ -1356,13 +1357,15 @@ export const PropertyPanel = memo(function PropertyPanel({
             )}
             {!editLocationTarget && signOutOpen && (
               <>
-                <div className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-tertiary/10">
-                  <p className="text-sm font-medium text-primary">New DA 2062</p>
-                  <HeaderPill>
-                    <PillButton icon={X} iconSize={16} onClick={() => setSignOutOpen(false)} label="Close" />
-                    <PillButton icon={Check} iconSize={16} accent="success" onClick={() => signOutFormRef.current?.submit()} label="Sign out" />
-                  </HeaderPill>
-                </div>
+                <PaneHeader
+                  title="New DA 2062"
+                  actions={
+                    <HeaderPill>
+                      <PillButton icon={X} iconSize={16} onClick={() => setSignOutOpen(false)} label="Close" />
+                      <PillButton icon={Check} iconSize={16} accent="success" onClick={() => signOutFormRef.current?.submit()} label="Sign out" />
+                    </HeaderPill>
+                  }
+                />
                 <div className="flex-1 min-h-0 overflow-y-auto">
                   <SignOutForm ref={signOutFormRef} onClose={() => setSignOutOpen(false)} onSavingChange={setFormSaving} />
                 </div>
@@ -1370,24 +1373,25 @@ export const PropertyPanel = memo(function PropertyPanel({
             )}
             {!editLocationTarget && !signOutOpen && !selectedReceipt && !selectedRecord && !selectedTurnIn && view === 'property-detail' && selectedItem && (
               <>
-                <div className="shrink-0 flex items-center gap-2 px-4 py-3 border-b border-tertiary/10">
-                  <div className="flex-1 min-w-0">
+                <PaneHeader
+                  eyebrow={
                     <PropertyBreadcrumb
                       parentId={selectedItem.location_id ?? null}
                       locations={visibleLocations}
                       rootLabel={clinicName}
                       onNavigate={handleBreadcrumbNavigate}
-                      className="mb-0.5"
                     />
-                    <p className="truncate text-sm font-medium text-primary">{selectedItem.name}</p>
-                  </div>
-                  <HeaderPill>
-                    <span className="inline-flex" onClick={(e) => openItemMenu(selectedItem, (e.currentTarget as HTMLElement).getBoundingClientRect())}>
-                      <PillButton icon={MoreHorizontal} iconSize={16} onClick={() => {}} label="More actions" />
-                    </span>
-                    <PillButton icon={X} iconSize={16} onClick={() => { onBack(); closeLocationDetail() }} label="Close" />
-                  </HeaderPill>
-                </div>
+                  }
+                  title={selectedItem.name}
+                  actions={
+                    <HeaderPill>
+                      <span className="inline-flex" onClick={(e) => openItemMenu(selectedItem, (e.currentTarget as HTMLElement).getBoundingClientRect())}>
+                        <PillButton icon={MoreHorizontal} iconSize={16} onClick={() => {}} label="More actions" />
+                      </span>
+                      <PillButton icon={X} iconSize={16} onClick={() => { onBack(); closeLocationDetail() }} label="Close" />
+                    </HeaderPill>
+                  }
+                />
                 <div className="flex-1 min-h-0 overflow-y-auto">
                   <PropertyItemDetail
                     item={selectedItem}
@@ -1401,16 +1405,16 @@ export const PropertyPanel = memo(function PropertyPanel({
             )}
             {!editLocationTarget && !signOutOpen && !selectedReceipt && !selectedRecord && !selectedTurnIn && view === 'property-form' && (
               <>
-                <div className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-tertiary/10">
-                  <p className="text-sm font-medium text-primary">
-                    {store.editingItem ? 'Edit Item' : 'New Item'}
-                  </p>
-                  <HeaderPill>
-                    {!store.editingItem && <PillButton icon={Rows3} iconSize={16} onClick={openBulkAdd} label="Add multiple" />}
-                    <PillButton icon={X} iconSize={16} onClick={() => { store.setEditingItem(null); onBack() }} label="Cancel" />
-                    <PillButton icon={Check} iconSize={16} accent="success" onClick={() => itemFormRef.current?.submit()} label="Save" />
-                  </HeaderPill>
-                </div>
+                <PaneHeader
+                  title={store.editingItem ? 'Edit Item' : 'New Item'}
+                  actions={
+                    <HeaderPill>
+                      {!store.editingItem && <PillButton icon={Rows3} iconSize={16} onClick={openBulkAdd} label="Add multiple" />}
+                      <PillButton icon={X} iconSize={16} onClick={() => { store.setEditingItem(null); onBack() }} label="Cancel" />
+                      <PillButton icon={Check} iconSize={16} accent="success" onClick={() => itemFormRef.current?.submit()} label="Save" />
+                    </HeaderPill>
+                  }
+                />
                 <div className="flex-1 min-h-0 overflow-y-auto">
                   <PropertyItemForm
                     ref={itemFormRef}
@@ -1424,24 +1428,25 @@ export const PropertyPanel = memo(function PropertyPanel({
             )}
             {!editLocationTarget && !signOutOpen && !selectedReceipt && !selectedRecord && !selectedTurnIn && view === 'property' && selectedLocation && (
               <>
-                <div className="shrink-0 flex items-center gap-2 px-4 py-3 border-b border-tertiary/10">
-                  <div className="flex-1 min-w-0">
+                <PaneHeader
+                  eyebrow={
                     <PropertyBreadcrumb
                       parentId={selectedLocation.parent_id ?? null}
                       locations={visibleLocations}
                       rootLabel={clinicName}
                       onNavigate={handleBreadcrumbNavigate}
-                      className="mb-0.5"
                     />
-                    <p className="truncate text-sm font-medium text-primary">{selectedLocation.name}</p>
-                  </div>
-                  <HeaderPill>
-                    <span className="inline-flex" onClick={(e) => openLocationMenu(selectedLocation, (e.currentTarget as HTMLElement).getBoundingClientRect())}>
-                      <PillButton icon={MoreHorizontal} iconSize={16} onClick={() => {}} label="More actions" />
-                    </span>
-                    <PillButton icon={X} iconSize={16} onClick={closeLocationDetail} label="Close" />
-                  </HeaderPill>
-                </div>
+                  }
+                  title={selectedLocation.name}
+                  actions={
+                    <HeaderPill>
+                      <span className="inline-flex" onClick={(e) => openLocationMenu(selectedLocation, (e.currentTarget as HTMLElement).getBoundingClientRect())}>
+                        <PillButton icon={MoreHorizontal} iconSize={16} onClick={() => {}} label="More actions" />
+                      </span>
+                      <PillButton icon={X} iconSize={16} onClick={closeLocationDetail} label="Close" />
+                    </HeaderPill>
+                  }
+                />
                 <div className="flex-1 min-h-0 overflow-y-auto">
                   <PropertyLocationDetail
                     location={selectedLocation}
@@ -1461,18 +1466,18 @@ export const PropertyPanel = memo(function PropertyPanel({
                 body is the receipt's item rows. */}
             {!editLocationTarget && !signOutOpen && selectedReceipt && (
               <>
-                <div className="shrink-0 flex items-center gap-2 px-4 py-3 border-b border-tertiary/10">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[9pt] text-tertiary mb-0.5">{da2062DetailSubtitle(selectedReceipt)}</p>
-                    <p className="truncate text-sm font-medium text-primary">{selectedReceipt.recipientLabel}</p>
-                  </div>
-                  <HeaderPill>
-                    <span className="inline-flex" onClick={(e) => da2062DetailRef.current?.openMenu((e.currentTarget as HTMLElement).getBoundingClientRect())}>
-                      <PillButton icon={MoreHorizontal} iconSize={16} onClick={() => {}} label="More actions" />
-                    </span>
-                    <PillButton icon={X} iconSize={16} onClick={closeRosterDetail} label="Close" />
-                  </HeaderPill>
-                </div>
+                <PaneHeader
+                  eyebrow={da2062DetailSubtitle(selectedReceipt)}
+                  title={selectedReceipt.recipientLabel}
+                  actions={
+                    <HeaderPill>
+                      <span className="inline-flex" onClick={(e) => da2062DetailRef.current?.openMenu((e.currentTarget as HTMLElement).getBoundingClientRect())}>
+                        <PillButton icon={MoreHorizontal} iconSize={16} onClick={() => {}} label="More actions" />
+                      </span>
+                      <PillButton icon={X} iconSize={16} onClick={closeRosterDetail} label="Close" />
+                    </HeaderPill>
+                  }
+                />
                 <div className="flex-1 min-h-0 overflow-y-auto">
                   <Da2062Detail
                     ref={da2062DetailRef}
@@ -1493,18 +1498,18 @@ export const PropertyPanel = memo(function PropertyPanel({
             {/* PMCS / dispatch record — opened from a Custody-roster card. */}
             {!editLocationTarget && !signOutOpen && !selectedReceipt && selectedRecord && (
               <>
-                <div className="shrink-0 flex items-center gap-2 px-4 py-3 border-b border-tertiary/10">
-                  <div className="flex-1 min-w-0">
-                    <p className="truncate text-sm font-medium text-primary">{selectedRecord.label}</p>
-                    <p className="truncate text-[9pt] text-tertiary mt-0.5">{selectedRecord.detail}</p>
-                  </div>
-                  <HeaderPill>
-                    <span className="inline-flex" onClick={(e) => recordDetailRef.current?.openMenu((e.currentTarget as HTMLElement).getBoundingClientRect())}>
-                      <PillButton icon={MoreHorizontal} iconSize={16} onClick={() => {}} label="More actions" />
-                    </span>
-                    <PillButton icon={X} iconSize={16} onClick={closeRosterDetail} label="Close" />
-                  </HeaderPill>
-                </div>
+                <PaneHeader
+                  title={selectedRecord.label}
+                  subtitle={selectedRecord.detail}
+                  actions={
+                    <HeaderPill>
+                      <span className="inline-flex" onClick={(e) => recordDetailRef.current?.openMenu((e.currentTarget as HTMLElement).getBoundingClientRect())}>
+                        <PillButton icon={MoreHorizontal} iconSize={16} onClick={() => {}} label="More actions" />
+                      </span>
+                      <PillButton icon={X} iconSize={16} onClick={closeRosterDetail} label="Close" />
+                    </HeaderPill>
+                  }
+                />
                 <div className="flex-1 min-h-0 overflow-y-auto">
                   <PropertyRecordDetail
                     ref={recordDetailRef}
@@ -1520,18 +1525,18 @@ export const PropertyPanel = memo(function PropertyPanel({
                 body is the turn-in's item rows with curate / complete / remove. */}
             {!editLocationTarget && !signOutOpen && !selectedReceipt && !selectedRecord && selectedTurnIn && (
               <>
-                <div className="shrink-0 flex items-center gap-2 px-4 py-3 border-b border-tertiary/10">
-                  <div className="flex-1 min-w-0">
-                    <p className="truncate text-sm font-medium text-primary">{turnInLabel(selectedTurnIn)}</p>
-                    <p className="truncate text-[9pt] text-tertiary mt-0.5">Pending turn-in</p>
-                  </div>
-                  <HeaderPill>
-                    <span className="inline-flex" onClick={(e) => turnInDetailRef.current?.openMenu((e.currentTarget as HTMLElement).getBoundingClientRect())}>
-                      <PillButton icon={MoreHorizontal} iconSize={16} onClick={() => {}} label="More actions" />
-                    </span>
-                    <PillButton icon={X} iconSize={16} onClick={closeRosterDetail} label="Close" />
-                  </HeaderPill>
-                </div>
+                <PaneHeader
+                  title={turnInLabel(selectedTurnIn)}
+                  subtitle="Pending turn-in"
+                  actions={
+                    <HeaderPill>
+                      <span className="inline-flex" onClick={(e) => turnInDetailRef.current?.openMenu((e.currentTarget as HTMLElement).getBoundingClientRect())}>
+                        <PillButton icon={MoreHorizontal} iconSize={16} onClick={() => {}} label="More actions" />
+                      </span>
+                      <PillButton icon={X} iconSize={16} onClick={closeRosterDetail} label="Close" />
+                    </HeaderPill>
+                  }
+                />
                 <div className="flex-1 min-h-0 overflow-y-auto">
                   <PropertyTurnInDetail
                     ref={turnInDetailRef}
@@ -1550,20 +1555,16 @@ export const PropertyPanel = memo(function PropertyPanel({
                 so it covers the pane without entangling the other branches. */}
             {importOpen && (
               <div className="absolute inset-0 z-10 flex flex-col bg-themewhite">
-                <div className="shrink-0 flex items-center justify-between gap-2 px-4 py-3 border-b border-tertiary/10">
-                  <div className="flex items-center gap-2 min-w-0">
-                    {csvImportInPreview && (
-                      <button onClick={handleImportBack} aria-label="Back" className="w-9 h-9 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all shrink-0">
-                        <ChevronLeft size={20} />
-                      </button>
-                    )}
-                    <p className="text-sm font-medium text-primary truncate">{importEditItems ? 'Edit items' : importBulk ? 'Add items' : 'Import Property CSV'}</p>
-                  </div>
-                  <HeaderPill>
-                    {csvImportReady && <PillButton icon={Check} iconSize={16} accent="success" onClick={() => csvImportRef.current?.apply()} label={importEditItems ? 'Save' : importBulk ? 'Add' : 'Import'} />}
-                    <PillButton icon={X} iconSize={16} onClick={() => setImportOpen(false)} label="Close" />
-                  </HeaderPill>
-                </div>
+                <PaneHeader
+                  title={importEditItems ? 'Edit items' : importBulk ? 'Add items' : 'Import Property CSV'}
+                  onBack={csvImportInPreview ? handleImportBack : undefined}
+                  actions={
+                    <HeaderPill>
+                      {csvImportReady && <PillButton icon={Check} iconSize={16} accent="success" onClick={() => csvImportRef.current?.apply()} label={importEditItems ? 'Save' : importBulk ? 'Add' : 'Import'} />}
+                      <PillButton icon={X} iconSize={16} onClick={() => setImportOpen(false)} label="Close" />
+                    </HeaderPill>
+                  }
+                />
                 <div className="flex-1 min-h-0 overflow-y-auto">
                   <div className="px-4 py-4 pb-8">
                     <PropertyCSVImport ref={csvImportRef} bulk={importBulk} defaultLocationId={importBulkLocationId} editItems={importEditItems ?? undefined} onReadyChange={setCsvImportReady} onInPreviewChange={setCsvImportInPreview} onClose={() => setImportOpen(false)} />
@@ -1575,13 +1576,15 @@ export const PropertyPanel = memo(function PropertyPanel({
                 overlay treatment as CSV import. */}
             {shortageOpen && (
               <div className="absolute inset-0 z-10 flex flex-col bg-themewhite">
-                <div className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-tertiary/10">
-                  <p className="text-sm font-medium text-primary truncate">Shortages</p>
-                  <HeaderPill>
-                    <PillButton icon={Download} iconSize={16} onClick={() => shortageRef.current?.exportAnnex()} label="DA 2062 shortage annex" />
-                    <PillButton icon={X} iconSize={16} onClick={() => setShortageOpen(false)} label="Close" />
-                  </HeaderPill>
-                </div>
+                <PaneHeader
+                  title="Shortages"
+                  actions={
+                    <HeaderPill>
+                      <PillButton icon={Download} iconSize={16} onClick={() => shortageRef.current?.exportAnnex()} label="DA 2062 shortage annex" />
+                      <PillButton icon={X} iconSize={16} onClick={() => setShortageOpen(false)} label="Close" />
+                    </HeaderPill>
+                  }
+                />
                 <div className="flex-1 min-h-0 overflow-y-auto">
                   <div className="px-4 py-4 pb-8">
                     <PropertyShortagePanel ref={shortageRef} onClose={() => setShortageOpen(false)} stagedTurnInIds={turnInItemIds} onLocate={handleSelectItem} />
@@ -1594,21 +1597,15 @@ export const PropertyPanel = memo(function PropertyPanel({
             {authorizedOpen && (
               <div className="absolute inset-0 z-10 flex flex-col bg-themewhite">
                 <LoadingOverlay visible={formSaving} />
-                <div className="shrink-0 flex items-center justify-between gap-2 px-4 py-3 border-b border-tertiary/10">
-                  {authForm || authView || authImport ? (
-                    // Morph header — back returns to the list; Save persists a form.
-                    <>
-                      <div className="flex items-center gap-2 min-w-0">
-                        <button onClick={authImport ? () => csvImportRef.current?.back() : closeAuthMorph} aria-label="Back" className="w-9 h-9 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all shrink-0">
-                          <ChevronLeft size={20} />
-                        </button>
-                        {authImport && csvImportInPreview && (
-                          <PillButton icon={MoreHorizontal} iconSize={16} onClick={() => csvImportRef.current?.openMenu()} label="Import actions" />
-                        )}
-                        <p className="text-sm font-medium text-primary truncate">
-                          {authForm ? (authForm.item ? 'Edit authorized item' : 'Add authorized item') : authView ? authView.name : 'Import Property CSV'}
-                        </p>
-                      </div>
+                {authForm || authView || authImport ? (
+                  // Morph header — back returns to the list; Save persists a form.
+                  <PaneHeader
+                    onBack={authImport ? () => csvImportRef.current?.back() : closeAuthMorph}
+                    leading={authImport && csvImportInPreview
+                      ? <PillButton icon={MoreHorizontal} iconSize={16} onClick={() => csvImportRef.current?.openMenu()} label="Import actions" />
+                      : undefined}
+                    title={authForm ? (authForm.item ? 'Edit authorized item' : 'Add authorized item') : authView ? authView.name : 'Import Property CSV'}
+                    actions={
                       <HeaderPill>
                         {authForm && <PillButton icon={Check} iconSize={16} accent="success" onClick={() => authFormRef.current?.submit()} label="Save" />}
                         {authImport && csvImportReady && <PillButton icon={Check} iconSize={16} accent="success" onClick={() => csvImportRef.current?.apply()} label="Import" />}
@@ -1619,22 +1616,22 @@ export const PropertyPanel = memo(function PropertyPanel({
                         )}
                         <PillButton icon={X} iconSize={16} onClick={() => setAuthorizedOpen(false)} label="Close" />
                       </HeaderPill>
-                    </>
-                  ) : (
-                    // List header — Import (its only "more action", morphs in place) left;
-                    // add + close right.
-                    <>
-                      <div className="flex items-center gap-2 min-w-0">
-                        <PillButton icon={Download} iconSize={16} onClick={openAuthImport} label="Import from CSV" />
-                        <p className="text-sm font-medium text-primary truncate">Authorized items</p>
-                      </div>
+                    }
+                  />
+                ) : (
+                  // List header — Import (its only "more action", morphs in place) left;
+                  // add + close right.
+                  <PaneHeader
+                    leading={<PillButton icon={Download} iconSize={16} onClick={openAuthImport} label="Import from CSV" />}
+                    title="Authorized items"
+                    actions={
                       <HeaderPill>
                         <PillButton icon={Plus} iconSize={16} onClick={openAuthAdd} label="Add authorized item" />
                         <PillButton icon={X} iconSize={16} onClick={() => setAuthorizedOpen(false)} label="Close" />
                       </HeaderPill>
-                    </>
-                  )}
-                </div>
+                    }
+                  />
+                )}
                 <div className="flex-1 min-h-0 overflow-y-auto">
                   <div className="px-4 py-4 pb-8">
                     {authForm ? (
@@ -1675,13 +1672,15 @@ export const PropertyPanel = memo(function PropertyPanel({
                 branches' conditions. */}
             {da2062Preview && (
               <div className="absolute inset-0 z-10 flex flex-col bg-themewhite">
-                <div className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-tertiary/10">
-                  <p className="text-sm font-medium text-primary truncate">{da2062Preview.filename}</p>
-                  <HeaderPill>
-                    <PillButton icon={Download} iconSize={16} accent="info" onClick={saveReprint} label="Save" />
-                    <PillButton icon={X} iconSize={16} onClick={clearDA2062Preview} label="Close" />
-                  </HeaderPill>
-                </div>
+                <PaneHeader
+                  title={da2062Preview.filename}
+                  actions={
+                    <HeaderPill>
+                      <PillButton icon={Download} iconSize={16} accent="info" onClick={saveReprint} label="Save" />
+                      <PillButton icon={X} iconSize={16} onClick={clearDA2062Preview} label="Close" />
+                    </HeaderPill>
+                  }
+                />
                 <div className="flex-1 min-h-0">
                   <Da2062PdfView preview={da2062Preview} />
                 </div>

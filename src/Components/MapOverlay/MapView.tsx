@@ -74,6 +74,9 @@ interface MapViewProps {
   tilesCached?: boolean;
   /** Live field positions for mission participants — rendered as decaying presence markers. */
   presenceMarkers?: PresenceMarker[];
+  /** Presence marker the open location surface is about — its label renders
+   *  permanently rather than only on hover. */
+  selectedPresenceUserId?: string | null;
   readOnlyFeatures?: OverlayFeature[];
   /** When set, the MGRS / lat-lng / UTM readout pill anchors to this point
    *  instead of the map center — used so the readout follows the currently
@@ -188,6 +191,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
   overlayId,
   tilesCached = false,
   presenceMarkers,
+  selectedPresenceUserId,
   readOnlyFeatures,
   selectedAnchor,
   onLongPress,
@@ -704,6 +708,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
     const now = Date.now();
 
     for (const marker of presenceMarkers) {
+      const selected = marker.userId === selectedPresenceUserId;
       const ageMs = now - new Date(marker.timestamp).getTime();
       const ageMin = ageMs / 60_000;
       // Persist model: never fade below a clearly-legible floor.
@@ -726,19 +731,23 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
         : ageMin < 60 ? `${Math.round(ageMin)}m ago`
         : `${Math.round(ageMin / 60)}h ago`;
 
+      // Selection reads as a heavier dot wearing its label — the tooltip is
+      // pinned open so the name stays legible without a hover the map can't get
+      // on touch.
       L.circleMarker([marker.lat, marker.lng], {
-        radius: 7,
-        color: '#15803D',
+        radius: selected ? 9 : 7,
+        color: selected ? '#065F46' : '#15803D',
         fillColor: '#22C55E',
         fillOpacity,
-        weight: 2,
+        weight: selected ? 3 : 2,
       }).bindTooltip(`${marker.label ?? 'Field'} · ${ageLabel}`, {
+        permanent: selected,
         direction: 'top',
-        offset: [0, -10],
+        offset: [0, selected ? -12 : -10],
         className: 'leaflet-tooltip-tactical',
       }).addTo(group);
     }
-  }, [presenceMarkers]);
+  }, [presenceMarkers, selectedPresenceUserId]);
 
   // Sync measure tool visualization
   useEffect(() => {

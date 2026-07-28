@@ -23,6 +23,7 @@ import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
 import { ActionSheet } from '@/Components/primitives/ActionSheet'
 import { BaseDrawer } from '@/Components/primitives/BaseDrawer'
 import { SlideRevealPane } from '@/Components/primitives/SlideRevealPane'
+import { PaneHeader } from '@/Components/primitives/PaneHeader'
 import { useEscBackout } from '../../Hooks/useEscBackout'
 import { Sheet } from '@/Components/primitives/Sheet'
 import { useStack } from '@/Components/primitives/useStack'
@@ -1755,29 +1756,22 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                       (2026-07-02): LEFT = bare Back (→ read detail, or calendar
                       on create); RIGHT = Save + Close. Delete is NOT here — it's
                       in the read-mode ellipsis (EventDetailPanel onDelete). */}
-                  <div className="flex items-center px-3 py-2 border-b border-tertiary/10">
-                    <button
-                      type="button"
-                      onClick={handleFormCancel}
-                      aria-label="Back"
-                      className="w-8 h-8 shrink-0 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
-                    >
-                      <ChevronLeft size={20} />
-                    </button>
-                    <h2 className="min-w-0 flex-1 mx-2 text-sm font-semibold text-primary truncate">
-                      {formTitle.trim() || (editingEvent ? 'Edit Event' : 'New Event')}
-                    </h2>
-                    <HeaderPill>
-                      <PillButton
-                        icon={Check}
-                        iconSize={18}
-                        accent="success"
-                        onClick={() => eventFormRef.current?.submit()}
-                        label="Save"
-                      />
-                      <PillButton icon={X} iconSize={18} onClick={handleDetailBack} label="Close" />
-                    </HeaderPill>
-                  </div>
+                  <PaneHeader
+                    title={formTitle.trim() || (editingEvent ? 'Edit Event' : 'New Event')}
+                    onBack={handleFormCancel}
+                    actions={
+                      <HeaderPill>
+                        <PillButton
+                          icon={Check}
+                          iconSize={18}
+                          accent="success"
+                          onClick={() => eventFormRef.current?.submit()}
+                          label="Save"
+                        />
+                        <PillButton icon={X} iconSize={18} onClick={handleDetailBack} label="Close" />
+                      </HeaderPill>
+                    }
+                  />
                   <div className="flex-1 min-h-0 overflow-y-auto">
                     <EventForm
                       key={formKey}
@@ -1819,19 +1813,21 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                 </div>
               ) : panelView === 'template' && activeClinicId && user && isSupervisor ? (
                 <div className="relative flex flex-col flex-1 min-h-0">
-                  <div className="flex items-center justify-between px-3 py-2 border-b border-tertiary/10">
-                    <h2 className="text-sm font-semibold text-primary whitespace-nowrap">Provider Template</h2>
-                    <HeaderPill>
-                      <PillButton icon={X} iconSize={18} onClick={() => setPanelView('calendar')} label="Cancel" />
-                      <PillButton
-                        icon={Check}
-                        iconSize={18}
-                        accent="success"
-                        onClick={() => templatePanelRef.current?.submit()}
-                        label="Generate"
-                      />
-                    </HeaderPill>
-                  </div>
+                  <PaneHeader
+                    title="Provider Template"
+                    actions={
+                      <HeaderPill>
+                        <PillButton icon={X} iconSize={18} onClick={() => setPanelView('calendar')} label="Cancel" />
+                        <PillButton
+                          icon={Check}
+                          iconSize={18}
+                          accent="success"
+                          onClick={() => templatePanelRef.current?.submit()}
+                          label="Generate"
+                        />
+                      </HeaderPill>
+                    }
+                  />
                   <div className="flex-1 min-h-0 overflow-y-auto">
                     <TemplateGeneratorPanel
                       key={templateNonce}
@@ -1844,20 +1840,22 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                 </div>
               ) : panelView === 'block' && activeClinicId && isSupervisor ? (
                 <div className="relative flex flex-col flex-1 min-h-0">
-                  <div className="flex items-center justify-between px-3 py-2 border-b border-tertiary/10">
-                    <h2 className="text-sm font-semibold text-primary whitespace-nowrap">Clear Templates</h2>
-                    <HeaderPill>
-                      <PillButton icon={X} iconSize={18} onClick={() => setPanelView('calendar')} label="Cancel" />
-                      <PillButton
-                        icon={Trash2}
-                        iconSize={18}
-                        accent="danger"
-                        onClick={() => blockPanelRef.current?.submit()}
-                        label="Clear"
-                        variant="danger"
-                      />
-                    </HeaderPill>
-                  </div>
+                  <PaneHeader
+                    title="Clear Templates"
+                    actions={
+                      <HeaderPill>
+                        <PillButton icon={X} iconSize={18} onClick={() => setPanelView('calendar')} label="Cancel" />
+                        <PillButton
+                          icon={Trash2}
+                          iconSize={18}
+                          accent="danger"
+                          onClick={() => blockPanelRef.current?.submit()}
+                          label="Clear"
+                          variant="danger"
+                        />
+                      </HeaderPill>
+                    }
+                  />
                   <div className="flex-1 min-h-0 overflow-y-auto">
                     <BlockTemplatedPanel
                       key={blockNonce}
@@ -1869,12 +1867,14 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                 </div>
               ) : panelView === 'import' && activeClinicId && user ? (
                 <div className="relative flex flex-col flex-1 min-h-0">
-                  <div className="flex items-center justify-between px-3 py-2 border-b border-tertiary/10">
-                    <h2 className="text-sm font-semibold text-primary whitespace-nowrap">Import Calendar CSV</h2>
-                    <HeaderPill>
-                      <PillButton icon={X} iconSize={18} onClick={() => setPanelView('calendar')} label="Close" />
-                    </HeaderPill>
-                  </div>
+                  <PaneHeader
+                    title="Import Calendar CSV"
+                    actions={
+                      <HeaderPill>
+                        <PillButton icon={X} iconSize={18} onClick={() => setPanelView('calendar')} label="Close" />
+                      </HeaderPill>
+                    }
+                  />
                   <div className="flex-1 min-h-0 overflow-y-auto">
                     <div className="px-4 py-4 pb-8">
                       <CalendarCSVImport

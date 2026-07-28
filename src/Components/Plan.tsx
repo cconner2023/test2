@@ -645,7 +645,7 @@ export const Plan = ({ orderTags, instructionTags, orderSets = [], initialText, 
                         {!filter && orderSets.length > 0 && (
                             <div className="px-3 pb-2.5">
                                 <p className="text-[9pt] font-semibold text-tertiary uppercase tracking-wider pb-1.5">Order Sets</p>
-                                <ChipBar>
+                                <ChipBar bordered>
                                     {orderSets.map(os => {
                                         const isActive = activeSetIds.has(os.id);
                                         return (

@@ -1,4 +1,6 @@
 import { X } from 'lucide-react'
+import { Segmented } from '@/Components/primitives/Chip'
+import { FieldCell } from '@/Components/primitives/FieldCell'
 import { useTC3Store } from '../../stores/useTC3Store'
 import { getBodyRegion, getRegionLabel, getRegionCenter } from '../../Utilities/bodyRegionMap'
 import { TC3BodyDiagramSvg } from './TC3BodyDiagramSvg'
@@ -19,40 +21,7 @@ export function CellCard({ children }: { children: React.ReactNode }) {
 
 /** One labelled cell — label on top, value below. Carries its own bottom
     divider; pass `bare` when the parent row owns the divider. */
-export function Cell({ label, children, className, bare }: {
-  label: string
-  children: React.ReactNode
-  className?: string
-  bare?: boolean
-}) {
-  return (
-    <div className={`flex flex-col gap-0.5 px-3 py-2 ${bare ? '' : 'border-b border-primary/6 last:border-0'} ${className ?? ''}`}>
-      <span className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest">{label}</span>
-      {children}
-    </div>
-  )
-}
-
-/** Flat segmented selector — NO pills (see conventions/TOGGLE pattern). */
-export function Segmented<T extends string>({ options, value, onChange, capitalize }: {
-  options: readonly T[]
-  value: T
-  onChange: (v: T) => void
-  capitalize?: boolean
-}) {
-  return (
-    <div className="flex flex-wrap mt-0.5">
-      {options.map((opt) => (
-        <button
-          key={opt} type="button" onClick={() => onChange(opt)}
-          className={`px-3 py-0.5 transition-colors ${value === opt ? 'bg-themeblue3' : 'active:bg-tertiary/5'}`}
-        >
-          <span className={`text-[9pt] ${capitalize ? 'capitalize' : ''} ${value === opt ? 'text-white font-medium' : 'text-secondary'}`}>{opt}</span>
-        </button>
-      ))}
-    </div>
-  )
-}
+export const Cell = FieldCell
 
 /** Location picker — the body diagram is ALWAYS visible (never a blank input). */
 export function LocationCell({ value, marker, onChange, label = 'Location' }: {

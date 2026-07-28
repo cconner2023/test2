@@ -47,16 +47,19 @@ export const BETA_FEATURES = {
    *  auto-populate the custom note's HPI/PE sections from the YES/NO answers.
    *  Dev-only while tagging is rolled out per algorithm; flip to false to open to all. */
   algorithmNoteRouting: true,
-  /** Personnel — opt-in self-location on the map overlay. Dev-only while it's
-   *  being validated in prod; gates the island's share actions, the Personnel
-   *  tree entry, and teammates' markers. Flip to false to open to all. */
-  teamPresence: true,
+  /** Personnel — opt-in self-location on the map overlay. Promoted 2026-07-27:
+   *  the island's share actions, the Personnel tree entry, and teammates'
+   *  markers are open to all authenticated users. Flip back to true to re-gate. */
+  teamPresence: false,
   /** Outbound outside-contact — a clinic member emails a secure 1:1 invite to an
-   *  outside recipient (reverse of the inbound QR/passphrase channels). Fully
-   *  dev-gated end-to-end (create_outside_entity / set_outbound_enabled assert
-   *  is_dev()); this flag hides the supervisor toggle + compose surface for
-   *  non-dev until testing completes. Flip to false to promote to supervisors. */
-  outboundContact: true,
+   *  outside recipient (reverse of the inbound QR/passphrase channels). Promoted
+   *  2026-07-27: the is_dev() asserts came out of create_outside_entity and
+   *  set_outbound_enabled at the same time, so re-gating here alone will NOT
+   *  re-close the server — the RPCs would have to be re-gated too. The standing
+   *  gates are now the supervisor "Allow outbound contact" toggle
+   *  (set_outbound_enabled → _assert_supervisor_or_dev) and the per-cluster
+   *  credential.outbound_enabled the compose surface reads. */
+  outboundContact: false,
 } as const
 
 export type BetaFeature = keyof typeof BETA_FEATURES

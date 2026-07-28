@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo, type ReactNode } from 'react';
 import type { CalendarEvent } from '../../Types/CalendarTypes';
 import { useSpring, animated } from '@react-spring/web';
 import { ChevronLeft, ChevronRight, Settings, MapPin, Route, Pentagon, Trash2, X, Ruler, Undo2, Activity, Pause, Play, Square, Plus, Check, Navigation, Layers, Pencil, Clock, MoreHorizontal, MessageSquare, Share2, Copy, LocateFixed, RadioTower } from 'lucide-react';
@@ -21,6 +21,7 @@ import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill';
 import { SearchInput } from '@/Components/primitives/SearchInput';
 import { ContentWrapper } from '@/Components/primitives/ContentWrapper';
 import { SlideRevealPane } from '@/Components/primitives/SlideRevealPane';
+import { PaneHeader } from '@/Components/primitives/PaneHeader';
 import { useEscBackout } from '../../Hooks/useEscBackout';
 import { ErrorDisplay } from '@/Components/primitives/ErrorDisplay';
 import { TextInput } from '@/Components/primitives/FormInputs';
@@ -76,6 +77,8 @@ import { resolveSearch } from './searchResolver';
 import { MapSearchOverlay, type SearchOverlaySelection } from './MapSearchOverlay';
 import { useMapSearchStore } from '../../stores/useMapSearchStore';
 import { LiftedRowMenu } from '@/Components/primitives/LiftedRowMenu';
+import { OverlayHeaderMenu } from '@/Components/primitives/OverlayHeaderMenu';
+import type { ContextMenuItem } from '@/Components/primitives/ContextMenu';
 import { useShareToChat } from '../Messages/ShareToChatPicker';
 import { parseGPX, serializeGPX } from '../../lib/gpx';
 import { parseKML, serializeKML } from '../../lib/kml';
@@ -252,28 +255,15 @@ function TempPointBody({ lat, lng }: { lat: number; lng: number }) {
   );
 }
 
-/**
- * "My location" body — the device fix plus its sharing state. Content only: the
- * actions (center / add / update / remove) ride the host header, same as the
- * feature editor and temp-point surfaces this shares a host with.
- */
-function MyLocationBody({ fix, shared, label }: {
-  fix: { lat: number; lng: number; accuracy: number } | null;
-  shared: boolean;
-  label: string;
-}) {
-  if (!fix) {
-    return (
-      <p className="px-4 py-4 text-[10pt] text-tertiary">
-        No GPS fix yet. Allow location access, then use the locate action to start a fix.
-      </p>
-    );
-  }
-  const rows = [
-    { label: 'MGRS', value: latLngToMgrs(fix.lat, fix.lng, 5) || '—' },
-    { label: 'Lat / Lng', value: `${fix.lat.toFixed(6)}, ${fix.lng.toFixed(6)}` },
-    { label: 'Accuracy', value: `±${Math.round(fix.accuracy)} m` },
-  ];
+function presenceAgeLabel(iso: string): string {
+  const min = (Date.now() - new Date(iso).getTime()) / 60_000;
+  if (min < 1) return 'just now';
+  if (min < 60) return `${Math.round(min)}m ago`;
+  if (min < 1440) return `${Math.round(min / 60)}h ago`;
+  return `${Math.round(min / 1440)}d ago`;
+}
+
+function LocationRows({ rows, note }: { rows: { label: string; value: string }[]; note: ReactNode }) {
   return (
     <div className="flex flex-col gap-2 p-3">
       {rows.map(row => (
@@ -282,12 +272,53 @@ function MyLocationBody({ fix, shared, label }: {
           <div className="text-[10pt] font-mono text-primary truncate" title={row.value}>{row.value}</div>
         </div>
       ))}
-      <p className="px-1 text-[9pt] text-tertiary">
-        {shared
-          ? <>Shared with your clinic as <span className="text-primary">{label}</span> on Personnel.</>
-          : 'Not shared. Adding drops a marker your clinic can see until you move or remove it.'}
-      </p>
+      <p className="px-1 text-[9pt] text-tertiary">{note}</p>
     </div>
+  );
+}
+
+/**
+ * Location body — the signed-in user's device fix and its sharing state, or a
+ * teammate's Personnel marker when `marker` is set (picked from the tree).
+ * Content only: the actions ride the host header ellipsis, same as the feature
+ * editor and temp-point surfaces this shares a host with.
+ */
+function LocationBody({ fix, shared, label, marker }: {
+  fix: { lat: number; lng: number; accuracy: number } | null;
+  shared: boolean;
+  label: string;
+  marker?: { lat: number; lng: number; updatedAt: string } | null;
+}) {
+  if (marker) {
+    return (
+      <LocationRows
+        rows={[
+          { label: 'MGRS', value: latLngToMgrs(marker.lat, marker.lng, 5) || '—' },
+          { label: 'Lat / Lng', value: `${marker.lat.toFixed(6)}, ${marker.lng.toFixed(6)}` },
+          { label: 'Shared', value: presenceAgeLabel(marker.updatedAt) },
+        ]}
+        note={<>Dropped by <span className="text-primary">{label}</span>. Only they can move or retract it.</>}
+      />
+    );
+  }
+  if (!fix) {
+    return (
+      <p className="px-4 py-4 text-[10pt] text-tertiary">
+        No GPS fix yet. Allow location access, then use the locate action to start a fix.
+      </p>
+    );
+  }
+  return (
+    <LocationRows
+      rows={[
+        { label: 'MGRS', value: latLngToMgrs(fix.lat, fix.lng, 5) || '—' },
+        { label: 'Lat / Lng', value: `${fix.lat.toFixed(6)}, ${fix.lng.toFixed(6)}` },
+        { label: 'Accuracy', value: `±${Math.round(fix.accuracy)} m` },
+      ]}
+      note={shared
+        ? <>Shared with your clinic as <span className="text-primary">{label}</span> on Personnel.</>
+        : 'Not shared. Adding drops a marker your clinic can see until you move or remove it.'}
+    />
   );
 }
 
@@ -391,8 +422,12 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
   const [showPopover, setShowPopover] = useState(false);
   const [showMobileTree, setShowMobileTree] = useState(false);
   // "My location" rides the SAME host as a feature: mobile Sheet / desktop
-  // right pane. Opened from the island's locate glyph.
+  // right pane. Opened from the island's locate glyph, or by picking a
+  // Personnel row in the tree.
   const [showMyLocation, setShowMyLocation] = useState(false);
+  // Whose marker that surface is about. null = the signed-in user's own fix;
+  // a user id = the teammate whose Personnel row was picked (read-only).
+  const [locationSubjectUserId, setLocationSubjectUserId] = useState<string | null>(null);
   const [addSheet, setAddSheet] = useState<'root' | 'feature' | 'import' | null>(null);
   const [pinPickerPage, setPinPickerPage] = useState<number | null>(null);
   const [visibleOverlayIds, setVisibleOverlayIds] = useState<Set<string>>(new Set());
@@ -626,8 +661,9 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
   }, [featureLinksEditor, allEvents]);
 
   // ── Team presence (opt-in self-location, decoupled from mission events) ──
-  // Dev-gated until validated in prod: gates both the "Add my location" pill and
-  // the rendering of teammates' presence markers.
+  // Gates both the "Add my location" pill and the rendering of teammates'
+  // presence markers. Promoted out of beta 2026-07-27 — resolves true for every
+  // authenticated user; the flag stays wired so it can be re-gated in one edit.
   const presenceBeta = useBetaFlag('teamPresence');
   // Identity labels for rendering teammates' markers.
   const [userLabels, setUserLabels] = useState<Map<string, string>>(new Map());
@@ -688,6 +724,21 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
       || user.id.slice(0, 8))
     : '';
 
+  // The teammate marker backing the location surface. Read off the overlay, not
+  // the rendered markers, so hiding Personnel doesn't blank a sheet already open.
+  const subjectMarker = useMemo(() => {
+    if (!locationSubjectUserId || locationSubjectUserId === user?.id) return null;
+    const feature = (presenceOverlay?.features ?? []).find(f => f.id === presenceFeatureId(locationSubjectUserId));
+    const point = feature?.geometry[0];
+    if (!feature || !point) return null;
+    return {
+      lat: point[0],
+      lng: point[1],
+      updatedAt: feature.updated_at,
+      label: userLabels.get(locationSubjectUserId) || feature.label || locationSubjectUserId.slice(0, 8),
+    };
+  }, [locationSubjectUserId, user, presenceOverlay, userLabels]);
+
   // Add or move the current user's own marker. Reuses the live GPS fix — the
   // browser geolocation prompt is acquire-consent, this deliberate tap is
   // transmit-consent. There is NO continuous publisher: a position only ever
@@ -741,34 +792,59 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
   // fan out to, and the flag on. Without it the surface is fix + recenter only.
   const canShareLocation = !!user && !!activeClinicId && presenceBeta;
 
-  // One action cluster, mounted in both hosts (mobile Sheet folds it into the
-  // close pill; the desktop pane renders it beside its own Close). Every pill is
-  // contextual — nothing renders disabled, and sharing needs a deliberate tap.
-  const myLocationActions = (
-    <>
-      {position
-        ? <PillButton icon={LocateFixed} iconSize={18} onClick={handleCenterOnMe} label="Center on my location" />
-        : <PillButton icon={LocateFixed} iconSize={18} onClick={startWatching} label="Get my location" />}
-      {canShareLocation && position && (
-        <PillButton
-          icon={myLocationShared ? RadioTower : MapPin}
-          iconSize={18}
-          onClick={handleAddOrUpdateMyLocation}
-          label={myLocationShared ? 'Update my location' : 'Add to Personnel'}
-          accent={myLocationShared ? 'success' : 'info'}
-        />
-      )}
-      {canShareLocation && myLocationShared && (
-        <PillButton
-          icon={Trash2}
-          iconSize={18}
-          variant="danger"
-          onClick={handleRemoveMyLocation}
-          label="Remove from Personnel"
-        />
-      )}
-    </>
-  );
+  // Close the location surface and drop whatever it was about, so reopening it
+  // from the island lands on your own fix rather than the last teammate viewed.
+  const handleCloseLocation = useCallback(() => {
+    setShowMyLocation(false);
+    setLocationSubjectUserId(null);
+  }, []);
+
+  // A teammate's marker retracted under an open sheet leaves nothing to show.
+  useEffect(() => {
+    if (locationSubjectUserId && locationSubjectUserId !== user?.id && !subjectMarker) handleCloseLocation();
+  }, [locationSubjectUserId, user, subjectMarker, handleCloseLocation]);
+
+  // One action set, rendered through the header ellipsis in both hosts. Every
+  // entry is contextual — nothing renders disabled, and sharing needs a
+  // deliberate tap. A teammate's marker is theirs: locate only, never edit or
+  // retract.
+  const locationMenuItems: ContextMenuItem[] = useMemo(() => {
+    if (subjectMarker) {
+      return [{
+        key: 'center',
+        label: `Center on ${subjectMarker.label}`,
+        icon: LocateFixed,
+        onAction: () => mapRef.current?.flyTo(subjectMarker.lat, subjectMarker.lng, Math.max(mapZoom, 15)),
+      }];
+    }
+    const items: ContextMenuItem[] = [
+      position
+        ? { key: 'center', label: 'Center on my location', icon: LocateFixed, onAction: handleCenterOnMe }
+        : { key: 'fix', label: 'Get my location', icon: LocateFixed, onAction: startWatching },
+    ];
+    if (canShareLocation && position) {
+      items.push({
+        key: 'share',
+        label: myLocationShared ? 'Update my location' : 'Add to Personnel',
+        icon: myLocationShared ? RadioTower : MapPin,
+        variant: myLocationShared ? 'success' : undefined,
+        onAction: handleAddOrUpdateMyLocation,
+      });
+    }
+    if (canShareLocation && myLocationShared) {
+      items.push({
+        key: 'remove',
+        label: 'Remove from Personnel',
+        icon: Trash2,
+        destructive: true,
+        onAction: handleRemoveMyLocation,
+      });
+    }
+    return items;
+  }, [subjectMarker, mapZoom, position, handleCenterOnMe, startWatching, canShareLocation, myLocationShared, handleAddOrUpdateMyLocation, handleRemoveMyLocation]);
+
+  const locationHeaderMenu = <OverlayHeaderMenu items={locationMenuItems} align="left" />;
+  const locationTitle = subjectMarker ? subjectMarker.label : 'My location';
 
   // Register every persisted imported basemap (Phase 3) when the panel opens
   // so the user's MBTiles / geo-PDF imports show up in the basemap selector.
@@ -827,8 +903,8 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
   // The right pane / sheet holds one surface at a time. Anything that claims it
   // retires My location outright, so closing that surface doesn't resurrect it.
   useEffect(() => {
-    if (selectedFeature || tempPoint || tempRoute) setShowMyLocation(false);
-  }, [selectedFeature, tempPoint, tempRoute]);
+    if (selectedFeature || tempPoint || tempRoute) handleCloseLocation();
+  }, [selectedFeature, tempPoint, tempRoute, handleCloseLocation]);
 
   // ── Floors / depth ──
   // Distinct levels present, ascending: base (0, always implied) ∪ every
@@ -1804,10 +1880,17 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
   const handleSelectFeatureFromTree = useCallback((feature: OverlayFeature, sourceOverlayId: string) => {
     if (drawMode === 'route' || drawMode === 'area') return;
     // A Personnel row belongs to the soldier who dropped it: tapping it locates
-    // them, never selects them for editing or makes Personnel the active overlay.
+    // them and opens the location surface on their marker — never the feature
+    // editor, and never makes Personnel the active overlay. Your own row lands
+    // on the self surface, where add / update / remove live.
     if (isPresenceOverlayId(sourceOverlayId)) {
       const point = feature.geometry[0];
       if (point) mapRef.current?.flyTo(point[0], point[1], Math.max(mapZoom, 15));
+      const uid = parsePresenceUserId(feature.id);
+      handleCloseTempPoint();
+      handleCloseTempRoute();
+      setLocationSubjectUserId(uid && uid !== user?.id ? uid : null);
+      setShowMyLocation(true);
       return;
     }
     const switching = sourceOverlayId !== overlayId;
@@ -1821,7 +1904,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
     } else {
       focusFeature(feature);
     }
-  }, [drawMode, overlayId, overlays, mapZoom, handleOpenOverlay, focusFeature]);
+  }, [drawMode, overlayId, overlays, mapZoom, user, handleCloseTempPoint, handleCloseTempRoute, handleOpenOverlay, focusFeature]);
 
   const handleUpdateSelectedFeature = useCallback((updated: OverlayFeature) => {
     setFeatures(prev => prev.map(f => f.id === updated.id ? updated : f));
@@ -1977,7 +2060,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
     if (selectedFeature) { handleCloseFeatureEditor(); return; }
     if (tempPoint) { handleCloseTempPoint(); return; }
     if (tempRoute) { handleCloseTempRoute(); return; }
-    if (showMyLocation) { setShowMyLocation(false); return; }
+    if (showMyLocation) { handleCloseLocation(); return; }
   });
 
   // ── Delete selected ──
@@ -2475,6 +2558,9 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                 overlayId={overlayId ?? undefined}
                 tilesCached={overlayId ? tileMetaMap.has(overlayId) : false}
                 presenceMarkers={presenceMarkers}
+                // Whoever the open location surface is about wears their label
+                // on the map instead of hiding it behind a hover tooltip.
+                selectedPresenceUserId={showMyLocation ? (locationSubjectUserId ?? user?.id ?? null) : null}
                 myLocationShared={myLocationShared}
                 onOpenMyLocation={() => {
                   // One right pane / one sheet: opening this closes whatever
@@ -2482,6 +2568,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                   handleCloseTempPoint();
                   handleCloseTempRoute();
                   setShowMobileTree(false);
+                  setLocationSubjectUserId(null);
                   setShowMyLocation(true);
                 }}
                 readOnlyFeatures={visibleReadOnlyFeatures}
@@ -2641,8 +2728,9 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                           // so the breadcrumb can walk back to this tree step.
                           onSelectFeature={(feature, ovId) => {
                             handleSelectFeatureFromTree(feature, ovId);
-                            // Personnel taps only move the camera — there is no
-                            // feature detail to morph into, so reveal the map.
+                            // Personnel taps open the location sheet instead of
+                            // morphing this one into a feature detail, so drop
+                            // the tree step and let that sheet take the host.
                             if (isPresenceOverlayId(ovId)) setShowMobileTree(false);
                           }}
                           onNewOverlay={() => { handleNewOverlay(); setShowMobileTree(false); }}
@@ -2682,21 +2770,28 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                 </Sheet>
               )}
 
-              {/* ── Mobile: my-location sheet. Same host family as the feature
-                  sheet; backdrop none so the map (and your own marker) stays
-                  live while you decide whether to share. ── */}
+              {/* ── Mobile: location sheet — your own fix, or the teammate whose
+                  Personnel row was picked in the tree. Same host family as the
+                  feature sheet; backdrop none so the map (and the marker itself)
+                  stays live while you decide whether to share. Actions ride the
+                  header ellipsis (left) opposite the close pill. ── */}
               {isMobile && (
                 <Sheet
                   isOpen={showMyLocation && !selectedFeature && !tempPoint && !tempRoute}
-                  onClose={() => setShowMyLocation(false)}
+                  onClose={handleCloseLocation}
                   height="fit"
                   maxHeight={45}
                   backdrop="none"
                   zIndex={1200}
-                  title="My location"
-                  actions={myLocationActions}
+                  title={locationTitle}
+                  leftContent={locationHeaderMenu}
                 >
-                  <MyLocationBody fix={position} shared={myLocationShared} label={myPresenceLabel} />
+                  <LocationBody
+                    fix={position}
+                    shared={myLocationShared}
+                    label={subjectMarker ? subjectMarker.label : myPresenceLabel}
+                    marker={subjectMarker}
+                  />
                 </Sheet>
               )}
 
@@ -3085,33 +3180,42 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
             >
               {!selectedFeature && !tempPoint && !tempRoute && showMyLocation && (
                 <div className="relative flex flex-col flex-1 min-h-0">
-                  <div className="shrink-0 flex items-center gap-1 px-3 py-2 border-b border-tertiary/10">
-                    <div className="text-[10pt] font-semibold text-primary truncate flex-1 min-w-0">My location</div>
-                    <HeaderPill>
-                      {myLocationActions}
-                      <PillButton icon={X} iconSize={18} onClick={() => setShowMyLocation(false)} label="Close" />
-                    </HeaderPill>
-                  </div>
+                  <PaneHeader
+                    leading={locationHeaderMenu}
+                    title={locationTitle}
+                    actions={
+                      <HeaderPill>
+                        <PillButton icon={X} iconSize={18} onClick={handleCloseLocation} label="Close" />
+                      </HeaderPill>
+                    }
+                  />
                   <div className="flex-1 min-h-0 overflow-y-auto">
-                    <MyLocationBody fix={position} shared={myLocationShared} label={myPresenceLabel} />
+                    <LocationBody
+                      fix={position}
+                      shared={myLocationShared}
+                      label={subjectMarker ? subjectMarker.label : myPresenceLabel}
+                      marker={subjectMarker}
+                    />
                   </div>
                 </div>
               )}
               {!selectedFeature && tempPoint && (
                 <div className="relative flex flex-col flex-1 min-h-0">
-                  <div className="shrink-0 flex items-center gap-1 px-3 py-2 border-b border-tertiary/10">
-                    <div className="text-[10pt] font-semibold text-primary truncate flex-1 min-w-0">Temp point</div>
-                    <HeaderPill>
-                      <PillButton icon={Check} iconSize={18} onClick={handlePromoteTempPoint} label="Save as waypoint" />
-                      <PillButton
-                        icon={Navigation}
-                        iconSize={18}
-                        onClick={() => handleStartNavigation(tempPoint.lat, tempPoint.lng, null)}
-                        label="Navigate from here"
-                      />
-                      <PillButton icon={X} iconSize={18} onClick={handleCloseTempPoint} label="Close" />
-                    </HeaderPill>
-                  </div>
+                  <PaneHeader
+                    title="Temp point"
+                    actions={
+                      <HeaderPill>
+                        <PillButton icon={Check} iconSize={18} onClick={handlePromoteTempPoint} label="Save as waypoint" />
+                        <PillButton
+                          icon={Navigation}
+                          iconSize={18}
+                          onClick={() => handleStartNavigation(tempPoint.lat, tempPoint.lng, null)}
+                          label="Navigate from here"
+                        />
+                        <PillButton icon={X} iconSize={18} onClick={handleCloseTempPoint} label="Close" />
+                      </HeaderPill>
+                    }
+                  />
                   <div className="flex-1 min-h-0 overflow-y-auto">
                     <TempPointBody lat={tempPoint.lat} lng={tempPoint.lng} />
                   </div>
@@ -3119,33 +3223,35 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
               )}
               {!selectedFeature && !tempPoint && tempRoute && (
                 <div className="relative flex flex-col flex-1 min-h-0">
-                  <div className="shrink-0 flex items-center gap-1 px-3 py-2 border-b border-tertiary/10">
-                    <div className="text-[10pt] font-semibold text-primary truncate flex-1 min-w-0">Temp route</div>
-                    <HeaderPill>
-                      <PillButton
-                        icon={Undo2}
-                        iconSize={18}
-                        onClick={handleUndoTempRoute}
-                        label="Undo"
-                        disabled={tempRoute.history.length === 0}
-                      />
-                      <PillButton
-                        icon={Route}
-                        iconSize={18}
-                        onClick={handleSaveTempRouteAsFeature}
-                        label="Save as route"
-                        disabled={tempRoute.points.length < 2}
-                      />
-                      <PillButton
-                        icon={Pentagon}
-                        iconSize={18}
-                        onClick={handleSaveTempRouteAsArea}
-                        label="Save as area"
-                        disabled={tempRoute.points.length < 3}
-                      />
-                      <PillButton icon={X} iconSize={18} onClick={handleCloseTempRoute} label="Close" />
-                    </HeaderPill>
-                  </div>
+                  <PaneHeader
+                    title="Temp route"
+                    actions={
+                      <HeaderPill>
+                        <PillButton
+                          icon={Undo2}
+                          iconSize={18}
+                          onClick={handleUndoTempRoute}
+                          label="Undo"
+                          disabled={tempRoute.history.length === 0}
+                        />
+                        <PillButton
+                          icon={Route}
+                          iconSize={18}
+                          onClick={handleSaveTempRouteAsFeature}
+                          label="Save as route"
+                          disabled={tempRoute.points.length < 2}
+                        />
+                        <PillButton
+                          icon={Pentagon}
+                          iconSize={18}
+                          onClick={handleSaveTempRouteAsArea}
+                          label="Save as area"
+                          disabled={tempRoute.points.length < 3}
+                        />
+                        <PillButton icon={X} iconSize={18} onClick={handleCloseTempRoute} label="Close" />
+                      </HeaderPill>
+                    }
+                  />
                   <div className="flex-1 min-h-0 overflow-y-auto">
                     <TempRouteBody points={tempRoute.points} onRemoveVertex={handleRemoveTempRouteVertex} onAddVertex={handleAddTempRouteVertex} />
                   </div>
@@ -3154,57 +3260,43 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
               {selectedFeature && (
                 <div className="relative flex flex-col flex-1 min-h-0">
                   <LoadingOverlay visible={savingOverlay} />
-                  <div className="shrink-0 flex items-center gap-1 px-3 py-2 border-b border-tertiary/10">
-                    {/* READ-mode title in the desktop pane header — hidden in
-                        edit mode so the body TextInput is the single source
-                        of truth for the feature name. */}
-                    {!isFeatureEditMode && (
-                      <div className="flex-1 min-w-0">
-                        {/* Parent-overlay breadcrumb stacked above the name (admin/
-                            property desktop pattern). Tapping it deselects → collapses
-                            this pane and reveals the rail tree = the walk-up target. */}
-                        <MapOverlayBreadcrumb
-                          label={overlayName.trim() || 'Overlay'}
-                          onNavigate={handleFeatureBreadcrumbUp}
-                          className="mb-0.5"
-                        />
-                        <div className="truncate text-[10pt] font-semibold text-primary">
-                          {selectedFeature.label
-                            || (selectedFeature.type === 'waypoint' ? 'Waypoint'
-                              : selectedFeature.type === 'route' ? 'Route'
-                              : 'Area')}
-                        </div>
-                      </div>
+                  {/* READ mode shows the parent-overlay breadcrumb stacked above the
+                      feature name (admin/property desktop pattern) — tapping the
+                      breadcrumb deselects, collapsing this pane and revealing the rail
+                      tree = the walk-up target. EDIT mode drops both so the body
+                      TextInput is the single source of truth for the name. */}
+                  <PaneHeader
+                    eyebrow={isFeatureEditMode ? undefined : (
+                      <MapOverlayBreadcrumb
+                        label={overlayName.trim() || 'Overlay'}
+                        onNavigate={handleFeatureBreadcrumbUp}
+                      />
                     )}
-                    {isFeatureEditMode && (
-                      <>
-                        <button
-                          type="button"
-                          onClick={handleToggleFeatureEditMode}
-                          aria-label="Back"
-                          className="w-9 h-9 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all shrink-0"
-                        >
-                          <ChevronLeft size={20} />
-                        </button>
-                        <div className="flex-1" />
-                      </>
+                    title={isFeatureEditMode ? undefined : (
+                      selectedFeature.label
+                      || (selectedFeature.type === 'waypoint' ? 'Waypoint'
+                        : selectedFeature.type === 'route' ? 'Route'
+                        : 'Area')
                     )}
-                    <HeaderPill>
-                      {isFeatureEditMode ? (
-                        <>
-                          <PillButton icon={Check} iconSize={18} onClick={handleSaveAndExitEdit} label="Save changes" accent={isDirty ? 'info' : undefined} />
-                          <PillButton icon={X} iconSize={18} onClick={handleCloseFeatureEditor} label="Close" />
-                        </>
-                      ) : (
-                        <>
-                          <span className="inline-flex" onClick={openFeatureMenu}>
-                            <PillButton icon={MoreHorizontal} iconSize={18} onClick={() => {}} label="More actions" />
-                          </span>
-                          <PillButton icon={X} iconSize={18} onClick={handleCloseFeatureEditor} label="Close" />
-                        </>
-                      )}
-                    </HeaderPill>
-                  </div>
+                    onBack={isFeatureEditMode ? handleToggleFeatureEditMode : undefined}
+                    actions={
+                      <HeaderPill>
+                        {isFeatureEditMode ? (
+                          <>
+                            <PillButton icon={Check} iconSize={18} onClick={handleSaveAndExitEdit} label="Save changes" accent={isDirty ? 'info' : undefined} />
+                            <PillButton icon={X} iconSize={18} onClick={handleCloseFeatureEditor} label="Close" />
+                          </>
+                        ) : (
+                          <>
+                            <span className="inline-flex" onClick={openFeatureMenu}>
+                              <PillButton icon={MoreHorizontal} iconSize={18} onClick={() => {}} label="More actions" />
+                            </span>
+                            <PillButton icon={X} iconSize={18} onClick={handleCloseFeatureEditor} label="Close" />
+                          </>
+                        )}
+                      </HeaderPill>
+                    }
+                  />
                   <div className="flex-1 min-h-0 overflow-y-auto">
                     <FeatureEditor
                       feature={selectedFeature}
@@ -3229,12 +3321,14 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                   feature/temp branches without entangling their conditions. */}
               {geoPdfFormOpen && (
                 <div className="absolute inset-0 z-10 flex flex-col bg-themewhite">
-                  <div className="shrink-0 flex items-center gap-1 px-3 py-2 border-b border-tertiary/10">
-                    <div className="text-[10pt] font-semibold text-primary truncate flex-1 min-w-0">Import geo-PDF</div>
-                    <HeaderPill>
-                      <PillButton icon={X} iconSize={18} onClick={() => setGeoPdfFormOpen(false)} label="Close" />
-                    </HeaderPill>
-                  </div>
+                  <PaneHeader
+                    title="Import geo-PDF"
+                    actions={
+                      <HeaderPill>
+                        <PillButton icon={X} iconSize={18} onClick={() => setGeoPdfFormOpen(false)} label="Close" />
+                      </HeaderPill>
+                    }
+                  />
                   <div className="flex-1 min-h-0 overflow-y-auto">
                     <div className="px-4 py-4 pb-8">
                       <GeoPdfImportForm onClose={() => setGeoPdfFormOpen(false)} onSubmit={handleGeoPdfSubmit} />

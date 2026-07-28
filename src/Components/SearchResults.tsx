@@ -169,7 +169,7 @@ export function SearchResults({
         <div className="flex flex-col h-full">
             {presentScopes.length >= 2 && (
                 <div className="px-3 pt-2">
-                    <ChipBar>
+                    <ChipBar bordered>
                         <Chip active={scope === 'all'} onClick={() => setScope('all')}>
                             All
                         </Chip>

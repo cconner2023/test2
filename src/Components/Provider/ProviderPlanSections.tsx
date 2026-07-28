@@ -237,7 +237,7 @@ function PlanEditorBody({ planState, orderSets, allTags, showFreeText, onToggleT
       {orderSets.length > 0 && (
         <div>
           <p className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest pb-2">Order Sets</p>
-          <ChipBar>
+          <ChipBar bordered>
             {orderSets.map(os => {
               const active = planState.activeSetIds.includes(os.id);
               return (

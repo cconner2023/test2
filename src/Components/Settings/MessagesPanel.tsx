@@ -41,7 +41,6 @@ import { useOffRosterAdd } from '../Messages/useOffRosterAdd'
 import { TextInput } from '@/Components/primitives/FormInputs'
 import { ExpandableInput } from '@/Components/primitives/ExpandableInput'
 import { useMergedNoteContent } from '../../Hooks/useMergedNoteContent'
-import { useBetaBypass } from '../../lib/betaFeatures'
 import { getEventIntakeCredential } from '../../lib/eventIntakeService'
 import { getWarmCredential, setWarmCredential } from '../../lib/messagingSettingsWarm'
 import { createOutboundOutsideEntity, sendOutsideEntityReply, isMilEmail, MIL_UNSUPPORTED_MESSAGE } from '../../lib/outsideEntityService'
@@ -1071,8 +1070,7 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
   // Leaving the conversation (including the delete that navigates away while the
   // card is open) must not leave the next one opening straight into its info card.
   useEffect(() => { setShowOutsideInfo(false) }, [selectedPeerId])
-  // Outbound outside-contact compose (dev-gated) — email a secure 1:1 invite.
-  const outboundBeta = useBetaBypass('outboundContact')
+  // Outbound outside-contact compose — email a secure 1:1 invite.
   const outboundClinicId = useAuthStore(s => s.clinicId)
   // The recipient always sees the cluster name as the sender ("from"). We no longer
   // let the medic type a free label — from_label is always the clinic/cluster name.
@@ -1088,17 +1086,16 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
   // Military recipients are refused outright — flagged as the medic types so Send
   // never arms on an address the service and the edge fn will both reject.
   const outMil = isMilEmail(outEmail)
-  // The beta flag says who MAY see the feature; the cluster's "Allow outbound
-  // contact" master (credential.outbound_enabled) says whether this cluster is
-  // permitted to use it. Both must hold before the compose entry point renders,
-  // otherwise the send fails server-side. Seeded from the messaging-settings warm
-  // cache and re-read each time the composer opens, so a supervisor flipping the
-  // toggle takes effect on the next open.
+  // The cluster's "Allow outbound contact" master (credential.outbound_enabled)
+  // is the sole gate on the compose entry point — it must hold before the entry
+  // point renders, otherwise the send fails server-side. Seeded from the
+  // messaging-settings warm cache and re-read each time the composer opens, so a
+  // supervisor flipping the toggle takes effect on the next open.
   const [outboundAllowed, setOutboundAllowed] = useState(
     () => getWarmCredential(outboundClinicId)?.outbound_enabled === true,
   )
   useEffect(() => {
-    if (!showNewMsg || !outboundBeta || !outboundClinicId) return
+    if (!showNewMsg || !outboundClinicId) return
     const warm = getWarmCredential(outboundClinicId)
     if (warm !== undefined) { setOutboundAllowed(warm?.outbound_enabled === true); return }
     let alive = true
@@ -1108,7 +1105,7 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
       setOutboundAllowed(res.data?.outbound_enabled === true)
     })
     return () => { alive = false }
-  }, [showNewMsg, outboundBeta, outboundClinicId])
+  }, [showNewMsg, outboundClinicId])
   // Live nav of the new-message morph stack — handlers push/reset screens on it.
   const stackNavRef = useRef<StackNav | null>(null)
 
@@ -1610,7 +1607,7 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
                   />
                 )}
                 <ActionButton icon={Plus} label="Add" onClick={() => offRoster.openMethods(nav)} />
-                {outboundBeta && outboundAllowed && newMsgMode === 'contacts' && (
+                {outboundAllowed && newMsgMode === 'contacts' && (
                   <ActionButton icon={Send} label="Email" onClick={() => { resetOutbound(); nav.push('outbound') }} />
                 )}
               </FooterPill>

@@ -1,8 +1,11 @@
-import { useMemo, type ReactNode } from 'react'
-import { ChevronRight } from 'lucide-react'
+import { useMemo, useState, type ReactNode } from 'react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { EmptyState } from '@/Components/primitives/EmptyState'
-import { SectionHeader } from '@/Components/primitives/Section'
-import { StepCallout, PerformanceStepItem } from '../TrainingStepComponents'
+import { SectionHeader, SectionCard } from '@/Components/primitives/Section'
+import { Sheet } from '@/Components/primitives/Sheet'
+import { PreviewOverlay } from '../PreviewOverlay'
+import { useIsMobile } from '@/Hooks/useIsMobile'
+import { StepCallout, PerformanceStepItem, TcccSheetHeader } from '../TrainingStepComponents'
 import { tcccModules, getTcccModule, type TcccModule } from '../../Data/TcccModules'
 
 export type TcccView = 'tccc' | 'tccc-detail'
@@ -84,6 +87,90 @@ function SubBlock({ label, children }: { label: string; children: ReactNode }) {
     )
 }
 
+// ─── Check on learning ───────────────────────────────────────────────────────
+
+/**
+ * The module's check-on-learning, as a card of questions that each open their own answer.
+ *
+ * Question and answer are deliberately NOT shown together in the list: a visible answer turns a
+ * self-test into a read-through. Tapping commits to the question first, then reveals the answer.
+ *
+ * Desktop opens a PreviewOverlay anchored to the tapped row; mobile opens a Sheet. Both put the
+ * question in the header and the answer in the body, and both carry prev/next so a medic can walk
+ * the whole set without returning to the list. No action footer — there is nothing to submit.
+ */
+function CheckOnLearning({ items }: { items: { q: string; a: string }[] }) {
+    const isMobile = useIsMobile()
+    // `open` is tracked separately from `index` on purpose: clearing the index on close would
+    // blank the header while the overlay is still animating out.
+    const [open, setOpen] = useState(false)
+    const [index, setIndex] = useState(0)
+    const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null)
+
+    const current = items[Math.min(index, items.length - 1)]
+    // Wrap at both ends instead of stopping. Every arrow stays usable, so neither ever needs a
+    // dimmed/disabled state — see the no-disabled-actions rule.
+    const step = (delta: number) => setIndex(i => (i + delta + items.length) % items.length)
+
+    const navCx =
+        'w-8 h-8 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all'
+    const nav = (
+        <>
+            <button onClick={() => step(-1)} className={navCx} aria-label="Previous question">
+                <ChevronLeft size={16} />
+            </button>
+            <button onClick={() => step(1)} className={navCx} aria-label="Next question">
+                <ChevronRight size={16} />
+            </button>
+        </>
+    )
+    // Wraps rather than truncates — a truncated question cannot be answered.
+    const heading = <p className="text-sm font-medium text-primary leading-snug">{current.q}</p>
+    const answer = (
+        <div className="px-4 pb-4">
+            <p className="text-[10pt] text-primary leading-relaxed">{current.a}</p>
+        </div>
+    )
+
+    return (
+        <>
+            <SectionCard>
+                {items.map((qa, i) => (
+                    <button
+                        key={i}
+                        onClick={e => {
+                            setAnchorRect(e.currentTarget.getBoundingClientRect())
+                            setIndex(i)
+                            setOpen(true)
+                        }}
+                        className={`flex items-center gap-3 w-full px-4 py-3 text-left transition-all
+                            active:scale-95 hover:bg-themeblue2/5 ${i > 0 ? 'border-t border-tertiary/8' : ''}`}
+                    >
+                        <p className="flex-1 min-w-0 text-[10pt] text-primary leading-snug">{qa.q}</p>
+                        <ChevronRight size={16} className="text-tertiary shrink-0" />
+                    </button>
+                ))}
+            </SectionCard>
+
+            {isMobile ? (
+                <Sheet isOpen={open} onClose={() => setOpen(false)} titleNode={heading} rightContent={nav} height="fit">
+                    {answer}
+                </Sheet>
+            ) : (
+                <PreviewOverlay
+                    isOpen={open}
+                    onClose={() => setOpen(false)}
+                    anchorRect={anchorRect}
+                    titleNode={heading}
+                    headerActions={nav}
+                >
+                    {answer}
+                </PreviewOverlay>
+            )}
+        </>
+    )
+}
+
 // ─── Module detail (didactic + sectioned graded steps + check on learning) ───
 
 function TcccModuleDetail({ module }: { module: TcccModule }) {
@@ -110,6 +197,7 @@ function TcccModuleDetail({ module }: { module: TcccModule }) {
             {module.sections.map(section => (
                 <div key={section.key} className="mb-5">
                     <SectionHeader>{section.title}</SectionHeader>
+                    <TcccSheetHeader section={section} />
                     {section.steps.map(step => (
                         <PerformanceStepItem key={step.number} step={step} />
                     ))}
@@ -144,14 +232,7 @@ function TcccModuleDetail({ module }: { module: TcccModule }) {
             {d?.checkOnLearning && d.checkOnLearning.length > 0 && (
                 <div className="mb-5">
                     <SubBlock label="Check on Learning">
-                        <div className="space-y-2">
-                            {d.checkOnLearning.map((qa, i) => (
-                                <div key={i}>
-                                    <p className="text-[10pt] font-medium text-primary">{qa.q}</p>
-                                    <p className="text-[10pt] text-secondary mt-0.5">{qa.a}</p>
-                                </div>
-                            ))}
-                        </div>
+                        <CheckOnLearning items={d.checkOnLearning} />
                     </SubBlock>
                 </div>
             )}

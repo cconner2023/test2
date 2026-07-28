@@ -7,6 +7,7 @@ import { EventTasksCard } from './EventTasksCard'
 import { createEmptyFormData, EVENT_CATEGORIES, MILITARY_TIME_OPTIONS, militaryToHHMM, hhmmToMilitary, CATEGORY_SWATCH_IDS, CATEGORY_SWATCHES } from '../../Types/CalendarTypes'
 import { useCategoryColors } from '../../Hooks/useCategoryColors'
 import { TextInput, TextArea, PickerInput, DatePickerInput, TimeInput } from '@/Components/primitives/FormInputs'
+import { Chip, ChipBar } from '@/Components/primitives/Chip'
 import { useIsMobile } from '../../Hooks/useIsMobile'
 import { MedevacForm } from '../Medevac/MedevacForm'
 import { emptyMedevacRequest } from '../../Types/MedevacTypes'
@@ -265,24 +266,17 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
           {isEditing && (
             <div className="px-4 py-3 border-b border-primary/6">
               <span className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest">Status</span>
-              <div className="mt-1.5 flex overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
+              <ChipBar className="mt-1.5">
                 {STATUS_OPTIONS.map(opt => (
-                  <button
+                  <Chip
                     key={opt.value}
-                    type="button"
+                    active={form.status === opt.value}
                     onClick={() => updateField('status', opt.value)}
-                    className={`shrink-0 px-4 py-1.5 transition-colors ${
-                      form.status === opt.value ? 'bg-themeblue3' : 'active:bg-tertiary/5'
-                    }`}
                   >
-                    <span className={`text-[9pt] transition-colors ${
-                      form.status === opt.value ? 'text-white font-medium' : 'text-secondary'
-                    }`}>
-                      {opt.label}
-                    </span>
-                  </button>
+                    {opt.label}
+                  </Chip>
                 ))}
-              </div>
+              </ChipBar>
             </div>
           )}
 

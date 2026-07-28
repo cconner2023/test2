@@ -2,6 +2,7 @@ import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import { ChevronRight, RotateCcw, Pin, Pill, BookOpen, MoreHorizontal } from 'lucide-react'
 import { SearchInput } from '@/Components/primitives/SearchInput'
 import { FooterPill } from '@/Components/primitives/FooterPill'
+import { Chip, ChipBar } from '@/Components/primitives/Chip'
 import { ActionButton } from '@/Components/primitives/ActionButton'
 import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill'
 import { BaseDrawer } from '@/Components/primitives/BaseDrawer'
@@ -1053,25 +1054,21 @@ function StandaloneScreener({ screenerConfig }: { screenerConfig: ScreenerConfig
                             {q.type === 'check' && (
                                 <div className="py-2 px-1">
                                     <p className="text-[10pt] text-primary mb-1.5">{q.text}</p>
-                                    <div className="flex flex-wrap gap-1.5">
+                                    <ChipBar layout="wrap">
                                         {q.options?.map((opt, optIdx) => {
                                             const isSelected = ((baseResponses[qIdx] ?? 0) & (1 << optIdx)) !== 0
                                             return (
-                                                <button
+                                                <Chip
                                                     key={optIdx}
+                                                    active={isSelected}
                                                     onClick={() => handleCheckToggle(qIdx, optIdx)}
-                                                    className={`px-2.5 py-1.5 rounded-full text-[9pt] transition-all ${
-                                                        isSelected
-                                                            ? 'bg-themeblue2/15 text-themeblue2 font-semibold ring-1 ring-themeblue2/30'
-                                                            : 'bg-themewhite2 text-tertiary hover:bg-themewhite'
-                                                    }`}
                                                 >
                                                     {isSelected && <Check size={10} className="inline mr-1" />}
                                                     {opt}
-                                                </button>
+                                                </Chip>
                                             )
                                         })}
-                                    </div>
+                                    </ChipBar>
                                 </div>
                             )}
 

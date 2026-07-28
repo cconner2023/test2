@@ -15,9 +15,12 @@
  * ⚠️ 081-000-0125: the ICTL reassigns this number to "Treat Massive Hemorrhage". The STP roster
  * still carries 081-000-0125 = "Maintain a Nasogastric Tube" (legacy, kept testable until the
  * CRON cutover phases out the old numbering). Same number, two titles across the two lists — by
- * design during the transition. Note: shared training content (TrainingData.ts) is still the
- * legacy NG-tube content for this number, so evaluating the ICTL task pulls NG-tube steps until
- * Massive Hemorrhage content is authored / the CRON cutover runs.
+ * design during the transition. As of the Massive Hemorrhage packet landing, BOTH contents now
+ * exist for this number: ICTLContent.ts holds Massive Hemorrhage, TrainingData.ts still holds the
+ * NG-tube steps. Browse surfaces are unambiguous (IctlPanel reads ICTLContent, the STP surfaces
+ * read TrainingData), but evaluation still resolves through getTaskData alone, so evaluating
+ * 081-000-0125 pulls NG-tube steps. Whenever ICTL evaluation is wired up, the precedence rule
+ * (ICTL packet wins over the legacy STP entry) has to be made explicit at that fork.
  */
 
 import type { stp68wTrainingTypes } from './TrainingTaskList'

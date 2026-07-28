@@ -3,10 +3,10 @@ import { Check, ChevronRight, Lock, BookOpen } from 'lucide-react'
 import { EmptyState } from '@/Components/primitives/EmptyState'
 import { SectionHeader, SectionCard } from '@/Components/primitives/Section'
 import { ListItemRow } from '@/Components/primitives/ListItemRow'
-import { StepCallout, PerformanceStepItem } from '../TrainingStepComponents'
+import { StepCallout, PerformanceStepItem, TcccSheetHeader } from '../TrainingStepComponents'
 import { ictl68wSL1, ICTL_APPROVED_DATE } from '../../Data/ICTL'
 import { getIctlTaskData, type IctlTaskData } from '../../Data/ICTLContent'
-import { resolveTcccModuleRef, type TcccSection } from '../../Data/TcccModules'
+import { resolveTcccModuleRef, type TcccModule, type TcccSection } from '../../Data/TcccModules'
 
 export type IctlView = 'ictl' | 'ictl-detail'
 
@@ -139,14 +139,15 @@ function SubBlock({ label, children }: { label: string; children: ReactNode }) {
 }
 
 /**
- * A section-scoped ref (`<module>#<section>`) — the branch's graded steps rendered inline under
- * its substep. This is the ICTL's referenced TCCC component; the module's didactic teaching
+ * A section-scoped ref (`<module>#<section>`) — the skill sheet's graded steps rendered inline
+ * under its substep. This is the ICTL's referenced TCCC component; the module's didactic teaching
  * (complications, key points, check-on-learning) lives only in the TCCC module surface.
  */
 function TcccSectionBlock({ section }: { section: TcccSection }) {
     return (
         <div className="ml-6 mt-1.5 mb-2">
             <SubBlock label={section.title}>
+                <TcccSheetHeader section={section} />
                 {section.steps.map(step => (
                     <PerformanceStepItem key={step.number} step={step} />
                 ))}
@@ -155,7 +156,50 @@ function TcccSectionBlock({ section }: { section: TcccSection }) {
     )
 }
 
+/**
+ * What a performance step's `tcccModuleRef` renders beneath it. Four cases, and every one has to
+ * put something on screen — a ref that silently renders nothing reads to the medic as "this step
+ * has no detail", which is the opposite of what a ref means.
+ *
+ * `isFirstMention` suppresses repeats: a packet often points several substeps at the same module
+ * (0238 has four, 0122 three), and the same whole-module block under each is pure noise.
+ */
+function StepTcccBlock({
+    moduleRef,
+    resolved,
+    isFirstMention,
+}: {
+    moduleRef: string
+    resolved: { module: TcccModule; section?: TcccSection }
+    isFirstMention: boolean
+}) {
+    const { module, section } = resolved
+    const label = `${module.name}${module.module ? ` (${module.module})` : ''}`
+
+    // 1. The module's source has not been transcribed at all.
+    if (module.pending) {
+        return isFirstMention ? <StepCallout type="note" text={`Detailed steps come from the ${label} — coming soon.`} /> : null
+    }
+    // 2. The ref names a sheet the transcribed source does not contain — e.g. 0120 asks for
+    //    #finger-thoracostomy but the Module 08 skill instructions publish only Chest Seal and
+    //    NDC. Say so per step rather than per module: it is one missing sheet, not a missing module.
+    if (moduleRef.includes('#') && !section) {
+        return <StepCallout type="note" text={`This skill sheet is not in the transcribed ${label} source — coming soon.`} />
+    }
+    // 3. Section-scoped and resolved — the ordinary case.
+    if (section) return <TcccSectionBlock section={section} />
+    // 4. Bare ref on a transcribed module: the whole module applies, so render every sheet.
+    return isFirstMention ? <>{module.sections.map(s => <TcccSectionBlock key={s.key} section={s} />)}</> : null
+}
+
 // ─── Read-only task detail (the approved ICTL packet) ────────────────────────
+
+/** A packet task statement that actually says something — "None" means the block is absent. */
+function stated(text: string | undefined): string | undefined {
+    if (!text) return undefined
+    const t = text.trim().replace(/\.$/, '')
+    return t.toLowerCase() === 'none' ? undefined : text
+}
 
 function IctlTaskDetail({
     taskData,
@@ -167,6 +211,15 @@ function IctlTaskDetail({
     const tcccModule = taskData.tcccModuleRef
         ? resolveTcccModuleRef(taskData.tcccModuleRef)?.module
         : undefined
+    const danger = stated(taskData.danger)
+    const warning = stated(taskData.warning)
+    const caution = stated(taskData.caution)
+    // Step index of each module's first mention — see StepTcccBlock for what it suppresses.
+    const firstModuleMention = new Map<string, number>()
+    taskData.performanceSteps.forEach((step, i) => {
+        const key = step.tcccModuleRef?.split('#')[0]
+        if (key && !firstModuleMention.has(key)) firstModuleMention.set(key, i)
+    })
     return (
         <div className="px-4 py-3 md:p-5 pb-12">
             {/* Header */}
@@ -194,11 +247,13 @@ function IctlTaskDetail({
                 <p className="text-sm text-primary leading-relaxed">{taskData.standards}</p>
             </div>
 
-            {/* Warning / Caution callouts */}
-            {(taskData.warning || taskData.caution) && (
+            {/* Danger / Warning / Caution callouts, in doctrinal severity order. Packets spell an
+                absent block as the literal "None" — omit those rather than render an empty box. */}
+            {(danger || warning || caution) && (
                 <div className="mb-5 space-y-2">
-                    {taskData.warning && <StepCallout type="warning" text={taskData.warning} />}
-                    {taskData.caution && <StepCallout type="caution" text={taskData.caution} />}
+                    {danger && <StepCallout type="danger" text={danger} />}
+                    {warning && <StepCallout type="warning" text={warning} />}
+                    {caution && <StepCallout type="caution" text={caution} />}
                 </div>
             )}
 
@@ -236,15 +291,12 @@ function IctlTaskDetail({
                         return (
                             <div key={i}>
                                 <PerformanceStepItem step={step} />
-                                {resolved?.module.pending && (
-                                    <StepCallout
-                                        type="note"
-                                        text={`Detailed steps come from the ${resolved.module.name}${resolved.module.module ? ` (${resolved.module.module})` : ''} — coming soon.`}
+                                {resolved && (
+                                    <StepTcccBlock
+                                        moduleRef={step.tcccModuleRef!}
+                                        resolved={resolved}
+                                        isFirstMention={firstModuleMention.get(resolved.module.key) === i}
                                     />
-                                )}
-                                {/* A section-scoped ref renders that branch's graded steps inline. */}
-                                {resolved?.section && !resolved.module.pending && (
-                                    <TcccSectionBlock section={resolved.section} />
                                 )}
                             </div>
                         )

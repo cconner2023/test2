@@ -6,8 +6,6 @@ import { fetchAllSubClusters, type SubCluster } from '../../lib/subClusterServic
 import { buildScopeIndex } from './adminScope'
 import { useInvalidation, invalidate } from '../../stores/useInvalidationStore'
 import { useAuthStore } from '../../stores/useAuthStore'
-import { LoadingOverlay } from '@/Components/primitives/LoadingOverlay'
-import { useMinLoadTime } from '../../Hooks/useMinLoadTime'
 import { EmptyState } from '@/Components/primitives/EmptyState'
 import { LiftedRowMenu } from '@/Components/primitives/LiftedRowMenu'
 import { type ContextMenuItem } from '@/Components/primitives/ContextMenu'
@@ -516,12 +514,10 @@ export function AdminSummary({
     )
   }
 
-  // Main-load treatment is the pre-defined HUD (mirrors PropertyPanel), NOT a
-  // skeleton — the tree fades in under it. useMinLoadTime holds the HUD ≥500ms
-  // so a fast cached load doesn't flash it.
-  const showLoading = useMinLoadTime(loading)
-
-  if (!showLoading && clinics.length === 0 && users.length === 0) {
+  // No load treatment: the tree refetches on every invalidation (each save or
+  // delete bumps the generation), so an overlay HUD fired on every mutation.
+  // `loading` only suppresses the empty state until the first fetch lands.
+  if (!loading && clinics.length === 0 && users.length === 0) {
     return (
       <div className="px-4 py-4">
         <EmptyState
@@ -534,7 +530,6 @@ export function AdminSummary({
 
   return (
     <div className="relative flex flex-col h-full">
-      <LoadingOverlay visible={showLoading} />
       {/* pb clears the bottom island that floats over the center pane. */}
       <div className="flex-1 overflow-y-auto pb-24">
         {searching && flatResults ? (

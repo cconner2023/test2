@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Plus, ChevronLeft } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import { Sheet } from '@/Components/primitives/Sheet'
 import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill'
+import { PaneHeader } from '@/Components/primitives/PaneHeader'
 import { SwipeToDeleteRow } from '@/Components/primitives/SwipeToDeleteRow'
 import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
 import { AddMemberPopover } from '../../ClinicAdmin/AddMemberPopover'
@@ -177,23 +178,18 @@ export function ChildClinicRosterBody({
   if (title || onBack) {
     return (
       <div className="flex h-full flex-col">
-        <div className="shrink-0 flex items-center gap-2 px-4 py-3 border-b border-tertiary/10">
-          {onBack && (
-            <button
-              onClick={onBack}
-              className="w-8 h-8 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all shrink-0"
-              aria-label="Back to dashboard"
-            >
-              <ChevronLeft size={18} />
-            </button>
-          )}
-          <p className="flex-1 min-w-0 text-sm font-semibold text-primary truncate">{title}</p>
-          <div ref={addPillRef}>
-            <HeaderPill>
-              <PillButton icon={Plus} iconSize={16} onClick={openAdd} label="Add member" />
-            </HeaderPill>
-          </div>
-        </div>
+        <PaneHeader
+          title={title}
+          onBack={onBack}
+          backLabel="Back to dashboard"
+          actions={
+            <div ref={addPillRef}>
+              <HeaderPill>
+                <PillButton icon={Plus} iconSize={16} onClick={openAdd} label="Add member" />
+              </HeaderPill>
+            </div>
+          }
+        />
         <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-6 pt-3">
           {roster}
         </div>

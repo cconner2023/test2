@@ -10,9 +10,10 @@ import { Section, SectionHeader } from '@/Components/primitives/Section'
 import { ActionButton } from '@/Components/primitives/ActionButton'
 import { ActionPill } from '@/Components/primitives/ActionPill'
 import { EmptyState } from '@/Components/primitives/EmptyState'
+import { Segmented } from '@/Components/primitives/Chip'
 import { getRegionLabel, getRegionCenter } from '../../Utilities/bodyRegionMap'
 import {
-  CellCard, Cell, Segmented, LocationCell, cellInput,
+  CellCard, Cell, LocationCell, cellInput,
   TourniquetEditor, DressingEditor,
 } from './TreatmentEditors'
 

@@ -1323,7 +1323,6 @@ export function PhysicalExam({
                                 <VitalSignsCalculator
                                     value={vitals}
                                     onChange={setVitals}
-                                    compact
                                     onRequestLmpPicker={() => setVitalsView('lmp')}
                                 />
                             </div>

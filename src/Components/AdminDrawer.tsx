@@ -33,7 +33,6 @@ import { AdminSummary } from './Admin/AdminSummary'
 import { AdminSortRail } from './Admin/AdminSortRail'
 import { AdminFeatureVotesSection } from './Admin/AdminFeatureVotesSection'
 import { AdminSettingsContent } from './Admin/AdminSettingsContent'
-import { AdminPaletteContent } from './Admin/AdminPaletteContent'
 import { AdminSystemConversationView } from './Admin/AdminSystemConversationView'
 import { RequestDetail } from './Admin/RequestDetail'
 import { FeedbackDetail } from './Admin/FeedbackDetail'
@@ -51,7 +50,6 @@ export type AdminView =
     | 'admin-clinic-detail'
     | 'admin-location-detail'
     | 'admin-settings'
-    | 'admin-palette'
     | 'admin-system-conversation'
     | 'admin-request-detail'
     | 'admin-feedback-detail'
@@ -526,19 +524,6 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         })
     }, [guardNav, clearTrail, handleSlideAnimation])
 
-    // Theme palette reference — same detail-pane/sheet ride as settings.
-    const handleOpenPalette = useCallback(() => {
-        guardNav(() => {
-            clearTrail()
-            setSelectedUser(null)
-            setSelectedClinic(null)
-            setSelectedLocation(null)
-            setSelectedSystemPeerId(null)
-            handleSlideAnimation('left')
-            setView('admin-palette')
-        })
-    }, [guardNav, clearTrail, handleSlideAnimation])
-
     const handleDiscardConfirmed = useCallback(() => {
         setConfirmDiscard(false)
         const action = pendingActionRef.current ?? navigateBack
@@ -644,7 +629,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
     const isUserCreateMode = view === 'admin-user-detail' && selectedUser === null
     const isClinicCreateMode = view === 'admin-clinic-detail' && selectedClinic === null
     const isLocationCreateMode = view === 'admin-location-detail' && selectedLocation === null
-    const isDetailView = view === 'admin-user-detail' || view === 'admin-clinic-detail' || view === 'admin-location-detail' || view === 'admin-settings' || view === 'admin-palette' || view === 'admin-system-conversation' || view === 'admin-request-detail' || view === 'admin-feedback-detail' || view === 'admin-suggestion-detail'
+    const isDetailView = view === 'admin-user-detail' || view === 'admin-clinic-detail' || view === 'admin-location-detail' || view === 'admin-settings' || view === 'admin-system-conversation' || view === 'admin-request-detail' || view === 'admin-feedback-detail' || view === 'admin-suggestion-detail'
     // Triage details come from the inbox rail, so their back goes to the inbox.
     const isTriageView = view === 'admin-request-detail' || view === 'admin-feedback-detail' || view === 'admin-suggestion-detail'
     const desktopDetailPaneOpen = !isMobile && isDetailView
@@ -670,9 +655,6 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         }
         if (view === 'admin-settings') {
             return 'Locations'
-        }
-        if (view === 'admin-palette') {
-            return 'Color Palette'
         }
         if (view === 'admin-system-conversation') {
             return systemPeerProfile ? getDisplayName(systemPeerProfile) : 'System thread'
@@ -801,7 +783,6 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
             case 'admin-clinic-detail':
             case 'admin-location-detail':
             case 'admin-settings':
-            case 'admin-palette':
             case 'admin-request-detail':
             case 'admin-feedback-detail':
             case 'admin-suggestion-detail':
@@ -956,11 +937,6 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                 ? <div className="pt-1 pb-8">{settings}</div>
                 : <ScrollPane className="py-3 pb-8">{settings}</ScrollPane>
         }
-        if (view === 'admin-palette') {
-            return inSheet
-                ? <div className="pt-1 pb-8"><AdminPaletteContent /></div>
-                : <ScrollPane className="py-3 pb-8"><AdminPaletteContent /></ScrollPane>
-        }
         if (view === 'admin-request-detail' && selectedRequest) {
             return wrap(
                 <RequestDetail
@@ -1033,7 +1009,6 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         view === 'admin-clinic-detail' ||
         view === 'admin-location-detail' ||
         view === 'admin-settings' ||
-        view === 'admin-palette' ||
         view === 'admin-request-detail' ||
         view === 'admin-feedback-detail' ||
         view === 'admin-suggestion-detail'
@@ -1074,7 +1049,6 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         : view === 'admin-clinic-detail' ? 'clinic'
         : view === 'admin-location-detail' ? 'location'
         : view === 'admin-settings' ? 'settings'
-        : view === 'admin-palette' ? 'palette'
         : view === 'admin-request-detail' ? 'request'
         : view === 'admin-feedback-detail' ? 'feedback'
         : view === 'admin-suggestion-detail' ? 'suggestion'
@@ -1091,7 +1065,6 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         : detailScreen === 'clinic' ? `clinic:${selectedClinic?.id ?? 'new'}`
         : detailScreen === 'location' ? `location:${selectedLocation?.id ?? 'new'}`
         : detailScreen === 'settings' ? 'settings'
-        : detailScreen === 'palette' ? 'palette'
         : detailScreen === 'request' ? `request:${selectedRequest?.id ?? ''}`
         : detailScreen === 'feedback' ? `feedback:${selectedFeedback?.id ?? ''}`
         : detailScreen === 'suggestion' ? `suggestion:${selectedSuggestion?.id ?? ''}`
@@ -1128,7 +1101,6 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                 <AdminSortRail
                     scroll={false}
                     onOpenSettings={handleOpenSettings}
-                    onOpenPalette={handleOpenPalette}
                     onSelectSystemPeer={(peerId) => { setShowNavSheet(false); handleSelectSystemPeer(peerId) }}
                     onOpenRequest={handleOpenRequest}
                     onOpenFeedback={handleOpenFeedback}
@@ -1276,7 +1248,6 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                                 <div className="flex-1 min-h-0">
                                     <AdminSortRail
                                         onOpenSettings={handleOpenSettings}
-                                        onOpenPalette={handleOpenPalette}
                                         onSelectSystemPeer={handleSelectSystemPeer}
                                         onOpenRequest={handleOpenRequest}
                                         onOpenFeedback={handleOpenFeedback}

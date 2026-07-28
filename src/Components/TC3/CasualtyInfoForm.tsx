@@ -6,6 +6,7 @@ import { useNavigationStore } from '../../stores/useNavigationStore'
 import { OverlaySnapshot } from '../MapOverlay/OverlaySnapshot'
 import { TC3EditorSurface } from './TC3EditorSurface'
 import { TextInput, DatePickerInput, PickerInput } from '@/Components/primitives/FormInputs'
+import { Chip, ChipBar } from '@/Components/primitives/Chip'
 import { EmptyState } from '@/Components/primitives/EmptyState'
 import type { EvacPriority, BloodType } from '../../Types/TC3Types'
 import { MILITARY_TIME_OPTIONS, militaryToHHMM, hhmmToMilitary } from '../../Types/CalendarTypes'
@@ -222,42 +223,27 @@ export const CasualtyInfoForm = memo(function CasualtyInfoForm() {
                 mutually exclusive with an evac priority here. */}
             <div className="px-4 py-3 border-b border-primary/6">
               <span className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest">Triage</span>
-              <div className="mt-1.5 flex overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
-                {EVAC_OPTIONS.map((opt) => {
-                  const selected = draftEvac === opt.value && !draftExpectant
-                  return (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      onClick={() => { setDraftExpectant(false); setDraftEvac(prev => prev === opt.value ? '' : opt.value) }}
-                      className={`shrink-0 px-4 py-1.5 transition-colors ${
-                        selected ? opt.color : 'active:bg-tertiary/5'
-                      }`}
-                      title={`EVAC: ${opt.label}`}
-                    >
-                      <span className={`text-[9pt] transition-colors ${
-                        selected ? 'text-white font-medium' : 'text-secondary'
-                      }`}>
-                        {opt.label}
-                      </span>
-                    </button>
-                  )
-                })}
-                <button
-                  type="button"
-                  onClick={() => setDraftExpectant(v => !v)}
-                  className={`shrink-0 px-4 py-1.5 transition-colors ${
-                    draftExpectant ? 'bg-neutral-800' : 'active:bg-tertiary/5'
-                  }`}
+              <ChipBar className="mt-1.5">
+                {EVAC_OPTIONS.map((opt) => (
+                  <Chip
+                    key={opt.value}
+                    active={draftEvac === opt.value && !draftExpectant}
+                    activeClass={opt.color}
+                    title={`EVAC: ${opt.label}`}
+                    onClick={() => { setDraftExpectant(false); setDraftEvac(prev => prev === opt.value ? '' : opt.value) }}
+                  >
+                    {opt.label}
+                  </Chip>
+                ))}
+                <Chip
+                  active={draftExpectant}
+                  activeClass="bg-neutral-800"
                   title="Expectant"
+                  onClick={() => setDraftExpectant(v => !v)}
                 >
-                  <span className={`text-[9pt] transition-colors ${
-                    draftExpectant ? 'text-white font-medium' : 'text-secondary'
-                  }`}>
-                    E
-                  </span>
-                </button>
-              </div>
+                  E
+                </Chip>
+              </ChipBar>
             </div>
 
             {/* Name */}
@@ -288,49 +274,35 @@ export const CasualtyInfoForm = memo(function CasualtyInfoForm() {
             {/* Sex */}
             <div className="px-4 py-3 border-b border-primary/6">
               <span className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest">Sex</span>
-              <div className="mt-1.5 flex overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
+              <ChipBar className="mt-1.5">
                 {SEX_OPTIONS.map((opt) => (
-                  <button
+                  <Chip
                     key={opt.value}
-                    type="button"
-                    onClick={() => updateDraft({ sex: draft.sex === opt.value ? '' : opt.value })}
-                    className={`shrink-0 px-4 py-1.5 transition-colors ${
-                      draft.sex === opt.value ? 'bg-themeblue3' : 'active:bg-tertiary/5'
-                    }`}
+                    active={draft.sex === opt.value}
                     title={`Sex: ${opt.label}`}
+                    onClick={() => updateDraft({ sex: draft.sex === opt.value ? '' : opt.value })}
                   >
-                    <span className={`text-[9pt] transition-colors ${
-                      draft.sex === opt.value ? 'text-white font-medium' : 'text-secondary'
-                    }`}>
-                      {opt.label}
-                    </span>
-                  </button>
+                    {opt.label}
+                  </Chip>
                 ))}
-              </div>
+              </ChipBar>
             </div>
 
             {/* Blood Type */}
             <div className="px-4 py-3 border-b border-primary/6">
               <span className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest">Blood Type</span>
-              <div className="mt-1.5 flex overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
+              <ChipBar className="mt-1.5">
                 {BLOOD_TYPE_OPTIONS.map((bt) => (
-                  <button
+                  <Chip
                     key={bt}
-                    type="button"
-                    onClick={() => updateDraft({ bloodType: draft.bloodType === bt ? '' : bt })}
-                    className={`shrink-0 px-4 py-1.5 transition-colors ${
-                      draft.bloodType === bt ? 'bg-themeblue3' : 'active:bg-tertiary/5'
-                    }`}
+                    active={draft.bloodType === bt}
                     title={`Blood type: ${bt}`}
+                    onClick={() => updateDraft({ bloodType: draft.bloodType === bt ? '' : bt })}
                   >
-                    <span className={`text-[9pt] transition-colors ${
-                      draft.bloodType === bt ? 'text-white font-medium' : 'text-secondary'
-                    }`}>
-                      {bt}
-                    </span>
-                  </button>
+                    {bt}
+                  </Chip>
                 ))}
-              </div>
+              </ChipBar>
             </div>
 
             {/* Unit + Service */}

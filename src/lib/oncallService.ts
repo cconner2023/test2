@@ -151,8 +151,8 @@ export async function disableOutsideMessaging(clinicId: string): Promise<Result<
 }
 
 /** Enable OUTBOUND outside-contact — lets any clinic member email a secure 1:1
- *  invite to an outside recipient (reverse of the inbound channels). Dev-gated
- *  server-side (set_outbound_enabled asserts is_dev()). Flag-only. */
+ *  invite to an outside recipient (reverse of the inbound channels). Supervisor
+ *  gated server-side (set_outbound_enabled asserts supervisor-or-dev). Flag-only. */
 export async function enableOutbound(clinicId: string): Promise<Result<true>> {
   const res = await callRpc(
     () => supabase.rpc('set_outbound_enabled', { p_clinic_id: clinicId, p_enabled: true }),

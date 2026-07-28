@@ -1,10 +1,11 @@
 import { useState, useCallback, useMemo, useEffect } from 'react'
-import { Ban, X, ChevronLeft } from 'lucide-react'
+import { Ban, X } from 'lucide-react'
 import { BaseDrawer, ScrollPane } from '@/Components/primitives/BaseDrawer'
 import { ContentWrapper } from '@/Components/primitives/ContentWrapper'
 import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill'
 import { SearchInput } from '@/Components/primitives/SearchInput'
 import { SlideRevealPane } from '@/Components/primitives/SlideRevealPane'
+import { PaneHeader } from '@/Components/primitives/PaneHeader'
 import { useSwipeBack } from '../Hooks/useSwipeBack'
 import { useIsMobile } from '../Hooks/useIsMobile'
 import { useEscBackout } from '../Hooks/useEscBackout'
@@ -845,16 +846,11 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
     if (timelinePaneOpen && view.screen === 'main' && treeSelection.type === 'soldier') {
       return (
         <>
-          <div className="shrink-0 flex items-center gap-2 px-4 py-3 border-b border-primary/10">
-            <button
-              onClick={() => setTimelinePaneOpen(false)}
-              className="w-8 h-8 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all"
-              aria-label="Back to profile"
-            >
-              <ChevronLeft size={18} />
-            </button>
-            <p className="text-[10pt] font-medium text-tertiary uppercase tracking-wide">Timeline</p>
-          </div>
+          <PaneHeader
+            title="Timeline"
+            onBack={() => setTimelinePaneOpen(false)}
+            backLabel="Back to profile"
+          />
           <div className="flex-1 min-h-0 overflow-y-auto">
             <TimelineFullView rows={timelineRows} loading={timelineLoading} />
           </div>

@@ -1,4 +1,4 @@
-import { memo, useState, useRef, useEffect, type ReactNode } from 'react'
+import { memo, useState, useRef, useEffect } from 'react'
 import { Plus, Trash2, Check, TrendingUp } from 'lucide-react'
 import { useTC3Store } from '../../stores/useTC3Store'
 import { TC3EditorSurface } from './TC3EditorSurface'
@@ -6,6 +6,8 @@ import { DatePickerInput } from '@/Components/primitives/FormInputs'
 import { BloodPressureInput } from '@/Components/DomainInputs'
 import { ActionButton } from '@/Components/primitives/ActionButton'
 import { ActionPill } from '@/Components/primitives/ActionPill'
+import { Chip, ChipBar } from '@/Components/primitives/Chip'
+import { FieldCell } from '@/Components/primitives/FieldCell'
 import { EmptyState } from '@/Components/primitives/EmptyState'
 import type { TC3VitalSet, AVPU } from '../../Types/TC3Types'
 
@@ -16,26 +18,9 @@ const EYE_LABELS: Record<number, string>    = { 1: 'None', 2: 'To Pain', 3: 'To 
 const VERBAL_LABELS: Record<number, string> = { 1: 'None', 2: 'Sounds', 3: 'Words', 4: 'Confused', 5: 'Oriented' }
 const MOTOR_LABELS: Record<number, string>  = { 1: 'None', 2: 'Extension', 3: 'Flexion', 4: 'Withdraws', 5: 'Localizes', 6: 'Obeys' }
 
-/* ── Generic value cell — matches the PE-block VitalSignsCalculator grid square
-   (label top-left, conversion/hint top-right, value below). ── */
-function VCell({ label, hint, hintClass = 'text-tertiary', className, bare, children }: {
-  label: string
-  hint?: string | null
-  hintClass?: string
-  className?: string
-  bare?: boolean
-  children: ReactNode
-}) {
-  return (
-    <div className={`flex flex-col gap-0.5 px-3 py-2 ${bare ? '' : 'border-b border-primary/6 last:border-0'} ${className ?? ''}`}>
-      <div className="flex items-baseline justify-between gap-2 min-w-0">
-        <span className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest shrink-0">{label}</span>
-        {hint && <span className={`text-[8.5pt] font-medium truncate ${hintClass}`}>{hint}</span>}
-      </div>
-      {children}
-    </div>
-  )
-}
+/* ── Generic value cell — the shared grid square (label top-left, conversion/hint
+   top-right, value below). Aliased so the many call sites below stay short. ── */
+const VCell = FieldCell
 
 /* ── GCS full-width cell — label + value + wrapping explanation + −/+ ── */
 function GcsCell({ label, value, max, labels, onChange }: {
@@ -357,22 +342,21 @@ function VitalSetPreviewContent({ id }: { id: string }) {
         <input type="text" value={vs.time} onChange={(e) => handleChange('time', e.target.value)} placeholder="HH:MM" className={cellInput} />
       </VCell>
 
-      {/* AVPU — no header; auto-fills GCS */}
-      <div className="flex items-stretch border-b border-primary/6">
-        {AVPU_OPTIONS.map((opt, i) => (
-          <button
+      {/* AVPU — no header; auto-fills GCS. The two-line cell every other chip
+          in the app is now sized against. */}
+      <ChipBar layout="fixed" className="border-b border-primary/6">
+        {AVPU_OPTIONS.map((opt) => (
+          <Chip
             key={opt}
-            type="button"
+            active={avpu === opt}
+            activeClass="bg-themeredred"
+            sublabel={AVPU_LABELS[opt]}
             onClick={() => handleAVPU(opt)}
-            className={`flex-1 flex flex-col items-center justify-center px-2 py-2 transition-colors ${
-              i > 0 ? 'border-l border-primary/6' : ''
-            } ${avpu === opt ? 'bg-themeredred' : 'active:bg-tertiary/5'}`}
           >
-            <span className={`text-sm font-bold ${avpu === opt ? 'text-white' : 'text-primary'}`}>{opt}</span>
-            <span className={`text-[8pt] ${avpu === opt ? 'text-white/80' : 'text-tertiary'}`}>{AVPU_LABELS[opt]}</span>
-          </button>
+            {opt}
+          </Chip>
         ))}
-      </div>
+      </ChipBar>
 
       {/* GCS — full-width rows so the explanation can wrap */}
       <GcsCell label="Eye"    value={gcs?.eye    ?? 0} max={4} labels={EYE_LABELS}    onChange={(v) => handleGCS('eye',    String(v))} />
@@ -412,11 +396,11 @@ function VitalSetPreviewContent({ id }: { id: string }) {
           <input type="text" inputMode="numeric" value={vs.pulse} onChange={(e) => handleChange('pulse', e.target.value)} placeholder="bpm" className={cellInput} />
         </VCell>
         <VCell bare className="flex-1 min-w-0 border-l border-primary/6" label="Location">
-          <div className="flex mt-0.5">
+          <ChipBar>
             {PULSE_LOCATION_OPTIONS.map((opt) => (
-              <button
+              <Chip
                 key={opt}
-                type="button"
+                active={vs.pulseLocation === opt}
                 onClick={() => {
                   const newLoc = vs.pulseLocation === opt ? '' : opt
                   const isAutoDefault = BP_AUTO_VALUES.has(vs.bp)
@@ -425,12 +409,11 @@ function VitalSetPreviewContent({ id }: { id: string }) {
                   else if (!newLoc && isAutoDefault) updates.bp = ''
                   updateVitalSet(id, updates)
                 }}
-                className={`px-3 py-0.5 transition-colors ${vs.pulseLocation === opt ? 'bg-themeblue3' : 'active:bg-tertiary/5'}`}
               >
-                <span className={`text-[9pt] ${vs.pulseLocation === opt ? 'text-white font-medium' : 'text-secondary'}`}>{opt}</span>
-              </button>
+                {opt}
+              </Chip>
             ))}
-          </div>
+          </ChipBar>
         </VCell>
       </div>
 
@@ -452,18 +435,18 @@ function VitalSetPreviewContent({ id }: { id: string }) {
           <input type="text" inputMode="decimal" value={vs.temp ?? ''} onChange={(e) => handleChange('temp', e.target.value)} placeholder="98.6" className={cellInput} />
         </VCell>
         <VCell bare className="flex-1 min-w-0 border-l border-primary/6" label="Route">
-          <div className="flex mt-0.5">
+          <ChipBar>
             {TEMP_ROUTE_OPTIONS.map((opt) => (
-              <button
+              <Chip
                 key={opt}
-                type="button"
+                className="capitalize"
+                active={vs.tempRoute === opt}
                 onClick={() => updateVitalSet(id, { tempRoute: vs.tempRoute === opt ? '' : opt })}
-                className={`px-3 py-0.5 transition-colors ${vs.tempRoute === opt ? 'bg-themeblue3' : 'active:bg-tertiary/5'}`}
               >
-                <span className={`text-[9pt] capitalize ${vs.tempRoute === opt ? 'text-white font-medium' : 'text-secondary'}`}>{opt}</span>
-              </button>
+                {opt}
+              </Chip>
             ))}
-          </div>
+          </ChipBar>
         </VCell>
       </div>
 

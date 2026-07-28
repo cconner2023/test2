@@ -972,7 +972,10 @@ const AdminClinicDetail = ({
             anchorRect={rect}
             layout="list"
             items={items}
-            onClose={() => setRelAction(null)}
+            // AnchoredMenu fires onAction then onClose in the same batch, and both
+            // write relAction — a plain setRelAction(null) would clobber the picker
+            // the item just opened. Clear only if still sitting on the kind menu.
+            onClose={() => setRelAction(a => (a?.kind === 'add-menu' ? null : a))}
           />
         )
       })()}

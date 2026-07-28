@@ -81,7 +81,6 @@ function generatePassphrase(): string {
 export function IntakeMintSection({ clinicId, oncallCount = 0, onOncallEnabledChange }: IntakeMintSectionProps) {
   const { isSupervisorRole } = useAuth()
   const outsideCallBeta = useBetaBypass('outsideCall')
-  const outboundBeta = useBetaBypass('outboundContact')
   // Seed from the warm cache so a pre-warmed open paints immediately. `undefined`
   // = cache miss → show the loading gate as before; a cached value (incl. null)
   // means we already know the credential and skip the blank frame.
@@ -323,7 +322,7 @@ export function IntakeMintSection({ clinicId, oncallCount = 0, onOncallEnabledCh
     } catch (e) { logger.warn('clipboard write failed', e) }
   }, [])
 
-  if (!isSupervisorRole && !outsideCallBeta && !outboundBeta) return null
+  if (!isSupervisorRole && !outsideCallBeta) return null
   if (loading) return null
 
   return (
@@ -512,9 +511,8 @@ export function IntakeMintSection({ clinicId, oncallCount = 0, onOncallEnabledCh
             </div>
 
             {/* OUTBOUND outside-contact — a clinic member emails a secure 1:1 invite
-                to an outside recipient (reverse of the inbound channels). DEV-GATED
-                (outboundContact beta); server also asserts is_dev() on every leg. */}
-            {outboundBeta && (
+                to an outside recipient (reverse of the inbound channels). Supervisor
+                controlled; set_outbound_enabled asserts supervisor-or-dev server-side. */}
             <div
               onClick={outboundBusy ? undefined : () => void toggleOutbound()}
               role="button"
@@ -535,7 +533,6 @@ export function IntakeMintSection({ clinicId, oncallCount = 0, onOncallEnabledCh
               </div>
               <ToggleSwitch checked={outboundEnabled} />
             </div>
-            )}
           </div>
 
           <OverlayActionMenu

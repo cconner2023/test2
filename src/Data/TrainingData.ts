@@ -38,6 +38,7 @@ export interface PerformanceStep {
     note?: string
     warning?: string
     caution?: string
+    danger?: string
 }
 
 export function getTaskData(taskNumber: string): TaskTrainingData | undefined {
@@ -55,7 +56,7 @@ export const trainingTaskData: readonly TaskTrainingData[] = [
         taskNumber: "081-000-1001",
         title: "Assess Patient Vital Signs",
         caution: 'All body fluids should be considered potentially infectious so always observe body substance isolation (BSI) precautions by wearing gloves and eye protection as a minimal standard of protection.',
-        conditions: 'In an operational environment you are to obtain vital signs and determine if a patient\'s vital signs are within normal limits. You are provided with a watch with a second hand (analog or digital), thermometer (electronic, glass, or tympanic), alcohol pads, cover probes, water soluble lubricant, stethoscope, sphygmomanometer, pulse oximetry device, sensing probe, pen, and SF 600 (Chronological Record of Medical Care) or electronic medical record (EMR). The use of an automated vital signs monitor is allowed if available.',
+        conditions: 'In an operational environment you are to obtain vital signs and determine if a patient\'s vital signs are within normal limits. You are provided with a watch with a second hand (analog or digital), thermometer (electronic, glass, or tympanic), alcohol pads, cover probes, water soluble lubricant, stethoscope, sphygmomanometer, pulse oximetry device, sensing probe, pen, and SF 600 (Chronological Record of Medical Care) or electronic medical record (EMR). The use of an automated vital signs monitor is allowed if available. Some iterations of this task should be performed in MOPP 4.',
         standards: "Assess the patient's vital signs, in accordance with the PHTLS Prehospital Trauma Life Support, while adhering to all warnings and cautions with 100% accuracy utilizing GO/NO GO criteria.",
         gradedSteps: ["1", "2", "3", "4", "5", "6", "7", "8"],
         performanceSteps: [
@@ -86,7 +87,7 @@ export const trainingTaskData: readonly TaskTrainingData[] = [
             { number: "3g", text: "Record the rate, rhythm, strength, and any significant deviations from normal on the appropriate medical forms.", isSubStep: true },
             { number: "3h", text: "Report any significant pulse abnormalities to your supervisor immediately.", isSubStep: true },
             { number: "4", text: "Assess respiratory rate." },
-            { number: "4a", text: "Count the number of times the chest rises (inspiration) and returns to its normal position (expiration) for 30 seconds and multiply by two.", isSubStep: true, note: "Each respiratory cycle (inspiration and expiration) counts as one respiration. The patient should not be aware that their respirations are being counted." },
+            { number: "4a", text: "Count the number of times the chest rises (inspiration) and returns to its normal position (expiration) for 30 seconds and multiply by two.", isSubStep: true, note: "Each respiratory cycle (inspiration and expiration) counts as one respiration. The patient should not be aware that their respirations are being counted. A conscious patient who is aware their respirations are being counted will often alter their respiratory rate by breathing slower and deeper. If a patient is speaking, this too may result in an inaccurate assessment of respirations." },
             { number: "4b", text: "Normal respirations for each age group are as follows:", isSubStep: true },
             { number: "4b1", text: "Adults: 12-20 breaths per minute.", isSubStep: true },
             { number: "4b2", text: "Children (1-10 years): 15-30 breaths per minute.", isSubStep: true },
@@ -109,7 +110,7 @@ export const trainingTaskData: readonly TaskTrainingData[] = [
             { number: "4g", text: "Report any abnormal respirations to your supervisor immediately.", isSubStep: true },
             { number: "5", text: "Assess blood pressure.", note: "The following procedures describe the procedure for obtaining a blood pressure reading using the upper arm (brachial artery)." },
             { number: "5a", text: "Position the patient so the extremity used is accessible.", isSubStep: true, note: "Measuring the blood pressure of a standing patient will result in a slightly higher reading." },
-            { number: "5b", text: "Select the proper size of sphygmomanometer cuff.", isSubStep: true, note: "The cuff width should wrap around the arm 1-1.5 times and take up two-thirds of the upper arm length. A cuff that is too small may result in false high readings; a cuff that is too large may result in falsely low readings." },
+            { number: "5b", text: "Select the proper size of sphygmomanometer cuff.", isSubStep: true, note: "The cuff width should wrap around the arm 1-1.5 times and take up two-thirds of the upper arm length if using the brachial artery, and two-thirds of the upper leg length if using the popliteal artery. A cuff that is too small may result in falsely high readings; a cuff that is too large may result in falsely low readings." },
             { number: "5c", text: "Check the equipment.", isSubStep: true },
             { number: "5c1", text: "Ensure the cuff is completely deflated and fully retighten the one-way valve thumbscrew.", isSubStep: true },
             { number: "5c2", text: "Ensure the sphygmomanometer pressure gauge is at 0 millimeter of mercury (mmHg).", isSubStep: true },
@@ -122,7 +123,7 @@ export const trainingTaskData: readonly TaskTrainingData[] = [
             { number: "5e1", text: "Palpate the arm with the blood pressure cuff, just above the crease of the arm to locate the strongest pulse.", isSubStep: true },
             { number: "5e2", text: "Place the diaphragm of the stethoscope over the brachial pulse site.", isSubStep: true },
             { number: "5e3", text: "Hold the diaphragm in place with your nondominant hand.", isSubStep: true },
-            { number: "5f", text: "Inflate the blood pressure cuff.", isSubStep: true, note: "When the blood pressure cuff has inflated enough to stop blood flow you should hear no sounds through the stethoscope. The gauge should read 30 to 40 mmHg above the person's normal BP reading. If this value is unknown, you can inflate the cuff to 160-180 mmHg." },
+            { number: "5f", text: "Inflate the blood pressure cuff.", isSubStep: true, note: "When the blood pressure cuff has inflated enough to stop blood flow you should hear no sounds through the stethoscope. The gauge should read 30 to 40 mmHg above the person's normal BP reading. If this value is unknown, you can inflate the cuff to 160-180 mmHg. If pulse sounds are heard right away, inflate to a higher pressure." },
             { number: "5f1", text: "Close the valve on the sphygmomanometer.", isSubStep: true },
             { number: "5f2", text: "Begin inflating the cuff using the ball pump as you listen to the pulse sounds.", isSubStep: true, caution: "The cuff should not remain inflated for more than 2 minutes." },
             { number: "5f3", text: "Stop inflating at 30 mmHg above the last pulse sound.", isSubStep: true },
@@ -167,7 +168,7 @@ export const trainingTaskData: readonly TaskTrainingData[] = [
             { number: "6f", text: "Leave the thermometer in place for the required time.", isSubStep: true },
             { number: "6f1", text: "Oral method: must remain in place for 1 to 3 minutes.", isSubStep: true, note: "The time will vary when using a digital and glass oral thermometer. Leave the digital oral thermometer in place until testing is complete. The digital unit will normally have an audible tone (beep) when complete." },
             { number: "6f2", text: "Tympanic method: must remain in place until an audible tone (beep) occurs, and the patient's temperature appears on the digital display.", isSubStep: true },
-            { number: "6f3", text: "Rectal method: must be held in place for 1 to 3 minutes.", isSubStep: true, note: "The time will vary when using a digital and glass rectal thermometer. Leave the digital rectal thermometer in place until testing is complete." },
+            { number: "6f3", text: "Rectal method: must be held in place for 1 to 3 minutes.", isSubStep: true, note: "The time will vary when using a digital and glass rectal thermometer. Leave the digital rectal thermometer in place until testing is complete. The digital unit will normally have an audible tone (beep) when complete." },
             { number: "6f4", text: "Axillary method: must remain in place for 1 to 10 minutes.", isSubStep: true },
             { number: "6g", text: "Remove the thermometer and eject the cover probe or discharge the protective plastic sheath as appropriate.", isSubStep: true },
             { number: "6h", text: "Read the temperature scale or digital display.", isSubStep: true },
