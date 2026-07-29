@@ -5,6 +5,7 @@ import {
   signInReceipt,
   removeReceiptItem,
   addReceiptItems,
+  setReceiptItemQuantity,
   deleteHandReceipt,
 } from '../lib/propertyService'
 import { invalidate } from '../stores/useInvalidationStore'
@@ -129,6 +130,20 @@ export function useHandReceiptActions({ clinicId, itemsById, membersById, refetc
     if (r) removeItem(r.handReceiptId, r.itemId)
   }, [pendingRemove, removeItem])
 
+  /** Re-size one item's line on the receipt (the 2062's QTY column). Serialized
+   *  items reject service-side — they sign out as a single unit. */
+  const setItemQuantity = useCallback(
+    async (handReceiptId: string, itemId: string, qty: number) => {
+      const userId = useAuthStore.getState().user?.id
+      if (!userId || !clinicId) return
+      setBusyId(handReceiptId)
+      const result = await setReceiptItemQuantity(handReceiptId, itemId, qty, clinicId, userId)
+      setBusyId(null)
+      if (result.success) afterMutate()
+    },
+    [clinicId, afterMutate],
+  )
+
   /** Add items to an existing receipt. */
   const addItems = useCallback(
     async (handReceiptId: string, itemIds: string[]) => {
@@ -195,6 +210,7 @@ export function useHandReceiptActions({ clinicId, itemsById, membersById, refetc
     pendingRemove,
     setPendingRemove,
     confirmRemove,
+    setItemQuantity,
     addItems,
     pendingDelete,
     setPendingDelete,

@@ -17,6 +17,7 @@ import { FuelMeter } from '@/Components/DomainInputs'
 import { DocScanner } from './DocScanner'
 import { ensurePdfFile } from '../../lib/docScan'
 import { SectionCard, SectionHeader } from '@/Components/primitives/Section'
+import { formatDtg } from '../../Utilities/propertyDates'
 import { createLogger } from '../../Utilities/Logger'
 
 const logger = createLogger('RecordPreview')
@@ -34,9 +35,10 @@ const logger = createLogger('RecordPreview')
  *
  * The three property record types that carry their own intake form — a PMCS check
  * (pmcs.clear) and a dispatch open/close (dispatch.opened / dispatch.closed) — open
- * into the SAME rich REVIEW card the Custody roster shows (RecordReviewBody: a
- * summary card + a readings/faults "information" section + a prominent Open 5988E /
- * dispatch-form button), with Edit + Delete in the footer. Edit flips into the
+ * into the SAME rich REVIEW body the Custody roster shows (RecordReviewBody: a
+ * readings/faults "information" section + a prominent Open 5988E / dispatch-form
+ * button, with the record and its date carried by the surface's own title rather
+ * than a card that repeats it), with Edit + Delete in the footer. Edit flips into the
  * editable form pre-filled from the payload; Save commits a full-payload edit
  * (editPmcsEntry → updateAuditEvent, which preserves occurred_at, so the recorded
  * date never moves). PMCS edit exposes the scalar readings + the 5988E only
@@ -374,7 +376,7 @@ export function useRecordPreview({ event, onClose, label, detail, Icon, tint, in
     // (footer) flips to the form above.
     body = event ? (
       <div className="px-3 py-3 space-y-3">
-        <RecordReviewBody event={event} label={label} Icon={Icon} tint={tint} detail={detail} />
+        <RecordReviewBody event={event} />
       </div>
     ) : null
   } else if (mode === 'edit') {
@@ -480,9 +482,12 @@ export function useRecordPreview({ event, onClose, label, detail, Icon, tint, in
     />
   )
 
-  // Overlay title for the structured-edit forms (the user opens "PMCS" / "Dispatch");
-  // null for the other rows, which carry their label in the summary card instead.
-  const title = formKind === 'pmcs' ? 'PMCS' : formKind ? 'Dispatch' : null
+  // Overlay title for the structured-edit forms — what the record is and when, since
+  // the review body no longer repeats either. Null for the other rows, which carry
+  // their label in the summary card instead.
+  const title = !formKind || !event
+    ? null
+    : `${formKind === 'pmcs' ? 'PMCS' : formKind === 'dispatch-close' ? 'Return' : 'Dispatch'} ${formatDtg(event.occurredAt)}`
 
   return { isOpen, title, body, footer, rightFooter, confirm, saving }
 }
@@ -530,7 +535,7 @@ export function RecordSummaryCard({ Icon, tint, label, detail, occurredAt }: {
   detail?: string
   occurredAt: string
 }) {
-  const meta = [detail, fmtDate(occurredAt)].filter(Boolean).join(' · ')
+  const meta = [detail, formatDtg(occurredAt)].filter(Boolean).join(' · ')
   return (
     <SectionCard>
       <div className="flex items-center gap-3 px-4 py-3">
@@ -544,24 +549,6 @@ export function RecordSummaryCard({ Icon, tint, label, detail, occurredAt }: {
       </div>
     </SectionCard>
   )
-}
-
-function fmtDate(iso: string): string {
-  const d = new Date(iso)
-  if (!Number.isFinite(d.getTime())) return iso
-  const now = new Date()
-  const sameYear = d.getFullYear() === now.getFullYear()
-  return d.toLocaleDateString('en-US', {
-    month: 'short', day: 'numeric', ...(sameYear ? {} : { year: 'numeric' }),
-  })
-}
-
-/** Short, local-midnight day for date-only payload fields (exp_date / returned_at),
- *  so the shown day can't drift a day earlier in negative-offset timezones. */
-function fmtDay(dateOnly: string): string {
-  const d = new Date(dateOnly.length <= 10 ? `${dateOnly}T00:00:00` : dateOnly)
-  if (!Number.isFinite(d.getTime())) return dateOnly
-  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
 /** The structured readings the summary line collapses — one label/value row each,
@@ -585,7 +572,7 @@ function infoRows(event: AuditEvent): { label: string; value: string }[] {
       break
     case 'dispatch.opened':
       push('Status', 'On dispatch')
-      push('Expires', typeof p.exp_date === 'string' && p.exp_date ? fmtDay(p.exp_date) : null)
+      push('Expires', typeof p.exp_date === 'string' && p.exp_date ? formatDtg(p.exp_date) : null)
       push('Odometer out', num(p.odo_out, ' mi'))
       push('Operator', text(p.operator))
       push('TC', text(p.tc))
@@ -593,7 +580,7 @@ function infoRows(event: AuditEvent): { label: string; value: string }[] {
       break
     case 'dispatch.closed':
       push('Status', 'Returned')
-      push('Returned', typeof p.returned_at === 'string' && p.returned_at ? fmtDay(p.returned_at) : null)
+      push('Returned', typeof p.returned_at === 'string' && p.returned_at ? formatDtg(p.returned_at) : null)
       push('Odometer in', num(p.odo_in, ' mi'))
       push('Note', text(p.note))
       break
@@ -602,24 +589,20 @@ function infoRows(event: AuditEvent): { label: string; value: string }[] {
 }
 
 /**
- * RecordReviewBody — the canonical READ view of a PMCS / dispatch record: the summary
- * card, an "information" section listing every reading the roster line collapses (plus
- * the PMCS faults this check found / corrected), and the attached 5988E / dispatch
- * form as an openable button. Shared by BOTH the record-preview overlay (PMCS/Dispatch
- * history + item/vehicle timeline via useRecordPreview) AND the Custody-roster pane
- * detail (PropertyRecordDetail) so a reviewed record looks identical everywhere. Emits
- * a bare card stack — the host wraps it in its own padded/scrolling container (and adds
- * its own extras, e.g. the roster's tap-to-locate subject card).
+ * RecordReviewBody — the canonical READ view of a PMCS / dispatch record: an
+ * "information" section listing every reading (plus the PMCS faults this check found
+ * / corrected), and the attached 5988E / dispatch form as an openable button. Shared
+ * by BOTH the record-preview overlay (PMCS/Dispatch history + item/vehicle timeline
+ * via useRecordPreview) AND the Custody-roster pane detail (PropertyRecordDetail) so
+ * a reviewed record looks identical everywhere. Emits a bare card stack — the host
+ * wraps it in its own padded/scrolling container.
+ *
+ * There is deliberately NO summary card here: every value it carried (label, the
+ * readings meta line, the date) is either an information row below or the host
+ * surface's own title — an overlay title / pane header. One record, one statement of
+ * each fact.
  */
-export function RecordReviewBody({ event, label, Icon, tint, detail }: {
-  event: AuditEvent
-  label: string
-  Icon: LucideIcon
-  /** Icon chip classes (bg + text), matching the list row. */
-  tint: string
-  /** Detail meta line (readings / exp date). */
-  detail?: string
-}) {
+export function RecordReviewBody({ event }: { event: AuditEvent }) {
   const [busy, setBusy] = useState(false)
   const doc = docOf(event)
   const isDispatch = event.eventType.startsWith('dispatch')
@@ -642,8 +625,6 @@ export function RecordReviewBody({ event, label, Icon, tint, detail }: {
 
   return (
     <>
-      <RecordSummaryCard Icon={Icon} tint={tint} label={label} detail={detail} occurredAt={event.occurredAt} />
-
       {/* Information — the readings the roster line collapses, one row each, plus the
           PMCS faults this check found / corrected (red for a new fault). */}
       {(rows.length > 0 || faultsOpened.length > 0 || faultsCorrected.length > 0) && (

@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useEffect, useContext, forwardRef, useImperativeHandle } from 'react'
-import { Check, ChevronDown, MapPin, Minus, Plus } from 'lucide-react'
+import { Check, ChevronDown, MapPin } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import { TextInput } from '@/Components/primitives/FormInputs'
 import { PillButton } from '@/Components/primitives/HeaderPill'
@@ -13,146 +13,9 @@ import { usePropertyStore } from '../../stores/usePropertyStore'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { useDA2062Export } from '../../Hooks/useDA2062Export'
 import { PartyPicker, type Party } from './PartyPicker'
+import { ItemRows, ItemsScreen } from './ItemPickerRows'
 import { isLinContainer } from '../../Utilities/propertyAuthorized'
-import type { HolderInfo, LocalPropertyItem } from '../../Types/PropertyTypes'
-
-/* ── Shared picker rows — one source for the desktop PreviewOverlay fallback AND the
-      mobile stack drill screens, so both render byte-identical (mirrors FormInputs'
-      PickerRows split). The recipient (member-or-external) picker lives in the shared
-      PartyPicker; only the multi-select item rows are bespoke to the sign-out. ── */
-
-/** Multi-select item rows with a per-item quantity stepper, filtered by the live
- *  search value. State ownership differs by host (live host state on desktop, local
- *  screen state in the drill) — this component is purely presentational. */
-function ItemRows({ items, filter, quantities, onToggle, onSetQty, locationName }: {
-  items: LocalPropertyItem[]
-  filter: string
-  quantities: Map<string, number>
-  onToggle: (id: string) => void
-  onSetQty: (id: string, qty: number, max: number) => void
-  locationName: (id: string | null) => string | null
-}) {
-  const q = filter.trim().toLowerCase()
-  const shown = q
-    ? items.filter(
-        (i) =>
-          i.name.toLowerCase().includes(q) ||
-          i.nsn?.toLowerCase().includes(q) ||
-          i.serial_number?.toLowerCase().includes(q),
-      )
-    : items
-  return (
-    <div>
-      {shown.map((i) => {
-        const qty = quantities.get(i.id)
-        const selected = qty !== undefined
-        const max = Math.max(1, i.quantity)
-        const loc = locationName(i.location_id)
-        const out = i.signed_out_external || !!i.current_holder_id
-        // Serial | material identity line — mirrors the standard property item card.
-        const serialMaterial = [
-          i.serial_number ? `S/N ${i.serial_number}` : null,
-          i.nsn ? `Material/NSN ${i.nsn}` : null,
-        ].filter(Boolean).join(' | ')
-        return (
-          <div
-            key={i.id}
-            className="w-full flex items-center gap-3 px-4 py-3 active:bg-tertiary/5 border-b border-primary/6 last:border-b-0"
-          >
-            <button
-              type="button"
-              onClick={() => onToggle(i.id)}
-              className="flex items-start gap-3 min-w-0 flex-1 text-left"
-            >
-              <span
-                className={`w-5 h-5 mt-0.5 rounded-md shrink-0 flex items-center justify-center border ${
-                  selected ? 'bg-themeblue3 border-themeblue3' : 'border-tertiary/40'
-                }`}
-              >
-                {selected && <Check size={14} className="text-white" />}
-              </span>
-              {/* name / nomenclature / location / serial | material — the standard
-                  property item card, one field per line. Quantity rides the right column. */}
-              <span className="min-w-0 flex-1">
-                <span className="block text-sm text-primary truncate">{i.name}</span>
-                {i.nomenclature && <span className="block text-[10pt] text-tertiary truncate">{i.nomenclature}</span>}
-                <span className="block text-[10pt] text-tertiary truncate">
-                  {loc || 'Unplaced'}
-                  {out ? ' · already out' : ''}
-                </span>
-                {serialMaterial && <span className="block text-[10pt] text-tertiary truncate">{serialMaterial}</span>}
-              </span>
-            </button>
-            {/* Right column: the on-hand quantity when browsing (how we normally show it),
-                swapped for the full-size stepper once the item is selected. */}
-            {selected ? (
-              <span className="flex flex-col items-end gap-1 shrink-0">
-                <span className="text-[9pt] uppercase tracking-wide text-tertiary">Qty</span>
-                {max > 1 ? (
-                  <span className="flex items-center gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => onSetQty(i.id, (qty ?? 1) - 1, max)}
-                      disabled={(qty ?? 1) <= 1}
-                      aria-label="Decrease quantity"
-                      className="w-8 h-8 rounded-full flex items-center justify-center border border-tertiary/30 text-tertiary active:scale-90 transition-all disabled:opacity-30"
-                    >
-                      <Minus size={15} />
-                    </button>
-                    <span className="text-sm text-primary tabular-nums w-12 text-center">
-                      {qty} / {max}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => onSetQty(i.id, (qty ?? 1) + 1, max)}
-                      disabled={(qty ?? 1) >= max}
-                      aria-label="Increase quantity"
-                      className="w-8 h-8 rounded-full flex items-center justify-center border border-tertiary/30 text-tertiary active:scale-90 transition-all disabled:opacity-30"
-                    >
-                      <Plus size={15} />
-                    </button>
-                  </span>
-                ) : (
-                  <span className="text-sm text-primary tabular-nums">1</span>
-                )}
-              </span>
-            ) : (
-              max > 1 && <span className="text-sm text-primary tabular-nums shrink-0">{i.quantity}</span>
-            )}
-          </div>
-        )
-      })}
-      {shown.length === 0 && <p className="px-4 py-3 text-[10pt] text-tertiary">No items match.</p>}
-    </div>
-  )
-}
-
-/** Multi-select items drill screen. A pushed stack screen freezes its render closure
- *  at push time, so it can't read the host's live `quantities` — it owns a local Map
- *  seeded from `initial` and commits every change up via `onChange` (MultiSelectScreen
- *  pattern). */
-function ItemsScreen({ items, filter, initial, onChange, locationName }: {
-  items: LocalPropertyItem[]
-  filter: string
-  initial: Map<string, number>
-  onChange: (next: Map<string, number>) => void
-  locationName: (id: string | null) => string | null
-}) {
-  const [qtys, setQtys] = useState<Map<string, number>>(() => new Map(initial))
-  const toggle = useCallback((id: string) => {
-    const n = new Map(qtys)
-    if (n.has(id)) n.delete(id)
-    else n.set(id, 1)
-    setQtys(n); onChange(n)
-  }, [qtys, onChange])
-  const setQty = useCallback((id: string, qty: number, max: number) => {
-    if (!qtys.has(id)) return
-    const clamped = Math.max(1, Math.min(qty, Math.max(1, max)))
-    const n = new Map(qtys); n.set(id, clamped)
-    setQtys(n); onChange(n)
-  }, [qtys, onChange])
-  return <ItemRows items={items} filter={filter} quantities={qtys} onToggle={toggle} onSetQty={setQty} locationName={locationName} />
-}
+import type { HolderInfo } from '../../Types/PropertyTypes'
 
 export interface SignOutFormHandle {
   /** Submit from the host header Check pill (calendar/property form pattern).

@@ -1,8 +1,8 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
-import { Clock, Users2, CalendarDays, X, Check, Trash2, CalendarPlus, CalendarOff, Square, Columns3, ListChecks, Grid2x2, CalendarRange, Rows3, Megaphone, SlidersHorizontal, ChevronLeft } from 'lucide-react'
+import { Clock, Users2, CalendarDays, X, Check, Trash2, CalendarPlus, CalendarOff, Square, Columns3, ListChecks, Grid2x2, CalendarRange, Rows3, Megaphone, SlidersHorizontal, ChevronLeft, MoreHorizontal } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { ActionPill } from '@/Components/primitives/ActionPill'
-import { LiftedRowMenu } from '@/Components/primitives/LiftedRowMenu'
+import { LiftedRowMenu, AnchoredMenu } from '@/Components/primitives/LiftedRowMenu'
 import { buildEventMenuItems, buildEventStatusReactions } from './eventMenu'
 import { exportEventConop, gatherLinkedGeometry } from '../../lib/conop/exportEventConop'
 import { getTileTheme } from '../MapOverlay/ThemedTileLayer'
@@ -1213,6 +1213,49 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     [events, dayDrawerEventId]
   )
 
+  // ── Mobile event Sheet: read-mode header menu ──
+  // The Sheet primitive owns the header in EVERY mode (detail / edit / create) so
+  // the row's geometry can't change on the swap — the read view used to render its
+  // own header inside the body, which made the chrome jump on entering edit. That
+  // moves the read-mode ellipsis here; same shared builders as the lifted-row peek.
+  const [detailMoreMenu, setDetailMoreMenu] = useState<DOMRect | null>(null)
+  const detailMoreBtnRef = useRef<HTMLDivElement>(null)
+  const detailMenu = (() => {
+    const ev = dayDrawerEvent
+    if (!ev) return null
+    const editable = isEventEditable(ev, isSupervisor)
+    const anchor = roomAnchorFor(ev.room_id)
+    const canConop = gatherLinkedGeometry(ev, overlaysCache, anchor).features.length > 0
+    const reactions = buildEventStatusReactions(
+      ev,
+      editable ? (status: EventStatus) => handleEventStatusChange(ev.id, status) : undefined,
+    )
+    const items = buildEventMenuItems({
+      onEdit: editable ? () => handleDayDrawerEdit(ev.id) : undefined,
+      onMove: editable ? () => { handleDayDrawerClose(); enterMoveMode(ev.id) } : undefined,
+      onShareToChat: () => shareToChat(
+        { type: 'shared_ref', refKind: 'calendar-event', refId: ev.id, label: ev.title || 'Event', subLabel: cloneTime(ev) },
+        { kind: 'calendar-event', event: ev },
+      ),
+      onAddToPhoneCalendar: () => { shareSingleEvent(ev).catch(() => {}) },
+      onExportConop: canConop ? () => {
+        exportEventConop({
+          event: ev,
+          assignedNames: resolveAssigned(ev.assigned_to).map(a => a.name),
+          overlays: overlaysCache,
+          roomAnchor: anchor,
+          tileTheme: getTileTheme(themeName, theme),
+          subtaskLabel,
+        }).catch(() => {})
+      } : undefined,
+      onCancelTemplate: ev.category === 'templated' && !isUnscheduledTemplate(ev, apptTypeNames)
+        ? () => handleCancelTemplate(ev.id)
+        : undefined,
+      onDelete: isTemplateStructureMutable(ev, isSupervisor) ? () => setConfirmDeleteEvent(ev.id) : undefined,
+    })
+    return { reactions, items, hasMenu: items.length > 0 || reactions.length > 0 }
+  })()
+
   // ── Sub-views (form / detail) — desktop: full panel replacement ──
 
   // ConfirmDialog must render in every branch — extract as a shared element.
@@ -1616,10 +1659,11 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
           {/* Mobile event detail + edit — ONE Sheet, mirroring the map feature
               editor (FeatureEditor): read and edit share a single surface and
               the header pills swap by mode, rather than the edit being a separate
-              drawer. Detail mode: EventDetailPanel renders its own ellipsis-left /
-              close-right header (hideClose + draggable). Edit mode: the Sheet owns
-              the header (title + Save/Delete pills, built-in Close = Cancel) and
-              drag-dismiss is disabled so a stray drag can't discard form input.
+              drawer. The Sheet's own header serves all three modes — only the
+              slots change (detail: ellipsis-left / close-right; edit+create: back
+              or cancel plus Save) — so the row never changes shape on a swap.
+              Edit/create disable drag-dismiss so a stray drag can't discard form
+              input; the grab strip still occupies its space (see Sheet.tsx).
               backdrop="block" dims the day drawer underneath so the sheet reads as
               distinct from it (their themewhite backgrounds are identical).
               Cancel is an EXPLICIT header pill (not the Sheet's built-in Close):
@@ -1647,11 +1691,15 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
             loading={(dayDrawerView === 'edit' || dayDrawerView === 'create') && (isFormPending || isWriting)}
             // Drilled into a form selector → the Sheet header borrows the stack's
             // screen title (e.g. "Category"); at the form root it shows the event
-            // title. Detail mode has no Sheet title (EventDetailPanel owns it).
+            // title. Detail mode titles with the event itself — the Sheet's header
+            // is the ONE header across detail / edit / create so the row keeps its
+            // padding, type scale and pill treatment through every swap.
             title={
               isMobileFormView && formStack.canBack
                 ? formStack.title
-                : dayDrawerView === 'detail' ? undefined : (formTitle.trim() || (editingEvent ? 'Edit Event' : 'New Event'))
+                : dayDrawerView === 'detail'
+                  ? (dayDrawerEvent?.title || 'Event')
+                  : (formTitle.trim() || (editingEvent ? 'Edit Event' : 'New Event'))
             }
             // Edit-mode header mirrors the map FeatureEditor pattern (2026-07-02):
             // LEFT = bare ChevronLeft Back (exit edit → read detail, pure content
@@ -1680,11 +1728,29 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                 >
                   <ChevronLeft size={20} />
                 </button>
+              ) : dayDrawerView === 'detail' && detailMenu?.hasMenu ? (
+                <HeaderPill>
+                  <div ref={detailMoreBtnRef}>
+                    <PillButton
+                      icon={MoreHorizontal}
+                      iconSize={18}
+                      onClick={() => {
+                        const rect = detailMoreBtnRef.current?.getBoundingClientRect()
+                        if (rect) setDetailMoreMenu(rect)
+                      }}
+                      label="More actions"
+                    />
+                  </div>
+                </HeaderPill>
               ) : undefined
             }
             rightContent={
               isMobileFormView && formStack.canBack ? (
                 formStack.rightFooter
+              ) : dayDrawerView === 'detail' ? (
+                <HeaderPill>
+                  <PillButton icon={X} iconSize={18} onClick={handleDayDrawerDetailBack} label="Close" />
+                </HeaderPill>
               ) : dayDrawerView === 'edit' && editingEvent ? (
               <HeaderPill>
                 <PillButton
@@ -1738,6 +1804,21 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
               </StackNavContext.Provider>
             )}
           </Sheet>
+
+          {/* Read-mode ellipsis menu for the Sheet header. A JSX sibling of the
+              Sheet is fine here (unlike the delete confirm): AnchoredMenu portals
+              at a fixed z far above the sheet's 1200. */}
+          {detailMoreMenu && detailMenu && (
+            <AnchoredMenu
+              isOpen
+              anchorRect={detailMoreMenu}
+              onClose={() => setDetailMoreMenu(null)}
+              layout="list"
+              align="left"
+              reactions={detailMenu.reactions}
+              items={detailMenu.items}
+            />
+          )}
 
         </div>
 

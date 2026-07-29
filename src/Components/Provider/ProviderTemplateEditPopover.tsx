@@ -8,11 +8,12 @@ import type { PlanState } from '../../Types/PlanTypes';
 import type { PEState, PEItemState } from '../../Types/PETypes';
 import { usePEPaneScreens, PECenter, makeTemplatePEState } from './ProviderPESections';
 import { usePlanPaneScreens } from './ProviderPlanSections';
+import { TextSectionEditor } from './ProviderPaneSections';
 import { ActionButton } from '@/Components/primitives/ActionButton';
 import { PillButton } from '@/Components/primitives/HeaderPill';
 import { OverlayHeaderMenu } from '@/Components/primitives/OverlayHeaderMenu';
 import { OverlayStack, type StackNav, type StackScreen } from '@/Components/primitives/OverlayStack';
-import { TextInput, TextArea } from '@/Components/primitives/FormInputs';
+import { TextInput } from '@/Components/primitives/FormInputs';
 import { FooterPill } from '@/Components/primitives/FooterPill'
 
 // ── Legacy → plain text resolution ──────────────────────────────────────────
@@ -285,6 +286,10 @@ export function ProviderTemplateEditPopover({ state, onClose, onSave, onDelete, 
 
 // ── Row primitives ──────────────────────────────────────────────────────────
 
+// Routes through TextSectionEditor (the note's pane editor) so authoring a template's
+// HPI / Assessment is text-template aware exactly like writing the note itself —
+// abbreviation expansion, fill sessions, and the bracket browse trigger. A plain
+// TextArea here silently dropped all three.
 function RowTextarea({
     label, value, onChange, placeholder,
 }: {
@@ -294,19 +299,16 @@ function RowTextarea({
     placeholder?: string;
 }) {
     return (
-        <label className="block border-b border-primary/6 last:border-b-0">
+        <div className="border-b border-primary/6 last:border-b-0">
             <div className="px-4 pt-2.5 text-[9pt] font-semibold text-tertiary uppercase tracking-wider">
                 {label}
             </div>
-            <TextArea
-                bare
+            <TextSectionEditor
                 value={value}
                 onChange={onChange}
-                placeholder={placeholder}
-                ariaLabel={label}
-                inputClassName="w-full bg-transparent px-4 py-2 pb-3 text-base md:text-sm text-primary placeholder:text-tertiary focus:outline-none resize-none min-h-[4rem] leading-5"
+                placeholder={placeholder ?? ''}
             />
-        </label>
+        </div>
     );
 }
 

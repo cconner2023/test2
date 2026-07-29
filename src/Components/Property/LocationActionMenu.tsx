@@ -119,6 +119,17 @@ function buildLocationMenuItems(opts: {
   onPrintLabel?: () => void
 }): ContextMenuItem[] {
   const isVehicle = opts.location.kind === 'vehicle'
+  // The turn-in staging zone is a LIST of what is going to the depot, not a place: none
+  // of the zone verbs (new item / new area / add level / bulk-edit stock / delete) apply
+  // to it. Its Edit curates the list instead — see TurnInZoneEditor.
+  if (opts.location.is_turn_in_zone) {
+    return [
+      { key: 'edit', label: 'Edit', icon: Pencil, onAction: opts.onEdit },
+      ...(opts.onDD1750
+        ? [{ key: 'dd1750', label: 'DD 1750', icon: ClipboardList, onAction: opts.onDD1750 } as ContextMenuItem]
+        : []),
+    ]
+  }
   return [
     { key: 'edit', label: 'Edit', icon: Pencil, onAction: opts.onEdit },
     ...(isVehicle && opts.onPmcs

@@ -2609,18 +2609,33 @@ async function removeMovedStack(
   locs: LocalPropertyLocation[],
   userId: string,
 ): Promise<void> {
-  if (sourceItem.is_serialized || !toHolderId) return
-  const memberZoneId = locs.find((l) => l.holder_user_id === toHolderId && !l.deleted_at)?.id ?? null
-  if (!memberZoneId) return
-  const moved = allItems.find((i) =>
-    i.id !== sourceItem.id &&
-    !i.is_serialized &&
-    i.location_id === memberZoneId &&
-    i.quantity === movedQty &&
-    i.name.toLowerCase() === sourceItem.name.toLowerCase() &&
-    (sourceItem.nsn ? i.nsn === sourceItem.nsn : !i.nsn),
-  )
+  const moved = findMovedStack(sourceItem, toHolderId, movedQty, allItems, locs)
   if (moved) await deleteItem(moved.id, userId)
+}
+
+/** The matcher behind removeMovedStack, split out so the QTY edit can RE-SIZE that
+ *  split-off stack instead of deleting it. Null when no partial move-to-zone stack
+ *  answers to (member-zone, identity, exact qty). */
+function findMovedStack(
+  sourceItem: LocalPropertyItem,
+  toHolderId: string | null,
+  movedQty: number,
+  allItems: LocalPropertyItem[],
+  locs: LocalPropertyLocation[],
+): LocalPropertyItem | null {
+  if (sourceItem.is_serialized || !toHolderId) return null
+  const memberZoneId = locs.find((l) => l.holder_user_id === toHolderId && !l.deleted_at)?.id ?? null
+  if (!memberZoneId) return null
+  return (
+    allItems.find((i) =>
+      i.id !== sourceItem.id &&
+      !i.is_serialized &&
+      i.location_id === memberZoneId &&
+      i.quantity === movedQty &&
+      i.name.toLowerCase() === sourceItem.name.toLowerCase() &&
+      (sourceItem.nsn ? i.nsn === sourceItem.nsn : !i.nsn),
+    ) ?? null
+  )
 }
 
 // ── SKO subtree = the accountability atom (settles the DA 2062 parent_id question;
@@ -2862,7 +2877,12 @@ export interface TurnInParams {
 // Turn-in is FULL-LINE (the whole item/stack) — there is no row-level "verified" flag
 // on custody_ledger, so a partial that left a non-turned_in item in a doc would break
 // open-doc detection + risk a double-apply on verify. Whole-line keeps turned_in_at a
-// clean per-item "verified" marker. (Partial-stack turn-in is a later refinement.)
+// clean per-item "verified" marker.
+//
+// "Only 4 of the 10 are going" is therefore done UPSTREAM of the doc, by re-cutting the
+// staged stack itself ({@link setTurnInQuantity}): the leftover goes back on the books
+// and the staged item's quantity stays equal to its row's quantity_delta, so verify is
+// still whole-line. Nothing here has to know a split happened.
 
 /** Write `turn_in` rows for a selection into `docId` — STAGE only, no apply. Applies the
  *  SKO subtree atom (detach loose components → shortage; expand each selection to its
@@ -3052,6 +3072,130 @@ export async function verifyTurnIn(
   }
 }
 
+/**
+ * Staged item id → the pending doc still carrying its turn_in row. Read straight off the
+ * local ledger rather than the DA 2062 accountability fold, which is feature-gated and
+ * may never have loaded — the staging surfaces need to un-stage / re-cut regardless.
+ */
+export async function getPendingTurnInDocIds(clinicId: string): Promise<Map<string, string>> {
+  const itemsById = new Map((await getLocalPropertyItems(clinicId)).map((i) => [i.id, i]))
+  const byItem = new Map<string, string>()
+  for (const r of await getLocalCustodyByClinic(clinicId)) {
+    if (r.action !== 'turn_in' || !r.hand_receipt_id) continue
+    const item = itemsById.get(r.item_id)
+    if (item && !item.turned_in_at) byItem.set(r.item_id, r.hand_receipt_id)
+  }
+  return byItem
+}
+
+/**
+ * RE-CUT a staged turn-in line to `newQty` — "only this many are going to the depot".
+ *
+ * REDUCE ONLY: the ceiling is what is already staged, because the stage moved the whole
+ * stack in and the leftover it hands back becomes its own stack (there is nothing to
+ * re-absorb). Staging more means staging the other line again. Serialized lines are one
+ * physical thing and are refused outright.
+ *
+ * The remainder goes back on the books exactly the way {@link unstageTurnInItem} returns a
+ * whole line — merged into the zeroed authorized source when the stage split a BOM line,
+ * otherwise a fresh stack at the origin zone the item was moved out of — so the shortage
+ * math is the same whether you drop 4 of 10 or all 10. The staged item keeps its identity
+ * and the ledger row keeps its item, so the doc keeps its shape; the row itself is
+ * rewritten (purge + re-record) because custody rows carry no in-place update path.
+ */
+export async function setTurnInQuantity(
+  turnInDocId: string,
+  itemId: string,
+  newQty: number,
+  clinicId: string,
+  userId: string,
+): Promise<ServiceResult> {
+  try {
+    const rows = (await getLocalCustodyByReceipt(turnInDocId)).filter((r) => r.action === 'turn_in' && r.item_id === itemId)
+    if (rows.length === 0) return fail('That line is no longer staged')
+    const items = await getLocalPropertyItems(clinicId)
+    const staged = items.find((i) => i.id === itemId)
+    if (!staged || staged.turned_in_at) return fail('That line is no longer staged')
+    if (staged.is_serialized) return fail(`${staged.name} is serialized — turn it in whole`)
+    const qty = Math.floor(newQty)
+    if (qty < 1) return fail('Turn-in quantity must be at least 1')
+    if (qty >= staged.quantity) return succeed() // nothing to split off
+    const remainder = staged.quantity - qty
+
+    if (staged.turn_in_origin_location_id != null) {
+      // FULL-MOVED line: the leftover returns as its own stack in the zone it came from.
+      const back = await createItem(
+        {
+          clinic_id: staged.clinic_id,
+          name: staged.name,
+          nomenclature: staged.nomenclature,
+          nsn: staged.nsn,
+          lin: staged.lin,
+          serial_number: null,
+          quantity: remainder,
+          is_serialized: false,
+          condition_code: staged.condition_code,
+          parent_item_id: staged.parent_item_id,
+          location_id: staged.turn_in_origin_location_id,
+          current_holder_id: staged.current_holder_id,
+          location_tag_id: null,
+          photo_url: staged.photo_url,
+          visual_fingerprint: null,
+          expiry_date: staged.expiry_date,
+          notes: staged.notes,
+          sub_cluster_id: staged.sub_cluster_id ?? null,
+          quantity_authorized: null,
+          item_type: staged.item_type,
+          unit_of_issue: staged.unit_of_issue,
+          pack_size: staged.pack_size,
+        },
+        userId,
+      )
+      if (!back.success) return fail(back.error)
+    } else {
+      // AUTHORIZED child: merge the leftover back into the zeroed BOM source it split off.
+      const norm = (s: string | null) => (s ?? '').trim().toLowerCase()
+      const source = items.find((i) =>
+        i.id !== staged.id &&
+        i.quantity_authorized != null &&
+        !i.turned_in_at &&
+        norm(i.name) === norm(staged.name) &&
+        (staged.nsn ? i.nsn === staged.nsn : !i.nsn)
+      )
+      if (!source) return fail(`Could not find where to return the rest of ${staged.name}`)
+      const merged = await updateItem(source.id, { quantity: source.quantity + remainder }, userId, { skipAudit: true })
+      if (!merged.success) return fail(merged.error)
+    }
+
+    const cut = await updateItem(staged.id, { quantity: qty }, userId, { skipAudit: true })
+    if (!cut.success) return fail(cut.error)
+
+    const row = rows[0]
+    await purgeCustodyRows(rows, clinicId, userId, true)
+    const rewritten = await recordLedgerEntry(
+      {
+        item_id: itemId,
+        clinic_id: clinicId,
+        hand_receipt_id: turnInDocId,
+        action: 'turn_in',
+        quantity_delta: qty,
+        from_holder_id: row.from_holder_id,
+        to_holder_id: null,
+        condition_code: row.condition_code,
+        sub_item_check: null,
+        notes: row.notes,
+        recorded_by: userId,
+      },
+      userId,
+    )
+    if (!rewritten.success) return fail(rewritten.error)
+    await immediateSync(userId)
+    return succeed()
+  } catch (err) {
+    return fail(String(err))
+  }
+}
+
 /** UNSTAGE one item from a pending turn-in (changed your mind before the depot run): purge
  *  its staged turn_in rows. The item is untouched (never applied) → it just drops out of
  *  the pending bucket. */
@@ -3234,6 +3378,85 @@ export async function removeReceiptItem(
       // qty put back on the source isn't double-counted.
       await removeMovedStack(item, toHolder, qty, allItems, await getLocalPropertyLocations(clinicId), userId)
     }
+    await immediateSync(userId)
+    return succeed()
+  } catch (err) {
+    return fail(String(err))
+  }
+}
+
+/**
+ * Change how many units of ONE item a hand receipt covers (edit the 2062's QTY
+ * column). A receipt carries a SINGLE sign_down row per item — signedOutQty and the
+ * reprint both read that one row — so this MUTATES its quantity_delta in place. A
+ * correction PAIR would instead double the item's line on the printed 2062 and, via
+ * the `signIns.length >= signOuts.length` fold, mis-flip the receipt to 'returned'.
+ * custody_ledger already dropped append-only for the 2062 edit paths (see the block
+ * comment above purgeCustodyRows); this is the update leg, backed by the
+ * custody_ledger_update RLS policy and a 'u' custody envelope.
+ *
+ * The delta moves stock exactly as signing that many units out / back in would. When
+ * the original sign-out was a PARTIAL "real" move (applyOutbound split a stack off at
+ * the recipient's member-zone), the delta rides that stack too, so the pair still sums
+ * to the physical count.
+ */
+export async function setReceiptItemQuantity(
+  handReceiptId: string,
+  itemId: string,
+  newQty: number,
+  clinicId: string,
+  userId: string,
+): Promise<ServiceResult> {
+  try {
+    const row = (await getLocalCustodyByReceipt(handReceiptId))
+      .filter((r) => r.action === 'sign_down' && r.item_id === itemId)
+      .sort(byRecordedDesc)[0]
+    if (!row) return fail('Item not found on receipt')
+
+    const allItems = await getLocalPropertyItems(clinicId)
+    const item = allItems.find((i) => i.id === itemId)
+    if (!item) return fail('Item not found')
+    // A serialized unit IS the custody — one row, one thing, qty always 1.
+    if (item.is_serialized) return fail('A serialized item signs out as a single unit')
+
+    const current = Math.max(1, row.quantity_delta ?? 1)
+    const target = Math.max(1, Math.floor(newQty))
+    const delta = target - current
+    if (delta === 0) return succeed()
+    if (delta > 0 && item.quantity < delta) return fail(`Only ${item.quantity} on hand`)
+
+    // Matched on the CURRENT signed-out qty, before either record moves.
+    const moved = findMovedStack(
+      item, row.to_holder_id, current, allItems, await getLocalPropertyLocations(clinicId),
+    )
+    // Raising the count draws `delta` off on-hand; lowering it (delta < 0) adds back.
+    await updateItem(item.id, { quantity: Math.max(0, item.quantity - delta) }, userId, { skipAudit: true })
+    if (moved) await updateItem(moved.id, { quantity: Math.max(1, moved.quantity + delta) }, userId, { skipAudit: true })
+
+    const updated: LocalCustodyEntry = {
+      ...row,
+      quantity_delta: target,
+      _sync_status: 'pending', _sync_retry_count: 0, _last_sync_error: null, _last_sync_error_message: null,
+    }
+    await saveLocalCustodyEntry(updated)
+    await addToSyncQueue({
+      user_id: userId,
+      action: 'update',
+      table_name: 'custody_ledger',
+      record_id: row.id,
+      payload: toSpine(updated as unknown as Record<string, unknown>),
+    })
+    const targets = row.target_clinic_ids ?? [clinicId]
+    await fanProperty(
+      userId, 'u', 'custody',
+      {
+        id: row.id, clinic_id: row.clinic_id ?? clinicId, target_clinic_ids: targets,
+        originId: row.originId ?? crypto.randomUUID(),
+        data: toEnvelope(updated as unknown as Record<string, unknown>),
+      },
+      [row.to_holder_id, row.from_holder_id].filter((h): h is string => !!h),
+      clinicId,
+    )
     await immediateSync(userId)
     return succeed()
   } catch (err) {

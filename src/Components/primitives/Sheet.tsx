@@ -333,18 +333,21 @@ export function Sheet({
             {/* Plain in-flow header. Drag handle (optional) is the drag-zone; the
                 title row appears only if it has content. */}
             {/* Invisible grab strip — the drag-zone survives (swipe-to-dismiss
-                lives here) but the visible handle bar is gone. */}
-            {draggable && (
-                <div
-                    className="pt-3 pb-1"
-                    data-drag-zone
-                    aria-hidden
-                    style={{ touchAction: 'none' }}
-                    onTouchStart={onTouchStart}
-                    onTouchMove={onTouchMove}
-                    onTouchEnd={onTouchEnd}
-                />
-            )}
+                lives here) but the visible handle bar is gone.
+                ALWAYS rendered, even when !draggable: this strip is the header's
+                top padding as much as it is the drag target, so gating it on
+                `draggable` made any sheet that toggles drag mid-session (calendar
+                detail -> edit, SheetStack drill) visibly collapse its header by
+                the strip's height on the swap. Only the drag wiring is gated. */}
+            <div
+                className="pt-3 pb-1"
+                data-drag-zone={draggable ? '' : undefined}
+                aria-hidden
+                style={draggable ? { touchAction: 'none' } : undefined}
+                onTouchStart={draggable ? onTouchStart : undefined}
+                onTouchMove={draggable ? onTouchMove : undefined}
+                onTouchEnd={draggable ? onTouchEnd : undefined}
+            />
             {(title || titleNode || leftContent || rightContent || actions || !hideClose) && (
                 <DesktopChrome>
                     <div className="flex items-center justify-between gap-2 px-4 pt-1 pb-2 border-b border-primary/6">

@@ -44,6 +44,7 @@ import {
   stageTurnIn as stageTurnInSvc,
   verifyTurnIn as verifyTurnInSvc,
   unstageTurnInItem as unstageTurnInItemSvc,
+  setTurnInQuantity as setTurnInQuantitySvc,
   deleteTurnInDoc as deleteTurnInDocSvc,
   recordItemSplit,
   recordItemMerge,
@@ -122,6 +123,8 @@ interface PropertyState {
   /** Verify a staged turn-in (depot accepted) → the items leave the active book. `itemIds` = a subset. */
   verifyTurnIn: (turnInDocId: string, itemIds?: string[]) => Promise<boolean>
   /** Drop one item from a pending turn-in before the depot run. */
+  /** Re-cut a staged line to `quantity` (reduce only) — the rest goes back on the books. */
+  setTurnInQuantity: (turnInDocId: string, itemId: string, quantity: number) => Promise<boolean>
   unstageTurnInItem: (turnInDocId: string, itemId: string) => Promise<boolean>
   /** Delete a submitted DA 3161 record — does NOT restore equipment (items stay turned in). */
   deleteTurnInDoc: (turnInDocId: string) => Promise<boolean>
@@ -756,6 +759,19 @@ export const usePropertyStore = create<PropertyState>((set, get) => ({
     invalidate('properties')
     await get().refreshItems()
     get().bumpTagVersion() // the staging zone may have emptied → tile dropped
+    return true
+  },
+
+  setTurnInQuantity: async (turnInDocId, itemId, quantity) => {
+    const user = useAuthStore.getState().user
+    const { clinicId } = get()
+    if (!user || !clinicId) return false
+
+    const result = await setTurnInQuantitySvc(turnInDocId, itemId, quantity, clinicId, user.id)
+    if (!result.success) return false
+
+    invalidate('properties')
+    await get().refreshItems()
     return true
   },
 

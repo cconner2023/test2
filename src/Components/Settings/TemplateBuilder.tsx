@@ -1,5 +1,6 @@
 import { useRef } from 'react';
-import { Plus, Trash2, Type, TextCursor, ChevronDown, GitBranch, Check, ChevronRight, X } from 'lucide-react';
+import { Plus, Trash2, Type, TextCursor, ChevronDown, GitBranch, Check, ChevronRight } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import type { TemplateNode, TextNode, StepNode, ChoiceNode, BranchNode } from '../../Data/TemplateTypes';
 import { getChoiceLabels, findChoiceByLabel } from '../../Utilities/templateEngine';
 import type { StackNav, StackScreen } from '@/Components/primitives/OverlayStack';
@@ -7,6 +8,8 @@ import { ActionButton } from '@/Components/primitives/ActionButton';
 import { ActionPill } from '@/Components/primitives/ActionPill';
 import { TextInput, TextArea, PickerInput } from '@/Components/primitives/FormInputs';
 import { FooterPill } from '@/Components/primitives/FooterPill'
+import { FooterMenuButton } from '@/Components/primitives/FooterMenuButton';
+import type { ContextMenuItem } from '@/Components/primitives/ContextMenu';
 
 /**
  * TemplateBuilder — the note-template authoring tree (text / step / choice / branch
@@ -19,20 +22,26 @@ import { FooterPill } from '@/Components/primitives/FooterPill'
  *    sub-tree list) StackScreens, keyed by a PATH into the node tree. Spread into the
  *    host stack's screens.
  *  - `TemplateNodeList` — the inline node list (rows) for the host's root body.
- *  - `AddStepFooter` — the footer-LEFT Add action; tapping (+) morphs the pill into
- *    the four type options IN PLACE (no picker overlay), then the host appends + drills.
+ *  - `AddStepFooter` — the footer-LEFT Add action; tapping (+) opens a lifted menu of
+ *    the four step types (no picker overlay), then the host appends + drills.
  *  - path helpers `getList` / `setList` / `makeNode` / `addTemplateNode` + `pathEq`.
  * `TextExpanderEditPopover` uses these to host the shortcut editor + template nodes
- * in ONE stack. `addMenu` (a { path } or null) is the only add-target state a host
- * threads through — non-null path == "showing the type options for that list".
+ * in ONE stack. Each AddStepFooter owns its own menu, so a host threads no add-target
+ * state through — the footer's `path` closure already names the list being added to.
  */
 
-const CHOICE_SUGGESTIONS: Record<string, string[]> = {
-    severity: ['mild', 'moderate', 'severe'],
-    onset: ['sudden', 'gradual'],
-    duration: ['hours', 'days', 'weeks'],
-    quality: ['sharp', 'dull', 'aching', 'burning'],
-};
+// Authoring hint text. One phrasing per input ROLE, shared with the simple-mode
+// editor (InsertFieldButton) so the same field reads the same in both. No worked
+// clinical examples: the engine is doctrinal, and seeding "severity: mild |
+// moderate | severe" reads as a recommended vocabulary the template author should
+// match. Templates style the note's OUTPUT; they don't suggest its content.
+export const HINT = {
+    text: 'Static text to insert',
+    label: 'Field label',
+    options: 'Options (one per line)',
+    linkedChoice: 'Link to a Choice field',
+    emptyList: 'No steps yet — add one below',
+} as const;
 
 // ─── Path into the nested tree ─────────────────────────────────────────
 // A list is reached by descending nodes[seg.index].branches[seg.option] per seg.
@@ -187,7 +196,7 @@ const NodeEditorBody = ({
                 <RowTextarea
                     value={node.content}
                     onChange={(v) => onChange({ ...node, content: v })}
-                    placeholder="Static text to insert..."
+                    placeholder={HINT.text}
                 />
             );
         case 'step':
@@ -195,7 +204,7 @@ const NodeEditorBody = ({
                 <TextInput
                     value={node.label}
                     onChange={(v) => onChange({ ...node, label: v })}
-                    placeholder="Field label (e.g. chief complaint)"
+                    placeholder={HINT.label}
                 />
             );
         case 'choice':
@@ -217,12 +226,12 @@ const ChoiceEditorBody = ({
             <TextInput
                 value={node.label}
                 onChange={(v) => onChange({ ...node, label: v })}
-                placeholder="Field label (e.g. severity)"
+                placeholder={HINT.label}
             />
             <RowTextarea
                 value={node.options.join('\n')}
                 onChange={(v) => onChange({ ...node, options: v.split('\n') })}
-                placeholder={'Options (one per line)\nmild\nmoderate\nsevere'}
+                placeholder={HINT.options}
                 mono
             />
             <button
@@ -242,20 +251,6 @@ const ChoiceEditorBody = ({
                     <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-transform ${!node.noInsert ? 'translate-x-4' : 'translate-x-0.5'}`} />
                 </div>
             </button>
-            {node.options.length <= 1 && (
-                <div className="flex flex-wrap gap-1 px-4 py-3">
-                    {Object.entries(CHOICE_SUGGESTIONS).map(([key, vals]) => (
-                        <button
-                            key={key}
-                            type="button"
-                            onClick={() => onChange({ ...node, label: node.label || key, options: vals })}
-                            className="text-[9pt] px-2 py-0.5 rounded-full bg-tertiary/8 text-tertiary hover:bg-tertiary/15 active:scale-95 transition-colors"
-                        >
-                            {key}: {vals.join(' | ')}
-                        </button>
-                    ))}
-                </div>
-            )}
         </div>
     );
 };
@@ -310,7 +305,7 @@ const BranchEditorBody = ({
                     <TextInput
                         value={node.label ?? ''}
                         onChange={(v) => onChange({ ...node, label: v })}
-                        placeholder="Prompt label (e.g. treatment path)"
+                        placeholder={HINT.label}
                     />
                     <RowTextarea
                         value={(node.options ?? []).join('\n')}
@@ -321,7 +316,7 @@ const BranchEditorBody = ({
                             for (const opt of filtered) newBranches[opt] = node.branches[opt] ?? [];
                             onChange({ ...node, options: opts, branches: newBranches });
                         }}
-                        placeholder="Options (one per line)"
+                        placeholder={HINT.options}
                         mono
                     />
                 </>
@@ -339,7 +334,7 @@ const BranchEditorBody = ({
                         onChange({ ...node, triggerField: tf, branches: newBranches });
                     }}
                     options={choiceLabels.length > 0 ? choiceLabels : ['']}
-                    placeholder="Link to a Choice field..."
+                    placeholder={HINT.linkedChoice}
                 />
             )}
 
@@ -371,45 +366,39 @@ const BranchEditorBody = ({
     );
 };
 
-// ─── Add-step footer (footer-LEFT). Tapping (+) morphs the pill into the four type
-//     options IN PLACE — no nested overlay. Picking appends the node and drills its
-//     editor into the same morphed card. `path` alone identifies the add target. ──
-export type AddMenuState = { path: ListPath } | null;
+// ─── Add-step footer (footer-LEFT). Tapping (+) opens a lifted menu of the four
+//     step types — no nested overlay. Picking appends the node and drills into its
+//     editor on the host's stack. `path` alone identifies the add target. ─────────
+const STEP_TYPES: Array<{ type: TemplateNode['type']; label: string; icon: LucideIcon }> = [
+    { type: 'text', label: 'Text', icon: Type },
+    { type: 'step', label: 'Step', icon: TextCursor },
+    { type: 'choice', label: 'Choice', icon: ChevronDown },
+    { type: 'branch', label: 'Branch', icon: GitBranch },
+];
 
-export function AddStepFooter({
-    adding, onStart, onCancel, onPick,
-}: {
-    adding: boolean;
-    onStart: () => void;
-    onCancel: () => void;
-    onPick: (type: TemplateNode['type']) => void;
-}) {
-    if (!adding) {
-        return (
-            <ActionPill>
-                <ActionButton icon={Plus} label="Add step" onClick={onStart} />
-            </ActionPill>
-        );
-    }
+export function AddStepFooter({ onPick }: { onPick: (type: TemplateNode['type']) => void }) {
+    const items: ContextMenuItem[] = STEP_TYPES.map(t => ({
+        key: t.type,
+        label: t.label,
+        icon: t.icon,
+        onAction: () => onPick(t.type),
+    }));
     return (
-        <ActionPill>
-            <ActionButton icon={X} label="Cancel" onClick={onCancel} />
-            <ActionButton icon={Type} label="Text" onClick={() => onPick('text')} />
-            <ActionButton icon={TextCursor} label="Step" onClick={() => onPick('step')} />
-            <ActionButton icon={ChevronDown} label="Choice" onClick={() => onPick('choice')} />
-            <ActionButton icon={GitBranch} label="Branch" onClick={() => onPick('branch')} />
-        </ActionPill>
+        <FooterPill>
+            <FooterMenuButton icon={Plus} label="Add step" items={items} />
+        </FooterPill>
     );
 }
 
 // ─── Inline node list (host root-screen body): rows + FAB ─────────────────────
 export function TemplateNodeList({
-    nodes, emptyHint = 'No template steps yet — tap + to add one.', onEdit, onAdd, showFab = true,
+    nodes, emptyHint = HINT.emptyList, onEdit, onAdd, showFab = true,
 }: {
     nodes: TemplateNode[];
     emptyHint?: string;
     onEdit: (index: number) => void;
-    onAdd: (anchor: DOMRect | null) => void;
+    /** Required by the in-body FAB; omit alongside `showFab={false}`. */
+    onAdd?: (anchor: DOMRect | null) => void;
     /** In-body Add FAB. Suppress it when the host surfaces Add in a screen footer. */
     showFab?: boolean;
 }) {
@@ -425,7 +414,7 @@ export function TemplateNodeList({
                     ))}
                 </div>
             )}
-            {showFab && (
+            {showFab && onAdd && (
                 <div className="flex justify-end pt-3 px-2">
                     <ActionPill ref={fabRef} shadow="sm">
                         <ActionButton
@@ -444,14 +433,12 @@ export function TemplateNodeList({
 // Spread into any host OverlayStack. `editorKey`/`listKey` namespace them so they
 // can coexist with the host's own root screen (e.g. TextExpander's 'shortcut').
 export function makeTemplateScreens({
-    nodes, onChange, navRef, addMenu, setAddMenu,
+    nodes, onChange, navRef,
     editorKey = 'tpl-node', listKey = 'tpl-list', onExitRoot,
 }: {
     nodes: TemplateNode[];
     onChange: (nodes: TemplateNode[]) => void;
     navRef: React.MutableRefObject<StackNav | null>;
-    addMenu: AddMenuState;
-    setAddMenu: (s: AddMenuState) => void;
     editorKey?: string;
     listKey?: string;
     /** Called when "Done"/back is pressed at the stack root (standalone use). */
@@ -471,7 +458,6 @@ export function makeTemplateScreens({
     // Add-from-sublist: append + drill into the new node (the stack is already open).
     const handleAddAt = (path: ListPath, type: TemplateNode['type']) => {
         const index = addTemplateNode(nodes, onChange, path, type);
-        setAddMenu(null);
         navRef.current?.push(editorKey, { path, index });
     };
 
@@ -509,14 +495,9 @@ export function makeTemplateScreens({
                 const last = p.path[p.path.length - 1];
                 return last ? `Path: ${last.option}` : 'Path';
             },
-            // Add rides the footer-left (options morph in place), Done the footer-right.
+            // Add rides the footer-left (lifted type menu), Done the footer-right.
             footer: (p: { path: ListPath }) => (
-                <AddStepFooter
-                    adding={!!addMenu && pathEq(addMenu.path, p.path)}
-                    onStart={() => setAddMenu({ path: p.path })}
-                    onCancel={() => setAddMenu(null)}
-                    onPick={(type) => handleAddAt(p.path, type)}
-                />
+                <AddStepFooter onPick={(type) => handleAddAt(p.path, type)} />
             ),
             rightFooter: (_: { path: ListPath }, nav: StackNav) => (
                 <FooterPill side="right">
@@ -528,7 +509,7 @@ export function makeTemplateScreens({
                 return (
                     <div>
                         {list.length === 0 ? (
-                            <p className="text-[9pt] text-tertiary text-center py-6">Empty path — add a step below.</p>
+                            <p className="text-[9pt] text-tertiary text-center py-6">{HINT.emptyList}</p>
                         ) : (
                             list.map((node, i) => (
                                 <NodeRow key={i} node={node} onClick={() => nav.push(editorKey, { path: p.path, index: i })} />

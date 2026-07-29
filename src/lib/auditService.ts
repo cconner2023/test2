@@ -385,8 +385,8 @@ export async function getAuditBySubjectLocal(subjectId: string): Promise<AuditEv
 
 /**
  * In-flight coalescing for read_audit pulls. The property surface mounts several
- * audit-backed hooks in one commit — useVehicleDispatches (map / list / tree /
- * dispatch-calendar) and useRecentPropertyActivity (custody panel) all pull the
+ * audit-backed hooks in one commit — useVehicleDispatches (dispatch sheet /
+ * readiness / calendar) and useRecentPropertyActivity (custody panel) all pull the
  * SAME (clinicId, 'property') set, and dev StrictMode double-invokes each effect.
  * Without this, each fires its own identical RPC (the millisecond-spaced bursts
  * seen in the API logs). Concurrent reads with identical params share one network

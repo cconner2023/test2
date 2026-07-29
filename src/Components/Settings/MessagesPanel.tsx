@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback, memo, useImperativeHandle, forwardRef, useMemo } from 'react'
 import type { ReactNode } from 'react'
-import { Trash2, Headset, Play, MessageSquare, Info, ChevronLeft, ChevronRight, ChevronDown, Pin, Users, Check, Plus, Settings, Send } from 'lucide-react'
+import { Trash2, Headset, Play, MessageSquare, Info, ChevronLeft, ChevronRight, ChevronDown, Pin, Check, Settings, Send } from 'lucide-react'
 import { useSpring, animated } from '@react-spring/web'
 import { SearchInput } from '@/Components/primitives/SearchInput'
 import { FooterPill } from '@/Components/primitives/FooterPill'
@@ -37,7 +37,7 @@ import type { ClinicMedic } from '../../Types/SupervisorTestTypes'
 import type { DecryptedSignalMessage } from '../../lib/signal/transportTypes'
 import type { MessageContent } from '../../lib/signal/messageContent'
 import { displayGroupName, type GroupInfo, type GroupMember } from '../../lib/signal/groupTypes'
-import { useOffRosterAdd } from '../Messages/useOffRosterAdd'
+import { useContactPicker, type ContactPickerTarget } from '../Messages/useContactPicker'
 import { TextInput } from '@/Components/primitives/FormInputs'
 import { ExpandableInput } from '@/Components/primitives/ExpandableInput'
 import { useMergedNoteContent } from '../../Hooks/useMergedNoteContent'
@@ -1060,11 +1060,6 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
   const { medics, loading } = useClinicMedics()
   const callActions = useCallActions()
   const [showNewMsg, setShowNewMsg] = useState(false)
-  const [newMsgMode, setNewMsgMode] = useState<'contacts' | 'group'>('contacts')
-  const [groupName, setGroupName] = useState('')
-  const [groupSelectedIds, setGroupSelectedIds] = useState<Set<string>>(new Set())
-  const [groupCreating, setGroupCreating] = useState(false)
-  const [groupCreateError, setGroupCreateError] = useState<string | null>(null)
   const [showGroupInfo, setShowGroupInfo] = useState(false)
   const [showOutsideInfo, setShowOutsideInfo] = useState(false)
   // Leaving the conversation (including the delete that navigates away while the
@@ -1110,7 +1105,8 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
   const stackNavRef = useRef<StackNav | null>(null)
 
   useImperativeHandle(ref, () => ({
-    openNew: () => { setShowNewMsg(true); setNewMsgMode('contacts') },
+    // The card resets to contacts mode on close, so opening it is just the flag.
+    openNew: () => setShowNewMsg(true),
     showGroupInfo: () => setShowGroupInfo(true),
     showOutsideInfo: () => setShowOutsideInfo(true),
   }), [])
@@ -1157,7 +1153,10 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
   // useOrphanedProfiles dance.
   const peerProfiles = useMessagingStore(s => s.peerProfiles)
 
-  const allMedics = useMemo(() => {
+  // Peer profiles that earned a row: everyone outside the cluster roster we can
+  // both name and have actual traffic with. Split out of allMedics because the
+  // recipient picker feeds them to useMessageRoster as extraPeers.
+  const peerExtras = useMemo(() => {
     // The synthetic SYSTEM peer is kept for everyone (devs included): when a dev
     // is the RECIPIENT of System-direct traffic it must resolve to "System" in
     // the conversation list / chat header. The `extras` gate below still only
@@ -1165,7 +1164,7 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
     // it's the open peer, so it never pollutes an empty contact list/autocomplete
     // — outbound operator↔user threads bucket under the USER's id, not SYSTEM.
     const peerList = Object.values(peerProfiles)
-    if (peerList.length === 0) return medics
+    if (peerList.length === 0) return []
     const have = new Set(medics.map(m => m.id))
     // Outside-cluster peer profiles haunt the contact list forever otherwise:
     // email/QR/code lookup writes the profile to IDB (so name/avatar can
@@ -1185,14 +1184,18 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
     // filter so a marker-only conversation drops the peer entirely.
     const hasVisibleMessage = (msgs: DecryptedSignalMessage[] | undefined) =>
       !!msgs?.some(m => m.messageType !== 'request-accepted' && !m.threadId)
-    const extras = peerList.filter(m =>
+    return peerList.filter(m =>
       !have.has(m.id) && (
         hasVisibleMessage(conversations[m.id]) ||
         m.id === selectedPeerId
       ),
     )
-    return extras.length === 0 ? medics : [...medics, ...extras]
   }, [medics, peerProfiles, conversations, selectedPeerId])
+
+  const allMedics = useMemo(
+    () => (peerExtras.length === 0 ? medics : [...medics, ...peerExtras]),
+    [medics, peerExtras],
+  )
 
   // Batch-check which contacts have active devices
   const medicIds = useMemo(() => allMedics.map(m => m.id), [allMedics])
@@ -1204,45 +1207,32 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
     callActions?.startCall({ userId: entry.peerId, displayName: getDisplayName(entry.peer) })
   }, [callActions])
 
-  // Routes a discovered off-roster user based on mode: contacts → open the chat;
-  // group → add to the in-progress group selection. The shared useOffRosterAdd
-  // primitive handles peer-profile resolution and tearing the lookup stack back
-  // down; this only decides what the found user MEANS here.
-  const handlePickedUser = useCallback((medic: ClinicMedic) => {
-    if (newMsgMode === 'group') {
-      setGroupSelectedIds(prev => {
-        const next = new Set(prev)
-        next.add(medic.id)
-        return next
-      })
-    } else {
-      setShowNewMsg(false)
-      onSelectPeer(medic)
-    }
-  }, [newMsgMode, onSelectPeer])
+  // New Message / New Group IS the shared recipient card (useContactPicker) —
+  // the same roster, rows, group builder and off-roster drill the share-to-chat
+  // picker renders. This host only decides what a pick MEANS (open the
+  // conversation) and adds the one screen that is its own: outbound email.
+  const handlePick = useCallback((target: ContactPickerTarget) => {
+    setShowNewMsg(false)
+    if (target.kind === 'group') onSelectGroup(target.group)
+    else onSelectPeer(target.medic)
+  }, [onSelectGroup, onSelectPeer])
 
-  const offRoster = useOffRosterAdd({ navRef: stackNavRef, onFound: handlePickedUser })
-
-  const toggleGroupMember = useCallback((id: string) => {
-    setGroupSelectedIds(prev => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
-  }, [])
-
-  const handleCreateGroup = useCallback(async () => {
-    if (!messagesCtx) return
-    const trimmed = groupName.trim()
-    if (!trimmed || groupSelectedIds.size === 0 || groupCreating) return
-    setGroupCreating(true)
-    setGroupCreateError(null)
-    const id = await messagesCtx.createGroup(trimmed, [...groupSelectedIds])
-    setGroupCreating(false)
-    if (id) setShowNewMsg(false)
-    else setGroupCreateError('Could not create the group. Please try again.')
-  }, [messagesCtx, groupName, groupSelectedIds, groupCreating])
+  const picker = useContactPicker({
+    navRef: stackNavRef,
+    title: 'New Message',
+    extraPeers: peerExtras,
+    includeGroups: true,
+    allowCreateGroup: true,
+    onPick: handlePick,
+    onGroupCreated: () => setShowNewMsg(false),
+    ...(outboundAllowed
+      ? {
+          extraFooter: (nav: StackNav) => (
+            <ActionButton icon={Send} label="Email" onClick={() => { resetOutbound(); nav.push('outbound') }} />
+          ),
+        }
+      : {}),
+  })
 
   // Outbound outside-contact CHANNEL RECORDS, keyed by entity_id. These carry the
   // channel key and drive routing. They deliberately outlive their messages — an
@@ -1502,7 +1492,7 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
     unavailableIds,
     onSelectPeer,
     onSelectGroup,
-    onCreateGroup: () => { setShowNewMsg(true); setNewMsgMode('group'); setGroupName(''); setGroupSelectedIds(new Set()) },
+    onCreateGroup: () => { setShowNewMsg(true); picker.openGroupMode() },
     deleteConversation,
     loading,
     searchQuery,
@@ -1582,113 +1572,19 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
           screens (drill-down primitive) instead of a boolean/ternary machine. */}
       <OverlayStack
         isOpen={showNewMsg}
-        onClose={() => { setShowNewMsg(false); setNewMsgMode('contacts'); offRoster.reset(); resetOutbound() }}
+        onClose={() => { setShowNewMsg(false); picker.reset(); resetOutbound() }}
         anchorRect={null}
         initial={{ key: 'main' }}
         navRef={stackNavRef}
         previewMaxHeight="50dvh"
+        // Invite mint + email is the one blocking step in this card, so it collapses
+        // to the HUD puck like every other saving surface rather than narrating
+        // itself in the email field's hint slot.
+        loading={outBusy}
         screens={{
-          // Root: the contact list (New Message) or the group builder (New Group).
-          // The mode is host state so the two share one root — New Group / back
-          // toggle it in place; the Add sub-flow drills on top of whichever is shown.
-          main: {
-            title: newMsgMode === 'group' ? 'New Group' : 'New Message',
-            searchPlaceholder: 'Search contacts...',
-            onBack: newMsgMode === 'group'
-              ? () => { setNewMsgMode('contacts'); setGroupSelectedIds(new Set()); setGroupCreateError(null) }
-              : undefined,
-            footer: (_p, nav) => (
-              <FooterPill>
-                {newMsgMode === 'contacts' && (
-                  <ActionButton
-                    icon={Users}
-                    label="New Group"
-                    onClick={() => { setNewMsgMode('group'); setGroupName(''); setGroupSelectedIds(new Set()); setGroupCreateError(null) }}
-                  />
-                )}
-                <ActionButton icon={Plus} label="Add" onClick={() => offRoster.openMethods(nav)} />
-                {outboundAllowed && newMsgMode === 'contacts' && (
-                  <ActionButton icon={Send} label="Email" onClick={() => { resetOutbound(); nav.push('outbound') }} />
-                )}
-              </FooterPill>
-            ),
-            rightFooter: newMsgMode === 'group' ? (
-              <FooterPill side="right">
-                <ActionButton
-                  icon={Check}
-                  label="Create Group"
-                  variant={(!groupName.trim() || groupSelectedIds.size === 0 || groupCreating) ? 'disabled' : 'confirm'}
-                  onClick={handleCreateGroup}
-                />
-              </FooterPill>
-            ) : undefined,
-            render: (_p, _nav, filter) => {
-              const q = filter.toLowerCase()
-              // System is a synthetic pseudo-user injected into peerProfiles for
-              // name/avatar resolution of existing system conversations. It must
-              // never appear as a startable contact in the new-conversation picker.
-              const rosterMedics = allMedics.filter(m => m.id !== SYSTEM_USER_ID && m.id !== currentUserId)
-              const filtered = q
-                ? rosterMedics.filter(m =>
-                    m.firstName?.toLowerCase().includes(q) ||
-                    m.lastName?.toLowerCase().includes(q) ||
-                    m.rank?.toLowerCase().includes(q) ||
-                    [m.rank, m.lastName].filter(Boolean).join(' ').toLowerCase().includes(q)
-                  )
-                : rosterMedics
-              return (
-                <div className="py-1">
-                  {newMsgMode === 'group' && (
-                    <div className="px-4 pb-2 pt-1">
-                      <input
-                        type="text"
-                        value={groupName}
-                        onChange={e => setGroupName(e.target.value)}
-                        placeholder="Group name"
-                        autoFocus
-                        className="w-full px-4 py-2 rounded-full bg-themewhite2 text-sm text-primary
-                                   placeholder:text-tertiary outline-none focus:ring-1 focus:ring-themeblue2/40 transition-all"
-                      />
-                      {groupCreateError && (
-                        <p className="px-1 pt-2 text-[10pt] text-red-500">{groupCreateError}</p>
-                      )}
-                    </div>
-                  )}
-                  {filtered.map(medic => (
-                    newMsgMode === 'group' ? (
-                      <button
-                        key={medic.id}
-                        onClick={() => toggleGroupMember(medic.id)}
-                        className="flex items-center w-full px-4 py-2.5 gap-3 text-left hover:bg-themewhite2 active:scale-95 transition-all"
-                      >
-                        <UserAvatar avatarId={medic.avatarId} avatarBlob={medic.avatarBlob} userId={medic.id} firstName={medic.firstName} lastName={medic.lastName} className="w-8 h-8" />
-                        <span className="flex-1 text-sm text-primary truncate">{getDisplayName(medic)}</span>
-                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors
-                                       ${groupSelectedIds.has(medic.id) ? 'bg-themeblue2 border-themeblue2' : 'border-tertiary/30'}`}>
-                          {groupSelectedIds.has(medic.id) && <Check size={12} className="text-white" />}
-                        </div>
-                      </button>
-                    ) : (
-                      <button
-                        key={medic.id}
-                        onClick={() => { setShowNewMsg(false); onSelectPeer(medic) }}
-                        className="flex items-center w-full px-4 py-2.5 gap-3 text-left hover:bg-themewhite2 active:scale-95 transition-all"
-                      >
-                        <UserAvatar avatarId={medic.avatarId} avatarBlob={medic.avatarBlob} userId={medic.id} firstName={medic.firstName} lastName={medic.lastName} className="w-8 h-8" />
-                        <span className="flex-1 text-sm text-primary truncate">{getDisplayName(medic)}</span>
-                      </button>
-                    )
-                  ))}
-                  {filtered.length === 0 && (
-                    <p className="text-[10pt] text-tertiary text-center py-6">No contacts found</p>
-                  )}
-                </div>
-              )
-            },
-          },
-          // Off-roster add (Scan QR / Email / Code) — the shared useOffRosterAdd
-          // drill screens, identical to the group Add-member flow.
-          ...offRoster.screens,
+          // Root (contact/group list + the New Group builder) and the off-roster
+          // add drill both come from the shared recipient card.
+          ...picker.screens,
 
           // Outbound outside-contact compose (dev-gated) — email a secure 1:1 invite.
           outbound: {
@@ -1716,7 +1612,7 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
                   placeholder="name@example.com"
                   type="email"
                   inputMode="email"
-                  hint={outBusy ? 'Sending invite…' : (outMil ? MIL_UNSUPPORTED_MESSAGE : outError)}
+                  hint={outMil ? MIL_UNSUPPORTED_MESSAGE : outError}
                 />
                 {/* ExpandableInput rather than TextArea so abbreviations and
                     templates expand here too; it owns no row chrome, so the

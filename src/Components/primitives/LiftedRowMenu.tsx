@@ -32,6 +32,11 @@ interface AnchoredMenuProps {
   bare?: boolean
   /** Which edge of the anchor the menu aligns to. Defaults to 'left'. */
   align?: 'left' | 'right'
+  /** Vertical direction. 'auto' (default) drops below and flips up only when the
+   *  menu wouldn't fit. Pass 'up' for an anchor that sits in an action footer: the
+   *  auto check measures the CURRENT menu, so a short one still "fits" below a
+   *  footer and drops off the bottom of the card. Ignored for clone peeks. */
+  direction?: 'auto' | 'up' | 'down'
   /** Menu shape: 'pill' = horizontal icon tiles (default); 'list' = vertical
    *  iOS-style text rows (icon-left, label). */
   layout?: 'pill' | 'list'
@@ -159,7 +164,7 @@ function MenuCardListRow({ row, onSelect }: { row: MenuCardRow; onSelect: (row: 
  *
  * `LiftedRowMenu` is a back-compat alias for callers that pass a clone.
  */
-export function AnchoredMenu({ isOpen, anchorRect: anchorRectProp, anchorRef, row, items, onClose, bare = false, align = 'left', layout = 'pill', reactions, backdrop, header, rootSearch }: AnchoredMenuProps) {
+export function AnchoredMenu({ isOpen, anchorRect: anchorRectProp, anchorRef, row, items, onClose, bare = false, align = 'left', direction = 'auto', layout = 'pill', reactions, backdrop, header, rootSearch }: AnchoredMenuProps) {
   const [visible, setVisible] = useState(false)
   // Live-anchor rect — re-measured from `anchorRef` on any reflow (see prop doc).
   const [liveRect, setLiveRect] = useState<DOMRect | null>(null)
@@ -320,7 +325,9 @@ export function AnchoredMenu({ isOpen, anchorRect: anchorRectProp, anchorRef, ro
     // Dropdown: drop below the anchor, flip above when there isn't room. Decide with
     // the tallest state so the direction is chosen once and holds across drill-downs.
     const spaceBelow = vh - anchorRect.bottom
-    openUp = spaceBelow < stableH + GAP + SAFE && anchorRect.top > spaceBelow
+    openUp = direction === 'auto'
+      ? spaceBelow < stableH + GAP + SAFE && anchorRect.top > spaceBelow
+      : direction === 'up'
     // Anchor the edge that stays put: top edge when dropping down, bottom edge when
     // flipping up (`anchorRect.top - GAP` fixed, live menuH grows the card upward).
     menuTop = openUp ? anchorRect.top - GAP - menuH : anchorRect.bottom + GAP

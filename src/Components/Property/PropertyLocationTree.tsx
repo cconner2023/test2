@@ -4,8 +4,6 @@ import type { LocalPropertyLocation, LocalPropertyItem, HolderInfo } from '../..
 import { itemAlert } from '../../Types/PropertyTypes'
 import { itemPassesLens, itemIsMine } from '../../Utilities/subCluster'
 import { isLinContainer, isAuthTarget, isZoneShadow } from '../../Utilities/propertyAuthorized'
-import { useVehicleDispatches } from '../../Hooks/useVehicleDispatches'
-import { DispatchDot } from './DispatchDot'
 
 interface PropertyLocationTreeProps {
   locations: LocalPropertyLocation[]
@@ -89,8 +87,6 @@ export function PropertyLocationTree({
 
   // Personnel starts collapsed so a large roster doesn't bury the physical zones.
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set(['__personnel__']))
-  // Current open dispatches per vehicle → the row red-dot (expiring/expired).
-  const dispatches = useVehicleDispatches(locations[0]?.clinic_id ?? null)
   const toggleCollapse = useCallback((id: string) => {
     setCollapsed((prev) => {
       const next = new Set(prev)
@@ -165,9 +161,17 @@ export function PropertyLocationTree({
     // Physical root locations = no parent AND no holder_user_id. The turn-in staging zone
     // is a standing root but CONDITIONALLY RENDERED: hide it unless it currently holds
     // staged items (like a personnel zone — it only appears when populated).
+    //
+    // Turn-in is PINNED to the bottom of the root list rather than sorted by name: it is a
+    // system staging bucket, not a place anyone stores property, so a newly added zone must
+    // never land underneath it just because its name sorts after "Pending Turn-In". Mirrors
+    // the canvas, where the zone rides the reserved bottom band.
     const rootLocations = locations
       .filter(l => !l.holder_user_id && (l.parent_id ?? null) === null)
-      .sort((a, b) => a.name.localeCompare(b.name))
+      .sort((a, b) => {
+        if (!!a.is_turn_in_zone !== !!b.is_turn_in_zone) return a.is_turn_in_zone ? 1 : -1
+        return a.name.localeCompare(b.name)
+      })
     const roots = rootLocations
       .map(buildNode)
       .filter(n => !(n.location.is_turn_in_zone && n.children.length === 0 && n.items.length === 0))
@@ -377,9 +381,6 @@ export function PropertyLocationTree({
             onKeyDown={(e) => { if (e.key === 'Enter') onSelectLocation(node.location) }}
           >
             <span className="text-[10pt] font-medium text-primary truncate">{node.location.name}</span>
-            {node.location.kind === 'vehicle' && (
-              <DispatchDot status={dispatches.get(node.location.id)?.status} />
-            )}
           </div>
 
           {/* Row actions — ellipsis menu */}

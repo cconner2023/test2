@@ -52,10 +52,12 @@ async function loadClinicRoster(clinicId: string, usersGen: number): Promise<Map
 
 /** Lean item row carried for receipt rendering + reprint. `expiry_date` feeds the
  *  Custody panel's "Expired" section (30-day expiry window via expiryStatus);
- *  `turned_in_at` + `sub_cluster_id` drive the DA 3161 turn-in fold + grouping. */
+ *  `turned_in_at` + `sub_cluster_id` drive the DA 3161 turn-in fold + grouping;
+ *  `is_serialized` gates the 2062 edit-mode QTY stepper (a serialized unit IS the
+ *  custody — one row, one thing, qty always 1). */
 export type ReceiptItem = Pick<
   PropertyItem,
-  'id' | 'name' | 'nomenclature' | 'nsn' | 'serial_number' | 'location_id' | 'quantity' | 'expiry_date' | 'turned_in_at' | 'sub_cluster_id'
+  'id' | 'name' | 'nomenclature' | 'nsn' | 'serial_number' | 'location_id' | 'quantity' | 'expiry_date' | 'turned_in_at' | 'sub_cluster_id' | 'is_serialized'
 >
 
 export interface HandReceiptData {
@@ -128,6 +130,7 @@ export function useHandReceipts(clinicId?: string | null): HandReceiptData {
           expiry_date: r.expiry_date,
           turned_in_at: r.turned_in_at ?? null,
           sub_cluster_id: r.sub_cluster_id ?? null,
+          is_serialized: r.is_serialized,
         })
       }
       return map

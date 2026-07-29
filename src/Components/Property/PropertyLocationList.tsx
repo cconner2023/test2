@@ -7,8 +7,6 @@ import { LiftedRowMenu } from '@/Components/primitives/LiftedRowMenu'
 import { ListItemRow } from '@/Components/primitives/ListItemRow'
 import type { LocalPropertyLocation, LocalPropertyItem, HolderInfo } from '../../Types/PropertyTypes'
 import { expiryStatus } from '../../Types/PropertyTypes'
-import { useVehicleDispatches } from '../../Hooks/useVehicleDispatches'
-import { DispatchDot } from './DispatchDot'
 
 export type PropertySearchFilter = 'all' | 'item' | 'assigned' | 'location' | 'description'
 const SEARCH_FILTERS: { key: PropertySearchFilter; label: string }[] = [
@@ -71,8 +69,6 @@ export const PropertyLocationList = forwardRef<PropertyLocationListHandle, Prope
   onOpenLocation,
 }, ref) {
   const [path, setPath] = useState<DrilldownSegment[]>([])
-  // Current open dispatches per vehicle → the row red-dot (expiring/expired).
-  const dispatches = useVehicleDispatches(locations[0]?.clinic_id ?? null)
   const [contextMenu, setContextMenu] = useState<{ kind: 'location' | 'item'; id: string; rect: DOMRect } | null>(null)
   const longPressRef = useRef<number | null>(null)
   const longPressPreventTap = useRef(false)
@@ -326,7 +322,6 @@ export const PropertyLocationList = forwardRef<PropertyLocationListHandle, Prope
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 min-w-0">
             <p className="text-sm font-medium text-primary truncate">{loc.name}</p>
-            {loc.kind === 'vehicle' && <DispatchDot status={dispatches.get(loc.id)?.status} />}
           </div>
           {count > 0 && (
             <p className="text-[10pt] text-tertiary mt-0.5">{count} item{count !== 1 ? 's' : ''}</p>

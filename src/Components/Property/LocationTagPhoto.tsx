@@ -12,8 +12,6 @@ import { memo } from 'react'
 import { traceCompositeOutline } from '../../lib/tagIndex'
 import type { LocationTag, LocalPropertyItem, ZoneRect } from '../../Types/PropertyTypes'
 import { itemAlert } from '../../Types/PropertyTypes'
-import { DispatchDot } from './DispatchDot'
-import type { DispatchStatus } from '../../lib/dispatchFold'
 
 interface LocationTagPhotoProps {
   tags: LocationTag[]
@@ -28,9 +26,6 @@ interface LocationTagPhotoProps {
   onItemTap?: (item: LocalPropertyItem) => void
   /** Currently focused/selected item id — its pin gets the selected ring. */
   selectedItemId?: string | null
-  /** target_id (vehicle location id) → current open-dispatch status, for the
-   *  expiring/expired red-dot on the zone tile. Vehicles only; absent = no dot. */
-  dispatchStatusByLocation?: Map<string, DispatchStatus>
   /** Zone target_ids that must render OPAQUE (solid fill) rather than the usual
    *  translucent tint — used for exploded floor tiles so they CLIP the floor beneath
    *  instead of blending through it. */
@@ -195,7 +190,6 @@ export const LocationTagPhoto = memo(function LocationTagPhoto({
   items,
   onItemTap,
   selectedItemId,
-  dispatchStatusByLocation,
   opaqueZoneIds,
 }: LocationTagPhotoProps) {
   const zones = tags.filter((t) => (t.width ?? 0) > 0 && (t.height ?? 0) > 0)
@@ -307,7 +301,6 @@ export const LocationTagPhoto = memo(function LocationTagPhoto({
                   >
                     {tag.label}
                   </span>
-                  <DispatchDot status={dispatchStatusByLocation?.get(tag.target_id)} />
                 </span>
               </div>
             )}

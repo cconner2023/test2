@@ -208,8 +208,9 @@ async function applyCustody(content: PropertyEventContent): Promise<void> {
     invalidate('properties')
     return
   }
-  // 'update' is unused for custody; only 'create' carries a row to save.
-  if (action !== 'create') return
+  // 'update' carries a re-sized sign_down row (a 2062 QTY edit); both it and 'create'
+  // are a keyed upsert of the full row, so they take the same path.
+  if (action !== 'create' && action !== 'update') return
   const row = data.data as unknown as CustodyLedgerEntry | undefined
   if (!row) return
   try {

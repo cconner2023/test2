@@ -971,6 +971,7 @@ export const UserGuide: GuideChapter[] = [
                                 'Select the items (each with a quantity capped at on-hand). Toggle "Move to recipient\'s zone" if the item physically leaves its location, and add notes.',
                                 'Tap Sign out — the recipient signs on the signature pad, and the app builds the 2062 to print or export.',
                                 'Sign items back in from the Sign-outs tab → Signed Out → the receipt\'s menu → Sign in; the item returns to a location you choose.',
+                                'To correct an open receipt, use its menu → Edit: tick lines to remove, re-cut a line\'s quantity, or add items. Nothing changes until you Save, so Cancel abandons the whole edit.',
                             ] },
                             { kind: 'note', text: 'An item signed out still belongs to you on the book — the hand receipt records who is holding it, not a transfer of accountability off your PHR.' },
                         ],

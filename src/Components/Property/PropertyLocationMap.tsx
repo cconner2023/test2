@@ -13,8 +13,6 @@ import { flushSync } from 'react-dom'
 import { Pencil, Check, PenTool, Minus, Scissors, Merge, X, Copy, Camera, Trash2, Maximize2, Move, ChevronLeft, ChevronRight, Plus, Package } from 'lucide-react'
 import { usePropertyStore } from '../../stores/usePropertyStore'
 import { useIsMobile } from '../../Hooks/useIsMobile'
-import { useVehicleDispatches } from '../../Hooks/useVehicleDispatches'
-import type { DispatchStatus } from '../../lib/dispatchFold'
 import { fetchAllLocationTags, fetchLocationTags, upsertLocationTags } from '../../lib/propertyService'
 import { rectIntersectsReservedBand, bumpRectAboveReservedBand } from '../../lib/propertyGeometry'
 import { buildTagIndex, findLCA } from '../../lib/tagIndex'
@@ -28,6 +26,7 @@ import { GlassBand } from '@/Components/primitives/GlassBand'
 import { collectSuppressedIds, computeExplodeOffsets, getLevels, levelShortLabel, nextFloorOrdinal } from './levelUtils'
 import type { ExplodeRect } from './levelUtils'
 import { FloorSlider } from './FloorSlider'
+import { PAD, RAIL_GLASS, THUMB } from '@/Components/primitives/SliderRail'
 import { createLogger } from '../../Utilities/Logger'
 import type { LocalPropertyItem, LocalPropertyLocation, PropertyLocation, LocationTag } from '../../Types/PropertyTypes'
 
@@ -215,8 +214,17 @@ const BASE_CANVAS_SCALE = 3
 /** Sub-zones appear once their parent fills at least this fraction of the viewport. */
 const LOD_FILL_THRESHOLD = 0.5
 
-/** Floating map-control button — mirrors MapView's CTRL_BTN (zoom + info chrome). */
-const CTRL_BTN = 'w-9 h-9 rounded-lg flex items-center justify-center bg-themewhite2/90 dark:bg-themewhite3/90 text-primary shadow-sm active:scale-95 transition-all backdrop-blur-sm'
+/**
+ * Every floating control on this canvas is built like the AddFab it shares the
+ * canvas with: a track padded by PAD around a THUMB-diameter disc, so the edit
+ * entry, the zoom stack, the FloorSlider and the FAB all share one width and one
+ * shape. Two departures from the FAB, both because these are secondary: the disc
+ * takes ActionButton's `default` fill (the tinted-action colour used everywhere
+ * else in the app) instead of the accent, and it is not lifted — the track's
+ * rail-shadow separates it from the canvas without raising it.
+ */
+const CTRL_TRACK = `flex flex-col items-center ${RAIL_GLASS}`
+const CTRL_BTN = 'rounded-full flex items-center justify-center bg-themeblue2/8 text-primary ring-1 ring-white/40 active:scale-95 transition-all duration-200'
 
 export interface MapNavHandle {
   navigateToZone: (targetId: string) => void
@@ -268,13 +276,6 @@ interface PropertyLocationMapProps {
 export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapProps>(function PropertyLocationMap({ clinicId, locations, items, onCreateLocation, onDeleteLocation, onEditItem, onUpdateLocation, onSelectItem, onCreateItem, onSelectZone, onZoneDrawn, onDrawingChange, selectedItem }, ref) {
   const store = usePropertyStore()
   const isMobile = useIsMobile()
-  // Open-dispatch status per vehicle → the zone-tile red-dot (expiring/expired).
-  const dispatches = useVehicleDispatches(clinicId)
-  const dispatchStatusByLocation = useMemo(() => {
-    const m = new Map<string, DispatchStatus>()
-    for (const [id, d] of dispatches) m.set(id, d.status)
-    return m
-  }, [dispatches])
   const scrollRef = useRef<HTMLDivElement>(null)
   const [tagIndex, setTagIndex] = useState<TagIndex | null>(null)
   const [canvasScale, setCanvasScale] = useState(1)
@@ -2071,7 +2072,7 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
           // inside it and can never paint over the floating chrome (FloorSlider z-20,
           // controls z-20/z-30). Without this, a building with enough levels produces
           // tiles whose zIndex >= 20 that hid the floor slider.
-          className={`absolute inset-0 isolate overflow-auto bg-themewhite2 ${isEditing ? (isDrawing ? 'cursor-crosshair' : isResizing ? 'cursor-nwse-resize' : isMoving ? 'cursor-move' : 'cursor-default') : 'cursor-default'}`}
+          className={`absolute inset-0 isolate overflow-auto bg-themewhite ${isEditing ? (isDrawing ? 'cursor-crosshair' : isResizing ? 'cursor-nwse-resize' : isMoving ? 'cursor-move' : 'cursor-default') : 'cursor-default'}`}
           style={{ touchAction: (isDrawing || isMoving || isResizing || itemMoveMode) ? 'none' : 'pan-x pan-y' }}
           onPointerDown={handlePanStart}
           onPointerMove={handlePanMove}
@@ -2189,7 +2190,6 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
                   items={items}
                   onItemTap={handleCanvasItemTap}
                   selectedItemId={focusedItemId}
-                  dispatchStatusByLocation={dispatchStatusByLocation}
                   opaqueZoneIds={opaqueZoneIds}
                 />
 
@@ -2228,32 +2228,43 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
           </div>
         )}
 
-        {/* Floating zoom controls — bottom-left, mirrors MapView's stacked Plus/Minus */}
+        {/* Floating zoom controls — bottom-left, mirrors MapView's stacked Plus/Minus.
+            Each sits in its own track rather than sharing one: joined, they read as a
+            two-stop rail, i.e. one selector with two states, when they are two
+            independent momentary actions. The break from the rail is deliberate. */}
         {!isEditing && (
           <div data-zoom-controls className="absolute bottom-3 left-3 z-30 flex flex-col gap-1.5 pb-[max(0rem,var(--sab,0px))]">
-            <button onClick={handleZoomIn} className={CTRL_BTN} aria-label="Zoom in" title="Zoom in">
-              <Plus size={16} />
-            </button>
-            <button onClick={handleZoomOut} disabled={!isZoomed} className={`${CTRL_BTN} disabled:opacity-30`} aria-label="Zoom out" title="Zoom out">
-              <Minus size={16} />
-            </button>
+            <div style={{ padding: PAD }} className={CTRL_TRACK}>
+              <button onClick={handleZoomIn} style={{ width: THUMB, height: THUMB }} className={CTRL_BTN} aria-label="Zoom in" title="Zoom in">
+                <Plus className="w-5 h-5" />
+              </button>
+            </div>
+            <div style={{ padding: PAD }} className={CTRL_TRACK}>
+              <button onClick={handleZoomOut} disabled={!isZoomed} style={{ width: THUMB, height: THUMB }} className={`${CTRL_BTN} disabled:opacity-30`} aria-label="Zoom out" title="Zoom out">
+                <Minus className="w-5 h-5" />
+              </button>
+            </div>
           </div>
         )}
 
-        {/* Top-right control cluster — view mode only. Horizontal row: an optional
-            Add-floor ＋ (shown when a structural zone / building is in scope) sits
-            left of the Edit ✏ entry. Same chrome/shape/size as the map's info button
-            (CTRL_BTN). Mobile clears the floating glass header via --drawer-header-h;
-            desktop's solid header needs no offset. */}
+        {/* Top-right edit entry — view mode only. It stacks directly above the
+            FloorSlider on the same right edge, so sharing the track width is what
+            makes the two read as one column; round-on-glass is also the shape the
+            mobile header pill already uses. Mobile clears the floating glass header
+            via --drawer-header-h; desktop's solid header needs no offset. */}
         {!isEditing && (
-          <div className={`absolute right-3 z-20 flex items-center gap-1.5 ${isMobile ? 'top-[calc(var(--drawer-header-h,3.5rem)+0.75rem)]' : 'top-3'}`}>
+          <div
+            style={{ padding: PAD }}
+            className={`absolute right-3 z-20 ${CTRL_TRACK} ${isMobile ? 'top-[calc(var(--drawer-header-h,3.5rem)+0.75rem)]' : 'top-3'}`}
+          >
             <button
               onClick={() => handleEnterEdit()}
+              style={{ width: THUMB, height: THUMB }}
               className={CTRL_BTN}
               title="Edit layout"
               aria-label="Edit layout"
             >
-              <Pencil size={16} />
+              <Pencil className="w-5 h-5" />
             </button>
           </div>
         )}
@@ -2265,7 +2276,7 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
             surfaces each floor live; every notch is also tappable. Driven by explodeContainerId,
             so it appears identically for a canvas tap or a list/tree selection. */}
         {!isEditing && floorRail && (
-          <div className={`absolute right-3 z-20 ${isMobile ? 'top-[calc(var(--drawer-header-h,3.5rem)+3.75rem)]' : 'top-[3.75rem]'}`}>
+          <div className={`absolute right-3 z-20 ${isMobile ? 'top-[calc(var(--drawer-header-h,3.5rem)+4.625rem)]' : 'top-[4.625rem]'}`}>
             <FloorSlider entries={floorRail} activeId={activeFloorId} onSelect={handleSelectFloor} />
           </div>
         )}

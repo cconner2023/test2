@@ -35,11 +35,13 @@ export const PAD = 5
 /**
  * The glass track chrome, shared verbatim by every surface that is "a rail or a
  * piece of one": this track, the BottomIsland bar, the AddFab tray, the
- * FloorSelector delete chip. Exported so those cannot drift apart again.
+ * FloorSelector delete chip, the property canvas controls. Exported so those
+ * cannot drift apart again.
  *
  * No border. A hairline stroke on a translucent pill reads as a seam against busy
- * content (map tiles, photos) and fought the blur; edge definition now comes from
- * `.rail-shadow` alone, which is why that shadow carries a contact layer.
+ * content (map tiles, photos) and fought the blur; edge definition comes from
+ * `.rail-shadow` alone, which is why that shadow is a contact layer and nothing
+ * more — see App.css for why the lift came off.
  */
 export const RAIL_GLASS =
   'rounded-full bg-themewhite2/60 rail-shadow backdrop-blur-md dark:bg-themewhite3/50'
