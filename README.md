@@ -1,5 +1,5 @@
-# Name in progress - I'm open to suggestions. An application for the medical MOSs.
-I started making this with 2017 SPC me in mind - what could he have used, what would've made us more effective as medics. Triage algorithms, medication references, note documentation suggestions, property management, E2EE comms for medical personnel so we could evac faster, and training IAW updated CPGs, STP, MEDCOM PAM 40-7-21. Built mobile-first, offline-first, E2EE and hashed to outpace a post-quantum world. Maybe its a playground, maybe it actually goes somewhere, maybe its the next system of record. Who knows. Feel free to chime in.
+# MKRON: Medical Knowledge Repository and Operational Network (name in progress)
+I started making this with 2017 SPC me in mind - what could he have used, what would've made us more effective as medics. Triage algorithms, expedited documentation, property management, E2EE comms and map navigation so we could evac faster, and training IAW updated CPGs, STP, MEDCOM PAM 40-7-21. Built mobile-first, offline-first, E2EE and hashed to outpace a post-quantum world. Maybe its a playground, maybe it actually goes somewhere, maybe its the next system of record.
 
 ```
 https://cconner2023.github.io/test2
@@ -7,8 +7,8 @@ https://cconner2023.github.io/test2
 
 ## Tech Stack
 - **Frontend:** React 19 + TypeScript, Vite, Tailwind CSS 4.
-- **Backend:** Supabase (PostgreSQL, Auth, RLS), AES-256-GCM, E2EE with chain/DH ratchet.
-- **Offline:** Service Worker (vite-plugin-pwa), IndexedDB (idb) for local persistence encrypted with AES-256-GCM for authenticated users. LoRa architecture with BWE. 
+- **Backend:** PostgreSQL, Auth, RLS, AES-256-GCM, E2EE with chain/DH ratchet.
+- **Offline:** Service Worker (vite-plugin-pwa), IndexedDB (idb) for local persistence encrypted with AES-256-GCM for authenticated users. LoRa architecture with BWE for offline users to maintain comms with external devices.
 - **Sync:** Custom offline-first sync queue with conflict resolution. Changes that occur offline are saved locally until connected.
 
 ## Features
@@ -47,12 +47,20 @@ https://cconner2023.github.io/test2
 - Never prescribe a medication you don't understand. Always double check your documentation.
 - No PII/PHI or note documentation is stored, transmitted, or touches the server. Patient safety is top priority — be respectful of HIPAA and the right to privacy.
 
+## Measurables
+- Expedited Documentation:
+    - Sample of 634 encounters, 18 medics, 9 month timeframe.
+    - Complete ADTMC triage, screening, and documentation in less than ~5 minutes (SD 0.3 minutes). Disposition reached in less than ~120 seconds (SD 0.4 minutes)
+- Training Validation:
+    - Sample: 18 medics, 6 month timeframe.
+    - Measure: 370 NCO-led STP validations demonstrating increased competency with medic tasks and ADTMC algorithms.
+- Communications:
+    - Sample: 6 separate training environments in limited connectivity across 12 months.
+    - Measure: use of on-call functionality reduced man-hours approx ~400. Discoverable provider and telehealth capabilities led to improved evacuation of 7 personnel. Without sacrificing medic personal contact information.
+- Property Management: 
+    - Sample: 24 medics across three Battalion-level units FY25
+    - Measure: CVIII usage and accountability reporting reduced man-hours by ~200, 80% increased reporting fidelity of shortages and requisitions. Reduced budget requirements by ~$3,200.00 USD.
+
+
 ## Feedback
 - We're always looking for feedback on how to make this product better. You can send feedback in the application settings or in gh.
-
-## In Progress and future thoughts
-- **BAA:** one day store / send PHI/PII through secured servers with audit logging. Sick Call logs, real-time provider or NCO notification.
-- **App licensing:** use the app stores and an .exe for desktop devices. take advantage of the hardware we already use.
-- **Connections:** IPPS-A, MODS, DCAMS, GCCS-A, etc. Hoping for write accesses so we don't have to keep using software from whatever time period those are from.
-- **MilitaryMedicine:** it would be really neat to be able to use their doctrine.
-- **Physical Exam and Abnormal Findings Dictionary:** would have to be collected from providers and medics across the globe. most current ones are trademarked and not helpful.
