@@ -3,6 +3,7 @@ import { KeyRound, X, Check, RefreshCw } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../stores/useAuthStore'
 import { deriveAndStoreBackupKey, createBackup } from '../lib/signal/backupService'
+import { storePasswordHash } from '../lib/authService'
 import { PasswordInput } from '@/Components/primitives/FormInputs'
 import { ErrorDisplay } from '@/Components/primitives/ErrorDisplay'
 
@@ -38,6 +39,11 @@ export const SetPasswordScreen = ({ mode = 'recovery' }: SetPasswordScreenProps)
       setSubmitting(false)
       return
     }
+
+    // Keep the offline verifier in step with the account. Only signIn and
+    // PasswordLockScreen wrote this hash, so skipping it here leaves the device
+    // accepting the previous password offline until the next online sign-in.
+    await storePasswordHash(password).catch(() => { })
 
     // Derive non-extractable backup CryptoKey from new password
     await deriveAndStoreBackupKey(password, user?.id ?? '')

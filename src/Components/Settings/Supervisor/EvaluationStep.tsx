@@ -5,20 +5,22 @@ import { getEvaluableTaskData } from '../../../Utilities/algorithmCompetency'
 import type { StepResult } from '../../../Types/SupervisorTestTypes'
 import { StepCallout } from '../../TrainingStepComponents'
 import { SectionHeader } from '@/Components/primitives/Section'
-import { ActionPill } from '@/Components/primitives/ActionPill'
+import { AddFab } from '@/Components/primitives/AddFab'
 import { TextArea } from '@/Components/primitives/FormInputs'
 
 // ─── EvaluationStep ──────────────────────────────────────────────────────────
 
 export function EvaluationStep({
   taskNumber,
-  taskTitle,
-  medicName,
+  hasNext = false,
   onSubmit,
 }: {
   taskNumber: string
-  taskTitle: string
-  medicName: string
+  /** Another unit follows in a cascade, so the commit ADVANCES rather than
+   *  finishes — Next rather than Submit. The walk is the same either way; only
+   *  what happens after it differs, which is the caller's knowledge, not this
+   *  component's. */
+  hasNext?: boolean
   onSubmit: (stepResults: StepResult[], notes: string) => void
 }) {
   const taskData = getEvaluableTaskData(taskNumber)
@@ -26,7 +28,7 @@ export function EvaluationStep({
   const [notes, setNotes] = useState('')
 
   if (!taskData) {
-    return <div className="text-center py-12 text-tertiary">Task data not available</div>
+    return <div className="px-4 py-12 text-center text-tertiary">Task data not available</div>
   }
 
   const gradedSet = new Set(taskData.gradedSteps ?? [])
@@ -36,8 +38,6 @@ export function EvaluationStep({
   const totalSteps = gradedStepNumbers.length
   const evaluatedCount = gradedStepNumbers.filter(n => results.has(n)).length
   const allEvaluated = evaluatedCount === totalSteps
-  const hasNoGo = gradedStepNumbers.some(n => results.get(n) === 'NO_GO')
-  const overallPreview = !allEvaluated ? null : hasNoGo ? 'FAIL' : 'PASS'
 
   const toggleResult = (stepNumber: string, value: 'GO' | 'NO_GO') => {
     setResults(prev => {
@@ -62,14 +62,18 @@ export function EvaluationStep({
   }
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="flex-1 overflow-y-auto pb-36">
-        {/* Header */}
-        <div className="mb-5">
-          <p className="text-[9pt] text-tertiary font-mono">{taskNumber}</p>
-          <h3 className="text-lg font-semibold text-primary">{taskTitle}</h3>
-          <p className="text-[10pt] text-tertiary mt-1">Evaluating: <span className="font-medium text-primary">{medicName}</span></p>
-        </div>
+    // Plain flow, no height and no scroller of its own. The host's pane owns the
+    // scroll — on mobile that host is a Sheet, whose card clips a nested capped
+    // scroller, and on desktop a second scrollport inside the pane's would split
+    // one list of measures across two drags.
+    <div>
+      {/* Content pads itself and the bar below does not, so the bar spans the
+          full pane. Neither host pads its scroll region — the desktop pane and
+          the Sheet's fit body both hand over bare edges. */}
+      <div className="px-4 pt-4">
+        {/* No header. The number, the title and who is being graded are the pane's
+            chrome — PaneHeader on desktop, the sheet's title node on mobile — and
+            restating all three an inch below them is the same three facts twice. */}
 
         {/* Task-level caution */}
         {taskData.caution && (
@@ -166,51 +170,37 @@ export function EvaluationStep({
           })()}
         </div>
 
-        {/* Supervisor Notes */}
+        {/* The primitive's own row is the whole field — placeholder-is-the-label,
+            iOS-zoom-safe sizing, its own hairline. A card around one row draws a
+            container for a list that isn't there. */}
         <div className="mb-5">
-          <SectionHeader>Supervisor Notes (Optional)</SectionHeader>
           <TextArea
-            bare
+            label="Supervisor notes"
             value={notes}
             onChange={setNotes}
-            placeholder="Additional comments or observations..."
             rows={3}
-            inputClassName="w-full px-3 py-2.5 rounded-lg bg-transparent text-primary text-base md:text-sm
-                       border border-tertiary/10 focus:border-themeblue2 focus:outline-none
-                       transition-colors placeholder:text-tertiary resize-none"
           />
         </div>
       </div>
 
-      {/* Sticky bottom bar */}
-      <div className="sticky bottom-0 left-0 right-0 bg-themewhite border-t border-primary/6 px-4 py-3">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3 min-w-0 flex-1">
-            <span className="text-sm text-tertiary truncate">
-              {evaluatedCount}/{totalSteps} steps evaluated
-            </span>
-            {overallPreview && (
-              <span className={`px-3 py-1 rounded-full text-[10pt] font-bold shrink-0 ${
-                overallPreview === 'PASS' ? 'bg-themegreen/15 text-themegreen' : 'bg-themeredred/15 text-themeredred'
-              }`}>
-                {overallPreview}
-              </span>
-            )}
-          </div>
-          <ActionPill>
-            <button
-              type="button"
-              onClick={handleSubmit}
-              disabled={!allEvaluated}
-              aria-label="Submit Evaluation"
-              title={allEvaluated ? 'Submit Evaluation' : 'Complete all steps before submitting'}
-              className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 active:scale-95 transition-all disabled:opacity-40 bg-themeblue2 text-white"
-            >
-              <ChevronRight className="w-5 h-5" />
-            </button>
-          </ActionPill>
+      {/* Advance on the FAB, and NOTHING else down here. A running count and a
+          PASS/FAIL preview restated what the rows above already show one GO/NO-GO
+          pair at a time, and they only ever resolved the instant the FAB appeared
+          — which is the same signal, without the sentence.
+
+          Sticky rather than absolute: this body is plain flow inside the host's
+          scrollport (see the note at the top), so there is no positioned ancestor
+          to hang a FAB off, and sticky keeps its space instead of covering the
+          last measure. */}
+      {allEvaluated && (
+        <div className="sticky bottom-4 z-10 flex justify-end px-4 pb-2 pointer-events-none">
+          <AddFab
+            icon={hasNext ? ChevronRight : Check}
+            label={hasNext ? 'Next' : 'Submit evaluation'}
+            onClick={handleSubmit}
+          />
         </div>
-      </div>
+      )}
     </div>
   )
 }

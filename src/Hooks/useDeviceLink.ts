@@ -3,6 +3,8 @@ import { REALTIME_SUBSCRIBE_STATES } from '@supabase/realtime-js'
 import { supabase } from '../lib/supabase'
 import { generateHandoffKeypair } from '../lib/deviceHandoffSeal'
 import { downloadAndApplyHandoff, prepareAndUploadHandoff } from '../lib/deviceHandoff'
+import { holdLinkExchange, resolveForeignLink, releaseLinkGate } from '../lib/authLinkGate'
+import { loadLocalSessionSync } from '../stores/useAuthStore'
 
 export type LinkeeStatus = 'waiting' | 'receiving' | 'error'
 export type ChannelState = 'connecting' | 'ready' | 'error'
@@ -59,14 +61,42 @@ export function useLinkeeChannel() {
     channel
       .on('broadcast', { event: 'credentials' }, async ({ payload }) => {
         setStatus('receiving')
+        // Same hazard as the auth-email links: these credentials may belong to a
+        // different account than the one this browser already holds, and setSession
+        // fires SIGNED_IN before we can compare. Hold first, sort it out after.
+        const incumbent = loadLocalSessionSync()
+        if (incumbent) {
+          const { data: prior } = await supabase.auth.getSession()
+          holdLinkExchange(
+            { userId: incumbent.userId, email: incumbent.email },
+            prior.session
+              ? { access_token: prior.session.access_token, refresh_token: prior.session.refresh_token }
+              : null,
+          )
+        }
         const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
           access_token: payload.access_token,
           refresh_token: payload.refresh_token,
         })
         if (sessionError) {
+          if (incumbent) releaseLinkGate()
           setStatus('error')
           setError(sessionError.message)
           return
+        }
+        if (incumbent) {
+          if (sessionData?.user && sessionData.user.id !== incumbent.userId) {
+            // ForeignLinkSwitchScreen owns it now. The handoff bundle is skipped:
+            // it is sealed to this device and history transfer is best-effort, so
+            // losing it costs a convenience, not the link.
+            resolveForeignLink({
+              userId: sessionData.user.id,
+              email: sessionData.user.email ?? '',
+              kind: 'magiclink',
+            })
+            return
+          }
+          releaseLinkGate()
         }
         // Device-handoff (Option A): now authenticated, pull the sealed vault+history
         // bundle the linker uploaded and apply it (history → IDB; vault plaintext is

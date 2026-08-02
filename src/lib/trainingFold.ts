@@ -1,8 +1,8 @@
 /**
  * trainingFold — project audit_log domain=training events into the legacy
  * TrainingCompletionUI shape, so the supervisor surface (getLatestTestByTask,
- * buildCompetencyMatrix, SoldierProfile, TrainingOverview) consumes the fold
- * UNCHANGED. Only the source flips (events → fold → rows), not the consumers.
+ * buildCompetencyMatrix, and the views over them) consumes the fold UNCHANGED.
+ * Only the source flips (events → fold → rows), not the consumers.
  *
  * Current state = the projection of the immutable event stream: at most one
  * completion per (user, training_item, completion_type), latest-wins by seq.
@@ -22,6 +22,7 @@ import type { AuditEvent } from './auditTypes'
 import type { TrainingCompletionUI } from './trainingService'
 import type { CompletionType, CompletionResult } from '../Types/database.types'
 import type { StepResult } from '../Types/SupervisorTestTypes'
+import { aliasTrainingItemId } from '../Data/trainingItemAlias'
 
 type CType = 'read' | 'test' | 'assignment'
 
@@ -91,8 +92,13 @@ export function foldTrainingState(events: AuditEvent[]): TrainingCompletionUI[] 
   }
 
   for (const e of ordered) {
-    const item = (e.payload?.training_item_id as string) || ''
-    if (!item) continue
+    // Alias BEFORE grouping: 17 task numbers are shared between the ICTL and
+    // the STP roster, and every event predating the rename carries the bare
+    // number. Group on the raw id and a soldier's historical STP credit lands
+    // on the ICTL task instead. See Data/trainingItemAlias.
+    const raw = (e.payload?.training_item_id as string) || ''
+    if (!raw) continue
+    const item = aliasTrainingItemId(raw, e.occurredAt)
     const g = groupFor(e.subjectId, item)
 
     switch (e.eventType) {
@@ -170,6 +176,13 @@ export function unionByLogicalKey(
  * logical identity (not id — fold ids are synthetic). Used during the
  * verify-first cutover to prove the fold reproduces current state before the UI
  * is switched over. A clean diff = empty onlyLive/onlyFold/mismatched.
+ *
+ * DORMANT since training_completions was retired, and it now has a known false
+ * positive: the fold applies the ICTL/STP collision alias while a live row is
+ * pre-alias by definition, so each of the 17 shared numbers reads as one
+ * onlyLive + one onlyFold. Not a fold defect. Alias the live side before
+ * diffing if this is ever revived — rows carry no occurredAt, so that means
+ * deciding a timestamp for them, not reusing aliasTrainingItemId as-is.
  */
 export function diffTrainingFold(
   live: TrainingCompletionUI[],

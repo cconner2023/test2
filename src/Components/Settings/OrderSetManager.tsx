@@ -6,6 +6,8 @@ import { OverlayActionMenu } from '@/Components/primitives/OverlayActionMenu';
 import { LiftedRowMenu } from '@/Components/primitives/LiftedRowMenu';
 import { liftPressHandlers, type LiftPressState, type LiftSnapshot } from '../liftPress';
 import type { ContextMenuItem } from '@/Components/primitives/ContextMenu';
+import { planTagDisplay } from '@/Utilities/medTag';
+import { PageSectionHeader } from '@/Components/primitives/Section';
 
 const ALL_PLAN_BLOCK_KEYS: PlanBlockKey[] = [...PLAN_ORDER_CATEGORIES, 'instructions'];
 
@@ -40,7 +42,7 @@ export const OrderSetManager = ({
         liftPressHandlers((snap) => setLifted({ os, ...snap }), pressRef), []);
 
     const collectTags = (os: PlanOrderSet): string[] =>
-        ALL_PLAN_BLOCK_KEYS.flatMap(k => os.presets[k] ?? []);
+        ALL_PLAN_BLOCK_KEYS.flatMap(k => (os.presets[k] ?? []).map(t => planTagDisplay(k, t)));
 
     const lc = filter.trim().toLowerCase();
     const visibleSets = useMemo(() => {
@@ -53,9 +55,7 @@ export const OrderSetManager = ({
 
     return (
         <section>
-            <div className="pb-2">
-                <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Order Sets</p>
-            </div>
+            <PageSectionHeader>Order Sets</PageSectionHeader>
             <div className="relative"><div className="rounded-xl bg-themewhite2 overflow-hidden">
                 <div className="px-4 py-3">
                     {visibleSets.length > 0 ? (

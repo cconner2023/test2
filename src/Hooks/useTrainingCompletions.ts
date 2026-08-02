@@ -36,8 +36,9 @@ import {
   enrichCalendarLinks,
   type TrainingCompletionUI,
 } from '../lib/trainingService';
-import { getAuditBySubjectLocal, fetchAuditBySubject } from '../lib/auditService';
+import { loadAuditBySubject } from '../lib/auditService';
 import { foldTrainingState } from '../lib/trainingFold';
+import { countAlgorithmRuns } from '../Utilities/algorithmStp';
 import {
   isOnline as checkOnline,
   setupConnectivityListeners,
@@ -51,6 +52,7 @@ import { useCalendarWrite } from './useCalendarWrite';
 import { useCalendarStore } from '../stores/useCalendarStore';
 import { getTaskData } from '../Data/TrainingData';
 import { createLogger } from '../Utilities/Logger';
+import { succeed, fail, type ServiceResult } from '../lib/result';
 import type { CompletionResult } from '../Types/database.types';
 import type { StepResult } from '../Types/SupervisorTestTypes';
 import type { subjectAreaArray } from '../Types/CatTypes';
@@ -121,9 +123,11 @@ async function migrateTrainingProgress(
 
     for (const [taskId, progress] of Object.entries(parsed.viewedTasks)) {
       if (progress.completed) {
-        // Create a read completion for completed tasks
-        await createReadCompletion(taskId, userId);
-        migrated++;
+        // Create a read completion for completed tasks. A refused emit skips the
+        // entry rather than aborting the loop — the remaining tasks are still
+        // migratable, and the localStorage key is only dropped once, below.
+        const res = await createReadCompletion(taskId, userId);
+        if (res.success) migrated++;
       } else {
         // Just viewed, not completed -- track locally only
         viewedTaskIds.add(taskId);
@@ -162,7 +166,7 @@ async function migrateSupervisorTests(userId: string): Promise<number> {
     }
 
     for (const test of parsed.tests) {
-      await createTestCompletion({
+      const res = await createTestCompletion({
         medicUserId: test.medicId,
         trainingItemId: test.taskNumber,
         result: test.overallResult === 'PASS' ? 'GO' : 'NO_GO',
@@ -170,7 +174,7 @@ async function migrateSupervisorTests(userId: string): Promise<number> {
         supervisorNotes: test.notes,
         supervisorId: test.supervisorId || userId,
       });
-      migrated++;
+      if (res.success) migrated++;
     }
 
     localStorage.removeItem(SUPERVISOR_TESTS_KEY);
@@ -216,15 +220,22 @@ async function ensureInitialTrainingSync(userId: string): Promise<void> {
 // Offline-first: local IDB events + server (read_audit), deduped, training-only,
 // folded into TrainingCompletionUI. training_completions is still dual-written and
 // serves as a fallback (below) so a fold-fetch failure never blanks training.
-async function loadFoldedCompletions(userId: string): Promise<TrainingCompletionUI[]> {
-  const clinicId = useAuthStore.getState().clinicId;
-  const [local, server] = await Promise.all([
-    getAuditBySubjectLocal(userId).catch(() => []),
-    clinicId ? fetchAuditBySubject(userId, { clinicId }).catch(() => []) : Promise.resolve([]),
-  ]);
-  const byId = new Map(([...local, ...server]).map((e) => [e.id, e]));
-  const folded = foldTrainingState([...byId.values()].filter((e) => e.domain === 'training'));
-  return enrichCalendarLinks(folded);
+async function loadFoldedCompletions(
+  userId: string,
+): Promise<{ completions: TrainingCompletionUI[]; runCounts: Map<string, number> }> {
+  // Active clinic, matching what emitTrainingEvent now stamps — a supervisor
+  // toggled into a loaned cluster reads back the events they just wrote there.
+  const { clinicId, supervisingClinicId } = useAuthStore.getState();
+  const activeClinicId = supervisingClinicId ?? clinicId;
+  const events = await loadAuditBySubject(userId, activeClinicId ?? '');
+  const training = events.filter((e) => e.domain === 'training');
+  // Run counts come off the SAME deduped raw set, BEFORE the fold collapses
+  // repeat reads. No second fetch, and it is the only way the self surface can
+  // see occurrence totals rather than a boolean 'has read this'.
+  return {
+    completions: await enrichCalendarLinks(foldTrainingState(training)),
+    runCounts: countAlgorithmRuns(training, userId),
+  };
 }
 
 // ── Hook ─────────────────────────────────────────────────────
@@ -238,6 +249,7 @@ export function useTrainingCompletions() {
   const [viewedTasks, setViewedTasks] = useState<Set<string>>(new Set());
   const [isSyncing, setIsSyncing] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
+  const [algorithmRunCounts, setAlgorithmRunCounts] = useState<Map<string, number>>(new Map());
 
   const userIdRef = useRef<string | null>(null);
   const initDone = useRef(false);
@@ -266,6 +278,7 @@ export function useTrainingCompletions() {
         setCompletions([]);
         setViewedTasks(new Set());
         setPendingCount(0);
+        setAlgorithmRunCounts(new Map());
         setRealtimeUserId(null);
         setRealtimeAuthenticated(false);
         userIdRef.current = null;
@@ -287,7 +300,9 @@ export function useTrainingCompletions() {
     // the legacy training_completions union has been retired (fold verified).
     let items: TrainingCompletionUI[] = [];
     try {
-      items = await loadFoldedCompletions(userId);
+      const loaded = await loadFoldedCompletions(userId);
+      items = loaded.completions;
+      setAlgorithmRunCounts(loaded.runCounts);
     } catch (err) {
       logger.warn('Fold load failed:', err);
     }
@@ -542,9 +557,19 @@ export function useTrainingCompletions() {
           result: 'GO',
           supervisorId: existingAssignment.supervisorId || userId,
         })
-          .then((saved) => {
+          .then((res) => {
+            if (!res.success) {
+              // Put the assignment back. The optimistic row said "done" against
+              // an event that was refused, and a refold would have restored the
+              // pending assignment anyway — do it now rather than a tick later.
+              logger.error('Complete assignment failed:', res.error);
+              setCompletions((prev) =>
+                prev.map((c) => (c.id === existingAssignment.id ? existingAssignment : c))
+              );
+              return;
+            }
             setCompletions((prev) =>
-              prev.map((c) => (c.id === existingAssignment.id ? saved : c))
+              prev.map((c) => (c.id === existingAssignment.id ? res.completion : c))
             );
           })
           .catch((err) => {
@@ -578,13 +603,22 @@ export function useTrainingCompletions() {
       }
 
       createReadCompletion(taskId, userId)
-        .then((saved) => {
+        .then((res) => {
+          if (!res.success) {
+            // Drop the optimistic row — nothing was recorded, and leaving it up
+            // shows a completion that vanishes on the next refold with no
+            // explanation. Same reason the evaluator keeps its pane open.
+            logger.error('Create read completion failed:', res.error);
+            setCompletions((prev) => prev.filter((c) => c.id !== optimisticCompletion.id));
+            if (userId !== 'guest') setPendingCount((prev) => Math.max(0, prev - 1));
+            return;
+          }
           setCompletions((prev) =>
             prev.map((c) =>
-              c.id === optimisticCompletion.id ? saved : c
+              c.id === optimisticCompletion.id ? res.completion : c
             )
           );
-          if (saved.syncStatus === 'synced' && userId !== 'guest') {
+          if (res.completion.syncStatus === 'synced' && userId !== 'guest') {
             setPendingCount((prev) => Math.max(0, prev - 1));
           }
         })
@@ -596,6 +630,12 @@ export function useTrainingCompletions() {
     [refreshCompletions, completions]
   );
 
+  /**
+   * Record a supervisor's graded walk. Returns the outcome rather than void so
+   * the evaluator can hold its pane open on a refusal — a walk is minutes of
+   * work at a soldier's side, and closing it on a write that never landed loses
+   * every GO/NO_GO with nothing to retry from.
+   */
   const submitTestEvaluation = useCallback(
     async (params: {
       medicUserId: string;
@@ -603,20 +643,25 @@ export function useTrainingCompletions() {
       result: CompletionResult;
       stepResults: StepResult[];
       supervisorNotes?: string;
-    }): Promise<void> => {
+    }): Promise<ServiceResult> => {
       const userId = userIdRef.current;
-      if (!userId) return;
+      if (!userId) return fail('Not signed in — the grade was not recorded.');
 
-      const saved = await createTestCompletion({
+      const res = await createTestCompletion({
         ...params,
         supervisorId: userId,
       });
+      if (!res.success) {
+        logger.error('Submit test evaluation failed:', res.error);
+        return res;
+      }
 
       // Add to state
-      setCompletions((prev) => [saved, ...prev]);
-      if (saved.syncStatus === 'pending') {
+      setCompletions((prev) => [res.completion, ...prev]);
+      if (res.completion.syncStatus === 'pending') {
         setPendingCount((prev) => prev + 1);
       }
+      return succeed();
     },
     []
   );
@@ -648,8 +693,12 @@ export function useTrainingCompletions() {
       }
 
       // No linked event: event-source the delete (emit completion.voided + drop link).
+      // Refresh either way — on a refused void it is what puts the row back.
       deleteCompletionApi(completionId, userId)
-        .then(() => refreshCompletions(userId))
+        .then((res) => {
+          if (!res.success) logger.error('Delete completion failed:', res.error);
+          refreshCompletions(userId);
+        })
         .catch((err) => {
           logger.error('Delete completion failed:', err);
           refreshCompletions(userId);
@@ -668,20 +717,24 @@ export function useTrainingCompletions() {
       const userId = userIdRef.current;
       if (!userId) return null;
 
-      const saved = await createAssignment({
+      const res = await createAssignment({
         medicUserId: params.medicUserId,
         trainingItemId: params.trainingItemId,
         supervisorId: userId,
         dueDate: params.dueDate,
         supervisorNotes: params.notes,
       });
+      if (!res.success) {
+        logger.error('Assign task failed:', res.error);
+        return null;
+      }
 
-      setCompletions((prev) => [saved, ...prev]);
-      if (saved.syncStatus === 'pending') {
+      setCompletions((prev) => [res.completion, ...prev]);
+      if (res.completion.syncStatus === 'pending') {
         setPendingCount((prev) => prev + 1);
       }
 
-      return saved;
+      return res.completion;
     },
     []
   );
@@ -722,6 +775,10 @@ export function useTrainingCompletions() {
 
   return {
     completions,
+    /** Logged runs per algorithm id for the current user, from raw events -
+     *  the runs component of algorithm completion. Empty until the first fold
+     *  load resolves. */
+    algorithmRunCounts,
     isTaskCompleted,
     getTestResult,
     getSubjectAreaProgress,

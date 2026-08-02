@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
-import { ChevronRight, ChevronDown, MoreHorizontal, Eye, Pencil, Trash2 } from 'lucide-react'
+import { Eye, Pencil, Trash2 } from 'lucide-react'
 import { SearchInput } from '@/Components/primitives/SearchInput'
 import { LiftedRowMenu } from '@/Components/primitives/LiftedRowMenu'
 import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
 import { FillBar } from '@/Components/primitives/FillBar'
+import { TreeRow, TreeRowCount } from '@/Components/primitives/TreeRow'
 import { usePropertyStore } from '../../stores/usePropertyStore'
 import { groupAuthorized, isAuthTarget, lineKeyOf } from '../../Utilities/propertyAuthorized'
 import type { LocalPropertyItem } from '../../Types/PropertyTypes'
@@ -124,9 +125,6 @@ export function PropertyAuthorizedPanel({ onEdit, onView }: PropertyAuthorizedPa
     )
   }
 
-  const ellipsisCls =
-    'w-7 h-7 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all shrink-0'
-
   return (
     <div className="flex flex-col gap-2">
       <SearchInput value={query} onChange={setQuery} placeholder="Search authorized items" />
@@ -138,78 +136,38 @@ export function PropertyAuthorizedPanel({ onEdit, onView }: PropertyAuthorizedPa
           const isCollapsed = collapsed.has(key)
           return (
             <div key={key}>
-              {/* LIN node header */}
-              <div
-                className="group flex items-center gap-2 py-2 pr-3 border-l-2 border-l-transparent hover:bg-secondary/5 transition-colors"
-                style={{ paddingLeft: '16px' }}
-              >
-                <button
-                  type="button"
-                  className="p-0.5 rounded hover:bg-secondary/10 text-tertiary shrink-0"
-                  onClick={() => toggle(key)}
-                  aria-label={isCollapsed ? 'Expand' : 'Collapse'}
-                >
-                  {isCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
-                </button>
-                <button
-                  type="button"
-                  className="min-w-0 flex-1 text-left"
-                  onClick={() => container && onView(container)}
-                >
-                  <span className="block text-[10pt] font-bold text-primary truncate">{g.skoName ?? 'Custom'}</span>
-                  {container?.lin && <span className="block text-[9pt] text-tertiary">LIN {container.lin}</span>}
-                </button>
-                {/* Fill rollup for the whole LIN — Σ on-hand vs Σ authorized (base units) as a
-                    two-tone completion bar, mirroring the supervisor readiness bars. */}
-                {g.authorizedBaseTotal > 0 && (
-                  <FillBar percent={g.fillPercent} className="w-28 shrink-0" />
-                )}
-                {container && (
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); openMenu(container, 'lin', (e.currentTarget as HTMLElement).getBoundingClientRect()) }}
-                    aria-label="LIN actions"
-                    className={ellipsisCls}
-                  >
-                    <MoreHorizontal size={15} />
-                  </button>
-                )}
-              </div>
+              {/* LIN node header. Its trailing fill rollup is Σ on-hand vs Σ authorized (base
+                  units) as a two-tone bar, mirroring the supervisor readiness bars. */}
+              <TreeRow
+                expanded={!isCollapsed}
+                onToggle={() => toggle(key)}
+                title={g.skoName ?? 'Custom'}
+                sub={[container?.lin && `LIN ${container.lin}`]}
+                emphasis
+                onTap={container ? () => onView(container) : undefined}
+                trailing={g.authorizedBaseTotal > 0 ? <FillBar percent={g.fillPercent} className="w-28 shrink-0" /> : undefined}
+                onOpenMenu={container ? (rect) => openMenu(container, 'lin', rect) : undefined}
+                menuLabel="LIN actions"
+              />
 
               {/* Components — a TAP opens the line's read-only detail (onView), where the
-                  "On hand" section lists the located stacks filling it (tap → locate on map). */}
+                  "On hand" section lists the located stacks filling it (tap → locate on map).
+                  The trailing count is on-hand / authorized in base EA units; only the LIN
+                  rollup gets a bar. */}
               {!isCollapsed &&
                 g.lines.map((l) => {
                   const comp = items.find((i) => i.id === l.itemId)
                   return (
-                    <div
+                    <TreeRow
                       key={l.itemId}
-                      className="group flex items-center gap-2 py-2 pr-3 border-l-2 border-l-transparent hover:bg-secondary/5 transition-colors"
-                      style={{ paddingLeft: '38px' }}
-                    >
-                      <button
-                        type="button"
-                        className="min-w-0 flex-1 text-left"
-                        onClick={() => comp && onView(comp)}
-                      >
-                        <span className="block text-[10pt] text-primary truncate">{l.name}</span>
-                        {l.nomenclature && <span className="block text-[9pt] text-tertiary truncate">{l.nomenclature}</span>}
-                        {l.nsn && <span className="block text-[9pt] text-tertiary truncate">Material/NSN {l.nsn}</span>}
-                      </button>
-                      {/* On-hand / authorized (base EA units) as a plain count — the completion
-                          bar lives only on the LIN rollup header, not per component. */}
-                      <span className="text-[10pt] text-tertiary tabular-nums shrink-0">
-                        {l.onHand} / {l.authorizedBase}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); comp && openMenu(comp, 'component', (e.currentTarget as HTMLElement).getBoundingClientRect()) }}
-                        aria-label="Line actions"
-                        className={ellipsisCls}
-                      >
-                        <MoreHorizontal size={15} />
-                      </button>
-                    </div>
+                      depth={1}
+                      title={l.name}
+                      sub={[l.nomenclature, l.nsn]}
+                      onTap={comp ? () => onView(comp) : undefined}
+                      trailing={<TreeRowCount>{l.onHand} / {l.authorizedBase}</TreeRowCount>}
+                      onOpenMenu={comp ? (rect) => openMenu(comp, 'component', rect) : undefined}
+                      menuLabel="Line actions"
+                    />
                   )
                 })}
             </div>

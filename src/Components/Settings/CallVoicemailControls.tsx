@@ -10,10 +10,7 @@ import { Mic, X, ArrowUp, Loader2 } from 'lucide-react'
 import { useVoiceRecorder } from '../../Hooks/useVoiceRecorder'
 import { useMessagesContext } from '../../Hooks/MessagesContext'
 import { fetchPeerGreeting, decryptGreetingToUrl } from '../../lib/voicemailService'
-
-function formatDur(seconds: number): string {
-  return `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`
-}
+import { formatAudioDuration } from '../../Utilities/voiceUtils'
 
 export function CallVoicemailControls({ peerId, onClose }: { peerId: string; onClose: () => void }) {
   const messages = useMessagesContext()
@@ -88,7 +85,7 @@ export function CallVoicemailControls({ peerId, onClose }: { peerId: string; onC
         </button>
         <div className="flex items-center gap-2.5 px-4 py-3 rounded-full border border-themeredred/40 bg-themeredred/10">
           <div className="w-2 h-2 rounded-full bg-themeredred animate-pulse shrink-0" />
-          <span className="text-sm font-medium text-white tabular-nums">{formatDur(duration)}</span>
+          <span className="text-sm font-medium text-white tabular-nums">{formatAudioDuration(duration)}</span>
           <div className="flex items-center gap-px h-4 w-24">
             {Array.from({ length: 20 }, (_, i) => (
               <div

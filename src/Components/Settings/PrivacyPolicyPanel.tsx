@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { ShieldCheck, Database, EyeOff, Server, Trash2, UserCheck, Scale, Activity, Camera, MapPin } from 'lucide-react'
+import { SectionCard, SectionHeader } from '@/Components/primitives/Section'
 
 /* ── row primitive (matches PinSetupPanel / Settings card rows) ── */
 const Row = ({ icon, iconColor, title, children, border = true }: {
@@ -34,8 +35,8 @@ export const PrivacyPolicyPanel = () => (
 
       {/* ── Data Collection ── */}
       <div>
-        <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">Data Collection</p>
-        <div className="rounded-2xl bg-themewhite2 overflow-hidden">
+        <SectionHeader>Data Collection</SectionHeader>
+        <SectionCard>
           <Row icon={<EyeOff size={18} className="text-themeblue2" />} title="No Patient Data Collected" border={false}>
             <p>This application does <strong className="text-primary">not</strong> collect, store, or transmit Protected Health Information (PHI) or patients' Personally Identifiable Information (PII). No patient data is recorded on or sent to our servers.</p>
           </Row>
@@ -54,13 +55,13 @@ export const PrivacyPolicyPanel = () => (
             </ul>
             <p className="mt-1">Guest users can use most app features without creating an account. No data is collected from guest users.</p>
           </Row>
-        </div>
+        </SectionCard>
       </div>
 
       {/* ── Usage & Storage ── */}
       <div>
-        <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">Usage & Storage</p>
-        <div className="rounded-2xl bg-themewhite2 overflow-hidden">
+        <SectionHeader>Usage & Storage</SectionHeader>
+        <SectionCard>
           <Row icon={<UserCheck size={18} className="text-themeblue2" />} title="How We Use Your Information" border={false}>
             <p>Your information is used solely for:</p>
             <ul className="list-disc list-outside ml-4 space-y-0.5">
@@ -80,13 +81,13 @@ export const PrivacyPolicyPanel = () => (
               <li>Training completion progress</li>
             </ul>
           </Row>
-        </div>
+        </SectionCard>
       </div>
 
       {/* ── Access & Control ── */}
       <div>
-        <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">Access & Control</p>
-        <div className="rounded-2xl bg-themewhite2 overflow-hidden">
+        <SectionHeader>Access & Control</SectionHeader>
+        <SectionCard>
           <Row icon={<ShieldCheck size={18} className="text-themeblue2" />} title="Data Access" border={false}>
             <p>Your profile data is accessible only to:</p>
             <ul className="list-disc list-outside ml-4 space-y-0.5">
@@ -118,7 +119,7 @@ export const PrivacyPolicyPanel = () => (
             </ul>
             <p className="mt-1">Local data can be permanently deleted from your device at any time by signing out. You can permanently delete your account and all server-side data at any time in <strong className="text-primary">Settings &gt; Profile &gt; Delete Account</strong>. This action is immediate and irreversible.</p>
           </Row>
-        </div>
+        </SectionCard>
       </div>
 
       {/* ── Footer ── */}

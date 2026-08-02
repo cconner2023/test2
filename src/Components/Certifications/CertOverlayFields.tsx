@@ -13,7 +13,7 @@ interface CertOverlayFieldsProps {
 
 /**
  * Overlay-style cert form fields — used inside PreviewOverlay popovers in the
- * personal ProfilePage and the supervisor SoldierProfile. Renders the
+ * personal ProfilePage and the supervisor's per-soldier lens. Renders the
  * canonical 5-row stack (title, cert #, issued, expires, primary toggle).
  *
  * For the standalone bg-tertiary/5 card layout used elsewhere, use

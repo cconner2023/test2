@@ -516,7 +516,7 @@ export const trainingTaskData: readonly TaskTrainingData[] = [
     },
     // Airway Management: Perform a Surgical Cricothyroidotomy
     {
-        taskNumber: "081-000-0122",
+        taskNumber: "081-000-0122(b)",
         title: "Perform a Surgical Cricothyroidotomy",
         conditions: "In an operational environment, you have a casualty requiring a surgical cricothyroidotomy. You have a scalpel, tracheal hook, tracheotomy tube or any non-collapsible tube, alcohol swabs, bag valve mask (BVM), stethoscope, gloves, 2x2 gauze, and tape.",
         standards: "Perform a surgical cricothyroidotomy in accordance with Tactical Combat Casualty Care (TCCC) Guidelines and Committee on Tactical Combat Casualty Care (CoTCC), while adhering to all warnings and cautions, without error, using the task GO/NO GO checklist.",
@@ -930,11 +930,13 @@ export const trainingTaskData: readonly TaskTrainingData[] = [
     },
     // Airway Management: Maintain a Nasogastric Tube
     {
-        // LEGACY (kept testable until CRON cutover): the Apr 2026 ICTL reassigns 081-000-0125 to
-        // "Treat Massive Hemorrhage". Until the CRON phase-out runs, this Nasogastric-Tube content
-        // stays live under 081-000-0125 so existing completions remain testable and legacy training
-        // is uninterrupted. CRON will flip the number to Massive Hemorrhage at cutover.
-        taskNumber: "081-000-0125",
+        // The Apr 2026 ICTL reassigns the bare 081-000-0125 to "Treat Massive
+        // Hemorrhage", so this Nasogastric-Tube content lives under the suffixed
+        // number instead of being phased out -- the two are different tasks that
+        // happen to share a number. Historical completions still resolve: events
+        // predating the rename carry the bare id and are aliased at the fold.
+        // See Data/trainingItemAlias.
+        taskNumber: "081-000-0125(b)",
         title: "Maintain a Nasogastric Tube",
         caution: "All body fluids should be considered potentially infectious so always observe body substance isolation precautions by wearing gloves and eye protection as a minimal standard of protection.",
         conditions: "In an operational environment you have a patient that will require placement and possibly removal of a nasogastric (NG) tube during treatment. You have an NG tube (single lumen nasogastric tube or dual-lumen nasogastric tube), water soluble lubricant, suction equipment if ordered, clamp for tubing, towel, tissues, emesis basin, glass of water and straw, tincture of benzoin, hypoallergenic tape 1 inch, bio-occlusive transparent dressing, irrigating set with 20-milliliter (ml) syringe or a 50-ml catheter tip syringe, stethoscope, tongue blade, penlight, disposable gloves, apron, a waste container, protective sheet, normal saline, lip pomade, mouth hygiene materials, pen, DD Form 1380 (Tactical Combat Casualty Care (TCCC) Card (Instructions)), electronic medical record (EMR), or an SF 600 (Chronological Record of Medical Care).",
@@ -1248,7 +1250,7 @@ export const trainingTaskData: readonly TaskTrainingData[] = [
     },
     // Force Health Protection: Employ Telemedicine
     {
-        taskNumber: "081-68W-0167",
+        taskNumber: "081-68W-0167(b)",
         title: "Employ Telemedicine",
         conditions: "In the operational environment, you have a patient whose chief complaint requires a higher level of medical knowledge and skill to diagnose. You are required to employ telemedicine (TM) based on the patient's category to determine what modality is needed to communicate with the senior medical professional. You have Joint Trauma System Clinical Practice Guidelines list of approved equipment.",
         standards: "Employ TM in accordance with (IAW) Joint Trauma System Clinical Practice Guidelines (CPG). Use TM for the deployed environment, while adhering to all warnings and cautions, without error, using the task GO/NO GO checklist.",
@@ -1319,7 +1321,7 @@ export const trainingTaskData: readonly TaskTrainingData[] = [
     },
     // Medical Management: Treat Common Respiratory Disorders
     {
-        taskNumber: "081-68W-0245",
+        taskNumber: "081-68W-0245(b)",
         title: "Treat a Patient With Cardiorespiratory Complaint",
         caution: "All body fluids should be considered potentially infectious so always observe body substance isolation (BSI) precautions by wearing gloves and eye protection as a minimal standard of protection.",
         conditions: "In an operational environment you must treat a patient with a respiratory complaint. You have performed a patient care handwash and donned the proper personnel protective equipment. You are provided with the patient's medical records, a stethoscope, sphygmomanometer, otoscope and ophthalmoscope, tongue depressors, pen, and Rosdahl's Textbook of Basic Nursing.",
@@ -2229,7 +2231,7 @@ export const trainingTaskData: readonly TaskTrainingData[] = [
     },
     // Medical Management: Treat Abdominal Disorders
     {
-        taskNumber: "081-68W-0239",
+        taskNumber: "081-68W-0239(b)",
         title: "Treat a Patient With Gastrointestinal Complaint",
         caution: 'All body fluids should be considered potentially infectious so always observe body substance isolation (BSI) precautions by wearing gloves and eye protection as a minimal standard of protection.',
         conditions: 'In an operational environment you must treat a patient with an abdominal complaint. You have performed a patient care handwash and taken BSI precautions. You are provided with a stethoscope, a pen, SF 600 (Chronological Record of Medical Care), and the patient\'s medical record.',
@@ -2349,7 +2351,7 @@ export const trainingTaskData: readonly TaskTrainingData[] = [
     },
     // Medical Management: Treat a Radiation Casualty
     {
-        taskNumber: "081-000-0118",
+        taskNumber: "081-000-0118(b)",
         title: "Treat a Casualty With Chemical Biological Radiation Nuclear Exposure",
         caution: 'All body fluids should be considered potentially infectious so always observe body substance isolation precautions by wearing gloves and eye protection as a minimal standard of protection.',
         conditions: 'You are in an operational environment and are required to treat a casualty with symptoms consistent with radiological exposure. You have a fully stocked aid bag, intravenous (IV) administration equipment and fluids, oxygen, suction and ventilation equipment, selected medications, DD Form 1380 (Tactical Combat Casualty Care (TCCC) Card (Instructions)), or electronic medical record (EMR), and personal chemical protective equipment.',
@@ -3236,7 +3238,7 @@ export const trainingTaskData: readonly TaskTrainingData[] = [
         ],
     },
     {
-        taskNumber: '081-68W-0005',
+        taskNumber: '081-68W-0005(b)',
         title: 'Enforce Field Sanitation Measures',
         conditions: 'You are in an operational environment. You are required to enforce field sanitation measures. You will be provided a field sanitation kit which will include a wet bulb globe temperature device (WBGT), water purification chemicals, windchill chart, list of unit hazards, and hazardous noise mitigation equipment.',
         standards: 'Enforce field sanitation measures ensuring effective preventive measures are in place to mitigate threats from waterborne, foodborne, and waste-borne illnesses to include environmental threats in accordance with (IAW) TC 4-02.3, while adhering to all warnings and cautions, without error, using the GO/NO GO checklist.',
@@ -4215,7 +4217,7 @@ export const trainingTaskData: readonly TaskTrainingData[] = [
         ],
     },
     {
-        taskNumber: '081-000-0037',
+        taskNumber: '081-000-0037(b)',
         title: 'Treat a Thoracic Injury',
         caution: 'All body fluids should be considered potentially infectious so always observe body substance isolation precautions by wearing gloves and eye protection as a minimal standard of protection.',
         conditions: 'You are in an operational environment. You must treat a thoracic injury. You have a DD Form 1380 (Tactical Combat Casualty Care (TCCC) Card (Instructions) (Instructions)) or electronic medical record (EMR).',
@@ -4423,7 +4425,7 @@ export const trainingTaskData: readonly TaskTrainingData[] = [
         ],
     },
     {
-        taskNumber: '081-000-0040',
+        taskNumber: '081-000-0040(b)',
         title: 'Treat a Head Injury',
         warning: 'Treat casualties with any type of traumatic head injury or loss of consciousness as if they have a spinal injury.',
         caution: 'All body fluids should be considered potentially infectious so always observe body substance isolation precautions by wearing gloves and eye protection as a minimal standard of protection.',
@@ -4483,7 +4485,7 @@ export const trainingTaskData: readonly TaskTrainingData[] = [
         ],
     },
     {
-        taskNumber: '081-000-0049',
+        taskNumber: '081-000-0049(b)',
         title: 'Perform a Combat Casualty Assessment',
         caution: 'All body fluids should be considered potentially infectious so always observe body substance isolation precautions by wearing gloves and eye protection as a minimal standard of protection.',
         conditions: 'You are in an operational environment. You are required to perform a combat casualty assessment (CCA) on a casualty who is lying on the ground and appears to be wounded. You will need a fully stocked M9 or medical aid bag and DD Form 1380 (Tactical Combat Casualty Care (TCCC) Card (Instructions) (Instructions)).',
@@ -4776,7 +4778,7 @@ export const trainingTaskData: readonly TaskTrainingData[] = [
         ],
     },
     {
-        taskNumber: '081-000-0055',
+        taskNumber: '081-000-0055(b)',
         title: 'Perform Casualty Triage',
         caution: 'All body fluids should be considered potentially infectious. Always observe body substance isolation precautions by wearing gloves and eye protection as a minimal standard of protection.',
         conditions: 'You are in an operational environment. Perform casualty triage on multiple casualties with varying injuries.',
@@ -5290,7 +5292,7 @@ export const trainingTaskData: readonly TaskTrainingData[] = [
         ],
     },
     {
-        taskNumber: '081-68W-0168',
+        taskNumber: '081-68W-0168(b)',
         title: 'Treat Dental Emergencies',
         caution: 'All body fluids should be considered potentially infectious so always observe body substance isolation (BSI) precautions by wearing gloves and eye protection as a minimal standard of protection.',
         conditions: 'In an operational environment you have a patient who requires treatment for a dental emergency. You are provided with irrigating syringe, examination gloves, catch basin, sterile gauze sponge, and DD Form 1380 (Tactical Combat Casualty Care (TCCC) Card (Instructions) (Instructions)) or electronic medical record.',
@@ -5695,7 +5697,7 @@ export const trainingTaskData: readonly TaskTrainingData[] = [
         ],
     },
     {
-        taskNumber: '081-68W-0246',
+        taskNumber: '081-68W-0246(b)',
         title: 'Treat a Behavioral Emergency',
         warning: 'Be alert for personal safety or scene safety problems while providing treatment for a behavioral emergency. Do not isolate yourself from other sources of help.',
         caution: 'All body fluids should be considered potentially infectious so always observe body substance isolation precautions by wearing gloves and eye protection as a minimal standard of protection.',
@@ -5919,7 +5921,7 @@ export const trainingTaskData: readonly TaskTrainingData[] = [
         ],
     },
     {
-        taskNumber: '081-68W-0240',
+        taskNumber: '081-68W-0240(b)',
         title: 'Treat Common Eye Infections',
         caution: 'All body fluids should be considered potentially infectious so always observe body substance isolation (BSI) precautions by wearing gloves and eye protection as a minimal standard of protection.',
         conditions: 'In an operational environment you must treat a patient with symptoms of an eye disorder. You have performed a patient care handwash and taken BSI precautions. You are provided with a penlight, a Snellen visual acuity chart, disposable cotton-tipped applicators, a pen, and SF 600 (Chronological Record of Medical Care) or electronic medical record.',
@@ -5953,7 +5955,7 @@ export const trainingTaskData: readonly TaskTrainingData[] = [
         ],
     },
     {
-        taskNumber: '081-68W-0125',
+        taskNumber: '081-68W-0125(b)',
         title: 'Treat Skin Disorders',
         conditions: 'In an operational environment you have a patient with a skin disorder. You have identified the patient and have their medical records. You are provided with a standard fully stocked aid bag, pen, and SF 600 (Chronological Record of Medical Care). You have performed a patient care handwash and donned appropriate personal protective equipment. This task should not be trained in mission-oriented protective posture 4.',
         standards: 'Treat skin disorders in accordance with Tactical Combat Casualty Care (TCCC) Guidelines; by Joint Trauma System (JTS) Committee on Tactical Combat Casualty Care (CoTCCC), while adhering to all warnings and cautions, without error, using the task GO/NO GO checklist. DANGER: None. WARNING: None. CAUTION: All body fluids should be considered potentially infectious so always observe body substance isolation precautions by wearing gloves and eye protection as a minimal standard of protection.',
@@ -6860,7 +6862,7 @@ export const trainingTaskData: readonly TaskTrainingData[] = [
         ],
     },
     {
-        taskNumber: '081-000-0127',
+        taskNumber: '081-000-0127(b)',
         title: 'Treat an Open Abdominal Wound',
         conditions: 'In an operational environment you are required to treat a casualty with an open abdominal wound. You are providing with field dressings sterile abdominal dressings, cravats, scissors, gauze, saline solution, intravenous (IV) equipment, and DD Form 1380 (Tactical Combat Casualty Care (TCCC) Card (Instructions)) or electronic medical record. This task should not be trained in mission-oriented protective posture 4. This task should be trained under improvised explosive device threat conditions.',
         standards: 'Treat an open abdominal wound, with 100% accuracy and in accordance with Tactical Combat Casualty Care (TCCC) Guidelines. by Joint Trauma System Committee on Tactical Combat Casualty Care (CoTCCC), without error, using the task GO/NO GO checklist. DANGER: None. WARNING: Ensure all other more serious injuries have been assessed and treated prior to treating an open abdominal wound. CAUTION: All body fluids should be considered potentially infectious so always observe body substance isolation (BSI) precautions by wearing gloves and eye protection as a minimal standard of protection.',
@@ -7006,7 +7008,7 @@ export const trainingTaskData: readonly TaskTrainingData[] = [
         ],
     },
     {
-        taskNumber: '081-000-0044',
+        taskNumber: '081-000-0044(b)',
         title: 'Treat a Casualty with Burns',
         warning: 'Do not directly touch a casualty receiving a shock. To do so will conduct the current to you. This could cause death to the person rendering aid, as well. Electrical shock may cause the casualty to go into cardiac arrhythmia or arrest. Initiate cardiopulmonary resuscitation (CPR) as appropriate. Casualties of lightning strikes may require prolonged CPR and extended respiratory support. A chemical will burn as long as it is in contact with the skin. Do not use a hard blast of water. Extreme water pressure can add mechanical injury to the skin.',
         caution: 'All body fluids should be considered potentially infectious so always observe body substance isolation precautions by wearing gloves and eye protection as a minimal standard of protection. Do not remove clothing that is stuck to the burned area. If the clothing and skin are still hot, irrigate with copious amounts of room-temperature water or cover with a wet dressing, if available. The swelling of burns on extremities can cause a tourniquet-like effect, and the swelling of a burned throat can impair breathing.',

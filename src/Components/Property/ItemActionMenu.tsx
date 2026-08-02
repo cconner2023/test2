@@ -79,7 +79,16 @@ function QtyField({
  * Quantity · PMCS · Share · Logistics · Delete) with the crowded actions collapsed
  * into two submenus so the menu can't outgrow a small viewport: Quantity groups
  * Split/Move · Merge · Expend; Logistics groups Mark-as-mine · Print label · Visual
- * ID · Stage turn-in. Co-locates its Split/Merge/Expend/PMCS overlays, the single-
+ * ID · Stage turn-in.
+ *
+ * An item STAGED FOR TURN-IN (sitting in the staging zone) gets a narrowed set — View ·
+ * Edit · Quantity · Share · Delete: PMCS and the whole Logistics group are about keeping
+ * an asset, and this one is leaving. Quantity stays because Split/Move is how a line comes
+ * back off the run (the move un-stages it), though Merge drops out of it — see
+ * mergeCandidates. Derived from the item's own location, so every surface hosting this
+ * menu narrows identically without passing a flag.
+ *
+ * Co-locates its Split/Merge/Expend/PMCS overlays, the single-
  * item label print (stock choice + PDF preview), and the share picker. Mounted ONCE
  * by PropertyPanel and driven imperatively (openMenu)
  * from every surface — the location tree, the sign-out (Custody) tab, and the item
@@ -131,6 +140,14 @@ export const ItemActionMenu = forwardRef<ItemActionMenuHandle, ItemActionMenuPro
   // store mutates (compensates for not receiving the item as a per-render prop).
   const item = active ? (items.find(i => i.id === active.item.id) ?? active.item) : null
 
+  // A line sitting in the turn-in staging zone is a DA 3161 row awaiting a depot run, not
+  // ordinary stock on a shelf — the menu narrows to what still applies to it (see below).
+  const turnInZoneIds = useMemo(
+    () => new Set(locations.filter(l => l.is_turn_in_zone).map(l => l.id)),
+    [locations],
+  )
+  const stagedForTurnIn = !!item?.location_id && turnInZoneIds.has(item.location_id)
+
   const { exportLabels, labelPreview, downloadLabels, clearLabelPreview, status: labelExportStatus } = usePropertyLabelExport()
   const printLabel = (geometry: LabelPresetKey) => {
     if (!item) return
@@ -159,15 +176,19 @@ export const ItemActionMenu = forwardRef<ItemActionMenuHandle, ItemActionMenuPro
     )
   }
 
+  // Merging is refused in BOTH directions for a staged line: its turn_in ledger row names an
+  // item and a quantity, so absorbing it away (the row's item ceases) or growing it (the row
+  // understates what is going to the depot) leaves the DA 3161 describing something else.
   const mergeCandidates = useMemo(() =>
-    item
+    item && !stagedForTurnIn
       ? items.filter(i =>
           i.id !== item.id &&
           !i.is_serialized &&
+          !(i.location_id && turnInZoneIds.has(i.location_id)) &&
           i.name.toLowerCase() === item.name.toLowerCase()
         )
       : [],
-    [items, item]
+    [items, item, stagedForTurnIn, turnInZoneIds]
   )
 
   const splitMergeTarget = useMemo(() =>
@@ -228,7 +249,11 @@ export const ItemActionMenu = forwardRef<ItemActionMenuHandle, ItemActionMenuPro
   if (!item) return null
 
   const splitTitle = item.quantity > 1 ? 'Split / Move' : 'Move to Location'
-  const otherLocations = locations.filter(l => l.id !== item.location_id)
+  // The turn-in staging zone is never a move DESTINATION: the only way into a depot run is
+  // "Stage for turn-in" (which writes the DA 3161 ledger row). A plain move in would leave
+  // stock sitting in the zone with no pending row — present on the surface, absent from the
+  // document. Moving OUT is unrestricted, and is how a line leaves the run.
+  const otherLocations = locations.filter(l => l.id !== item.location_id && !l.is_turn_in_zone)
 
   const mergeHint = splitMergeTarget ? (
     <p className="text-[10pt] text-secondary">
@@ -259,9 +284,11 @@ export const ItemActionMenu = forwardRef<ItemActionMenuHandle, ItemActionMenuPro
       : []),
   ]
 
-  // Asset-admin actions (ownership, visual ID, turn-in, single-item label print)
-  // collapse under one "Logistics" row.
-  const logisticsChildren: ContextMenuItem[] = [
+  // Asset-admin actions (ownership, visual ID, turn-in, single-item label print) collapse
+  // under one "Logistics" row. NONE of it applies to a line already staged for turn-in:
+  // it is leaving the books, so there is no ownership to re-file, no label to affix, no
+  // fingerprint worth enrolling — and it cannot be staged for a turn-in it is already on.
+  const logisticsChildren: ContextMenuItem[] = stagedForTurnIn ? [] : [
     ...(currentUserId ? [{
       key: 'ownership',
       label: isMine ? 'Mark as cluster property' : 'Mark as mine',
@@ -311,7 +338,9 @@ export const ItemActionMenu = forwardRef<ItemActionMenuHandle, ItemActionMenuPro
             ...(onView && active?.showView ? [{ key: 'view', label: 'View', icon: Eye, onAction: () => onView(item) } as ContextMenuItem] : []),
             ...(onEdit ? [{ key: 'edit', label: 'Edit', icon: Pencil, onAction: () => onEdit(item) } as ContextMenuItem] : []),
             ...(quantityChildren.length > 0 ? [{ key: 'quantity', label: 'Quantity', icon: Boxes, submenu: quantityChildren } as ContextMenuItem] : []),
-            { key: 'pmcs', label: 'PMCS', icon: Wrench, onAction: () => setShowPmcs(true) },
+            // PMCS is a serviceability check on equipment you are keeping — a staged line is
+            // on its way to the depot, and its condition code is already fixed on the 3161.
+            ...(!stagedForTurnIn ? [{ key: 'pmcs', label: 'PMCS', icon: Wrench, onAction: () => setShowPmcs(true) } as ContextMenuItem] : []),
             { key: 'share', label: 'Share to chat', icon: MessageSquare, onAction: handleShareToChat },
             ...(logisticsChildren.length > 0 ? [{ key: 'logistics', label: 'Logistics', icon: Package, submenu: logisticsChildren } as ContextMenuItem] : []),
             ...(onDelete && canDelete ? [{ key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => onDelete(item) } as ContextMenuItem] : []),

@@ -14,7 +14,7 @@ import { isPinEnabled, hydrateFromCloud, removePin, initPinService } from '../li
 import { removeBiometric } from '../lib/biometricService'
 import { clearServiceWorkerCaches } from '../lib/cacheService'
 import { clearPasswordVerification } from '../lib/authService'
-import { prefetchBarcodeKey, clearKeyStore } from '../lib/cryptoService'
+import { prefetchBarcodeKey, prefetchClinicKey, clearKeyStore } from '../lib/cryptoService'
 import { startHeartbeat, stopHeartbeat } from '../lib/activityHeartbeat'
 import { initSignalBundle, clearPersistedDeviceRole } from '../lib/signal/signalInit'
 import { clearSignalKeys, destroySignalKeys, getLocalDeviceId } from '../lib/signal/keyManager'
@@ -42,7 +42,8 @@ import { unsubscribeFromPush, resyncPushSubscription } from '../lib/pushNotifica
 import { LORA_MESH_ENABLED } from '../lib/featureFlags'
 import { registerSessionCleanup, updateCleanupToken, updateCleanupDeviceId, updateCleanupIsPrimary } from '../lib/sessionCleanup'
 import { attemptSilentRestore } from '../lib/sessionRestore'
-import type { User } from '@supabase/supabase-js'
+import { deferWhileHolding } from '../lib/authLinkGate'
+import type { User, Session } from '@supabase/supabase-js'
 import type { UserTypes, TextExpander } from '../Data/User'
 import type { AvatarBlob } from '../Types/SupervisorTestTypes'
 import type { DeviceRole } from '../lib/signal/transportTypes'
@@ -104,6 +105,13 @@ interface AuthState {
   isSupervisorRole: boolean
   isProviderRole: boolean
   isPasswordRecovery: boolean
+  /**
+   * True while any LockGate overlay is up. Set by LockGate, read by
+   * PasswordResetOverlay so the two recovery surfaces are mutually exclusive:
+   * behind a lock the reset is owned by RecoveryPasswordSetScreen, which grants
+   * no app access and does not preserve the vault.
+   */
+  lockActive: boolean
   /** True for newly approved accounts that haven't set a permanent password yet. */
   needsPasswordSetup: boolean
   /**
@@ -151,6 +159,18 @@ interface AuthActions {
   setVaultKeyPromptNeeded: (value: boolean) => void
   /** Set the supervisor's active clinic context. No-op if id is not in caller's reach. */
   setSupervisingClinic: (clinicId: string) => void
+  /** Track whether a lock overlay is up. LockGate owns this. */
+  setLockActive: (value: boolean) => void
+  /**
+   * Destroy this browser's local identity WITHOUT touching the live Supabase
+   * session, for the account-switch path where a foreign auth link has already
+   * replaced the token. signOut() cannot be used there: its server-side cleanup
+   * (unregisterDevice / deleteKeyBundle / primaryLogoutAll / createBackup) is
+   * keyed on the outgoing user but authenticated with whatever token is live, so
+   * it would fire the incumbent's cleanup as the incoming account. The incumbent's
+   * server-side device rows are deliberately left stale.
+   */
+  discardLocalIdentity: () => Promise<void>
 }
 
 // ---- Local Session helpers ----
@@ -160,8 +180,10 @@ interface AuthActions {
 let _userInitiatedSignOut = false
 let _pendingSignOutCleanup: Promise<void> | null = null
 
-/** Sync load from localStorage for instant hydration (prevents login screen flash). */
-function loadLocalSessionSync(): LocalSession | null {
+/** Sync load from localStorage for instant hydration (prevents login screen flash).
+ *  Exported so the boot-time auth-link exchange can name the incumbent account
+ *  before it spends the token (App.tsx). */
+export function loadLocalSessionSync(): LocalSession | null {
   try {
     const raw = localStorage.getItem(LOCAL_SESSION_KEY)
     if (raw && !raw.startsWith('enc:')) {
@@ -954,6 +976,7 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
   isSupervisorRole: cachedRoles?.roles.includes('supervisor') ?? false,
   isProviderRole: cachedRoles?.roles.includes('provider') ?? false,
   isPasswordRecovery: readPwResetPending(),
+  lockActive: false,
   needsPasswordSetup: false,
   clinicTextExpanders: [],
   clinicPlanOrderTags: null,
@@ -1010,9 +1033,7 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
     // Register browser-mode cleanup (no-ops if PWA)
     registerSessionCleanup()
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
+    const applyAuthEvent = (event: string, session: Session | null) => {
       if (event === 'SIGNED_OUT') {
         // Capture role BEFORE clearing state (handleSignedOut nulls it)
         const wasPrimary = get().deviceRole === 'primary'
@@ -1021,16 +1042,30 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
         set({ user: session.user, isGuest: false, needsReauth: false })
         handleSignedIn(session.user.id, session, event)
       }
-      if (event === 'INITIAL_SESSION') {
-        set({ loading: false })
+    }
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      // Released before the gate check so a held link still paints its own screen
+      // instead of parking the app on the loading gate until LockGate's timeout.
+      if (event === 'INITIAL_SESSION') set({ loading: false })
+
+      // An auth-email link opened on a browser that already holds a DIFFERENT
+      // account must not reach the store: nothing here compares the incoming user
+      // to localSession, so accepting it would run handleSignedIn against the
+      // incumbent's IDB. The gate parks the event until the user chooses, then
+      // either replays it or discards it. See lib/authLinkGate.ts.
+      if (deferWhileHolding(() => applyAuthEvent(event, session))) return
+      applyAuthEvent(event, session)
+
+      if (event === 'INITIAL_SESSION' && !session) {
         // No active session on app open — check if we can restore from localSession
-        if (!session) {
-          const ls = get().localSession
-          if (ls && navigator.onLine) {
-            attemptSilentRestore(ls).then(result => {
-              if (result === 'needs-reauth') set({ needsReauth: true })
-            })
-          }
+        const ls = get().localSession
+        if (ls && navigator.onLine) {
+          attemptSilentRestore(ls).then(result => {
+            if (result === 'needs-reauth') set({ needsReauth: true })
+          })
         }
       }
     })
@@ -1139,10 +1174,34 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
     set({ vaultKeyPromptNeeded: value })
   },
 
+  setLockActive: (value) => {
+    set({ lockActive: value })
+  },
+
+  discardLocalIdentity: async () => {
+    // handleSignedOut's deliberate branch is purely local — every server call
+    // lives in signOut() above, which is why this can reuse the event without
+    // firing the outgoing user's device cleanup as the incoming account.
+    // The caller must drop the link gate first, or the SIGNED_OUT that drives
+    // the wipe is parked instead of applied.
+    _userInitiatedSignOut = true
+    await supabase.auth.signOut({ scope: 'local' })
+    if (_pendingSignOutCleanup) {
+      try { await _pendingSignOutCleanup } catch { /* allSettled inside, but be defensive */ }
+      _pendingSignOutCleanup = null
+    }
+  },
+
   setSupervisingClinic: (clinicId) => {
     const { clinicId: assigned, surrogateClinicIds: surrogates } = get()
     if (clinicId !== assigned && !surrogates.includes(clinicId)) return
     set({ supervisingClinicId: clinicId })
+    // Cache the key for the cluster now, while the toggle is a deliberate online
+    // act. Audit events are sealed with the SUPERVISING clinic's key, so without
+    // this the first grade in a loaned cluster is the thing that discovers the
+    // key is missing — and a supervisor grading in a bay with no signal has no
+    // way to fetch it then.
+    void prefetchClinicKey(clinicId)
     invalidate('clinics', 'users', 'training', 'calendar')
   },
 

@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, forwardRef, useImperativeHandle, type RefObject } from 'react'
-import { Pencil, Package, FolderPlus, Trash2, Layers, Wrench, Route, ClipboardList, QrCode, Rows3 } from 'lucide-react'
+import { Pencil, Package, FolderPlus, Trash2, Layers, Wrench, Route, ClipboardList, QrCode, Rows3, PackageMinus } from 'lucide-react'
 import { type ContextMenuItem } from '@/Components/primitives/ContextMenu'
 import { LiftedRowMenu } from '@/Components/primitives/LiftedRowMenu'
 import { PdfPreviewModal } from '../PdfPreviewModal'
@@ -117,16 +117,27 @@ function buildLocationMenuItems(opts: {
   onDD1750?: () => void
   /** Print a Data Matrix label for this zone. */
   onPrintLabel?: () => void
+  /** Verify the whole pending turn-in — depot accepted (turn-in zone only, staged stock). */
+  onCompleteTurnIn?: () => void
+  /** Un-stage everything back onto the books (turn-in zone only, staged stock). */
+  onRemoveTurnIn?: () => void
 }): ContextMenuItem[] {
   const isVehicle = opts.location.kind === 'vehicle'
-  // The turn-in staging zone is a LIST of what is going to the depot, not a place: none
-  // of the zone verbs (new item / new area / add level / bulk-edit stock / delete) apply
-  // to it. Its Edit curates the list instead — see TurnInZoneEditor.
+  // The turn-in staging zone is a LIST of what is going to the depot, not a place: none of
+  // the zone verbs (edit properties / new item / new area / add level / bulk-edit stock /
+  // delete) apply to it. What it carries instead are the two whole-doc DA 3161 verbs — this
+  // zone IS the pending turn-in, so it owns them. There is no bulk curation: a line leaves
+  // the run by being moved to another zone like any other stock (the move un-stages it).
   if (opts.location.is_turn_in_zone) {
     return [
-      { key: 'edit', label: 'Edit', icon: Pencil, onAction: opts.onEdit },
+      ...(opts.onCompleteTurnIn
+        ? [{ key: 'complete-turnin', label: 'Complete turn-in', icon: PackageMinus, onAction: opts.onCompleteTurnIn } as ContextMenuItem]
+        : []),
       ...(opts.onDD1750
         ? [{ key: 'dd1750', label: 'DD 1750', icon: ClipboardList, onAction: opts.onDD1750 } as ContextMenuItem]
+        : []),
+      ...(opts.onRemoveTurnIn
+        ? [{ key: 'remove-turnin', label: 'Remove turn-in', icon: Trash2, destructive: true, onAction: opts.onRemoveTurnIn } as ContextMenuItem]
         : []),
     ]
   }
@@ -180,6 +191,11 @@ interface LocationActionMenuProps {
   /** Whether delete is offered at all (host has a delete flow). The default cluster
    *  zone (BAS) is a standing concept and is never deletable regardless. */
   canDelete?: boolean
+  /** Verify the whole pending DA 3161 (depot accepted) — offered on the turn-in staging
+   *  zone only, and only while it holds staged stock. Confirms host-side. */
+  onCompleteTurnIn?: () => void
+  /** Un-stage the whole pending DA 3161 back onto the books — same gating as Complete. */
+  onRemoveTurnIn?: () => void
 }
 
 /**
@@ -193,7 +209,7 @@ interface LocationActionMenuProps {
  * delete confirm) call the props.
  */
 export const LocationActionMenu = forwardRef<LocationActionMenuHandle, LocationActionMenuProps>(
-  function LocationActionMenu({ items, locations, containerRef, onEdit, onNewItem, onNewArea, onAddLevel, onEditItems, onDelete, canDelete }, ref) {
+  function LocationActionMenu({ items, locations, containerRef, onEdit, onNewItem, onNewArea, onAddLevel, onEditItems, onDelete, canDelete, onCompleteTurnIn, onRemoveTurnIn }, ref) {
   // The LATCHED subject: survives the menu closing so an open sheet keeps its zone.
   const [active, setActive] = useState<LocalPropertyLocation | null>(null)
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null)
@@ -223,6 +239,13 @@ export const LocationActionMenu = forwardRef<LocationActionMenuHandle, LocationA
     !!location && items.some(i =>
       i.location_id === location.id && !i.deleted_at && !i.turned_in_at &&
       !isLinContainer(i) && !isAuthTarget(i) && !isZoneShadow(i)
+    ), [items, location])
+
+  // The turn-in zone's contents ARE the pending DA 3161, so an EMPTY zone has no doc to
+  // complete or drop — the two turn-in verbs drop out rather than showing dimmed.
+  const hasStagedStock = useMemo(() =>
+    !!location?.is_turn_in_zone && items.some(i =>
+      i.location_id === location.id && !i.deleted_at && !i.turned_in_at
     ), [items, location])
 
   // DD 1750 = this zone as the END ITEM plus everything packed inside it, recursively.
@@ -268,6 +291,8 @@ export const LocationActionMenu = forwardRef<LocationActionMenuHandle, LocationA
             onDispatch: () => setShowDispatch(true),
             onDD1750: () => setShowDD1750(true),
             onPrintLabel: handlePrintLabel,
+            onCompleteTurnIn: hasStagedStock ? onCompleteTurnIn : undefined,
+            onRemoveTurnIn: hasStagedStock ? onRemoveTurnIn : undefined,
           })}
         />
       )}

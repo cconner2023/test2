@@ -9,6 +9,7 @@ import { getWarmRoster, setWarmRoster, getWarmOutsideContactOn, setWarmOutsideCo
 import { IntakeMintSection } from './IntakeMintSection'
 import { ToggleSwitch } from './ToggleSwitch'
 import { UserAvatar } from './UserAvatar'
+import { PageSectionHeader } from '@/Components/primitives/Section'
 
 /**
  * Messaging-settings on-call surface — the clinic-management Outside-contact +
@@ -98,9 +99,7 @@ export function MessagingOncallSettings() {
       {/* ── On-call roster (everyone) — only once an outside channel is on ── */}
       {outsideContactOn && (
       <section>
-        <div className="pb-2 flex items-center gap-2">
-          <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">On-call</p>
-        </div>
+        <PageSectionHeader>On-call</PageSectionHeader>
 
         {selfOnCall && (
           <div className="mb-2 flex items-center gap-2 px-3 py-2 rounded-xl bg-themegreen/10 border border-themegreen/20">

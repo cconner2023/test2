@@ -1,13 +1,13 @@
 import { useState, useMemo, useRef, useEffect, forwardRef, useImperativeHandle, type RefObject } from 'react'
 import { MapPin, FileText, RotateCcw, Pencil, Trash2 } from 'lucide-react'
-import { SectionCard } from '@/Components/primitives/Section'
+import { TreeRow, TreeRowCount } from '@/Components/primitives/TreeRow'
 import { PreviewOverlay } from '../PreviewOverlay'
 import { LiftedRowMenu } from '@/Components/primitives/LiftedRowMenu'
 import { type ContextMenuItem } from '@/Components/primitives/ContextMenu'
 import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
 import { useHandReceiptActions } from '../../Hooks/useHandReceiptActions'
 import type { ReceiptItem, HandReceiptData } from '../../Hooks/useHandReceipts'
-import { ROOT_LOCATION_NAME, type HandReceipt } from '../../Types/PropertyTypes'
+import { ROOT_LOCATION_NAME, TURN_IN_ZONE_NAME, type HandReceipt } from '../../Types/PropertyTypes'
 
 export interface Da2062DetailHandle {
   /** Open the action menu (Edit / Sign in / Print 2062 / Delete) anchored to the host
@@ -51,11 +51,13 @@ interface Da2062DetailProps {
  * header (the menu opens via the openMenu handle); the body is the receipt's item
  * rows.
  *
- * This pane is READ ONLY, and its rows are text only — name ×qty over the item's S/N
- * or NSN. No per-row icon, and NOT the item's usual zone: this pane answers "what is
- * on this 2062", and a location the receipt doesn't govern (the item is signed OUT —
- * it is wherever the holder took it) reads as an identifier of the line when it isn't
- * one. Tap still locates the item on the map.
+ * This pane is READ ONLY, and its rows are the surfaceless TreeRow list the cluster
+ * reports use (Shortages / Authorized) rather than a card stack — name over the item's
+ * S/N or NSN, its quantity trailing. A card frame would read as content when the row
+ * is only a handle into the map. No per-row icon, and NOT the item's usual zone: this
+ * pane answers "what is on this 2062", and a location the receipt doesn't govern (the
+ * item is signed OUT — it is wherever the holder took it) reads as an identifier of the
+ * line when it isn't one. Tap still locates the item on the map.
  *
  * The More menu is Edit · Sign in · Print 2062 · Delete, both Edit and Sign in only
  * while the receipt is OPEN. Edit hands off to the host, which swaps this pane for
@@ -97,11 +99,14 @@ export const Da2062Detail = forwardRef<Da2062DetailHandle, Da2062DetailProps>(
     }, [signInIntent, receipt, setPendingSignIn])
 
     // Destination zones for the sign-in placement picker — "where does it land now"
-    // (no original-location restore; the user picks). Excludes the invisible root.
+    // (no original-location restore; the user picks). Excludes the invisible root and the
+    // turn-in staging zone: signing property in is not how it joins a depot run ("Stage for
+    // turn-in" is, because that writes the DA 3161 row), so it is not a destination here.
+    // Matched by name — this map carries names only, and both zones are system-named.
     const zoneOptions = useMemo(
       () =>
         [...locationNameById.entries()]
-          .filter(([, name]) => name !== ROOT_LOCATION_NAME)
+          .filter(([, name]) => name !== ROOT_LOCATION_NAME && name !== TURN_IN_ZONE_NAME)
           .map(([id, name]) => ({ id, name }))
           .sort((a, b) => a.name.localeCompare(b.name)),
       [locationNameById],
@@ -121,34 +126,24 @@ export const Da2062Detail = forwardRef<Da2062DetailHandle, Da2062DetailProps>(
     ]
 
     return (
-      <div className="flex flex-col h-full px-3 py-3 space-y-3">
-        <SectionCard>
+      <div className="flex flex-col h-full py-3 gap-2">
+        <div className="flex flex-col py-1">
           {receipt.entries.map((e) => {
             const item = itemsById.get(e.item_id)
             const qty = Math.max(1, e.quantity_delta ?? 1)
+            // Only the serial keeps a prefix — a bare NSN can't be mistaken for one. A
+            // line carrying neither drops the subline rather than saying so.
             return (
-              <button
+              <TreeRow
                 key={e.id}
-                onClick={() => item && onLocateItem(item)}
-                className="w-full px-4 py-2.5 text-left border-b border-primary/6 last:border-b-0 active:opacity-70"
-              >
-                <p className="text-sm text-primary truncate">
-                  {item?.name ?? 'Unknown item'}
-                  {qty > 1 && (
-                    <span className="ml-1.5 text-[10pt] font-medium text-tertiary tabular-nums">×{qty}</span>
-                  )}
-                </p>
-                <p className="text-[9pt] text-tertiary mt-0.5 truncate">
-                  {item?.serial_number
-                    ? `S/N ${item.serial_number}`
-                    : item?.nsn
-                      ? `Material/NSN ${item.nsn}`
-                      : 'No Material/NSN'}
-                </p>
-              </button>
+                title={item?.name ?? 'Unknown item'}
+                sub={[item?.serial_number ? `S/N ${item.serial_number}` : item?.nsn]}
+                trailing={<TreeRowCount>×{qty}</TreeRowCount>}
+                onTap={() => item && onLocateItem(item)}
+              />
             )
           })}
-        </SectionCard>
+        </div>
 
         {/* Action menu — opened from the host header ellipsis (openMenu handle). */}
         {menuAnchor && (

@@ -115,6 +115,27 @@ export interface AdminCacheEntry {
   ts: number
 }
 
+/**
+ * Delta cursor for one audit read scope (a clinic+domain or subject pull).
+ *
+ * The high-water mark CANNOT be derived from the cached rows themselves: every
+ * scope shares the one `auditLog` store, so a narrow subject pull caches rows
+ * with high seq values that a wider clinic+domain pull has never seen. Taking
+ * max(seq) over the store would advance that wider cursor past the gap and skip
+ * those events forever. One cursor per scope, advanced only by that scope's own
+ * pull, is the only correct reading.
+ *
+ * Cleared wherever the rows it describes are cleared (sign-out, clinic
+ * eviction) — a surviving cursor over a purged cache is the same gap.
+ */
+export interface AuditCursorEntry {
+  /** Scope key: `clinic|<clinicId>|<domain>` or `subject|<clinicId>|<subjectId>`. */
+  key: string
+  /** Highest server `seq` this scope has pulled. */
+  seq: number
+  ts: number
+}
+
 // ---- Database Schema ----
 
 export interface SyncQueueItem {
@@ -227,6 +248,20 @@ export interface LocalAuditLog extends LocalSyncMeta {
   subject_id: string
   occurred_at: string
   payload_enc: string | null
+  /**
+   * Plaintext payload, held ONLY while the event is waiting on a clinic key.
+   * emitAudit sets it when encryption could not run, so the fold still sees the
+   * event offline and flushDeferredAudit has something to encrypt later; the
+   * flush clears it the moment payload_enc exists. It is never enqueued, so it
+   * never reaches the wire — this store is already secureStorage-encrypted.
+   */
+  payload_plain?: Record<string, unknown> | null
+  /**
+   * Which write the flush must re-issue for a deferred row. An edit deferred
+   * offline is still an `update` — replaying it as a `create` would collide on
+   * the primary key and strand the correction.
+   */
+  _deferred_action?: 'create' | 'update'
   created_at: string
 }
 
@@ -384,7 +419,12 @@ interface PackageBackEndDB extends DBSchema {
       'by-clinic': string
       'by-subject': string
       'by-clinic-sync': [string, string]
+      'by-sync': string
     }
+  }
+  auditCursors: {
+    key: string
+    value: AuditCursorEntry
   }
   trainingCalendarLinks: {
     key: string
@@ -396,7 +436,7 @@ interface PackageBackEndDB extends DBSchema {
 }
 
 const DB_NAME = 'packagebackend-offline'
-const DB_VERSION = 19
+const DB_VERSION = 21
 
 let dbInstance: IDBPDatabase<PackageBackEndDB> | null = null
 
@@ -595,6 +635,23 @@ export async function getDb(): Promise<IDBPDatabase<PackageBackEndDB>> {
       // "Subordinate Units" cards.
       if (oldVersion < 19) {
         db.createObjectStore('echelonSummaries', { keyPath: 'source_clinic_id' })
+      }
+
+      // v19 → v20: per-scope audit delta cursors. Starting empty is correct —
+      // a missing cursor reads as seq 0, so the first pull after the upgrade is
+      // a full one and re-caches what is already there (append-only, keyed by
+      // id, so it cannot duplicate).
+      if (oldVersion < 20) {
+        db.createObjectStore('auditCursors', { keyPath: 'key' })
+      }
+
+      // v20 → v21: sync-status index on auditLog. The encrypt-or-defer flush has
+      // to find parked rows across EVERY clinic (an event is stamped with the
+      // clinic its actor was supervising), and the existing by-clinic-sync index
+      // cannot answer that without a clinic to key on. Runs on the 30s sync tick,
+      // so the alternative — a full-store scan — is not one.
+      if (oldVersion < 21) {
+        transaction.objectStore('auditLog').createIndex('by-sync', '_sync_status')
       }
     },
   })
@@ -1013,6 +1070,67 @@ export async function updateTrainingCompletionSyncStatus(
 export async function getLocalAuditLogs(clinicId: string): Promise<LocalAuditLog[]> {
   const db = await getDb()
   return db.getAllFromIndex('auditLog', 'by-clinic', clinicId)
+}
+
+/** Get all local audit events for a clinic in one domain, oldest first. */
+export async function getLocalAuditLogsByClinicDomain(
+  clinicId: string,
+  domain: string,
+): Promise<LocalAuditLog[]> {
+  const db = await getDb()
+  const rows = await db.getAllFromIndex('auditLog', 'by-clinic', clinicId)
+  return rows
+    .filter((r) => r.domain === domain)
+    .sort((a, b) => {
+      if (a.seq != null && b.seq != null) return a.seq - b.seq
+      return new Date(a.occurred_at).getTime() - new Date(b.occurred_at).getTime()
+    })
+}
+
+/**
+ * Audit events parked in 'error' state — the encrypt-or-defer backlog. Scoped to
+ * one clinic, or every clinic when `clinicId` is omitted; the flush wants the
+ * unscoped read because an event is stamped with the clinic the actor was
+ * SUPERVISING when they wrote it, which is not necessarily their own.
+ *
+ * Only rows still carrying a plaintext payload are returned: a row without one
+ * has nothing left to encrypt, so the flush would spin forever on an event it
+ * can never complete.
+ */
+export async function getDeferredAuditLogs(clinicId?: string): Promise<LocalAuditLog[]> {
+  const db = await getDb()
+  const rows = clinicId
+    ? await db.getAllFromIndex('auditLog', 'by-clinic-sync', [clinicId, 'error'])
+    : await db.getAllFromIndex('auditLog', 'by-sync', 'error')
+  return rows.filter((r) => r.payload_plain != null)
+}
+
+/** Read one scope's audit delta cursor. Missing = never pulled = seq 0. */
+export async function getAuditCursor(key: string): Promise<number> {
+  try {
+    const db = await getDb()
+    return (await db.get('auditCursors', key))?.seq ?? 0
+  } catch (error) {
+    logger.warn('getAuditCursor failed:', error)
+    return 0
+  }
+}
+
+/**
+ * Advance a scope's cursor. Monotonic by construction — a pull that returns
+ * nothing (or fails, and so returns nothing) must never rewind the mark and
+ * re-pull events already cached.
+ */
+export async function putAuditCursor(key: string, seq: number): Promise<void> {
+  try {
+    const db = await getDb()
+    const current = (await db.get('auditCursors', key))?.seq ?? 0
+    if (seq <= current) return
+    await db.put('auditCursors', { key, seq, ts: Date.now() })
+  } catch (error) {
+    // Best effort: a dropped cursor costs one redundant full pull, not data.
+    logger.warn('putAuditCursor failed:', error)
+  }
 }
 
 /** Get all local audit events about a subject (user/item/algorithm), oldest first. */
@@ -1464,7 +1582,7 @@ export async function deleteLocalMapOverlay(overlayId: string): Promise<void> {
  */
 export async function purgeClinicScopedData(clinicId: string): Promise<void> {
   const db = await getDb()
-  const stores = ['mapOverlays', 'propertyItems', 'propertyLocations'] as const
+  const stores = ['mapOverlays', 'propertyItems', 'propertyLocations', 'auditLog'] as const
   for (const storeName of stores) {
     try {
       const ids = await db.getAllKeysFromIndex(storeName, 'by-clinic', clinicId)
@@ -1476,6 +1594,20 @@ export async function purgeClinicScopedData(clinicId: string): Promise<void> {
     } catch (e) {
       logger.warn(`Failed to purge ${storeName} for clinic ${clinicId}:`, e)
     }
+  }
+
+  // Cursors describe the rows just deleted. Leaving one behind would make the
+  // next pull for a re-granted clinic resume mid-stream against an empty cache.
+  try {
+    const keys = await db.getAllKeys('auditCursors')
+    const stale = keys.filter((k) => String(k).includes(clinicId))
+    if (stale.length > 0) {
+      const tx = db.transaction('auditCursors', 'readwrite')
+      for (const k of stale) tx.store.delete(k)
+      await tx.done
+    }
+  } catch (e) {
+    logger.warn(`Failed to purge audit cursors for clinic ${clinicId}:`, e)
   }
 }
 
@@ -1503,12 +1635,15 @@ export async function clearTileCache(): Promise<void> {
 export async function clearAllUserData(): Promise<void> {
   const db = await getDb()
   const tx = db.transaction(
-    ['syncQueue', 'trainingCompletions', 'propertyItems', 'propertyLocations', 'propertyDiscrepancies', 'custodyLedger', 'locationTags', 'locationTagCanvasMeta', 'mapOverlays', 'cachedTiles', 'tileMetadata', 'featureVoteCycles', 'featureVoteCandidates', 'featureVotes', 'featureVoteSuggestions', 'auditLog', 'trainingCalendarLinks'],
+    ['syncQueue', 'trainingCompletions', 'propertyItems', 'propertyLocations', 'propertyDiscrepancies', 'custodyLedger', 'locationTags', 'locationTagCanvasMeta', 'mapOverlays', 'cachedTiles', 'tileMetadata', 'featureVoteCycles', 'featureVoteCandidates', 'featureVotes', 'featureVoteSuggestions', 'auditLog', 'auditCursors', 'trainingCalendarLinks'],
     'readwrite',
   )
   await tx.objectStore('syncQueue').clear()
   await tx.objectStore('trainingCompletions').clear()
   await tx.objectStore('auditLog').clear()
+  // Must go with auditLog — a cursor outliving its rows resumes mid-stream
+  // against an empty cache and the skipped events never arrive.
+  await tx.objectStore('auditCursors').clear()
   await tx.objectStore('trainingCalendarLinks').clear()
   await tx.objectStore('propertyItems').clear()
   await tx.objectStore('propertyLocations').clear()

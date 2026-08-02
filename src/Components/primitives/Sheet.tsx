@@ -23,9 +23,19 @@
 // fades in. Phases: enter → collapse → hud → expand → done. Consumers that never
 // pass `loading` are byte-identical to before (gated on the prop being present).
 //
+// GEOMETRY — edge-to-edge, pinned to the bottom edge, top corners rounded only.
+// This is the SAME card shape Modal/ConfirmDialog render on mobile; Modal's mobile
+// branch now delegates here so there is one bottom-sheet surface, not two. The
+// earlier floating-inset card (left-2 right-2, four rounded corners, safe-area gap)
+// was retired 2026-07-30.
+// Because the card now sits UNDER the home indicator instead of floating above it,
+// the SHEET owns the bottom safe area: both scroll bodies pad by var(--sab). Consumers
+// keep their FIXED bottom pads (pb-4 etc.) — those are content spacing and do not
+// double-count. Never add var(--sab) in sheet content; that is the double-count.
+//
 // Always portals to document.body so it escapes a parent drawer's transformed,
 // glass-header-isolated stacking context (the original reason SubDrawer existed).
-import { useEffect, useRef, useState, useCallback, type ReactNode } from 'react';
+import { useEffect, useRef, useState, useCallback, useContext, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { animated } from '@react-spring/web';
 import { X, ChevronUp, ChevronDown } from 'lucide-react';
@@ -109,6 +119,14 @@ export function Sheet({
     hudSize = 88,
 }: SheetProps) {
     const isSnap = height === 'snap';
+
+    // Floor our z above any ancestor overlay's published ceiling, the same way
+    // BaseOverlay does. The Sheet has always PUBLISHED a ceiling (so pickers and
+    // confirms opened inside it stack above); it now also READS one, which is what
+    // makes a Sheet nested in a Sheet legal — required since Modal's mobile branch
+    // became a Sheet and ConfirmDialog rides Modal.
+    const parentCeiling = useContext(OverlayStackContext);
+    const effectiveZ = Math.max(zIndex, parentCeiling);
 
     // ── Shared mount / slide lifecycle (ported from SubDrawer) ──────────────
     const [isMounted, setIsMounted] = useState(false);
@@ -321,11 +339,11 @@ export function Sheet({
     const heightDvh = isSnap ? (isFull ? expanded : peek) : undefined;
 
     // Slide transform. Fit mode adds the live drag offset (px) on top of the
-    // slide; snap mode only slides. Hidden state tucks fully below the bottom
-    // inset gap (100% + the gap) so no sliver of the floating card peeks up.
+    // slide; snap mode only slides. The card is flush to the bottom edge, so a
+    // plain 100% tucks it fully offscreen (no inset gap left to clear).
     const translate = shown
         ? (fitDraggable && dragY ? `translateY(${dragY}px)` : 'translateY(0)')
-        : 'translateY(calc(100% + 1rem))';
+        : 'translateY(100%)';
 
     // ── Reusable 'fit' chrome + body (shared by classic + morph paths) ──────
     const fitChrome = (
@@ -381,7 +399,13 @@ export function Sheet({
             // down via transition-[…,height] — jarring). svh is the static small-viewport
             // unit, so the cap holds steady with the keyboard up. CSS-only per the plain-CSS
             // keyboard resolution (no JS viewport hooks — see the reverted useIOSKeyboard saga).
-            style={{ maxHeight: `calc(min(${maxHeight}svh, 100svh - 1.5rem) - ${fitChromeH}px)` }}
+            //
+            // paddingBottom is INSIDE the max-height (border-box), so the cap math is
+            // unchanged — the safe area eats content space rather than growing the card.
+            style={{
+                maxHeight: `calc(min(${maxHeight}svh, 100svh - 1.5rem) - ${fitChromeH}px)`,
+                paddingBottom: 'var(--sab, 0px)',
+            }}
         >
             {children}
         </div>
@@ -391,13 +415,13 @@ export function Sheet({
         // Publish a stack ceiling so pickers / modals / confirm dialogs opened
         // INSIDE the sheet (PreviewOverlay, BaseOverlay-based) auto-stack above
         // it, even though the sheet portals to body at a high z.
-        <OverlayStackContext.Provider value={zIndex + STACK_BUMP}>
+        <OverlayStackContext.Provider value={effectiveZ + STACK_BUMP}>
             {/* Backdrop — omitted entirely for 'none' so what's underneath stays
                 interactive. 'dismiss' closes on tap; 'block' is non-dismissing. */}
             {backdrop !== 'none' && (
                 <Scrim
                     progress={shown ? 1 : 0}
-                    zIndex={zIndex}
+                    zIndex={effectiveZ}
                     onClick={backdrop === 'dismiss' ? handleClose : undefined}
                 />
             )}
@@ -409,19 +433,24 @@ export function Sheet({
                 // container-transforms. HUD ↔ content crossfade rides the grow.
                 <div
                     ref={wrapRef}
-                    className="fixed left-2 right-2 flex justify-center transition-transform duration-300 ease-out"
+                    className="fixed left-0 right-0 flex justify-center transition-[transform,bottom] duration-300 ease-out"
                     style={{
-                        zIndex: zIndex + 1,
-                        bottom: 'max(0.5rem, calc(var(--sab, 0px) + 0.5rem))',
+                        zIndex: effectiveZ + 1,
+                        // The settled sheet is flush to the bottom edge, but the HUD puck
+                        // is a detached object and would read as broken half-sunk into it.
+                        // So the puck (and only the puck) keeps the old floating gap and
+                        // rides back down to 0 as it expands — the bottom + radius
+                        // transitions run over the same 300ms as the grow spring.
+                        bottom: isPuck ? 'max(0.5rem, calc(var(--sab, 0px) + 0.5rem))' : 0,
                         transform: translate,
                     }}
                 >
                     <animated.div
-                        className="relative bg-themewhite3 text-primary overflow-hidden"
+                        className="relative bg-themewhite3 text-primary overflow-hidden transition-[border-radius] duration-300 ease-out"
                         style={{
                             width: morph.width,
                             height: morph.height,
-                            borderRadius: '1.5rem',
+                            borderRadius: isPuck ? '1.5rem' : '1rem 1rem 0 0',
                             boxShadow: '0 4px 30px rgba(0, 0, 0, 0.12)',
                         }}
                         role="dialog"
@@ -449,19 +478,18 @@ export function Sheet({
             ) : (
                 // ── Classic card (snap, or settled/non-opted fit) ──
                 <div
-                    className={`fixed left-2 right-2 bg-themewhite3 text-primary flex flex-col overflow-hidden ${
+                    className={`fixed left-0 right-0 bottom-0 bg-themewhite3 text-primary flex flex-col overflow-hidden ${
                         isDragging ? '' : 'transition-[transform,height] duration-300 ease-out'
                     }`}
                     style={{
-                        zIndex: zIndex + 1,
-                        bottom: 'max(0.5rem, calc(var(--sab, 0px) + 0.5rem))',
+                        zIndex: effectiveZ + 1,
                         height: isSnap ? `${heightDvh}dvh` : undefined,
                         // fit cap uses svh (small viewport) so the iOS keyboard doesn't
                         // shrink the sheet on input focus — see fitBody note above. Must
                         // match fitBody's unit or the card and its scroll body disagree.
                         maxHeight: isSnap ? undefined : `min(${maxHeight}svh, calc(100svh - 1.5rem))`,
                         transform: translate,
-                        borderRadius: '1.5rem',
+                        borderRadius: '1rem 1rem 0 0',
                         boxShadow: '0 4px 30px rgba(0, 0, 0, 0.12)',
                     }}
                     role="dialog"
@@ -522,7 +550,7 @@ export function Sheet({
                                 onTouchEnd={onTouchEnd}
                                 onWheel={onWheel}
                                 className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain isolate"
-                                style={{ paddingTop: headerHeight }}
+                                style={{ paddingTop: headerHeight, paddingBottom: 'var(--sab, 0px)' }}
                             >
                                 {children}
                             </div>

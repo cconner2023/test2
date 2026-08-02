@@ -145,3 +145,20 @@ export async function startRecording(): Promise<RecordingController> {
     getAmplitude: computeRms,
   }
 }
+
+/**
+ * Clock-style duration for an audio length: `m:ss`.
+ *
+ * Five byte-identical copies of this lived across the Settings surfaces that show
+ * an audio length — the voicemail greeting row, the on-call greeting row, the call
+ * voicemail controls, the conversation info panel and the message bubble. They all
+ * format the same thing (a recording's seconds), so they share one definition here,
+ * next to the recorder that produces the number.
+ *
+ * Negative and fractional inputs are clamped and floored rather than trusted: the
+ * duration can arrive from a decoded blob whose metadata rounds oddly.
+ */
+export function formatAudioDuration(seconds: number): string {
+  const s = Math.max(0, Math.floor(seconds))
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
+}

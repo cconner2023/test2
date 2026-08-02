@@ -14,6 +14,8 @@ import { ActionButton } from '@/Components/primitives/ActionButton';
 import { Chip, ChipBar } from '@/Components/primitives/Chip';
 import type { PlanBlockState, PlanState } from '../Types/PlanTypes';
 import { FooterPill } from '@/Components/primitives/FooterPill'
+import { MedQtyStepper } from '@/Components/primitives/MedQtyStepper';
+import { formatMedNoteEntry, parseMedNoteEntry, effectiveMedQty, medTagLabel, planTagDisplay } from '@/Utilities/medTag';
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -93,7 +95,10 @@ function parseInitialText(
             if (trimmed.toUpperCase().startsWith(`${label.toUpperCase()}:`)) {
                 const rest = trimmed.slice(label.length + 1).trim();
                 const segments = rest.split(';').map(s => s.trim()).filter(Boolean);
-                const selected = [...new Set(segments)];
+                // Med segments arrive in note form ("Label, #10, 0rf"); fold them
+                // back to the stored pipe form so they match a configured tag.
+                const normalized = key === 'meds' ? segments.map(parseMedNoteEntry) : segments;
+                const selected = [...new Set(normalized)];
                 // Segments not in the provider's configured tags become custom
                 // tags so they render as removable/re-selectable chips.
                 for (const seg of selected) {
@@ -115,13 +120,19 @@ function parseInitialText(
 
 // ── Text generation ──────────────────────────────────────────
 
-function generateText(states: Record<PlanBlockKey, BlockState>, orderedKeys?: PlanBlockKey[]): string {
+function generateText(
+    states: Record<PlanBlockKey, BlockState>,
+    orderedKeys?: PlanBlockKey[],
+    medQty?: Record<string, number>,
+): string {
     const keys = orderedKeys ?? ALL_BLOCK_KEYS;
     const lines: string[] = [];
     for (const key of keys) {
         const s = states[key];
         if (s.status !== 'active') continue;
-        const parts: string[] = [...s.selectedTags];
+        const parts: string[] = key === 'meds'
+            ? s.selectedTags.map(t => formatMedNoteEntry(t, medQty?.[t]))
+            : [...s.selectedTags];
         if (s.freeText.trim()) parts.push(s.freeText.trim());
         if (parts.length === 0) continue;
         lines.push(`${BLOCK_LABELS[key]}: ${parts.join('; ')}`);
@@ -136,7 +147,11 @@ function generateText(states: Record<PlanBlockKey, BlockState>, orderedKeys?: Pl
  * generatePEText). customTags/activeSetIds are UI-only and don't affect text.
  */
 export function generatePlanText(planState: PlanState): string {
-    const body = generateText(planState.states, planState.blockOrder.length ? planState.blockOrder : undefined);
+    const body = generateText(
+        planState.states,
+        planState.blockOrder.length ? planState.blockOrder : undefined,
+        planState.medQty,
+    );
     const extra = (planState.additional ?? '').trim();
     return [body, extra].filter(Boolean).join('\n');
 }
@@ -159,8 +174,9 @@ export function parsePlanState(
 
 // ── Summary row (tap opens popover) ──────────────────────────
 
-function PlanBlockRow({ label, state, onTap, index, isDragging, dragOffset, onDragStart }: {
+function PlanBlockRow({ label, catKey, state, onTap, index, isDragging, dragOffset, onDragStart }: {
     label: string;
+    catKey: PlanBlockKey;
     state: BlockState;
     onTap: (index: number, rect: DOMRect) => void;
     index: number;
@@ -202,7 +218,10 @@ function PlanBlockRow({ label, state, onTap, index, isDragging, dragOffset, onDr
                         <p className="text-sm font-medium text-primary truncate">{label}</p>
                         {hasSummary && (
                             <p className="text-[9pt] text-primary mt-0.5 whitespace-normal break-words">
-                                {[...state.selectedTags, ...(state.freeText.trim() ? [state.freeText.trim()] : [])].join('; ')}
+                                {[
+                                    ...state.selectedTags.map(t => planTagDisplay(catKey, t)),
+                                    ...(state.freeText.trim() ? [state.freeText.trim()] : []),
+                                ].join('; ')}
                             </p>
                         )}
                     </>
@@ -220,10 +239,13 @@ interface ActiveItemEntry {
     catLabel: string;
 }
 
-function ActiveItemsCard({ items, onToggle, onReorder, bare = false }: {
+function ActiveItemsCard({ items, onToggle, onReorder, medQty, onQtyChange, bare = false }: {
     items: ActiveItemEntry[];
     onToggle: (catKey: string, tag: string) => void;
     onReorder: (catKey: string, fromIdx: number, toIdx: number) => void;
+    /** Per-note quantity overrides, keyed by med tag. */
+    medQty: Record<string, number>;
+    onQtyChange: (tag: string, next: number) => void;
     /** Drop the floating-card chrome + inner scroll so the rows sit inside a host
      *  card (the consolidated Plan overlay). The host provides the scroll. */
     bare?: boolean;
@@ -286,7 +308,7 @@ function ActiveItemsCard({ items, onToggle, onReorder, bare = false }: {
                             key={`${catKey}-${tag}`}
                             data-active-row
                             style={isDragging ? { transform: `translateY(${dragOffset}px)`, zIndex: 50, position: 'relative' } : undefined}
-                            className={`flex items-center gap-2 px-3 py-2.5 bg-tertiary/4 ${i > 0 ? 'border-t border-tertiary/10' : ''} ${isDragging ? 'opacity-80 shadow-lg rounded-lg bg-themewhite2' : ''}`}
+                            className={`flex items-center gap-2 px-3 py-2.5 text-[11pt] bg-tertiary/4 ${i > 0 ? 'border-t border-tertiary/10' : ''} ${isDragging ? 'opacity-80 shadow-lg rounded-lg bg-themewhite2' : ''}`}
                         >
                             <div
                                 className="shrink-0 text-tertiary touch-none cursor-grab active:cursor-grabbing"
@@ -294,8 +316,17 @@ function ActiveItemsCard({ items, onToggle, onReorder, bare = false }: {
                             >
                                 <GripVertical size={16} />
                             </div>
-                            <span className="flex-1 text-[11pt] text-primary min-w-0 truncate">{tag}</span>
-                            <span className="text-[9pt] md:text-[9pt] text-tertiary shrink-0">{catLabel}</span>
+                            <span className="flex-1 text-[11pt] text-primary min-w-0 truncate">
+                                {catKey === 'meds' ? medTagLabel(tag) : tag}
+                            </span>
+                            {catKey === 'meds' ? (
+                                <MedQtyStepper
+                                    value={effectiveMedQty(tag, medQty) ?? 0}
+                                    onChange={(n) => onQtyChange(tag, n)}
+                                />
+                            ) : (
+                                <span className="text-[9pt] md:text-[9pt] text-tertiary shrink-0">{catLabel}</span>
+                            )}
                             <button
                                 type="button"
                                 onClick={() => onToggle(catKey, tag)}
@@ -348,6 +379,11 @@ export const Plan = ({ orderTags, instructionTags, orderSets = [], initialText, 
 
     const [states, setStates] = useState<Record<PlanBlockKey, BlockState>>(parsedSeed.states);
 
+    // Per-note med quantity overrides, keyed by the stored tag. Never written back
+    // to the profile — the tag's saved quantity is the default, this is the dose
+    // actually handed out on this note.
+    const [medQty, setMedQty] = useState<Record<string, number>>({});
+
     // Track which order sets are "active" (have been applied)
     const [activeSetIds, setActiveSetIds] = useState<Set<string>>(new Set());
 
@@ -394,8 +430,12 @@ export const Plan = ({ orderTags, instructionTags, orderSets = [], initialText, 
     }, [pickerOpenSignal, pickerOpenAnchor]);
 
     useEffect(() => {
-        onChange(generateText(states, blockOrder ?? undefined));
-    }, [states, blockOrder]); // eslint-disable-line react-hooks/exhaustive-deps
+        onChange(generateText(states, blockOrder ?? undefined, medQty));
+    }, [states, blockOrder, medQty]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    const setMedQtyFor = useCallback((tag: string, next: number) => {
+        setMedQty(prev => ({ ...prev, [tag]: Math.max(0, next) }));
+    }, []);
 
     const toggleTag = useCallback((key: PlanBlockKey, tag: string) => {
         setStates(prev => {
@@ -614,6 +654,7 @@ export const Plan = ({ orderTags, instructionTags, orderSets = [], initialText, 
                                 >
                                     <PlanBlockRow
                                         label={BLOCK_LABELS[key]}
+                                        catKey={key}
                                         state={states[key]}
                                         onTap={handleRowTap}
                                         index={i}
@@ -667,6 +708,8 @@ export const Plan = ({ orderTags, instructionTags, orderSets = [], initialText, 
                                     items={activeItems}
                                     onToggle={(catKey, tag) => toggleTag(catKey as PlanBlockKey, tag)}
                                     onReorder={(catKey, from, to) => reorderTag(catKey as PlanBlockKey, from, to)}
+                                    medQty={medQty}
+                                    onQtyChange={setMedQtyFor}
                                     bare
                                 />
                             </div>
@@ -704,6 +747,7 @@ export const Plan = ({ orderTags, instructionTags, orderSets = [], initialText, 
                                 instructions: defaultBlockState(),
                             });
                             setActiveSetIds(new Set());
+                            setMedQty({});
                             setCustomTags({
                                 referral: [], meds: [], radiology: [], lab: [], followUp: [], instructions: [],
                             });

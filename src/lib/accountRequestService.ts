@@ -62,6 +62,10 @@ export type SubmitResult = ServiceResult<{
   /** Save this token -- it is required to check request status later */
   statusCheckToken?: string
   requestId?: string
+  /** The UIC already belonged to a cluster, so the account exists already. */
+  autoApproved?: boolean
+  /** Cluster the UIC resolved to. Only set when autoApproved. */
+  clinicName?: string | null
 }>
 
 export type EmailAvailability = {
@@ -135,13 +139,22 @@ export async function submitAccountRequest(
       throw error
     }
 
-    const validated = validateRpcResult<{ id: string; status_check_token: string; message: string }>(
+    const validated = validateRpcResult<{
+      id: string
+      status_check_token: string
+      message: string
+      auto_approved?: boolean
+      clinic_name?: string | null
+    }>(
       data, ['id', 'status_check_token'], 'submitAccountRequest'
     )
     const result = validated.ok ? validated.data : null
+    const autoApproved = result?.auto_approved === true
 
+    // The dev is told either way -- the difference is whether it is a queue item
+    // or a heads-up that an account already exists.
     fireNotification({
-      type: 'new_account',
+      type: autoApproved ? 'new_account_auto' : 'new_account',
       name: `${request.firstName} ${request.lastName}`.trim(),
       email: request.email,
     })
@@ -149,6 +162,8 @@ export async function submitAccountRequest(
     return succeed({
       statusCheckToken: result?.status_check_token,
       requestId: result?.id,
+      autoApproved,
+      clinicName: result?.clinic_name ?? null,
     })
   } catch (error) {
     logger.error('Failed to submit account request:', error)

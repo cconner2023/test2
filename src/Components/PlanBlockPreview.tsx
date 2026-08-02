@@ -4,6 +4,7 @@ import type { PlanBlockKey } from '../Data/User';
 import { CATEGORY_META } from './Settings/PlanTagManager';
 import { AnchoredMenu } from '@/Components/primitives/LiftedRowMenu';
 import type { ContextMenuItem } from '@/Components/primitives/ContextMenu';
+import { planTagDisplay } from '@/Utilities/medTag';
 
 type BlockStatus = 'inactive' | 'active';
 
@@ -158,7 +159,7 @@ export const PlanAllBlocksPreview: React.FC<PlanAllBlocksPreviewProps> = ({
                 <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${meta.bg}`}>
                   <CatIcon size={11} className={meta.color} />
                 </div>
-                <span className="text-sm text-primary min-w-0 truncate">{tag}</span>
+                <span className="text-sm text-primary min-w-0 truncate">{planTagDisplay(catKey, tag)}</span>
               </button>
             );
           })}

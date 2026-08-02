@@ -51,6 +51,7 @@ import { isSystemMessage, isOutsideOriginCard } from '../../Hooks/useAdminSystem
 import { lastActivityMessage, activityPreview } from '../../Utilities/conversationActivity'
 import { CallsPane } from './CallsPane'
 import { useCallHistory, type CallHistoryEntry } from '../../Hooks/useCallHistory'
+import { ListGroupLabel } from '@/Components/primitives/Section'
 
 export type MessagesView = 'messages' | 'messages-chat' | 'messages-group-chat'
 
@@ -438,7 +439,7 @@ function ConversationPane({
           <div>
             {searchResults.groups.length > 0 && (
               <>
-                <p className="text-[10pt] text-tertiary px-3 mb-1 uppercase tracking-wider font-semibold">Groups</p>
+                <ListGroupLabel>Groups</ListGroupLabel>
                 {searchResults.groups.map(group => (
                   <GroupListItem
                     key={group.groupId}
@@ -452,7 +453,7 @@ function ConversationPane({
             )}
             {searchResults.medics.length > 0 && (
               <>
-                <p className="text-[10pt] text-tertiary px-3 mb-1 mt-2 uppercase tracking-wider font-semibold">Contacts</p>
+                <ListGroupLabel>Contacts</ListGroupLabel>
                 {searchResults.medics.map(medic => (
                   <ContactListItem
                     key={medic.id}
@@ -468,7 +469,7 @@ function ConversationPane({
             )}
             {searchResults.messages.length > 0 && (
               <>
-                <p className="text-[10pt] text-tertiary px-3 mb-1 mt-2 uppercase tracking-wider font-semibold">Messages</p>
+                <ListGroupLabel>Messages</ListGroupLabel>
                 {searchResults.messages.map(match => {
                   if (match.type === 'group' && match.group) {
                     return (
@@ -535,7 +536,7 @@ function ConversationPane({
             })()}
             {recentEntries.length > 0 && (
               <>
-                <p className="text-[10pt] text-tertiary px-3 mb-1 mt-1 uppercase tracking-wider font-semibold">Recent</p>
+                <ListGroupLabel>Recent</ListGroupLabel>
                 {recentEntries.map(entry => {
                   const msgs = conversations[entry.key]
                   const lastMsg = lastActivityMessage(msgs)
@@ -598,9 +599,7 @@ function ConversationPane({
                   Flat list when the clinic defines no sub-clusters. */}
               {ownFiltered.length > 0 && (
                 <>
-                  <div className="flex items-center gap-1.5 px-3 py-1.5">
-                    <p className="text-[10pt] text-tertiary uppercase tracking-wider font-semibold">My Cluster</p>
-                  </div>
+                  <ListGroupLabel>My Cluster</ListGroupLabel>
                   {ownGrouped
                     ? ownGroups.map(g => renderRosterGroup(g.id, g.name, g.medics))
                     : ownFiltered.map(renderContactRow)}
@@ -625,7 +624,7 @@ function ConversationPane({
               return filtered.length > 0 ? (
                 <>
                   <div className="mx-3 my-2 border-b border-primary/10" />
-                  <p className="text-[10pt] text-tertiary px-3 mb-1 uppercase tracking-wider font-semibold">Groups</p>
+                  <ListGroupLabel>Groups</ListGroupLabel>
                   {filtered.map(group => {
                     const item = <GroupListItem group={group} unreadCount={0} onClick={() => {}} />
                     const target: PreviewTarget = { key: group.groupId, type: 'group', group, hasConversation: false, isPinned: false }

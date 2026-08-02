@@ -17,6 +17,7 @@ import { createLogger } from '../Utilities/Logger'
 import { getErrorMessage } from '../Utilities/errorUtils'
 import {
   getPendingSyncItems,
+  getDeferredAuditLogs,
   getFailedSyncItems,
   markSyncItemSynced,
   markSyncItemFailed,
@@ -35,6 +36,7 @@ import {
   updateFeatureVoteSuggestionSyncStatus,
   type LocalTrainingCompletion,
 } from './offlineDb'
+import { flushDeferredAudit } from './auditService'
 import type { LocalPropertyItem } from '../Types/PropertyTypes'
 import { getItemTombstones, getZoneTombstones } from './propertyEventRouting'
 
@@ -768,6 +770,11 @@ export function setupConnectivityListeners(
         }
       }
 
+      // 1d. Release audit events that could not be sealed when they were written
+      // (clinic key not yet cached). Ahead of the push so anything freed here
+      // rides this same drain instead of waiting out another tick.
+      await flushDeferredAudit(userId)
+
       // 2. Push local changes
       const result = await processSyncQueue(userId)
       callbacks?.onSyncComplete?.(result)
@@ -820,11 +827,15 @@ export function setupConnectivityListeners(
 
     const pendingItems = await getPendingSyncItems(userId)
     const hasPending = pendingItems.length > 0
+    // Deferred audit events are NOT in the sync queue — emitAudit withholds an
+    // event it could not seal — so the queue length alone would let a backlog
+    // sit forever on an otherwise idle device.
+    const hasDeferredAudit = (await getDeferredAuditLogs()).length > 0
     // Detect reconnection that the 'online' event may have missed
     const possiblyReconnected = !wasOnline && navigator.onLine
 
     // Only make a network request when there's a reason to sync
-    if (!hasPending && !possiblyReconnected) return
+    if (!hasPending && !hasDeferredAudit && !possiblyReconnected) return
 
     const reachable = await canReachSupabase()
     if (!reachable) {
@@ -841,7 +852,13 @@ export function setupConnectivityListeners(
     }
 
     logger.debug(
-      `Periodic check: ${hasPending ? pendingItems.length + ' pending items' : 'reconnect detected'}, syncing`
+      `Periodic check: ${
+        hasPending
+          ? pendingItems.length + ' pending items'
+          : hasDeferredAudit
+            ? 'deferred audit backlog'
+            : 'reconnect detected'
+      }, syncing`
     )
     await performSync()
   }, PERIODIC_CHECK_MS)
@@ -872,6 +889,10 @@ export async function fullSync(
   // 1. Pull
   const reconciledCompletions = await reconcileTrainingCompletionsWithServer(userId)
   onTrainingReconcileComplete?.(reconciledCompletions)
+
+  // 1b. Seal + enqueue anything that deferred for want of a clinic key, so a
+  // manual "sync now" is a real second chance rather than a no-op over it.
+  await flushDeferredAudit(userId)
 
   // 2. Push
   return processSyncQueue(userId)

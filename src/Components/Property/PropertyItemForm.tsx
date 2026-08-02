@@ -165,13 +165,17 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
     [editingItem?.id],
   )
 
+  // The turn-in staging zone is not a destination — stock joins a depot run only through
+  // "Stage for turn-in", which writes the DA 3161 row. It stays listed for an item ALREADY
+  // staged there, so its Location reads correctly instead of blank (an unknown value renders
+  // as the placeholder, which invites picking something and moving it out by accident).
   const locationOptions = useMemo(
     () =>
       locations
-        .filter((l) => l.name !== ROOT_LOCATION_NAME && !l.is_turn_in_zone)
+        .filter((l) => l.name !== ROOT_LOCATION_NAME && (!l.is_turn_in_zone || l.id === editingItem?.location_id))
         .sort((a, b) => a.name.localeCompare(b.name))
         .map((l) => ({ value: l.id, label: l.name })),
-    [locations]
+    [locations, editingItem?.location_id]
   )
 
   const holderOptions = useMemo(

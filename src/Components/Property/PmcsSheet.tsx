@@ -3,7 +3,7 @@ import {
   AlertTriangle, Plus, Check, ClipboardCheck, Wrench,
   X, History, Paperclip, FileText,
 } from 'lucide-react'
-import { getAuditBySubjectLocal, fetchAuditBySubject } from '../../lib/auditService'
+import { loadAuditBySubject } from '../../lib/auditService'
 import type { AuditEvent } from '../../lib/auditTypes'
 import { PMCS_EVENT_TYPES, foldOpenFaults, summarizePmcs } from '../../lib/pmcsFold'
 import { usePropertyStore } from '../../stores/usePropertyStore'
@@ -131,16 +131,11 @@ export function PmcsSheet({ isOpen, onClose, subjectType = 'item', subjectId, cl
     let cancelled = false
     setLoading(true)
     ;(async () => {
-      const [local, server] = await Promise.all([
-        getAuditBySubjectLocal(subjectId).catch((err) => {
-          logger.warn('local PMCS read failed:', err); return [] as AuditEvent[]
-        }),
-        fetchAuditBySubject(subjectId, { clinicId }).catch(() => [] as AuditEvent[]),
-      ])
+      const loaded = await loadAuditBySubject(subjectId, clinicId ?? '').catch((err) => {
+        logger.warn('PMCS read failed:', err); return [] as AuditEvent[]
+      })
       if (cancelled) return
-      const byId = new Map<string, AuditEvent>()
-      for (const e of [...local, ...server]) byId.set(e.id, e)
-      const pmcs = [...byId.values()]
+      const pmcs = loaded
         .filter((e) => PMCS_EVENT_TYPES.has(e.eventType))
         .sort((a, b) => {
           if (a.seq != null && b.seq != null) return b.seq - a.seq

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Pencil, Trash2, X, Check, FileText, Paperclip, AlertTriangle, Wrench, type LucideIcon } from 'lucide-react'
 import type { AuditEvent } from '../../lib/auditTypes'
 import { usePropertyStore } from '../../stores/usePropertyStore'
@@ -12,7 +12,8 @@ import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
 import { FooterPill } from '@/Components/primitives/FooterPill'
 import { ActionButton } from '@/Components/primitives/ActionButton'
 import { PillButton } from '@/Components/primitives/HeaderPill'
-import { TextInput, PickerInput, DatePickerInput } from '@/Components/primitives/FormInputs'
+import { TextInput, DatePickerInput } from '@/Components/primitives/FormInputs'
+import { PartyPicker, partyLabel, type Party } from './PartyPicker'
 import { FuelMeter } from '@/Components/DomainInputs'
 import { DocScanner } from './DocScanner'
 import { ensurePdfFile } from '../../lib/docScan'
@@ -68,6 +69,11 @@ interface RecordPreviewProps {
   /** Which mode to open in — a lifted-row menu routes straight to 'edit' or
    *  'delete' (confirm), skipping the view→footer hop. Defaults to 'view'. */
   initialAction?: 'view' | 'edit' | 'delete'
+  /** Render the attach/replace trigger as a ROW INSIDE the edit form instead of a
+   *  footer action. For hosts with no footer — a pane whose header owns Save and
+   *  whose Delete lives in the read-mode ellipsis (the calendar dispatch detail),
+   *  where the document is just another field of the record being edited. */
+  attachInBody?: boolean
 }
 
 const str = (v: unknown): string => (typeof v === 'string' ? v : '')
@@ -88,7 +94,7 @@ function docOf(e: AuditEvent | null): PmcsDoc | null {
  * placed inside the host overlay's children it auto-stacks above via
  * OverlayStackContext (the z-stacking sibling of the morph stack).
  */
-export function useRecordPreview({ event, onClose, label, detail, Icon, tint, initialAction = 'view', containerRef }: RecordPreviewProps) {
+export function useRecordPreview({ event, onClose, label, detail, Icon, tint, initialAction = 'view', attachInBody, containerRef }: RecordPreviewProps) {
   const [mode, setMode] = useState<'view' | 'edit'>('view')
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [editText, setEditText] = useState('')
@@ -103,11 +109,15 @@ export function useRecordPreview({ event, onClose, label, detail, Icon, tint, in
   // subset it owns. Seeded from the event payload when a record opens.
   const [mileage, setMileage] = useState('')
   const [fuelLevel, setFuelLevel] = useState<number | null>(null)
-  const [operator, setOperator] = useState('')
-  const [mechanic, setMechanic] = useState('')
+  // Operator / mechanic / TC are PARTIES (cluster member or off-roster entity), the
+  // same shape the PMCS + dispatch intakes collect. The payload only ever stored the
+  // display name, so a recorded name re-hydrates to its roster member when it still
+  // matches one and to an external party otherwise.
+  const [operator, setOperator] = useState<Party | null>(null)
+  const [mechanic, setMechanic] = useState<Party | null>(null)
   const [expDate, setExpDate] = useState('')
   const [odoOut, setOdoOut] = useState('')
-  const [tc, setTc] = useState('')
+  const [tc, setTc] = useState<Party | null>(null)
   const [returnDate, setReturnDate] = useState('')
   const [odoIn, setOdoIn] = useState('')
   const [note, setNote] = useState('')
@@ -136,16 +146,21 @@ export function useRecordPreview({ event, onClose, label, detail, Icon, tint, in
   // PMCS readings (mileage + fuel) are vehicle-only; a vehicle is a `location` subject.
   const isVehicle = event?.subjectType === 'location'
 
-  // Operator dropdown options — the clinic roster ("RANK Last, First"), mirroring the
-  // PMCS intake. Fold in the recorded operator if it's no longer on the roster so the
-  // current value still displays + stays selectable.
-  const operatorOptions = useMemo(() => {
-    const roster = medics
-      .map((m) => [m.rank, [m.lastName, m.firstName].filter(Boolean).join(', ')].filter(Boolean).join(' ').trim())
-      .filter((n) => n.length > 0)
-      .sort((a, b) => a.localeCompare(b))
-    return operator && !roster.includes(operator) ? [operator, ...roster] : roster
-  }, [medics, operator])
+  // Cluster roster for the party pickers — { id, "RANK Last First" }, byte-identical
+  // to what PmcsSheet / DispatchSheet build, so a name recorded by an intake re-hydrates
+  // to the same member here.
+  const members = useMemo(
+    () => medics
+      .map((m) => ({ id: m.id, displayName: [m.rank, m.lastName, m.firstName].filter(Boolean).join(' ').trim() }))
+      .filter((m) => m.displayName.length > 0)
+      .sort((a, b) => a.displayName.localeCompare(b.displayName)),
+    [medics],
+  )
+  // The seeding effect reads the roster through a ref, NOT as a dependency: the roster
+  // arrives asynchronously, and a mid-edit load must not re-seed the form and discard
+  // typed values. A name that matches no member re-hydrates as an external party.
+  const membersRef = useRef(members)
+  membersRef.current = members
 
   // Seed every field each time a record opens. A lifted-row menu can route straight
   // to edit/delete via initialAction; the legacy text-edit mode is honored only for
@@ -159,17 +174,22 @@ export function useRecordPreview({ event, onClose, label, detail, Icon, tint, in
     // A form-carrying record opens in the REVIEW card by default; only an explicit
     // initialAction='edit' (a lifted-row Edit) jumps straight into its form. Legacy
     // fault rows still honor edit for their free-text field.
+    const party = (name: string): Party | null => {
+      if (!name) return null
+      const m = membersRef.current.find((x) => x.displayName === name)
+      return m ? { kind: 'member', id: m.id, displayName: m.displayName } : { kind: 'external', name }
+    }
     setMode(initialAction === 'edit' && (isForm || canEditText) ? 'edit' : 'view')
     setConfirmOpen(initialAction === 'delete')
     setBusy(false)
     setEditText(event.eventType === 'fault.opened' ? str(p.description) : str(p.note))
     setMileage(typeof p.mileage === 'number' ? String(p.mileage) : '')
     setFuelLevel(typeof p.fuelLevel === 'number' ? p.fuelLevel : null)
-    setOperator(str(p.operator))
-    setMechanic(str(p.mechanic))
+    setOperator(party(str(p.operator)))
+    setMechanic(party(str(p.mechanic)))
     setExpDate(str(p.exp_date))
     setOdoOut(typeof p.odo_out === 'number' ? String(p.odo_out) : '')
-    setTc(str(p.tc))
+    setTc(party(str(p.tc)))
     setReturnDate(str(p.returned_at))
     setOdoIn(typeof p.odo_in === 'number' ? String(p.odo_in) : '')
     setNote(str(p.note))
@@ -233,12 +253,17 @@ export function useRecordPreview({ event, onClose, label, detail, Icon, tint, in
 
     const orig = event.payload ?? {}
     const payload: Record<string, unknown> = {}
+    // Parties persist as their display name only (no PHI, no profile id) — the same
+    // shape the intakes write, so the fold and the read-out stay unchanged.
+    const operatorName = partyLabel(operator).trim()
+    const mechanicName = partyLabel(mechanic).trim()
+    const tcName = partyLabel(tc).trim()
     if (formKind === 'pmcs') {
       const miles = parseInt(mileage, 10)
       if (isVehicle && Number.isFinite(miles)) payload.mileage = miles
       if (isVehicle && fuelLevel != null) payload.fuelLevel = fuelLevel
-      if (operator.trim()) payload.operator = operator.trim()
-      if (mechanic.trim()) payload.mechanic = mechanic.trim()
+      if (operatorName) payload.operator = operatorName
+      if (mechanicName) payload.mechanic = mechanicName
       if (resolvedDoc) payload.doc = resolvedDoc
       // Faults are owned by the check that found/corrected them — carry them through
       // untouched (this form edits readings + 5988E only).
@@ -248,8 +273,8 @@ export function useRecordPreview({ event, onClose, label, detail, Icon, tint, in
       payload.exp_date = expDate
       const miles = parseInt(odoOut, 10)
       if (Number.isFinite(miles)) payload.odo_out = miles
-      if (operator.trim()) payload.operator = operator.trim()
-      if (tc.trim()) payload.tc = tc.trim()
+      if (operatorName) payload.operator = operatorName
+      if (tcName) payload.tc = tcName
       if (note.trim()) payload.note = note.trim()
       if (resolvedDoc) payload.doc = resolvedDoc
     } else if (formKind === 'dispatch-close') {
@@ -299,7 +324,7 @@ export function useRecordPreview({ event, onClose, label, detail, Icon, tint, in
   const docName = newDocFile?.name ?? (doc && !docRemoved ? (doc.name || 'Document') : null)
   const docViewable = !newDocFile && !!doc && !docRemoved
   const removeDoc = () => { if (newDocFile) setNewDocFile(null); else setDocRemoved(true) }
-  const docFormLabel = formKind === 'pmcs' ? '5988E' : 'form'
+  const docFormLabel = formKind === 'pmcs' ? '5988E' : formKind === 'dispatch-close' ? 'return form' : 'dispatch form'
 
   const formBody = formKind ? (
     <>
@@ -310,16 +335,44 @@ export function useRecordPreview({ event, onClose, label, detail, Icon, tint, in
               <TextInput value={mileage} onChange={(v) => setMileage(v.replace(/[^\d]/g, ''))} inputMode="numeric" placeholder="Mileage" />
             )}
             {isVehicle && <FuelMeter value={fuelLevel} onChange={setFuelLevel} />}
-            <PickerInput value={operator} onChange={setOperator} options={operatorOptions} placeholder="Operator" />
-            <TextInput value={mechanic} onChange={setMechanic} placeholder="Mechanic (optional)" />
+            <PartyPicker
+              members={members}
+              value={operator}
+              onChange={setOperator}
+              placeholder="Operator"
+              externalPlaceholder="Off-roster operator…"
+            />
+            <PartyPicker
+              members={members}
+              value={mechanic}
+              onChange={setMechanic}
+              placeholder="Mechanic (optional)"
+              title="Mechanic"
+              externalPlaceholder="Off-roster mechanic…"
+            />
           </>
         )}
+        {/* Field-for-field the dispatch intake (DispatchSheet): the same date picker,
+            the same numeric odometer, and the SAME PartyPicker for operator + TC —
+            editing a record must not degrade its fields to bare text boxes. */}
         {formKind === 'dispatch-open' && (
           <>
             <DatePickerInput value={expDate} onChange={setExpDate} placeholder="Dispatch expires" />
             <TextInput value={odoOut} onChange={(v) => setOdoOut(v.replace(/[^\d]/g, ''))} inputMode="numeric" placeholder="Odometer out" />
-            <TextInput value={operator} onChange={setOperator} placeholder="Operator" />
-            <TextInput value={tc} onChange={setTc} placeholder="TC" />
+            <PartyPicker
+              members={members}
+              value={operator}
+              onChange={setOperator}
+              placeholder="Operator"
+              externalPlaceholder="Off-roster operator…"
+            />
+            <PartyPicker
+              members={members}
+              value={tc}
+              onChange={setTc}
+              placeholder="TC"
+              externalPlaceholder="Off-roster TC…"
+            />
           </>
         )}
         {formKind === 'dispatch-close' && (
@@ -328,7 +381,8 @@ export function useRecordPreview({ event, onClose, label, detail, Icon, tint, in
             <TextInput value={odoIn} onChange={(v) => setOdoIn(v.replace(/[^\d]/g, ''))} inputMode="numeric" placeholder="Odometer in" />
           </>
         )}
-        {/* Picked-file / existing-doc chip (the attach trigger rides the footer). */}
+        {/* Picked-file / existing-doc chip (the attach trigger rides the footer, or
+            the row below it when the host asked for attachInBody). */}
         {docName && (
           <div className="flex items-center gap-3 px-4 py-3">
             <button
@@ -352,6 +406,24 @@ export function useRecordPreview({ event, onClose, label, detail, Icon, tint, in
               <X size={14} className="text-tertiary" />
             </button>
           </div>
+        )}
+        {/* Attach/replace as a FIELD of the form (attachInBody hosts) — the document
+            belongs to the record being edited, so a footer-less host keeps it in the
+            card rather than stranding it in chrome. */}
+        {attachInBody && (
+          <button
+            type="button"
+            onClick={() => setScannerOpen(true)}
+            disabled={busy}
+            className="w-full flex items-center gap-3 px-4 py-3 text-left active:opacity-70 transition-opacity disabled:opacity-40"
+          >
+            <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-themeblue3/10 text-themeblue2">
+              {docName ? <FileText size={14} /> : <Paperclip size={14} />}
+            </div>
+            <span className="flex-1 min-w-0 text-sm font-medium text-themeblue2 truncate">
+              {docName ? `Replace ${docFormLabel}` : `Scan ${docFormLabel}`}
+            </span>
+          </button>
         )}
       </div>
       {docError && <p className="px-4 pt-1 pb-2 text-[9pt] font-medium text-themered">{docError}</p>}
@@ -434,12 +506,14 @@ export function useRecordPreview({ event, onClose, label, detail, Icon, tint, in
   // (Edit when free-text + Delete) in view mode only; the dismiss X rides the right.
   const footer = formKind && mode === 'edit' ? (
     <FooterPill>
-      <ActionButton
-        icon={docName ? FileText : Paperclip}
-        label={docName ? `Replace ${docFormLabel}` : `Scan ${docFormLabel}`}
-        variant="default"
-        onClick={() => setScannerOpen(true)}
-      />
+      {!attachInBody && (
+        <ActionButton
+          icon={docName ? FileText : Paperclip}
+          label={docName ? `Replace ${docFormLabel}` : `Scan ${docFormLabel}`}
+          variant="default"
+          onClick={() => setScannerOpen(true)}
+        />
+      )}
       <ActionButton icon={Trash2} label="Delete" variant="danger" onClick={() => setConfirmOpen(true)} />
     </FooterPill>
   ) : formKind ? (
@@ -489,7 +563,18 @@ export function useRecordPreview({ event, onClose, label, detail, Icon, tint, in
     ? null
     : `${formKind === 'pmcs' ? 'PMCS' : formKind === 'dispatch-close' ? 'Return' : 'Dispatch'} ${formatDtg(event.occurredAt)}`
 
-  return { isOpen, title, body, footer, rightFooter, confirm, saving }
+  // `body`/`footer`/`confirm` are the ready-made parts; the raw actions below let a
+  // host whose HEADER owns the verbs (Save in the pill row, Delete in the read-mode
+  // ellipsis — the calendar pane convention) drive the same surface without a footer.
+  return {
+    isOpen, title, body, footer, rightFooter, confirm, saving,
+    mode,
+    setMode,
+    busy,
+    canSave,
+    save: formKind ? saveForm : saveEdit,
+    requestDelete: () => setConfirmOpen(true),
+  }
 }
 
 /**

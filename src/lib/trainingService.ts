@@ -25,21 +25,23 @@ import {
 import type { CompletionType, CompletionResult } from '../Types/database.types'
 import type { StepResult } from '../Types/SupervisorTestTypes'
 import { createLogger } from '../Utilities/Logger'
-import { emitAudit } from './auditService'
+import { succeed, fail, type ServiceResult } from './result'
+import { emitAudit, deleteAuditEvent, loadAuditBySubject } from './auditService'
 import { useAuthStore } from '../stores/useAuthStore'
 import { parseFoldRowId, foldRowId } from './trainingFold'
+import { aliasTrainingItemId } from '../Data/trainingItemAlias'
 import type { AuditEventType } from './auditTypes'
 
 /**
- * Shadow-emit a training lifecycle event into the unified audit_log.
+ * Emit a training lifecycle event into the unified audit_log. The event IS the
+ * completion — the fold is the only source of current state — so a failure here
+ * is a lost grade, not a lost shadow copy, and it is reported rather than
+ * swallowed. Every caller propagates it so the UI can drop its optimistic row
+ * instead of showing a completion that no store holds.
  *
- * Additive during the event-sourcing transition: training_completions stays
- * authoritative until the server gate flips the read path to the event fold
- * (see v2/training event-sourcing). subject = the soldier; clinic = the authed
- * user's clinic (own clinic for self-report, the soldier's cluster for
- * supervisor actions — they are the same cluster). actor = the authed user
- * (= the sync-queue owner, matching the training_completions write). Best-effort
- * — emitAudit never throws, so it can't break a completion write.
+ * subject = the soldier; clinic = the ACTIVE clinic (own clinic for self-report,
+ * the supervised cluster when toggled into one); actor = the authed user, which
+ * is also the sync-queue owner.
  *
  * training_item_id rides in the (encrypted) payload, not the spine: the fold
  * groups by (subject, training_item_id) client-side after decrypt; it is never
@@ -51,12 +53,25 @@ async function emitTrainingEvent(
   actorUserId: string,
   payload: Record<string, unknown>,
   occurredAt: string,
-): Promise<void> {
-  const clinicId = useAuthStore.getState().clinicId
-  if (!clinicId || actorUserId === 'guest') return
-  await emitAudit(
+): Promise<ServiceResult> {
+  // The ACTIVE clinic, not the home one. A supervisor toggled into a loaned
+  // cluster grades that cluster's roster, so the event belongs to it — and the
+  // supervisor fold reads `supervisingClinicId ?? clinicId`, so stamping the
+  // home id here wrote every loaned-in grade to a clinic nothing reads back.
+  // It also sealed the payload with the wrong clinic key, leaving the event
+  // undecryptable by the cluster whose soldier it is about.
+  const { clinicId, supervisingClinicId } = useAuthStore.getState()
+  const activeClinicId = supervisingClinicId ?? clinicId
+  // Both of these used to `return` silently, which is what made a graded walk
+  // look like a dead button: the caller still handed the UI an optimistic row,
+  // and the next refold — reading a store nothing had been written to — took it
+  // straight back off the screen with nothing logged anywhere.
+  if (!activeClinicId) return fail('No active clinic — sign in again before grading.')
+  if (actorUserId === 'guest') return fail('Not signed in — training cannot be recorded.')
+
+  const row = await emitAudit(
     {
-      clinicId,
+      clinicId: activeClinicId,
       actorId: actorUserId,
       domain: 'training',
       eventType,
@@ -67,6 +82,12 @@ async function emitTrainingEvent(
     },
     actorUserId,
   )
+  // emitAudit swallows its own errors and reports them as null. A deferred row
+  // is NOT one of them: it is written locally, folds from its held plaintext,
+  // and the sync flush seals it later — the write succeeded, it just has not
+  // left the device.
+  if (!row) return fail('Could not record the training event. Try again.')
+  return succeed()
 }
 
 const logger = createLogger('TrainingService')
@@ -232,8 +253,8 @@ export async function voidTrainingCompletion(
   trainingItemId: string,
   completionType: string,
   actorUserId: string,
-): Promise<void> {
-  await emitTrainingEvent(
+): Promise<ServiceResult> {
+  return emitTrainingEvent(
     'completion.voided',
     subjectUserId,
     actorUserId,
@@ -249,12 +270,13 @@ export async function voidTrainingCompletion(
 export async function createReadCompletion(
   trainingItemId: string,
   userId: string
-): Promise<TrainingCompletionUI> {
+): Promise<ServiceResult<{ completion: TrainingCompletionUI }>> {
   const now = new Date().toISOString()
-  await emitTrainingEvent('read.recorded', userId, userId, {
+  const emitted = await emitTrainingEvent('read.recorded', userId, userId, {
     training_item_id: trainingItemId,
   }, now)
-  return foldStub(userId, trainingItemId, 'read', 'GO', now)
+  if (!emitted.success) return emitted
+  return succeed({ completion: foldStub(userId, trainingItemId, 'read', 'GO', now) })
 }
 
 /**
@@ -268,35 +290,117 @@ export async function createTestCompletion(params: {
   stepResults: StepResult[]
   supervisorNotes?: string
   supervisorId: string
-}): Promise<TrainingCompletionUI> {
+}): Promise<ServiceResult<{ completion: TrainingCompletionUI }>> {
   const { medicUserId, trainingItemId, result, stepResults, supervisorNotes, supervisorId } = params
   const now = new Date().toISOString()
 
-  await emitTrainingEvent('test.graded', medicUserId, supervisorId, {
+  const emitted = await emitTrainingEvent('test.graded', medicUserId, supervisorId, {
     training_item_id: trainingItemId,
     result,
     step_results: stepResults,
     supervisor_notes: supervisorNotes ?? null,
     supervisor_id: supervisorId,
   }, now)
+  if (!emitted.success) return emitted
 
-  return foldStub(medicUserId, trainingItemId, 'test', result, now, {
-    supervisorId,
-    stepResults,
-    supervisorNotes: supervisorNotes ?? null,
+  return succeed({
+    completion: foldStub(medicUserId, trainingItemId, 'test', result, now, {
+      supervisorId,
+      stepResults,
+      supervisorNotes: supervisorNotes ?? null,
+    }),
   })
 }
 
+/** Which raw event types feed a given completion type in the fold. */
+function contributesTo(
+  eventType: string,
+  payloadCompletionType: string | undefined,
+  completionType: string,
+): boolean {
+  switch (eventType) {
+    case 'read.recorded': return completionType === 'read'
+    case 'test.graded': return completionType === 'test'
+    case 'assignment.created': return completionType === 'assignment'
+    // An assignment that was worked off BECOMES a read or a test, so the event
+    // that produced this completion may carry a different name than the type.
+    case 'assignment.completed':
+      return (payloadCompletionType === 'test' ? 'test' : 'read') === completionType
+    default: return false
+  }
+}
+
 /**
- * Delete a training completion (event-sourced): emit a completion.voided event
- * and drop any calendar link. `completionId` is a fold id (`fold:user:item:type`)
- * — there is no server row to hard-delete. Non-fold ids are a no-op.
+ * Hard-delete the raw events that produced one folded completion.
+ *
+ * Matching happens AFTER decrypt: training_item_id rides in the encrypted
+ * payload, never the spine, so there is no server-side predicate for it — the
+ * rows must be pulled, decrypted, and filtered here. Aliased the same way the
+ * fold aliases, or a historical STP-numbered event would not match the ICTL
+ * task the caller is deleting.
+ *
+ * Every event for that (subject, item, type) goes, not just the latest: a
+ * re-grade appends rather than replaces, so leaving the earlier ones behind
+ * would resurrect a superseded grade the moment the newest row is removed.
  */
-export async function deleteCompletion(completionId: string, userId: string): Promise<void> {
+async function purgeTrainingEventRows(
+  subjectUserId: string,
+  trainingItemId: string,
+  completionType: string,
+  actorUserId: string,
+): Promise<number> {
+  const { clinicId, supervisingClinicId } = useAuthStore.getState()
+  const activeClinicId = supervisingClinicId ?? clinicId
+  const events = await loadAuditBySubject(subjectUserId, activeClinicId ?? '')
+  let purged = 0
+  for (const e of events) {
+    if (e.domain !== 'training') continue
+    const raw = (e.payload?.training_item_id as string) || ''
+    if (!raw) continue
+    if (aliasTrainingItemId(raw, e.occurredAt) !== trainingItemId) continue
+    if (!contributesTo(e.eventType, e.payload?.completion_type as string | undefined, completionType)) continue
+    if (await deleteAuditEvent(e.id, actorUserId)) purged++
+  }
+  return purged
+}
+
+/**
+ * Delete a training completion. Tombstone THEN purge, in that order:
+ *
+ *  - completion.voided is emitted first and is never deleted (the widened
+ *    audit_log_delete allow-list deliberately omits it). It is the durable
+ *    suppressor — any copy of a graded row that escapes the purge, on a peer
+ *    device's cache or a queue that had not drained, stays retired forever.
+ *  - the raw rows are then hard-deleted so they also stop appearing on the RAW
+ *    surfaces, which read events rather than the fold and so never saw the void.
+ *
+ * The purge is best-effort by design: it can only reach rows this device can
+ * pull, and a peer's local cache is not one of them. That is precisely what the
+ * tombstone covers, which is why it is emitted first rather than instead.
+ *
+ * `completionId` is a fold id (`fold:user:item:type`); non-fold ids are a no-op.
+ */
+export async function deleteCompletion(
+  completionId: string,
+  userId: string,
+): Promise<ServiceResult> {
   const parsed = parseFoldRowId(completionId)
-  if (!parsed) return
-  await voidTrainingCompletion(parsed.userId, parsed.trainingItemId, parsed.completionType, userId)
+  if (!parsed) return fail(`Unresolvable completion id ${completionId}`)
+  // Nothing after this point is conditional on the void — drop the link and
+  // purge only once the tombstone that justifies them exists.
+  const voided = await voidTrainingCompletion(
+    parsed.userId, parsed.trainingItemId, parsed.completionType, userId,
+  )
+  if (!voided.success) return voided
   await deleteTrainingCalendarLink(parsed.userId, parsed.trainingItemId, parsed.completionType)
+  try {
+    await purgeTrainingEventRows(parsed.userId, parsed.trainingItemId, parsed.completionType, userId)
+  } catch (err) {
+    // The void already landed, so the completion is gone from every fold —
+    // a failed purge leaves raw rows visible, not a resurrected completion.
+    logger.warn('Training event purge failed (completion still voided):', err)
+  }
+  return succeed()
 }
 
 // Server reader functions (fetchCompletionsFromServer / fetchSupervisorTestHistory
@@ -317,22 +421,58 @@ export async function createAssignment(params: {
   supervisorId: string
   dueDate: string
   supervisorNotes?: string
-}): Promise<TrainingCompletionUI> {
+}): Promise<ServiceResult<{ completion: TrainingCompletionUI }>> {
   const { medicUserId, trainingItemId, supervisorId, dueDate, supervisorNotes } = params
   const now = new Date().toISOString()
 
-  await emitTrainingEvent('assignment.created', medicUserId, supervisorId, {
+  const emitted = await emitTrainingEvent('assignment.created', medicUserId, supervisorId, {
     training_item_id: trainingItemId,
     due_date: dueDate,
     supervisor_notes: supervisorNotes ?? null,
     supervisor_id: supervisorId,
   }, now)
+  if (!emitted.success) return emitted
 
-  return foldStub(medicUserId, trainingItemId, 'assignment', 'GO', null, {
-    supervisorId,
-    supervisorNotes: supervisorNotes ?? null,
-    dueDate,
+  return succeed({
+    completion: foldStub(medicUserId, trainingItemId, 'assignment', 'GO', null, {
+      supervisorId,
+      supervisorNotes: supervisorNotes ?? null,
+      dueDate,
+    }),
   })
+}
+
+/**
+ * Edit a pending assignment's due date or notes.
+ *
+ * There is no UPDATE path to take. audit_log's update policy is scoped to
+ * pmcs.clear / fault.opened / fault.corrected, so a training row cannot be
+ * rewritten server-side, and rewriting one would be the wrong shape anyway —
+ * the log is the record, not a cache of it.
+ *
+ * What makes this an edit rather than a duplicate is the FOLD: it keys on
+ * (subject, training_item, type) and takes the latest seq, so a second
+ * assignment.created for the same pair REPLACES the row rather than adding one.
+ * The supervisor sees one assignment with a new due date; the spine keeps both
+ * events, which is the history the edit is accountable to.
+ *
+ * The calendar link is keyed on (user, item, 'assignment') too, so it survives
+ * untouched — an edited assignment stays attached to the event it was born from.
+ */
+export async function updateAssignment(params: {
+  medicUserId: string
+  trainingItemId: string
+  supervisorId: string
+  dueDate: string
+  supervisorNotes?: string | null
+}): Promise<ServiceResult> {
+  const { medicUserId, trainingItemId, supervisorId, dueDate, supervisorNotes } = params
+  return emitTrainingEvent('assignment.created', medicUserId, supervisorId, {
+    training_item_id: trainingItemId,
+    due_date: dueDate,
+    supervisor_notes: supervisorNotes ?? null,
+    supervisor_id: supervisorId,
+  }, new Date().toISOString())
 }
 
 /**
@@ -347,7 +487,7 @@ export async function completeAssignment(params: {
   stepResults?: StepResult[]
   supervisorNotes?: string
   supervisorId: string
-}): Promise<TrainingCompletionUI> {
+}): Promise<ServiceResult<{ completion: TrainingCompletionUI }>> {
   const { completionId, medicUserId, completionType, result, stepResults, supervisorNotes, supervisorId } = params
   const now = new Date().toISOString()
 
@@ -355,10 +495,10 @@ export async function completeAssignment(params: {
   const parsed = parseFoldRowId(completionId)
   const trainingItemId = parsed?.trainingItemId
   if (!trainingItemId) {
-    throw new Error(`completeAssignment: unresolvable completion id ${completionId}`)
+    return fail(`Unresolvable completion id ${completionId}`)
   }
 
-  await emitTrainingEvent('assignment.completed', medicUserId, supervisorId, {
+  const emitted = await emitTrainingEvent('assignment.completed', medicUserId, supervisorId, {
     training_item_id: trainingItemId,
     completion_type: completionType,
     result,
@@ -366,6 +506,10 @@ export async function completeAssignment(params: {
     supervisor_notes: supervisorNotes ?? null,
     supervisor_id: supervisorId,
   }, now)
+  // Bail BEFORE moving the calendar link. The link follows the assignment into
+  // its read/test key, so rotating it against an event that was never recorded
+  // would orphan the link on a completion the fold does not produce.
+  if (!emitted.success) return emitted
 
   // The assignment row becomes a read/test under the fold — move any calendar
   // link from the assignment key to the new completion-type key.
@@ -375,10 +519,12 @@ export async function completeAssignment(params: {
     await deleteTrainingCalendarLink(medicUserId, trainingItemId, 'assignment')
   }
 
-  return foldStub(medicUserId, trainingItemId, completionType, result, now, {
-    supervisorId,
-    stepResults: stepResults ?? null,
-    supervisorNotes: supervisorNotes ?? null,
+  return succeed({
+    completion: foldStub(medicUserId, trainingItemId, completionType, result, now, {
+      supervisorId,
+      stepResults: stepResults ?? null,
+      supervisorNotes: supervisorNotes ?? null,
+    }),
   })
 }
 
@@ -422,7 +568,14 @@ export async function deleteCompletionsByCalendarOriginId(
 ): Promise<void> {
   const links = await getTrainingCalendarLinksByOrigin(calendarOriginId)
   for (const l of links) {
-    await voidTrainingCompletion(l.user_id, l.training_item_id, l.completion_type, userId)
+    const voided = await voidTrainingCompletion(l.user_id, l.training_item_id, l.completion_type, userId)
+    // Keep the link when the void is refused. Dropping it would strand a live
+    // completion with no route back to the event, and the cascade could never
+    // find it again to retry.
+    if (!voided.success) {
+      logger.warn(`Calendar cascade: void refused for ${l.training_item_id} (${voided.error})`)
+      continue
+    }
     await deleteTrainingCalendarLink(l.user_id, l.training_item_id, l.completion_type)
   }
 }

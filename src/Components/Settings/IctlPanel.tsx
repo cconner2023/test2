@@ -1,7 +1,7 @@
 import { useMemo, type ReactNode } from 'react'
 import { Check, ChevronRight, Lock, BookOpen } from 'lucide-react'
 import { EmptyState } from '@/Components/primitives/EmptyState'
-import { SectionHeader, SectionCard } from '@/Components/primitives/Section'
+import { SectionHeader, SectionCard, CardLabel } from '@/Components/primitives/Section'
 import { ListItemRow } from '@/Components/primitives/ListItemRow'
 import { StepCallout, PerformanceStepItem, TcccSheetHeader } from '../TrainingStepComponents'
 import { ictl68wSL1, ICTL_APPROVED_DATE } from '../../Data/ICTL'
@@ -79,13 +79,10 @@ function IctlList({
             ) : (
                 Array.from(displayAreas).map(([areaName, tasks]) => (
                     <div key={areaName}>
-                        <div className="flex items-center gap-2 mb-2">
-                            <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">
-                                {areaName}
-                            </p>
-                            <span className="text-[9pt] text-tertiary">{tasks.length}</span>
-                        </div>
-                        <div className="rounded-2xl bg-themewhite2 overflow-hidden">
+                        <SectionHeader trailing={<span className="text-[9pt] text-tertiary">{tasks.length}</span>}>
+                            {areaName}
+                        </SectionHeader>
+                        <SectionCard>
                             {tasks.map((task, idx) => {
                                 const hasData = !!getIctlTaskData(task.taskId)
                                 return (
@@ -115,7 +112,7 @@ function IctlList({
                                     </button>
                                 )
                             })}
-                        </div>
+                        </SectionCard>
                     </div>
                 ))
             )}
@@ -129,15 +126,6 @@ function IctlList({
  * Always-open label for a run of section steps. A medic walking the task needs the steps in
  * front of them, not behind a tap.
  */
-function SubBlock({ label, children }: { label: string; children: ReactNode }) {
-    return (
-        <div>
-            <p className="text-[9pt] font-semibold text-tertiary uppercase tracking-wider mb-0.5">{label}</p>
-            {children}
-        </div>
-    )
-}
-
 /**
  * A section-scoped ref (`<module>#<section>`) — the skill sheet's graded steps rendered inline
  * under its substep. This is the ICTL's referenced TCCC component; the module's didactic teaching
@@ -146,12 +134,12 @@ function SubBlock({ label, children }: { label: string; children: ReactNode }) {
 function TcccSectionBlock({ section }: { section: TcccSection }) {
     return (
         <div className="ml-6 mt-1.5 mb-2">
-            <SubBlock label={section.title}>
+            <CardLabel label={section.title}>
                 <TcccSheetHeader section={section} />
                 {section.steps.map(step => (
                     <PerformanceStepItem key={step.number} step={step} />
                 ))}
-            </SubBlock>
+            </CardLabel>
         </div>
     )
 }

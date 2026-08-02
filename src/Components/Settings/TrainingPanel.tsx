@@ -14,7 +14,7 @@ import { ImageAidGallery } from '../ImageAidGallery'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { skillLevelLabels, categoryOrder } from '../../Data/TrainingConstants'
 import { StepCallout, PerformanceStepItem } from '../TrainingStepComponents'
-import { SectionHeader } from '@/Components/primitives/Section'
+import { SectionCard, SectionHeader } from '@/Components/primitives/Section'
 import { LiftedRowMenu } from '@/Components/primitives/LiftedRowMenu'
 import { liftPressHandlers, type LiftPressState, type LiftSnapshot } from '../liftPress'
 import { useNavPreferencesStore } from '../../stores/useNavPreferencesStore'
@@ -102,13 +102,10 @@ function AssignmentsSection({
 
     return (
         <div className="px-5 pt-4 pb-1">
-            <div className="flex items-center gap-2 mb-2">
-                <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">
-                    Assignments
-                </p>
-                <span className="text-[9pt] text-tertiary">{assignments.length}</span>
-            </div>
-            <div className="rounded-2xl bg-themewhite2 overflow-hidden">
+            <SectionHeader trailing={<span className="text-[9pt] text-tertiary">{assignments.length}</span>}>
+                Assignments
+            </SectionHeader>
+            <SectionCard>
                 {assignments.map((a, idx) => {
                     const taskData = getTaskData(a.trainingItemId)
                     const title = taskData?.title ?? a.trainingItemId
@@ -160,7 +157,7 @@ function AssignmentsSection({
                         </button>
                     )
                 })}
-            </div>
+            </SectionCard>
         </div>
     )
 }
@@ -223,7 +220,7 @@ function TaskRow({
                     )}
                 </div>
                 {!hasData && (
-                    <p className="text-[9pt] md:text-[9pt] text-tertiary flex items-center gap-1 mt-0.5">
+                    <p className="text-[9pt] text-tertiary flex items-center gap-1 mt-0.5">
                         <Lock size={9} /> Coming soon
                     </p>
                 )}
@@ -333,13 +330,10 @@ function TrainingList({
             ) : (
                 Array.from(displayCategories).map(([categoryName, tasks]) => (
                     <div key={categoryName}>
-                        <div className="flex items-center gap-2 mb-2">
-                            <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">
-                                {categoryName}
-                            </p>
-                            <span className="text-[9pt] text-tertiary">{tasks.length}</span>
-                        </div>
-                        <div className="rounded-2xl bg-themewhite2 overflow-hidden">
+                        <SectionHeader trailing={<span className="text-[9pt] text-tertiary">{tasks.length}</span>}>
+                            {categoryName}
+                        </SectionHeader>
+                        <SectionCard>
                             {tasks.map((task, idx) => (
                                 <div key={task.taskId} className={idx > 0 ? 'border-t border-tertiary/8' : ''}>
                                     <TaskRow
@@ -353,7 +347,7 @@ function TrainingList({
                                     />
                                 </div>
                             ))}
-                        </div>
+                        </SectionCard>
                     </div>
                 ))
             )}

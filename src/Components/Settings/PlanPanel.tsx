@@ -18,6 +18,8 @@ import { useNoteBlocksTransfer } from '../../Hooks/useNoteBlocksTransfer';
 import { FooterPill } from '@/Components/primitives/FooterPill'
 import { OverlayHeaderMenu } from '@/Components/primitives/OverlayHeaderMenu';
 import type { ContextMenuItem } from '@/Components/primitives/ContextMenu';
+import { parseMedTag, composeMedTag, planTagDisplay } from '@/Utilities/medTag';
+import { ListGroupLabel } from '@/Components/primitives/Section';
 
 const ALL_KEYS: PlanBlockKey[] = [...PLAN_ORDER_CATEGORIES, 'instructions'];
 const EMPTY_TAGS: PlanOrderTags = { referral: [], meds: [], radiology: [], lab: [], followUp: [] };
@@ -346,6 +348,29 @@ function tagToData(key: PlanBlockKey, tag: string): { planOrderTags?: PlanOrderT
 
 // ── Tag edit / new popover ─────────────────────────────────────────
 
+/** Dispense count on a medication tag — the default handed out when the tag is
+ *  used in a note. Blank means the tag carries no quantity at all. */
+function QtyInput({ value, onChange, onEnter }: {
+    value: string;
+    onChange: (v: string) => void;
+    onEnter: () => void;
+}) {
+    return (
+        <span className="flex items-center gap-0.5 shrink-0 text-tertiary">
+            <span className="text-sm">x</span>
+            <input
+                type="text"
+                inputMode="numeric"
+                value={value}
+                onChange={(e) => onChange(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); onEnter(); } }}
+                placeholder="Qty"
+                className="w-12 bg-transparent text-primary placeholder:text-tertiary focus:outline-none text-sm tabular-nums"
+            />
+        </span>
+    );
+}
+
 function TagEditPopover({ state, onClose, isSupervisorRole, hasClinic, onSubmitMany, onRename }: {
     state: TagPopover | null;
     onClose: () => void;
@@ -355,7 +380,10 @@ function TagEditPopover({ state, onClose, isSupervisorRole, hasClinic, onSubmitM
     onRename: (scope: Scope, key: PlanBlockKey, original: string, next: string) => void;
 }) {
     // New mode builds an array (one row per tag); edit mode is a single row.
+    // Med rows carry a quantity alongside the label — the two are composed into
+    // one tag string on save, so `values` holds labels only.
     const [values, setValues] = useState<string[]>(['']);
+    const [qtys, setQtys] = useState<string[]>(['']);
     const [category, setCategory] = useState<PlanBlockKey>('meds');
     const [scope, setScope] = useState<Scope>('personal');
     const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
@@ -365,11 +393,15 @@ function TagEditPopover({ state, onClose, isSupervisorRole, hasClinic, onSubmitM
     useEffect(() => {
         if (!state) return;
         if (state.mode === 'edit') {
-            setValues([state.original]);
+            const { label, qty } = parseMedTag(state.original);
+            const isMed = state.key === 'meds';
+            setValues([isMed ? label : state.original]);
+            setQtys([isMed && qty != null ? String(qty) : '']);
             setCategory(state.key);
             setScope(state.isClinic ? 'clinic' : 'personal');
         } else {
             setValues(['']);
+            setQtys(['']);
             setCategory('meds');
             setScope('personal');
         }
@@ -387,8 +419,22 @@ function TagEditPopover({ state, onClose, isSupervisorRole, hasClinic, onSubmitM
     const isEdit = state?.mode === 'edit';
     const original = isEdit ? (state as Extract<TagPopover, { mode: 'edit' }>).original : '';
 
-    // Trimmed, de-duped, blank-free — the array Save commits.
-    const cleaned = useMemo(() => [...new Set(values.map(v => v.trim()).filter(Boolean))], [values]);
+    // The category being authored — fixed when editing, picked from the header menu on new.
+    const targetKey = isEdit ? (state as Extract<TagPopover, { mode: 'edit' }>).key : category;
+    const isMedCategory = targetKey === 'meds';
+
+    // Trimmed, de-duped, blank-free — the array Save commits. Med rows fold their
+    // quantity in here, so everything downstream still sees plain tag strings.
+    const cleaned = useMemo(() => {
+        const composed = values.map((v, i) => {
+            const label = v.trim();
+            if (!label) return '';
+            if (!isMedCategory) return label;
+            const n = Number.parseInt(qtys[i] ?? '', 10);
+            return composeMedTag(label, Number.isFinite(n) ? n : null);
+        });
+        return [...new Set(composed.filter(Boolean))];
+    }, [values, qtys, isMedCategory]);
     const lastFilled = values[values.length - 1]?.trim().length > 0;
     const canSave = isEdit
         ? (!!cleaned[0] && cleaned[0] !== original)
@@ -396,9 +442,18 @@ function TagEditPopover({ state, onClose, isSupervisorRole, hasClinic, onSubmitM
 
     const setValueAt = (i: number, v: string) =>
         setValues(prev => prev.map((x, idx) => (idx === i ? v : x)));
-    const addRow = () => setValues(prev => { focusIdxRef.current = prev.length; return [...prev, '']; });
-    const removeRow = (i: number) =>
-        setValues(prev => (prev.length <= 1 ? prev : prev.filter((_, idx) => idx !== i)));
+    const setQtyAt = (i: number, v: string) =>
+        setQtys(prev => prev.map((x, idx) => (idx === i ? v.replace(/\D/g, '') : x)));
+    const addRow = () => {
+        focusIdxRef.current = values.length;
+        setValues(prev => [...prev, '']);
+        setQtys(prev => [...prev, '']);
+    };
+    const removeRow = (i: number) => {
+        if (values.length <= 1) return;
+        setValues(prev => prev.filter((_, idx) => idx !== i));
+        setQtys(prev => prev.filter((_, idx) => idx !== i));
+    };
 
     const handleSave = () => {
         if (!state || !canSave) return;
@@ -489,6 +544,7 @@ function TagEditPopover({ state, onClose, isSupervisorRole, hasClinic, onSubmitM
                         placeholder={placeholder}
                         className="flex-1 bg-transparent text-primary placeholder:text-tertiary focus:outline-none text-sm min-w-0"
                     />
+                    {isMedCategory && <QtyInput value={qtys[0] ?? ''} onChange={(v) => setQtyAt(0, v)} onEnter={handleSave} />}
                 </div>
             ) : (
                 <div className="py-1">
@@ -511,6 +567,7 @@ function TagEditPopover({ state, onClose, isSupervisorRole, hasClinic, onSubmitM
                                 placeholder={placeholder}
                                 className="flex-1 bg-transparent text-primary placeholder:text-tertiary focus:outline-none text-sm min-w-0"
                             />
+                            {isMedCategory && <QtyInput value={qtys[i] ?? ''} onChange={(v) => setQtyAt(i, v)} onEnter={handleSave} />}
                             {values.length > 1 && (
                                 <button
                                     type="button"
@@ -650,15 +707,11 @@ function OrderSetEditPopover({
                     </div>
                     {selectedFlat.length > 0 && (
                         <div className="border-b border-primary/6">
-                            <div className="px-4 pt-3 pb-1">
-                                <p className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest">
-                                    Selected
-                                </p>
-                            </div>
+                            <ListGroupLabel>Selected</ListGroupLabel>
                             <div className="px-4 pb-2">
                                 {selectedFlat.map(({ catKey, tag }) => (
                                     <div key={`${catKey}-${tag}`} className="flex items-center gap-2 py-1">
-                                        <span className="flex-1 text-sm text-primary break-words min-w-0">{tag}</span>
+                                        <span className="flex-1 text-sm text-primary break-words min-w-0">{planTagDisplay(catKey, tag)}</span>
                                         <button
                                             type="button"
                                             onClick={() => togglePreset(catKey, tag)}

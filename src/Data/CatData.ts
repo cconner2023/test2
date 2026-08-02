@@ -354,7 +354,7 @@ export const catData: catDataTypes[] = [
                     stpTask("081-68W-0254"),
                     stpTask("081-68W-0242"),
                     stpTask("081-68W-0243"),
-                    stpTask("081-68W-0245")
+                    stpTask("081-68W-0245(b)")
                 ],
                 redFlags: [
                     { text: "Abnormal Vital Signs" },
@@ -756,8 +756,8 @@ export const catData: catDataTypes[] = [
                 medcom: [medcomTrainingData[23]],
                 stp: [
                     stpTask("081-000-0025"),
-                    stpTask("081-68W-0239"),
-                    stpTask("081-000-0118")
+                    stpTask("081-68W-0239(b)"),
+                    stpTask("081-000-0118(b)")
                 ],
                 redFlags: [
                     { text: "Vomiting Blood or Coffee Grinds, Melena" },
@@ -780,7 +780,7 @@ export const catData: catDataTypes[] = [
                 text: "Abdominal and Flank Pain",
                 gen: [{ text: 'Abdominal pain is pain between the ribs and groin in the front half of the body. Note that a cardiac problem can cause upper abdominal pain. Pain may be related to the location: right upper quadrant (RUQ) (liver, gallbladder), left upper quadrant (LUQ) (spleen), epigastric (stomach, pancreas, aorta, heart), lower (intestines, urinary tract, hernia, pelvic organs), flank (kidney).' }],
                 medcom: [medcomTrainingData[23]],
-                stp: [stpTask("081-68W-0239")],
+                stp: [stpTask("081-68W-0239(b)")],
                 redFlags: [
                     { text: "Abnormal Vitals" },
                     { text: "Abdominal rigidity/rebound (bump chair)" },
@@ -808,7 +808,7 @@ export const catData: catDataTypes[] = [
                 gen: [{ text: 'Rectal pain, itching, and bleeding are often signs of hemorrhoids or an anal fissure, but more serious conditions must be ruled out.' }],
                 medcom: [],
                 stp: [
-                    stpTask("081-68W-0239"),
+                    stpTask("081-68W-0239(b)"),
                     stpTask("081-000-1008")
                 ],
                 redFlags: [
@@ -831,7 +831,7 @@ export const catData: catDataTypes[] = [
                 text: "Constipation",
                 gen: [{ text: 'Constipation means infrequent or difficult bowel movements. Soldiers use the word to mean many things--painful defecation, narrowing of the stools, or not having a “regular daily” bowel movement. Normal bowel habits differ from Soldier to Soldier; therefore, a wide variation exists in what Soldiers consider to be normal or to be a problem. Because constipation and hemorrhoids commonly occur together, rectal bleeding may be falsely attributed to these causes. This can be a dangerous mistake. Rectal bleeding must be screened as a separate problem. Constipation not associated with rectal bleeding may be appropriately treated through minor-care.' }],
                 medcom: [],
-                stp: [stpTask("081-68W-0239")],
+                stp: [stpTask("081-68W-0239(b)")],
                 redFlags: [
                     { text: "Diarrhea at night" },
                     { text: "Iron deficiency anemia" },
@@ -871,7 +871,7 @@ export const catData: catDataTypes[] = [
                 medcom: [medcomTrainingData[24]],
                 stp: [
                     stpTask("081-000-0131"),
-                    stpTask("081-68W-0239")
+                    stpTask("081-68W-0239(b)")
                 ],
                 redFlags: [
                     { text: "Vomiting Blood or Coffee Grinds" },
@@ -908,7 +908,7 @@ export const catData: catDataTypes[] = [
                 ],
                 stp: [
                     stpTask("081-68W-0314"),
-                    stpTask("081-68W-0245")
+                    stpTask("081-68W-0245(b)")
                 ],
                 redFlags: [
                     { text: "Cyanosis" },
@@ -1200,7 +1200,7 @@ export const catData: catDataTypes[] = [
                     text: 'The terms “depression, nervousness, anxiety, tension” and complaints of “nerves” or “being upset” may all be used by Soldiers to describe problems with mood. Complaints such as these are often due to situational or behavioral health factors, but may also be due to a physical condition. Everyone experiences emotional distress from time to time. However, when symptoms become continuous or interfere with daily functioning, or when suicidal or homicidal thoughts or self-harm are reported, the complaint must be taken seriously and further evaluated.'
                 }],
                 medcom: [],
-                stp: [stpTask("081-68W-0246")],
+                stp: [stpTask("081-68W-0246(b)")],
                 redFlags: [
                     { text: "Homicidal Intent or Attempt" },
                     { text: "Suicide Intent or Attempt" },
@@ -1527,7 +1527,7 @@ export const catData: catDataTypes[] = [
                 gen: [{ text: 'If the cause of the condition is unknown to the Soldier, this first protocol provides the category/level of care indicated by the Soldiers symptoms' }],
                 medcom: [medcomTrainingData[2]],
                 stp: [
-                    stpTask("081-68W-0125"),
+                    stpTask("081-68W-0125(b)"),
                     stpTask("081-000-1006")
                 ],
                 redFlags: [{ text: "Airway Compromise/Swelling" }],
@@ -1550,7 +1550,7 @@ export const catData: catDataTypes[] = [
                     medcomTrainingData[21]
                 ],
                 stp: [
-                    stpTask("081-68W-0125"),
+                    stpTask("081-68W-0125(b)"),
                     stpTask("081-000-1006")
                 ],
                 redFlags: [],
@@ -1569,7 +1569,7 @@ export const catData: catDataTypes[] = [
                 gen: [{ text: 'Pseudofolliculitis Barbae is a chronic condition of the beard area resulting from the reentry of the growing hair into the upper layer of the skin or facial hairs becoming trapped in the upper layer of the skin. The genetic predisposition of the African American male to tight coiling hair makes him highly susceptible to this condition. The most common locations for lesions are the face and neck. The lesions can be painful and interfere with shaving although they rarely become secondarily infected. Permanent scarring is possible.' }],
                 medcom: [medcomTrainingData[2]],
                 stp: [
-                    stpTask("081-68W-0125"),
+                    stpTask("081-68W-0125(b)"),
                     stpTask("081-000-1006")
                 ],
                 redFlags: [{ text: "Facial Cellulitis" }],
@@ -1590,7 +1590,7 @@ export const catData: catDataTypes[] = [
                 }],
                 medcom: [],
                 stp: [
-                    stpTask("081-68W-0125"),
+                    stpTask("081-68W-0125(b)"),
                     stpTask("081-000-1006")
                 ],
                 redFlags: [
@@ -1613,7 +1613,7 @@ export const catData: catDataTypes[] = [
                 gen: [{ text: 'While most hair loss is natural and hereditary, any hair loss that is sudden or extreme in nature may have resulted from a fungal infection or other forms of illness or as a result of using certain medications. When treated promptly and properly, hair growth typically resumes.' }],
                 medcom: [],
                 stp: [
-                    stpTask("081-68W-0125"),
+                    stpTask("081-68W-0125(b)"),
                     stpTask("081-000-1006")
                 ],
                 redFlags: [],
@@ -1632,7 +1632,7 @@ export const catData: catDataTypes[] = [
                 gen: [{ text: 'Tinea pedis (athlete\'s foot) most commonly occurs with frequently wearing damp socks and/ or tight fitting shoes.It is contagious and can be spread by contact with an infected person or contaminated surface.' }],
                 medcom: [medcomTrainingData[2]],
                 stp: [
-                    stpTask("081-68W-0125"),
+                    stpTask("081-68W-0125(b)"),
                     stpTask("081-000-1006")
                 ],
                 redFlags: [
@@ -1653,7 +1653,7 @@ export const catData: catDataTypes[] = [
                 gen: [{ text: 'Tinea cruris (also known as jock itch) is a dermatophyte infection involving the crural (superior medial portion of the thigh) fold. The spreading of tinea pedis is often the cause for these infections. Infection may spread to the perineum and perianal areas, into the gluteal cleft, or onto the buttocks.' }],
                 medcom: [medcomTrainingData[2]],
                 stp: [
-                    stpTask("081-68W-0125"),
+                    stpTask("081-68W-0125(b)"),
                     stpTask("081-000-1006")
                 ],
                 redFlags: [
@@ -1674,7 +1674,7 @@ export const catData: catDataTypes[] = [
                 gen: [{ text: 'Tinea versicolor is a common superficial fungal infection that appears as “spots” (lighter, darker, or redder than surrounding skin) on the neck, chest, back, and arms usually with no other symptoms. The rash is typically scaly and painless. It may be noticed in the summer when affected areas fail to tan after sun exposure.' }],
                 medcom: [medcomTrainingData[2]],
                 stp: [
-                    stpTask("081-68W-0125"),
+                    stpTask("081-68W-0125(b)"),
                     stpTask("081-000-1006")
                 ],
                 redFlags: [],
@@ -1692,7 +1692,7 @@ export const catData: catDataTypes[] = [
                 gen: [{ text: 'A boil is usually caused by bacteria that enters through a hair follicle. A painful nodule enclosing a core of pus forms in the skin. Tenderness, warmth, swelling, and firm area, and pain may be present around the area of inflammation. An extremely large boil or numerous boils can produce fever. Boils are also known as furuncles if they have single cores or carbuncles if they have multiple cores.' }],
                 medcom: [],
                 stp: [
-                    stpTask("081-68W-0125"),
+                    stpTask("081-68W-0125(b)"),
                     stpTask("081-000-1006")
                 ],
                 redFlags: [
@@ -1718,7 +1718,7 @@ export const catData: catDataTypes[] = [
                 gen: [{ text: 'Fever blisters result from an acute viral infection that frequently occurs around the mouth or on the lips. Fever blisters usually occur with multiple vesicular lesions on an erythematous base. Lesions can be painful and last for 10-14 days. Initial infection can be associated with systemic symptoms, like fever and malaise. Viral infection resides in the nerve cells after the initial infection and can reoccur when the body is under stress. Re-emergence of the cold sores is often preceded by prodromal symptoms of pain, burning, tingling, or itching for six hours to 2.5 days. Cold sores are contagious and spread through contact.' }],
                 medcom: [medcomTrainingData[2]],
                 stp: [
-                    stpTask("081-68W-0125"),
+                    stpTask("081-68W-0125(b)"),
                     stpTask("081-000-1006")
                 ],
                 redFlags: [{ text: "Eye Pain" }],
@@ -1774,7 +1774,7 @@ export const catData: catDataTypes[] = [
                 gen: [{ text: 'Drugs can cause an acute rash of small red spots over the entire body in individuals who are sensitivity to them, like antibiotics or sulfonamides. Contact dermatitis results when the skin comes in contact with anything in the environment that causes an inflammatory reaction, like shoe materials, watchbands, earrings, and poison ivy. Contact area can present with burning, itching, redness, and fissures or vesicles. Poison ivy is the most common example of this group and related to an oil in the plant’s leaves. Symptoms usually develop within 24 to 48 hours of contact.' }],
                 medcom: [medcomTrainingData[2]],
                 stp: [
-                    stpTask("081-68W-0125"),
+                    stpTask("081-68W-0125(b)"),
                     stpTask("081-000-1006")
                 ],
                 redFlags: [
@@ -1799,7 +1799,7 @@ export const catData: catDataTypes[] = [
                     medcomTrainingData[17]
                 ],
                 stp: [
-                    stpTask("081-68W-0125"),
+                    stpTask("081-68W-0125(b)"),
                     stpTask("081-000-1006")
                 ],
                 redFlags: [
@@ -1846,7 +1846,7 @@ export const catData: catDataTypes[] = [
                     medcomTrainingData[9],
                     medcomTrainingData[26]
                 ],
-                stp: [stpTask("081-68W-0125")],
+                stp: [stpTask("081-68W-0125(b)")],
                 redFlags: [],
                 DDX: [
                     { text: "Callus" },
@@ -1867,7 +1867,7 @@ export const catData: catDataTypes[] = [
                     medcomTrainingData[12],
                     medcomTrainingData[26]
                 ],
-                stp: [stpTask("081-68W-0125")],
+                stp: [stpTask("081-68W-0125(b)")],
                 redFlags: [],
                 DDX: [
                     { text: "Cutaneous Wart" },
@@ -2021,7 +2021,7 @@ export const catData: catDataTypes[] = [
                     medcomTrainingData[13]
                 ],
                 stp: [
-                    stpTask("081-68W-0125"),
+                    stpTask("081-68W-0125(b)"),
                     stpTask("081-000-1006")
                 ],
                 redFlags: [],

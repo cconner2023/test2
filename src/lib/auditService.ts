@@ -20,6 +20,10 @@ import {
   saveLocalAuditLog,
   getLocalAuditLog,
   getLocalAuditLogsBySubject,
+  getLocalAuditLogsByClinicDomain,
+  getDeferredAuditLogs,
+  getAuditCursor,
+  putAuditCursor,
   deleteLocalAuditLog,
   type LocalAuditLog,
 } from './offlineDb'
@@ -60,8 +64,14 @@ interface AuditRow {
  */
 async function cacheAuditRows(rows: AuditRow[]): Promise<void> {
   await Promise.all(
-    rows.map((r) =>
-      saveLocalAuditLog({
+    rows.map(async (r) => {
+      // A locally deferred EDIT of an already-synced event still holds its new
+      // payload in plaintext. The server copy is the pre-edit world, so caching
+      // it over the row would discard the correction before the flush ever ran.
+      const local = await getLocalAuditLog(r.id).catch(() => undefined)
+      if (local?.payload_plain != null) return
+
+      await saveLocalAuditLog({
         id: r.id,
         seq: r.seq ?? null,
         clinic_id: r.clinic_id,
@@ -77,8 +87,8 @@ async function cacheAuditRows(rows: AuditRow[]): Promise<void> {
         _sync_retry_count: 0,
         _last_sync_error: null,
         _last_sync_error_message: null,
-      }).catch(() => {}),
-    ),
+      }).catch(() => {})
+    }),
   )
 }
 
@@ -88,9 +98,14 @@ async function cacheAuditRows(rows: AuditRow[]): Promise<void> {
  * Emit an immutable audit event. Returns the local row, or null on failure.
  *
  * Encrypt-or-defer: when a payload is supplied but the clinic key is
- * unavailable, the event is stored locally in 'error' sync state and is NOT
- * enqueued — a plaintext payload must never reach Supabase. A later flush
- * (once the key is cached) re-emits it. Spine-only events always enqueue.
+ * unavailable, the event is stored locally in 'error' sync state with its
+ * payload in `payload_plain` and is NOT enqueued — a plaintext payload must
+ * never reach Supabase. flushDeferredAudit encrypts and enqueues it once the
+ * key is cached. Spine-only events always enqueue.
+ *
+ * Holding the plaintext is the whole point of the defer: dropping it (which is
+ * what this did before) discarded the write silently, since nothing else in the
+ * app holds the event once the caller returns.
  */
 export async function emitAudit(
   input: EmitAuditInput,
@@ -118,6 +133,8 @@ export async function emitAudit(
       subject_id: input.subjectId,
       occurred_at: input.occurredAt ?? nowIso,
       payload_enc: payloadEnc,
+      payload_plain: deferred ? input.payload ?? null : null,
+      _deferred_action: 'create',
       created_at: nowIso,
       _sync_status: deferred ? 'error' : 'pending',
       _sync_retry_count: 0,
@@ -163,6 +180,76 @@ export async function emitAudit(
 }
 
 /**
+ * Drain the encrypt-or-defer backlog: seal every parked event with its clinic's
+ * key and enqueue it. Returns how many were released.
+ *
+ * Deferred rows are invisible to the sync queue by construction — emitAudit
+ * deliberately does not enqueue an event it could not seal — so nothing else
+ * will ever pick them up. This is the only path out of that state, which is why
+ * it runs on the sync tick rather than at a call site that may never fire again.
+ *
+ * Scoped per clinic and NOT per row: a key that is still missing strands that
+ * clinic's whole batch (there is nothing to retry but the same failing fetch),
+ * while every other clinic drains normally. An event carries the clinic the
+ * actor was supervising when they wrote it, so one device's backlog routinely
+ * spans more than one.
+ */
+export async function flushDeferredAudit(userId: string): Promise<number> {
+  let released = 0
+  try {
+    const byClinic = new Map<string, LocalAuditLog[]>()
+    for (const row of await getDeferredAuditLogs()) {
+      const bucket = byClinic.get(row.clinic_id)
+      if (bucket) bucket.push(row)
+      else byClinic.set(row.clinic_id, [row])
+    }
+
+    for (const [clinicId, rows] of byClinic) {
+      if (!isUuid(clinicId)) continue
+      for (const row of rows) {
+        const payloadEnc = await encryptAuditPayload(clinicId, row.payload_plain)
+        if (payloadEnc == null) break // key still unavailable — this clinic waits
+
+        const action = row._deferred_action ?? 'create'
+        const sealed: LocalAuditLog = {
+          ...row,
+          payload_enc: payloadEnc,
+          payload_plain: null,
+          _sync_status: 'pending',
+          _last_sync_error_message: null,
+        }
+        await saveLocalAuditLog(sealed)
+        await addToSyncQueue({
+          user_id: userId,
+          action,
+          table_name: 'audit_log',
+          record_id: sealed.id,
+          payload: {
+            id: sealed.id,
+            clinic_id: sealed.clinic_id,
+            actor_id: sealed.actor_id,
+            domain: sealed.domain,
+            event_type: sealed.event_type,
+            subject_type: sealed.subject_type,
+            subject_id: sealed.subject_id,
+            occurred_at: sealed.occurred_at,
+            payload_enc: sealed.payload_enc,
+            // seq is GENERATED ALWAYS — never sent. updated_at backs the sync
+            // layer's last-write-wins compare and is only meaningful on an edit.
+            ...(action === 'update' ? { updated_at: new Date().toISOString() } : {}),
+          },
+        })
+        released++
+      }
+    }
+    if (released > 0) logger.info(`Released ${released} deferred audit event(s)`)
+  } catch (err) {
+    logger.error('flushDeferredAudit failed:', getErrorMessage(err, String(err)))
+  }
+  return released
+}
+
+/**
  * Edit an existing event's encrypted payload in place — re-encrypts `newPayload`
  * with the clinic key and enqueues a hard `update` to audit_log. The event keeps
  * its id, seq, subject and occurred_at; only payload_enc (and a fresh updated_at
@@ -170,8 +257,10 @@ export async function emitAudit(
  * a correction note). audit_log gained UPDATE/DELETE RLS on 2026-06-21 — before
  * that it was strictly append-only.
  *
- * Encrypt-or-defer mirrors emitAudit: if the clinic key is unavailable the row is
- * stored locally in 'error' state and NOT enqueued (no plaintext on the wire).
+ * Encrypt-or-defer mirrors emitAudit: if the clinic key is unavailable the edit
+ * is held as plaintext in `payload_plain` and NOT enqueued (no plaintext on the
+ * wire), and the PRIOR ciphertext is left in place — overwriting it with null
+ * would destroy the original event to stage an edit that has not been sealed.
  * Returns the updated local row, or null if the event is unknown / edit failed.
  */
 export async function updateAuditEvent(
@@ -192,7 +281,9 @@ export async function updateAuditEvent(
 
     const row: LocalAuditLog = {
       ...existing,
-      payload_enc: payloadEnc,
+      payload_enc: deferred ? existing.payload_enc : payloadEnc,
+      payload_plain: deferred ? newPayload : null,
+      _deferred_action: 'update',
       _sync_status: deferred ? 'error' : 'pending',
       _sync_retry_count: 0,
       _last_sync_error: null,
@@ -352,12 +443,24 @@ export async function deleteTransferAuditForCustody(
 
 // ---- Decrypt mapper ----
 
-/** Map a stored/server row into a decrypted AuditEvent (payload decrypted). */
+/**
+ * Map a stored/server row into a decrypted AuditEvent (payload decrypted).
+ *
+ * A local row deferred for want of a clinic key is read from its held plaintext,
+ * and that WINS over the ciphertext rather than merely standing in for it: on a
+ * deferred edit both are present and the plaintext is the newer of the two. It
+ * is cleared the instant the flush seals it, so this never shadows a live
+ * payload.
+ *
+ * Without the fallback the fold drops such an event whole — every fold keys off
+ * a payload field (training_item_id, item id), so a payload-less event is
+ * invisible, and a grade taken offline looked like a button that did nothing.
+ */
 export async function toAuditEvent(row: AuditRow | LocalAuditLog): Promise<AuditEvent> {
-  const payload = await decryptAuditPayload<Record<string, unknown>>(
-    row.clinic_id,
-    row.payload_enc,
-  )
+  const pending = 'payload_plain' in row ? row.payload_plain ?? null : null
+  const payload =
+    pending ??
+    (await decryptAuditPayload<Record<string, unknown>>(row.clinic_id, row.payload_enc))
   return {
     id: row.id,
     seq: row.seq ?? null,
@@ -379,6 +482,98 @@ export async function getAuditBySubjectLocal(subjectId: string): Promise<AuditEv
   if (!isUuid(subjectId)) return []
   const rows = await getLocalAuditLogsBySubject(subjectId)
   return Promise.all(rows.map(toAuditEvent))
+}
+
+/** Read a clinic's events in one domain from local IDB (offline-first), decrypted. */
+export async function getAuditByClinicDomainLocal(
+  clinicId: string,
+  domain: AuditDomain,
+): Promise<AuditEvent[]> {
+  if (!isUuid(clinicId)) return []
+  const rows = await getLocalAuditLogsByClinicDomain(clinicId, domain)
+  return Promise.all(rows.map(toAuditEvent))
+}
+
+// ---- Read: local-first + delta (the shape every audit consumer should use) ----
+
+/**
+ * Merge two event sets by id, server copy winning.
+ *
+ * The overlap is not incidental: a locally-emitted event and its synced twin
+ * are the SAME id, and only the server copy carries `seq`. Preferring it is
+ * what lets the fold order a just-written event correctly the moment it syncs.
+ */
+function mergeEvents(local: AuditEvent[], fresh: AuditEvent[]): AuditEvent[] {
+  const byId = new Map(local.map((e) => [e.id, e]))
+  for (const e of fresh) byId.set(e.id, e)
+  return [...byId.values()]
+}
+
+/** Highest seq in a pulled page — the mark the next delta resumes from. */
+function maxSeq(events: AuditEvent[]): number {
+  let max = 0
+  for (const e of events) if (e.seq != null && e.seq > max) max = e.seq
+  return max
+}
+
+/**
+ * Local-first read of a clinic's domain events, topped up by a delta pull.
+ *
+ * Local IDB answers first and ALWAYS contributes, which is the whole point: an
+ * event emitted seconds ago is in IDB with `seq: null` and `_sync_status:
+ * 'pending'`, and the sync queue only drains on its 30s tick. A server-only
+ * read refetches a world that does not contain the caller's own write yet, so
+ * the surface that just wrote comes back blank — and stays blank offline.
+ *
+ * The server half pulls only `seq > cursor`. audit_log is append-only, so
+ * anything at or below the mark is already cached and immutable; there is
+ * nothing to re-read. A short page (limit hit) advances the cursor to its last
+ * seq and the next call resumes there, so coverage is monotonic either way.
+ */
+export async function loadAuditByClinicDomain(
+  clinicId: string,
+  domain: AuditDomain,
+  opts: { limit?: number } = {},
+): Promise<AuditEvent[]> {
+  if (!isUuid(clinicId)) return []
+  const cursorKey = `clinic|${clinicId}|${domain}`
+  const [local, since] = await Promise.all([
+    getAuditByClinicDomainLocal(clinicId, domain).catch(() => [] as AuditEvent[]),
+    getAuditCursor(cursorKey),
+  ])
+  const fresh = await fetchAuditByClinicDomain(clinicId, domain, {
+    since,
+    limit: opts.limit,
+  }).catch(() => [] as AuditEvent[])
+  await putAuditCursor(cursorKey, maxSeq(fresh))
+  return mergeEvents(local, fresh)
+}
+
+/**
+ * Local-first read of one subject's events, topped up by a delta pull.
+ * Subject-scoped sibling of loadAuditByClinicDomain — same contract, and the
+ * cursor is keyed by clinic too because the RPC filters on it.
+ */
+export async function loadAuditBySubject(
+  subjectId: string,
+  clinicId: string,
+  opts: { limit?: number } = {},
+): Promise<AuditEvent[]> {
+  if (!isUuid(subjectId)) return []
+  const cursorKey = `subject|${clinicId}|${subjectId}`
+  const [local, since] = await Promise.all([
+    getAuditBySubjectLocal(subjectId).catch(() => [] as AuditEvent[]),
+    getAuditCursor(cursorKey),
+  ])
+  const fresh = isUuid(clinicId)
+    ? await fetchAuditBySubject(subjectId, {
+        clinicId,
+        since,
+        limit: opts.limit,
+      }).catch(() => [] as AuditEvent[])
+    : []
+  await putAuditCursor(cursorKey, maxSeq(fresh))
+  return mergeEvents(local, fresh)
 }
 
 // ---- Read: server (read_audit RPC) ----

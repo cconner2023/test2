@@ -23,7 +23,7 @@ export const stp68wTraining: stp68wTrainingTypes[] =
             { id: "081-000-0061", title: "Perform Patient Suctioning" },
             { id: "081-68W-0230", title: "Place an Intermediate Airway Device" },
             { id: "081-68W-2001", title: "Operate a Simplified Automated Ventilator" },
-            { id: "081-000-0122", title: "Perform a Surgical Cricothyroidotomy" },
+            { id: "081-000-0122(b)", title: "Perform a Surgical Cricothyroidotomy" },
             { id: "081-68W-2036", title: "Perform End Tidal Carbon Dioxide Monitoring" }
           ]
         },
@@ -42,10 +42,10 @@ export const stp68wTraining: stp68wTrainingTypes[] =
           tasks: [
             { id: "081-000-0059", title: "Decontaminate a Casualty" },
             { id: "081-68W-3016", title: "Brief Mission Commander on Casualty Response Plan" },
-            { id: "081-68W-0167", title: "Employ Telemedicine" },
+            { id: "081-68W-0167(b)", title: "Employ Telemedicine" },
             { id: "081-000-0016", title: "Treat a Casualty for a Heat Injury" },
             { id: "081-000-0017", title: "Treat a Casualty for a Cold Injury" },
-            { id: "081-68W-0005", title: "Enforce Field Sanitation Measures" }
+            { id: "081-68W-0005(b)", title: "Enforce Field Sanitation Measures" }
           ]
         },
         {
@@ -57,7 +57,7 @@ export const stp68wTraining: stp68wTrainingTypes[] =
             { id: "081-68W-0279", title: "Treat a Biological Casualty" },
             { id: "081-000-0018", title: "Perform Basic Life Support" },
             { id: "081-000-0116", title: "Treat a Blister Agent Casualty (Mustard, Lewisite, Phosgene Oxime)" },
-            { id: "081-000-0118", title: "Treat a Radiation Casualty" },
+            { id: "081-000-0118(b)", title: "Treat a Radiation Casualty" },
             { id: "081-68W-0275", title: "Treat a Nerve Agent Casualty" }
           ]
         },
@@ -75,7 +75,7 @@ export const stp68wTraining: stp68wTrainingTypes[] =
         {
           name: "Trauma Management",
           tasks: [
-            { id: "081-000-0037", title: "Treat a Thoracic Injury" },
+            { id: "081-000-0037(b)", title: "Treat a Thoracic Injury" },
             { id: "081-000-1001", title: "Assess Patient Vital Signs" },
             { id: "081-68W-0075", title: "Perform Needle Decompression of the Chest" },
             { id: "081-68W-0081", title: "Treat a Casualty with an Inguinal Wound" },
@@ -83,8 +83,8 @@ export const stp68wTraining: stp68wTrainingTypes[] =
             { id: "081-68W-0092", title: "Apply a Junctional Tourniquet" },
             { id: "081-68W-0231", title: "Manage Shock" },
             { id: "081-000-0023", title: "Manage a Mild Traumatic Brain Injury" },
-            { id: "081-000-0040", title: "Treat a Head Injury" },
-            { id: "081-000-0049", title: "Perform a Combat Casualty Assessment" },
+            { id: "081-000-0040(b)", title: "Treat a Head Injury" },
+            { id: "081-000-0049(b)", title: "Perform a Combat Casualty Assessment" },
             { id: "081-68W-0079", title: "Treat a Casualty with an Axillary Wound" }
           ]
         },
@@ -93,7 +93,7 @@ export const stp68wTraining: stp68wTrainingTypes[] =
           tasks: [
             { id: "081-68W-0282", title: "Perform Casualty Movement" },
             { id: "081-68W-0298", title: "Transport a Casualty Using a Litter" },
-            { id: "081-000-0055", title: "Perform Casualty Triage" },
+            { id: "081-000-0055(b)", title: "Perform Casualty Triage" },
             { id: "081-000-0070", title: "Establish a Casualty Collection Point" }
           ]
         }
@@ -108,7 +108,7 @@ export const stp68wTraining: stp68wTrainingTypes[] =
             { id: "081-000-0034", title: "Place an Oropharyngeal Airway" },
             { id: "081-000-0073", title: "Administer Oxygen" },
             { id: "081-68W-0236", title: "Perform End Tidal Carbon Dioxide Monitoring" },
-            { id: "081-000-0125", title: "Maintain a Nasogastric Tube" },
+            { id: "081-000-0125(b)", title: "Maintain a Nasogastric Tube" },
             { id: "081-68W-0313", title: "Apply an Impedance Threshold Device" }
           ]
         },
@@ -124,7 +124,7 @@ export const stp68wTraining: stp68wTrainingTypes[] =
         {
           name: "Force Health Protection",
           tasks: [
-            { id: "081-68W-0168", title: "Treat Dental Emergencies" },
+            { id: "081-68W-0168(b)", title: "Treat Dental Emergencies" },
             { id: "081-000-0075", title: "Perform Patient Hygiene" },
             { id: "081-68W-0169", title: "Perform Field Disinfection of Instruments" },
             { id: "081-000-0052", title: "Treat a Casualty for Insect Injury" },
@@ -132,7 +132,7 @@ export const stp68wTraining: stp68wTrainingTypes[] =
             { id: "081-000-0054", title: "Manage a Patient Restraint" },
             { id: "081-000-0130", title: "Perform a Gastric Lavage" },
             { id: "081-000-0131", title: "Obtain an Electrocardiogram" },
-            { id: "081-68W-0246", title: "Treat a Behavioral Emergency" }
+            { id: "081-68W-0246(b)", title: "Treat a Behavioral Emergency" }
           ]
         },
         {
@@ -140,11 +140,11 @@ export const stp68wTraining: stp68wTrainingTypes[] =
           tasks: [
             { id: "081-68W-0060", title: "Manage Vaginal Delivery" },
             { id: "081-68W-0170", title: "Perform Point of Care Testing" },
-            { id: "081-68W-0239", title: "Treat Abdominal Disorders" },
-            { id: "081-68W-0240", title: "Treat Common Eye Infections" },
+            { id: "081-68W-0239(b)", title: "Treat Abdominal Disorders" },
+            { id: "081-68W-0240(b)", title: "Treat Common Eye Infections" },
             { id: "081-68W-0241", title: "Treat Common Ear Disorders" },
-            { id: "081-68W-0125", title: "Treat Skin Disorders" },
-            { id: "081-68W-0245", title: "Treat Common Respiratory Disorders" },
+            { id: "081-68W-0125(b)", title: "Treat Skin Disorders" },
+            { id: "081-68W-0245(b)", title: "Treat Common Respiratory Disorders" },
             { id: "081-68W-0254", title: "Perform an Otolaryngology Exam" },
             { id: "081-68W-0258", title: "Apply Fluorescein to an Eye" },
             { id: "081-68W-0260", title: "Treat Dislocations" },
@@ -185,11 +185,11 @@ export const stp68wTraining: stp68wTrainingTypes[] =
           tasks: [
             { id: "081-000-3006", title: "Manage a Chest Tube" },
             { id: "081-68W-0053", title: "Perform an Emergency Medical Technician Trauma Patient Assessment" },
-            { id: "081-000-0127", title: "Treat an Open Abdominal Wound" },
+            { id: "081-000-0127(b)", title: "Treat an Open Abdominal Wound" },
             { id: "081-68W-0141", title: "Apply a Traction Splint" },
             { id: "081-68W-0265", title: "Apply a Sling and Swath" },
             { id: "081-000-0005", title: "Treat a Seizing Patient" },
-            { id: "081-000-0044", title: "Treat a Casualty with Burns" },
+            { id: "081-000-0044(b)", title: "Treat a Casualty with Burns" },
             { id: "081-000-0048", title: "Replace an Extremity Tourniquet" },
             { id: "081-000-0051", title: "Manage a Minor Laceration" },
             { id: "081-000-0083", title: "Apply a Cervical Collar" },

@@ -3,16 +3,19 @@ import { useClinicMedics } from '../../../Hooks/useClinicMedics'
 import { useAuth } from '../../../Hooks/useAuth'
 import { fetchClinicCertifications } from '../../../lib/certificationService'
 import { enrichCalendarLinks, type TrainingCompletionUI } from '../../../lib/trainingService'
-import { fetchAuditByClinicDomain } from '../../../lib/auditService'
+import { loadAuditByClinicDomain } from '../../../lib/auditService'
+import { countAlgorithmRuns } from '../../../Utilities/algorithmStp'
 import { foldTrainingState } from '../../../lib/trainingFold'
 import { createLogger } from '../../../Utilities/Logger'
 import {
   formatMedicName,
   buildTestableTaskMap,
+  buildCompetencyMatrix,
   computeTeamMetrics,
   rollupEncounterReads,
   type FlatTask,
   type TeamMetrics,
+  type SoldierCompetency,
   type EncounterRollup,
 } from './supervisorHelpers'
 import { getExpirationStatus } from '../../Certifications/certHelpers'
@@ -46,6 +49,10 @@ export interface SupervisorData {
   /** Get `read` completions for a soldier — includes algorithm-id reads (a medic
    *  running/reading an algorithm, via useAlgorithmMetrics.logNow) and STP reads. */
   readsForSoldier: (userId: string) => TrainingCompletionUI[]
+  /** Logged-run counts per algorithm for one soldier, from the RAW event
+   *  stream. Distinct from readsForSoldier, whose folded rows collapse repeat
+   *  reads and so can only ever say "ran it", never "ran it x 3". */
+  runCountsForSoldier: (userId: string) => Map<string, number>
   /** Get assignments for a specific soldier */
   assignmentsForSoldier: (userId: string) => TrainingCompletionUI[]
   /** Get overdue items: expired/expiring certs + NO_GO tests */
@@ -66,6 +73,16 @@ export interface SupervisorData {
   refreshData: () => void
   /** Aggregate team metrics */
   teamMetrics: TeamMetrics
+  /** teamMetrics recomputed over a subset of the roster (sub-cluster scope) */
+  metricsFor: (subset: ClinicMedic[]) => TeamMetrics
+  /** One ICTL competency row per medic. Scope-INDEPENDENT — the rail's subject
+   *  is a slice of this, not a separate fold, so the cluster rows and a soldier's
+   *  rows cannot drift apart. */
+  competencyMatrix: SoldierCompetency[]
+  /** RAW, unfolded training events. Anything counting OCCURRENCES rather than
+   *  state reads these: the fold collapses repeats (see rollupEncounterReads,
+   *  rollupTrainingActivity). */
+  trainingEvents: AuditEvent[]
   /** Clinic-wide algorithm-encounter roll-up by body-system category (occurrence
    *  counts from the raw event stream, not the fold). */
   encounterRollup: EncounterRollup
@@ -164,10 +181,14 @@ export function useSupervisorData(): SupervisorData {
       // loaned-in soldier's work graded in THIS clinic (those events carry this
       // clinic's id and are decryptable; their home-clinic events are not, by
       // design). Certs are not event-sourced yet, so they still fetch directly.
+      //
+      // Local-first: refreshData() runs the instant a grade is submitted, and
+      // that grade is still a pending IDB row for up to one sync tick. Reading
+      // the server alone returned the pre-grade world and the walk vanished.
       const [certsData, rawEvents] = await Promise.all([
         fetchClinicCertifications(allIds),
         foldClinicId
-          ? fetchAuditByClinicDomain(foldClinicId, 'training')
+          ? loadAuditByClinicDomain(foldClinicId, 'training')
           : Promise.resolve([] as AuditEvent[]),
       ])
       const folded = await enrichCalendarLinks(foldTrainingState(rawEvents))
@@ -199,6 +220,10 @@ export function useSupervisorData(): SupervisorData {
   const readsForSoldier = useCallback((userId: string) => {
     return reads.filter(r => r.userId === userId)
   }, [reads])
+
+  const runCountsForSoldier = useCallback((userId: string) => {
+    return countAlgorithmRuns(trainingEvents, userId)
+  }, [trainingEvents])
 
   const assignmentsForSoldier = useCallback((userId: string) => {
     return assignments.filter(a => a.userId === userId)
@@ -242,9 +267,31 @@ export function useSupervisorData(): SupervisorData {
   }
   const testableTaskMap = testableTaskMapRef.current
 
+  /** Folded ONCE for the whole roster. Every scoped surface slices this instead
+   *  of re-folding: a matrix row is per-soldier and says nothing about who else
+   *  is in scope, so a sub-cluster's rows are literally the cluster's rows. */
+  const competencyMatrix = useMemo(
+    () => buildCompetencyMatrix(medics, tests, testableTaskMap, runCountsForSoldier),
+    [medics, tests, testableTaskMap, runCountsForSoldier]
+  )
+
   const teamMetrics = useMemo(
-    () => computeTeamMetrics(medics, tests, certs, testableTaskMap, overdueItems),
-    [medics, tests, certs, testableTaskMap, overdueItems]
+    () => computeTeamMetrics(medics, tests, certs, testableTaskMap, overdueItems, runCountsForSoldier, competencyMatrix),
+    [medics, tests, certs, testableTaskMap, overdueItems, runCountsForSoldier, competencyMatrix]
+  )
+
+  /** The same rollup over an arbitrary subset — the supervisor rail scopes the
+   *  center pane to a sub-cluster, which needs its own coverage numbers rather
+   *  than the clinic-wide ones. */
+  const metricsFor = useCallback(
+    (subset: ClinicMedic[]) => {
+      const ids = new Set(subset.map(m => m.id))
+      return computeTeamMetrics(
+        subset, tests, certs, testableTaskMap, overdueItems, runCountsForSoldier,
+        competencyMatrix.filter(s => ids.has(s.soldierId)),
+      )
+    },
+    [tests, certs, testableTaskMap, overdueItems, runCountsForSoldier, competencyMatrix]
   )
 
   const encounterRollup = useMemo(
@@ -264,6 +311,7 @@ export function useSupervisorData(): SupervisorData {
     certsForSoldier,
     testsForSoldier,
     readsForSoldier,
+    runCountsForSoldier,
     assignmentsForSoldier,
     overdueItems,
     resolveName,
@@ -274,6 +322,9 @@ export function useSupervisorData(): SupervisorData {
     addAssignment,
     refreshData: fetchCertsAndTests,
     teamMetrics,
+    metricsFor,
+    competencyMatrix,
+    trainingEvents,
     encounterRollup,
     testableTaskMap,
   }

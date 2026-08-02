@@ -29,6 +29,7 @@ import { Algorithm } from '../Data/Algorithms'
 import type { AlgorithmOptions } from '../Types/AlgorithmTypes'
 import { getAlgorithmStpTaskNumbers } from './algorithmStp'
 import { getTaskData, isTaskTestable, type TaskTrainingData, type PerformanceStep } from '../Data/TrainingData'
+import { ictlTaskAsTrainingData } from './ictlEvaluation'
 
 /** Synthetic (non-STP) competency dimensions of an algorithm. */
 export type AlgoSynthDim = 'redflags' | 'ddx' | 'run'
@@ -188,14 +189,21 @@ export function synthesizeAlgoTaskData(algorithmId: string, dim: AlgoSynthDim): 
 }
 
 /**
- * Resolver for the evaluation UI: real STP task data for STP task numbers,
- * synthesized data for synthetic `algo:<id>:<dim>` keys. EvaluationStep uses this
- * so a single component grades both STPs and the synthetic algorithm dimensions.
+ * Resolver for the evaluation UI — the ONE place evaluation content is chosen,
+ * in precedence order:
+ *   1. synthetic `algo:<id>:<dim>` keys → the synthesized algorithm dimension
+ *   2. an authored ICTL packet → its graded performance measures
+ *   3. the STP substrate
+ *
+ * ICTL sits ahead of the STP because it is the approved artifact the unit is
+ * held to, and a handful of numbers exist in both lists with different content
+ * (081-000-0125 most notably). Keeping the fork here means no caller has to
+ * know which roster a number came from.
  */
 export function getEvaluableTaskData(trainingItemId: string): TaskTrainingData | undefined {
   const parsed = parseAlgoDimKey(trainingItemId)
   if (parsed) return synthesizeAlgoTaskData(parsed.algorithmId, parsed.dim)
-  return getTaskData(trainingItemId)
+  return ictlTaskAsTrainingData(trainingItemId) ?? getTaskData(trainingItemId)
 }
 
 /** One unit (synthetic dim or STP) to evaluate when grading a whole algorithm. */

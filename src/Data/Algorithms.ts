@@ -74,10 +74,10 @@ export const Algorithm: AlgorithmType[] = [
                 text: "Do any of the following apply?",
                 type: "choice",
                 questionOptions: [
-                    { text: "Symptoms > 10 days", noteTag: { target: 'hpi' } },
-                    { text: "Immunosuppression", noteTag: { target: 'hpi' } },
-                    { text: "Inhaled steroid", noteTag: { target: 'hpi' } },
-                    { text: "Fever > 48 hours", noteTag: { target: 'hpi' } }
+                    { text: "Symptoms > 10 days", noteTag: { target: 'hpi', duration: '> 10 days' } },
+                    { text: "Immunosuppression", noteTag: { target: 'hpi', label: 'being immunosuppressed' } },
+                    { text: "Inhaled steroid", noteTag: { target: 'hpi', label: 'taking inhaled steroid' } },
+                    { text: "Fever > 48 hours", noteTag: { target: 'hpi', label: 'fever', duration: '> 48 hours' } }
                 ],
                 answerOptions: [
                     {
@@ -139,9 +139,9 @@ export const Algorithm: AlgorithmType[] = [
                                     planInstructions: [
                                         'encourage adequate hydration',
                                         'rest',
-                                        'avoid irritants',
-                                        'follow-up in 3 days if no improvement'
-                                    ]
+                                        'avoid irritants'
+                                    ],
+                                    planOrders: { followUp: ['3 days if no improvement'] }
                                 }
                             },
                             {
@@ -176,6 +176,7 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Positive",
+                        noteResult: 'Rapid strep test positive.',
                         decisionMaking: [
                             {
                                 type: 'dmp',
@@ -197,12 +198,19 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "Negative",
+                        noteResult: 'Rapid strep test negative.',
                         disposition: [{ ...Disposition[2], modifier: 'Screen Cold Sx, Ear Pain if present', screenRefs: [{ id: 'A-3', label: 'Cold Symptoms' }, { id: 'A-2', label: 'Ear Pain' }] }],
                         decisionMaking: [
                             {
                                 type: 'dmp',
                                 ddx: ['viral infection'],
                                 text: 'Other protocols. Sore throat and hoarseness that are associated with a virus should be treated with minor-care. The other symptoms should be treated according to their associated protocols. See COVID-19 L-13.',
+                                ancillaryFind: [
+                                    {
+                                        type: 'lab',
+                                        modifier: 'rapid strep'
+                                    }
+                                ],
                                 assocMcp: {
                                     type: 'mcp',
                                     text: 'Salt water gargles and drink warm fluids for inflammation. Return if not improving in 3 days or immediately if worsening symptoms or Red Flags',
@@ -214,9 +222,9 @@ export const Algorithm: AlgorithmType[] = [
                                     planInstructions: [
                                         'encourage adequate hydration',
                                         'rest',
-                                        'avoid irritants',
-                                        'follow-up in 3 days if no improvement'
-                                    ]
+                                        'avoid irritants'
+                                    ],
+                                    planOrders: { followUp: ['3 days if no improvement'] }
                                 }
                             },
                             {
@@ -320,18 +328,24 @@ export const Algorithm: AlgorithmType[] = [
                 ]
             },
             {
-                text: "Perform an otoscope exam (both ears). Look for the following:",
+                text: "Perform an otoscope exam (both ears).",
                 type: "action",
-                questionOptions: [
-                    { text: "TM: redness, opacification, bulging, immobility, rupture" },
-                    { text: "Ear Canal (EC) redness, swollen, tenderness" }
-                ],
+                questionOptions: [],
                 answerOptions: []
             },
             {
                 text: "Are there TM symptoms, or concern for Mod-Severe Otitis Externa?",
                 type: "choice",
-                questionOptions: [],
+                questionOptions: [
+                    { text: "TM redness", noteTag: { target: 'pe', findingKey: 'tmIntact', abnormalKey: 'tmErythema' } },
+                    { text: "TM opacification", noteTag: { target: 'pe', findingKey: 'tmIntact', abnormalKey: 'tmOpacification' } },
+                    { text: "TM bulging", noteTag: { target: 'pe', findingKey: 'tmIntact', abnormalKey: 'tmBulging' } },
+                    { text: "TM immobility", noteTag: { target: 'pe', findingKey: 'tmMobile', abnormalKey: 'tmImmobile' } },
+                    { text: "TM rupture", noteTag: { target: 'pe', findingKey: 'tmIntact', abnormalKey: 'tmPerforation' } },
+                    { text: "Ear canal redness", noteTag: { target: 'pe', findingKey: 'eacClear', abnormalKey: 'eacErythema' } },
+                    { text: "Ear canal swelling", noteTag: { target: 'pe', findingKey: 'eacClear', abnormalKey: 'canalEdema' } },
+                    { text: "Ear canal tenderness", noteTag: { target: 'pe', findingKey: 'pinnaNormalNontender', abnormalKey: 'tragalTenderness' } }
+                ],
                 answerOptions: [
                     {
                         text: "Yes",
@@ -366,10 +380,10 @@ export const Algorithm: AlgorithmType[] = [
                 type: "choice",
                 questionOptions: [
                     { text: "Vertigo", noteTag: { target: 'hpi' } },
-                    { text: "Going on for > 7 days", noteTag: { target: 'hpi', label: 'symptoms > 7 days' } },
+                    { text: "Going on for > 7 days", noteTag: { target: 'hpi', duration: '> 7 days' } },
                     { text: "Decreased hearing", noteTag: { target: 'hpi', label: 'decreased hearing' } },
                     { text: "Foreign body in ear", noteTag: { target: 'hpi', label: 'foreign body sensation in ear' } },
-                    { text: "Visual trauma to ear", noteTag: { target: 'hpi', label: 'visible ear trauma' } }],
+                    { text: "Visual trauma to ear", noteTag: { target: 'pe', findingKey: 'pinnaNormalNontender', abnormalKey: 'externalEarTrauma' } }],
                 answerOptions: [
                     {
                         text: "Yes",
@@ -407,7 +421,9 @@ export const Algorithm: AlgorithmType[] = [
             {
                 text: "Is there TMJ Inflammation?",
                 type: "choice",
-                questionOptions: [],
+                questionOptions: [
+                    { text: "TMJ inflammation", noteTag: { target: 'pe', findingKey: 'tmjNontender', abnormalKey: 'tmjInflammation' } }
+                ],
                 answerOptions: [
                     {
                         text: "Yes",
@@ -438,9 +454,9 @@ export const Algorithm: AlgorithmType[] = [
                                     planInstructions: [
                                         'keep the ear canal dry',
                                         'cotton wick with ear drops for 24 hours, then continue drops for 1 week',
-                                        'no swimming / avoid situations requiring ear plugs',
-                                        'follow-up in 3 days if not improving'
-                                    ]
+                                        'no swimming / avoid situations requiring ear plugs'
+                                    ],
+                                    planOrders: { followUp: ['3 days if not improving'] }
                                 }
                             },
                             {
@@ -458,12 +474,10 @@ export const Algorithm: AlgorithmType[] = [
                                         }
                                     ],
                                     planInstructions: [
-                                        'ibuprofen as needed for pain',
                                         'avoid excessive chewing / chewing gum',
-                                        'jaw isometric exercises 3 times daily',
-                                        'refer to dental if history of teeth grinding',
-                                        'follow-up in 3 days if not improving'
-                                    ]
+                                        'jaw isometric exercises 3 times daily'
+                                    ],
+                                    planOrders: { followUp: ['3 days if not improving'] }
                                 }
                             },
                             {
@@ -504,9 +518,9 @@ export const Algorithm: AlgorithmType[] = [
                                     planInstructions: [
                                         'keep the ear canal dry',
                                         'cotton wick with ear drops for 24 hours, then continue drops for 1 week',
-                                        'no swimming / avoid situations requiring ear plugs',
-                                        'follow-up in 3 days if not improving'
-                                    ]
+                                        'no swimming / avoid situations requiring ear plugs'
+                                    ],
+                                    planOrders: { followUp: ['3 days if not improving'] }
                                 }
                             },
                             {
@@ -524,12 +538,10 @@ export const Algorithm: AlgorithmType[] = [
                                         }
                                     ],
                                     planInstructions: [
-                                        'ibuprofen as needed for pain',
                                         'avoid excessive chewing / chewing gum',
-                                        'jaw isometric exercises 3 times daily',
-                                        'refer to dental if history of teeth grinding',
-                                        'follow-up in 3 days if not improving'
-                                    ]
+                                        'jaw isometric exercises 3 times daily'
+                                    ],
+                                    planOrders: { followUp: ['3 days if not improving'] }
                                 }
                             },
                             {
@@ -605,13 +617,13 @@ export const Algorithm: AlgorithmType[] = [
                 type: "choice",
                 questionOptions: [
                     { text: "Productive cough", noteTag: { target: 'hpi' } },
-                    { text: "Symptoms > 7 days", noteTag: { target: 'hpi' } },
+                    { text: "Symptoms > 7 days", noteTag: { target: 'hpi', duration: '> 7 days' } },
                     { text: "Severe sinus or dental pain", noteTag: { target: 'hpi', label: 'severe sinus or dental pain' } }
                 ],
                 answerOptions: [
                     {
                         text: "Yes",
-                        disposition: [{ ...Disposition[1], modifier: 'place mask' }],
+                        disposition: [{ ...Disposition[1], modifier: 'place mask', planInstructions: ['given face mask'] }],
                         decisionMaking: [
                             {
                                 type: 'dmp',
@@ -641,7 +653,7 @@ export const Algorithm: AlgorithmType[] = [
                 text: "Do any of the following apply?",
                 type: "choice",
                 questionOptions: [
-                    { text: "Symptoms > 7 days", noteTag: { target: 'hpi' } },
+                    { text: "Symptoms > 7 days", noteTag: { target: 'hpi', duration: '> 7 days' } },
                     { text: "Rebound symptoms", noteTag: { target: 'hpi' } },
                     { text: "Purulent discharge", noteTag: { target: 'pe', findingKey: 'noNasalDischarge', abnormalKey: 'purulentDischarge' } }
                 ],
@@ -649,7 +661,7 @@ export const Algorithm: AlgorithmType[] = [
                     {
                         text: "Yes",
                         disposition: [
-                            { ...Disposition[1], modifier: 'place mask' }
+                            { ...Disposition[1], modifier: 'place mask', planInstructions: ['given face mask'] }
                         ],
                         decisionMaking: [
                             {
@@ -690,9 +702,9 @@ export const Algorithm: AlgorithmType[] = [
                                         'drink plenty of fluids',
                                         'rest',
                                         'cover mouth when coughing and wash hands',
-                                        'stop or limit smoking',
-                                        'return in 7 days if not improving, or with sinus/neck pain or fever'
-                                    ]
+                                        'stop or limit smoking'
+                                    ],
+                                    planOrders: { followUp: ['7 days if not improving, or sooner for worsening symptoms, sinus or neck pain, or fever'] }
                                 },
                             }
                         ],
@@ -755,10 +767,10 @@ export const Algorithm: AlgorithmType[] = [
                 text: "Do any of the following apply?",
                 type: "choice",
                 questionOptions: [
-                    { text: "Ringing > 24 hours", noteTag: { target: 'hpi', label: 'tinnitus > 24 hours' } },
+                    { text: "Ringing > 24 hours", noteTag: { target: 'hpi', label: 'tinnitus', duration: '> 24 hours' } },
                     { text: "Ringing without MOI", noteTag: { target: 'hpi', label: 'tinnitus without injury mechanism' } },
                     { text: "Dizziness", noteTag: { target: 'hpi' } },
-                    { text: "Visual Trauma", noteTag: { target: 'hpi', label: 'visible trauma' } },
+                    { text: "Visual Trauma", noteTag: { target: 'pe', findingKey: 'pinnaNormalNontender', abnormalKey: 'externalEarTrauma' } },
                     { text: "Decreased hearing", noteTag: { target: 'hpi', label: 'decreased hearing' } }
                 ],
                 answerOptions: [
@@ -796,7 +808,7 @@ export const Algorithm: AlgorithmType[] = [
                 text: "Do any of the following apply?",
                 type: "choice",
                 questionOptions: [
-                    { text: "Loud noise exposure or trauma within 24 hours", noteTag: { target: 'hpi', label: 'loud noise exposure or trauma within 24 hours' } },
+                    { text: "Loud noise exposure or trauma within 24 hours", noteTag: { target: 'hpi', label: 'loud noise exposure or trauma', duration: 'within 24 hours' } },
                     { text: "Ear drainage", noteTag: { target: 'hpi', label: 'ear drainage' } },
                     { text: "Ear pain", noteTag: { target: 'hpi', label: 'ear pain' } }
                 ],
@@ -834,7 +846,7 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        disposition: [{ ...Disposition[0], modifier: 'Ear irrigation if wax and TM intact' }],
+                        disposition: [{ ...Disposition[0], modifier: 'Ear irrigation if wax and TM intact', planInstructions: ['ear irrigation performed for cerumen impaction with intact TM'] }],
                         decisionMaking: [
                             {
                                 type: 'dmp',
@@ -919,9 +931,9 @@ export const Algorithm: AlgorithmType[] = [
                                     ],
                                     planInstructions: [
                                         'use properly fitted hearing protection',
-                                        'avoid loud noise exposure for 48 hours',
-                                        'return if ringing persists beyond 24 hours or dizziness, ear pain, or hearing loss develops'
-                                    ]
+                                        'avoid loud noise exposure for 48 hours'
+                                    ],
+                                    planOrders: { followUp: ['if ringing persists beyond 24 hours, or sooner for dizziness, ear pain, or hearing loss'] }
                                 },
                             }
                         ],
@@ -1020,7 +1032,7 @@ export const Algorithm: AlgorithmType[] = [
                     { text: "Cut or deformity", noteTag: { target: 'pe', findingKey: 'noExternalDeformities', abnormalKey: 'externalNasalDeformity' } },
                     { text: "Patient is on anticoagulants", noteTag: { target: 'hpi', label: 'anticoagulant use' } },
                     { text: "Patient is using intra-nasal medication", noteTag: { target: 'hpi', label: 'intra-nasal medication use' } },
-                    { text: "Patient has high blood pressure ( > 140/80)", noteTag: { target: 'hpi', label: 'elevated blood pressure' } },
+                    { text: "Patient has high blood pressure ( > 140/80)", noteTag: { target: 'pe', findingKey: 'bpWithinNormalLimits', abnormalKey: 'elevatedBloodPressure' } },
                     { text: "Purulent discharge present", noteTag: { target: 'pe', findingKey: 'noNasalDischarge', abnormalKey: 'purulentDischarge' } },
                     { text: "Recurrent bleed w/o cold", noteTag: { target: 'hpi', label: 'recurrent epistaxis without cold symptoms' } }
                 ],
@@ -1126,9 +1138,9 @@ export const Algorithm: AlgorithmType[] = [
                                         'avoid vigorous nose blowing or wiping the mid-septum',
                                         'nasal saline for prevention if the air is dry',
                                         'use a humidifier if the air is dry',
-                                        'if bleeding recurs, tilt head forward and pinch the nose for 5 minutes',
-                                        'return for uncontrolled bleeding, bleeding from other sites, lightheadedness, or significant blood loss'
-                                    ]
+                                        'if bleeding recurs, tilt head forward and pinch the nose for 5 minutes'
+                                    ],
+                                    planOrders: { followUp: ['for uncontrolled bleeding, bleeding from other sites, lightheadedness, or significant blood loss'] }
                                 }
                             }
                         ],
@@ -1162,7 +1174,7 @@ export const Algorithm: AlgorithmType[] = [
                 type: "initial",
                 questionOptions: [
                     { text: "Red flags" },
-                    { text: "Significant MOI", noteTag: { target: 'hpi', label: 'significant mechanism of injury' } }
+                    { text: "Significant MOI", noteTag: { target: 'hpi', label: 'significant mechanism of injury', lead: true } }
                 ],
                 answerOptions: [
                     {
@@ -1242,7 +1254,15 @@ export const Algorithm: AlgorithmType[] = [
                                         }
                                     ],
                                     specLim: ['No repetitive bending or lifting but may lift/ carry up to 40lbs.', 'Perform stretching, core strengthening home regiment during PT.', 'No ruck marching, running, or jumping but may walk, bike, or swim for cardio'
-                                    ]
+                                    ],
+                                    planInstructions: [
+                                        'home exercise program: stretch the lower back and hamstrings several times daily',
+                                        'core strengthening daily',
+                                        'intermittent ice or heat for inflammation',
+                                        'activity modification as tolerated',
+                                        'use H2F strength and conditioning support for programming where available'
+                                    ],
+                                    planOrders: { followUp: ['routine if not improving or worsening'] }
                                 }
                             }
                         ],
@@ -1272,7 +1292,7 @@ export const Algorithm: AlgorithmType[] = [
                 type: "initial",
                 questionOptions: [
                     { text: "Red flags" },
-                    { text: "Significant MOI", noteTag: { target: 'hpi', label: 'significant mechanism of injury' } }
+                    { text: "Significant MOI", noteTag: { target: 'hpi', label: 'significant mechanism of injury', lead: true } }
                 ],
                 answerOptions: [
                     {
@@ -1402,7 +1422,7 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        disposition: [{ ...Disposition[0], modifier: 'Immobilize the injured extremity before transport or referral' }],
+                        disposition: [{ ...Disposition[0], modifier: 'Immobilize the injured extremity before transport or referral', planInstructions: ['injured extremity immobilized prior to transport'] }],
                         decisionMaking: [
                             {
                                 type: 'dmp',
@@ -1442,7 +1462,8 @@ export const Algorithm: AlgorithmType[] = [
                             {
                                 ...Disposition[1],
                                 text: "AEM Now, PT if available",
-                                modifier: 'Sling the injured extremity for comfort before transport or referral'
+                                modifier: 'Sling the injured extremity for comfort before transport or referral',
+                                planInstructions: ['injured extremity placed in a sling for comfort prior to transport']
                             }
                         ],
                         decisionMaking: [
@@ -1633,7 +1654,8 @@ export const Algorithm: AlgorithmType[] = [
                         disposition: [
                             {
                                 ...Disposition[0],
-                                modifier: 'immobilize the injured extremity before transport or referral'
+                                modifier: 'immobilize the injured extremity before transport or referral',
+                                planInstructions: ['injured extremity immobilized prior to transport']
                             }
                         ],
                         decisionMaking: [
@@ -1866,7 +1888,8 @@ export const Algorithm: AlgorithmType[] = [
                             {
                                 ...Disposition[0],
                                 text: "Provider Now, BSI Policy",
-                                modifier: "mmobilize the hip or femur as indicated if associated with trauma. Stress injury: crutches (toe touch)"
+                                modifier: "mmobilize the hip or femur as indicated if associated with trauma. Stress injury: crutches (toe touch)",
+                                planInstructions: ['hip/femur immobilized as indicated for trauma', 'crutches issued with toe-touch weight bearing for suspected stress injury']
                             }
                         ],
                         decisionMaking: [
@@ -1981,7 +2004,8 @@ export const Algorithm: AlgorithmType[] = [
                         disposition: [
                             {
                                 ...Disposition[0],
-                                modifier: "Immobilize the injured extremity before transport"
+                                modifier: "Immobilize the injured extremity before transport",
+                                planInstructions: ['injured extremity immobilized prior to transport']
                             }
                         ],
                         decisionMaking: [
@@ -2081,7 +2105,7 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        disposition: [{ ...Disposition[0], modifier: 'immobilize the injured extremity before transport' }],
+                        disposition: [{ ...Disposition[0], modifier: 'immobilize the injured extremity before transport', planInstructions: ['injured extremity immobilized prior to transport'] }],
                         decisionMaking: [
                             {
                                 type: 'dmp',
@@ -2131,7 +2155,8 @@ export const Algorithm: AlgorithmType[] = [
                             {
                                 ...Disposition[1],
                                 text: "AEM Now, PT if available",
-                                modifier: "x-ray, crutches, and PT education"
+                                modifier: "x-ray, crutches, and PT education",
+                                planInstructions: ['crutches issued', 'physical therapy home exercise education provided']
                             }
                         ],
                         next: null,
@@ -2190,7 +2215,8 @@ export const Algorithm: AlgorithmType[] = [
                             {
                                 ...Disposition[0],
                                 text: "Provider Now. Bone Stress Injury (BSI) policy",
-                                modifier: "immobilize the injured extremity before transport"
+                                modifier: "immobilize the injured extremity before transport",
+                                planInstructions: ['injured extremity immobilized prior to transport']
                             }
                         ],
                         decisionMaking: [
@@ -2298,7 +2324,8 @@ export const Algorithm: AlgorithmType[] = [
                             {
                                 ...Disposition[0],
                                 text: "Provider Now",
-                                modifier: "BSI Policy"
+                                modifier: "BSI Policy",
+                                planInstructions: ['managed under the bone stress injury (BSI) policy']
                             }
                         ],
                         next: null,
@@ -2450,7 +2477,8 @@ export const Algorithm: AlgorithmType[] = [
                         disposition: [
                             {
                                 ...Disposition[1],
-                                modifier: " \u2640 Pregnancy Screen/Test"
+                                modifier: " \u2640 Pregnancy Screen/Test",
+                                planOrders: { lab: ['pregnancy test'] }
                             }
                         ],
                         decisionMaking: [
@@ -3061,7 +3089,8 @@ export const Algorithm: AlgorithmType[] = [
                         disposition: [
                             {
                                 ...Disposition[0],
-                                modifier: "Include glucagon if unable to transport within 24 hours of onset"
+                                modifier: "Include glucagon if unable to transport within 24 hours of onset",
+                                planInstructions: ['glucagon administered if transport is delayed beyond 24 hours from onset']
                             }
                         ],
                         decisionMaking: [
@@ -3162,7 +3191,8 @@ export const Algorithm: AlgorithmType[] = [
                         disposition: [
                             {
                                 ...Disposition[0],
-                                modifier: 'Oxygen, EKG, chewable aspirin'
+                                modifier: 'Oxygen, EKG, chewable aspirin',
+                                planInstructions: ['oxygen applied', 'EKG obtained']
                             }
                         ],
                         decisionMaking: [
@@ -3207,7 +3237,8 @@ export const Algorithm: AlgorithmType[] = [
                         disposition: [
                             {
                                 ...Disposition[0],
-                                modifier: "Oxygen, EKG, chewable aspirin"
+                                modifier: "Oxygen, EKG, chewable aspirin",
+                                planInstructions: ['oxygen applied', 'EKG obtained']
                             }
                         ],
                         decisionMaking: [
@@ -3343,7 +3374,7 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        disposition: [{ ...Disposition[0], modifier: "Oxygen, EKG, IV" }],
+                        disposition: [{ ...Disposition[0], modifier: "Oxygen, EKG, IV", planInstructions: ['oxygen applied', 'EKG obtained', 'IV access established with fluids at TKO'] }],
                         decisionMaking: [
                             {
                                 type: 'dmp',
@@ -3386,7 +3417,8 @@ export const Algorithm: AlgorithmType[] = [
                         disposition: [
                             {
                                 ...Disposition[0],
-                                modifier: "Oxygen, EKG, IV, Aspirin 325mg"
+                                modifier: "Oxygen, EKG, IV, Aspirin 325mg",
+                                planInstructions: ['oxygen applied', 'EKG obtained', 'IV access established']
                             }
                         ],
                         decisionMaking: [
@@ -3594,7 +3626,8 @@ export const Algorithm: AlgorithmType[] = [
                         disposition: [
                             {
                                 ...Disposition[0],
-                                modifier: "Oxygen, EKG, Aspirin 325mg"
+                                modifier: "Oxygen, EKG, Aspirin 325mg",
+                                planInstructions: ['oxygen applied via nasal cannula at 4-6 L/min', 'EKG obtained']
                             }
                         ],
                         next: null,
@@ -3805,7 +3838,8 @@ export const Algorithm: AlgorithmType[] = [
                         disposition: [
                             {
                                 ...Disposition[0],
-                                modifier: "UA, urine culture if available"
+                                modifier: "UA, urine culture if available",
+                                planOrders: { lab: ['urinalysis', 'urine culture if available'] }
                             }
                         ],
                         next: null,
@@ -3848,7 +3882,8 @@ export const Algorithm: AlgorithmType[] = [
                         disposition: [
                             {
                                 ...Disposition[1],
-                                modifier: "UA, urine culture if available"
+                                modifier: "UA, urine culture if available",
+                                planOrders: { lab: ['urinalysis', 'urine culture if available'] }
                             }
                         ],
                         next: null,
@@ -3902,7 +3937,8 @@ export const Algorithm: AlgorithmType[] = [
                         disposition: [
                             {
                                 ...Disposition[0],
-                                modifier: 'Stress fracture: crutches with toe touching weight bearing'
+                                modifier: 'Stress fracture: crutches with toe touching weight bearing',
+                                planInstructions: ['crutches issued with toe-touch weight bearing for suspected stress fracture']
                             }
                         ],
                         decisionMaking: [
@@ -3960,7 +3996,8 @@ export const Algorithm: AlgorithmType[] = [
                         disposition: [
                             {
                                 ...Disposition[1],
-                                modifier: 'STD Screen and UA'
+                                modifier: 'STD Screen and UA',
+                                planOrders: { lab: ['STD screen', 'urinalysis'] }
                             }
                         ],
                         next: null,
@@ -4202,7 +4239,8 @@ export const Algorithm: AlgorithmType[] = [
                         disposition: [
                             {
                                 ...Disposition[0],
-                                modifier: "Urinalysis, \u2640 Pregnancy Test"
+                                modifier: "Urinalysis, \u2640 Pregnancy Test",
+                                planOrders: { lab: ['urinalysis', 'pregnancy test'] }
                             }
                         ],
                         next: null,
@@ -4361,7 +4399,8 @@ export const Algorithm: AlgorithmType[] = [
                         disposition: [
                             {
                                 ...Disposition[0],
-                                modifier: "Hypotensive - start IVF. Irregular pulse - EKG. Heat exposure - Cool"
+                                modifier: "Hypotensive - start IVF. Irregular pulse - EKG. Heat exposure - Cool",
+                                planInstructions: ['IV fluids started if hypotensive', 'EKG obtained for irregular pulse', 'active cooling started for heat exposure']
                             }
                         ],
                         next: null,
@@ -4469,7 +4508,8 @@ export const Algorithm: AlgorithmType[] = [
                         disposition: [
                             {
                                 ...Disposition[0],
-                                modifier: 'Hypertension - dark quiet room'
+                                modifier: 'Hypertension - dark quiet room',
+                                planInstructions: ['rested in a dark, quiet room for elevated blood pressure']
                             }
                         ],
                         decisionMaking: [
@@ -4589,7 +4629,8 @@ export const Algorithm: AlgorithmType[] = [
                         disposition: [
                             {
                                 ...Disposition[0],
-                                modifier: 'Glucose < 70 provide sugar/food if available'
+                                modifier: 'Glucose < 70 provide sugar/food if available',
+                                planInstructions: ['oral sugar or food given for blood glucose under 70']
                             }
                         ],
                         decisionMaking: [
@@ -4741,7 +4782,7 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        disposition: [{ ...Disposition[0], modifier: 'Glucose < 70 - provide glucose. SpO2 < 90% - start oxygen. H/O alcohol - give thiamine. H/O narcotics - give naloxone' }],
+                        disposition: [{ ...Disposition[0], modifier: 'Glucose < 70 - provide glucose. SpO2 < 90% - start oxygen. H/O alcohol - give thiamine. H/O narcotics - give naloxone', planInstructions: ['glucose given for blood glucose under 70', 'oxygen started for SpO2 under 90 percent', 'thiamine given with a history of alcohol use', 'naloxone given with a history of narcotic use'] }],
                         decisionMaking: [
                             {
                                 type: 'dmp',
@@ -4791,7 +4832,7 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        disposition: [{ ...Disposition[1], modifier: 'Check rectal temp if heat exposure concern' }],
+                        disposition: [{ ...Disposition[1], modifier: 'Check rectal temp if heat exposure concern', planInstructions: ['rectal temperature checked for heat exposure concern'] }],
                         decisionMaking: [
                             {
                                 type: 'dmp',
@@ -4867,7 +4908,7 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        disposition: [{ ...Disposition[0], modifier: 'inform leadership. Do not leave Soldier alone. Remove means of self-harm' }],
+                        disposition: [{ ...Disposition[0], modifier: 'inform leadership. Do not leave Soldier alone. Remove means of self-harm', planInstructions: ['leadership informed', 'Soldier not left alone', 'means of self-harm removed'] }],
                         decisionMaking: [
                             {
                                 type: 'dmp',
@@ -4917,7 +4958,7 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        disposition: [{ ...Disposition[1], modifier: 'Obtain list of all medications and amount taken. Ask if currently receiving BH services' }],
+                        disposition: [{ ...Disposition[1], modifier: 'Obtain list of all medications and amount taken. Ask if currently receiving BH services', planInstructions: ['medication list and amounts taken obtained', 'current behavioral health engagement asked'] }],
                         decisionMaking: [
                             {
                                 type: 'dmp',
@@ -5348,7 +5389,7 @@ export const Algorithm: AlgorithmType[] = [
                                 ]
                             }
                         ],
-                        disposition: [{ ...Disposition[0], modifier: 'chemical - irrigation. foreign body - fox shield. head trauma - stabilize neck. other - cover eye' }],
+                        disposition: [{ ...Disposition[0], modifier: 'chemical - irrigation. foreign body - fox shield. head trauma - stabilize neck. other - cover eye', planInstructions: ['eye irrigated for chemical exposure', 'Fox shield applied for foreign body', 'cervical spine stabilized for head trauma', 'affected eye covered'] }],
                         next: null,
                         selectAll: true
                     },
@@ -5469,7 +5510,7 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        disposition: [{ ...Disposition[0], modifier: 'fox shield/protectove cover. head trauma - stabilize neck' }],
+                        disposition: [{ ...Disposition[0], modifier: 'fox shield/protectove cover. head trauma - stabilize neck', planInstructions: ['Fox shield or protective cover applied', 'cervical spine stabilized for head trauma'] }],
                         decisionMaking: [
                             {
                                 type: 'dmp',
@@ -5701,7 +5742,7 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        disposition: [{ ...Disposition[0], modifier: 'head trauma - stabilize neck' }],
+                        disposition: [{ ...Disposition[0], modifier: 'head trauma - stabilize neck', planInstructions: ['cervical spine stabilized for head trauma'] }],
                         decisionMaking: [
                             {
                                 type: 'dmp',
@@ -5746,7 +5787,7 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
-                        disposition: [{ ...Disposition[3], modifier: 'optometry' }],
+                        disposition: [{ ...Disposition[3], modifier: 'optometry', planOrders: { referral: ['optometry'] } }],
                         decisionMaking: [
                             {
                                 type: 'dmp',
@@ -6977,7 +7018,7 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        disposition: [{ ...Disposition[0], modifier: 'Perform potassium hydroxide (KOH) examination' }],
+                        disposition: [{ ...Disposition[0], modifier: 'Perform potassium hydroxide (KOH) examination', planOrders: { lab: ['potassium hydroxide (KOH) examination'] } }],
                         decisionMaking: [
                             {
                                 type: 'dmp',
@@ -7090,7 +7131,7 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        disposition: [{ ...Disposition[0], modifier: 'perform potassium hydroxide (KOH) examination' }],
+                        disposition: [{ ...Disposition[0], modifier: 'perform potassium hydroxide (KOH) examination', planOrders: { lab: ['potassium hydroxide (KOH) examination'] } }],
                         decisionMaking: [
                             {
                                 type: 'dmp',
@@ -7184,7 +7225,7 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        disposition: [{ ...Disposition[0], modifier: 'prepare informed consent, timeout, I&D set-up if provider requests' }],
+                        disposition: [{ ...Disposition[0], modifier: 'prepare informed consent, timeout, I&D set-up if provider requests', planInstructions: ['informed consent, timeout, and I and D set-up prepared at provider request'] }],
                         decisionMaking: [
                             {
                                 type: 'dmp',
@@ -7218,7 +7259,7 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        disposition: [{ ...Disposition[1], modifier: 'prepare informed consent, timeout, I&D set-up if provider requests' }],
+                        disposition: [{ ...Disposition[1], modifier: 'prepare informed consent, timeout, I&D set-up if provider requests', planInstructions: ['informed consent, timeout, and I and D set-up prepared at provider request'] }],
                         decisionMaking: [
                             {
                                 type: 'dmp',
@@ -7513,7 +7554,7 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
-                        disposition: [{ ...Disposition[2], modifier: 'remove sutures. ensure the same number of sutures are removed that were placed' }],
+                        disposition: [{ ...Disposition[2], modifier: 'remove sutures. ensure the same number of sutures are removed that were placed', planInstructions: ['sutures removed, count matched the number placed'] }],
                         decisionMaking: [
                             {
                                 type: 'dmp',
@@ -7692,7 +7733,7 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        disposition: [{ ...Disposition[0], modifier: 'provide emergency resuscitation before transport' }],
+                        disposition: [{ ...Disposition[0], modifier: 'provide emergency resuscitation before transport', planInstructions: ['emergency resuscitation provided prior to transport'] }],
                         decisionMaking: [
                             {
                                 type: 'dmp',
@@ -8194,7 +8235,8 @@ export const Algorithm: AlgorithmType[] = [
                         disposition: [
                             {
                                 ...Disposition[0],
-                                modifier: 'Ice sheets/douse the patient with water. Start an IV as ordered by doctor or PA. Monitor rectal body temperature. Transport to emergency treatment area.'
+                                modifier: 'Ice sheets/douse the patient with water. Start an IV as ordered by doctor or PA. Monitor rectal body temperature. Transport to emergency treatment area.',
+                                planInstructions: ['active cooling with ice sheets or water', 'IV started as ordered by the provider', 'rectal temperature monitored', 'transported to the emergency treatment area']
                             }
                         ],
                         decisionMaking: [
@@ -8301,7 +8343,8 @@ export const Algorithm: AlgorithmType[] = [
                         disposition: [
                             {
                                 ...Disposition[0],
-                                modifier: 'support ABCs. IVs. transport horizontal on stretcher. start warming.'
+                                modifier: 'support ABCs. IVs. transport horizontal on stretcher. start warming.',
+                                planInstructions: ['ABCs supported', 'IV access established', 'transported horizontal on a stretcher', 'warming started']
                             }
                         ],
                         decisionMaking: [
@@ -8439,7 +8482,8 @@ export const Algorithm: AlgorithmType[] = [
                         disposition: [
                             {
                                 ...Disposition[0],
-                                modifier: 'remove wet clothes. rewarm the soldier if hypothermic'
+                                modifier: 'remove wet clothes. rewarm the soldier if hypothermic',
+                                planInstructions: ['wet clothing removed', 'rewarming started for hypothermia']
                             }
                         ],
                         decisionMaking: [
@@ -8587,7 +8631,7 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        disposition: [{ ...Disposition[0], modifier: 'pad or splint affected area. Move Soldier to a warm area. Remove wet clothing. Rewarm using body head and space/hypothermia blanket. Do not rub area, place area near fire/heating element, or rewarm area if chance of refreezing. Tetanus prophylaxis' }],
+                        disposition: [{ ...Disposition[0], modifier: 'pad or splint affected area. Move Soldier to a warm area. Remove wet clothing. Rewarm using body head and space/hypothermia blanket. Do not rub area, place area near fire/heating element, or rewarm area if chance of refreezing. Tetanus prophylaxis', planInstructions: ['affected area padded or splinted', 'moved to a warm area', 'wet clothing removed', 'rewarmed with body heat and a space or hypothermia blanket', 'area not rubbed, warmed near a heat source, or rewarmed where refreezing is possible', 'tetanus prophylaxis given'] }],
                         decisionMaking: [
                             {
                                 type: 'dmp',
@@ -8608,7 +8652,8 @@ export const Algorithm: AlgorithmType[] = [
                         disposition: [
                             {
                                 ...Disposition[2],
-                                modifier: 'pad or splint affected area. Move Soldier to a warm area. Remove wet clothing. Rewarm using body head and space/hypothermia blanket. Do not rub area, place area near fire/heating element, or rewarm area if chance of refreezing. Tetanus prophylaxis'
+                                modifier: 'pad or splint affected area. Move Soldier to a warm area. Remove wet clothing. Rewarm using body head and space/hypothermia blanket. Do not rub area, place area near fire/heating element, or rewarm area if chance of refreezing. Tetanus prophylaxis',
+                                planInstructions: ['affected area padded or splinted', 'moved to a warm area', 'wet clothing removed', 'rewarmed with body heat and a space or hypothermia blanket', 'area not rubbed, warmed near a heat source, or rewarmed where refreezing is possible', 'tetanus prophylaxis given']
                             }
                         ],
                         decisionMaking: [
@@ -8742,7 +8787,8 @@ export const Algorithm: AlgorithmType[] = [
                         disposition: [
                             {
                                 ...Disposition[0],
-                                modifier: 'Epi pen if indicated'
+                                modifier: 'Epi pen if indicated',
+                                planInstructions: ['epinephrine auto-injector given if indicated']
                             }
                         ],
                         decisionMaking: [
@@ -8837,7 +8883,8 @@ export const Algorithm: AlgorithmType[] = [
                         disposition: [
                             {
                                 ...Disposition[0],
-                                modifier: "wound care. Document exposure"
+                                modifier: "wound care. Document exposure",
+                                planInstructions: ['wound care provided', 'exposure documented']
                             }
                         ],
                         decisionMaking: [
@@ -9456,7 +9503,8 @@ export const Algorithm: AlgorithmType[] = [
                         disposition: [
                             {
                                 ...Disposition[0],
-                                modifier: 'lay in dark, quiet room if BP elevated'
+                                modifier: 'lay in dark, quiet room if BP elevated',
+                                planInstructions: ['rested in a dark, quiet room for elevated blood pressure']
                             }
                         ],
                         decisionMaking: [
@@ -9490,7 +9538,8 @@ export const Algorithm: AlgorithmType[] = [
                         disposition: [
                             {
                                 ...Disposition[1],
-                                modifier: 'start IVF if orthostatic'
+                                modifier: 'start IVF if orthostatic',
+                                planInstructions: ['IV fluids started if orthostatic']
                             }
                         ],
                         decisionMaking: [
@@ -9622,7 +9671,7 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        disposition: [{ ...Disposition[4], text: 'Schedule Provider Appointment', modifier: 'Screening labs. BHC referral. Dietician referral' }],
+                        disposition: [{ ...Disposition[4], text: 'Schedule Provider Appointment', modifier: 'Screening labs. BHC referral. Dietician referral', planOrders: { lab: ['screening labs'], referral: ['behavioral health', 'dietician'] } }],
                         decisionMaking: [
                             {
                                 type: 'dmp',
@@ -9873,7 +9922,7 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        disposition: [{ ...Disposition[0], modifier: 'mask patient' }],
+                        disposition: [{ ...Disposition[0], modifier: 'mask patient', planInstructions: ['patient masked'] }],
                         decisionMaking: [
                             {
                                 type: 'dmp',
@@ -9899,7 +9948,7 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        disposition: [{ ...Disposition[1], modifier: 'mask patient' }],
+                        disposition: [{ ...Disposition[1], modifier: 'mask patient', planInstructions: ['patient masked'] }],
                         next: null,
                         selectAll: true
                     },

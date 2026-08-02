@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useEffect, useContext, forwardRef, useImperativeHandle } from 'react'
-import { Check, ChevronDown, Minus, Plus, Trash2, X } from 'lucide-react'
+import { Check, ChevronDown, Minus, Plus, X } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import { PillButton } from '@/Components/primitives/HeaderPill'
 import { FooterPill } from '@/Components/primitives/FooterPill'
@@ -32,12 +32,17 @@ interface Da2062EditorProps {
 }
 
 /**
- * Da2062Editor — the EDIT mode of an open DA 2062 hand receipt, and the sibling of
- * TurnInZoneEditor: the same staged-curation primitive, so the two documents in this
- * domain are edited the same way. Multi-select lines to drop, re-cut a line's count,
- * and pick more items onto the receipt. NOTHING is written until the host header's
- * Save, so a half-finished edit is abandoned wholesale with Cancel — which is why the
- * per-row instant mutations this replaced are gone.
+ * Da2062Editor — the EDIT mode of an open DA 2062 hand receipt, and the only staged-
+ * curation editor left in this domain (the DA 3161 turn-in has none: its pending list is a
+ * ZONE, curated by moving stock in and out of it like any other zone). Drop a line with its
+ * X, re-cut a line's count, and pick more items onto the receipt. NOTHING is written until
+ * the host header's Save, so a half-finished edit is abandoned wholesale with Cancel —
+ * which is why the per-row instant mutations this replaced are gone.
+ *
+ * Dropping is a PER-ROW X, the same affordance the "Adding" rows use to un-pick. It
+ * replaced a checkbox multi-select feeding a bulk Remove: the X is one tap instead of
+ * two, needs no selection state, and needs no delete verb anywhere else — a staged
+ * editor has nothing to protect, since the row only leaves the LIST until Save.
  *
  * A line's ceiling is its signed count PLUS what is still on hand, because raising it
  * draws the difference off the shelf — unlike the turn-in editor, this one can grow.
@@ -58,7 +63,6 @@ export const Da2062Editor = forwardRef<Da2062EditorHandle, Da2062EditorProps>(
     const stackNav = useContext(StackNavContext)
 
     const [removed, setRemoved] = useState<Set<string>>(new Set())
-    const [selected, setSelected] = useState<Set<string>>(new Set())
     /** receipt item id → the re-cut count. Absent = leave the line at its signed count. */
     const [counts, setCounts] = useState<Map<string, number>>(new Map())
     /** Item ids picked to join this receipt, with the count each should sign out at. */
@@ -123,19 +127,9 @@ export const Da2062Editor = forwardRef<Da2062EditorHandle, Da2062EditorProps>(
     // Cancel restores it, Save purges it).
     const shown = useMemo(() => lines.filter((l) => !removed.has(l.item.id)), [lines, removed])
 
-    const toggleSelected = useCallback((id: string) => {
-      setSelected((prev) => {
-        const next = new Set(prev)
-        if (next.has(id)) next.delete(id)
-        else next.add(id)
-        return next
-      })
+    const dropLine = useCallback((id: string) => {
+      setRemoved((prev) => new Set(prev).add(id))
     }, [])
-
-    const removeSelected = useCallback(() => {
-      setRemoved((prev) => new Set([...prev, ...selected]))
-      setSelected(new Set())
-    }, [selected])
 
     // Re-cut ONE line within [1, signed + on-hand].
     const setCount = useCallback((id: string, next: number, signed: number, max: number) => {
@@ -238,6 +232,14 @@ export const Da2062Editor = forwardRef<Da2062EditorHandle, Da2062EditorProps>(
                 const max = i.is_serialized ? 1 : Math.max(1, i.quantity)
                 return (
                   <div key={i.id} className="flex items-center gap-3 px-4 py-2.5 border-b border-primary/6">
+                    <button
+                      type="button"
+                      aria-label="Don't add"
+                      onClick={() => togglePicked(i.id)}
+                      className="shrink-0 -ml-1 p-1 text-tertiary active:scale-90 transition-transform"
+                    >
+                      <X size={16} />
+                    </button>
                     <span className="flex-1 min-w-0">
                       <span className="block text-sm text-primary truncate">{i.name}</span>
                       <span className="block text-[10pt] text-tertiary truncate">
@@ -267,89 +269,60 @@ export const Da2062Editor = forwardRef<Da2062EditorHandle, Da2062EditorProps>(
                         </button>
                       </span>
                     )}
-                    <button
-                      type="button"
-                      aria-label="Don't add"
-                      onClick={() => togglePicked(i.id)}
-                      className="shrink-0 -mr-1 p-1 text-tertiary active:scale-90 transition-transform"
-                    >
-                      <X size={16} />
-                    </button>
                   </div>
                 )
               })}
             </>
           )}
 
-          {/* Contextual bulk action — only while a selection exists (never a dimmed button). */}
-          {selected.size > 0 && (
-            <div className="flex items-center justify-between gap-3 px-4 py-2 border-b border-primary/6">
-              <span className="text-[10pt] text-tertiary tabular-nums">{selected.size} selected</span>
-              <button
-                type="button"
-                onClick={removeSelected}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-themeredred/10 text-themeredred text-[10pt] font-medium active:scale-95 transition-all"
-              >
-                <Trash2 size={14} />
-                Remove from receipt
-              </button>
-            </div>
-          )}
-
           {shown.map(({ entryId, item, signed, max }) => {
             const count = counts.get(item.id) ?? signed
-            const isSelected = selected.has(item.id)
             return (
               <div key={entryId} className="flex items-center gap-3 px-4 py-3 border-b border-primary/6">
+                {/* Drop the line — the same X the "Adding" rows use to un-pick, and the
+                    only remove affordance. Staged like every other edit: the row leaves
+                    the list, Cancel restores it, Save purges it. */}
                 <button
                   type="button"
-                  onClick={() => toggleSelected(item.id)}
-                  className="flex items-start gap-3 min-w-0 flex-1 text-left"
+                  aria-label="Remove from receipt"
+                  onClick={() => dropLine(item.id)}
+                  className="shrink-0 -ml-1 p-1 text-tertiary active:scale-90 transition-transform"
                 >
-                  <span
-                    className={`w-5 h-5 mt-0.5 rounded-md shrink-0 flex items-center justify-center border ${
-                      isSelected ? 'bg-themeblue3 border-themeblue3' : 'border-tertiary/40'
-                    }`}
-                  >
-                    {isSelected && <Check size={14} className="text-white" />}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-sm text-primary truncate">{item.name}</span>
-                    {item.nomenclature && <span className="block text-[10pt] text-tertiary truncate">{item.nomenclature}</span>}
-                    {item.serial_number
-                      ? <span className="block text-[10pt] text-tertiary truncate">S/N {item.serial_number}</span>
-                      : item.nsn
-                        ? <span className="block text-[10pt] text-tertiary truncate">Material/NSN {item.nsn}</span>
-                        : null}
-                  </span>
+                  <X size={16} />
                 </button>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm text-primary truncate">{item.name}</span>
+                  {item.nomenclature && <span className="block text-[10pt] text-tertiary truncate">{item.nomenclature}</span>}
+                  {item.serial_number
+                    ? <span className="block text-[10pt] text-tertiary truncate">S/N {item.serial_number}</span>
+                    : item.nsn
+                      ? <span className="block text-[10pt] text-tertiary truncate">{item.nsn}</span>
+                      : null}
+                </span>
                 {/* A serialized line is one physical thing — no stepper, it goes whole. */}
                 {max === 1 ? (
                   <span className="text-sm text-primary tabular-nums shrink-0">1</span>
                 ) : (
-                  <span className="flex flex-col items-end gap-1 shrink-0">
-                    <span className="text-[9pt] uppercase tracking-wide text-tertiary">Qty</span>
-                    <span className="flex items-center gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => setCount(item.id, count - 1, signed, max)}
-                        disabled={count <= 1}
-                        aria-label="Decrease quantity"
-                        className="w-8 h-8 rounded-full flex items-center justify-center border border-tertiary/30 text-tertiary active:scale-90 transition-all disabled:opacity-30"
-                      >
-                        <Minus size={15} />
-                      </button>
-                      <span className="text-sm text-primary tabular-nums w-12 text-center">{count} / {max}</span>
-                      <button
-                        type="button"
-                        onClick={() => setCount(item.id, count + 1, signed, max)}
-                        disabled={count >= max}
-                        aria-label="Increase quantity"
-                        className="w-8 h-8 rounded-full flex items-center justify-center border border-tertiary/30 text-tertiary active:scale-90 transition-all disabled:opacity-30"
-                      >
-                        <Plus size={15} />
-                      </button>
-                    </span>
+                  <span className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setCount(item.id, count - 1, signed, max)}
+                      disabled={count <= 1}
+                      aria-label="Decrease quantity"
+                      className="w-8 h-8 rounded-full flex items-center justify-center border border-tertiary/30 text-tertiary active:scale-90 transition-all disabled:opacity-30"
+                    >
+                      <Minus size={15} />
+                    </button>
+                    <span className="text-sm text-primary tabular-nums w-12 text-center">{count} / {max}</span>
+                    <button
+                      type="button"
+                      onClick={() => setCount(item.id, count + 1, signed, max)}
+                      disabled={count >= max}
+                      aria-label="Increase quantity"
+                      className="w-8 h-8 rounded-full flex items-center justify-center border border-tertiary/30 text-tertiary active:scale-90 transition-all disabled:opacity-30"
+                    >
+                      <Plus size={15} />
+                    </button>
                   </span>
                 )}
               </div>

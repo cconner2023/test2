@@ -19,14 +19,17 @@ import { PreviewOverlay } from '../PreviewOverlay';
 import { ActionPill } from '@/Components/primitives/ActionPill'
 import { FooterPill } from '@/Components/primitives/FooterPill'
 import { SkeletonRows } from '@/Components/primitives/Skeleton';
+import { PageSectionHeader, SectionCard } from '@/Components/primitives/Section';
+import { CARD_EMPTY } from '@/Components/primitives/rowDensity';
 import { CertificationRow } from '../Certifications/CertificationRow';
 import { MyReadinessSection } from './MyReadinessSection';
+import { SettingsRow } from './SettingsToggleRow';
 import { CertOverlayFields } from '../Certifications/CertOverlayFields';
 import { emptyCertForm } from '../Certifications/certHelpers';
 import type { CertFormData } from '../Certifications/certHelpers';
 import type { CertInput } from '../../lib/certificationService';
 import { submitProfileChangeRequest } from '../../lib/accountRequestService';
-import { updateOwnEmail, leaveOwnCluster } from '../../lib/authService';
+import { updateOwnEmail, leaveOwnCluster, storePasswordHash } from '../../lib/authService';
 import { isValidEmail } from '../../lib/adminService';
 import { PickerInput, PasswordInput, TextArea } from '@/Components/primitives/FormInputs';
 import { ErrorDisplay } from '@/Components/primitives/ErrorDisplay';
@@ -37,16 +40,12 @@ interface ProfilePageProps {
     onAvatarClick: () => void;
     onSignOut: () => void;
     onDeleteAccount: () => Promise<{ success: boolean; error?: string }>;
-    /** Desktop: dock the readiness timeline in the Settings right pane. Undefined
-     *  on mobile → the timeline uses its own bottom Sheet. */
-    onViewTimeline?: () => void;
 }
 
 export const ProfilePage = ({
     onAvatarClick,
     onSignOut,
     onDeleteAccount,
-    onViewTimeline,
 }: ProfilePageProps) => {
     const isMobile = useIsMobile();
     const { currentAvatar, customImage, isCustom, isInitials } = useAvatar();
@@ -316,6 +315,11 @@ export const ProfilePage = ({
             await reEncryptVaultKeys(user.id, currentPw, newPw).catch(() => {})
         }
 
+        // Keep the offline verifier in step with the account. Only signIn and
+        // PasswordLockScreen wrote this hash, so skipping it here leaves the device
+        // accepting the previous password offline until the next online sign-in.
+        await storePasswordHash(newPw).catch(() => {})
+
         setPwSubmitting(false)
         setPwSuccess(true)
         setCurrentPw(''); setNewPw(''); setConfirmPw('')
@@ -427,11 +431,9 @@ export const ProfilePage = ({
             <div className="px-5 pb-4 space-y-5 pt-[calc(var(--drawer-header-h,3.5rem)+0.75rem)]">
                 {/* User Card */}
                 <section>
-                    <div className="pb-2 flex items-center gap-2">
-                        <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Profile</p>
-                    </div>
+                    <PageSectionHeader>Profile</PageSectionHeader>
                     <div className="relative">
-                <div className="rounded-2xl bg-themewhite2 overflow-hidden">
+                <SectionCard>
                     <div className="flex items-center gap-4 px-4 py-4">
                         <div className="flex flex-col items-center shrink-0">
                             <button
@@ -477,7 +479,7 @@ export const ProfilePage = ({
                             </div>
                         )}
                     </div>
-                    </div>
+                    </SectionCard>
                     {user?.id && (
                         <OverlayActionMenu
                             ref={toolbarRef}
@@ -491,120 +493,105 @@ export const ProfilePage = ({
                     </div>
 
                     {/* Account actions — every action a user can take on their own
-                        account (edit request, credentials, cluster exit, sign out,
+                        account (edit request, credentials, sign out, cluster exit,
                         delete). Deliberately NOT its own section: these belong to
                         the identity card above them, so they share the "Profile"
                         heading rather than introducing a second header. */}
-                    <div className="mt-3 rounded-2xl bg-themewhite2 overflow-hidden">
                     {deletePhase === 'pin' ? (
-                        <div className="px-4 py-5 flex flex-col items-center">
-                            <PinKeypad
-                                onSubmit={handlePinSubmit}
-                                label="Enter passcode to confirm"
-                                error={deleteError}
-                            />
-                            <button
-                                onClick={resetDelete}
-                                className="mt-4 px-6 py-2.5 rounded-xl border border-tertiary/15 bg-themewhite2 text-tertiary text-sm font-medium active:scale-95 transition-all"
-                            >
-                                Cancel
-                            </button>
-                        </div>
+                        <SectionCard className="mt-3">
+                            <div className="px-4 py-5 flex flex-col items-center">
+                                <PinKeypad
+                                    onSubmit={handlePinSubmit}
+                                    label="Enter passcode to confirm"
+                                    error={deleteError}
+                                />
+                                <button
+                                    onClick={resetDelete}
+                                    className="mt-4 px-6 py-2.5 rounded-xl border border-tertiary/15 bg-themewhite2 text-tertiary text-sm font-medium active:scale-95 transition-all"
+                                >
+                                    Cancel
+                                </button>
+                            </div>
+                        </SectionCard>
                     ) : deletePhase === 'processing' ? (
-                        <div className="flex items-center justify-center py-8">
-                            <p className="text-sm text-tertiary animate-pulse">Deleting account...</p>
-                        </div>
+                        <SectionCard className="mt-3">
+                            <div className="flex items-center justify-center py-8">
+                                <p className={`${CARD_EMPTY} animate-pulse`}>Deleting account...</p>
+                            </div>
+                        </SectionCard>
                     ) : (
                         <>
-                            <button
-                                ref={profileRowRef}
-                                onClick={openProfileEdit}
-                                className="flex items-center gap-3 w-full px-4 py-3.5 transition-all active:scale-95 hover:bg-themeblue2/5"
-                            >
-                                <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
-                                    <Pencil size={20} className="text-tertiary" />
-                                </div>
-                                <span className="flex-1 text-left text-sm font-medium text-primary">
-                                    Request Change
-                                </span>
-                                <ChevronRight size={16} className="text-tertiary shrink-0" />
-                            </button>
-                            <button
-                                ref={pwRowRef}
-                                onClick={openPwEdit}
-                                className="flex items-center gap-3 w-full px-4 py-3.5 border-t border-tertiary/8 transition-all active:scale-95 hover:bg-themeblue2/5"
-                            >
-                                <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
-                                    <KeyRound size={20} className="text-tertiary" />
-                                </div>
-                                <span className="flex-1 text-left text-sm font-medium text-primary">
-                                    Change Password
-                                </span>
-                                <ChevronRight size={16} className="text-tertiary shrink-0" />
-                            </button>
-                            <button
-                                ref={emailRowRef}
-                                onClick={openEmailEdit}
-                                className="flex items-center gap-3 w-full px-4 py-3.5 border-t border-tertiary/8 transition-all active:scale-95 hover:bg-themeblue2/5"
-                            >
-                                <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
-                                    <Mail size={20} className="text-tertiary" />
-                                </div>
-                                <span className="flex-1 text-left text-sm font-medium text-primary">
-                                    Change Email
-                                </span>
-                                <ChevronRight size={16} className="text-tertiary shrink-0" />
-                            </button>
-                            {clinicId && (
-                                <button
-                                    onClick={() => setShowLeaveConfirm(true)}
-                                    className="flex items-center gap-3 w-full px-4 py-3.5 border-t border-tertiary/8 transition-all active:scale-95 hover:bg-themeredred/5"
-                                >
-                                    <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-themeredred/10">
-                                        <DoorOpen size={20} className="text-themeredred" />
-                                    </div>
-                                    <span className="flex-1 text-left text-sm font-medium text-themeredred">
-                                        Leave Cluster
-                                    </span>
-                                </button>
-                            )}
-                            <button
-                                onClick={deviceRole === 'primary' ? () => setShowSignOut(true) : onSignOut}
-                                className="flex items-center gap-3 w-full px-4 py-3.5 border-t border-tertiary/8 transition-all active:scale-95 hover:bg-themeredred/5"
-                            >
-                                <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-themeredred/10">
-                                    <LogOut size={20} className="text-themeredred" />
-                                </div>
-                                <span className="flex-1 text-left text-sm font-medium text-themeredred">
-                                    Sign Out
-                                </span>
-                            </button>
-                            <button
-                                onClick={() => setShowDeleteDialog(true)}
-                                className="flex items-center gap-3 w-full px-4 py-3.5 border-t border-tertiary/8 transition-all active:scale-95 hover:bg-themeredred/5"
-                            >
-                                <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-themeredred/5">
-                                    <Trash2 size={20} className="text-themeredred/60" />
-                                </div>
-                                <span className="flex-1 text-left text-sm font-medium text-themeredred/60">
-                                    Delete Account
-                                </span>
-                            </button>
+                            <SectionCard className="mt-3">
+                                <SettingsRow
+                                    ref={profileRowRef}
+                                    icon={Pencil}
+                                    tone="neutral"
+                                    label="Request Change"
+                                    onClick={openProfileEdit}
+                                    trailing={<ChevronRight size={16} className="text-tertiary shrink-0" />}
+                                />
+                                <SettingsRow
+                                    ref={pwRowRef}
+                                    icon={KeyRound}
+                                    tone="neutral"
+                                    label="Change Password"
+                                    onClick={openPwEdit}
+                                    divided
+                                    trailing={<ChevronRight size={16} className="text-tertiary shrink-0" />}
+                                />
+                                <SettingsRow
+                                    ref={emailRowRef}
+                                    icon={Mail}
+                                    tone="neutral"
+                                    label="Change Email"
+                                    onClick={openEmailEdit}
+                                    divided
+                                    trailing={<ChevronRight size={16} className="text-tertiary shrink-0" />}
+                                />
+                                <SettingsRow
+                                    icon={LogOut}
+                                    tone="danger"
+                                    label="Sign Out"
+                                    onClick={deviceRole === 'primary' ? () => setShowSignOut(true) : onSignOut}
+                                    divided
+                                />
+                            </SectionCard>
+
+                            {/* The two one-way doors, held off in their own card. Sign Out
+                                is recoverable — you log back in; these are not, so they do
+                                not sit a row's height under a control people tap often.
+                                The gap is the guard: a mis-tap lands on nothing. */}
+                            <SectionCard className="mt-4">
+                                {clinicId && (
+                                    <SettingsRow
+                                        icon={DoorOpen}
+                                        tone="danger"
+                                        label="Leave Cluster"
+                                        onClick={() => setShowLeaveConfirm(true)}
+                                    />
+                                )}
+                                {/* Quieter than the row above on purpose — the most
+                                    destructive action should be the least eye-catching. */}
+                                <SettingsRow
+                                    icon={Trash2}
+                                    tone="danger-quiet"
+                                    label="Delete Account"
+                                    onClick={() => setShowDeleteDialog(true)}
+                                    divided={!!clinicId}
+                                />
+                            </SectionCard>
                         </>
                     )}
-                    </div>
                 </section>
 
                 {/* Certifications Card */}
                 <section>
-                    <div className="pb-2 flex items-center gap-2">
-                        <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Certifications</p>
-                    </div>
-                    <div className="relative"><div className="rounded-2xl bg-themewhite2 overflow-hidden">
+                    <PageSectionHeader>Certifications</PageSectionHeader>
+                    <div className="relative"><SectionCard>
                     {certsLoading && certs.length === 0 ? (
                         <SkeletonRows count={2} />
                     ) : certs.length === 0 ? (
-                        <p className="text-sm text-tertiary py-6 text-center">No certifications</p>
+                        <p className={`${CARD_EMPTY} py-6 text-center`}>No certifications</p>
                     ) : (
                         <div className="px-2 py-2 space-y-1">
                             {certs.map((cert) => (
@@ -628,7 +615,7 @@ export const ProfilePage = ({
                             ))}
                         </div>
                     )}
-                    </div>
+                    </SectionCard>
                     <ActionPill ref={certAddFabRef} shadow="sm" placement="overlay">
                         <ActionButton icon={Plus} label="Add certification" onClick={openCertAdd} />
                     </ActionPill>
@@ -636,9 +623,9 @@ export const ProfilePage = ({
                 </section>
 
                 {/* Readiness — read-only self view of the same stats a supervisor
-                    sees (SoldierProfile), computed from the user's own delta-synced
-                    training completions + certs. */}
-                <MyReadinessSection certs={certs} onViewTimeline={onViewTimeline} />
+                    sees, computed from the user's own delta-synced training
+                    completions + certs. */}
+                <MyReadinessSection certs={certs} />
             </div>
 
             {/* Leave Cluster Confirm + failure notice */}

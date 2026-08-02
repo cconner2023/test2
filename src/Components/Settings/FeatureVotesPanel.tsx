@@ -15,6 +15,7 @@ import { useAuthStore } from '../../stores/useAuthStore'
 import { useFeatureVotesStore, OTHER_CANDIDATE_ID } from '../../stores/useFeatureVotesStore'
 import { ErrorDisplay } from '@/Components/primitives/ErrorDisplay'
 import { EmptyState } from '@/Components/primitives/EmptyState'
+import { SectionCard, SectionHeader } from '@/Components/primitives/Section'
 
 interface Props {
   onOpenFeedback: () => void
@@ -108,15 +109,13 @@ export const FeatureVotesPanel = ({ onOpenFeedback }: Props) => {
         {/* Candidates list + Other tile */}
         <div>
           <div className="mb-2">
-            <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider truncate">
-              {activeCycle.title}
-            </p>
+            <SectionHeader>{activeCycle.title}</SectionHeader>
             {activeCycle.description && (
               <p className="text-[9pt] text-tertiary mt-0.5">{activeCycle.description}</p>
             )}
           </div>
 
-          <div className="rounded-2xl bg-themewhite2 overflow-hidden divide-y divide-themeblue3/10">
+          <SectionCard className="divide-y divide-themeblue3/10">
             {candidates.map((c) => {
               const voteCount = tally[c.id] ?? 0
               const pct = hasVoted && totalVotes > 0 ? Math.round((voteCount / totalVotes) * 100) : 0
@@ -194,7 +193,7 @@ export const FeatureVotesPanel = ({ onOpenFeedback }: Props) => {
                 </div>
               </div>
             </button>
-          </div>
+          </SectionCard>
         </div>
       </div>
     </div>

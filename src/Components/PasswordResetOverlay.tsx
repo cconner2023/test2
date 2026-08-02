@@ -4,6 +4,8 @@ import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../stores/useAuthStore'
 import { deriveAndStoreBackupKey, createBackup } from '../lib/signal/backupService'
 import { reEncryptVaultKeysWithCachedKey } from '../lib/signal/vaultDevice'
+import { storePasswordHash } from '../lib/authService'
+import { clearPinPermanentLock, resetLockout } from '../lib/pinService'
 import { PreviewOverlay } from './PreviewOverlay'
 import { FooterPill } from '@/Components/primitives/FooterPill'
 import { ActionButton } from '@/Components/primitives/ActionButton'
@@ -27,6 +29,7 @@ export default function PasswordResetOverlay() {
   const isPasswordRecovery = useAuthStore((s) => s.isPasswordRecovery)
   const setPasswordRecovery = useAuthStore((s) => s.setPasswordRecovery)
   const user = useAuthStore((s) => s.user)
+  const lockActive = useAuthStore((s) => s.lockActive)
 
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
@@ -75,6 +78,15 @@ export default function PasswordResetOverlay() {
       }
     }
 
+    // Offline verification reads a locally stored hash that only signIn and
+    // PasswordLockScreen ever wrote, so without this the device keeps accepting
+    // the OLD password offline and rejecting the new one. Clearing the PIN lock
+    // matters for the same reason: its only escape is a password check against
+    // that hash.
+    await storePasswordHash(password).catch(() => {})
+    clearPinPermanentLock()
+    resetLockout()
+
     setSubmitting(false)
     setSuccess(true)
     setPassword(''); setConfirm('')
@@ -88,7 +100,10 @@ export default function PasswordResetOverlay() {
     }, 1600)
   }
 
-  const isOpen = ((isPasswordRecovery && !dismissed) || success) && !!user
+  // Behind a lock this overlay is invisible anyway, and its success timer would
+  // clear the recovery flag out from under RecoveryPasswordSetScreen, which owns
+  // that case. See LockGate.
+  const isOpen = ((isPasswordRecovery && !dismissed) || success) && !!user && !lockActive
 
   return (
     <PreviewOverlay

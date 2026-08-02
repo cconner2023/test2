@@ -7,6 +7,7 @@ import { PinLockScreen } from './PinLockScreen'
 import { PasswordLockScreen } from './PasswordLockScreen'
 import { SetPasswordScreen } from './SetPasswordScreen'
 import { SessionReauthScreen } from './SessionReauthScreen'
+import { RecoveryPasswordSetScreen } from './RecoveryPasswordSetScreen'
 import { UserAcknowledgment, ACK_VERSION } from './UserAcknowledgment'
 import { supabase } from '../lib/supabase'
 import { LoginScreen } from './LoginScreen'
@@ -169,6 +170,19 @@ export function LockGate({ children }: { children: ReactNode }) {
 
   const handlePostLoginDone = useCallback(() => setShowPostLoginLoader(false), [])
 
+  // Any gate that stands between the user and the app. Published to the store so
+  // PasswordResetOverlay (which lives behind these, inside the app) can stand
+  // down: behind a lock the reset belongs to RecoveryPasswordSetScreen, which
+  // grants no app access and leaves the vault alone.
+  const anyLockUp =
+    isPinLocked ||
+    !!pwLock ||
+    isInitialPasswordLocked ||
+    vaultKeyPromptNeeded ||
+    (needsReauth && !shouldLoad && !user && !!localSession)
+  const setLockActive = useAuthStore(s => s.setLockActive)
+  useEffect(() => { setLockActive(anyLockUp) }, [anyLockUp, setLockActive])
+
   // Gate ordering (later = on top):
   // 1. children (app) — deferred until auth settles AND session ready
   //    └─ CallOverlay (z-100) lives here — covered by auth screens via DOM order, not z-index
@@ -191,7 +205,9 @@ export function LockGate({ children }: { children: ReactNode }) {
       {needsReauth && !shouldLoad && !user && localSession && (
         <SessionReauthScreen email={localSession.email} />
       )}
-      {isPinLocked && <PinLockScreen onUnlock={handlePinUnlock} />}
+      {isPinLocked && (
+        <PinLockScreen onUnlock={handlePinUnlock} email={user?.email ?? localSession?.email} />
+      )}
       {isInitialPasswordLocked && !isPinLocked && (user?.email || localSession?.email) && (
         <PasswordLockScreen
           onUnlock={() => {
@@ -216,10 +232,15 @@ export function LockGate({ children }: { children: ReactNode }) {
       {vaultKeyPromptNeeded && !shouldLoad && !isPinLocked && !pwLock && !isInitialPasswordLocked && !needsReauth && (user?.email || localSession?.email) && (
         <PasswordLockScreen onUnlock={() => setVaultKeyPromptNeeded(false)} email={(user?.email ?? localSession?.email)!} reason="vault" />
       )}
-      {/* Password recovery no longer renders a blocking screen here — a recovery
-          OTP is now a real login, and the reset is surfaced as the non-blocking
-          PasswordResetOverlay (mounted in App.tsx). Setup (new account) stays a
-          blocking gate. */}
+      {/* Recovery arriving at a LOCKED browser. The lock is deliberately NOT
+          suppressed — mailbox access alone shouldn't open a locked device — so the
+          reset gets its own surface above it and the user unlocks afterwards.
+          Unlocked browsers keep using PasswordResetOverlay (mounted in App.tsx),
+          which stands down while lockActive. */}
+      {isPasswordRecovery && anyLockUp && (user?.email || localSession?.email) && (
+        <RecoveryPasswordSetScreen email={(user?.email ?? localSession?.email)!} />
+      )}
+      {/* Setup (new account) stays a blocking gate. */}
       {needsPasswordSetup && !isPasswordRecovery && <SetPasswordScreen mode="setup" />}
     </>
   )

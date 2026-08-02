@@ -6,6 +6,7 @@ import { StackNavContext } from '../stackNav';
 import { ActionButton } from '@/Components/primitives/ActionButton';
 import type { FieldInfo } from '../../Utilities/templateParser';
 import { FooterPill } from '@/Components/primitives/FooterPill'
+import { ListGroupLabel } from '@/Components/primitives/Section'
 
 // ─── Segment helpers ─────────────────────────────────────────────────
 
@@ -44,7 +45,7 @@ function makePill(label: string, field: FieldInfo | undefined): HTMLSpanElement 
         lbl.textContent = field.defaultValue ?? field.options?.[0] ?? label;
         pill.appendChild(lbl);
         const arrow = document.createElement('span');
-        arrow.className = 'text-[9pt] md:text-[9pt] text-themeblue2/50 ml-0.5';
+        arrow.className = 'text-[9pt] text-themeblue2/50 ml-0.5';
         arrow.textContent = '▾';
         pill.appendChild(arrow);
     } else {
@@ -500,7 +501,7 @@ const PillEditBody = ({
 
     return (
         <div className="px-4 py-3 space-y-1">
-            <p className="text-[9pt] text-tertiary uppercase tracking-wider">Default</p>
+            <ListGroupLabel inset={false}>Default</ListGroupLabel>
             <div className="flex flex-wrap gap-1">
                 {field.options.map(opt => (
                     <button
@@ -570,7 +571,7 @@ const FieldEditPopover = ({ label, field, rect, onDelete, onSetDefault, onClose 
 
                 {field.type === 'dropdown' && field.options && field.options.length > 0 && (
                     <div className="space-y-1">
-                        <p className="text-[9pt] md:text-[9pt] text-tertiary uppercase tracking-wider">Default</p>
+                        <ListGroupLabel inset={false}>Default</ListGroupLabel>
                         <div className="flex flex-wrap gap-1">
                             {field.options.map(opt => {
                                 const isDefault = opt === (field.defaultValue ?? field.options![0]);

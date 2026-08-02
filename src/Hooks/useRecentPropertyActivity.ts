@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
-import { getLocalAuditLogs } from '../lib/offlineDb'
-import { toAuditEvent, fetchAuditByClinicDomain } from '../lib/auditService'
+import { loadAuditByClinicDomain } from '../lib/auditService'
 import type { AuditEvent } from '../lib/auditTypes'
 import { useInvalidation } from '../stores/useInvalidationStore'
 
@@ -8,8 +7,8 @@ import { useInvalidation } from '../stores/useInvalidationStore'
  * Clinic-wide recent PMCS + dispatch + expenditure activity, newest first — the
  * "what got inspected / dispatched / used up lately" feed for the DA 2062 custody
  * surface (item.expended drives the "Usage" section). Mirrors
- * useVehicleDispatches' offline-first read (local audit_log merged with the
- * server read_audit copy by id) but, instead of folding to current state, it
+ * useVehicleDispatches' offline-first read (loadAuditByClinicDomain — local
+ * audit_log topped up by a delta pull) but, instead of folding to current state, it
  * returns the raw events so the custody panel can list them and hand each one to
  * RecordPreview (view 5988E / dispatch form, delete). Re-runs on `properties`
  * invalidation so a freshly recorded PMCS/dispatch shows up immediately.
@@ -35,16 +34,10 @@ export function useRecentPropertyActivity(clinicId: string | null): AuditEvent[]
     if (!clinicId) { setEvents([]); return }
     let cancelled = false
     ;(async () => {
-      const [localRows, server] = await Promise.all([
-        getLocalAuditLogs(clinicId).catch(() => []),
-        fetchAuditByClinicDomain(clinicId, 'property').catch(() => [] as AuditEvent[]),
-      ])
-      const local = await Promise.all(localRows.map(toAuditEvent)).catch(() => [] as AuditEvent[])
+      const events = await loadAuditByClinicDomain(clinicId, 'property')
       if (cancelled) return
-      const byId = new Map<string, AuditEvent>()
-      for (const e of [...local, ...server]) byId.set(e.id, e)
       const cutoff = Date.now() - ACTIVITY_WINDOW_DAYS * 86_400_000
-      const recent = [...byId.values()]
+      const recent = events
         .filter((e) => ACTIVITY_EVENT_TYPES.has(e.eventType))
         .filter((e) => new Date(e.occurredAt).getTime() >= cutoff)
         .sort((a, b) => {

@@ -5,7 +5,9 @@ import { useFeatureGate } from '../../lib/featureGate'
 import type { OverviewWidgetId } from '../../Data/User'
 import { OVERVIEW_WIDGET_META } from '../../Data/User'
 import { ToggleSwitch } from './ToggleSwitch'
-import { SettingsToggleRow } from './SettingsToggleRow'
+import { SettingsRow, SettingsToggleRow } from './SettingsToggleRow'
+import { SectionCard, SectionHeader } from '@/Components/primitives/Section'
+import { MetaBadge } from '@/Components/primitives/MetaBadge'
 
 const WIDGET_ICONS: Record<OverviewWidgetId, LucideIcon> = {
     'task-list':   ListTodo,
@@ -68,50 +70,39 @@ export function OverviewWidgetsPanel() {
                         subtitle="Display the overview panel on the home screen"
                         checked={isVisible}
                         onChange={toggleVisible}
+                        card
                     />
                 </div>
 
                 {isVisible && (
                     <div>
-                        <div className="flex items-center gap-2 mb-2">
-                            <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">Widgets</p>
-                            <p className="text-[9pt] text-tertiary">{active.length} / 3</p>
-                        </div>
-                        <div className="rounded-2xl bg-themewhite2 overflow-hidden">
+                        <SectionHeader trailing={<p className="text-[9pt] text-tertiary">{active.length} / 3</p>}>
+                            Widgets
+                        </SectionHeader>
+                        <SectionCard>
                             {widgetOrder.map((id, idx) => {
                                 const meta = OVERVIEW_WIDGET_META[id]
-                                const Icon = WIDGET_ICONS[id]
                                 const isOn = active.includes(id)
                                 const atLimit = active.length >= 3
                                 const isDisabled = !!meta.disabled || (!isOn && atLimit)
 
                                 return (
-                                    <button
+                                    <SettingsRow
                                         key={id}
-                                        onClick={() => !meta.disabled && toggleWidget(id)}
+                                        icon={WIDGET_ICONS[id]}
+                                        label={meta.label}
+                                        subtitle={meta.subtitle}
+                                        on={isOn}
+                                        onClick={() => { if (!meta.disabled) toggleWidget(id) }}
                                         disabled={isDisabled && !isOn}
-                                        className={`flex items-center gap-3 w-full px-4 py-3.5 transition-all ${
-                                            isDisabled && !isOn
-                                                ? 'opacity-40 cursor-not-allowed'
-                                                : 'active:scale-95 hover:bg-themeblue2/5'
-                                        } ${idx > 0 ? 'border-t border-themeblue3/8' : ''}`}
-                                    >
-                                        <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${isOn ? 'bg-themeblue2/15' : 'bg-tertiary/10'}`}>
-                                            <Icon size={18} className={isOn ? 'text-themeblue2' : 'text-tertiary'} />
-                                        </div>
-                                        <div className="flex-1 min-w-0 text-left">
-                                            <p className={`text-sm font-medium ${isOn ? 'text-primary' : 'text-tertiary'}`}>{meta.label}</p>
-                                            <p className="text-[9pt] text-tertiary mt-0.5">{meta.subtitle}</p>
-                                        </div>
-                                        {meta.disabled ? (
-                                            <span className="text-[9pt] md:text-[9pt] text-tertiary font-semibold uppercase tracking-wide">Soon</span>
-                                        ) : (
-                                            <ToggleSwitch checked={isOn} />
-                                        )}
-                                    </button>
+                                        divided={idx > 0}
+                                        trailing={meta.disabled
+                                            ? <MetaBadge>Soon</MetaBadge>
+                                            : <ToggleSwitch checked={isOn} />}
+                                    />
                                 )
                             })}
-                        </div>
+                        </SectionCard>
                     </div>
                 )}
             </div>

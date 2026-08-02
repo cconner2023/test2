@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { X, LogOut, Plus, Star, Pencil, Check, UserPlus, Trash2, Image as ImageIcon, Mic, ChevronRight } from 'lucide-react'
 import { UserAvatar } from './UserAvatar'
 import { getDisplayName } from '../../Utilities/nameUtils'
+import { formatAudioDuration } from '../../Utilities/voiceUtils'
 import { OverlayStack, type StackNav } from '@/Components/primitives/OverlayStack'
 import { FooterPill } from '@/Components/primitives/FooterPill'
 import { SheetStack } from '@/Components/primitives/SheetStack'
@@ -81,11 +82,6 @@ function getMemberName(member: GroupMember): string {
     parts.push(name)
   }
   return parts.join(' ') || 'Unknown'
-}
-
-function formatDuration(sec: number): string {
-  const s = Math.max(0, Math.round(sec))
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
 }
 
 /** Settings-row-style drill affordance into a media category. */
@@ -403,7 +399,7 @@ export function ConversationInfoPanel({
               <Mic size={15} className="text-themeblue2" />
             </div>
             <span className="flex-1 text-left text-sm text-primary">Voice message</span>
-            <span className="text-[10pt] text-tertiary tabular-nums">{formatDuration(c.duration)}</span>
+            <span className="text-[10pt] text-tertiary tabular-nums">{formatAudioDuration(c.duration)}</span>
             <span className="text-[9pt] text-tertiary/70 w-9 text-right">{relativeShort(m.createdAt)}</span>
           </button>
         )

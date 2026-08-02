@@ -7,6 +7,7 @@ import { OverlayActionMenu } from '@/Components/primitives/OverlayActionMenu';
 import { useCsvActionsItems } from './CsvActionsMenu';
 import { exportProviderTemplatesCSV } from '../../Utilities/noteBlocksCSV';
 import { ProviderTemplateEditPopover, type EditState } from '../Provider/ProviderTemplateEditPopover';
+import { PageSectionHeader } from '@/Components/primitives/Section';
 
 function fieldPreview(t: ProviderNoteTemplate): string {
     const parts: string[] = [];
@@ -62,9 +63,7 @@ export const ProviderTemplatesPanel = () => {
                 </p>
 
                 <section className="space-y-3">
-                    <div className="pb-2">
-                        <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Templates</p>
-                    </div>
+                    <PageSectionHeader>Templates</PageSectionHeader>
 
                     <div className="relative"><div className="rounded-xl bg-themewhite2 overflow-hidden">
                         <div className="px-4 py-3">

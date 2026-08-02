@@ -110,6 +110,7 @@ export const MASTER_BLOCKS: MasterPEBlock[] = [
         label: 'Head',
         findings: [
         { key: 'normocephalicAtraumatic', normal: 'NCAT', abnormals: [{ key: 'scalpTenderness', label: 'Scalp tenderness' }, { key: 'scalpLaceration', label: 'Scalp laceration' }], tier: 'baseline' },
+        { key: 'tmjNontender', normal: 'TMJ nontender', abnormals: [{ key: 'tmjInflammation', label: 'TMJ inflammation' }, { key: 'tmjCrepitus', label: 'TMJ crepitus' }], tier: 'expanded' },
         ],
     },
 
@@ -158,7 +159,7 @@ export const MASTER_BLOCKS: MasterPEBlock[] = [
         key: 'ears',
         label: 'Ears',
         findings: [
-        { key: 'pinnaNormalNontender', normal: 'Pinna normal, nontender', abnormals: [{ key: 'pinnaTenderness', label: 'Pinna tenderness' }, { key: 'tragalTenderness', label: 'Tragal tenderness' }], tier: 'baseline' },
+        { key: 'pinnaNormalNontender', normal: 'Pinna normal, nontender', abnormals: [{ key: 'pinnaTenderness', label: 'Pinna tenderness' }, { key: 'tragalTenderness', label: 'Tragal tenderness' }, { key: 'externalEarTrauma', label: 'External ear trauma' }], tier: 'baseline' },
         { key: 'mastoidNontender', normal: 'Mastoid nontender', abnormals: [{ key: 'mastoidTtp', label: 'Mastoid TTP' }, { key: 'mastoidErythema', label: 'Mastoid erythema' }], tier: 'baseline' },
         { key: 'eacClear', normal: 'EAC clear', abnormals: [
                 { key: 'eacErythema', label: 'EAC erythema' },
@@ -245,6 +246,7 @@ export const MASTER_BLOCKS: MasterPEBlock[] = [
         { key: 'noMurmur', normal: 'No murmur', abnormals: [{ key: 'murmurSpecify', label: 'Murmur (specify)' }], tier: 'baseline' },
         { key: 'noRub', normal: 'No rub', abnormals: [{ key: 'rub', label: 'Rub' }], tier: 'baseline' },
         { key: 'noGallop', normal: 'No gallop', abnormals: [{ key: 'gallopS3', label: 'Gallop (S3)' }, { key: 'gallopS4', label: 'Gallop (S4)' }], tier: 'baseline' },
+        { key: 'bpWithinNormalLimits', normal: 'Blood pressure within normal limits', abnormals: [{ key: 'elevatedBloodPressure', label: 'Elevated blood pressure (>140/80)' }, { key: 'hypotension', label: 'Hypotension' }], tier: 'expanded' },
         ],
     },
 

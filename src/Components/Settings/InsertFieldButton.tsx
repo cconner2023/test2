@@ -5,6 +5,7 @@ import { FooterMenuButton } from '@/Components/primitives/FooterMenuButton';
 import type { ContextMenuItem } from '@/Components/primitives/ContextMenu';
 import { HINT } from './TemplateBuilder';
 import type { FieldInfo } from '../../Utilities/templateParser';
+import { ListGroupLabel } from '@/Components/primitives/Section';
 
 /**
  * Insert-field UI for the simple shortcut editor. NO overlay. The TYPE is chosen in
@@ -102,7 +103,7 @@ export function InsertFieldForm({
                     />
                     {opts.length > 0 && (
                         <div className="px-4 py-3 space-y-1">
-                            <p className="text-[9pt] text-tertiary uppercase tracking-wider">Default</p>
+                            <ListGroupLabel inset={false}>Default</ListGroupLabel>
                             <div className="flex flex-wrap gap-1">
                                 {opts.map(opt => (
                                     <button

@@ -39,6 +39,7 @@ import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill'
 import { useCalendarStore } from '../../stores/useCalendarStore'
 import { createAssignment, updateAssignmentCalendarOriginId } from '../../lib/trainingService'
 import { useDispatchCalendarEvents, DISPATCH_CAL_ID_PREFIX } from '../../Hooks/useDispatchCalendarEvents'
+import { DispatchExpiryDetail } from './DispatchExpiryDetail'
 import { useNavigationStore } from '../../stores/useNavigationStore'
 import type { CalendarPrefill } from '../../stores/useNavigationStore'
 import { useClinicMedics } from '../../Hooks/useClinicMedics'
@@ -63,7 +64,7 @@ import { useClinicAppointmentTypes } from '../../Hooks/useClinicAppointmentTypes
 import { useClinicCategoryColorsSync } from '../../Hooks/useClinicCategoryColors'
 import { shareCalendar, shareTroopsToTaskCsv, shareSingleEvent } from '../../lib/calendarExport'
 
-type PanelView = 'calendar' | 'detail' | 'form' | 'template' | 'block' | 'import'
+type PanelView = 'calendar' | 'detail' | 'form' | 'template' | 'block' | 'import' | 'dispatch'
 type DayDrawerView = 'detail' | 'edit' | 'create'
 
 /**
@@ -547,10 +548,15 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
     for (const id of surrogateClinicIds) set.add(id)
     return set
   }, [clinicId, surrogateClinicIds])
-  // Derived read-only dispatch-expiry entries (vehicles on dispatch). Merged in
-  // below AFTER all filters so they always surface; they're inert (not in the
-  // store, so select/edit/delete no-op). See useDispatchCalendarEvents.
+  // Derived dispatch-expiry entries (vehicles on dispatch). Merged in below AFTER
+  // all filters so they always surface. Not store events, so the calendar's own
+  // edit/move/delete can't act on them — selecting one opens the dispatch detail
+  // instead (handleSelectEvent). See useDispatchCalendarEvents.
   const dispatchCalEvents = useDispatchCalendarEvents(clinicId)
+  // The tapped dispatch-expiry entry, resolved to the audit event behind it. Its
+  // detail is a right-pane view (desktop, panelView 'dispatch') or its own Sheet
+  // (mobile) — NOT the event detail panel, which only speaks store events.
+  const [dispatchDetail, setDispatchDetail] = useState<{ dispatchId: string; subjectId: string } | null>(null)
   const filteredEvents = useMemo(() => {
     let out = events
     if (reachableClinicIds.size > 0) {
@@ -650,9 +656,23 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
 
   // ── Event CRUD ──
 
+  const handleCloseDispatchDetail = useCallback(() => {
+    setDispatchDetail(null)
+    setPanelView(v => (v === 'dispatch' ? 'calendar' : v))
+  }, [])
+
   const handleSelectEvent = useCallback((id: string) => {
-    // Derived dispatch-expiry entries are informational only — no detail panel.
-    if (id.startsWith(DISPATCH_CAL_ID_PREFIX)) return
+    // A derived dispatch-expiry entry has no store event to select — resolve it to
+    // the dispatch.opened audit event it was synthesized from (its subject is the
+    // vehicle carried on room_id) and open the dispatch detail instead.
+    if (id.startsWith(DISPATCH_CAL_ID_PREFIX)) {
+      const subjectId = dispatchCalEvents.find(e => e.id === id)?.room_id
+      if (!subjectId) return
+      setDispatchDetail({ dispatchId: id.slice(DISPATCH_CAL_ID_PREFIX.length), subjectId })
+      if (!isMobile) setPanelView('dispatch')
+      return
+    }
+    setDispatchDetail(null)
     if (isMobile) {
       setDayDrawerEventId(id)
       setDayDrawerView('detail')
@@ -661,9 +681,10 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
       selectEvent(id)
       setPanelView('detail')
     }
-  }, [isMobile, selectEvent])
+  }, [isMobile, selectEvent, dispatchCalEvents])
 
   const handleNewEvent = useCallback((forDateKey?: string, prefill?: CalendarPrefill | null) => {
+    setDispatchDetail(null)
     setEditingEvent(null)
     setNewEventDateKey(forDateKey ?? selectedDateStr)
     setNewEventHuddleTaskId(null)
@@ -975,8 +996,8 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
               dueDate,
               supervisorNotes: data.description || undefined,
             }).catch(() => null)
-            if (saved && stored?.originId) {
-              await updateAssignmentCalendarOriginId(saved.id, user.id, stored.originId).catch(() => {})
+            if (saved?.success && stored?.originId) {
+              await updateAssignmentCalendarOriginId(saved.completion.id, user.id, stored.originId).catch(() => {})
             }
           }
         }
@@ -1289,7 +1310,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
   const showTemplateDrawer = isMobile && panelView === 'template'
   const showBlockDrawer = isMobile && panelView === 'block'
   const showImportDrawer = isMobile && panelView === 'import'
-  const showDesktopPanel = !isMobile && (panelView === 'detail' || panelView === 'form' || panelView === 'template' || panelView === 'block' || panelView === 'import')
+  const showDesktopPanel = !isMobile && (panelView === 'detail' || panelView === 'form' || panelView === 'template' || panelView === 'block' || panelView === 'import' || (panelView === 'dispatch' && !!dispatchDetail))
   // Desktop Esc: close the right pane (form/detail/template/import) before the drawer closes.
   useEscBackout(showDesktopPanel, handleDetailBack)
 
@@ -1820,6 +1841,30 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
             />
           )}
 
+          {/* Mobile dispatch-expiry detail — its own Sheet rather than a day-drawer
+              view: the detail's read/edit swap is internal to the pane component, so
+              it carries its own header row here (hideClose, no Sheet title) instead
+              of driving the shared detail/edit/create header above. Same z as that
+              sheet; selecting a real event clears this one, so only ever one is up. */}
+          {isMobile && dispatchDetail && clinicId && (
+            <Sheet
+              isOpen
+              onClose={handleCloseDispatchDetail}
+              height="fit"
+              maxHeight={70}
+              backdrop="block"
+              zIndex={1200}
+              hideClose
+            >
+              <DispatchExpiryDetail
+                dispatchId={dispatchDetail.dispatchId}
+                subjectId={dispatchDetail.subjectId}
+                clinicId={clinicId}
+                onClose={handleCloseDispatchDetail}
+              />
+            </Sheet>
+          )}
+
         </div>
 
         {/* Desktop right panel — form or detail slides in alongside calendar */}
@@ -1892,6 +1937,15 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                     roomAnchor={roomAnchorFor(selectedEvent.room_id)}
                   />
                 </div>
+              ) : panelView === 'dispatch' && dispatchDetail && clinicId ? (
+                /* Derived dispatch-expiry entry — its own read/edit surface over the
+                   dispatch.opened audit event (see DispatchExpiryDetail). */
+                <DispatchExpiryDetail
+                  dispatchId={dispatchDetail.dispatchId}
+                  subjectId={dispatchDetail.subjectId}
+                  clinicId={clinicId}
+                  onClose={handleCloseDispatchDetail}
+                />
               ) : panelView === 'template' && activeClinicId && user && isSupervisor ? (
                 <div className="relative flex flex-col flex-1 min-h-0">
                   <PaneHeader

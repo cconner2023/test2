@@ -1,7 +1,8 @@
 import { useMemo, useState, forwardRef, useImperativeHandle } from 'react'
 import { useShallow } from 'zustand/react/shallow'
-import { ChevronRight, ChevronDown, PackageCheck, ClipboardList } from 'lucide-react'
+import { PackageCheck, ClipboardList } from 'lucide-react'
 import { SearchInput } from '@/Components/primitives/SearchInput'
+import { TreeRow, TreeRowCount } from '@/Components/primitives/TreeRow'
 import { usePropertyStore } from '../../stores/usePropertyStore'
 import { useDA2062Export } from '../../Hooks/useDA2062Export'
 import { Da2062Preview } from './Da2062Preview'
@@ -175,53 +176,32 @@ export const PropertyShortagePanel = forwardRef<PropertyShortageHandle, Property
             const isCollapsed = collapsed.has(g.key)
             return (
               <div key={g.key}>
-                {/* LIN node header — name + LIN code, trailing rollup short count. */}
-                <div
-                  className="flex items-center gap-2 py-2 pr-3 border-l-2 border-l-transparent hover:bg-secondary/5 transition-colors"
-                  style={{ paddingLeft: '16px' }}
-                >
-                  <button
-                    type="button"
-                    className="p-0.5 rounded hover:bg-secondary/10 text-tertiary shrink-0"
-                    onClick={() => toggle(g.key)}
-                    aria-label={isCollapsed ? 'Expand' : 'Collapse'}
-                  >
-                    {isCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
-                  </button>
-                  <div className="min-w-0 flex-1">
-                    <span className="block text-[10pt] font-bold text-primary truncate">{g.linName ?? 'Custom'}</span>
-                    {g.lin && <span className="block text-[9pt] text-tertiary">LIN {g.lin}</span>}
-                  </div>
-                  {/* LIN rollup — total short across this LIN's lines (all red; the panel only
-                      lists what's short). */}
-                  <span className="text-[10pt] font-semibold text-themeredred tabular-nums shrink-0">-{g.totalShort}</span>
-                </div>
+                {/* LIN node header — the rollup is the total short across this LIN's lines
+                    (all red; the panel only lists what's short). */}
+                <TreeRow
+                  expanded={!isCollapsed}
+                  onToggle={() => toggle(g.key)}
+                  title={g.linName ?? 'Custom'}
+                  sub={[g.lin && `LIN ${g.lin}`]}
+                  emphasis
+                  trailing={<TreeRowCount tone="short">-{g.totalShort}</TreeRowCount>}
+                />
 
-                {/* Short lines — Name · Nomenclature · NSN, with the per-line short qty. A tap
-                    opens the line's detail (onLocate), where the "On hand" section lists what
-                    IS present and where. */}
+                {/* Short lines — Name · Nomenclature · NSN, with the per-line shortfall (no
+                    completion bar; that lives on the rollup header). A tap opens the line's
+                    detail (onLocate), where the "On hand" section lists what IS present. */}
                 {!isCollapsed &&
                   g.lines.map(l => {
                     const item = items.find(i => i.id === l.itemId) ?? null
                     return (
-                      <div
+                      <TreeRow
                         key={l.itemId}
-                        className="flex items-center gap-2 py-2 pr-3 border-l-2 border-l-transparent hover:bg-secondary/5 transition-colors"
-                        style={{ paddingLeft: '38px' }}
-                      >
-                        <button
-                          type="button"
-                          className="min-w-0 flex-1 text-left"
-                          onClick={() => item && onLocate?.(item)}
-                        >
-                          <span className="block text-[10pt] text-primary truncate">{l.name}</span>
-                          {l.nomenclature && <span className="block text-[9pt] text-tertiary truncate">{l.nomenclature}</span>}
-                          {l.nsn && <span className="block text-[9pt] text-tertiary truncate">Material/NSN {l.nsn}</span>}
-                        </button>
-                        {/* Signed shortfall only — the completion bar lives on the LIN rollup
-                            header, not per short line. */}
-                        <span className="text-[10pt] font-semibold text-themeredred tabular-nums shrink-0">-{l.short}</span>
-                      </div>
+                        depth={1}
+                        title={l.name}
+                        sub={[l.nomenclature, l.nsn]}
+                        trailing={<TreeRowCount tone="short">-{l.short}</TreeRowCount>}
+                        onTap={() => item && onLocate?.(item)}
+                      />
                     )
                   })}
               </div>

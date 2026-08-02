@@ -5,9 +5,12 @@ import type { CalendarEvent } from '../Types/CalendarTypes'
 import { useVehicleDispatches } from './useVehicleDispatches'
 
 /** Sentinel id prefix for derived dispatch-expiry calendar entries. NOT real
- *  events — never written to IDB or fanned to the vault; rendered read-only and
- *  ignored by the calendar's select/edit/delete handlers (they look up the
- *  store, where these never exist). */
+ *  events — never written to IDB or fanned to the vault. The calendar's own
+ *  edit/move/delete handlers can't touch them (they resolve through the store,
+ *  where these never exist); selecting one is routed by the prefix to the
+ *  dispatch detail instead (CalendarPanel → DispatchExpiryDetail), which reads
+ *  and edits the underlying dispatch.opened audit event. The suffix after the
+ *  prefix IS that event's id. */
 export const DISPATCH_CAL_ID_PREFIX = 'dispatch-exp:'
 
 /**

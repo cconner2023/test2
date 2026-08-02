@@ -14,6 +14,7 @@ import { secureSet, secureGet, secureRemove } from './secureStorage'
 import { deriveAndStoreBackupKey } from './signal/backupService'
 import { generateVaultIdentity, uploadVaultDevice, deriveAndCacheVaultKey, ensureVaultExists, setVaultKeyReady } from './signal/vaultDevice'
 import { succeed, fail, getErrorMessage as getErrMsg, type ServiceResult } from './result'
+import { rememberSignInEmail } from './loginPrefill'
 
 const logger = createLogger('AuthService')
 
@@ -158,6 +159,9 @@ export async function signIn(
 
   // Post-login setup: cache secrets and warm the message vault.
   if (!error && data.user) {
+    // Prefill the address on the next visit — LoginScreen reads it back and the
+    // user only types a password. Cleared by the "Not you?" affordance there.
+    rememberSignInEmail(email)
     // Store password hash for offline lock-screen verification
     storePasswordHash(password).catch(() => {})
     // Derive non-extractable backup CryptoKey from password (password is NOT cached)

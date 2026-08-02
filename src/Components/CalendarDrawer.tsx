@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react'
 import { useShallow } from 'zustand/react/shallow'
-import { X, Settings as SettingsIcon, Check, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react'
+import { X, Settings as SettingsIcon, Check, ChevronLeft, ChevronRight } from 'lucide-react'
 import { BaseDrawer } from '@/Components/primitives/BaseDrawer'
 import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill'
 import { PreviewOverlay } from './PreviewOverlay'
@@ -8,6 +8,7 @@ import { Sheet } from '@/Components/primitives/Sheet'
 import { CalendarPanel } from './Calendar/CalendarPanel'
 import { MiniCalendar } from './Calendar/MiniCalendar'
 import { SearchInput } from '@/Components/primitives/SearchInput'
+import { PersonnelRow, PersonnelGroupBand, PersonnelCheck } from '@/Components/primitives/PersonnelRow'
 import { SlideRevealPane } from '@/Components/primitives/SlideRevealPane'
 import { useCalendarStore } from '../stores/useCalendarStore'
 import { useNavigationStore } from '../stores/useNavigationStore'
@@ -168,7 +169,7 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
     const categoryFilterPanel = (
         <div className="flex flex-col min-h-0">
             <div className="shrink-0 px-4 py-3 border-t border-primary/10">
-                <p className="text-[10pt] font-medium text-tertiary uppercase tracking-wide">Filter Categories</p>
+                <p className="text-[9pt] font-semibold text-secondary uppercase tracking-wider">Filter Categories</p>
             </div>
 
             {/* All Categories — clears filter to null */}
@@ -208,7 +209,8 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
         </div>
     )
 
-    // Personnel filter sidebar panel — the supervisor cluster tree, reused. The
+    // Personnel filter sidebar panel — literally the supervisor rail's rows now,
+    // via PersonnelRow / PersonnelGroupBand rather than by resemblance. The
     // full clinic roster is grouped by sub-cluster (HQ/unassigned bucket for null
     // or stale ids); only groups with assigned people render. Tapping a group
     // header filters every member at once (this absorbs the old SubClusterFilter
@@ -240,35 +242,22 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
     const renderMedicRow = (medic: typeof searchedMedics[number]) => {
         const isSelected = personnelFilter.includes(medic.id)
         return (
-            <button
+            <PersonnelRow
                 key={medic.id}
+                avatar={<UserAvatar avatarId={medic.avatarId} avatarBlob={medic.avatarBlob} userId={medic.id} firstName={medic.firstName} lastName={medic.lastName} className="w-8 h-8" />}
+                name={getDisplayName(medic)}
+                sub={medic.credential}
+                selected={isSelected}
                 onClick={() => togglePersonnelFilter(medic.id)}
-                className={`w-full flex items-center gap-3 py-2.5 px-4 text-left transition-colors active:scale-95 ${
-                    isSelected
-                        ? 'bg-themeblue3/8 border-l-2 border-l-themeblue3'
-                        : 'hover:bg-secondary/5'
-                }`}
-            >
-                <UserAvatar avatarId={medic.avatarId} avatarBlob={medic.avatarBlob} userId={medic.id} firstName={medic.firstName} lastName={medic.lastName} className="w-8 h-8" />
-                <div className="flex-1 min-w-0">
-                    <p className="text-[10pt] font-medium text-primary truncate">
-                        {getDisplayName(medic)}
-                    </p>
-                    {medic.credential && (
-                        <p className="text-[9pt] text-tertiary truncate">{medic.credential}</p>
-                    )}
-                </div>
-                {isSelected && (
-                    <Check size={14} className="text-themeblue2 shrink-0" />
-                )}
-            </button>
+                trailing={isSelected ? <PersonnelCheck /> : undefined}
+            />
         )
     }
 
     const personnelFilterPanel = (
         <div className="flex flex-col min-h-0">
             <div className="shrink-0 px-4 py-3 border-t border-primary/10">
-                <p className="text-[10pt] font-medium text-tertiary uppercase tracking-wide">Filter Personnel</p>
+                <p className="text-[9pt] font-semibold text-secondary uppercase tracking-wider">Filter Personnel</p>
             </div>
 
             {/* All Personnel — clears filter to show all events */}
@@ -293,24 +282,13 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
                 const allSelected = ids.every(id => personnelFilter.includes(id))
                 return (
                     <div key={group.id}>
-                        <div className="flex items-center gap-2 py-2 px-4 bg-secondary/5 border-y border-primary/5">
-                            <button
-                                className="p-0.5 rounded hover:bg-secondary/10 text-tertiary shrink-0"
-                                onClick={() => toggleGroupCollapse(group.id)}
-                                aria-label={collapsed ? 'Expand group' : 'Collapse group'}
-                            >
-                                {collapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
-                            </button>
-                            <button
-                                onClick={() => togglePersonnelGroup(ids)}
-                                className="flex items-center gap-2 flex-1 min-w-0 text-left active:scale-95 transition-transform"
-                            >
-                                <span className="text-[9pt] font-medium text-tertiary uppercase tracking-wide truncate flex-1">
-                                    {group.name}
-                                </span>
-                                {allSelected && <Check size={13} className="text-themeblue2 shrink-0" />}
-                            </button>
-                        </div>
+                        <PersonnelGroupBand
+                            label={group.name}
+                            expanded={!collapsed}
+                            onToggle={() => toggleGroupCollapse(group.id)}
+                            onSelect={() => togglePersonnelGroup(ids)}
+                            trailing={allSelected ? <PersonnelCheck size={13} /> : undefined}
+                        />
                         {!collapsed && group.medics.map(renderMedicRow)}
                     </div>
                 )
@@ -448,7 +426,9 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
                         maxHeight={60}
                         zIndex={1200}
                     >
-                        <div className="pb-[max(1rem,var(--sab,0px))]">
+                        {/* Fixed pad only — the Sheet owns var(--sab) now that it
+                            sits flush to the bottom edge; repeating it double-counts. */}
+                        <div className="pb-4">
                             {layoutSection}
                             <SupervisorClinicFilterPanel />
                             <ClusterFilterPanel />

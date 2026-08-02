@@ -13,6 +13,8 @@ import { PLAN_ORDER_CATEGORIES, PLAN_ORDER_LABELS } from '../../Data/User';
 import type { PlanBlockKey, PlanOrderSet, PlanOrderTags } from '../../Data/User';
 import type { MergedPlanOrderSet } from '../../Hooks/useMergedNoteContent';
 import type { PlanState, PlanBlockState } from '../../Types/PlanTypes';
+import { MedQtyStepper } from '@/Components/primitives/MedQtyStepper';
+import { medTagLabel, effectiveMedQty } from '@/Utilities/medTag';
 
 // Display order: meds → lab → radiology → referral → instructions → followUp
 // (matches Plan.tsx's ALL_BLOCK_KEYS).
@@ -115,10 +117,12 @@ export function applyOrderSet(ps: PlanState, os: PlanOrderSet): PlanState {
 
 interface SelectedEntry { catKey: PlanBlockKey; tag: string }
 
-function SelectedList({ items, onReorder, onRemove }: {
+function SelectedList({ items, onReorder, onRemove, medQty, onMedQtyChange }: {
   items: SelectedEntry[];
   onReorder: (catKey: PlanBlockKey, from: number, to: number) => void;
   onRemove: (catKey: PlanBlockKey, tag: string) => void;
+  medQty: Record<string, number>;
+  onMedQtyChange: (tag: string, next: number) => void;
 }) {
   const dragRef = useRef<{ index: number; currentIndex: number; startY: number; itemHeight: number } | null>(null);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
@@ -168,7 +172,7 @@ function SelectedList({ items, onReorder, onRemove }: {
             key={`${it.catKey}-${it.tag}`}
             data-selected-row
             style={isDragging ? { transform: `translateY(${dragOffset}px)`, zIndex: 50, position: 'relative' } : undefined}
-            className={`flex items-center gap-2 py-1.5 ${isDragging ? 'opacity-80 shadow-lg rounded-lg bg-themewhite2' : ''}`}
+            className={`flex items-center gap-2 py-1.5 text-sm ${isDragging ? 'opacity-80 shadow-lg rounded-lg bg-themewhite2' : ''}`}
           >
             <div
               className="shrink-0 text-tertiary touch-none cursor-grab active:cursor-grabbing"
@@ -176,7 +180,15 @@ function SelectedList({ items, onReorder, onRemove }: {
             >
               <GripVertical size={16} />
             </div>
-            <span className="flex-1 text-sm text-primary break-words min-w-0">{it.tag}</span>
+            <span className="flex-1 text-sm text-primary break-words min-w-0">
+              {it.catKey === 'meds' ? medTagLabel(it.tag) : it.tag}
+            </span>
+            {it.catKey === 'meds' && (
+              <MedQtyStepper
+                value={effectiveMedQty(it.tag, medQty) ?? 0}
+                onChange={(n) => onMedQtyChange(it.tag, n)}
+              />
+            )}
             <button
               type="button"
               onClick={() => onRemove(it.catKey, it.tag)}
@@ -196,7 +208,7 @@ function SelectedList({ items, onReorder, onRemove }: {
 //    (+ custom add) on top → order-set chips → Selected list → all-category picker.
 //    Category is implicit (each tag knows its category). ─────────────────────────
 
-function PlanEditorBody({ planState, orderSets, allTags, showFreeText, onToggleTag, onReorderTag, onApplyOrderSet, onAdditionalChange }: {
+function PlanEditorBody({ planState, orderSets, allTags, showFreeText, onToggleTag, onReorderTag, onApplyOrderSet, onAdditionalChange, onMedQtyChange }: {
   planState: PlanState;
   orderSets: MergedPlanOrderSet[];
   allTags: Record<PlanBlockKey, string[]>;
@@ -206,6 +218,7 @@ function PlanEditorBody({ planState, orderSets, allTags, showFreeText, onToggleT
   onReorderTag: (key: PlanBlockKey, from: number, to: number) => void;
   onApplyOrderSet: (os: PlanOrderSet) => void;
   onAdditionalChange: (value: string) => void;
+  onMedQtyChange: (tag: string, next: number) => void;
 }) {
   const [search, setSearch] = useState('');
   const additional = planState.additional ?? '';
@@ -257,7 +270,13 @@ function PlanEditorBody({ planState, orderSets, allTags, showFreeText, onToggleT
       {selectedFlat.length > 0 && (
         <div className="border-b border-primary/6 pb-2">
           <p className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest pt-1 pb-1">Selected Items</p>
-          <SelectedList items={selectedFlat} onReorder={onReorderTag} onRemove={onToggleTag} />
+          <SelectedList
+            items={selectedFlat}
+            onReorder={onReorderTag}
+            onRemove={onToggleTag}
+            medQty={planState.medQty ?? {}}
+            onMedQtyChange={onMedQtyChange}
+          />
         </div>
       )}
 
@@ -344,6 +363,7 @@ export function usePlanPaneScreens({
           onReorderTag={(key, from, to) => commit(reorderTag(base, key, from, to))}
           onApplyOrderSet={(os) => commit(applyOrderSet(base, os))}
           onAdditionalChange={(value) => commit({ ...base, additional: value })}
+          onMedQtyChange={(tag, next) => commit({ ...base, medQty: { ...(base.medQty ?? {}), [tag]: Math.max(0, next) } })}
         />
       ),
     },

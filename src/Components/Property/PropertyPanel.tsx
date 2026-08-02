@@ -9,7 +9,7 @@ import { usePropertyStore } from '../../stores/usePropertyStore'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { useShallow } from 'zustand/react/shallow'
 import { PropertyLocationTree } from './PropertyLocationTree'
-import { CustodyPanel } from './CustodyPanel'
+import { CustodyPanel, type PendingTurnIn } from './CustodyPanel'
 import { Da2062PdfView } from './Da2062PdfView'
 import { ItemScanner } from './ItemScanner'
 import { useHandReceipts, type ReceiptItem } from '../../Hooks/useHandReceipts'
@@ -35,14 +35,12 @@ import { LoadingOverlay } from '@/Components/primitives/LoadingOverlay'
 import { useMinLoadTime } from '../../Hooks/useMinLoadTime'
 import { useClinicName } from '../../Hooks/useClinicNameResolver'
 import type { LocalPropertyItem, LocalPropertyLocation, HandReceipt } from '../../Types/PropertyTypes'
-import { ROOT_LOCATION_NAME, TURN_IN_ZONE_NAME } from '../../Types/PropertyTypes'
+import { ROOT_LOCATION_NAME } from '../../Types/PropertyTypes'
 import { PropertyItemDetail } from './PropertyItemDetail'
 import { ItemActionMenu, type ItemActionMenuHandle } from './ItemActionMenu'
 import { Da2062Detail, da2062DetailSubtitle, type Da2062DetailHandle } from './Da2062Detail'
 import { Da2062Editor, type Da2062EditorHandle } from './Da2062Editor'
 import { PropertyRecordDetail, type PropertyRecordDetailHandle, type SelectedRecord } from './PropertyRecordDetail'
-import { PropertyTurnInDetail, type PropertyTurnInDetailHandle, type PendingTurnIn } from './PropertyTurnInDetail'
-import { TurnInZoneEditor, type TurnInZoneEditorHandle } from './TurnInZoneEditor'
 import { PropertyCSVImport, type PropertyCSVImportHandle } from './PropertyCSVImportDrawer'
 import { PropertyShortagePanel, type PropertyShortageHandle } from './PropertyShortagePanel'
 import { PropertyAuthorizedPanel } from './PropertyAuthorizedPanel'
@@ -201,11 +199,28 @@ export const PropertyPanel = memo(function PropertyPanel({
   // physical zone and re-homes them under the Turn-In node.
   const turnInItemIds = useMemo(() => new Set(turnIns.pending.map((e) => e.item_id)), [turnIns.pending])
 
-  // DA 3161 turn-in: stage an item (+ its SKO subtree) into the rolling pending bucket,
-  // verify a staged doc (depot accepted), or unstage a pending line.
+  // The standing "Pending Turn-In" staging zone (one per cluster, top-level). The pending
+  // DA 3161 IS this zone's contents, so the roster's pending card and the zone's own sheet
+  // are the same surface — the card just opens the zone. A system zone: read it off the raw
+  // store list, and resolve it up here because the roster hand-off closes over it.
+  const turnInZone = useMemo(
+    () => store.locations.find((l) => l.is_turn_in_zone) ?? null,
+    [store.locations],
+  )
+
+  // The whole pending turn-in, folded the way CustodyPanel's card is (all still-staged rows,
+  // across docs) — what the Complete / Remove verbs act on from either surface.
+  const pendingTurnIn = useMemo<PendingTurnIn | null>(() => {
+    const entries = turnIns.pending.filter((e) => !!e.hand_receipt_id)
+    if (entries.length === 0) return null
+    return { docIds: [...new Set(entries.map((e) => e.hand_receipt_id!))], entries }
+  }, [turnIns.pending])
+
+  // DA 3161 turn-in: stage an item (+ its SKO subtree) into the rolling pending bucket, or
+  // verify a staged doc (depot accepted). Un-staging ONE line is not a verb here — it is a
+  // plain move out of the staging zone (usePropertyStore.unstageBeforeMove).
   const handleStageTurnIn = useCallback((item: LocalPropertyItem) => { void store.stageTurnIn([item.id]) }, [store])
   const handleVerifyTurnIn = useCallback((docId: string, itemIds?: string[]) => { void store.verifyTurnIn(docId, itemIds) }, [store])
-  const handleUnstageTurnInItem = useCallback((docId: string, itemId: string) => { void store.unstageTurnInItem(docId, itemId) }, [store])
 
   // Open / print the DA 3161 for a completed turn-in doc (Beacon emits the document to
   // hand-jam into the SoR; it is not the SoR). Items/holder resolve from the lifted maps.
@@ -328,8 +343,6 @@ export const PropertyPanel = memo(function PropertyPanel({
   const da2062DetailRef = useRef<Da2062DetailHandle>(null)
   const da2062EditorRef = useRef<Da2062EditorHandle>(null)
   const recordDetailRef = useRef<PropertyRecordDetailHandle>(null)
-  const turnInDetailRef = useRef<PropertyTurnInDetailHandle>(null)
-  const turnInEditorRef = useRef<TurnInZoneEditorHandle>(null)
   const shortageRef = useRef<PropertyShortageHandle>(null)
   // Desktop right pane — scopes the item's split/merge PreviewOverlay so it dims
   // and centers within the pane rather than spanning the whole viewport.
@@ -344,10 +357,6 @@ export const PropertyPanel = memo(function PropertyPanel({
   // The zone selected on the canvas (or tree) drives the right-pane detail (desktop)
   // / detail sheet (mobile).
   const [selectedLocationId, setSelectedLocationId] = useState<string | null>(null)
-  // The zone whose Pending Turn-In list is being curated (its detail swaps for the
-  // multi-select editor). Holds the ID rather than a flag so the mode is DERIVED against
-  // the open detail below — navigating away drops it without an effect chasing it.
-  const [turnInEditingId, setTurnInEditingId] = useState<string | null>(null)
   // Mobile: an item opened from the location sheet nests INSIDE it (back → its zone),
   // rather than opening a separate sheet.
   const [mobileItem, setMobileItem] = useState<LocalPropertyItem | null>(null)
@@ -380,7 +389,8 @@ export const PropertyPanel = memo(function PropertyPanel({
   const [pendingDeleteItem, setPendingDeleteItem] = useState<LocalPropertyItem | null>(null)
   const [pendingDeleteLocId, setPendingDeleteLocId] = useState<string | null>(null)
   const [pendingDeleteTurnIn, setPendingDeleteTurnIn] = useState<TurnInDoc | null>(null)
-  // Whole-doc turn-in verbs staged from a Custody card's ellipsis (each confirms below).
+  // Whole-doc turn-in verbs staged from a Custody card's or the staging zone's ellipsis
+  // (each confirms below).
   const [pendingCompleteTurnIn, setPendingCompleteTurnIn] = useState<PendingTurnIn | null>(null)
   const [pendingRemoveTurnIn, setPendingRemoveTurnIn] = useState<PendingTurnIn | null>(null)
   // New DA 2062 sign-out, hosted in the detail surface (right pane desktop /
@@ -442,8 +452,8 @@ export const PropertyPanel = memo(function PropertyPanel({
   // content card → pane/sheet detail" primitive the item/zone rows use; mutually
   // exclusive (selecting one clears the other).
   const [selectedReceiptId, setSelectedReceiptId] = useState<string | null>(null)
-  // The open 2062's staged EDIT mode — the same host-owned shape as turnInEditing:
-  // Da2062Editor replaces the read pane and Save/Cancel take over the header.
+  // The open 2062's staged EDIT mode — Da2062Editor replaces the read pane and Save/Cancel
+  // take over the header.
   const [receiptEditingId, setReceiptEditingId] = useState<string | null>(null)
   // A Custody card's Sign in needs the DETAIL's zone picker, so the card opens the
   // receipt and hands the verb across as a token. The counter makes a repeat pick a
@@ -451,10 +461,6 @@ export const PropertyPanel = memo(function PropertyPanel({
   const [signInIntent, setSignInIntent] = useState<string | null>(null)
   const signInSeq = useRef(0)
   const [selectedRecord, setSelectedRecord] = useState<SelectedRecord | null>(null)
-  // A pending DA 3161 turn-in opened into the same detail surface — tracked by doc id
-  // so it re-derives live from the pending fold (curating an item shrinks it; the pane
-  // auto-closes when the turn-in empties / completes).
-  const [selectedTurnInId, setSelectedTurnInId] = useState<string | null>(null)
 
   // Mobile: open a nested form in the location sheet (seeds the store the form reads).
   const openMobileItemForm = useCallback((item: LocalPropertyItem | null, locationId: string | null) => {
@@ -672,7 +678,6 @@ export const PropertyPanel = memo(function PropertyPanel({
   const handleLocateReceiptItem = useCallback((receiptItem: ReceiptItem) => {
     setSelectedReceiptId(null)
     setSelectedRecord(null)
-    setSelectedTurnInId(null)
     const full = store.items.find(i => i.id === receiptItem.id)
     if (full) handleSelectItem(full)
     else if (receiptItem.location_id) cameraTo({ kind: 'zone', id: receiptItem.location_id })
@@ -684,7 +689,6 @@ export const PropertyPanel = memo(function PropertyPanel({
   const handleLocateSubject = useCallback((rec: SelectedRecord) => {
     setSelectedReceiptId(null)
     setSelectedRecord(null)
-    setSelectedTurnInId(null)
     if (rec.event.subjectType === 'location') { cameraTo({ kind: 'zone', id: rec.event.subjectId }); return }
     const full = store.items.find(i => i.id === rec.event.subjectId)
     if (full) handleSelectItem(full)
@@ -724,40 +728,35 @@ export const PropertyPanel = memo(function PropertyPanel({
 
   const handleSelectRecord = useCallback((record: SelectedRecord) => {
     setSelectedReceiptId(null)
-    setSelectedTurnInId(null)
     setMobileItem(null); setMobileForm(null)
     if (!isMobile && (view === 'property-detail' || view === 'property-form')) onBack()
     closeLocationDetail()
     setSelectedRecord(record)
   }, [isMobile, view, onBack, closeLocationDetail])
 
-  // Open a PENDING turn-in's detail in the host surface AND surface its first item on
-  // the map + switch to the map view (per USR: tapping the card does both). Routed
-  // through cameraTo, not mapRef directly: the card is tapped from the Sign-outs tab
-  // where the canvas is UNMOUNTED, so a direct focusItem would silently no-op. The
-  // turn-in pane takes render precedence over the zone detail that the resulting
-  // onSelectZone sets underneath (closeRosterDetail clears it).
-  const handleSelectTurnIn = useCallback((turnIn: PendingTurnIn) => {
+  // The roster's pending Turn-In card hands off to the staging ZONE's own sheet (right pane
+  // desktop / detail sheet mobile) instead of a doc-shaped copy of the same rows: select the
+  // zone AND navigate the canvas to it, so the surface that opens is the ordinary zone detail
+  // — its item rows carry the full item menu, which is how a line leaves the run. Routed
+  // through cameraTo, not mapRef directly: the card is tapped from the Sign-outs tab where
+  // the canvas is UNMOUNTED, so a direct navigateToZone would silently no-op.
+  const handleSelectTurnIn = useCallback(() => {
+    if (!turnInZone) return
     setSelectedReceiptId(null)
     setSelectedRecord(null)
     setMobileItem(null); setMobileForm(null)
     if (!isMobile && (view === 'property-detail' || view === 'property-form')) onBack()
-    setSelectedTurnInId(turnIn.turnInDocId)
-    const first = turnIn.entries[0]
-    const full = first ? store.items.find((i) => i.id === first.item_id) : null
-    if (full?.location_id) cameraTo({ kind: 'item', id: full.id })
-    else setPropertyTab('map')
-  }, [isMobile, view, onBack, store.items, cameraTo])
+    setSelectedLocationId(turnInZone.id)
+    cameraTo({ kind: 'zone', id: turnInZone.id })
+  }, [isMobile, view, onBack, cameraTo, turnInZone])
 
   const closeRosterDetail = useCallback(() => {
     setSelectedReceiptId(null)
     setReceiptEditingId(null)
     setSignInIntent(null)
     setSelectedRecord(null)
-    setSelectedTurnInId(null)
-    // A turn-in tap navigated the canvas (setting a zone selection underneath); clear it
-    // so closing the pane returns to a clean map rather than popping the zone detail.
-    // No-op for receipt/record details (they open with the zone selection already cleared).
+    // Receipt/record details open with the zone selection already cleared, so this only
+    // matters for the tab switch that also drops an open zone detail.
     setSelectedLocationId(null)
     mapRef.current?.clearSelection()
   }, [])
@@ -775,50 +774,27 @@ export const PropertyPanel = memo(function PropertyPanel({
     ? receipts.find(r => r.handReceiptId === selectedReceiptId) ?? null
     : null
 
-  // Editing is a mode ON the open receipt detail (mirrors turnInEditing): it survives
-  // exactly as long as that receipt is the open one, so closing the pane, opening a
-  // different 2062, or signing this one in all end it for free.
+  // Editing is a mode ON the open receipt detail: it survives exactly as long as that
+  // receipt is the open one, so closing the pane, opening a different 2062, or signing this
+  // one in all end it for free.
   const da2062Editing =
     !!selectedReceipt && selectedReceipt.status !== 'returned' && receiptEditingId === selectedReceipt.handReceiptId
 
-  // The open pending turn-in, re-derived live from the pending fold so curating an
-  // item shrinks it in place. Null (→ pane auto-closes) once its rows are all
-  // un-staged or verified (depot completed) and leave the pending set.
-  const selectedTurnIn = useMemo<PendingTurnIn | null>(() => {
-    if (!selectedTurnInId) return null
-    const entries = turnIns.pending.filter(e => e.hand_receipt_id === selectedTurnInId)
-    return entries.length ? { turnInDocId: selectedTurnInId, entries } : null
-  }, [selectedTurnInId, turnIns.pending])
-  useEffect(() => {
-    if (selectedTurnInId && !turnIns.pending.some(e => e.hand_receipt_id === selectedTurnInId)) {
-      setSelectedTurnInId(null)
-    }
-  }, [turnIns.pending, selectedTurnInId])
-
-  // The standing "Pending Turn-In" staging zone (one per cluster, top-level). A pending
-  // turn-in IS this zone's contents, so the detail header names the ZONE and crumbs to
-  // the zone's parent — the doc identity is the subtitle. Kept out of visibleLocations
-  // (a system zone), so read it off the raw store list.
-  const turnInZone = useMemo(
-    () => store.locations.find((l) => l.is_turn_in_zone) ?? null,
-    [store.locations],
-  )
-
-  // Editing is a mode ON the open turn-in zone detail: it survives exactly as long as that
-  // detail is the open one, so closing/navigating the pane ends it for free.
-  const turnInEditing = turnInEditingId != null && turnInEditingId === selectedLocationId && turnInEditingId === turnInZone?.id
-
-  // Drop the WHOLE pending turn-in back onto the books — un-stage every staged item.
+  // Drop the WHOLE pending turn-in back onto the books — un-stage every staged line, each
+  // through the doc that carries it.
   const handleRemoveTurnIn = useCallback((turnIn: PendingTurnIn) => {
-    for (const e of turnIn.entries) void store.unstageTurnInItem(turnIn.turnInDocId, e.item_id)
+    for (const e of turnIn.entries) {
+      if (e.hand_receipt_id) void store.unstageTurnInItem(e.hand_receipt_id, e.item_id)
+    }
   }, [store])
 
-  // Complete / Remove fired from a Custody pending-turn-in card's ellipsis. The
-  // detail pane hosts its own copies of these confirms (PropertyTurnInDetail); the
-  // roster route needs them here because the card acts without opening the pane.
+  // Complete / Remove fired from the Custody pending-turn-in card's ellipsis OR the staging
+  // zone's own menu — both routes stage the verb here and confirm through the dialogs below.
+  // A partially-verified sub-cluster run can leave more than one doc pending, so Complete
+  // verifies every doc the pending fold still carries.
   const handleConfirmCompleteTurnIn = useCallback(() => {
     if (!pendingCompleteTurnIn) return
-    handleVerifyTurnIn(pendingCompleteTurnIn.turnInDocId)
+    for (const docId of pendingCompleteTurnIn.docIds) handleVerifyTurnIn(docId)
     setPendingCompleteTurnIn(null)
   }, [pendingCompleteTurnIn, handleVerifyTurnIn])
 
@@ -827,14 +803,6 @@ export const PropertyPanel = memo(function PropertyPanel({
     handleRemoveTurnIn(pendingRemoveTurnIn)
     setPendingRemoveTurnIn(null)
   }, [pendingRemoveTurnIn, handleRemoveTurnIn])
-
-  // Host-header label for an open turn-in — mirrors the card's "first item (+N more)".
-  const turnInLabel = useCallback((t: PendingTurnIn) => {
-    const first = t.entries[0]
-    const name = first ? receiptItemsById.get(first.item_id)?.name ?? 'Item' : 'Item'
-    const more = t.entries.length - 1
-    return more > 0 ? `${name} · +${more} more` : name
-  }, [receiptItemsById])
 
   // Scan match → surface the item on the map ("target it"). Camera is momentary:
   // close the overlay and return to the map tab targeting the match (both platforms).
@@ -882,11 +850,10 @@ export const PropertyPanel = memo(function PropertyPanel({
     else if (!fresh) setMobileItem(null)
   }, [store.items, mobileItem])
 
-  // Edit/create a location → form in the right pane (desktop) or nested sheet (mobile).
-  // The turn-in staging zone has no zone properties worth editing (system-named, system-
-  // placed): its Edit curates the pending LIST instead, in place of the zone detail.
+  // Edit/create a location → form in the right pane (desktop) or nested sheet (mobile). The
+  // turn-in staging zone never reaches this: it is system-named and system-placed, so its
+  // menu offers no Edit at all (see LocationActionMenu).
   const handleEditLocation = useCallback((loc: LocalPropertyLocation) => {
-    if (loc.is_turn_in_zone) { setTurnInEditingId(loc.id); return }
     if (isMobile) { openMobileLocationForm(loc, null); return }
     setEditLocationTarget({ loc, parentId: null })
   }, [isMobile, openMobileLocationForm])
@@ -1015,14 +982,6 @@ export const PropertyPanel = memo(function PropertyPanel({
     if (id) mapRef.current?.navigateToZone(id)
     else mapRef.current?.resetZoom()
   }, [isMobile, view, onBack, closeMobileForm, closeLocationDetail])
-
-  // Crumb out of an open turn-in: drop the pane first so the ancestor zone it navigates
-  // to actually surfaces (the roster detail otherwise renders over it). Declared after
-  // handleBreadcrumbNavigate — a const capture, so it cannot sit above its target.
-  const handleTurnInCrumbNavigate = useCallback((id: string | null) => {
-    closeRosterDetail()
-    handleBreadcrumbNavigate(id)
-  }, [closeRosterDetail, handleBreadcrumbNavigate])
 
   const handleConfirmDeleteItem = useCallback(async () => {
     if (!pendingDeleteItem) return
@@ -1181,6 +1140,10 @@ export const PropertyPanel = memo(function PropertyPanel({
       onEditItems={(loc) => openEditItems(loc.id)}
       onDelete={(loc) => setPendingDeleteLocId(loc.id)}
       canDelete={!!onDeleteItem}
+      // The staging zone's two DA 3161 verbs — the zone IS the pending turn-in, so its menu
+      // carries them (the roster card offers the same pair). Both confirm below.
+      onCompleteTurnIn={onDeleteItem && pendingTurnIn ? () => setPendingCompleteTurnIn(pendingTurnIn) : undefined}
+      onRemoveTurnIn={onDeleteItem && pendingTurnIn ? () => setPendingRemoveTurnIn(pendingTurnIn) : undefined}
     />
   )
 
@@ -1217,18 +1180,9 @@ export const PropertyPanel = memo(function PropertyPanel({
   // tree/detail/task surfaces. Hook runs unconditionally (before the desktop return);
   // idle on desktop, where the forms render in the right pane with popover pickers.
   const activeForm =
-    turnInEditing && turnInZone ? (
-      // Curating the pending list rides the same drill engine, so its "Add items"
-      // picker morphs the sheet in place instead of stacking a nested overlay.
-      <TurnInZoneEditor
-        ref={turnInEditorRef}
-        zoneId={turnInZone.id}
-        onDone={() => setTurnInEditingId(null)}
-        onSavingChange={setFormSaving}
-      />
-    ) : da2062Editing && selectedReceipt ? (
-      // Same reason as the turn-in editor: its "Add items" picker morphs the sheet in
-      // place instead of stacking a nested overlay.
+    da2062Editing && selectedReceipt ? (
+      // Hosted in the drill engine so its "Add items" picker morphs the sheet in place
+      // instead of stacking a nested overlay.
       <Da2062Editor
         ref={da2062EditorRef}
         receipt={selectedReceipt}
@@ -1272,8 +1226,7 @@ export const PropertyPanel = memo(function PropertyPanel({
   // Re-root the stack whenever the active form identity changes (useStack resets on
   // isOpen OR initial.key change), so switching between forms starts fresh.
   const formKey =
-    turnInEditing && turnInZone ? 'turnin-edit'
-    : da2062Editing && selectedReceipt ? `2062-edit:${selectedReceipt.handReceiptId}`
+    da2062Editing && selectedReceipt ? `2062-edit:${selectedReceipt.handReceiptId}`
     : authorizedOpen && authForm ? `auth:${authForm.item?.id ?? 'new'}:${authForm.parentId ?? ''}`
     : signOutOpen ? 'signout'
     : mobileForm?.kind === 'item' ? `item:${store.editingItem?.id ?? 'new'}`
@@ -1294,7 +1247,7 @@ export const PropertyPanel = memo(function PropertyPanel({
   )
 
   // Desktop right-pane open state — the rail collapses while any detail/editor/overlay is up.
-  const railCollapsed = view === 'property-form' || view === 'property-detail' || !!editLocationTarget || !!selectedLocation || signOutOpen || importOpen || shortageOpen || authorizedOpen || !!da2062Preview || !!selectedReceipt || !!selectedRecord || !!selectedTurnIn
+  const railCollapsed = view === 'property-form' || view === 'property-detail' || !!editLocationTarget || !!selectedLocation || signOutOpen || importOpen || shortageOpen || authorizedOpen || !!da2062Preview || !!selectedReceipt || !!selectedRecord
   // Desktop Esc: back out the open right pane one layer before the drawer closes.
   // Priority mirrors render precedence — absolute overlays (import/shortage/authorized/
   // reprint) first, then the location/sign-out editors, then roster + item/location details.
@@ -1306,7 +1259,7 @@ export const PropertyPanel = memo(function PropertyPanel({
     if (editLocationTarget) { setEditLocationTarget(null); return }
     if (signOutOpen) { setSignOutOpen(false); return }
     if (da2062Editing) { setReceiptEditingId(null); return }
-    if (selectedReceipt || selectedRecord || selectedTurnIn) { closeRosterDetail(); return }
+    if (selectedReceipt || selectedRecord) { closeRosterDetail(); return }
     if (view === 'property-form') { store.setEditingItem(null); onBack(); return }
     if (view === 'property-detail') { onBack(); closeLocationDetail(); return }
     if (selectedLocation) { closeLocationDetail(); return }
@@ -1395,7 +1348,7 @@ export const PropertyPanel = memo(function PropertyPanel({
                 onRemoveTurnIn={onDeleteItem ? setPendingRemoveTurnIn : undefined}
                 onViewTurnIn={handleViewTurnIn}
                 onDeleteTurnIn={onDeleteItem ? setPendingDeleteTurnIn : undefined}
-                selectedTurnInId={selectedTurnInId}
+                turnInZoneOpen={!!turnInZone && selectedLocationId === turnInZone.id}
                 selectedReceiptId={selectedReceiptId}
                 selectedRecordId={selectedRecord?.event.id ?? null}
               />
@@ -1487,7 +1440,7 @@ export const PropertyPanel = memo(function PropertyPanel({
                 </div>
               </>
             )}
-            {!editLocationTarget && !signOutOpen && !selectedReceipt && !selectedRecord && !selectedTurnIn && view === 'property-detail' && selectedItem && (
+            {!editLocationTarget && !signOutOpen && !selectedReceipt && !selectedRecord && view === 'property-detail' && selectedItem && (
               <>
                 <PaneHeader
                   eyebrow={
@@ -1519,7 +1472,7 @@ export const PropertyPanel = memo(function PropertyPanel({
                 </div>
               </>
             )}
-            {!editLocationTarget && !signOutOpen && !selectedReceipt && !selectedRecord && !selectedTurnIn && view === 'property-form' && (
+            {!editLocationTarget && !signOutOpen && !selectedReceipt && !selectedRecord && view === 'property-form' && (
               <>
                 <PaneHeader
                   title={store.editingItem ? 'Edit Item' : 'New Item'}
@@ -1542,7 +1495,7 @@ export const PropertyPanel = memo(function PropertyPanel({
                 </div>
               </>
             )}
-            {!editLocationTarget && !signOutOpen && !selectedReceipt && !selectedRecord && !selectedTurnIn && view === 'property' && selectedLocation && (
+            {!editLocationTarget && !signOutOpen && !selectedReceipt && !selectedRecord && view === 'property' && selectedLocation && (
               <>
                 <PaneHeader
                   eyebrow={
@@ -1555,41 +1508,25 @@ export const PropertyPanel = memo(function PropertyPanel({
                   }
                   title={selectedLocation.name}
                   actions={
-                    turnInEditing ? (
-                      <HeaderPill>
-                        <PillButton icon={X} iconSize={16} onClick={() => setTurnInEditingId(null)} label="Cancel" />
-                        <PillButton icon={Check} iconSize={16} accent="success" onClick={() => turnInEditorRef.current?.submit()} label="Save" />
-                      </HeaderPill>
-                    ) : (
-                      <HeaderPill>
-                        <span className="inline-flex" onClick={(e) => openLocationMenu(selectedLocation, (e.currentTarget as HTMLElement).getBoundingClientRect())}>
-                          <PillButton icon={MoreHorizontal} iconSize={16} onClick={() => {}} label="More actions" />
-                        </span>
-                        <PillButton icon={X} iconSize={16} onClick={closeLocationDetail} label="Close" />
-                      </HeaderPill>
-                    )
+                    <HeaderPill>
+                      <span className="inline-flex" onClick={(e) => openLocationMenu(selectedLocation, (e.currentTarget as HTMLElement).getBoundingClientRect())}>
+                        <PillButton icon={MoreHorizontal} iconSize={16} onClick={() => {}} label="More actions" />
+                      </span>
+                      <PillButton icon={X} iconSize={16} onClick={closeLocationDetail} label="Close" />
+                    </HeaderPill>
                   }
                 />
                 <div className="flex-1 min-h-0 overflow-y-auto">
-                  {turnInEditing ? (
-                    <TurnInZoneEditor
-                      ref={turnInEditorRef}
-                      zoneId={selectedLocation.id}
-                      onDone={() => setTurnInEditingId(null)}
-                      onSavingChange={setFormSaving}
-                    />
-                  ) : (
-                    <PropertyLocationDetail
-                      location={selectedLocation}
-                      locations={visibleLocations}
-                      items={store.items}
-                      holders={store.holders}
-                      onNavigateZone={(id) => mapRef.current?.navigateToZone(id)}
-                      onSelectItem={handleSelectItem}
-                      onOpenItemMenu={(item, rect) => openItemMenu(item, rect, { view: true })}
-                      onOpenLocationMenu={openLocationMenu}
-                    />
-                  )}
+                  <PropertyLocationDetail
+                    location={selectedLocation}
+                    locations={visibleLocations}
+                    items={store.items}
+                    holders={store.holders}
+                    onNavigateZone={(id) => mapRef.current?.navigateToZone(id)}
+                    onSelectItem={handleSelectItem}
+                    onOpenItemMenu={(item, rect) => openItemMenu(item, rect, { view: true })}
+                    onOpenLocationMenu={openLocationMenu}
+                  />
                 </div>
               </>
             )}
@@ -1679,46 +1616,6 @@ export const PropertyPanel = memo(function PropertyPanel({
                     onDeleted={closeRosterDetail}
                     onEdited={closeRosterDetail}
                     containerRef={panelRef}
-                  />
-                </div>
-              </>
-            )}
-            {/* Pending DA 3161 turn-in — opened from a Custody-roster Turn-In card. Header
-                mirrors a ZONE detail, because that is what a pending turn-in is: the
-                "Pending Turn-In" staging zone is the title and its parent is the crumb, so
-                walking up stays unbroken. The doc itself (first item + "+N more") is the
-                subtitle; body is its item rows with curate / complete / remove. */}
-            {!editLocationTarget && !signOutOpen && !selectedReceipt && !selectedRecord && selectedTurnIn && (
-              <>
-                <PaneHeader
-                  eyebrow={
-                    <PropertyBreadcrumb
-                      parentId={turnInZone?.parent_id ?? null}
-                      locations={visibleLocations}
-                      rootLabel={clinicName}
-                      onNavigate={handleTurnInCrumbNavigate}
-                    />
-                  }
-                  title={TURN_IN_ZONE_NAME}
-                  subtitle={turnInLabel(selectedTurnIn)}
-                  actions={
-                    <HeaderPill>
-                      <span className="inline-flex" onClick={(e) => turnInDetailRef.current?.openMenu((e.currentTarget as HTMLElement).getBoundingClientRect())}>
-                        <PillButton icon={MoreHorizontal} iconSize={16} onClick={() => {}} label="More actions" />
-                      </span>
-                      <PillButton icon={X} iconSize={16} onClick={closeRosterDetail} label="Close" />
-                    </HeaderPill>
-                  }
-                />
-                <div className="flex-1 min-h-0 overflow-y-auto">
-                  <PropertyTurnInDetail
-                    ref={turnInDetailRef}
-                    turnIn={selectedTurnIn}
-                    itemsById={receiptItemsById}
-                    onUnstageItem={(itemId) => handleUnstageTurnInItem(selectedTurnIn.turnInDocId, itemId)}
-                    onComplete={() => handleVerifyTurnIn(selectedTurnIn.turnInDocId)}
-                    onRemove={() => handleRemoveTurnIn(selectedTurnIn)}
-                    onClose={closeRosterDetail}
                   />
                 </div>
               </>
@@ -1955,7 +1852,7 @@ export const PropertyPanel = memo(function PropertyPanel({
   // open but nothing is selected → show the tree.
   const detailOpen =
     !!selectedLocation || !!mobileItem || !!mobileForm || !!selectedReceipt ||
-    !!selectedRecord || !!selectedTurnIn || signOutOpen || importOpen ||
+    !!selectedRecord || signOutOpen || importOpen ||
     shortageOpen || authorizedOpen || !!da2062Preview
   const treeStep = showLocations && !detailOpen
   // The non-blocking mobile sheet covers the bottom of the canvas. Publish its covered
@@ -2003,7 +1900,7 @@ export const PropertyPanel = memo(function PropertyPanel({
               onRemoveTurnIn={onDeleteItem ? setPendingRemoveTurnIn : undefined}
               onViewTurnIn={handleViewTurnIn}
               onDeleteTurnIn={onDeleteItem ? setPendingDeleteTurnIn : undefined}
-              selectedTurnInId={selectedTurnInId}
+              turnInZoneOpen={!!turnInZone && selectedLocationId === turnInZone.id}
               selectedReceiptId={selectedReceiptId}
               selectedRecordId={selectedRecord?.event.id ?? null}
             />
@@ -2075,8 +1972,6 @@ export const PropertyPanel = memo(function PropertyPanel({
             ? selectedReceipt.recipientLabel
             : selectedRecord
             ? selectedRecord.title
-            : selectedTurnIn
-            ? TURN_IN_ZONE_NAME
             : mobileForm
               ? (mobileForm.kind === 'item'
                   ? (store.editingItem ? 'Edit Item' : 'New Item')
@@ -2104,20 +1999,6 @@ export const PropertyPanel = memo(function PropertyPanel({
               </button>
               <span className="block truncate text-[13pt] font-semibold text-primary">{selectedRecord.title}</span>
             </div>
-          ) : selectedTurnIn ? (
-            // Zone header, same shape as the location detail below: crumb to the staging
-            // zone's parent, the zone as the title, the doc identity underneath.
-            <div className="min-w-0">
-              <PropertyBreadcrumb
-                parentId={turnInZone?.parent_id ?? null}
-                locations={visibleLocations}
-                rootLabel={clinicName}
-                onNavigate={handleTurnInCrumbNavigate}
-                className="mb-0.5"
-              />
-              <span className="block truncate text-[13pt] font-semibold text-primary">{TURN_IN_ZONE_NAME}</span>
-              <span className="block truncate text-[9pt] text-tertiary mt-0.5">{turnInLabel(selectedTurnIn)}</span>
-            </div>
           ) : !mobileForm && (mobileItem || selectedLocation) ? (
             <div className="min-w-0">
               <PropertyBreadcrumb
@@ -2143,7 +2024,7 @@ export const PropertyPanel = memo(function PropertyPanel({
         // Authorized morph mirrors the standalone item surfaces: its edit/add FORM caps
         // at 60 (like mobileForm) and its read-only VIEW at 50 (like the item detail); only
         // the authorized LIST itself is a big task surface at 85.
-        maxHeight={formDrilled ? 85 : treeStep ? 70 : turnInEditing || da2062Editing ? 60 : authorizedOpen ? (authForm ? 60 : authView ? 50 : 60) : shortageOpen ? 60 : da2062Preview || signOutOpen || importOpen ? 85 : mobileForm ? 60 : 50}
+        maxHeight={formDrilled ? 85 : treeStep ? 70 : da2062Editing ? 60 : authorizedOpen ? (authForm ? 60 : authView ? 50 : 60) : shortageOpen ? 60 : da2062Preview || signOutOpen || importOpen ? 85 : mobileForm ? 60 : 50}
         // Detail/form are non-blocking like the map's mobile feature editor: the
         // canvas stays interactive and the body swaps detail↔form in the SAME sheet.
         // Sign-out is a focused task, so dim the canvas (non-dismissing) to block
@@ -2159,10 +2040,6 @@ export const PropertyPanel = memo(function PropertyPanel({
         leftContent={
           formDrilled ? (
             <button onClick={formStack.onBack} aria-label="Back" className="w-9 h-9 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all">
-              <ChevronLeft size={20} />
-            </button>
-          ) : turnInEditing ? (
-            <button onClick={() => setTurnInEditingId(null)} aria-label="Cancel" className="w-9 h-9 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all">
               <ChevronLeft size={20} />
             </button>
           ) : da2062Editing ? (
@@ -2202,7 +2079,7 @@ export const PropertyPanel = memo(function PropertyPanel({
                 <PillButton icon={Download} iconSize={18} onClick={openAuthImport} label="Import from CSV" />
               </HeaderPill>
             )
-          ) : (mobileItem || selectedLocation || selectedReceipt || selectedRecord || selectedTurnIn) ? (
+          ) : (mobileItem || selectedLocation || selectedReceipt || selectedRecord) ? (
             <HeaderPill>
               <span
                 className="inline-flex"
@@ -2211,8 +2088,6 @@ export const PropertyPanel = memo(function PropertyPanel({
                     ? (e) => da2062DetailRef.current?.openMenu((e.currentTarget as HTMLElement).getBoundingClientRect())
                     : selectedRecord
                     ? (e) => recordDetailRef.current?.openMenu((e.currentTarget as HTMLElement).getBoundingClientRect())
-                    : selectedTurnIn
-                    ? (e) => turnInDetailRef.current?.openMenu((e.currentTarget as HTMLElement).getBoundingClientRect())
                     : mobileItem
                     ? (e) => openItemMenu(mobileItem, (e.currentTarget as HTMLElement).getBoundingClientRect())
                     : selectedLocation
@@ -2228,8 +2103,6 @@ export const PropertyPanel = memo(function PropertyPanel({
         actions={
           formDrilled ? (
             formStack.rightFooter ?? undefined
-          ) : turnInEditing ? (
-            <PillButton icon={Check} iconSize={18} accent="success" onClick={() => turnInEditorRef.current?.submit()} label="Save" />
           ) : da2062Editing ? (
             <PillButton icon={Check} iconSize={18} accent="success" onClick={() => da2062EditorRef.current?.submit()} label="Save" />
           ) : da2062Preview ? (
@@ -2362,16 +2235,6 @@ export const PropertyPanel = memo(function PropertyPanel({
             onDeleted={closeRosterDetail}
             onEdited={closeRosterDetail}
           />
-        ) : selectedTurnIn ? (
-          <PropertyTurnInDetail
-            ref={turnInDetailRef}
-            turnIn={selectedTurnIn}
-            itemsById={receiptItemsById}
-            onUnstageItem={(itemId) => handleUnstageTurnInItem(selectedTurnIn.turnInDocId, itemId)}
-            onComplete={() => handleVerifyTurnIn(selectedTurnIn.turnInDocId)}
-            onRemove={() => handleRemoveTurnIn(selectedTurnIn)}
-            onClose={closeRosterDetail}
-          />
         ) : mobileForm?.kind === 'item' ? (
           formBody
         ) : mobileForm?.kind === 'location' ? (
@@ -2384,8 +2247,6 @@ export const PropertyPanel = memo(function PropertyPanel({
             items={store.items}
             onLocateFiller={handleSelectItem}
           />
-        ) : turnInEditing ? (
-          formBody
         ) : selectedLocation ? (
           <PropertyLocationDetail
             location={selectedLocation}

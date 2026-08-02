@@ -6,6 +6,8 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { useFeatureVotesStore } from '../../stores/useFeatureVotesStore';
 import { useNavigationStore } from '../../stores/useNavigationStore';
 import { UserGuideAnchorsById } from '../../Data/UserGuide';
+import { SectionCard, SectionHeader } from '@/Components/primitives/Section'
+import { MetaBadge } from '@/Components/primitives/MetaBadge'
 
 type NoteType = Exclude<ReleaseNoteTypes['type'], undefined> | 'default';
 
@@ -21,11 +23,14 @@ const NOTE_ICONS: Record<NoteType, {
     default: { icon: PlusCircle, className: "text-tertiary" }
 };
 
-const ReleaseNoteItem = ({ note }: { note: ReleaseNoteTypes }) => {
+const ReleaseNoteItem = ({ note, onOpenGuide }: { note: ReleaseNoteTypes; onOpenGuide?: (sectionId: string) => void }) => {
     const noteType: NoteType = note.type || 'default';
     const { icon: Icon, className } = NOTE_ICONS[noteType];
 
-    const openUserGuide = useNavigationStore((s) => s.setShowUserGuideDrawer);
+    const openUserGuideDrawer = useNavigationStore((s) => s.setShowUserGuideDrawer);
+    // Default = open the standalone guide drawer. A host that can show the guide
+    // without leaving itself (desktop Settings) passes onOpenGuide instead.
+    const openUserGuide = onOpenGuide ?? ((sectionId: string) => openUserGuideDrawer(true, sectionId));
 
     // A note is tappable when it points at an existing User Guide section/subsection.
     const hasSection = !!note.sectionId && !!UserGuideAnchorsById[note.sectionId];
@@ -43,7 +48,7 @@ const ReleaseNoteItem = ({ note }: { note: ReleaseNoteTypes }) => {
 
     return (
         <button
-            onClick={() => openUserGuide(true, note.sectionId!)}
+            onClick={() => openUserGuide(note.sectionId!)}
             className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-themeblue2/5 active:scale-[0.99] transition-all"
         >
             <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
@@ -78,7 +83,7 @@ const VersionStatusCard = () => {
     };
 
     return (
-        <div className="rounded-2xl bg-themewhite2 overflow-hidden">
+        <SectionCard>
             <div className="px-4 py-3.5 flex items-center gap-3">
                 <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${updateAvailable ? 'bg-themeblue2/15' : 'bg-themegreen/15'}`}>
                     {updateAvailable
@@ -116,12 +121,15 @@ const VersionStatusCard = () => {
                     </button>
                 )}
             </div>
-        </div>
+        </SectionCard>
     );
 };
 
 interface ReleaseNotesPanelProps {
     onOpenFeatureVotes?: () => void;
+    /** Route a note's "Read more" somewhere other than the standalone guide drawer
+     *  — desktop Settings hosts the guide in its own panes. */
+    onOpenGuide?: (sectionId: string) => void;
 }
 
 const FeatureVotesCard = ({ onOpen }: { onOpen: () => void }) => {
@@ -142,13 +150,8 @@ const FeatureVotesCard = ({ onOpen }: { onOpen: () => void }) => {
 
     return (
         <div>
-            <div className="flex items-center gap-2 mb-2">
-                <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">Up next — your vote</p>
-            </div>
-            <button
-                onClick={onOpen}
-                className="w-full rounded-2xl bg-themewhite2 overflow-hidden active:scale-[0.99] hover:bg-themeblue2/5 transition-all text-left"
-            >
+            <SectionHeader>Up next — your vote</SectionHeader>
+            <SectionCard onClick={onOpen}>
                 <div className="px-4 py-3.5 flex items-center gap-3">
                     <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${hasVoted ? 'bg-themegreen/15' : 'bg-themeblue2/15'}`}>
                         {hasVoted
@@ -166,12 +169,12 @@ const FeatureVotesCard = ({ onOpen }: { onOpen: () => void }) => {
                     )}
                     <ChevronRight size={16} className="text-tertiary shrink-0" />
                 </div>
-            </button>
+            </SectionCard>
         </div>
     );
 };
 
-export const ReleaseNotesPanel = ({ onOpenFeatureVotes }: ReleaseNotesPanelProps = {}) => {
+export const ReleaseNotesPanel = ({ onOpenFeatureVotes, onOpenGuide }: ReleaseNotesPanelProps = {}) => {
     const isSupervisor = useAuthStore((s) => s.isSupervisorRole);
     const isProvider = useAuthStore((s) => s.isProviderRole);
 
@@ -195,9 +198,7 @@ export const ReleaseNotesPanel = ({ onOpenFeatureVotes }: ReleaseNotesPanelProps
         <div className="h-full overflow-y-auto">
             <div className="px-5 pb-4 space-y-5 pt-[calc(var(--drawer-header-h,3.5rem)+0.75rem)]">
                 <div>
-                    <div className="flex items-center gap-2 mb-2">
-                        <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">App Version</p>
-                    </div>
+                    <SectionHeader>App Version</SectionHeader>
                     <VersionStatusCard />
                 </div>
                 {onOpenFeatureVotes && <FeatureVotesCard onOpen={onOpenFeatureVotes} />}
@@ -207,21 +208,15 @@ export const ReleaseNotesPanel = ({ onOpenFeatureVotes }: ReleaseNotesPanelProps
 
                     return (
                         <div key={version}>
-                            <div className="flex items-center gap-2 mb-2">
-                                <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">
-                                    Version {version}
-                                </p>
-                                {isLatest && (
-                                    <span className="text-[9pt] md:text-[9pt] font-semibold text-themeblue2 uppercase tracking-wide">
-                                        Latest
-                                    </span>
-                                )}
-                            </div>
-                            <div className="rounded-2xl bg-themewhite2 overflow-hidden">
+                            <SectionHeader trailing={isLatest ? <MetaBadge tone="accent">Latest</MetaBadge> : undefined}>
+                                Version {version}
+                            </SectionHeader>
+                            <SectionCard>
                                 {notes.map((note, noteIndex) => (
                                     <ReleaseNoteItem
                                         key={`${version}-${noteIndex}`}
                                         note={note}
+                                        onOpenGuide={onOpenGuide}
                                     />
                                 ))}
                                 {notes[0]?.date && (
@@ -229,7 +224,7 @@ export const ReleaseNotesPanel = ({ onOpenFeatureVotes }: ReleaseNotesPanelProps
                                         <p className="text-[9pt] text-tertiary">{notes[0].date}</p>
                                     </div>
                                 )}
-                            </div>
+                            </SectionCard>
                         </div>
                     );
                 })}

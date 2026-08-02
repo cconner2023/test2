@@ -39,6 +39,13 @@ export type NoteTag =
         /** Flip polarity — YES becomes a pertinent negative. For negatively-phrased
          *  criteria like "No Cough" where selected = absence. */
         invert?: boolean,
+        /** Timeframe qualifier ("> 7 days", "within 24 hours"). With a label it
+         *  trails the phrase ("fever > 48 hours"); without one it qualifies the
+         *  presenting complaint itself ("Presents with sore throat > 10 days"). */
+        duration?: string,
+        /** Join the phrase to the "Presents with …" lead rather than the Reports
+         *  list — for context that reads with the complaint (significant MOI). */
+        lead?: boolean,
     }
     | { target: 'pe'; findingKey: string; abnormalKey?: string }
 export interface answerOptions {
@@ -46,7 +53,10 @@ export interface answerOptions {
     disposition: dispositionType[],
     decisionMaking?: decisionMakingType[] | null,
     next: number | number[] | null,
-    selectAll: boolean
+    selectAll: boolean,
+    /** Result statement composed into the note's ASSESSMENT when this answer is
+     *  chosen — for cards that record a test result rather than a symptom. */
+    noteResult?: string
 }
 
 export interface dispositionType {
@@ -55,6 +65,13 @@ export interface dispositionType {
     modifier?: string | null,
     /** "Screen X if present" redirects — tappable jumps to another algorithm. */
     screenRefs?: dispositionScreenRef[],
+    /** Care the disposition itself calls for, in note wording, composed into the
+     *  PLAN. The modifier is screen shorthand ("place mask"); this is what the
+     *  note says ("given face mask"). Screening redirects carry none. */
+    planInstructions?: string[],
+    /** Orders the disposition itself calls for (labs to send, who to refer to),
+     *  composed into their own PLAN block. Same shape as decisionMakingType. */
+    planOrders?: Partial<Record<'referral' | 'lab' | 'radiology' | 'followUp', string[]>>,
 }
 
 export interface dispositionScreenRef {
@@ -73,8 +90,14 @@ export interface decisionMakingType {
     specLim?: string[];  // Changed to string array
     ddx?: string[];
     /** Discrete patient-care instructions composed into the note's PLAN section
-     *  (consolidates the minor-care protocol prose into actionable items). */
+     *  (consolidates the minor-care protocol prose into actionable items).
+     *  Medications belong in medFind and orders in planOrders/ancillaryFind —
+     *  an instruction that repeats either one prints twice. */
     planInstructions?: string[];
+    /** Orders composed into their own PLAN block. ancillaryFind already routes
+     *  lab/rad/refer/med automatically; this covers what it cannot express —
+     *  chiefly follow-up intervals. */
+    planOrders?: Partial<Record<'referral' | 'lab' | 'radiology' | 'followUp', string[]>>;
 }
 
 // ---------------------------------------------------------------------------

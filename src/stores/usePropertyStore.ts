@@ -43,6 +43,7 @@ import {
   fetchClinicLedger,
   stageTurnIn as stageTurnInSvc,
   verifyTurnIn as verifyTurnInSvc,
+  getPendingTurnInDocIds,
   unstageTurnInItem as unstageTurnInItemSvc,
   setTurnInQuantity as setTurnInQuantitySvc,
   deleteTurnInDoc as deleteTurnInDocSvc,
@@ -64,6 +65,45 @@ const logger = createLogger('PropertyStore')
 const collectDescendants = (parentId: string, allLocs: LocalPropertyLocation[]): string[] => {
   const children = allLocs.filter(l => l.parent_id === parentId)
   return children.flatMap(c => [c.id, ...collectDescendants(c.id, allLocs)])
+}
+
+/**
+ * Pending Turn-In is a zone you can walk stock back out of. There is no bulk curation
+ * surface for it — a line leaves the depot run the same way anything leaves any zone: you
+ * move it somewhere else. So every location change that takes an item OUT of the staging
+ * zone UN-STAGES it first (purge the turn_in ledger row, reverse the stage's authorized
+ * split), and the caller's move then applies to whatever line the reversal left behind.
+ *
+ * Returns the item id the move should now target: the un-staged item itself for a
+ * full-moved line, or the zeroed authorized BOM line it merged back into when the stage
+ * had split one off. Null = the un-stage failed, so the caller must not move anything.
+ * A no-op (item isn't staged, or is staying in the zone) returns the id unchanged.
+ */
+async function unstageBeforeMove(
+  get: () => PropertyState,
+  item: LocalPropertyItem,
+  nextLocationId: string | null,
+): Promise<string | null> {
+  const { locations, clinicId } = get()
+  const zone = locations.find(l => l.is_turn_in_zone)
+  if (!zone || !clinicId || item.location_id !== zone.id || nextLocationId === zone.id) return item.id
+  // In the zone but carrying no pending row (legacy stock, or already un-staged) — a plain move.
+  const docId = (await getPendingTurnInDocIds(clinicId)).get(item.id)
+  if (!docId) return item.id
+  if (!(await get().unstageTurnInItem(docId, item.id))) return null
+  const items = get().items
+  if (items.some(i => i.id === item.id && !i.deleted_at)) return item.id
+  // The staged line was a child split off an authorized BOM line, so un-staging merged it
+  // back and deleted it — same match the service reversal uses (name + NSN).
+  const norm = (s: string | null) => (s ?? '').trim().toLowerCase()
+  const source = items.find(i =>
+    i.quantity_authorized != null &&
+    !i.turned_in_at &&
+    !i.deleted_at &&
+    norm(i.name) === norm(item.name) &&
+    (item.nsn ? i.nsn === item.nsn : !i.nsn)
+  )
+  return source?.id ?? null
 }
 
 interface PropertyState {
@@ -330,6 +370,15 @@ export const usePropertyStore = create<PropertyState>((set, get) => ({
   editItem: async (id, updates, opts) => {
     const user = useAuthStore.getState().user
     if (!user) return
+
+    // A relocation out of the turn-in staging zone un-stages the line first (see
+    // unstageBeforeMove). When the reversal folded it back into its authorized BOM line the
+    // stock is already on the books where that line sits, so there is nothing left at this
+    // id to relocate — the un-stage WAS the move.
+    if (updates.location_id !== undefined) {
+      const current = get().items.find(i => i.id === id)
+      if (current && (await unstageBeforeMove(get, current, updates.location_id ?? null)) !== id) return
+    }
 
     const result = await updateItem(id, updates, user.id, opts)
     if (result.success) {
@@ -805,16 +854,24 @@ export const usePropertyStore = create<PropertyState>((set, get) => ({
     const user = useAuthStore.getState().user
     if (!user) return
 
-    const { items } = get()
-    const source = items.find(i => i.id === itemId)
-    if (!source || source.is_serialized) return
+    const staged = get().items.find(i => i.id === itemId)
+    if (!staged || staged.is_serialized) return
+
+    // Moving stock out of the turn-in staging zone un-stages it first, then moves whatever
+    // line the reversal left on the books (see unstageBeforeMove) — which is a DIFFERENT
+    // item when the stage had split an authorized BOM line, so re-resolve before splitting.
+    const sourceId = await unstageBeforeMove(get, staged, targetLocationId)
+    if (!sourceId) return
+    const items = get().items
+    const source = items.find(i => i.id === sourceId)
+    if (!source || source.is_serialized || source.quantity < 1) return
 
     const clampedQty = Math.max(1, Math.min(qty, source.quantity))
     const isFull = clampedQty >= source.quantity
 
     // Check if target already has a matching non-serialized item (same name + nsn)
     const match = items.find(i =>
-      i.id !== itemId &&
+      i.id !== sourceId &&
       !i.is_serialized &&
       i.location_id === targetLocationId &&
       i.name.toLowerCase() === source.name.toLowerCase() &&
@@ -824,7 +881,7 @@ export const usePropertyStore = create<PropertyState>((set, get) => ({
     // WHOLE quantity to an empty target = a MOVE, not a split — the same stack
     // relocates (reversible item.moved), no new row and no orphan delete.
     if (isFull && !match) {
-      await get().editItem(itemId, { location_id: targetLocationId })
+      await get().editItem(sourceId, { location_id: targetLocationId })
       return
     }
 
@@ -833,7 +890,7 @@ export const usePropertyStore = create<PropertyState>((set, get) => ({
     if (isFull && match) {
       await get().editItem(match.id, { quantity: match.quantity + source.quantity }, { skipAudit: true })
       await recordItemMerge(match.id, source.name, source.quantity, source.clinic_id, user.id)
-      await get().removeItem(itemId)
+      await get().removeItem(sourceId)
       invalidate('properties')
       return
     }
@@ -872,8 +929,8 @@ export const usePropertyStore = create<PropertyState>((set, get) => ({
       if (!created) return
       destId = created.id
     }
-    await get().editItem(itemId, { quantity: source.quantity - clampedQty }, { skipAudit: true })
-    await recordItemSplit(itemId, destId, clampedQty, source.clinic_id, user.id)
+    await get().editItem(sourceId, { quantity: source.quantity - clampedQty }, { skipAudit: true })
+    await recordItemSplit(sourceId, destId, clampedQty, source.clinic_id, user.id)
     invalidate('properties')
   },
 

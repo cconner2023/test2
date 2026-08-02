@@ -2,10 +2,15 @@
  * Cluster-context picker — matches Beacon's filter-panel pattern.
  *
  * Two surfaces:
- *   - SupervisorClinicFilterPanel — list-row panel for CalendarDrawer's
- *     filter sidebar (mirrors categoryFilterPanel + personnelFilterPanel).
- *   - SupervisorClinicCardAction — small ActionButton mounted on the
- *     ClinicPanel clinic card; opens a PreviewOverlay with the same rows.
+ *   - SupervisorClinicFilterPanel — operating-as rows. CalendarDrawer's filter
+ *     sidebar and the supervisor rail both mount it (mirrors
+ *     categoryFilterPanel + personnelFilterPanel).
+ *   - ClusterFilterPanel — render-only multi-select, calendar only.
+ *
+ * A third surface, SupervisorClinicCardAction, used to ride the supervisor's
+ * clinic overview card on mobile because that surface had no filter sidebar to
+ * host the rows. The supervisor rail now renders into a mobile sheet, so the
+ * picker itself is reachable there and the card action was redundant.
  *
  * Visible to any user with at least one active loan (supervisorRole no longer
  * gates). The toggle is the single clinic-context knob across calendar /
@@ -14,13 +19,10 @@
  * through). Server still validates every RPC against `auth_clinic_ids()`.
  */
 
-import { useCallback, useRef, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
-import { ArrowLeftRight, Check } from 'lucide-react'
+import { Check } from 'lucide-react'
 import { useAuth } from '../Hooks/useAuth'
 import { useCalendarStore } from '../stores/useCalendarStore'
-import { ActionButton } from '@/Components/primitives/ActionButton'
-import { PreviewOverlay } from './PreviewOverlay'
 
 interface ClinicOption {
   id: string
@@ -40,7 +42,15 @@ function useSupervisorContextOptions(): ClinicOption[] | null {
   ]
 }
 
-/** Desktop filter-sidebar variant — mirrors categoryFilterPanel structure. */
+/**
+ * Desktop filter-sidebar variant — mirrors categoryFilterPanel structure.
+ *
+ * Typography here is the rail's, not its own: a section label is 9pt semibold
+ * secondary uppercase, an option row is a 10pt normal-weight secondary line, the
+ * same two steps TreeRow uses below it. The panel used to run its label at 10pt
+ * medium and its rows at 10pt medium primary, which put two more weights into a
+ * 260px column that already had two.
+ */
 export function SupervisorClinicFilterPanel() {
   const options = useSupervisorContextOptions()
   const { supervisingClinicId, setSupervisingClinic } = useAuth()
@@ -49,7 +59,7 @@ export function SupervisorClinicFilterPanel() {
   return (
     <div className="flex flex-col min-h-0">
       <div className="shrink-0 px-4 py-3 border-t border-primary/10">
-        <p className="text-[10pt] font-medium text-tertiary uppercase tracking-wide">Operating As</p>
+        <p className="text-[9pt] font-semibold text-secondary uppercase tracking-wider">Operating As</p>
       </div>
       {options.map(c => {
         const active = supervisingClinicId === c.id
@@ -63,7 +73,7 @@ export function SupervisorClinicFilterPanel() {
                 : 'hover:bg-secondary/5'
             }`}
           >
-            <span className="text-[10pt] font-medium text-primary truncate flex-1">{c.name}</span>
+            <span className="text-[10pt] text-secondary truncate flex-1">{c.name}</span>
             {active && <Check size={14} className="text-themeblue2 shrink-0" />}
           </button>
         )
@@ -99,7 +109,7 @@ export function ClusterFilterPanel() {
   return (
     <div className="flex flex-col min-h-0">
       <div className="shrink-0 px-4 py-3 border-t border-primary/10">
-        <p className="text-[10pt] font-medium text-tertiary uppercase tracking-wide">Filter Cluster</p>
+        <p className="text-[9pt] font-semibold text-secondary uppercase tracking-wider">Filter Cluster</p>
       </div>
 
       <button
@@ -110,7 +120,7 @@ export function ClusterFilterPanel() {
             : 'hover:bg-secondary/5'
         }`}
       >
-        <span className="text-[10pt] font-medium text-primary truncate flex-1">All Clusters</span>
+        <span className="text-[10pt] text-secondary truncate flex-1">All Clusters</span>
       </button>
 
       {options.map(c => {
@@ -125,7 +135,7 @@ export function ClusterFilterPanel() {
                 : 'hover:bg-secondary/5'
             }`}
           >
-            <span className="text-[10pt] font-medium text-primary truncate flex-1">{c.name}</span>
+            <span className="text-[10pt] text-secondary truncate flex-1">{c.name}</span>
             {active && <Check size={14} className="text-themeblue2 shrink-0" />}
           </button>
         )
@@ -141,71 +151,3 @@ export function ClusterFilterPanel() {
  * sub-cluster lens. See v2/calendar.
  */
 
-/**
- * Card-mounted cluster-switch action — mirrors ClinicPanel's pill button
- * (Settings → clinic management). With exactly one alternative cluster the
- * button flips `supervisingClinicId` directly ("Switch to {name}"); with more,
- * it opens a picker.
- */
-export function SupervisorClinicCardAction() {
-  const options = useSupervisorContextOptions()
-  const { supervisingClinicId, setSupervisingClinic } = useAuth()
-  const buttonRef = useRef<HTMLDivElement>(null)
-  const [anchor, setAnchor] = useState<DOMRect | null>(null)
-
-  const handleClick = useCallback(() => {
-    if (!options) return
-    if (options.length === 2) {
-      const next = options.find((c) => c.id !== supervisingClinicId) ?? options[0]
-      setSupervisingClinic(next.id)
-      return
-    }
-    setAnchor(buttonRef.current?.getBoundingClientRect() ?? null)
-  }, [options, supervisingClinicId, setSupervisingClinic])
-
-  if (!options) return null
-
-  const otherName = options.length === 2
-    ? options.find((c) => c.id !== supervisingClinicId)?.name ?? 'other cluster'
-    : null
-
-  return (
-    <>
-      <div ref={buttonRef} className="contents">
-        <ActionButton
-          icon={ArrowLeftRight}
-          label={otherName ? `Switch to ${otherName}` : 'Switch cluster'}
-          onClick={handleClick}
-        />
-      </div>
-      <PreviewOverlay
-        isOpen={!!anchor}
-        onClose={() => setAnchor(null)}
-        anchorRect={anchor}
-        title="Operating as"
-        maxWidth={300}
-      >
-        <div>
-          {options.map(c => {
-            const active = supervisingClinicId === c.id
-            return (
-              <button
-                key={c.id}
-                type="button"
-                onClick={() => { setSupervisingClinic(c.id); setAnchor(null) }}
-                className={`w-full flex items-center gap-3 py-2.5 px-4 text-left transition-colors ${
-                  active
-                    ? 'bg-themeblue3/8 border-l-2 border-l-themeblue3'
-                    : 'hover:bg-secondary/5'
-                }`}
-              >
-                <span className="text-[10pt] font-medium text-primary truncate flex-1">{c.name}</span>
-                {active && <Check size={14} className="text-themeblue2 shrink-0" />}
-              </button>
-            )
-          })}
-        </div>
-      </PreviewOverlay>
-    </>
-  )
-}

@@ -18,6 +18,13 @@
  * `fab` is an optional right-aligned slot — pass the surface's own
  * `absolute right-4 …` AddFab. `z` overrides stacking (Map needs `z-[1000]` above
  * Leaflet). `barClassName` extends the bar/track (Map uses `max-w-[…]`).
+ *
+ * The bottom offset is 1rem plus the safe area, matching the standalone add FAB
+ * that Property, Provider and Map place at `bottom-4` — an island and a loose FAB
+ * on the same surface have to sit at one altitude. Keep the space before the
+ * `${glass …}` interpolation: Tailwind cannot extract an arbitrary value that runs
+ * straight into `${`, so the rule silently never generates and every island parks
+ * flush on the edge.
  */
 import type { ReactNode } from 'react'
 import { GlassBand } from '@/Components/primitives/GlassBand'
@@ -63,7 +70,7 @@ export function BottomIsland({
   glass = false,
 }: BottomIslandProps) {
   return (
-    <div className={`absolute bottom-0 inset-x-0 flex flex-col items-center justify-end ${z} pointer-events-none pb-[max(1rem,var(--sab,0px))]${glass ? ' pt-8' : ' pt-4'}`}>
+    <div className={`absolute bottom-0 inset-x-0 flex flex-col items-center justify-end ${z} pointer-events-none pb-[calc(1rem+var(--sab,0px))] ${glass ? 'pt-8' : 'pt-4'}`}>
       {glass && <GlassBand edge="bottom" surface="raised" className="inset-0" />}
       {stops && onSelect ? (
         <SliderRail

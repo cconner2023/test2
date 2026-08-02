@@ -21,13 +21,24 @@ import { useRecentPropertyActivity } from '../../Hooks/useRecentPropertyActivity
 import { useLongPress } from '../../Hooks/useLongPress'
 import { summarizePmcs, pmcsOpened } from '../../lib/pmcsFold'
 import type { SelectedRecord } from './PropertyRecordDetail'
-import type { PendingTurnIn } from './PropertyTurnInDetail'
 import { SectionCard, SectionHeader } from '@/Components/primitives/Section'
 import { AnchoredMenu } from '@/Components/primitives/LiftedRowMenu'
 import type { ContextMenuItem } from '@/Components/primitives/ContextMenu'
 import { expiryStatus, type HandReceipt, type CustodyLedgerEntry, type TurnInDoc } from '../../Types/PropertyTypes'
 import { formatDtg as formatDate } from '../../Utilities/propertyDates'
 import type { AuditEvent } from '../../lib/auditTypes'
+
+/**
+ * The clinic's pending DA 3161 — every staged, not-yet-verified turn_in ledger row,
+ * regardless of which accumulator doc carries it. Staging appends to one rolling doc, and
+ * the staged stock all lives in the one "Pending Turn-In" zone, so the roster shows this as
+ * ONE thing: `docIds` is only what the whole-doc verbs have to iterate (a partially-verified
+ * sub-cluster run can leave a second doc still pending).
+ */
+export interface PendingTurnIn {
+  docIds: string[]
+  entries: CustodyLedgerEntry[]
+}
 
 /**
  * One Custody-roster card — the borderless SectionCard row shared by every section
@@ -244,9 +255,10 @@ interface CustodyPanelProps {
   onDeleteRecord?: (e: AuditEvent) => void
   /** DA 3161 turn-in: staged-pending rows + completed docs. */
   turnIns: TurnInFold
-  /** Open a PENDING turn-in's detail in the host pane (curate / complete / remove).
-   *  Locating the first item on the map + the view switch happen host-side. */
-  onSelectTurnIn?: (turnIn: PendingTurnIn) => void
+  /** Open the "Pending Turn-In" ZONE sheet — the pending list is that zone's contents, so
+   *  the roster hands off to it rather than re-rendering the same rows here. Navigating the
+   *  canvas to the zone happens host-side. */
+  onSelectTurnIn?: () => void
   /** Verify the WHOLE pending turn-in — depot accepted (confirmed upstream). */
   onCompleteTurnIn?: (turnIn: PendingTurnIn) => void
   /** Un-stage the WHOLE pending turn-in back onto the books (confirmed upstream). */
@@ -255,8 +267,8 @@ interface CustodyPanelProps {
   onViewTurnIn?: (doc: TurnInDoc) => void
   /** Delete a submitted DA 3161 record — does NOT restore equipment (items stay turned in). */
   onDeleteTurnIn?: (doc: TurnInDoc) => void
-  /** The open pending turn-in (doc id) — for the selected-row highlight (desktop). */
-  selectedTurnInId?: string | null
+  /** The Pending Turn-In zone sheet is open — for the selected-row highlight (desktop). */
+  turnInZoneOpen?: boolean
   /** Currently-open receipt / record — for the selected-row highlight (desktop). */
   selectedReceiptId?: string | null
   selectedRecordId?: string | null
@@ -303,7 +315,7 @@ export function CustodyPanel({
   onRemoveTurnIn,
   onViewTurnIn,
   onDeleteTurnIn,
-  selectedTurnInId,
+  turnInZoneOpen,
   selectedReceiptId,
   selectedRecordId,
 }: CustodyPanelProps) {
@@ -600,40 +612,33 @@ export function CustodyPanel({
     </CustodyCard>
   )
 
-  // Pending turn-ins grouped by their shared doc id — ONE card per turn-in (not per
-  // item), mirroring the completed-doc + hand-receipt cards. turnIns.pending is already
-  // newest-first, so the Map preserves that order.
-  const pendingTurnIns = useMemo<PendingTurnIn[]>(() => {
-    const byDoc = new Map<string, CustodyLedgerEntry[]>()
-    for (const e of turnIns.pending) {
-      if (!e.hand_receipt_id) continue
-      const arr = byDoc.get(e.hand_receipt_id) ?? []
-      arr.push(e)
-      byDoc.set(e.hand_receipt_id, arr)
-    }
-    return [...byDoc.entries()].map(([turnInDocId, entries]) => ({ turnInDocId, entries }))
+  // The whole pending DA 3161 as ONE thing — the staging zone's contents. turnIns.pending is
+  // already newest-first, so the entries keep that order.
+  const pending = useMemo<PendingTurnIn | null>(() => {
+    const entries = turnIns.pending.filter((e) => !!e.hand_receipt_id)
+    if (entries.length === 0) return null
+    return { docIds: [...new Set(entries.map((e) => e.hand_receipt_id!))], entries }
   }, [turnIns.pending])
 
-  // A PENDING turn-in as a card. Tapping opens its detail in the host pane (curate /
-  // complete / remove) AND locates the first item on the map + switches the view
-  // (both host-side via onSelectTurnIn). The card menu carries the two whole-doc
-  // verbs the detail header also offers — Complete and Remove — so a turn-in can be
-  // closed out from the roster; per-item curation stays in the detail. Both confirm
-  // upstream, where the ConfirmDialogs live.
+  // The pending turn-in as a card. Tapping opens the "Pending Turn-In" ZONE sheet (host-
+  // side, which also navigates the canvas there) — this roster does NOT re-render the staged
+  // rows, because that zone already is the list, item menus and all. The card menu carries
+  // the two whole-doc verbs, so the run can be closed out without leaving the roster; both
+  // confirm upstream, where the ConfirmDialogs live.
   const renderPendingTurnInCard = (turnIn: PendingTurnIn) => {
     const items: ContextMenuItem[] = []
-    if (onSelectTurnIn) items.push({ key: 'view', label: 'View', icon: Eye, onAction: () => onSelectTurnIn(turnIn) })
+    if (onSelectTurnIn) items.push({ key: 'view', label: 'View', icon: Eye, onAction: () => onSelectTurnIn() })
     if (onCompleteTurnIn) items.push({ key: 'complete', label: 'Complete turn-in', icon: PackageMinus, onAction: () => onCompleteTurnIn(turnIn) })
     if (onRemoveTurnIn) items.push({ key: 'remove', label: 'Remove turn-in', icon: Trash2, destructive: true, onAction: () => onRemoveTurnIn(turnIn) })
     return (
       <CustodyCard
-        key={turnIn.turnInDocId}
-        active={selectedTurnInId === turnIn.turnInDocId}
-        onTap={() => onSelectTurnIn?.(turnIn)}
+        key="__pending_turnin__"
+        active={!!turnInZoneOpen}
+        onTap={() => onSelectTurnIn?.()}
         menuItems={items}
         openMenu={openMenu}
       >
-        {/* No state field — a pending doc's location already reads as the turn-in zone. */}
+        {/* No state field — a pending run's location already reads as the turn-in zone. */}
         <ItemIdentity {...entryIdentity(turnIn.entries)} />
       </CustodyCard>
     )
@@ -718,25 +723,25 @@ export function CustodyPanel({
           outstanding.length === 0,
         )}
 
-        {/* Turn-In (DA 3161) — ONE card per turn-in: pending cards open their detail
-            (curate / complete / remove), completed docs read "Turned in <date>" and
-            open the DA 3161. Always shown, like every other group here — the roster
-            is a fixed set of sections, so a section that vanishes reads as a missing
-            surface rather than an empty one. Hiding the turn-in surface when there is
-            nothing staged is the TREE's job (PropertyLocationTree drops the empty
-            system zone from its roots), not this panel's. */}
+        {/* Turn-In (DA 3161) — ONE pending card (the staging zone's whole contents) that
+            opens that ZONE's sheet, then the completed docs, which read "Turned in <date>"
+            and open the DA 3161. Always shown, like every other group here — the roster is a
+            fixed set of sections, so a section that vanishes reads as a missing surface
+            rather than an empty one. Hiding the turn-in surface when there is nothing staged
+            is the TREE's job (PropertyLocationTree drops the empty system zone from its
+            roots), not this panel's. */}
         {renderGroup(
           '__turnin__',
           'Turn-In',
-          pendingTurnIns.length > 0 || turnIns.history.length > 0 ? (
+          pending || turnIns.history.length > 0 ? (
             <>
-              {pendingTurnIns.map(renderPendingTurnInCard)}
+              {pending && renderPendingTurnInCard(pending)}
               {turnIns.history.map(renderTurnInDocCard)}
             </>
           ) : (
             emptyLine(loading ? 'Loading…' : 'Nothing turned in.')
           ),
-          pendingTurnIns.length === 0 && turnIns.history.length === 0,
+          !pending && turnIns.history.length === 0,
         )}
 
         {/* Expired — items lapsed or expiring within 30 days (expiry_date window).

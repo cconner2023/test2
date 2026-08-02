@@ -5,8 +5,10 @@ import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill'
 import { PaneHeader } from '@/Components/primitives/PaneHeader'
 import { SwipeToDeleteRow } from '@/Components/primitives/SwipeToDeleteRow'
 import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
+import { clinicMemberName } from './supervisorHelpers'
 import { AddMemberPopover } from '../../ClinicAdmin/AddMemberPopover'
 import { MemberEditPopover } from '../../ClinicAdmin/MemberEditPopover'
+import { SectionCard } from '@/Components/primitives/Section'
 import {
   listClinicMembers,
   removeClinicMember,
@@ -25,12 +27,6 @@ import {
  * enveloped in the child's vault and the parent can't decrypt it; the card's
  * summary already carries the percentages. This surface is roster ops only.
  */
-
-function memberName(m: ClinicMember): string {
-  const rank = m.rank ? `${m.rank} ` : ''
-  const name = [m.first_name, m.last_name].filter(Boolean).join(' ') || m.email
-  return `${rank}${name}`.trim()
-}
 
 /** Backstop profile from the roster row — the live supervisor_get_member_profile
  *  fetch (subtree-authorized) fills in the real component/roles once open. */
@@ -111,7 +107,7 @@ export function ChildClinicRosterBody({
   ) : members.length === 0 ? (
     <p className="text-sm text-tertiary py-8 text-center">No members assigned.</p>
   ) : (
-    <div className="rounded-2xl bg-themewhite2 overflow-hidden">
+    <SectionCard>
       {members.map((m) => (
         <SwipeToDeleteRow
           key={m.id}
@@ -124,13 +120,13 @@ export function ChildClinicRosterBody({
             className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-secondary/5 active:scale-[0.99] transition-all"
           >
             <div className="flex-1 min-w-0">
-              <p className="text-sm text-primary truncate">{memberName(m)}</p>
+              <p className="text-sm text-primary truncate">{clinicMemberName(m)}</p>
               <p className="text-[9pt] text-tertiary truncate">{m.email}</p>
             </div>
           </button>
         </SwipeToDeleteRow>
       ))}
-    </div>
+    </SectionCard>
   )
 
   const popovers = (
@@ -147,7 +143,7 @@ export function ChildClinicRosterBody({
       />
       <ConfirmDialog
         visible={!!removeTarget}
-        title={removeTarget ? `Remove ${memberName(removeTarget)}?` : ''}
+        title={removeTarget ? `Remove ${clinicMemberName(removeTarget)}?` : ''}
         subtitle="They will be unassigned from this cluster."
         confirmLabel="Remove"
         variant="danger"

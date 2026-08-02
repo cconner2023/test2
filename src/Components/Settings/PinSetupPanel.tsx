@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect } from 'react'
 import { Lock, KeyRound, ScanFace, Timer, Activity, Camera, MapPin, ChevronRight } from 'lucide-react'
 import { ErrorDisplay } from '@/Components/primitives/ErrorDisplay'
 import { ToggleSwitch } from './ToggleSwitch'
+import { SettingsRow, SettingsToggleRow } from './SettingsToggleRow'
 import { PinKeypad } from '@/Components/primitives/PinKeypad'
 import { UI_TIMING } from '../../Utilities/constants'
 import {
@@ -31,6 +32,7 @@ import {
   removeBiometric,
 } from '../../lib/biometricService'
 import { usePinLockoutTimer } from '../../Hooks/usePinLockoutTimer'
+import { SectionCard, SectionHeader } from '@/Components/primitives/Section'
 
 type PinView = 'status' | 'set-new' | 'confirm-new' | 'verify-current' | 'change-new' | 'change-confirm'
 type PendingAction = 'change' | 'remove' | null
@@ -252,230 +254,136 @@ export const PinSetupPanel = () => {
 
           {/* ── Lock ─────────────────────────────────────────────── */}
           <div>
-            <div className="flex items-center gap-2 mb-2">
-              <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">Lock</p>
-            </div>
-            <div className="rounded-2xl bg-themewhite2 overflow-hidden">
+            <SectionHeader>Lock</SectionHeader>
+            <SectionCard>
 
               {/* App Lock — the behavior: lock the instant you switch away */}
               {isAuthenticated && (
-                <div
-                  className="flex items-center gap-3 px-4 py-3.5 cursor-pointer transition-all active:scale-95 hover:bg-themeblue2/5"
-                  onClick={handleAppLockToggle}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleAppLockToggle() } }}
-                >
-                  <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${appLockOn ? 'bg-themeblue2/15' : 'bg-tertiary/10'}`}>
-                    <Lock size={18} className={appLockOn ? 'text-themeblue2' : 'text-tertiary'} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className={`text-sm font-medium ${appLockOn ? 'text-primary' : 'text-tertiary'}`}>App Lock</p>
-                    <p className="text-[9pt] text-tertiary mt-0.5">
-                      {appLockOn
-                        ? (pinEnabled
-                            ? 'Locks the instant you switch away — PIN to return'
-                            : 'Locks the instant you switch away — password to return')
-                        : 'Lock the app the moment you switch away'}
-                    </p>
-                  </div>
-                  <ToggleSwitch checked={appLockOn} />
-                </div>
+                <SettingsToggleRow
+                  icon={Lock}
+                  label="App Lock"
+                  subtitle={appLockOn
+                    ? (pinEnabled
+                        ? 'Locks the instant you switch away — PIN to return'
+                        : 'Locks the instant you switch away — password to return')
+                    : 'Lock the app the moment you switch away'}
+                  checked={appLockOn}
+                  onChange={handleAppLockToggle}
+                />
               )}
 
               {/* PIN — the credential */}
               {isAuthenticated && (
-                <div
-                  className="flex items-center gap-3 px-4 py-3.5 cursor-pointer transition-all active:scale-95 hover:bg-themeblue2/5"
-                  onClick={handlePinToggle}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handlePinToggle() } }}
-                >
-                  <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${pinEnabled ? 'bg-themeblue2/15' : 'bg-tertiary/10'}`}>
-                    <KeyRound size={18} className={pinEnabled ? 'text-themeblue2' : 'text-tertiary'} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className={`text-sm font-medium ${pinEnabled ? 'text-primary' : 'text-tertiary'}`}>PIN</p>
-                    <p className="text-[9pt] text-tertiary mt-0.5">A 4-digit code for quicker unlocking than your password</p>
-                  </div>
-                  <ToggleSwitch checked={pinEnabled} />
-                </div>
+                <SettingsToggleRow
+                  icon={KeyRound}
+                  label="PIN"
+                  subtitle="A 4-digit code for quicker unlocking than your password"
+                  checked={pinEnabled}
+                  onChange={handlePinToggle}
+                  divided
+                />
               )}
 
               {/* Change PIN — only relevant while a PIN exists. Removing a PIN is
                   the PIN toggle itself (off → verify → delete), so no separate row. */}
               {isAuthenticated && pinEnabled && (
-                <div
-                  className="flex items-center gap-3 pl-16 pr-4 py-3 bg-tertiary/5 cursor-pointer transition-all hover:bg-themeblue2/5 active:scale-95"
+                <SettingsRow
+                  icon={KeyRound}
+                  label="Change PIN"
+                  indent
                   onClick={() => { resetState(); setPendingAction('change'); setView('verify-current') }}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); resetState(); setPendingAction('change'); setView('verify-current') } }}
-                >
-                  <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 bg-themeblue2/15">
-                    <KeyRound size={16} className="text-themeblue2" />
-                  </div>
-                  <span className="flex-1 min-w-0 text-sm font-medium text-primary">Change PIN</span>
-                  <ChevronRight size={16} className="text-tertiary shrink-0" />
-                </div>
+                  trailing={<ChevronRight size={16} className="text-tertiary shrink-0" />}
+                />
               )}
 
               {/* Face ID / Touch ID — its own unlock credential, independent of the
                   PIN. With or without a PIN it unlocks App Lock; password is the
                   fallback. */}
               {isAuthenticated && bioAvailable && (
-                <div
-                  onClick={bioLoading ? undefined : handleBiometricToggle}
-                  className={`flex items-center gap-3 px-4 py-3.5 transition-all ${bioLoading ? 'opacity-50' : 'cursor-pointer hover:bg-themeblue2/5 active:scale-95'}`}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => { if (!bioLoading && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); handleBiometricToggle() } }}
-                >
-                  <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${bioEnrolled ? 'bg-themeblue2/15' : 'bg-tertiary/10'}`}>
-                    <ScanFace size={18} className={bioEnrolled ? 'text-themeblue2' : 'text-tertiary'} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className={`text-sm font-medium ${bioEnrolled ? 'text-primary' : 'text-tertiary'}`}>
-                      {bioLoading ? 'Setting up...' : 'Face ID / Touch ID'}
-                    </p>
-                    <p className="text-[9pt] text-tertiary mt-0.5">Unlock with your face or fingerprint</p>
-                  </div>
-                  <ToggleSwitch checked={bioEnrolled} />
-                </div>
+                <SettingsToggleRow
+                  icon={ScanFace}
+                  label={bioLoading ? 'Setting up...' : 'Face ID / Touch ID'}
+                  subtitle="Unlock with your face or fingerprint"
+                  checked={bioEnrolled}
+                  onChange={handleBiometricToggle}
+                  disabled={bioLoading}
+                  divided
+                />
               )}
 
               {isAuthenticated && (
-                <div
-                  className="flex items-center gap-3 px-4 py-3.5 cursor-pointer transition-all active:scale-95 hover:bg-themeblue2/5"
-                  onClick={() => {
+                <SettingsToggleRow
+                  icon={Timer}
+                  label="Inactivity Timeout"
+                  subtitle={pinEnabled
+                    ? 'Lock to PIN screen after 20 min idle'
+                    : 'Require password re-entry after 20 min idle'}
+                  checked={timeoutEnabled}
+                  onChange={() => {
                     const next = timeoutEnabled ? 0 : TIMEOUT_20_MIN
                     setTimeoutMs(next)
                     setInactivityTimeoutMs(next)
                   }}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault()
-                      const next = timeoutEnabled ? 0 : TIMEOUT_20_MIN
-                      setTimeoutMs(next)
-                      setInactivityTimeoutMs(next)
-                    }
-                  }}
-                >
-                  <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${timeoutEnabled ? 'bg-themeblue2/15' : 'bg-tertiary/10'}`}>
-                    <Timer size={18} className={timeoutEnabled ? 'text-themeblue2' : 'text-tertiary'} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className={`text-sm font-medium ${timeoutEnabled ? 'text-primary' : 'text-tertiary'}`}>Inactivity Timeout</p>
-                    <p className="text-[9pt] text-tertiary mt-0.5">
-                      {pinEnabled
-                        ? 'Lock to PIN screen after 20 min idle'
-                        : 'Require password re-entry after 20 min idle'}
-                    </p>
-                  </div>
-                  <ToggleSwitch checked={timeoutEnabled} />
-                </div>
+                  divided
+                />
               )}
 
-            </div>
+            </SectionCard>
           </div>
 
           {/* ── Permissions ──────────────────────────────────────── */}
           {(isAuthenticated || cameraPermission !== 'unsupported' || locationPermission !== 'unsupported') && (
             <div>
-              <div className="flex items-center gap-2 mb-2">
-                <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">Permissions</p>
-              </div>
-              <div className="rounded-2xl bg-themewhite2 overflow-hidden">
+              <SectionHeader>Permissions</SectionHeader>
+              <SectionCard>
 
                 {/* Activity Tracking — a permission: background heartbeat. */}
                 {isAuthenticated && (
-                  <div
-                    className="flex items-center gap-3 px-4 py-3.5 cursor-pointer transition-all active:scale-95 hover:bg-themeblue2/5"
-                    onClick={() => {
+                  <SettingsToggleRow
+                    icon={Activity}
+                    label="Activity Tracking"
+                    subtitle="Background heartbeat keeps your account active and powers session tracking. Disabling may lead to account hibernation after 90 days."
+                    checked={activityTracking}
+                    onChange={() => {
                       const next = !activityTracking
                       setActivityTrackingEnabled(next)
                       setActivityTracking(next)
                     }}
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault()
-                        const next = !activityTracking
-                        setActivityTrackingEnabled(next)
-                        setActivityTracking(next)
-                      }
-                    }}
-                  >
-                    <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${activityTracking ? 'bg-themeblue2/15' : 'bg-tertiary/10'}`}>
-                      <Activity size={18} className={activityTracking ? 'text-themeblue2' : 'text-tertiary'} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className={`text-sm font-medium ${activityTracking ? 'text-primary' : 'text-tertiary'}`}>Activity Tracking</p>
-                      <p className="text-[9pt] text-tertiary mt-0.5">Background heartbeat keeps your account active and powers session tracking. Disabling may lead to account hibernation after 90 days.</p>
-                    </div>
-                    <ToggleSwitch checked={activityTracking} />
-                  </div>
+                  />
                 )}
 
-                {cameraPermission !== 'unsupported' && (() => {
-                  const granted = cameraPermission === 'granted'
-                  const denied = cameraPermission === 'denied'
-                  return (
-                    <div
-                      className={`flex items-center gap-3 px-4 py-3.5 transition-all ${cameraPermission === 'prompt' ? 'cursor-pointer active:scale-95 hover:bg-themeblue2/5' : ''}`}
-                      onClick={cameraPermission === 'prompt' ? handleRequestCamera : undefined}
-                      role={cameraPermission === 'prompt' ? 'button' : undefined}
-                      tabIndex={cameraPermission === 'prompt' ? 0 : undefined}
-                      onKeyDown={cameraPermission === 'prompt' ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleRequestCamera() } } : undefined}
-                    >
-                      <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${granted ? 'bg-themeblue2/15' : 'bg-tertiary/10'}`}>
-                        <Camera size={18} className={granted ? 'text-themeblue2' : 'text-tertiary'} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className={`text-sm font-medium ${granted ? 'text-primary' : 'text-tertiary'}`}>Camera</p>
-                        <p className="text-[9pt] text-tertiary mt-0.5">
-                          {granted ? 'Allowed — used for QR scanning and property identification'
-                            : denied ? 'Blocked — enable in your browser or OS settings'
-                            : 'Tap to allow camera access'}
-                        </p>
-                      </div>
-                      <ToggleSwitch checked={granted} />
-                    </div>
-                  )
-                })()}
+                {/* Camera / Location — granted and denied are terminal states the app
+                    cannot change; only 'prompt' is actionable, so only 'prompt' is a
+                    button. The toggle reads as status in the other two. */}
+                {cameraPermission !== 'unsupported' && (
+                  <SettingsRow
+                    icon={Camera}
+                    label="Camera"
+                    subtitle={cameraPermission === 'granted' ? 'Allowed — used for QR scanning and property identification'
+                      : cameraPermission === 'denied' ? 'Blocked — enable in your browser or OS settings'
+                      : 'Tap to allow camera access'}
+                    on={cameraPermission === 'granted'}
+                    onClick={cameraPermission === 'prompt' ? handleRequestCamera : undefined}
+                    divided={isAuthenticated}
+                    trailing={<ToggleSwitch checked={cameraPermission === 'granted'} />}
+                  />
+                )}
 
-                {locationPermission !== 'unsupported' && (() => {
-                  const granted = locationPermission === 'granted'
-                  const denied = locationPermission === 'denied'
-                  return (
-                    <div
-                      className={`flex items-center gap-3 px-4 py-3.5 transition-all ${locationPermission === 'prompt' ? 'cursor-pointer active:scale-95 hover:bg-themeblue2/5' : ''}`}
-                      onClick={locationPermission === 'prompt' ? handleRequestLocation : undefined}
-                      role={locationPermission === 'prompt' ? 'button' : undefined}
-                      tabIndex={locationPermission === 'prompt' ? 0 : undefined}
-                      onKeyDown={locationPermission === 'prompt' ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleRequestLocation() } } : undefined}
-                    >
-                      <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${granted ? 'bg-themeblue2/15' : 'bg-tertiary/10'}`}>
-                        <MapPin size={18} className={granted ? 'text-themeblue2' : 'text-tertiary'} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className={`text-sm font-medium ${granted ? 'text-primary' : 'text-tertiary'}`}>Location</p>
-                        <p className="text-[9pt] text-tertiary mt-0.5">
-                          {granted ? 'Allowed — used for field position tracking on missions'
-                            : denied ? 'Blocked — enable in your browser or OS settings'
-                            : 'Tap to allow location access'}
-                        </p>
-                      </div>
-                      <ToggleSwitch checked={granted} />
-                    </div>
-                  )
-                })()}
+                {locationPermission !== 'unsupported' && (
+                  <SettingsRow
+                    icon={MapPin}
+                    label="Location"
+                    subtitle={locationPermission === 'granted' ? 'Allowed — used for field position tracking on missions'
+                      : locationPermission === 'denied' ? 'Blocked — enable in your browser or OS settings'
+                      : 'Tap to allow location access'}
+                    on={locationPermission === 'granted'}
+                    onClick={locationPermission === 'prompt' ? handleRequestLocation : undefined}
+                    divided={isAuthenticated || cameraPermission !== 'unsupported'}
+                    trailing={<ToggleSwitch checked={locationPermission === 'granted'} />}
+                  />
+                )}
 
-              </div>
+              </SectionCard>
             </div>
           )}
 

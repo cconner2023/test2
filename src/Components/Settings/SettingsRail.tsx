@@ -4,8 +4,13 @@ import { PANEL_TARGET, type SettingsItem } from './SettingsTypes';
 import { SearchInput } from '@/Components/primitives/SearchInput';
 import { useAvatar } from '../../Utilities/AvatarContext';
 import { useAuth } from '../../Hooks/useAuth';
+import { useCertifications } from '../../Hooks/useCertifications';
+import { useSelfReadiness } from '../../Hooks/useSelfReadiness';
 import { getInitials } from '../../Utilities/nameUtils';
+import { SubjectCard } from './SubjectCard';
 import type { MainSettingsPanelProps } from './MainSettingsPanel';
+import { ListGroupLabel } from '@/Components/primitives/Section';
+import { MetaBadge } from '@/Components/primitives/MetaBadge';
 
 /**
  * Desktop LEFT-PANE variant of the settings menu. Where MainSettingsPanel (mobile)
@@ -16,6 +21,18 @@ import type { MainSettingsPanelProps } from './MainSettingsPanel';
  * uppercase section headers alone separate the groups, no indentation.
  *
  * Shares MainSettingsPanelProps so Settings.tsx feeds both surfaces one prop object.
+ *
+ * THE PINNED CARD IS THE SUPERVISOR'S CARD. Search, one pinned context object, then
+ * the list — the same three-part rail SupervisorRail builds, and literally the same
+ * SubjectCard with the same two FillBars. It used to be a plain list row with a
+ * chevron, which made "you" read as one menu entry among twenty rather than as the
+ * subject the whole drawer is about. The numbers come from useSelfReadiness, the
+ * hook the profile's Readiness section reads, so the card cannot disagree with the
+ * section it opens onto.
+ *
+ * The avatar is no longer separately tappable here. It was a nested click target
+ * inside the row's button — the supervisor card has one activation, and photo
+ * changing lives in the profile the card opens.
  */
 
 export function SettingsRail({
@@ -23,13 +40,14 @@ export function SettingsRail({
     onItemClick,
     displayName,
     displaySub,
-    onAvatarClick,
     onProfileClick,
     isConnected,
     activeId,
 }: MainSettingsPanelProps) {
     const { currentAvatar, customImage, isCustom, isInitials } = useAvatar();
-    const { profile } = useAuth();
+    const { profile, isAuthenticated } = useAuth();
+    const { certs } = useCertifications();
+    const { readinessPercent, compliancePercent } = useSelfReadiness(certs);
     const [query, setQuery] = useState('');
     const q = query.trim().toLowerCase();
 
@@ -54,10 +72,10 @@ export function SettingsRail({
     }, [settingsOptions, q]);
 
     const renderRow = (item: Extract<SettingsItem, { type: 'option' }>) => {
-        const active = activeId != null && PANEL_TARGET[item.id] === activeId;
+        const active = activeId != null && PANEL_TARGET[item.id] === activeId && (item.activeWhen ?? true);
         return (
             <button
-                key={item.id}
+                key={item.key ?? item.id}
                 disabled={item.disabled}
                 onClick={() => { if (item.disabled) return; item.action(); onItemClick(item.id); }}
                 className={`flex items-center gap-2 w-full py-2 pr-4 pl-4 text-left transition-all active:scale-[0.98] ${
@@ -80,7 +98,7 @@ export function SettingsRail({
                     <span className="w-2 h-2 rounded-full bg-themeredred shrink-0" aria-label="New" />
                 )}
                 {item.disabled && (
-                    <span className="text-[8.5pt] font-semibold uppercase tracking-wide text-tertiary shrink-0">Soon</span>
+                    <MetaBadge>Soon</MetaBadge>
                 )}
             </button>
         );
@@ -91,49 +109,56 @@ export function SettingsRail({
 
     return (
         <div className="h-full flex flex-col">
-            {/* Search header — matches the SupervisorDrawer rail. */}
-            <div className="shrink-0 px-3 py-2 border-b border-primary/10">
+            {/* Search header — matches the SupervisorDrawer rail. Carries no
+                hairline: search and the pinned card are ONE head block, and the
+                rule belongs under them (see the scroller below). */}
+            <div className="shrink-0 px-3 py-2">
                 <SearchInput value={query} onChange={setQuery} placeholder="Search settings…" />
             </div>
 
-            <div className="flex-1 min-h-0 overflow-y-auto py-1">
-                {/* Profile leaf */}
-                {showProfile && (
-                    <button
-                        onClick={onProfileClick}
-                        className="flex items-center gap-2.5 w-full py-2 px-4 text-left transition-all active:scale-[0.98] hover:bg-secondary/5"
-                    >
-                        <span
-                            onClick={(e) => { e.stopPropagation(); onAvatarClick(); }}
-                            className="w-7 h-7 rounded-full overflow-hidden shrink-0"
-                        >
-                            {isCustom && customImage ? (
-                                <img src={customImage} alt="Profile" className="w-full h-full object-cover" />
-                            ) : isInitials ? (
-                                <span className="w-full h-full rounded-full bg-themeblue2/15 flex items-center justify-center">
-                                    <span className="text-[8.5pt] font-semibold text-themeblue2">
-                                        {getInitials(profile.firstName, profile.lastName)}
+            {/* Pinned subject — you. Sits above the scroll with the search, the way
+                SupervisorRail pins the selected soldier or cluster. */}
+            {showProfile && (
+                <div className="shrink-0">
+                    <SubjectCard
+                        icon={
+                            <span className="w-14 h-14 rounded-full overflow-hidden flex items-center justify-center shrink-0">
+                                {isCustom && customImage ? (
+                                    <img src={customImage} alt="Profile" className="w-full h-full object-cover" />
+                                ) : isInitials ? (
+                                    <span className="w-full h-full rounded-full bg-themeblue2/15 flex items-center justify-center">
+                                        <span className="text-sm font-semibold text-themeblue2">
+                                            {getInitials(profile.firstName, profile.lastName)}
+                                        </span>
                                     </span>
-                                </span>
-                            ) : currentAvatar.svg}
-                        </span>
-                        <span className="flex-1 min-w-0">
-                            <span className="block text-[10pt] font-medium text-primary truncate">{displayName}</span>
-                            <span className="block text-[8.5pt] text-tertiary truncate">{displaySub}</span>
-                        </span>
-                        <ChevronRight size={14} className="text-tertiary shrink-0" />
-                    </button>
-                )}
+                                ) : currentAvatar.svg}
+                            </span>
+                        }
+                        title={displayName}
+                        subtitle={displaySub}
+                        readinessPercent={isAuthenticated ? readinessPercent : undefined}
+                        compliancePercent={isAuthenticated ? compliancePercent : undefined}
+                        active={activeId === 'user-profile'}
+                        onActivate={onProfileClick}
+                        // Opens the profile panel rather than an inline editor,
+                        // so the affordance is "go there", not "change this".
+                        actionIcon={ChevronRight}
+                        actionLabel="Open profile"
+                    />
+                </div>
+            )}
 
+            {/* No rule under the head block. The pinned card's gradient deepens
+                toward its bottom edge and IS the separation; a hairline on top of
+                it would redraw the hard edge the wash replaced. */}
+            <div className="flex-1 min-h-0 overflow-y-auto py-1">
                 {/* Top items (before the first section header) — flush, no label above. */}
                 {topItems.map((item) => renderRow(item))}
 
                 {/* Labelled sections — items indent under their label. */}
                 {sections.map((section) => (
                     <div key={section.label}>
-                        <p className="px-4 pt-3 pb-1 text-[9pt] font-semibold uppercase tracking-wider text-tertiary">
-                            {section.label}
-                        </p>
+                        <ListGroupLabel>{section.label}</ListGroupLabel>
                         {section.items.map((item) => renderRow(item))}
                     </div>
                 ))}

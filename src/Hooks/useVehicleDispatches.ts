@@ -1,15 +1,13 @@
 import { useEffect, useState } from 'react'
-import { getLocalAuditLogs } from '../lib/offlineDb'
-import { toAuditEvent, fetchAuditByClinicDomain } from '../lib/auditService'
-import type { AuditEvent } from '../lib/auditTypes'
+import { loadAuditByClinicDomain } from '../lib/auditService'
 import { useInvalidation } from '../stores/useInvalidationStore'
 import { foldOpenDispatches, type OpenDispatch } from '../lib/dispatchFold'
 
 /**
  * Clinic-wide fold of CURRENT open vehicle dispatches → keyed by vehicle location
  * id. Feeds the red-dot on vehicle rows (tree / list / map) and the calendar
- * exp-date derivation. Offline-first: reads local audit_log first, merges the
- * server (read_audit) copy by id, refolds. Re-runs on `properties` invalidation
+ * exp-date derivation. Offline-first: local audit_log topped up by a delta
+ * read_audit pull, then refolded. Re-runs on `properties` invalidation
  * (the store bumps it after open/close/delete) so the dot stays live. `now` is
  * stamped per run so expiring/expired status reflects the current time.
  *
@@ -23,15 +21,9 @@ export function useVehicleDispatches(clinicId: string | null): Map<string, OpenD
     if (!clinicId) { setMap(new Map()); return }
     let cancelled = false
     ;(async () => {
-      const [localRows, server] = await Promise.all([
-        getLocalAuditLogs(clinicId).catch(() => []),
-        fetchAuditByClinicDomain(clinicId, 'property').catch(() => [] as AuditEvent[]),
-      ])
-      const local = await Promise.all(localRows.map(toAuditEvent)).catch(() => [] as AuditEvent[])
+      const events = await loadAuditByClinicDomain(clinicId, 'property')
       if (cancelled) return
-      const byId = new Map<string, AuditEvent>()
-      for (const e of [...local, ...server]) byId.set(e.id, e)
-      setMap(foldOpenDispatches([...byId.values()], Date.now()))
+      setMap(foldOpenDispatches(events, Date.now()))
     })()
     return () => { cancelled = true }
   }, [clinicId, propGen])

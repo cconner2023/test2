@@ -2,18 +2,23 @@ import { useState } from 'react'
 import { Building2, ChevronRight } from 'lucide-react'
 import { useEchelonSummaries } from '../../../Hooks/useEchelonSummaries'
 import { ChildClinicRosterSheet } from './ChildClinicRosterSheet'
+import { PageSectionHeader } from '@/Components/primitives/Section'
 
 /**
  * "Subordinate Clusters" — the echelon child-cluster ROSTER-MANAGEMENT surface for
  * cluster management (ClinicPanel), mirroring the Supervisor drawer's echelon drill.
  *
- * DELIBERATE SPLIT (2026-07-07): the Supervisor drawer's SubordinateUnitsCards is the
- * STATS lens (readiness/compliance/coverage percentages); THIS is the user-CRUD lens.
- * Same child clusters (useEchelonSummaries), same shared editor (ChildClinicRosterSheet
- * → ChildClinicRosterBody, echelon-subtree authorized via auth_supervisor_scope_ids), but
- * here we show a plain name + personnel-count list — NO readiness bars — so cluster
- * management stays the place you MANAGE people and Supervisor stays the place you READ
- * numbers. The editing logic is shared, so the two surfaces cannot drift.
+ * DELIBERATE SPLIT (2026-07-07, restated 2026-07-30): the Supervisor drawer is the STATS
+ * lens; THIS is the user-CRUD lens. Same child clusters (useEchelonSummaries), same shared
+ * editor (ChildClinicRosterSheet → ChildClinicRosterBody, echelon-subtree authorized via
+ * auth_supervisor_scope_ids), but here we show a plain name + personnel-count list — NO
+ * readiness bars — so cluster management stays the place you MANAGE people and Supervisor
+ * stays the place you READ numbers. The editing logic is shared, so the two surfaces
+ * cannot drift.
+ *
+ * The supervisor side used to be SubordinateUnitsCards, a card stack at the bottom of the
+ * dashboard scroll. Child clusters are now rows in the supervisor rail's tree, so the
+ * cards are gone and the split is drawer-vs-ClinicPanel rather than two components.
  *
  * Renders nothing when the clinic has no children, so it's safe to mount unconditionally
  * under the supervisor gate.
@@ -45,9 +50,7 @@ export function SubordinateClustersManager({
 
   return (
     <section>
-      <div className="pb-2 flex items-center gap-2">
-        <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Subordinate Clusters</p>
-      </div>
+      <PageSectionHeader>Subordinate Clusters</PageSectionHeader>
       <div className="rounded-xl bg-themewhite2 overflow-hidden">
         <div className="px-4 py-3">
           <div className="space-y-1">

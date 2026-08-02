@@ -4,7 +4,7 @@ import { usePushNotifications } from '../../Hooks/usePushNotifications'
 import { useUserProfile } from '../../Hooks/useUserProfile'
 import { useAuth } from '../../Hooks/useAuth'
 import { isMessageSoundsEnabled, setMessageSoundsEnabled } from '../../lib/soundService'
-import { ToggleSwitch } from './ToggleSwitch'
+import { SettingsToggleRow } from './SettingsToggleRow'
 import { ErrorDisplay } from '@/Components/primitives/ErrorDisplay'
 import { SectionCard } from '@/Components/primitives/Section'
 import { UI_TIMING } from '../../Utilities/constants'
@@ -107,96 +107,50 @@ export const NotificationSettingsPanel = () => {
           <SectionCard className={`transition-all ${loading ? 'opacity-50 pointer-events-none' : ''}`}>
 
             {/* Master toggle — the device subscription on/off */}
-            <div
-              onClick={isSubscribed ? handleUnsubscribe : handleSubscribe}
-              className="flex items-center gap-3 px-4 py-3.5 cursor-pointer transition-all active:scale-95 hover:bg-themeblue2/5"
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); isSubscribed ? handleUnsubscribe() : handleSubscribe() } }}
-            >
-              <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${isSubscribed ? 'bg-themeblue2/15' : 'bg-tertiary/10'}`}>
-                <Bell size={18} className={isSubscribed ? 'text-themeblue2' : 'text-tertiary'} />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className={`text-sm font-medium ${isSubscribed ? 'text-primary' : 'text-tertiary'}`}>Push Notifications</p>
-                <p className="text-[9pt] text-tertiary mt-0.5 truncate">
-                  {isSubscribed && subscriptionInfo
-                    ? subscriptionInfo.provider
-                    : 'This device is not receiving push notifications'
-                  }
-                </p>
-              </div>
-              <ToggleSwitch checked={isSubscribed} />
-            </div>
+            <SettingsToggleRow
+              icon={Bell}
+              label="Push Notifications"
+              subtitle={isSubscribed && subscriptionInfo
+                ? subscriptionInfo.provider
+                : 'This device is not receiving push notifications'}
+              checked={isSubscribed}
+              onChange={isSubscribed ? handleUnsubscribe : handleSubscribe}
+            />
 
             {/* Per-category toggles — only when subscribed */}
             {isSubscribed && (
               <>
-                {/* Message Sounds */}
-                <div
-                  onClick={() => {
+                <SettingsToggleRow
+                  icon={Volume2}
+                  label="Message Sounds"
+                  subtitle="Play sounds when sending and receiving messages"
+                  checked={soundsEnabled}
+                  onChange={() => {
                     const next = !soundsEnabled
                     setMessageSoundsEnabled(next)
                     setSoundsEnabled(next)
                   }}
-                  className="flex items-center gap-3 px-4 py-3.5 border-t border-tertiary/10 cursor-pointer transition-all active:scale-95 hover:bg-themeblue2/5"
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault()
-                      const next = !soundsEnabled
-                      setMessageSoundsEnabled(next)
-                      setSoundsEnabled(next)
-                    }
-                  }}
-                >
-                  <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${soundsEnabled ? 'bg-themeblue2/15' : 'bg-tertiary/10'}`}>
-                    <Volume2 size={18} className={soundsEnabled ? 'text-themeblue2' : 'text-tertiary'} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className={`text-sm font-medium ${soundsEnabled ? 'text-primary' : 'text-tertiary'}`}>Message Sounds</p>
-                    <p className="text-[9pt] text-tertiary mt-0.5">Play sounds when sending and receiving messages</p>
-                  </div>
-                  <ToggleSwitch checked={soundsEnabled} />
-                </div>
+                  divided
+                />
 
-                {/* Event Assignments — all users */}
-                <div
-                  onClick={() => handleCalendarAssignToggle(!calendarAssignments)}
-                  className="flex items-center gap-3 px-4 py-3.5 border-t border-tertiary/10 cursor-pointer transition-all active:scale-95 hover:bg-themeblue2/5"
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleCalendarAssignToggle(!calendarAssignments); } }}
-                >
-                  <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${calendarAssignments ? 'bg-themeblue2/15' : 'bg-tertiary/10'}`}>
-                    <CalendarClock size={18} className={calendarAssignments ? 'text-themeblue2' : 'text-tertiary'} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className={`text-sm font-medium ${calendarAssignments ? 'text-primary' : 'text-tertiary'}`}>Event Assignments</p>
-                    <p className="text-[9pt] text-tertiary mt-0.5">Get notified when you're assigned to a calendar event</p>
-                  </div>
-                  <ToggleSwitch checked={calendarAssignments} />
-                </div>
+                <SettingsToggleRow
+                  icon={CalendarClock}
+                  label="Event Assignments"
+                  subtitle="Get notified when you're assigned to a calendar event"
+                  checked={calendarAssignments}
+                  onChange={() => handleCalendarAssignToggle(!calendarAssignments)}
+                  divided
+                />
 
-                {/* Dev Alerts — dev users only */}
                 {isDevRole && (
-                  <div
-                    onClick={() => handleDevAlertToggle(!devAlerts)}
-                    className="flex items-center gap-3 px-4 py-3.5 border-t border-tertiary/10 cursor-pointer transition-all active:scale-95 hover:bg-themeblue2/5"
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleDevAlertToggle(!devAlerts); } }}
-                  >
-                    <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${devAlerts ? 'bg-themeblue2/15' : 'bg-tertiary/10'}`}>
-                      <Code size={18} className={devAlerts ? 'text-themeblue2' : 'text-tertiary'} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className={`text-sm font-medium ${devAlerts ? 'text-primary' : 'text-tertiary'}`}>Dev Alerts</p>
-                      <p className="text-[9pt] text-tertiary mt-0.5">Account requests and feedback</p>
-                    </div>
-                    <ToggleSwitch checked={devAlerts} />
-                  </div>
+                  <SettingsToggleRow
+                    icon={Code}
+                    label="Dev Alerts"
+                    subtitle="Account requests and feedback"
+                    checked={devAlerts}
+                    onChange={() => handleDevAlertToggle(!devAlerts)}
+                    divided
+                  />
                 )}
               </>
             )}

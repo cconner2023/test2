@@ -6,13 +6,34 @@
 //
 //   - hpi: YES → positive history statement, NO → pertinent negative.
 //   - pe:  YES → abnormal finding (abnormalKey), NO → normal finding.
-//   - plan: already structured via decisionMaking (ancillaryFind/medFind/specLim).
+//   - plan: structured via decisionMaking (ancillaryFind/medFind/planOrders) plus
+//     the disposition itself (CAT I referral, disposition planInstructions).
+//   - assessment: answer-level noteResult, for cards that record a test result.
 
-import type { AlgorithmOptions, decisionMakingType } from '../Types/AlgorithmTypes';
+import type { AlgorithmOptions, decisionMakingType, dispositionType } from '../Types/AlgorithmTypes';
 import type { CardState } from '../Hooks/useAlgorithm';
 import type { PEItemState } from '../Types/PETypes';
 import { MASTER_BLOCKS } from '../Data/PhysicalExamData';
+import { PLAN_ORDER_LABELS } from '../Data/User';
 import { findTriggeringDecisionMaking } from './NoteFormatter';
+
+/** CAT I is "provider now" — the referral is part of the disposition, not the tree. */
+const CAT_I_REFERRAL_TAG = 'Medical Officer';
+
+/** Plan blocks an order can land in, in the order the note prints them. */
+type OrderBlock = 'referral' | 'meds' | 'radiology' | 'lab' | 'followUp';
+const ORDER_BLOCKS: OrderBlock[] = ['referral', 'meds', 'radiology', 'lab', 'followUp'];
+
+/** ancillaryFind is already a structured order — each type has a Plan home.
+ *  'protocol' has none on purpose: it names a procedure (ear irrigation, Ottawa
+ *  rules, EKG) that belongs in the decision-making dump. What the medic actually
+ *  did is the disposition's planInstructions, in note wording. */
+const ANCILLARY_TO_BLOCK: Record<string, OrderBlock> = {
+    lab: 'lab',
+    rad: 'radiology',
+    refer: 'referral',
+    med: 'meds',
+};
 
 export interface AlgorithmNoteRouting {
     /** Composed HPI narrative ("Reports … . Denies … ."). Empty when no hpi tags hit. */
@@ -21,9 +42,11 @@ export interface AlgorithmNoteRouting {
     peItems: Record<string, PEItemState>;
     /** Block keys touched by PE tags — union into the active template block set. */
     peBlockKeys: string[];
-    /** Composed PLAN block text (Medications / Instructions) from the active
-     *  disposition's decision-making. Empty when none. Parsed by Plan initialText. */
+    /** Composed PLAN block text (orders + Instructions) from the active disposition
+     *  and its decision-making. Empty when none. Parsed by Plan initialText. */
     planText: string;
+    /** Result statements from answered test-result cards, for the ASSESSMENT. */
+    assessmentText: string;
 }
 
 /** Reverse index: PE finding key → its master block key (built once). */
@@ -41,31 +64,61 @@ function clause(lead: string, items: string[]): string {
     return `${lead} ${items.join(', ')}.`;
 }
 
-/** De-dupe preserving first-seen order. */
+/** De-dupe preserving first-seen order. Case-insensitive: the same instruction
+ *  reaches the plan from a protocol and a disposition with different casing. */
 function uniq(items: string[]): string[] {
-    return [...new Set(items.filter(Boolean))];
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const item of items) {
+        const norm = item?.trim().toLowerCase();
+        if (!norm || seen.has(norm)) continue;
+        seen.add(norm);
+        out.push(item.trim());
+    }
+    return out;
 }
 
 /**
- * Compose a Plan-block text (Medications / Instructions) from the active
- * disposition's decision-making items. Walks into assocMcp (the minor-care
- * protocol). Format matches what Plan.parseInitialText expects ("Label: a; b").
+ * Compose a Plan-block text from the active disposition and its decision-making
+ * items. Walks into assocMcp (the minor-care protocol). Format matches what
+ * Plan.parseInitialText expects ("Label: a; b").
  */
-function composePlan(items: decisionMakingType[]): string {
-    const meds: string[] = [];
+function composePlan(items: decisionMakingType[], disposition: dispositionType): string {
+    const orders: Record<OrderBlock, string[]> = {
+        referral: [], meds: [], radiology: [], lab: [], followUp: [],
+    };
     const instructions: string[] = [];
 
+    if (disposition.type === 'CAT I') orders.referral.push(CAT_I_REFERRAL_TAG);
+    if (disposition.planInstructions) instructions.push(...disposition.planInstructions);
+    for (const block of ORDER_BLOCKS) {
+        const values = block === 'meds' ? undefined : disposition.planOrders?.[block];
+        if (values) orders[block].push(...values);
+    }
+
     const collect = (dm: decisionMakingType) => {
-        if (dm.medFind) for (const m of dm.medFind) if (m?.text) meds.push(m.text);
+        if (dm.medFind) for (const m of dm.medFind) if (m?.text) orders.meds.push(m.text);
+        for (const find of dm.ancillaryFind ?? []) {
+            const block = find.type ? ANCILLARY_TO_BLOCK[find.type] : undefined;
+            if (block && find.modifier) orders[block].push(find.modifier);
+        }
+        if (dm.planOrders) {
+            for (const block of ORDER_BLOCKS) {
+                const values = block === 'meds' ? undefined : dm.planOrders[block];
+                if (values) orders[block].push(...values);
+            }
+        }
         if (dm.planInstructions) instructions.push(...dm.planInstructions);
         if (dm.assocMcp) collect(dm.assocMcp);
     };
     items.forEach(collect);
 
     const lines: string[] = [];
-    const medList = uniq(meds);
+    for (const block of ORDER_BLOCKS) {
+        const list = uniq(orders[block]);
+        if (list.length > 0) lines.push(`${PLAN_ORDER_LABELS[block]}: ${list.join('; ')}`);
+    }
     const instrList = uniq(instructions);
-    if (medList.length > 0) lines.push(`Medications: ${medList.join('; ')}`);
     if (instrList.length > 0) lines.push(`Instructions: ${instrList.join('; ')}`);
     return lines.join('\n');
 }
@@ -78,11 +131,14 @@ export function composeAlgorithmNoteRouting(
     algorithmOptions: AlgorithmOptions[],
     cardStates: CardState[],
     chiefComplaint?: string,
-    dispositionType?: string,
-    dispositionText?: string,
+    disposition?: dispositionType,
 ): AlgorithmNoteRouting {
     const hpiPositives: string[] = [];
     const hpiNegatives: string[] = [];
+    // Phrases that read with the complaint rather than as a separate report.
+    const leadPhrases: string[] = [];
+    let ccDuration = '';
+    const results: string[] = [];
 
     // Accumulate PE selections per block before materializing item state.
     const peByBlock: Record<string, { normals: Set<string>; abnormals: Set<string> }> = {};
@@ -93,7 +149,10 @@ export function composeAlgorithmNoteRouting(
 
     algorithmOptions.forEach((card, index) => {
         const state = cardStates[index];
-        if (!state || !state.isVisible || !card.questionOptions) return;
+        if (!state || !state.isVisible) return;
+
+        if (state.answer?.noteResult) results.push(state.answer.noteResult);
+        if (!card.questionOptions) return;
 
         card.questionOptions.forEach((option, optionIndex) => {
             if (!option.noteTag) return;
@@ -106,10 +165,19 @@ export function composeAlgorithmNoteRouting(
 
             for (const tag of tags) {
                 if (tag.target === 'hpi') {
-                    const phrase = (tag.label ?? text)?.trim().toLowerCase();
-                    if (!phrase) continue;
+                    const base = (tag.label ?? text)?.trim().toLowerCase();
                     const positive = tag.invert ? !isYes : isYes;
-                    (positive ? hpiPositives : hpiNegatives).push(phrase);
+
+                    // A bare duration qualifies the complaint itself — "Presents with
+                    // sore throat > 10 days". As a pertinent negative it says nothing.
+                    if (tag.duration && !tag.label) {
+                        if (positive) ccDuration = tag.duration;
+                        continue;
+                    }
+                    if (!base) continue;
+                    const phrase = tag.duration ? `${base} ${tag.duration}` : base;
+                    if (positive && tag.lead) leadPhrases.push(phrase);
+                    else (positive ? hpiPositives : hpiNegatives).push(phrase);
                     continue;
                 }
 
@@ -129,11 +197,17 @@ export function composeAlgorithmNoteRouting(
     // Only compose when the algorithm is actually tagged — keeps untagged trees
     // unchanged (incremental per-algorithm rollout).
     const hasTags = hpiPositives.length > 0 || hpiNegatives.length > 0
+        || leadPhrases.length > 0 || !!ccDuration
         || Object.keys(peByBlock).length > 0;
     const cc = chiefComplaint?.trim();
+    const lead = cc
+        ? `Presents with ${[cc.toLowerCase(), ccDuration].filter(Boolean).join(' ')}`
+            + (leadPhrases.length > 0 ? ` and ${leadPhrases.join(' and ')}` : '') + '.'
+        : '';
     const hpiText = !hasTags ? '' : [
-        cc ? `Presents with ${cc.toLowerCase()}.` : '',
-        clause('Reports', hpiPositives),
+        lead,
+        // Without a chief complaint there is no lead to hang them on.
+        clause('Reports', cc ? hpiPositives : [...leadPhrases, ...hpiPositives]),
         clause('Denies', hpiNegatives),
     ].filter(Boolean).join(' ');
 
@@ -149,9 +223,18 @@ export function composeAlgorithmNoteRouting(
         };
     }
 
-    const planText = (dispositionType && dispositionText)
-        ? composePlan(findTriggeringDecisionMaking(algorithmOptions, cardStates, dispositionType, dispositionText))
+    const planText = (disposition?.type && disposition.text)
+        ? composePlan(
+            findTriggeringDecisionMaking(algorithmOptions, cardStates, disposition.type, disposition.text),
+            disposition,
+        )
         : '';
 
-    return { hpiText, peItems, peBlockKeys: Object.keys(peByBlock), planText };
+    return {
+        hpiText,
+        peItems,
+        peBlockKeys: Object.keys(peByBlock),
+        planText,
+        assessmentText: uniq(results).join(' '),
+    };
 }

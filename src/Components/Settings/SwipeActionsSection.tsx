@@ -1,6 +1,6 @@
 import { Reply, Forward, Ban, MoreHorizontal, Trash2 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
-import { Section } from '@/Components/primitives/Section'
+import { Section, SectionCard } from '@/Components/primitives/Section'
 import { OverlayActionMenu } from '@/Components/primitives/OverlayActionMenu'
 import type { ContextMenuItem } from '@/Components/primitives/ContextMenu'
 import { useUserProfile } from '../../Hooks/useUserProfile'
@@ -105,7 +105,7 @@ function DirectionRow({ dir, label, side, swipe, onSelect }: DirectionRowProps) 
     }))
 
   return (
-    <div className="relative rounded-2xl bg-themewhite2 p-3">
+    <SectionCard className="relative p-3">
       <div className="mb-2.5 min-w-0">
         <p className="text-sm font-medium text-primary">{label}</p>
         <p className="text-[9pt] text-tertiary">{d.label}</p>
@@ -113,7 +113,7 @@ function DirectionRow({ dir, label, side, swipe, onSelect }: DirectionRowProps) 
       <ExampleRow binding={current} side={side} />
 
       <OverlayActionMenu items={items} />
-    </div>
+    </SectionCard>
   )
 }
 

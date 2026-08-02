@@ -3,6 +3,7 @@ import { Plus, Pencil, Trash2, Check, X } from 'lucide-react';
 import { useUserProfile } from '../../Hooks/useUserProfile';
 import { MASTER_BLOCKS_TOP_LEVEL, MSK_CHILD_KEYS, MASTER_BLOCK_LIBRARY } from '../../Data/PhysicalExamData';
 import type { CustomExamTemplate } from '../../Data/User';
+import { ListGroupLabel, PageSectionHeader } from '@/Components/primitives/Section';
 
 export const PhysicalExamPanel = () => {
     const { profile, updateProfile, syncProfileField } = useUserProfile();
@@ -75,12 +76,13 @@ export const PhysicalExamPanel = () => {
 
                 {/* Template list */}
                 <section className="space-y-3">
-                    <div className="flex items-center gap-2">
-                        <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Templates</p>
+                    <PageSectionHeader trailing={
                         <span className="text-[9pt] px-1.5 py-0.5 rounded-full bg-tertiary/10 text-tertiary font-medium">
                             {templates.length}
                         </span>
-                    </div>
+                    }>
+                        Templates
+                    </PageSectionHeader>
 
                     {/* Inline editor */}
                     {editingId && (
@@ -97,7 +99,7 @@ export const PhysicalExamPanel = () => {
                             </div>
 
                             <div className="px-4 py-3.5">
-                                <p className="text-[9pt] text-tertiary uppercase tracking-wider mb-1.5">Exam Blocks</p>
+                                <ListGroupLabel inset={false}>Exam Blocks</ListGroupLabel>
                                 <div className="flex flex-wrap gap-1.5">
                                     {MASTER_BLOCKS_TOP_LEVEL.map(block => {
                                         const selected = editBlockKeys.includes(block.key);

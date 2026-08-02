@@ -33,8 +33,10 @@ import { ImportResultPopover } from './Components/ImportResultPopover'
 import { useProfileAvatar } from './Hooks/useProfileAvatar'
 import { useProfileRealtime } from './Hooks/useProfileRealtime'
 import { useAuth } from './Hooks/useAuth'
-import { useAuthStore } from './stores/useAuthStore'
+import { useAuthStore, loadLocalSessionSync } from './stores/useAuthStore'
 import { supabase } from './lib/supabase'
+import { holdLinkExchange, resolveForeignLink, releaseLinkGate } from './lib/authLinkGate'
+import { ForeignLinkSwitchScreen } from './Components/ForeignLinkSwitchScreen'
 import { LockGate } from './Components/LockGate'
 import { ErrorBoundary } from './Components/ErrorBoundary'
 import { MessagesProvider, useMessagesContext } from './Hooks/MessagesContext'
@@ -76,17 +78,46 @@ const _initialViewParam = (() => {
 
 // Auth-email landing: the password-reset / account-approval email links here with
 // a GoTrue token_hash in the query (send-auth-email emails our own branded link,
-// not the supabase.co verify URL). Exchange it once at load — verifyOtp fires
-// PASSWORD_RECOVERY (recovery) or SIGNED_IN (magiclink), which useAuthStore already
-// handles (→ PasswordResetOverlay). detectSessionInUrl does not cover token_hash.
-void (() => {
+// not the supabase.co verify URL). detectSessionInUrl does not cover token_hash,
+// so the exchange is ours — which is what makes it gateable.
+//
+// The store accepts any incoming user without comparing it to localSession, so a
+// link for a DIFFERENT account would run handleSignedIn against the incumbent's
+// IDB. Identity is only knowable once verifyOtp returns, and the auth event fires
+// during that await, so the gate goes up first and comes down once the account is
+// known. A link for the incumbent's own account is released straight through: it
+// is kept out of the app by the lock overlays, not by this gate.
+void (async () => {
   const params = new URLSearchParams(window.location.search)
   const tokenHash = params.get('token_hash')
   const type = params.get('type')
   if (!tokenHash || (type !== 'recovery' && type !== 'magiclink')) return
   // Strip the one-time token from the address bar/history before render.
   window.history.replaceState({}, '', window.location.pathname)
-  void supabase.auth.verifyOtp({ token_hash: tokenHash, type })
+
+  const incumbent = loadLocalSessionSync()
+  if (!incumbent) {
+    // Nothing on this browser to protect or confuse.
+    void supabase.auth.verifyOtp({ token_hash: tokenHash, type })
+    return
+  }
+
+  const { data: prior } = await supabase.auth.getSession()
+  holdLinkExchange(
+    { userId: incumbent.userId, email: incumbent.email },
+    prior.session
+      ? { access_token: prior.session.access_token, refresh_token: prior.session.refresh_token }
+      : null,
+  )
+  const { data, error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type })
+  const incoming = data?.user
+  if (error || !incoming || incoming.id === incumbent.userId) {
+    // Spent/expired link, or the incumbent's own. Replaying leaves an expired
+    // link a no-op and a valid one exactly as it behaved before the gate.
+    releaseLinkGate()
+    return
+  }
+  resolveForeignLink({ userId: incoming.id, email: incoming.email ?? '', kind: type })
 })()
 
 // Post-update navigation: capture and clear the flag set before reload
@@ -936,6 +967,9 @@ function App() {
       <LockGate>
         <AppContent />
       </LockGate>
+      {/* Outside LockGate: the account this browser belongs to has to be settled
+          before any gate inside it means anything. */}
+      <ForeignLinkSwitchScreen />
     </ThemeProvider>
   )
 }

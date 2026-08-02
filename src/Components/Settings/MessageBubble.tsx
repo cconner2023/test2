@@ -12,6 +12,7 @@ import { OutsideSessionCard } from '../Messages/OutsideSessionCard'
 import { OutsideEntityCard } from '../Messages/OutsideEntityCard'
 import type { LucideIcon } from 'lucide-react'
 import { detectFirstDate } from '../../Utilities/dateDetect'
+import { formatAudioDuration } from '../../Utilities/voiceUtils'
 import { detectEncodedNote } from '../../Utilities/noteDecode'
 import { relativeShort } from '../../Utilities/conversationActivity'
 import { calendarArgsForMessage } from '../../Utilities/messageCalendar'
@@ -132,12 +133,6 @@ function useDecryptedAudio(path: string | undefined, key: string | undefined) {
 }
 
 /** Format seconds to m:ss display. */
-function formatDuration(seconds: number): string {
-  const m = Math.floor(seconds / 60)
-  const s = Math.floor(seconds % 60)
-  return `${m}:${String(s).padStart(2, '0')}`
-}
-
 const SWIPE_THRESHOLD = 80
 const SWIPE_MAX = 120
 const TRUNCATE_THRESHOLD = 280
@@ -742,7 +737,7 @@ export function MessageBubble({
           </div>
 
           <span className={`text-[9pt] tabular-nums shrink-0 ${isOwn ? 'text-white/70' : 'text-tertiary'}`}>
-            {formatDuration(isPlaying && audioRef.current ? audioRef.current.currentTime : voiceContent.duration)}
+            {formatAudioDuration(isPlaying && audioRef.current ? audioRef.current.currentTime : voiceContent.duration)}
           </span>
         </div>
       )
@@ -853,9 +848,9 @@ export function MessageBubble({
               )}
               {renderContent()}
               <div className={`flex items-center gap-1 mt-0.5 ${isImage && !isVoice ? 'px-1.5' : ''} ${isOwn ? 'text-white/60' : 'text-tertiary'}`}>
-                <p className="text-[9pt] md:text-[9pt]">{formatTime(message.createdAt)}</p>
+                <p className="text-[9pt]">{formatTime(message.createdAt)}</p>
                 {isOwn && message.messageType === 'request' && (
-                  <span className="text-[9pt] md:text-[9pt] italic">Pending</span>
+                  <span className="text-[9pt] italic">Pending</span>
                 )}
                 {isOwn && message.messageType !== 'request' && message.status === 'sending' && (
                   <Clock size={10} className="opacity-60" />

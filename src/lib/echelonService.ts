@@ -13,14 +13,18 @@
 
 import { supabase } from './supabase'
 import { fetchClinicCertifications } from './certificationService'
-import { fetchAuditByClinicDomain } from './auditService'
+import { loadAuditByClinicDomain } from './auditService'
 import { foldTrainingState } from './trainingFold'
 import { createLogger } from '../Utilities/Logger'
 import {
   buildTestableTaskMap,
+  buildCompetencyMatrix,
+  buildIctlCategoryRows,
   computeTeamMetrics,
   rollupEncounterReads,
+  rollupTrainingActivity,
 } from '../Components/Settings/Supervisor/supervisorHelpers'
+import { countAlgorithmRuns } from '../Utilities/algorithmStp'
 import { getExpirationStatus } from '../Components/Certifications/certHelpers'
 import type { ClinicMedic } from '../Types/SupervisorTestTypes'
 import type { EchelonReadinessSummary } from './echelonSummary'
@@ -103,12 +107,18 @@ export async function computeReadinessSummary(
     const userIds = medics.map((m) => m.id)
     const [certs, trainingEvents] = await Promise.all([
       fetchClinicCertifications(userIds),
-      fetchAuditByClinicDomain(clinicId, 'training'),
+      loadAuditByClinicDomain(clinicId, 'training'),
     ])
     // Fold once for readiness; count encounters from the SAME raw events (the
     // fold collapses repeat reads, so it can't give occurrence totals).
     const folded = foldTrainingState(trainingEvents)
     const encounters_today = rollupEncounterReads(trainingEvents).totalToday
+    // Per-soldier algorithm run counts off the same raw events, for the runs
+    // component of algorithm completion. Counted once, then sliced per medic.
+    const runCountsByUser = new Map<string, Map<string, number>>()
+    for (const med of medics) runCountsByUser.set(med.id, countAlgorithmRuns(trainingEvents, med.id))
+    const runCountsFor = (userId: string) =>
+      runCountsByUser.get(userId) ?? new Map<string, number>()
 
     const testableTaskMap = buildTestableTaskMap()
     const overdueItems = (userId: string) => {
@@ -121,8 +131,36 @@ export async function computeReadinessSummary(
       return { expiredCerts, failedTests }
     }
 
-    const m = computeTeamMetrics(medics, folded, certs, testableTaskMap, overdueItems)
+    // Folded ONCE and handed to both consumers. A matrix row is per-soldier and
+    // scope-independent, so the cluster rollup, the category rows and each
+    // soldier's areas are three readings of one computation — they cannot
+    // disagree with each other or with the child's own Training pane.
+    const matrix = buildCompetencyMatrix(medics, folded, testableTaskMap, runCountsFor)
+    const m = computeTeamMetrics(medics, folded, certs, testableTaskMap, overdueItems, runCountsFor, matrix)
     const coverage_gap_count = m.subjectAreaGaps.filter((g) => g.coveragePercent < 100).length
+
+    // The category roster the parent will render. `tasks` is the per-soldier
+    // denominator; buildIctlCategoryRows' total is that times the headcount.
+    const categories = buildIctlCategoryRows(matrix, testableTaskMap).map((r) => ({
+      area: r.areaName,
+      tasks: testableTaskMap.get(r.areaName)?.length ?? 0,
+      passed: r.passed,
+    }))
+
+    // Cluster-wide, unattributed — the per-soldier split is not published, so a
+    // child soldier's pane shows their categories and no graph.
+    const activity = rollupTrainingActivity(trainingEvents, null).map((w) => ({
+      start: w.start,
+      evaluated: w.evaluated,
+      ran: w.ran,
+    }))
+
+    const areasBySoldier = new Map(
+      matrix.map((sc) => [
+        sc.soldierId,
+        sc.areas.map((a) => ({ area: a.areaName, passed: a.passed })),
+      ]),
+    )
 
     return {
       source_clinic_id: clinicId,
@@ -132,6 +170,18 @@ export async function computeReadinessSummary(
       coverage_gap_count,
       medic_count: m.totalMedics,
       encounters_today,
+      // Attributed per-soldier rows — see the ⚠️ note on EchelonReadinessSummary.
+      // Straight off the same computeTeamMetrics run the rollup came from, so a
+      // child row and the child's own rail can never disagree.
+      soldiers: m.soldierReadiness.map((s) => ({
+        user_id: s.soldierId,
+        readiness_pct: s.readinessPercent,
+        cert_pct: s.compliancePercent,
+        overdue_count: s.overdueCount,
+        areas: areasBySoldier.get(s.soldierId),
+      })),
+      categories,
+      activity,
       computed_at: new Date().toISOString(),
     }
   } catch (err) {

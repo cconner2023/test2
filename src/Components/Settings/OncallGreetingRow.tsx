@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Voicemail, Mic, Play, Pause, Trash2, X, Check } from 'lucide-react'
 import { useVoiceRecorder } from '../../Hooks/useVoiceRecorder'
+import { formatAudioDuration } from '../../Utilities/voiceUtils'
 import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
 import { bytesToBase64, base64ToBytes } from '../../lib/base64Utils'
 import {
@@ -12,10 +13,6 @@ import {
 // Announcements are short — auto-stop keeps the plaintext blob (carried inline on
 // every request_oncall) modest, well under the server's length cap.
 const MAX_GREETING_S = 45
-
-function formatDur(seconds: number): string {
-  return `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`
-}
 
 interface Props {
   clinicId: string
@@ -119,7 +116,7 @@ export function OncallGreetingRow({ clinicId, initialDur, onChanged }: Props) {
           </button>
           <div className="flex-1 flex items-center gap-2.5 px-3.5 py-2 rounded-full border border-themeredred/20 bg-themeredred/5">
             <div className="w-2 h-2 rounded-full bg-themeredred animate-pulse shrink-0" />
-            <span className="text-sm font-medium text-themeredred tabular-nums">{formatDur(duration)}</span>
+            <span className="text-sm font-medium text-themeredred tabular-nums">{formatAudioDuration(duration)}</span>
             <div className="flex-1 flex items-center gap-px h-4">
               {Array.from({ length: 24 }, (_, i) => (
                 <div
@@ -149,7 +146,7 @@ export function OncallGreetingRow({ clinicId, initialDur, onChanged }: Props) {
           </button>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-primary">Call greeting</p>
-            <p className="text-[9pt] text-tertiary mt-0.5">{formatDur(dur)} · plays when no one answers</p>
+            <p className="text-[9pt] text-tertiary mt-0.5">{formatAudioDuration(dur)} · plays when no one answers</p>
           </div>
           <button
             onClick={startRecording}

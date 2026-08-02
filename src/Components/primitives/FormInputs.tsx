@@ -67,6 +67,8 @@ export const TextInput = ({
   inputMode,
   currentValue,
   hint,
+  autoComplete,
+  name,
   bare = false,
   inputRef,
   onKeyDown,
@@ -87,6 +89,10 @@ export const TextInput = ({
   inputMode?: 'none' | 'text' | 'tel' | 'url' | 'email' | 'numeric' | 'decimal' | 'search'
   currentValue?: string | null
   hint?: string | null
+  /** Password managers and iOS Safari autofill only engage on a recognised token —
+   *  pass `username` / `email` / `new-password` etc. on any credential field. */
+  autoComplete?: string
+  name?: string
   /** Render just the input (no self-row label/border) for embedding in a custom layout (e.g. an inline-add row with trailing buttons). */
   bare?: boolean
   inputRef?: React.Ref<HTMLInputElement>
@@ -107,6 +113,8 @@ export const TextInput = ({
       onBlur={onBlur}
       onKeyDown={onKeyDown}
       autoFocus={autoFocus}
+      autoComplete={autoComplete}
+      name={name}
       placeholder={placeholder ?? label}
       maxLength={maxLength}
       required={required}
@@ -784,6 +792,7 @@ export const PasswordInput = ({
   disabled,
   inputRef,
   hint,
+  name,
 }: {
   label?: string
   value: string
@@ -793,6 +802,7 @@ export const PasswordInput = ({
   disabled?: boolean
   inputRef?: React.RefObject<HTMLInputElement | null>
   hint?: React.ReactNode
+  name?: string
 }) => {
   const [show, setShow] = useState(false)
 
@@ -806,6 +816,7 @@ export const PasswordInput = ({
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder ?? label}
           autoComplete={autoComplete}
+          name={name}
           disabled={disabled}
           className="flex-1 bg-transparent text-base md:text-sm text-primary placeholder:text-tertiary focus:outline-none disabled:opacity-50"
         />

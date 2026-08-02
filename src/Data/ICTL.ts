@@ -12,15 +12,12 @@
  * "crossing" tasks that kept their number but were renamed/rescoped). The doctrinal-typo
  * "Cricothyriodotomy" in the source PDF is corrected to "Cricothyroidotomy" here.
  *
- * ⚠️ 081-000-0125: the ICTL reassigns this number to "Treat Massive Hemorrhage". The STP roster
- * still carries 081-000-0125 = "Maintain a Nasogastric Tube" (legacy, kept testable until the
- * CRON cutover phases out the old numbering). Same number, two titles across the two lists — by
- * design during the transition. As of the Massive Hemorrhage packet landing, BOTH contents now
- * exist for this number: ICTLContent.ts holds Massive Hemorrhage, TrainingData.ts still holds the
- * NG-tube steps. Browse surfaces are unambiguous (IctlPanel reads ICTLContent, the STP surfaces
- * read TrainingData), but evaluation still resolves through getTaskData alone, so evaluating
- * 081-000-0125 pulls NG-tube steps. Whenever ICTL evaluation is wired up, the precedence rule
- * (ICTL packet wins over the legacy STP entry) has to be made explicit at that fork.
+ * 081-000-0125 and the sixteen other shared numbers: the ICTL reassigns this one to "Treat
+ * Massive Hemorrhage" while the STP roster's entry is "Maintain a Nasogastric Tube". RESOLVED
+ * 2026-07-29/31 — the STP-side row of every collision now carries a `(b)` suffix in both
+ * TrainingTaskList and TrainingData, so a bare number belongs to the ICTL alone; historical
+ * events are re-pointed at fold time by aliasTrainingItemId (see trainingItemAlias.ts). Evaluation
+ * resolves through getEvaluableTaskData, where the ICTL packet wins over the legacy STP entry.
  */
 
 import type { stp68wTrainingTypes } from './TrainingTaskList'

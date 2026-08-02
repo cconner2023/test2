@@ -23,9 +23,10 @@ import {
 } from '../../lib/eventIntakeService'
 import { getWarmCredential, setWarmCredential } from '../../lib/messagingSettingsWarm'
 import { enableOncall, disableOncall, enableOutsideMessaging, disableOutsideMessaging, enableIntake, disableIntake, enableOutbound, disableOutbound } from '../../lib/oncallService'
-import { ToggleSwitch } from './ToggleSwitch'
+import { SettingsToggleRow } from './SettingsToggleRow'
 import { OncallGreetingRow } from './OncallGreetingRow'
 import { createLogger } from '../../Utilities/Logger'
+import { PageSectionHeader, SectionCard } from '@/Components/primitives/Section'
 
 const logger = createLogger('IntakeMintSection')
 
@@ -327,11 +328,7 @@ export function IntakeMintSection({ clinicId, oncallCount = 0, onOncallEnabledCh
 
   return (
     <section>
-      <div className="pb-2 flex items-center gap-2">
-        <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">
-          Outside contact
-        </p>
-      </div>
+      <PageSectionHeader>Outside contact</PageSectionHeader>
 
       {/* ── Empty state ─────────────────────────────────────────── */}
       {!credential && (
@@ -355,10 +352,7 @@ export function IntakeMintSection({ clinicId, oncallCount = 0, onOncallEnabledCh
       {/* ── Live card (mirrors cluster card shape above) ────────── */}
       {credential && (
         <div className="relative">
-          <div
-            ref={cardRef}
-            className="rounded-2xl bg-themewhite2 overflow-hidden"
-          >
+          <SectionCard ref={cardRef}>
             <div className="px-4 py-4">
               <div className="flex items-center gap-4">
                 <div className="flex-1 min-w-0">
@@ -416,52 +410,38 @@ export function IntakeMintSection({ clinicId, oncallCount = 0, onOncallEnabledCh
             {/* GATE-2 — "Allow event requests": the scheduling-intake channel. Separate
                 from the credential's existence so a cluster can keep calls/messaging live
                 while closing event intake. */}
-            <div
-              onClick={intakeBusy ? undefined : () => void toggleIntake()}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => { if (!intakeBusy && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); void toggleIntake() } }}
-              className={`flex items-center gap-3 px-4 py-3.5 border-t border-primary/6 transition-all ${intakeBusy ? 'opacity-50' : 'cursor-pointer hover:bg-themeblue2/5 active:scale-95'}`}
-            >
-              <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${intakeEnabled ? 'bg-themeblue3/15' : 'bg-tertiary/10'}`}>
-                <CalendarPlus size={18} className={intakeEnabled ? 'text-themeblue3' : 'text-tertiary'} />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className={`text-sm font-medium ${intakeEnabled ? 'text-primary' : 'text-tertiary'}`}>Allow event requests</p>
-                <p className="text-[9pt] text-tertiary mt-0.5">
-                  {intakeEnabled
-                    ? 'Outside parties can request event coverage'
-                    : 'Outside parties cannot submit event requests'}
-                </p>
-              </div>
-              <ToggleSwitch checked={intakeEnabled} />
-            </div>
+            <SettingsToggleRow
+              icon={CalendarPlus}
+              label="Allow event requests"
+              subtitle={intakeEnabled
+                ? 'Outside parties can request event coverage'
+                : 'Outside parties cannot submit event requests'}
+              checked={intakeEnabled}
+              onChange={() => void toggleIntake()}
+              disabled={intakeBusy}
+              divided
+              activeColor="text-themeblue3"
+              activeBg="bg-themeblue3/15"
+            />
 
             {/* GATE-2 — "Allow calls": master toggle that lets outside callers
                 ring the on-call roster over the same QR/passphrase credential.
                 DEV-GATED (outsideCall beta) — intake + outside chat are GA, the
                 live-call channel stays in beta until testing completes. */}
             {outsideCallBeta && (<>
-            <div
-              onClick={oncallBusy ? undefined : () => void toggleOncall()}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => { if (!oncallBusy && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); void toggleOncall() } }}
-              className={`flex items-center gap-3 px-4 py-3.5 border-t border-primary/6 transition-all ${oncallBusy ? 'opacity-50' : 'cursor-pointer hover:bg-themeblue2/5 active:scale-95'}`}
-            >
-              <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${oncallEnabled ? 'bg-themeblue3/15' : 'bg-tertiary/10'}`}>
-                <Headset size={18} className={oncallEnabled ? 'text-themeblue3' : 'text-tertiary'} />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className={`text-sm font-medium ${oncallEnabled ? 'text-primary' : 'text-tertiary'}`}>Allow calls</p>
-                <p className="text-[9pt] text-tertiary mt-0.5">
-                  {oncallEnabled
-                    ? `${oncallCount} member${oncallCount === 1 ? '' : 's'} on-call`
-                    : 'Outside callers cannot request a live call'}
-                </p>
-              </div>
-              <ToggleSwitch checked={oncallEnabled} />
-            </div>
+            <SettingsToggleRow
+              icon={Headset}
+              label="Allow calls"
+              subtitle={oncallEnabled
+                ? `${oncallCount} member${oncallCount === 1 ? '' : 's'} on-call`
+                : 'Outside callers cannot request a live call'}
+              checked={oncallEnabled}
+              onChange={() => void toggleOncall()}
+              disabled={oncallBusy}
+              divided
+              activeColor="text-themeblue3"
+              activeBg="bg-themeblue3/15"
+            />
 
             {/* Cluster voicemail greeting — the announcement an outside caller hears when
                 their on-call call goes unanswered. Only relevant when calls are allowed.
@@ -489,51 +469,37 @@ export function IntakeMintSection({ clinicId, oncallCount = 0, onOncallEnabledCh
 
             {/* GATE-2 "allow text messaging": outside party drops a one-way sealed note to
                 the cluster over the same QR/passphrase credential. Pings on-call. */}
-            <div
-              onClick={msgBusy ? undefined : () => void toggleMessage()}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => { if (!msgBusy && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); void toggleMessage() } }}
-              className={`flex items-center gap-3 px-4 py-3.5 border-t border-primary/6 transition-all ${msgBusy ? 'opacity-50' : 'cursor-pointer hover:bg-themeblue2/5 active:scale-95'}`}
-            >
-              <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${messageEnabled ? 'bg-themeblue3/15' : 'bg-tertiary/10'}`}>
-                <MessageSquare size={18} className={messageEnabled ? 'text-themeblue3' : 'text-tertiary'} />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className={`text-sm font-medium ${messageEnabled ? 'text-primary' : 'text-tertiary'}`}>Allow text messaging</p>
-                <p className="text-[9pt] text-tertiary mt-0.5">
-                  {messageEnabled
-                    ? 'Outside senders can drop a sealed one-way note to the cluster'
-                    : 'Outside senders cannot message the cluster'}
-                </p>
-              </div>
-              <ToggleSwitch checked={messageEnabled} />
-            </div>
+            <SettingsToggleRow
+              icon={MessageSquare}
+              label="Allow text messaging"
+              subtitle={messageEnabled
+                ? 'Outside senders can drop a sealed one-way note to the cluster'
+                : 'Outside senders cannot message the cluster'}
+              checked={messageEnabled}
+              onChange={() => void toggleMessage()}
+              disabled={msgBusy}
+              divided
+              activeColor="text-themeblue3"
+              activeBg="bg-themeblue3/15"
+            />
 
             {/* OUTBOUND outside-contact — a clinic member emails a secure 1:1 invite
                 to an outside recipient (reverse of the inbound channels). Supervisor
                 controlled; set_outbound_enabled asserts supervisor-or-dev server-side. */}
-            <div
-              onClick={outboundBusy ? undefined : () => void toggleOutbound()}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => { if (!outboundBusy && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); void toggleOutbound() } }}
-              className={`flex items-center gap-3 px-4 py-3.5 border-t border-primary/6 transition-all ${outboundBusy ? 'opacity-50' : 'cursor-pointer hover:bg-themeblue2/5 active:scale-95'}`}
-            >
-              <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${outboundEnabled ? 'bg-themeblue3/15' : 'bg-tertiary/10'}`}>
-                <Send size={18} className={outboundEnabled ? 'text-themeblue3' : 'text-tertiary'} />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className={`text-sm font-medium ${outboundEnabled ? 'text-primary' : 'text-tertiary'}`}>Allow outbound contact</p>
-                <p className="text-[9pt] text-tertiary mt-0.5">
-                  {outboundEnabled
-                    ? 'Members can email a secure 1:1 invite to an outside recipient'
-                    : 'Members cannot start outbound outside contact'}
-                </p>
-              </div>
-              <ToggleSwitch checked={outboundEnabled} />
-            </div>
-          </div>
+            <SettingsToggleRow
+              icon={Send}
+              label="Allow outbound contact"
+              subtitle={outboundEnabled
+                ? 'Members can email a secure 1:1 invite to an outside recipient'
+                : 'Members cannot start outbound outside contact'}
+              checked={outboundEnabled}
+              onChange={() => void toggleOutbound()}
+              disabled={outboundBusy}
+              divided
+              activeColor="text-themeblue3"
+              activeBg="bg-themeblue3/15"
+            />
+          </SectionCard>
 
           <OverlayActionMenu
             items={[

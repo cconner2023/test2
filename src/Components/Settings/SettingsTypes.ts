@@ -30,7 +30,9 @@ export const PANEL = {
     OVERVIEW_WIDGETS: 36,
     STORAGE: 37,
     FEATURE_VOTES: 38,
-    /** About → User Guide. Opens the top-level UserGuideDrawer, not a Settings sub-panel. */
+    /** About → User Guide. Deliberately absent from PANEL_TARGET: it carries its own
+     *  action because the destination differs by platform — mobile opens the top-level
+     *  UserGuideDrawer, desktop drills into it as a Settings center panel. */
     USER_GUIDE: 40,
 } as const;
 
@@ -62,5 +64,12 @@ export const PANEL_TARGET: Partial<Record<PanelId, string>> = {
 };
 
 export type SettingsItem =
-    | { type: 'option'; icon: React.ReactNode; label: string; subtitle?: string; action: () => void; color: string; id: PanelId; disabled?: boolean; badge?: number; dot?: boolean }
+    /**
+     * `key` and `activeWhen` exist for the case where several rows share one
+     * PanelId — the Clusters section renders one row per cluster a loaned
+     * supervisor administers, and all of them open PANEL.CLINIC. `key` keeps the
+     * React keys distinct; `activeWhen` narrows the rail highlight to the row
+     * whose cluster is the one currently being administered.
+     */
+    | { type: 'option'; icon: React.ReactNode; label: string; subtitle?: string; action: () => void; color: string; id: PanelId; disabled?: boolean; badge?: number; dot?: boolean; key?: string; activeWhen?: boolean }
     | { type: 'header'; label: string };

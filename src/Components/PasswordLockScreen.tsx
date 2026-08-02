@@ -10,6 +10,7 @@ import { PasswordInput } from '@/Components/primitives/FormInputs'
 import { ErrorDisplay } from '@/Components/primitives/ErrorDisplay'
 import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
 import { FORGOT_PREFILL_KEY } from './LoginScreen'
+import { DeviceLinkQrView } from './DeviceLinkQrView'
 
 interface PasswordLockScreenProps {
   onUnlock: () => void
@@ -24,8 +25,10 @@ export const PasswordLockScreen = ({ onUnlock, email, reason = 'inactivity' }: P
   const [submitting, setSubmitting] = useState(false)
   const [isOnline, setIsOnline] = useState(navigator.onLine)
   const [showSwitch, setShowSwitch] = useState(false)
+  const [showLink, setShowLink] = useState(false)
   const [switchingUser, setSwitchingUser] = useState(false)
   const signOut = useAuthStore(s => s.signOut)
+  const isPasswordRecovery = useAuthStore(s => s.isPasswordRecovery)
 
   // Lockout state (mirrors PIN pattern: 5 failures → 30s escalating, cap 300s)
   const [failures, setFailures] = useState(0)
@@ -220,12 +223,12 @@ export const PasswordLockScreen = ({ onUnlock, email, reason = 'inactivity' }: P
   }, [password, submitting, isLockedOut, email, onUnlock, recordFailure, reason, storeUserId])
 
   const handleForgotPassword = useCallback(() => {
-    if (!isOnline) return
+    if (!isOnline || isPasswordRecovery) return
     // Don't duplicate the reset UI here — hand the email to LoginScreen and sign
-    // out so its canonical email→8-digit-PIN→recovery flow takes over.
+    // out so its canonical email→reset-link flow takes over.
     try { sessionStorage.setItem(FORGOT_PREFILL_KEY, email) } catch { /* ignore */ }
     signOut()
-  }, [email, isOnline, signOut])
+  }, [email, isOnline, isPasswordRecovery, signOut])
 
   // Full logout escape — for a different user (or the same user re-logging in
   // fresh). signOut() clears user + localSession; handleSignedOut then unmounts
@@ -329,8 +332,10 @@ export const PasswordLockScreen = ({ onUnlock, email, reason = 'inactivity' }: P
           </button>
         )}
 
-        {/* Forgot password */}
-        {isOnline && (
+        {/* Forgot password. Hidden mid-recovery: signing out there would burn the
+            single-use link the user already spent to get here, and requesting
+            another only lands back at this same lock. */}
+        {isOnline && !isPasswordRecovery && (
           <button
             onClick={handleForgotPassword}
             className="w-full mt-3 text-[10pt] text-themeblue2 hover:text-themeblue2/80 transition-colors text-center"
@@ -339,15 +344,41 @@ export const PasswordLockScreen = ({ onUnlock, email, reason = 'inactivity' }: P
           </button>
         )}
 
+        {/* Device link — the only lane back in that needs neither the password nor
+            a PIN, and it is otherwise unreachable here: LoginScreen hosts the QR
+            but only renders once localSession is gone. */}
+        {showLink ? (
+          <div className="mt-4">
+            <DeviceLinkQrView />
+            <button
+              type="button"
+              onClick={() => setShowLink(false)}
+              className="w-full mt-2 text-[10pt] text-tertiary hover:text-secondary transition-colors text-center"
+            >
+              Cancel
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setShowLink(true)}
+            className="w-full mt-3 text-[10pt] text-themeblue2 hover:text-themeblue2/80 transition-colors text-center"
+          >
+            Link this device from another device
+          </button>
+        )}
+
         {/* Change user — full sign-out back to the login screen. Always available
             (works offline) for when a different person needs to sign in here. */}
-        <button
-          type="button"
-          onClick={() => setShowSwitch(true)}
-          className="w-full mt-3 text-[10pt] text-tertiary hover:text-secondary transition-colors text-center"
-        >
-          Sign in as a different user
-        </button>
+        {!showLink && (
+          <button
+            type="button"
+            onClick={() => setShowSwitch(true)}
+            className="w-full mt-3 text-[10pt] text-tertiary hover:text-secondary transition-colors text-center"
+          >
+            Sign in as a different user
+          </button>
+        )}
 
         {/* Tip banner — only shown for inactivity/initial lock, not session-expired/vault */}
         {reason !== 'session-expired' && reason !== 'vault' && (

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Plus, ArrowRightLeft, UserCheck, Pencil, Minus, AlertTriangle, Wrench, ClipboardCheck, Eye, Trash2, Split, Merge, Undo2, type LucideIcon } from 'lucide-react'
 import { SkeletonRows } from '@/Components/primitives/Skeleton'
-import { getAuditBySubjectLocal, fetchAuditBySubject } from '../../lib/auditService'
+import { loadAuditBySubject } from '../../lib/auditService'
 import { useInvalidation } from '../../stores/useInvalidationStore'
 import { usePropertyStore } from '../../stores/usePropertyStore'
 import type { AuditEvent } from '../../lib/auditTypes'
@@ -108,16 +108,11 @@ export function ItemTimeline({ subjectId, clinicId, locations, holders, title = 
     let cancelled = false
     setLoading(true)
     ;(async () => {
-      const [local, server] = await Promise.all([
-        getAuditBySubjectLocal(subjectId).catch((err) => {
-          logger.warn('local item timeline read failed:', err); return [] as AuditEvent[]
-        }),
-        fetchAuditBySubject(subjectId, { clinicId }).catch(() => [] as AuditEvent[]),
-      ])
+      const loaded = await loadAuditBySubject(subjectId, clinicId ?? '').catch((err) => {
+        logger.warn('item timeline read failed:', err); return [] as AuditEvent[]
+      })
       if (cancelled) return
-      const byId = new Map<string, AuditEvent>()
-      for (const e of [...local, ...server]) byId.set(e.id, e)
-      const merged = [...byId.values()].sort((a, b) => {
+      const merged = loaded.sort((a, b) => {
         if (a.seq != null && b.seq != null) return b.seq - a.seq
         return new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime()
       })

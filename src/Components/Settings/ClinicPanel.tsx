@@ -9,7 +9,6 @@ import {
   Loader2,
   Copy,
   Share2,
-  ArrowLeftRight,
   MapPin,
   X,
 } from 'lucide-react'
@@ -58,6 +57,8 @@ import { ClinicIdentityEditPopover } from '../ClinicAdmin/ClinicIdentityEditPopo
 import { MemberEditPopover } from '../ClinicAdmin/MemberEditPopover'
 import { AddMemberPopover } from '../ClinicAdmin/AddMemberPopover'
 import { SwipeToDeleteRow } from '@/Components/primitives/SwipeToDeleteRow'
+import { PageSectionHeader, SectionCard } from '@/Components/primitives/Section'
+import { FieldLabel } from '@/Components/primitives/FieldCell'
 
 /** Roster bucket that isn't a sub-unit — tenure, not structure. */
 const LOANED_IN_GROUP = '__loaned_in__'
@@ -96,7 +97,7 @@ export function ClinicPanel({
   onOpenChild,
   activeChildId,
 }: ClinicPanelProps) {
-  const { user, clinicId: assignedClinicId, surrogateClinicIds, supervisingClinicId, profile, isSupervisorRole, setSupervisingClinic } = useAuth()
+  const { user, clinicId: assignedClinicId, surrogateClinicIds, supervisingClinicId, profile, isSupervisorRole } = useAuth()
   // The supervisor toggle picks which clinic this panel administers. For
   // single-clinic users it stays equal to the assigned clinic. All clinic-
   // scoped reads, writes, and labels below resolve through `clinicId` and
@@ -123,30 +124,10 @@ export function ClinicPanel({
   // QR canvas
   const [copied, setCopied] = useState(false)
 
-  // Cluster-context switcher (loaned supervisors). With exactly one alternative
-  // cluster, the pill button flips supervisingClinicId directly. With more, it
-  // opens a list. The pill is the only entry point — no global affordance.
-  const clusterSwitchBtnRef = useRef<HTMLDivElement>(null)
-  const [clusterSwitchAnchor, setClusterSwitchAnchor] = useState<DOMRect | null>(null)
-  const clusterOptions = useMemo(() => {
-    if (!isSupervisorRole || !assignedClinicId) return [] as { id: string; name: string }[]
-    const loans = profile.surrogateClinics ?? []
-    return [
-      { id: assignedClinicId, name: profile.clinicName ?? 'Assigned' },
-      ...surrogateClinicIds.map((id) => ({
-        id,
-        name: loans.find((c) => c.id === id)?.name ?? 'Surrogate',
-      })),
-    ]
-  }, [isSupervisorRole, assignedClinicId, surrogateClinicIds, profile.clinicName, profile.surrogateClinics])
-  const handleClusterSwitch = useCallback(() => {
-    if (clusterOptions.length === 2) {
-      const next = clusterOptions.find((c) => c.id !== clinicId) ?? clusterOptions[0]
-      setSupervisingClinic(next.id)
-      return
-    }
-    setClusterSwitchAnchor(clusterSwitchBtnRef.current?.getBoundingClientRect() ?? null)
-  }, [clusterOptions, clinicId, setSupervisingClinic])
+  // No cluster switcher lives here. A supervisor holding loans gets one Settings
+  // menu row per cluster, and picking a row sets supervisingClinicId before this
+  // panel opens — the menu is the switch, so a second one inside the panel would
+  // be a competing affordance over the same pointer.
 
   // Clinic identity edit popover (supervisor: tap card to open)
   const clinicCardRef = useRef<HTMLDivElement>(null)
@@ -804,10 +785,8 @@ export function ClinicPanel({
 
         {/* ── Clinic ───────────────────────────────────────────────── */}
         <section>
-          <div className="pb-2 flex items-center gap-2">
-            <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Cluster</p>
-          </div>
-          <div className="relative"><div ref={clinicCardRef} className="rounded-2xl bg-themewhite2 overflow-hidden">
+          <PageSectionHeader>Cluster</PageSectionHeader>
+          <div className="relative"><SectionCard ref={clinicCardRef}>
             <button
               type="button"
               disabled={!isSupervisorRole}
@@ -848,50 +827,33 @@ export function ClinicPanel({
                 )}
               </div>
             </button>
-            </div>
-            {/* Bottom-right pill — cluster-context switcher (loaned supervisors)
-                plus Copy + Share QR (when an invite code is active). All render
-                together as a single pill so the QR preview at top-right stays
-                unobstructed. */}
-            {isSupervisorRole && (surrogateClinicIds.length > 0 || activeCode) && (
+            </SectionCard>
+            {/* Bottom-right pill — Copy + Share QR (when an invite code is
+                active). Rides the card's bottom edge so the QR preview at
+                top-right stays unobstructed. */}
+            {isSupervisorRole && activeCode && (
               <OverlayActionMenu
-                ref={clusterSwitchBtnRef}
                 shadow="sm"
                 items={[
-                  ...(surrogateClinicIds.length > 0
-                    ? [{
-                        key: 'switch',
-                        label:
-                          clusterOptions.length === 2
-                            ? `Switch to ${clusterOptions.find((c) => c.id !== clinicId)?.name ?? 'other cluster'}`
-                            : 'Switch cluster',
-                        icon: ArrowLeftRight,
-                        onAction: handleClusterSwitch,
-                      } as ContextMenuItem]
-                    : []),
-                  ...(activeCode
-                    ? [
-                        {
-                          key: 'copy',
-                          label: 'Copy invite code',
-                          // Raw button: flips to themegreen tint on success.
-                          render: () => (
-                            <button
-                              type="button"
-                              onClick={handleCopy}
-                              aria-label="Copy invite code"
-                              title="Copy invite code"
-                              className={`w-9 h-9 rounded-full flex items-center justify-center transition-all active:scale-95 ${
-                                copied ? 'bg-themegreen/8 text-themegreen' : 'bg-themeblue2/8 text-primary'
-                              }`}
-                            >
-                              {copied ? <Check size={16} /> : <Copy size={16} />}
-                            </button>
-                          ),
-                        } as ContextMenuItem,
-                        { key: 'share', label: 'Share QR image', icon: Share2, onAction: handleShareInviteImage } as ContextMenuItem,
-                      ]
-                    : []),
+                  {
+                    key: 'copy',
+                    label: 'Copy invite code',
+                    // Raw button: flips to themegreen tint on success.
+                    render: () => (
+                      <button
+                        type="button"
+                        onClick={handleCopy}
+                        aria-label="Copy invite code"
+                        title="Copy invite code"
+                        className={`w-9 h-9 rounded-full flex items-center justify-center transition-all active:scale-95 ${
+                          copied ? 'bg-themegreen/8 text-themegreen' : 'bg-themeblue2/8 text-primary'
+                        }`}
+                      >
+                        {copied ? <Check size={16} /> : <Copy size={16} />}
+                      </button>
+                    ),
+                  } as ContextMenuItem,
+                  { key: 'share', label: 'Share QR image', icon: Share2, onAction: handleShareInviteImage } as ContextMenuItem,
                 ]}
               />
             )}
@@ -911,10 +873,9 @@ export function ClinicPanel({
 
         {/* ── Associated ─────────────────────────────────────────── */}
         <section>
-          <div className="pb-2 flex items-center gap-2">
-            <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Associated</p>
-            {showColocatedBanner && <span className="w-1.5 h-1.5 rounded-full bg-themered" />}
-          </div>
+          <PageSectionHeader trailing={showColocatedBanner ? <span className="w-1.5 h-1.5 rounded-full bg-themered" /> : undefined}>
+            Associated
+          </PageSectionHeader>
           {showColocatedBanner && (
             <div className="mb-2 rounded-xl bg-themeblue2/8 border border-themeblue2/20 px-3.5 py-3">
               <div className="flex items-start gap-2.5">
@@ -1053,36 +1014,6 @@ export function ClinicPanel({
 
       </div>
 
-      {/* Cluster switcher overlay — only for supervisors with >1 alternative. */}
-      <PreviewOverlay
-        isOpen={!!clusterSwitchAnchor}
-        onClose={() => setClusterSwitchAnchor(null)}
-        anchorRect={clusterSwitchAnchor}
-        title="Operating as"
-        maxWidth={300}
-      >
-        <div>
-          {clusterOptions.map((c) => {
-            const active = clinicId === c.id
-            return (
-              <button
-                key={c.id}
-                type="button"
-                onClick={() => { setSupervisingClinic(c.id); setClusterSwitchAnchor(null) }}
-                className={`w-full flex items-center gap-3 py-2.5 px-4 text-left transition-colors ${
-                  active
-                    ? 'bg-themeblue3/8 border-l-2 border-l-themeblue3'
-                    : 'hover:bg-secondary/5'
-                }`}
-              >
-                <span className="text-[10pt] font-medium text-primary truncate flex-1">{c.name}</span>
-                {active && <Check size={14} className="text-themeblue2 shrink-0" />}
-              </button>
-            )
-          })}
-        </div>
-      </PreviewOverlay>
-
       {/* Clinic identity edit popover — shared with SupervisorDrawer */}
       <ClinicIdentityEditPopover
         isOpen={!!clinicEditAnchor}
@@ -1189,15 +1120,15 @@ export function ClinicPanel({
         {assocPopover?.mode === 'info' && (
           <div>
             <div className="flex items-center justify-between border-b border-primary/6 px-4 py-3">
-              <span className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest w-20 shrink-0">UICs</span>
+              <FieldLabel className="w-20">UICs</FieldLabel>
               <span className="text-sm text-primary truncate ml-3">{assocPopover.clinic.uics.join(', ') || '—'}</span>
             </div>
             <div className="flex items-center justify-between border-b border-primary/6 px-4 py-3">
-              <span className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest w-20 shrink-0">Location</span>
+              <FieldLabel className="w-20">Location</FieldLabel>
               <span className="text-sm text-primary truncate ml-3">{assocPopover.clinic.location || '—'}</span>
             </div>
             <div className="flex items-center justify-between gap-3 px-4 py-3">
-              <span className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest w-20 shrink-0">Code</span>
+              <FieldLabel className="w-20">Code</FieldLabel>
               {assocCodeLoading ? (
                 <Loader2 size={14} className="animate-spin text-tertiary" />
               ) : assocCode ? (
@@ -1218,7 +1149,7 @@ export function ClinicPanel({
         {assocPopover?.mode === 'add' && (
           <div>
             <div className="flex items-center border-b border-primary/6 px-4 py-3">
-              <span className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest w-20 shrink-0">Code</span>
+              <FieldLabel className="w-20">Code</FieldLabel>
               <input
                 type="text"
                 value={joinCode}

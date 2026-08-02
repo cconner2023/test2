@@ -31,4 +31,7 @@ export interface PlanState {
     blockOrder: PlanBlockKey[];
     /** Provider free-text block (HPI-style), appended after the category lines. */
     additional?: string;
+    /** Per-note medication quantity overrides, keyed by the stored med tag. Edits
+     *  here affect this note only — the tag's saved quantity is untouched. */
+    medQty?: Record<string, number>;
 }

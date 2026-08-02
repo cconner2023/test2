@@ -1,7 +1,7 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { EmptyState } from '@/Components/primitives/EmptyState'
-import { SectionHeader, SectionCard } from '@/Components/primitives/Section'
+import { SectionHeader, SectionCard, CardLabel } from '@/Components/primitives/Section'
 import { Sheet } from '@/Components/primitives/Sheet'
 import { PreviewOverlay } from '../PreviewOverlay'
 import { useIsMobile } from '@/Hooks/useIsMobile'
@@ -45,7 +45,7 @@ function TcccList({
             {modules.length === 0 ? (
                 <EmptyState title={isSearching ? 'No modules match your search' : 'No TCCC modules yet'} />
             ) : (
-                <div className="rounded-2xl bg-themewhite2 overflow-hidden">
+                <SectionCard>
                     {modules.map((m, idx) => {
                         const ready = !m.pending
                         return (
@@ -70,22 +70,13 @@ function TcccList({
                             </button>
                         )
                     })}
-                </div>
+                </SectionCard>
             )}
         </div>
     )
 }
 
 // ─── Shared block label ──────────────────────────────────────────────────────
-
-function SubBlock({ label, children }: { label: string; children: ReactNode }) {
-    return (
-        <div>
-            <p className="text-[9pt] font-semibold text-tertiary uppercase tracking-wider mb-0.5">{label}</p>
-            {children}
-        </div>
-    )
-}
 
 // ─── Check on learning ───────────────────────────────────────────────────────
 
@@ -207,33 +198,33 @@ function TcccModuleDetail({ module }: { module: TcccModule }) {
             {/* Didactic teaching content. */}
             {d?.complications && d.complications.length > 0 && (
                 <div className="mb-5">
-                    <SubBlock label="Complications">
+                    <CardLabel label="Complications">
                         <ul className="space-y-1">
                             {d.complications.map((c, i) => (
                                 <li key={i} className="text-[10pt] text-primary pl-3 border-l-2 border-orange-500">{c}</li>
                             ))}
                         </ul>
-                    </SubBlock>
+                    </CardLabel>
                 </div>
             )}
 
             {d?.keyPoints && d.keyPoints.length > 0 && (
                 <div className="mb-5">
-                    <SubBlock label="Key Points">
+                    <CardLabel label="Key Points">
                         <ul className="space-y-1">
                             {d.keyPoints.map((k, i) => (
                                 <li key={i} className="text-[10pt] text-primary pl-3 border-l-2 border-themeblue2">{k}</li>
                             ))}
                         </ul>
-                    </SubBlock>
+                    </CardLabel>
                 </div>
             )}
 
             {d?.checkOnLearning && d.checkOnLearning.length > 0 && (
                 <div className="mb-5">
-                    <SubBlock label="Check on Learning">
+                    <CardLabel label="Check on Learning">
                         <CheckOnLearning items={d.checkOnLearning} />
-                    </SubBlock>
+                    </CardLabel>
                 </div>
             )}
         </div>

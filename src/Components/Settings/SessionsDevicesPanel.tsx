@@ -13,6 +13,8 @@ import { ActionPill } from '@/Components/primitives/ActionPill'
 import { ActionButton } from '@/Components/primitives/ActionButton'
 import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
 import { SkeletonRows } from '@/Components/primitives/Skeleton'
+import { SectionCard } from '@/Components/primitives/Section'
+import { SettingsRow } from './SettingsToggleRow'
 import { useBarcodeScanner } from '../../Hooks/useBarcodeScanner'
 import { useLinkerBroadcast } from '../../Hooks/useDeviceLink'
 import { useAuth } from '../../Hooks/useAuth'
@@ -211,9 +213,9 @@ export function SessionsDevicesPanel() {
   if (loading && devices.length === 0) {
     return (
       <div className="px-5 pb-4 space-y-3 pt-[calc(var(--drawer-header-h,3.5rem)+0.75rem)]">
-        <div className="rounded-2xl bg-themewhite2 overflow-hidden">
+        <SectionCard>
           <SkeletonRows count={3} />
-        </div>
+        </SectionCard>
       </div>
     )
   }
@@ -235,7 +237,7 @@ export function SessionsDevicesPanel() {
       <div className="px-5 pb-4 space-y-3 pt-[calc(var(--drawer-header-h,3.5rem)+0.75rem)]">
 
         {addPhase === 'scanning' && (
-          <div className="rounded-2xl bg-themewhite2 overflow-hidden">
+          <SectionCard>
             <div className="px-4 py-3 space-y-2">
               <p className="text-[10pt] text-tertiary">
                 Scan the QR code shown on the new device's login screen.
@@ -263,41 +265,32 @@ export function SessionsDevicesPanel() {
                 Cancel
               </button>
             </div>
-          </div>
+          </SectionCard>
         )}
 
         {status && <ErrorDisplay type={status.type} message={status.message} />}
 
         {/* Link a device — bootstrap login on a new device via QR scan */}
         {addPhase === 'idle' && (
-          <div
-            onClick={startScan}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); startScan() } }}
-            className="rounded-2xl bg-themewhite2 overflow-hidden cursor-pointer transition-all active:scale-95 hover:bg-themeblue2/5"
-          >
-            <div className="px-4 py-3.5 flex items-center gap-3">
-              <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-themeblue2/10">
-                <QrCode size={18} className="text-themeblue2" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-primary">Link a device</p>
-                <p className="text-[9pt] text-tertiary mt-0.5">Scan a QR code shown on another device's login screen</p>
-              </div>
-            </div>
-          </div>
+          <SectionCard>
+            <SettingsRow
+              icon={QrCode}
+              label="Link a device"
+              subtitle="Scan a QR code shown on another device's login screen"
+              onClick={startScan}
+              onBg="bg-themeblue2/10"
+            />
+          </SectionCard>
         )}
 
         {/* Device list — Sign Out All corner pill rides the top edge (primary only) */}
         <div className="relative">
-        <div className="rounded-2xl bg-themewhite2 overflow-hidden">
-          {devices.map((device) => {
+        <SectionCard>
+          {devices.map((device, idx) => {
             const isCurrent = device.deviceId === localDeviceId
             const isVault = device.deviceId === VAULT_DEVICE_ID
             const activity = activityInfo(device.lastActiveAt)
             const shortId = device.deviceId.slice(0, 8)
-            const isTappable = !isVault
 
             const handleTap = () => {
               if (isCurrent) setConfirmSignOut(true)
@@ -305,67 +298,38 @@ export function SessionsDevicesPanel() {
             }
 
             return (
-              <div
+              <SettingsRow
                 key={device.deviceId}
-                className={`px-4 py-3.5 transition-all ${
-                  isVault ? 'opacity-50' : 'cursor-pointer active:scale-95 hover:bg-themeblue2/5'
-                }`}
-                onClick={isTappable ? handleTap : undefined}
-                role={isTappable ? 'button' : undefined}
-                tabIndex={isTappable ? 0 : undefined}
-                onKeyDown={isTappable ? (e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault()
-                    handleTap()
-                  }
-                } : undefined}
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
-                    {isVault ? (
-                      <Shield size={18} className="text-tertiary" />
-                    ) : /Mac|Windows|Linux/i.test(device.deviceLabel || '') ? (
-                      <Monitor size={18} className="text-tertiary" />
-                    ) : (
-                      <Smartphone size={18} className="text-tertiary" />
-                    )}
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <span className={`block text-sm font-medium truncate ${isVault ? 'text-tertiary' : 'text-primary'}`}>
-                      {device.deviceLabel || 'Unknown'}
-                    </span>
-                    {/* No badges — current/vault/primary read as plain meta text. */}
-                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
-                      <span className={`inline-block w-1.5 h-1.5 rounded-full ${activity.color}`} />
-                      <span className="text-[9pt] text-tertiary">{activity.label}</span>
-                      {isCurrent && (
-                        <>
-                          <span className="text-[9pt] text-tertiary">&middot;</span>
-                          <span className="text-[9pt] font-medium text-themeblue2">This device</span>
-                        </>
-                      )}
-                      {isVault && (
-                        <>
-                          <span className="text-[9pt] text-tertiary">&middot;</span>
-                          <span className="text-[9pt] text-tertiary">Vault</span>
-                        </>
-                      )}
-                      {device.isPrimary && (
-                        <>
-                          <span className="text-[9pt] text-tertiary">&middot;</span>
-                          <span className="text-[9pt] text-tertiary">Primary</span>
-                        </>
-                      )}
-                      <span className="text-[9pt] text-tertiary">&middot;</span>
-                      <span className="text-[9pt] text-tertiary font-mono">{shortId}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
+                icon={isVault ? Shield
+                  : /Mac|Windows|Linux/i.test(device.deviceLabel || '') ? Monitor
+                  : Smartphone}
+                // Neutral: a device is not "on" — the dot in the meta line carries
+                // its state, so a themeblue2 icon would compete with it.
+                tone="neutral"
+                on={!isVault}
+                label={device.deviceLabel || 'Unknown'}
+                onClick={isVault ? undefined : handleTap}
+                disabled={isVault}
+                divided={idx > 0}
+                // No badges — current/vault/primary read as plain meta text.
+                subtitle={
+                  <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                    <span className={`inline-block w-1.5 h-1.5 rounded-full ${activity.color}`} />
+                    <span>{activity.label}</span>
+                    {isCurrent && (<>
+                      <span>&middot;</span>
+                      <span className="font-medium text-themeblue2">This device</span>
+                    </>)}
+                    {isVault && (<><span>&middot;</span><span>Vault</span></>)}
+                    {device.isPrimary && (<><span>&middot;</span><span>Primary</span></>)}
+                    <span>&middot;</span>
+                    <span className="font-mono">{shortId}</span>
+                  </span>
+                }
+              />
             )
           })}
-        </div>
+        </SectionCard>
         {isPrimary && otherDevicesExist && (
           <ActionPill shadow="sm" placement="overlay">
             <ActionButton

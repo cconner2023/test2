@@ -3,6 +3,8 @@ import { PANEL, PANEL_TARGET, type PanelId, type SettingsItem } from './Settings
 import { useAvatar } from '../../Utilities/AvatarContext';
 import { useAuth } from '../../Hooks/useAuth';
 import { getInitials } from '../../Utilities/nameUtils';
+import { SectionCard, SectionHeader } from '@/Components/primitives/Section'
+import { MetaBadge } from '@/Components/primitives/MetaBadge'
 
 export interface MainSettingsPanelProps {
     settingsOptions: SettingsItem[];
@@ -50,7 +52,7 @@ export const MainSettingsPanel = ({
         <div className="h-full overflow-y-auto">
             <div className="px-5 pb-4 space-y-5 pt-[calc(var(--drawer-header-h,3.5rem)+0.75rem)]">
                 {/* Profile card */}
-                <div className="rounded-2xl bg-themewhite2 overflow-hidden">
+                <SectionCard>
                     <div
                         onClick={onProfileClick}
                         role="button"
@@ -78,20 +80,20 @@ export const MainSettingsPanel = ({
                         </div>
                         <ChevronRight size={16} className="text-tertiary shrink-0" />
                     </div>
-                </div>
+                </SectionCard>
 
                 {/* Top row items (before first header, if any) */}
                 {topItems.length > 0 && (
-                    <div className="rounded-2xl bg-themewhite2 overflow-hidden">
+                    <SectionCard>
                         {topItems.map((item) => (
                             <button
-                                key={item.id}
+                                key={item.key ?? item.id}
                                 onClick={() => {
                                     item.action();
                                     onItemClick(item.id);
                                 }}
                                 className={`flex items-center gap-3 w-full px-4 py-3.5 transition-all active:scale-95 hover:bg-themeblue2/5 ${
-                                    activeId != null && PANEL_TARGET[item.id] === activeId ? 'bg-themeblue3/8' : ''
+                                    activeId != null && PANEL_TARGET[item.id] === activeId && (item.activeWhen ?? true) ? 'bg-themeblue3/8' : ''
                                 }`}
                             >
                                 <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
@@ -114,19 +116,17 @@ export const MainSettingsPanel = ({
                                 <ChevronRight size={16} className="text-tertiary shrink-0" />
                             </button>
                         ))}
-                    </div>
+                    </SectionCard>
                 )}
 
                 {/* Card sections — card header + card body with list rows */}
                 {cardSections.map((section) => (
                     <div key={section.label}>
-                        <div className="flex items-center gap-2 mb-2">
-                            <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">{section.label}</p>
-                        </div>
-                        <div className="rounded-2xl bg-themewhite2 overflow-hidden">
+                        <SectionHeader>{section.label}</SectionHeader>
+                        <SectionCard>
                             {section.items.map((item) => (
                                 <button
-                                    key={item.id}
+                                    key={item.key ?? item.id}
                                     onClick={() => {
                                         if (item.disabled) return;
                                         item.action();
@@ -136,7 +136,7 @@ export const MainSettingsPanel = ({
                                     className={`flex items-center gap-3 w-full px-4 py-3.5 transition-all ${item.disabled
                                             ? 'opacity-50 cursor-not-allowed'
                                             : 'active:scale-95 hover:bg-themeblue2/5'
-                                        } ${activeId != null && !item.disabled && PANEL_TARGET[item.id] === activeId ? 'bg-themeblue3/8' : ''}`}
+                                        } ${activeId != null && !item.disabled && PANEL_TARGET[item.id] === activeId && (item.activeWhen ?? true) ? 'bg-themeblue3/8' : ''}`}
                                 >
                                     <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
                                         <div className={`${item.disabled ? 'text-tertiary' : item.color}`}>
@@ -160,13 +160,13 @@ export const MainSettingsPanel = ({
                                         <span className="w-2 h-2 rounded-full bg-themeredred shrink-0" aria-label="New" />
                                     )}
                                     {item.disabled ? (
-                                        <span className="text-[9pt] md:text-[9pt] text-tertiary font-semibold uppercase tracking-wide">Soon</span>
+                                        <MetaBadge>Soon</MetaBadge>
                                     ) : (
                                         <ChevronRight size={16} className="text-tertiary shrink-0" />
                                     )}
                                 </button>
                             ))}
-                        </div>
+                        </SectionCard>
                     </div>
                 ))}
 

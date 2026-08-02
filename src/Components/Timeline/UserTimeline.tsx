@@ -1,8 +1,8 @@
 import { useEffect, useState, useMemo, type ReactNode } from 'react'
-import { Building2, Package, ClipboardCheck, Award, Activity, Calendar, History, ChevronLeft } from 'lucide-react'
+import { Building2, Package, ClipboardCheck, Award, Activity, Calendar, History } from 'lucide-react'
 import { SkeletonRows } from '@/Components/primitives/Skeleton'
 import { LoadingOverlay } from '@/Components/primitives/LoadingOverlay'
-import { getAuditBySubjectLocal, fetchAuditBySubject } from '../../lib/auditService'
+import { loadAuditBySubject } from '../../lib/auditService'
 import type { AuditEvent, AuditDomain } from '../../lib/auditTypes'
 import type { CalendarEvent } from '../../Types/CalendarTypes'
 import { createLogger } from '../../Utilities/Logger'
@@ -10,6 +10,9 @@ import { ActionPill } from '@/Components/primitives/ActionPill'
 import { ActionButton } from '@/Components/primitives/ActionButton'
 import { Sheet } from '@/Components/primitives/Sheet'
 import { SearchInput } from '@/Components/primitives/SearchInput'
+import { PaneHeader } from '@/Components/primitives/PaneHeader'
+import { SectionHeader, SectionCard } from '@/Components/primitives/Section'
+import { useRowDensity, ROW_META, CARD_EMPTY, type RowDensity } from '@/Components/primitives/rowDensity'
 
 const logger = createLogger('UserTimeline')
 
@@ -24,8 +27,8 @@ const logger = createLogger('UserTimeline')
  * pending events, so it paints offline-first. Lifecycle events only — not an
  * activity feed.
  *
- * Reusable for both the supervisor (SoldierProfile) and admin (AdminUserDetail)
- * surfaces — same component, different subject.
+ * Reusable across subject surfaces — admin's AdminUserDetail today, and any
+ * supervisor lens that needs a subject's spine. Same component, different subject.
  */
 
 /**
@@ -151,19 +154,21 @@ function calendarToRow(c: TimelineCalendarEntry, onOpenEvent?: (id: string) => v
   }
 }
 
-function TimelineRow({ row, future }: { row: TimelineRowData; future: boolean }) {
+/** Density is threaded in rather than read per row — the full view renders the
+ *  whole spine, and each useRowDensity() call carries its own matchMedia listener. */
+function TimelineRow({ row, future, d }: { row: TimelineRowData; future: boolean; d: RowDensity }) {
   const body = (
     <>
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-primary truncate">{row.label}</p>
-        <p className="text-[9pt] text-tertiary capitalize">{row.sublabel}</p>
+        <p className={`${d.label} font-medium text-primary truncate`}>{row.label}</p>
+        <p className={`${ROW_META} capitalize mt-0.5`}>{row.sublabel}</p>
       </div>
-      <span className="text-[9pt] text-tertiary shrink-0">{fmtDate(row.occurredAt)}</span>
+      <span className={`${ROW_META} shrink-0`}>{fmtDate(row.occurredAt)}</span>
     </>
   )
-  const cls = `w-full text-left flex items-center gap-3 px-4 py-3 ${future ? 'opacity-70' : ''}`
+  const cls = `w-full text-left flex items-center gap-3 ${d.pad} ${future ? 'opacity-70' : ''}`
   return row.onClick
-    ? <button type="button" onClick={row.onClick} className={`${cls} transition-colors hover:bg-themeblue3/5`}>{body}</button>
+    ? <button type="button" onClick={row.onClick} className={`${cls} ${d.press} transition-all hover:bg-themeblue3/5`}>{body}</button>
     : <div className={cls}>{body}</div>
 }
 
@@ -196,6 +201,7 @@ function arrange(rows: TimelineRowData[]): {
 
 export function UserTimeline({ subjectId, clinicId, seedEvents, calendarEntries, onOpenEvent, title = 'Timeline', previewCount = 5, actions, onViewAll, rows, rowsLoading }: UserTimelineProps) {
   const [showAll, setShowAll] = useState(false)
+  const d = useRowDensity()
   // Presentational when `rows` are supplied (host already fetched); otherwise
   // self-fetch. Passing an empty subjectId keeps the hook from fetching.
   const self = useSubjectTimelineRows({ subjectId: rows ? '' : (subjectId ?? ''), clinicId: clinicId ?? '', seedEvents, calendarEntries, onOpenEvent })
@@ -218,29 +224,27 @@ export function UserTimeline({ subjectId, clinicId, seedEvents, calendarEntries,
 
   return (
     <div>
-      <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">
-        {title}
-      </p>
+      <SectionHeader>{title}</SectionHeader>
       {/* relative wraps ONLY the card so the overlay pill rides the card's top
           edge (canonical EmptyState/ActionPill primitive), not the heading. */}
       <div className="relative">
-        <div className="relative rounded-2xl bg-themewhite2 overflow-hidden">
+        <SectionCard className="relative">
           {loading && total === 0 ? (
             <SkeletonRows count={3} />
           ) : total === 0 ? (
-            <p className="text-[10pt] text-tertiary px-4 py-4">No timeline events yet</p>
+            <p className={`${CARD_EMPTY} px-4 py-4`}>No timeline events yet</p>
           ) : (
-            <div className="divide-y divide-tertiary/8">
+            <div className="divide-y divide-tertiary/10">
               {preview.future.map((r) => (
-                <TimelineRow key={r.id} row={r} future />
+                <TimelineRow key={r.id} row={r} future d={d} />
               ))}
               <NowDivider />
               {preview.past.map((r) => (
-                <TimelineRow key={r.id} row={r} future={false} />
+                <TimelineRow key={r.id} row={r} future={false} d={d} />
               ))}
             </div>
           )}
-        </div>
+        </SectionCard>
 
         {/* Action pill — "View all" opens the full searchable timeline; callers
             can fold extra actions (e.g. "View in calendar") into the same pill. */}
@@ -283,16 +287,13 @@ export function useSubjectTimelineRows({ subjectId, clinicId, seedEvents, calend
     let cancelled = false
     setLoading(true)
     ;(async () => {
-      // Local (offline-first) + server merged, deduped by id.
-      const [local, server] = await Promise.all([
-        getAuditBySubjectLocal(subjectId).catch((err) => {
-          logger.warn('local timeline read failed:', err); return [] as AuditEvent[]
-        }),
-        fetchAuditBySubject(subjectId, { clinicId }).catch(() => [] as AuditEvent[]),
-      ])
+      // Local (offline-first) topped up by a delta pull, deduped by id.
+      const loaded = await loadAuditBySubject(subjectId, clinicId ?? '').catch((err) => {
+        logger.warn('timeline read failed:', err); return [] as AuditEvent[]
+      })
       if (cancelled) return
       const byId = new Map<string, AuditEvent>()
-      for (const e of [...(seedEvents ?? []), ...local, ...server]) byId.set(e.id, e)
+      for (const e of [...(seedEvents ?? []), ...loaded]) byId.set(e.id, e)
       setEvents([...byId.values()])
       setLoading(false)
     })()
@@ -315,6 +316,7 @@ export function useSubjectTimelineRows({ subjectId, clinicId, seedEvents, calend
  *  mobile Sheet and the desktop side pane. */
 export function TimelineFullView({ rows, loading = false }: { rows: TimelineRowData[]; loading?: boolean }) {
   const [query, setQuery] = useState('')
+  const d = useRowDensity()
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -334,15 +336,15 @@ export function TimelineFullView({ rows, loading = false }: { rows: TimelineRowD
         <SearchInput value={query} onChange={setQuery} placeholder="Search timeline…" />
       </div>
       {future.length === 0 && past.length === 0 ? (
-        <p className="text-[10pt] text-tertiary px-4 py-8 text-center">No matching events</p>
+        <p className={`${CARD_EMPTY} px-4 py-8 text-center`}>No matching events</p>
       ) : (
-        <div className="divide-y divide-tertiary/8 pb-2">
+        <div className="divide-y divide-tertiary/10 pb-2">
           {future.map((r) => (
-            <TimelineRow key={r.id} row={r} future />
+            <TimelineRow key={r.id} row={r} future d={d} />
           ))}
           <NowDivider />
           {past.map((r) => (
-            <TimelineRow key={r.id} row={r} future={false} />
+            <TimelineRow key={r.id} row={r} future={false} d={d} />
           ))}
         </div>
       )}
@@ -353,8 +355,7 @@ export function TimelineFullView({ rows, loading = false }: { rows: TimelineRowD
 
 /** Desktop right-pane host for the full timeline. Self-fetches the subject's spine
  *  (so a host can drop it into a detail pane without threading rows) and renders a
- *  back header over the searchable TimelineFullView — mirrors the SupervisorDrawer
- *  timeline pane / the Settings app-content detail header. */
+ *  PaneHeader over the searchable TimelineFullView. */
 export function TimelineDetailPane({ subjectId, clinicId, title = 'Timeline', onBack }: {
   subjectId: string
   clinicId?: string
@@ -364,16 +365,7 @@ export function TimelineDetailPane({ subjectId, clinicId, title = 'Timeline', on
   const { allRows, loading } = useSubjectTimelineRows({ subjectId, clinicId: clinicId ?? '' })
   return (
     <div className="flex h-full flex-col">
-      <div className="shrink-0 flex items-center gap-2 px-4 py-3 border-b border-tertiary/10">
-        <button
-          onClick={onBack}
-          className="w-8 h-8 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all shrink-0"
-          aria-label="Back"
-        >
-          <ChevronLeft size={18} />
-        </button>
-        <p className="flex-1 min-w-0 text-sm font-semibold text-primary truncate">{title}</p>
-      </div>
+      <PaneHeader title={title} onBack={onBack} />
       <div className="flex-1 min-h-0 overflow-y-auto">
         <TimelineFullView rows={allRows} loading={loading} />
       </div>

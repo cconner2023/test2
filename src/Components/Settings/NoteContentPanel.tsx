@@ -3,7 +3,8 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { useTemplateSubscription } from '../../Hooks/useTemplateSubscription';
 import { useUserProfile } from '../../Hooks/useUserProfile';
 import { useBetaFlag } from '../../lib/betaFeatures';
-import { SettingsToggleRow } from './SettingsToggleRow';
+import { SettingsRow, SettingsToggleRow } from './SettingsToggleRow';
+import { SectionCard } from '@/Components/primitives/Section';
 
 interface NoteContentPanelProps {
     onNavigate?: (panel: string) => void;
@@ -61,69 +62,36 @@ export const NoteContentPanel = ({ onNavigate, activeSubpage }: NoteContentPanel
                         subtitle="Auto-fill HPI, exam, and plan from your triage answers"
                         checked={seedOn}
                         onChange={toggleSeed}
+                        card
                     />
                 )}
 
-                <div className="rounded-2xl bg-themewhite2 overflow-hidden">
-                    {sections.map((section) => {
-                        const Icon = section.icon;
-                        return (
-                            <div
-                                key={section.label}
-                                className={`flex items-center gap-3 px-4 py-3.5 cursor-pointer transition-all active:scale-95 hover:bg-themeblue2/5 ${
-                                    activeSubpage === section.navigateTo ? 'bg-themeblue3/8' : ''
-                                }`}
-                                onClick={() => onNavigate?.(section.navigateTo)}
-                                role="button"
-                                tabIndex={0}
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter' || e.key === ' ') {
-                                        e.preventDefault();
-                                        onNavigate?.(section.navigateTo);
-                                    }
-                                }}
-                            >
-                                <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-themeblue2/15">
-                                    <Icon size={18} className="text-themeblue2" />
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-medium text-primary">
-                                        {section.label}
-                                    </p>
-                                    <p className="text-[9pt] text-tertiary mt-0.5">{section.subtitle}</p>
-                                </div>
-                                <ChevronRight size={16} className="text-tertiary shrink-0" />
-                            </div>
-                        );
-                    })}
+                <SectionCard>
+                    {sections.map((section, idx) => (
+                        <SettingsRow
+                            key={section.label}
+                            icon={section.icon}
+                            label={section.label}
+                            subtitle={section.subtitle}
+                            onClick={() => onNavigate?.(section.navigateTo)}
+                            divided={idx > 0}
+                            className={activeSubpage === section.navigateTo ? 'bg-themeblue3/8' : ''}
+                            trailing={<ChevronRight size={16} className="text-tertiary shrink-0" />}
+                        />
+                    ))}
 
                     {isProviderRole && (
-                        <div
-                            className={`flex items-center gap-3 px-4 py-3.5 cursor-pointer transition-all active:scale-95 hover:bg-themeblue2/5 ${
-                                activeSubpage === 'provider-templates' ? 'bg-themeblue3/8' : ''
-                            }`}
+                        <SettingsRow
+                            icon={LayoutTemplate}
+                            label="Provider Templates"
+                            subtitle="Note skeletons from your shortcuts"
                             onClick={() => onNavigate?.('provider-templates')}
-                            role="button"
-                            tabIndex={0}
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter' || e.key === ' ') {
-                                    e.preventDefault();
-                                    onNavigate?.('provider-templates');
-                                }
-                            }}
-                        >
-                            <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-themeblue2/15">
-                                <LayoutTemplate size={18} className="text-themeblue2" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium text-primary">Provider Templates</p>
-                                <p className="text-[9pt] text-tertiary mt-0.5">Note skeletons from your shortcuts</p>
-                            </div>
-                            <ChevronRight size={16} className="text-tertiary shrink-0" />
-                        </div>
+                            divided
+                            className={activeSubpage === 'provider-templates' ? 'bg-themeblue3/8' : ''}
+                            trailing={<ChevronRight size={16} className="text-tertiary shrink-0" />}
+                        />
                     )}
-
-                </div>
+                </SectionCard>
 
                 {isLoaned && (
                     <div className="space-y-2">
@@ -142,6 +110,7 @@ export const NoteContentPanel = ({ onNavigate, activeSubpage }: NoteContentPanel
                                     subtitle={m.isHome ? 'Home clinic' : 'Loaned clinic'}
                                     checked={m.subscribed}
                                     onChange={() => toggle(m.id)}
+                                    card
                                 />
                             ))}
                         </div>

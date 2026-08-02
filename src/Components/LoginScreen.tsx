@@ -1,8 +1,7 @@
 import { useState, useCallback, useEffect, useLayoutEffect, useMemo, useRef, type ReactNode } from 'react'
 import { useSpring, animated } from '@react-spring/web'
-import bwipjs from 'bwip-js'
-import { useLinkeeChannel } from '../Hooks/useDeviceLink'
 import { Check, X, RefreshCw, ArrowLeft, ChevronLeft } from 'lucide-react'
+import { DeviceLinkQrView } from './DeviceLinkQrView'
 import { LoadingSpinner } from '@/Components/primitives/LoadingSpinner'
 import { HudLoader } from '@/Components/primitives/HudLoader'
 import { StackBody } from '@/Components/primitives/StackBody'
@@ -14,6 +13,8 @@ import { ErrorDisplay } from '@/Components/primitives/ErrorDisplay'
 import { TextInput, TextArea, PasswordInput } from '@/Components/primitives/FormInputs'
 import { AccountRequestForm } from './Settings/AccountRequestForm'
 import { submitSupportRequest } from '../lib/accountRequestService'
+import { getRememberedEmail, forgetRememberedEmail } from '../lib/loginPrefill'
+import { useIsMobile } from '@/Hooks/useIsMobile'
 
 /** The login surface is one morphing card. Each value is a screen the view-level
  *  StackBody slides + height-morphs between (the same drill-down morph OverlayStack
@@ -27,113 +28,9 @@ type LoginMode = 'password' | 'qr'
  *  flow instead of a duplicate. */
 export const FORGOT_PREFILL_KEY = 'adtmc_forgot_prefill'
 
-/** Rendered only when mode === 'qr'. Subscribes to Realtime and shows QR. */
-function DeviceLinkQrView({ onSettledChange }: { onSettledChange?: (settled: boolean) => void }) {
-  const { channelId, status, error, channelState, regenerate, handoffPublicKey } = useLinkeeChannel()
-  // Wait for the handoff public key too, so the QR always carries a seal target.
-  const ready = channelState === 'ready' && !!handoffPublicKey
-
-  // Bound the connection wait. A relay that never comes up would park the HUD
-  // forever, so if we haven't gone ready (or errored) within the window, treat it
-  // as a failure and surface the SAME "try again" affordance a channel error does
-  // — no password fallback, no inline error. Tapping retry regenerates + clears it.
-  const [timedOut, setTimedOut] = useState(false)
-  const LINK_CONNECT_TIMEOUT_MS = 5000
-  useEffect(() => {
-    if (ready || channelState === 'error' || timedOut) return
-    const t = window.setTimeout(() => setTimedOut(true), LINK_CONNECT_TIMEOUT_MS)
-    return () => window.clearTimeout(t)
-  }, [ready, channelState, timedOut])
-  const retry = useCallback(() => { setTimedOut(false); regenerate() }, [regenerate])
-
-  // Failure = the channel errored, or the connection window elapsed.
-  const failed = channelState === 'error' || timedOut
-
-  // Tell the host when there's something to reveal — the QR is up, or it failed
-  // into a retry. The HUD morph parks until this flips so we never expand onto the
-  // bare "Connecting…" state.
-  const settled = ready || failed
-  useEffect(() => { onSettledChange?.(settled) }, [settled, onSettledChange])
-
-  // Once the channel is ready, flip `reveal` on the next frame so the QR panel
-  // fades + slides up via CSS transition instead of snapping in after load. Height
-  // is owned by the enclosing StackBody (ResizeObserver), so no max-h juggling here.
-  const [reveal, setReveal] = useState(false)
-  useEffect(() => {
-    if (!ready) { setReveal(false); return }
-    const id = requestAnimationFrame(() => setReveal(true))
-    return () => cancelAnimationFrame(id)
-  }, [ready])
-
-  const qrCanvasRef = useCallback((canvas: HTMLCanvasElement | null) => {
-    if (!canvas || !channelId || !handoffPublicKey) return
-    try {
-      bwipjs.toCanvas(canvas, {
-        bcid: 'qrcode',
-        // Device-link payload (Option A): channelId + the linkee's ephemeral handoff
-        // public key. The scanner (SessionsDevicesPanel) parses this JSON.
-        text: JSON.stringify({ v: 1, c: channelId, k: handoffPublicKey }),
-        scale: 4,
-        padding: 3,
-      })
-    } catch {
-      // non-critical
-    }
-  }, [channelId, handoffPublicKey])
-
-  return (
-    <div className="relative">
-      {/* Connecting / try-again placeholder — fades out as the QR reveals. While
-          connecting it spins; on failure (error or timeout) it becomes a bare
-          tap-to-try-again (no inline error copy). */}
-      <div
-        className={`flex flex-col items-center justify-center gap-2 transition-opacity duration-300 ease-out ${
-          ready ? 'absolute inset-0 opacity-0 pointer-events-none' : 'py-4 opacity-100'
-        }`}
-      >
-        {failed ? (
-          <button
-            onClick={retry}
-            className="flex flex-col items-center gap-2 text-[10pt] text-tertiary active:opacity-70 transition-opacity"
-          >
-            <RefreshCw size={20} />
-            Tap to try again
-          </button>
-        ) : (
-          <LoadingSpinner className="text-tertiary" />
-        )}
-      </div>
-
-      {/* QR panel — fades up (opacity + translate) on ready; height morph is the StackBody's job */}
-      {ready && (
-        <div
-          className={`transition-all duration-500 ease-out ${
-            reveal ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
-          }`}
-        >
-          <div className="py-2 overflow-hidden">
-            <div className="float-right ml-3 mb-1 w-[38%]">
-              <canvas ref={qrCanvasRef} className="block w-full border border-themegreen/30 bg-white rounded-xl" />
-            </div>
-            <p className="text-sm font-semibold text-primary mb-1.5">Link This Device</p>
-            <p className="text-[10pt] text-secondary leading-relaxed">
-              Open the application on another logged-in device, go to <span className="font-medium text-primary">Settings → Linked Devices</span>, and scan this code to log in.
-            </p>
-            {status === 'receiving' && (
-              <p className="text-[10pt] text-themegreen font-medium mt-1.5">Linking device…</p>
-            )}
-            {status === 'error' && error && (
-              <p className="text-[10pt] text-themeredred mt-1.5">{error}</p>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
 export function LoginScreen() {
   const continueAsGuest = useAuthStore(s => s.continueAsGuest)
+  const isMobile = useIsMobile()
 
   const [view, setView] = useState<View>('signin')
   // Direction the view-level morph slides (1 = drill in / from the right, -1 = back).
@@ -142,8 +39,13 @@ export function LoginScreen() {
   // QR-side readiness gate for the mode HUD morph — flips true once the device-link
   // channel has a scannable code (or errored into a retry).
   const [qrReady, setQrReady] = useState(false)
-  const [email, setEmail] = useState('')
+  // The address of whoever last signed in on this device. Held separately from
+  // `email` so editing the field doesn't retract the returning-user framing
+  // mid-keystroke — only "Not you?" does.
+  const [remembered, setRemembered] = useState(() => getRememberedEmail())
+  const [email, setEmail] = useState(remembered)
   const [password, setPassword] = useState('')
+  const passwordRef = useRef<HTMLInputElement>(null)
   const [helpName, setHelpName] = useState('')
   const [helpEmail, setHelpEmail] = useState('')
   const [helpNotes, setHelpNotes] = useState('')
@@ -195,6 +97,33 @@ export function LoginScreen() {
     // Strip the secret from the URL bar / history immediately.
     try { history.replaceState(null, '', window.location.pathname + window.location.search) } catch { /* ignore */ }
   }, [])
+
+  // A returning user's only remaining task is the password, so start there.
+  // Desktop only: on iOS this would throw the keyboard up over the branding
+  // before the user has looked at the screen (same reasoning as the picker
+  // search field in FormInputs).
+  useEffect(() => {
+    if (!remembered || isMobile) return
+    passwordRef.current?.focus()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  /** Support is reached mid-failure, so carry over whatever the user already typed
+   *  rather than making them re-enter an address to describe why they can't get in. */
+  const openHelp = () => {
+    setHelpSubmitted(false)
+    setHelpEmail(prev => prev || email.trim() || remembered)
+    go('help', 1)
+  }
+
+  /** Shared device, different medic — drop the remembered address and the fields it seeded. */
+  const forgetIdentity = () => {
+    forgetRememberedEmail()
+    setRemembered('')
+    setEmail('')
+    setPassword('')
+    setError(null)
+  }
 
   /** Navigate the view-level morph. `dir` controls the slide direction. */
   const go = (next: View, dir: 1 | -1 = 1) => {
@@ -293,8 +222,19 @@ export function LoginScreen() {
             {/* ── Sign In ── */}
             {view === 'signin' && (
               <div>
-                <div className="pb-2">
-                  <p className="text-[9pt] font-semibold text-secondary tracking-widest uppercase">Sign In</p>
+                <div className="pb-2 flex items-baseline justify-between gap-3">
+                  <p className="text-[9pt] font-semibold text-secondary tracking-widest uppercase">
+                    {remembered ? 'Welcome back' : 'Sign In'}
+                  </p>
+                  {remembered && mode === 'password' && (
+                    <button
+                      type="button"
+                      onClick={forgetIdentity}
+                      className="shrink-0 text-[9pt] text-themeblue2 dark:text-themeblue1 hover:underline active:scale-95 transition-transform"
+                    >
+                      Not you?
+                    </button>
+                  )}
                 </div>
                 <form onSubmit={handleSignIn}>
                   {/* Whole card collapses to a HUD puck and re-expands when the
@@ -326,19 +266,27 @@ export function LoginScreen() {
                           value={email}
                           onChange={setEmail}
                           type="email"
+                          inputMode="email"
                           placeholder="Email *"
+                          name="email"
+                          autoComplete="username"
                           required
                         />
                         <PasswordInput
                           value={password}
                           onChange={setPassword}
                           placeholder="Password *"
+                          name="password"
+                          autoComplete="current-password"
+                          inputRef={passwordRef}
                         />
                         <div className={`flex items-center justify-end gap-2 px-3 overflow-hidden transition-all duration-300 ease-out ${email.trim() && password ? 'max-h-14 py-2 opacity-100' : 'max-h-0 py-0 opacity-0'
                         }`}>
                           <button
                             type="button"
-                            onClick={() => { setEmail(''); setPassword(''); setError(null) }}
+                            // Resets to the smart default rather than to blank — clearing a
+                            // mistyped password shouldn't cost you the remembered address.
+                            onClick={() => { setEmail(remembered); setPassword(''); setError(null) }}
                             className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
                           >
                             <X size={16} />
@@ -372,7 +320,7 @@ export function LoginScreen() {
                 )}
 
                 {/* Footer — guest / request / support, shared by the signin family */}
-                <SigninFooter onGuest={continueAsGuest} onRequest={() => go('request', 1)} onHelp={() => { setHelpSubmitted(false); go('help', 1) }} />
+                <SigninFooter onGuest={continueAsGuest} onRequest={() => go('request', 1)} onHelp={openHelp} />
               </div>
             )}
 
@@ -390,7 +338,10 @@ export function LoginScreen() {
                     value={email}
                     onChange={setEmail}
                     type="email"
+                    inputMode="email"
                     placeholder="Email"
+                    name="email"
+                    autoComplete="username"
                   />
                   <div className="flex items-center justify-end gap-2 px-3 py-2">
                     <button
@@ -410,7 +361,7 @@ export function LoginScreen() {
                     </button>
                   </div>
                 </div>
-                <SigninFooter onGuest={continueAsGuest} onRequest={() => go('request', 1)} onHelp={() => { setHelpSubmitted(false); go('help', 1) }} />
+                <SigninFooter onGuest={continueAsGuest} onRequest={() => go('request', 1)} onHelp={openHelp} />
               </div>
             )}
 
@@ -443,7 +394,7 @@ export function LoginScreen() {
                     </button>
                   </div>
                 </div>
-                <SigninFooter onGuest={continueAsGuest} onRequest={() => go('request', 1)} onHelp={() => { setHelpSubmitted(false); go('help', 1) }} />
+                <SigninFooter onGuest={continueAsGuest} onRequest={() => go('request', 1)} onHelp={openHelp} />
               </div>
             )}
 
@@ -467,17 +418,25 @@ export function LoginScreen() {
                 ) : (
                   <form onSubmit={handleSupportSubmit}>
                     <div className="rounded-2xl bg-themewhite2 overflow-hidden">
+                      <p className="px-4 pt-3 pb-2 text-[10pt] text-secondary leading-relaxed border-b border-primary/6">
+                        No account needed to reach us. Describe what happened and we'll reply to the address below — include the error text if you saw one.
+                      </p>
                       <TextInput
                         value={helpName}
                         onChange={setHelpName}
                         placeholder="Your name *"
+                        name="name"
+                        autoComplete="name"
                         required
                       />
                       <TextInput
                         value={helpEmail}
                         onChange={setHelpEmail}
                         type="email"
+                        inputMode="email"
                         placeholder="Email *"
+                        name="email"
+                        autoComplete="email"
                         required
                       />
                       <TextArea
@@ -515,7 +474,11 @@ export function LoginScreen() {
                 {/* Form stays MOUNTED (display:none) while a picker is up so its
                     field state survives — a remount would wipe it. */}
                 <div className={pushed.length > 0 ? 'hidden' : undefined}>
-                  <AccountRequestForm onBack={backToSignin} />
+                  <AccountRequestForm
+                    onBack={backToSignin}
+                    initialEmail={email.trim()}
+                    onSignIn={(addr) => { setEmail(addr); backToSignin() }}
+                  />
                 </div>
                 {pushed.length > 0 && (
                   <PickerScreen screen={pushed[pushed.length - 1]} nav={nav} />

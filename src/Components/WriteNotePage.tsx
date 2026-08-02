@@ -35,8 +35,6 @@ import { composeAlgorithmNoteRouting } from '../Utilities/algorithmNoteRouting';
 import type { PEState } from '../Types/PETypes';
 import { useBetaFlag } from '../lib/betaFeatures';
 
-type DispositionType = dispositionType['type'];
-
 const SECTION_LABEL_CLASS = 'text-[9pt] font-semibold text-primary uppercase tracking-wider';
 const CARD_CLASS = 'relative rounded-2xl bg-themewhite2 overflow-hidden';
 const TEXTAREA_CLASS =
@@ -115,11 +113,9 @@ type PageId = 'edit' | 'fullnote';
 
 interface WriteNoteProps {
     isVisible: boolean;
-    disposition: {
-        type: DispositionType;
-        text: string;
-        addendum?: string;
-    };
+    // The algorithm's live disposition object — carries modifier/planInstructions
+    // the note composer reads, not just the type/text pair the header shows.
+    disposition: dispositionType & { addendum?: string };
     algorithmOptions?: AlgorithmOptions[];
     cardStates?: CardState[];
     onExpansionChange: (expanded: boolean) => void;
@@ -203,9 +199,9 @@ export const WriteNotePage = ({
         && editorProfile?.seedAlgorithmNote === true;
     const algoRouting = useMemo(
         () => noteRoutingEnabled
-            ? composeAlgorithmNoteRouting(algorithmOptions, cardStates, selectedSymptom?.text, disposition.type, disposition.text)
-            : { hpiText: '', peItems: {}, peBlockKeys: [], planText: '' },
-        [noteRoutingEnabled, algorithmOptions, cardStates, selectedSymptom?.text, disposition.type, disposition.text],
+            ? composeAlgorithmNoteRouting(algorithmOptions, cardStates, selectedSymptom?.text, disposition)
+            : { hpiText: '', peItems: {}, peBlockKeys: [], planText: '', assessmentText: '' },
+        [noteRoutingEnabled, algorithmOptions, cardStates, selectedSymptom?.text, disposition],
     );
 
     const [selectedBlockKeys, setSelectedBlockKeys] = useState<string[]>(() => {
@@ -243,6 +239,15 @@ export const WriteNotePage = ({
         hpiSeededRef.current = true;
         setNote(prev => (prev ? prev : algoRouting.hpiText));
     }, [viewMode, algoRouting.hpiText, setNote]);
+
+    // Assessment seed — test results the algorithm recorded (answer noteResult).
+    // Same one-time, non-destructive contract as the HPI seed.
+    const assessmentSeededRef = useRef(false);
+    useEffect(() => {
+        if (assessmentSeededRef.current || viewMode !== 'fullnote' || !algoRouting.assessmentText) return;
+        assessmentSeededRef.current = true;
+        setAssessmentNote(prev => (prev ? prev : algoRouting.assessmentText));
+    }, [viewMode, algoRouting.assessmentText, setAssessmentNote]);
 
 
     // ── Plan empty-state picker signal ──────────────────────────────────────
@@ -283,6 +288,16 @@ export const WriteNotePage = ({
         }
         return Array.from(ddxSet);
     }, [algorithmOptions, cardStates, disposition.type, disposition.text]);
+
+    // A single available differential is the algorithm's answer, not a choice —
+    // select it rather than making the medic tick the only box.
+    const ddxSeededRef = useRef(false);
+    useEffect(() => {
+        if (ddxSeededRef.current || !noteRoutingEnabled || viewMode !== 'fullnote') return;
+        if (availableDdx.length !== 1) return;
+        ddxSeededRef.current = true;
+        setSelectedDdx(prev => (prev.length > 0 ? prev : availableDdx));
+    }, [noteRoutingEnabled, viewMode, availableDdx, setSelectedDdx]);
 
     const toggleDdx = useCallback((dx: string) => {
         if (availableDdx.includes(dx)) {

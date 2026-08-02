@@ -1,9 +1,8 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import { Palette, Shield, Lock, MessageSquare, Bell, Stethoscope, Scale, X, Building2, Check, Radio, LayoutDashboard, HardDrive, Smartphone, BookOpen, ChevronLeft } from 'lucide-react';
+import { Palette, Shield, Lock, MessageSquare, Bell, Stethoscope, Scale, X, Building2, Check, Radio, LayoutDashboard, HardDrive, Smartphone, BookOpen } from 'lucide-react';
 import { BaseDrawer } from '@/Components/primitives/BaseDrawer';
 import { useIsMobile } from '../../Hooks/useIsMobile';
 import { ChildClinicRosterBody } from './Supervisor/ChildClinicRosterSheet';
-import { TimelineDetailPane } from '../Timeline/UserTimeline';
 import { resizeImage } from '../../Hooks/useProfileAvatar';
 import { useAvatar } from '../../Utilities/AvatarContext';
 import { useUserProfile } from '../../Hooks/useUserProfile';
@@ -33,6 +32,12 @@ import { SettingsRail } from './SettingsRail';
 import { AvatarPickerPanel } from './AvatarPickerPanel';
 import { ContentWrapper } from '@/Components/primitives/ContentWrapper';
 import { SlideRevealPane } from '@/Components/primitives/SlideRevealPane';
+import { PaneHeader } from '@/Components/primitives/PaneHeader';
+import { SearchInput } from '@/Components/primitives/SearchInput';
+import { UserGuideTree } from '@/Components/UserGuide/UserGuideTree';
+import { UserGuideBody } from '@/Components/UserGuide/UserGuideBody';
+import { useUserGuideNav } from '@/Components/UserGuide/useUserGuideNav';
+import { USER_GUIDE_VERSION } from '@/Data/UserGuide';
 import { useEscBackout } from '../../Hooks/useEscBackout';
 import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill';
 import { SessionsDevicesPanel } from './SessionsDevicesPanel';
@@ -59,8 +64,7 @@ interface SettingsDrawerProps {
 type DetailView =
     | { kind: 'none' }
     | { kind: 'child-cluster'; id: string; name: string }
-    | { kind: 'app-content'; panel: 'plan-settings' | 'text-templates' | 'provider-templates' }
-    | { kind: 'user-timeline'; subjectId: string; clinicId?: string; title: string };
+    | { kind: 'app-content'; panel: 'plan-settings' | 'text-templates' | 'provider-templates' };
 
 export const Settings = ({
     isVisible,
@@ -70,7 +74,7 @@ export const Settings = ({
     const { currentAvatar, setAvatar, avatarList, customImage, isCustom, setCustomImage, clearCustomImage } = useAvatar();
     const { themeName } = useTheme();
     const isMobile = useIsMobile();
-    const [activePanel, setActivePanel] = useState<'main' | 'release-notes' | 'avatar-picker' | 'user-profile' | 'pin-setup' | 'notification-settings' | 'feedback' | 'note-content' | 'privacy-policy' | 'sessions-devices' | 'clinic' | 'lora' | 'plan-settings' | 'text-templates' | 'provider-templates' | 'overview-widgets' | 'theme-picker' | 'storage' | 'feature-votes'>('main');
+    const [activePanel, setActivePanel] = useState<'main' | 'release-notes' | 'avatar-picker' | 'user-profile' | 'pin-setup' | 'notification-settings' | 'feedback' | 'note-content' | 'privacy-policy' | 'sessions-devices' | 'clinic' | 'lora' | 'plan-settings' | 'text-templates' | 'provider-templates' | 'overview-widgets' | 'theme-picker' | 'storage' | 'feature-votes' | 'user-guide'>('main');
     // Desktop three-pane right detail. Never set on mobile (drills slide-push /
     // use a local Sheet instead). See DetailView above.
     const [detailView, setDetailView] = useState<DetailView>({ kind: 'none' });
@@ -78,14 +82,35 @@ export const Settings = ({
     const closeDetail = useCallback(() => setDetailView({ kind: 'none' }), []);
     // Desktop Esc: collapse the right detail pane first; a second Esc closes the drawer.
     useEscBackout(!isMobile && detailOpen, closeDetail);
-    // The User Guide is its own top-level drawer (opened from the About row / release
-    // notes), not a Settings sub-panel — so opening it just flips a nav-store flag.
+    // MOBILE: the User Guide is its own top-level drawer, so opening it flips a
+    // nav-store flag (which runs CLOSE_ALL_DRAWERS and takes Settings with it —
+    // correct on a phone, where one full-screen surface replaces another).
+    // DESKTOP: it is a center panel instead. Leaving Settings to read the guide
+    // dropped you out of the surface entirely with nothing to come back to.
     const setShowUserGuideDrawer = useNavigationStore((s) => s.setShowUserGuideDrawer);
+    const setUserGuideSection = useNavigationStore((s) => s.setUserGuideSection);
+    const guideActive = !isMobile && isVisible && activePanel === 'user-guide';
+    const guide = useUserGuideNav(guideActive);
     const { profile, updateProfile } = useUserProfile();
     const [slideDirection, setSlideDirection] = useState<'left' | 'right' | ''>('');
     const prevVisibleRef = useRef(false);
     const [isSupabaseConnected, setIsSupabaseConnected] = useState(false);
-    const { user, signOut, isAuthenticated, isDevRole, isSupervisorRole, clinicId } = useAuth();
+    const { user, signOut, isAuthenticated, isDevRole, isSupervisorRole, clinicId, surrogateClinicIds, supervisingClinicId, setSupervisingClinic } = useAuth();
+    // Every cluster this user administers: their assigned one plus any loaned to
+    // them. `clinicId` is the assignment; `supervisingClinicId` is the pointer the
+    // clinic panel actually resolves through, so it decides which row reads active.
+    const activeClinicId = supervisingClinicId ?? clinicId;
+    const clusterOptions = useMemo(() => {
+        if (!isSupervisorRole || !clinicId) return [] as { id: string; name: string }[];
+        const loans = profile.surrogateClinics ?? [];
+        return [
+            { id: clinicId, name: profile.clinicName || 'My Cluster' },
+            ...surrogateClinicIds.map((id) => ({
+                id,
+                name: loans.find((c) => c.id === id)?.name ?? 'Surrogate',
+            })),
+        ];
+    }, [isSupervisorRole, clinicId, surrogateClinicIds, profile.clinicName, profile.surrogateClinics]);
     const whisperNetVisible = useBetaFlag('whisperNet');
     const hasUnvotedCycle = useFeatureVotesStore(selectHasUnvotedActiveCycle);
     const [clinicEditing, setClinicEditing] = useState(false);
@@ -134,14 +159,22 @@ export const Settings = ({
         };
     }, [isVisible]);
 
+    /** Where "back to the top" lands. Mobile has a menu screen; desktop's menu IS
+     *  the rail, so 'main' would leave the center with nothing to show. Landing on
+     *  the user's own settings is the resting panel there — except for guests, who
+     *  have no profile and whose menu is Appearance + Feedback + Privacy only. */
+    const homePanel = isMobile ? 'main' as const
+        : isAuthenticated ? 'user-profile' as const
+        : 'theme-picker' as const;
+
     // Set initial panel when drawer opens
     useEffect(() => {
         if (isVisible && !prevVisibleRef.current) {
-            setActivePanel(initialPanel || 'main');
+            setActivePanel(!initialPanel || initialPanel === 'main' ? homePanel : initialPanel);
             setSlideDirection('');
         }
         prevVisibleRef.current = isVisible;
-    }, [isVisible, initialPanel]);
+    }, [isVisible, initialPanel, homePanel]);
 
     // Stale-guard: switching the operating cluster (cluster switcher) invalidates
     // any open child-cluster roster in the desktop right pane.
@@ -167,11 +200,23 @@ export const Settings = ({
         else go();
     }, [activePanel, clinicHasPending, guardedClinicAction]);
 
+    // Esc inside the nested guide steps back to the settings tree before closing the
+    // drawer — the same layering the detail pane gets above. The two are mutually
+    // exclusive, so only one listener is ever attached.
+    useEscBackout(!isMobile && !detailOpen && activePanel === 'user-guide', () => navigateCenter(homePanel));
+
+    // 'user-guide' is a desktop-only center panel; on mobile the guide is its own
+    // drawer and panelMap has no entry, so a desktop→mobile resize while reading it
+    // would render an empty panel. Fall back to the menu.
+    useEffect(() => {
+        if (isMobile && activePanel === 'user-guide') setActivePanel('main');
+    }, [isMobile, activePanel]);
+
 const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
         if (id === PANEL.CLOSE) { closeDrawer(); return; }
         if (id === PANEL.BACK_TO_MAIN) {
             if (isMobile) { handleSlideAnimation('right'); setActivePanel('main'); }
-            else navigateCenter('main');
+            else navigateCenter(homePanel);
             return;
         }
 
@@ -185,7 +230,7 @@ const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
                 navigateCenter(target as typeof activePanel);
             }
         }
-    }, [handleSlideAnimation, isMobile, navigateCenter]);
+    }, [handleSlideAnimation, isMobile, navigateCenter, homePanel]);
 
     const buildSettingsOptions = useCallback((closeDrawer: () => void): SettingsItem[] => {
         /** Shorthand for a standard menu option that navigates to a panel. */
@@ -214,10 +259,24 @@ const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
         // "Leave Cluster" is NOT here: it's a user-account action and lives in the
         // profile page next to Sign Out.
         if (isAuthenticated && clinicId && (isSupervisorRole || isDevRole)) {
-            items.push(
-                { type: 'header', label: 'Clusters' },
-                opt(PANEL.CLINIC, <Building2 size={20} />, profile.clinicName || 'My Cluster', 'Manage cluster and personnel'),
-            );
+            items.push({ type: 'header', label: 'Clusters' });
+            if (clusterOptions.length > 1) {
+                // A loaned supervisor administers more than one cluster. List them
+                // all here rather than hiding the others behind a switch inside the
+                // panel — picking a row flips the supervising pointer and opens that
+                // cluster, so the menu shows the whole set at a glance.
+                items.push(...clusterOptions.map((c) =>
+                    opt(PANEL.CLINIC, <Building2 size={20} />, c.name,
+                        c.id === clinicId ? 'Manage cluster and personnel' : 'Loaned cluster',
+                        {
+                            key: `clinic-${c.id}`,
+                            activeWhen: activeClinicId === c.id,
+                            action: () => { setSupervisingClinic(c.id); handleItemClick(PANEL.CLINIC, closeDrawer); },
+                        }),
+                ));
+            } else {
+                items.push(opt(PANEL.CLINIC, <Building2 size={20} />, profile.clinicName || 'My Cluster', 'Manage cluster and personnel'));
+            }
         }
 
         // PREFERENCES section
@@ -243,7 +302,10 @@ const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
         if (isAuthenticated) {
             items.push(
                 opt(PANEL.USER_GUIDE, <BookOpen size={20} />, 'User Guide', 'How everything works', {
-                    action: () => { setShowUserGuideDrawer(true); closeDrawer(); },
+                    action: () => {
+                        if (isMobile) { setShowUserGuideDrawer(true); closeDrawer(); }
+                        else navigateCenter('user-guide');
+                    },
                 }),
                 opt(PANEL.RELEASE_NOTES, <Shield size={20} />, 'Release Notes', 'What\'s new in this version', hasUnvotedCycle ? { dot: true } : undefined),
             );
@@ -263,7 +325,7 @@ const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
         }
 
         return items;
-    }, [themeName, handleItemClick, isDevRole, isAuthenticated, isSupervisorRole, clinicId, profile.clinicName, updateProfile, hasUnvotedCycle, whisperNetVisible, setShowUserGuideDrawer]);
+    }, [themeName, handleItemClick, isDevRole, isAuthenticated, isSupervisorRole, clinicId, profile.clinicName, clusterOptions, activeClinicId, setSupervisingClinic, updateProfile, hasUnvotedCycle, whisperNetVisible, setShowUserGuideDrawer, isMobile, navigateCenter]);
 
     // Swipe-back for sub-panels (mobile touch only)
     const swipeHandlers = useSwipeBack(
@@ -326,6 +388,9 @@ const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
                 };
             // All panels below slide right back to main
             case 'release-notes':       return { title: 'Release Notes', ...backTo() };
+            // Desktop-only panel — the rail carries its own back row, so this title
+            // is really just the drawer naming itself.
+            case 'user-guide':          return { title: 'User Guide', ...backTo() };
             case 'feature-votes':       return { title: 'Feature Votes', ...backTo() };
             case 'avatar-picker':       return { title: 'Choose Avatar', ...backTo() };
             case 'user-profile':        return { title: 'Profile', ...backTo() };
@@ -403,6 +468,16 @@ const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
         }
     }, [activePanel, backTo, handleClose, isSupervisorRole, clinicEditing, handleSlideAnimation, guardedClinicAction, isMobile]);
 
+    /** The drawer header names the DRAWER (v2/conventions, PaneHeader). Mobile's
+     *  header IS the panel's chrome so it keeps the panel title; on desktop the rail
+     *  already shows what is selected, and letting a panel retitle a 90%-wide drawer
+     *  means opening Settings on the profile reads as "Profile". Actions still come
+     *  from the panel — only the title is pinned. */
+    const drawerHeader = useMemo(
+        () => (isMobile || !headerConfig ? headerConfig : { ...headerConfig, title: 'Settings' }),
+        [isMobile, headerConfig],
+    );
+
     return (<>
         <BaseDrawer
             isVisible={isVisible}
@@ -411,7 +486,7 @@ const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
             disableDrag={false}
             desktopPosition="left"
             desktopWidth="w-[90%]"
-            header={headerConfig}
+            header={drawerHeader}
             scrollDisabled
             glassHeader={isMobile}
         >
@@ -473,7 +548,6 @@ const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
                                         handleClose();
                                         return { success: true };
                                     }}
-                                    onViewTimeline={isMobile ? undefined : () => setDetailView({ kind: 'user-timeline', subjectId: user?.id ?? '', clinicId: clinicId ?? undefined, title: 'Timeline' })}
                                 />
                             ),
                             'avatar-picker': (
@@ -499,7 +573,15 @@ const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
                                     }}
                                 />
                             ),
-                            'release-notes':        <ReleaseNotesPanel onOpenFeatureVotes={() => { handleSlideAnimation('left'); setActivePanel('feature-votes'); }} />,
+                            'release-notes': (
+                                <ReleaseNotesPanel
+                                    onOpenFeatureVotes={() => { handleSlideAnimation('left'); setActivePanel('feature-votes'); }}
+                                    onOpenGuide={isMobile ? undefined : (sectionId) => {
+                                        navigateCenter('user-guide');
+                                        setUserGuideSection(sectionId);
+                                    }}
+                                />
+                            ),
                             'feature-votes':        <FeatureVotesPanel onOpenFeedback={() => { handleSlideAnimation('left'); setActivePanel('feedback'); }} />,
                             'feedback':             <FeedbackPanel />,
                             'privacy-policy':       <PrivacyPolicyPanel />,
@@ -562,16 +644,6 @@ const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
                             />
                         );
                     }
-                    if (detailView.kind === 'user-timeline') {
-                        return (
-                            <TimelineDetailPane
-                                subjectId={detailView.subjectId}
-                                clinicId={detailView.clinicId}
-                                title={detailView.title}
-                                onBack={closeDetail}
-                            />
-                        );
-                    }
                     if (detailView.kind === 'app-content') {
                         const titleMap: Record<typeof detailView.panel, string> = {
                             'plan-settings': 'Plan',
@@ -580,16 +652,7 @@ const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
                         };
                         return (
                             <div className="flex h-full flex-col">
-                                <div className="shrink-0 flex items-center gap-2 px-4 py-3 border-b border-tertiary/10">
-                                    <button
-                                        onClick={closeDetail}
-                                        className="w-8 h-8 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all shrink-0"
-                                        aria-label="Back"
-                                    >
-                                        <ChevronLeft size={18} />
-                                    </button>
-                                    <p className="flex-1 min-w-0 text-sm font-semibold text-primary truncate">{titleMap[detailView.panel]}</p>
-                                </div>
+                                <PaneHeader title={titleMap[detailView.panel]} onBack={closeDetail} />
                                 <div className="flex-1 min-h-0 overflow-y-auto">
                                     {detailView.panel === 'plan-settings' && <PlanPanel />}
                                     {detailView.panel === 'text-templates' && <TextTemplatesPanel />}
@@ -616,21 +679,77 @@ const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
                                 <SlideRevealPane
                                     open={!detailOpen}
                                     side="left"
-                                    width={300}
+                                    width={260}
                                     keepMounted
                                     className="border-r border-tertiary/10 bg-themewhite/50"
                                     style={paneStyle}
                                 >
-                                    <SettingsRail {...mainPanelProps} activeId={activePanel} />
-                                </SlideRevealPane>
-                                {/* Center — the selected top-level panel. */}
-                                <div className="flex-1 min-w-0 flex flex-col overflow-hidden" style={paneStyle}>
-                                    {activePanel === 'main' ? (
-                                        <div className="h-full flex items-center justify-center px-6 text-center text-sm text-tertiary">
-                                            Select a setting
+                                    {activePanel === 'user-guide' ? (
+                                        // The guide's own three-level TOC takes over the rail.
+                                        // Nesting it here is the point: the settings tree is one
+                                        // Back away, so reading the guide is a drill rather than
+                                        // a jump to a different drawer.
+                                        <div className="h-full flex flex-col">
+                                            <PaneHeader
+                                                title="User Guide"
+                                                onBack={() => navigateCenter(homePanel)}
+                                                backLabel="Back to Settings"
+                                            />
+                                            <div className="shrink-0 px-2.5 py-2 border-b border-tertiary/10">
+                                                <SearchInput
+                                                    value={guide.query}
+                                                    onChange={guide.setQuery}
+                                                    placeholder="Search the guide"
+                                                />
+                                            </div>
+                                            <div className="flex-1 min-h-0 overflow-y-auto">
+                                                <UserGuideTree
+                                                    chapters={guide.visibleChapters}
+                                                    activeId={guide.activeId}
+                                                    expandedChapters={guide.expandedChapters}
+                                                    expandedSections={guide.expandedSections}
+                                                    onToggleChapter={guide.toggleChapter}
+                                                    onToggleSection={guide.toggleSection}
+                                                    onJump={guide.jumpTo}
+                                                    expandAll={guide.searching}
+                                                />
+                                            </div>
                                         </div>
                                     ) : (
-                                        panelMap[activePanel] ?? null
+                                        <SettingsRail {...mainPanelProps} activeId={activePanel} />
+                                    )}
+                                </SlideRevealPane>
+                                {/* Center — the selected top-level panel, capped to a reading
+                                    measure and centered in the remaining space. Every panel is
+                                    authored as a phone surface (medallion icon left, control
+                                    right); across the full width of a 90% drawer those two ends
+                                    sit a pane apart. The panel keeps its own scrolling root, so
+                                    the scrollbar rides the column edge, not the pane edge. */}
+                                <div className="flex-1 min-w-0 flex justify-center">
+                                    {activePanel === 'user-guide' ? (
+                                        // Not capped with the rest: the guide is a reading
+                                        // surface that already carries its own measure
+                                        // (UserGuideBody caps prose at 64rem).
+                                        <div ref={guide.bodyScrollRef} className="w-full h-full overflow-y-auto" style={paneStyle}>
+                                            {guide.visibleChapters.length === 0 ? (
+                                                <p className="text-[10pt] text-tertiary text-center py-16">
+                                                    No sections match “{guide.query}”.
+                                                </p>
+                                            ) : (
+                                                <UserGuideBody chapters={guide.visibleChapters} isMobile={false} />
+                                            )}
+                                            <p className="text-[9pt] text-tertiary text-center pb-10">
+                                                User Guide · v{USER_GUIDE_VERSION}
+                                            </p>
+                                        </div>
+                                    ) : (
+                                        <div className="w-full max-w-3xl flex flex-col overflow-hidden" style={paneStyle}>
+                                            {/* 'main' is the mobile menu screen and has no desktop
+                                                meaning — the rail is the menu. It can still appear
+                                                here for a frame after handleClose resets, so it
+                                                resolves to the same panel the drawer opens on. */}
+                                            {panelMap[activePanel === 'main' ? homePanel : activePanel] ?? null}
+                                        </div>
                                     )}
                                 </div>
                                 {/* Right — nested detail (child roster / App Content subpage);
@@ -638,7 +757,7 @@ const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
                                 <SlideRevealPane
                                     open={detailOpen}
                                     side="right"
-                                    width={420}
+                                    width={380}
                                     className="border-l border-primary/10 bg-themewhite"
                                     style={paneStyle}
                                 >
