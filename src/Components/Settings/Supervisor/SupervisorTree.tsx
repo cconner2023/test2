@@ -94,6 +94,11 @@ export function SupervisorTree({
   const sortedMedics = [...medics]
     .filter(m => !q || formatMedicName(m).toLowerCase().includes(q))
     .sort((a, b) => {
+      // Exempt last: worst-first is a triage order, and someone the medic roster
+      // does not apply to is not the worst case, whatever their percentage reads.
+      const ae = !!statById.get(a.id)?.exempt
+      const be = !!statById.get(b.id)?.exempt
+      if (ae !== be) return ae ? 1 : -1
       const ar = statById.get(a.id)?.readinessPercent ?? 0
       const br = statById.get(b.id)?.readinessPercent ?? 0
       if (ar !== br) return ar - br

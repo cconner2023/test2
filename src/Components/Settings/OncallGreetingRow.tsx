@@ -5,8 +5,8 @@ import { formatAudioDuration } from '../../Utilities/voiceUtils'
 import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
 import { bytesToBase64, base64ToBytes } from '../../lib/base64Utils'
 import {
-  setOncallGreeting,
-  getOncallGreeting,
+  setLineGreeting,
+  getLineGreeting,
   type OncallGreeting,
 } from '../../lib/eventIntakeService'
 
@@ -15,22 +15,23 @@ import {
 const MAX_GREETING_S = 45
 
 interface Props {
-  clinicId: string
+  /** The intake line this greeting belongs to. Each line answers with its own. */
+  credentialId: string
   /** Duration of the existing greeting (s), or null if none — seeds the row display. */
   initialDur: number | null
-  /** Notify the parent to refresh credential metadata after a save/delete. */
+  /** Notify the parent to refresh line metadata after a save/delete. */
   onChanged?: () => void
 }
 
 /**
- * Cluster voicemail greeting row — the operational announcement an OUTSIDE caller
+ * Line voicemail greeting row — the operational announcement an OUTSIDE caller
  * hears when their on-call call goes unanswered (mirror of the per-user
- * VoicemailGreetingSection, at clinic scope). Stored PLAINTEXT via setOncallGreeting:
+ * VoicemailGreetingSection, at line scope). Stored PLAINTEXT via setLineGreeting:
  * the anon caller holds no key so it can't be sealed; it's a deliberately-public
- * announcement (no PHI — UI-gated). Rendered as a border-t row inside the credential
+ * announcement (no PHI — UI-gated). Rendered as a border-t row inside the line
  * card, under "Allow calls".
  */
-export function OncallGreetingRow({ clinicId, initialDur, onChanged }: Props) {
+export function OncallGreetingRow({ credentialId, initialDur, onChanged }: Props) {
   const [dur, setDur] = useState<number | null>(initialDur)
   const [saving, setSaving] = useState(false)
   const [playing, setPlaying] = useState(false)
@@ -63,12 +64,12 @@ export function OncallGreetingRow({ clinicId, initialDur, onChanged }: Props) {
         mime: result.mime,
         dur: Math.round(result.duration * 10) / 10,
       }
-      const res = await setOncallGreeting(clinicId, greeting)
+      const res = await setLineGreeting(credentialId, greeting)
       if (res.ok) { setDur(greeting.dur); onChanged?.() }
     } finally {
       setSaving(false)
     }
-  }, [stopRecording, clinicId, onChanged])
+  }, [stopRecording, credentialId, onChanged])
 
   // Auto-stop a long recording so the inline plaintext blob stays modest.
   useEffect(() => {
@@ -81,7 +82,7 @@ export function OncallGreetingRow({ clinicId, initialDur, onChanged }: Props) {
       setPlaying(false)
       return
     }
-    const res = await getOncallGreeting(clinicId)
+    const res = await getLineGreeting(credentialId)
     if (!res.ok || !res.data) return
     if (urlRef.current) URL.revokeObjectURL(urlRef.current)
     const blob = new Blob([base64ToBytes(res.data.audio) as BlobPart], { type: res.data.mime || 'audio/webm' })
@@ -93,15 +94,15 @@ export function OncallGreetingRow({ clinicId, initialDur, onChanged }: Props) {
     audio.onpause = () => setPlaying(false)
     setPlaying(true)
     audio.play().catch(() => setPlaying(false))
-  }, [playing, clinicId])
+  }, [playing, credentialId])
 
   const handleDelete = useCallback(async () => {
     setConfirmDelete(false)
     audioRef.current?.pause()
     setPlaying(false)
-    const res = await setOncallGreeting(clinicId, null)
+    const res = await setLineGreeting(credentialId, null)
     if (res.ok) { setDur(null); onChanged?.() }
-  }, [clinicId, onChanged])
+  }, [credentialId, onChanged])
 
   return (
     <>

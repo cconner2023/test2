@@ -3,6 +3,7 @@ import { Building2, Package, ClipboardCheck, Award, Activity, Calendar, History 
 import { SkeletonRows } from '@/Components/primitives/Skeleton'
 import { LoadingOverlay } from '@/Components/primitives/LoadingOverlay'
 import { loadAuditBySubject } from '../../lib/auditService'
+import { liveTrainingEvents } from '../../lib/trainingFold'
 import type { AuditEvent, AuditDomain } from '../../lib/auditTypes'
 import type { CalendarEvent } from '../../Types/CalendarTypes'
 import { createLogger } from '../../Utilities/Logger'
@@ -294,7 +295,12 @@ export function useSubjectTimelineRows({ subjectId, clinicId, seedEvents, calend
       if (cancelled) return
       const byId = new Map<string, AuditEvent>()
       for (const e of [...(seedEvents ?? []), ...loaded]) byId.set(e.id, e)
-      setEvents([...byId.values()])
+      // A voided training record leaves the spine — the deleted grade stops
+      // being an entry, and the tombstone itself survives the filter (it is a
+      // suppressor, never a suppressed) as the "Training record removed" row.
+      // Other domains are untouched: liveTrainingEvents keys off the training
+      // event types alone.
+      setEvents(liveTrainingEvents([...byId.values()]))
       setLoading(false)
     })()
     return () => { cancelled = true }

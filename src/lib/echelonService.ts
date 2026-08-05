@@ -14,7 +14,7 @@
 import { supabase } from './supabase'
 import { fetchClinicCertifications } from './certificationService'
 import { loadAuditByClinicDomain } from './auditService'
-import { foldTrainingState } from './trainingFold'
+import { foldTrainingState, liveTrainingEvents } from './trainingFold'
 import { createLogger } from '../Utilities/Logger'
 import {
   buildTestableTaskMap,
@@ -105,13 +105,16 @@ export async function computeReadinessSummary(
     if (medics.length === 0) return null
 
     const userIds = medics.map((m) => m.id)
-    const [certs, trainingEvents] = await Promise.all([
+    const [certs, rawEvents] = await Promise.all([
       fetchClinicCertifications(userIds),
       loadAuditByClinicDomain(clinicId, 'training'),
     ])
     // Fold once for readiness; count encounters from the SAME raw events (the
-    // fold collapses repeat reads, so it can't give occurrence totals).
-    const folded = foldTrainingState(trainingEvents)
+    // fold collapses repeat reads, so it can't give occurrence totals). The
+    // counted set is void-filtered — what a parent echelon is published must
+    // not include records this clinic has since deleted.
+    const folded = foldTrainingState(rawEvents)
+    const trainingEvents = liveTrainingEvents(rawEvents)
     const encounters_today = rollupEncounterReads(trainingEvents).totalToday
     // Per-soldier algorithm run counts off the same raw events, for the runs
     // component of algorithm completion. Counted once, then sliced per medic.
@@ -179,6 +182,7 @@ export async function computeReadinessSummary(
         cert_pct: s.compliancePercent,
         overdue_count: s.overdueCount,
         areas: areasBySoldier.get(s.soldierId),
+        ...(s.exempt ? { exempt: true } : {}),
       })),
       categories,
       activity,

@@ -1,5 +1,5 @@
 import type { RefObject } from 'react';
-import { Check, Copy, Share2, FileDown, ChevronRight, CalendarCheck } from 'lucide-react';
+import { Check, ChevronRight } from 'lucide-react';
 import type { getColorClasses } from '../Utilities/ColorUtilities';
 import type { TextExpander } from '../Data/User';
 import type { useTemplateSession } from '../Hooks/useTemplateSession';
@@ -142,51 +142,6 @@ export function createHPIKeyDownHandler(deps: HPIKeyDownDeps) {
     };
 }
 
-export const ActionIconButton = ({
-    onClick,
-    status,
-    variant,
-    title,
-}: {
-    onClick: () => void;
-    status: 'idle' | 'busy' | 'done';
-    variant: 'copy' | 'share' | 'pdf' | 'calendar';
-    title: string;
-}) => {
-    const colorClass = status === 'done' ? 'bg-themeblue2 text-white'
-        : status === 'busy' ? 'bg-themeblue2/8 text-tertiary'
-            : 'bg-themeblue2/8 text-primary';
-
-    return (
-        <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); onClick(); }}
-            className={`w-9 h-9 rounded-full flex items-center justify-center transition-all active:scale-95 ${colorClass}`}
-            title={title}
-        >
-            {status === 'busy' ? (
-                <svg className="w-4 h-4 animate-spin" style={{ animationDuration: '2s' }} viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <g transform="translate(20,20)">
-                        <rect x="-3" y="-11" width="6" height="22" rx="1.5" fill="currentColor" />
-                        <rect x="-3" y="-11" width="6" height="22" rx="1.5" fill="currentColor" transform="rotate(60)" />
-                        <rect x="-3" y="-11" width="6" height="22" rx="1.5" fill="currentColor" transform="rotate(120)" />
-                    </g>
-                </svg>
-            ) : status === 'done' ? (
-                <Check className="w-4 h-4" />
-            ) : variant === 'copy' ? (
-                <Copy className="w-4 h-4" />
-            ) : variant === 'share' ? (
-                <Share2 className="w-4 h-4" />
-            ) : variant === 'calendar' ? (
-                <CalendarCheck className="w-4 h-4" />
-            ) : (
-                <FileDown className="w-4 h-4" />
-            )}
-        </button>
-    );
-};
-
 export const ToggleOption: React.FC<{
     checked: boolean;
     onChange: () => void;
@@ -223,16 +178,10 @@ export const ToggleOption: React.FC<{
     </div>
 );
 
-// Status helpers — map share/export status strings to icon states.
+// Status helper — maps share status strings to icon states.
 export function shareStatusToIconStatus(status: string): 'idle' | 'busy' | 'done' {
     if (status === 'shared' || status === 'copied') return 'done';
     if (status === 'generating' || status === 'sharing') return 'busy';
-    return 'idle';
-}
-
-export function exportStatusToIconStatus(status: string): 'idle' | 'busy' | 'done' {
-    if (status === 'done') return 'done';
-    if (status === 'generating') return 'busy';
     return 'idle';
 }
 

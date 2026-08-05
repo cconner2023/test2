@@ -3,6 +3,7 @@
 
 import type { LaceReport, Sitrep, Opord } from '../Types/ReportTypes'
 import type { MedevacRequest } from '../Types/MedevacTypes'
+import { copyText } from '../Utilities/clipboardUtils'
 import {
   MEDEVAC_PRECEDENCE_LABELS,
   MEDEVAC_EQUIPMENT_LABELS,
@@ -237,8 +238,10 @@ export function medevacFromCompact(str: string): MedevacRequest | null {
 
 // ── Shared export utilities ───────────────────────────────────────────────────
 
-export async function copyToClipboard(text: string): Promise<void> {
-  await navigator.clipboard.writeText(text)
+/** Report copies go through the shared helper so they raise the same confirmation
+ *  as every other copy in the app. */
+export async function copyToClipboard(text: string, label?: string): Promise<void> {
+  await copyText(text, label)
 }
 
 export function downloadAsText(text: string, filename: string): void {

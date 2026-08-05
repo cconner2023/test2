@@ -202,10 +202,12 @@ export function SubjectCard({
             />
           </div>
         ) : (
-          readinessPercent != null && compliancePercent != null && (
+          // Independent, not paired: a soldier exempt from the medic ICTL roster
+          // has no readiness figure but still holds certifications.
+          (readinessPercent != null || compliancePercent != null) && (
             <div className="flex flex-col gap-1.5 mt-3 px-4">
-              <FillBar label="Readiness" percent={readinessPercent} />
-              <FillBar label="Compliance" percent={compliancePercent} />
+              {readinessPercent != null && <FillBar label="Readiness" percent={readinessPercent} />}
+              {compliancePercent != null && <FillBar label="Compliance" percent={compliancePercent} />}
             </div>
           )
         )}

@@ -33,11 +33,24 @@ interface TrainingViewProps {
   /** Absent where the drill has nothing to open — a subordinate cluster's task
    *  records stay in its own vault, so its rows are a readout, not a way in. */
   onSelectCategory?: (areaName: string) => void
+  /** Open one week's records. Absent for the same reason as onSelectCategory,
+   *  and on the same scope: a published series has no records behind it. */
+  onSelectWeek?: (start: number) => void
+  /** The week currently open in the pane. */
+  selectedWeek?: number | null
   /** "as of …" line for numbers that were computed somewhere else and sent. */
   asOf?: string
 }
 
-export function TrainingView({ rows, activity, soldierCount, onSelectCategory, asOf }: TrainingViewProps) {
+export function TrainingView({
+  rows,
+  activity,
+  soldierCount,
+  onSelectCategory,
+  onSelectWeek,
+  selectedWeek,
+  asOf,
+}: TrainingViewProps) {
   const single = soldierCount === 1
 
   return (
@@ -48,7 +61,11 @@ export function TrainingView({ rows, activity, soldierCount, onSelectCategory, a
           reference you drill into once the graph gives you a reason to. */}
       {activity && (
         <SectionCard>
-          <TrainingTimeline weeks={activity} />
+          <TrainingTimeline
+            weeks={activity}
+            onSelectWeek={onSelectWeek}
+            selectedStart={selectedWeek}
+          />
         </SectionCard>
       )}
 

@@ -1,8 +1,9 @@
 import { useState, useRef, useCallback } from 'react'
-import { Copy, ClipboardCheck, MapPin } from 'lucide-react'
+import { Copy, MapPin } from 'lucide-react'
 import { toPoint } from 'mgrs'
 import { ErrorDisplay } from '@/Components/primitives/ErrorDisplay'
 import { latLngToMgrs, normalizeMgrs } from '../../lib/mgrsFormat'
+import { copyText } from '../../Utilities/clipboardUtils'
 
 interface MGRSConverterProps {
   onCoordinateSelect?: (lat: number, lng: number, mgrs: string) => void
@@ -54,18 +55,14 @@ export function MGRSConverter({ onCoordinateSelect, onJumpToMap }: MGRSConverter
   const [latLngInput, setLatLngInput] = useState('')
   const [mgrsError, setMgrsError] = useState<string | null>(null)
   const [latLngError, setLatLngError] = useState<string | null>(null)
-  const [copiedField, setCopiedField] = useState<'mgrs' | 'latlng' | null>(null)
   const [resolved, setResolved] = useState<{ lat: number; lng: number; mgrs: string } | null>(null)
 
   const mgrsTimerRef = useRef<ReturnType<typeof setTimeout>>()
   const latLngTimerRef = useRef<ReturnType<typeof setTimeout>>()
 
-  const copyToClipboard = useCallback((text: string, field: 'mgrs' | 'latlng') => {
+  const copyToClipboard = useCallback((text: string, label: string) => {
     if (!text) return
-    navigator.clipboard.writeText(text).then(() => {
-      setCopiedField(field)
-      setTimeout(() => setCopiedField(null), 1500)
-    })
+    void copyText(text, label)
   }, [])
 
   const handleMgrsChange = useCallback((value: string) => {
@@ -149,17 +146,14 @@ export function MGRSConverter({ onCoordinateSelect, onJumpToMap }: MGRSConverter
           />
           <button
             type="button"
-            onClick={() => copyToClipboard(mgrsInput, 'mgrs')}
+            onClick={() => copyToClipboard(mgrsInput, 'MGRS copied')}
             className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded
                        text-tertiary hover:text-tertiary transition-colors active:scale-95"
             aria-label="Copy MGRS"
           >
-            {copiedField === 'mgrs' ? <ClipboardCheck size={16} /> : <Copy size={16} />}
+            <Copy size={16} />
           </button>
         </div>
-        {copiedField === 'mgrs' && (
-          <span className="text-[10pt] text-themegreen font-medium">Copied!</span>
-        )}
         <ErrorDisplay message={mgrsError} />
       </div>
 
@@ -178,17 +172,14 @@ export function MGRSConverter({ onCoordinateSelect, onJumpToMap }: MGRSConverter
           />
           <button
             type="button"
-            onClick={() => copyToClipboard(latLngInput, 'latlng')}
+            onClick={() => copyToClipboard(latLngInput, 'Coordinates copied')}
             className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded
                        text-tertiary hover:text-tertiary transition-colors active:scale-95"
             aria-label="Copy coordinates"
           >
-            {copiedField === 'latlng' ? <ClipboardCheck size={16} /> : <Copy size={16} />}
+            <Copy size={16} />
           </button>
         </div>
-        {copiedField === 'latlng' && (
-          <span className="text-[10pt] text-themegreen font-medium">Copied!</span>
-        )}
         <ErrorDisplay message={latLngError} />
       </div>
 

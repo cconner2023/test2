@@ -53,7 +53,7 @@ async function emitTrainingEvent(
   actorUserId: string,
   payload: Record<string, unknown>,
   occurredAt: string,
-): Promise<ServiceResult> {
+): Promise<ServiceResult<{ eventId: string }>> {
   // The ACTIVE clinic, not the home one. A supervisor toggled into a loaned
   // cluster grades that cluster's roster, so the event belongs to it — and the
   // supervisor fold reads `supervisingClinicId ?? clinicId`, so stamping the
@@ -87,7 +87,9 @@ async function emitTrainingEvent(
   // and the sync flush seals it later — the write succeeded, it just has not
   // left the device.
   if (!row) return fail('Could not record the training event. Try again.')
-  return succeed()
+  // The event id is the read's identity in the fold — one row per rep — so it
+  // has to come back out rather than being dropped on the floor here.
+  return succeed({ eventId: row.id })
 }
 
 const logger = createLogger('TrainingService')
@@ -194,11 +196,15 @@ function foldStub(
     stepResults?: StepResult[] | null
     supervisorNotes?: string | null
     dueDate?: string | null
+    /** The emitted event's id. REQUIRED for a read: without it every rep stubs
+     *  to the same id, and an optimistic re-read would key-collide with the row
+     *  already on screen instead of landing beside it. */
+    eventId?: string
   } = {},
 ): TrainingCompletionUI {
   const now = new Date().toISOString()
   return {
-    id: foldRowId(userId, trainingItemId, type),
+    id: foldRowId(userId, trainingItemId, type, type === 'read' ? opts.eventId : undefined),
     userId,
     trainingItemId,
     completionType: type,
@@ -253,12 +259,21 @@ export async function voidTrainingCompletion(
   trainingItemId: string,
   completionType: string,
   actorUserId: string,
-): Promise<ServiceResult> {
+  /** The one read to retire. Omitted for the replacing types, and omitted
+   *  deliberately by the calendar cascade, where every read of the item goes.
+   *  A void without it stays a whole-type void — which is also what every
+   *  tombstone written before reads stacked has to keep meaning. */
+  eventId?: string,
+): Promise<ServiceResult<{ eventId: string }>> {
   return emitTrainingEvent(
     'completion.voided',
     subjectUserId,
     actorUserId,
-    { training_item_id: trainingItemId, completion_type: completionType },
+    {
+      training_item_id: trainingItemId,
+      completion_type: completionType,
+      ...(eventId ? { event_id: eventId } : {}),
+    },
     new Date().toISOString(),
   )
 }
@@ -266,6 +281,10 @@ export async function voidTrainingCompletion(
 /**
  * Create a read completion (medic self-reports completing a training task).
  * Writes to IndexedDB immediately and queues for sync.
+ *
+ * Every call is a NEW record, including a repeat of a task already read. That is
+ * the point: a task carries a doctrine refresh interval, so the reps are a
+ * series and the newest one is what currency is measured from. See trainingFold.
  */
 export async function createReadCompletion(
   trainingItemId: string,
@@ -276,7 +295,9 @@ export async function createReadCompletion(
     training_item_id: trainingItemId,
   }, now)
   if (!emitted.success) return emitted
-  return succeed({ completion: foldStub(userId, trainingItemId, 'read', 'GO', now) })
+  return succeed({
+    completion: foldStub(userId, trainingItemId, 'read', 'GO', now, { eventId: emitted.eventId }),
+  })
 }
 
 /**
@@ -348,6 +369,9 @@ async function purgeTrainingEventRows(
   trainingItemId: string,
   completionType: string,
   actorUserId: string,
+  /** Purge exactly this event and nothing else. Set when one read of a task is
+   *  being deleted — the other reps are separate records and stay on the log. */
+  eventId?: string,
 ): Promise<number> {
   const { clinicId, supervisingClinicId } = useAuthStore.getState()
   const activeClinicId = supervisingClinicId ?? clinicId
@@ -355,6 +379,7 @@ async function purgeTrainingEventRows(
   let purged = 0
   for (const e of events) {
     if (e.domain !== 'training') continue
+    if (eventId && e.id !== eventId) continue
     const raw = (e.payload?.training_item_id as string) || ''
     if (!raw) continue
     if (aliasTrainingItemId(raw, e.occurredAt) !== trainingItemId) continue
@@ -390,11 +415,22 @@ export async function deleteCompletion(
   // purge only once the tombstone that justifies them exists.
   const voided = await voidTrainingCompletion(
     parsed.userId, parsed.trainingItemId, parsed.completionType, userId,
+    parsed.eventId ?? undefined,
   )
   if (!voided.success) return voided
-  await deleteTrainingCalendarLink(parsed.userId, parsed.trainingItemId, parsed.completionType)
+  // The calendar link is keyed (user, item, type) and cannot name one rep, so
+  // deleting ONE read leaves it alone: the other reps of that task are still
+  // live records, and dropping the link would cut the cascade that retires them
+  // when the calendar event goes. A stranded link is a no-op — the cascade
+  // voids a row that is not there — while a missing one loses real work.
+  if (!parsed.eventId) {
+    await deleteTrainingCalendarLink(parsed.userId, parsed.trainingItemId, parsed.completionType)
+  }
   try {
-    await purgeTrainingEventRows(parsed.userId, parsed.trainingItemId, parsed.completionType, userId)
+    await purgeTrainingEventRows(
+      parsed.userId, parsed.trainingItemId, parsed.completionType, userId,
+      parsed.eventId ?? undefined,
+    )
   } catch (err) {
     // The void already landed, so the completion is gone from every fold —
     // a failed purge leaves raw rows visible, not a resurrected completion.
@@ -524,6 +560,10 @@ export async function completeAssignment(params: {
       supervisorId,
       stepResults: stepResults ?? null,
       supervisorNotes: supervisorNotes ?? null,
+      // A worked-off assignment BECOMES a read, and a read is keyed by the event
+      // that made it — so the stub has to carry the same id the refold will
+      // produce, or the optimistic row is replaced by a second one beside it.
+      eventId: emitted.eventId,
     }),
   })
 }

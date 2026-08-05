@@ -9,6 +9,14 @@ interface CertOverlayFieldsProps {
   isMobile: boolean
   /** When provided, attaches a `<datalist>` of credential titles with this id. */
   datalistId?: string
+  /** Drop the Primary row. Set on SUPERVISOR surfaces, and not as a matter of
+   *  taste: is_primary is what syncPrimaryToProfile joins into
+   *  `profiles.credential`, and profiles' update policy is self-or-dev — a
+   *  supervisor flipping it would write the cert row and silently fail the
+   *  credential sync, leaving the soldier's stated credential disagreeing with
+   *  their own certs. The holder declares their credential; a supervisor records
+   *  and verifies the card. */
+  hidePrimary?: boolean
 }
 
 /**
@@ -19,7 +27,7 @@ interface CertOverlayFieldsProps {
  * For the standalone bg-tertiary/5 card layout used elsewhere, use
  * `CertificationForm` instead.
  */
-export function CertOverlayFields({ form, setForm, isMobile, datalistId }: CertOverlayFieldsProps) {
+export function CertOverlayFields({ form, setForm, isMobile, datalistId, hidePrimary }: CertOverlayFieldsProps) {
   const rowCx = `flex items-center justify-between border-b border-primary/6 last:border-0 ${
     isMobile ? 'px-4 py-3' : 'px-3 py-2.5'
   }`
@@ -69,13 +77,15 @@ export function CertOverlayFields({ form, setForm, isMobile, datalistId }: CertO
           />
         </div>
       </div>
-      <label
-        className={`${rowCx} cursor-pointer`}
-        onClick={() => setForm(f => ({ ...f, is_primary: !f.is_primary }))}
-      >
-        <span className={labelCx}>Primary</span>
-        <ToggleSwitch checked={form.is_primary} />
-      </label>
+      {!hidePrimary && (
+        <label
+          className={`${rowCx} cursor-pointer`}
+          onClick={() => setForm(f => ({ ...f, is_primary: !f.is_primary }))}
+        >
+          <span className={labelCx}>Primary</span>
+          <ToggleSwitch checked={form.is_primary} />
+        </label>
+      )}
 
       {datalistId && (
         <datalist id={datalistId}>

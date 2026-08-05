@@ -2,7 +2,7 @@ import { useRef, useEffect, useCallback, useState, forwardRef, useImperativeHand
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { latLngToMgrs } from '../../lib/mgrsFormat';
-import { Plus, Minus, Info, Copy, ClipboardCheck, LocateFixed, Map as MapIcon, Globe, Mountain, MountainSnow } from 'lucide-react';
+import { Plus, Minus, Info, Copy, LocateFixed, Map as MapIcon, Globe, Mountain, MountainSnow } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { PreviewOverlay } from '../PreviewOverlay';
 import { BottomIsland } from '@/Components/primitives/BottomIsland';
@@ -11,6 +11,7 @@ import { ActionPill } from '@/Components/primitives/ActionPill';
 import { useTheme } from '../../Utilities/ThemeContext';
 import { createThemedTileLayer, getTileTheme } from './ThemedTileLayer';
 import { getTileFromCache, getTileSource, TILE_SOURCES } from '../../lib/mapTileService';
+import { copyText } from '../../Utilities/clipboardUtils';
 
 const BASEMAP_ICONS: Record<string, LucideIcon> = {
   osm: MapIcon,
@@ -249,7 +250,6 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
   const [showBasemapPicker, setShowBasemapPicker] = useState(false);
   const [address, setAddress] = useState('');
   const [addressLoading, setAddressLoading] = useState(false);
-  const [copiedField, setCopiedField] = useState<'mgrs' | 'utm' | 'latlng' | 'address' | null>(null);
 
   const handleZoomIn = useCallback(() => { mapRef.current?.zoomIn(); }, []);
   const handleZoomOut = useCallback(() => { mapRef.current?.zoomOut(); }, []);
@@ -327,12 +327,9 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
       .finally(() => setAddressLoading(false));
   }, [centerLatLng, selectedAnchor]);
 
-  const handleCopyField = useCallback((value: string, field: 'mgrs' | 'utm' | 'latlng' | 'address') => {
+  const handleCopyField = useCallback((value: string, label: string) => {
     if (!value) return;
-    navigator.clipboard.writeText(value).then(() => {
-      setCopiedField(field);
-      setTimeout(() => setCopiedField(null), 1500);
-    });
+    void copyText(value, `${label} copied`);
   }, []);
 
   // Initialize map
@@ -918,14 +915,12 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
               <button
                 type="button"
                 disabled={!row.value}
-                onClick={() => handleCopyField(row.value, row.key)}
+                onClick={() => handleCopyField(row.value, row.label)}
                 className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all disabled:opacity-30"
                 aria-label={`Copy ${row.label}`}
                 title={`Copy ${row.label}`}
               >
-                {copiedField === row.key
-                  ? <ClipboardCheck size={16} className="text-themegreen" />
-                  : <Copy size={16} />}
+                <Copy size={16} />
               </button>
             </div>
           ))}

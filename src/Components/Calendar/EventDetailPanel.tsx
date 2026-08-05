@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useMemo, type ElementType } from 'react'
-import { X, Map as MapIcon, Copy, Check, Printer, Image, MoreHorizontal } from 'lucide-react'
+import { X, Map as MapIcon, Copy, Printer, Image, MoreHorizontal } from 'lucide-react'
 import { reverseGeocode } from '../MapOverlay/searchResolver'
 import { latLngToUTM } from '../MapOverlay/utmProjection'
 import { OverlayTilePreview } from '../MapOverlay/OverlayTilePreview'
@@ -23,6 +23,7 @@ import { shareSingleEvent } from '../../lib/calendarExport'
 import { useIsMobile } from '../../Hooks/useIsMobile'
 import { useShareToChat } from '../Messages/ShareToChatPicker'
 import { medevacToText, medevacToCompact, copyToClipboard, printReport } from '../../lib/reportExport'
+import { copyImage } from '../../Utilities/clipboardUtils'
 import { BarcodeDisplay } from '../Barcode'
 
 interface AssignedPerson {
@@ -143,8 +144,6 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete, onMove, onC
     setMoreMenu({ rect })
   }
   void canDeleteTemplate
-  const [copied, setCopied] = useState(false)
-  const [copiedDm, setCopiedDm] = useState<'image' | 'code' | null>(null)
   const barcodeRef = useRef<HTMLDivElement>(null)
 
   const { share: shareToChat, picker: shareToChatPicker } = useShareToChat()
@@ -160,10 +159,7 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete, onMove, onC
 
   function handleMedevacCopy() {
     if (!event.medevac_data) return
-    copyToClipboard(medevacToText(event.medevac_data)).then(() => {
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    })
+    void copyToClipboard(medevacToText(event.medevac_data), 'MEDEVAC copied')
   }
 
   function handleMedevacPrint() {
@@ -173,21 +169,13 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete, onMove, onC
 
   function handleCopyCode() {
     if (!event.medevac_data) return
-    copyToClipboard(medevacToCompact(event.medevac_data)).then(() => {
-      setCopiedDm('code')
-      setTimeout(() => setCopiedDm(null), 2000)
-    })
+    void copyToClipboard(medevacToCompact(event.medevac_data), 'Code copied')
   }
 
   function handleCopyImage() {
     const canvas = barcodeRef.current?.querySelector('canvas')
     if (!canvas) return
-    canvas.toBlob(blob => {
-      if (!blob) return
-      navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
-        .then(() => { setCopiedDm('image'); setTimeout(() => setCopiedDm(null), 2000) })
-        .catch(() => {})
-    }, 'image/png')
+    canvas.toBlob(blob => { if (blob) void copyImage(blob, 'Barcode copied') }, 'image/png')
   }
 
   // Header actions collapsed into a single ellipsis menu (Close stays a pill).
@@ -423,9 +411,9 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete, onMove, onC
                       type="button"
                       onClick={handleMedevacCopy}
                       title="Copy"
-                      className={`p-1.5 rounded-full transition-all active:scale-95 ${copied ? 'text-themegreen' : 'text-tertiary hover:text-primary hover:bg-themewhite3'}`}
+                      className="p-1.5 rounded-full text-tertiary hover:text-primary hover:bg-themewhite3 active:scale-95 transition-all"
                     >
-                      {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                      <Copy className="w-4 h-4" />
                     </button>
                     <button
                       type="button"
@@ -450,17 +438,17 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete, onMove, onC
                         type="button"
                         onClick={handleCopyImage}
                         title="Copy image"
-                        className={`p-1.5 rounded-full transition-all active:scale-95 ${copiedDm === 'image' ? 'text-themegreen' : 'text-tertiary hover:text-primary hover:bg-themewhite3'}`}
+                        className="p-1.5 rounded-full text-tertiary hover:text-primary hover:bg-themewhite3 active:scale-95 transition-all"
                       >
-                        {copiedDm === 'image' ? <Check className="w-4 h-4" /> : <Image className="w-4 h-4" />}
+                        <Image className="w-4 h-4" />
                       </button>
                       <button
                         type="button"
                         onClick={handleCopyCode}
                         title="Copy code"
-                        className={`p-1.5 rounded-full transition-all active:scale-95 ${copiedDm === 'code' ? 'text-themegreen' : 'text-tertiary hover:text-primary hover:bg-themewhite3'}`}
+                        className="p-1.5 rounded-full text-tertiary hover:text-primary hover:bg-themewhite3 active:scale-95 transition-all"
                       >
-                        {copiedDm === 'code' ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                        <Copy className="w-4 h-4" />
                       </button>
                     </div>
                   </div>

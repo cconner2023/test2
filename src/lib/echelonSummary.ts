@@ -90,6 +90,10 @@ export interface EchelonSoldierReadiness {
    *  it on each row would be headcount-many copies of one number. Optional for
    *  back-compat: an older row drills to no category detail. */
   areas?: { area: string; passed: number }[]
+  /** The medic ICTL roster does not apply to this soldier, so readiness_pct is
+   *  not a verdict about them and no parent surface may draw it as one. Fanned
+   *  because the parent cannot re-derive it — roles are not in this payload. */
+  exempt?: boolean
 }
 
 export interface EchelonReadinessSummary {
@@ -145,7 +149,7 @@ export function summaryValueKey(s: EchelonReadinessSummary): string {
   const soldiers = (s.soldiers ?? [])
     .map((r) => {
       const areas = (r.areas ?? []).map((a) => `${a.area}=${a.passed}`).sort().join('+')
-      return `${r.user_id}:${r.readiness_pct}:${r.cert_pct}:${r.overdue_count}:${areas}`
+      return `${r.user_id}:${r.readiness_pct}:${r.cert_pct}:${r.overdue_count}:${r.exempt ? 'x' : ''}:${areas}`
     })
     .sort()
     .join(',')

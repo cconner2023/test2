@@ -25,6 +25,7 @@ import { useState, useCallback, useMemo } from 'react'
 import type { DecryptedSignalMessage } from '../lib/signal/transportTypes'
 import type { ClinicMedic } from '../Types/SupervisorTestTypes'
 import type { SwipeAction } from '../Utilities/swipeActions'
+import { copyText } from '../Utilities/clipboardUtils'
 
 export interface PendingDelete {
   peerId: string
@@ -166,7 +167,7 @@ export function useChatInteractions({
 
   const handleCopy = useCallback(() => {
     if (!contextMsg) return
-    navigator.clipboard.writeText(contextMsg.plaintext).catch(() => {})
+    void copyText(contextMsg.plaintext, 'Message copied')
     setContextMenu(null)
   }, [contextMsg])
 

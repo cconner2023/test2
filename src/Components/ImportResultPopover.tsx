@@ -113,20 +113,6 @@ export function ImportResultPopover({
   isMobile,
 }: ImportResultPopoverProps) {
   const { shareNote, shareStatus } = useNoteShare()
-  const [copiedTarget, setCopiedTarget] = useState<'preview' | 'encoded' | null>(null)
-
-  // Copy feedback auto-revert
-  useEffect(() => {
-    if (copiedTarget) {
-      const t = setTimeout(() => setCopiedTarget(null), 1500)
-      return () => clearTimeout(t)
-    }
-  }, [copiedTarget])
-
-  const handleCopy = useCallback((text: string, target: 'preview' | 'encoded') => {
-    copyWithHtml(text)
-    setCopiedTarget(target)
-  }, [])
 
   const handleShare = useCallback(() => {
     if (!preview) return
@@ -158,16 +144,16 @@ export function ImportResultPopover({
       }] : []),
       {
         key: 'copy-note',
-        label: copiedTarget === 'preview' ? 'Copied' : 'Copy',
-        icon: copiedTarget === 'preview' ? Check : Copy,
-        onAction: () => handleCopy(preview.fullNote, 'preview'),
+        label: 'Copy',
+        icon: Copy,
+        onAction: () => copyWithHtml(preview.fullNote),
         closesOnAction: false,
       },
       {
         key: 'copy-code',
-        label: copiedTarget === 'encoded' ? 'Copied' : 'Code',
-        icon: copiedTarget === 'encoded' ? Check : Copy,
-        onAction: () => handleCopy(preview.encodedText, 'encoded'),
+        label: 'Code',
+        icon: Copy,
+        onAction: () => copyWithHtml(preview.encodedText),
         closesOnAction: false,
       },
       {
@@ -218,11 +204,6 @@ export function ImportResultPopover({
     )
     actions = []
   }
-
-  // Reset copy state when popover hides
-  useEffect(() => {
-    if (!isVisible) setCopiedTarget(null)
-  }, [isVisible])
 
   return (
     <PreviewOverlay

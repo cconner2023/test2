@@ -5,7 +5,7 @@ import { fetchClinicCertifications } from '../../../lib/certificationService'
 import { enrichCalendarLinks, type TrainingCompletionUI } from '../../../lib/trainingService'
 import { loadAuditByClinicDomain } from '../../../lib/auditService'
 import { countAlgorithmRuns } from '../../../Utilities/algorithmStp'
-import { foldTrainingState } from '../../../lib/trainingFold'
+import { foldTrainingState, liveTrainingEvents } from '../../../lib/trainingFold'
 import { createLogger } from '../../../Utilities/Logger'
 import {
   formatMedicName,
@@ -79,9 +79,11 @@ export interface SupervisorData {
    *  is a slice of this, not a separate fold, so the cluster rows and a soldier's
    *  rows cannot drift apart. */
   competencyMatrix: SoldierCompetency[]
-  /** RAW, unfolded training events. Anything counting OCCURRENCES rather than
-   *  state reads these: the fold collapses repeats (see rollupEncounterReads,
-   *  rollupTrainingActivity). */
+  /** RAW, unfolded training events, MINUS anything a completion.voided tombstone
+   *  retired. Anything counting OCCURRENCES rather than state reads these: the
+   *  fold collapses repeats (see rollupEncounterReads, rollupTrainingActivity),
+   *  and a deleted record must not keep counting on the surfaces that never
+   *  see the fold. */
   trainingEvents: AuditEvent[]
   /** Clinic-wide algorithm-encounter roll-up by body-system category (occurrence
    *  counts from the raw event stream, not the fold). */
@@ -95,12 +97,13 @@ export function useSupervisorData(): SupervisorData {
   const [tests, setTests] = useState<TrainingCompletionUI[]>([])
   const [reads, setReads] = useState<TrainingCompletionUI[]>([])
   const [assignments, setAssignments] = useState<TrainingCompletionUI[]>([])
-  // Raw (unfolded) training events — kept so the encounter roll-up can count
-  // every occurrence (the fold collapses repeats). See rollupEncounterReads.
+  // Raw (unfolded, void-filtered) training events — kept so the encounter
+  // roll-up can count every occurrence (the fold collapses repeats).
+  // See rollupEncounterReads.
   const [trainingEvents, setTrainingEvents] = useState<AuditEvent[]>([])
 
   const { medics: allLocationMedics, loading: medicsLoading } = useClinicMedics()
-  const { user, clinicId: userClinicId, supervisingClinicId, isSupervisorRole, profile: authProfile, loading: authLoading } = useAuth()
+  const { user, clinicId: userClinicId, supervisingClinicId, isSupervisorRole, roles: authRoles, profile: authProfile, loading: authLoading } = useAuth()
   // Roster pivots around the supervisor's active clinic context (toggle).
   // Single-clinic users always see their assigned clinic.
   const rosterClinicId = supervisingClinicId ?? userClinicId
@@ -130,8 +133,11 @@ export function useSupervisorData(): SupervisorData {
       rank: authProfile.rank ?? null,
       credential: authProfile.credential ?? null,
       avatarId: null,
+      // Carried so self is testable by isTrainingExempt like anyone off the
+      // roster RPC — the roster shape is the same shape either way.
+      roles: authRoles,
     }
-  }, [user, authProfile.firstName, authProfile.lastName, authProfile.middleInitial, authProfile.rank, authProfile.credential])
+  }, [user, authProfile.firstName, authProfile.lastName, authProfile.middleInitial, authProfile.rank, authProfile.credential, authRoles])
 
   // Roster scope: medics whose assigned OR surrogate clinic matches the
   // supervisor's currently-active clinic context (assigned by default,
@@ -193,7 +199,10 @@ export function useSupervisorData(): SupervisorData {
       ])
       const folded = await enrichCalendarLinks(foldTrainingState(rawEvents))
       setCerts(certsData)
-      setTrainingEvents(rawEvents)
+      // Voided events are dropped HERE, once, rather than in each roll-up: the
+      // fold reads the tombstones (so it takes the raw set), everything counting
+      // occurrences must not (see liveTrainingEvents).
+      setTrainingEvents(liveTrainingEvents(rawEvents))
       setTests(folded.filter((c) => c.completionType === 'test'))
       setReads(folded.filter((c) => c.completionType === 'read'))
       setAssignments(folded.filter((c) => c.completionType === 'assignment'))

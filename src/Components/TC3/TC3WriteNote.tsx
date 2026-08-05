@@ -1,7 +1,7 @@
 import { memo, useMemo, useState, useEffect } from 'react'
 import { BaseDrawer } from '@/Components/primitives/BaseDrawer'
 import { BarcodeDisplay } from '../Barcode'
-import { ActionIconButton } from '../WriteNoteHelpers'
+import { copyText } from '../../Utilities/clipboardUtils'
 import { useTC3Store } from '../../stores/useTC3Store'
 import { useAuthStore, selectIsAuthenticated } from '../../stores/useAuthStore'
 import { formatTC3Note, formatMISTReport } from '../../Utilities/TC3Formatter'
@@ -15,9 +15,10 @@ import { orderByPriority, buildCasualtyStops, bandOf, BAND_META } from './casual
 import type { TC3Card } from '../../Types/TC3Types'
 import type { UserTypes } from '../../Data/User'
 import { ActionPill } from '@/Components/primitives/ActionPill'
+import { ActionButton } from '@/Components/primitives/ActionButton'
 import { Section, SectionCard } from '@/Components/primitives/Section'
 import { BottomIsland } from '@/Components/primitives/BottomIsland'
-import { ChevronDown, User, Layers } from 'lucide-react'
+import { ChevronDown, User, Layers, Copy, Share2, ClipboardList } from 'lucide-react'
 
 const INJURY_COLORS: Record<string, string> = {
   GSW: '#ef4444',
@@ -45,9 +46,6 @@ interface TC3CardSectionProps {
 }
 
 function TC3CardSection({ card, profile, userId, isAuthenticated, label, activeContext, scope }: TC3CardSectionProps) {
-  const [copiedTarget, setCopiedTarget] = useState<'preview' | 'encoded' | null>(null)
-  const [copiedMist, setCopiedMist] = useState(false)
-  const [shareStatus, setShareStatus] = useState<'idle' | 'sharing' | 'shared'>('idle')
   const [encodedText, setEncodedText] = useState('')
 
   const noteText = useMemo(() => formatTC3Note(card, profile), [card, profile])
@@ -63,48 +61,18 @@ function TC3CardSection({ card, profile, userId, isAuthenticated, label, activeC
     return () => { cancelled = true }
   }, [compactString, isAuthenticated])
 
-  const handleCopy = async (text: string, target: 'preview' | 'encoded') => {
-    try {
-      await navigator.clipboard.writeText(text)
-    } catch {
-      const textarea = document.createElement('textarea')
-      textarea.value = text
-      document.body.appendChild(textarea)
-      textarea.select()
-      document.execCommand('copy')
-      document.body.removeChild(textarea)
-    }
-    setCopiedTarget(target)
-    setTimeout(() => setCopiedTarget(null), 2000)
-  }
+  // Plain text — the card carries no rich flavor worth preserving.
+  const handleCopy = (text: string, label?: string) => { void copyText(text, label) }
 
-  const handleCopyMist = async () => {
-    const mistText = formatMISTReport(card)
-    try {
-      await navigator.clipboard.writeText(mistText)
-    } catch {
-      const ta = document.createElement('textarea')
-      ta.value = mistText
-      document.body.appendChild(ta)
-      ta.select()
-      document.execCommand('copy')
-      document.body.removeChild(ta)
-    }
-    setCopiedMist(true)
-    setTimeout(() => setCopiedMist(false), 2000)
-  }
+  const handleCopyMist = () => handleCopy(formatMISTReport(card), 'MIST handoff copied')
 
   const handleShare = async () => {
     if (!navigator.share) return
-    setShareStatus('sharing')
     try {
       await navigator.share({ title: 'TC3 Casualty Card', text: noteText })
-      setShareStatus('shared')
     } catch {
-      setShareStatus('idle')
-      return
+      // User cancelled the share sheet — nothing to report.
     }
-    setTimeout(() => setShareStatus('idle'), 2000)
   }
 
   const hasMarkers = card.markers.length > 0
@@ -155,8 +123,8 @@ function TC3CardSection({ card, profile, userId, isAuthenticated, label, activeC
             </pre>
           </SectionCard>
           <ActionPill shadow="sm" placement="overlay">
-            <ActionIconButton onClick={handleCopyMist} status={copiedMist ? 'done' : 'idle'} variant="pdf" title="Copy MIST Handoff" />
-            <ActionIconButton onClick={() => handleCopy(noteText, 'preview')} status={copiedTarget === 'preview' ? 'done' : 'idle'} variant="copy" title="Copy note text" />
+            <ActionButton icon={ClipboardList} label="Copy MIST Handoff" onClick={handleCopyMist} />
+            <ActionButton icon={Copy} label="Copy note text" onClick={() => handleCopy(noteText)} />
           </ActionPill>
         </div>
       </Section>
@@ -175,9 +143,9 @@ function TC3CardSection({ card, profile, userId, isAuthenticated, label, activeC
             </div>
           </SectionCard>
           <ActionPill shadow="sm" placement="overlay">
-            <ActionIconButton onClick={() => handleCopy(encodedText, 'encoded')} status={copiedTarget === 'encoded' ? 'done' : 'idle'} variant="copy" title="Copy encoded text" />
+            <ActionButton icon={Copy} label="Copy encoded text" onClick={() => handleCopy(encodedText)} />
             {typeof navigator.share === 'function' && (
-              <ActionIconButton onClick={handleShare} status={shareStatus === 'shared' ? 'done' : shareStatus === 'sharing' ? 'busy' : 'idle'} variant="share" title="Share note" />
+              <ActionButton icon={Share2} label="Share note" onClick={handleShare} />
             )}
           </ActionPill>
         </div>

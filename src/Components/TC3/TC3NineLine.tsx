@@ -1,5 +1,5 @@
 import { memo, useCallback, useMemo, useState } from 'react'
-import { Copy, Check, Swords } from 'lucide-react'
+import { Copy, Swords } from 'lucide-react'
 import { MedevacCard, type MedevacLine } from '../Medevac/MedevacCard'
 import { OverlayActionMenu } from '@/Components/primitives/OverlayActionMenu'
 import type { ContextMenuItem } from '@/Components/primitives/ContextMenu'
@@ -12,6 +12,7 @@ import {
 import { MEDEVAC_PRECEDENCE_LABELS } from '../../Types/MedevacTypes'
 import type { TC3Card } from '../../Types/TC3Types'
 import { TC3NineLineEditor } from './TC3NineLineEditor'
+import { copyText } from '../../Utilities/clipboardUtils'
 
 interface TC3NineLineProps {
   /** Anchor card — defaults to active store card. Always merged with the casualty queue. */
@@ -55,7 +56,6 @@ function formatProjectionText(req: ReturnType<typeof deriveMedevacFromTC3Cards>)
 }
 
 export const TC3NineLine = memo(function TC3NineLine({ card, cards, scope }: TC3NineLineProps) {
-  const [copied, setCopied] = useState(false)
   const [editorLine, setEditorLine] = useState<MedevacLine | null>(null)
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null)
 
@@ -113,27 +113,13 @@ export const TC3NineLine = memo(function TC3NineLine({ card, cards, scope }: TC3
   const l3Total = (['A','B','C','D','E'] as const).reduce((s, p) => s + (projection.l3[p] ?? 0), 0)
   const undercount = l3Total > 0 && l3Total < sessionCards.length
 
-  const handleCopy = async () => {
-    const text = formatProjectionText(projection)
-    try {
-      await navigator.clipboard.writeText(text)
-    } catch {
-      const ta = document.createElement('textarea')
-      ta.value = text
-      document.body.appendChild(ta)
-      ta.select()
-      document.execCommand('copy')
-      document.body.removeChild(ta)
-    }
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
-  }
+  const handleCopy = () => { void copyText(formatProjectionText(projection), '9-Line copied') }
 
   // Corner actions self-consolidate via OverlayActionMenu: solo (read-only) =
   // inline copy tile; with the peace/war toggle = single ellipsis lifted-row menu.
   const wartime = projection.mode === 'wartime'
   const cornerItems: ContextMenuItem[] = [
-    { key: 'copy', label: 'Copy 9-line text', icon: copied ? Check : Copy, onAction: handleCopy, variant: copied ? 'success' : 'default' },
+    { key: 'copy', label: 'Copy 9-line text', icon: Copy, onAction: handleCopy },
   ]
   if (!readOnly) {
     cornerItems.push({

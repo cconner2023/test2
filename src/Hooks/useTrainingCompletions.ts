@@ -37,7 +37,7 @@ import {
   type TrainingCompletionUI,
 } from '../lib/trainingService';
 import { loadAuditBySubject } from '../lib/auditService';
-import { foldTrainingState } from '../lib/trainingFold';
+import { foldTrainingState, liveTrainingEvents } from '../lib/trainingFold';
 import { countAlgorithmRuns } from '../Utilities/algorithmStp';
 import {
   isOnline as checkOnline,
@@ -231,10 +231,12 @@ async function loadFoldedCompletions(
   const training = events.filter((e) => e.domain === 'training');
   // Run counts come off the SAME deduped raw set, BEFORE the fold collapses
   // repeat reads. No second fetch, and it is the only way the self surface can
-  // see occurrence totals rather than a boolean 'has read this'.
+  // see occurrence totals rather than a boolean 'has read this'. Voided events
+  // come out first — the fold takes the raw set because it reads the tombstones,
+  // a count must not (see liveTrainingEvents).
   return {
     completions: await enrichCalendarLinks(foldTrainingState(training)),
-    runCounts: countAlgorithmRuns(training, userId),
+    runCounts: countAlgorithmRuns(liveTrainingEvents(training), userId),
   };
 }
 
@@ -432,6 +434,27 @@ export function useTrainingCompletions() {
       return completions.some(
         (c) => c.trainingItemId === taskId && c.completionType === 'read'
       );
+    },
+    [completions]
+  );
+
+  /**
+   * The most recent read of a task, or undefined if it has never been read.
+   *
+   * Reads stack one row per rep (see trainingFold), so "when did I last do this"
+   * is a max over rows rather than a lookup — and it is the value a doctrine
+   * refresh interval is measured from, which is why the reader shows the date
+   * rather than a bare "Completed".
+   */
+  const getLastRead = useCallback(
+    (taskId: string): TrainingCompletionUI | undefined => {
+      let latest: TrainingCompletionUI | undefined;
+      for (const c of completions) {
+        if (c.trainingItemId !== taskId || c.completionType !== 'read') continue;
+        const at = c.completedAt ?? c.updatedAt;
+        if (!latest || at > (latest.completedAt ?? latest.updatedAt)) latest = c;
+      }
+      return latest;
     },
     [completions]
   );
@@ -780,6 +803,7 @@ export function useTrainingCompletions() {
      *  load resolves. */
     algorithmRunCounts,
     isTaskCompleted,
+    getLastRead,
     getTestResult,
     getSubjectAreaProgress,
     markTaskCompleted,

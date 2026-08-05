@@ -1,6 +1,8 @@
-import { useEffect, useRef, useCallback } from 'react'
-import { Check, CalendarDays } from 'lucide-react'
+import { useEffect, useState, useCallback } from 'react'
+import { Check, CalendarDays, RotateCcw } from 'lucide-react'
 import { BaseDrawer } from '@/Components/primitives/BaseDrawer'
+import { AddFab } from '@/Components/primitives/AddFab'
+import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
 import { getTaskData } from '../Data/TrainingData'
 import { useTrainingCompletions } from '../Hooks/useTrainingCompletions'
 import { useCalendarWrite } from '../Hooks/useCalendarWrite'
@@ -15,11 +17,23 @@ interface TrainingDrawerProps {
     taskId: string | null
 }
 
+/** When a read happened. Duplicated from TrainingPanel's copy the way
+ *  formatDueDate already is — the two readers share a look, not a module. */
+function formatReadDate(iso: string): string {
+    const d = new Date(iso)
+    return d.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        ...(d.getFullYear() === new Date().getFullYear() ? {} : { year: 'numeric' }),
+    })
+}
+
 function TrainingDrawerContent({ taskId }: { taskId: string }) {
     const taskData = getTaskData(taskId)
-    const { markTaskViewed, markTaskCompleted, isTaskCompleted, getAssignment } = useTrainingCompletions()
-    const bottomRef = useRef<HTMLDivElement>(null)
-    const completed = isTaskCompleted(taskId)
+    const { markTaskViewed, markTaskCompleted, getLastRead, getAssignment } = useTrainingCompletions()
+    const [confirmRelog, setConfirmRelog] = useState(false)
+    const lastRead = getLastRead(taskId)
+    const completed = !!lastRead
     const assignment = getAssignment(taskId)
     const isAssigned = assignment && !assignment.completedAt
     const isOverdue = isAssigned && assignment.dueDate && new Date(assignment.dueDate) < new Date()
@@ -47,27 +61,19 @@ function TrainingDrawerContent({ taskId }: { taskId: string }) {
         markTaskViewed(taskId)
     }, [taskId, markTaskViewed])
 
-    // Observe bottom of content to mark completed
-    useEffect(() => {
-        if (completed || !bottomRef.current) return
-        const observer = new IntersectionObserver(
-            ([entry]) => {
-                if (entry.isIntersecting) {
-                    markTaskCompleted(taskId)
-                    updateCalendarOnCompletion()
-                    observer.disconnect()
-                }
-            },
-            { threshold: 0.5 }
-        )
-        observer.observe(bottomRef.current)
-        return () => observer.disconnect()
-    }, [taskId, completed, markTaskCompleted, updateCalendarOnCompletion])
-
-    const handleMarkComplete = useCallback(() => {
+    // Logging is an act, not a scroll side effect — and the FAB outlives the
+    // first read so a refresh can be logged. See TrainingPanel's TaskDetail for
+    // the full reasoning; this reader carries the identical surface.
+    const handleLog = useCallback(() => {
         markTaskCompleted(taskId)
         updateCalendarOnCompletion()
+        setConfirmRelog(false)
     }, [taskId, markTaskCompleted, updateCalendarOnCompletion])
+
+    const handleFab = useCallback(() => {
+        if (completed) setConfirmRelog(true)
+        else handleLog()
+    }, [completed, handleLog])
 
     if (!taskData) {
         return (
@@ -83,9 +89,11 @@ function TrainingDrawerContent({ taskId }: { taskId: string }) {
                 <div className="mb-5">
                     <p className="text-[9pt] text-tertiary font-mono">{taskData.taskNumber}</p>
                     <h3 className="text-lg font-semibold text-primary">{taskData.title}</h3>
-                    {completed && (
+                    {/* The date, not a checkmark — currency is what a doctrine
+                        refresh interval is measured against. */}
+                    {lastRead && (
                         <span className="inline-flex items-center gap-1 text-[9pt] text-themegreen mt-1">
-                            <Check size={12} /> Completed
+                            <Check size={12} /> Last read {formatReadDate(lastRead.completedAt ?? lastRead.updatedAt)}
                         </span>
                     )}
                 </div>
@@ -150,19 +158,26 @@ function TrainingDrawerContent({ taskId }: { taskId: string }) {
                     </div>
                 </div>
 
-                {/* Mark complete button (if not already) */}
-                {!completed && (
-                    <button
-                        onClick={handleMarkComplete}
-                        className="w-full py-3 rounded-xl bg-themegreen/15 text-themegreen text-sm font-medium
-                                   hover:bg-themegreen/25 active:scale-95 transition-all"
-                    >
-                        Mark as Completed
-                    </button>
-                )}
+                {/* Sticky, not absolute: this body is plain flow inside
+                    BaseDrawer's scrollport, so there is no positioned ancestor to
+                    hang a FAB off. Same idiom as the evaluator's submit. */}
+                <div className="sticky bottom-4 z-10 flex justify-end pt-2 pointer-events-none">
+                    <AddFab
+                        icon={completed ? RotateCcw : Check}
+                        label={completed ? 'Log another read' : 'Log completion'}
+                        onClick={handleFab}
+                    />
+                </div>
 
-                {/* Bottom sentinel for auto-complete */}
-                <div ref={bottomRef} className="h-1" />
+                <ConfirmDialog
+                    visible={confirmRelog}
+                    title="Log another read?"
+                    subtitle={`This records a new read of ${taskData.taskNumber} today. The earlier one stays on file — only a supervisor can remove a record.`}
+                    confirmLabel="Log read"
+                    variant="primary"
+                    onConfirm={handleLog}
+                    onCancel={() => setConfirmRelog(false)}
+                />
         </>
     )
 }

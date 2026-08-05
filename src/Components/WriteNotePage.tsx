@@ -10,15 +10,11 @@ import { DecisionMaking } from './DecisionMaking';
 import { PhysicalExam } from './PhysicalExam';
 import { Plan } from './Plan';
 import { BaseDrawer } from '@/Components/primitives/BaseDrawer';
-import {
-    ActionIconButton,
-    NoteWizardFooter,
-    shareStatusToIconStatus, exportStatusToIconStatus,
-} from './WriteNoteHelpers';
+import { NoteWizardFooter } from './WriteNoteHelpers';
 import { ExpandableInput } from '@/Components/primitives/ExpandableInput';
 import { useAlgorithmMetrics } from '../Hooks/useAlgorithmMetrics';
 import { useMergedNoteContent } from '../Hooks/useMergedNoteContent';
-import { X, Plus, Check, RotateCcw, ChevronRight, ClipboardList, FileText } from 'lucide-react';
+import { X, Plus, Check, RotateCcw, ChevronRight, ClipboardList, FileText, Copy, Share2, FileDown } from 'lucide-react';
 import { PreviewOverlay } from './PreviewOverlay';
 import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog';
 import { PdfPreviewModal } from './PdfPreviewModal';
@@ -174,13 +170,12 @@ export const WriteNotePage = ({
         assessmentNote, setAssessmentNote,
         selectedDdx, setSelectedDdx, customDdx, setCustomDdx,
         encodedValue, setEncodedValue,
-        copiedTarget,
         currentPage, currentPageId, slideDirection,
         handleNext, handlePageBack,
         handleSwipeStart, handleSwipeMove, handleSwipeEnd,
         piiWarnings, pePiiWarnings, assessmentPiiWarnings, hasPII,
         handleCopy, handleShare, handleExportDD689, handleExportSF600,
-        shareStatus, exportStatus, sf600ExportStatus,
+        exportStatus, sf600ExportStatus,
         dd689Preview, downloadDD689, clearDD689Preview,
         sf600Preview, downloadSF600, clearSF600Preview,
         profile: editorProfile, authUserId,
@@ -577,25 +572,14 @@ export const WriteNotePage = ({
                                             <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Note Preview</p>
                                         </div>
                                         <div className="relative">
+                                            {/* Plain rows, not `render` tiles: a rendered item owns its own
+                                                button and the menu stays open, which left the SF600 preview
+                                                stranded behind it. */}
                                             <OverlayActionMenu
                                                 shadow="sm"
                                                 items={[
-                                                    { key: 'copy', label: 'Copy note text', render: () => (
-                                                        <ActionIconButton
-                                                            onClick={() => handleCopy(previewNote, 'preview')}
-                                                            status={copiedTarget === 'preview' ? 'done' : 'idle'}
-                                                            variant="copy"
-                                                            title="Copy note text"
-                                                        />
-                                                    ) },
-                                                    { key: 'export', label: 'Export SF600 PDF', render: () => (
-                                                        <ActionIconButton
-                                                            onClick={handleExportSF600}
-                                                            status={exportStatusToIconStatus(sf600ExportStatus)}
-                                                            variant="pdf"
-                                                            title="Export SF600 PDF"
-                                                        />
-                                                    ) },
+                                                    { key: 'copy', label: 'Copy note text', icon: Copy, onAction: () => handleCopy(previewNote) },
+                                                    { key: 'export', label: 'Export SF600 PDF', icon: FileDown, onAction: handleExportSF600 },
                                                 ]}
                                             />
                                             <div className="rounded-2xl bg-themewhite2 overflow-hidden">
@@ -615,30 +599,9 @@ export const WriteNotePage = ({
                                             <OverlayActionMenu
                                                 shadow="sm"
                                                 items={[
-                                                    { key: 'copy', label: 'Copy encoded text', render: () => (
-                                                        <ActionIconButton
-                                                            onClick={() => handleCopy(encodedValue, 'encoded')}
-                                                            status={copiedTarget === 'encoded' ? 'done' : 'idle'}
-                                                            variant="copy"
-                                                            title="Copy encoded text"
-                                                        />
-                                                    ) },
-                                                    { key: 'share', label: 'Share note as image', render: () => (
-                                                        <ActionIconButton
-                                                            onClick={handleShare}
-                                                            status={shareStatusToIconStatus(shareStatus)}
-                                                            variant="share"
-                                                            title="Share note as image"
-                                                        />
-                                                    ) },
-                                                    { key: 'export', label: 'Export DD689 PDF', render: () => (
-                                                        <ActionIconButton
-                                                            onClick={handleExportDD689}
-                                                            status={exportStatusToIconStatus(exportStatus)}
-                                                            variant="pdf"
-                                                            title="Export DD689 PDF"
-                                                        />
-                                                    ) },
+                                                    { key: 'copy', label: 'Copy encoded text', icon: Copy, onAction: () => handleCopy(encodedValue) },
+                                                    { key: 'share', label: 'Share note as image', icon: Share2, onAction: handleShare },
+                                                    { key: 'export', label: 'Export DD689 PDF', icon: FileDown, onAction: handleExportDD689 },
                                                 ]}
                                             />
                                             <div className="rounded-2xl bg-themewhite2 overflow-hidden">

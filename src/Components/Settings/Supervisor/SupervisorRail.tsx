@@ -196,9 +196,12 @@ export function SupervisorSubjectCard({
               {!soldier.isLoanedIn && soldier.surrogateClinicId && (
                 <span className="text-themeyellow">{soldier.credential ? ' · ' : ''}Loaned out</span>
               )}
+              {entry?.exempt && (
+                <span className="text-tertiary">{soldier.credential ? ' · ' : ''}Not rated on medic tasks</span>
+              )}
             </>
           }
-          readinessPercent={entry?.readinessPercent ?? 0}
+          readinessPercent={entry?.exempt ? undefined : entry?.readinessPercent ?? 0}
           compliancePercent={entry?.compliancePercent ?? 100}
         />
       )
@@ -226,8 +229,12 @@ export function SupervisorSubjectCard({
             />
           }
           title={selection.soldier.name}
-          subtitle={row ? selection.soldier.credential : 'No published readiness'}
-          readinessPercent={row?.readiness_pct}
+          subtitle={
+            row
+              ? (row.exempt ? 'Not rated on medic tasks' : selection.soldier.credential)
+              : 'No published readiness'
+          }
+          readinessPercent={row?.exempt ? undefined : row?.readiness_pct}
           compliancePercent={row?.cert_pct}
         />
       )

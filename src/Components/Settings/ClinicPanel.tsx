@@ -44,9 +44,6 @@ import { createSubCluster, renameSubCluster, deleteSubCluster } from '../../lib/
 import { ErrorDisplay } from '@/Components/primitives/ErrorDisplay'
 import { UserAvatar } from './UserAvatar'
 import { IntakeMintSection } from './IntakeMintSection'
-import { ToggleSwitch } from './ToggleSwitch'
-import { supabase } from '../../lib/supabase'
-import { toggleOncallPresence } from '../../lib/oncallService'
 import { PreviewOverlay } from '../PreviewOverlay'
 import { ActionButton } from '@/Components/primitives/ActionButton'
 import { OverlayActionMenu } from '@/Components/primitives/OverlayActionMenu'
@@ -59,6 +56,7 @@ import { AddMemberPopover } from '../ClinicAdmin/AddMemberPopover'
 import { SwipeToDeleteRow } from '@/Components/primitives/SwipeToDeleteRow'
 import { PageSectionHeader, SectionCard } from '@/Components/primitives/Section'
 import { FieldLabel } from '@/Components/primitives/FieldCell'
+import { copyText, copyImage } from '../../Utilities/clipboardUtils'
 
 /** Roster bucket that isn't a sub-unit — tenure, not structure. */
 const LOANED_IN_GROUP = '__loaned_in__'
@@ -122,7 +120,6 @@ export function ClinicPanel({
   } = useBarcodeScanner()
 
   // QR canvas
-  const [copied, setCopied] = useState(false)
 
   // No cluster switcher lives here. A supervisor holding loans gets one Settings
   // menu row per cluster, and picking a row sets supervisingClinicId before this
@@ -170,8 +167,7 @@ export function ClinicPanel({
         // user cancelled or share failed — fall through
       }
       try {
-        await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
-        return
+        if (await copyImage(blob, 'QR image copied')) return
       } catch {
         // clipboard image not supported — fall through to download
       }
@@ -233,39 +229,15 @@ export function ClinicPanel({
     [assignedMembers, loanedInMembers],
   )
 
-  // ─── Outside on-call roster (GATE 3) ───────────────────────────────
-  // GATE-2 "allow calls" AND "allow text messaging" live on the intake card
-  // (IntakeMintSection); it reports up via onOncallEnabledChange whether EITHER is
-  // on (both ping clinics.oncall). While relevant, each personnel row gets a
-  // per-member on-call toggle. clinics.oncall is the live roster (public SELECT);
-  // writes go through the SECURITY DEFINER toggle_oncall_presence RPC.
-  const [oncallRosterShown, setOncallRosterShown] = useState(false)
-  const [oncall, setOncall] = useState<string[]>([])
-  const [oncallPending, setOncallPending] = useState<string | null>(null)
+  // On-call presence used to hang off these roster rows as a per-member toggle, but
+  // duty only ever fires through a LINE — the push fan intersects clinics.oncall
+  // with the line's routing scope, so a flat cluster toggle could not say who it
+  // actually put on duty for what. It now lives on each line (LineOncallRow inside
+  // IntakeMintSection's cards, and the member-facing list in messaging settings).
+  // This roster manages membership.
 
-  const loadOncallRoster = useCallback(async () => {
-    if (!clinicId) { setOncall([]); return }
-    const { data } = await supabase.from('clinics').select('oncall').eq('id', clinicId).maybeSingle()
-    setOncall(((data as { oncall?: string[] } | null)?.oncall) ?? [])
-  }, [clinicId])
-
-  useEffect(() => { void loadOncallRoster() }, [loadOncallRoster])
-
-  const toggleMemberOncall = useCallback(async (userId: string) => {
-    if (!clinicId || oncallPending) return
-    const isOn = oncall.includes(userId)
-    setOncallPending(userId)
-    setOncall((prev) => (isOn ? prev.filter((id) => id !== userId) : [...prev, userId])) // optimistic
-    const res = await toggleOncallPresence(clinicId, userId, !isOn)
-    if (!res.ok) await loadOncallRoster() // revert to server truth on failure
-    setOncallPending(null)
-  }, [clinicId, oncallPending, oncall, loadOncallRoster])
-
-  // Roster row — tap the identity area to open the edit popover; when "allow
-  // calls" is on, a trailing per-member on-call toggle is appended (kept a
-  // sibling of the popover trigger to avoid nesting interactive elements).
+  // Roster row — tap the identity area to open the edit popover.
   const renderMemberRow = (member: (typeof members)[number], subtitle: string, badge: ReactNode) => {
-    const isOn = oncall.includes(member.id)
     return (
       <SwipeToDeleteRow
         key={member.id}
@@ -297,17 +269,6 @@ export function ClinicPanel({
           </div>
         </button>
         {badge}
-        {oncallRosterShown && (
-          <button
-            type="button"
-            onClick={() => void toggleMemberOncall(member.id)}
-            disabled={oncallPending === member.id}
-            aria-label={isOn ? 'On-call' : 'Off-call'}
-            className={`shrink-0 active:scale-95 transition-all ${oncallPending === member.id ? 'opacity-50' : ''}`}
-          >
-            <ToggleSwitch checked={isOn} />
-          </button>
-        )}
       </div>
       </SwipeToDeleteRow>
     )
@@ -353,7 +314,6 @@ export function ClinicPanel({
   const [confirmDisassociate, setConfirmDisassociate] = useState<{ clinicId: string; clinicName: string } | null>(null)
   const [assocCode, setAssocCode] = useState<string | null>(null)
   const [assocCodeLoading, setAssocCodeLoading] = useState(false)
-  const [assocCodeCopied, setAssocCodeCopied] = useState(false)
 
   // Member popover (tap-to-edit roster row)
   const [memberPopover, setMemberPopover] = useState<{ memberId: string; anchor: DOMRect } | null>(null)
@@ -436,11 +396,9 @@ export function ClinicPanel({
 
   // ─── Callbacks ────────────────────────────────────────────────────
 
-  const handleCopy = useCallback(async () => {
+  const handleCopy = useCallback(() => {
     if (!activeCode) return
-    await navigator.clipboard.writeText(activeCode)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2_000)
+    void copyText(activeCode, 'Invite code copied')
   }, [activeCode])
 
   // ─── Associated clinic popover handlers (immediate save) ──────────
@@ -459,7 +417,6 @@ export function ClinicPanel({
   const openAssocInfoPopover = useCallback((clinic: { clinicId: string; clinicName: string; uics: string[]; location: string | null }, target: HTMLElement) => {
     setAssocPopover({ mode: 'info', anchor: target.getBoundingClientRect(), clinic })
     setAssocCode(null)
-    setAssocCodeCopied(false)
     setAssocCodeLoading(true)
     getAssociatedClinicCode(clinic.clinicId).then((r) => {
       setAssocCodeLoading(false)
@@ -467,11 +424,9 @@ export function ClinicPanel({
     })
   }, [])
 
-  const handleCopyAssocCode = useCallback(async () => {
+  const handleCopyAssocCode = useCallback(() => {
     if (!assocCode) return
-    await navigator.clipboard.writeText(assocCode)
-    setAssocCodeCopied(true)
-    setTimeout(() => setAssocCodeCopied(false), 2_000)
+    void copyText(assocCode, 'Code copied')
   }, [assocCode])
 
   const openAssocAddPopover = useCallback(() => {
@@ -838,20 +793,8 @@ export function ClinicPanel({
                   {
                     key: 'copy',
                     label: 'Copy invite code',
-                    // Raw button: flips to themegreen tint on success.
-                    render: () => (
-                      <button
-                        type="button"
-                        onClick={handleCopy}
-                        aria-label="Copy invite code"
-                        title="Copy invite code"
-                        className={`w-9 h-9 rounded-full flex items-center justify-center transition-all active:scale-95 ${
-                          copied ? 'bg-themegreen/8 text-themegreen' : 'bg-themeblue2/8 text-primary'
-                        }`}
-                      >
-                        {copied ? <Check size={16} /> : <Copy size={16} />}
-                      </button>
-                    ),
+                    icon: Copy,
+                    onAction: handleCopy,
                   } as ContextMenuItem,
                   { key: 'share', label: 'Share QR image', icon: Share2, onAction: handleShareInviteImage } as ContextMenuItem,
                 ]}
@@ -864,10 +807,62 @@ export function ClinicPanel({
 
         {/* ── Outside contact (event intake + allow calls/messaging, dev-wrapped) ── */}
         {clinicId && (
-          <IntakeMintSection
+          <IntakeMintSection clinicId={clinicId} />
+        )}
+
+        {/* ── Roster (supervisor-gated) ────────────────────────────────────
+             ONE section: sub-unit groups (whose ⋯ renames/deletes the sub-unit
+             itself) plus a Loaned-in bucket. Replaces the old separate
+             "Sub-units" manager card + flat "Users" list — the roster showed
+             the groups while the thing that manages them lived elsewhere.
+             In a surrogate (loaned) context the sub-unit RPCs target the
+             caller's OWN primary clinic, so we pass no sub-units and no
+             mutators: the roster degrades to a flat, unmanaged list. */}
+        {isSupervisorRole && clinicId && (
+          <ClusterRosterSection
+            title="Roster"
+            subUnits={canManageSubUnits ? subClusters : NO_SUB_UNITS}
+            members={assignedMembers}
+            subUnitIdOf={memberSubUnitId}
+            extraGroups={loanedInGroup}
+            renderItem={renderRosterRow}
+            itemsClassName="px-2 py-2 space-y-1"
+            cardClassName="rounded-xl bg-themewhite2 overflow-hidden"
+            emptyText="No members assigned"
+            addActions={rosterAddActions}
+            addAnchorRef={addMemberFabRef}
+            onCreateSubUnit={canManageSubUnits ? async (name) => {
+              const r = await createSubCluster(name)
+              if (r.success) invalidate('subClusters')
+              return r.success
+            } : undefined}
+            onRenameSubUnit={canManageSubUnits ? async (id, name) => {
+              const r = await renameSubCluster(id, name)
+              if (r.success) invalidate('subClusters')
+              return r.success
+            } : undefined}
+            onDeleteSubUnit={canManageSubUnits ? async (id) => {
+              const r = await deleteSubCluster(id)
+              if (r.success) invalidate('subClusters', 'users')
+              return r.success
+            } : undefined}
+          >
+            <LoadingOverlay visible={medicsLoading} size={120} className="rounded-xl" />
+          </ClusterRosterSection>
+        )}
+
+        {/* ── Subordinate Clusters (echelon children) — roster mgmt. Renders for the
+             operating-as clinic (home OR a loan cluster you supervise); the child RPC
+             is subtree-authorized via auth_supervisor_scope_ids, not own-clinic bound,
+             and SubordinateClustersManager renders nothing when there are no children
+             (or the clinic is out of server scope). ── */}
+        {isSupervisorRole && clinicId && (
+          <SubordinateClustersManager
             clinicId={clinicId}
-            oncallCount={oncall.length}
-            onOncallEnabledChange={setOncallRosterShown}
+            isSupervisor={isSupervisorRole}
+            currentUserId={user?.id ?? null}
+            onSelectChild={onOpenChild}
+            activeChildId={activeChildId}
           />
         )}
 
@@ -955,62 +950,6 @@ export function ClinicPanel({
             </ActionPill>
           </div>
         </section>
-
-        {/* ── Roster (supervisor-gated) ────────────────────────────────────
-             ONE section: sub-unit groups (whose ⋯ renames/deletes the sub-unit
-             itself) plus a Loaned-in bucket. Replaces the old separate
-             "Sub-units" manager card + flat "Users" list — the roster showed
-             the groups while the thing that manages them lived elsewhere.
-             In a surrogate (loaned) context the sub-unit RPCs target the
-             caller's OWN primary clinic, so we pass no sub-units and no
-             mutators: the roster degrades to a flat, unmanaged list. */}
-        {isSupervisorRole && clinicId && (
-          <ClusterRosterSection
-            title="Roster"
-            subUnits={canManageSubUnits ? subClusters : NO_SUB_UNITS}
-            members={assignedMembers}
-            subUnitIdOf={memberSubUnitId}
-            extraGroups={loanedInGroup}
-            renderItem={renderRosterRow}
-            itemsClassName="px-2 py-2 space-y-1"
-            cardClassName="rounded-xl bg-themewhite2 overflow-hidden"
-            emptyText="No members assigned"
-            addActions={rosterAddActions}
-            addAnchorRef={addMemberFabRef}
-            onCreateSubUnit={canManageSubUnits ? async (name) => {
-              const r = await createSubCluster(name)
-              if (r.success) invalidate('subClusters')
-              return r.success
-            } : undefined}
-            onRenameSubUnit={canManageSubUnits ? async (id, name) => {
-              const r = await renameSubCluster(id, name)
-              if (r.success) invalidate('subClusters')
-              return r.success
-            } : undefined}
-            onDeleteSubUnit={canManageSubUnits ? async (id) => {
-              const r = await deleteSubCluster(id)
-              if (r.success) invalidate('subClusters', 'users')
-              return r.success
-            } : undefined}
-          >
-            <LoadingOverlay visible={medicsLoading} size={120} className="rounded-xl" />
-          </ClusterRosterSection>
-        )}
-
-        {/* ── Subordinate Clusters (echelon children) — roster mgmt. Renders for the
-             operating-as clinic (home OR a loan cluster you supervise); the child RPC
-             is subtree-authorized via auth_supervisor_scope_ids, not own-clinic bound,
-             and SubordinateClustersManager renders nothing when there are no children
-             (or the clinic is out of server scope). ── */}
-        {isSupervisorRole && clinicId && (
-          <SubordinateClustersManager
-            clinicId={clinicId}
-            isSupervisor={isSupervisorRole}
-            currentUserId={user?.id ?? null}
-            onSelectChild={onOpenChild}
-            activeChildId={activeChildId}
-          />
-        )}
 
       </div>
 
@@ -1138,7 +1077,7 @@ export function ClinicPanel({
                   className="flex items-center gap-2 text-sm font-mono tracking-[0.15em] text-primary hover:text-themeblue3 active:scale-95 transition-all"
                 >
                   <span>{assocCode}</span>
-                  {assocCodeCopied ? <Check size={14} /> : <Copy size={14} />}
+                  <Copy size={14} />
                 </button>
               ) : (
                 <span className="text-sm text-tertiary">—</span>

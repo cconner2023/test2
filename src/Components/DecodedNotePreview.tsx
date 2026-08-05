@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Copy, Check, Share2, ExternalLink } from 'lucide-react'
+import { Copy, Share2, ExternalLink } from 'lucide-react'
 import { PreviewOverlay } from './PreviewOverlay'
 import type { ContextMenuAction } from './PreviewOverlay'
 import { NotePreviewContent } from './ImportResultPopover'
@@ -35,7 +35,6 @@ export function DecodedNotePreview({ token, isOpen, anchorRect, onClose, onOpenM
   const isMobile = useIsMobile()
   const [preview, setPreview] = useState<ImportPreview | null>(null)
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
-  const [copied, setCopied] = useState(false)
 
   useEffect(() => {
     if (!isOpen) return
@@ -60,12 +59,6 @@ export function DecodedNotePreview({ token, isOpen, anchorRect, onClose, onOpenM
     return () => { cancelled = true }
   }, [isOpen, token, importFromBarcode])
 
-  useEffect(() => {
-    if (!copied) return
-    const t = setTimeout(() => setCopied(false), 1500)
-    return () => clearTimeout(t)
-  }, [copied])
-
   const actions: ContextMenuAction[] = preview
     ? [
         ...(preview.isMedevac && preview.medevacReq && onOpenMedevac
@@ -79,9 +72,9 @@ export function DecodedNotePreview({ token, isOpen, anchorRect, onClose, onOpenM
           : []),
         {
           key: 'copy',
-          label: copied ? 'Copied' : 'Copy',
-          icon: copied ? Check : Copy,
-          onAction: () => { copyWithHtml(preview.fullNote); setCopied(true) },
+          label: 'Copy',
+          icon: Copy,
+          onAction: () => copyWithHtml(preview.fullNote),
           closesOnAction: false,
         },
         {

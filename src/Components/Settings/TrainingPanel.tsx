@@ -1,6 +1,8 @@
 import { useRef, useEffect, useCallback, useMemo, useState } from 'react'
-import { Check, ChevronRight, Lock, CalendarDays, ClipboardList, Pin } from 'lucide-react'
+import { Check, ChevronRight, Lock, CalendarDays, ClipboardList, Pin, RotateCcw } from 'lucide-react'
 import { EmptyState } from '@/Components/primitives/EmptyState'
+import { AddFab } from '@/Components/primitives/AddFab'
+import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
 import { useCalendarVault } from '../../Hooks/useCalendarVault'
 import { useCalendarStore } from '../../stores/useCalendarStore'
 import { stp68wTraining } from '../../Data/TrainingTaskList'
@@ -374,6 +376,17 @@ function TrainingList({
 
 // ─── Sub-view: Task Detail (Learning View) ───────────────────────────────────
 
+/** When a read happened. The year only when it is not this one — a refresh
+ *  interval is measured in months, so the year is the part that changes what the
+ *  date means. */
+function formatReadDate(iso: string): string {
+    const d = new Date(iso)
+    return d.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        ...(d.getFullYear() === new Date().getFullYear() ? {} : { year: 'numeric' }),
+    })
+}
 
 function TaskDetail({
     taskData,
@@ -382,10 +395,11 @@ function TaskDetail({
     taskData: TaskTrainingData
     taskNumber: string
 }) {
-    const { markTaskViewed, markTaskCompleted, isTaskCompleted, getAssignment } = useTrainingCompletions()
+    const { markTaskViewed, markTaskCompleted, getLastRead, getAssignment } = useTrainingCompletions()
     const isDevRole = useAuthStore(s => s.isDevRole)
-    const bottomRef = useRef<HTMLDivElement>(null)
-    const completed = isTaskCompleted(taskNumber)
+    const [confirmRelog, setConfirmRelog] = useState(false)
+    const lastRead = getLastRead(taskNumber)
+    const completed = !!lastRead
     const assignment = getAssignment(taskNumber)
     const isAssigned = assignment && !assignment.completedAt
     const isOverdue = isAssigned && assignment.dueDate && new Date(assignment.dueDate) < new Date()
@@ -421,27 +435,34 @@ function TaskDetail({
         markTaskViewed(taskNumber)
     }, [taskNumber, markTaskViewed])
 
-    // Observe bottom of content to mark completed
-    useEffect(() => {
-        if (completed || !bottomRef.current) return
-        const observer = new IntersectionObserver(
-            ([entry]) => {
-                if (entry.isIntersecting) {
-                    markTaskCompleted(taskNumber)
-                    updateCalendarOnCompletion()
-                    observer.disconnect()
-                }
-            },
-            { threshold: 0.5 }
-        )
-        observer.observe(bottomRef.current)
-        return () => observer.disconnect()
-    }, [taskNumber, completed, markTaskCompleted, updateCalendarOnCompletion])
-
-    const handleMarkComplete = useCallback(() => {
+    /**
+     * Logging a read is an ACT, never a side effect of scrolling.
+     *
+     * This used to be an IntersectionObserver on a sentinel at the foot of the
+     * packet: scrolling to the bottom wrote a real, supervisor-visible,
+     * medic-undeletable training record. It also made the deliberate control
+     * unpressable — the button sat directly above the sentinel, so bringing it
+     * into view fired the observer, flipped `completed`, and unmounted the button
+     * under the thumb. What the record said was "reached the end of a page", and
+     * a training record has to be able to say more than that.
+     *
+     * The FAB SURVIVES COMPLETION, which is the other half. Tasks carry a
+     * doctrine refresh interval, so a re-read is a new record rather than a
+     * no-op, and there was previously no way to log one at all.
+     */
+    const handleLog = useCallback(() => {
         markTaskCompleted(taskNumber)
         updateCalendarOnCompletion()
+        setConfirmRelog(false)
     }, [taskNumber, markTaskCompleted, updateCalendarOnCompletion])
+
+    // Only the repeat is gated. The first read is unambiguous, but a second tap
+    // on a task already read costs a record the medic cannot take back — only a
+    // supervisor can void one.
+    const handleFab = useCallback(() => {
+        if (completed) setConfirmRelog(true)
+        else handleLog()
+    }, [completed, handleLog])
 
     return (
         <div className="px-4 py-3 md:p-5 pb-12">
@@ -449,9 +470,12 @@ function TaskDetail({
             <div className="mb-4">
                 <p className="text-[9pt] text-tertiary font-mono">{taskData.taskNumber}</p>
                 <h3 className="text-lg font-semibold text-primary">{taskData.title}</h3>
-                {completed && (
+                {/* The DATE, not a checkmark. Currency is what a refresh interval
+                    is measured against, so "read once, at some point" is the one
+                    thing this line must not say. */}
+                {lastRead && (
                     <span className="inline-flex items-center gap-1 text-[9pt] text-themegreen mt-1">
-                        <Check size={12} /> Completed
+                        <Check size={12} /> Last read {formatReadDate(lastRead.completedAt ?? lastRead.updatedAt)}
                     </span>
                 )}
             </div>
@@ -507,19 +531,27 @@ function TaskDetail({
                 </div>
             </div>
 
-            {/* Mark complete button (if not already) */}
-            {!completed && (
-                <button
-                    onClick={handleMarkComplete}
-                    className="w-full py-3 rounded-xl bg-themegreen/15 text-themegreen text-sm font-medium
-                               hover:bg-themegreen/25 active:scale-95 transition-all"
-                >
-                    Mark as Completed
-                </button>
-            )}
+            {/* Sticky rather than absolute: this body is plain flow inside the
+                drawer's scrollport, so there is no positioned ancestor to hang a
+                FAB off, and sticky keeps its space instead of covering the last
+                performance step. Same idiom as the evaluator's submit. */}
+            <div className="sticky bottom-4 z-10 flex justify-end pt-2 pointer-events-none">
+                <AddFab
+                    icon={completed ? RotateCcw : Check}
+                    label={completed ? 'Log another read' : 'Log completion'}
+                    onClick={handleFab}
+                />
+            </div>
 
-            {/* Bottom sentinel for auto-complete */}
-            <div ref={bottomRef} className="h-1" />
+            <ConfirmDialog
+                visible={confirmRelog}
+                title="Log another read?"
+                subtitle={`This records a new read of ${taskData.taskNumber} today. The earlier one stays on file — only a supervisor can remove a record.`}
+                confirmLabel="Log read"
+                variant="primary"
+                onConfirm={handleLog}
+                onCancel={() => setConfirmRelog(false)}
+            />
         </div>
     )
 }

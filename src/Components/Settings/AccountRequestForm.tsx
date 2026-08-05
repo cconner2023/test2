@@ -9,6 +9,7 @@ import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
 import { validatePasswordComplexity } from '../../lib/constants'
 import { parseNameFromEmail, componentFromEmail, readRequestDraft, saveRequestDraft, clearRequestDraft } from '../../lib/loginPrefill'
 import { SectionCard } from '@/Components/primitives/Section'
+import { copyText } from '../../Utilities/clipboardUtils'
 
 const LOCAL_STORAGE_TOKEN_KEY = 'account_request_token'
 const LOCAL_STORAGE_EMAIL_KEY = 'account_request_email'
@@ -76,7 +77,6 @@ export const AccountRequestForm = ({ onBack, initialEmail = '', onSignIn }: Acco
 
   const [draftRestored, setDraftRestored] = useState(!!seed)
   const [prefillNote, setPrefillNote] = useState<string | null>(null)
-  const [tokenCopied, setTokenCopied] = useState(false)
 
   const [statusCheckToken, setStatusCheckToken] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -402,15 +402,11 @@ export const AccountRequestForm = ({ onBack, initialEmail = '', onSignIn }: Acco
                   <p className="text-[10pt] text-secondary">Status check token</p>
                   <button
                     type="button"
-                    onClick={() => {
-                      navigator.clipboard?.writeText(statusCheckToken)
-                        .then(() => { setTokenCopied(true); window.setTimeout(() => setTokenCopied(false), 2000) })
-                        .catch(() => {})
-                    }}
+                    onClick={() => void copyText(statusCheckToken, 'Token copied')}
                     className="shrink-0 flex items-center gap-1 text-[9pt] text-themeblue2 active:scale-95 transition-transform"
                   >
-                    {tokenCopied ? <Check size={12} /> : <Copy size={12} />}
-                    {tokenCopied ? 'Copied' : 'Copy'}
+                    <Copy size={12} />
+                    Copy
                   </button>
                 </div>
                 <code className="block p-2 rounded-lg border border-tertiary/10 text-[10pt] font-mono text-primary break-all select-all">

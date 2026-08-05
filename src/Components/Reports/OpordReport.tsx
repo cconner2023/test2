@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Copy, Check, Download, Printer, Plus, X } from 'lucide-react'
+import { Copy, Download, Printer, Plus, X } from 'lucide-react'
 import { ActionButton } from '@/Components/primitives/ActionButton'
 import { Section, SectionCard } from '@/Components/primitives/Section'
 import { TextArea } from '@/Components/primitives/FormInputs'
@@ -47,7 +47,6 @@ function LabeledTextarea({ label, value, onChange, placeholder = '', rows = 2, l
 
 export function OpordReport() {
   const [report, setReport] = useState<Opord>(emptyOpord())
-  const [copied, setCopied] = useState(false)
 
   const update = (patch: Partial<Opord>) => setReport(r => ({ ...r, ...patch }))
 
@@ -64,11 +63,7 @@ export function OpordReport() {
   const removeTask = (index: number) =>
     update({ subordinateTasks: report.subordinateTasks.filter((_, i) => i !== index) })
 
-  const onCopy = async () => {
-    await copyToClipboard(opordToText(report))
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
-  }
+  const onCopy = () => copyToClipboard(opordToText(report), 'OPORD copied')
 
   const onDownload = () => downloadAsText(opordToText(report), 'opord.txt')
   const onPrint = () => printReport('OPORD', opordToText(report))
@@ -411,7 +406,7 @@ export function OpordReport() {
           />
           <div className="flex items-center justify-end px-3 py-2">
             <ActionPill>
-              <ActionButton icon={copied ? Check : Copy} label="Copy" onClick={onCopy} variant={copied ? 'success' : 'default'} />
+              <ActionButton icon={Copy} label="Copy" onClick={onCopy} />
               <ActionButton icon={Download} label="Download" onClick={onDownload} />
               <ActionButton icon={Printer} label="Print" onClick={onPrint} />
             </ActionPill>

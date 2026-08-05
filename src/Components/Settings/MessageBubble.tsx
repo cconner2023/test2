@@ -20,6 +20,7 @@ import { DecodedNotePreview } from '../DecodedNotePreview'
 import { useNavigationStore } from '../../stores/useNavigationStore'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { resolveSwipeActions, type SwipeBinding, type SwipeAction } from '../../Utilities/swipeActions'
+import { copyImage } from '../../Utilities/clipboardUtils'
 export type { SwipeAction }
 
 /** Reveal-icon + tint for each non-disabled swipe binding (mobile swipe affordance). */
@@ -951,8 +952,7 @@ export function MessageBubble({
                 try {
                   const blob = await (await fetch(fullImageUrl)).blob()
                   const type = blob.type && blob.type.startsWith('image/') ? blob.type : 'image/png'
-                  const item = new ClipboardItem({ [type]: type === blob.type ? blob : new Blob([blob], { type }) })
-                  await navigator.clipboard.write([item])
+                  await copyImage(type === blob.type ? blob : new Blob([blob], { type }))
                 } catch {}
               }}
             />

@@ -67,6 +67,70 @@ export async function fetchSelfOnCall(clinicIds: string[], userId: string): Prom
 }
 
 // ─── GATE 3: presence (any cluster member toggles self or teammate) ───
+//
+// Presence is stored ONCE per cluster (clinics.oncall) but is always READ through a
+// line: the push fan intersects the roster with the line's scope before ringing, so
+// "who is on-call" has no cluster-wide answer worth showing. Both readers below
+// return that intersection and are membership-gated, not supervisor-gated — the
+// toggle is mutual, and the line's passcode never rides along.
+
+export interface LineOncallRoster {
+  /** The line's clinic — presence writes are clinic-keyed, and a supervisor may be
+   *  looking at a surrogate cluster rather than their own. */
+  clinicId: string
+  /** Everyone this line addresses (its scope, HQ excluded — on-call never auto-adds HQ). */
+  memberIds: string[]
+  /** Those of them currently on duty. */
+  oncallIds: string[]
+}
+
+export async function getLineOncallRoster(credentialId: string): Promise<Result<LineOncallRoster>> {
+  const res = await callRpc<{ clinic_id?: string; member_ids?: string[]; oncall_ids?: string[] } | null>(
+    () => supabase.rpc('get_line_oncall_roster', { p_cred_id: credentialId }),
+    'get_line_oncall_roster', logger,
+  )
+  if (!res.ok) return res
+  return {
+    ok: true,
+    data: {
+      clinicId: res.data?.clinic_id ?? '',
+      memberIds: res.data?.member_ids ?? [],
+      oncallIds: res.data?.oncall_ids ?? [],
+    },
+  }
+}
+
+export interface LineOncallSummary {
+  id: string
+  name: string
+  oncallEnabled: boolean
+  messageEnabled: boolean
+  memberCount: number
+  oncallCount: number
+}
+
+/** Every line in the cluster with its duty counts — the member-facing view of the
+ *  supervisor's line list, carrying names and counts but no credential material. */
+export async function listLineOncallRosters(clinicId: string): Promise<Result<LineOncallSummary[]>> {
+  const res = await callRpc<Record<string, unknown>[] | null>(
+    () => supabase.rpc('list_line_oncall_rosters', { p_clinic_id: clinicId }),
+    'list_line_oncall_rosters', logger,
+  )
+  if (!res.ok) return res
+  const rows = Array.isArray(res.data) ? res.data : []
+  return {
+    ok: true,
+    data: rows.map((r) => ({
+      id: r.id as string,
+      name: (r.name as string) ?? 'Main',
+      oncallEnabled: r.oncall_enabled === true,
+      messageEnabled: r.outside_message_enabled === true,
+      memberCount: Number(r.member_count ?? 0),
+      oncallCount: Number(r.oncall_count ?? 0),
+    })),
+  }
+}
+
 export async function toggleOncallPresence(
   clinicId: string,
   userId: string,
@@ -107,88 +171,54 @@ export async function markOncallEnded(callId: string): Promise<void> {
   }
 }
 
-// ─── GATE 2: supervisor master toggles (flag-only; no key lifecycle) ───
+// ─── GATE 2: supervisor channel toggles, PER LINE (flag-only; no key lifecycle) ───
+//
+// A cluster runs several intake lines and each one opens its channels
+// independently — the SD phone can take calls while the front-desk line only takes
+// event requests. All four take a credential (line) id, never a clinic id.
 
-/** Enable on-call (GATE 2). Flips the master flag — there is no inbound key to
- *  provision; outside calls/voicemail are E2E via the edge-authored envelope. */
-export async function enableOncall(clinicId: string): Promise<Result<true>> {
+/** Allow outside callers to ring this line's on-call scope. Flips the master flag —
+ *  there is no inbound key to provision; outside calls/voicemail are E2E via the
+ *  edge-authored envelope. */
+export async function setLineOncallEnabled(credentialId: string, on: boolean): Promise<Result<true>> {
   const res = await callRpc(
-    () => supabase.rpc('set_oncall_master', { p_clinic_id: clinicId, p_enabled: true }),
-    'set_oncall_master', logger,
+    () => supabase.rpc('set_line_oncall_enabled', { p_cred_id: credentialId, p_enabled: on }),
+    'set_line_oncall_enabled', logger,
   )
   if (!res.ok) return res
   return { ok: true, data: true }
 }
 
-/** Disable on-call (GATE 2). */
-export async function disableOncall(clinicId: string): Promise<Result<true>> {
+/** Allow the outside→cluster one-way message channel on this line. */
+export async function setLineMessageEnabled(credentialId: string, on: boolean): Promise<Result<true>> {
   const res = await callRpc(
-    () => supabase.rpc('set_oncall_master', { p_clinic_id: clinicId, p_enabled: false }),
-    'set_oncall_master', logger,
+    () => supabase.rpc('set_line_message_enabled', { p_cred_id: credentialId, p_enabled: on }),
+    'set_line_message_enabled', logger,
   )
   if (!res.ok) return res
   return { ok: true, data: true }
 }
 
-/** Enable the outside→cluster one-way message channel (GATE 2). Flag-only. */
-export async function enableOutsideMessaging(clinicId: string): Promise<Result<true>> {
+/** Allow OUTBOUND outside-contact — any clinic member emails a secure 1:1 invite to
+ *  an outside recipient (reverse of the inbound channels). Outbound is medic-initiated
+ *  and not line-routed, so ANY line permitting it opens the gate for the cluster. */
+export async function setLineOutboundEnabled(credentialId: string, on: boolean): Promise<Result<true>> {
   const res = await callRpc(
-    () => supabase.rpc('set_outside_message_enabled', { p_clinic_id: clinicId, p_enabled: true }),
-    'set_outside_message_enabled', logger,
+    () => supabase.rpc('set_line_outbound_enabled', { p_cred_id: credentialId, p_enabled: on }),
+    'set_line_outbound_enabled', logger,
   )
   if (!res.ok) return res
   return { ok: true, data: true }
 }
 
-/** Disable the outside→cluster message channel. Leaves the inbound key in place. */
-export async function disableOutsideMessaging(clinicId: string): Promise<Result<true>> {
+/** Allow the outside event-request (scheduling intake) channel on this line. Separate
+ *  from the line's existence so a cluster can keep calls/messages live while closing
+ *  event intake. Intake is supervisor-scoped: it reaches the line's supervisors plus
+ *  HQ, which never has none. */
+export async function setLineIntakeEnabled(credentialId: string, on: boolean): Promise<Result<true>> {
   const res = await callRpc(
-    () => supabase.rpc('set_outside_message_enabled', { p_clinic_id: clinicId, p_enabled: false }),
-    'set_outside_message_enabled', logger,
-  )
-  if (!res.ok) return res
-  return { ok: true, data: true }
-}
-
-/** Enable OUTBOUND outside-contact — lets any clinic member email a secure 1:1
- *  invite to an outside recipient (reverse of the inbound channels). Supervisor
- *  gated server-side (set_outbound_enabled asserts supervisor-or-dev). Flag-only. */
-export async function enableOutbound(clinicId: string): Promise<Result<true>> {
-  const res = await callRpc(
-    () => supabase.rpc('set_outbound_enabled', { p_clinic_id: clinicId, p_enabled: true }),
-    'set_outbound_enabled', logger,
-  )
-  if (!res.ok) return res
-  return { ok: true, data: true }
-}
-
-/** Disable outbound outside-contact. Existing channels keep running until they expire. */
-export async function disableOutbound(clinicId: string): Promise<Result<true>> {
-  const res = await callRpc(
-    () => supabase.rpc('set_outbound_enabled', { p_clinic_id: clinicId, p_enabled: false }),
-    'set_outbound_enabled', logger,
-  )
-  if (!res.ok) return res
-  return { ok: true, data: true }
-}
-
-/** Enable the outside event-request (scheduling intake) channel (GATE 2). Flag-only.
- *  Separate from the credential's existence so a cluster can keep calls/messages live
- *  while closing event intake. */
-export async function enableIntake(clinicId: string): Promise<Result<true>> {
-  const res = await callRpc(
-    () => supabase.rpc('set_intake_enabled', { p_clinic_id: clinicId, p_enabled: true }),
-    'set_intake_enabled', logger,
-  )
-  if (!res.ok) return res
-  return { ok: true, data: true }
-}
-
-/** Disable the outside event-request channel. */
-export async function disableIntake(clinicId: string): Promise<Result<true>> {
-  const res = await callRpc(
-    () => supabase.rpc('set_intake_enabled', { p_clinic_id: clinicId, p_enabled: false }),
-    'set_intake_enabled', logger,
+    () => supabase.rpc('set_line_intake_enabled', { p_cred_id: credentialId, p_enabled: on }),
+    'set_line_intake_enabled', logger,
   )
   if (!res.ok) return res
   return { ok: true, data: true }

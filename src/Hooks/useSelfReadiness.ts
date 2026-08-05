@@ -31,10 +31,15 @@ export interface SelfReadiness {
   compliancePercent: number
   /** Open + completed training assignments (not the graded tests). */
   assignments: TrainingCompletionUI[]
+  /** The medic ICTL roster does not apply to this user — see isTrainingExempt.
+   *  readinessPercent stays computed; surfaces hide it rather than show a figure
+   *  measured against a standard the user is not held to. */
+  exempt: boolean
 }
 
 export function useSelfReadiness(certs: Certification[]): SelfReadiness {
   const userId = useAuthStore(s => s.user?.id ?? null)
+  const exempt = useAuthStore(s => s.isProviderRole)
   const { completions, algorithmRunCounts } = useTrainingCompletions()
 
   const tests = useMemo(
@@ -78,5 +83,6 @@ export function useSelfReadiness(certs: Certification[]): SelfReadiness {
     readinessPercent,
     compliancePercent,
     assignments,
+    exempt,
   }
 }

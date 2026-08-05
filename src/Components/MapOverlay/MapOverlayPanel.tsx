@@ -89,6 +89,7 @@ import { TILE_SOURCES } from '../../lib/mapTileService';
 import { GeoPdfImportForm } from './GeoPdfImportForm';
 import { latLngToUTM } from './utmProjection';
 import { latLngToMgrs } from '../../lib/mgrsFormat';
+import { copyText } from '../../Utilities/clipboardUtils';
 
 function VertexCoordInput({ onAdd }: { onAdd: (lat: number, lng: number) => void }) {
   const [value, setValue] = useState('');
@@ -2098,7 +2099,8 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
     const [lat, lng] = selectedFeature.geometry[0];
     const url = `https://www.google.com/maps?q=${lat},${lng}`;
     if (navigator.share) { navigator.share({ title: 'Location', url }).catch(() => {}); return; }
-    navigator.clipboard.writeText(url).catch(() => {});
+    // No share sheet (desktop) — the link goes to the clipboard, which has to say so.
+    void copyText(url, 'Location link copied');
   }, [selectedFeature]);
 
   // Open the selected-feature ellipsis menu anchored under the tapped pill.

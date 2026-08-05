@@ -1,6 +1,6 @@
 // src/Components/Reports/NineLineKB.tsx
-import { useState, useRef } from 'react'
-import { Copy, Check, Printer, RefreshCw, Image } from 'lucide-react'
+import { useRef } from 'react'
+import { Copy, Printer, RefreshCw, Image } from 'lucide-react'
 import { MedevacForm } from '../Medevac/MedevacForm'
 import { ActionButton } from '@/Components/primitives/ActionButton'
 import { BarcodeDisplay } from '../Barcode'
@@ -8,6 +8,7 @@ import { BarcodeDisplay } from '../Barcode'
 import type { MedevacRequest } from '../../Types/MedevacTypes'
 import { medevacPatientTotal } from '../../Types/MedevacTypes'
 import { medevacToText, medevacToCompact, copyToClipboard, printReport } from '../../lib/reportExport'
+import { copyImage } from '../../Utilities/clipboardUtils'
 import { ActionPill } from '@/Components/primitives/ActionPill'
 import { OverlayActionMenu } from '@/Components/primitives/OverlayActionMenu'
 
@@ -41,17 +42,12 @@ interface NineLineExportProps {
 }
 
 export function NineLineExport({ req, onClear }: NineLineExportProps) {
-  const [copiedText, setCopiedText] = useState(false)
-  const [copiedDm, setCopiedDm] = useState<'image' | 'code' | null>(null)
   const barcodeRef = useRef<HTMLDivElement>(null)
   const text = medevacToText(req)
   const compact = medevacToCompact(req)
 
   function handleCopyText() {
-    copyToClipboard(text).then(() => {
-      setCopiedText(true)
-      setTimeout(() => setCopiedText(false), 2000)
-    })
+    void copyToClipboard(text, '9-Line copied')
   }
 
   function handlePrint() {
@@ -59,21 +55,13 @@ export function NineLineExport({ req, onClear }: NineLineExportProps) {
   }
 
   function handleCopyCode() {
-    copyToClipboard(compact).then(() => {
-      setCopiedDm('code')
-      setTimeout(() => setCopiedDm(null), 2000)
-    })
+    void copyToClipboard(compact, 'Code copied')
   }
 
   function handleCopyImage() {
     const canvas = barcodeRef.current?.querySelector('canvas')
     if (!canvas) return
-    canvas.toBlob(blob => {
-      if (!blob) return
-      navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
-        .then(() => { setCopiedDm('image'); setTimeout(() => setCopiedDm(null), 2000) })
-        .catch(() => {})
-    }, 'image/png')
+    canvas.toBlob(blob => { if (blob) void copyImage(blob, 'Barcode copied') }, 'image/png')
   }
 
   return (
@@ -87,7 +75,7 @@ export function NineLineExport({ req, onClear }: NineLineExportProps) {
         </div>
         <OverlayActionMenu
           items={[
-            { key: 'copy', label: 'Copy text', icon: copiedText ? Check : Copy, onAction: handleCopyText, variant: copiedText ? 'success' : 'default' },
+            { key: 'copy', label: 'Copy text', icon: Copy, onAction: handleCopyText },
             { key: 'print', label: 'Print', icon: Printer, onAction: handlePrint },
             { key: 'clear', label: 'Clear form', icon: RefreshCw, destructive: true, onAction: onClear },
           ]}
@@ -102,8 +90,8 @@ export function NineLineExport({ req, onClear }: NineLineExportProps) {
           </div>
         </div>
         <ActionPill shadow="sm" placement="overlay">
-          <ActionButton icon={copiedDm === 'image' ? Check : Image} label="Copy image" onClick={handleCopyImage} variant={copiedDm === 'image' ? 'success' : 'default'} />
-          <ActionButton icon={copiedDm === 'code' ? Check : Copy} label="Copy code" onClick={handleCopyCode} variant={copiedDm === 'code' ? 'success' : 'default'} />
+          <ActionButton icon={Image} label="Copy image" onClick={handleCopyImage} />
+          <ActionButton icon={Copy} label="Copy code" onClick={handleCopyCode} />
         </ActionPill>
       </div>
     </div>

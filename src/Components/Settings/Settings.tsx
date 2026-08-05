@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import { Palette, Shield, Lock, MessageSquare, Bell, Stethoscope, Scale, X, Building2, Check, Radio, LayoutDashboard, HardDrive, Smartphone, BookOpen } from 'lucide-react';
+import { Palette, Shield, Lock, MessageSquare, Bell, Stethoscope, Scale, X, Building2, Check, Radio, LayoutDashboard, HardDrive, Smartphone, BookOpen, Plus } from 'lucide-react';
 import { BaseDrawer } from '@/Components/primitives/BaseDrawer';
 import { useIsMobile } from '../../Hooks/useIsMobile';
 import { ChildClinicRosterBody } from './Supervisor/ChildClinicRosterSheet';
@@ -42,6 +42,7 @@ import { useEscBackout } from '../../Hooks/useEscBackout';
 import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill';
 import { SessionsDevicesPanel } from './SessionsDevicesPanel';
 import { ClinicPanel } from './ClinicPanel';
+import { openIntakeLineMint } from './IntakeMintSection';
 import { LoRaPanel } from './LoRaPanel';
 import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog';
 import { ThemePickerPanel } from './ThemePickerPanel';
@@ -450,9 +451,13 @@ const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
                                     onClick={() => setClinicSaveRequested(true)}
                                     label="Save"
                                 />
-                            ) : (
+                            ) : (<>
+                                {/* Mints an outside-contact line. The section that owns
+                                    the flow is two levels down, so it publishes an
+                                    opener rather than taking a signal prop. */}
+                                <PillButton icon={Plus} onClick={openIntakeLineMint} label="Add line" />
                                 <PillButton icon={X} onClick={() => guardedClinicAction(handleClose)} label="Close" />
-                            )}
+                            </>)}
                         </HeaderPill>
                     );
                     return {

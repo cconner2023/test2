@@ -10,6 +10,7 @@ import {
   resolveIctlStatus,
   collectTaskRecords,
   algorithmRecordIds,
+  isTrainingExempt,
   type TaskRecord,
 } from './supervisorHelpers'
 import { TaskRecords } from './TaskRecords'
@@ -88,6 +89,11 @@ interface CoverageTasksViewProps {
    *  terminal lives in the host's pane, so a host without one gets no list
    *  rather than rows that go nowhere. */
   onOpenRecord?: (record: TaskRecord) => void
+  /** Open a record row's action menu. The menu, its confirm and its error live in
+   *  the host for the same reason the terminal does — an act on a record outlives
+   *  the row it was ordered from. */
+  onOpenRecordMenu?: (record: TaskRecord, anchor: DOMRect) => void
+  recordError?: string | null
 }
 
 export function CoverageTasksView({
@@ -105,6 +111,8 @@ export function CoverageTasksView({
   onSelect,
   completionsForSoldier,
   onOpenRecord,
+  onOpenRecordMenu,
+  recordError,
 }: CoverageTasksViewProps) {
   // Action sheet state: soldier + task to act on
   const [sheetSoldier, setSheetSoldier] = useState<ClinicMedic | null>(null)
@@ -182,6 +190,7 @@ export function CoverageTasksView({
       const algorithms = buildAlgorithmCompetency(own, runCountsForSoldier(m.id))
       return {
         medic: m,
+        exempt: isTrainingExempt(m),
         latestByTask: getLatestTestByTask(own),
         algorithmById: new Map(algorithms.map(a => [a.id, a])),
         trainedAlgorithmIds: new Set(
@@ -201,24 +210,29 @@ export function CoverageTasksView({
 
   /** For each task, how many soldiers hold it — by either route. */
   const taskCoverage = useMemo(() => {
+    // Exempt names are off both sides of the fraction — see isTrainingExempt.
+    const rated = medicState.filter(s => !s.exempt)
     const coverage = new Map<string, { passed: number; total: number }>()
     for (const task of tasks) {
       let passed = 0
-      for (const state of medicState) {
+      for (const state of rated) {
         if (statusFor(state, task.taskId).status === 'GO') passed++
       }
-      coverage.set(task.taskId, { passed, total: medics.length })
+      coverage.set(task.taskId, { passed, total: rated.length })
     }
     return coverage
-  }, [tasks, medicState, medics.length, statusFor])
+  }, [tasks, medicState, statusFor])
 
   /** For the selected task, each soldier's status plus their ADTMC step count. */
   const soldierStatuses = useMemo(() => {
     if (selection?.kind !== 'ictl') return []
     const taskId = selection.task.taskId
     return medicState
-      .map(state => ({ soldier: state.medic, ...statusFor(state, taskId) }))
+      .map(state => ({ soldier: state.medic, exempt: state.exempt, ...statusFor(state, taskId) }))
       .sort((a, b) => {
+        // Exempt names sit under the roster: they are listed so they can still be
+        // assigned, but they are not part of the gap the list is sorted by.
+        if (a.exempt !== b.exempt) return a.exempt ? 1 : -1
         // Sort: NO_GO first, then UNTESTED, then GO
         const order: Record<CompetencyStatus, number> = { NO_GO: 0, UNTESTED: 1, GO: 2 }
         return order[a.status] - order[b.status]
@@ -232,8 +246,11 @@ export function CoverageTasksView({
     if (selection?.kind !== 'algorithm') return []
     const order: Record<string, number> = { untrained: 0, partial: 1, trained: 2 }
     return medicState
-      .map(state => ({ soldier: state.medic, comp: state.algorithmById.get(selection.algorithmId) }))
-      .sort((a, b) => (order[a.comp?.status ?? 'untrained'] - order[b.comp?.status ?? 'untrained']))
+      .map(state => ({ soldier: state.medic, exempt: state.exempt, comp: state.algorithmById.get(selection.algorithmId) }))
+      .sort((a, b) => {
+        if (a.exempt !== b.exempt) return a.exempt ? 1 : -1
+        return order[a.comp?.status ?? 'untrained'] - order[b.comp?.status ?? 'untrained']
+      })
   }, [selection, medicState])
 
   /** The open algorithm's components for the ONE soldier this surface is scoped
@@ -357,8 +374,9 @@ export function CoverageTasksView({
       <TaskRecords
         records={records}
         onOpen={onOpenRecord}
+        onOpenMenu={onOpenRecordMenu}
+        error={recordError}
         hideSoldier={!!preSelectedSoldier}
-        showItem={selection?.kind === 'algorithm'}
       />
     )
   }
@@ -475,8 +493,10 @@ export function CoverageTasksView({
             scope-aware action surface this list was standing in for. */}
         {!preSelectedSoldier && (
           <SectionCard>
-            {soldierStatuses.map(({ soldier, status }) => {
-              const cfg = statusConfig[status]
+            {soldierStatuses.map(({ soldier, status, exempt }) => {
+              // No GO/NO GO on an exempt name — the badge would be a verdict
+              // against a standard they are not held to.
+              const cfg = exempt ? null : statusConfig[status]
               return (
                 <button
                   key={soldier.id}
@@ -496,6 +516,9 @@ export function CoverageTasksView({
                     <span className={`text-[9pt] font-semibold px-2 py-0.5 rounded-full ${cfg.className}`}>
                       {cfg.label}
                     </span>
+                  )}
+                  {exempt && (
+                    <span className="text-[9pt] text-tertiary shrink-0">Not rated</span>
                   )}
                   {testable && (
                     <ChevronRight size={16} className="text-tertiary shrink-0" />
@@ -553,7 +576,7 @@ export function CoverageTasksView({
 
         {!preSelectedSoldier && (
           <SectionCard>
-            {algorithmStatuses.map(({ soldier, comp }) => (
+            {algorithmStatuses.map(({ soldier, comp, exempt }) => (
               <button
                 key={soldier.id}
                 onClick={() => actionable && setAlgoSheetSoldier(soldier)}
@@ -565,7 +588,8 @@ export function CoverageTasksView({
                   {formatMedicName(soldier)}
                 </span>
                 <span className="flex items-center gap-2 shrink-0 text-[9pt] tabular-nums">
-                  {comp?.components.map(c => (
+                  {exempt && <span className="text-tertiary">Not rated</span>}
+                  {!exempt && comp?.components.map(c => (
                     <span
                       key={c.kind}
                       className={c.met ? 'text-themegreen' : 'text-tertiary'}

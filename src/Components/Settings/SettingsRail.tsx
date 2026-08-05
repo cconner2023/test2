@@ -47,7 +47,7 @@ export function SettingsRail({
     const { currentAvatar, customImage, isCustom, isInitials } = useAvatar();
     const { profile, isAuthenticated } = useAuth();
     const { certs } = useCertifications();
-    const { readinessPercent, compliancePercent } = useSelfReadiness(certs);
+    const { readinessPercent, compliancePercent, exempt: readinessExempt } = useSelfReadiness(certs);
     const [query, setQuery] = useState('');
     const q = query.trim().toLowerCase();
 
@@ -136,7 +136,7 @@ export function SettingsRail({
                         }
                         title={displayName}
                         subtitle={displaySub}
-                        readinessPercent={isAuthenticated ? readinessPercent : undefined}
+                        readinessPercent={isAuthenticated && !readinessExempt ? readinessPercent : undefined}
                         compliancePercent={isAuthenticated ? compliancePercent : undefined}
                         active={activeId === 'user-profile'}
                         onActivate={onProfileClick}

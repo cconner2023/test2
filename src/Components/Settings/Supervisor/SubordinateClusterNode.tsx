@@ -61,8 +61,13 @@ export function SubordinateClusterNode({
   // no row for reads 0 and sorts to the top — an unpublished person is a gap,
   // not a pass.
   const rows = [...(members ?? [])].sort((a, b) => {
-    const ar = byUser.get(a.id)?.readiness_pct ?? 0
-    const br = byUser.get(b.id)?.readiness_pct ?? 0
+    const ra = byUser.get(a.id)
+    const rb = byUser.get(b.id)
+    // An exempt soldier has no gap to lead with — their percentage is not a
+    // verdict, so it cannot be what puts them at the top of a worst-first list.
+    if (!!ra?.exempt !== !!rb?.exempt) return ra?.exempt ? 1 : -1
+    const ar = ra?.readiness_pct ?? 0
+    const br = rb?.readiness_pct ?? 0
     return ar - br || clinicMemberName(a).localeCompare(clinicMemberName(b))
   })
 

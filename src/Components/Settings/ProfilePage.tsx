@@ -35,6 +35,7 @@ import { PickerInput, PasswordInput, TextArea } from '@/Components/primitives/Fo
 import { ErrorDisplay } from '@/Components/primitives/ErrorDisplay';
 import { supabase } from '../../lib/supabase';
 import { reEncryptVaultKeys } from '../../lib/signal/vaultDevice';
+import { copyText, copyImage } from '../../Utilities/clipboardUtils';
 
 interface ProfilePageProps {
     onAvatarClick: () => void;
@@ -118,10 +119,7 @@ export const ProfilePage = ({
                     return
                 }
             } catch { /* user cancelled — fall through */ }
-            try {
-                await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
-                return
-            } catch { /* clipboard image unsupported — fall through */ }
+            if (await copyImage(blob, 'QR image copied')) return
             const url = URL.createObjectURL(blob)
             const a = document.createElement('a')
             a.href = url
@@ -133,9 +131,9 @@ export const ProfilePage = ({
         }, 'image/png')
     }, [])
 
-    const handleCopyId = useCallback(async () => {
+    const handleCopyId = useCallback(() => {
         if (!user?.id) return
-        await navigator.clipboard.writeText(user.id)
+        void copyText(user.id, 'ID copied')
     }, [user?.id])
 
     // Profile change-request popover — anchored to its own row in the Account

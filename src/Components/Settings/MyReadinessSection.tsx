@@ -35,6 +35,7 @@ export function MyReadinessSection({ certs }: {
     readinessPercent,
     compliancePercent,
     assignments,
+    exempt,
   } = useSelfReadiness(certs)
 
   if (!userId) return null
@@ -45,9 +46,10 @@ export function MyReadinessSection({ certs }: {
 
       <div className="space-y-3">
         {/* Readiness + Compliance headline — the same two FillBars, in the same
-            order, that the desktop rail's pinned card shows. */}
+            order, that the desktop rail's pinned card shows. Readiness drops for
+            an exempt user; certifications still bind them, so compliance stays. */}
         <SectionCard className="px-4 py-4 space-y-2.5">
-          <FillBar label="Readiness" percent={readinessPercent} />
+          {!exempt && <FillBar label="Readiness" percent={readinessPercent} />}
           <FillBar label="Compliance" percent={compliancePercent} />
         </SectionCard>
 

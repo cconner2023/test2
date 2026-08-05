@@ -62,7 +62,6 @@ export function useNoteEditor(config: NoteEditorConfig) {
     const [selectedDdx, setSelectedDdx] = useState<string[]>([]);
     const [customDdx, setCustomDdx] = useState<string[]>([]);
     const [encodedValue, setEncodedValue] = useState('');
-    const [copiedTarget, setCopiedTarget] = useState<'preview' | 'encoded' | null>(null);
 
     // --- Page navigation state ---
     const [currentPage, setCurrentPage] = useState(() =>
@@ -100,14 +99,6 @@ export function useNoteEditor(config: NoteEditorConfig) {
     const { exportDD689, exportStatus, dd689Preview, downloadDD689, clearDD689Preview } = useDD689Export();
     const { exportSF600, sf600ExportStatus, sf600Preview, downloadSF600, clearSF600Preview } = useSF600Export();
 
-    // --- Copied state auto-revert ---
-    useEffect(() => {
-        if (copiedTarget) {
-            const id = window.setTimeout(() => setCopiedTarget(null), UI_TIMING.COPY_FEEDBACK);
-            return () => clearTimeout(id);
-        }
-    }, [copiedTarget]);
-
     // --- Preview note generation ---
     useEffect(() => {
         const result = generateNote(
@@ -119,10 +110,9 @@ export function useNoteEditor(config: NoteEditorConfig) {
         setPreviewNote(result.fullNote);
     }, [note, assessmentNote, selectedDdx, customDdx, peNote, planNote, generateNote, dispositionType, dispositionText, selectedSymptom, includeAlgorithm, includeDecisionMaking]);
 
-    // --- Copy handler ---
-    const handleCopy = useCallback((text: string, target: 'preview' | 'encoded') => {
+    // --- Copy handler — confirmation is the shared CopiedModal, raised by copyWithHtml ---
+    const handleCopy = useCallback((text: string) => {
         copyWithHtml(text);
-        setCopiedTarget(target);
     }, []);
 
     // --- Share handler ---
@@ -227,7 +217,6 @@ export function useNoteEditor(config: NoteEditorConfig) {
         selectedDdx, setSelectedDdx,
         customDdx, setCustomDdx,
         encodedValue, setEncodedValue,
-        copiedTarget, setCopiedTarget,
 
         // Page navigation
         currentPage, currentPageId, slideDirection,

@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { ActionIconButton, exportStatusToIconStatus } from '../WriteNoteHelpers';
+import { Copy, FileDown, Share2 } from 'lucide-react';
 import { useSF600Export } from '../../Hooks/useSF600Export';
 import { BarcodeDisplay } from '../Barcode';
 import { useUserProfile } from '../../Hooks/useUserProfile';
@@ -15,6 +15,7 @@ import { PdfPreviewModal } from '../PdfPreviewModal';
 import type { ImportedMedicNote } from '../ProviderDrawer'
 import type { PEState } from '../../Types/PETypes'
 import { ActionPill } from '@/Components/primitives/ActionPill'
+import { ActionButton } from '@/Components/primitives/ActionButton'
 
 export interface ProviderNoteOutputProps {
     hpiNote: string;
@@ -37,9 +38,8 @@ export function ProviderNoteOutput({
 }: ProviderNoteOutputProps) {
     const { profile } = useUserProfile();
     const isMobile = useIsMobile();
-    const { shareNote, shareStatus } = useNoteShare();
+    const { shareNote } = useNoteShare();
     const { exportSF600, sf600ExportStatus, sf600Preview, downloadSF600, clearSF600Preview } = useSF600Export();
-    const [copiedTarget, setCopiedTarget] = useState<'preview' | 'encoded' | null>(null);
 
     const signature = useMemo(
         () => (profile ? formatSignature(profile) : ''),
@@ -147,12 +147,6 @@ export function ProviderNoteOutput({
         return sections.join('\n');
     }, [hpiNote, peNote, assessmentNote, planNote, importedMedicNote, signature, medicSignature]);
 
-    function handleCopy(text: string, target: 'preview' | 'encoded') {
-        copyWithHtml(text);
-        setCopiedTarget(target);
-        setTimeout(() => setCopiedTarget(null), 2000);
-    }
-
     function handleShare() {
         shareNote({ encodedText: encodedValue, symptomText: 'Provider Note' }, isMobile);
     }
@@ -171,10 +165,6 @@ export function ProviderNoteOutput({
         });
     }
 
-    const shareBtnStatus = shareStatus === 'idle' ? 'idle'
-        : shareStatus === 'copied' || shareStatus === 'shared' ? 'done'
-            : 'busy';
-
     return (
         <div className="space-y-4">
             {/* Note Preview */}
@@ -188,18 +178,19 @@ export function ProviderNoteOutput({
                                 : 'No content available'}
                         </div>
                     </div>
+                    {/* Static tiles: copy confirms through the shared CopiedModal and the
+                        export through PdfPreviewModal's loading state, so neither button
+                        animates its own status. */}
                     <ActionPill shadow="sm" placement="overlay">
-                        <ActionIconButton
-                            onClick={() => handleCopy(previewNote, 'preview')}
-                            status={copiedTarget === 'preview' ? 'done' : 'idle'}
-                            variant="copy"
-                            title="Copy note text"
+                        <ActionButton
+                            icon={Copy}
+                            label="Copy note text"
+                            onClick={() => copyWithHtml(previewNote)}
                         />
-                        <ActionIconButton
+                        <ActionButton
+                            icon={FileDown}
+                            label="Export SF600 PDF"
                             onClick={handleExportSF600}
-                            status={exportStatusToIconStatus(sf600ExportStatus)}
-                            variant="pdf"
-                            title="Export SF600 PDF"
                         />
                     </ActionPill>
                 </div>
@@ -218,17 +209,15 @@ export function ProviderNoteOutput({
                         </div>
                     </div>
                     <ActionPill shadow="sm" placement="overlay">
-                        <ActionIconButton
+                        <ActionButton
+                            icon={Share2}
+                            label="Copy barcode image"
                             onClick={handleShare}
-                            status={shareBtnStatus}
-                            variant="share"
-                            title="Copy barcode image"
                         />
-                        <ActionIconButton
-                            onClick={() => handleCopy(encodedValue, 'encoded')}
-                            status={copiedTarget === 'encoded' ? 'done' : 'idle'}
-                            variant="copy"
-                            title="Copy encoded text"
+                        <ActionButton
+                            icon={Copy}
+                            label="Copy encoded text"
+                            onClick={() => copyWithHtml(encodedValue)}
                         />
                     </ActionPill>
                 </div>

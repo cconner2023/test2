@@ -1,6 +1,6 @@
 // src/Components/Reports/LaceReport.tsx
 import { useState } from 'react'
-import { Copy, Check, Download, Printer, Plus, X } from 'lucide-react'
+import { Copy, Download, Printer, Plus, X } from 'lucide-react'
 import { ActionButton } from '@/Components/primitives/ActionButton'
 import { Section, SectionCard } from '@/Components/primitives/Section'
 import { emptyLaceReport, DEFAULT_AMMO_TYPES } from '../../Types/ReportTypes'
@@ -79,7 +79,6 @@ function StatusPill({ status, selected, onSelect }: { status: EquipStatus; selec
 
 export function LaceReport() {
   const [report, setReport] = useState<LaceReportType>(emptyLaceReport())
-  const [copied, setCopied] = useState(false)
 
   const update = (patch: Partial<LaceReportType>) => setReport(r => ({ ...r, ...patch }))
 
@@ -103,10 +102,7 @@ export function LaceReport() {
   }
 
   function handleCopy() {
-    copyToClipboard(laceToText(report)).then(() => {
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    })
+    void copyToClipboard(laceToText(report), 'LACE report copied')
   }
 
   function handleDownload() {
@@ -331,7 +327,7 @@ export function LaceReport() {
           />
           <div className="flex items-center justify-end px-3 py-2">
             <ActionPill>
-              <ActionButton icon={copied ? Check : Copy} label="Copy" onClick={handleCopy} variant={copied ? 'success' : 'default'} />
+              <ActionButton icon={Copy} label="Copy" onClick={handleCopy} />
               <ActionButton icon={Download} label="Download" onClick={handleDownload} />
               <ActionButton icon={Printer} label="Print" onClick={handlePrint} />
             </ActionPill>

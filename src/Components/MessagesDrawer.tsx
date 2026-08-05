@@ -9,6 +9,7 @@ import { Sheet } from '@/Components/primitives/Sheet'
 import { VoicemailGreetingSection } from './Settings/VoicemailGreetingSection'
 import { IncomingCallsSection } from './Settings/IncomingCallsSection'
 import { MessagingOncallSettings } from './Settings/MessagingOncallSettings'
+import { openIntakeLineMint } from './Settings/IntakeMintSection'
 import { SwipeActionsSection } from './Settings/SwipeActionsSection'
 import { MessagesPanel, type MessagesView, type MessagesPanelHandle, type MessagingLens } from './Settings/MessagesPanel'
 import { useMessagesContext } from '../Hooks/MessagesContext'
@@ -244,6 +245,13 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
             <VoicemailGreetingSection />
         </div>
     )
+    // Minting a line is the only create in this surface, and it belongs on the
+    // container header rather than inside the Outside-contact section — same
+    // placement as the cluster panel's. Supervisor/dev-gated to match the section
+    // itself, which renders nothing for anyone else.
+    const settingsActions = (isSupervisorRole || outsideCallBeta) && settingsClinicId ? (
+        <PillButton icon={Plus} onClick={openIntakeLineMint} label="Add line" />
+    ) : undefined
     const settingsSurface = isMobile ? (
         <Sheet
             isOpen={showSettings}
@@ -252,6 +260,7 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
             height="fit"
             maxHeight={60}
             zIndex={1200}
+            actions={settingsActions}
         >
             {settingsContent}
         </Sheet>
@@ -263,6 +272,7 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
             title="Messaging settings"
             maxWidth={360}
             previewMaxHeight="70dvh"
+            headerActions={settingsActions}
         >
             {settingsContent}
         </PreviewOverlay>

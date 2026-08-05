@@ -41,8 +41,8 @@ import { useContactPicker, type ContactPickerTarget } from '../Messages/useConta
 import { TextInput } from '@/Components/primitives/FormInputs'
 import { ExpandableInput } from '@/Components/primitives/ExpandableInput'
 import { useMergedNoteContent } from '../../Hooks/useMergedNoteContent'
-import { getEventIntakeCredential } from '../../lib/eventIntakeService'
-import { getWarmCredential, setWarmCredential } from '../../lib/messagingSettingsWarm'
+import { listIntakeLines } from '../../lib/eventIntakeService'
+import { getWarmLines, setWarmLines } from '../../lib/messagingSettingsWarm'
 import { createOutboundOutsideEntity, sendOutsideEntityReply, isMilEmail, MIL_UNSUPPORTED_MESSAGE } from '../../lib/outsideEntityService'
 import { getAllOutsideEntityChannels, migrateLegacyChannelKeys, type OutsideEntityChannel } from '../../lib/outsideEntityChannelStore'
 import { saveMessage } from '../../lib/signal/messageStore'
@@ -1085,18 +1085,21 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
   // point renders, otherwise the send fails server-side. Seeded from the
   // messaging-settings warm cache and re-read each time the composer opens, so a
   // supervisor flipping the toggle takes effect on the next open.
+  // Outbound is medic-initiated and not line-routed, so ANY line permitting it
+  // opens the compose surface for the cluster — same rule create_outside_entity
+  // applies server-side.
   const [outboundAllowed, setOutboundAllowed] = useState(
-    () => getWarmCredential(outboundClinicId)?.outbound_enabled === true,
+    () => (getWarmLines(outboundClinicId) ?? []).some(l => l.outbound_enabled === true),
   )
   useEffect(() => {
     if (!showNewMsg || !outboundClinicId) return
-    const warm = getWarmCredential(outboundClinicId)
-    if (warm !== undefined) { setOutboundAllowed(warm?.outbound_enabled === true); return }
+    const warm = getWarmLines(outboundClinicId)
+    if (warm !== undefined) { setOutboundAllowed((warm ?? []).some(l => l.outbound_enabled === true)); return }
     let alive = true
-    void getEventIntakeCredential(outboundClinicId).then(res => {
+    void listIntakeLines(outboundClinicId).then(res => {
       if (!alive || !res.ok) return
-      setWarmCredential(outboundClinicId, res.data)
-      setOutboundAllowed(res.data?.outbound_enabled === true)
+      setWarmLines(outboundClinicId, res.data)
+      setOutboundAllowed(res.data.some(l => l.outbound_enabled === true))
     })
     return () => { alive = false }
   }, [showNewMsg, outboundClinicId])

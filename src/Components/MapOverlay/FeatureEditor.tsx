@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
-import { Copy, Check, ChevronDown, Spline, Hexagon, Navigation, Plus } from 'lucide-react';
+import { Copy, ChevronDown, Spline, Hexagon, Navigation, Plus } from 'lucide-react';
 import { floorLabel } from './FloorSelector';
 import { latLngToMgrs } from '../../lib/mgrsFormat';
 import { latLngToUTM } from './utmProjection';
@@ -8,6 +8,7 @@ import { TACTICAL_COLORS, WAYPOINT_LABELS, PIN_GLYPHS } from '../../Types/MapOve
 import { WaypointIcon } from './WaypointIcon';
 import { useMapPrefsStore } from '../../stores/useMapPrefsStore';
 import { formatBearing } from '../../lib/declination';
+import { copyText } from '../../Utilities/clipboardUtils';
 import { useTC3Store } from '../../stores/useTC3Store';
 import { useNavigationStore } from '../../stores/useNavigationStore';
 import { useMedevacStore } from '../../stores/useMedevacStore';
@@ -91,7 +92,6 @@ function nearestWaypointLabel(
 }
 
 export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg, linkedEventCount, onOpenLinksEditor, isEditMode = false, floors = [], onChangeFloor }: FeatureEditorProps) {
-  const [copied, setCopied] = useState(false);
   const bearingReference = useMapPrefsStore(s => s.bearingReference);
   // Phase 4.1 — TC3 link integration. We subscribe with selectors so the
   // editor reactively shows the right state when the active card or queue
@@ -314,15 +314,9 @@ export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg, l
     else if (action === 'open') handleOpenTC3();
   }, [handleLinkActive, handleUnlink, handleOpenTC3]);
 
-  const handleCopyMgrs = useCallback(async () => {
+  const handleCopyMgrs = useCallback(() => {
     if (!mgrs || mgrs === 'Invalid') return;
-    try {
-      await navigator.clipboard.writeText(mgrs);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch {
-      // clipboard not available
-    }
+    void copyText(mgrs, 'MGRS copied');
   }, [mgrs]);
 
   // Directions deep-link for the feature anchor. The api=1 universal-link form
@@ -381,11 +375,7 @@ export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg, l
               className="flex items-center gap-2 w-full text-[10pt] text-primary font-mono active:scale-95 transition-all"
             >
               <span className="flex-1 text-left truncate">{mgrs || 'N/A'}</span>
-              {copied ? (
-                <Check size={12} className="text-themegreen shrink-0" />
-              ) : (
-                <Copy size={12} className="text-tertiary shrink-0" />
-              )}
+              <Copy size={12} className="text-tertiary shrink-0" />
             </button>
             <div className="text-[10pt] text-primary font-mono truncate">{utm || '—'}</div>
             <div className="text-[9pt] text-tertiary truncate">

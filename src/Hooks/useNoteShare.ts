@@ -3,6 +3,7 @@ import { useCallback, useState } from 'react';
 import { renderBarcodeToCanvas } from '../Utilities/NoteCodec';
 import { createLogger } from '../Utilities/Logger';
 import { UI_TIMING } from '../Utilities/constants';
+import { emitCopied } from '../lib/copyFeedback';
 
 /** Minimal note shape needed for sharing. */
 export interface ShareableNote {
@@ -116,6 +117,8 @@ export function useNoteShare() {
                         }),
                     ]);
                     setShareStatus('copied');
+                    // Desktop share IS a clipboard write — same confirmation as any copy.
+                    emitCopied('Barcode copied');
                 } catch {
                     // Fallback: download the image
                     const url = URL.createObjectURL(blob);

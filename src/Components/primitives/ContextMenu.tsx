@@ -32,10 +32,12 @@ export interface ContextMenuItem {
    *  a highlighted/checked state. Ignored by the horizontal pill layout. */
   selected?: boolean
   /** Fully custom button renderer. When set, the item owns its own button + click and the
-   *  menu does NOT auto-close on select. Use for status-aware buttons (ActionIconButton
-   *  spinner/done) or stateful copy-tint buttons. Wins over icon/node/onAction. Rendered verbatim in horizontal/pill
-   *  layouts; in the vertical list layout the whole row becomes the tap target (a tap
-   *  anywhere forwards to the rendered control) so the label isn't a dead zone. */
+   *  menu does NOT auto-close on select — so it is the wrong tool for an action that
+   *  reveals something behind the menu (a copy, an export preview). Use it only for a
+   *  control the medic operates repeatedly without leaving the menu. Wins over
+   *  icon/node/onAction. Rendered verbatim in horizontal/pill layouts; in the vertical
+   *  list layout the whole row becomes the tap target (a tap anywhere forwards to the
+   *  rendered control) so the label isn't a dead zone. */
   render?: () => ReactNode
 }
 
