@@ -54,8 +54,8 @@ export function usePushNotifications() {
         // Admin-routed pushes (new_account / new_feedback both land on
         // view=admin) carry server-originated rows the admin drawer can't otherwise
         // know about — it has no realtime subscription. Bust the 'requests' gen so
-        // an OPEN AdminRequestsList re-pulls (the combined requests+feedback+
-        // suggestions list keys off this gen). Cheap: one query, only if mounted.
+        // an OPEN admin inbox re-pulls (useAdminInbox's combined requests+feedback+
+        // suggestions feed keys off this gen). Cheap: one query, only if mounted.
         if (url?.includes('view=admin')) invalidate('requests')
         if (foregroundTimerRef.current) clearTimeout(foregroundTimerRef.current)
         setForegroundPush({

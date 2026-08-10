@@ -7,6 +7,7 @@
  */
 
 import { useEffect, useCallback, useMemo, useState, useRef } from 'react'
+import { useEntityForm } from '../../Hooks/useEntityForm'
 import { X, Plus, RefreshCw, Check, Trash2, ChevronRight, Building2, Key, MessageSquare, ArrowUp, ArrowDown, Link2, UserPlus } from 'lucide-react'
 import { UserRow } from '../UserRow'
 import { formatLastActive } from './adminUtils'
@@ -20,7 +21,6 @@ import { UicPinInput } from '@/Components/DomainInputs'
 import { ErrorDisplay } from '@/Components/primitives/ErrorDisplay'
 import { LocationPickerInput } from './AdminPickers'
 import { invalidate, useInvalidation } from '../../stores/useInvalidationStore'
-import { sameStringSet } from '../../Utilities/arrayEquals'
 import { PreviewOverlay } from '../PreviewOverlay'
 import { type ContextMenuItem } from '@/Components/primitives/ContextMenu'
 import { AnchoredMenu } from '@/Components/primitives/LiftedRowMenu'
@@ -53,6 +53,23 @@ const subUnitIdOf = (u: AdminUser) => u.sub_cluster_id
  *  - `sub-of`        : new clinic.parent_clinic_id = parentId
  *  - `parent-of`     : after create, child.parent_clinic_id = newId
  *  - `associated-with`: new clinic.associated_clinic_ids = [clinicId] (createClinic syncs reciprocally) */
+/** Everything the cluster edit overlay / create form mutates, as one record. */
+interface ClinicEditForm extends Record<string, unknown> {
+  name: string
+  locationId: string | null
+  uics: string[]
+  parentClinicId: string | null
+  associatedClinicIds: string[]
+}
+
+const EMPTY_CLINIC_FORM: ClinicEditForm = {
+  name: '',
+  locationId: null,
+  uics: [],
+  parentClinicId: null,
+  associatedClinicIds: [],
+}
+
 export type ClusterCreatePrefill =
   | { kind: 'sub-of'; parentId: string }
   | { kind: 'parent-of'; childId: string }
@@ -140,11 +157,17 @@ const AdminClinicDetail = ({
   const relAddRef = useRef<HTMLDivElement>(null)
 
   // Edit state
-  const [editName, setEditName] = useState('')
-  const [editLocationId, setEditLocationId] = useState<string | null>(null)
-  const [editUics, setEditUics] = useState<string[]>([])
-  const [editParentClinicId, setEditParentClinicId] = useState<string | null>(null)
-  const [editAssociatedClinicIds, setEditAssociatedClinicIds] = useState<string[]>([])
+  // One form object, not a useState per field — the seed and the unsaved-changes
+  // check both come from it. See useEntityForm.
+  const form = useEntityForm<ClinicEditForm>(EMPTY_CLINIC_FORM)
+  const { set: setField, bind: bindField, reset: resetForm, commit: commitForm } = form
+  const {
+    name: editName,
+    locationId: editLocationId,
+    uics: editUics,
+    parentClinicId: editParentClinicId,
+    associatedClinicIds: editAssociatedClinicIds,
+  } = form.values
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [uicDraft, setUicDraft] = useState('')
@@ -193,7 +216,7 @@ const AdminClinicDetail = ({
       setUicOwner(owner)
       return
     }
-    setEditUics(prev => [...prev, upper])
+    setField('uics', prev => [...prev, upper])
     setUicDraft('')
     setUicError(null)
     setUicOwner(null)
@@ -269,35 +292,30 @@ const AdminClinicDetail = ({
   const prevEditingRef = useRef(false)
   useEffect(() => {
     if (editing && !prevEditingRef.current) {
-      setEditName(clinic?.name ?? '')
-      setEditLocationId(clinic?.location_id ?? null)
-      setEditUics([...(clinic?.uics ?? [])])
       // Create-mode prefill seeds the relationship the new cluster was
       // launched to fill. parent-of can't be seeded on the new clinic itself
       // (it's a reverse-lookup field on the child) — handled in handleSave.
-      if (isCreateMode && createPrefill) {
-        setEditParentClinicId(createPrefill.kind === 'sub-of' ? createPrefill.parentId : null)
-        setEditAssociatedClinicIds(createPrefill.kind === 'associated-with' ? [createPrefill.clinicId] : [])
-      } else {
-        setEditParentClinicId(clinic?.parent_clinic_id ?? null)
-        setEditAssociatedClinicIds([...(clinic?.associated_clinic_ids ?? [])])
-      }
+      const seeded = isCreateMode && createPrefill
+      resetForm({
+        name: clinic?.name ?? '',
+        locationId: clinic?.location_id ?? null,
+        uics: [...(clinic?.uics ?? [])],
+        parentClinicId: seeded
+          ? (createPrefill.kind === 'sub-of' ? createPrefill.parentId : null)
+          : (clinic?.parent_clinic_id ?? null),
+        associatedClinicIds: seeded
+          ? (createPrefill.kind === 'associated-with' ? [createPrefill.clinicId] : [])
+          : [...(clinic?.associated_clinic_ids ?? [])],
+      })
       setError(null)
     }
     prevEditingRef.current = editing
-  }, [editing, clinic, isCreateMode, createPrefill])
+  }, [editing, clinic, isCreateMode, createPrefill, resetForm])
 
   /** Track pending changes. */
   useEffect(() => {
-    if (!editing) { onPendingChangesChange?.(false); return }
-    const changed =
-      editName !== (clinic?.name ?? '') ||
-      editLocationId !== (clinic?.location_id ?? null) ||
-      !sameStringSet(editUics, clinic?.uics ?? []) ||
-      editParentClinicId !== (clinic?.parent_clinic_id ?? null) ||
-      !sameStringSet(editAssociatedClinicIds, clinic?.associated_clinic_ids ?? [])
-    onPendingChangesChange?.(changed)
-  }, [editing, editName, editLocationId, editUics, editParentClinicId, editAssociatedClinicIds, clinic, onPendingChangesChange])
+    onPendingChangesChange?.(editing && form.dirty)
+  }, [editing, form.dirty, onPendingChangesChange])
 
   const handleSave = useCallback(async () => {
     if (!editName.trim()) {
@@ -331,10 +349,11 @@ const AdminClinicDetail = ({
         if (warnings.length) {
           setError(`Cluster created, but: ${warnings.join('; ')}`)
         }
-        // Clear pending immediately — onCreated awaits listClinics before
-        // flipping editing=false in the parent, leaving a window where the
-        // discard guard would fire if the user tapped Close to verify.
-        onPendingChangesChange?.(false)
+        // Rebaseline immediately — onCreated awaits listClinics before flipping
+        // editing=false in the parent, leaving a window where the discard guard
+        // would fire if the user tapped Close to verify. Committing (rather than
+        // reporting false by hand) survives the re-renders in that window.
+        commitForm()
         onEditingChange(false)
         onCreated?.(result.id)
       } else {
@@ -347,6 +366,7 @@ const AdminClinicDetail = ({
     const result = await updateClinic(clinic!.id, { ...payload, location_id: editLocationId })
     setSaving(false)
     if (result.success) {
+      commitForm()
       onEditingChange(false)
       loadData()
       invalidate('clinics', 'users')
@@ -356,7 +376,7 @@ const AdminClinicDetail = ({
     } else {
       setError(result.error || 'Failed to update clinic')
     }
-  }, [editName, editLocationId, editUics, editParentClinicId, editAssociatedClinicIds, isCreateMode, clinic, onEditingChange, loadData, onCreated, createPrefill, onPendingChangesChange])
+  }, [editName, editLocationId, editUics, editParentClinicId, editAssociatedClinicIds, isCreateMode, clinic, onEditingChange, loadData, onCreated, createPrefill, commitForm])
 
   const handleProvisionVault = useCallback(async () => {
     if (!clinic?.id) return
@@ -586,8 +606,8 @@ const AdminClinicDetail = ({
   // component) preserves the closure over the many edit-state setters.
   const editFormBody = (
     <div>
-      <TextInput value={editName} onChange={setEditName} placeholder="Cluster name" />
-      <LocationPickerInput value={editLocationId} onChange={setEditLocationId} allLocations={locations} />
+      <TextInput value={editName} onChange={bindField('name')} placeholder="Cluster name" />
+      <LocationPickerInput value={editLocationId} onChange={bindField('locationId')} allLocations={locations} />
       {clinic?.location && editLocationId === null && (
         <p className="px-4 py-2 text-[9pt] text-tertiary border-b border-primary/6">
           Legacy location: <span className="text-primary">{clinic.location}</span>
@@ -599,7 +619,7 @@ const AdminClinicDetail = ({
           {editUics.map((val, idx) => (
             <span key={idx} className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-themeblue2/10 text-themeblue2 text-[10pt] font-medium border border-themeblue2/30">
               {val}
-              <button type="button" onClick={() => setEditUics(prev => prev.filter((_, i) => i !== idx))} className="hover:text-themeredred transition-colors">
+              <button type="button" onClick={() => setField('uics', prev => prev.filter((_, i) => i !== idx))} className="hover:text-themeredred transition-colors">
                 <X size={12} />
               </button>
             </span>

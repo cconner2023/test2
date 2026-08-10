@@ -32,6 +32,9 @@ import { formatLastActive, RoleBadge, SupervisorCreatedBadge } from './adminUtil
 import { HudLoader } from '@/Components/primitives/HudLoader'
 import type { StepResult } from './StepResults'
 import { useResetPasswordFlow } from '../../Hooks/useResetPasswordFlow'
+import { useEntityForm } from '../../Hooks/useEntityForm'
+import { rankForComponent } from '../../Utilities/rank'
+import { ASSIGNABLE_ROLES, roleOptions, type AssignableRole } from '../../Utilities/roles'
 import { useMessagesContext } from '../../Hooks/MessagesContext'
 import { drainSystemInbox } from '../../lib/signal/systemIdentity'
 import { createLogger } from '../../Utilities/Logger'
@@ -59,7 +62,6 @@ import { buildMailtoHref } from '../../lib/mailto'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { UI_TIMING } from '../../Utilities/constants'
 import { invalidate } from '../../stores/useInvalidationStore'
-import { sameStringSet } from '../../Utilities/arrayEquals'
 
 // ─── Types ────────────────────────────────────────────────────────────
 
@@ -91,7 +93,38 @@ interface AdminUserDetailProps {
   onOpenConversation?: (peerId: string) => void
 }
 
-const AVAILABLE_ROLES = ['medic', 'supervisor', 'dev', 'provider'] as const
+/** Everything the edit overlay / create form mutates, as one record. */
+interface UserEditForm extends Record<string, unknown> {
+  email: string
+  firstName: string
+  lastName: string
+  middleInitial: string
+  credential: string
+  component: string
+  rank: string
+  uic: string
+  clinicId: string
+  loanClinicIds: Set<string>
+  roles: string[]
+  /** Sub-cluster (platoon/squad) assignment — a user attribute edited
+   *  alongside rank/roles, mirroring the supervisor member card. */
+  section: string
+}
+
+const EMPTY_USER_FORM: UserEditForm = {
+  email: '',
+  firstName: '',
+  lastName: '',
+  middleInitial: '',
+  credential: '',
+  component: '',
+  rank: '',
+  uic: '',
+  clinicId: '',
+  loanClinicIds: new Set(),
+  roles: [],
+  section: '',
+}
 
 // ─── Component ────────────────────────────────────────────────────────
 
@@ -165,27 +198,35 @@ export function AdminUserDetail({
   // the user's HOME clinic; current value read from the user's profile. Render-only.
   const [sectionOpts, setSectionOpts] = useState<{ value: string; label: string }[]>([])
   const [currentSection, setCurrentSection] = useState('')
-  // Editable section value while the edit overlay is open (Position is a user
-  // attribute, edited alongside rank/roles — mirrors the supervisor member card).
-  const [editSection, setEditSection] = useState('')
-  // Until the dev actually picks a section, keep editSection synced to the loaded
-  // value — guards the race where the overlay opens before the profile read lands
-  // (otherwise a quick Save would clear the section to HQ).
-  const sectionDirtyRef = useRef(false)
 
   // ── Edit state ──────────────────────────────────────────────────────
-  const [editEmail, setEditEmail] = useState('')
-  const [editFirstName, setEditFirstName] = useState('')
-  const [editLastName, setEditLastName] = useState('')
-  const [editMiddleInitial, setEditMiddleInitial] = useState('')
-  const [editCredential, setEditCredential] = useState('')
-  const [editComponent, setEditComponent] = useState('')
-  const [editRank, setEditRank] = useState('')
-  const [editUic, setEditUic] = useState('')
-  const [editClinicId, setEditClinicId] = useState('')
-  const [editLoanClinicIds, setEditLoanClinicIds] = useState<Set<string>>(new Set())
-  const [originalLoanClinicIds, setOriginalLoanClinicIds] = useState<Set<string>>(new Set())
-  const [editRoles, setEditRoles] = useState<string[]>([])
+  // One form object, not a useState per field: the seed, the dirty check, and
+  // the loans baseline all come from it. See useEntityForm.
+  const form = useEntityForm<UserEditForm>(EMPTY_USER_FORM)
+  // Stable across renders, so effects can depend on them without re-running.
+  const {
+    set: setField,
+    bind: bindField,
+    reset: resetForm,
+    hydrate: hydrateForm,
+    commit: commitForm,
+    isDirty: isFieldDirty,
+  } = form
+  const {
+    email: editEmail,
+    firstName: editFirstName,
+    lastName: editLastName,
+    middleInitial: editMiddleInitial,
+    credential: editCredential,
+    component: editComponent,
+    rank: editRank,
+    uic: editUic,
+    clinicId: editClinicId,
+    loanClinicIds: editLoanClinicIds,
+    roles: editRoles,
+    section: editSection,
+  } = form.values
+  const originalLoanClinicIds = form.baseline.loanClinicIds
 
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -252,10 +293,13 @@ export function AdminUserDetail({
     return () => { cancelled = true }
   }, [userClinicId, userIdForSection])
 
-  // Keep the editable value pinned to the loaded section until the dev edits it.
+  // The section read lands after the overlay can open, so keep the editable
+  // value pinned to it until the dev actually picks one — otherwise a quick
+  // Save would clear the section to HQ. `isDirty` replaces the ref that used to
+  // track "has the dev touched this yet".
   useEffect(() => {
-    if (editing && !sectionDirtyRef.current) setEditSection(currentSection)
-  }, [currentSection, editing])
+    if (editing && !isFieldDirty('section')) setField('section', currentSection)
+  }, [currentSection, editing, isFieldDirty, setField])
 
   // ── Edit overlay ↔ editing prop sync ─────────────────────────────────
   // External editing=true (e.g. legacy header pencil path, still wired for
@@ -292,31 +336,27 @@ export function AdminUserDetail({
   const prevEditingRef = useRef(false)
   useEffect(() => {
     if (editing && !prevEditingRef.current) {
-      setEditEmail(user?.email || '')
-      setEditFirstName(user?.first_name || '')
-      setEditLastName(user?.last_name || '')
-      setEditMiddleInitial(user?.middle_initial || '')
-      setEditCredential(user?.credential || '')
-      setEditComponent(user?.component || '')
-      setEditRank(user?.rank || '')
-      setEditUic(user?.uic || '')
-      // Create-mode: prefer prefillClinicId (launched from a cluster's
-      // "Create user"); existing-user edit keeps the current assignment.
-      setEditClinicId(user?.clinic_id || (user === null ? (prefillClinicId || '') : ''))
-      setEditRoles(user?.roles?.filter(r => AVAILABLE_ROLES.includes(r as typeof AVAILABLE_ROLES[number])) ?? ['medic'])
-      sectionDirtyRef.current = false
-      setEditSection(currentSection)
-      // Hydrate current loans for the multi-select. Goes through the dev
-      // RPC so loans show even when caller doesn't share a clinic with target.
+      resetForm({
+        email: user?.email || '',
+        firstName: user?.first_name || '',
+        lastName: user?.last_name || '',
+        middleInitial: user?.middle_initial || '',
+        credential: user?.credential || '',
+        component: user?.component || '',
+        rank: user?.rank || '',
+        uic: user?.uic || '',
+        // Create-mode: prefer prefillClinicId (launched from a cluster's
+        // "Create user"); existing-user edit keeps the current assignment.
+        clinicId: user?.clinic_id || (user === null ? (prefillClinicId || '') : ''),
+        loanClinicIds: new Set(),
+        roles: user?.roles?.filter(r => ASSIGNABLE_ROLES.includes(r as AssignableRole)) ?? ['medic'],
+        section: currentSection,
+      })
+      // Current loans for the multi-select. Goes through the dev RPC so loans
+      // show even when the caller doesn't share a clinic with the target. Lands
+      // as BASELINE, not as an edit — it arrives after the overlay opened.
       if (user?.id) {
-        listUserLoans(user.id).then((ids) => {
-          const set = new Set<string>(ids)
-          setEditLoanClinicIds(set)
-          setOriginalLoanClinicIds(set)
-        })
-      } else {
-        setEditLoanClinicIds(new Set())
-        setOriginalLoanClinicIds(new Set())
+        listUserLoans(user.id).then(ids => hydrateForm({ loanClinicIds: new Set<string>(ids) }))
       }
 
       setCreateEmail('')
@@ -325,37 +365,19 @@ export function AdminUserDetail({
       setStepResults([])
     }
     prevEditingRef.current = editing
-  }, [editing, user, prefillClinicId])
+  }, [editing, user, prefillClinicId, currentSection, resetForm, hydrateForm])
 
   // ── Pending changes detection ────────────────────────────────────────
   useEffect(() => {
-    if (!editing) { onPendingChangesChange?.(false); return }
-    const sameLoans = editLoanClinicIds.size === originalLoanClinicIds.size
-      && Array.from(editLoanClinicIds).every((id) => originalLoanClinicIds.has(id))
-    const changed = editEmail !== (user?.email || '')
-      || editFirstName !== (user?.first_name || '')
-      || editLastName !== (user?.last_name || '')
-      || editMiddleInitial !== (user?.middle_initial || '')
-      || editCredential !== (user?.credential || '')
-      || editComponent !== (user?.component || '')
-      || editRank !== (user?.rank || '')
-      || editUic !== (user?.uic || '')
-      || editClinicId !== (user?.clinic_id || '')
-      || !sameLoans
-      || !sameStringSet(editRoles, user?.roles ?? ['medic'])
-      || editSection !== currentSection
-
-    onPendingChangesChange?.(changed)
-  }, [editing, editEmail, editFirstName, editLastName, editMiddleInitial, editCredential, editComponent, editRank, editUic, editClinicId, editLoanClinicIds, originalLoanClinicIds, editRoles, editSection, currentSection, user, onPendingChangesChange])
+    onPendingChangesChange?.(editing && form.dirty)
+  }, [editing, form.dirty, onPendingChangesChange])
 
   // ── Handlers ────────────────────────────────────────────────────────
 
   const handleComponentChange = useCallback((val: string) => {
-    setEditComponent(val)
-    if (val && editRank && !ranksByComponent[val as Component]?.includes(editRank)) {
-      setEditRank('')
-    }
-  }, [editRank])
+    setField('component', val)
+    setField('rank', prev => rankForComponent(ranksByComponent[val as Component], prev))
+  }, [setField])
 
   const handleSave = useCallback(async () => {
     const chosenRoles = editRoles
@@ -572,6 +594,10 @@ export function AdminUserDetail({
 
     const anyFailed = next.some(s => !s.ok)
     if (!anyFailed) {
+      // Everything landed — rebaseline so the form reads clean. Matters on the
+      // retry path too: without it a step that succeeded would still count as an
+      // unsaved change and re-run.
+      commitForm()
       // Brief HUD hold so the save reads as deliberate before the overlay
       // dismisses, rather than blinking shut the instant the last write lands.
       await new Promise(resolve => setTimeout(resolve, 600))
@@ -587,7 +613,7 @@ export function AdminUserDetail({
     // naming what didn't stick (no step checklist). Re-tapping Save retries only
     // the failures (alreadyOk() skips the successes).
     setError(`Couldn't finish: ${next.filter(s => !s.ok).map(s => s.label).join(', ')}. Tap Save to retry.`)
-  }, [user, editEmail, editFirstName, editLastName, editMiddleInitial, editCredential, editComponent, editRank, editUic, editClinicId, editLoanClinicIds, originalLoanClinicIds, editRoles, editSection, currentSection, onEditingChange, loadData, isCreateMode, createEmail, createPassword, onCreated, stepResults])
+  }, [user, editEmail, editFirstName, editLastName, editMiddleInitial, editCredential, editComponent, editRank, editUic, editClinicId, editLoanClinicIds, originalLoanClinicIds, editRoles, editSection, currentSection, onEditingChange, loadData, isCreateMode, createEmail, createPassword, onCreated, stepResults, commitForm])
 
   // ── Save requested trigger ───────────────────────────────────────────
   useEffect(() => {
@@ -737,24 +763,24 @@ export function AdminUserDetail({
             <div>
               <TextInput value={createEmail} onChange={setCreateEmail} placeholder="Email *" type="email" required />
               <PasswordInput value={createPassword} onChange={setCreatePassword} placeholder="Temporary password (min 12 chars)" />
-              <TextInput value={editFirstName} onChange={setEditFirstName} placeholder="First Name *" required />
+              <TextInput value={editFirstName} onChange={bindField('firstName')} placeholder="First Name *" required />
               <div className="flex items-stretch border-b border-primary/6">
                 <div className="flex-1 min-w-0">
-                  <TextInput value={editLastName} onChange={setEditLastName} placeholder="Last Name *" required />
+                  <TextInput value={editLastName} onChange={bindField('lastName')} placeholder="Last Name *" required />
                 </div>
                 <div className="w-16 shrink-0 border-l border-primary/6">
-                  <TextInput value={editMiddleInitial} onChange={v => setEditMiddleInitial(v.toUpperCase().slice(0, 1))} placeholder="MI" maxLength={1} />
+                  <TextInput value={editMiddleInitial} onChange={v => setField('middleInitial', v.toUpperCase().slice(0, 1))} placeholder="MI" maxLength={1} />
                 </div>
               </div>
-              <PickerInput value={editCredential} onChange={setEditCredential} options={credentials} placeholder="Credential" />
+              <PickerInput value={editCredential} onChange={bindField('credential')} options={credentials} placeholder="Credential" />
               <PickerInput value={editComponent} onChange={handleComponentChange} options={components} placeholder="Component" />
-              {editComponent && <PickerInput value={editRank} onChange={setEditRank} options={componentRanks} placeholder="Rank" />}
-              <UicPinInput value={editUic} onChange={setEditUic} spread />
-              <ClinicPickerInput value={editClinicId} onChange={setEditClinicId} allClinics={clinics} placeholder="Cluster" />
+              {editComponent && <PickerInput value={editRank} onChange={bindField('rank')} options={componentRanks} placeholder="Rank" />}
+              <UicPinInput value={editUic} onChange={bindField('uic')} spread />
+              <ClinicPickerInput value={editClinicId} onChange={bindField('clinicId')} allClinics={clinics} placeholder="Cluster" />
               <MultiPickerInput
                 value={editRoles}
-                onChange={setEditRoles}
-                options={AVAILABLE_ROLES.map(r => ({ value: r, label: r.charAt(0).toUpperCase() + r.slice(1) }))}
+                onChange={bindField('roles')}
+                options={roleOptions(ASSIGNABLE_ROLES)}
                 placeholder="Roles *"
                 required
               />
@@ -946,34 +972,34 @@ export function AdminUserDetail({
             </div>
             <TextInput
               value={editEmail}
-              onChange={setEditEmail}
+              onChange={bindField('email')}
               placeholder="Email *"
               type="email"
               required
               currentValue={editEmail !== (user.email || '') ? user.email : undefined}
               hint={editEmail.length > 0 && !isValidEmail(editEmail) ? 'Enter a valid email address.' : undefined}
             />
-            <TextInput value={editFirstName} onChange={setEditFirstName} placeholder="First Name *" required />
+            <TextInput value={editFirstName} onChange={bindField('firstName')} placeholder="First Name *" required />
             <div className="flex items-stretch border-b border-primary/6">
               <div className="flex-1 min-w-0">
-                <TextInput value={editLastName} onChange={setEditLastName} placeholder="Last Name *" required />
+                <TextInput value={editLastName} onChange={bindField('lastName')} placeholder="Last Name *" required />
               </div>
               <div className="w-16 shrink-0 border-l border-primary/6">
-                <TextInput value={editMiddleInitial} onChange={v => setEditMiddleInitial(v.toUpperCase().slice(0, 1))} placeholder="MI" maxLength={1} />
+                <TextInput value={editMiddleInitial} onChange={v => setField('middleInitial', v.toUpperCase().slice(0, 1))} placeholder="MI" maxLength={1} />
               </div>
             </div>
-            <PickerInput value={editCredential} onChange={setEditCredential} options={credentials} placeholder="Credential" />
+            <PickerInput value={editCredential} onChange={bindField('credential')} options={credentials} placeholder="Credential" />
             <PickerInput value={editComponent} onChange={handleComponentChange} options={components} placeholder="Component" />
-            {editComponent && <PickerInput value={editRank} onChange={setEditRank} options={componentRanks} placeholder="Rank" />}
-            <UicPinInput value={editUic} onChange={setEditUic} spread />
+            {editComponent && <PickerInput value={editRank} onChange={bindField('rank')} options={componentRanks} placeholder="Rank" />}
+            <UicPinInput value={editUic} onChange={bindField('uic')} spread />
             {/* Cluster + loan management moved to the Clusters section below
                 — tap a row or the section '+' to act. The pencil-edit overlay
                 only covers profile fields + roles now. */}
 
             <MultiPickerInput
               value={editRoles}
-              onChange={setEditRoles}
-              options={AVAILABLE_ROLES.map(r => ({ value: r, label: r.charAt(0).toUpperCase() + r.slice(1) }))}
+              onChange={bindField('roles')}
+              options={roleOptions(ASSIGNABLE_ROLES)}
               placeholder="Roles *"
               required
             />
@@ -981,7 +1007,7 @@ export function AdminUserDetail({
             {sectionOpts.length > 0 && (
               <PickerInput
                 value={editSection}
-                onChange={(v) => { sectionDirtyRef.current = true; setEditSection(v) }}
+                onChange={bindField('section')}
                 options={[{ value: '', label: 'HQ / Unassigned' }, ...sectionOpts]}
                 placeholder="Section"
               />

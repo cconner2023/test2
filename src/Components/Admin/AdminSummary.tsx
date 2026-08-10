@@ -22,14 +22,26 @@ interface AdminSummaryProps {
   /** Open an in-app system conversation with a user. Passed only for dev role;
    *  when absent the tree context menu omits the Chat action. */
   onChatUser?: (user: AdminUser) => void
-  /** Empty-state fallback action. */
-  onSelectAll: () => void
-  /** Controlled search (shared with the drawer's SearchInput). Filters the tree
-   *  by cluster name, cluster location, and member name/email/rank/UIC/cluster;
-   *  matches force-expand. */
+  /** Empty-state action. A fresh org has nothing to browse, so the only useful
+   *  move from here is to create the first cluster. */
+  onCreateClinic: () => void
+  /** Controlled search (owned by the drawer's directory SearchInput). A
+   *  non-empty query REPLACES the tree with flat results — clusters matched on
+   *  name or location, users on name/email/rank/UIC/cluster. */
   searchQuery?: string
   activeClinicId?: string | null
   activeUserId?: string | null
+}
+
+/** A user leaf matches on name, email, rank, UIC, or its cluster name. `q` is
+ *  expected pre-trimmed and lowercased. */
+const userMatches = (u: AdminUser, q: string) => {
+  const name = `${u.first_name ?? ''} ${u.last_name ?? ''}`.toLowerCase()
+  return name.includes(q)
+    || (u.email ?? '').toLowerCase().includes(q)
+    || (u.rank ?? '').toLowerCase().includes(q)
+    || (u.uic ?? '').toLowerCase().includes(q)
+    || (u.clinic_name ?? '').toLowerCase().includes(q)
 }
 
 // Tree node — the org IS the tree: a root cluster ⊃ child clusters ⊃ user leaves.
@@ -43,14 +55,14 @@ interface AdminSummaryProps {
 // pane — their rows only expand/collapse. See Utilities/subCluster.ts.
 type SubUnitNode = { id: string; name: string; users: AdminUser[] }
 type TreeNode =
-  { kind: 'clinic'; id: string; label: string; clinic: AdminClinic; children: TreeNode[]; subUnits: SubUnitNode[]; users: AdminUser[]; count: number; locationLabel: string | null }
+  { kind: 'clinic'; id: string; label: string; clinic: AdminClinic; children: TreeNode[]; subUnits: SubUnitNode[]; users: AdminUser[]; locationLabel: string | null }
 
 /**
  * The Directory tree — the admin drawer's MAIN content list. An ORG-rooted
  * cluster ⊃ sub-cluster ⊃ user containment forest with selectable user leaves;
  * each cluster shows its location as a chip. Tapping a node opens its detail;
  * long-press/right-click opens View/Edit/(Delete) actions. Locations are managed
- * in the Settings sheet, not here. Stats + triage queues live in the sort rail
+ * in the Settings sheet, not here; triage queues live in the inbox rail
  * (AdminSortRail) — this is purely the browsable tree.
  */
 export function AdminSummary({
@@ -59,7 +71,7 @@ export function AdminSummary({
   onEditClinic,
   onEditUser,
   onChatUser,
-  onSelectAll,
+  onCreateClinic,
   searchQuery,
   activeClinicId,
   activeUserId,
@@ -164,7 +176,7 @@ export function AdminSummary({
     })
   }, [])
 
-  const index = useMemo(() => buildScopeIndex(clinics, locations), [clinics, locations])
+  const index = useMemo(() => buildScopeIndex(clinics), [clinics])
 
   const locationsById = useMemo(() => new Map(locations.map(l => [l.id, l])), [locations])
 
@@ -178,15 +190,6 @@ export function AdminSummary({
     }
     return map
   }, [subClusters])
-
-  const usersByClinic = useMemo(() => {
-    const map = new Map<string, number>()
-    for (const user of users) {
-      if (!user.clinic_id) continue
-      map.set(user.clinic_id, (map.get(user.clinic_id) ?? 0) + 1)
-    }
-    return map
-  }, [users])
 
   /** clinic_id → its assigned users (sorted), for the user leaves. */
   const usersByClinicList = useMemo(() => {
@@ -218,7 +221,6 @@ export function AdminSummary({
   const [showUnassigned, setShowUnassigned] = useState(false)
 
   const q = (searchQuery ?? '').trim().toLowerCase()
-  const searching = q.length > 0
 
   // Build the org-rooted node forest (root cluster ⊃ sub-clusters ⊃ user leaves).
   // Location is resolved to a chip label per cluster, not a parent node. The chip
@@ -229,7 +231,6 @@ export function AdminSummary({
     const clinicNode = (clinic: AdminClinic, parentLocId: string | null): TreeNode => {
       const ownLocId = clinic.location_id ?? null
       const children = (index.clinicChildren.get(clinic.id) ?? []).map(c => clinicNode(c, ownLocId))
-      const childCount = children.reduce((s, n) => s + n.count, 0)
       const loc = ownLocId ? locationsById.get(ownLocId) : undefined
       const showChip = !!loc && ownLocId !== parentLocId
 
@@ -264,80 +265,23 @@ export function AdminSummary({
         children,
         subUnits,
         users: directUsers,
-        count: (usersByClinic.get(clinic.id) ?? 0) + childCount,
         locationLabel: showChip ? loc!.display_name : null,
       }
     }
     return index.rootClinics.map(c => clinicNode(c, null))
-  }, [index, usersByClinic, usersByClinicList, locationsById, subClustersByClinic])
-
-  // Apply the search filter. A node survives if its own label matches, any of
-  // its (cluster) users match, or any descendant survives.
-  const displayRoots = useMemo(() => {
-    if (!q) return roots
-    // A user leaf matches on name, email, rank, UIC, or its cluster name.
-    const userMatches = (u: AdminUser) => {
-      const name = `${u.first_name ?? ''} ${u.last_name ?? ''}`.toLowerCase()
-      return name.includes(q)
-        || (u.email ?? '').toLowerCase().includes(q)
-        || (u.rank ?? '').toLowerCase().includes(q)
-        || (u.uic ?? '').toLowerCase().includes(q)
-        || (u.clinic_name ?? '').toLowerCase().includes(q)
-    }
-    const filterNode = (node: TreeNode): TreeNode | null => {
-      // Location match resolves the clinic's actual location (not just the
-      // chip label, which only shows when it differs from the parent), so a
-      // location query surfaces every cluster sitting in it — inherited or not.
-      const clinicLoc = node.clinic.location_id
-        ? (locationsById.get(node.clinic.location_id)?.display_name ?? '')
-        : ''
-      const selfMatch = node.label.toLowerCase().includes(q)
-        || clinicLoc.toLowerCase().includes(q)
-      const children = node.children.map(filterNode).filter((n): n is TreeNode => n !== null)
-      const matchedUsers = selfMatch ? node.users : node.users.filter(userMatches)
-      // A sub-unit survives if its name matches (keep all its members) or any of
-      // its members match (keep just those). Clinic self-match keeps everything.
-      const subUnits = selfMatch
-        ? node.subUnits
-        : node.subUnits
-            .map(su => su.name.toLowerCase().includes(q)
-              ? su
-              : { ...su, users: su.users.filter(userMatches) })
-            .filter(su => su.name.toLowerCase().includes(q) || su.users.length > 0)
-      if (selfMatch || matchedUsers.length || subUnits.length || children.length) {
-        return { ...node, users: matchedUsers, subUnits, children }
-      }
-      return null
-    }
-    return roots.map(filterNode).filter((n): n is TreeNode => n !== null)
-  }, [q, roots, locationsById])
-
-  const displayUnassigned = useMemo(() => {
-    if (!q) return unassignedUsers
-    return unassignedUsers.filter(u => {
-      const name = `${u.first_name ?? ''} ${u.last_name ?? ''}`.toLowerCase()
-      return name.includes(q)
-        || (u.email ?? '').toLowerCase().includes(q)
-        || (u.rank ?? '').toLowerCase().includes(q)
-        || (u.uic ?? '').toLowerCase().includes(q)
-    })
-  }, [q, unassignedUsers])
+  }, [index, usersByClinicList, locationsById, subClustersByClinic])
 
   // Search is DISCRETE ITEMS, not a filtered tree — a query flattens the org
   // into the flat set of clusters + users that match, so "find a person/cluster
-  // fast" doesn't make you read a force-expanded hierarchy. The tree render is
-  // used only when NOT searching. Users span assigned + unassigned (the flat set
-  // subsumes the Unassigned block).
+  // fast" doesn't make you read a force-expanded hierarchy.
+  //
+  // Consequently the TREE ONLY RENDERS WHEN q IS EMPTY, and `roots` /
+  // `unassignedUsers` are already the unfiltered sets — which is why there is no
+  // filtered-tree memo here. There used to be one (plus a filtered-unassigned
+  // one); both became unreachable when search went flat, and they kept
+  // recomputing a discarded tree on every keystroke.
   const flatResults = useMemo(() => {
     if (!q) return null
-    const userMatches = (u: AdminUser) => {
-      const name = `${u.first_name ?? ''} ${u.last_name ?? ''}`.toLowerCase()
-      return name.includes(q)
-        || (u.email ?? '').toLowerCase().includes(q)
-        || (u.rank ?? '').toLowerCase().includes(q)
-        || (u.uic ?? '').toLowerCase().includes(q)
-        || (u.clinic_name ?? '').toLowerCase().includes(q)
-    }
     const clinicMatches = (c: AdminClinic) => {
       const loc = c.location_id ? (locationsById.get(c.location_id)?.display_name ?? '') : ''
       return c.name.toLowerCase().includes(q) || loc.toLowerCase().includes(q)
@@ -346,7 +290,7 @@ export function AdminSummary({
       .filter(clinicMatches)
       .sort((a, b) => a.name.localeCompare(b.name))
     const matchedUsers = users
-      .filter(userMatches)
+      .filter(u => userMatches(u, q))
       .sort((a, b) => {
         const na = `${a.last_name ?? ''} ${a.first_name ?? ''}`.trim()
         const nb = `${b.last_name ?? ''} ${b.first_name ?? ''}`.trim()
@@ -390,7 +334,7 @@ export function AdminSummary({
   // pane, so the whole row just expands/collapses to reveal its member leaves.
   function renderSubUnit(su: SubUnitNode, depth: number) {
     const expandable = su.users.length > 0
-    const isCollapsed = !searching && expandable && collapsed.has(su.id)
+    const isCollapsed = expandable && collapsed.has(su.id)
     return (
       <div key={su.id}>
         <div
@@ -408,7 +352,6 @@ export function AdminSummary({
             <span className="w-[18px] shrink-0" />
           )}
           <span className="flex-1 min-w-0 text-[9.5pt] font-medium text-secondary truncate">{su.name}</span>
-          <span className="text-[9pt] font-normal text-tertiary tabular-nums shrink-0">{su.users.length}</span>
         </div>
         {expandable && !isCollapsed && su.users.map(u => renderUserLeaf(u, depth + 1))}
       </div>
@@ -418,7 +361,6 @@ export function AdminSummary({
   // Flat cluster row — the search-results counterpart to a tree node (no
   // chevron, no children). Same select + long-press/right-click menu as the tree.
   function renderClusterRow(clinic: AdminClinic) {
-    const count = usersByClinic.get(clinic.id) ?? 0
     const loc = clinic.location_id ? locationsById.get(clinic.location_id) : undefined
     const isActive = activeClinicId === clinic.id
     return (
@@ -440,17 +382,16 @@ export function AdminSummary({
             <span className="truncate">{loc.display_name}</span>
           </span>
         )}
-        <span className="ml-auto text-[9pt] font-normal text-tertiary tabular-nums shrink-0">{count}</span>
       </button>
     )
   }
 
   function renderNode(node: TreeNode, depth: number) {
     // A cluster expands if it has sub-units, child clusters, or user leaves.
-    // Search force-expands so matches are visible.
+    // No search fork: the tree renders only when there is no query.
     const hasUsers = node.users.length > 0
     const expandable = node.children.length > 0 || node.subUnits.length > 0 || hasUsers
-    const isCollapsed = !searching && expandable && collapsed.has(node.id)
+    const isCollapsed = expandable && collapsed.has(node.id)
     const isActive = activeClinicId === node.id
 
     const selectNode = () => {
@@ -499,8 +440,6 @@ export function AdminSummary({
               </span>
             )}
           </div>
-
-          <span className="text-[9pt] font-normal text-tertiary tabular-nums shrink-0">{node.count}</span>
         </div>
 
         {expandable && !isCollapsed && (
@@ -522,7 +461,7 @@ export function AdminSummary({
       <div className="px-4 py-4">
         <EmptyState
           title="No clusters or users yet"
-          action={{ icon: Building2, label: 'Show all', onClick: onSelectAll }}
+          action={{ icon: Building2, label: 'New cluster', onClick: onCreateClinic }}
         />
       </div>
     )
@@ -532,7 +471,9 @@ export function AdminSummary({
     <div className="relative flex flex-col h-full">
       {/* pb clears the bottom island that floats over the center pane. */}
       <div className="flex-1 overflow-y-auto pb-24">
-        {searching && flatResults ? (
+        {/* flatResults is non-null exactly when there is a query, so it doubles
+            as the "are we searching" switch. */}
+        {flatResults ? (
           // Discrete search results — flat clusters + users, not a filtered tree.
           flatResults.matchedClinics.length > 0 || flatResults.matchedUsers.length > 0 ? (
             <>
@@ -554,10 +495,10 @@ export function AdminSummary({
           )
         ) : (
           <>
-            {displayRoots.map(node => renderNode(node, 0))}
+            {roots.map(node => renderNode(node, 0))}
 
             {/* Unassigned users — an expandable inline block of selectable leaves. */}
-            {displayUnassigned.length > 0 && (
+            {unassignedUsers.length > 0 && (
               <div>
                 <button
                   onClick={() => setShowUnassigned(!showUnassigned)}
@@ -571,9 +512,8 @@ export function AdminSummary({
                   </span>
                   <AlertTriangle size={14} className="text-themeredred shrink-0" />
                   <span className="text-[10pt] font-medium text-themeredred flex-1">Unassigned</span>
-                  <span className="text-[9pt] font-normal text-tertiary tabular-nums shrink-0">{displayUnassigned.length}</span>
                 </button>
-                {showUnassigned && displayUnassigned.map(u => renderUserLeaf(u, 1))}
+                {showUnassigned && unassignedUsers.map(u => renderUserLeaf(u, 1))}
               </div>
             )}
           </>

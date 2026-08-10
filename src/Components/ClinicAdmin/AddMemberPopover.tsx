@@ -1,4 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
+import { rankForComponent } from '../../Utilities/rank'
+import { type SupervisorAssignableRole } from '../../Utilities/roles'
+import type { Component } from '../../Data/User'
 import { Check, Loader2 } from 'lucide-react'
 import { OverlayStack, type StackScreen, type StackNav } from '@/Components/primitives/OverlayStack'
 import { FooterPill } from '@/Components/primitives/FooterPill'
@@ -14,7 +17,7 @@ import {
 import { invalidate } from '../../stores/useInvalidationStore'
 import { useAuthStore } from '../../stores/useAuthStore'
 
-type Role = 'medic' | 'supervisor' | 'provider'
+type Role = SupervisorAssignableRole
 
 interface AddMemberPopoverProps {
   isOpen: boolean
@@ -123,10 +126,9 @@ export function AddMemberPopover({
   const handleComponentChange = useCallback((val: string) => {
     setComponent(val)
     if (val && rank) {
+      // Tables stay lazy (they are large); only the rule is shared.
       import('../../Data/User').then(({ ranksByComponent }) => {
-        if (!ranksByComponent[val as import('../../Data/User').Component]?.includes(rank)) {
-          setRank('')
-        }
+        setRank(prev => rankForComponent(ranksByComponent[val as Component], prev))
       })
     }
   }, [rank])

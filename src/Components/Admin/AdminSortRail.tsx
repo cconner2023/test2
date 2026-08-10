@@ -1,9 +1,8 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useMemo } from 'react'
 import { MapPin, ChevronRight } from 'lucide-react'
-import { listClinics, listAllUsers } from '../../lib/adminService'
-import { useInvalidation } from '../../stores/useInvalidationStore'
 import { AdminSystemConversationsList } from './AdminSystemConversationsList'
-import { AdminRequestsList } from './AdminRequestsList'
+import { AdminInboxSection } from './AdminInboxSection'
+import { useAdminInbox, selectFeedItems } from '../../Hooks/useAdminInbox'
 import type { AccountRequest } from '../../lib/accountRequestService'
 import type { FeedbackRow } from '../../lib/feedbackService'
 import type { FeatureVoteSuggestion } from '../../lib/featureVotingService'
@@ -28,8 +27,8 @@ interface AdminSortRailProps {
   scroll?: boolean
 }
 
-// Stable kind filters — module constants so they don't re-trigger the lists'
-// feedItems memo on every rail render.
+// Requests get their own section; suggestions and feedback share one, since
+// both are "a user told us something" rather than "a user needs an account".
 const REQUEST_KINDS = ['request'] as const
 const FEEDBACK_KINDS = ['suggestion', 'feedback'] as const
 
@@ -37,8 +36,12 @@ const FEEDBACK_KINDS = ['suggestion', 'feedback'] as const
  * The admin drawer's standing inbox (desktop left pane + mobile nav sheet).
  * NOT the directory tree — that's the main content list (AdminSummary). The
  * rail reads like the chat conversation panel: a single scroller of labelled
- * sections of rows. Top to bottom: Locations, the standing counts, then the
- * three triage queues grouped by kind — Requests, Feedback, Messages.
+ * sections of rows: Locations, then the three triage queues grouped by kind —
+ * Requests, Feedback, Messages.
+ *
+ * No tallies. A section renders only when it has items, so its presence is the
+ * signal; a number on top of that is noise the operator can't act on — and the
+ * standing users/clusters line it replaced cost a full user-list read per mount.
  */
 export function AdminSortRail({
   onOpenSettings,
@@ -50,17 +53,12 @@ export function AdminSortRail({
   activeSystemPeerId,
   scroll = true,
 }: AdminSortRailProps) {
-  const gen = useInvalidation('users', 'clinics')
-  const [userCount, setUserCount] = useState(0)
-  const [clinicCount, setClinicCount] = useState(0)
-
-  const loadCounts = useCallback(async () => {
-    const [clinics, users] = await Promise.all([listClinics(), listAllUsers()])
-    setClinicCount(clinics.length)
-    setUserCount(users.length)
-  }, [])
-
-  useEffect(() => { loadCounts() }, [loadCounts, gen])
+  // One read for the whole rail — the sections are a grouping of a single feed,
+  // not independent queues.
+  const { items, uicToClinic } = useAdminInbox()
+  const q = searchQuery ?? ''
+  const requestItems = useMemo(() => selectFeedItems(items, REQUEST_KINDS, q), [items, q])
+  const feedbackItems = useMemo(() => selectFeedItems(items, FEEDBACK_KINDS, q), [items, q])
 
   return (
     <div className={scroll ? 'flex flex-col h-full min-h-0' : 'flex flex-col'}>
@@ -79,31 +77,21 @@ export function AdminSortRail({
 
         <div className="border-b border-primary/10 mx-4" />
 
-        {/* Standing counts — one muted line. The conversation list has no such
-            block, so keep it to a single glance instead of a stacked header. */}
-        <p className="px-4 py-2 text-[9.5pt] text-tertiary tabular-nums">
-          {userCount} users · {clinicCount} clusters
-        </p>
-
-        <div className="border-b border-primary/10 mx-4" />
-
         {/* The three triage queues. Each section self-labels and renders nothing
             (label included) when empty — so the rail only shows what's there. */}
-        <AdminRequestsList
-          bare
-          bareLabel="Requests"
-          kinds={REQUEST_KINDS}
-          searchQuery={searchQuery}
+        <AdminInboxSection
+          label="Requests"
+          items={requestItems}
+          uicToClinic={uicToClinic}
           onOpenRequest={onOpenRequest}
           onOpenFeedback={onOpenFeedback}
           onOpenSuggestion={onOpenSuggestion}
         />
 
-        <AdminRequestsList
-          bare
-          bareLabel="Feedback"
-          kinds={FEEDBACK_KINDS}
-          searchQuery={searchQuery}
+        <AdminInboxSection
+          label="Feedback"
+          items={feedbackItems}
+          uicToClinic={uicToClinic}
           onOpenRequest={onOpenRequest}
           onOpenFeedback={onOpenFeedback}
           onOpenSuggestion={onOpenSuggestion}

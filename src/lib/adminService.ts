@@ -93,10 +93,10 @@ export async function isDevUser(): Promise<boolean> {
 /**
  * Promise cache for getAllAccountRequests, keyed by the `requests` invalidation
  * generation plus the status filter (callers pass 'pending' for the summary and
- * undefined for the full list — distinct cache entries). AdminSummary and
- * AdminRequestsList both load on every drawer open; without this each fired its
- * own round-trip. Bust via invalidate('requests'). Mirrors the listAllUsers /
- * listClinics caches.
+ * undefined for the full list — distinct cache entries). AdminSummary and the
+ * inbox feed (useAdminInbox) both load on every drawer open; without this each
+ * fired its own round-trip. Bust via invalidate('requests'). Mirrors the
+ * listAllUsers / listClinics caches.
  */
 let accountRequestsCache: { gen: number; byStatus: Map<string, Promise<AccountRequest[]>> } | null = null
 
@@ -413,9 +413,10 @@ export async function removeUserRole(
 /**
  * Admin user list — tier-2 deltaCache (see v2/conventions egress drawer).
  *
- * Five admin surfaces (AdminSummary, AdminRequestsList, AdminClinicsList,
- * AdminUsersList, AdminUserDetail) call listAllUsers on mount, and the admin
- * drawer never rides the offline-first IDB pipeline, so every open used to
+ * Six admin surfaces (AdminSummary, AdminSortRail, AdminUserDetail,
+ * AdminClinicDetail, RequestDetail, FeedbackDetail) call listAllUsers on mount,
+ * and the admin drawer never rides the offline-first IDB pipeline, so every open
+ * used to
  * re-pull the FULL user list (incl. avatar_blob) — the dominant account-
  * maintenance egress sink. Now: a persisted base + an `updated_at`-keyed delta
  * (admin_list_users(p_since)) — a cold read pulls the full list once, then every

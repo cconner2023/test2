@@ -23,8 +23,8 @@ interface AdminSystemConversationsListProps {
 
 /**
  * Dev↔user system reply threads, rendered as a selectable list for the admin
- * sort rail. Extracted from AdminRequestsList so system conversations have a
- * standing home in the left pane / nav sheet rather than mixing into the
+ * sort rail. Kept out of the triage feed (useAdminInbox) so system conversations
+ * have a standing home in the left pane / nav sheet rather than mixing into the
  * Requests inbox. Long-press / right-click opens Reply / Delete.
  */
 export function AdminSystemConversationsList({ onSelectSystemPeer, searchQuery, activePeerId, label }: AdminSystemConversationsListProps) {

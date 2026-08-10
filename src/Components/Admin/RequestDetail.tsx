@@ -10,6 +10,8 @@ import type { ContextMenuItem } from '@/Components/primitives/ContextMenu'
 import { HudLoader } from '@/Components/primitives/HudLoader'
 import type { StepResult } from './StepResults'
 import { credentials, components, ranksByComponent } from '../../Data/User'
+import { rankForComponent } from '../../Utilities/rank'
+import { ASSIGNABLE_ROLES, roleOptions } from '../../Utilities/roles'
 import type { Component } from '../../Data/User'
 import {
   approveAccountRequest,
@@ -30,7 +32,6 @@ import type { AccountRequest } from '../../lib/accountRequestService'
 import { buildMailtoHref } from '../../lib/mailto'
 import { invalidate, useInvalidation } from '../../stores/useInvalidationStore'
 
-const AVAILABLE_ROLES = ['medic', 'supervisor', 'dev', 'provider'] as const
 
 export interface RequestDetailProps {
   request: AccountRequest
@@ -113,7 +114,7 @@ export function RequestDetail({ request, onApproved, onClose, onHeaderActions }:
 
   const handleComponentChange = useCallback((val: string) => {
     setComponent(val)
-    if (val && rank && !ranksByComponent[val as Component]?.includes(rank)) setRank('')
+    setRank(prev => rankForComponent(ranksByComponent[val as Component], prev))
   }, [rank])
 
   // ── Approve ─────────────────────────────────────────────
@@ -412,7 +413,7 @@ export function RequestDetail({ request, onApproved, onClose, onHeaderActions }:
             <MultiPickerInput
               value={roles}
               onChange={setRoles}
-              options={AVAILABLE_ROLES.map(r => ({ value: r, label: r.charAt(0).toUpperCase() + r.slice(1) }))}
+              options={roleOptions(ASSIGNABLE_ROLES)}
               placeholder="Roles *"
               required
             />

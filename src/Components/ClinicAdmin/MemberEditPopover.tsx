@@ -1,4 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
+import { rankForComponent } from '../../Utilities/rank'
+import { type SupervisorAssignableRole } from '../../Utilities/roles'
 import { Building2, Check, Pencil, Trash2, Loader2, Camera, Send, ArrowRightLeft, KeyRound, AlertCircle, Home } from 'lucide-react'
 import { OverlayStack, type StackNav } from '@/Components/primitives/OverlayStack'
 import { FooterPill } from '@/Components/primitives/FooterPill'
@@ -32,7 +34,7 @@ import { useBarcodeScanner } from '../../Hooks/useBarcodeScanner'
 import { invalidate } from '../../stores/useInvalidationStore'
 import { useAuthStore } from '../../stores/useAuthStore'
 
-type Role = 'medic' | 'supervisor' | 'provider'
+type Role = SupervisorAssignableRole
 
 interface MemberEditPopoverProps {
   isOpen: boolean
@@ -669,8 +671,7 @@ export function MemberEditPopover({
                       value={component}
                       onChange={(val) => {
                         setComponent(val)
-                        // Drop the rank if it doesn't belong to the new component.
-                        if (rank && !(ranksByComponent?.[val]?.includes(rank))) setRank('')
+                        setRank(prev => rankForComponent(ranksByComponent?.[val], prev))
                       }}
                       options={componentOptions}
                       placeholder="Component"

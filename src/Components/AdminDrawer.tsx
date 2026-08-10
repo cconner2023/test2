@@ -1,7 +1,6 @@
 import { useState, useCallback, useMemo, useEffect, useRef, type ReactNode } from 'react'
 import { X, Inbox, ChevronLeft, MessageCircleQuestion, Network } from 'lucide-react'
 import { BaseDrawer, ScrollPane } from '@/Components/primitives/BaseDrawer'
-import { Sheet } from '@/Components/primitives/Sheet'
 import { BottomIsland } from '@/Components/primitives/BottomIsland'
 import { AddFab } from '@/Components/primitives/AddFab'
 import { SlideRevealPane } from '@/Components/primitives/SlideRevealPane'
@@ -31,6 +30,7 @@ import { AdminClinicDetail, type ClusterCreatePrefill } from './Admin/AdminClini
 import { AdminLocationDetail } from './Admin/AdminLocationDetail'
 import { AdminSummary } from './Admin/AdminSummary'
 import { AdminSortRail } from './Admin/AdminSortRail'
+import { AdminMobileSheet } from './Admin/AdminMobileSheet'
 import { AdminFeatureVotesSection } from './Admin/AdminFeatureVotesSection'
 import { AdminSettingsContent } from './Admin/AdminSettingsContent'
 import { AdminSystemConversationView } from './Admin/AdminSystemConversationView'
@@ -60,11 +60,11 @@ export type AdminView =
 // shown as a per-cluster chip (locations themselves are managed in the Settings
 // sheet). Tap a node to open its detail. Requests/feedback/messages moved to rail
 // (AdminSortRail), so the island narrows to two: Directory + the feature-vote
-// cycle manager. On desktop the left pane is the rail (settings + counts +
-// triage queues); the right pane is detail. On mobile the tree is full-screen
-// and the rail lives in a nav sheet. 'feature-votes' keeps its slug (Settings
-// deep-links to it) but reads as "Votes". Whole drawer is dev-gated, so every
-// tab is always visible.
+// cycle manager. On desktop the left pane is the rail (settings + triage
+// queues), PINNED so triage survives opening an item; the right pane is detail.
+// On mobile the tree is full-screen and the rail lives in a nav sheet.
+// 'feature-votes' keeps its slug (Settings deep-links to it) but reads as
+// "Votes". Whole drawer is dev-gated, so every tab is always visible.
 const ALL_TABS = ['directory', 'feature-votes'] as const
 type AdminTab = typeof ALL_TABS[number]
 
@@ -81,64 +81,6 @@ const TAB_LABELS: Record<AdminTab, string> = {
 interface AdminDrawerProps {
     isVisible: boolean
     onClose: () => void
-}
-
-/**
- * Body crossfade for the unified mobile admin sheet. The Sheet vessel (and its
- * header) stay mounted; only the BODY morphs between screens. On a
- * `transitionKey` change it freezes the outgoing body, fades it out, swaps in
- * the incoming body, then fades that in — so inbox → detail and detail → detail
- * read as one continuous surface instead of separate sheets sliding up/down.
- * Same-key re-renders (edit-mode toggles, async data) pass straight through with
- * no fade. Flash-free: the fade-out is armed synchronously on the key-change
- * render, so the incoming screen never paints at full opacity before the
- * outgoing one dissolves.
- */
-function MorphSheetBody({
-    transitionKey,
-    children,
-    duration = UI_TIMING.SHEET_MORPH,
-}: {
-    transitionKey: string
-    children: ReactNode
-    duration?: number
-}) {
-    const [committedKey, setCommittedKey] = useState(transitionKey)
-    const [fading, setFading] = useState(false)
-    const [frozen, setFrozen] = useState<ReactNode>(null)
-    const liveNode = useRef<ReactNode>(children)
-
-    // Retain the latest body while the key is stable so the NEXT transition
-    // freezes the correct OUTGOING screen — not the incoming one that already
-    // flowed in on the key-change render.
-    if (!fading && transitionKey === committedKey) liveNode.current = children
-
-    // Key changed → arm the fade-out during render. Doing it here (not in an
-    // effect) means the incoming screen never paints a frame at full opacity
-    // before the outgoing one dissolves.
-    if (transitionKey !== committedKey && !fading) {
-        setFrozen(liveNode.current)
-        setFading(true)
-    }
-
-    useEffect(() => {
-        if (!fading) return
-        const t = window.setTimeout(() => {
-            setCommittedKey(transitionKey)
-            setFrozen(null)
-            setFading(false)
-        }, duration)
-        return () => window.clearTimeout(t)
-    }, [fading, transitionKey, duration])
-
-    return (
-        <div
-            className="transition-opacity ease-out"
-            style={{ opacity: fading ? 0 : 1, transitionDuration: `${duration}ms` }}
-        >
-            {fading ? frozen : children}
-        </div>
-    )
 }
 
 export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
@@ -170,6 +112,12 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
     // Assigned Users FAB, the new user lands assigned to that cluster.
     const [userCreatePrefillClinicId, setUserCreatePrefillClinicId] = useState<string | null>(null)
 
+    // Where the open detail was launched from. The shell used to infer this from
+    // the view TYPE ("a request detail must have come from the inbox"), which
+    // meant every new detail kind needed its own back path. Recording the origin
+    // at open time collapses all of them into one back.
+    const [detailOrigin, setDetailOrigin] = useState<'inbox' | 'directory'>('directory')
+
     // Lateral nav trail: entities the user hopped *from* via in-detail links
     // (CPT Conner → his cluster → sister cluster). Cleared whenever navigation
     // originates from a list/summary, so the crumb never claims a hierarchy
@@ -186,14 +134,17 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
     const clinicEdit = useDetailEditState()
     const locationEdit = useDetailEditState()
 
-    // Search state
-    const [searchQuery, setSearchQuery] = useState('')
+    // Search state — one query per surface, NOT one shared query. The inbox and
+    // the directory are visible at the same time on desktop, so a single query
+    // meant typing a name into one silently filtered the other behind it.
+    const [inboxQuery, setInboxQuery] = useState('')
+    const [directoryQuery, setDirectoryQuery] = useState('')
 
     // FAB action sheet
     const [showAddSheet, setShowAddSheet] = useState(false)
 
     // Mobile nav sheet — the slide-out mirror of the desktop left pane (search +
-    // counts + directory tree). Summoned from any tab via the header rail button.
+    // triage queues). Summoned from any tab via the header rail button.
     const [showNavSheet, setShowNavSheet] = useState(false)
 
     // Discard pending changes confirmation. The pending action is held in a
@@ -232,6 +183,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
     const enterUserDetail = useCallback((user: AdminUser | null, editing: boolean, prefillClinicId: string | null = null) => {
         setSelectedUser(user)
         setUserCreatePrefillClinicId(user === null ? prefillClinicId : null)
+        setFeedHeaderActions(null)
         userEdit.setEditing(editing)
         userEdit.setHasPending(false)
         handleSlideAnimation('left')
@@ -241,31 +193,37 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
     const enterClinicDetail = useCallback((clinic: AdminClinic | null, editing: boolean, prefill: ClusterCreatePrefill | null = null) => {
         setSelectedClinic(clinic)
         setClusterCreatePrefill(clinic === null ? prefill : null)
+        setFeedHeaderActions(null)
         clinicEdit.setEditing(editing)
         clinicEdit.setHasPending(false)
         handleSlideAnimation('left')
         setView('admin-clinic-detail')
     }, [handleSlideAnimation, clinicEdit])
 
-    // Top-level entries (list rows, summary, request approval) — clear any
-    // prior lateral trail since the user jumped in from outside the chain.
+    // Top-level entries from the Directory tree — clear any prior lateral trail
+    // since the user jumped in from outside the chain, and mark the origin so
+    // back returns to the tree.
     const handleSelectUser = useCallback((user: AdminUser) => {
         clearTrail()
+        setDetailOrigin('directory')
         enterUserDetail(user, false)
     }, [enterUserDetail, clearTrail])
 
     const handleEditUser = useCallback((user: AdminUser) => {
         clearTrail()
+        setDetailOrigin('directory')
         enterUserDetail(user, true)
     }, [enterUserDetail, clearTrail])
 
     const handleCreateUser = useCallback(() => {
         clearTrail()
+        setDetailOrigin('directory')
         enterUserDetail(null, true)
     }, [enterUserDetail, clearTrail])
 
     const handleSelectClinic = useCallback((clinic: AdminClinic) => {
         clearTrail()
+        setDetailOrigin('directory')
         enterClinicDetail(clinic, false)
     }, [enterClinicDetail, clearTrail])
 
@@ -328,21 +286,23 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         }
         // Partial-failure recovery: if any post-approval step failed, open the
         // user in edit mode so admin can finish configuring the account.
-        if (configured.warnings.length > 0) {
-            handleEditUser(newUser)
-        } else {
-            handleSelectUser(newUser)
-        }
+        // Deliberately NOT via handleSelectUser/handleEditUser: those re-origin
+        // to 'directory', and approval is a triage step — backing out of the new
+        // user should land back in the queue for the next request.
+        clearTrail()
+        enterUserDetail(newUser, configured.warnings.length > 0)
         invalidate('requests', 'users')
-    }, [handleSelectUser, handleEditUser])
+    }, [clearTrail, enterUserDetail])
 
     const handleEditClinic = useCallback((clinic: AdminClinic) => {
         clearTrail()
+        setDetailOrigin('directory')
         enterClinicDetail(clinic, true)
     }, [enterClinicDetail, clearTrail])
 
     const handleCreateClinic = useCallback(() => {
         clearTrail()
+        setDetailOrigin('directory')
         enterClinicDetail(null, true)
     }, [enterClinicDetail, clearTrail])
 
@@ -398,13 +358,17 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
 
     const handleSelectSystemPeer = useCallback((peerId: string) => {
         clearTrail()
+        setDetailOrigin('inbox')
         setSelectedSystemPeerId(peerId)
         handleSlideAnimation('left')
         setView('admin-system-conversation')
     }, [clearTrail, handleSlideAnimation])
 
+    // Locations are reached through the inbox rail's Settings row, so backing
+    // out of one returns to the inbox, not the tree.
     const handleSelectLocation = useCallback((loc: AdminLocation) => {
         clearTrail()
+        setDetailOrigin('inbox')
         setSelectedLocation(loc)
         locationEdit.setEditing(false)
         locationEdit.setHasPending(false)
@@ -414,6 +378,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
 
     const handleCreateLocation = useCallback(() => {
         clearTrail()
+        setDetailOrigin('inbox')
         setSelectedLocation(null)
         locationEdit.setEditing(true)
         locationEdit.setHasPending(false)
@@ -426,6 +391,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
     // pane / Sheet. Each detail publishes its own header actions on mount.
     const openFeedDetail = useCallback((v: AdminView) => {
         clearTrail()
+        setDetailOrigin('inbox')
         setSelectedUser(null)
         setSelectedClinic(null)
         setSelectedLocation(null)
@@ -493,21 +459,16 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         action()
     }, [hasPendingEdits])
 
+    // The ONE back path. Where it lands is decided by where the detail was
+    // opened from, not by what kind of detail it is. On desktop this is always
+    // just navigateBack — the rail is pinned, so an inbox-origin detail already
+    // has its queue on screen; only mobile has to re-summon the nav sheet.
     const handleBack = useCallback(() => {
-        guardNav(navigateBack)
-    }, [guardNav, navigateBack])
-
-    // Triage details (request/feedback/suggestion) are opened FROM the inbox
-    // (desktop left rail / mobile nav sheet), so their back returns to that list
-    // — not the directory. On desktop the rail re-expands automatically once the
-    // detail pane closes; on mobile we re-summon the nav sheet. Used for the back
-    // affordance AND each triage detail's own onClose (after reject/delete/etc.).
-    const handleBackToInbox = useCallback(() => {
         guardNav(() => {
             navigateBack()
-            if (isMobile) setShowNavSheet(true)
+            if (isMobile && detailOrigin === 'inbox') setShowNavSheet(true)
         })
-    }, [guardNav, navigateBack, isMobile])
+    }, [guardNav, navigateBack, isMobile, detailOrigin])
 
     // Open the settings surface (locations management) — a detail view, so it
     // rides the responsive detail pane (desktop) / sheet (mobile) like the
@@ -515,6 +476,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
     const handleOpenSettings = useCallback(() => {
         guardNav(() => {
             clearTrail()
+            setDetailOrigin('inbox')
             setSelectedUser(null)
             setSelectedClinic(null)
             setSelectedLocation(null)
@@ -550,7 +512,8 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         setClusterCreatePrefill(null)
         setUserCreatePrefillClinicId(null)
         setSlideDirection('')
-        setSearchQuery('')
+        setInboxQuery('')
+        setDirectoryQuery('')
         setShowNavSheet(false)
         clearTrail()
         clinicEdit.reset()
@@ -590,9 +553,11 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         view !== 'admin',
     )
 
+    // Leaving the Directory tab drops its query; the inbox query is independent
+    // of the tab and survives.
     const handleTabChange = useCallback((tab: AdminTab) => {
         setActiveTab(tab)
-        setSearchQuery('')
+        setDirectoryQuery('')
     }, [])
 
     // Header actions for the main list header — the drawer-wide Close. Always
@@ -604,42 +569,43 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         </HeaderPill>
     ), [handleClose])
 
-    // Mobile header rail — opens the nav sheet (search + counts + directory tree)
-    // from any tab. The desktop equivalent is the always-on left pane.
+    // Mobile header rail — opens the nav sheet (the inbox) from any tab. The
+    // desktop equivalent is the pinned left pane.
     const navRailButton = useMemo(() => (
         <HeaderPill>
             <PillButton icon={Network} onClick={() => setShowNavSheet(true)} label="Open inbox" />
         </HeaderPill>
     ), [])
 
-    // Back-to-inbox affordance for the mobile triage detail Sheet — the request/
-    // feedback/suggestion detail publishes its own header actions (which hides the
-    // Sheet's Close), so it otherwise has no visible return path to the list.
-    const backToInboxButton = useMemo(() => (
+    // Back affordance for the mobile detail Sheet. Needed only when the detail
+    // publishes its own header actions, which hides the Sheet's Close and would
+    // otherwise leave no visible return path.
+    const sheetBackButton = useMemo(() => (
         <button
             type="button"
-            onClick={handleBackToInbox}
-            aria-label="Back to inbox"
+            onClick={handleBack}
+            aria-label="Back"
             className="w-9 h-9 -ml-1 rounded-full flex items-center justify-center hover:bg-tertiary/10 text-tertiary active:scale-95 shrink-0"
         >
             <ChevronLeft size={18} />
         </button>
-    ), [handleBackToInbox])
+    ), [handleBack])
 
     const isUserCreateMode = view === 'admin-user-detail' && selectedUser === null
     const isClinicCreateMode = view === 'admin-clinic-detail' && selectedClinic === null
     const isLocationCreateMode = view === 'admin-location-detail' && selectedLocation === null
     const isDetailView = view === 'admin-user-detail' || view === 'admin-clinic-detail' || view === 'admin-location-detail' || view === 'admin-settings' || view === 'admin-system-conversation' || view === 'admin-request-detail' || view === 'admin-feedback-detail' || view === 'admin-suggestion-detail'
-    // Triage details come from the inbox rail, so their back goes to the inbox.
-    const isTriageView = view === 'admin-request-detail' || view === 'admin-feedback-detail' || view === 'admin-suggestion-detail'
+    // Triage details publish their own header actions in place of a Close, so on
+    // mobile the Sheet has to supply a back arrow instead. This is a HEADER
+    // COMPOSITION fact, not a navigation one — back itself is origin-driven and
+    // identical for every view.
+    const detailOwnsHeaderActions = view === 'admin-request-detail' || view === 'admin-feedback-detail' || view === 'admin-suggestion-detail'
     const desktopDetailPaneOpen = !isMobile && isDetailView
-    // Left inbox rail (search + settings + counts + requests/feedback/messages)
-    // is persistent across all tabs — the drawer's standing triage surface. It
-    // only yields when a detail pane slides in (to give the tree + detail room).
-    const desktopTreeOpen = !isMobile && !desktopDetailPaneOpen
     // Desktop Esc: close the detail pane (triage → inbox, else back one level)
     // before the drawer itself closes. Mirrors the pane's own back button.
-    useEscBackout(desktopDetailPaneOpen, isTriageView ? handleBackToInbox : handleBack)
+    // Desktop-only, and the rail is pinned there, so every view backs out the
+    // same way — no triage fork needed.
+    useEscBackout(desktopDetailPaneOpen, handleBack)
 
     const detailTitle = useMemo(() => {
         if (view === 'admin-user-detail') {
@@ -788,9 +754,8 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
             case 'admin-suggestion-detail':
                 return {
                     title: 'Admin Panel',
-                    // Rail button summons the sort rail (counts + system
-                    // conversations) from every tab — the tree is the Directory
-                    // tab's main view, the rail is its companion sheet.
+                    // Rail button summons the inbox from every tab — the tree is
+                    // the Directory tab's main view, the rail its companion sheet.
                     leftContent: navRailButton,
                     rightContent: mainHeaderActions,
                     hideDefaultClose: !!mainHeaderActions,
@@ -942,7 +907,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                 <RequestDetail
                     request={selectedRequest}
                     onApproved={handleRequestApproved}
-                    onClose={handleBackToInbox}
+                    onClose={handleBack}
                     onHeaderActions={setFeedHeaderActions}
                 />
             )
@@ -951,7 +916,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
             return wrap(
                 <FeedbackDetail
                     feedback={selectedFeedback}
-                    onClose={handleBackToInbox}
+                    onClose={handleBack}
                     onOpenConversation={isDevRole ? handleSelectSystemPeer : undefined}
                     onHeaderActions={setFeedHeaderActions}
                 />
@@ -961,7 +926,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
             return wrap(
                 <SuggestionDetail
                     suggestion={selectedSuggestion}
-                    onClose={handleBackToInbox}
+                    onClose={handleBack}
                     onHeaderActions={setFeedHeaderActions}
                 />
             )
@@ -1039,49 +1004,26 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         </div>
     )
 
-    // ── Unified mobile sheet (inbox + every detail screen in ONE vessel) ──
-    // Previously the inbox and the detail views were separate <Sheet>s, so
-    // moving between them slid one down and the other up ("all different
-    // sheets"). Now a single sheet stays mounted and its body morphs between
-    // screens (MorphSheetBody). detailScreen = the active detail (null on inbox).
-    const detailScreen =
-        view === 'admin-user-detail' ? 'user'
-        : view === 'admin-clinic-detail' ? 'clinic'
-        : view === 'admin-location-detail' ? 'location'
+    // The mobile sheet's active screen — null means the inbox is showing. Carries
+    // the entity id so a same-type hop (user A → user B) still reads as a screen
+    // change and crossfades. One derivation: it doubles as "is a detail open".
+    const mobileScreenId =
+        view === 'admin-user-detail' ? `user:${selectedUser?.id ?? 'new'}`
+        : view === 'admin-clinic-detail' ? `clinic:${selectedClinic?.id ?? 'new'}`
+        : view === 'admin-location-detail' ? `location:${selectedLocation?.id ?? 'new'}`
         : view === 'admin-settings' ? 'settings'
-        : view === 'admin-request-detail' ? 'request'
-        : view === 'admin-feedback-detail' ? 'feedback'
-        : view === 'admin-suggestion-detail' ? 'suggestion'
+        : view === 'admin-request-detail' ? `request:${selectedRequest?.id ?? ''}`
+        : view === 'admin-feedback-detail' ? `feedback:${selectedFeedback?.id ?? ''}`
+        : view === 'admin-suggestion-detail' ? `suggestion:${selectedSuggestion?.id ?? ''}`
         : null
-    const sheetShowsInbox = detailScreen === null && showNavSheet
-    const mobileSheetOpen = isMobile && (detailScreen !== null || showNavSheet)
+    const sheetShowsInbox = mobileScreenId === null && showNavSheet
+    const mobileSheetOpen = isMobile && (mobileScreenId !== null || showNavSheet)
 
-    // Morph key — changes when the SHOWN screen or its entity changes, so even a
-    // same-type hop (user A → user B, cluster → sister cluster) crossfades. Held
-    // at its last value while the sheet slides closed (rawSheetKey null) so a
-    // dismiss doesn't trigger a spurious fade on the way down.
-    const rawSheetKey =
-        detailScreen === 'user' ? `user:${selectedUser?.id ?? 'new'}`
-        : detailScreen === 'clinic' ? `clinic:${selectedClinic?.id ?? 'new'}`
-        : detailScreen === 'location' ? `location:${selectedLocation?.id ?? 'new'}`
-        : detailScreen === 'settings' ? 'settings'
-        : detailScreen === 'request' ? `request:${selectedRequest?.id ?? ''}`
-        : detailScreen === 'feedback' ? `feedback:${selectedFeedback?.id ?? ''}`
-        : detailScreen === 'suggestion' ? `suggestion:${selectedSuggestion?.id ?? ''}`
-        : showNavSheet ? 'inbox'
-        : null
-    const lastSheetKey = useRef('inbox')
-    if (rawSheetKey) lastSheetKey.current = rawSheetKey
-    const sheetKey = rawSheetKey ?? lastSheetKey.current
-
-    // Sheet-level dismiss (drag handle / backdrop tap). Inbox → close it; a
-    // triage detail → back to the inbox; any other detail → back (which lands on
-    // the inbox if that's where it was opened from, else the list).
+    // Sheet-level dismiss (drag handle / backdrop tap). Inbox → close it; any
+    // detail → back, which already lands on whichever surface opened it.
     const sheetOnClose = sheetShowsInbox
         ? () => setShowNavSheet(false)
-        : isTriageView
-            ? handleBackToInbox
-            : handleBack
+        : handleBack
 
     // Inbox body (the sort rail) — the Sheet chrome supplies the header, so this
     // is bare content. Selecting a triage/settings row keeps the sheet up and
@@ -1095,7 +1037,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
     const inboxBody = (
         <div className="flex flex-col">
             <div className="sticky top-0 z-10 px-3 pt-2 pb-2 bg-themewhite">
-                <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Search..." />
+                <SearchInput value={inboxQuery} onChange={setInboxQuery} placeholder="Search inbox..." />
             </div>
             <div>
                 <AdminSortRail
@@ -1105,7 +1047,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                     onOpenRequest={handleOpenRequest}
                     onOpenFeedback={handleOpenFeedback}
                     onOpenSuggestion={handleOpenSuggestion}
-                    searchQuery={searchQuery}
+                    searchQuery={inboxQuery}
                     activeSystemPeerId={selectedSystemPeerId}
                 />
             </div>
@@ -1148,16 +1090,22 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
     // the desktop center pane and the mobile full-screen view.
     const renderDirectoryTree = () => (
         <AdminSummary
-            searchQuery={searchQuery}
+            searchQuery={directoryQuery}
             onSelectClinic={handleSelectClinic}
             onSelectUser={handleSelectUser}
             onEditClinic={handleEditClinic}
             onEditUser={handleEditUser}
             onChatUser={isDevRole ? (u) => handleSelectSystemPeer(u.id) : undefined}
-            onSelectAll={() => {}}
+            onCreateClinic={handleCreateClinic}
             activeClinicId={selectedClinic?.id}
             activeUserId={selectedUser?.id}
         />
+    )
+
+    // Directory search bar — its own query, shared by the mobile full-screen
+    // directory and the desktop center pane so both filter the same tree.
+    const directorySearch = (
+        <SearchInput value={directoryQuery} onChange={setDirectoryQuery} placeholder="Search directory..." />
     )
 
     // Mobile Directory — the tree IS the main view (the sort rail lives in the
@@ -1165,7 +1113,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
     const renderMobileDirectory = () => (
         <div className="h-full flex flex-col pt-[calc(var(--drawer-header-h,3.5rem)+0.5rem)]">
             <div className="px-3 pb-2 shrink-0">
-                <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Search directory..." />
+                {directorySearch}
             </div>
             <div className="flex-1 min-h-0">
                 {renderDirectoryTree()}
@@ -1179,25 +1127,29 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                 {activeTab === 'directory' ? (
                     renderMobileDirectory()
                 ) : (
-                    // Search bar + list share one scroller whose top sits behind
-                    // the glass header; the bar's top padding clears it.
-                    <div className="h-full overflow-y-auto overscroll-y-contain">
-                        <div className="px-3 pt-[calc(var(--drawer-header-h,3.5rem)+0.5rem)] pb-2">
-                            <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Search..." />
-                        </div>
+                    // Votes owns its own filtering — no search bar here. The one
+                    // that used to ride this scroller was bound to the shared
+                    // query and never reached AdminFeatureVotesSection, so it
+                    // filtered nothing.
+                    <div className="h-full overflow-y-auto overscroll-y-contain pt-[calc(var(--drawer-header-h,3.5rem)+0.5rem)]">
                         {renderQueueTab()}
                     </div>
                 )}
                 {!detailSheetOpen && bottomIsland}
             </div>
         ) : (
-            // Desktop center: the active tab's main content. Directory = the tree
-            // (manages its own scroll); the Votes tab shares a single scroller. The
-            // inbox rail (settings + counts + triage queues) lives in the left pane.
+            // Desktop center: the active tab's main content. Directory = search
+            // bar + the tree (which manages its own scroll); the Votes tab shares
+            // a single scroller. The inbox rail lives in the pinned left pane.
             <div className="relative h-full">
                 {activeTab === 'directory' ? (
-                    <div className="h-full">
-                        {renderDirectoryTree()}
+                    <div className="h-full flex flex-col">
+                        <div className="shrink-0 px-3 pt-3 pb-2">
+                            {directorySearch}
+                        </div>
+                        <div className="flex-1 min-h-0">
+                            {renderDirectoryTree()}
+                        </div>
                     </div>
                 ) : (
                     <div className="h-full overflow-y-auto">
@@ -1232,18 +1184,14 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                         mirrors the CalendarDrawer rightPanelOpen pattern. */}
                     {!isMobile ? (
                         <div className="flex h-full">
-                            {/* Left pane — the inbox rail (settings + counts +
-                                requests/feedback/messages) + search. Persistent
-                                across tabs; collapses (slides out left) when a detail pane opens. */}
-                            <SlideRevealPane
-                                open={desktopTreeOpen}
-                                side="left"
-                                width={240}
-                                keepMounted
-                                className="border-r border-primary/10 bg-themewhite"
-                            >
+                            {/* Left pane — the inbox rail + its own search. PINNED:
+                                triage is batch work (approve, next, next), so the
+                                queue must survive opening an item. It used to slide
+                                out whenever a detail opened, which is what forced
+                                the separate back-to-inbox path. */}
+                            <div className="shrink-0 flex flex-col w-[240px] border-r border-primary/10 bg-themewhite">
                                 <div className="shrink-0 px-3 pt-3 pb-2">
-                                    <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Search..." />
+                                    <SearchInput value={inboxQuery} onChange={setInboxQuery} placeholder="Search inbox..." />
                                 </div>
                                 <div className="flex-1 min-h-0">
                                     <AdminSortRail
@@ -1252,24 +1200,26 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                                         onOpenRequest={handleOpenRequest}
                                         onOpenFeedback={handleOpenFeedback}
                                         onOpenSuggestion={handleOpenSuggestion}
-                                        searchQuery={searchQuery}
+                                        searchQuery={inboxQuery}
                                         activeSystemPeerId={selectedSystemPeerId}
                                     />
                                 </div>
-                            </SlideRevealPane>
+                            </div>
                             <div className="flex-1 min-w-0 overflow-hidden">
                                 {renderMainView()}
                             </div>
+                            {/* Detail pane — the surface being READ or EDITED, so it
+                                gets real width rather than the narrowest column. */}
                             <SlideRevealPane
                                 open={desktopDetailPaneOpen}
                                 side="right"
-                                width={320}
+                                width={480}
                                 className="border-l border-primary/10 bg-themewhite relative"
                             >
                                 <div className="flex items-center gap-2 px-3 py-2 border-b border-primary/10">
                                     <button
                                         type="button"
-                                        onClick={isTriageView ? handleBackToInbox : handleBack}
+                                        onClick={handleBack}
                                         aria-label="Close detail"
                                         className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-tertiary/10 text-tertiary active:scale-95 shrink-0"
                                     >
@@ -1312,37 +1262,19 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
             />
         </BaseDrawer>
 
-        {/* Mobile unified sheet — ONE vessel hosting the inbox rail AND every
-            detail screen. The Sheet (and its header) stay mounted while the BODY
-            morphs between screens via MorphSheetBody, so inbox ⇄ detail and
-            detail ⇄ detail read as a single continuous surface instead of
-            separate sheets sliding up/down ("all different sheets"). The header
-            (title/breadcrumb + actions + close) is supplied by the Sheet chrome
-            and switches per the live screen; the crossfade covers the body. A
-            dimming scrim (backdrop="dismiss") separates figure/ground since the
-            list shares the drawer bg; tap scrim, header Close, or drag to
-            dismiss. Portals to body (z-1200) to clear the mobileFullScreen
-            drawer (z-60) — matches the overlay-sheet convention (Property/Map). */}
         {isMobile && (
-            <Sheet
+            <AdminMobileSheet
                 isOpen={mobileSheetOpen}
+                screenId={mobileScreenId}
+                detailTitle={detailTitle}
+                titleNode={sheetTitleNode}
+                detailActions={detailHeaderActions}
+                detailOwnsHeaderActions={detailOwnsHeaderActions}
+                backButton={sheetBackButton}
                 onClose={sheetOnClose}
-                height="fit"
-                maxHeight={70}
-                backdrop="dismiss"
-                title={sheetShowsInbox ? 'Inbox' : detailTitle}
-                titleNode={sheetShowsInbox ? undefined : sheetTitleNode}
-                // Triage details hide the Sheet Close (they publish their own
-                // header actions), so give them an explicit back-to-inbox arrow.
-                leftContent={!sheetShowsInbox && isTriageView ? backToInboxButton : undefined}
-                rightContent={sheetShowsInbox ? undefined : detailHeaderActions}
-                hideClose={sheetShowsInbox ? false : !!detailHeaderActions}
-                zIndex={1200}
             >
-                <MorphSheetBody transitionKey={sheetKey}>
-                    {sheetShowsInbox ? inboxBody : renderDetailContent(true)}
-                </MorphSheetBody>
-            </Sheet>
+                {sheetShowsInbox ? inboxBody : renderDetailContent(true)}
+            </AdminMobileSheet>
         )}
 
         {/* Discard unsaved changes confirmation */}
