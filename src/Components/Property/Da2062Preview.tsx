@@ -51,7 +51,7 @@ export function Da2062Preview({ preview, onDownload, onClose, containerRef, gene
         </FooterPill>
       }
     >
-      {preview && <PdfCanvasView bytes={preview.bytes} className="bg-themewhite" />}
+      {preview && <PdfCanvasView bytes={preview.bytes} scroll={false} className="bg-themewhite" />}
     </PreviewOverlay>
   )
 }

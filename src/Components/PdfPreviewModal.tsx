@@ -48,7 +48,7 @@ export function PdfPreviewModal({ preview, onDownload, onClose, zIndex, generati
         </FooterPill>
       }
     >
-      {preview && <PdfCanvasView bytes={preview.bytes} className="bg-themewhite" />}
+      {preview && <PdfCanvasView bytes={preview.bytes} scroll={false} className="bg-themewhite" />}
     </PreviewOverlay>
   )
 }

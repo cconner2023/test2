@@ -789,7 +789,6 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
 
         {/* Import popover for scan + staged image preview */}
         <ImportResultPopover
-          preview={null}
           stagedImage={barcodeImport.stagedImage}
           isScanning={barcodeImport.isScanning}
           scanRequested={barcodeImport.scanRequested}
@@ -800,7 +799,6 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
           onDismissImage={barcodeImport.clearStagedImage}
           onStopScan={barcodeImport.handleStopScan}
           onClose={barcodeImport.reset}
-          isMobile={isMobile}
         />
 
         {/* Mobile template picker — Sheet (not a nested BaseDrawer, which

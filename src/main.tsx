@@ -65,9 +65,12 @@ if (
     //     ground that prevents content from sitting behind the notch.
     //   < 812: Pre-notch (SE, 8, 8 Plus) → 20px status bar
     // iPads (screen.height > 1000) get 20px — no notch on any iPad.
+    // Newer iOS can also read 0 here transiently at launch, then report the
+    // real (larger, Dynamic Island) inset once layout settles. Use max() so the
+    // fallback is only a floor and never pins --sat below the live env() value.
     const h = window.screen.height
     const fallback = h >= 812 && h <= 956 ? '47px' : '20px'
-    document.documentElement.style.setProperty('--sat', fallback)
+    document.documentElement.style.setProperty('--sat', `max(env(safe-area-inset-top, 0px), ${fallback})`)
   }
 }
 

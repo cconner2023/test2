@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Copy, FileDown, Share2 } from 'lucide-react';
 import { useSF600Export } from '../../Hooks/useSF600Export';
+import { useDD689Export } from '../../Hooks/useDD689Export';
+import { NoteOutputSections } from '../NoteOutputSections';
 import { BarcodeDisplay } from '../Barcode';
 import { useUserProfile } from '../../Hooks/useUserProfile';
 import { useIsMobile } from '../../Hooks/useIsMobile';
@@ -11,11 +12,11 @@ import { encodeProviderNote, encodeProviderBundle } from '../../Utilities/notePa
 import { encryptBarcode } from '../../Utilities/barcodeCodec';
 import { selectIsAuthenticated, useAuthStore } from '../../stores/useAuthStore';
 import { PdfPreviewModal } from '../PdfPreviewModal';
+import { PatientIdPopover } from '../PatientIdPopover';
+import type { PatientIdentification } from '../../Utilities/SF600Export';
 
 import type { ImportedMedicNote } from '../ProviderDrawer'
 import type { PEState } from '../../Types/PETypes'
-import { ActionPill } from '@/Components/primitives/ActionPill'
-import { ActionButton } from '@/Components/primitives/ActionButton'
 
 export interface ProviderNoteOutputProps {
     hpiNote: string;
@@ -40,6 +41,7 @@ export function ProviderNoteOutput({
     const isMobile = useIsMobile();
     const { shareNote } = useNoteShare();
     const { exportSF600, sf600ExportStatus, sf600Preview, downloadSF600, clearSF600Preview } = useSF600Export();
+    const { exportDD689, exportStatus, dd689Preview, downloadDD689, clearDD689Preview } = useDD689Export();
 
     const signature = useMemo(
         () => (profile ? formatSignature(profile) : ''),
@@ -151,7 +153,9 @@ export function ProviderNoteOutput({
         shareNote({ encodedText: encodedValue, symptomText: 'Provider Note' }, isMobile);
     }
 
-    function handleExportSF600() {
+    const [patientGateOpen, setPatientGateOpen] = useState(false);
+
+    function doExportSF600(patient: PatientIdentification) {
         if (!previewNote) return;
         const now = new Date();
         const dateStr = now.toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase();
@@ -162,76 +166,44 @@ export function ProviderNoteOutput({
             noteText: previewNote,
             date: dateStr,
             signatureName: sigName || undefined,
+            patient,
+        });
+    }
+
+    function handleExportDD689() {
+        exportDD689({
+            encodedValue,
+            dispositionType: '',
+            dispositionText: '',
+            symptomText: 'Provider Note',
+            clinicName: profile.clinicName || '',
+            authorLine: signature || undefined,
         });
     }
 
     return (
         <div className="space-y-4">
-            {/* Note Preview */}
-            <div>
-                <p className="pb-2 text-[9pt] font-semibold text-primary uppercase tracking-wider">Note Preview</p>
-                <div className="relative">
-                    <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
-                        <div className="px-4 py-3 text-tertiary text-[9pt] whitespace-pre-wrap max-h-48 md:max-h-80 overflow-y-auto">
-                            {previewNote
-                                ? previewNote.split('\n').filter(l => !l.startsWith('Signed:')).join('\n').trim()
-                                : 'No content available'}
-                        </div>
-                    </div>
-                    {/* Static tiles: copy confirms through the shared CopiedModal and the
-                        export through PdfPreviewModal's loading state, so neither button
-                        animates its own status. */}
-                    <ActionPill shadow="sm" placement="overlay">
-                        <ActionButton
-                            icon={Copy}
-                            label="Copy note text"
-                            onClick={() => copyWithHtml(previewNote)}
-                        />
-                        <ActionButton
-                            icon={FileDown}
-                            label="Export SF600 PDF"
-                            onClick={handleExportSF600}
-                        />
-                    </ActionPill>
-                </div>
-            </div>
-
-            {/* Encoded Note */}
-            <div>
-                <p className="pb-2 text-[9pt] font-semibold text-primary uppercase tracking-wider">Encoded Note</p>
-                <div className="relative">
-                    <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
-                        <div>
-                            <BarcodeDisplay
-                                encodedText={encodedValue}
-                                layout={encodedValue.length > 300 ? 'col' : 'row'}
-                            />
-                        </div>
-                    </div>
-                    <ActionPill shadow="sm" placement="overlay">
-                        <ActionButton
-                            icon={Share2}
-                            label="Copy barcode image"
-                            onClick={handleShare}
-                        />
-                        <ActionButton
-                            icon={Copy}
-                            label="Copy encoded text"
-                            onClick={() => copyWithHtml(encodedValue)}
-                        />
-                    </ActionPill>
-                </div>
-                {encodedValue.length > 2000 && (
-                    <div className="text-[10pt] text-themeyellow mt-2 px-1">
-                        Note is large ({encodedValue.length} chars) — barcode may not scan reliably. Consider shortening text fields.
-                    </div>
-                )}
-            </div>
+            <NoteOutputSections
+                previewNote={previewNote}
+                onCopyNote={() => copyWithHtml(previewNote)}
+                onExportSF600={() => { if (previewNote) setPatientGateOpen(true); }}
+                onCopyEncoded={() => copyWithHtml(encodedValue)}
+                onShare={handleShare}
+                onExportDD689={handleExportDD689}
+                encodedLength={encodedValue.length}
+                barcode={<BarcodeDisplay encodedText={encodedValue} layout={encodedValue.length > 300 ? 'col' : 'row'} />}
+            />
+            <PatientIdPopover
+                isOpen={patientGateOpen}
+                anchorRect={null}
+                onClose={() => setPatientGateOpen(false)}
+                onConfirm={doExportSF600}
+            />
             <PdfPreviewModal
-                preview={sf600Preview}
-                generating={sf600ExportStatus === 'generating'}
-                onDownload={downloadSF600}
-                onClose={clearSF600Preview}
+                preview={sf600Preview ?? dd689Preview ?? null}
+                generating={sf600ExportStatus === 'generating' || exportStatus === 'generating'}
+                onDownload={sf600Preview ? downloadSF600 : downloadDD689}
+                onClose={sf600Preview ? clearSF600Preview : clearDD689Preview}
             />
         </div>
     );

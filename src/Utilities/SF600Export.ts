@@ -5,10 +5,36 @@
  */
 export { downloadPdfBytes } from './downloadUtils'
 
+/**
+ * Patient identification captured per-export for the SF600 bottom-left
+ * "PATIENT'S IDENTIFICATION" block on page 1. Ephemeral — collected at export
+ * time, written into the PDF, never persisted or placed on the wire.
+ */
+export interface PatientIdentification {
+  lastName: string
+  firstName: string
+  middleInitial: string
+  dodid: string
+  gender: '' | 'M' | 'F'
+  dob: string        // ISO 'YYYY-MM-DD' from the date picker
+  rankGrade: string
+}
+
 export interface SF600Params {
   noteText: string
   date: string        // display date string (e.g. "18 MAR 2026")
   signatureName?: string  // e.g. "CONNER CHRISTOPHER D PA-C, CPT, USA"
+  patient?: PatientIdentification  // bottom-left patient identification block (page 1)
+}
+
+/** Format an ISO 'YYYY-MM-DD' DOB as 'DD MMM YYYY' for the patient block. */
+function formatDob(iso: string): string {
+  if (!iso) return ''
+  const [y, m, d] = iso.split('-')
+  const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
+  const mi = Number(m) - 1
+  if (!y || !d || mi < 0 || mi > 11) return iso
+  return `${d} ${months[mi]} ${y}`
 }
 
 // ── Layout constants (PDF points, origin = bottom-left, 72 pts/inch) ──
@@ -40,6 +66,18 @@ const LAYOUT = {
   noteCol: { x: 125, maxWidth: 470 },
   page2NoteX: 115,  // adjust independently from page 1
   fontSize: 10,
+} as const
+
+// Bottom-left "PATIENT'S IDENTIFICATION" block (page 1 only). PDF points,
+// origin = bottom-left. Per-field rows so each can be nudged independently —
+// calibrate against SF600_1.pdf.
+const PATIENT_BLOCK = {
+  fontSize: 8,
+  name:      { x: 30, y: 96 },   // "Last, First M"
+  dodid:     { x: 30, y: 80, label: 'DODID: ' },
+  gender:    { x: 30, y: 64, label: 'Sex: ' },
+  dob:       { x: 120, y: 64, label: 'DOB: ' },
+  rankGrade: { x: 30, y: 48, label: 'Rank/Grade: ' },
 } as const
 
 /**
@@ -146,6 +184,22 @@ export async function generateSF600(params: SF600Params): Promise<Uint8Array> {
       font,
       color: black,
     })
+  }
+
+  // ── Patient identification block (bottom-left, page 1 only) ──
+  if (params.patient) {
+    const pt = params.patient
+    const drawField = (text: string, x: number, y: number) => {
+      if (!text) return
+      p1.drawText(text, { x, y, size: PATIENT_BLOCK.fontSize, font, color: black })
+    }
+    const nameLine = [pt.lastName, [pt.firstName, pt.middleInitial].filter(Boolean).join(' ')]
+      .filter(Boolean).join(', ')
+    drawField(nameLine, PATIENT_BLOCK.name.x, PATIENT_BLOCK.name.y)
+    drawField(pt.dodid && PATIENT_BLOCK.dodid.label + pt.dodid, PATIENT_BLOCK.dodid.x, PATIENT_BLOCK.dodid.y)
+    drawField(pt.gender && PATIENT_BLOCK.gender.label + pt.gender, PATIENT_BLOCK.gender.x, PATIENT_BLOCK.gender.y)
+    drawField(pt.dob && PATIENT_BLOCK.dob.label + formatDob(pt.dob), PATIENT_BLOCK.dob.x, PATIENT_BLOCK.dob.y)
+    drawField(pt.rankGrade && PATIENT_BLOCK.rankGrade.label + pt.rankGrade, PATIENT_BLOCK.rankGrade.x, PATIENT_BLOCK.rankGrade.y)
   }
 
   // Helper: draw a text line or the signature row

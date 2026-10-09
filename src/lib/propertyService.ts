@@ -3122,7 +3122,18 @@ export async function setTurnInQuantity(
     if (qty >= staged.quantity) return succeed() // nothing to split off
     const remainder = staged.quantity - qty
 
-    if (staged.turn_in_origin_location_id != null) {
+    // AUTHORIZED child: the zeroed BOM source it split off (merge target for the leftover).
+    // None ⇒ a FULL-MOVED line (origin may be null when it was unlocated at stage time).
+    const norm = (s: string | null) => (s ?? '').trim().toLowerCase()
+    const source = staged.turn_in_origin_location_id != null ? undefined : items.find((i) =>
+      i.id !== staged.id &&
+      i.quantity_authorized != null &&
+      !i.turned_in_at &&
+      norm(i.name) === norm(staged.name) &&
+      (staged.nsn ? i.nsn === staged.nsn : !i.nsn)
+    )
+
+    if (!source) {
       // FULL-MOVED line: the leftover returns as its own stack in the zone it came from.
       const back = await createItem(
         {
@@ -3154,15 +3165,6 @@ export async function setTurnInQuantity(
       if (!back.success) return fail(back.error)
     } else {
       // AUTHORIZED child: merge the leftover back into the zeroed BOM source it split off.
-      const norm = (s: string | null) => (s ?? '').trim().toLowerCase()
-      const source = items.find((i) =>
-        i.id !== staged.id &&
-        i.quantity_authorized != null &&
-        !i.turned_in_at &&
-        norm(i.name) === norm(staged.name) &&
-        (staged.nsn ? i.nsn === staged.nsn : !i.nsn)
-      )
-      if (!source) return fail(`Could not find where to return the rest of ${staged.name}`)
       const merged = await updateItem(source.id, { quantity: source.quantity + remainder }, userId, { skipAudit: true })
       if (!merged.success) return fail(merged.error)
     }
@@ -3247,6 +3249,11 @@ export async function unstageTurnInItem(
             { skipAudit: true },
           )
           await deleteItem(staged.id, userId)
+        } else {
+          // No authorized source → a FULL-MOVED item that was unlocated when staged (origin
+          // recorded as null, indistinguishable from an authorized child). Move it back out
+          // of the zone to where it was — nowhere — instead of leaving it stranded there.
+          await updateItem(staged.id, { location_id: null }, userId, { skipAudit: true })
         }
       }
     }

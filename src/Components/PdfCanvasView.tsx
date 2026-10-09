@@ -18,6 +18,11 @@ interface PdfCanvasViewProps {
   bytes: Uint8Array
   /** Extra classes for the scroll wrapper (e.g. a background fill for body-mode). */
   className?: string
+  /** Own the scroll (default). Pass false when nested inside a host that already
+   *  scrolls (PreviewOverlay): an `overflow-y-auto overscroll-contain` root that
+   *  never overflows still swallows desktop wheel chaining in Chrome, so the
+   *  overlay's real scroller never moved. */
+  scroll?: boolean
 }
 
 /**
@@ -28,12 +33,11 @@ interface PdfCanvasViewProps {
  * loading (HUD) and error (PdfPreviewFallback) states. Shared by the three PDF
  * preview hosts: PdfPreviewModal, Da2062Preview, Da2062PdfView.
  *
- * Layout: the root is a `overflow-y-auto` scroll wrapper so it works both as
- * bounded body content (Da2062PdfView fills h-full) and nested inside a
- * PreviewOverlay's own scroll area (double-scroll is inert — pages fit the width
- * and the inner column rarely overflows the overlay's own max-height first).
+ * Layout: by default the root is a `overflow-y-auto` scroll wrapper for bounded
+ * body content (Da2062PdfView fills h-full). Hosts that already scroll
+ * (PreviewOverlay) pass scroll={false} so the overlay's scroller owns the wheel.
  */
-export function PdfCanvasView({ bytes, className = '' }: PdfCanvasViewProps) {
+export function PdfCanvasView({ bytes, className = '', scroll = true }: PdfCanvasViewProps) {
   const hostRef = useRef<HTMLDivElement>(null)
   const pagesRef = useRef<HTMLDivElement>(null)
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
@@ -106,7 +110,7 @@ export function PdfCanvasView({ bytes, className = '' }: PdfCanvasViewProps) {
   }, [bytes, renderWidth])
 
   return (
-    <div ref={hostRef} className={`relative w-full h-full overflow-y-auto overscroll-contain ${className}`}>
+    <div ref={hostRef} className={`relative w-full ${scroll ? 'h-full overflow-y-auto overscroll-contain' : 'min-h-[200px]'} ${className}`}>
       {status === 'error' ? (
         <PdfPreviewFallback />
       ) : (

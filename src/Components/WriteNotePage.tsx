@@ -14,13 +14,14 @@ import { NoteWizardFooter } from './WriteNoteHelpers';
 import { ExpandableInput } from '@/Components/primitives/ExpandableInput';
 import { useAlgorithmMetrics } from '../Hooks/useAlgorithmMetrics';
 import { useMergedNoteContent } from '../Hooks/useMergedNoteContent';
-import { X, Plus, Check, RotateCcw, ChevronRight, ClipboardList, FileText, Copy, Share2, FileDown } from 'lucide-react';
+import { X, Plus, Check, RotateCcw, ChevronRight, ClipboardList, FileText } from 'lucide-react';
 import { PreviewOverlay } from './PreviewOverlay';
 import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog';
 import { PdfPreviewModal } from './PdfPreviewModal';
+import { PatientIdPopover } from './PatientIdPopover';
 import { BottomIsland } from '@/Components/primitives/BottomIsland';
 import { AddFab } from '@/Components/primitives/AddFab';
-import { OverlayActionMenu } from '@/Components/primitives/OverlayActionMenu';
+import { NoteOutputSections } from './NoteOutputSections';
 import { EmptyState } from '@/Components/primitives/EmptyState';
 import { ActionButton } from '@/Components/primitives/ActionButton';
 import { FooterPill } from '@/Components/primitives/FooterPill';
@@ -142,6 +143,7 @@ export const WriteNotePage = ({
     const [viewMode, setViewMode] = useState<'preview' | 'fullnote'>('preview');
     const [includeDecisionMaking, setIncludeDecisionMaking] = useState(true);
     const [dmConfirmOpen, setDmConfirmOpen] = useState(false);
+    const [patientGateOpen, setPatientGateOpen] = useState(false);
 
     const visiblePages = useMemo(() => [
         { id: 'edit' as const, label: 'Write Note' },
@@ -566,69 +568,36 @@ export const WriteNotePage = ({
                                     {hasPII && (
                                         <PIIWarningBanner warnings={[...new Set([...piiWarnings, ...pePiiWarnings, ...assessmentPiiWarnings])]} />
                                     )}
-                                    {/* Note Preview */}
-                                    <section>
-                                        <div className="pb-2 flex items-center gap-2">
-                                            <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Note Preview</p>
-                                        </div>
-                                        <div className="relative">
-                                            {/* Plain rows, not `render` tiles: a rendered item owns its own
-                                                button and the menu stays open, which left the SF600 preview
-                                                stranded behind it. */}
-                                            <OverlayActionMenu
-                                                shadow="sm"
-                                                items={[
-                                                    { key: 'copy', label: 'Copy note text', icon: Copy, onAction: () => handleCopy(previewNote) },
-                                                    { key: 'export', label: 'Export SF600 PDF', icon: FileDown, onAction: handleExportSF600 },
-                                                ]}
+                                    <NoteOutputSections
+                                        previewNote={previewNote}
+                                        onCopyNote={() => handleCopy(previewNote)}
+                                        onExportSF600={() => { if (previewNote) setPatientGateOpen(true); }}
+                                        onCopyEncoded={() => handleCopy(encodedValue)}
+                                        onShare={handleShare}
+                                        onExportDD689={handleExportDD689}
+                                        encodedLength={encodedValue.length}
+                                        barcode={
+                                            <NoteBarcodeGenerator
+                                                algorithmOptions={algorithmOptions}
+                                                cardStates={cardStates}
+                                                noteOptions={{
+                                                    includeAlgorithm: true,
+                                                    assessmentNote,
+                                                    selectedDdx,
+                                                    customDdx,
+                                                    customNote: note,
+                                                    physicalExamNote: peNote,
+                                                    peState: peState ?? undefined,
+                                                    planNote,
+                                                    user: profile,
+                                                    userId: authUserId,
+                                                }}
+                                                symptomCode={selectedSymptom?.icon?.replace('-', '') || 'A1'}
+                                                onEncodedValueChange={setEncodedValue}
+                                                layout={encodedValue.length > 300 ? 'col' : 'row'}
                                             />
-                                            <div className="rounded-2xl bg-themewhite2 overflow-hidden">
-                                                <div className="px-4 pt-3 pb-3 text-tertiary text-[9pt] whitespace-pre-wrap max-h-48 overflow-y-auto">
-                                                    {previewNote || "No content selected"}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </section>
-
-                                    {/* Encoded Note / Barcode */}
-                                    <section>
-                                        <div className="pb-2 flex items-center gap-2">
-                                            <p className="text-[9pt] font-semibold text-tertiary tracking-widest uppercase">Encoded Note</p>
-                                        </div>
-                                        <div className="relative">
-                                            <OverlayActionMenu
-                                                shadow="sm"
-                                                items={[
-                                                    { key: 'copy', label: 'Copy encoded text', icon: Copy, onAction: () => handleCopy(encodedValue) },
-                                                    { key: 'share', label: 'Share note as image', icon: Share2, onAction: handleShare },
-                                                    { key: 'export', label: 'Export DD689 PDF', icon: FileDown, onAction: handleExportDD689 },
-                                                ]}
-                                            />
-                                            <div className="rounded-2xl bg-themewhite2 overflow-hidden">
-                                                <div className="px-4 pt-3 pb-3">
-                                                <NoteBarcodeGenerator
-                                                    algorithmOptions={algorithmOptions}
-                                                    cardStates={cardStates}
-                                                    noteOptions={{
-                                                        includeAlgorithm: true,
-                                                        assessmentNote,
-                                                        selectedDdx,
-                                                        customDdx,
-                                                        customNote: note,
-                                                        physicalExamNote: peNote,
-                                                        peState: peState ?? undefined,
-                                                        planNote,
-                                                        user: profile,
-                                                        userId: authUserId,
-                                                    }}
-                                                    symptomCode={selectedSymptom?.icon?.replace('-', '') || 'A1'}
-                                                    onEncodedValueChange={setEncodedValue}
-                                                    layout={encodedValue.length > 300 ? 'col' : 'row'}
-                                                />
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </section>
+                                        }
+                                    />
 
                             </div>
                     </div>
@@ -690,6 +659,12 @@ export const WriteNotePage = ({
                 />
             </div>
         </BaseDrawer>
+        <PatientIdPopover
+            isOpen={patientGateOpen}
+            anchorRect={null}
+            onClose={() => setPatientGateOpen(false)}
+            onConfirm={handleExportSF600}
+        />
         <PdfPreviewModal
             preview={sf600Preview ?? dd689Preview ?? null}
             generating={sf600ExportStatus === 'generating' || exportStatus === 'generating'}

@@ -30,6 +30,7 @@ import type { ImportPreview } from './Hooks/useNoteImport'
 import type { MedevacRequest } from './Types/MedevacTypes'
 import { useBarcodeImport } from './Hooks/useBarcodeImport'
 import { ImportResultPopover } from './Components/ImportResultPopover'
+import { ImportedNoteDrawer } from './Components/ImportedNoteDrawer'
 import { useProfileAvatar } from './Hooks/useProfileAvatar'
 import { useProfileRealtime } from './Hooks/useProfileRealtime'
 import { useAuth } from './Hooks/useAuth'
@@ -762,9 +763,8 @@ case 'mapOverlay':
           </div>
         )}
 
-        {/* ── Import result popover (scan / staged image / decoded preview) ── */}
+        {/* ── Import popover (scan / staged image / decoding) ── */}
         <ImportResultPopover
-          preview={importPreview}
           stagedImage={barcodeImport.stagedImage}
           isScanning={barcodeImport.isScanning}
           scanRequested={barcodeImport.scanRequested}
@@ -774,6 +774,12 @@ case 'mapOverlay':
           onConfirmImage={barcodeImport.confirmStagedImage}
           onDismissImage={() => { barcodeImport.clearStagedImage(); }}
           onStopScan={barcodeImport.handleStopScan}
+          onClose={() => { setImportPreview(null); barcodeImport.reset(); }}
+        />
+
+        {/* ── Decoded import — same Full Note layout/actions as WriteNotePage ── */}
+        <ImportedNoteDrawer
+          preview={importPreview}
           onClose={() => { setImportPreview(null); barcodeImport.reset(); }}
           onOpenMedevac={handleOpenMedevac}
           isMobile={navigation.isMobile}

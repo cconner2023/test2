@@ -782,9 +782,10 @@ export const PropertyPanel = memo(function PropertyPanel({
 
   // Drop the WHOLE pending turn-in back onto the books — un-stage every staged line, each
   // through the doc that carries it.
-  const handleRemoveTurnIn = useCallback((turnIn: PendingTurnIn) => {
+  // Sequential: concurrent unstages read-modify-write the same BOM source / zone tag.
+  const handleRemoveTurnIn = useCallback(async (turnIn: PendingTurnIn) => {
     for (const e of turnIn.entries) {
-      if (e.hand_receipt_id) void store.unstageTurnInItem(e.hand_receipt_id, e.item_id)
+      if (e.hand_receipt_id) await store.unstageTurnInItem(e.hand_receipt_id, e.item_id)
     }
   }, [store])
 
@@ -800,7 +801,7 @@ export const PropertyPanel = memo(function PropertyPanel({
 
   const handleConfirmRemoveTurnIn = useCallback(() => {
     if (!pendingRemoveTurnIn) return
-    handleRemoveTurnIn(pendingRemoveTurnIn)
+    void handleRemoveTurnIn(pendingRemoveTurnIn)
     setPendingRemoveTurnIn(null)
   }, [pendingRemoveTurnIn, handleRemoveTurnIn])
 

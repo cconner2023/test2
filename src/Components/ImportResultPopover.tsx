@@ -1,21 +1,16 @@
-import { useState, useEffect, useCallback } from 'react'
-import { Copy, Share2, ScanLine, User, Check, X, ExternalLink } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { ScanLine, User, Check, X } from 'lucide-react'
 import { PreviewOverlay } from './PreviewOverlay'
 import type { ContextMenuAction } from './PreviewOverlay'
 import { BarcodeDisplay } from './Barcode'
 import type { ImportPreview } from '../Hooks/useNoteImport'
-import type { MedevacRequest } from '../Types/MedevacTypes'
-import { useNoteShare } from '../Hooks/useNoteShare'
 import { profileAvatars } from '../Data/ProfileAvatars'
 import { supabase } from '../lib/supabase'
-import { copyWithHtml } from '../Utilities/clipboardUtils'
 import { getColorClasses } from '../Utilities/ColorUtilities'
-import { shareStatusToIconStatus } from './WriteNoteHelpers'
 import type { ReactNode } from 'react'
 
+/** Scan / staged-image / decoding stages only — a decoded note opens in ImportedNoteDrawer. */
 interface ImportResultPopoverProps {
-  /** Decoded import preview (shows note card) */
-  preview: ImportPreview | null
   /** Staged image waiting for user confirmation */
   stagedImage: { file: File; url: string } | null
   /** Camera scan in progress */
@@ -31,8 +26,6 @@ interface ImportResultPopoverProps {
   onDismissImage: () => void
   onStopScan: () => void
   onClose: () => void
-  onOpenMedevac?: (req: MedevacRequest) => void
-  isMobile: boolean
 }
 
 // ── Preview card content for a decoded note ─────────────────────────────────
@@ -98,7 +91,6 @@ export function NotePreviewContent({ preview }: { preview: ImportPreview }) {
 // ── Main popover ────────────────────────────────────────────────────────────
 
 export function ImportResultPopover({
-  preview,
   stagedImage,
   isScanning,
   scanRequested,
@@ -109,62 +101,16 @@ export function ImportResultPopover({
   onDismissImage,
   onStopScan,
   onClose,
-  onOpenMedevac,
-  isMobile,
 }: ImportResultPopoverProps) {
-  const { shareNote, shareStatus } = useNoteShare()
-
-  const handleShare = useCallback(() => {
-    if (!preview) return
-    shareNote({
-      encodedText: preview.encodedText,
-      symptomText: preview.symptomText,
-      dispositionType: preview.dispositionType,
-      dispositionText: preview.dispositionText,
-    }, isMobile)
-  }, [preview, shareNote, isMobile])
-
   // Determine visibility + content
   const showScan = scanRequested || isScanning
-  const isVisible = !!(preview || stagedImage || showScan || isDecodingImage)
+  const isVisible = !!(stagedImage || showScan || isDecodingImage)
 
   // Build actions based on state
   let actions: ContextMenuAction[] = []
   let popoverPreview: ReactNode = null
 
-  if (preview) {
-    popoverPreview = <NotePreviewContent preview={preview} />
-    actions = [
-      ...(preview.isMedevac && preview.medevacReq && onOpenMedevac ? [{
-        key: 'open-9line',
-        label: 'Open',
-        icon: ExternalLink,
-        onAction: () => { onOpenMedevac(preview.medevacReq!); onClose() },
-        closesOnAction: false,
-      }] : []),
-      {
-        key: 'copy-note',
-        label: 'Copy',
-        icon: Copy,
-        onAction: () => copyWithHtml(preview.fullNote),
-        closesOnAction: false,
-      },
-      {
-        key: 'copy-code',
-        label: 'Code',
-        icon: Copy,
-        onAction: () => copyWithHtml(preview.encodedText),
-        closesOnAction: false,
-      },
-      {
-        key: 'share',
-        label: shareStatusToIconStatus(shareStatus) === 'done' ? 'Shared' : 'Share',
-        icon: Share2,
-        onAction: handleShare,
-        closesOnAction: false,
-      },
-    ]
-  } else if (stagedImage) {
+  if (stagedImage) {
     popoverPreview = (
       <div className="flex items-center justify-center p-4">
         <img
