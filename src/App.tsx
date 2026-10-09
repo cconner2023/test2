@@ -26,7 +26,6 @@ import { useTC3Store, hydrateTC3Store } from './stores/useTC3Store'
 import { hydrateMedevacStore } from './stores/useMedevacStore'
 
 import { useNoteImport } from './Hooks/useNoteImport'
-import type { ImportPreview } from './Hooks/useNoteImport'
 import type { MedevacRequest } from './Types/MedevacTypes'
 import { useBarcodeImport } from './Hooks/useBarcodeImport'
 import { ImportResultPopover } from './Components/ImportResultPopover'
@@ -187,7 +186,9 @@ function AppContent() {
   })
   const [updateVisible, setUpdateVisible] = useState(false)
   const [postUpdatePending, setPostUpdatePending] = useState(!!_postUpdateNav)
-  const [importPreview, setImportPreview] = useState<ImportPreview | null>(null)
+  // Store-held so a chat "Decode note" can open the same drawer from deep inside Messages.
+  const importPreview = useNavigationStore(s => s.importPreview)
+  const setImportPreview = useNavigationStore(s => s.setImportPreview)
   const { importFromBarcode } = useNoteImport()
 
   const handleImportDecoded = useCallback(({ payload, encodedText }: { payload: string; encodedText: string }) => {
@@ -777,14 +778,6 @@ case 'mapOverlay':
           onClose={() => { setImportPreview(null); barcodeImport.reset(); }}
         />
 
-        {/* ── Decoded import — same Full Note layout/actions as WriteNotePage ── */}
-        <ImportedNoteDrawer
-          preview={importPreview}
-          onClose={() => { setImportPreview(null); barcodeImport.reset(); }}
-          onOpenMedevac={handleOpenMedevac}
-          isMobile={navigation.isMobile}
-        />
-
         {/* ── Drawers — outside the transform wrapper so position:fixed works correctly ── */}
         <ErrorBoundary>
         <Settings
@@ -900,6 +893,14 @@ case 'mapOverlay':
           />
           </ErrorBoundary>
         )}
+        {/* ── Decoded import (barcode or chat "Decode note") — same Full Note layout/actions as
+            WriteNotePage. Mounted after the other drawers so it stacks above Messages/Settings. ── */}
+        <ImportedNoteDrawer
+          preview={importPreview}
+          onClose={() => { setImportPreview(null); barcodeImport.reset(); }}
+          onOpenMedevac={handleOpenMedevac}
+          isMobile={navigation.isMobile}
+        />
         <UpdateNotification onVisibilityChange={setUpdateVisible} />
         <PasswordResetOverlay />
       </div>

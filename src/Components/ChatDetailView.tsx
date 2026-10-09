@@ -21,7 +21,7 @@ import { useSharedObjectActions } from '../Hooks/useSharedObjectActions'
 import { detectFirstDate } from '../Utilities/dateDetect'
 import { detectEncodedNote } from '../Utilities/noteDecode'
 import { calendarArgsForMessage } from '../Utilities/messageCalendar'
-import { DecodedNotePreview } from './DecodedNotePreview'
+import { useDecodeSharedNote } from '../Hooks/useDecodeSharedNote'
 import { useSwipeBack } from '../Hooks/useSwipeBack'
 import { useVoiceRecorder } from '../Hooks/useVoiceRecorder'
 import type { VoiceRecordingResult } from '../Hooks/useVoiceRecorder'
@@ -250,7 +250,7 @@ export function ChatDetailView({
   const isDevRole = useAuthStore(s => s.isDevRole)
   // Open / Add actions for shared-object messages — folded into the lifted menu.
   const sharedActions = useSharedObjectActions()
-  const [decodeMenu, setDecodeMenu] = useState<{ token: string; rect: DOMRect | null } | null>(null)
+  const decodeSharedNote = useDecodeSharedNote()
 
   const handleMenuAddToCalendar = useCallback(() => {
     if (!contextMsg) return
@@ -271,9 +271,9 @@ export function ChatDetailView({
     if (!contextMsg) return
     const hit = detectEncodedNote(contextMsg.plaintext ?? '')
     if (!hit) return
-    setDecodeMenu({ token: hit.token, rect: contextMenu?.rect ?? null })
     closeContextMenu()
-  }, [contextMsg, contextMenu, closeContextMenu])
+    decodeSharedNote(hit.token)
+  }, [contextMsg, closeContextMenu, decodeSharedNote])
 
   const {
     isRecording, duration: recDuration, amplitude,
@@ -864,16 +864,6 @@ export function ChatDetailView({
           {renderMessageList(threadMessages, 'No messages', true, undefined, true)}
           {renderInputArea()}
         </div>
-      )}
-
-      {/* Decode overlay for the lifted-menu "Decode note" action. */}
-      {decodeMenu && (
-        <DecodedNotePreview
-          token={decodeMenu.token}
-          isOpen={!!decodeMenu}
-          anchorRect={decodeMenu.rect}
-          onClose={() => setDecodeMenu(null)}
-        />
       )}
 
       <ConfirmDialog

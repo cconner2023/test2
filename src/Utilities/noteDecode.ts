@@ -2,7 +2,7 @@
 // Detect a shared Beacon encoded note embedded in chat text. Mirrors
 // dateDetect.ts: a cheap, sync scan over already-decrypted LOCAL plaintext that
 // drives a "decode" affordance. The actual decode (decrypt + parse) happens on
-// tap in DecodedNotePreview — this only recognises the token and extracts it.
+// tap in useDecodeSharedNote — this only recognises the token and extracts it.
 //
 // Recognised prefixes (the "enc:" family of share payloads):
 //   enc:<base64>   — AES-GCM encrypted barcode (clinical note / TC3 / etc.)

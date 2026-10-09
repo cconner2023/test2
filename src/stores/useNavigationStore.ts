@@ -10,6 +10,7 @@ import type { MedevacRequest } from '../Types/MedevacTypes'
 import type { AlgorithmOptions, dispositionType } from '../Types/AlgorithmTypes'
 import type { EventCategory } from '../Types/CalendarTypes'
 import type { CardState } from '../Hooks/useAlgorithm'
+import type { ImportPreview } from '../Hooks/useNoteImport'
 
 type ViewState = 'main' | 'subcategory' | 'questions'
 
@@ -120,6 +121,8 @@ interface NavigationState {
     showSettings: boolean
     isSearchExpanded: boolean
     isImportExpanded: boolean
+    /** Decoded note shown in the app-level ImportedNoteDrawer (barcode import or chat decode). */
+    importPreview: ImportPreview | null
     showSymptomInfo: boolean
     showKnowledgeBase: boolean
     kbInitialView: string | null
@@ -180,6 +183,7 @@ interface NavigationActions {
     setSearchExpanded: (expanded: boolean) => void
     toggleImportExpanded: () => void
     setImportExpanded: (expanded: boolean) => void
+    setImportPreview: (preview: ImportPreview | null) => void
     expandSearchOnMobile: () => void
     toggleSymptomInfo: () => void
     setShowSymptomInfo: (show: boolean) => void
@@ -238,6 +242,7 @@ export const useNavigationStore = create<NavigationStore>()((set, get) => ({
     showSettings: false,
     isSearchExpanded: false,
     isImportExpanded: false,
+    importPreview: null,
     showSymptomInfo: false,
     showKnowledgeBase: false,
     kbInitialView: null,
@@ -421,6 +426,7 @@ export const useNavigationStore = create<NavigationStore>()((set, get) => ({
     setSearchExpanded: (expanded) => set({ isSearchExpanded: expanded }),
     toggleImportExpanded: () => set((s) => ({ isImportExpanded: !s.isImportExpanded, isSearchExpanded: false })),
     setImportExpanded: (expanded) => set({ isImportExpanded: expanded }),
+    setImportPreview: (preview) => set({ importPreview: preview }),
 
     expandSearchOnMobile: () => {
         const s = get()

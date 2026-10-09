@@ -14,9 +14,14 @@
  *
  * AdminDrawer owns the surrounding chrome (mobile header via BaseDrawer,
  * desktop header via the right-pane), so mobileHeader/desktopHeader are null.
+ * Thread-level actions (Delete thread) publish up via onHeaderActions.
  */
 
-import { useCallback, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { Trash2 } from 'lucide-react'
+import { HeaderPill } from '@/Components/primitives/HeaderPill'
+import { OverlayHeaderMenu } from '@/Components/primitives/OverlayHeaderMenu'
+import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
 import { ChatDetailView, type ParticipantStatus } from '../ChatDetailView'
 import { UserAvatar } from '../Settings/UserAvatar'
 import { useMessagesContext } from '../../Hooks/MessagesContext'
@@ -28,6 +33,10 @@ import type { DecryptedSignalMessage } from '../../lib/signal/transportTypes'
 export interface AdminSystemConversationViewProps {
   peerId: string
   onBack?: () => void
+  /** Publishes the thread's header actions (Delete thread) to the host pane. */
+  onHeaderActions?: (node: ReactNode | null) => void
+  /** Fired after the thread is deleted — the host closes the detail. */
+  onDeleted?: () => void
 }
 
 // Stable empty-array reference: returning a fresh `?? []` from a Zustand
@@ -35,7 +44,7 @@ export interface AdminSystemConversationViewProps {
 // "Maximum update depth exceeded" when the conversation is empty.
 const EMPTY_MESSAGES: DecryptedSignalMessage[] = []
 
-export function AdminSystemConversationView({ peerId, onBack }: AdminSystemConversationViewProps) {
+export function AdminSystemConversationView({ peerId, onBack, onHeaderActions, onDeleted }: AdminSystemConversationViewProps) {
   const ctx = useMessagesContext()
   const rawMessages = useMessagingStore(s => s.conversations[peerId] ?? EMPTY_MESSAGES)
   const sending = useMessagingStore(s => s.sendingMap[peerId] ?? false)
@@ -100,7 +109,31 @@ export function AdminSystemConversationView({ peerId, onBack }: AdminSystemConve
     )
   }, [peerProfile])
 
+  // Delete every system message in the thread (both sides, via deleteMessages'
+  // wire-framed fanout). Personal messages keyed under the same peer stay.
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const handleDelete = useCallback(async () => {
+    if (!ctx) return
+    setDeleting(true)
+    const ids = filteredMessages.map(m => m.id)
+    if (ids.length > 0) await ctx.deleteMessages(peerId, ids)
+    setDeleting(false)
+    setConfirmDelete(false)
+    onDeleted?.()
+  }, [ctx, filteredMessages, peerId, onDeleted])
+
+  useEffect(() => {
+    onHeaderActions?.(ctx ? (
+      <HeaderPill>
+        <OverlayHeaderMenu items={[{ key: 'delete', label: 'Delete thread', icon: Trash2, destructive: true, onAction: () => setConfirmDelete(true) }]} />
+      </HeaderPill>
+    ) : null)
+    return () => onHeaderActions?.(null)
+  }, [ctx, onHeaderActions])
+
   return (
+    <>
     <ChatDetailView
       conversationId={peerId}
       conversations={conversations}
@@ -124,5 +157,16 @@ export function AdminSystemConversationView({ peerId, onBack }: AdminSystemConve
       mobileHeader={null}
       desktopHeader={null}
     />
+    <ConfirmDialog
+      visible={confirmDelete}
+      title="Delete this system thread?"
+      subtitle="Removes the thread from both sides. Permanent."
+      confirmLabel="Delete"
+      variant="danger"
+      processing={deleting}
+      onConfirm={handleDelete}
+      onCancel={() => setConfirmDelete(false)}
+    />
+    </>
   )
 }

@@ -1,14 +1,14 @@
 /**
  * AdminUserDetail -- detailed view for a single user in the admin panel.
  *
- * Displays profile header, metadata grid, certifications, and admin
- * actions (email, reset password, force logout) as an ActionPill in
- * the user-card corner. Edit is inline via the Settings-pattern
- * toolbar (editing/saveRequested props). Delete lives in the header.
+ * Profile card (tap → edit overlay), clusters, certifications, timeline. The
+ * corner action menu comes from useUserActions, shared with the Directory tree.
+ * Owns its own edit + delete state; the drawer only hears about dirtiness,
+ * header actions (create-mode Save) and completion.
  */
 
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
-import { KeyRound, LogOut, Building2, ChevronRight, Mail, Check, RefreshCw, Trash2, Home, Plus, ArrowRightLeft, MessageSquare } from 'lucide-react'
+import { useState, useEffect, useCallback, useMemo, useRef, type ReactNode } from 'react'
+import { Building2, ChevronRight, Check, RefreshCw, Trash2, Home, Plus, ArrowRightLeft } from 'lucide-react'
 import type { Certification } from '../../Data/User'
 import { credentials, components, ranksByComponent } from '../../Data/User'
 import type { Component } from '../../Data/User'
@@ -21,6 +21,7 @@ import { FooterPill } from '@/Components/primitives/FooterPill'
 import { UicPinInput } from '@/Components/DomainInputs'
 import { ErrorDisplay } from '@/Components/primitives/ErrorDisplay'
 import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
+import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill'
 import { Z } from '@/Components/primitives/BaseOverlay'
 import { ActionPill } from '@/Components/primitives/ActionPill'
 import { ActionButton } from '@/Components/primitives/ActionButton'
@@ -31,11 +32,10 @@ import { OverlayActionMenu } from '@/Components/primitives/OverlayActionMenu'
 import { formatLastActive, RoleBadge, SupervisorCreatedBadge } from './adminUtils'
 import { HudLoader } from '@/Components/primitives/HudLoader'
 import type { StepResult } from './StepResults'
-import { useResetPasswordFlow } from '../../Hooks/useResetPasswordFlow'
+import { useUserActions } from './useUserActions'
 import { useEntityForm } from '../../Hooks/useEntityForm'
 import { rankForComponent } from '../../Utilities/rank'
 import { ASSIGNABLE_ROLES, roleOptions, type AssignableRole } from '../../Utilities/roles'
-import { useMessagesContext } from '../../Hooks/MessagesContext'
 import { drainSystemInbox } from '../../lib/signal/systemIdentity'
 import { createLogger } from '../../Utilities/Logger'
 
@@ -43,7 +43,7 @@ const systemInboxLogger = createLogger('AdminUserSystemInbox')
 import {
   listAllUsers,
   listClinics,
-  forceLogoutUser,
+  deleteUser,
   updateUserProfile,
   setUserRoles,
   setUserClinic,
@@ -58,9 +58,7 @@ import { ClinicPickerInput } from './AdminPickers'
 import { fetchAllCertifications } from '../../lib/certificationService'
 import { fetchClinicSubClusters, adminSetMemberSubCluster } from '../../lib/subClusterService'
 import { supabase } from '../../lib/supabase'
-import { buildMailtoHref } from '../../lib/mailto'
 import { useAuthStore } from '../../stores/useAuthStore'
-import { UI_TIMING } from '../../Utilities/constants'
 import { invalidate } from '../../stores/useInvalidationStore'
 
 // ─── Types ────────────────────────────────────────────────────────────
@@ -73,16 +71,13 @@ interface AdminUserDetailProps {
    * replaces it with the canonical record on the next refresh. */
   onCreated?: (user: AdminUser) => void
   onSelectClinic?: (clinic: AdminClinic) => void
-  // Edit toolbar props (Settings pattern) — for edit on existing users,
-  // the editing flag is now internal (tap-to-overlay). These remain for
-  // the create flow until Phase 3 of the overlay conversion.
-  editing: boolean
-  onEditingChange: (editing: boolean) => void
-  saveRequested: boolean
-  onSaveComplete: () => void
-  onPendingChangesChange?: (hasPending: boolean) => void
-  /** Called when the user requests deletion from the edit overlay footer. */
-  onRequestDelete?: () => void
+  /** Open the edit overlay on mount (the tree's Edit action). Create mode always edits. */
+  startEditing?: boolean
+  onDirtyChange?: (dirty: boolean) => void
+  /** Publishes header pills to the host pane (create-mode Save). */
+  onHeaderActions?: (node: ReactNode | null) => void
+  /** Fired after a confirmed delete — the host closes the detail. */
+  onDeleted?: () => void
   /** Create-mode prefill — when launched from a cluster's "Create user"
    *  action, seeds editClinicId so the new user lands assigned to that
    *  cluster on save (setUserClinic runs after createUser in handleSave). */
@@ -133,12 +128,10 @@ export function AdminUserDetail({
   onUserUpdated,
   onCreated,
   onSelectClinic,
-  editing,
-  onEditingChange,
-  saveRequested,
-  onSaveComplete,
-  onPendingChangesChange,
-  onRequestDelete,
+  startEditing = false,
+  onDirtyChange,
+  onHeaderActions,
+  onDeleted,
   prefillClinicId,
   onOpenConversation,
 }: AdminUserDetailProps) {
@@ -162,27 +155,21 @@ export function AdminUserDetail({
   const [viewLoanClinicIds, setViewLoanClinicIds] = useState<string[]>([])
 
   // ── UI state ────────────────────────────────────────────────────────
-  const [notify, setNotify] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
+  const isCreateMode = user === null
+  const [editing, setEditing] = useState(isCreateMode || startEditing)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
-  // Reset password popover (anchored to KeyRound action button via pill ref)
+  // Corner action menu — shared with the Directory tree. The reset-password
+  // popover anchors to the pill.
   const pillRef = useRef<HTMLDivElement>(null)
+  const { buildItems, overlays: userActionOverlays } = useUserActions({ currentUserId, onOpenConversation })
   // Clusters "+ Add loan" FAB anchor
   const addLoanFabRef = useRef<HTMLDivElement>(null)
-  const [resetPwAnchor, setResetPwAnchor] = useState<DOMRect | null>(null)
-  const resetPw = useResetPasswordFlow()
-
-  // System-message compose popover (dev-only). Reuses the same pillRef anchor
-  // as the reset-password popover so it lands next to the other actions.
-  const [vaultMissingOpen, setVaultMissingOpen] = useState(false)
-  const messagesCtx = useMessagesContext()
 
   // Edit overlay — tap user card → PreviewOverlay anchored to card rect.
   const cardWrapperRef = useRef<HTMLDivElement>(null)
   const [editAnchor, setEditAnchor] = useState<DOMRect | null>(null)
-
-  // Force logout
-  const [forceLogoutProcessing, setForceLogoutProcessing] = useState(false)
-  const [confirmForceLogout, setConfirmForceLogout] = useState(false)
 
   // Clusters section — tap-to-overlay edit surface for home/loan. Replaces
   // the cluster pickers that used to live in the edit overlay.
@@ -234,7 +221,6 @@ export function AdminUserDetail({
   // steps are skipped — admin sees what stuck and only the failures re-run.
   const [stepResults, setStepResults] = useState<StepResult[]>([])
 
-  const isCreateMode = user === null
   const [createEmail, setCreateEmail] = useState('')
   const [createPassword, setCreatePassword] = useState('')
 
@@ -301,11 +287,9 @@ export function AdminUserDetail({
     if (editing && !isFieldDirty('section')) setField('section', currentSection)
   }, [currentSection, editing, isFieldDirty, setField])
 
-  // ── Edit overlay ↔ editing prop sync ─────────────────────────────────
-  // External editing=true (e.g. legacy header pencil path, still wired for
-  // create flow until Phase 3) opens the overlay; editing=false closes it.
-  // Skip auto-opening in create mode — that flow renders inline in the card
-  // for now and will be converted to an overlay in Phase 3.
+  // ── Edit overlay ↔ editing sync ──────────────────────────────────────
+  // editing=true opens the overlay (startEditing lands here on mount);
+  // create mode renders its form inline in the card instead.
   useEffect(() => {
     if (editing && !isCreateMode) {
       if (!editAnchor) {
@@ -322,15 +306,15 @@ export function AdminUserDetail({
     const rect = cardWrapperRef.current?.getBoundingClientRect() ?? null
     if (!rect) return
     setEditAnchor(rect)
-    onEditingChange(true)
-  }, [isCreateMode, onEditingChange])
+    setEditing(true)
+  }, [isCreateMode])
 
   const closeEditOverlay = useCallback(() => {
     setEditAnchor(null)
     setStepResults([])
     setError(null)
-    onEditingChange(false)
-  }, [onEditingChange])
+    setEditing(false)
+  }, [])
 
   // ── Edit mode initialization (only on false→true transition) ─────────
   const prevEditingRef = useRef(false)
@@ -369,8 +353,8 @@ export function AdminUserDetail({
 
   // ── Pending changes detection ────────────────────────────────────────
   useEffect(() => {
-    onPendingChangesChange?.(editing && form.dirty)
-  }, [editing, form.dirty, onPendingChangesChange])
+    onDirtyChange?.(editing && form.dirty)
+  }, [editing, form.dirty, onDirtyChange])
 
   // ── Handlers ────────────────────────────────────────────────────────
 
@@ -603,7 +587,7 @@ export function AdminUserDetail({
       await new Promise(resolve => setTimeout(resolve, 600))
       setStepResults([])
       setSaving(false)
-      onEditingChange(false)
+      setEditing(false)
       loadData()
       return
     }
@@ -613,49 +597,33 @@ export function AdminUserDetail({
     // naming what didn't stick (no step checklist). Re-tapping Save retries only
     // the failures (alreadyOk() skips the successes).
     setError(`Couldn't finish: ${next.filter(s => !s.ok).map(s => s.label).join(', ')}. Tap Save to retry.`)
-  }, [user, editEmail, editFirstName, editLastName, editMiddleInitial, editCredential, editComponent, editRank, editUic, editClinicId, editLoanClinicIds, originalLoanClinicIds, editRoles, editSection, currentSection, onEditingChange, loadData, isCreateMode, createEmail, createPassword, onCreated, stepResults, commitForm])
+  }, [user, editEmail, editFirstName, editLastName, editMiddleInitial, editCredential, editComponent, editRank, editUic, editClinicId, editLoanClinicIds, originalLoanClinicIds, editRoles, editSection, currentSection, loadData, isCreateMode, createEmail, createPassword, onCreated, stepResults, commitForm])
 
-  // ── Save requested trigger ───────────────────────────────────────────
+  // ── Header actions — create mode publishes its Save pill. Through a ref so
+  //    typing in the form doesn't churn the published node. ─────────────
+  const handleSaveRef = useRef(handleSave)
+  handleSaveRef.current = handleSave
   useEffect(() => {
-    if (saveRequested) {
-      handleSave()
-      onSaveComplete()
-    }
-  }, [saveRequested, handleSave, onSaveComplete])
+    onHeaderActions?.(isCreateMode ? (
+      <HeaderPill>
+        <PillButton icon={Check} iconSize={18} accent="success" label="Save" onClick={() => handleSaveRef.current()} />
+      </HeaderPill>
+    ) : null)
+    return () => onHeaderActions?.(null)
+  }, [isCreateMode, onHeaderActions])
 
   const userName = [user?.first_name, user?.last_name].filter(Boolean).join(' ') || user?.email || 'user'
+  const canDelete = !!user && !!onDeleted && currentUserId !== user.id
 
-  const handleResetPasswordConfirm = async () => {
-    const result = await resetPw.submit()
-    if (result.success) {
-      setResetPwAnchor(null)
-      setNotify({ type: 'success', message: `Password reset for ${userName}.` })
-    } else {
-      setNotify({ type: 'error', message: result.error || `Failed to reset password for ${userName}` })
-    }
-  }
-
-  const handleForceLogout = async () => {
+  const handleDelete = async () => {
     if (!user) return
-    setConfirmForceLogout(false)
-    setForceLogoutProcessing(true)
-    const result = await forceLogoutUser(user.id)
-    setForceLogoutProcessing(false)
-
-    if (result.success) {
-      setNotify({
-        type: 'success',
-        message: `Force logout ${userName}: ${result.sessionsDeleted} session(s), ${result.devicesDeleted} device(s), ${result.bundlesDeleted} key bundle(s) cleared`,
-      })
-    } else {
-      setNotify({ type: 'error', message: result.error || `Failed to force logout ${userName}` })
-    }
-  }
-
-  const openResetPassword = () => {
-    const rect = pillRef.current?.getBoundingClientRect() ?? null
-    resetPw.reset()
-    setResetPwAnchor(rect)
+    setDeleting(true)
+    const r = await deleteUser(user.id)
+    setDeleting(false)
+    setConfirmDelete(false)
+    if (!r.success) { setError(r.error || `Failed to delete ${userName}`); return }
+    invalidate('users', 'clinics', 'requests')
+    onDeleted?.()
   }
 
   // ── Cluster mutations ──────────────────────────────────────────────────
@@ -683,7 +651,7 @@ export function AdminUserDetail({
     setClusterBusy(false)
     setClusterAction(null)
     if (r.success) refreshClusters()
-    else setNotify({ type: 'error', message: r.error || 'Failed to set home cluster' })
+    else setError(r.error || 'Failed to set home cluster')
   }, [user, viewLoanClinicIds, refreshClusters])
 
   const handleEndLoan = useCallback(async (clinicId: string) => {
@@ -694,7 +662,7 @@ export function AdminUserDetail({
     setClusterBusy(false)
     setClusterAction(null)
     if (r.success) refreshClusters()
-    else setNotify({ type: 'error', message: r.error || 'Failed to end loan' })
+    else setError(r.error || 'Failed to end loan')
   }, [user, viewLoanClinicIds, refreshClusters])
 
   // Promote a loan to home — pure swap, same as handlePickHome: the loan being
@@ -712,7 +680,7 @@ export function AdminUserDetail({
     setClusterBusy(false)
     setClusterAction(null)
     if (r.success) refreshClusters()
-    else setNotify({ type: 'error', message: r.error || 'Failed to promote loan to home' })
+    else setError(r.error || 'Failed to promote loan to home')
   }, [user, viewLoanClinicIds, refreshClusters])
 
   const handleAddLoan = useCallback(async (clinicId: string) => {
@@ -723,13 +691,8 @@ export function AdminUserDetail({
     setClusterBusy(false)
     setClusterAction(null)
     if (r.success) refreshClusters()
-    else setNotify({ type: 'error', message: r.error || 'Failed to add loan' })
+    else setError(r.error || 'Failed to add loan')
   }, [user, viewLoanClinicIds, refreshClusters])
-
-  const closeResetPassword = () => {
-    setResetPwAnchor(null)
-    resetPw.reset()
-  }
 
   // ── Full name helper ────────────────────────────────────────────────
   // ── Render ──────────────────────────────────────────────────────────
@@ -813,96 +776,20 @@ export function AdminUserDetail({
           ) : null}
         </div>
 
-        {/* Corner action pill — non-self only. Edit no longer toggles this off,
-            since edit happens in the overlay above. Stop propagation so card-tap
-            doesn't fire when the user clicks an action button. */}
-        {!isCreateMode && user && currentUserId !== user.id && (
+        {/* Corner action menu — shared with the tree (useUserActions); empty
+            for self. Stop propagation so card-tap doesn't fire. */}
+        {user && (
           <div onClick={(e) => e.stopPropagation()}>
             <OverlayActionMenu
               ref={pillRef}
-              items={[
-                ...(user.email ? [{
-                  key: 'email',
-                  label: 'Email user',
-                  icon: Mail,
-                  href: buildMailtoHref({ to: user.email!, subject: '[inquiry] -  Medical Operations Web Application', body: `${[user.rank, user.last_name].filter(Boolean).join(' ')},\n\n` }),
-                }] as ContextMenuItem[] : []),
-                ...(isDevRole && messagesCtx && onOpenConversation ? [{
-                  key: 'send-msg',
-                  label: 'Message user',
-                  icon: MessageSquare,
-                  onAction: () => {
-                    if (!user?.last_active_at) {
-                      setVaultMissingOpen(true)
-                      return
-                    }
-                    if (user?.id) onOpenConversation(user.id)
-                  },
-                }] as ContextMenuItem[] : []),
-                { key: 'reset-pw', label: 'Reset password', icon: KeyRound, onAction: openResetPassword },
-                {
-                  key: 'force-logout',
-                  label: forceLogoutProcessing ? 'Logging out' : 'Force logout',
-                  icon: LogOut,
-                  variant: forceLogoutProcessing ? 'disabled' : 'default',
-                  onAction: () => setConfirmForceLogout(true),
-                },
-                // Delete — parity with the Directory tree's user menu, which
-                // carries Delete as its lifecycle action. Header/edit-overlay
-                // Delete still exist; this just mirrors the tree.
-                ...(onRequestDelete ? [{
-                  key: 'delete',
-                  label: 'Delete',
-                  icon: Trash2,
-                  destructive: true,
-                  onAction: onRequestDelete,
-                }] as ContextMenuItem[] : []),
-              ]}
+              items={buildItems(user, {
+                resetAnchor: () => pillRef.current?.getBoundingClientRect() ?? null,
+                onDelete: canDelete ? () => setConfirmDelete(true) : undefined,
+              })}
             />
           </div>
         )}
       </div>
-
-      <ConfirmDialog
-        visible={vaultMissingOpen}
-        notifyOnly
-        variant="warning"
-        title="No vault yet"
-        subtitle={`${userName} hasn't signed in yet, so no message vault exists. They need to sign in once before they can receive system messages.`}
-        onCancel={() => setVaultMissingOpen(false)}
-      />
-
-      {/* Reset password popover — anchored to corner ActionPill, confirmation via ConfirmDialog */}
-      <PreviewOverlay
-        isOpen={!!resetPwAnchor}
-        onClose={closeResetPassword}
-        anchorRect={resetPwAnchor}
-        title="Reset password"
-        maxWidth={340}
-        rightFooter={
-          resetPwAnchor && user ? (
-            <FooterPill side="right">
-              <ActionButton
-                icon={resetPw.processing ? RefreshCw : Check}
-                label={resetPw.processing ? 'Submitting…' : 'Reset password'}
-                variant={resetPw.processing || resetPw.value.length < 12 ? 'disabled' : 'confirm'}
-                onClick={() => user && resetPw.requestConfirm(user.id)}
-              />
-            </FooterPill>
-          ) : undefined
-        }
-      >
-        {resetPwAnchor && user && (
-          <div>
-            <PasswordInput
-              value={resetPw.value}
-              onChange={resetPw.setValue}
-              placeholder="New password (min 12 chars)"
-              hint={resetPw.value.length > 0 && resetPw.value.length < 12 ? 'Minimum 12 characters.' : undefined}
-            />
-          </div>
-        )}
-      </PreviewOverlay>
 
       {/* Edit overlay — tap user card → form fields here. Footer owns Save+Delete.
           During an in-flight save (or while any step is still pending) the form +
@@ -920,13 +807,13 @@ export function AdminUserDetail({
         maxWidth={400}
         previewMaxHeight="70dvh"
         footer={
-          editAnchor && user && !overlayPending && onRequestDelete && currentUserId !== user.id ? (
+          editAnchor && !overlayPending && canDelete ? (
             <FooterPill>
               <ActionButton
                 icon={Trash2}
                 label="Delete user"
                 variant="danger"
-                onClick={onRequestDelete}
+                onClick={() => setConfirmDelete(true)}
               />
             </FooterPill>
           ) : undefined
@@ -1290,36 +1177,18 @@ export function AdminUserDetail({
         </div>
       )}
 
+      {userActionOverlays}
+
       <ConfirmDialog
-        visible={!!resetPw.confirmingUserId}
-        title={`Reset password for ${userName}?`}
-        subtitle="The new password takes effect immediately. The user is not notified."
-        confirmLabel="Reset"
+        visible={confirmDelete}
+        title={`Delete ${userName}?`}
+        subtitle="Permanent. All data removed — notes, training, sync queue."
+        confirmLabel="Delete"
         variant="danger"
-        processing={resetPw.processing}
-        onConfirm={handleResetPasswordConfirm}
-        onCancel={resetPw.cancelConfirm}
+        processing={deleting}
+        onConfirm={handleDelete}
+        onCancel={() => setConfirmDelete(false)}
         zIndex={Z.POPOVER + 30}
-      />
-
-      <ConfirmDialog
-        visible={confirmForceLogout}
-        title={`Force logout ${userName}?`}
-        subtitle="Clears all sessions, device registrations, and Signal key bundles. The user must re-authenticate and re-register on every device."
-        confirmLabel="Force Logout"
-        variant="warning"
-        processing={forceLogoutProcessing}
-        onConfirm={handleForceLogout}
-        onCancel={() => setConfirmForceLogout(false)}
-      />
-
-      <ConfirmDialog
-        visible={!!notify}
-        title={notify?.message ?? ''}
-        variant={notify?.type === 'success' ? 'success' : 'danger'}
-        notifyOnly
-        autoDismissMs={UI_TIMING.FEEDBACK_DURATION}
-        onCancel={() => setNotify(null)}
       />
     </div>
   )

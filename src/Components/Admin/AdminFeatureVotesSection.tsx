@@ -5,7 +5,7 @@
  * 1–3 option titles in a single popover at creation time.
  *
  * User-submitted suggestions are NOT managed here. They show up in the admin
- * inbox rail's Feedback section alongside other feedback items.
+ * Inbox section's Feedback group alongside other feedback items.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'

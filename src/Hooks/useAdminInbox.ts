@@ -20,6 +20,8 @@ export interface AdminInbox {
   /** UIC (upper-cased) → the cluster claiming it, for the request rows' cluster
    *  match. */
   uicToClinic: Map<string, AdminClinic>
+  /** False until the first load lands — lets the list hold its empty state. */
+  loaded: boolean
 }
 
 const matchesQuery = (item: FeedItem, q: string): boolean => {
@@ -49,21 +51,19 @@ const matchesQuery = (item: FeedItem, q: string): boolean => {
  * The admin inbox's shared read — account requests, feature suggestions, and
  * user feedback merged into one sorted feed.
  *
- * WHY A HOOK AND NOT PER-SECTION STATE: the rail renders these as SEPARATE
- * labelled sections (Requests / Feedback), and each section used to own a copy
- * of this load — so painting the rail once fired the whole four-source fetch
- * twice. The sections are a grouping of one feed, so the feed loads once here
- * and each section filters it by kind.
+ * Loaded once by the drawer shell (which also derives the Inbox tab's attention
+ * dot from it) and handed to AdminInbox, whose sections filter it by kind.
  *
  * Approved requests never appear: they are no longer triage.
  */
-export function useAdminInbox(): AdminInbox {
+export function useAdminInbox(enabled = true): AdminInbox {
   const gen = useInvalidation('requests')
 
   const [requests, setRequests] = useState<AccountRequest[]>([])
   const [suggestions, setSuggestions] = useState<FeatureVoteSuggestion[]>([])
   const [feedback, setFeedback] = useState<FeedbackRow[]>([])
   const [clinics, setClinics] = useState<AdminClinic[]>([])
+  const [loaded, setLoaded] = useState(false)
 
   const load = useCallback(async () => {
     const [reqData, clinicData, sugResult, fbData] = await Promise.all([
@@ -76,9 +76,10 @@ export function useAdminInbox(): AdminInbox {
     setClinics(clinicData)
     setSuggestions(sugResult.ok ? sugResult.data : [])
     setFeedback(fbData)
+    setLoaded(true)
   }, [])
 
-  useEffect(() => { load() }, [load, gen])
+  useEffect(() => { if (enabled) load() }, [load, gen, enabled])
 
   const uicToClinic = useMemo(() => {
     const map = new Map<string, AdminClinic>()
@@ -106,7 +107,7 @@ export function useAdminInbox(): AdminInbox {
     })
   }, [requests, suggestions, feedback])
 
-  return { items, uicToClinic }
+  return { items, uicToClinic, loaded }
 }
 
 /** Narrow a loaded feed to one section: the kinds it shows, matching the query. */

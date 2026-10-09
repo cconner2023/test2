@@ -1,24 +1,27 @@
 /**
  * AdminClinicDetail.tsx
  *
- * Displays the full detail view for a single clinic using the settings card
- * system: metadata rows for clinic info, then settings-style user rows for
- * assigned and additional users. Edit and delete are handled by AdminDrawer header.
+ * Detail view for a single cluster: identity card (tap → edit overlay), roster,
+ * related clusters. Owns its own edit + delete state; the drawer only hears
+ * about dirtiness, header actions (create-mode Save) and completion.
  */
 
-import { useEffect, useCallback, useMemo, useState, useRef } from 'react'
+import { useEffect, useCallback, useMemo, useState, useRef, type ReactNode } from 'react'
 import { useEntityForm } from '../../Hooks/useEntityForm'
 import { X, Plus, RefreshCw, Check, Trash2, ChevronRight, Building2, Key, MessageSquare, ArrowUp, ArrowDown, Link2, UserPlus } from 'lucide-react'
 import { UserRow } from '../UserRow'
 import { formatLastActive } from './adminUtils'
 import { ActionButton } from '@/Components/primitives/ActionButton'
 import { FooterPill } from '@/Components/primitives/FooterPill'
-import { listClinics, listAllUsers, listLocations, updateClinic, createClinic, rescueClinicAssociationsByLocation, listClinicLoans, clinicHasVault, rescueClinicVault, setUserClinic, getAllAccountRequests } from '../../lib/adminService'
+import { listClinics, listAllUsers, listLocations, updateClinic, createClinic, deleteClinic, rescueClinicAssociationsByLocation, listClinicLoans, clinicHasVault, rescueClinicVault, setUserClinic, getAllAccountRequests } from '../../lib/adminService'
 import type { AdminUser, AdminClinic, AdminLocation } from '../../lib/adminService'
 import type { AccountRequest } from '../../lib/accountRequestService'
 import { TextInput } from '@/Components/primitives/FormInputs'
 import { UicPinInput } from '@/Components/DomainInputs'
 import { ErrorDisplay } from '@/Components/primitives/ErrorDisplay'
+import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
+import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill'
+import { Z } from '@/Components/primitives/BaseOverlay'
 import { LocationPickerInput } from './AdminPickers'
 import { invalidate, useInvalidation } from '../../stores/useInvalidationStore'
 import { PreviewOverlay } from '../PreviewOverlay'
@@ -80,14 +83,14 @@ interface AdminClinicDetailProps {
   onClinicUpdated: (clinic: AdminClinic) => void
   onSelectUser?: (user: AdminUser) => void
   onSelectClinic?: (clinic: AdminClinic) => void
-  editing: boolean
-  onEditingChange: (editing: boolean) => void
-  saveRequested: boolean
-  onSaveComplete: () => void
-  onPendingChangesChange?: (hasPending: boolean) => void
+  /** Open the edit overlay on mount (the tree's Edit action). Create mode always edits. */
+  startEditing?: boolean
+  onDirtyChange?: (dirty: boolean) => void
+  /** Publishes header pills to the host pane (create-mode Save). */
+  onHeaderActions?: (node: ReactNode | null) => void
   onCreated?: (clinicId: string) => void
-  /** Called when the user requests deletion from the edit overlay footer. */
-  onRequestDelete?: () => void
+  /** Fired after a confirmed delete — the host closes the detail. */
+  onDeleted?: () => void
   /** Create-mode prefill — when the create flow was launched from another
    *  cluster's relationship picker, seeds the linkage. */
   createPrefill?: ClusterCreatePrefill | null
@@ -107,13 +110,11 @@ const AdminClinicDetail = ({
   onClinicUpdated,
   onSelectUser,
   onSelectClinic,
-  editing,
-  onEditingChange,
-  saveRequested,
-  onSaveComplete,
-  onPendingChangesChange,
+  startEditing = false,
+  onDirtyChange,
+  onHeaderActions,
   onCreated,
-  onRequestDelete,
+  onDeleted,
   createPrefill,
   onCreateRelatedCluster,
   onCreateUserInCluster,
@@ -197,6 +198,9 @@ const AdminClinicDetail = ({
   }, [isDevRole, clinic?.id])
 
   const isCreateMode = clinic === null
+  const [editing, setEditing] = useState(isCreateMode || startEditing)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   // Edit overlay — tap clinic card → PreviewOverlay anchored to card rect.
   const cardWrapperRef = useRef<HTMLDivElement>(null)
@@ -260,10 +264,9 @@ const AdminClinicDetail = ({
     loadData()
   }, [loadData, usersGen, requestsGen])
 
-  // ── Edit overlay ↔ editing prop sync ─────────────────────────────────
-  // External editing=true opens the overlay (for existing records); editing=false
-  // closes it. Create mode keeps the inline form path until the FAB-anchored
-  // overlay lands.
+  // ── Edit overlay ↔ editing sync ──────────────────────────────────────
+  // editing=true opens the overlay (startEditing lands here on mount); create
+  // mode renders its form inline in the card instead.
   useEffect(() => {
     if (editing && !isCreateMode) {
       if (!editAnchor) {
@@ -280,13 +283,13 @@ const AdminClinicDetail = ({
     const rect = cardWrapperRef.current?.getBoundingClientRect() ?? null
     if (!rect) return
     setEditAnchor(rect)
-    onEditingChange(true)
-  }, [isCreateMode, onEditingChange])
+    setEditing(true)
+  }, [isCreateMode])
 
   const closeEditOverlay = useCallback(() => {
     setEditAnchor(null)
-    onEditingChange(false)
-  }, [onEditingChange])
+    setEditing(false)
+  }, [])
 
   /** Populate edit fields only when entering edit mode (not on every clinic ref change). */
   const prevEditingRef = useRef(false)
@@ -314,8 +317,8 @@ const AdminClinicDetail = ({
 
   /** Track pending changes. */
   useEffect(() => {
-    onPendingChangesChange?.(editing && form.dirty)
-  }, [editing, form.dirty, onPendingChangesChange])
+    onDirtyChange?.(editing && form.dirty)
+  }, [editing, form.dirty, onDirtyChange])
 
   const handleSave = useCallback(async () => {
     if (!editName.trim()) {
@@ -349,12 +352,11 @@ const AdminClinicDetail = ({
         if (warnings.length) {
           setError(`Cluster created, but: ${warnings.join('; ')}`)
         }
-        // Rebaseline immediately — onCreated awaits listClinics before flipping
-        // editing=false in the parent, leaving a window where the discard guard
-        // would fire if the user tapped Close to verify. Committing (rather than
-        // reporting false by hand) survives the re-renders in that window.
+        // Rebaseline immediately — onCreated awaits listClinics before the host
+        // swaps in the new cluster, leaving a window where the discard guard
+        // would fire if the user tapped Close to verify.
         commitForm()
-        onEditingChange(false)
+        setEditing(false)
         onCreated?.(result.id)
       } else {
         setSaving(false)
@@ -367,7 +369,7 @@ const AdminClinicDetail = ({
     setSaving(false)
     if (result.success) {
       commitForm()
-      onEditingChange(false)
+      setEditing(false)
       loadData()
       invalidate('clinics', 'users')
       if (result.warnings?.length) {
@@ -376,7 +378,7 @@ const AdminClinicDetail = ({
     } else {
       setError(result.error || 'Failed to update clinic')
     }
-  }, [editName, editLocationId, editUics, editParentClinicId, editAssociatedClinicIds, isCreateMode, clinic, onEditingChange, loadData, onCreated, createPrefill, commitForm])
+  }, [editName, editLocationId, editUics, editParentClinicId, editAssociatedClinicIds, isCreateMode, clinic, loadData, onCreated, createPrefill, commitForm])
 
   const handleProvisionVault = useCallback(async () => {
     if (!clinic?.id) return
@@ -407,12 +409,29 @@ const AdminClinicDetail = ({
     }
   }, [clinic?.location_id, loadData])
 
+  // ── Header actions — create mode publishes its Save pill (via ref so typing
+  //    doesn't churn the published node). ───────────────────────────────
+  const handleSaveRef = useRef(handleSave)
+  handleSaveRef.current = handleSave
   useEffect(() => {
-    if (saveRequested) {
-      handleSave()
-      onSaveComplete()
-    }
-  }, [saveRequested, handleSave, onSaveComplete])
+    onHeaderActions?.(isCreateMode ? (
+      <HeaderPill>
+        <PillButton icon={Check} iconSize={18} accent="success" label="Save" onClick={() => handleSaveRef.current()} />
+      </HeaderPill>
+    ) : null)
+    return () => onHeaderActions?.(null)
+  }, [isCreateMode, onHeaderActions])
+
+  const handleDelete = useCallback(async () => {
+    if (!clinic) return
+    setDeleting(true)
+    const r = await deleteClinic(clinic.id)
+    setDeleting(false)
+    setConfirmDelete(false)
+    if (!r.success) { setError(r.error || `Failed to delete ${clinic.name}`); return }
+    invalidate('clinics', 'users')
+    onDeleted?.()
+  }, [clinic, onDeleted])
 
   // ── Relationship mutations ────────────────────────────────────────────
   const refreshRel = useCallback(async () => {
@@ -746,7 +765,7 @@ const AdminClinicDetail = ({
           overlay), inline form during create mode until the FAB-anchored
           overlay lands. pt-0; the parent ScrollPane already gives padding. */}
       <div ref={cardWrapperRef} className="relative mt-6">
-        {clinic && !isCreateMode && (clinic.location_id || vaultMissing || (isDevRole && messagesCtx)) && (
+        {clinic && !isCreateMode && (
           <div ref={sysMsgPillRef} onClick={(e) => e.stopPropagation()}>
             <OverlayActionMenu
               items={[
@@ -772,6 +791,13 @@ const AdminClinicDetail = ({
                   icon: vaultProvisioning ? RefreshCw : Key,
                   variant: vaultProvisioning ? 'disabled' : 'danger',
                   onAction: handleProvisionVault,
+                }] as ContextMenuItem[] : []),
+                ...(onDeleted ? [{
+                  key: 'delete',
+                  label: 'Delete cluster',
+                  icon: Trash2,
+                  destructive: true,
+                  onAction: () => setConfirmDelete(true),
                 }] as ContextMenuItem[] : []),
               ]}
             />
@@ -842,13 +868,13 @@ const AdminClinicDetail = ({
         maxWidth={400}
         previewMaxHeight="70dvh"
         footer={
-          editAnchor && clinic && onRequestDelete ? (
+          editAnchor && clinic && onDeleted ? (
             <FooterPill>
               <ActionButton
                 icon={Trash2}
                 label="Delete cluster"
                 variant="danger"
-                onClick={() => { setEditAnchor(null); onRequestDelete() }}
+                onClick={() => { closeEditOverlay(); setConfirmDelete(true) }}
               />
             </FooterPill>
           ) : undefined
@@ -1135,6 +1161,18 @@ const AdminClinicDetail = ({
             )}
           </FooterPill>
         }
+      />
+
+      <ConfirmDialog
+        visible={confirmDelete}
+        title={`Delete ${clinicLabel}?`}
+        subtitle="Permanent. All associated data removed."
+        confirmLabel="Delete"
+        variant="danger"
+        processing={deleting}
+        onConfirm={handleDelete}
+        onCancel={() => setConfirmDelete(false)}
+        zIndex={Z.POPOVER + 30}
       />
     </div>
   )

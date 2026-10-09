@@ -16,7 +16,7 @@ import { MetaBadge } from '@/Components/primitives/MetaBadge';
  * Desktop LEFT-PANE variant of the settings menu. Where MainSettingsPanel (mobile)
  * renders full-width rounded cards with icons, this condenses the same `settingsOptions`
  * into a text tree — no icons — fronted by a primitive SearchInput, matching the
- * AdminSummary / SupervisorTree rail conventions (uppercase section labels, `text-[10pt]`
+ * AdminDirectory / SupervisorTree rail conventions (uppercase section labels, `text-[10pt]`
  * rows, `bg-themeblue3/8 + border-l-themeblue3` active node). All rows sit flush at `pl-4` —
  * uppercase section headers alone separate the groups, no indentation.
  *

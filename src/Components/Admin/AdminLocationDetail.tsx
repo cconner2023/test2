@@ -1,19 +1,26 @@
 /**
  * AdminLocationDetail.tsx
  *
- * View + edit a single location row. Mirrors AdminClinicDetail structure
- * (single rounded-2xl card, no Section wrappers, save/cancel via header
- * actions). display_name auto-derives from the other fields unless the admin
- * explicitly overrides; timezone is auto-filled from the device on create and
- * not surfaced in the UI (see beacon.locations.timezone).
+ * View + edit a single location — the same shape as the user / cluster details:
+ * an identity card that taps open an anchored edit overlay (footer: Archive ·
+ * Save), and an inline form with a header Save in create mode. display_name
+ * auto-derives from the other fields unless the admin overrides it; timezone is
+ * device-filled on create and not surfaced (see beacon.locations.timezone).
  */
 
-import { useEffect, useCallback, useMemo, useState, useRef } from 'react'
-import { ChevronDown, Check, X } from 'lucide-react'
+import { useEffect, useCallback, useMemo, useState, useRef, type ReactNode } from 'react'
+import { ChevronDown, ChevronRight, Check, Archive, Building2 } from 'lucide-react'
 import { PreviewOverlay } from '../PreviewOverlay'
 import { ActionButton } from '@/Components/primitives/ActionButton'
+import { FooterPill } from '@/Components/primitives/FooterPill'
+import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill'
+import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
+import { SectionCard, SectionHeader } from '@/Components/primitives/Section'
+import { ListItemRow } from '@/Components/primitives/ListItemRow'
+import { Z } from '@/Components/primitives/BaseOverlay'
 import { TextInput } from '@/Components/primitives/FormInputs'
 import { ErrorDisplay } from '@/Components/primitives/ErrorDisplay'
+import { useEntityForm } from '../../Hooks/useEntityForm'
 import { LocationPickerInput } from './AdminPickers'
 import { LocationBreadcrumb } from './LocationBreadcrumb'
 import {
@@ -30,14 +37,38 @@ import { ISO_COUNTRIES, COMMAND_OPTIONS, findCountry, findSubdivisionName } from
 interface AdminLocationDetailProps {
   location: AdminLocation | null
   onLocationUpdated: (location: AdminLocation) => void
-  editing: boolean
-  onEditingChange: (editing: boolean) => void
-  saveRequested: boolean
-  onSaveComplete: () => void
-  onPendingChangesChange?: (hasPending: boolean) => void
+  /** Lateral hop to a cluster sitting at this location. */
+  onSelectClinic?: (clinic: AdminClinic) => void
+  onDirtyChange?: (dirty: boolean) => void
+  /** Publishes header pills to the host pane (create-mode Save). */
+  onHeaderActions?: (node: ReactNode | null) => void
   onCreated?: (locationId: string) => void
   onArchived?: () => void
 }
+
+interface LocationForm extends Record<string, unknown> {
+  country: string
+  subdivision: string | null
+  installation: string
+  subArea: string
+  displayName: string
+  command: string | null
+  lat: string
+  lon: string
+  parentId: string | null
+}
+
+const seedForm = (l: AdminLocation | null): LocationForm => ({
+  country: l?.country_code ?? '',
+  subdivision: l?.subdivision ?? null,
+  installation: l?.installation ?? '',
+  subArea: l?.sub_area ?? '',
+  displayName: l?.display_name ?? '',
+  command: l?.command ?? null,
+  lat: l?.lat != null ? String(l.lat) : '',
+  lon: l?.lon != null ? String(l.lon) : '',
+  parentId: l?.parent_id ?? null,
+})
 
 function deriveDisplayName(
   country: string,
@@ -51,37 +82,37 @@ function deriveDisplayName(
   return `${base} (${geo})`
 }
 
+const isCustomCommand = (cmd: string | null) =>
+  !!cmd && !COMMAND_OPTIONS.includes(cmd as typeof COMMAND_OPTIONS[number])
+
 export function AdminLocationDetail({
   location,
   onLocationUpdated,
-  editing,
-  onEditingChange,
-  saveRequested,
-  onSaveComplete,
-  onPendingChangesChange,
+  onSelectClinic,
+  onDirtyChange,
+  onHeaderActions,
   onCreated,
   onArchived,
 }: AdminLocationDetailProps) {
   const [allLocations, setAllLocations] = useState<AdminLocation[]>([])
   const [clinicsAtLocation, setClinicsAtLocation] = useState<AdminClinic[]>([])
 
-  const [editCountry, setEditCountry] = useState('')
-  const [editSubdivision, setEditSubdivision] = useState<string | null>(null)
-  const [editInstallation, setEditInstallation] = useState('')
-  const [editSubArea, setEditSubArea] = useState('')
-  const [editDisplayName, setEditDisplayName] = useState('')
+  const isCreateMode = location === null
+  const form = useEntityForm<LocationForm>(seedForm(location))
+  const { set: setField, bind: bindField, reset: resetForm, commit: commitForm } = form
+  const v = form.values
+  // UI flags, not record fields — kept out of the form so they never read as edits.
   const [displayOverridden, setDisplayOverridden] = useState(false)
-  const [editCommand, setEditCommand] = useState<string | null>(null)
   const [commandIsOther, setCommandIsOther] = useState(false)
-  const [editLat, setEditLat] = useState('')
-  const [editLon, setEditLon] = useState('')
-  const [editParentId, setEditParentId] = useState<string | null>(null)
 
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [confirmingArchive, setConfirmingArchive] = useState(false)
+  const [confirmArchive, setConfirmArchive] = useState(false)
 
-  const isCreateMode = location === null
+  // Edit overlay — tap card → PreviewOverlay anchored to the card rect.
+  const cardRef = useRef<HTMLDivElement>(null)
+  const [editAnchor, setEditAnchor] = useState<DOMRect | null>(null)
+  const editing = isCreateMode || !!editAnchor
 
   const onLocationUpdatedRef = useRef(onLocationUpdated)
   onLocationUpdatedRef.current = onLocationUpdated
@@ -100,266 +131,242 @@ export function AdminLocationDetail({
 
   useEffect(() => { loadData() }, [loadData])
 
-  const prevEditingRef = useRef(false)
-  useEffect(() => {
-    if (editing && !prevEditingRef.current) {
-      setEditCountry(location?.country_code ?? '')
-      setEditSubdivision(location?.subdivision ?? null)
-      setEditInstallation(location?.installation ?? '')
-      setEditSubArea(location?.sub_area ?? '')
-      setEditDisplayName(location?.display_name ?? '')
-      const derived = deriveDisplayName(
-        location?.country_code ?? '',
-        location?.subdivision ?? null,
-        location?.installation ?? '',
-        location?.sub_area ?? null,
-      )
-      setDisplayOverridden(!!location && location.display_name !== derived)
-      const cmd = location?.command ?? null
-      setEditCommand(cmd)
-      setCommandIsOther(!!cmd && !COMMAND_OPTIONS.includes(cmd as typeof COMMAND_OPTIONS[number]))
-      setEditLat(location?.lat != null ? String(location.lat) : '')
-      setEditLon(location?.lon != null ? String(location.lon) : '')
-      setEditParentId(location?.parent_id ?? null)
-      setError(null)
-    }
-    prevEditingRef.current = editing
-  }, [editing, location])
+  const openEdit = () => {
+    const rect = cardRef.current?.getBoundingClientRect()
+    if (!rect || !location) return
+    resetForm(seedForm(location))
+    setDisplayOverridden(location.display_name !== deriveDisplayName(
+      location.country_code, location.subdivision, location.installation, location.sub_area,
+    ))
+    setCommandIsOther(isCustomCommand(location.command))
+    setError(null)
+    setEditAnchor(rect)
+  }
+
+  const closeEdit = () => {
+    setEditAnchor(null)
+    setError(null)
+  }
 
   /** Auto-update display_name as the source fields change, unless overridden. */
   useEffect(() => {
     if (!editing || displayOverridden) return
-    setEditDisplayName(deriveDisplayName(editCountry, editSubdivision, editInstallation, editSubArea || null))
-  }, [editing, displayOverridden, editCountry, editSubdivision, editInstallation, editSubArea])
+    setField('displayName', deriveDisplayName(v.country, v.subdivision, v.installation, v.subArea || null))
+  }, [editing, displayOverridden, v.country, v.subdivision, v.installation, v.subArea, setField])
 
   useEffect(() => {
-    if (!editing) { onPendingChangesChange?.(false); return }
-    const latNum = editLat ? parseFloat(editLat) : null
-    const lonNum = editLon ? parseFloat(editLon) : null
-    const changed =
-      editCountry !== (location?.country_code ?? '') ||
-      (editSubdivision ?? null) !== (location?.subdivision ?? null) ||
-      editInstallation !== (location?.installation ?? '') ||
-      (editSubArea || null) !== (location?.sub_area ?? null) ||
-      editDisplayName !== (location?.display_name ?? '') ||
-      (editCommand || null) !== (location?.command ?? null) ||
-      latNum !== (location?.lat ?? null) ||
-      lonNum !== (location?.lon ?? null) ||
-      editParentId !== (location?.parent_id ?? null)
-    onPendingChangesChange?.(changed)
-  }, [editing, editCountry, editSubdivision, editInstallation, editSubArea, editDisplayName,
-      editCommand, editLat, editLon, editParentId, location, onPendingChangesChange])
+    onDirtyChange?.(editing && form.dirty)
+  }, [editing, form.dirty, onDirtyChange])
 
   const handleSave = useCallback(async () => {
-    if (!editCountry.trim()) { setError('Country required.'); return }
-    if (!editInstallation.trim()) { setError('Installation required.'); return }
-    if (!editDisplayName.trim()) { setError('Display name required.'); return }
+    if (!v.country.trim()) { setError('Country required.'); return }
+    if (!v.installation.trim()) { setError('Installation required.'); return }
+    if (!v.displayName.trim()) { setError('Display name required.'); return }
 
-    const latNum = editLat.trim() ? parseFloat(editLat) : null
-    const lonNum = editLon.trim() ? parseFloat(editLon) : null
-    if (editLat.trim() && (latNum === null || Number.isNaN(latNum) || latNum < -90 || latNum > 90)) {
+    const latNum = v.lat.trim() ? parseFloat(v.lat) : null
+    const lonNum = v.lon.trim() ? parseFloat(v.lon) : null
+    if (latNum !== null && (Number.isNaN(latNum) || latNum < -90 || latNum > 90)) {
       setError('Latitude must be between -90 and 90.'); return
     }
-    if (editLon.trim() && (lonNum === null || Number.isNaN(lonNum) || lonNum < -180 || lonNum > 180)) {
+    if (lonNum !== null && (Number.isNaN(lonNum) || lonNum < -180 || lonNum > 180)) {
       setError('Longitude must be between -180 and 180.'); return
     }
 
     setSaving(true); setError(null)
     const payload = {
-      country_code: editCountry.trim().toUpperCase(),
-      subdivision: editSubdivision || null,
-      installation: editInstallation.trim(),
-      sub_area: editSubArea.trim() || null,
-      display_name: editDisplayName.trim(),
-      command: editCommand?.trim() || null,
+      country_code: v.country.trim().toUpperCase(),
+      subdivision: v.subdivision || null,
+      installation: v.installation.trim(),
+      sub_area: v.subArea.trim() || null,
+      display_name: v.displayName.trim(),
+      command: v.command?.trim() || null,
       lat: latNum,
       lon: lonNum,
-      parent_id: editParentId,
+      parent_id: v.parentId,
     }
 
     if (isCreateMode) {
-      const result = await createLocation(payload)
+      const r = await createLocation(payload)
       setSaving(false)
-      if (result.success) {
-        invalidate('locations')
-        onCreated?.(result.id)
-      } else {
-        setError(result.error || 'Failed to create location')
-      }
-      return
-    }
-
-    const result = await updateLocation(location!.id, payload)
-    setSaving(false)
-    if (result.success) {
-      onEditingChange(false)
+      if (!r.success) { setError(r.error || 'Failed to create location'); return }
+      commitForm()
       invalidate('locations')
-      loadData()
-    } else {
-      setError(result.error || 'Failed to update location')
-    }
-  }, [editCountry, editSubdivision, editInstallation, editSubArea, editDisplayName,
-      editCommand, editLat, editLon, editParentId, isCreateMode, location, onEditingChange,
-      loadData, onCreated])
-
-  useEffect(() => {
-    if (saveRequested) {
-      handleSave()
-      onSaveComplete()
-    }
-  }, [saveRequested, handleSave, onSaveComplete])
-
-  const handleArchive = useCallback(async () => {
-    if (!location) return
-    if (clinicsAtLocation.length > 0) {
-      // Name the blockers so the admin can act on them without walking the
-      // clinic list. Cap at 3 to keep the inline banner one short line.
-      const names = clinicsAtLocation.map(c => c.name)
-      const preview = names.slice(0, 3).join(', ')
-      const remainder = names.length > 3 ? ` and ${names.length - 3} more` : ''
-      setError(`Cannot archive — referenced by ${preview}${remainder}. Reassign or archive ${names.length === 1 ? 'it' : 'them'} first.`)
-      setConfirmingArchive(false)
+      onCreated?.(r.id)
       return
     }
+    const r = await updateLocation(location!.id, payload)
+    setSaving(false)
+    if (!r.success) { setError(r.error || 'Failed to update location'); return }
+    commitForm()
+    invalidate('locations')
+    setEditAnchor(null)
+    loadData()
+  }, [v, isCreateMode, location, commitForm, onCreated, loadData])
+
+  // Create mode publishes its Save pill (via ref so typing doesn't churn it).
+  const handleSaveRef = useRef(handleSave)
+  handleSaveRef.current = handleSave
+  useEffect(() => {
+    onHeaderActions?.(isCreateMode ? (
+      <HeaderPill>
+        <PillButton icon={Check} iconSize={18} accent="success" label="Save" onClick={() => handleSaveRef.current()} />
+      </HeaderPill>
+    ) : null)
+    return () => onHeaderActions?.(null)
+  }, [isCreateMode, onHeaderActions])
+
+  // A referenced location can't be archived — name the blockers instead of
+  // offering a confirm that would only fail.
+  const requestArchive = () => {
+    if (clinicsAtLocation.length === 0) { setConfirmArchive(true); return }
+    const names = clinicsAtLocation.map(c => c.name)
+    const remainder = names.length > 3 ? ` and ${names.length - 3} more` : ''
+    setError(`Cannot archive — referenced by ${names.slice(0, 3).join(', ')}${remainder}. Reassign or archive ${names.length === 1 ? 'it' : 'them'} first.`)
+  }
+
+  const handleArchive = async () => {
+    if (!location) return
     setSaving(true); setError(null)
     const result = await archiveLocation(location.id)
     setSaving(false)
-    setConfirmingArchive(false)
-    if (result.success) {
-      invalidate('locations')
-      onArchived?.()
-    } else {
-      setError(result.error || 'Failed to archive location')
-    }
-  }, [location, clinicsAtLocation, onArchived])
-
-  const currentCountry = useMemo(() => findCountry(editing ? editCountry : location?.country_code), [editing, editCountry, location])
-  const availableSubdivisions = currentCountry?.subdivisions ?? []
-
-  if (editing) {
-    return (
-      <div className={saving ? 'opacity-50 pointer-events-none' : undefined}>
-        {error && <div className="mb-3"><ErrorDisplay message={error} /></div>}
-
-        <div className="rounded-2xl bg-themewhite2 overflow-hidden">
-          <CountryPickerRow value={editCountry} onChange={(c) => { setEditCountry(c); setEditSubdivision(null) }} />
-          {availableSubdivisions.length > 0 && (
-            <SubdivisionPickerRow
-              value={editSubdivision}
-              onChange={setEditSubdivision}
-              subdivisions={availableSubdivisions}
-            />
-          )}
-          <TextInput value={editInstallation} onChange={setEditInstallation} placeholder="Installation (e.g., Fort Bragg)" />
-          <TextInput value={editSubArea} onChange={setEditSubArea} placeholder="Sub-area (optional, e.g., Tower Barracks)" />
-          <TextInput
-            value={editDisplayName}
-            onChange={(v) => { setEditDisplayName(v); setDisplayOverridden(true) }}
-            placeholder="Display name"
-            hint={displayOverridden ? 'Auto-derive disabled (manually edited).' : null}
-          />
-          <CommandPickerRow
-            value={editCommand}
-            isOther={commandIsOther}
-            onChange={(val, isOther) => { setEditCommand(val); setCommandIsOther(isOther) }}
-          />
-          <div className="flex border-b border-primary/6">
-            <input
-              type="number"
-              step="any"
-              value={editLat}
-              onChange={(e) => setEditLat(e.target.value)}
-              placeholder="Latitude"
-              className="flex-1 bg-transparent px-4 py-3 text-base md:text-[10pt] text-primary placeholder:text-tertiary focus:outline-none border-r border-primary/6"
-            />
-            <input
-              type="number"
-              step="any"
-              value={editLon}
-              onChange={(e) => setEditLon(e.target.value)}
-              placeholder="Longitude"
-              className="flex-1 bg-transparent px-4 py-3 text-base md:text-[10pt] text-primary placeholder:text-tertiary focus:outline-none"
-            />
-          </div>
-          <LocationPickerInput
-            value={editParentId}
-            onChange={setEditParentId}
-            allLocations={allLocations}
-            placeholder="Parent location (optional)"
-            excludeDescendantsOf={location?.id ?? null}
-          />
-        </div>
-
-        {!isCreateMode && (
-          <div className="mt-4 flex justify-end">
-            <ActionButton
-              icon={X}
-              label="Archive"
-              variant="danger"
-              onClick={() => setConfirmingArchive(true)}
-            />
-          </div>
-        )}
-
-        {confirmingArchive && (
-          <div className="mt-3 rounded-xl bg-themeredred/5 border border-themeredred/30 p-3 flex items-center justify-between gap-3">
-            <p className="text-[10pt] text-themeredred">
-              Archive this location? Clinics will lose their location reference.
-            </p>
-            <div className="flex gap-2 shrink-0">
-              <ActionButton icon={X} label="Cancel" onClick={() => setConfirmingArchive(false)} />
-              <ActionButton icon={Check} label="Confirm" variant="danger" onClick={handleArchive} />
-            </div>
-          </div>
-        )}
-      </div>
-    )
+    setConfirmArchive(false)
+    if (!result.success) { setError(result.error || 'Failed to archive location'); return }
+    invalidate('locations')
+    onArchived?.()
   }
 
-  // ── View mode ──
-  if (!location) return null
+  const currentCountry = useMemo(
+    () => findCountry(editing ? v.country : location?.country_code),
+    [editing, v.country, location],
+  )
+  const availableSubdivisions = currentCountry?.subdivisions ?? []
+
+  const formBody = (
+    <div className={saving ? 'opacity-50 pointer-events-none' : undefined}>
+      <CountryPickerRow value={v.country} onChange={(c) => { setField('country', c); setField('subdivision', null) }} />
+      {availableSubdivisions.length > 0 && (
+        <SubdivisionPickerRow value={v.subdivision} onChange={bindField('subdivision')} subdivisions={availableSubdivisions} />
+      )}
+      <TextInput value={v.installation} onChange={bindField('installation')} placeholder="Installation (e.g., Fort Bragg)" />
+      <TextInput value={v.subArea} onChange={bindField('subArea')} placeholder="Sub-area (optional, e.g., Tower Barracks)" />
+      <TextInput
+        value={v.displayName}
+        onChange={(val) => { setField('displayName', val); setDisplayOverridden(true) }}
+        placeholder="Display name"
+        hint={displayOverridden ? 'Auto-derive disabled (manually edited).' : null}
+      />
+      <CommandPickerRow
+        value={v.command}
+        isOther={commandIsOther}
+        onChange={(val, isOther) => { setField('command', val); setCommandIsOther(isOther) }}
+      />
+      <div className="flex items-stretch border-b border-primary/6">
+        <div className="flex-1 min-w-0">
+          <TextInput value={v.lat} onChange={bindField('lat')} placeholder="Latitude" type="number" />
+        </div>
+        <div className="flex-1 min-w-0 border-l border-primary/6">
+          <TextInput value={v.lon} onChange={bindField('lon')} placeholder="Longitude" type="number" />
+        </div>
+      </div>
+      <LocationPickerInput
+        value={v.parentId}
+        onChange={bindField('parentId')}
+        allLocations={allLocations}
+        placeholder="Parent location (optional)"
+        excludeDescendantsOf={location?.id ?? null}
+      />
+    </div>
+  )
+
   return (
     <div>
-      {error && <div className="mb-3"><ErrorDisplay message={error} /></div>}
+      {error && !editAnchor && <div className="mb-3"><ErrorDisplay message={error} /></div>}
 
-      <div className="rounded-2xl bg-themewhite2 overflow-hidden">
-        <div className="px-4 py-3">
-          <LocationBreadcrumb
-            locationId={location.id}
-            allLocations={allLocations}
-            excludeLeaf
-            className="block text-[9pt] text-tertiary mb-1"
-          />
-          <p className="text-sm font-semibold text-primary">{location.display_name}</p>
-          <p className="text-[9pt] text-tertiary mt-0.5">
-            {[
-              location.installation,
-              location.sub_area,
-              [location.country_code, location.subdivision].filter(Boolean).join('-'),
-              findSubdivisionName(location.country_code, location.subdivision),
-              location.command,
-            ].filter(Boolean).join(' · ')}
-          </p>
-          {(location.lat != null || location.lon != null) && (
-            <p className="text-[9pt] text-tertiary mt-1 font-mono">
-              {location.lat?.toFixed(4) ?? '—'}, {location.lon?.toFixed(4) ?? '—'}
-            </p>
+      <div ref={cardRef}>
+        <SectionCard onClick={isCreateMode ? undefined : openEdit}>
+          {isCreateMode ? formBody : location && (
+            <div className="px-4 py-3">
+              <LocationBreadcrumb
+                locationId={location.id}
+                allLocations={allLocations}
+                excludeLeaf
+                className="block text-[9pt] text-tertiary mb-1"
+              />
+              <p className="text-[10pt] font-semibold text-primary">{location.display_name}</p>
+              <p className="text-[9pt] text-tertiary mt-0.5">
+                {[
+                  location.installation,
+                  location.sub_area,
+                  [location.country_code, location.subdivision].filter(Boolean).join('-'),
+                  findSubdivisionName(location.country_code, location.subdivision),
+                  location.command,
+                ].filter(Boolean).join(' · ')}
+              </p>
+              {(location.lat != null || location.lon != null) && (
+                <p className="text-[9pt] text-tertiary mt-1 font-mono">
+                  {location.lat?.toFixed(4) ?? '—'}, {location.lon?.toFixed(4) ?? '—'}
+                </p>
+              )}
+            </div>
           )}
-        </div>
+        </SectionCard>
       </div>
 
       {clinicsAtLocation.length > 0 && (
         <section className="mt-4">
-          <p className="px-1 mb-1.5 text-[9pt] tracking-widest uppercase text-tertiary">
-            Clinics here
-          </p>
-          <div className="rounded-2xl bg-themewhite2 overflow-hidden divide-y divide-primary/6">
+          <SectionHeader>Clusters here</SectionHeader>
+          <SectionCard className="divide-y divide-primary/6">
             {clinicsAtLocation.map(c => (
-              <div key={c.id} className="px-4 py-2.5 text-sm text-primary">{c.name}</div>
+              <ListItemRow
+                key={c.id}
+                onClick={onSelectClinic && (() => onSelectClinic(c))}
+                className="px-4 py-3 hover:bg-themeblue2/5 transition-colors"
+                left={<Building2 size={16} className="text-themeblue2 shrink-0" />}
+                center={<p className="text-[10pt] text-primary truncate">{c.name}</p>}
+                right={onSelectClinic && <ChevronRight size={16} className="text-tertiary shrink-0" />}
+              />
             ))}
-          </div>
+          </SectionCard>
         </section>
       )}
+
+      <PreviewOverlay
+        isOpen={!!editAnchor}
+        onClose={closeEdit}
+        anchorRect={editAnchor}
+        title={`Edit ${location?.display_name ?? 'location'}`}
+        maxWidth={400}
+        previewMaxHeight="70dvh"
+        footer={editAnchor && (
+          <FooterPill>
+            <ActionButton icon={Archive} label="Archive location" variant="danger" onClick={requestArchive} />
+          </FooterPill>
+        )}
+        rightFooter={editAnchor && (
+          <FooterPill side="right">
+            <ActionButton icon={Check} label="Save" variant="confirm" onClick={handleSave} />
+          </FooterPill>
+        )}
+      >
+        {editAnchor && (
+          <div>
+            {error && <div className="px-4 pt-3"><ErrorDisplay message={error} /></div>}
+            {formBody}
+          </div>
+        )}
+      </PreviewOverlay>
+
+      <ConfirmDialog
+        visible={confirmArchive}
+        title={`Archive ${location?.display_name ?? 'location'}?`}
+        subtitle="It disappears from location pickers."
+        confirmLabel="Archive"
+        variant="danger"
+        processing={saving}
+        onConfirm={handleArchive}
+        onCancel={() => setConfirmArchive(false)}
+        zIndex={Z.POPOVER + 30}
+      />
     </div>
   )
 }

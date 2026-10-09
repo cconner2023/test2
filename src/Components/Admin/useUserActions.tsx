@@ -1,6 +1,6 @@
 /**
  * useUserActions — the ONE source of truth for the admin user context/action
- * menu. Both the Directory tree (AdminSummary, lifted-row menu) and the user
+ * menu. Both the Directory tree (AdminDirectory, row ellipsis menu) and the user
  * detail (AdminUserDetail, corner OverlayActionMenu) build their user actions
  * from `buildItems` here, so the two surfaces stay in lockstep by construction
  * ("same things whether from the detail view or the tree").

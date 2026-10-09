@@ -93,7 +93,7 @@ export async function isDevUser(): Promise<boolean> {
 /**
  * Promise cache for getAllAccountRequests, keyed by the `requests` invalidation
  * generation plus the status filter (callers pass 'pending' for the summary and
- * undefined for the full list — distinct cache entries). AdminSummary and the
+ * undefined for the full list — distinct cache entries). AdminClinicDetail and the
  * inbox feed (useAdminInbox) both load on every drawer open; without this each
  * fired its own round-trip. Bust via invalidate('requests'). Mirrors the
  * listAllUsers / listClinics caches.
@@ -413,7 +413,7 @@ export async function removeUserRole(
 /**
  * Admin user list — tier-2 deltaCache (see v2/conventions egress drawer).
  *
- * Six admin surfaces (AdminSummary, AdminSortRail, AdminUserDetail,
+ * Five admin surfaces (AdminDirectory, AdminUserDetail,
  * AdminClinicDetail, RequestDetail, FeedbackDetail) call listAllUsers on mount,
  * and the admin drawer never rides the offline-first IDB pipeline, so every open
  * used to

@@ -1,12 +1,6 @@
-import { useState, useEffect } from 'react'
-import { ScanLine, User, Check, X } from 'lucide-react'
+import { ScanLine, Check, X } from 'lucide-react'
 import { PreviewOverlay } from './PreviewOverlay'
 import type { ContextMenuAction } from './PreviewOverlay'
-import { BarcodeDisplay } from './Barcode'
-import type { ImportPreview } from '../Hooks/useNoteImport'
-import { profileAvatars } from '../Data/ProfileAvatars'
-import { supabase } from '../lib/supabase'
-import { getColorClasses } from '../Utilities/ColorUtilities'
 import type { ReactNode } from 'react'
 
 /** Scan / staged-image / decoding stages only — a decoded note opens in ImportedNoteDrawer. */
@@ -26,66 +20,6 @@ interface ImportResultPopoverProps {
   onDismissImage: () => void
   onStopScan: () => void
   onClose: () => void
-}
-
-// ── Preview card content for a decoded note ─────────────────────────────────
-
-export function NotePreviewContent({ preview }: { preview: ImportPreview }) {
-  const [authorAvatarSvg, setAuthorAvatarSvg] = useState<ReactNode>(null)
-  const colors = getColorClasses(preview.dispositionType as any)
-
-  useEffect(() => {
-    const userId = preview.userId
-    if (!userId) { setAuthorAvatarSvg(null); return }
-    supabase
-      .from('profiles')
-      .select('avatar_id')
-      .eq('id', userId)
-      .single()
-      .then(({ data }) => {
-        const match = data?.avatar_id
-          ? profileAvatars.find(a => a.id === data.avatar_id)
-          : null
-        setAuthorAvatarSvg(match?.svg ?? null)
-      })
-  }, [preview.userId])
-
-  return (
-    <div className="px-4 py-3 space-y-3">
-      {/* Symptom + disposition badge */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <span className="text-sm font-medium text-primary">{preview.symptomText}</span>
-        {preview.dispositionType && colors && (
-          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9pt] font-medium ${colors.badgeBg} ${colors.badgeText}`}>
-            {preview.dispositionType}
-            {preview.dispositionText ? ` — ${preview.dispositionText}` : ''}
-          </span>
-        )}
-      </div>
-      {/* Author */}
-      <div className="flex items-center gap-1.5 text-[10pt] text-tertiary">
-        {authorAvatarSvg
-          ? <span className="w-4 h-4 rounded-full overflow-hidden shrink-0">{authorAvatarSvg}</span>
-          : <User size={12} className="shrink-0" />
-        }
-        {preview.authorLabel}
-      </div>
-      {/* Note text */}
-      <div className="rounded-xl bg-themewhite2 overflow-hidden">
-        <div className="px-3 py-2 text-tertiary text-[10pt] whitespace-pre-wrap max-h-36 overflow-y-auto">
-          {preview.fullNote
-            ? preview.fullNote.split('\n').filter(l => !l.startsWith('Signed:')).join('\n').trim()
-            : 'No content'}
-        </div>
-      </div>
-      {/* Barcode */}
-      <div className="rounded-xl bg-themewhite2 overflow-hidden">
-        <div className="px-3 py-2">
-          <BarcodeDisplay encodedText={preview.encodedText} />
-        </div>
-      </div>
-    </div>
-  )
 }
 
 // ── Main popover ────────────────────────────────────────────────────────────

@@ -27,6 +27,16 @@ export interface SF600Params {
   patient?: PatientIdentification  // bottom-left patient identification block (page 1)
 }
 
+/**
+ * Initials (first, middle, last) from a signature name shaped
+ * "LAST FIRST M[ CRED], RANK, COMPONENT".
+ */
+function signatureInitials(name: string): string {
+  const [last, first, middle] = name.split(',')[0].trim().split(/\s+/)
+  const mi = middle && /^[A-Z]\.?$/i.test(middle) ? middle[0] : ''
+  return [first?.[0], mi, last?.[0]].filter(Boolean).join('').toUpperCase()
+}
+
 /** Format an ISO 'YYYY-MM-DD' DOB as 'DD MMM YYYY' for the patient block. */
 function formatDob(iso: string): string {
   if (!iso) return ''
@@ -69,16 +79,16 @@ const LAYOUT = {
 } as const
 
 // Bottom-left "PATIENT'S IDENTIFICATION" block (page 1 only). PDF points,
-// origin = bottom-left. Per-field rows so each can be nudged independently —
-// calibrate against SF600_1.pdf.
+// origin = bottom-left. Values only (no labels), one per line, single-spaced
+// from the top baseline down; empty fields collapse — calibrate against SF600_1.pdf.
 const PATIENT_BLOCK = {
   fontSize: 8,
-  name:      { x: 30, y: 96 },   // "Last, First M"
-  dodid:     { x: 30, y: 80, label: 'DODID: ' },
-  gender:    { x: 30, y: 64, label: 'Sex: ' },
-  dob:       { x: 120, y: 64, label: 'DOB: ' },
-  rankGrade: { x: 30, y: 48, label: 'Rank/Grade: ' },
+  x: 30,
+  topY: 96,
+  lineHeight: 10,
 } as const
+
+const GENDER_LABEL = { M: 'Male', F: 'Female' } as const
 
 /**
  * Word-wrap text to fit within maxWidth at a given font size.
@@ -143,7 +153,7 @@ export async function generateSF600(params: SF600Params): Promise<Uint8Array> {
   const BOLD_HEADERS = new Set(['SUBJECTIVE:', 'OBJECTIVE:', 'ASSESSMENT:', 'PLAN:'])
   const isBoldLine = (line: string) => BOLD_HEADERS.has(line.trim())
 
-  // Strip existing "Signed:" line — SF600 uses a signature field instead
+  // Strip existing "Signed:" line — SF600 renders its own signature row
   const dateStamp = new Date().toISOString().slice(0, 10).replace(/-/g, '')
   let noteBody = params.noteText.replace(/\n?Signed:.*$/m, '').trimEnd()
 
@@ -189,73 +199,33 @@ export async function generateSF600(params: SF600Params): Promise<Uint8Array> {
   // ── Patient identification block (bottom-left, page 1 only) ──
   if (params.patient) {
     const pt = params.patient
-    const drawField = (text: string, x: number, y: number) => {
-      if (!text) return
-      p1.drawText(text, { x, y, size: PATIENT_BLOCK.fontSize, font, color: black })
-    }
     const nameLine = [pt.lastName, [pt.firstName, pt.middleInitial].filter(Boolean).join(' ')]
       .filter(Boolean).join(', ')
-    drawField(nameLine, PATIENT_BLOCK.name.x, PATIENT_BLOCK.name.y)
-    drawField(pt.dodid && PATIENT_BLOCK.dodid.label + pt.dodid, PATIENT_BLOCK.dodid.x, PATIENT_BLOCK.dodid.y)
-    drawField(pt.gender && PATIENT_BLOCK.gender.label + pt.gender, PATIENT_BLOCK.gender.x, PATIENT_BLOCK.gender.y)
-    drawField(pt.dob && PATIENT_BLOCK.dob.label + formatDob(pt.dob), PATIENT_BLOCK.dob.x, PATIENT_BLOCK.dob.y)
-    drawField(pt.rankGrade && PATIENT_BLOCK.rankGrade.label + pt.rankGrade, PATIENT_BLOCK.rankGrade.x, PATIENT_BLOCK.rankGrade.y)
+    const lines = [
+      nameLine,
+      pt.dodid,
+      pt.gender ? GENDER_LABEL[pt.gender] : '',
+      formatDob(pt.dob),
+      pt.rankGrade,
+    ].filter(Boolean)
+    lines.forEach((text, i) => {
+      p1.drawText(text, {
+        x: PATIENT_BLOCK.x,
+        y: PATIENT_BLOCK.topY - i * PATIENT_BLOCK.lineHeight,
+        size: PATIENT_BLOCK.fontSize,
+        font,
+        color: black,
+      })
+    })
   }
 
   // Helper: draw a text line or the signature row
-  const drawLine = (page: ReturnType<typeof pdfDoc.getPages>[0], line: string, x: number, y: number, rowHeight: number) => {
+  const drawLine = (page: ReturnType<typeof pdfDoc.getPages>[0], line: string, x: number, y: number) => {
     if (line === SIG_LINE) {
-      // Render: NAME / [signature field] / DATE  — all on one row
-      const nameText = params.signatureName!
-      const nameWidth = font.widthOfTextAtSize(nameText, LAYOUT.fontSize)
-      const dateText = dateStamp
-      const dateWidth = font.widthOfTextAtSize(dateText, LAYOUT.fontSize)
-      const slashWidth = font.widthOfTextAtSize(' / ', LAYOUT.fontSize)
-      const padding = 4
-
-      // Name on the left
-      page.drawText(nameText, { x, y, size: LAYOUT.fontSize, font, color: black })
-
-      // First slash
-      const slash1X = x + nameWidth
-      page.drawText(' / ', { x: slash1X, y, size: LAYOUT.fontSize, font, color: black })
-
-      // Signature field in the middle
-      const sigX = slash1X + slashWidth
-      const sigEndX = x + LAYOUT.noteCol.maxWidth - dateWidth - slashWidth
-      const sigWidth = Math.max(sigEndX - sigX, 60)
-      const sigFieldDict = pdfDoc.context.obj({
-        Type: 'Annot',
-        Subtype: 'Widget',
-        FT: 'Sig',
-        Rect: [sigX, y - padding, sigX + sigWidth, y + rowHeight - padding],
-        T: pdfLib.PDFHexString.fromText('DigitalSignature'),
-        F: 4,
-        P: page.ref,
-      })
-      const sigFieldRef = pdfDoc.context.register(sigFieldDict)
-
-      const annots = page.node.Annots()
-      if (annots) {
-        annots.push(sigFieldRef)
-      } else {
-        page.node.set(pdfLib.PDFName.of('Annots'), pdfDoc.context.obj([sigFieldRef]))
-      }
-
-      let acroForm = pdfDoc.catalog.lookup(pdfLib.PDFName.of('AcroForm')) as any
-      if (!acroForm) {
-        acroForm = pdfDoc.context.obj({ Fields: [] })
-        pdfDoc.catalog.set(pdfLib.PDFName.of('AcroForm'), acroForm)
-      }
-      const fields = acroForm.lookup(pdfLib.PDFName.of('Fields'))
-      if (fields && typeof fields.push === 'function') {
-        fields.push(sigFieldRef)
-      }
-
-      // Second slash + date on the right
-      const slash2X = sigX + sigWidth
-      page.drawText(' / ', { x: slash2X, y, size: LAYOUT.fontSize, font, color: black })
-      page.drawText(dateText, { x: slash2X + slashWidth, y, size: LAYOUT.fontSize, font, color: black })
+      // Render: NAME / INITIALS / DATE — all on one row
+      const sigText = [params.signatureName!, signatureInitials(params.signatureName!), dateStamp]
+        .filter(Boolean).join(' / ')
+      page.drawText(sigText, { x, y, size: LAYOUT.fontSize, font, color: black })
       return
     }
 
@@ -271,7 +241,7 @@ export async function generateSF600(params: SF600Params): Promise<Uint8Array> {
 
   // Note lines on page 1 — each line placed at its exact row position
   page1Lines.forEach((line, i) => {
-    drawLine(p1, line, LAYOUT.noteCol.x, PAGE1_ROW_Y[i], i === 0 ? PAGE1_FIRST_GAP : PAGE1_LINE_HEIGHT)
+    drawLine(p1, line, LAYOUT.noteCol.x, PAGE1_ROW_Y[i])
   })
 
   // ── Draw continuation pages ──
@@ -281,7 +251,7 @@ export async function generateSF600(params: SF600Params): Promise<Uint8Array> {
     const chunk = overflowLines.slice(startLine, startLine + PAGE2_ROW_Y.length)
 
     chunk.forEach((line, i) => {
-      drawLine(page, line, LAYOUT.page2NoteX, PAGE2_ROW_Y[i], PAGE2_LINE_HEIGHT)
+      drawLine(page, line, LAYOUT.page2NoteX, PAGE2_ROW_Y[i])
     })
   }
 

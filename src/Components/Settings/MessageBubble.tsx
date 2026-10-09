@@ -16,7 +16,7 @@ import { formatAudioDuration } from '../../Utilities/voiceUtils'
 import { detectEncodedNote } from '../../Utilities/noteDecode'
 import { relativeShort } from '../../Utilities/conversationActivity'
 import { calendarArgsForMessage } from '../../Utilities/messageCalendar'
-import { DecodedNotePreview } from '../DecodedNotePreview'
+import { useDecodeSharedNote } from '../../Hooks/useDecodeSharedNote'
 import { useNavigationStore } from '../../stores/useNavigationStore'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { resolveSwipeActions, type SwipeBinding, type SwipeAction } from '../../Utilities/swipeActions'
@@ -177,8 +177,7 @@ export function MessageBubble({
   const leftIconRef = useRef<HTMLDivElement>(null)
   const rightIconRef = useRef<HTMLDivElement>(null)
   const [showFullImage, setShowFullImage] = useState(false)
-  const [decodeOpen, setDecodeOpen] = useState(false)
-  const decodeAnchorRef = useRef<DOMRect | null>(null)
+  const decodeSharedNote = useDecodeSharedNote()
   const [tapped, setTapped] = useState(false)
   const [expanded, setExpanded] = useState(false)
   const audioRef = useRef<HTMLAudioElement>(null)
@@ -233,7 +232,7 @@ export function MessageBubble({
 
   // Detect a shared encoded note (enc:/9L:/TC3|/plain) in the message text —
   // drives the "decode" affordance. Cheap sync scan; the actual decrypt+parse
-  // happens on tap in DecodedNotePreview, on-device only (no wire/PHI exposure).
+  // happens on tap in useDecodeSharedNote, on-device only (no wire/PHI exposure).
   const decodedNote = useMemo(() => {
     if (message.content && message.content.type !== 'text') return null
     return detectEncodedNote(message.plaintext ?? '')
@@ -241,9 +240,8 @@ export function MessageBubble({
 
   const handleDecode = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
-    decodeAnchorRef.current = (e.currentTarget as HTMLElement).getBoundingClientRect()
-    setDecodeOpen(true)
-  }, [])
+    if (decodedNote) decodeSharedNote(decodedNote.token)
+  }, [decodedNote, decodeSharedNote])
 
   // Inline message affordances (add-to-calendar, decode-note) — share one color
   // and slot. Rendered as a single cluster on the ellipsis side of the bubble.
@@ -978,15 +976,6 @@ export function MessageBubble({
         </div>
       )}
 
-      {/* Decoded-note preview — reuses the barcode-import overlay. */}
-      {decodedNote && (
-        <DecodedNotePreview
-          token={decodedNote.token}
-          isOpen={decodeOpen}
-          anchorRect={decodeAnchorRef.current}
-          onClose={() => setDecodeOpen(false)}
-        />
-      )}
     </>
   )
 }

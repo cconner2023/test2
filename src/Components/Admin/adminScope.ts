@@ -6,7 +6,7 @@ import type { AdminClinic } from '../../lib/adminService'
  * A cluster nests under its parent cluster (parent_clinic_id) if it has one,
  * else it is a root. Location is NOT part of the placement rule: the tree is
  * org-rooted and shows location as a per-cluster chip, because an org can sit
- * in a different location than its parent. See AdminSummary.
+ * in a different location than its parent. See AdminDirectory.
  */
 export interface ScopeIndex {
   /** parent_clinic_id → child clusters (sorted by name). */
