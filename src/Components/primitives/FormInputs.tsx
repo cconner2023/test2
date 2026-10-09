@@ -1,10 +1,11 @@
 import { useState, useRef, useEffect, useCallback, useContext, type ReactNode } from 'react'
-import { Eye, EyeOff, ChevronDown, Check, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Eye, EyeOff, ChevronDown, Check, ChevronLeft, ChevronRight, Keyboard } from 'lucide-react'
 import { PreviewOverlay } from '@/Components/PreviewOverlay'
 import { ActionButton } from '@/Components/primitives/ActionButton'
 import { FooterPill } from '@/Components/primitives/FooterPill'
 import { useIsMobile } from '@/Hooks/useIsMobile'
-import { StackNavContext } from '@/Components/stackNav'
+import { useStack } from '@/Components/primitives/useStack'
+import { StackNavContext, type StackScreen } from '@/Components/stackNav'
 
 /** Free-form 4-digit military time input (0000–2359). Borderless / transparent, matches form-row style.
  *  Current selected value is shown as the placeholder hint, not the input value, so users can type fresh
@@ -601,6 +602,125 @@ export function DatePickerCalendar({
   )
 }
 
+/**
+ * Typed DD / MM / YYYY entry — the "input mode" screen the calendar morphs into.
+ * Owns its own state (a pushed stack screen is frozen at push time). Auto-advances
+ * field to field and commits the moment a complete, valid date is typed (or on Enter);
+ * an invalid / out-of-range date shows an inline error instead of committing.
+ */
+function DateManualEntry({ value, onCommit, minDate, maxDate }: {
+  value: string
+  onCommit: (iso: string) => void
+  minDate?: string
+  maxDate?: string
+}) {
+  const current = parseIso(value)
+  const [dd, setDd] = useState('')
+  const [mm, setMm] = useState('')
+  const [yyyy, setYyyy] = useState('')
+  const [error, setError] = useState('')
+  const dRef = useRef<HTMLInputElement>(null)
+  const mRef = useRef<HTMLInputElement>(null)
+  const yRef = useRef<HTMLInputElement>(null)
+
+  const tryCommit = (d: string, m: string, y: string) => {
+    if (!d || !m || y.length !== 4) { setError('Enter day, month and 4-digit year'); return }
+    const day = parseInt(d, 10)
+    const month = parseInt(m, 10)
+    const year = parseInt(y, 10)
+    const date = new Date(year, month - 1, day)
+    if (month < 1 || month > 12 || day < 1 || date.getMonth() !== month - 1) {
+      setError('Not a valid date'); return
+    }
+    const minD = parseIso(minDate ?? '')
+    const maxD = parseIso(maxDate ?? '')
+    if ((minD && date < minD) || (maxD && date > maxD)) {
+      setError(`Must be between ${minDate ? formatDisplay(minDate) : '…'} and ${maxDate ? formatDisplay(maxDate) : '…'}`)
+      return
+    }
+    onCommit(toIso(date))
+  }
+
+  const field = (
+    ref: React.RefObject<HTMLInputElement | null>,
+    val: string,
+    set: (v: string) => void,
+    len: number,
+    hint: string,
+    next: React.RefObject<HTMLInputElement | null> | null,
+    prev: React.RefObject<HTMLInputElement | null> | null,
+    label: string,
+  ) => (
+    <input
+      ref={ref}
+      type="text"
+      inputMode="numeric"
+      autoComplete="off"
+      aria-label={label}
+      value={val}
+      placeholder={hint}
+      maxLength={len}
+      onChange={(e) => {
+        const digits = e.target.value.replace(/\D/g, '').slice(0, len)
+        set(digits)
+        setError('')
+        if (digits.length === len) {
+          if (next) next.current?.focus()
+          else tryCommit(dd, mm, digits)
+        }
+      }}
+      onKeyDown={(e) => {
+        if (e.key === 'Backspace' && !val && prev) prev.current?.focus()
+        if (e.key === 'Enter') { e.preventDefault(); tryCommit(dd, mm, yyyy) }
+      }}
+      className={`${len === 4 ? 'w-20' : 'w-12'} bg-transparent text-center text-2xl font-semibold text-primary
+                  placeholder:text-tertiary/50 focus:outline-none border-b-2 border-primary/10 focus:border-themeblue3 py-1 transition-colors`}
+    />
+  )
+
+  const pad = (n: number) => String(n).padStart(2, '0')
+
+  return (
+    <div className="px-4 pt-4 pb-6 flex flex-col items-center">
+      <div className="flex items-end gap-2">
+        {field(dRef, dd, setDd, 2, current ? pad(current.getDate()) : 'DD', mRef, null, 'Day')}
+        <span className="text-2xl text-tertiary pb-1.5">/</span>
+        {field(mRef, mm, setMm, 2, current ? pad(current.getMonth() + 1) : 'MM', yRef, dRef, 'Month')}
+        <span className="text-2xl text-tertiary pb-1.5">/</span>
+        {field(yRef, yyyy, setYyyy, 4, current ? String(current.getFullYear()) : 'YYYY', null, mRef, 'Year')}
+      </div>
+      <div className="flex gap-2 mt-1.5 text-[9pt] font-medium text-tertiary uppercase tracking-widest">
+        <span className="w-12 text-center">Day</span>
+        <span className="w-3" />
+        <span className="w-12 text-center">Month</span>
+        <span className="w-3" />
+        <span className="w-20 text-center">Year</span>
+      </div>
+      {error && <p className="mt-3 text-xs text-themeredred">{error}</p>}
+      {/* Focus after mount, not autoFocus — the morph slides this in, and the user
+          explicitly asked to type, so popping the keyboard here is intended. */}
+      <FocusOnMount target={dRef} />
+    </div>
+  )
+}
+
+function FocusOnMount({ target }: { target: React.RefObject<HTMLInputElement | null> }) {
+  useEffect(() => { target.current?.focus() }, [target])
+  return null
+}
+
+/** Header action on the calendar screen — morphs into typed entry. */
+const ManualDateButton = ({ onClick }: { onClick: () => void }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className="w-8 h-8 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
+    aria-label="Type date"
+  >
+    <Keyboard size={16} />
+  </button>
+)
+
 export const DatePickerInput = ({
   value,
   onChange,
@@ -619,11 +739,44 @@ export const DatePickerInput = ({
   const close = () => setVisible(false)
 
   const display = formatDisplay(value)
+  const title = placeholder ?? 'Select Date'
+
+  const manualScreen = (done: () => void): StackScreen => ({
+    title: 'Enter Date',
+    render: () => (
+      <DateManualEntry
+        value={value}
+        minDate={minDate}
+        maxDate={maxDate}
+        onCommit={(iso) => { onChange(iso); done() }}
+      />
+    ),
+  })
+
+  // Standalone (no enclosing stack): drive our own two-screen stack inside the
+  // PreviewOverlay so calendar → typed entry still morphs the card in place.
+  const local = useStack({
+    isOpen: visible,
+    initial: { key: 'calendar' },
+    screens: {
+      calendar: {
+        title,
+        headerActions: (_p, nav) => <ManualDateButton onClick={() => nav.pushScreen(manualScreen(close))} />,
+        render: () => (
+          <DatePickerCalendar value={value} onChange={onChange} onClose={close} minDate={minDate} maxDate={maxDate} />
+        ),
+      },
+    },
+  })
 
   const open = () => {
     if (stackNav) {
       stackNav.pushScreen({
-        title: placeholder ?? 'Select Date',
+        title,
+        // Commit from typed entry pops both the entry and the calendar screens.
+        headerActions: (_p, nav) => (
+          <ManualDateButton onClick={() => nav.pushScreen(manualScreen(() => { nav.pop(); nav.pop() }))} />
+        ),
         render: (_p, nav) => (
           <DatePickerCalendar value={value} onChange={onChange} onClose={nav.pop} minDate={minDate} maxDate={maxDate} />
         ),
@@ -653,15 +806,11 @@ export const DatePickerInput = ({
             isOpen={visible}
             onClose={close}
             anchorRect={null}
-            title={placeholder ?? 'Select Date'}
+            title={local.title}
+            onBack={local.onBack}
+            headerActions={local.headerActions}
           >
-            <DatePickerCalendar
-              value={value}
-              onChange={onChange}
-              onClose={close}
-              minDate={minDate}
-              maxDate={maxDate}
-            />
+            {local.body()}
           </PreviewOverlay>
         )}
       </div>
