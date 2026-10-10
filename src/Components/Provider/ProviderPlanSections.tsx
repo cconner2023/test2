@@ -14,7 +14,7 @@ import type { PlanBlockKey, PlanOrderSet, PlanOrderTags } from '../../Data/User'
 import type { MergedPlanOrderSet } from '../../Hooks/useMergedNoteContent';
 import type { PlanState, PlanBlockState } from '../../Types/PlanTypes';
 import { MedQtyStepper } from '@/Components/primitives/MedQtyStepper';
-import { medTagLabel, effectiveMedQty } from '@/Utilities/medTag';
+import { medTagLabel, medTagSig, effectiveMedQty } from '@/Utilities/medTag';
 
 // Display order: meds → lab → radiology → referral → instructions → followUp
 // (matches Plan.tsx's ALL_BLOCK_KEYS).
@@ -182,6 +182,9 @@ function SelectedList({ items, onReorder, onRemove, medQty, onMedQtyChange }: {
             </div>
             <span className="flex-1 text-sm text-primary break-words min-w-0">
               {it.catKey === 'meds' ? medTagLabel(it.tag) : it.tag}
+              {it.catKey === 'meds' && medTagSig(it.tag) && (
+                <span className="block text-[9pt] text-tertiary">Sig: {medTagSig(it.tag)}</span>
+              )}
             </span>
             {it.catKey === 'meds' && (
               <MedQtyStepper

@@ -15,7 +15,7 @@ import { Chip, ChipBar } from '@/Components/primitives/Chip';
 import type { PlanBlockState, PlanState } from '../Types/PlanTypes';
 import { FooterPill } from '@/Components/primitives/FooterPill'
 import { MedQtyStepper } from '@/Components/primitives/MedQtyStepper';
-import { formatMedNoteEntry, parseMedNoteEntry, effectiveMedQty, medTagLabel, planTagDisplay } from '@/Utilities/medTag';
+import { formatMedNoteEntry, parseMedNoteEntry, effectiveMedQty, medTagLabel, medTagSig, planTagDisplay } from '@/Utilities/medTag';
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -316,9 +316,16 @@ function ActiveItemsCard({ items, onToggle, onReorder, medQty, onQtyChange, bare
                             >
                                 <GripVertical size={16} />
                             </div>
-                            <span className="flex-1 text-[11pt] text-primary min-w-0 truncate">
-                                {catKey === 'meds' ? medTagLabel(tag) : tag}
-                            </span>
+                            {catKey === 'meds' ? (
+                                <span className="flex-1 min-w-0">
+                                    <span className="block text-[11pt] text-primary truncate">{medTagLabel(tag)}</span>
+                                    {medTagSig(tag) && (
+                                        <span className="block text-[9pt] text-tertiary truncate">Sig: {medTagSig(tag)}</span>
+                                    )}
+                                </span>
+                            ) : (
+                                <span className="flex-1 text-[11pt] text-primary min-w-0 truncate">{tag}</span>
+                            )}
                             {catKey === 'meds' ? (
                                 <MedQtyStepper
                                     value={effectiveMedQty(tag, medQty) ?? 0}
@@ -465,7 +472,10 @@ export const Plan = ({ orderTags, instructionTags, orderSets = [], initialText, 
         }));
     }, [allTags]);
 
-    const handleAdd = useCallback((value: string) => {
+    const handleAdd = useCallback((raw: string) => {
+        // Med entries typed in note form ("Label, #10, Sig: ...") fold to the stored
+        // pipe form so qty and sig land on the tag; plain text passes through.
+        const value = addTarget === 'meds' ? parseMedNoteEntry(raw) : raw;
         // Resolve target: explicit selection → first category with a matching tag → first with tags
         const key = (addTarget as PlanBlockKey)
             ?? ALL_BLOCK_KEYS.find(k => allTags[k].includes(value))

@@ -513,20 +513,38 @@ function formatItemLineMaster(block: { label: string; findings: MasterPEFinding[
     return `${uLabel}: Normal`;
 }
 
-function formatVitalsText(vitals: Record<string, string>): string[] {
+/** Vitals as one continuous line: "Vital Signs: HR: 72 bpm | BP: 120/80 mmHg | Temp: 98.6 °F (37.0 °C) | …" */
+export function formatVitalsText(vitals: Record<string, string>): string[] {
     const hasVitals = VITAL_SIGNS.some(v => vitals[v.key]?.trim());
     if (!hasVitals) return [];
-    const lines: string[] = ['Vital Signs:'];
+    const segs: string[] = [];
     for (const v of VITAL_SIGNS) {
         if (v.key === 'bpSys') {
             const sys = vitals['bpSys']?.trim();
             const dia = vitals['bpDia']?.trim();
-            if (sys || dia) lines.push(`  BP: ${sys || '--'}/${dia || '--'} mmHg`);
+            if (sys || dia) segs.push(`BP: ${sys || '--'}/${dia || '--'} mmHg`);
             continue;
         }
         if (v.key === 'bpDia') continue;
         const val = vitals[v.key]?.trim();
-        if (val) lines.push(`  ${v.shortLabel}: ${val} ${v.unit}`);
+        if (!val) continue;
+        const num = parseFloat(val);
+        const base = `${v.shortLabel}: ${val}${v.unit ? ` ${v.unit}` : ''}`;
+        if (v.key === 'temp' && !isNaN(num)) {
+            segs.push(`${base} (${((num - 32) * 5 / 9).toFixed(1)} °C)`);
+        } else if (v.key === 'ht' && !isNaN(num)) {
+            segs.push(`${base} (${(num * 2.54).toFixed(1)} cm)`);
+        } else if (v.key === 'wt' && !isNaN(num)) {
+            segs.push(`${base} (${(num * 0.453592).toFixed(1)} kg)`);
+        } else {
+            segs.push(base);
+        }
     }
-    return lines;
+    const htNum = parseFloat(vitals['ht']?.trim() || '');
+    const wtNum = parseFloat(vitals['wt']?.trim() || '');
+    if (!isNaN(htNum) && htNum > 0 && !isNaN(wtNum) && wtNum > 0) {
+        const htM = (htNum * 2.54) / 100;
+        segs.push(`BMI: ${((wtNum * 0.453592) / (htM * htM)).toFixed(1)}`);
+    }
+    return [`Vital Signs: ${segs.join(' | ')}`];
 }

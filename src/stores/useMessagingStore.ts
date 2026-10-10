@@ -14,7 +14,6 @@ import { create } from 'zustand'
 import { useShallow } from 'zustand/react/shallow'
 import {
   loadAllConversations,
-  loadUnreadCounts,
   getAllTombstones,
   getAllOriginTombstones,
   saveTombstone,
@@ -358,8 +357,12 @@ export const useMessagingStore = create<MessagingStore>()((set, get) => ({
       const msgs = s.conversations[peerId]
       if (!msgs) return s
       const updated = msgs.map(m => idSet.has(m.id) ? { ...m, readAt } : m)
+      // Recompute rather than clear — messages newer than the other device's
+      // read stay unread here.
       const unreadCounts = { ...s.unreadCounts }
-      delete unreadCounts[peerId]
+      const unread = recomputeUnread(peerId, updated, s.localUserId, s.systemGroupIds)
+      if (unread > 0) unreadCounts[peerId] = unread
+      else delete unreadCounts[peerId]
       return {
         conversations: { ...s.conversations, [peerId]: updated },
         unreadCounts,
@@ -569,9 +572,8 @@ export const useMessagingStore = create<MessagingStore>()((set, get) => ({
 
   hydrateFromIdb: async (userId) => {
     try {
-      const [convos, counts, tombstones, originTombstones, peerProfileList] = await Promise.all([
+      const [convos, tombstones, originTombstones, peerProfileList] = await Promise.all([
         loadAllConversations(),
-        loadUnreadCounts(userId),
         getAllTombstones(),
         getAllOriginTombstones(),
         loadAllPeerProfiles(),
@@ -634,14 +636,6 @@ export const useMessagingStore = create<MessagingStore>()((set, get) => ({
         deviceId = await getLocalDeviceId()
       }
 
-      // Strip system group unread counts (e.g. clinic vault group)
-      const sysIds = get().systemGroupIds
-      if (sysIds.size > 0) {
-        for (const key of Object.keys(counts)) {
-          if (sysIds.has(key)) delete counts[key]
-        }
-      }
-
       set(s => {
         // Merge: IDB data + any messages already in state (from concurrent catch-up)
         const merged = { ...filtered }
@@ -664,9 +658,18 @@ export const useMessagingStore = create<MessagingStore>()((set, get) => ({
           )
         }
 
+        // Derive unread from the merged, tombstone-filtered set — a raw IDB
+        // count includes tombstoned rows (ghost badge with nothing to open) and
+        // drops increments from a concurrent catch-up.
+        const counts: Record<string, number> = {}
+        for (const [key, msgs] of Object.entries(merged)) {
+          const unread = recomputeUnread(key, msgs, userId, s.systemGroupIds)
+          if (unread > 0) counts[key] = unread
+        }
+
         return {
           conversations: Object.keys(merged).length > 0 ? merged : s.conversations,
-          unreadCounts: Object.keys(counts).length > 0 ? counts : s.unreadCounts,
+          unreadCounts: counts,
           deletedConversations: tombstones,
           deletedOrigins: originTombstones,
           localDeviceId: deviceId ?? s.localDeviceId,

@@ -158,6 +158,34 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
     const isConversationView = view === 'messages-chat' || view === 'messages-group-chat'
     const isMessagesActive = view === 'messages' || isConversationView
 
+    // The open conversation only counts as "being read" while the drawer is
+    // shown and the tab is foregrounded. Closing via swipe / Esc / another
+    // drawer bypasses handleClose and the view state survives, so without this
+    // activePeerRef stays set and later messages are silently auto-read with no
+    // toast. Also re-marks when unread lands while open (IDB hydrate on a
+    // cold-start deep link, vault drain) since ChatDetailView only marks on mount.
+    const markAsRead = messagesCtx?.markAsRead
+    const openKey = isConversationView ? (selectedGroupId ?? selectedPeerId) : null
+    const openUnread = useMessagingStore(s => (openKey ? s.unreadCounts[openKey] ?? 0 : 0))
+    const ownedActiveKeyRef = useRef<string | null>(null)
+    useEffect(() => {
+        if (!activePeerRef || !markAsRead) return
+        const sync = () => {
+            if (isVisible && openKey && document.visibilityState === 'visible') {
+                ownedActiveKeyRef.current = openKey
+                markAsRead(openKey)
+            } else if (ownedActiveKeyRef.current && activePeerRef.current === ownedActiveKeyRef.current) {
+                // Only clear a key this drawer set — the admin system view owns its own.
+                // eslint-disable-next-line react-hooks/immutability
+                activePeerRef.current = null
+                ownedActiveKeyRef.current = null
+            }
+        }
+        sync()
+        document.addEventListener('visibilitychange', sync)
+        return () => document.removeEventListener('visibilitychange', sync)
+    }, [isVisible, openKey, openUnread, activePeerRef, markAsRead])
+
     // ── Header collapse spring (mirrors NavTop pattern in App.tsx) ─────
     // Collapses when entering a conversation view
     const headerCollapseSpring = useSpring({

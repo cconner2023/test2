@@ -818,10 +818,24 @@ export function useMessages(): UseMessagesReturn {
     // Read-sync from another own device
     if (msg._readSync) {
       const { peerId, messageIds, readAt } = msg._readSync
-      updateReadAt(messageIds, readAt).catch(e =>
+      // The sender device's row ids don't exist here — resolve its originIds
+      // (shared across the fan-out) to this device's local ids.
+      let originIds: string[] = []
+      try {
+        const parsed = JSON.parse(msg.plaintext) as { originIds?: unknown }
+        if (Array.isArray(parsed.originIds)) {
+          originIds = parsed.originIds.filter((x): x is string => typeof x === 'string')
+        }
+      } catch { /* legacy payload without originIds */ }
+      const idSet = new Set(messageIds)
+      const originSet = new Set(originIds)
+      const localIds = (store().conversations[peerId] ?? [])
+        .filter(m => idSet.has(m.id) || (m.originId && originSet.has(m.originId)))
+        .map(m => m.id)
+      updateReadAt(localIds, readAt).catch(e =>
         errorBus.emit({ code: ErrorCode.STORAGE_ERROR, source: 'useMessages.handleIncomingMessage', message: 'Failed to apply remote read sync to IDB', timestamp: Date.now(), metadata: { error: e } })
       )
-      store().applyReadSync(peerId, messageIds, readAt)
+      store().applyReadSync(peerId, localIds, readAt)
       markMessagesRead([msg.id]).catch(() => {})
       return
     }
@@ -2111,9 +2125,8 @@ export function useMessages(): UseMessagesReturn {
     const msgs = state.conversations[peerId]
     if (!msgs) return
 
-    const unreadIds = msgs
-      .filter(m => m.senderId !== userId && !m.readAt)
-      .map(m => m.id)
+    const unreadMsgs = msgs.filter(m => m.senderId !== userId && !m.readAt)
+    const unreadIds = unreadMsgs.map(m => m.id)
 
     // No-op guard: nothing to mark + no stale unread count → skip the store
     // write entirely. The store mutates conversations/unreadCounts by reference
@@ -2137,10 +2150,13 @@ export function useMessages(): UseMessagesReturn {
 
       const localDeviceId = useMessagingStore.getState().localDeviceId
       if (userId && localDeviceId) {
+        // Row ids are per-device (fan-out writes one row per recipient device),
+        // so other own devices can only match by the shared originId.
         const readSyncPayload = JSON.stringify({
           __syncType: 'read',
           peerId,
           messageIds: unreadIds,
+          originIds: unreadMsgs.map(m => m.originId).filter(Boolean),
           readAt: readAtTs,
         })
         sendReadSyncToOwnDevices(userId, localDeviceId, readSyncPayload).catch(() => {})

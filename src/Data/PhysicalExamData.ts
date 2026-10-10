@@ -82,6 +82,21 @@ export function applySpecify(label: string, detail?: string): string {
     return `${stripped}: ${d}`;
 }
 
+/**
+ * Inspection / palpation / ROM findings shared by every MSK child block.
+ * Keys are prefixed per joint so they stay globally unique (FINDING_TO_BLOCK).
+ * Appended AFTER each block's special tests: the PE codec encodes findings and
+ * abnormals by index, so prepending would corrupt previously encoded notes.
+ */
+function jointExamFindings(prefix: string): MasterPEFinding[] {
+    return [
+        { key: `${prefix}NoErythema`, normal: 'No erythema', abnormals: [{ key: `${prefix}Erythema`, label: 'Erythema' }], tier: 'baseline' },
+        { key: `${prefix}NoSwelling`, normal: 'No swelling', abnormals: [{ key: `${prefix}Swelling`, label: 'Swelling' }], tier: 'baseline' },
+        { key: `${prefix}Nontender`, normal: 'Nontender', abnormals: [{ key: `${prefix}Ttp`, label: 'TTP (specify location)' }], tier: 'baseline' },
+        { key: `${prefix}Farom`, normal: 'FAROM', abnormals: [{ key: `${prefix}LimitedRom`, label: 'Limited ROM' }], tier: 'baseline' },
+    ];
+}
+
 // ══════════════════════════════════════════════════════════════
 // MASTER BLOCKS — consolidated PE with tiered findings
 // ══════════════════════════════════════════════════════════════
@@ -345,6 +360,7 @@ export const MASTER_BLOCKS: MasterPEBlock[] = [
         findings: [
         { key: 'spurlings', normal: "(-) Spurling's", abnormals: [{ key: 'spurlingsPos', label: "(+) Spurling's" }], tier: 'expanded' },
         { key: 'hoffmans', normal: "(-) Hoffman's", abnormals: [{ key: 'hoffmansPos', label: "(+) Hoffman's" }], tier: 'expanded' },
+        ...jointExamFindings('neck'),
         ],
     },
     {
@@ -362,6 +378,7 @@ export const MASTER_BLOCKS: MasterPEBlock[] = [
         { key: 'crossBodyAdduction', normal: '(-) Cross-body adduction', abnormals: [{ key: 'crossBodyAdductionPos', label: '(+) Cross-body adduction' }], tier: 'expanded' },
         { key: 'dropArm', normal: '(-) Drop arm', abnormals: [{ key: 'dropArmPos', label: '(+) Drop arm' }], tier: 'expanded' },
         { key: 'liftOff', normal: '(-) Lift-off', abnormals: [{ key: 'liftOffPos', label: '(+) Lift-off' }], tier: 'expanded' },
+        ...jointExamFindings('shoulder'),
         ],
     },
     {
@@ -372,6 +389,7 @@ export const MASTER_BLOCKS: MasterPEBlock[] = [
         { key: 'tinelCubital', normal: '(-) Tinel (cubital tunnel)', abnormals: [{ key: 'tinelCubitalPos', label: '(+) Tinel (cubital tunnel)' }], tier: 'expanded' },
         { key: 'valgusStress', normal: '(-) Valgus stress', abnormals: [{ key: 'valgusStressPos', label: '(+) Valgus stress' }], tier: 'expanded' },
         { key: 'varusStress', normal: '(-) Varus stress', abnormals: [{ key: 'varusStressPos', label: '(+) Varus stress' }], tier: 'expanded' },
+        ...jointExamFindings('elbow'),
         ],
     },
     {
@@ -383,6 +401,7 @@ export const MASTER_BLOCKS: MasterPEBlock[] = [
         { key: 'phalen', normal: '(-) Phalen', abnormals: [{ key: 'phalenPos', label: '(+) Phalen' }], tier: 'expanded' },
         { key: 'finkelstein', normal: '(-) Finkelstein', abnormals: [{ key: 'finkelsteinPos', label: '(+) Finkelstein' }], tier: 'expanded' },
         { key: 'watsonsScaphoid', normal: "(-) Watson's (scaphoid shift)", abnormals: [{ key: 'watsonsScaphoidPos', label: "(+) Watson's (scaphoid shift)" }], tier: 'expanded' },
+        ...jointExamFindings('wrist'),
         ],
     },
     {
@@ -394,6 +413,7 @@ export const MASTER_BLOCKS: MasterPEBlock[] = [
         { key: 'phalenH', normal: '(-) Phalen', abnormals: [{ key: 'phalenHPos', label: '(+) Phalen' }], tier: 'expanded' },
         { key: 'finkelsteinH', normal: '(-) Finkelstein', abnormals: [{ key: 'finkelsteinHPos', label: '(+) Finkelstein' }], tier: 'expanded' },
         { key: 'grindTest1stCmc', normal: '(-) Grind test (1st CMC)', abnormals: [{ key: 'grindTest1stCmcPos', label: '(+) Grind test (1st CMC)' }], tier: 'expanded' },
+        ...jointExamFindings('hand'),
         ],
     },
     {
@@ -407,6 +427,7 @@ export const MASTER_BLOCKS: MasterPEBlock[] = [
         { key: 'ober', normal: '(-) Ober', abnormals: [{ key: 'oberPos', label: '(+) Ober' }], tier: 'expanded' },
         { key: 'piriformisTest', normal: '(-) Piriformis test', abnormals: [{ key: 'piriformisTestPos', label: '(+) Piriformis test' }], tier: 'expanded' },
         { key: 'slumpTest', normal: '(-) Slump test', abnormals: [{ key: 'slumpTestPos', label: '(+) Slump test' }], tier: 'expanded' },
+        ...jointExamFindings('back'),
         ],
     },
     {
@@ -421,6 +442,7 @@ export const MASTER_BLOCKS: MasterPEBlock[] = [
         { key: 'thomasTest', normal: '(-) Thomas test', abnormals: [{ key: 'thomasTestPos', label: '(+) Thomas test' }], tier: 'expanded' },
         { key: 'logRoll', normal: '(-) Log roll', abnormals: [{ key: 'logRollPos', label: '(+) Log roll' }], tier: 'expanded' },
         { key: 'piriformisTestHip', normal: '(-) Piriformis test', abnormals: [{ key: 'piriformisTestHipPos', label: '(+) Piriformis test' }], tier: 'expanded' },
+        ...jointExamFindings('hip'),
         ],
     },
     {
@@ -436,6 +458,7 @@ export const MASTER_BLOCKS: MasterPEBlock[] = [
         { key: 'varusStressKnee', normal: '(-) Varus stress', abnormals: [{ key: 'varusStressKneePos', label: '(+) Varus stress' }], tier: 'expanded' },
         { key: 'patellarApprehension', normal: '(-) Patellar apprehension', abnormals: [{ key: 'patellarApprehensionPos', label: '(+) Patellar apprehension' }], tier: 'expanded' },
         { key: 'patellarGrind', normal: '(-) Patellar grind', abnormals: [{ key: 'patellarGrindPos', label: '(+) Patellar grind' }], tier: 'expanded' },
+        ...jointExamFindings('knee'),
         ],
     },
     {
@@ -448,6 +471,7 @@ export const MASTER_BLOCKS: MasterPEBlock[] = [
         { key: 'thompson', normal: '(-) Thompson', abnormals: [{ key: 'thompsonPos', label: '(+) Thompson' }], tier: 'expanded' },
         { key: 'squeezeTest', normal: '(-) Squeeze test', abnormals: [{ key: 'squeezeTestPos', label: '(+) Squeeze test' }], tier: 'expanded' },
         { key: 'externalRotationStress', normal: '(-) External rotation stress', abnormals: [{ key: 'externalRotationStressPos', label: '(+) External rotation stress' }], tier: 'expanded' },
+        ...jointExamFindings('ankle'),
         ],
     },
     {
@@ -457,13 +481,16 @@ export const MASTER_BLOCKS: MasterPEBlock[] = [
         findings: [
         { key: 'tinelTarsal', normal: '(-) Tinel (tarsal tunnel)', abnormals: [{ key: 'tinelTarsalPos', label: '(+) Tinel (tarsal tunnel)' }], tier: 'expanded' },
         { key: 'squeezeTestMtp', normal: '(-) Squeeze test (MTP)', abnormals: [{ key: 'squeezeTestMtpPos', label: '(+) Squeeze test (MTP)' }], tier: 'expanded' },
+        ...jointExamFindings('foot'),
         ],
     },
     {
         key: 'msk_extremity',
         label: 'Extremity',
         parent: 'msk',
-        findings: [],
+        findings: [
+        ...jointExamFindings('extremity'),
+        ],
     },
 
     {

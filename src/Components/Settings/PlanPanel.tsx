@@ -371,6 +371,28 @@ function QtyInput({ value, onChange, onEnter }: {
     );
 }
 
+/** Directions on a medication tag ("1 tab PO q8h PRN pain") — rendered into the
+ *  note after the dispense count. Sits on its own line under the label row. */
+function SigInput({ value, onChange, onEnter }: {
+    value: string;
+    onChange: (v: string) => void;
+    onEnter: () => void;
+}) {
+    return (
+        <div className="flex items-center gap-1.5 pl-1 text-tertiary">
+            <span className="text-[9pt] font-semibold uppercase tracking-wider shrink-0">Sig</span>
+            <input
+                type="text"
+                value={value}
+                onChange={(e) => onChange(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); onEnter(); } }}
+                placeholder="1 tab PO q8h PRN pain"
+                className="flex-1 bg-transparent text-primary placeholder:text-tertiary focus:outline-none text-sm min-w-0"
+            />
+        </div>
+    );
+}
+
 function TagEditPopover({ state, onClose, isSupervisorRole, hasClinic, onSubmitMany, onRename }: {
     state: TagPopover | null;
     onClose: () => void;
@@ -380,10 +402,11 @@ function TagEditPopover({ state, onClose, isSupervisorRole, hasClinic, onSubmitM
     onRename: (scope: Scope, key: PlanBlockKey, original: string, next: string) => void;
 }) {
     // New mode builds an array (one row per tag); edit mode is a single row.
-    // Med rows carry a quantity alongside the label — the two are composed into
-    // one tag string on save, so `values` holds labels only.
+    // Med rows carry a quantity and sig alongside the label — all three are
+    // composed into one tag string on save, so `values` holds labels only.
     const [values, setValues] = useState<string[]>(['']);
     const [qtys, setQtys] = useState<string[]>(['']);
+    const [sigs, setSigs] = useState<string[]>(['']);
     const [category, setCategory] = useState<PlanBlockKey>('meds');
     const [scope, setScope] = useState<Scope>('personal');
     const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
@@ -393,15 +416,17 @@ function TagEditPopover({ state, onClose, isSupervisorRole, hasClinic, onSubmitM
     useEffect(() => {
         if (!state) return;
         if (state.mode === 'edit') {
-            const { label, qty } = parseMedTag(state.original);
+            const { label, qty, sig } = parseMedTag(state.original);
             const isMed = state.key === 'meds';
             setValues([isMed ? label : state.original]);
             setQtys([isMed && qty != null ? String(qty) : '']);
+            setSigs([isMed && sig ? sig : '']);
             setCategory(state.key);
             setScope(state.isClinic ? 'clinic' : 'personal');
         } else {
             setValues(['']);
             setQtys(['']);
+            setSigs(['']);
             setCategory('meds');
             setScope('personal');
         }
@@ -424,17 +449,17 @@ function TagEditPopover({ state, onClose, isSupervisorRole, hasClinic, onSubmitM
     const isMedCategory = targetKey === 'meds';
 
     // Trimmed, de-duped, blank-free — the array Save commits. Med rows fold their
-    // quantity in here, so everything downstream still sees plain tag strings.
+    // quantity and sig in here, so everything downstream still sees plain tag strings.
     const cleaned = useMemo(() => {
         const composed = values.map((v, i) => {
             const label = v.trim();
             if (!label) return '';
             if (!isMedCategory) return label;
             const n = Number.parseInt(qtys[i] ?? '', 10);
-            return composeMedTag(label, Number.isFinite(n) ? n : null);
+            return composeMedTag(label, Number.isFinite(n) ? n : null, sigs[i]);
         });
         return [...new Set(composed.filter(Boolean))];
-    }, [values, qtys, isMedCategory]);
+    }, [values, qtys, sigs, isMedCategory]);
     const lastFilled = values[values.length - 1]?.trim().length > 0;
     const canSave = isEdit
         ? (!!cleaned[0] && cleaned[0] !== original)
@@ -444,15 +469,19 @@ function TagEditPopover({ state, onClose, isSupervisorRole, hasClinic, onSubmitM
         setValues(prev => prev.map((x, idx) => (idx === i ? v : x)));
     const setQtyAt = (i: number, v: string) =>
         setQtys(prev => prev.map((x, idx) => (idx === i ? v.replace(/\D/g, '') : x)));
+    const setSigAt = (i: number, v: string) =>
+        setSigs(prev => prev.map((x, idx) => (idx === i ? v : x)));
     const addRow = () => {
         focusIdxRef.current = values.length;
         setValues(prev => [...prev, '']);
         setQtys(prev => [...prev, '']);
+        setSigs(prev => [...prev, '']);
     };
     const removeRow = (i: number) => {
         if (values.length <= 1) return;
         setValues(prev => prev.filter((_, idx) => idx !== i));
         setQtys(prev => prev.filter((_, idx) => idx !== i));
+        setSigs(prev => prev.filter((_, idx) => idx !== i));
     };
 
     const handleSave = () => {
@@ -529,7 +558,8 @@ function TagEditPopover({ state, onClose, isSupervisorRole, hasClinic, onSubmitM
             }
         >
             {isEdit ? (
-                <div className="flex items-center gap-2 px-3 py-2">
+                <div className="px-3 py-2 space-y-1.5">
+                <div className="flex items-center gap-2">
                     {editMeta && (
                         <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${editMeta.bg}`}>
                             <editMeta.icon size={14} className={editMeta.color} />
@@ -546,10 +576,13 @@ function TagEditPopover({ state, onClose, isSupervisorRole, hasClinic, onSubmitM
                     />
                     {isMedCategory && <QtyInput value={qtys[0] ?? ''} onChange={(v) => setQtyAt(0, v)} onEnter={handleSave} />}
                 </div>
+                {isMedCategory && <SigInput value={sigs[0] ?? ''} onChange={(v) => setSigAt(0, v)} onEnter={handleSave} />}
+                </div>
             ) : (
                 <div className="py-1">
                     {values.map((val, i) => (
-                        <div key={i} className="flex items-center gap-2 px-3 py-1.5">
+                        <div key={i} className={`px-3 py-1.5 space-y-1 ${isMedCategory && i > 0 ? 'border-t border-primary/6' : ''}`}>
+                        <div className="flex items-center gap-2">
                             <input
                                 autoFocus={i === 0}
                                 ref={(el) => { inputRefs.current[i] = el; }}
@@ -578,6 +611,8 @@ function TagEditPopover({ state, onClose, isSupervisorRole, hasClinic, onSubmitM
                                     <X size={12} />
                                 </button>
                             )}
+                        </div>
+                        {isMedCategory && <SigInput value={sigs[i] ?? ''} onChange={(v) => setSigAt(i, v)} onEnter={handleSave} />}
                         </div>
                     ))}
                 </div>

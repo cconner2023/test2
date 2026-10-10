@@ -36,6 +36,7 @@ import type {
     MasterPEFinding,
 } from '../Data/PhysicalExamData';
 import type { TextExpander } from '../Data/User';
+import { formatVitalsText } from '../Utilities/peCodec';
 import type { PEState, PEItemState } from '../Types/PETypes';
 import { FooterPill } from '@/Components/primitives/FooterPill'
 
@@ -196,34 +197,43 @@ function parseInitialText(
             continue;
         }
 
-        if (line.startsWith('Vital Signs:') || line === 'Vital Signs') {
-            inVitals = true;
-            continue;
-        }
-        if (inVitals) {
-            const bpMatch = line.match(/^\s*BP:\s*(.+?)\/(.+?)\s*mmHg/);
+        // Parses one "Label: value unit (conversion)" vital segment; false if unrecognized.
+        const parseVitalSegment = (seg: string): boolean => {
+            const bpMatch = seg.match(/^\s*BP:\s*(.+?)\/(.+?)\s*mmHg/);
             if (bpMatch) {
                 const sys = bpMatch[1].trim();
                 const dia = bpMatch[2].trim();
                 if (sys && sys !== '--') vitals['bpSys'] = sys;
                 if (dia && dia !== '--') vitals['bpDia'] = dia;
-                continue;
+                return true;
             }
-            if (line.match(/^\s*BMI:/)) continue;
-            const vitalMatch = line.match(/^\s*(\w+):\s*(.+)/);
-            if (vitalMatch) {
-                const key = vitalLabelToKey[vitalMatch[1]];
-                if (key) {
-                    let val = vitalMatch[2].trim();
-                    val = val.replace(/\s*\([^)]*\)\s*$/, '');
-                    const vitalDef = VITAL_SIGNS.find(v => v.key === key);
-                    if (vitalDef && vitalDef.unit && val.endsWith(vitalDef.unit)) {
-                        val = val.slice(0, -vitalDef.unit.length).trim();
-                    }
-                    vitals[key] = val;
-                    continue;
-                }
+            if (seg.match(/^\s*BMI:/)) return true;
+            const vitalMatch = seg.match(/^\s*(\w+):\s*(.+)/);
+            if (!vitalMatch) return false;
+            const key = vitalLabelToKey[vitalMatch[1]];
+            if (!key) return false;
+            let val = vitalMatch[2].trim();
+            val = val.replace(/\s*\([^)]*\)\s*$/, '');
+            const vitalDef = VITAL_SIGNS.find(v => v.key === key);
+            if (vitalDef && vitalDef.unit && val.endsWith(vitalDef.unit)) {
+                val = val.slice(0, -vitalDef.unit.length).trim();
             }
+            vitals[key] = val;
+            return true;
+        };
+
+        if (line.startsWith('Vital Signs:') || line === 'Vital Signs') {
+            const rest = line.replace(/^Vital Signs:?/, '').trim();
+            if (rest) {
+                // Single-line format: segments separated by " | "
+                rest.split('|').forEach(seg => parseVitalSegment(seg));
+            } else {
+                inVitals = true; // legacy multi-line format
+            }
+            continue;
+        }
+        if (inVitals) {
+            if (parseVitalSegment(line)) continue;
             if (line.trim()) inVitals = false;
             else continue;
         }
@@ -308,43 +318,6 @@ function formatExamLine(label: string, state: ItemState, findings: PEFinding[]):
     return `${uLabel}: Normal`;
 }
 
-function formatVitals(vitals: Record<string, string>): string[] {
-    const lines: string[] = [];
-    const hasVitals = VITAL_SIGNS.some(v => vitals[v.key]?.trim());
-    if (!hasVitals) return lines;
-    lines.push('Vital Signs:');
-    for (const v of VITAL_SIGNS) {
-        if (v.key === 'bpSys') {
-            const sys = vitals['bpSys']?.trim();
-            const dia = vitals['bpDia']?.trim();
-            if (sys || dia) {
-                lines.push(`  BP: ${sys || '--'}/${dia || '--'} mmHg`);
-            }
-            continue;
-        }
-        if (v.key === 'bpDia') continue;
-        const val = vitals[v.key]?.trim();
-        if (val) {
-            const num = parseFloat(val);
-            if (v.key === 'ht' && !isNaN(num)) {
-                lines.push(`  ${v.shortLabel}: ${val} ${v.unit} (${(num * 2.54).toFixed(1)} cm)`);
-            } else if (v.key === 'wt' && !isNaN(num)) {
-                lines.push(`  ${v.shortLabel}: ${val} ${v.unit} (${(num * 0.453592).toFixed(1)} kg)`);
-            } else {
-                lines.push(`  ${v.shortLabel}: ${val} ${v.unit}`);
-            }
-        }
-    }
-    const htNum = parseFloat(vitals['ht']?.trim() || '');
-    const wtNum = parseFloat(vitals['wt']?.trim() || '');
-    if (!isNaN(htNum) && htNum > 0 && !isNaN(wtNum) && wtNum > 0) {
-        const htM = (htNum * 2.54) / 100;
-        const bmi = (wtNum * 0.453592) / (htM * htM);
-        lines.push(`  BMI: ${bmi.toFixed(1)}`);
-    }
-    return lines;
-}
-
 function generateText(
     blocks: MasterPEBlock[],
     blockStates: Record<string, ItemState>,
@@ -355,7 +328,7 @@ function generateText(
     vitals: Record<string, string>,
     categoryLetter: CategoryLetter,
 ): string {
-    const parts: string[] = [...formatVitals(vitals)];
+    const parts: string[] = [...formatVitalsText(vitals)];
     const examLines: string[] = [];
 
     for (const block of blocks) {
