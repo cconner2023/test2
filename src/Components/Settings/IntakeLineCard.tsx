@@ -46,8 +46,6 @@ function intakeUrl(passcode: string): string {
 interface Props {
   line: IntakeLine
   subClusters: SubCluster[]
-  /** The live-call channel is still beta-gated; intake + outside chat are GA. */
-  showCallChannel: boolean
   /** Optimistic local patch so a toggle animates without a card repaint. */
   onPatch: (id: string, patch: Partial<IntakeLine>) => void
   /** Reconcile in place (no loading flip). */
@@ -65,7 +63,7 @@ interface Props {
  * the non-discoverability the cross-org contact model depends on.
  */
 export function IntakeLineCard({
-  line, subClusters, showCallChannel, onPatch, onChanged, onRemoved,
+  line, subClusters, onPatch, onChanged, onRemoved,
 }: Props) {
   const [busy, setBusy] = useState(false)
   const [channelBusy, setChannelBusy] = useState<string | null>(null)
@@ -95,7 +93,7 @@ export function IntakeLineCard({
   const outboundEnabled = line.outbound_enabled === true
   // Calls and one-way messages both ring the same roster, so either one makes the
   // duty row worth showing.
-  const rosterShown = (oncallEnabled && showCallChannel) || messageEnabled
+  const rosterShown = oncallEnabled || messageEnabled
 
   const url = intakeUrl(line.passcode)
 
@@ -282,22 +280,20 @@ export function IntakeLineCard({
           </div>
         </div>
 
-        {showCallChannel && (
-          <div
-            aria-hidden={!oncallEnabled}
-            className={`grid transition-all duration-300 ease-out ${
-              oncallEnabled ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
-            }`}
-          >
-            <div className="overflow-hidden">
-              <OncallGreetingRow
-                credentialId={line.id}
-                initialDur={line.oncall_greeting_dur ?? null}
-                onChanged={onChanged}
-              />
-            </div>
+        <div
+          aria-hidden={!oncallEnabled}
+          className={`grid transition-all duration-300 ease-out ${
+            oncallEnabled ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
+          }`}
+        >
+          <div className="overflow-hidden">
+            <OncallGreetingRow
+              credentialId={line.id}
+              initialDur={line.oncall_greeting_dur ?? null}
+              onChanged={onChanged}
+            />
           </div>
-        )}
+        </div>
       </SectionCard>
 
       <OverlayActionMenu
@@ -386,21 +382,19 @@ export function IntakeLineCard({
             activeBg="bg-themeblue3/15"
           />
 
-          {showCallChannel && (
-            <SettingsToggleRow
-              icon={Headset}
-              label="Calls"
-              subtitle={oncallEnabled
-                ? 'Outside callers can ring whoever is on duty'
-                : 'Outside callers cannot request a live call'}
-              checked={oncallEnabled}
-              onChange={() => void toggleChannel('oncall_enabled', oncallEnabled, setLineOncallEnabled)}
-              disabled={channelBusy === 'oncall_enabled'}
-              divided
-              activeColor="text-themeblue3"
-              activeBg="bg-themeblue3/15"
-            />
-          )}
+          <SettingsToggleRow
+            icon={Headset}
+            label="Calls"
+            subtitle={oncallEnabled
+              ? 'Outside callers can ring whoever is on duty'
+              : 'Outside callers cannot request a live call'}
+            checked={oncallEnabled}
+            onChange={() => void toggleChannel('oncall_enabled', oncallEnabled, setLineOncallEnabled)}
+            disabled={channelBusy === 'oncall_enabled'}
+            divided
+            activeColor="text-themeblue3"
+            activeBg="bg-themeblue3/15"
+          />
 
           <SettingsToggleRow
             icon={MessageSquare}

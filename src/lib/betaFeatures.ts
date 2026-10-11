@@ -24,7 +24,7 @@
  *      additionally bypasses that gate for testing. After promotion the role
  *      gate stands alone (dev no longer gets a free pass). Use
  *      `useBetaBypass(key)` and combine with `||` against the role gate.
- *        e.g. `isSupervisorRole || useBetaBypass('outsideCall')`
+ *        e.g. `isSupervisorRole || useBetaBypass('whisperNet')`
  *
  * The semantic distinction matters at promotion time: a standalone feature
  * opens to all; an additive feature loses only the dev bypass. Pick the helper
@@ -37,12 +37,6 @@ export const BETA_FEATURES = {
   /** WhisperNet — LoRa mesh offline messaging Settings panel. Subsystem runs
    *  regardless; this gate only controls the user-facing config panel. */
   whisperNet: true,
-  /** Outside on-call ("Allow calls") channel — intake + outside chat are GA
-   *  (supervisor-permissioned, no bypass). The live-call channel stays in beta:
-   *  dev sees the "Allow calls" toggle (and gets the supervisor card even without
-   *  the supervisor role) so they can finish testing. Flip to false to promote
-   *  calls to supervisors. */
-  outsideCall: true,
   /** Algorithm → note routing — tagged algorithm list items (questionOptions.noteTag)
    *  auto-populate the custom note's HPI/PE sections from the YES/NO answers.
    *  Dev-only while tagging is rolled out per algorithm; flip to false to open to all. */
@@ -80,7 +74,7 @@ export function useBetaFlag(feature: BetaFeature): boolean {
  * `false`) the helper returns `false` for everyone and the role gate stands
  * alone.
  *
- *   const canSee = isSupervisorRole || useBetaBypass('outsideCall')
+ *   const canSee = isSupervisorRole || useBetaBypass('whisperNet')
  */
 export function useBetaBypass(feature: BetaFeature): boolean {
   const isDevRole = useAuthStore((s) => s.isDevRole)

@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { Check, Inbox, Dices } from 'lucide-react'
 import { useAuth } from '../../Hooks/useAuth'
-import { useBetaBypass } from '../../lib/betaFeatures'
 import { useSubClusters } from '../../Hooks/useSubClusters'
 import { FooterPill } from '@/Components/primitives/FooterPill'
 import { EmptyState } from '@/Components/primitives/EmptyState'
@@ -66,7 +65,6 @@ export function openIntakeLineMint(): void {
  */
 export function IntakeMintSection({ clinicId, onLinesChanged }: IntakeMintSectionProps) {
   const { isSupervisorRole } = useAuth()
-  const outsideCallBeta = useBetaBypass('outsideCall')
   const { subClusters } = useSubClusters()
 
   // Seed from the warm cache so a pre-warmed open paints immediately. `undefined`
@@ -175,7 +173,7 @@ export function IntakeMintSection({ clinicId, onLinesChanged }: IntakeMintSectio
     }
   }, [mintName, mintPass1, mintPass2, clinicId, closeMint, refresh])
 
-  if (!isSupervisorRole && !outsideCallBeta) return null
+  if (!isSupervisorRole) return null
   if (loading) return null
 
   return (
@@ -207,7 +205,6 @@ export function IntakeMintSection({ clinicId, onLinesChanged }: IntakeMintSectio
               key={line.id}
               line={line}
               subClusters={subClusters}
-              showCallChannel={outsideCallBeta}
               onPatch={patchLine}
               onChanged={() => void refresh(true)}
               onRemoved={() => void refresh()}

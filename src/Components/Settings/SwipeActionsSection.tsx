@@ -105,15 +105,19 @@ function DirectionRow({ dir, label, side, swipe, onSelect }: DirectionRowProps) 
     }))
 
   return (
-    <SectionCard className="relative p-3">
-      <div className="mb-2.5 min-w-0">
-        <p className="text-sm font-medium text-primary">{label}</p>
-        <p className="text-[9pt] text-tertiary">{d.label}</p>
-      </div>
-      <ExampleRow binding={current} side={side} />
+    // SectionCard clips (overflow-hidden), so the overlay pill rides a sibling
+    // under a relative wrapper or its top half is cut off.
+    <div className="relative">
+      <SectionCard className="p-3">
+        <div className="mb-2.5 min-w-0">
+          <p className="text-sm font-medium text-primary">{label}</p>
+          <p className="text-[9pt] text-tertiary">{d.label}</p>
+        </div>
+        <ExampleRow binding={current} side={side} />
+      </SectionCard>
 
       <OverlayActionMenu items={items} />
-    </SectionCard>
+    </div>
   )
 }
 

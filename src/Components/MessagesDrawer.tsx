@@ -15,7 +15,6 @@ import { MessagesPanel, type MessagesView, type MessagesPanelHandle, type Messag
 import { useMessagesContext } from '../Hooks/MessagesContext'
 import { useMessagingStore } from '../stores/useMessagingStore'
 import { useAuth } from '../Hooks/useAuth'
-import { useBetaBypass } from '../lib/betaFeatures'
 import { prewarmMessagingSettings } from '../lib/messagingSettingsWarm'
 import { useUserProfile } from '../Hooks/useUserProfile'
 import { useIsMobile } from '../Hooks/useIsMobile'
@@ -51,7 +50,6 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
     const messagesCtx = useMessagesContext()
     const activePeerRef = messagesCtx?.activePeerRef ?? null
     const { user, clinicId: assignedClinicId, supervisingClinicId, isSupervisorRole } = useAuth()
-    const outsideCallBeta = useBetaBypass('outsideCall')
     const settingsClinicId = supervisingClinicId ?? assignedClinicId
     const { profile } = useUserProfile()
 
@@ -61,8 +59,8 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
     // blank frame while those fetches resolve. See messagingSettingsWarm.ts.
     useEffect(() => {
         if (!isVisible || !settingsClinicId) return
-        void prewarmMessagingSettings(settingsClinicId, isSupervisorRole || outsideCallBeta)
-    }, [isVisible, settingsClinicId, isSupervisorRole, outsideCallBeta])
+        void prewarmMessagingSettings(settingsClinicId, isSupervisorRole)
+    }, [isVisible, settingsClinicId, isSupervisorRole])
     // Outbound outside-contact (email) channels are not callable — the peer id is a
     // synthetic entity, not a device owner — so the desktop header drops the call
     // pills. Read off the peer profile (not the selection handler) so a deep link
@@ -264,7 +262,7 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
     // settings icon → bottom Sheet on mobile, popover on desktop). Layout matches
     // Calendar Settings: text-tertiary section headers + themewhite2 cards.
     // On-call roster is open to all cluster members; the Outside-contact card
-    // self-gates to supervisor/dev inside MessagingOncallSettings.
+    // self-gates to supervisor inside MessagingOncallSettings.
     const settingsContent = (
         <div className="px-5 py-4 space-y-6">
             <MessagingOncallSettings />
@@ -275,9 +273,9 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
     )
     // Minting a line is the only create in this surface, and it belongs on the
     // container header rather than inside the Outside-contact section — same
-    // placement as the cluster panel's. Supervisor/dev-gated to match the section
+    // placement as the cluster panel's. Supervisor-gated to match the section
     // itself, which renders nothing for anyone else.
-    const settingsActions = (isSupervisorRole || outsideCallBeta) && settingsClinicId ? (
+    const settingsActions = isSupervisorRole && settingsClinicId ? (
         <PillButton icon={Plus} onClick={openIntakeLineMint} label="Add line" />
     ) : undefined
     const settingsSurface = isMobile ? (
