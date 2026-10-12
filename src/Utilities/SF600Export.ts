@@ -3,6 +3,7 @@
  * Overlays note text onto SF600_1.pdf (first page with header/footer)
  * and SF600_2.pdf (continuation pages)
  */
+import { toWinAnsi } from './pdfText'
 export { downloadPdfBytes } from './downloadUtils'
 
 /**
@@ -168,7 +169,8 @@ export async function generateSF600(params: SF600Params): Promise<Uint8Array> {
 
   // Strip existing "Signed:" line — SF600 renders its own signature row
   const dateStamp = new Date().toISOString().slice(0, 10).replace(/-/g, '')
-  let noteBody = params.noteText.replace(/\n?Signed:.*$/m, '').trimEnd()
+  const clean = (s: string) => toWinAnsi(s, font)
+  let noteBody = clean(params.noteText.replace(/\n?Signed:.*$/m, '').trimEnd())
 
   // Wrap note text into visual lines, then append signature row marker
   const SIG_LINE = '__SIG_LINE__'
@@ -211,7 +213,7 @@ export async function generateSF600(params: SF600Params): Promise<Uint8Array> {
 
   // ── Hospital or medical facility (page 1 only) ──
   // Shrink to fit the box down to minFontSize, then truncate.
-  const facility = params.facility?.trim()
+  const facility = params.facility && clean(params.facility).trim()
   if (facility) {
     let size: number = FACILITY_BOX.fontSize
     while (size > FACILITY_BOX.minFontSize && font.widthOfTextAtSize(facility, size) > FACILITY_BOX.maxWidth) size -= 0.5
@@ -234,7 +236,7 @@ export async function generateSF600(params: SF600Params): Promise<Uint8Array> {
       pt.rankGrade,
     ].filter(Boolean)
     lines.forEach((text, i) => {
-      p1.drawText(text, {
+      p1.drawText(clean(text), {
         x: PATIENT_BLOCK.x,
         y: PATIENT_BLOCK.topY - i * PATIENT_BLOCK.lineHeight,
         size: PATIENT_BLOCK.fontSize,
@@ -250,7 +252,7 @@ export async function generateSF600(params: SF600Params): Promise<Uint8Array> {
       // Render: NAME / INITIALS / DATE — all on one row
       const sigText = [params.signatureName!, signatureInitials(params.signatureName!), dateStamp]
         .filter(Boolean).join(' / ')
-      page.drawText(sigText, { x, y, size: LAYOUT.fontSize, font, color: black })
+      page.drawText(clean(sigText), { x, y, size: LAYOUT.fontSize, font, color: black })
       return
     }
 

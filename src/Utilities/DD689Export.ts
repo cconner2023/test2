@@ -3,6 +3,7 @@
 import { renderBarcodeToCanvas } from './NoteCodec';
 import { logError } from './ErrorHandler';
 import { base64ToBytes } from '../lib/base64Utils';
+import { toWinAnsi } from './pdfText';
 export { downloadPdfBytes } from './downloadUtils';
 
 // ── Layout constants (PDF points, origin = bottom-left) ──
@@ -77,7 +78,7 @@ export async function generateDD689Pdf(params: DD689ExportParams): Promise<Uint8
 
     // ── Draw author line below barcode ──
     if (params.authorLine) {
-        page.drawText(params.authorLine, {
+        page.drawText(toWinAnsi(params.authorLine, fontBold), {
             x: COORDS.authorLine.x,
             y: COORDS.authorLine.y,
             size: COORDS.fontSize.authorLine,
@@ -92,7 +93,7 @@ export async function generateDD689Pdf(params: DD689ExportParams): Promise<Uint8
         : '';
 
     if (dispText) {
-        page.drawText(dispText, {
+        page.drawText(toWinAnsi(dispText, fontBold), {
             x: COORDS.disposition.x,
             y: COORDS.disposition.y,
             size: COORDS.fontSize.disposition,
@@ -104,7 +105,7 @@ export async function generateDD689Pdf(params: DD689ExportParams): Promise<Uint8
 
     // ── Draw clinic name ──
     if (params.clinicName) {
-        page.drawText(params.clinicName, {
+        page.drawText(toWinAnsi(params.clinicName, fontBold), {
             x: COORDS.clinicName.x,
             y: COORDS.clinicName.y,
             size: COORDS.fontSize.clinicName,
@@ -115,7 +116,7 @@ export async function generateDD689Pdf(params: DD689ExportParams): Promise<Uint8
 
     // ── Draw algorithm title (left of date) ──
     if (params.symptomText) {
-        page.drawText(params.symptomText, {
+        page.drawText(toWinAnsi(params.symptomText, fontBold), {
             x: COORDS.algorithmTitle.x,
             y: COORDS.algorithmTitle.y,
             size: COORDS.fontSize.algorithmTitle,
