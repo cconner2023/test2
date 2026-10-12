@@ -61,9 +61,9 @@ export function BetweenAssignmentsBanner() {
 
   return (
     <div
-      className={`fixed left-0 right-0 z-[80] px-4 transition-all duration-300 ease-out
+      className={`fixed left-0 right-0 z-[80] px-4 surface-motion
         bottom-[max(1rem,calc(var(--sab,0px)+1rem))]
-        ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'}
+        ${visible ? '' : 'surface-hidden-below pointer-events-none'}
       `}
       role="status"
       aria-live="polite"

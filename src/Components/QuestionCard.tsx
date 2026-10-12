@@ -69,7 +69,7 @@ export const QuestionCard = memo(function QuestionCard({
                         : '';
 
                     return (
-                        <div key={card.index} className={`flex flex-col items-center ${idx > 0 ? 'animate-cardAppearIn' : ''}`}>
+                        <div key={card.index} className={`flex flex-col items-center ${idx > 0 ? 'animate-cardFadeUp' : ''}`}>
                             <div className={`flex flex-col rounded-2xl w-full overflow-hidden shadow-sm bg-themewhite2 border-3 border-dashed border-themeblue2/30`}>
                                 <div className="px-4 py-3 text-center">
                                     <div className="text-[9pt] font-semibold mb-1 uppercase tracking-wider text-themeblue2">
@@ -131,7 +131,7 @@ export const QuestionCard = memo(function QuestionCard({
                     const gatesChain = card.pendingAfter !== undefined;
 
                     return (
-                        <div key={card.index} className={`flex flex-col items-center ${idx > 0 ? 'animate-cardAppearIn' : ''}`}>
+                        <div key={card.index} className={`flex flex-col items-center ${idx > 0 ? 'animate-cardFadeUp' : ''}`}>
                             <div className="relative w-full">
                             <div className={`flex flex-col rounded-2xl w-full overflow-hidden shadow-sm bg-themewhite2 border-3 border-dashed ${isDeferred ? 'border-themered/30' : 'border-themeblue2/30'}`}>
                                 <div className="px-12 py-3 text-center">
@@ -240,7 +240,7 @@ export const QuestionCard = memo(function QuestionCard({
                 }
 
                 return (
-                    <div key={card.index} className={`flex flex-col items-center ${idx > 0 ? 'animate-cardAppearIn' : ''}`}>
+                    <div key={card.index} className={`flex flex-col items-center ${idx > 0 ? 'animate-cardFadeUp' : ''}`}>
                         <div
                             className={`
               flex flex-col rounded-2xl w-full overflow-hidden shadow-sm

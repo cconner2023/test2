@@ -1,7 +1,7 @@
 /**
  * MessageNotificationToast — iOS-style notification banner.
  *
- * Slides down from the top of the screen. Auto-dismisses after 4s.
+ * Drops in at the top of the screen (shared surface motion). Auto-dismisses after 4s.
  * Tap to navigate to conversation. Swipe up to dismiss.
  */
 
@@ -26,7 +26,9 @@ export function MessageNotificationToast({ notification, onDismiss, onTap }: Pro
   useEffect(() => {
     if (notification) {
       setCurrent(notification)
-      // Force a frame so the initial -translate-y-full renders before we animate in
+      // Drop any transform left by a swipe-dismiss of the previous banner
+      if (bannerRef.current) bannerRef.current.style.transform = ''
+      // Force a frame so the hidden state renders before we animate in
       requestAnimationFrame(() => {
         requestAnimationFrame(() => setVisible(true))
       })
@@ -63,14 +65,14 @@ export function MessageNotificationToast({ notification, onDismiss, onTap }: Pro
   }
 
   const handleTouchEnd = () => {
+    // Swipe up threshold: -30px
+    const dismissing = touchDeltaY.current < -30
     if (bannerRef.current) {
       bannerRef.current.style.transition = ''
-      bannerRef.current.style.transform = ''
+      // On dismiss, keep the drag offset so the banner fades out where it was let go
+      if (!dismissing) bannerRef.current.style.transform = ''
     }
-    // Swipe up threshold: -30px
-    if (touchDeltaY.current < -30) {
-      onDismiss()
-    }
+    if (dismissing) onDismiss()
   }
 
   const handleClick = () => {
@@ -89,8 +91,8 @@ export function MessageNotificationToast({ notification, onDismiss, onTap }: Pro
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
         className={`pointer-events-auto mx-3 mt-2 rounded-2xl bg-themewhite border border-tertiary/10 shadow-2xl
-          transition-transform duration-300 ease-out cursor-pointer
-          ${visible ? 'translate-y-0' : '-translate-y-[calc(100%+var(--sat,0px)+1rem)]'}`}
+          surface-motion cursor-pointer
+          ${visible ? '' : 'surface-hidden-above'}`}
       >
         <div className="flex items-start gap-3 px-4 py-3">
           {/* Icon */}

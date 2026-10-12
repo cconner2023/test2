@@ -404,43 +404,31 @@ export const WriteNotePage = ({
                                     )}
                                 </div>
 
-                                {/* Assessment — free-text clinical narrative + connected differential */}
+                                {/* Differential Diagnosis — assessment itself is the ADTMC algorithm */}
                                 <div className="space-y-2">
-                                    <p className={SECTION_LABEL_CLASS}>Assessment</p>
-                                    <TextSectionCard
-                                        addLabel="Add assessment"
-                                        value={assessmentNote}
-                                        onChange={setAssessmentNote}
-                                        expanders={expanders}
-                                        placeholder="Clinical impression, working diagnosis, reasoning..."
-                                    />
-
-                                    {/* Differential Diagnosis (connected to the assessment) */}
-                                    <div className="space-y-2 pt-1">
-                                        <p className="text-[9pt] font-semibold text-tertiary uppercase tracking-wider">Differential Diagnosis</p>
-                                        {(selectedDdx.length > 0 || customDdx.length > 0) ? (
-                                            <div
-                                                onClick={openDdxPopover}
-                                                className={`${CARD_CLASS} cursor-pointer active:scale-[0.99] transition-all`}
-                                            >
-                                                <div className="px-4 py-3 text-sm text-primary whitespace-pre-wrap max-h-64 overflow-y-auto">
-                                                    {[...selectedDdx, ...customDdx].map((d, i) => `${i + 1}. ${d}`).join('; ')}
-                                                </div>
+                                    <p className={SECTION_LABEL_CLASS}>Differential Diagnosis</p>
+                                    {(selectedDdx.length > 0 || customDdx.length > 0) ? (
+                                        <div
+                                            onClick={openDdxPopover}
+                                            className={`${CARD_CLASS} cursor-pointer active:scale-[0.99] transition-all`}
+                                        >
+                                            <div className="px-4 py-3 text-sm text-primary whitespace-pre-wrap max-h-64 overflow-y-auto">
+                                                {[...selectedDdx, ...customDdx].map((d, i) => `${i + 1}. ${d}`).join('; ')}
                                             </div>
-                                        ) : (
-                                            <EmptyState
-                                                title="Add differential"
-                                                action={{
-                                                    icon: Plus,
-                                                    label: 'Add differential',
-                                                    onClick: (a) => {
-                                                        setDdxAnchorRect(a.getBoundingClientRect());
-                                                        setDdxPopoverVisible(true);
-                                                    },
-                                                }}
-                                            />
-                                        )}
-                                    </div>
+                                        </div>
+                                    ) : (
+                                        <EmptyState
+                                            title="Add differential"
+                                            action={{
+                                                icon: Plus,
+                                                label: 'Add differential',
+                                                onClick: (a) => {
+                                                    setDdxAnchorRect(a.getBoundingClientRect());
+                                                    setDdxPopoverVisible(true);
+                                                },
+                                            }}
+                                        />
+                                    )}
                                 </div>
 
                                 <PreviewOverlay

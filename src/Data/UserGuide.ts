@@ -451,7 +451,7 @@ export const UserGuide: GuideChapter[] = [
                     { kind: 'list', items: [
                         'History of Present Illness — tap Add HPI.',
                         'Physical Exam — each body-system block toggles Normal / Abnormal; pick findings and "(specify…)" for detail. A Vital Signs block is included.',
-                        'Assessment — a free-text impression, plus a Differential Diagnosis you build from suggestions or custom entries.',
+                        'Differential Diagnosis — build it from suggestions or custom entries. The assessment itself comes from the ADTMC algorithm.',
                         'Plan — order-set blocks for Meds, Lab, Radiology, Referral, Instructions, and Follow-up.',
                     ] },
                     { kind: 'steps', items: [

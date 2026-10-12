@@ -106,26 +106,27 @@
   --color-glass-tint: rgba(252, 249, 242, 0.95);
 }
 [data-theme="void-dark"] {
-  /* Canvas is neutral black. Electric cyan accents do the work — like monitors in a dark room. */
+  /* Canvas is deep space — near-black with an indigo cast, so the surface ladder reads as
+     structure instead of flat black. Electric cyan accents do the work — like monitors in a dark room. */
   --color-themeredred: rgb(196, 58, 58, 1);
   --color-themered: rgba(175, 88, 78, 1);
   --color-themeyellow: rgba(236, 196, 48, 1);
   --color-themeyellowlow: rgba(236, 196, 48, 0.7);
   --color-themegreen: rgba(52, 186, 116, 1);
-  --color-themewhite: rgba(10, 11, 13, 1);       /* neutral near-black */
-  --color-themewhite2: rgba(16, 18, 22, 1);      /* neutral dark surface */
-  --color-themewhite3: rgba(28, 31, 37, 1);      /* raised surface */
-  --color-themegray1: rgba(28, 32, 40, 1);       /* neutral dark separator */
-  --color-themegray2: rgba(40, 46, 58, 1);       /* neutral raised element */
+  --color-themewhite: rgba(11, 13, 20, 1);       /* deep-space indigo black (was neutral 10,11,13) */
+  --color-themewhite2: rgba(19, 23, 32, 1);      /* indigo panel — 1.08:1 vs w (was 1.05, unreadable step) */
+  --color-themewhite3: rgba(28, 33, 45, 1);      /* raised surface — 1.11:1 vs w2 */
+  --color-themegray1: rgba(44, 51, 68, 1);       /* indigo separator — 1.42:1 vs w2 */
+  --color-themegray2: rgba(60, 69, 90, 1);       /* indigo raised element */
   --color-themeblue1: rgba(0, 212, 232, 1);      /* electric cyan — holographic highlight */
   --color-themeblue2: rgba(0, 164, 190, 1);      /* active display — primary accent */
   --color-themeblue3: rgba(0, 88, 118, 1);       /* deep command anchor */
   --color-themepurple: rgba(96, 68, 206, 1);     /* violet datastream trace */
-  --color-primary: rgba(216, 224, 232, 1);       /* neutral cool-white readout */
-  --color-secondary: rgba(130, 148, 168, 1);     /* dimmer neutral */
-  --color-tertiary: rgba(100, 116, 136, 1);      /* 4.7:1 vs near-black — raised from 62,78,98 which was 2.3:1 */
+  --color-primary: rgba(210, 218, 230, 1);       /* cool-white readout — eased off pure glare, 12.8:1 vs w2 */
+  --color-secondary: rgba(150, 166, 186, 1);     /* dimmer neutral — 7.6:1 vs w2 (was 6.0) */
+  --color-tertiary: rgba(124, 140, 160, 1);      /* 5.5:1 vs w2, 4.8 vs w3 (was 3.9 vs w2) */
   --color-zone-accent: rgba(0, 212, 232, 1);
-  --color-glass-tint: rgba(14, 16, 20, 0.98);
+  --color-glass-tint: rgba(19, 23, 32, 0.98);
 }
 [data-theme="void-light"] {
   /* Canvas is neutral light gray. Same cyan accents — clinical and precise. */
@@ -156,20 +157,20 @@
   --color-themeyellow: rgba(218, 188, 72, 1);
   --color-themeyellowlow: rgba(218, 188, 72, 0.7);
   --color-themegreen: rgba(56, 168, 108, 1);
-  --color-themewhite: rgba(12, 15, 18, 1);       /* deep blue-gray dark */
-  --color-themewhite2: rgba(20, 26, 32, 1);      /* blue-gray panel */
-  --color-themewhite3: rgba(26, 33, 40, 1);      /* raised surface */
-  --color-themegray1: rgba(32, 42, 50, 1);       /* blue-gray separator */
-  --color-themegray2: rgba(46, 58, 68, 1);       /* blue-gray raised element */
-  --color-themeblue1: rgba(136, 184, 172, 1);    /* muted seafoam highlight */
-  --color-themeblue2: rgba(84, 136, 124, 1);     /* dusty teal-sage — primary accent */
+  --color-themewhite: rgba(18, 23, 28, 1);       /* deep blue-gray dusk — lifted off near-black (was 12,15,18) */
+  --color-themewhite2: rgba(26, 33, 39, 1);      /* blue-gray panel */
+  --color-themewhite3: rgba(33, 41, 48, 1);      /* raised surface */
+  --color-themegray1: rgba(46, 58, 66, 1);       /* blue-gray separator — 1.39:1 vs w2 (was 1.20, vanished) */
+  --color-themegray2: rgba(62, 76, 86, 1);       /* blue-gray raised element */
+  --color-themeblue1: rgba(148, 196, 184, 1);    /* muted seafoam highlight */
+  --color-themeblue2: rgba(96, 156, 142, 1);     /* dusty teal-sage — primary accent, 5.2:1 vs w2 (was 4.3) */
   --color-themeblue3: rgba(36, 80, 72, 1);       /* deep muted teal anchor */
   --color-themepurple: rgba(120, 148, 164, 1);   /* dusty blue-gray */
-  --color-primary: rgba(200, 214, 212, 1);       /* muted cool near-white */
-  --color-secondary: rgba(126, 152, 152, 1);     /* dusty mid */
-  --color-tertiary: rgba(98, 124, 124, 1);       /* ~4.6:1 vs deep blue-gray */
+  --color-primary: rgba(206, 218, 216, 1);       /* muted cool near-white */
+  --color-secondary: rgba(156, 178, 176, 1);     /* dusty mid — 7.3:1 vs w2 (was 5.7) */
+  --color-tertiary: rgba(124, 148, 146, 1);      /* 5.0:1 vs w2, 4.6 vs w3 (was 3.9 vs w2) */
   --color-zone-accent: rgba(84, 136, 124, 1);
-  --color-glass-tint: rgba(14, 18, 22, 0.98);
+  --color-glass-tint: rgba(20, 26, 31, 0.98);
 }
 [data-theme="slipstream-light"] {
   /* Canvas is tan aviation paper. Muted teal-sage accent — warm, airy, layered. */
@@ -203,15 +204,15 @@
   --color-themewhite: rgba(12, 16, 10, 1);       /* deep field ink */
   --color-themewhite2: rgba(20, 26, 16, 1);      /* warm dark surface */
   --color-themewhite3: rgba(26, 34, 21, 1);      /* raised surface */
-  --color-themegray1: rgba(36, 44, 28, 1);       /* olive-ink separator */
-  --color-themegray2: rgba(54, 64, 40, 1);       /* olive-ink raised */
+  --color-themegray1: rgba(46, 56, 36, 1);       /* olive-ink separator — ~1.4:1 vs w2 (was 1.23) */
+  --color-themegray2: rgba(64, 76, 48, 1);       /* olive-ink raised */
   --color-themeblue1: rgba(204, 188, 112, 1);    /* parchment-olive highlight */
   --color-themeblue2: rgba(164, 148, 76, 1);     /* olive contour — primary accent */
   --color-themeblue3: rgba(96, 84, 36, 1);       /* deep olive anchor */
   --color-themepurple: rgba(180, 116, 76, 1);    /* elevation sienna */
   --color-primary: rgba(220, 212, 188, 1);       /* warm cream text */
-  --color-secondary: rgba(160, 150, 120, 1);     /* faded parchment */
-  --color-tertiary: rgba(124, 116, 88, 1);       /* ~4.7:1 vs field ink */
+  --color-secondary: rgba(176, 166, 136, 1);     /* faded parchment — 7.3:1 vs w2 (was 6.0) */
+  --color-tertiary: rgba(146, 138, 108, 1);      /* 5.1:1 vs w2, 4.7 vs w3 (was 3.8 vs w2) */
   --color-zone-accent: rgba(164, 148, 76, 1);
   --color-glass-tint: rgba(16, 20, 12, 0.98);
 }
@@ -270,8 +271,8 @@
    a raised surface read darker than the in-content panels it was floating over.
    Current values clear themewhite2 by ~1.07:1 and the SCRIMMED canvas (canvas
    composited with black/45) by 1.22–1.31:1:
-     default-dark    30,40,50   ironclad-dark 42,42,42   void-dark  28,31,37
-     slipstream-dark 26,33,40   topo-dark     26,34,21
+     default-dark    30,40,50   ironclad-dark 42,42,42   void-dark  28,33,45
+     slipstream-dark 33,41,48   topo-dark     26,34,21
    That band is deliberately about half the lift tried on 2026-07-24, which went
    to ~1.36:1 and washed the dark themes out — a soft surface edge was mostly the
    scrim compositing wrong (see Scrim.tsx), not a token-contrast shortfall. Check
@@ -568,6 +569,95 @@ input, select, textarea {
 
 .animate-cardAppearIn {
     animation: cardAppearIn 0.3s ease-out 0.5s both;
+}
+
+/* Shared surface entrance — one motion language for cards, the copy card,
+   banners and modal panels. Travel (not just opacity) is what separates a new
+   surface from a scrim fading underneath it. `-down` mirrors it for
+   top-anchored surfaces. Modal scrims stay a plain fade — never these. */
+:root {
+    --surface-ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes surfaceIn {
+    from {
+        opacity: 0;
+        transform: translateY(16px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes surfaceInDown {
+    from {
+        opacity: 0;
+        transform: translateY(-16px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes surfaceOut {
+    from {
+        opacity: 1;
+        transform: translateY(0);
+    }
+    to {
+        opacity: 0;
+        transform: translateY(4px);
+    }
+}
+
+.animate-surface-in {
+    animation: surfaceIn 0.3s var(--surface-ease) both;
+}
+
+.animate-surface-in-down {
+    animation: surfaceInDown 0.3s var(--surface-ease) both;
+}
+
+.animate-surface-out {
+    animation: surfaceOut 0.15s ease-in both;
+}
+
+/* Same motion as transitions, for surfaces that stay mounted and toggle a
+   visible flag (Modal via BaseOverlay, toasts, banners). Toggle the
+   `surface-hidden-*` class off to enter, on to exit — the exit picks up the
+   hidden class's shorter ease-in. Transitions (unlike fill-mode animations)
+   yield to inline transforms, so swipe-to-dismiss drags still work. */
+.surface-motion {
+    transition: opacity 0.3s var(--surface-ease), transform 0.3s var(--surface-ease);
+}
+
+.surface-motion.surface-hidden-below,
+.surface-motion.surface-hidden-above {
+    opacity: 0;
+    transition-duration: 0.15s;
+    transition-timing-function: ease-in;
+}
+
+.surface-motion.surface-hidden-below {
+    transform: translateY(16px);
+}
+
+.surface-motion.surface-hidden-above {
+    transform: translateY(-16px);
+}
+
+/* Algorithm card fade-up — the shared entrance at reveal pace. No built-in
+   delay. While the parent carries data-reveal-hold="true" the animation is
+   paused on its `from` frame, so new cards stay hidden through the connector
+   stagger + scroll, then fade up. */
+.animate-cardFadeUp {
+    animation: surfaceIn 0.45s var(--surface-ease) both;
+}
+
+[data-reveal-hold="true"] .animate-cardFadeUp {
+    animation-play-state: paused;
 }
 
 /* Desktop grid content transition — triggered by key change on right column */

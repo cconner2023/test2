@@ -76,8 +76,8 @@ export function Modal({
           style={{ zIndex: baseZ + 1 }}
         >
           <div
-            className={`pointer-events-auto w-full bg-themewhite3 rounded-2xl surface-shadow flex flex-col transition-all duration-300 ease-out ${
-              open ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
+            className={`pointer-events-auto w-full bg-themewhite3 rounded-2xl surface-shadow flex flex-col surface-motion ${
+              open ? '' : 'surface-hidden-below'
             }`}
             style={{ maxWidth, maxHeight: '85dvh' }}
             role="dialog"

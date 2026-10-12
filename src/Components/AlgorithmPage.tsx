@@ -3,7 +3,6 @@ import type { SpringValue } from '@react-spring/web';
 import { createPortal } from 'react-dom';
 import { ChevronRight, CornerDownRight } from 'lucide-react';
 import { useAlgorithm } from '../Hooks/useAlgorithm';
-import type { dispositionType } from '../Types/AlgorithmTypes';
 import { Algorithm as AlgorithmData } from '../Data/Algorithms';
 import { QuestionCard } from './QuestionCard';
 import { ScreenerDrawer } from './ScreenerDrawer';
@@ -34,11 +33,10 @@ export function AlgorithmPage({ searchInput = '', onSearchChange, onSearchFocusC
 
     const containerRef = useRef<HTMLDivElement>(null);
     const markerRef = useRef<HTMLDivElement>(null);
-    const prevDispositionRef = useRef<dispositionType | null>(null);
     const initialScrollDone = useRef(false);
-    const prevScrollTriggerRef = useRef(0);
+    const transitionIdRef = useRef(0);
+    // Also the reveal hold — new cards stay paused on their hidden frame while true
     const [isTransitioning, setIsTransitioning] = useState(false);
-    const [scrollTrigger, setScrollTrigger] = useState(0);
 
     const algorithm = AlgorithmData.find(algo => algo.id === selectedSymptom?.icon);
     const algorithmOptions = algorithm?.options || [];
@@ -57,89 +55,62 @@ export function AlgorithmPage({ searchInput = '', onSearchChange, onSearchFocusC
     // Screener drawer state
     const [openScreenerCardIndex, setOpenScreenerCardIndex] = useState<number | null>(null);
 
-    // Track disposition changes — delay scroll past connector stagger animation (~500ms)
-    useEffect(() => {
-        const dispositionChanged = prevDispositionRef.current !== currentDisposition;
-        prevDispositionRef.current = currentDisposition;
-
-        if (currentDisposition && dispositionChanged) {
-            setTimeout(() => {
-                setScrollTrigger(prev => prev + 1);
-            }, ALGORITHM_TIMING.DISPOSITION_SCROLL_DELAY);
-        }
-    }, [currentDisposition]);
-
-    // Scroll function
-    const scrollToMarker = useCallback(() => {
-        if (!markerRef.current || !containerRef.current) {
-            setTimeout(scrollToMarker, ALGORITHM_TIMING.SCROLL_RETRY);
-            return;
-        }
+    // Scroll the marker into view only if it's below the fold, then release the
+    // reveal hold once the scroll settles. Stale transitions (superseded by a
+    // newer tap) bail so they can't release a newer hold early.
+    const scrollThenReveal = useCallback((id: number) => {
+        if (id !== transitionIdRef.current) return;
         const marker = markerRef.current;
         const container = containerRef.current;
-        const targetPosition = Math.max(0, marker.offsetTop);
-        container.scrollTo({
-            top: targetPosition,
-            behavior: 'smooth'
-        });
-        setIsTransitioning(false);
+        if (!marker || !container) {
+            setIsTransitioning(false);
+            return;
+        }
+
+        const overflow = marker.getBoundingClientRect().bottom - container.getBoundingClientRect().bottom;
+        if (overflow <= 0) {
+            setIsTransitioning(false);
+            return;
+        }
+
+        let settled = false;
+        const reveal = () => {
+            if (settled) return;
+            settled = true;
+            container.removeEventListener('scrollend', reveal);
+            clearTimeout(fallback);
+            if (id === transitionIdRef.current) setIsTransitioning(false);
+        };
+        // scrollend isn't on older iOS Safari — the timeout covers it
+        const fallback = setTimeout(reveal, ALGORITHM_TIMING.SCROLL_SETTLE_FALLBACK);
+        container.addEventListener('scrollend', reveal);
+        container.scrollTo({ top: container.scrollTop + overflow, behavior: 'smooth' });
     }, []);
 
-    // Scroll effect — only fires when scrollTrigger increments
-    useEffect(() => {
-        if (scrollTrigger > prevScrollTriggerRef.current) {
-            prevScrollTriggerRef.current = scrollTrigger;
-            scrollToMarker();
-        }
-    }, [scrollTrigger, scrollToMarker]);
-
-    // IntersectionObserver
-    useEffect(() => {
-        if (!containerRef.current || !markerRef.current) return;
-
-        const observer = new IntersectionObserver(
-            (entries) => {
-                entries.forEach((entry) => {
-                    if (!entry.isIntersecting && isTransitioning) {
-                        scrollToMarker();
-                    }
-                });
-            },
-            {
-                root: containerRef.current,
-                rootMargin: '0px',
-                threshold: 0.1,
-            }
-        );
-
-        observer.observe(markerRef.current);
-        return () => observer.disconnect();
-    }, [isTransitioning, scrollToMarker]);
-    // Wrapper handlers — scroll delayed to let connector stagger animation (~500ms) complete
-    const handleAnswer = useCallback((cardIndex: number, answerIndex: number) => {
+    // Sequence: connector dots stagger → scroll (if needed) → new card fades up.
+    // Must be called in the same handler as the state change that mounts new
+    // cards so the hold is on before their animation starts.
+    const beginTransition = useCallback(() => {
+        const id = ++transitionIdRef.current;
         setIsTransitioning(true);
+        setTimeout(() => scrollThenReveal(id), ALGORITHM_TIMING.SCROLL_AFTER_STAGGER);
+    }, [scrollThenReveal]);
+
+    const handleAnswer = useCallback((cardIndex: number, answerIndex: number) => {
+        beginTransition();
         hookHandleAnswer(cardIndex, answerIndex);
-        setTimeout(() => {
-            setScrollTrigger(prev => prev + 1);
-        }, ALGORITHM_TIMING.SCROLL_AFTER_STAGGER);
-    }, [hookHandleAnswer]);
+    }, [beginTransition, hookHandleAnswer]);
 
     const handleQuestionOption = useCallback((cardIndex: number, optionIndex: number) => {
-        setIsTransitioning(true);
+        beginTransition();
         hookHandleQuestionOption(cardIndex, optionIndex);
-        setTimeout(() => {
-            setScrollTrigger(prev => prev + 1);
-        }, ALGORITHM_TIMING.SCROLL_AFTER_STAGGER);
-    }, [hookHandleQuestionOption]);
+    }, [beginTransition, hookHandleQuestionOption]);
 
     // Action status wrapper — triggers animation when pending cards are revealed
     const handleActionStatus = useCallback((cardIndex: number, status: 'performed' | 'deferred-pending' | 'deferred-continue' | 'deferred-stop') => {
-        setIsTransitioning(true);
+        beginTransition();
         setActionStatus(cardIndex, status);
-        setTimeout(() => {
-            setScrollTrigger(prev => prev + 1);
-        }, ALGORITHM_TIMING.SCROLL_AFTER_STAGGER);
-    }, [setActionStatus]);
+    }, [beginTransition, setActionStatus]);
 
     // Screener handlers
     const handleOpenScreener = useCallback((cardIndex: number) => {
@@ -148,14 +119,11 @@ export function AlgorithmPage({ searchInput = '', onSearchChange, onSearchFocusC
 
     const handleScreenerComplete = useCallback((screenerId: string, responses: number[], followUp?: number) => {
         if (openScreenerCardIndex !== null) {
-            setIsTransitioning(true);
+            beginTransition();
             setScreenerResults(openScreenerCardIndex, screenerId, responses, followUp);
-            setTimeout(() => {
-                setScrollTrigger(prev => prev + 1);
-            }, ALGORITHM_TIMING.SCROLL_AFTER_STAGGER);
         }
         setOpenScreenerCardIndex(null);
-    }, [openScreenerCardIndex, setScreenerResults]);
+    }, [openScreenerCardIndex, beginTransition, setScreenerResults]);
 
     const handleScreenerClose = useCallback(() => {
         setOpenScreenerCardIndex(null);
@@ -185,11 +153,10 @@ export function AlgorithmPage({ searchInput = '', onSearchChange, onSearchFocusC
     useEffect(() => {
         if (selectedSymptom && algorithm && !initialScrollDone.current) {
             initialScrollDone.current = true;
-            setTimeout(() => {
-                setScrollTrigger(prev => prev + 1);
-            }, ALGORITHM_TIMING.INITIAL_SCROLL_DELAY);
+            const id = transitionIdRef.current;
+            setTimeout(() => scrollThenReveal(id), ALGORITHM_TIMING.INITIAL_SCROLL_DELAY);
         }
-    }, [selectedSymptom?.id, algorithm]);
+    }, [selectedSymptom?.id, algorithm, scrollThenReveal]);
 
     // Early returns
     if (!selectedSymptom) {
@@ -234,7 +201,7 @@ export function AlgorithmPage({ searchInput = '', onSearchChange, onSearchFocusC
                         />
                     </div>
                 ) : (
-                    <div className="flex flex-col px-4 pt-5 pb-32 space-y-1 w-full">
+                    <div className="flex flex-col px-4 pt-5 pb-32 space-y-1 w-full" data-reveal-hold={isTransitioning}>
                         <QuestionCard
                             algorithmOptions={algorithmOptions}
                             cardStates={cardStates}
@@ -251,7 +218,7 @@ export function AlgorithmPage({ searchInput = '', onSearchChange, onSearchFocusC
                                 <ConnectorDots colorClass={colors.badgeBg} />
                                 <div
                                     key={`dispo-${currentDisposition.type}-${currentDisposition.text}`}
-                                    className="w-full animate-cardAppearIn"
+                                    className="w-full animate-cardFadeUp"
                                 >
                                     <div className={`flex flex-col rounded-2xl w-full overflow-hidden shadow-sm
                                             bg-themewhite2 border ${colors.badgeBorder}`}>

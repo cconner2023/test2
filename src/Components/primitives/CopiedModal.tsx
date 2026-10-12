@@ -4,10 +4,13 @@ import { Check } from 'lucide-react'
 import { UI_TIMING } from '@/Utilities/constants'
 import { onCopied } from '@/lib/copyFeedback'
 
-const FADE_MS = 200
+/** Matches `.animate-surface-out` in App.css. */
+const EXIT_MS = 150
+/** Lets a dismissing menu scrim mostly clear before the card travels in. */
+const ENTER_DELAY_MS = 100
 
 /**
- * The copy confirmation surface — a centred card that fades in, holds, and dismisses
+ * The copy confirmation surface — a centred card that rises in, holds, and dismisses
  * itself. Mounted ONCE, at the app root; `copyWithHtml` raises it, so consumers never
  * track a `copied` flag of their own.
  *
@@ -16,12 +19,17 @@ const FADE_MS = 200
  * per-button status morph (icon swap + spinner + colour change), which animated inside
  * menu rows and read as churn.
  *
+ * Uses the shared surface entrance (`animate-surface-in`) rather than an opacity/scale
+ * fade — a pure fade blended into the closing menu scrim and didn't read as new.
+ *
  * The z sits above AnchoredMenu's 9998 portal rather than on the `Z` scale — a copy
  * fired from a menu row has to confirm over that menu.
  */
 export function CopiedModal() {
   const [label, setLabel] = useState<string | null>(null)
-  const [visible, setVisible] = useState(false)
+  const [leaving, setLeaving] = useState(false)
+  // Bumped per copy so a second copy remounts the card and replays the entrance.
+  const [nonce, setNonce] = useState(0)
   const timers = useRef<number[]>([])
 
   useEffect(() => {
@@ -30,9 +38,10 @@ export function CopiedModal() {
       // A second copy restarts the hold rather than stacking cards.
       clear()
       setLabel(next)
-      timers.current.push(window.setTimeout(() => setVisible(true), 0))
-      timers.current.push(window.setTimeout(() => setVisible(false), UI_TIMING.COPY_FEEDBACK))
-      timers.current.push(window.setTimeout(() => setLabel(null), UI_TIMING.COPY_FEEDBACK + FADE_MS))
+      setLeaving(false)
+      setNonce((n) => n + 1)
+      timers.current.push(window.setTimeout(() => setLeaving(true), UI_TIMING.COPY_FEEDBACK))
+      timers.current.push(window.setTimeout(() => setLabel(null), UI_TIMING.COPY_FEEDBACK + EXIT_MS))
     })
     return () => { unsubscribe(); clear() }
   }, [])
@@ -47,10 +56,11 @@ export function CopiedModal() {
       aria-live="polite"
     >
       <div
-        className={`bg-themewhite3 rounded-2xl surface-shadow px-7 py-6 flex flex-col items-center gap-2.5 transition-all ease-out ${
-          visible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
+        key={nonce}
+        className={`bg-themewhite3 rounded-2xl surface-shadow px-7 py-6 flex flex-col items-center gap-2.5 ${
+          leaving ? 'animate-surface-out' : 'animate-surface-in'
         }`}
-        style={{ transitionDuration: `${FADE_MS}ms` }}
+        style={leaving ? undefined : { animationDelay: `${ENTER_DELAY_MS}ms` }}
       >
         <div className="w-12 h-12 rounded-full bg-themeblue2/10 flex items-center justify-center">
           <Check className="w-6 h-6 text-themeblue2" />

@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 import type { ActiveNode } from '../Hooks/useTemplateSession';
 
@@ -27,10 +28,19 @@ export const TemplateOverlay = ({
         ? activeNode.options.filter((o) => o.trim() !== '')
         : [];
 
+    // Overlay now sits below the editor — keep it on-screen as each node advances.
+    const rootRef = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+        rootRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }, [activeNode.label, showDropdown]);
+
     return (
         <div
+            ref={rootRef}
             onMouseDown={(e) => e.preventDefault()}
-            className="absolute left-2 right-2 bottom-1 z-10 rounded-lg bg-themewhite border border-themeblue2/25 shadow-lg animate-in fade-in slide-in-from-bottom-1 duration-150 overflow-hidden px-3 py-2"
+            // In normal flow below the editor (not absolute) so the hint/choice pills
+            // push layout down instead of covering the line being filled.
+            className="mt-1.5 rounded-lg bg-themewhite border border-themeblue2/25 shadow-lg animate-in fade-in slide-in-from-bottom-1 duration-150 overflow-hidden px-3 py-2"
         >
             <div className="flex items-center justify-between gap-2 mb-1">
                 <span className="text-[10pt] font-medium text-tertiary">

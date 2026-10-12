@@ -551,8 +551,8 @@ case 'mapOverlay':
     <AvatarProvider value={avatarState}>
     <MessagesProvider>
     <CallProvider>
-    <div className='h-screen bg-themewhite md:bg-themewhite2 items-center flex justify-center overflow-hidden'>
-      <div id="app-drawer-root" className="max-w-315 shrink w-full md:rounded-md md:border md:border-[rgba(0,0,0,0.03)] md:shadow-[0px_2px_4px] md:shadow-[rgba(0,0,0,0.1)] overflow-hidden md:m-5 md:h-[85%] h-full relative md:bg-themewhite">
+    <div className='h-screen bg-themewhite md:bg-themewhite2 md:p-2.5 flex overflow-hidden'>
+      <div id="app-drawer-root" className="w-full h-full md:rounded-lg md:border md:border-[rgba(0,0,0,0.04)] overflow-hidden relative md:bg-themewhite">
 
         {/* Viewport strip — SideNav + content side by side, pans to reveal nav or shift for messages */}
         <div
@@ -637,7 +637,7 @@ case 'mapOverlay':
           {/* Content area — ADTMC 2-column grid (TC3 now lives in its own drawer) */}
           <div className="md:flex-1 h-full overflow-hidden absolute inset-0 md:relative md:inset-auto md:mt-2 md:mx-2">
             <div
-              className={`h-full grid gap-1 transition-[grid-template-columns] duration-300 ease-in-out ${navigation.mobileGridClass} md:grid-cols-[0.45fr_0.55fr]`}
+              className={`h-full grid gap-1 transition-[grid-template-columns] duration-300 ease-in-out ${navigation.mobileGridClass} md:grid-cols-[min(45%,560px)_minmax(0,1fr)]`}
               {...(navigation.isMobile ? swipe.touchHandlers : {})}
             >
               {/* Column A: Navigation carousel (ADTMC) */}

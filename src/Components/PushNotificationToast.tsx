@@ -1,7 +1,7 @@
 /**
  * PushNotificationToast — iOS-style banner for foreground push notifications.
  *
- * Slides down from the top. Auto-dismisses after 6s. Tap to dismiss.
+ * Drops in at the top (shared surface motion). Auto-dismisses after 6s. Tap to dismiss.
  * Used for dev alerts (login, feedback, account requests) and other
  * push notifications received while the app is in the foreground.
  */
@@ -25,6 +25,8 @@ export function PushNotificationToast({ notification, onDismiss }: Props) {
   useEffect(() => {
     if (notification) {
       setCurrent(notification)
+      // Drop any transform left by a swipe-dismiss of the previous banner
+      if (bannerRef.current) bannerRef.current.style.transform = ''
       requestAnimationFrame(() => {
         requestAnimationFrame(() => setVisible(true))
       })
@@ -51,13 +53,13 @@ export function PushNotificationToast({ notification, onDismiss }: Props) {
   }
 
   const handleTouchEnd = () => {
+    const dismissing = touchDeltaY.current < -30
     if (bannerRef.current) {
       bannerRef.current.style.transition = ''
-      bannerRef.current.style.transform = ''
+      // On dismiss, keep the drag offset so the banner fades out where it was let go
+      if (!dismissing) bannerRef.current.style.transform = ''
     }
-    if (touchDeltaY.current < -30) {
-      onDismiss()
-    }
+    if (dismissing) onDismiss()
   }
 
   return (
@@ -69,8 +71,8 @@ export function PushNotificationToast({ notification, onDismiss }: Props) {
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
         className={`pointer-events-auto mx-3 mt-2 rounded-2xl bg-themewhite border border-tertiary/10 shadow-2xl
-          transition-transform duration-300 ease-out cursor-pointer
-          ${visible ? 'translate-y-0' : '-translate-y-[calc(100%+var(--sat,0px)+1rem)]'}`}
+          surface-motion cursor-pointer
+          ${visible ? '' : 'surface-hidden-above'}`}
       >
         <div className="flex items-start gap-3 px-4 py-3">
           <div className="w-10 h-10 rounded-xl bg-themeyellow/15 flex items-center justify-center shrink-0 mt-0.5">

@@ -34,8 +34,8 @@ const StorageErrorToast: React.FC<StorageErrorToastProps> = ({ message, onDismis
 
     return (
         <div
-            className={`fixed inset-x-0 bottom-0 z-[70] flex justify-center p-4 pointer-events-none transition-all duration-300 ${
-                visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
+            className={`fixed inset-x-0 bottom-0 z-[70] flex justify-center p-4 pointer-events-none surface-motion ${
+                visible ? '' : 'surface-hidden-below'
             }`}
         >
             <div

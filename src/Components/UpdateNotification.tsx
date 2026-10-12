@@ -66,7 +66,7 @@ const UpdateNotification: React.FC<{ onVisibilityChange?: (visible: boolean) => 
                 onClick={handleDismiss}
             />
             {/* Notification card */}
-            <div className="relative w-full sm:w-auto sm:max-w-sm mx-0 sm:mx-4 mb-0 sm:mb-0 pointer-events-auto animate-slideInUp">
+            <div className="relative w-full sm:w-auto sm:max-w-sm mx-0 sm:mx-4 mb-0 sm:mb-0 pointer-events-auto animate-surface-in">
                 <div className="bg-themewhite rounded-t-2xl sm:rounded-2xl shadow-2xl border border-tertiary/10 overflow-hidden backdrop-blur-xl">
                     {/* Accent bar at top */}
                     <div className="h-1 bg-themeblue2" />

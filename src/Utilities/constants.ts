@@ -2,14 +2,12 @@
 
 /** Scroll/animation delays for algorithm page transitions */
 export const ALGORITHM_TIMING = {
-    /** Delay before scrolling after connector stagger animation completes (ms) */
-    SCROLL_AFTER_STAGGER: 550,
-    /** Delay before scrolling after disposition change (ms) */
-    DISPOSITION_SCROLL_DELAY: 600,
+    /** Delay before scrolling — connector dot stagger ends at ~440ms (ms) */
+    SCROLL_AFTER_STAGGER: 450,
     /** Delay for initial algorithm load scroll (ms) */
     INITIAL_SCROLL_DELAY: 300,
-    /** Retry delay when marker/container not ready (ms) */
-    SCROLL_RETRY: 50,
+    /** Max wait for `scrollend` before revealing held cards anyway (ms) */
+    SCROLL_SETTLE_FALLBACK: 700,
 } as const;
 
 /** BaseDrawer animation timing */

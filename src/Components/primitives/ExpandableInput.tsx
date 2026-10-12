@@ -56,6 +56,9 @@ export function ExpandableInput({
     // Browse affordance: only on multiline note editors that actually have templates,
     // and hidden while a template fill session is running.
     const showTemplatesTrigger = multiline && expanders.length > 0 && !templateSession.isActive;
+    // Gutter stays reserved for the whole editor lifetime (not toggled with the trigger)
+    // so starting/ending a template session doesn't make the box jump.
+    const reserveTriggerGutter = multiline && expanders.length > 0;
 
     const applyCursor = useCallback((pos: number) => {
         setCursorPosition(pos);
@@ -221,6 +224,10 @@ export function ExpandableInput({
                     <textarea
                         ref={inputRef as React.RefObject<HTMLTextAreaElement>}
                         {...sharedProps}
+                        // Reserve a bottom gutter for the absolute Brackets trigger so text
+                        // stays above the icon (auto-resize grows the box) instead of running under it.
+                        // Inline style so it wins over any py-* in the caller's className.
+                        style={reserveTriggerGutter ? { paddingBottom: '3rem' } : undefined}
                     />
                 ) : (
                     <input
