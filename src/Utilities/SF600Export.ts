@@ -25,8 +25,8 @@ export interface SF600Params {
   date: string        // display date string (e.g. "18 MAR 2026")
   signatureName?: string  // e.g. "CONNER CHRISTOPHER D PA-C, CPT, USA"
   patient?: PatientIdentification  // bottom-left patient identification block (page 1)
-  /** Page-1 "HOSPITAL OR MEDICAL FACILITY" box. Official output — pass the
-   *  cluster UNIT name (clinics.name), never the nickname. */
+  /** Page-1 "HOSPITAL OR MEDICAL FACILITY" box — the cluster label
+   *  (nickname, falling back to unit name). */
   facility?: string
 }
 

@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
+import { useClusterLabel } from '../../Utilities/clusterLabel';
 import { useSF600Export } from '../../Hooks/useSF600Export';
 import { useDD689Export } from '../../Hooks/useDD689Export';
 import { NoteOutputSections } from '../NoteOutputSections';
@@ -50,6 +51,8 @@ export function ProviderNoteOutput({
 
     const isAuthenticated = useAuthStore(selectIsAuthenticated);
     const userId = useAuthStore(s => s.user?.id);
+    // SF600 / DD689 facility line — cluster nickname, falling back to unit name.
+    const formClinicName = useClusterLabel(useAuthStore(s => s.clinicId), profile.clinicName);
 
     const compactString = useMemo(() => {
         const providerOptions = {
@@ -167,7 +170,7 @@ export function ProviderNoteOutput({
             date: dateStr,
             signatureName: sigName || undefined,
             patient,
-            facility: profile.clinicName || undefined,
+            facility: formClinicName || undefined,
         });
     }
 
@@ -177,7 +180,7 @@ export function ProviderNoteOutput({
             dispositionType: '',
             dispositionText: '',
             symptomText: 'Provider Note',
-            clinicName: profile.clinicName || '',
+            clinicName: formClinicName || '',
             authorLine: signature || undefined,
         });
     }

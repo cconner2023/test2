@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useClusterLabel } from '../Utilities/clusterLabel';
 import type { AlgorithmOptions } from '../Types/AlgorithmTypes';
 import type { PEState } from '../Types/PETypes';
 import type { CardState } from './useAlgorithm';
@@ -52,6 +53,8 @@ export function useNoteEditor(config: NoteEditorConfig) {
 
     const { profile } = useUserProfile();
     const authUserId = useAuthStore(s => s.user?.id);
+    // SF600 / DD689 facility line — cluster nickname, falling back to unit name.
+    const formClinicName = useClusterLabel(useAuthStore(s => s.clinicId), profile.clinicName);
 
     // --- Note content state ---
     const [note, setNote] = useState('');
@@ -142,10 +145,10 @@ export function useNoteEditor(config: NoteEditorConfig) {
             dispositionType,
             dispositionText,
             symptomText: shareSymptomText ?? selectedSymptom?.text ?? 'Note',
-            clinicName: profile.clinicName || '',
+            clinicName: formClinicName || '',
             authorLine: authorParts.length ? authorParts.join(', ') : undefined,
         });
-    }, [encodedValue, dispositionType, dispositionText, selectedSymptom, exportDD689, profile, shareSymptomText]);
+    }, [encodedValue, dispositionType, dispositionText, selectedSymptom, exportDD689, profile, shareSymptomText, formClinicName]);
 
     // --- SF600 PDF export handler ---
     const handleExportSF600 = useCallback((patient?: PatientIdentification) => {
@@ -160,9 +163,9 @@ export function useNoteEditor(config: NoteEditorConfig) {
             date: dateStr,
             signatureName: sigName || undefined,
             patient,
-            facility: profile.clinicName || undefined,
+            facility: formClinicName || undefined,
         });
-    }, [previewNote, exportSF600, profile]);
+    }, [previewNote, exportSF600, profile, formClinicName]);
 
     // --- Slide animation helper ---
     const handleSlideAnimation = useCallback((direction: 'left' | 'right') => {

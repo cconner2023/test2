@@ -1,4 +1,5 @@
 import { useState, useEffect, type ReactNode } from 'react'
+import { useClusterLabel } from '../Utilities/clusterLabel'
 import { User, ExternalLink, X } from 'lucide-react'
 import { BaseDrawer } from '@/Components/primitives/BaseDrawer'
 import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill'
@@ -13,6 +14,7 @@ import { useNoteShare } from '../Hooks/useNoteShare'
 import { useDD689Export } from '../Hooks/useDD689Export'
 import { useSF600Export } from '../Hooks/useSF600Export'
 import { useUserProfile } from '../Hooks/useUserProfile'
+import { useAuthStore } from '../stores/useAuthStore'
 import { profileAvatars } from '../Data/ProfileAvatars'
 import { supabase } from '../lib/supabase'
 import { copyWithHtml } from '../Utilities/clipboardUtils'
@@ -36,6 +38,8 @@ export function ImportedNoteDrawer({ preview, onClose, onOpenMedevac, isMobile }
   useEffect(() => { if (preview) setShown(preview) }, [preview])
 
   const { profile } = useUserProfile()
+  // SF600 / DD689 facility line — cluster nickname, falling back to unit name.
+  const formClinicName = useClusterLabel(useAuthStore(s => s.clinicId), profile.clinicName)
   const { shareNote } = useNoteShare()
   const { exportDD689, exportStatus, dd689Preview, downloadDD689, clearDD689Preview } = useDD689Export()
   const { exportSF600, sf600ExportStatus, sf600Preview, downloadSF600, clearSF600Preview } = useSF600Export()
@@ -69,7 +73,7 @@ export function ImportedNoteDrawer({ preview, onClose, onOpenMedevac, isMobile }
   const handleExportSF600 = (patient: PatientIdentification) => {
     if (!note) return
     const dateStr = new Date().toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase()
-    exportSF600({ noteText: note, date: dateStr, signatureName: authorSig, patient, facility: profile.clinicName || undefined })
+    exportSF600({ noteText: note, date: dateStr, signatureName: authorSig, patient, facility: formClinicName || undefined })
   }
 
   const handleShare = () => {
@@ -89,7 +93,7 @@ export function ImportedNoteDrawer({ preview, onClose, onOpenMedevac, isMobile }
       dispositionType: shown.dispositionType,
       dispositionText: shown.dispositionText,
       symptomText: shown.symptomText || 'Note',
-      clinicName: profile.clinicName || '',
+      clinicName: formClinicName || '',
       authorLine: authorSig,
     })
   }
