@@ -76,6 +76,21 @@ async function replenishPreKeysIfNeeded(myUserId: string): Promise<void> {
   return _replenishPromise
 }
 
+// ---- Errors ----
+
+/**
+ * A ratchet (non-X3DH) packet arrived from a peer device we hold no session
+ * with — our half was lost (IDB wipe, or the pre-fix 1:1 conversation delete)
+ * while the peer still holds theirs. Typed so the receive path can trigger the
+ * session-reset recovery instead of string-matching the message.
+ */
+export class NoSessionError extends Error {
+  constructor(readonly peerId: string, readonly peerDeviceId: string) {
+    super(`No session with ${peerId}:${peerDeviceId}`)
+    this.name = 'NoSessionError'
+  }
+}
+
 // ---- Helpers ----
 
 /** Build compound session key from peerId and peerDeviceId. */
@@ -437,7 +452,7 @@ export async function processIncomingMessage(
 
       const session = await getSession(senderUuid, senderDeviceId)
       if (!session) {
-        throw new Error(`No session with ${senderUuid}:${senderDeviceId}`)
+        throw new NoSessionError(senderUuid, senderDeviceId)
       }
 
       const ad = base64ToUint8(session.associatedData)
@@ -472,10 +487,11 @@ export async function deleteSession(peerId: string, peerDeviceId: string): Promi
 /**
  * Delete all sessions with a peer across all their registered devices.
  *
- * Used when a 1:1 conversation is deleted — purges all pairwise ratchet
- * state so the peer cannot be messaged until a new X3DH handshake occurs.
- * Group sessions with the same peer are handled separately (sender keys,
- * not pairwise ratchet) and are unaffected by this call.
+ * Forces the next send to this peer to open with a fresh X3DH handshake.
+ * NOT for conversation deletes: dropping only our half leaves the peer sending
+ * ratchet packets we can no longer open (see NoSessionError). Group sessions
+ * with the same peer are handled separately (sender keys, not pairwise
+ * ratchet) and are unaffected by this call.
  *
  * @param peerId - The peer's user UUID
  */

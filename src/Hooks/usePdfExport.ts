@@ -7,6 +7,7 @@
  */
 import { useState, useCallback } from 'react'
 import { createLogger } from '../Utilities/Logger'
+import { downloadPdfBytes } from '../Utilities/downloadUtils'
 
 const logger = createLogger('usePdfExport')
 
@@ -64,9 +65,10 @@ export function usePdfExport<P>(
     }
   }, [generatorFn, options?.resetAfterMs])
 
-  const downloadPreview = useCallback(async () => {
+  // Synchronous on purpose — an awaited import here burned the click's transient
+  // activation, so iOS Safari silently dropped the download.
+  const downloadPreview = useCallback(() => {
     if (!preview) return
-    const { downloadPdfBytes } = await import('../Utilities/downloadUtils')
     downloadPdfBytes(preview.bytes, preview.filename)
   }, [preview])
 

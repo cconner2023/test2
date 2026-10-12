@@ -117,6 +117,14 @@ const logger = createLogger('Messages')
  *  from firing a storm of requests. */
 const SENDER_KEY_REQUEST_THROTTLE_MS = 30_000
 
+/** Session-reset recovery (see requestSessionReset). Failures from one peer
+ *  device are batched for SESSION_RESET_BATCH_MS so a catch-up burst sends one
+ *  reset; resets per device are throttled to one per SESSION_RESET_THROTTLE_MS
+ *  (each one consumes a one-time pre-key). Resend lists are capped. */
+const SESSION_RESET_BATCH_MS = 1_500
+const SESSION_RESET_THROTTLE_MS = 60_000
+const SESSION_RESET_MAX_RESEND = 100
+
 /** Membership-change announcements. These are ordinary group messages sent by
  *  the actor (the UI already labels the sender), so they read as "Doe: created
  *  this group". They exist for UX *and* to seed the per-group name secret: a send
@@ -764,6 +772,11 @@ export function useMessages(): UseMessagesReturn {
   // undecryptable group messages triggers at most one request per window.
   const senderKeyRequestAtRef = useRef<Map<string, number>>(new Map())
 
+  // Session-reset recovery state, keyed `${peerId}:${peerDeviceId}`: failures
+  // pending a batched reset, and the last reset attempt per device.
+  const pendingSessionResetRef = useRef<Map<string, { rowIds: Set<string>; originIds: Set<string> }>>(new Map())
+  const sessionResetAtRef = useRef<Map<string, number>>(new Map())
+
   // External listener ref — MessagesContext sets this to fire notifications
   const onIncomingRef = useRef<((msg: DecryptedSignalMessage) => void) | null>(null)
 
@@ -846,14 +859,8 @@ export function useMessages(): UseMessagesReturn {
         const parsed = JSON.parse(msg.plaintext) as Record<string, unknown>
         if (parsed.__syncType === 'conversation-deleted') {
           const conversationKey = parsed.conversationKey as string
-          const { groups } = store()
-          const isGroup = !!groups[conversationKey]
+          // Sessions + sender keys are kept — see deleteConversation.
           await store().deleteConversation(conversationKey)
-          if (isGroup) {
-            deleteSenderKeysForGroup(conversationKey).catch(() => {})
-          } else {
-            deleteSessionsForPeer(conversationKey).catch(() => {})
-          }
           markMessagesRead([msg.id]).catch(() => {})
           return
         }
@@ -1084,6 +1091,98 @@ export function useMessages(): UseMessagesReturn {
     }
   }, [userId])
 
+  // Session-reset recovery, receiver side. A peer device sent us a ratchet
+  // packet but we hold no session with it (our half was lost while theirs
+  // survived), so everything it sends fails. Reply with a fresh X3DH initial to
+  // that one device: decrypting it replaces the peer's stale session, and the
+  // payload lists the 1:1 content originIds that failed so the peer re-sends
+  // them. Rides the 'receipt' wire type (see decryptRow). Failed rows are
+  // marked read only once the reset is out — until then catch-up retries them.
+  const requestSessionReset = useCallback((peerId: string, peerDeviceId: string, rowId: string, originId?: string) => {
+    if (!userId || peerId === SYSTEM_USER_ID || peerDeviceId === 'unknown' || peerDeviceId === 'edge') return
+    const key = `${peerId}:${peerDeviceId}`
+    const pending = pendingSessionResetRef.current.get(key)
+    if (pending) {
+      pending.rowIds.add(rowId)
+      if (originId) pending.originIds.add(originId)
+      return
+    }
+    pendingSessionResetRef.current.set(key, {
+      rowIds: new Set([rowId]),
+      originIds: new Set(originId ? [originId] : []),
+    })
+
+    setTimeout(() => {
+      void (async () => {
+        const batch = pendingSessionResetRef.current.get(key)
+        pendingSessionResetRef.current.delete(key)
+        const localDeviceId = useMessagingStore.getState().localDeviceId
+        if (!batch || !localDeviceId) return
+        const now = Date.now()
+        if (now - (sessionResetAtRef.current.get(key) ?? 0) < SESSION_RESET_THROTTLE_MS) return
+        sessionResetAtRef.current.set(key, now)
+
+        try {
+          // messageIds:[] + no originIds makes this a no-op receipt on older clients.
+          const body = JSON.stringify({
+            __type: 'session-reset',
+            messageIds: [],
+            resendOriginIds: [...batch.originIds].slice(0, SESSION_RESET_MAX_RESEND),
+            deliveredAt: new Date().toISOString(),
+          })
+          const device: PeerDevice = { deviceId: peerDeviceId, deviceLabel: null, lastActiveAt: '' }
+          const fanOutInputs = await encryptForAllDevices(peerId, [device], body, userId)
+          for (const input of fanOutInputs) input.messageType = 'receipt'
+          if (fanOutInputs.length === 0) return
+          const sent = await sendMessageFanOut(userId, localDeviceId, peerId, fanOutInputs, undefined, undefined, true)
+          if (!sent.ok) {
+            sessionResetAtRef.current.delete(key)
+            return
+          }
+          markMessagesRead([...batch.rowIds]).catch(() => {})
+          logger.info(`Requested session reset from ${key} (${batch.originIds.size} to re-send)`)
+        } catch (e) {
+          sessionResetAtRef.current.delete(key)
+          logger.warn('requestSessionReset failed:', e instanceof Error ? e.message : e)
+        }
+      })()
+    }, SESSION_RESET_BATCH_MS)
+  }, [userId])
+
+  // Session-reset recovery, sender side. Decrypting the request already
+  // replaced our stale session with this device; re-send the 1:1 messages it
+  // failed to open, to that device only (the peer's other devices got them),
+  // under their original originIds so receipts and deletes still line up.
+  const handleSessionReset = useCallback(async (requesterId: string, requesterDeviceId: string, originIds: string[]) => {
+    const localDeviceId = useMessagingStore.getState().localDeviceId
+    if (!userId || !localDeviceId || requesterId === userId || originIds.length === 0) return
+    const wanted = new Set(originIds.slice(0, SESSION_RESET_MAX_RESEND))
+    const toResend = (store().conversations[requesterId] ?? [])
+      .filter(m =>
+        m.senderId === userId && !m.groupId && !!m.originId && wanted.has(m.originId) &&
+        (m.messageType === 'message' || m.messageType === 'request'))
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+    if (toResend.length === 0) return
+
+    const device: PeerDevice = { deviceId: requesterDeviceId, deviceLabel: null, lastActiveAt: '' }
+    for (const m of toResend) {
+      try {
+        const content: MessageContent = m.content ?? {
+          type: 'text',
+          text: m.plaintext,
+          ...(m.threadId ? { replyTo: { messageId: m.threadId, preview: m.replyPreview ?? '' } } : {}),
+        }
+        const fanOutInputs = await encryptForAllDevices(requesterId, [device], serializeContent(content), userId)
+        if (m.messageType === 'request') for (const input of fanOutInputs) input.messageType = 'request'
+        if (fanOutInputs.length === 0) continue
+        await sendMessageFanOut(userId, localDeviceId, requesterId, fanOutInputs, undefined, m.originId)
+      } catch (e) {
+        logger.warn(`Session-reset re-send of ${m.originId} failed:`, e instanceof Error ? e.message : e)
+      }
+    }
+    logger.info(`Re-sent ${toResend.length} message(s) to ${requesterId}:${requesterDeviceId} after session reset`)
+  }, [userId])
+
   // Subscribe to realtime incoming messages
   useSignalMessages({
     userId,
@@ -1098,6 +1197,8 @@ export function useMessages(): UseMessagesReturn {
     onDelete: removeMessagesByOriginIds,
     onSenderKeyMissing: requestSenderKeyRedistribution,
     onSenderKeyRequest: handleSenderKeyRequest,
+    onSessionMissing: requestSessionReset,
+    onSessionReset: handleSessionReset,
   })
 
   // Hydrate from IDB on mount and re-hydrate after backup restore. Keyed on the
@@ -2475,8 +2576,6 @@ export function useMessages(): UseMessagesReturn {
   /** Delete an entire conversation from state, unread counts, IDB, Supabase, and write tombstone. */
   const deleteConversation = useCallback(async (conversationKey: string) => {
     const localDeviceId = useMessagingStore.getState().localDeviceId
-    const { groups } = useMessagingStore.getState()
-    const isGroup = !!groups[conversationKey]
 
     // Collect originIds BEFORE store().deleteConversation removes messages from state
     const msgs = useMessagingStore.getState().conversations[conversationKey] ?? []
@@ -2510,18 +2609,11 @@ export function useMessages(): UseMessagesReturn {
     // Write tombstone to store + IDB, remove from state
     await store().deleteConversation(conversationKey)
 
-    // Crypto cleanup
-    if (isGroup) {
-      // Group: delete sender keys only — pairwise sessions serve other groups + DMs
-      deleteSenderKeysForGroup(conversationKey).catch(e =>
-        logger.warn('Failed to delete sender keys for group:', e instanceof Error ? e.message : e)
-      )
-    } else {
-      // 1:1: delete all pairwise sessions for this peer
-      deleteSessionsForPeer(conversationKey).catch(e =>
-        logger.warn('Failed to delete sessions for peer:', e instanceof Error ? e.message : e)
-      )
-    }
+    // No crypto cleanup: deleting a conversation clears history, it does not end
+    // the relationship. 1:1 pairwise sessions and group sender keys are transport
+    // state the peers still hold their halves of — dropping ours makes every later
+    // message from them undecryptable ("No session" / "No sender key"). Leaving a
+    // group tears its keys down separately (purgeLocalGroup).
 
     // Hard-delete from Supabase
     if (originIds.length > 0) {

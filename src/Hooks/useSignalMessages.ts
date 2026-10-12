@@ -19,7 +19,7 @@ import { fetchUnreadMessages, markMessagesRead, deleteMessages as hardDeleteMess
 import { deleteMessagesByOriginId as deleteMessagesByOriginIdFromDb, updateReadAt } from '../lib/signal/messageStore'
 import { scheduleBackup } from '../lib/signal/backupService'
 import { LORA_MESH_ENABLED } from '../lib/featureFlags'
-import { processIncomingMessage, encryptMessage, unsealOnly } from '../lib/signal/session'
+import { processIncomingMessage, encryptMessage, unsealOnly, NoSessionError } from '../lib/signal/session'
 import { processClinicIncomingMessage } from '../lib/signal/clinicSession'
 import { drainSystemInbox, SYSTEM_USER_ID } from '../lib/signal/systemIdentity'
 import { processSenderKeyDistribution, senderKeyDecrypt } from '../lib/signal/senderKey'
@@ -112,12 +112,37 @@ interface UseSignalMessagesOptions {
   onSenderKeyMissing?: (groupId: string, peerId: string) => void
   /** A peer (requesterId) asked us to re-distribute our sender key for a group. */
   onSenderKeyRequest?: (groupId: string, requesterId: string) => void
+  /** See DecryptSideEffects.onSessionMissing. */
+  onSessionMissing?: (peerId: string, peerDeviceId: string, rowId: string, originId?: string) => void
+  /** See DecryptSideEffects.onSessionReset. */
+  onSessionReset?: (peerId: string, peerDeviceId: string, originIds: string[]) => void
 }
 
 /** Control-plane side-effects decryptRow may trigger (retry-receipt flow). */
 interface DecryptSideEffects {
   onSenderKeyMissing?: (groupId: string, peerId: string) => void
   onSenderKeyRequest?: (groupId: string, requesterId: string) => void
+  /** A ratchet packet arrived from a peer device we hold no session with.
+   *  originId is set only for 1:1 conversation content the peer can re-send. */
+  onSessionMissing?: (peerId: string, peerDeviceId: string, rowId: string, originId?: string) => void
+  /** A peer device rebuilt its session with us and asks us to re-send these. */
+  onSessionReset?: (peerId: string, peerDeviceId: string, originIds: string[]) => void
+}
+
+/**
+ * Wire types that never become conversation content: a null decryptRow result
+ * for these is final, so the row is marked read. Everything else stays unread
+ * so catch-up retries it. 'receipt' is here because the session-reset request
+ * rides that type (decryptRow returns null for it) and must not be re-applied
+ * — i.e. re-sent — on every catch-up.
+ */
+const CONTROL_PLANE_TYPES = new Set(['sender-key-distribution', 'call-signal', 'sender-key-request', 'receipt'])
+
+function reportNoSession(e: unknown, row: SignalMessageRow, sideEffects?: DecryptSideEffects): void {
+  if (!(e instanceof NoSessionError)) return
+  const resendable = !row.group_id && !!row.origin_id &&
+    (row.message_type === 'message' || row.message_type === 'request')
+  sideEffects?.onSessionMissing?.(e.peerId, e.peerDeviceId, row.id, resendable ? row.origin_id ?? undefined : undefined)
 }
 
 async function decryptRow(
@@ -386,6 +411,17 @@ async function decryptRow(
         senderDeviceId, envelope, myUuid
       )
       const parsed = JSON.parse(rawPlaintext) as Record<string, unknown>
+      // Session-reset request: rides the 'receipt' type because the server's
+      // message_type CHECK admits it (no migration) and older clients treat the
+      // empty messageIds as a no-op receipt. Decrypting it (X3DH initial) has
+      // already replaced our stale session with this device.
+      if (parsed.__type === 'session-reset') {
+        const originIds = Array.isArray(parsed.resendOriginIds)
+          ? parsed.resendOriginIds.filter((x): x is string => typeof x === 'string')
+          : []
+        sideEffects?.onSessionReset?.(senderUuid, senderDeviceId, originIds)
+        return null
+      }
       return {
         id: row.id,
         senderId: senderUuid,
@@ -461,6 +497,7 @@ async function decryptRow(
         emitCallSignal({ ...body, senderId: senderUuid })
       } catch (e) {
         logger.warn(`Failed to process call-signal ${row.id}:`, e instanceof Error ? e.message : e)
+        reportNoSession(e, row, sideEffects)
       }
       // Never user-visible.
       return null
@@ -480,6 +517,7 @@ async function decryptRow(
         if (body.groupId) sideEffects?.onSenderKeyRequest?.(body.groupId, senderUuid)
       } catch (e) {
         logger.warn(`Failed to process sender-key-request ${row.id}:`, e instanceof Error ? e.message : e)
+        reportNoSession(e, row, sideEffects)
       }
       return null
     }
@@ -617,6 +655,7 @@ async function decryptRow(
     }
   } catch (e) {
     logger.error(`Failed to decrypt message ${row.id}:`, e instanceof Error ? e.message : e)
+    reportNoSession(e, row, sideEffects)
     errorBus.emit({
       code: ErrorCode.DECRYPT_FAILED,
       source: 'decryptRow',
@@ -641,6 +680,8 @@ export function useSignalMessages({
   onDelete,
   onSenderKeyMissing,
   onSenderKeyRequest,
+  onSessionMissing,
+  onSessionReset,
 }: UseSignalMessagesOptions): void {
   const onMessageRef = useRef(onMessage)
   useEffect(() => {
@@ -662,11 +703,23 @@ export function useSignalMessages({
     onSenderKeyRequestRef.current = onSenderKeyRequest
   }, [onSenderKeyRequest])
 
+  const onSessionMissingRef = useRef(onSessionMissing)
+  useEffect(() => {
+    onSessionMissingRef.current = onSessionMissing
+  }, [onSessionMissing])
+
+  const onSessionResetRef = useRef(onSessionReset)
+  useEffect(() => {
+    onSessionResetRef.current = onSessionReset
+  }, [onSessionReset])
+
   // Stable side-effects object handed to decryptRow — reads via refs so it never
   // goes stale across renders.
   const decryptSideEffectsRef = useRef<DecryptSideEffects>({
     onSenderKeyMissing: (g, p) => onSenderKeyMissingRef.current?.(g, p),
     onSenderKeyRequest: (g, r) => onSenderKeyRequestRef.current?.(g, r),
+    onSessionMissing: (p, d, r, o) => onSessionMissingRef.current?.(p, d, r, o),
+    onSessionReset: (p, d, o) => onSessionResetRef.current?.(p, d, o),
   })
 
   const localDeviceIdRef = useRef(localDeviceId)
@@ -814,7 +867,7 @@ export function useSignalMessages({
         // (e.g. recipient on a fresh provisional tab) permanently loses the row,
         // which is exactly how request-accepted disappears and the gate sticks.
         if (!decrypted) {
-          if (row.message_type === 'sender-key-distribution' || row.message_type === 'call-signal' || row.message_type === 'sender-key-request') {
+          if (CONTROL_PLANE_TYPES.has(row.message_type)) {
             processedRowIds.push(row.id)
           }
           continue
@@ -950,7 +1003,7 @@ export function useSignalMessages({
 
       decryptRow(row, myUuid, decryptSideEffectsRef.current).then((decrypted) => {
         if (!decrypted) {
-          if (row.message_type === 'sender-key-distribution' || row.message_type === 'call-signal' || row.message_type === 'sender-key-request') {
+          if (CONTROL_PLANE_TYPES.has(row.message_type)) {
             markMessagesRead([row.id]).catch(() => {})
           }
           return
@@ -1031,7 +1084,7 @@ export function useSignalMessages({
           // stay unread so catch-up retries on the next session (after sessions
           // restore from backup, pre-keys replenish, etc.). Marking them read here
           // is how request-accepted rows on fresh-X3DH paths disappear permanently.
-          if (row.message_type === 'sender-key-distribution' || row.message_type === 'call-signal' || row.message_type === 'sender-key-request') {
+          if (CONTROL_PLANE_TYPES.has(row.message_type)) {
             markMessagesRead([row.id]).catch(() => {})
           }
           return
