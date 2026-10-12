@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { clusterLabel } from '../../../Utilities/clusterLabel'
 import { Building2, ChevronRight } from 'lucide-react'
 import { useEchelonSummaries } from '../../../Hooks/useEchelonSummaries'
 import { ChildClinicRosterSheet } from './ChildClinicRosterSheet'
@@ -68,7 +69,7 @@ export function SubordinateClustersManager({
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-primary truncate">
-                    {card.clinicName}
+                    {clusterLabel(card.clinicId, card.clinicName)}
                     <span className="text-tertiary font-normal"> · {card.medicCount} personnel</span>
                   </p>
                 </div>

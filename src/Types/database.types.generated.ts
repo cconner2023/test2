@@ -287,6 +287,7 @@ export type Database = {
           location: string | null
           location_id: string | null
           name: string
+          nickname: string | null
           oncall: string[]
           parent_clinic_id: string | null
           plan_instruction_tags: Json | null
@@ -315,6 +316,7 @@ export type Database = {
           location?: string | null
           location_id?: string | null
           name: string
+          nickname?: string | null
           oncall?: string[]
           parent_clinic_id?: string | null
           plan_instruction_tags?: Json | null
@@ -343,6 +345,7 @@ export type Database = {
           location?: string | null
           location_id?: string | null
           name?: string
+          nickname?: string | null
           oncall?: string[]
           parent_clinic_id?: string | null
           plan_instruction_tags?: Json | null
@@ -2396,6 +2399,15 @@ export type Database = {
         Args: { p_clinic_id: string }
         Returns: Json
       }
+      get_cluster_directory: {
+        Args: never
+        Returns: {
+          id: string
+          name: string
+          nickname: string | null
+          relation: string
+        }[]
+      }
       get_current_user_clinic_id: { Args: never; Returns: string }
       get_line_greeting: { Args: { p_cred_id: string }; Returns: Json }
       get_location_medics: {
@@ -2738,6 +2750,10 @@ export type Database = {
       send_signal_messages_batch: {
         Args: { p_messages: Json }
         Returns: string[]
+      }
+      set_clinic_nickname: {
+        Args: { p_clinic_id: string; p_nickname: string }
+        Returns: Json
       }
       set_intake_line_scope: {
         Args: {

@@ -12,6 +12,7 @@
  */
 
 import { useRef, useState } from 'react'
+import { clusterLabel, useClusterDirectoryVersion } from '../../Utilities/clusterLabel'
 import { ArrowRightLeft, Check } from 'lucide-react'
 import { useAuth } from '../../Hooks/useAuth'
 import { ActionButton } from '@/Components/primitives/ActionButton'
@@ -32,14 +33,15 @@ interface ClusterEditPickerProps {
  */
 export function useClusterEditItem({ selectedClinicId, onSelect }: ClusterEditPickerProps): ContextMenuItem | null {
   const { profile, clinicId, surrogateClinicIds } = useAuth()
+  useClusterDirectoryVersion()
   if (!clinicId || surrogateClinicIds.length === 0) return null
 
   const loans = profile.surrogateClinics ?? []
   const options = [
-    { id: clinicId, name: profile.clinicName ?? 'Assigned' },
+    { id: clinicId, name: clusterLabel(clinicId, profile.clinicName) || 'Assigned' },
     ...surrogateClinicIds.map((id) => ({
       id,
-      name: loans.find((c) => c.id === id)?.name ?? 'Surrogate',
+      name: clusterLabel(id, loans.find((c) => c.id === id)?.name) || 'Surrogate',
     })),
   ]
   const current = options.find(o => o.id === selectedClinicId) ?? options[0]
@@ -61,15 +63,16 @@ export function ClusterEditButton({ selectedClinicId, onSelect }: ClusterEditPic
   const buttonRef = useRef<HTMLSpanElement>(null)
   const [anchor, setAnchor] = useState<DOMRect | null>(null)
   const { profile, clinicId, surrogateClinicIds } = useAuth()
+  useClusterDirectoryVersion()
 
   if (!clinicId || surrogateClinicIds.length === 0) return null
 
   const loans = profile.surrogateClinics ?? []
   const options = [
-    { id: clinicId, name: profile.clinicName ?? 'Assigned' },
+    { id: clinicId, name: clusterLabel(clinicId, profile.clinicName) || 'Assigned' },
     ...surrogateClinicIds.map((id) => ({
       id,
-      name: loans.find((c) => c.id === id)?.name ?? 'Surrogate',
+      name: clusterLabel(id, loans.find((c) => c.id === id)?.name) || 'Surrogate',
     })),
   ]
 

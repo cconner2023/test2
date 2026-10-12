@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect, useMemo, type ReactNode } from 'react'
+import { useClusterLabelParts, clusterLabelParts, useClusterDirectoryVersion } from '../../Utilities/clusterLabel'
 import {
   Building2,
   Camera,
@@ -102,9 +103,12 @@ export function ClinicPanel({
   // `clinicName` so the toggle just flips the pointer.
   const clinicId = supervisingClinicId ?? assignedClinicId
   const isSurrogateContext = !!clinicId && surrogateClinicIds.includes(clinicId)
-  const clinicName = clinicId && surrogateClinicIds.includes(clinicId)
+  // Unit name (admin-owned) — what the edit popover shows read-only.
+  const clinicUnitName = clinicId && surrogateClinicIds.includes(clinicId)
     ? (profile.surrogateClinics?.find((c) => c.id === clinicId)?.name ?? null)
     : (profile.clinicName ?? null)
+  const clinicLabelParts = useClusterLabelParts(clinicId, clinicUnitName)
+  const clinicName = clinicLabelParts.primary || null
   const {
     error: hookError,
     activeCode,
@@ -197,7 +201,6 @@ export function ClinicPanel({
   )
 
   // Edit fields (legacy inline-edit path: still wired through saveRequested → handleSave)
-  const [editName, setEditName] = useState('')
   const [editLocation, setEditLocation] = useState('')
   const [editUics, setEditUics] = useState('')
 
@@ -291,7 +294,7 @@ export function ClinicPanel({
    *  chip, since they sit in a sub-unit group that doesn't say where they are. */
   const renderRosterRow = useCallback((member: (typeof members)[number], groupId: string) => (
     groupId === LOANED_IN_GROUP
-      ? renderMemberRow(member, [member.credential, member.clinicName].filter(Boolean).join(' · '), null)
+      ? renderMemberRow(member, [member.credential, member.clinicName ? clusterLabelParts(member.clinicId, member.clinicName).primary : null].filter(Boolean).join(' · '), null)
       : renderMemberRow(
           member,
           member.credential || '',
@@ -377,13 +380,12 @@ export function ClinicPanel({
 
   useEffect(() => {
     if (clinicEditing) {
-      setEditName(clinicName ?? '')
       setEditLocation(clinicLocation ?? '')
       setEditUics(clinicUics.join(', '))
       setError(null)
       setSuccess(null)
     }
-  }, [clinicEditing, clinicName, clinicLocation, clinicUics])
+  }, [clinicEditing, clinicLocation, clinicUics])
 
   // ─── Save trigger ─────────────────────────────────────────────────
 
@@ -549,10 +551,6 @@ export function ClinicPanel({
 
   const handleSave = useCallback(async () => {
     if (!clinicId) return
-    if (!editName.trim()) {
-      setError('Cluster name is required')
-      return
-    }
     setSaving(true)
     setError(null)
 
@@ -566,7 +564,6 @@ export function ClinicPanel({
     const detailResult = await updateSupervisorClinic(
       clinicId,
       {
-        name: editName.trim(),
         location: editLocation.trim() || null,
         uics: uicsArray.length > 0 ? uicsArray : undefined,
       },
@@ -587,7 +584,7 @@ export function ClinicPanel({
     onEditingChange(false)
     setSuccess('Cluster updated')
     setTimeout(() => setSuccess(null), 3_000)
-  }, [clinicId, editName, editLocation, editUics, onEditingChange])
+  }, [clinicId, editLocation, editUics, onEditingChange])
 
   // ─── Member popover wiring (state lives in MemberEditPopover) ─────
 
@@ -637,9 +634,11 @@ export function ClinicPanel({
   // ─── Computed Values ──────────────────────────────────────────────
 
   // Derive associated clinics from the medics data (the working path)
-  interface NearbyClinic { clinicId: string; clinicName: string; count: number; uics: string[]; location: string | null }
+  // clinicName = display label (nickname for linked clusters); unitName = admin unit name.
+  interface NearbyClinic { clinicId: string; clinicName: string; unitName: string | null; count: number; uics: string[]; location: string | null }
   const [nearbyDetails, setNearbyDetails] = useState<Map<string, { name: string | null; uics: string[]; location: string | null }>>(new Map())
 
+  const clusterDirectory = useClusterDirectoryVersion()
   const nearbyClinicMap = useMemo(() => {
     const map = new Map<string, NearbyClinic>()
     // Populate from medics (gives us names + counts)
@@ -650,9 +649,11 @@ export function ClinicPanel({
           entry.count++
         } else {
           const details = nearbyDetails.get(m.clinicId)
+          const parts = clusterLabelParts(m.clinicId, m.clinicName)
           map.set(m.clinicId, {
             clinicId: m.clinicId,
-            clinicName: m.clinicName,
+            clinicName: parts.primary,
+            unitName: parts.secondary,
             count: 1,
             uics: details?.uics ?? [],
             location: details?.location ?? null,
@@ -664,9 +665,11 @@ export function ClinicPanel({
     for (const id of clinicAssociatedIds) {
       if (id !== clinicId && !map.has(id)) {
         const details = nearbyDetails.get(id)
+        const parts = clusterLabelParts(id, details?.name)
         map.set(id, {
           clinicId: id,
-          clinicName: details?.name ?? 'Loading...',
+          clinicName: parts.primary || 'Loading...',
+          unitName: parts.secondary,
           count: 0,
           uics: details?.uics ?? [],
           location: details?.location ?? null,
@@ -674,7 +677,7 @@ export function ClinicPanel({
       }
     }
     return [...map.values()]
-  }, [medics, clinicId, clinicAssociatedIds, nearbyDetails])
+  }, [medics, clinicId, clinicAssociatedIds, nearbyDetails, clusterDirectory])
 
   // Fetch UIC/location for each associated clinic
   useEffect(() => {
@@ -758,6 +761,9 @@ export function ClinicPanel({
                       <span className="text-tertiary italic">No facility</span>
                     )}
                   </p>
+                  {clinicLabelParts.secondary && (
+                    <p className="text-[10pt] text-tertiary mt-0.5 truncate">{clinicLabelParts.secondary}</p>
+                  )}
                   {/* No headcount here — the Roster below IS the answer, and
                       count indicators are out per USR. Supervisors get the
                       cluster's UIC/location line just beneath instead. */}
@@ -932,9 +938,9 @@ export function ClinicPanel({
                           {clinic.clinicName}
                           <span className="text-tertiary font-normal"> · {clinic.count} personnel</span>
                         </p>
-                        {(clinic.uics.length > 0 || clinic.location) && (
+                        {(clinic.unitName || clinic.uics.length > 0 || clinic.location) && (
                           <p className="text-[9pt] text-tertiary truncate">
-                            {[clinic.uics.join(', '), clinic.location].filter(Boolean).join(' · ')}
+                            {[clinic.unitName, clinic.uics.join(', '), clinic.location].filter(Boolean).join(' · ')}
                           </p>
                         )}
                       </div>
@@ -958,7 +964,7 @@ export function ClinicPanel({
         isOpen={!!clinicEditAnchor}
         anchorRect={clinicEditAnchor}
         clinicId={clinicId}
-        initialName={clinicName ?? ''}
+        initialName={clinicUnitName ?? ''}
         initialLocation={clinicLocation}
         initialLocationId={clinicLocationId}
         initialUics={clinicUics}

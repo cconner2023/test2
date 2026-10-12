@@ -160,6 +160,7 @@ export function useNoteEditor(config: NoteEditorConfig) {
             date: dateStr,
             signatureName: sigName || undefined,
             patient,
+            facility: profile.clinicName || undefined,
         });
     }, [previewNote, exportSF600, profile]);
 

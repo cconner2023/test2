@@ -258,6 +258,20 @@ export const stores = {
     note: 'Exports standalone invalidate() and useInvalidation() hook',
   },
 
+  useClusterDirectoryStore: {
+    path: 'stores/useClusterDirectoryStore.ts',
+    purpose: 'Clusters the viewer knows (own/loans/parent/children/associated/scope) with nicknames; drives Utilities/clusterLabel',
+    fields: {
+      userId: 'string | null',
+      entries: 'Record<clinicId, ClusterDirectoryEntry>',
+    },
+    actions: ['hydrate', 'patchNickname', 'clear'],
+    middleware: ['persist (localStorage: cluster-directory)'],
+    crossStoreRefs: { reads: ['useAuthStore', 'useInvalidationStore'], writes: [] },
+    services: ['clusterDirectoryService'],
+    note: 'Self-hydrates on sign-in and on invalidate('clinics'); clears on sign-out',
+  },
+
   useNavPreferencesStore: {
     path: 'stores/useNavPreferencesStore.ts',
     purpose: 'Custom nav order, starred/hidden actions, pinned KB items (persisted)',

@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
+import { clusterLabel } from '../../Utilities/clusterLabel'
 import { rankForComponent } from '../../Utilities/rank'
 import { type SupervisorAssignableRole } from '../../Utilities/roles'
 import { Building2, Check, Pencil, Trash2, Loader2, Camera, Send, ArrowRightLeft, KeyRound, AlertCircle, Home } from 'lucide-react'
@@ -792,7 +793,7 @@ export function MemberEditPopover({
                             : <Building2 size={14} className="text-tertiary" />}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-primary truncate">{c.clinicName}</p>
+                          <p className="text-sm font-medium text-primary truncate">{clusterLabel(c.clinicId, c.clinicName)}</p>
                           {(c.uics.length > 0 || c.location) && (
                             <p className="text-[9pt] text-tertiary truncate">
                               {[c.uics.join(', '), c.location].filter(Boolean).join(' · ')}
@@ -862,7 +863,7 @@ export function MemberEditPopover({
                     <Home size={14} className="text-themeblue3" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-primary truncate">{homeClinicName}</p>
+                    <p className="text-sm font-medium text-primary truncate">{clusterLabel(homeClinicId, homeClinicName)}</p>
                   </div>
                   <span className="shrink-0 text-[9pt] font-semibold text-themeblue3 uppercase tracking-widest">Home</span>
                 </div>
@@ -913,7 +914,7 @@ export function MemberEditPopover({
                             : <Building2 size={14} className="text-tertiary" />}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-primary truncate">{c.clinicName}</p>
+                        <p className="text-sm font-medium text-primary truncate">{clusterLabel(c.clinicId, c.clinicName)}</p>
                         {(c.subtitle || err) && (
                           <p className={`text-[9pt] truncate ${err ? 'text-themeredred' : 'text-tertiary'}`}>
                             {err ?? c.subtitle}
@@ -1026,11 +1027,11 @@ export function MemberEditPopover({
           {loansBody}
           <ConfirmDialog
             visible={!!promoteTarget}
-            title={promoteTarget ? `Make ${promoteTarget.clinicName} the home cluster?` : ''}
+            title={promoteTarget ? `Make ${clusterLabel(promoteTarget.clinicId, promoteTarget.clinicName)} the home cluster?` : ''}
             subtitle={
               promoteError
                 ? promoteError
-                : `${homeClinicName ?? 'The current home'} becomes a loan; other active loans stay in place.`
+                : `${homeClinicName ? clusterLabel(homeClinicId, homeClinicName) : 'The current home'} becomes a loan; other active loans stay in place.`
             }
             confirmLabel="Make home"
             processing={promoting}

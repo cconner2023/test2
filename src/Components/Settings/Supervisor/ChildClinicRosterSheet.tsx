@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { clusterLabel } from '../../../Utilities/clusterLabel'
 import { Plus } from 'lucide-react'
 import { Sheet } from '@/Components/primitives/Sheet'
 import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill'
@@ -231,7 +232,7 @@ export function ChildClinicRosterSheet({
     <Sheet
       isOpen
       onClose={onClose}
-      title={clinicName}
+      title={clusterLabel(clinicId, clinicName)}
       maxHeight={60}
       backdrop="dismiss"
       zIndex={1250}

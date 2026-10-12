@@ -14,6 +14,7 @@
  */
 
 import { useCallback, useMemo } from 'react'
+import { clusterLabel, useClusterDirectoryVersion } from '../Utilities/clusterLabel'
 import { useAuthStore } from '../stores/useAuthStore'
 import { useUserProfile } from './useUserProfile'
 
@@ -57,21 +58,22 @@ export function useTemplateSubscription() {
   /** Only loaned users get the choice — home-only users always merge home. */
   const isLoaned = loanIds.length > 0
 
+  const clusterDirectory = useClusterDirectoryVersion()
   const memberships = useMemo<TemplateSourceMembership[]>(() => {
     const rows: TemplateSourceMembership[] = []
     if (homeClinicId) {
       rows.push({
         id: homeClinicId,
-        name: homeClinicName || 'Home clinic',
+        name: clusterLabel(homeClinicId, homeClinicName) || 'Home clinic',
         isHome: true,
         subscribed: subscribedSet.has(homeClinicId),
       })
     }
     for (const c of loanClinics) {
-      rows.push({ id: c.id, name: c.name || 'Clinic', isHome: false, subscribed: subscribedSet.has(c.id) })
+      rows.push({ id: c.id, name: clusterLabel(c.id, c.name) || 'Clinic', isHome: false, subscribed: subscribedSet.has(c.id) })
     }
     return rows
-  }, [homeClinicId, homeClinicName, loanClinics, subscribedSet])
+  }, [homeClinicId, homeClinicName, loanClinics, subscribedSet, clusterDirectory])
 
   const toggle = useCallback((clinicId: string) => {
     const current = new Set(effectiveSubscribedClinicIds(stored, homeClinicId, loanIds))

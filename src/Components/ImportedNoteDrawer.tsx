@@ -69,7 +69,7 @@ export function ImportedNoteDrawer({ preview, onClose, onOpenMedevac, isMobile }
   const handleExportSF600 = (patient: PatientIdentification) => {
     if (!note) return
     const dateStr = new Date().toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase()
-    exportSF600({ noteText: note, date: dateStr, signatureName: authorSig, patient })
+    exportSF600({ noteText: note, date: dateStr, signatureName: authorSig, patient, facility: profile.clinicName || undefined })
   }
 
   const handleShare = () => {

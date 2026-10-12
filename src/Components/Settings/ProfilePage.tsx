@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef } from 'react';
+import { useClusterLabel } from '../../Utilities/clusterLabel';
 import { LogOut, ChevronRight, Trash2, Check, Copy, QrCode, Share2, Pencil, RefreshCw, CheckCircle, Plus, KeyRound, Mail, DoorOpen } from 'lucide-react';
 import bwipjs from 'bwip-js';
 import { useAuth } from '../../Hooks/useAuth';
@@ -51,6 +52,7 @@ export const ProfilePage = ({
     const isMobile = useIsMobile();
     const { currentAvatar, customImage, isCustom, isInitials } = useAvatar();
     const { profile, user, clinicId } = useAuth();
+    const clinicLabelText = useClusterLabel(clinicId, profile.clinicName);
     const userEmail = useAuthStore(s => s.user?.email ?? '');
     const deviceRole = useAuthStore(s => s.deviceRole);
 
@@ -382,8 +384,8 @@ export const ProfilePage = ({
         ? `${profile.credential}${profile.component ? ' · ' + profile.component : ''}`
         : null;
 
-    const displayClinic = profile.clinicName
-        ? `${profile.clinicName}${profile.uic ? ' · ' + profile.uic : ''}`
+    const displayClinic = clinicLabelText
+        ? `${clinicLabelText}${profile.uic ? ' · ' + profile.uic : ''}`
         : profile.uic
             ? `UIC: ${profile.uic}`
             : null;
@@ -629,7 +631,7 @@ export const ProfilePage = ({
             {/* Leave Cluster Confirm + failure notice */}
             <ConfirmDialog
                 visible={showLeaveConfirm}
-                title={`Leave ${profile?.clinicName || 'this cluster'}?`}
+                title={`Leave ${clinicLabelText || 'this cluster'}?`}
                 subtitle="You'll lose access to this cluster's calendar, roster, messages, and property until you join another. Your gaining unit's supervisor adds you to your next cluster."
                 confirmLabel="Leave cluster"
                 cancelLabel="Cancel"

@@ -1,4 +1,5 @@
 import { UserAvatar } from './Settings/UserAvatar'
+import { clusterLabel } from '../Utilities/clusterLabel'
 import { getDisplayName } from '../Utilities/nameUtils'
 import type { ClinicMedic } from '../Types/SupervisorTestTypes'
 import { displayGroupName, type GroupInfo } from '../lib/signal/groupTypes'
@@ -45,7 +46,7 @@ export function ConversationPreview({
             ) : (
               <>
                 {medic.credential && <p className="text-[9pt] text-tertiary">{medic.credential}</p>}
-                {medic.clinicName && <p className="text-[9pt] text-tertiary">{medic.clinicName}</p>}
+                {medic.clinicName && <p className="text-[9pt] text-tertiary">{clusterLabel(medic.clinicId, medic.clinicName)}</p>}
               </>
             )}
           </div>

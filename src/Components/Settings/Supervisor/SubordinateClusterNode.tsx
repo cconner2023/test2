@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { clusterLabel } from '../../../Utilities/clusterLabel'
 import { PersonnelRow, PersonnelGroupBand } from '@/Components/primitives/PersonnelRow'
 import type { TreeSelection } from './SupervisorTree'
 import { UserAvatar } from '../UserAvatar'
@@ -75,7 +76,7 @@ export function SubordinateClusterNode({
     <div>
       <PersonnelGroupBand
         depth={1}
-        label={card.clinicName}
+        label={clusterLabel(card.clinicId, card.clinicName)}
         expanded={expanded}
         onToggle={() => setExpanded(!expanded)}
         selected={selection.type === 'child-cluster' && selection.clinicId === card.clinicId}

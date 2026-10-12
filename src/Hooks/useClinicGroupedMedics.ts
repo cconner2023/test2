@@ -10,6 +10,7 @@
  * - nearbyClinicNames: sorted array of nearby clinic names
  */
 import { useMemo } from 'react'
+import { clusterLabel, useClusterDirectoryVersion } from '../Utilities/clusterLabel'
 import { useAuth } from './useAuth'
 import { useClinicLoans } from './useClinicLoans'
 import { SYSTEM_USER_ID } from '../lib/signal/systemIdentity'
@@ -56,19 +57,20 @@ export function useClinicGroupedMedics(medics: ClinicMedic[]): ClinicGroupedMedi
     return Array.from(byId.values()).sort((a, b) => (a.lastName ?? '').localeCompare(b.lastName ?? ''))
   }, [rosterMedics, loanedInMedics, userClinicId, canSplit])
 
+  const clusterDirectory = useClusterDirectoryVersion()
   const nearbyByClinic = useMemo(() => {
     if (!canSplit) return {} as Record<string, ClinicMedic[]>
     const nearby = rosterMedics.filter(m => m.clinicId && m.clinicId !== userClinicId && !loanedInIds.has(m.id))
     const grouped: Record<string, ClinicMedic[]> = {}
     for (const m of nearby) {
-      const key = m.clinicName ?? 'Other'
+      const key = (m.clinicName && clusterLabel(m.clinicId, m.clinicName)) || 'Other'
       ;(grouped[key] ??= []).push(m)
     }
     for (const key of Object.keys(grouped)) {
       grouped[key].sort((a, b) => (a.lastName ?? '').localeCompare(b.lastName ?? ''))
     }
     return grouped
-  }, [rosterMedics, loanedInIds, userClinicId, canSplit])
+  }, [rosterMedics, loanedInIds, userClinicId, canSplit, clusterDirectory])
 
   const nearbyClinicNames = useMemo(
     () => Object.keys(nearbyByClinic).sort(),

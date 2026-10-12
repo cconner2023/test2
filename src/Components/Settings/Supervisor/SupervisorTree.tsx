@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { clusterLabel } from '../../../Utilities/clusterLabel'
 import { formatMedicName, HQ_SUB_CLUSTER_ID } from './supervisorHelpers'
 import { TreeRowCount } from '@/Components/primitives/TreeRow'
 import { PersonnelRow, PersonnelGroupBand } from '@/Components/primitives/PersonnelRow'
@@ -144,7 +145,7 @@ export function SupervisorTree({
    *  own numbers are on the card at the top of the rail, in full. */
   const renderSoldier = (medic: ClinicMedic) => {
     const loan = medic.isLoanedIn
-      ? `Loaned in${medic.clinicName ? ` from ${medic.clinicName}` : ''}`
+      ? `Loaned in${medic.clinicName ? ` from ${clusterLabel(medic.clinicId, medic.clinicName)}` : ''}`
       : medic.surrogateClinicId ? 'Loaned out' : null
     return (
       <PersonnelRow

@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { clusterLabel } from '../../../Utilities/clusterLabel'
 import { Building2, Users } from 'lucide-react'
 import { UserAvatar } from '../UserAvatar'
 import { SupervisorClinicFilterPanel } from '../../SupervisorClinicSwitcher'
@@ -190,7 +191,7 @@ export function SupervisorSubjectCard({
               {soldier.credential}
               {soldier.isLoanedIn && (
                 <span className="text-themeblue2">
-                  {soldier.credential ? ' · ' : ''}Loaned in{soldier.clinicName ? ` from ${soldier.clinicName}` : ''}
+                  {soldier.credential ? ' · ' : ''}Loaned in{soldier.clinicName ? ` from ${clusterLabel(soldier.clinicId, soldier.clinicName)}` : ''}
                 </span>
               )}
               {!soldier.isLoanedIn && soldier.surrogateClinicId && (
@@ -257,7 +258,7 @@ export function SupervisorSubjectCard({
               <Building2 size={24} className="text-tertiary" />
             </div>
           }
-          title={selection.name}
+          title={clusterLabel(selection.clinicId, selection.name)}
           subtitle={child?.summary ? undefined : 'No published readiness'}
           readinessPercent={child?.summary?.readiness_pct}
           compliancePercent={child?.summary?.cert_pct}

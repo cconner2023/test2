@@ -167,6 +167,7 @@ export function ProviderNoteOutput({
             date: dateStr,
             signatureName: sigName || undefined,
             patient,
+            facility: profile.clinicName || undefined,
         });
     }
 

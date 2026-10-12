@@ -20,6 +20,7 @@
  */
 
 import { useShallow } from 'zustand/react/shallow'
+import { clusterLabel, useClusterDirectoryVersion } from '../Utilities/clusterLabel'
 import { Check } from 'lucide-react'
 import { useAuth } from '../Hooks/useAuth'
 import { useCalendarStore } from '../stores/useCalendarStore'
@@ -31,13 +32,14 @@ interface ClinicOption {
 
 function useSupervisorContextOptions(): ClinicOption[] | null {
   const { profile, clinicId, surrogateClinicIds } = useAuth()
+  useClusterDirectoryVersion()
   if (!clinicId || surrogateClinicIds.length === 0) return null
   const loans = profile.surrogateClinics ?? []
   return [
-    { id: clinicId, name: profile.clinicName ?? 'Assigned' },
+    { id: clinicId, name: clusterLabel(clinicId, profile.clinicName) || 'Assigned' },
     ...surrogateClinicIds.map((id) => ({
       id,
-      name: loans.find((c) => c.id === id)?.name ?? 'Surrogate',
+      name: clusterLabel(id, loans.find((c) => c.id === id)?.name) || 'Surrogate',
     })),
   ]
 }

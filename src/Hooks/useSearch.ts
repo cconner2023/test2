@@ -1,5 +1,6 @@
 // Hooks/useSearch.ts
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react'
+import { clusterLabel } from '../Utilities/clusterLabel'
 import { useShallow } from 'zustand/react/shallow'
 import { catData } from '../Data/CatData'
 import { medList } from '../Data/MedData'
@@ -305,6 +306,7 @@ export function useSearch() {
                 m.rank,
                 m.credential,
                 m.clinicName,
+                m.clinicName ? clusterLabel(m.clinicId, m.clinicName) : null,
                 [m.rank, m.lastName].filter(Boolean).join(' '),
             ]
             if (haystacks.some(h => h?.toLowerCase().includes(q))) {
@@ -318,7 +320,7 @@ export function useSearch() {
                     data: {
                         peerId: m.id,
                         peerName: getDisplayName(m),
-                        chatSubtitle: m.clinicName ?? undefined,
+                        chatSubtitle: m.clinicName ? clusterLabel(m.clinicId, m.clinicName) : undefined,
                     },
                 })
             }

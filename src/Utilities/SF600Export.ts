@@ -25,6 +25,9 @@ export interface SF600Params {
   date: string        // display date string (e.g. "18 MAR 2026")
   signatureName?: string  // e.g. "CONNER CHRISTOPHER D PA-C, CPT, USA"
   patient?: PatientIdentification  // bottom-left patient identification block (page 1)
+  /** Page-1 "HOSPITAL OR MEDICAL FACILITY" box. Official output — pass the
+   *  cluster UNIT name (clinics.name), never the nickname. */
+  facility?: string
 }
 
 /**
@@ -86,6 +89,16 @@ const PATIENT_BLOCK = {
   x: 30,
   topY: 96,
   lineHeight: 10,
+} as const
+
+// Page-1 "HOSPITAL OR MEDICAL FACILITY" box: label baseline y≈185 at x=22,
+// next row label at y≈161, STATUS column starts x≈239. Value sits under the label.
+const FACILITY_BOX = {
+  fontSize: 8,
+  minFontSize: 6,
+  x: 24,
+  y: 172,
+  maxWidth: 210,
 } as const
 
 const GENDER_LABEL = { M: 'Male', F: 'Female' } as const
@@ -194,6 +207,18 @@ export async function generateSF600(params: SF600Params): Promise<Uint8Array> {
       font,
       color: black,
     })
+  }
+
+  // ── Hospital or medical facility (page 1 only) ──
+  // Shrink to fit the box down to minFontSize, then truncate.
+  const facility = params.facility?.trim()
+  if (facility) {
+    let size: number = FACILITY_BOX.fontSize
+    while (size > FACILITY_BOX.minFontSize && font.widthOfTextAtSize(facility, size) > FACILITY_BOX.maxWidth) size -= 0.5
+    let text = facility
+    while (text.length > 1 && font.widthOfTextAtSize(text, size) > FACILITY_BOX.maxWidth) text = text.slice(0, -1)
+    if (text !== facility) text = text.slice(0, -1).trimEnd() + '…'
+    p1.drawText(text, { x: FACILITY_BOX.x, y: FACILITY_BOX.y, size, font, color: black })
   }
 
   // ── Patient identification block (bottom-left, page 1 only) ──

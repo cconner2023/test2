@@ -51,6 +51,13 @@ export const services = {
     idb: [],
     exports: ['getSupervisorClinics', 'getClinicMembers', 'recordCompetencyTest', 'getCompetencyMatrix'],
   },
+  clusterDirectoryService: {
+    path: 'lib/clusterDirectoryService.ts',
+    tables: { reads: ['clinics'], writes: ['clinics'] },
+    idb: [],
+    exports: ['fetchClusterDirectory', 'setClusterNickname'],
+    note: 'RPCs get_cluster_directory (own/peer/hierarchy set + nicknames) and set_clinic_nickname (supervisor scope / dev)',
+  },
   clinicAssociationService: {
     path: 'lib/clinicAssociationService.ts',
     tables: { reads: ['clinic_invites'], writes: ['clinic_invites'] },

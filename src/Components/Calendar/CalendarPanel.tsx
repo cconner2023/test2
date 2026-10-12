@@ -1,4 +1,5 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
+import { clusterLabel, useClusterDirectoryVersion } from '../../Utilities/clusterLabel'
 import { Clock, Users2, CalendarDays, X, Check, Trash2, CalendarPlus, CalendarOff, Square, Columns3, ListChecks, Grid2x2, CalendarRange, Rows3, Megaphone, SlidersHorizontal, ChevronLeft, MoreHorizontal } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { ActionPill } from '@/Components/primitives/ActionPill'
@@ -231,15 +232,16 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
   const activeClinicId = supervisingClinicId ?? clinicId
   // Clinic options for the EventForm picker. Includes every active loan; the
   // form hides the picker entirely when length < 2.
+  const clusterDirectory = useClusterDirectoryVersion()
   const clinicFormOptions = useMemo(() => {
     const opts: { id: string; name: string }[] = []
-    if (clinicId) opts.push({ id: clinicId, name: profile.clinicName ?? 'Assigned' })
+    if (clinicId) opts.push({ id: clinicId, name: clusterLabel(clinicId, profile.clinicName) || 'Assigned' })
     const loans = profile.surrogateClinics ?? []
     for (const id of surrogateClinicIds) {
-      opts.push({ id, name: loans.find((c) => c.id === id)?.name ?? 'Surrogate' })
+      opts.push({ id, name: clusterLabel(id, loans.find((c) => c.id === id)?.name) || 'Surrogate' })
     }
     return opts
-  }, [clinicId, surrogateClinicIds, profile.clinicName, profile.surrogateClinics])
+  }, [clinicId, surrogateClinicIds, profile.clinicName, profile.surrogateClinics, clusterDirectory])
   const { writeEvent, vaultUpdate, deleteEvent: calendarDeleteEvent, isWriting } = useCalendarWrite()
   const { writeOverlay } = useMapOverlayWrite()
   const apptTypes = useClinicAppointmentTypes(activeClinicId)

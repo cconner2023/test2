@@ -11,6 +11,10 @@ import {
 } from '../../lib/supervisorService'
 import type { AdminLocation } from '../../lib/adminService'
 import { invalidate } from '../../stores/useInvalidationStore'
+import { useClusterDirectoryStore } from '../../stores/useClusterDirectoryStore'
+import { setClusterNickname } from '../../lib/clusterDirectoryService'
+
+const NICKNAME_MAX = 40
 
 export interface ClinicIdentitySaved {
   name: string
@@ -45,7 +49,9 @@ export function ClinicIdentityEditPopover({
   onSaved,
 }: ClinicIdentityEditPopoverProps) {
   const [mode, setMode] = useState<'edit' | 'pickLocation'>('edit')
-  const [name, setName] = useState(initialName)
+  // Unit name (initialName) is admin-owned and read-only here; supervisors edit the nickname.
+  const savedNickname = useClusterDirectoryStore((s) => (clinicId ? s.entries[clinicId]?.nickname ?? '' : ''))
+  const [nickname, setNickname] = useState(savedNickname)
   const [locationId, setLocationId] = useState<string | null>(initialLocationId)
   const [uics, setUics] = useState(initialUics.join(', '))
   const [saving, setSaving] = useState(false)
@@ -55,12 +61,12 @@ export function ClinicIdentityEditPopover({
   useEffect(() => {
     if (isOpen) {
       setMode('edit')
-      setName(initialName)
+      setNickname(savedNickname)
       setLocationId(initialLocationId)
       setUics(initialUics.join(', '))
       setError(null)
     }
-  }, [isOpen, initialName, initialLocationId, initialUics])
+  }, [isOpen, savedNickname, initialLocationId, initialUics])
 
   const selectedLocation = useMemo(
     () => locations.find(l => l.id === locationId) ?? null,
@@ -69,10 +75,6 @@ export function ClinicIdentityEditPopover({
 
   const handleSave = useCallback(async () => {
     if (!clinicId) return
-    if (!name.trim()) {
-      setError('Cluster name is required')
-      return
-    }
     setSaving(true)
     setError(null)
 
@@ -82,12 +84,12 @@ export function ClinicIdentityEditPopover({
       .map((u) => u.trim().toUpperCase())
       .filter(Boolean)
 
-    // name / uics / legacy-location go through the existing RPC; pass current
-    // legacy location through unchanged (supervisors edit it via picker now).
+    // uics / legacy-location go through the existing RPC; pass current legacy
+    // location through unchanged (supervisors edit it via picker now). Unit
+    // name is never sent — the RPC ignores it for non-dev callers anyway.
     const detailResult = await updateSupervisorClinic(
       clinicId,
       {
-        name: name.trim(),
         location: initialLocation ?? null,
         uics: uicsArray.length > 0 ? uicsArray : undefined,
       },
@@ -97,6 +99,17 @@ export function ClinicIdentityEditPopover({
       setSaving(false)
       setError(detailResult.error)
       return
+    }
+
+    const nextNickname = nickname.trim()
+    if (nextNickname !== savedNickname) {
+      const nickResult = await setClusterNickname(clinicId, nextNickname)
+      if (!nickResult.success) {
+        setSaving(false)
+        setError(nickResult.error)
+        return
+      }
+      useClusterDirectoryStore.getState().patchNickname(clinicId, nickResult.nickname)
     }
 
     if (locationId !== initialLocationId) {
@@ -111,13 +124,13 @@ export function ClinicIdentityEditPopover({
     setSaving(false)
     invalidate('clinics')
     onSaved({
-      name: name.trim(),
+      name: initialName,
       location: initialLocation ?? null,
       location_id: locationId,
       uics: uicsArray,
     })
     onClose()
-  }, [clinicId, name, locationId, uics, initialLocation, initialLocationId, onSaved, onClose])
+  }, [clinicId, nickname, savedNickname, initialName, locationId, uics, initialLocation, initialLocationId, onSaved, onClose])
 
   const buildGroups = useCallback((filterStr: string) => {
     const q = filterStr.toLowerCase().trim()
@@ -209,7 +222,7 @@ export function ClinicIdentityEditPopover({
             <ActionButton
               icon={saving ? Loader2 : Check}
               label={saving ? 'Saving…' : 'Save'}
-              variant={saving || !name.trim() ? 'disabled' : 'confirm'}
+              variant={saving ? 'disabled' : 'confirm'}
               onClick={handleSave}
             />
           </FooterPill>
@@ -219,12 +232,17 @@ export function ClinicIdentityEditPopover({
       {isOpen && !isPickMode && (
         <div>
           <div className="flex items-center border-b border-primary/6 px-4 py-3">
-            <span className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest w-20 shrink-0">Name</span>
+            <span className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest w-20 shrink-0">Unit</span>
+            <span className="flex-1 text-sm text-tertiary truncate min-w-0">{initialName}</span>
+          </div>
+          <div className="flex items-center border-b border-primary/6 px-4 py-3">
+            <span className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest w-20 shrink-0">Nickname</span>
             <input
               type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Cluster name"
+              value={nickname}
+              maxLength={NICKNAME_MAX}
+              onChange={(e) => setNickname(e.target.value)}
+              placeholder="Optional — shown to your and linked clusters"
               className="flex-1 bg-transparent text-primary placeholder:text-tertiary focus:outline-none text-sm min-w-0"
             />
           </div>

@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
+import { useClusterLabel } from '../../../Utilities/clusterLabel'
 import { useClinicMedics } from '../../../Hooks/useClinicMedics'
 import { useAuth } from '../../../Hooks/useAuth'
 import { fetchClinicCertifications } from '../../../lib/certificationService'
@@ -32,8 +33,10 @@ export interface SupervisorData {
   isSupervisor: boolean
   /** Current user's Supabase UID */
   currentUserId: string | null
-  /** Clinic display name */
+  /** Clinic display label (nickname when set) */
   clinicName: string | null
+  /** Clinic unit name — for exports / official outputs */
+  clinicUnitName: string | null
   /** Current user's profile as a ClinicMedic (for name resolution) */
   currentUserProfile: ClinicMedic | null
   /** Clinic medics (excluding self — self is in currentUserProfile) */
@@ -117,10 +120,12 @@ export function useSupervisorData(): SupervisorData {
   // Name must follow the toggle, not stay pinned to the home clinic. When
   // operating-as a loaned clinic, resolve its name from the loan pairs
   // (profile.surrogateClinics); home context falls back to profile.clinicName.
-  const clinicName = supervisingClinicId && supervisingClinicId !== userClinicId
+  const clinicUnitName = supervisingClinicId && supervisingClinicId !== userClinicId
     ? (authProfile.surrogateClinics?.find(c => c.id === supervisingClinicId)?.name
         ?? authProfile.clinicName ?? null)
     : (authProfile.clinicName ?? null)
+  // Display label (nickname when set). Exports use clinicUnitName.
+  const clinicName = useClusterLabel(supervisingClinicId ?? userClinicId, clinicUnitName) || null
   const loading = authLoading || (!!user && !userClinicId)
 
   const currentUserProfile = useMemo<ClinicMedic | null>(() => {
@@ -313,6 +318,7 @@ export function useSupervisorData(): SupervisorData {
     isSupervisor,
     currentUserId,
     clinicName,
+    clinicUnitName,
     currentUserProfile,
     medics,
     certs,

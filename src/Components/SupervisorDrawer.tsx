@@ -1,4 +1,5 @@
 import { useState, useCallback, useMemo, useRef, type ReactNode } from 'react'
+import { clusterLabel, useClusterDirectoryVersion } from '../Utilities/clusterLabel'
 import { Activity, Ban, ChevronLeft, ChevronRight, ClipboardCheck, GraduationCap, ShieldCheck, Trash2, Users, X } from 'lucide-react'
 import { BaseDrawer } from '@/Components/primitives/BaseDrawer'
 import { BottomIsland } from '@/Components/primitives/BottomIsland'
@@ -280,6 +281,7 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
     currentUserId,
     medics,
     clinicName,
+    clinicUnitName,
     teamMetrics,
     competencyMatrix,
     trainingEvents,
@@ -436,15 +438,24 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
     }
   }, [isChildScope, subject, childClusters])
 
+  const clusterDirectory = useClusterDirectoryVersion()
   const subjectLabel = useMemo(() => {
     if (subject.type === 'soldier') {
       const soldier = medics.find(m => m.id === subject.soldierId)
       return soldier ? formatMedicName(soldier) : ''
     }
     if (subject.type === 'child-soldier') return subject.soldier.name
-    if (subject.type === 'sub-cluster' || subject.type === 'child-cluster') return subject.name
+    if (subject.type === 'sub-cluster') return subject.name
+    if (subject.type === 'child-cluster') return clusterLabel(subject.clinicId, subject.name)
     return clinicName ?? 'My Cluster'
-  }, [subject, medics, clinicName])
+  }, [subject, medics, clinicName, clusterDirectory])
+
+  // Export filenames are official output — unit name, never the nickname.
+  const exportStem = useMemo(() => {
+    if (subject.type === 'child-cluster') return subject.name
+    if (subject.type === 'cluster') return clinicUnitName ?? 'My Cluster'
+    return subjectLabel
+  }, [subject, clinicUnitName, subjectLabel])
 
   // ── Navigation ─────────────────────────────────────────────────────────────
 
@@ -928,11 +939,11 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
     })
     if (rows.length === 0) return
     try {
-      await shareCertificationCsv(rows, certificationCsvFilename(subjectLabel))
+      await shareCertificationCsv(rows, certificationCsvFilename(exportStem))
     } catch {
       // A cancelled Web Share sheet lands here too, so this is not surfaced.
     }
-  }, [scopeCerts, resolveName, subjectLabel])
+  }, [scopeCerts, resolveName, exportStem])
 
   const [exportOpen, setExportOpen] = useState(false)
 
@@ -1707,7 +1718,7 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
         onClose={() => setExportOpen(false)}
         anchorRect={fabRef.current?.getBoundingClientRect() ?? null}
         scopeLabel={centerStack.length > 0 ? `${subjectLabel} · ${centerTitle}` : subjectLabel}
-        filenameStem={subjectLabel}
+        filenameStem={exportStem}
         completions={exportCompletions}
         resolveName={resolveName}
         taskIds={exportTaskIds}

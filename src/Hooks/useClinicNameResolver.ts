@@ -1,11 +1,13 @@
 // Hooks/useClinicNameResolver.ts — Resolve clinic name from clinicId via Supabase
 import { useState, useEffect } from 'react';
+import { useClusterLabel } from '../Utilities/clusterLabel';
 import { supabase } from '../lib/supabase';
 
 /** Module-level cache to avoid re-fetching the same clinic name. */
 const clinicNameCache = new Map<string, string>();
 
-/** Returns the clinic name for the given clinicId, or null if not yet resolved / not found. */
+/** Returns the clinic display label for the given clinicId (nickname for known
+ *  clusters, else unit name), or null if not yet resolved / not found. */
 export function useClinicName(clinicId: string | null): string | null {
     const [name, setName] = useState<string | null>(() => {
         if (!clinicId) return null;
@@ -43,5 +45,5 @@ export function useClinicName(clinicId: string | null): string | null {
         return () => { cancelled = true; };
     }, [clinicId]);
 
-    return name;
+    return useClusterLabel(clinicId, name) || null;
 }

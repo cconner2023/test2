@@ -51,6 +51,7 @@ import { FeatureVotesPanel } from './FeatureVotesPanel';
 import { useNavigationStore } from '../../stores/useNavigationStore';
 import { useFeatureVotesStore, selectHasUnvotedActiveCycle } from '../../stores/useFeatureVotesStore';
 import { useTheme } from '../../Utilities/ThemeContext';
+import { clusterLabel, useClusterDirectoryVersion } from '../../Utilities/clusterLabel';
 
 
 interface SettingsDrawerProps {
@@ -101,17 +102,18 @@ export const Settings = ({
     // them. `clinicId` is the assignment; `supervisingClinicId` is the pointer the
     // clinic panel actually resolves through, so it decides which row reads active.
     const activeClinicId = supervisingClinicId ?? clinicId;
+    const clusterDirectory = useClusterDirectoryVersion();
     const clusterOptions = useMemo(() => {
         if (!isSupervisorRole || !clinicId) return [] as { id: string; name: string }[];
         const loans = profile.surrogateClinics ?? [];
         return [
-            { id: clinicId, name: profile.clinicName || 'My Cluster' },
+            { id: clinicId, name: clusterLabel(clinicId, profile.clinicName) || 'My Cluster' },
             ...surrogateClinicIds.map((id) => ({
                 id,
-                name: loans.find((c) => c.id === id)?.name ?? 'Surrogate',
+                name: clusterLabel(id, loans.find((c) => c.id === id)?.name) || 'Surrogate',
             })),
         ];
-    }, [isSupervisorRole, clinicId, surrogateClinicIds, profile.clinicName, profile.surrogateClinics]);
+    }, [isSupervisorRole, clinicId, surrogateClinicIds, profile.clinicName, profile.surrogateClinics, clusterDirectory]);
     const whisperNetVisible = useBetaFlag('whisperNet');
     const hasUnvotedCycle = useFeatureVotesStore(selectHasUnvotedActiveCycle);
     const [clinicEditing, setClinicEditing] = useState(false);
@@ -276,7 +278,7 @@ const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
                         }),
                 ));
             } else {
-                items.push(opt(PANEL.CLINIC, <Building2 size={20} />, profile.clinicName || 'My Cluster', 'Manage cluster and personnel'));
+                items.push(opt(PANEL.CLINIC, <Building2 size={20} />, clusterLabel(clinicId, profile.clinicName) || 'My Cluster', 'Manage cluster and personnel'));
             }
         }
 
@@ -326,7 +328,7 @@ const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
         }
 
         return items;
-    }, [themeName, handleItemClick, isDevRole, isAuthenticated, isSupervisorRole, clinicId, profile.clinicName, clusterOptions, activeClinicId, setSupervisingClinic, updateProfile, hasUnvotedCycle, whisperNetVisible, setShowUserGuideDrawer, isMobile, navigateCenter]);
+    }, [themeName, handleItemClick, isDevRole, isAuthenticated, isSupervisorRole, clinicId, profile.clinicName, clusterOptions, clusterDirectory, activeClinicId, setSupervisingClinic, updateProfile, hasUnvotedCycle, whisperNetVisible, setShowUserGuideDrawer, isMobile, navigateCenter]);
 
     // Swipe-back for sub-panels (mobile touch only)
     const swipeHandlers = useSwipeBack(
@@ -644,7 +646,7 @@ const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
                                 key={detailView.id}
                                 clinicId={detailView.id}
                                 currentUserId={user?.id ?? null}
-                                title={detailView.name}
+                                title={clusterLabel(detailView.id, detailView.name)}
                                 onBack={closeDetail}
                             />
                         );

@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback, memo, useImperativeHandle, forwardRef, useMemo } from 'react'
+import { clusterLabel } from '../../Utilities/clusterLabel'
 import type { ReactNode } from 'react'
 import { Trash2, Headset, Play, MessageSquare, Info, ChevronLeft, ChevronRight, ChevronDown, Pin, Check, Settings, Send } from 'lucide-react'
 import { useSpring, animated } from '@react-spring/web'
@@ -388,6 +389,7 @@ function ConversationPane({
       m.rank?.toLowerCase().includes(q) ||
       m.credential?.toLowerCase().includes(q) ||
       m.clinicName?.toLowerCase().includes(q) ||
+      (!!m.clinicName && clusterLabel(m.clinicId, m.clinicName).toLowerCase().includes(q)) ||
       [m.rank, m.lastName].filter(Boolean).join(' ').toLowerCase().includes(q)
     )
     const matchedGroups = Object.values(groups).filter(g => !g.systemType && displayGroupName(g.name).toLowerCase().includes(q))
