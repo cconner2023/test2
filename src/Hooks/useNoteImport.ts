@@ -129,6 +129,7 @@ export const useNoteImport = () => {
         const result = assembleNote(
             {
                 includeAlgorithm: parsed.flags.includeAlgorithm,
+                includeDecisionMaking: parsed.flags.includeDecisionMaking,
                 customNote: parsed.flags.includeHPI ? parsed.hpiText : '',
                 assessmentNote: parsed.flags.includeAssessment ? parsed.assessmentText : '',
                 selectedDdx: parsed.ddx.selected,

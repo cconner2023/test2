@@ -55,6 +55,8 @@ export interface ParsedNote {
 
 export interface NoteEncodeOptions {
     includeAlgorithm: boolean;
+    /** Defaults to true. False sets the omit-decision-making flag bit (64). */
+    includeDecisionMaking?: boolean;
     assessmentNote?: string;
     selectedDdx?: string[];
     customDdx?: string[];
@@ -274,7 +276,9 @@ export function parseNoteEncoding(encodedText: string): ParsedNote | null {
                 const f = parseInt(value, 10);
                 result.flags = {
                     includeAlgorithm: !!(f & 1),
-                    includeDecisionMaking: !!(f & 2),
+                    // Bit 64 = medic toggled DECISION MAKING off. Inverted so legacy
+                    // barcodes (no bit) keep rendering it. Bit 2 only marks DDx presence.
+                    includeDecisionMaking: !(f & 64),
                     includeHPI: !!(f & 4),
                     includePhysicalExam: !!(f & 8),
                     includePlan: !!(f & 16),
@@ -689,6 +693,7 @@ export function encodeNoteState(
     if (hasPE) flags |= 8;
     if (planNoteText) flags |= 16;
     if (assessmentNoteText) flags |= 32;
+    if (noteOptions.includeDecisionMaking === false) flags |= 64;
     parts.push(`F${flags}`);
 
     // User profile

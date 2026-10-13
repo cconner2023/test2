@@ -287,6 +287,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
     const assembled = assembleNote(
       {
         includeAlgorithm: parsed.flags.includeAlgorithm,
+        includeDecisionMaking: parsed.flags.includeDecisionMaking,
         customNote: '',
         assessmentNote: parsed.flags.includeAssessment ? parsed.assessmentText : '',
         selectedDdx: parsed.ddx.selected,

@@ -228,10 +228,6 @@ describe('Note Encoding round-trips', () => {
         const states = buildCardStates();
         const opts: NoteEncodeOptions = {
             includeAlgorithm: true,
-            // The decision-making flag is derived from DDx content, not passed in:
-            // encodeNoteState sets bit 2 when selectedDdx/customDdx is non-empty.
-            // (includeDecisionMaking is a NoteAssemblyOptions field for the
-            // formatter, and was never part of NoteEncodeOptions.)
             selectedDdx: ['Tension headache'],
             customNote: 'Some note',
         };
@@ -266,13 +262,19 @@ describe('Note Encoding round-trips', () => {
         expect(parsed!.planText).toBe('Plan text');
     });
 
-    it('omits the DDx segment and decision-making flag when DDx is empty', () => {
+    it('omits the DDx segment when DDx is empty', () => {
         const states = buildCardStates();
         const opts: NoteEncodeOptions = { includeAlgorithm: true, selectedDdx: [], customDdx: ['  '], customNote: '' };
         const encoded = encodeNoteState(mockAlgorithm, states, opts, symptomCode);
         expect(encoded.split('|').some(p => p.startsWith('D'))).toBe(false);
         const parsed = parseNoteEncoding(encoded);
         expect(parsed!.ddx).toEqual({ selected: [], custom: [] });
+    });
+
+    it('round-trips decision making toggled off', () => {
+        const states = buildCardStates();
+        const opts: NoteEncodeOptions = { includeAlgorithm: true, includeDecisionMaking: false, customNote: '' };
+        const parsed = parseNoteEncoding(encodeNoteState(mockAlgorithm, states, opts, symptomCode));
         expect(parsed!.flags.includeDecisionMaking).toBe(false);
     });
 

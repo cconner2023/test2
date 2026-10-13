@@ -570,6 +570,7 @@ export const WriteNotePage = ({
                                                 cardStates={cardStates}
                                                 noteOptions={{
                                                     includeAlgorithm: true,
+                                                    includeDecisionMaking,
                                                     assessmentNote,
                                                     selectedDdx,
                                                     customDdx,

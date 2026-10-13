@@ -85,7 +85,7 @@ export function NoteBarcodeGenerator({
 
     const compactString = useMemo(() =>
         encodeNoteState(algorithmOptions, cardStates, noteOptions, symptomCode),
-        [algorithmOptions, cardStates, noteOptions.includeAlgorithm, noteOptions.assessmentNote, noteOptions.selectedDdx, noteOptions.customDdx, noteOptions.customNote, noteOptions.physicalExamNote, noteOptions.planNote, noteOptions.user, noteOptions.userId, symptomCode]
+        [algorithmOptions, cardStates, noteOptions.includeAlgorithm, noteOptions.includeDecisionMaking, noteOptions.assessmentNote, noteOptions.selectedDdx, noteOptions.customDdx, noteOptions.customNote, noteOptions.physicalExamNote, noteOptions.planNote, noteOptions.user, noteOptions.userId, symptomCode]
     );
 
     // Encrypt (pack + deflate + AES-GCM + base64); skip for guests, fall back to plain ASCII if no key
