@@ -58,17 +58,11 @@ describe('v9 format detection', () => {
     it('decodePEState returns null for unsupported version prefixes', () => {
         expect(decodePEState('6:A,R,,,,,,,~0~0~~', 'A-1')).toBeNull();
         expect(decodePEState('7:A,R,F,,,,,,,~~', 'A-1')).toBeNull();
+        expect(decodePEState('8:A,R,F,,,,,,,~~', 'A-1')).toBeNull();
         expect(decodePEState('some random text', 'A-1')).toBeNull();
         expect(decodePEState('', 'A-1')).toBeNull();
     });
 
-    it('still decodes legacy v8 strings (fill-defaults behavior)', () => {
-        // Legacy v8 all-normal exam: empty body, decoder fills canonical blocks normal.
-        const decoded = decodePEState('8:A,R,F,,,,,,,~~', 'A-1');
-        expect(decoded).not.toBeNull();
-        const keys = canonicalKeys('A', 'A-1');
-        expect(decoded!.items[keys[0]]?.status).toBe('normal');
-    });
 });
 
 // ---------------------------------------------------------------------------

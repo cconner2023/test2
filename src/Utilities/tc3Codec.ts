@@ -446,26 +446,6 @@ export function parseTC3Encoding(encoded: string): ParsedTC3 | null {
         })
         break
       }
-      case 'G': {
-        // Legacy: card-level AVPU/GCS — apply to the last vital set, or synthesize one.
-        const gParts = value.split(',')
-        const legacyAvpu = (gParts[0] === '-' ? '' : gParts[0]) as AVPU | ''
-        const legacyGcs = gParts.length >= 4
-          ? { eye: parseInt(gParts[1], 10) || 0, verbal: parseInt(gParts[2], 10) || 0, motor: parseInt(gParts[3], 10) || 0 }
-          : null
-        if (card.vitals.length > 0) {
-          const last = card.vitals[card.vitals.length - 1]
-          last.avpu = legacyAvpu
-          last.gcs = legacyGcs
-        } else if (legacyAvpu || legacyGcs) {
-          card.vitals.push({
-            id: crypto.randomUUID(),
-            time: '', pulse: '', pulseLocation: '', bp: '', rr: '', spo2: '',
-            avpu: legacyAvpu, painScale: '', temp: '', tempRoute: '', gcs: legacyGcs,
-          })
-        }
-        break
-      }
       case 'E': {
         const subs = value.split('~')
         const prio = subs[0]

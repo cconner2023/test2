@@ -1,7 +1,7 @@
 // Utilities/noteParser.ts
 // Types, lookup helpers, encoding, decoding, and reconstruction logic for note barcodes.
 
-import { compressText, decompressText, bitmaskToIndices, indicesToBitmask } from './textCodec';
+import { compressText, decompressText } from './textCodec';
 import { decodePECompact, encodePEState } from './peCodec';
 import { applyRedFlagFloor } from './dispositionSeverity';
 import { logError } from './ErrorHandler';
@@ -15,7 +15,7 @@ import type { AlgorithmOptions, dispositionType } from '../Types/AlgorithmTypes'
 import type { CardState } from '../Hooks/useAlgorithm';
 import type { catDataTypes, subCatDataTypes } from '../Types/CatTypes';
 
-/** True when value looks like a versioned PE compact string (e.g. "6:A,R,…"). */
+/** True when value is a versioned structured PE string (e.g. "9:A,R,…") rather than compressed free text. */
 const isCompactPE = (v: string) => /^\d+:/.test(v);
 
 // ---------------------------------------------------------------------------
@@ -38,6 +38,8 @@ export interface ParsedNote {
     peText: string;
     planText: string;
     assessmentText: string;
+    /** Differential diagnoses — library picks and free-text entries. */
+    ddx: { selected: string[]; custom: string[] };
     flags: { includeAlgorithm: boolean; includeDecisionMaking: boolean; includeHPI: boolean; includePhysicalExam: boolean; includePlan: boolean; includeAssessment: boolean };
     user: UserTypes | null;
     userId: string | null;
@@ -85,12 +87,7 @@ function encodeUser(user: UserTypes | undefined): string | null {
     const ci = user.credential ? credentials.indexOf(user.credential) : -1;
     const coi = user.component ? components.indexOf(user.component) : -1;
     const nameStr = `${user.firstName ?? ''}|${user.lastName ?? ''}|${user.middleInitial ?? ''}|${user.uic ?? ''}`;
-    try {
-        return `${ri}.${ci}.${coi}.${compressText(nameStr)}`;
-    } catch (e) {
-        logError('noteParser.encodeUser', e);
-        return `${ri}.${ci}.${coi}.${encodeURIComponent(nameStr)}`;
-    }
+    return `${ri}.${ci}.${coi}.${compressText(nameStr)}`;
 }
 
 /** Decode a user profile from "{rankIdx}.{credIdx}.{compIdx}.{compressedName}" */
@@ -100,10 +97,7 @@ function decodeUser(value: string): UserTypes | null {
     const ri = parseInt(segs[0], 10);
     const ci = parseInt(segs[1], 10);
     const coi = parseInt(segs[2], 10);
-    let names: string[] = [];
-    try {
-        names = decompressText(segs.slice(3).join('.')).split('|');
-    } catch (e) { logError('noteParser.decodeUser', e); }
+    const names = decompressText(segs.slice(3).join('.')).split('|');
     return {
         firstName: names[0] || undefined,
         lastName: names[1] || undefined,
@@ -130,7 +124,7 @@ function decodeUserId(value: string): string | null {
 // Shared PE encode helper
 // ---------------------------------------------------------------------------
 
-/** Encode PE state with structured v8 when available, compressed text fallback. */
+/** Encode PE state as structured v9 when available, compressed text fallback. */
 function encodePE(peState: PEState | undefined, peText: string | undefined, symptomCode?: string): string | null {
     if (peState) {
         try {
@@ -143,12 +137,39 @@ function encodePE(peState: PEState | undefined, peText: string | undefined, symp
     return trimmed ? compressText(trimmed) : null;
 }
 
-/** Decode a PE value — structured v6 or compressed text. */
+/** Decode a PE value — structured v9 or compressed text. */
 function decodePE(value: string, symptomCode: string): { text: string; raw?: string } {
     if (isCompactPE(value)) {
         return { text: decodePECompact(value, symptomCode), raw: value };
     }
     return { text: decompressText(value) };
+}
+
+// ---------------------------------------------------------------------------
+// Shared DDx encode / decode
+// ---------------------------------------------------------------------------
+
+/**
+ * Encode DDx as compressed JSON `[selected, custom]`. Custom entries are free
+ * text, so they must never sit raw in the pipe-delimited string.
+ */
+function encodeDdx(selected: string[] | undefined, custom: string[] | undefined): string | null {
+    const s = (selected ?? []).map(d => d.trim()).filter(Boolean);
+    const c = (custom ?? []).map(d => d.trim()).filter(Boolean);
+    if (s.length === 0 && c.length === 0) return null;
+    return compressText(JSON.stringify([s, c]));
+}
+
+/** Decode a DDx segment value. Malformed input yields empty lists. */
+function decodeDdx(value: string): ParsedNote['ddx'] {
+    const strings = (v: unknown) => Array.isArray(v) ? v.filter((d): d is string => typeof d === 'string') : [];
+    try {
+        const [selected, custom] = JSON.parse(decompressText(value));
+        return { selected: strings(selected), custom: strings(custom) };
+    } catch (e) {
+        logError('noteParser.decodeDdx', e);
+        return { selected: [], custom: [] };
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -181,6 +202,9 @@ export function findSymptomByCode(code: string): { category: catDataTypes; sympt
 /**
  * Parse a pipe-delimited barcode string into a structured ParsedNote.
  * Handles medic notes, provider-solo (PRV) notes, and combined medic+provider bundles.
+ *
+ * Medic layout: {symptomCode}|{compactAlgorithm}|{prefixed segments…}
+ * Provider layout: PRV|{prefixed segments…}
  */
 export function parseNoteEncoding(encodedText: string): ParsedNote | null {
     if (!encodedText.trim()) return null;
@@ -201,6 +225,7 @@ export function parseNoteEncoding(encodedText: string): ParsedNote | null {
         peText: '',
         planText: '',
         assessmentText: '',
+        ddx: { selected: [], custom: [] },
         flags: {
             includeAlgorithm: !isProvider,
             includeDecisionMaking: !isProvider,
@@ -213,34 +238,25 @@ export function parseNoteEncoding(encodedText: string): ParsedNote | null {
         userId: null,
     };
 
-    // Detect compact algorithm format (v2) vs legacy
-    const hasCompactAlgo = !isProvider && isCompactAlgorithm(parts[1]);
-    let contentStart = 1;
-
-    if (hasCompactAlgo) {
+    if (!isProvider) {
         const algorithmOptions = findAlgorithmByCode(symptomCode);
         if (algorithmOptions) {
-            const algo = decodeAlgorithmCompact(parts[1] || '', algorithmOptions);
+            const algo = decodeAlgorithmCompact(parts[1] ?? '', algorithmOptions);
             result.rfSelections = algo.rfSelections;
             result.cardEntries = algo.cardEntries;
             result.screenerEntries = algo.screenerEntries;
             result.actionEntries = algo.actionEntries;
         }
-        contentStart = 2;
     }
 
-    for (let i = contentStart; i < parts.length; i++) {
+    for (let i = contentStartIndex(symptomCode); i < parts.length; i++) {
         const part = parts[i];
         if (!part) continue;
         const prefix = part[0];
         const value = part.substring(1);
 
         switch (prefix) {
-            // ── Legacy medic algorithm segments (only hit for old barcodes) ──
-            case 'R': {
-                result.rfSelections = bitmaskToIndices(parseInt(value || '0', 36));
-                break;
-            }
+            // ── Medic segments ──
             case 'H': {
                 result.hpiText = decompressText(value);
                 break;
@@ -278,42 +294,8 @@ export function parseNoteEncoding(encodedText: string): ParsedNote | null {
                 result.userId = decodeUserId(value);
                 break;
             }
-            case 'A': {
-                const aSegs = value.split('.');
-                if (aSegs.length >= 2) {
-                    const aChar = aSegs[1];
-                    result.actionEntries.push({
-                        index: parseInt(aSegs[0], 10),
-                        status: aChar === 'S' ? 'deferred-stop'
-                            : aChar === 'D' ? 'deferred-continue'
-                            : 'performed',
-                    });
-                }
-                break;
-            }
-            case 'Q': {
-                const qSegs = value.split('.');
-                if (qSegs.length >= 2) {
-                    const responseStr = qSegs[1];
-                    const responses = responseStr.includes('-')
-                        ? responseStr.split('-').map(s => parseInt(s, 36))
-                        : responseStr.split('').map(d => parseInt(d, 10));
-                    const followUp = qSegs.length >= 3 ? parseInt(qSegs[2], 10) : undefined;
-                    result.screenerEntries.push({
-                        id: qSegs[0],
-                        responses,
-                        followUp: isNaN(followUp as number) ? undefined : followUp,
-                    });
-                }
-                break;
-            }
             case 'D': {
-                // DDx list: selected~selected^custom~custom
-                const [selectedStr, customStr] = value.split('^');
-                if (selectedStr) {
-                    // Store in flags as a proxy — actual DDx values parsed here
-                    result.flags.includeDecisionMaking = true;
-                }
+                result.ddx = decodeDdx(value);
                 break;
             }
             // ── Provider segments (lowercase) ──
@@ -341,20 +323,6 @@ export function parseNoteEncoding(encodedText: string): ParsedNote | null {
             }
             case 'i': {
                 result.providerUserId = decodeUserId(value);
-                break;
-            }
-            default: {
-                // Card entry: "{index}.{selBitmask36}.{answerIndex}"
-                if (/^\d/.test(part)) {
-                    const segments = part.split('.');
-                    if (segments.length >= 3) {
-                        result.cardEntries.push({
-                            index: parseInt(segments[0], 10),
-                            selections: bitmaskToIndices(parseInt(segments[1], 36)),
-                            answerIndex: parseInt(segments[2], 10),
-                        });
-                    }
-                }
                 break;
             }
         }
@@ -461,11 +429,9 @@ function encodeAlgorithmCompact(
 // Compact algorithm decoding (v2)
 // ---------------------------------------------------------------------------
 
-/** Check if a pipe segment is a compact algorithm string (vs legacy R{bitmask}). */
-function isCompactAlgorithm(segment: string | undefined): boolean {
-    if (segment === undefined) return false;
-    if (segment === '') return true; // empty = no algorithm state
-    return !segment.startsWith('R');
+/** Index of the first prefixed segment — after the compact algorithm segment on medic notes. */
+function contentStartIndex(symptomCode: string): number {
+    return symptomCode === 'PRV' ? 1 : 2;
 }
 
 /**
@@ -712,17 +678,13 @@ export function encodeNoteState(
     if (assessmentNoteText) parts.push(`X${compressText(assessmentNoteText)}`);
 
     // DDx list
-    const allDdx = [...(noteOptions.selectedDdx ?? []), ...(noteOptions.customDdx ?? [])];
-    if (allDdx.length > 0) {
-        const selectedPart = (noteOptions.selectedDdx ?? []).join('~');
-        const customPart = (noteOptions.customDdx ?? []).join('~');
-        parts.push(`D${selectedPart}${customPart ? '^' + customPart : ''}`);
-    }
+    const ddxEncoded = encodeDdx(noteOptions.selectedDdx, noteOptions.customDdx);
+    if (ddxEncoded) parts.push(`D${ddxEncoded}`);
 
     // Flags
     let flags = 0;
     if (noteOptions.includeAlgorithm) flags |= 1;
-    if ((noteOptions.selectedDdx?.length ?? 0) + (noteOptions.customDdx?.length ?? 0) > 0) flags |= 2;
+    if (ddxEncoded) flags |= 2;
     if (customNote) flags |= 4;
     if (hasPE) flags |= 8;
     if (planNoteText) flags |= 16;
@@ -853,12 +815,27 @@ export function encodeProviderNote(options: ProviderNoteEncodeOptions): string {
     return parts.join('|');
 }
 
-/** Append provider segments to an existing medic barcode string. */
+/**
+ * Append provider segments to a medic barcode. Any provider layer already on the
+ * barcode (a re-imported bundle) is replaced, not stacked — the importer seeds the
+ * editors from it, so the new provider options are the complete provider layer.
+ */
 export function encodeProviderBundle(medicBarcode: string, options: ProviderNoteEncodeOptions): string {
+    const medicOnly = stripProviderSegments(medicBarcode);
     const providerParts: string[] = [];
     appendProviderSegments(providerParts, options);
-    if (providerParts.length === 0) return medicBarcode;
-    return medicBarcode + '|' + providerParts.join('|');
+    if (providerParts.length === 0) return medicOnly;
+    return medicOnly + '|' + providerParts.join('|');
+}
+
+const PROVIDER_PREFIXES = new Set(['h', 'p', 'x', 'n', 'u', 'i']);
+
+/** Drop provider (lowercase-prefixed) segments, leaving the medic note. */
+function stripProviderSegments(barcode: string): string {
+    const parts = barcode.split('|');
+    // The compact algorithm segment is lowercase hex — never treat it as a provider segment.
+    const contentStart = contentStartIndex(parts[0]);
+    return parts.filter((p, i) => i < contentStart || !PROVIDER_PREFIXES.has(p[0])).join('|');
 }
 
 /** Shared: encode all provider segments into the parts array. */

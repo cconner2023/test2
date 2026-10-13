@@ -107,24 +107,18 @@ export function ProviderNoteOutput({
                 ['PLAN', medic.medicPlan || undefined, planNote || undefined],
             ];
 
-            // Find last index where each voice has content
-            let lastMedic = -1, lastProvider = -1;
-            for (let i = layout.length - 1; i >= 0; i--) {
-                if (lastMedic < 0 && layout[i][1]) lastMedic = i;
-                if (lastProvider < 0 && layout[i][2]) lastProvider = i;
-            }
-
-            layout.forEach(([header, medicText, providerText], i) => {
+            // Every block is signed by its author
+            const providerSig = signature || 'Unknown Provider';
+            layout.forEach(([header, medicText, providerText]) => {
                 if (!medicText && !providerText) return;
                 sections.push(header);
                 if (medicText) {
                     sections.push(medicText);
-                    if (i === lastMedic && medicSignature) sections.push(medicSignature);
+                    sections.push(medicSignature);
                 }
                 if (providerText) {
-                    if (medicText) sections.push('Provider');
                     sections.push(providerText);
-                    if (i === lastProvider && signature) sections.push(signature);
+                    sections.push(providerSig);
                 }
             });
         } else {

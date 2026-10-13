@@ -2,6 +2,7 @@ import {
   MultiFormatReader, BinaryBitmap, HybridBinarizer, GlobalHistogramBinarizer,
   HTMLCanvasElementLuminanceSource, DecodeHintType, BarcodeFormat, ResultMetadataType,
 } from '@zxing/library'
+import './zxingLatin1'
 
 export interface ImageBarcodeResult {
   text: string

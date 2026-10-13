@@ -1,5 +1,5 @@
 // Utilities/NoteCodec.ts — Barrel re-export for backward compatibility
-export { compressText, decompressText, bitmaskToIndices, indicesToBitmask, uint8ToBase64, base64ToUint8 } from './textCodec';
+export { compressText, decompressText, bitmaskToIndices, uint8ToBase64, base64ToUint8 } from './textCodec';
 export { decodePECompact } from './peCodec';
 export { parseNoteEncoding, encodeNoteState, encodeProviderNote, encodeProviderBundle, encodedContentEquals, reconstructCardStates, findAlgorithmByCode, findSymptomByCode } from './noteParser';
 export type { ScreenerEntry, ParsedNote, NoteEncodeOptions, ProviderNoteEncodeOptions } from './noteParser';

@@ -235,71 +235,72 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
 
   // ── Import decode logic ────────────────────────────────────────────────────
 
+  // Throws on unusable payloads — useBarcodeImport surfaces the message.
   const handleProviderDecoded = useCallback(({ payload }: { payload: string; encodedText: string }) => {
-    try {
-      const parsed = parseNoteEncoding(payload)
-      if (!parsed) return
+    const parsed = parseNoteEncoding(payload)
+    if (!parsed) throw new Error('Could not decode note.')
 
-      if (parsed.symptomCode === 'PRV') {
-        if (parsed.providerHpi) setHpiNote(parsed.providerHpi)
-        if (parsed.providerPe) setPeNote(parsed.providerPe)
-        if (parsed.providerPeRaw) {
-          const restored = decodePEState(parsed.providerPeRaw, 'PRV')
-          if (restored) setPeState(restored)
-        }
-        setPeResetKey(k => k + 1)
-        if (parsed.providerAssessment) setAssessmentNote(parsed.providerAssessment)
-        if (parsed.providerPlan) {
-          setPlanNote(parsed.providerPlan)
-          setPlanState(parsePlanState(parsed.providerPlan, planOrderTags, planInstructionTags))
-        }
-        setImportedMedicNote(null)
-        setMedicBarcode('')
-        setImportExpanded(false)
-        return
+    if (parsed.symptomCode === 'PRV') {
+      if (parsed.providerHpi) setHpiNote(parsed.providerHpi)
+      if (parsed.providerPe) setPeNote(parsed.providerPe)
+      if (parsed.providerPeRaw) {
+        const restored = decodePEState(parsed.providerPeRaw, 'PRV')
+        if (restored) setPeState(restored)
       }
-
-      if (parsed.providerHpi || parsed.providerPe || parsed.providerAssessment || parsed.providerPlan) {
-        if (parsed.providerHpi) setHpiNote(parsed.providerHpi)
-        if (parsed.providerPe) setPeNote(parsed.providerPe)
-        if (parsed.providerPeRaw) {
-          const restored = decodePEState(parsed.providerPeRaw, parsed.symptomCode)
-          if (restored) setPeState(restored)
-        }
-        setPeResetKey(k => k + 1)
-        if (parsed.providerAssessment) setAssessmentNote(parsed.providerAssessment)
-        if (parsed.providerPlan) {
-          setPlanNote(parsed.providerPlan)
-          setPlanState(parsePlanState(parsed.providerPlan, planOrderTags, planInstructionTags))
-        }
+      setPeResetKey(k => k + 1)
+      if (parsed.providerAssessment) setAssessmentNote(parsed.providerAssessment)
+      if (parsed.providerPlan) {
+        setPlanNote(parsed.providerPlan)
+        setPlanState(parsePlanState(parsed.providerPlan, planOrderTags, planInstructionTags))
       }
-
-      const authorLabel = parsed.user ? formatSignature(parsed.user) || 'Unknown Medic' : 'Unknown Medic'
-      let assessmentText = ''
-      if (parsed.symptomCode) {
-        const algorithmOptions = findAlgorithmByCode(parsed.symptomCode)
-        if (algorithmOptions?.length) {
-          const { cardStates, disposition } = reconstructCardStates(algorithmOptions, parsed)
-          const symptomInfo = findSymptomByCode(parsed.symptomCode)
-          const selectedSymptom = symptomInfo ? { icon: symptomInfo.symptom.icon || '', text: symptomInfo.symptom.text || '' } : undefined
-          const assembled = assembleNote(
-            { includeAlgorithm: parsed.flags.includeAlgorithm, customNote: '', physicalExamNote: '', planNote: '' },
-            algorithmOptions, cardStates, disposition?.type ?? '', disposition?.text ?? '', selectedSymptom,
-          )
-          const parts: string[] = []
-          if (assembled.sections.algorithm) parts.push(assembled.sections.algorithm)
-          if (assembled.sections.differentials) parts.push(assembled.sections.differentials)
-          assessmentText = parts.join('\n\n')
-        }
-      }
-      setImportedMedicNote({
-        medicHpi: parsed.hpiText || '', medicPe: parsed.peText || '',
-        medicAssessment: assessmentText, medicPlan: parsed.planText || '',
-        medicName: authorLabel, medicSignature: authorLabel,
-      })
-      setMedicBarcode(payload)
+      setImportedMedicNote(null)
+      setMedicBarcode('')
       setImportExpanded(false)
-    } catch { /* error surfaced by hook */ }
+      return
+    }
+
+    // Medic note — TC3 / 9-Line payloads land here too and have no algorithm.
+    const algorithmOptions = findAlgorithmByCode(parsed.symptomCode)
+    if (!algorithmOptions?.length) throw new Error('Not a medic note — provider import takes ADTMC notes only.')
+
+    if (parsed.providerHpi || parsed.providerPe || parsed.providerAssessment || parsed.providerPlan) {
+      if (parsed.providerHpi) setHpiNote(parsed.providerHpi)
+      if (parsed.providerPe) setPeNote(parsed.providerPe)
+      if (parsed.providerPeRaw) {
+        const restored = decodePEState(parsed.providerPeRaw, parsed.symptomCode)
+        if (restored) setPeState(restored)
+      }
+      setPeResetKey(k => k + 1)
+      if (parsed.providerAssessment) setAssessmentNote(parsed.providerAssessment)
+      if (parsed.providerPlan) {
+        setPlanNote(parsed.providerPlan)
+        setPlanState(parsePlanState(parsed.providerPlan, planOrderTags, planInstructionTags))
+      }
+    }
+
+    const authorLabel = parsed.user ? formatSignature(parsed.user) || 'Unknown Medic' : 'Unknown Medic'
+    // Medic ASSESSMENT exactly as the medic's note renders it: narrative,
+    // algorithm, differentials, decision making (disposition).
+    const { cardStates, disposition } = reconstructCardStates(algorithmOptions, parsed)
+    const symptomInfo = findSymptomByCode(parsed.symptomCode)
+    const selectedSymptom = symptomInfo ? { icon: symptomInfo.symptom.icon || '', text: symptomInfo.symptom.text || '' } : undefined
+    const assembled = assembleNote(
+      {
+        includeAlgorithm: parsed.flags.includeAlgorithm,
+        customNote: '',
+        assessmentNote: parsed.flags.includeAssessment ? parsed.assessmentText : '',
+        selectedDdx: parsed.ddx.selected,
+        customDdx: parsed.ddx.custom,
+      },
+      algorithmOptions, cardStates, disposition?.type ?? '', disposition?.text ?? '', selectedSymptom,
+    )
+    setImportedMedicNote({
+      medicHpi: parsed.hpiText || '', medicPe: parsed.peText || '',
+      medicAssessment: assembled.sections.assessmentSection ?? '', medicPlan: parsed.planText || '',
+      medicName: authorLabel, medicSignature: authorLabel,
+    })
+    setMedicBarcode(payload)
+    setImportExpanded(false)
   }, [planOrderTags, planInstructionTags])
 
   const barcodeImport = useBarcodeImport({ onDecoded: handleProviderDecoded })

@@ -6,7 +6,6 @@ import {
     compressText,
     decompressText,
     bitmaskToIndices,
-    indicesToBitmask,
     decodePECompact,
     encodeNoteState,
     encodeProviderNote,
@@ -130,45 +129,16 @@ describe('Text Codec', () => {
         expect(decompressed).toBe(original);
     });
 
-    it('decompressText handles legacy base64 format (non-encrypted fallback)', () => {
-        // Legacy format was btoa(encodeURIComponent(text))
-        const original = 'Simple text note';
-        const legacy = btoa(encodeURIComponent(original));
-        // Legacy format does NOT start with "!"
-        expect(legacy.startsWith('!')).toBe(false);
-        const decompressed = decompressText(legacy);
-        expect(decompressed).toBe(original);
+    it('decompressText returns empty string for unprefixed or malformed input', () => {
+        expect(decompressText(btoa('Simple text note'))).toBe('');
+        expect(decompressText('!not-deflate')).toBe('');
     });
 
-    it('bitmaskToIndices <-> indicesToBitmask are inverses', () => {
-        const indices = [0, 2, 4, 7];
-        const bitmask = indicesToBitmask(indices);
-        const recovered = bitmaskToIndices(bitmask);
-        expect(recovered).toEqual(indices);
-    });
-
-    it('bitmaskToIndices <-> indicesToBitmask round-trip with single bit', () => {
-        const indices = [5];
-        const bitmask = indicesToBitmask(indices);
-        expect(bitmask).toBe(32); // 1 << 5
-        const recovered = bitmaskToIndices(bitmask);
-        expect(recovered).toEqual(indices);
-    });
-
-    it('bitmaskToIndices <-> indicesToBitmask round-trip with empty array', () => {
-        const indices: number[] = [];
-        const bitmask = indicesToBitmask(indices);
-        expect(bitmask).toBe(0);
-        const recovered = bitmaskToIndices(bitmask);
-        expect(recovered).toEqual(indices);
-    });
-
-    it('bitmaskToIndices <-> indicesToBitmask round-trip with all low bits set', () => {
-        const indices = [0, 1, 2, 3, 4, 5, 6, 7];
-        const bitmask = indicesToBitmask(indices);
-        expect(bitmask).toBe(0xFF);
-        const recovered = bitmaskToIndices(bitmask);
-        expect(recovered).toEqual(indices);
+    it('bitmaskToIndices returns set bit positions', () => {
+        expect(bitmaskToIndices(0b10010101)).toEqual([0, 2, 4, 7]);
+        expect(bitmaskToIndices(32)).toEqual([5]);
+        expect(bitmaskToIndices(0)).toEqual([]);
+        expect(bitmaskToIndices(0xFF)).toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
     });
 });
 
@@ -274,6 +244,36 @@ describe('Note Encoding round-trips', () => {
         expect(parsed!.flags.includeDecisionMaking).toBe(true);
         // HPI flag is set when customNote is present
         expect(parsed!.flags.includeHPI).toBe(true);
+    });
+
+    it('encodeNoteState -> parseNoteEncoding round-trips DDx, including delimiter characters', () => {
+        const states = buildCardStates();
+        const custom = ['Strain | sprain', 'Hip~knee^ankle', 'Pt says "worst ever"'];
+        const opts: NoteEncodeOptions = {
+            includeAlgorithm: true,
+            selectedDdx: ['Tension headache', 'Migraine'],
+            customDdx: custom,
+            customNote: 'HPI text',
+            planNote: 'Plan text',
+        };
+
+        const parsed = parseNoteEncoding(encodeNoteState(mockAlgorithm, states, opts, symptomCode));
+
+        expect(parsed!.ddx.selected).toEqual(['Tension headache', 'Migraine']);
+        expect(parsed!.ddx.custom).toEqual(custom);
+        // Free-text DDx must not leak into neighbouring segments
+        expect(parsed!.hpiText).toBe('HPI text');
+        expect(parsed!.planText).toBe('Plan text');
+    });
+
+    it('omits the DDx segment and decision-making flag when DDx is empty', () => {
+        const states = buildCardStates();
+        const opts: NoteEncodeOptions = { includeAlgorithm: true, selectedDdx: [], customDdx: ['  '], customNote: '' };
+        const encoded = encodeNoteState(mockAlgorithm, states, opts, symptomCode);
+        expect(encoded.split('|').some(p => p.startsWith('D'))).toBe(false);
+        const parsed = parseNoteEncoding(encoded);
+        expect(parsed!.ddx).toEqual({ selected: [], custom: [] });
+        expect(parsed!.flags.includeDecisionMaking).toBe(false);
     });
 
     it('encodeNoteState -> parseNoteEncoding preserves PE text via v4 encoding', () => {
@@ -415,10 +415,11 @@ describe('PE Codec', () => {
         expect(decoded).toContain('Patient reports dizziness when standing');
     });
 
-    it('decodePECompact returns empty string for legacy formats', () => {
+    it('decodePECompact returns empty string for unsupported versions', () => {
         expect(decodePECompact('2:A,R,72,,,,,,~0~0~~', 'A-1')).toBe('');
         expect(decodePECompact('6:A,R,,,,,,,~~', 'A-1')).toBe('');
         expect(decodePECompact('7:A,R,F,,,,,,,~~', 'A-1')).toBe('');
+        expect(decodePECompact('8:A,R,F,,,,,,,~~', 'A-1')).toBe('');
     });
 
     it('encodePEState -> decodePECompact with MSK category preserves exam content', () => {
@@ -628,7 +629,7 @@ describe('Provider Note encoding', () => {
 
     describe('encodeProviderBundle', () => {
         it('appends provider segments to medic barcode', () => {
-            const medicBarcode = 'A1|R0|F3';
+            const medicBarcode = 'A1||F3';
             const bundled = encodeProviderBundle(medicBarcode, {
                 hpiNote: 'Provider HPI addendum',
                 peNote: 'Provider PE findings',
@@ -637,7 +638,7 @@ describe('Provider Note encoding', () => {
             });
 
             // Should start with medic barcode
-            expect(bundled.startsWith('A1|R0|F3|')).toBe(true);
+            expect(bundled.startsWith('A1||F3|')).toBe(true);
 
             // Should be parseable and contain both layers
             const parsed = parseNoteEncoding(bundled);
@@ -649,8 +650,37 @@ describe('Provider Note encoding', () => {
             expect(parsed!.providerPlan).toBe('Provider plan');
         });
 
+        it('replaces an existing provider layer instead of stacking a second one', () => {
+            const medicBarcode = encodeNoteState(mockAlgorithm, buildCardStates(), {
+                includeAlgorithm: true, customNote: 'Medic HPI', planNote: 'Medic plan',
+            }, 'A1');
+            const first = encodeProviderBundle(medicBarcode, {
+                hpiNote: 'First HPI', peNote: '', assessmentNote: 'First assessment', planNote: 'First plan',
+                userId: '11111111-2222-3333-4444-555555555555',
+            });
+            // Re-import of the bundle: provider cleared the plan, edited HPI
+            const second = encodeProviderBundle(first, {
+                hpiNote: 'Second HPI', peNote: '', assessmentNote: 'First assessment', planNote: '',
+            });
+
+            const providerSegs = second.split('|').filter(p => /^[hpxnui]/.test(p));
+            expect(providerSegs.filter(p => p[0] === 'h')).toHaveLength(1);
+            expect(providerSegs.some(p => p[0] === 'i')).toBe(false);
+
+            const parsed = parseNoteEncoding(second);
+            expect(parsed!.providerHpi).toBe('Second HPI');
+            expect(parsed!.providerPlan).toBeUndefined();
+            expect(parsed!.providerUserId).toBeUndefined();
+            // Medic layer untouched
+            expect(parsed!.hpiText).toBe('Medic HPI');
+            expect(parsed!.planText).toBe('Medic plan');
+
+            // Clearing every provider field strips back to the medic note
+            expect(encodeProviderBundle(first, { hpiNote: '', peNote: '', assessmentNote: '', planNote: '' })).toBe(medicBarcode);
+        });
+
         it('returns original medic barcode when no provider content', () => {
-            const medicBarcode = 'A1|R0|F3';
+            const medicBarcode = 'A1||F3';
             const bundled = encodeProviderBundle(medicBarcode, {
                 hpiNote: '', peNote: '', assessmentNote: '', planNote: '',
             });
@@ -659,7 +689,7 @@ describe('Provider Note encoding', () => {
 
         it('preserves medic fields in combined parse', () => {
             // Build a realistic medic barcode with HPI
-            const medicBarcode = 'A1|R3|1.7.0|H!eJwLSS0u0U1JTQYADHkC9g==|F7';
+            const medicBarcode = `A1||H${compressText('Medic HPI')}|F7`;
             const bundled = encodeProviderBundle(medicBarcode, {
                 hpiNote: 'Provider addendum',
                 peNote: '',
@@ -670,17 +700,17 @@ describe('Provider Note encoding', () => {
             expect(parsed).not.toBeNull();
             expect(parsed!.symptomCode).toBe('A1');
             // Medic HPI should still be present
-            expect(parsed!.hpiText).toBeTruthy();
+            expect(parsed!.hpiText).toBe('Medic HPI');
             // Provider fields
             expect(parsed!.providerHpi).toBe('Provider addendum');
             expect(parsed!.providerAssessment).toBe('Concur with medic assessment');
         });
     });
 
-    describe('backward compatibility', () => {
-        it('old medic barcodes still parse without provider fields', () => {
-            const oldMedic = 'A1|R0|F3';
-            const parsed = parseNoteEncoding(oldMedic);
+    describe('layer isolation', () => {
+        it('medic-only barcode parses without provider fields', () => {
+            const medic = 'A1||F3';
+            const parsed = parseNoteEncoding(medic);
             expect(parsed).not.toBeNull();
             expect(parsed!.symptomCode).toBe('A1');
             expect(parsed!.providerHpi).toBeUndefined();

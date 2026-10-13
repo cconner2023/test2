@@ -39,7 +39,7 @@ export interface SupervisorData {
   clinicUnitName: string | null
   /** Current user's profile as a ClinicMedic (for name resolution) */
   currentUserProfile: ClinicMedic | null
-  /** Clinic medics (excluding self — self is in currentUserProfile) */
+  /** Clinic medics, including self */
   medics: ClinicMedic[]
   /** All certifications for clinic members */
   certs: Certification[]
@@ -146,7 +146,9 @@ export function useSupervisorData(): SupervisorData {
 
   // Roster scope: medics whose assigned OR surrogate clinic matches the
   // supervisor's currently-active clinic context (assigned by default,
-  // surrogate when toggled). Excludes self (shown separately).
+  // surrogate when toggled). Self is a member like anyone else — their own
+  // training counts toward the cluster and gets a rail row. Appended from the
+  // auth profile when the roster RPC didn't return them.
   const medics = useMemo(() => {
     const base = !rosterClinicId
       ? allLocationMedics
@@ -155,23 +157,18 @@ export function useSupervisorData(): SupervisorData {
           || m.clinicId === rosterClinicId
           || m.surrogateClinicId === rosterClinicId
         )
-    return currentUserId ? base.filter(m => m.id !== currentUserId) : base
-  }, [allLocationMedics, rosterClinicId, currentUserId])
-
-  // All clinic users including self for name resolution
-  const allClinicUsers = useMemo(() => {
-    if (!currentUserProfile) return medics
-    return [...medics, currentUserProfile]
-  }, [medics, currentUserProfile])
+    if (!currentUserProfile || base.some(m => m.id === currentUserProfile.id)) return base
+    return [...base, currentUserProfile]
+  }, [allLocationMedics, rosterClinicId, currentUserProfile])
 
   // Name map for resolution
   const nameMap = useMemo(() => {
     const map = new Map<string, string>()
-    for (const u of allClinicUsers) {
+    for (const u of medics) {
       map.set(u.id, formatMedicName(u))
     }
     return map
-  }, [allClinicUsers])
+  }, [medics])
 
   const resolveName = useCallback((id: string | null) => {
     if (!id) return 'Unknown'
@@ -182,8 +179,7 @@ export function useSupervisorData(): SupervisorData {
   const fetchCertsAndTests = useCallback(async () => {
     if (medics.length === 0 || !currentUserId) return
 
-    const clinicUserIds = medics.map(u => u.id)
-    const allIds = [...clinicUserIds, currentUserId]
+    const allIds = medics.map(u => u.id)
     const foldClinicId = supervisingClinicId ?? userClinicId
 
     try {

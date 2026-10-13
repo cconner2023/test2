@@ -312,6 +312,9 @@ export interface AssembledNote {
         algorithm?: string;
         assessment?: string;
         differentials?: string;
+        decisionMaking?: string;
+        /** Full ASSESSMENT body exactly as rendered in fullNote (narrative, algorithm, DDx, decision making). */
+        assessmentSection?: string;
         physicalExam?: string;
         plan?: string;
         customNote: string;
@@ -387,11 +390,13 @@ export function assembleNote(
         assessmentParts.push(numberedList);
     }
 
+    let decisionMakingContent: string | undefined;
     if (options.includeDecisionMaking ?? true) {
         const dmContent = formatDecisionMakingContent(
             algorithmOptions, cardStates, dispositionType, dispositionText,
         );
         if (dmContent.trim()) {
+            decisionMakingContent = dmContent;
             assessmentParts.push('DECISION MAKING:');
             assessmentParts.push(dmContent);
         }
@@ -419,6 +424,9 @@ export function assembleNote(
             algorithm: algorithmContent,
             assessment: assessmentNote || undefined,
             differentials: differentialsContent,
+            decisionMaking: decisionMakingContent,
+            assessmentSection: assessmentParts.length > 0 ? assessmentParts.join('
+') : undefined,
             physicalExam: physicalExamNote || undefined,
             plan: planNote || undefined,
             customNote,

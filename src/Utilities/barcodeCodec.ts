@@ -308,6 +308,23 @@ export async function decryptBarcodeBytes(bytes: Uint8Array): Promise<string | n
   }
 }
 
+const PRINTABLE_ASCII = /^[\x20-\x7E\r\n]*$/
+
+/** One char per byte (0–255) — the string form of a binary-mode barcode. */
+export function bytesToLatin1(bytes: Uint8Array): string {
+  let s = ''
+  for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i])
+  return s
+}
+
+/** Normalize a scanned barcode to its "enc:" form when it was binary-mode ciphertext. */
+export function toEncryptedText(text: string): string {
+  if (isEncryptedBarcode(text) || PRINTABLE_ASCII.test(text)) return text
+  const bytes = new Uint8Array(text.length)
+  for (let i = 0; i < text.length; i++) bytes[i] = text.charCodeAt(i)
+  return ENCRYPTED_PREFIX + uint8ToBase64(bytes)
+}
+
 /** Check if a string is an encrypted barcode ("enc:" prefix). */
 export function isEncryptedBarcode(text: string): boolean {
   return !!text && text.startsWith(ENCRYPTED_PREFIX)
@@ -339,8 +356,10 @@ export async function decryptBarcodePayload(
     return decryptBarcode(text)
   }
 
-  // Path 3: binary-mode barcode decoded as ISO-8859-1 (no "enc:" prefix, no pipes)
-  if (!text.includes('|')) {
+  // Path 3: binary-mode barcode decoded as ISO-8859-1. Plaintext payloads are
+  // printable ASCII; ciphertext bytes essentially always include a byte outside it.
+  // (A "no pipes" test misses most real payloads — random bytes often contain 0x7C.)
+  if (!PRINTABLE_ASCII.test(text)) {
     const bytes = new Uint8Array(text.length)
     for (let i = 0; i < text.length; i++) bytes[i] = text.charCodeAt(i)
     const decrypted = await decryptBarcodeBytes(bytes)
@@ -356,15 +375,22 @@ export async function decryptBarcodePayload(
 /**
  * Render a Data Matrix barcode to a canvas element.
  * Accepts an ASCII-safe string (plain pipe-delimited or "enc:{base64}").
+ *
+ * "enc:" payloads are printed as the raw ciphertext bytes in binary (Base256)
+ * mode — same AES-GCM ciphertext, minus base64's 33% inflation. Scans come back
+ * through decryptBarcodePayload paths 1/3. The "enc:" string stays the app-side
+ * (copy/paste/display) form.
  */
 export function renderBarcodeToCanvas(
   canvas: HTMLCanvasElement,
   encodedData: string,
   options?: { scale?: number; padding?: number; backgroundcolor?: string }
 ): void {
+  const binary = isEncryptedBarcode(encodedData)
   bwipjs.toCanvas(canvas, {
     bcid: 'datamatrix',
-    text: encodedData,
+    text: binary ? bytesToLatin1(base64ToUint8(encodedData.slice(ENCRYPTED_PREFIX.length))) : encodedData,
+    ...(binary ? { binarytext: true } : {}),
     scale: options?.scale ?? 2,
     padding: options?.padding ?? 3,
     ...(options?.backgroundcolor ? { backgroundcolor: options.backgroundcolor } : {}),

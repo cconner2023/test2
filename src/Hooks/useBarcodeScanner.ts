@@ -1,6 +1,7 @@
 // hooks/useBarcodeScanner.ts
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { BrowserMultiFormatReader, DecodeHintType } from '@zxing/library';
+import { BrowserMultiFormatReader, DecodeHintType, ResultMetadataType } from '@zxing/library';
+import '../Utilities/zxingLatin1';
 
 interface ScannerState {
     isScanning: boolean;
@@ -74,11 +75,19 @@ export const useBarcodeScanner = () => {
                     if (!scanningRef.current) return;
 
                     if (result) {
-                        const rawBytes = result.getRawBytes();
+                        // Decoded binary payload (BYTE_SEGMENTS) — getRawBytes() is the
+                        // symbol's codewords, not the data, so it never decrypts.
+                        const segments = result.getResultMetadata()?.get(ResultMetadataType.BYTE_SEGMENTS) as Uint8Array[] | undefined;
+                        let resultBytes: Uint8Array | null = null;
+                        if (segments?.length) {
+                            resultBytes = new Uint8Array(segments.reduce((n, s) => n + s.length, 0));
+                            let offset = 0;
+                            for (const seg of segments) { resultBytes.set(seg, offset); offset += seg.length; }
+                        }
                         setState(prev => ({
                             ...prev,
                             result: result.getText(),
-                            resultBytes: rawBytes ? new Uint8Array(rawBytes) : null,
+                            resultBytes,
                             isScanning: false,
                         }));
                         stopCamera();

@@ -2,7 +2,7 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 import { useImagePaste } from './useImagePaste'
 import { useBarcodeScanner } from './useBarcodeScanner'
 import { decodeImageBarcode } from '../Utilities/barcodeImageDecode'
-import { decryptBarcodePayload, isEncryptedBarcode } from '../Utilities/barcodeCodec'
+import { decryptBarcodePayload, toEncryptedText } from '../Utilities/barcodeCodec'
 
 export interface BarcodeImportResult {
   /** Decrypted plaintext payload (pipe-delimited or plain) */
@@ -25,10 +25,8 @@ function computeEncodedText(
 ): string {
   // If no decryption happened, the original text is the display text
   if (payload === text) return text
-  // Already enc:-prefixed text → use as-is
-  if (isEncryptedBarcode(text)) return text
-  // Fallback: return original text
-  return text
+  // enc: text as-is; binary-mode scans (raw ciphertext bytes) → their enc: form
+  return toEncryptedText(text)
 }
 
 /**
@@ -86,7 +84,7 @@ export function useBarcodeImport({ onDecoded, enabled = true }: UseBarcodeImport
     setError('')
     try {
       const { text, byteSegments } = await decodeImageBarcode(file)
-      setImportText(text)
+      setImportText(toEncryptedText(text))
       await decode(text, byteSegments)
     } catch {
       setError('No barcode found in image. Try a clearer photo or paste the string directly.')
@@ -157,7 +155,7 @@ export function useBarcodeImport({ onDecoded, enabled = true }: UseBarcodeImport
   useEffect(() => {
     if (scanResult) {
       setScanRequested(false)
-      setImportText(scanResult)
+      setImportText(toEncryptedText(scanResult))
       const bytes = scanResultBytes
       clearResult()
       decode(scanResult, bytes)

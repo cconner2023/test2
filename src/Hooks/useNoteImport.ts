@@ -131,6 +131,8 @@ export const useNoteImport = () => {
                 includeAlgorithm: parsed.flags.includeAlgorithm,
                 customNote: parsed.flags.includeHPI ? parsed.hpiText : '',
                 assessmentNote: parsed.flags.includeAssessment ? parsed.assessmentText : '',
+                selectedDdx: parsed.ddx.selected,
+                customDdx: parsed.ddx.custom,
                 physicalExamNote: parsed.flags.includePhysicalExam ? parsed.peText : '',
                 planNote: parsed.flags.includePlan ? parsed.planText : '',
                 signature: parsed.user ? formatSignature(parsed.user) : undefined,
@@ -164,6 +166,7 @@ export const useNoteImport = () => {
             addMerged('PHYSICAL EXAM:', result.sections.physicalExam, parsed.providerPe);
             if (result.sections.algorithm) { parts.push(''); const t = selectedSymptom?.icon && selectedSymptom?.text ? `${selectedSymptom.icon}: ${selectedSymptom.text}:` : 'ALGORITHM:'; parts.push(t); parts.push(result.sections.algorithm); }
             if (result.sections.differentials) { parts.push(''); parts.push('DIFFERENTIALS:'); parts.push(result.sections.differentials); }
+            if (result.sections.decisionMaking) { parts.push(''); parts.push('DECISION MAKING:'); parts.push(result.sections.decisionMaking); }
             addMerged('ASSESSMENT:', result.sections.assessment, parsed.providerAssessment);
             addMerged('PLAN:', result.sections.plan, parsed.providerPlan);
             if (medicSig) { parts.push(''); parts.push(medicSig); }
@@ -174,7 +177,7 @@ export const useNoteImport = () => {
                 ['HPI:', result.sections.customNote || undefined, parsed.providerHpi, false],
                 ['PHYSICAL EXAM:', result.sections.physicalExam, parsed.providerPe, false],
             ];
-            // Algorithm + Decision Making are medic-only sections
+            // Algorithm, DDx + Decision Making are medic-only sections
             if (result.sections.algorithm) {
                 const title = selectedSymptom?.icon && selectedSymptom?.text
                     ? `${selectedSymptom.icon}: ${selectedSymptom.text}:` : 'ALGORITHM:';
@@ -183,29 +186,27 @@ export const useNoteImport = () => {
             if (result.sections.differentials) {
                 layout.push(['DIFFERENTIALS:', result.sections.differentials, undefined, true]);
             }
+            if (result.sections.decisionMaking) {
+                layout.push(['DECISION MAKING:', result.sections.decisionMaking, undefined, true]);
+            }
             layout.push(['ASSESSMENT:', result.sections.assessment, parsed.providerAssessment, false]);
             layout.push(['PLAN:', result.sections.plan, parsed.providerPlan, false]);
 
-            // Find last index where each voice has content
-            let lastMedic = -1, lastProvider = -1;
-            for (let i = layout.length - 1; i >= 0; i--) {
-                if (lastMedic < 0 && layout[i][1]) lastMedic = i;
-                if (lastProvider < 0 && layout[i][2]) lastProvider = i;
-            }
-
+            // Every block is signed by its author
+            const medicLine = medicSig || 'Unknown Medic';
+            const providerLine = providerSig || 'Unknown Provider';
             const parts: string[] = [];
-            layout.forEach(([header, medicText, providerText, isMedicOnly], i) => {
+            layout.forEach(([header, medicText, providerText, isMedicOnly]) => {
                 if (!medicText && !providerText) return;
                 if (parts.length > 0) parts.push('');
                 parts.push(header);
                 if (medicText) {
                     parts.push(medicText);
-                    if (i === lastMedic && medicSig) parts.push(medicSig);
+                    parts.push(medicLine);
                 }
                 if (providerText && !isMedicOnly) {
-                    if (medicText) parts.push('Provider');
                     parts.push(providerText);
-                    if (i === lastProvider && providerSig) parts.push(providerSig);
+                    parts.push(providerLine);
                 }
             });
 
@@ -219,7 +220,7 @@ export const useNoteImport = () => {
             symptomIcon: selectedSymptom?.icon || parsed.symptomCode,
             dispositionType: disposition?.type ?? '',
             dispositionText: disposition?.text ?? '',
-            authorLabel: hasMixed ? `${authorLabel} / ${providerSig || 'Provider'}` : authorLabel,
+            authorLabel: hasMixed ? `${authorLabel} / ${providerSig || 'Unknown Provider'}` : authorLabel,
             userId: parsed.userId,
             encodedText: barcodeString,
         };
