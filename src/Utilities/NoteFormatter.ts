@@ -425,8 +425,7 @@ export function assembleNote(
             assessment: assessmentNote || undefined,
             differentials: differentialsContent,
             decisionMaking: decisionMakingContent,
-            assessmentSection: assessmentParts.length > 0 ? assessmentParts.join('
-') : undefined,
+            assessmentSection: assessmentParts.length > 0 ? assessmentParts.join('\n') : undefined,
             physicalExam: physicalExamNote || undefined,
             plan: planNote || undefined,
             customNote,
