@@ -27,21 +27,26 @@
 
 import { createLogger } from '../../Utilities/Logger'
 import { uint8ToBase64, base64ToUint8 } from '../../Utilities/textCodec'
-import { ensureLocalIdentity, consumePreKey, storePeerIdentity, getPreKeyCount, generatePreKeys, assemblePublicKeyBundle } from './keyManager'
+import { ensureLocalIdentity, storePeerIdentity, getPeerIdentity, getPreKeyCount, generatePreKeys, assemblePublicKeyBundle } from './keyManager'
 import * as store from './keyStore'
 import { x3dhInitiate, x3dhRespond } from './x3dh'
-import { initSender, initReceiver, ratchetEncrypt, ratchetDecrypt } from './ratchet'
+import { initSender, initReceiver, ratchetEncrypt, ratchetDecrypt, DuplicateMessageError } from './ratchet'
 import { importDhPublicKey } from './keyManager'
 import { seal, unseal } from './sealedSender'
-import { uploadKeyBundle } from './signalService'
+import { uploadKeyBundle, fetchPublishedIdentities } from './signalService'
 import { SIGNAL } from '../constants'
-import type { SealedEnvelope } from './sealedSender'
+import type { SealedEnvelope, SenderCertificate } from './sealedSender'
 import type {
   PublicKeyBundle,
   StoredSession,
+  SessionState,
+  PendingPreKey,
+  StoredLocalIdentity,
   EncryptedMessage,
   InitialMessage,
 } from './types'
+
+export { DuplicateMessageError }
 
 const logger = createLogger('SignalSession')
 
@@ -88,6 +93,19 @@ export class NoSessionError extends Error {
   constructor(readonly peerId: string, readonly peerDeviceId: string) {
     super(`No session with ${peerId}:${peerDeviceId}`)
     this.name = 'NoSessionError'
+  }
+}
+
+/**
+ * A ratchet packet from a peer device that none of our held sessions (current
+ * or archived) can open — the two sides hold different sessions, e.g. after a
+ * handshake one side never received. Like NoSessionError, recoverable only by
+ * a fresh handshake (session reset).
+ */
+export class SessionMismatchError extends Error {
+  constructor(readonly peerId: string, readonly peerDeviceId: string) {
+    super(`No session with ${peerId}:${peerDeviceId} could decrypt the message`)
+    this.name = 'SessionMismatchError'
   }
 }
 
@@ -151,6 +169,95 @@ async function persistSession(session: StoredSession): Promise<void> {
   await store.saveSession(session)
 }
 
+// ---- Session Record Helpers ----
+
+/** Archived sessions kept per peer device (libsignal keeps 40; ours are heavier). */
+const MAX_PREVIOUS_STATES = 10
+
+/** Pick the SessionState fields off a record (its current session). */
+function currentOf(record: StoredSession): SessionState {
+  return {
+    state: record.state,
+    associatedData: record.associatedData,
+    peerIdentityDhKey: record.peerIdentityDhKey,
+    baseKey: record.baseKey,
+    pendingPreKey: record.pendingPreKey,
+  }
+}
+
+/** All sessions in a record, current first. */
+function allStates(record: StoredSession | null): SessionState[] {
+  return record ? [currentOf(record), ...(record.previousStates ?? [])] : []
+}
+
+/** Build a record whose current session is `current` and whose archive is `previous`. */
+function makeRecord(
+  peerId: string,
+  peerDeviceId: string,
+  current: SessionState,
+  previous: SessionState[],
+  createdAt?: string,
+): StoredSession {
+  const now = new Date().toISOString()
+  return {
+    peerId,
+    peerDeviceId,
+    sessionKey: makeSessionKey(peerId, peerDeviceId),
+    state: current.state,
+    associatedData: current.associatedData,
+    peerIdentityDhKey: current.peerIdentityDhKey,
+    baseKey: current.baseKey,
+    pendingPreKey: current.pendingPreKey,
+    previousStates: previous.slice(0, MAX_PREVIOUS_STATES),
+    createdAt: createdAt ?? now,
+    updatedAt: now,
+  }
+}
+
+// ---- Sender Identity ----
+
+/** SYSTEM sender uuid — mirrors systemIdentity.SYSTEM_USER_ID (not imported:
+ *  that module pulls in supabase/zustand). Its edge-function identity is not
+ *  in the published directory, so SYSTEM stays trust-on-first-use. */
+const SYSTEM_USER_ID = '00000000-0000-0000-0000-000000000001'
+
+/**
+ * Authenticate the sender certificate. The cert is self-signed, so on its own
+ * it proves only that the sender holds the keys IN the cert — anyone can claim
+ * any uuid. A known-good key for this peer device is accepted as-is; a first-
+ * seen or changed key must match an identity the claimed user has published
+ * under their own auth (signal_key_bundles RLS), or the message is rejected.
+ *
+ * @throws if the identity is not published, or the directory is unreachable
+ *         (retriable — the row stays unread and catch-up tries again).
+ */
+async function verifySenderIdentity(
+  senderUuid: string,
+  senderDeviceId: string,
+  cert: SenderCertificate,
+): Promise<void> {
+  const known = await getPeerIdentity(senderUuid, senderDeviceId)
+  if (
+    known &&
+    known.signingPublicKeyBase64 === cert.senderIdentitySigningKey &&
+    known.dhPublicKeyBase64 === cert.senderIdentityDhKey
+  ) {
+    return
+  }
+  if (senderUuid === SYSTEM_USER_ID) return
+
+  const published = await fetchPublishedIdentities(senderUuid)
+  if (!published.ok) {
+    throw new Error(`Cannot verify sender identity for ${senderUuid}: ${published.error}`)
+  }
+  const match = published.data.some(
+    k => k.signing === cert.senderIdentitySigningKey && k.dh === cert.senderIdentityDhKey,
+  )
+  if (!match) {
+    throw new Error(`Sender identity for ${senderUuid} is not published — rejecting certificate`)
+  }
+}
+
 // ---- Session Creation ----
 
 /**
@@ -160,6 +267,11 @@ async function persistSession(session: StoredSession): Promise<void> {
  * (fetched from Supabase by the caller), initializes the Double
  * Ratchet as sender, encrypts the first message, and wraps the
  * result in a SealedEnvelope so the server cannot identify the sender.
+ *
+ * Any existing session with the device is archived, not discarded, so
+ * packets still in flight on it keep decrypting. The new session carries a
+ * pending pre-key: every message sent on it repeats the X3DH header until the
+ * peer replies (see encryptMessage).
  *
  * @param senderUuid - Caller's user UUID (used to issue the sender certificate)
  * @returns SealedEnvelope to send to the peer (contains X3DH handshake
@@ -211,29 +323,32 @@ export async function createOutboundSession(
     ratchetState, plaintext, x3dh.associatedData
   )
 
-  // Persist session (including peerIdentityDhKey for future sealing)
-  const sessionKey = makeSessionKey(peerId, peerDeviceId)
-  const session: StoredSession = {
-    peerId,
-    peerDeviceId,
-    sessionKey,
-    state,
-    associatedData: uint8ToBase64(x3dh.associatedData),
-    peerIdentityDhKey: peerBundle.identityDhKey,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  }
-  await persistSession(session)
-
-  // Build the InitialMessage inner payload
-  const initialMessage: InitialMessage = {
+  const pendingPreKey: PendingPreKey = {
     identitySigningKey: identity.signingPublicKeyBase64,
     identityDhKey: identity.dhPublicKeyBase64,
     ephemeralKey: x3dh.ephemeralPublicKeyBase64,
     signedPreKeyId: x3dh.signedPreKeyId,
     oneTimePreKeyId: x3dh.oneTimePreKeyId,
-    message,
   }
+
+  // Persist as the current session (including peerIdentityDhKey for future
+  // sealing), archiving whatever was current before
+  const existing = await getSession(peerId, peerDeviceId)
+  await persistSession(makeRecord(
+    peerId,
+    peerDeviceId,
+    {
+      state,
+      associatedData: uint8ToBase64(x3dh.associatedData),
+      peerIdentityDhKey: peerBundle.identityDhKey,
+      baseKey: x3dh.ephemeralPublicKeyBase64,
+      pendingPreKey,
+    },
+    allStates(existing),
+  ))
+
+  // Build the InitialMessage inner payload
+  const initialMessage: InitialMessage = { ...pendingPreKey, message }
 
   logger.info(`Outbound session created with peer ${peerId} device ${peerDeviceId}`)
 
@@ -256,7 +371,10 @@ export async function createOutboundSession(
  * Encrypt a message to a peer device with an established session.
  *
  * Encrypts via the Double Ratchet and wraps the result in a
- * SealedEnvelope so the server cannot identify the sender.
+ * SealedEnvelope so the server cannot identify the sender. While the
+ * session's pre-key is still pending (peer has not replied), the packet is
+ * wrapped in the X3DH InitialMessage so it opens even if earlier ones didn't
+ * arrive.
  *
  * @param senderUuid - Caller's user UUID (used to issue the sender certificate)
  * @throws If no session exists with the peer device
@@ -289,8 +407,12 @@ export async function encryptMessage(
       updatedAt: new Date().toISOString(),
     })
 
+    const inner: InitialMessage | EncryptedMessage = session.pendingPreKey
+      ? { ...session.pendingPreKey, message }
+      : message
+
     return seal(
-      message as unknown as Record<string, unknown>,
+      inner as unknown as Record<string, unknown>,
       senderUuid,
       identity,
       peerId,
@@ -338,28 +460,179 @@ export async function sealForPeerDevice(
  *
  * Throws 'Sealed sender: cert recipient mismatch' when the envelope is addressed
  * to a SIBLING device (per-device fan-out) — the caller treats that as benign and
- * skips. Also throws on tamper / expiry / forged cert.
+ * skips. Also throws on tamper / expiry / forged cert, and when the cert's
+ * identity is neither known for this sender device nor published by the
+ * claimed sender.
  */
 export async function unsealOnly(
   envelope: SealedEnvelope,
   myUuid: string,
+  senderDeviceId: string,
 ): Promise<{ inner: Record<string, unknown>; senderUuid: string }> {
   const identity = await ensureLocalIdentity()
-  const { inner, senderUuid } = await unseal(
+  const { inner, senderUuid, cert } = await unseal(
     envelope,
     myUuid,
     identity.dhPrivateKey,
     identity.dhPublicKeyBase64,
   )
+  await verifySenderIdentity(senderUuid, senderDeviceId, cert)
   return { inner, senderUuid }
 }
 
 // ---- Unified Inbound Handler ----
 
 /**
+ * Open an X3DH InitialMessage. A handshake we already hold a session for
+ * (matched by base key — a repeated pending pre-key header, a replay, or a
+ * crossed handshake) decrypts on that session; only an unseen handshake runs
+ * X3DH, and the one-time pre-key is deleted only after the first message
+ * actually decrypts.
+ */
+async function decryptInitial(
+  identity: StoredLocalIdentity,
+  senderUuid: string,
+  senderDeviceId: string,
+  existing: StoredSession | null,
+  initial: InitialMessage,
+): Promise<{ record: StoredSession; plaintext: Uint8Array; newHandshake: boolean }> {
+  const states = allStates(existing)
+  const matchIdx = states.findIndex(s => s.baseKey === initial.ephemeralKey)
+
+  if (matchIdx >= 0) {
+    const matched = states[matchIdx]
+    // Throws (typically DuplicateMessageError) rather than falling back to a
+    // fresh X3DH — re-running the handshake is what used to clobber sessions.
+    const { state, plaintext } = await ratchetDecrypt(
+      matched.state, initial.message, base64ToUint8(matched.associatedData),
+    )
+    const record = makeRecord(
+      senderUuid, senderDeviceId,
+      { ...matched, state, pendingPreKey: undefined },
+      states.filter((_, i) => i !== matchIdx),
+      existing?.createdAt,
+    )
+    return { record, plaintext, newHandshake: false }
+  }
+
+  // Sessions created before base keys were recorded can't be matched above. A
+  // repeated header for one of them would otherwise re-run X3DH against a
+  // one-time pre-key that is already spent and fail forever — try them first,
+  // and adopt the base key on success.
+  for (let i = 0; i < states.length; i++) {
+    const legacy = states[i]
+    if (legacy.baseKey) continue
+    try {
+      const { state, plaintext } = await ratchetDecrypt(
+        legacy.state, initial.message, base64ToUint8(legacy.associatedData),
+      )
+      const record = makeRecord(
+        senderUuid, senderDeviceId,
+        { ...legacy, state, baseKey: initial.ephemeralKey, pendingPreKey: undefined },
+        states.filter((_, j) => j !== i),
+        existing?.createdAt,
+      )
+      return { record, plaintext, newHandshake: false }
+    } catch (e) {
+      if (e instanceof DuplicateMessageError) throw e
+    }
+  }
+
+  const signedPreKey = await store.loadSignedPreKey(initial.signedPreKeyId)
+  if (!signedPreKey) {
+    throw new Error(`Signed pre-key ${initial.signedPreKeyId} not found`)
+  }
+
+  let oneTimePreKeyPair = null
+  if (initial.oneTimePreKeyId !== null) {
+    const otpk = await store.loadPreKey(initial.oneTimePreKeyId)
+    if (!otpk) {
+      // Computing without DH4 can never match the initiator's secret.
+      throw new Error(`One-time pre-key ${initial.oneTimePreKeyId} not found`)
+    }
+    oneTimePreKeyPair = { publicKey: otpk.publicKey, privateKey: otpk.privateKey }
+  }
+
+  const x3dh = await x3dhRespond(
+    identity,
+    { publicKey: signedPreKey.publicKey, privateKey: signedPreKey.privateKey },
+    oneTimePreKeyPair,
+    initial.identityDhKey,
+    initial.ephemeralKey
+  )
+
+  const ratchetState = await initReceiver(x3dh.sharedSecret, {
+    publicKey: signedPreKey.publicKey,
+    privateKey: signedPreKey.privateKey,
+    publicKeyBase64: signedPreKey.publicKeyBase64,
+  })
+
+  const { state, plaintext } = await ratchetDecrypt(ratchetState, initial.message, x3dh.associatedData)
+
+  // Only now is the one-time pre-key spent: a failed open leaves it usable
+  // for the retry instead of making the handshake permanently unopenable.
+  if (initial.oneTimePreKeyId !== null) {
+    await store.removePreKey(initial.oneTimePreKeyId)
+  }
+
+  const record = makeRecord(
+    senderUuid, senderDeviceId,
+    {
+      state,
+      associatedData: uint8ToBase64(x3dh.associatedData),
+      peerIdentityDhKey: initial.identityDhKey,
+      baseKey: initial.ephemeralKey,
+    },
+    states,
+    existing?.createdAt,
+  )
+  return { record, plaintext, newHandshake: true }
+}
+
+/**
+ * Open a ratchet packet. Tries the current session, then archived ones; the
+ * one that opens it becomes current (its pending pre-key cleared — the peer
+ * evidently has the session).
+ *
+ * @throws NoSessionError when we hold no session at all
+ * @throws DuplicateMessageError when a session recognises the packet as already consumed
+ * @throws SessionMismatchError when no held session can open it
+ */
+async function decryptWithRecord(
+  senderUuid: string,
+  senderDeviceId: string,
+  existing: StoredSession | null,
+  encMsg: EncryptedMessage,
+): Promise<{ record: StoredSession; plaintext: Uint8Array }> {
+  if (!existing) {
+    throw new NoSessionError(senderUuid, senderDeviceId)
+  }
+  const states = allStates(existing)
+  for (let i = 0; i < states.length; i++) {
+    const candidate = states[i]
+    try {
+      const { state, plaintext } = await ratchetDecrypt(
+        candidate.state, encMsg, base64ToUint8(candidate.associatedData),
+      )
+      const record = makeRecord(
+        senderUuid, senderDeviceId,
+        { ...candidate, state, pendingPreKey: undefined },
+        states.filter((_, j) => j !== i),
+        existing.createdAt,
+      )
+      return { record, plaintext }
+    } catch (e) {
+      if (e instanceof DuplicateMessageError) throw e
+    }
+  }
+  throw new SessionMismatchError(senderUuid, senderDeviceId)
+}
+
+/**
  * Process any incoming sealed envelope (initial, message, sync, etc.).
- * Unseals the envelope, determines inner type (X3DH or ratchet),
- * and decrypts accordingly.
+ * Unseals the envelope, authenticates the sender certificate, determines
+ * inner type (X3DH or ratchet), and decrypts accordingly. Session and
+ * peer-identity state are written only after a successful decrypt.
  *
  * @param senderDeviceId - from row.sender_device_id (or 'unknown' for legacy)
  * @param envelope - the SealedEnvelope from the DB row payload
@@ -382,91 +655,146 @@ export async function processIncomingMessage(
   )
 
   return withSessionLock(makeSessionKey(senderUuid, senderDeviceId), async () => {
+    await verifySenderIdentity(senderUuid, senderDeviceId, cert)
+
+    const existing = await getSession(senderUuid, senderDeviceId)
+    let record: StoredSession
+    let plaintext: Uint8Array
+
+    if ('identitySigningKey' in inner) {
+      const initial = inner as unknown as InitialMessage
+      // The X3DH identity must be the certificate's identity — otherwise a
+      // valid cert could front a handshake made with someone else's keys.
+      if (
+        initial.identityDhKey !== cert.senderIdentityDhKey ||
+        initial.identitySigningKey !== cert.senderIdentitySigningKey
+      ) {
+        throw new Error('Initial message identity does not match sender certificate')
+      }
+      const opened = await decryptInitial(identity, senderUuid, senderDeviceId, existing, initial)
+      record = opened.record
+      plaintext = opened.plaintext
+      if (opened.newHandshake) {
+        replenishPreKeysIfNeeded(myUuid).catch(() => {})
+        logger.info(`Inbound session created with peer ${senderUuid} device ${senderDeviceId}`)
+      }
+    } else {
+      const opened = await decryptWithRecord(senderUuid, senderDeviceId, existing, inner as unknown as EncryptedMessage)
+      record = opened.record
+      plaintext = opened.plaintext
+    }
+
+    await persistSession(record)
+
     const trustStatus = await storePeerIdentity(
       senderUuid,
       senderDeviceId,
       cert.senderIdentitySigningKey,
       cert.senderIdentityDhKey
     )
-
-    let identityKeyChanged = false
-    if (trustStatus === 'changed') {
+    const identityKeyChanged = trustStatus === 'changed'
+    if (identityKeyChanged) {
       logger.warn(
         `WARNING: Identity key changed for peer ${senderUuid} device ${senderDeviceId} ` +
         `during incoming message processing. The peer may have reinstalled or this ` +
         `could indicate a security issue.`
       )
-      identityKeyChanged = true
     }
 
-    if ('identitySigningKey' in inner) {
-      const initial = inner as unknown as InitialMessage
-
-      const signedPreKey = await store.loadSignedPreKey(initial.signedPreKeyId)
-      if (!signedPreKey) {
-        throw new Error(`Signed pre-key ${initial.signedPreKeyId} not found`)
-      }
-
-      let oneTimePreKeyPair = null
-      if (initial.oneTimePreKeyId !== null) {
-        const otpk = await consumePreKey(initial.oneTimePreKeyId)
-        if (otpk) oneTimePreKeyPair = { publicKey: otpk.publicKey, privateKey: otpk.privateKey }
-      }
-
-      const x3dh = await x3dhRespond(
-        identity,
-        { publicKey: signedPreKey.publicKey, privateKey: signedPreKey.privateKey },
-        oneTimePreKeyPair,
-        initial.identityDhKey,
-        initial.ephemeralKey
-      )
-
-      const ratchetState = await initReceiver(x3dh.sharedSecret, {
-        publicKey: signedPreKey.publicKey,
-        privateKey: signedPreKey.privateKey,
-        publicKeyBase64: signedPreKey.publicKeyBase64,
-      })
-
-      const { state, plaintext } = await ratchetDecrypt(ratchetState, initial.message, x3dh.associatedData)
-
-      const sessionKey = makeSessionKey(senderUuid, senderDeviceId)
-      const session: StoredSession = {
-        peerId: senderUuid,
-        peerDeviceId: senderDeviceId,
-        sessionKey,
-        state,
-        associatedData: uint8ToBase64(x3dh.associatedData),
-        peerIdentityDhKey: initial.identityDhKey,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      }
-      await persistSession(session)
-
-      replenishPreKeysIfNeeded(myUuid).catch(() => {})
-
-      logger.info(`Inbound session created with peer ${senderUuid} device ${senderDeviceId}`)
-      return { plaintext: new TextDecoder().decode(plaintext), senderUuid, identityKeyChanged }
-
-    } else {
-      const encMsg = inner as unknown as EncryptedMessage
-
-      const session = await getSession(senderUuid, senderDeviceId)
-      if (!session) {
-        throw new NoSessionError(senderUuid, senderDeviceId)
-      }
-
-      const ad = base64ToUint8(session.associatedData)
-      const { state, plaintext } = await ratchetDecrypt(session.state, encMsg, ad)
-
-      await persistSession({
-        ...session,
-        state,
-        updatedAt: new Date().toISOString(),
-      })
-
-      return { plaintext: new TextDecoder().decode(plaintext), senderUuid, identityKeyChanged }
-    }
+    return { plaintext: new TextDecoder().decode(plaintext), senderUuid, identityKeyChanged }
   })
+}
+
+// ---- Vault Inbox ----
+
+/** Private key material of a user's vault, as needed to open vault rows. */
+export interface VaultDecryptKeys {
+  dhPrivateKey: CryptoKey
+  dhPublicKeyBase64: string
+  /** Current signed pre-key first, then retained previous ones. */
+  signedPreKeys: Array<{ keyId: number; publicKey: CryptoKey; privateKey: CryptoKey; publicKeyBase64: string }>
+  /** One-time pre-keys still in the vault blob (only pre-vault-first senders used them). */
+  preKeys: Array<{ keyId: number; publicKey: CryptoKey; privateKey: CryptoKey }>
+}
+
+/** Ratchet state of pre-vault-first senders' long-lived vault sessions, kept
+ *  only for the current page so a follow-up in the same backlog still opens. */
+const legacyVaultSessions = new Map<string, { state: StoredSession['state']; ad: Uint8Array }>()
+
+/**
+ * Open a row addressed to the user's vault (vault-first inbox). Every vault row
+ * is a self-contained X3DH InitialMessage — senders keep no session with a
+ * vault — so this is stateless: authenticate the sender certificate, run the
+ * X3DH responder against the vault's signed pre-key (one-time pre-key only for
+ * pre-vault-first senders, never consumed: any of the user's devices may open
+ * the same row), decrypt the single message. Replays decrypt again; callers
+ * dedupe by row id.
+ *
+ * @throws on tamper, unknown signed pre-key, unpublished sender identity, or
+ *         a pre-vault-first ratchet follow-up whose handshake isn't in this page.
+ */
+export async function openVaultEnvelope(
+  senderDeviceId: string,
+  envelope: SealedEnvelope,
+  myUuid: string,
+  keys: VaultDecryptKeys,
+): Promise<{ plaintext: string; senderUuid: string }> {
+  const { inner, senderUuid, cert } = await unseal(
+    envelope,
+    myUuid,
+    keys.dhPrivateKey,
+    keys.dhPublicKeyBase64,
+    { skipExpiry: true },
+  )
+  await verifySenderIdentity(senderUuid, senderDeviceId, cert)
+  const legacyKey = makeSessionKey(senderUuid, senderDeviceId)
+
+  if (!('identitySigningKey' in inner)) {
+    const legacy = legacyVaultSessions.get(legacyKey)
+    if (!legacy) throw new NoSessionError(senderUuid, senderDeviceId)
+    const { state, plaintext } = await ratchetDecrypt(legacy.state, inner as unknown as EncryptedMessage, legacy.ad)
+    legacyVaultSessions.set(legacyKey, { state, ad: legacy.ad })
+    return { plaintext: new TextDecoder().decode(plaintext), senderUuid }
+  }
+
+  const initial = inner as unknown as InitialMessage
+  if (
+    initial.identityDhKey !== cert.senderIdentityDhKey ||
+    initial.identitySigningKey !== cert.senderIdentitySigningKey
+  ) {
+    throw new Error('Initial message identity does not match sender certificate')
+  }
+
+  const spk = keys.signedPreKeys.find(s => s.keyId === initial.signedPreKeyId)
+  if (!spk) throw new Error(`Vault signed pre-key ${initial.signedPreKeyId} not found`)
+
+  let otpk = null
+  if (initial.oneTimePreKeyId !== null) {
+    otpk = keys.preKeys.find(k => k.keyId === initial.oneTimePreKeyId) ?? null
+    if (!otpk) throw new Error(`Vault one-time pre-key ${initial.oneTimePreKeyId} not found`)
+  }
+
+  const vaultIdentity = {
+    dhPrivateKey: keys.dhPrivateKey,
+    dhPublicKeyBase64: keys.dhPublicKeyBase64,
+  } as StoredLocalIdentity
+  const x3dh = await x3dhRespond(
+    vaultIdentity,
+    { publicKey: spk.publicKey, privateKey: spk.privateKey },
+    otpk ? { publicKey: otpk.publicKey, privateKey: otpk.privateKey } : null,
+    initial.identityDhKey,
+    initial.ephemeralKey,
+  )
+  const ratchetState = await initReceiver(x3dh.sharedSecret, {
+    publicKey: spk.publicKey,
+    privateKey: spk.privateKey,
+    publicKeyBase64: spk.publicKeyBase64,
+  })
+  const { state, plaintext } = await ratchetDecrypt(ratchetState, initial.message, x3dh.associatedData)
+  legacyVaultSessions.set(legacyKey, { state, ad: x3dh.associatedData })
+
+  await storePeerIdentity(senderUuid, senderDeviceId, cert.senderIdentitySigningKey, cert.senderIdentityDhKey)
+  return { plaintext: new TextDecoder().decode(plaintext), senderUuid }
 }
 
 // ---- Session Queries ----

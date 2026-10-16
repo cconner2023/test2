@@ -14,12 +14,9 @@ import { useAuth } from './useAuth'
 import { usePageVisibility } from './usePageVisibility'
 import { useSignalMessages } from './useSignalMessages'
 import {
-  fetchPeerBundle,
   fetchPeerBundleForDevice,
-  sendMessage as sendSignalMessage,
+  fetchPeerBundlePublic,
   sendMessageFanOut,
-  fetchPeerDevices,
-  fetchOwnDevices,
   fetchGroupConversation,
   markMessagesRead,
   hardDeleteByOriginId,
@@ -39,30 +36,12 @@ import {
   fetchGroupMembers as fetchGroupMembersRpc,
 } from '../lib/signal/groupService'
 import type { GroupInfo, GroupMember } from '../lib/signal/groupTypes'
-import {
-  createOutboundSession,
-  encryptMessage,
-  hasSession,
-  sealForPeerDevice,
-  deleteSessionsForPeer,
-} from '../lib/signal/session'
+import { createOutboundSession } from '../lib/signal/session'
 import {
   getLocalDeviceId,
 } from '../lib/signal/keyManager'
-import {
-  generateSenderKey,
-  rotateSenderKey,
-  createDistribution,
-  processSenderKeyDistribution,
-  senderKeyEncrypt,
-  senderKeyDecrypt,
-} from '../lib/signal/senderKey'
-import {
-  loadSenderKey,
-  loadSenderKeysForGroup,
-  deleteSenderKey,
-  deleteSenderKeysForGroup,
-} from '../lib/signal/senderKeyStore'
+import { sendToUser } from '../lib/signal/vaultSend'
+import { deleteSenderKeysForGroup } from '../lib/signal/senderKeyStore'
 import {
   getGroupSecretMeta,
   setGroupSecret,
@@ -70,7 +49,7 @@ import {
   generateGroupSecret,
 } from '../lib/signal/groupNameCrypto'
 import { onGroupRefresh } from '../lib/signal/groupRefreshBus'
-import type { SenderKeyMessage, SenderKeyDistribution } from '../lib/signal/types'
+import { VAULT } from '../lib/constants'
 import {
   saveMessage,
   updateReadAt,
@@ -105,17 +84,12 @@ import { errorBus } from '../lib/errorBus'
 import { ErrorCode } from '../lib/errorCodes'
 import { resizeImage, getImageDimensions, generateThumbnail, dataUrlToBlob } from '../Utilities/imageUtils'
 import type { VoiceRecordingResult } from '../Utilities/voiceUtils'
-import type { DecryptedSignalMessage, PeerDevice, FanOutMessageInput, SyncMessagePayload } from '../lib/signal/transportTypes'
+import type { DecryptedSignalMessage, FanOutMessageInput, SyncMessagePayload } from '../lib/signal/transportTypes'
 import type { PublicKeyBundle } from '../lib/signal/types'
 import type { PeerBundleRpcResult } from '../lib/signal/transportTypes'
 import { useMessagingStore } from '../stores/useMessagingStore'
 
 const logger = createLogger('Messages')
-
-/** Min interval between sender-key re-distribution requests for the same
- *  (groupId:senderId) pair — prevents a burst of undecryptable group messages
- *  from firing a storm of requests. */
-const SENDER_KEY_REQUEST_THROTTLE_MS = 30_000
 
 /** Session-reset recovery (see requestSessionReset). Failures from one peer
  *  device are batched for SESSION_RESET_BATCH_MS so a catch-up burst sends one
@@ -127,11 +101,10 @@ const SESSION_RESET_MAX_RESEND = 100
 
 /** Membership-change announcements. These are ordinary group messages sent by
  *  the actor (the UI already labels the sender), so they read as "Doe: created
- *  this group". They exist for UX *and* to seed the per-group name secret: a send
- *  that generates or rotates the sender key (group creation, member removal)
- *  piggybacks the secret on its distribution; an add reuses the existing key, so
- *  the new member pulls the secret via the retry-receipt self-heal off this
- *  message. Operational vocabulary only — no PHI. */
+ *  this group". They exist for UX *and* to seed the per-group name secret: every
+ *  group row carries it (wrapGroupPayload), so a new member gets it off this
+ *  message and a post-removal rotation reaches the remaining members. Operational
+ *  vocabulary only — no PHI. */
 const GROUP_ANNOUNCE = {
   created: 'created this group',
   memberAdded: 'added a member to this group',
@@ -189,96 +162,9 @@ function rpcResultToBundle(rpc: PeerBundleRpcResult): PublicKeyBundle {
 }
 
 /**
- * Encrypt a serialized payload for all of a peer's devices.
- * For each device: if no session exists, performs X3DH first.
- * Returns FanOutMessageInput[] ready for sendMessageFanOut.
- */
-async function encryptForAllDevices(
-  peerId: string,
-  peerDevices: PeerDevice[],
-  serialized: string,
-  senderUuid: string
-): Promise<FanOutMessageInput[]> {
-  const results: FanOutMessageInput[] = []
-
-  for (const device of peerDevices) {
-    try {
-      const sessionExists = await hasSession(peerId, device.deviceId)
-
-      if (!sessionExists) {
-        const bundleResult = await fetchPeerBundleForDevice(peerId, device.deviceId)
-        if (!bundleResult.ok) {
-          logger.warn(`No bundle for ${peerId}:${device.deviceId}, skipping`)
-          continue
-        }
-
-        const bundle = rpcResultToBundle(bundleResult.data)
-        const sealedEnvelope = await createOutboundSession(peerId, device.deviceId, bundle, serialized, senderUuid)
-        results.push({
-          recipientDeviceId: device.deviceId,
-          payload: sealedEnvelope as unknown as Record<string, unknown>,
-          messageType: 'initial',
-        })
-      } else {
-        const sealedEnvelope = await encryptMessage(peerId, device.deviceId, serialized, senderUuid)
-        results.push({
-          recipientDeviceId: device.deviceId,
-          payload: sealedEnvelope as unknown as Record<string, unknown>,
-          messageType: 'message',
-        })
-      }
-    } catch (e) {
-      logger.warn(`Failed to encrypt for ${peerId}:${device.deviceId}:`, e instanceof Error ? e.message : e)
-    }
-  }
-
-  return results
-}
-
-/**
- * Seal a group `sender-key-message` per recipient DEVICE — operator-blind parity
- * with the 1:1 path. The inner SenderKeyMessage is already sender-key-encrypted
- * once (O(1)); here we add ONLY the sealed-sender ECIES layer (no Double Ratchet)
- * per device, so senderId/senderDeviceId/groupId/iteration never appear in
- * cleartext on the wire. Mirrors {@link encryptForAllDevices}' session-or-bundle
- * key resolution. Devices with no session and no fetchable bundle are skipped.
- */
-async function sealSenderKeyForAllDevices(
-  peerId: string,
-  peerDevices: PeerDevice[],
-  senderKeyMsg: SenderKeyMessage,
-  senderUuid: string,
-): Promise<FanOutMessageInput[]> {
-  const results: FanOutMessageInput[] = []
-  const inner = senderKeyMsg as unknown as Record<string, unknown>
-  for (const device of peerDevices) {
-    try {
-      // No session yet ⇒ seal to the peer device's published identity DH key.
-      let fallbackDhKey: string | undefined
-      if (!(await hasSession(peerId, device.deviceId))) {
-        const bundleResult = await fetchPeerBundleForDevice(peerId, device.deviceId)
-        if (!bundleResult.ok) {
-          logger.warn(`No bundle for ${peerId}:${device.deviceId}, skipping sealed group content`)
-          continue
-        }
-        fallbackDhKey = rpcResultToBundle(bundleResult.data).identityDhKey
-      }
-      const sealed = await sealForPeerDevice(peerId, device.deviceId, inner, senderUuid, fallbackDhKey)
-      results.push({
-        recipientDeviceId: device.deviceId,
-        payload: sealed as unknown as Record<string, unknown>,
-        messageType: 'sender-key-message',
-      })
-    } catch (e) {
-      logger.warn(`Failed to seal sender-key-message for ${peerId}:${device.deviceId}:`, e instanceof Error ? e.message : e)
-    }
-  }
-  return results
-}
-
-/**
- * Send a sync message to all own devices (except the current one).
- * Fire-and-forget — errors are silently swallowed.
+ * Send a sync message to this user's own vault, where every other device of
+ * the user reads it (this device skips its own rows on receive). One row,
+ * regardless of how many devices the user has. Fire-and-forget.
  */
 async function sendSyncToOwnDevices(
   userId: string,
@@ -289,47 +175,22 @@ async function sendSyncToOwnDevices(
 ): Promise<void> {
   if (forGroupId) syncPayload.forGroupId = forGroupId
   if (originId) syncPayload.originId = originId
-  const devicesResult = await fetchOwnDevices(userId)
-  if (!devicesResult.ok) return
-
-  const otherDevices = devicesResult.data.filter(d => d.deviceId !== localDeviceId)
-  if (otherDevices.length === 0) return
-
-  const serialized = JSON.stringify(syncPayload)
-  const fanOutInputs = await encryptForAllDevices(userId, otherDevices, serialized, userId)
-
-  for (const input of fanOutInputs) {
-    input.messageType = 'sync'
-  }
-
-  if (fanOutInputs.length === 0) return
-
-  await sendMessageFanOut(userId, localDeviceId, userId, fanOutInputs, undefined, originId)
+  await sendToUser(userId, localDeviceId, userId, JSON.stringify(syncPayload), 'sync', { originId, silent: true })
 }
 
 /**
- * Send a read-sync message to all own devices (except the current one).
+ * Send a read-sync message to this user's own vault.
  */
 async function sendReadSyncToOwnDevices(
   userId: string,
   localDeviceId: string,
   serializedPayload: string,
 ): Promise<void> {
-  const devicesResult = await fetchOwnDevices(userId)
-  if (!devicesResult.ok) return
-
-  const otherDevices = devicesResult.data.filter(d => d.deviceId !== localDeviceId)
-  if (otherDevices.length === 0) return
-
-  const fanOutInputs = await encryptForAllDevices(userId, otherDevices, serializedPayload, userId)
-  for (const input of fanOutInputs) input.messageType = 'sync'
-  if (fanOutInputs.length === 0) return
-
-  await sendMessageFanOut(userId, localDeviceId, userId, fanOutInputs)
+  await sendToUser(userId, localDeviceId, userId, serializedPayload, 'sync', { silent: true })
 }
 
 /**
- * Encrypt serialized content and send to a single peer's devices.
+ * Encrypt serialized content and send it to a peer's vault (one row).
  */
 async function encryptAndSendToPeer(
   userId: string,
@@ -340,46 +201,15 @@ async function encryptAndSendToPeer(
   groupId?: string,
   originId?: string,
 ): Promise<Result<string>> {
-  const devicesResult = await fetchPeerDevices(peerId)
-  const peerDevices = devicesResult.ok ? devicesResult.data : []
-
-  if (peerDevices.length > 0) {
-    const fanOutInputs = await encryptForAllDevices(peerId, peerDevices, serialized, userId)
-    if (messageType === 'request') {
-      for (const input of fanOutInputs) input.messageType = 'request'
-    }
-    if (fanOutInputs.length === 0) return errResult('Could not encrypt for any peer device')
-
-    const sendResult = await sendMessageFanOut(userId, localDeviceId, peerId, fanOutInputs, groupId, originId)
-    if (!sendResult.ok) return errResult(sendResult.error)
-    return okResult(sendResult.data[0])
-  }
-
-  // Legacy single-device path
-  const sessionExists = await hasSession(peerId, 'unknown')
-
-  if (!sessionExists) {
-    const bundleResult = await fetchPeerBundle(peerId)
-    if (!bundleResult.ok) return errResult(bundleResult.error)
-    const bundle = rpcResultToBundle(bundleResult.data)
-    const peerDeviceId = bundle.deviceId || 'unknown'
-    const initialMessage = await createOutboundSession(peerId, peerDeviceId, bundle, serialized, userId)
-    const legacyType = messageType === 'request' ? 'request' : 'initial'
-    return sendSignalMessage(userId, peerId, initialMessage, legacyType, localDeviceId, peerDeviceId, groupId, originId)
-  }
-
-  const encrypted = await encryptMessage(peerId, 'unknown', serialized, userId)
-  return sendSignalMessage(userId, peerId, encrypted, 'message', localDeviceId, undefined, groupId, originId)
+  return sendToUser(userId, localDeviceId, peerId, serialized, messageType, { groupId, originId })
 }
 
 /**
- * Encrypt and send a WebRTC call-signal control message to a peer's devices.
+ * Encrypt and send a WebRTC call-signal control message to a peer's vault.
  *
- * Mirrors encryptAndSendToPeer's session/fan-out logic but stamps every row
- * `message_type='call-signal'` so the receiver's decryptRow routes it to the
- * call layer (callSignalBus) and never surfaces it as a chat message. The
- * Signal session is the authorization gate — a call cannot be placed to a peer
- * we can't establish a session with. `silent` suppresses local message
+ * Stamped `message_type='call-signal'` so the receiver's decryptRow routes it to
+ * the call layer (callSignalBus) and never surfaces it as a chat message; every
+ * device of the peer sees the ring. `silent` suppresses local message
  * notifications/receipts (control-plane); background FCM wake is governed by the
  * out-of-repo dispatcher independently.
  */
@@ -389,161 +219,28 @@ async function encryptAndSendCallSignal(
   peerId: string,
   serialized: string,
 ): Promise<Result<string>> {
-  const devicesResult = await fetchPeerDevices(peerId)
-  const peerDevices = devicesResult.ok ? devicesResult.data : []
-
-  if (peerDevices.length > 0) {
-    const fanOutInputs = await encryptForAllDevices(peerId, peerDevices, serialized, userId)
-    for (const input of fanOutInputs) input.messageType = 'call-signal'
-    if (fanOutInputs.length === 0) return errResult('Could not encrypt call signal for any peer device')
-    const sendResult = await sendMessageFanOut(userId, localDeviceId, peerId, fanOutInputs, undefined, undefined, true)
-    if (!sendResult.ok) return errResult(sendResult.error)
-    return okResult(sendResult.data[0])
-  }
-
-  // Legacy single-device path. A fresh session sends an X3DH initial envelope;
-  // the row is still labelled 'call-signal' (processIncomingMessage decrypts
-  // initial + ratchet envelopes transparently regardless of the row label).
-  const sessionExists = await hasSession(peerId, 'unknown')
-  if (!sessionExists) {
-    const bundleResult = await fetchPeerBundle(peerId)
-    if (!bundleResult.ok) return errResult(bundleResult.error)
-    const bundle = rpcResultToBundle(bundleResult.data)
-    const peerDeviceId = bundle.deviceId || 'unknown'
-    const initialMessage = await createOutboundSession(peerId, peerDeviceId, bundle, serialized, userId)
-    return sendSignalMessage(userId, peerId, initialMessage, 'call-signal', localDeviceId, peerDeviceId, undefined, undefined)
-  }
-  const encrypted = await encryptMessage(peerId, 'unknown', serialized, userId)
-  return sendSignalMessage(userId, peerId, encrypted, 'call-signal', localDeviceId, undefined, undefined, undefined)
+  return sendToUser(userId, localDeviceId, peerId, serialized, 'call-signal', { silent: true })
 }
 
 /**
- * Ensure we have a sender key for the group, generating and distributing one if needed.
- *
- * Distribution is sent via pairwise 1:1 sessions to every group member who does not
- * yet have our key. A member with no usable key bundle yet (vault not provisioned)
- * cannot receive the distribution — such members are SKIPPED, never fatal, and their
- * userIds are returned so the caller can surface a non-blocking notice. The group
- * send proceeds for everyone who is reachable.
+ * Wrap group content with the per-group name secret ({ __g: { s, e }, c }) so
+ * every member — including one added later — can decrypt the group name. This
+ * replaces the sender-key distribution's piggyback; receivers adopt the secret
+ * only when its epoch is newer (useSignalMessages.unwrapGroupPayload).
  */
-async function ensureSenderKey(
-  userId: string,
-  localDeviceId: string,
-  groupId: string,
-  members: GroupMember[],
-  keyEpoch = 0,
-  forceRedistribute = false,
-): Promise<string[]> {
-  let senderKey = await loadSenderKey(groupId, userId, localDeviceId)
-  // Track whether the key is genuinely new/rotated this call — the only time a
-  // proactive distribution is required. A send that reuses an already-minted key
-  // must NOT re-fan the distribution (see the gate below).
-  let keyChanged = false
-
-  if (!senderKey) {
-    senderKey = await generateSenderKey(groupId, userId, localDeviceId, keyEpoch)
-    keyChanged = true
-    logger.info(`Generated new sender key for group ${groupId} at epoch ${keyEpoch}`)
-  } else if ((senderKey.epoch ?? 0) < keyEpoch) {
-    // Membership shrank (a member was removed/left) since our key was minted.
-    // Rotate for forward secrecy so the departed member cannot follow our chain,
-    // and drop any sender keys we still hold for members no longer in the group
-    // (closes the "removed member's messages still decrypt" path client-side).
-    const prevEpoch = senderKey.epoch ?? 0
-    senderKey = await rotateSenderKey(groupId, userId, localDeviceId, keyEpoch)
-    keyChanged = true
-    logger.info(`Rotated sender key for group ${groupId}: epoch ${prevEpoch} -> ${keyEpoch}`)
-    const currentMemberIds = new Set(members.map(m => m.userId))
-    const held = await loadSenderKeysForGroup(groupId)
-    for (const sk of held) {
-      if (!currentMemberIds.has(sk.memberId)) {
-        await deleteSenderKey(groupId, sk.memberId, sk.deviceId).catch(() => {})
-      }
-    }
-  }
-
-  // Distribution gate — the fix for the group-send rate-limit blowout.
-  // Distributing re-fans a pairwise sender-key envelope to EVERY member's EVERY
-  // device, and every one of those rows counts against the sender's 120/minute
-  // server rate limit (send_signal_message / send_signal_messages_batch). Doing
-  // that on every send made a single message cost ~2N rate-limit units, so a
-  // unit-sized ("deploy") group blew the limit in one or two messages and ALL
-  // sends — group and 1:1 — then failed with "Rate limit exceeded".
-  //
-  // A distribution is only actually needed when our key is new/rotated, or when
-  // a member explicitly asks for it. In steady state (every member already holds
-  // our current key) a normal send now distributes NOTHING. Members who never
-  // got it — new joiners, freshly-provisioned devices — self-heal: they receive
-  // an undecryptable sender-key-message → onSenderKeyMissing → sender-key-request
-  // → handleSenderKeyRequest calls us with forceRedistribute=true.
-  if (!keyChanged && !forceRedistribute) {
-    return []
-  }
-
-  const dist = createDistribution(senderKey)
-  // Piggyback the per-group name secret so every member can decrypt the group
-  // name. Only attached when we currently hold it; recipients adopt it only if
-  // its epoch exceeds their own (rotated secret supersedes).
+async function wrapGroupPayload(groupId: string, serialized: string): Promise<string> {
   const secretMeta = await getGroupSecretMeta(groupId)
-  if (secretMeta) {
-    dist.groupSecret = secretMeta.secret
-    dist.secretEpoch = secretMeta.epoch
-  }
-  const distJson = JSON.stringify(dist)
-
-  // Distribute to all group members (excluding current device). Track members we
-  // could not reach so the caller can explain why they won't get messages.
-  const undeliverable: string[] = []
-  const otherMembers = members.filter(m => m.userId !== userId)
-  for (const member of otherMembers) {
-    const devicesResult = await fetchPeerDevices(member.userId)
-    const devices = devicesResult.ok ? devicesResult.data : []
-    if (devices.length === 0) {
-      // No published device at all — user hasn't set up secure messaging yet.
-      undeliverable.push(member.userId)
-      continue
-    }
-
-    const fanOutInputs = await encryptForAllDevices(member.userId, devices, distJson, userId)
-    for (const input of fanOutInputs) {
-      input.messageType = 'sender-key-distribution'
-    }
-    if (fanOutInputs.length > 0) {
-      await sendMessageFanOut(userId, localDeviceId, member.userId, fanOutInputs, groupId, undefined, true).catch(e =>
-        logger.warn(`Failed to distribute sender key to ${member.userId}:`, e instanceof Error ? e.message : e)
-      )
-    } else {
-      // Devices exist but none had a usable key bundle (vault not populated yet).
-      undeliverable.push(member.userId)
-    }
-  }
-
-  // Distribute to own other devices so they can decrypt our future group messages
-  const ownDevicesResult = await fetchOwnDevices(userId)
-  if (ownDevicesResult.ok) {
-    const otherOwnDevices = ownDevicesResult.data.filter(d => d.deviceId !== localDeviceId)
-    if (otherOwnDevices.length > 0) {
-      const fanOutInputs = await encryptForAllDevices(userId, otherOwnDevices, distJson, userId)
-      for (const input of fanOutInputs) input.messageType = 'sender-key-distribution'
-      if (fanOutInputs.length > 0) {
-        await sendMessageFanOut(userId, localDeviceId, userId, fanOutInputs, groupId, undefined, true).catch(e =>
-          logger.warn('Failed to distribute sender key to own devices:', e instanceof Error ? e.message : e)
-        )
-      }
-    }
-  }
-
-  return undeliverable
+  if (!secretMeta) return serialized
+  return JSON.stringify({ __g: { s: secretMeta.secret, e: secretMeta.epoch }, c: serialized })
 }
 
 /**
- * Encrypt content with sender key and deliver to all group members.
- *
- * New flow (Sender Keys):
- * 1. Load/generate sender key for (groupId, userId, localDeviceId)
- * 2. If missing: generate + distribute via pairwise 1:1 sessions
- * 3. Encrypt once with senderKeyEncrypt — O(1) encryption
- * 4. Fan-out the single ciphertext to every member as 'sender-key-message'
+ * Encrypt content and deliver it to every group member's vault — one row per
+ * member (vault-first). Each row is a self-contained X3DH envelope, so there is
+ * no sender-key state to distribute, request, or rotate: a removed member simply
+ * stops being a recipient. All rows share `originId` so delivery-receipt
+ * matching and dedup are unaffected. Own devices get the content via
+ * sendSyncToOwnDevices (called by each caller).
  */
 async function encryptAndSendToGroupMembers(
   userId: string,
@@ -554,60 +251,25 @@ async function encryptAndSendToGroupMembers(
   members: GroupMember[],
   silent?: boolean,
 ): Promise<Result<string>> {
-  // Ensure sender key exists and every member with a usable bundle gets a copy.
-  // Members whose vault isn't provisioned yet are skipped (not fatal) and reported
-  // so we can explain the gap without blocking the send. A distribution failure
-  // must never abort the whole send — proceed best-effort.
-  let undeliverable: string[] = []
-  const keyEpoch = useMessagingStore.getState().groups[groupId]?.keyEpoch ?? 0
-  try {
-    undeliverable = await ensureSenderKey(userId, localDeviceId, groupId, members, keyEpoch)
-  } catch (e) {
-    logger.warn(`ensureSenderKey failed for group ${groupId}; sending best-effort:`, e instanceof Error ? e.message : e)
-  }
-  if (undeliverable.length > 0) {
-    // Not fatal: these members have no usable key bundle yet (vault not provisioned).
-    // The send proceeds for everyone reachable; usePeerAvailability drives the
-    // user-facing "can't receive messages yet" banner independently.
-    logger.info(`Group ${groupId}: ${undeliverable.length} member(s) unreachable (no vault yet), skipped.`)
-  }
-
-  // Encrypt once with the sender key (O(1) inner ciphertext, reused for everyone).
-  const senderKeyMsg = await senderKeyEncrypt(groupId, userId, localDeviceId, serialized)
-
-  // Fan the SEALED content per recipient DEVICE (operator-blind parity with 1:1):
-  // the outer sealed-sender envelope hides senderId/groupId/iteration on the wire.
-  // Mirrors the sender-key DISTRIBUTION fan (per-member → per-device). All rows
-  // share `originId` so delivery-receipt matching and dedup are unaffected.
+  const wrapped = await wrapGroupPayload(groupId, serialized)
   let firstServerId: string | null = null
-  const allRecipients = members.filter(m => m.userId !== userId)
-
-  for (const member of allRecipients) {
-    const devicesResult = await fetchPeerDevices(member.userId)
-    const devices = devicesResult.ok ? devicesResult.data : []
-    if (devices.length === 0) continue
-    const fanOutInputs = await sealSenderKeyForAllDevices(member.userId, devices, senderKeyMsg, userId)
-    if (fanOutInputs.length === 0) continue
-    const result = await sendMessageFanOut(
-      userId, localDeviceId, member.userId, fanOutInputs, groupId, originId, silent,
-    ).catch(e => {
-      logger.warn(`Failed to send sealed group content to ${member.userId}:`, e instanceof Error ? e.message : e)
-      return errResult<string[]>(e instanceof Error ? e.message : 'send failed')
-    })
-    if (result.ok && result.data.length > 0 && !firstServerId) {
-      firstServerId = result.data[0]
+  const unreachable: string[] = []
+  for (const member of members) {
+    if (member.userId === userId) continue
+    const result = await sendToUser(userId, localDeviceId, member.userId, wrapped, 'message', { groupId, originId, silent })
+    if (result.ok) {
+      firstServerId ??= result.data
+    } else {
+      unreachable.push(member.userId)
     }
   }
-
-  // Own devices receive group content via sendSyncToOwnDevices (called by each caller).
-  // Sender key distribution to own devices is handled by ensureSenderKey above.
-
-  if (!firstServerId) {
-    // No other members — still a successful send if we encrypted without error
-    firstServerId = crypto.randomUUID()
+  if (unreachable.length > 0) {
+    // Not fatal: these members have no vault yet. usePeerAvailability drives the
+    // user-facing "can't receive messages yet" banner independently.
+    logger.info(`Group ${groupId}: ${unreachable.length} member(s) unreachable, skipped.`)
   }
-
-  return okResult(firstServerId)
+  // No other members — still a successful send if nothing failed to encrypt.
+  return okResult(firstServerId ?? crypto.randomUUID())
 }
 
 /**
@@ -767,10 +429,6 @@ export function useMessages(): UseMessagesReturn {
   // when it genuinely disappears between two server fetches — never when it's
   // merely newly-created locally or absent from a racing fetch.
   const serverGroupIdsRef = useRef<Set<string>>(new Set())
-
-  // Throttle re-distribution requests per (groupId:senderId) so a burst of
-  // undecryptable group messages triggers at most one request per window.
-  const senderKeyRequestAtRef = useRef<Map<string, number>>(new Map())
 
   // Session-reset recovery state, keyed `${peerId}:${peerDeviceId}`: failures
   // pending a batched reset, and the last reset attempt per device.
@@ -1037,60 +695,6 @@ export function useMessages(): UseMessagesReturn {
     }
   }, [])
 
-  // Retry-receipt (Signal-style): we received a group message we cannot decrypt
-  // because we hold no sender key for that sender (we missed their distribution —
-  // e.g. our device was provisioned after their send). Ask the sender to
-  // re-distribute. Throttled per (groupId:senderId) so a burst of undecryptable
-  // messages produces at most one request per window.
-  const requestSenderKeyRedistribution = useCallback(async (groupId: string, peerId: string) => {
-    const localDeviceId = useMessagingStore.getState().localDeviceId
-    if (!userId || !localDeviceId || !groupId || peerId === userId) return
-    const throttleKey = `${groupId}:${peerId}`
-    const now = Date.now()
-    const last = senderKeyRequestAtRef.current.get(throttleKey) ?? 0
-    if (now - last < SENDER_KEY_REQUEST_THROTTLE_MS) return
-    senderKeyRequestAtRef.current.set(throttleKey, now)
-
-    try {
-      const devicesResult = await fetchPeerDevices(peerId)
-      const devices = devicesResult.ok ? devicesResult.data : []
-      if (devices.length === 0) return
-      // Pairwise control message (no group_id on the wire → not a group send, so
-      // the membership gate never applies). Payload carries the target groupId.
-      const body = JSON.stringify({ type: 'sender-key-request', groupId })
-      const fanOutInputs = await encryptForAllDevices(peerId, devices, body, userId)
-      for (const input of fanOutInputs) input.messageType = 'sender-key-request'
-      if (fanOutInputs.length > 0) {
-        await sendMessageFanOut(userId, localDeviceId, peerId, fanOutInputs, undefined, undefined, true).catch(() => {})
-        logger.info(`Requested sender-key re-distribution from ${peerId} for group ${groupId}`)
-      }
-    } catch (e) {
-      logger.warn('requestSenderKeyRedistribution failed:', e instanceof Error ? e.message : e)
-    }
-  }, [userId])
-
-  // Peer asked us to re-distribute our sender key for a group (they missed our
-  // original distribution). Re-run ensureSenderKey, which regenerates if needed
-  // and fans a fresh distribution (with the group-name secret) to all members.
-  const handleSenderKeyRequest = useCallback(async (groupId: string, requesterId: string) => {
-    const localDeviceId = useMessagingStore.getState().localDeviceId
-    if (!userId || !localDeviceId || !groupId) return
-    try {
-      const membersResult = await fetchGroupMembersRpc(groupId)
-      if (!membersResult.ok) return
-      // Only honor requests from actual group members.
-      if (!membersResult.data.some(m => m.userId === requesterId)) {
-        logger.warn(`Ignoring sender-key-request for ${groupId} from non-member ${requesterId}`)
-        return
-      }
-      const keyEpoch = useMessagingStore.getState().groups[groupId]?.keyEpoch ?? 0
-      await ensureSenderKey(userId, localDeviceId, groupId, membersResult.data, keyEpoch, true)
-      logger.info(`Re-distributed sender key for group ${groupId} on request from ${requesterId}`)
-    } catch (e) {
-      logger.warn('handleSenderKeyRequest failed:', e instanceof Error ? e.message : e)
-    }
-  }, [userId])
-
   // Session-reset recovery, receiver side. A peer device sent us a ratchet
   // packet but we hold no session with it (our half was lost while theirs
   // survived), so everything it sends fails. Reply with a fresh X3DH initial to
@@ -1130,10 +734,20 @@ export function useMessages(): UseMessagesReturn {
             resendOriginIds: [...batch.originIds].slice(0, SESSION_RESET_MAX_RESEND),
             deliveredAt: new Date().toISOString(),
           })
-          const device: PeerDevice = { deviceId: peerDeviceId, deviceLabel: null, lastActiveAt: '' }
-          const fanOutInputs = await encryptForAllDevices(peerId, [device], body, userId)
-          for (const input of fanOutInputs) input.messageType = 'receipt'
-          if (fanOutInputs.length === 0) return
+          // Always a NEW handshake — a session may exist but have diverged
+          // (SessionMismatchError), and re-using it would just fail again. The
+          // superseded session is archived, not dropped.
+          const bundleResult = await fetchPeerBundleForDevice(peerId, peerDeviceId)
+          if (!bundleResult.ok) {
+            sessionResetAtRef.current.delete(key)
+            return
+          }
+          const envelope = await createOutboundSession(peerId, peerDeviceId, rpcResultToBundle(bundleResult.data), body, userId)
+          const fanOutInputs: FanOutMessageInput[] = [{
+            recipientDeviceId: peerDeviceId,
+            payload: envelope as unknown as Record<string, unknown>,
+            messageType: 'receipt',
+          }]
           const sent = await sendMessageFanOut(userId, localDeviceId, peerId, fanOutInputs, undefined, undefined, true)
           if (!sent.ok) {
             sessionResetAtRef.current.delete(key)
@@ -1149,10 +763,10 @@ export function useMessages(): UseMessagesReturn {
     }, SESSION_RESET_BATCH_MS)
   }, [userId])
 
-  // Session-reset recovery, sender side. Decrypting the request already
-  // replaced our stale session with this device; re-send the 1:1 messages it
-  // failed to open, to that device only (the peer's other devices got them),
-  // under their original originIds so receipts and deletes still line up.
+  // Session-reset recovery, sender side (pre-vault-first per-device rows). A
+  // peer device couldn't open 1:1 messages we sent before the vault-first cut;
+  // re-send them to the peer's vault under their original originIds so receipts
+  // and deletes still line up (their other devices dedupe by originId).
   const handleSessionReset = useCallback(async (requesterId: string, requesterDeviceId: string, originIds: string[]) => {
     const localDeviceId = useMessagingStore.getState().localDeviceId
     if (!userId || !localDeviceId || requesterId === userId || originIds.length === 0) return
@@ -1164,7 +778,6 @@ export function useMessages(): UseMessagesReturn {
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
     if (toResend.length === 0) return
 
-    const device: PeerDevice = { deviceId: requesterDeviceId, deviceLabel: null, lastActiveAt: '' }
     for (const m of toResend) {
       try {
         const content: MessageContent = m.content ?? {
@@ -1172,10 +785,8 @@ export function useMessages(): UseMessagesReturn {
           text: m.plaintext,
           ...(m.threadId ? { replyTo: { messageId: m.threadId, preview: m.replyPreview ?? '' } } : {}),
         }
-        const fanOutInputs = await encryptForAllDevices(requesterId, [device], serializeContent(content), userId)
-        if (m.messageType === 'request') for (const input of fanOutInputs) input.messageType = 'request'
-        if (fanOutInputs.length === 0) continue
-        await sendMessageFanOut(userId, localDeviceId, requesterId, fanOutInputs, undefined, m.originId)
+        const type = m.messageType === 'request' ? 'request' : 'message'
+        await sendToUser(userId, localDeviceId, requesterId, serializeContent(content), type, { originId: m.originId })
       } catch (e) {
         logger.warn(`Session-reset re-send of ${m.originId} failed:`, e instanceof Error ? e.message : e)
       }
@@ -1195,8 +806,6 @@ export function useMessages(): UseMessagesReturn {
     isPageVisible,
     onMessage: handleIncomingMessage,
     onDelete: removeMessagesByOriginIds,
-    onSenderKeyMissing: requestSenderKeyRedistribution,
-    onSenderKeyRequest: handleSenderKeyRequest,
     onSessionMissing: requestSessionReset,
     onSessionReset: handleSessionReset,
   })
@@ -1342,19 +951,10 @@ export function useMessages(): UseMessagesReturn {
       const serialized = serializeContent({ type: 'text', text, ...(replyTo && { replyTo }) })
 
       try {
-        const devicesResult = await fetchOwnDevices(userId)
-        const otherDevices = devicesResult.ok
-          ? devicesResult.data.filter(d => d.deviceId !== localDeviceId)
-          : []
-
-        if (otherDevices.length > 0) {
-          const fanOutInputs = await encryptForAllDevices(userId, otherDevices, serialized, userId)
-          if (fanOutInputs.length > 0) {
-            const sendResult = await sendMessageFanOut(userId, localDeviceId, userId, fanOutInputs, undefined, originId)
-            if (!sendResult.ok) {
-              logger.error('Self-note fan-out failed:', sendResult.error)
-            }
-          }
+        // One row to our own vault — our other devices read it from there.
+        const sendResult = await sendToUser(userId, localDeviceId, userId, serialized, 'message', { originId, silent: true })
+        if (!sendResult.ok) {
+          logger.error('Self-note fan-out failed:', sendResult.error)
         }
 
         const confirmedId = crypto.randomUUID()
@@ -1384,12 +984,9 @@ export function useMessages(): UseMessagesReturn {
     }
 
     // System replies bypass the request gate: System initiates contact, the
-    // user can reply freely. Force a fresh X3DH every send by purging any
-    // cached session beforehand — drainSystemInbox does NOT persist receiver
-    // ratchet state across batches, so subsequent ratchet messages from the
-    // same peer would be undecryptable on the system side. Forcing initial
-    // every time keeps decryption reliable at the cost of an extra OTP per
-    // reply.
+    // user can reply freely. Every send is a self-contained X3DH to SYSTEM's
+    // inbox device (vaultSend) — drainSystemInbox does NOT persist receiver
+    // ratchet state across batches.
     if (peerId === SYSTEM_USER_ID) {
       const localId = crypto.randomUUID()
       const originId = crypto.randomUUID()
@@ -1411,7 +1008,6 @@ export function useMessages(): UseMessagesReturn {
 
       store().setSending(SYSTEM_USER_ID, true)
       try {
-        await deleteSessionsForPeer(SYSTEM_USER_ID)
         const serialized = serializeContent(content)
         const result = await encryptAndSendToPeer(
           userId, localDeviceId, SYSTEM_USER_ID, serialized, 'message', undefined, originId,
@@ -1552,14 +1148,7 @@ export function useMessages(): UseMessagesReturn {
       })
       try {
         const serialized = serializeContent(content)
-        const devicesResult = await fetchOwnDevices(userId)
-        const otherDevices = devicesResult.ok ? devicesResult.data.filter(d => d.deviceId !== localDeviceId) : []
-        if (otherDevices.length > 0) {
-          const fanOutInputs = await encryptForAllDevices(userId, otherDevices, serialized, userId)
-          if (fanOutInputs.length > 0) {
-            await sendMessageFanOut(userId, localDeviceId, userId, fanOutInputs, undefined, originId)
-          }
-        }
+        await sendToUser(userId, localDeviceId, userId, serialized, 'message', { originId, silent: true })
         const confirmedId = crypto.randomUUID()
         updateMessageStatus(userId, localId, confirmedId)
         saveMessage({
@@ -1648,14 +1237,7 @@ export function useMessages(): UseMessagesReturn {
       try {
         // Self-chat: fan to own other devices only.
         if (conversationKey === userId) {
-          const devicesResult = await fetchOwnDevices(userId)
-          const otherDevices = devicesResult.ok ? devicesResult.data.filter(d => d.deviceId !== localDeviceId) : []
-          if (otherDevices.length > 0) {
-            const fanOutInputs = await encryptForAllDevices(userId, otherDevices, serialized, userId)
-            if (fanOutInputs.length > 0) {
-              await sendMessageFanOut(userId, localDeviceId, userId, fanOutInputs, undefined, originId)
-            }
-          }
+          await sendToUser(userId, localDeviceId, userId, serialized, 'message', { originId, silent: true })
           return
         }
 
@@ -1731,30 +1313,20 @@ export function useMessages(): UseMessagesReturn {
     store().setSending(peerId, true)
     try {
       const serialized = serializeContent(content)
-      const devicesResult = await fetchPeerDevices(peerId)
-      const peerDevices = devicesResult.ok ? devicesResult.data : []
-      if (peerDevices.length === 0) {
-        removeOptimisticMessage(peerId, localId)
-        return false
-      }
-
+      // One SYSTEM-authored row to the user's vault (vault-first); every one of
+      // their devices reads it. The bundle is read, not consumed.
       let firstServerId: string | null = null
-      for (const device of peerDevices) {
-        const bundleResult = await fetchPeerBundleForDevice(peerId, device.deviceId)
-        if (!bundleResult.ok) {
-          logger.warn(`No bundle for ${peerId}:${device.deviceId}`)
-          continue
+      const bundleResult = await fetchPeerBundlePublic(peerId, VAULT.DEVICE_ID)
+      if (bundleResult.ok) {
+        const enc = await encryptAsSystem(peerId, VAULT.DEVICE_ID, rpcResultToBundle(bundleResult.data), serialized)
+        if (enc.ok) {
+          const sendRes = await sendSystemEnvelopeToDevice(peerId, VAULT.DEVICE_ID, enc.data, undefined, originId)
+          if (sendRes.ok) firstServerId = sendRes.data
+        } else {
+          logger.warn(`encryptAsSystem failed for ${peerId}: ${enc.error}`)
         }
-        const bundle = rpcResultToBundle(bundleResult.data)
-        const enc = await encryptAsSystem(peerId, device.deviceId, bundle, serialized)
-        if (!enc.ok) {
-          logger.warn(`encryptAsSystem failed for ${peerId}:${device.deviceId}: ${enc.error}`)
-          continue
-        }
-        const sendRes = await sendSystemEnvelopeToDevice(
-          peerId, device.deviceId, enc.data, undefined, originId,
-        )
-        if (sendRes.ok && !firstServerId) firstServerId = sendRes.data
+      } else {
+        logger.warn(`No vault bundle for ${peerId}`)
       }
 
       if (!firstServerId) {
@@ -1769,9 +1341,8 @@ export function useMessages(): UseMessagesReturn {
       // dev→user rows above are sealed to the USER (recipient_id=user) and are
       // never drained (drain fetches recipient_id=SYSTEM only), so without this
       // the admin thread only repopulates once the user replies. Mirrors the
-      // System-reply transport: force a fresh X3DH InitialMessage (drain does
-      // not persist receiver ratchet state across batches) and encrypt to
-      // SYSTEM. The wrapper carries forPeerId because the SYSTEM envelope's
+      // System-reply transport: a self-contained X3DH InitialMessage to SYSTEM
+      // (drain does not persist receiver ratchet state across batches). The wrapper carries forPeerId because the SYSTEM envelope's
       // sealed-sender is the dev, not the target user; reusing the SAME originId
       // lets the sending device de-dupe its own optimistic copy on a later
       // drain. Best-effort — the operator message is already delivered.
@@ -1785,7 +1356,6 @@ export function useMessages(): UseMessagesReturn {
           originalTimestamp: now,
         })
         try {
-          await deleteSessionsForPeer(SYSTEM_USER_ID)
           await encryptAndSendToPeer(userId, localDeviceId, SYSTEM_USER_ID, sentCopy, 'message', undefined, originId)
         } catch (e) {
           logger.warn('Failed to author system sent-copy:', e instanceof Error ? e.message : e)
@@ -1806,8 +1376,7 @@ export function useMessages(): UseMessagesReturn {
    * Send a system-authored notice into the clinic-scoped system group. Resolves
    * or creates the group via `get_or_create_clinic_system_group`, registers the
    * group id in `systemGroupIds` so it's suppressed from unread totals, and
-   * fans out to every current member via the 1:1 Double-Ratchet path with
-   * `messageType='system'`. (v1 membership is dev-only, so this is effectively
+   * sends one row to every current member's vault with `messageType='system'`. (v1 membership is dev-only, so this is effectively
    * a fan-out to the dev's own devices.)
    */
   const sendSystemMessageToClinic = useCallback(async (clinicId: string, text: string): Promise<boolean> => {
@@ -1856,23 +1425,12 @@ export function useMessages(): UseMessagesReturn {
         return false
       }
 
+      // One row per member's vault — including our own, which our other devices
+      // read (this device skips its own rows).
       let firstServerId: string | null = null
       for (const member of membersResult.data) {
-        const devicesResult = member.userId === userId
-          ? await fetchOwnDevices(userId)
-          : await fetchPeerDevices(member.userId)
-        const devices = devicesResult.ok ? devicesResult.data : []
-        const targetDevices = member.userId === userId
-          ? devices.filter(d => d.deviceId !== localDeviceId)
-          : devices
-        if (targetDevices.length === 0) continue
-
-        const fanOutInputs = await encryptForAllDevices(member.userId, targetDevices, serialized, userId)
-        if (fanOutInputs.length === 0) continue
-        for (const input of fanOutInputs) input.messageType = 'system'
-
-        const sendResult = await sendMessageFanOut(userId, localDeviceId, member.userId, fanOutInputs, groupId, originId)
-        if (sendResult.ok && !firstServerId) firstServerId = sendResult.data[0]
+        const sendResult = await sendToUser(userId, localDeviceId, member.userId, serialized, 'system', { groupId, originId })
+        if (sendResult.ok && !firstServerId) firstServerId = sendResult.data
       }
 
       const confirmedId = firstServerId ?? crypto.randomUUID()
@@ -1948,19 +1506,10 @@ export function useMessages(): UseMessagesReturn {
         store().updateMessageContent(userId, localId, imageContent)
 
         const serialized = serializeContent(imageContent)
-        const devicesResult = await fetchOwnDevices(userId)
-        const otherDevices = devicesResult.ok
-          ? devicesResult.data.filter(d => d.deviceId !== localDeviceId)
-          : []
-
-        if (otherDevices.length > 0) {
-          const fanOutInputs = await encryptForAllDevices(userId, otherDevices, serialized, userId)
-          if (fanOutInputs.length > 0) {
-            const sendResult = await sendMessageFanOut(userId, localDeviceId, userId, fanOutInputs, undefined, originId)
-            if (!sendResult.ok) {
-              logger.error('Self-note image fan-out failed:', sendResult.error)
-            }
-          }
+        // One row to our own vault — our other devices read it from there.
+        const sendResult = await sendToUser(userId, localDeviceId, userId, serialized, 'message', { originId, silent: true })
+        if (!sendResult.ok) {
+          logger.error('Self-note image fan-out failed:', sendResult.error)
         }
 
         const confirmedId = crypto.randomUUID()
@@ -2114,19 +1663,10 @@ export function useMessages(): UseMessagesReturn {
         store().updateMessageContent(userId, localId, voiceContent)
 
         const serialized = serializeContent(voiceContent)
-        const devicesResult = await fetchOwnDevices(userId)
-        const otherDevices = devicesResult.ok
-          ? devicesResult.data.filter(d => d.deviceId !== localDeviceId)
-          : []
-
-        if (otherDevices.length > 0) {
-          const fanOutInputs = await encryptForAllDevices(userId, otherDevices, serialized, userId)
-          if (fanOutInputs.length > 0) {
-            const sendResult = await sendMessageFanOut(userId, localDeviceId, userId, fanOutInputs, undefined, originId)
-            if (!sendResult.ok) {
-              logger.error('Self-note voice fan-out failed:', sendResult.error)
-            }
-          }
+        // One row to our own vault — our other devices read it from there.
+        const sendResult = await sendToUser(userId, localDeviceId, userId, serialized, 'message', { originId, silent: true })
+        if (!sendResult.ok) {
+          logger.error('Self-note voice fan-out failed:', sendResult.error)
         }
 
         const confirmedId = crypto.randomUUID()
@@ -2287,57 +1827,13 @@ export function useMessages(): UseMessagesReturn {
     try {
       const serialized = serializeContent({ type: 'text', text: '' })
       const originId = crypto.randomUUID()
-      const devicesResult = await fetchPeerDevices(peerId)
-      const peerDevices = devicesResult.ok ? devicesResult.data : []
-
-      let messageId: string
-
-      if (peerDevices.length > 0) {
-        const fanOutInputs = await encryptForAllDevices(peerId, peerDevices, serialized, userId)
-        for (const input of fanOutInputs) {
-          input.messageType = 'request-accepted'
-        }
-
-        if (fanOutInputs.length === 0) {
-          logger.error('Could not encrypt request-accepted for any peer device')
-          return
-        }
-
-        const sendResult = await sendMessageFanOut(userId, localDeviceId, peerId, fanOutInputs, undefined, originId)
-        if (!sendResult.ok) {
-          logger.error('Failed to send request-accepted fan-out:', sendResult.error)
-          return
-        }
-
-        messageId = sendResult.data[0] ?? crypto.randomUUID()
-      } else {
-        const sessionExists = await hasSession(peerId, 'unknown')
-
-        if (sessionExists) {
-          const encrypted = await encryptMessage(peerId, 'unknown', serialized, userId)
-          const sendResult = await sendSignalMessage(userId, peerId, encrypted, 'request-accepted', localDeviceId, undefined, undefined, originId)
-          if (!sendResult.ok) {
-            logger.error('Failed to send request-accepted:', sendResult.error)
-            return
-          }
-          messageId = sendResult.data
-        } else {
-          const bundleResult = await fetchPeerBundle(peerId)
-          if (!bundleResult.ok) {
-            logger.error('Failed to fetch peer bundle for request-accepted:', bundleResult.error)
-            return
-          }
-          const bundle = rpcResultToBundle(bundleResult.data)
-          const peerDeviceId = bundle.deviceId || 'unknown'
-          const sealedEnvelope = await createOutboundSession(peerId, peerDeviceId, bundle, serialized, userId)
-          const sendResult = await sendSignalMessage(userId, peerId, sealedEnvelope, 'request-accepted', localDeviceId, peerDeviceId, undefined, originId)
-          if (!sendResult.ok) {
-            logger.error('Failed to send request-accepted:', sendResult.error)
-            return
-          }
-          messageId = sendResult.data
-        }
+      const sendResult = await sendToUser(userId, localDeviceId, peerId, serialized, 'request-accepted', { originId })
+      if (!sendResult.ok) {
+        logger.error('Failed to send request-accepted:', sendResult.error)
+        return
       }
+
+      const messageId = sendResult.data
 
       addMessage({
         id: messageId,
@@ -2468,81 +1964,35 @@ export function useMessages(): UseMessagesReturn {
         }
 
         for (const memberUserId of memberIds) {
-          const devicesResult = await fetchPeerDevices(memberUserId)
-          if (!devicesResult.ok || devicesResult.data.length === 0) continue
-          const fanOutInputs = await encryptForAllDevices(memberUserId, devicesResult.data, deletePayload, userId)
-          for (const input of fanOutInputs) {
-            input.messageType = 'delete'
-          }
-          if (fanOutInputs.length > 0) {
-            await sendMessageFanOut(userId, localDeviceId, memberUserId, fanOutInputs, undefined, deleteOriginId).catch(e =>
-              logger.warn(`Failed to send cluster delete to ${memberUserId}:`, e instanceof Error ? e.message : e)
-            )
-          }
+          const sent = await sendToUser(userId, localDeviceId, memberUserId, deletePayload, 'delete', { originId: deleteOriginId, silent: true })
+          if (!sent.ok) logger.warn(`Failed to send cluster delete to ${memberUserId}:`, sent.error)
         }
       } else if (isGroup) {
-        // Group delete: peerId is a groupId, which owns no user_devices rows, so
-        // the 1:1 fan-out below (fetchPeerDevices(groupId)) reaches nobody and the
-        // other members never learn the message was deleted. Fan the 'delete'
-        // envelope pairwise to every OTHER member's devices instead (own devices
-        // are covered by the own-device sync block below). messageType='delete'
-        // routes through the recipient's existing delete branch
-        // (processIncomingMessage → deleteMessagesByOriginId); it deliberately
-        // does NOT use the sender-key channel, where it would decrypt as a normal
-        // 'message' and render the {originIds} JSON as a chat bubble.
+        // Group delete: peerId is a groupId, not a user — send the 'delete' to
+        // every OTHER member's vault (own devices are covered by the own-vault
+        // sync below). messageType='delete' routes through the recipient's
+        // delete branch (deleteMessagesByOriginId), never rendered as a bubble.
         const membersResult = await fetchGroupMembersRpc(peerId)
         if (membersResult.ok) {
           for (const member of membersResult.data) {
             if (member.userId === userId) continue
-            const devicesResult = await fetchPeerDevices(member.userId)
-            if (!devicesResult.ok || devicesResult.data.length === 0) continue
-            const fanOutInputs = await encryptForAllDevices(member.userId, devicesResult.data, deletePayload, userId)
-            for (const input of fanOutInputs) {
-              input.messageType = 'delete'
-            }
-            if (fanOutInputs.length > 0) {
-              await sendMessageFanOut(userId, localDeviceId, member.userId, fanOutInputs, peerId, deleteOriginId).catch(e =>
-                logger.warn(`Failed to send group delete to ${member.userId}:`, e instanceof Error ? e.message : e)
-              )
-            }
+            const sent = await sendToUser(userId, localDeviceId, member.userId, deletePayload, 'delete', { groupId: peerId, originId: deleteOriginId, silent: true })
+            if (!sent.ok) logger.warn(`Failed to send group delete to ${member.userId}:`, sent.error)
           }
         }
       } else {
         // 1:1 peer delete. (SYSTEM-bucketed cards are handled by the isSystemCard
         // branch above, so peerId is always a real user here.)
-        const devicesResult = await fetchPeerDevices(peerId)
-        if (devicesResult.ok && devicesResult.data.length > 0) {
-          const fanOutInputs = await encryptForAllDevices(peerId, devicesResult.data, deletePayload, userId)
-          for (const input of fanOutInputs) {
-            input.messageType = 'delete'
-          }
-          if (fanOutInputs.length > 0) {
-            await sendMessageFanOut(userId, localDeviceId, peerId, fanOutInputs, undefined, deleteOriginId).catch(e =>
-              logger.warn('Failed to send delete to peer devices:', e instanceof Error ? e.message : e)
-            )
-          }
-        }
+        const sent = await sendToUser(userId, localDeviceId, peerId, deletePayload, 'delete', { originId: deleteOriginId, silent: true })
+        if (!sent.ok) logger.warn('Failed to send delete to peer:', sent.error)
       }
     } catch (e) {
       logger.warn('Failed to send delete to peer:', e instanceof Error ? e.message : e)
     }
 
     try {
-      const ownDevicesResult = await fetchOwnDevices(userId)
-      if (ownDevicesResult.ok) {
-        const otherDevices = ownDevicesResult.data.filter(d => d.deviceId !== localDeviceId)
-        if (otherDevices.length > 0) {
-          const syncInputs = await encryptForAllDevices(userId, otherDevices, deletePayload, userId)
-          for (const input of syncInputs) {
-            input.messageType = 'delete'
-          }
-          if (syncInputs.length > 0) {
-            await sendMessageFanOut(userId, localDeviceId, userId, syncInputs, undefined, deleteOriginId).catch(e =>
-              logger.warn('Failed to sync delete to own devices:', e instanceof Error ? e.message : e)
-            )
-          }
-        }
-      }
+      const synced = await sendToUser(userId, localDeviceId, userId, deletePayload, 'delete', { originId: deleteOriginId, silent: true })
+      if (!synced.ok) logger.warn('Failed to sync delete to own devices:', synced.error)
     } catch (e) {
       logger.warn('Failed to sync delete to own devices:', e instanceof Error ? e.message : e)
     }
@@ -2924,10 +2374,9 @@ export function useMessages(): UseMessagesReturn {
     }
     await refreshGroups()
     // Announce the group as a real message. Beyond being the expected UX, this
-    // is what carries the per-group name secret to every member: the group send
-    // path runs ensureSenderKey, which piggybacks the secret on the sender-key
-    // distribution. Without a first send, members hold no secret and render the
-    // encrypted name. Best-effort — a failed announcement must not fail create.
+    // is what carries the per-group name secret to every member: every group row
+    // carries it (wrapGroupPayload). Without a first send, members hold no
+    // secret and render the encrypted name. Best-effort — a failed announcement must not fail create.
     await sendGroupMessage(result.data.groupId, GROUP_ANNOUNCE.created).catch(e =>
       logger.warn('Group-created announcement failed:', e instanceof Error ? e.message : e)
     )
@@ -2991,9 +2440,9 @@ export function useMessages(): UseMessagesReturn {
     // Rotate the group-name secret to the new epoch so the removed member can no
     // longer decrypt future name changes. Best-effort and single-authored (only
     // the remover mints it, avoiding divergence): requires that we currently hold
-    // the old secret and the current name decrypted cleanly. Message-content
-    // forward secrecy is independent — each remaining member rotates its own
-    // sender key lazily on next send via ensureSenderKey.
+    // the old secret and the current name decrypted cleanly. Message content
+    // needs no rotation: each group row is its own X3DH to a member's vault, so
+    // the removed member simply stops being a recipient.
     try {
       const g = useMessagingStore.getState().groups[groupId]
       const oldMeta = await getGroupSecretMeta(groupId)
@@ -3012,8 +2461,8 @@ export function useMessages(): UseMessagesReturn {
       logger.warn('Group-name secret rotation skipped:', e instanceof Error ? e.message : e)
     }
 
-    // Announce AFTER the rotation so this send distributes the NEW secret to the
-    // remaining members (ensureSenderKey reads it from IDB at send time).
+    // Announce AFTER the rotation so this send carries the NEW secret to the
+    // remaining members (wrapGroupPayload reads it from IDB at send time).
     await sendGroupMessage(groupId, GROUP_ANNOUNCE.memberRemoved).catch(e =>
       logger.warn('Member-removed announcement failed:', e instanceof Error ? e.message : e)
     )

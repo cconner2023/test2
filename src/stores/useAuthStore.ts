@@ -35,7 +35,8 @@ import { clearAllPendingPropertySends } from '../lib/propertyEventStore'
 import { useCalendarStore } from './useCalendarStore'
 import { invalidate } from './useInvalidationStore'
 import { clearBackupKey, createBackup, scheduleBackup, restoreBackup } from '../lib/signal/backupService'
-import { processVaultMessages, ackVaultDrain, clearVaultKey, isVaultKeyCached, hasPendingVaultMessages } from '../lib/signal/vaultDevice'
+import { clearVaultKey } from '../lib/signal/vaultDevice'
+import { resetVaultCursor } from '../lib/signal/vaultCursor'
 import { clearSystemIdentity } from '../lib/signal/systemIdentity'
 import { deriveAndCacheClinicVaultKey, ensureClinicVaultExists, processClinicVaultMessages, clearClinicVaultKey } from '../lib/signal/clinicVaultDevice'
 import { unsubscribeFromPush, resyncPushSubscription } from '../lib/pushNotificationService'
@@ -670,6 +671,7 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
 
     // Clear vault wrapping key
     clearVaultKey()
+    resetVaultCursor()
     clearClinicVaultKey()
     clearSystemIdentity()
     // Clear clinic device in-memory cache (IDB destruction handled below per device role)
@@ -837,20 +839,8 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
           set({ localSession: ls })
           persistLocalSession(ls)
 
-          // Process vault messages (deferred messages from offline period).
-          // Two-phase drain: processVaultMessages decrypts + saves to IDB and
-          // STASHES the mark-read + OTP replenishment for ackVaultDrain to run
-          // only after createBackup confirms the messages are in signal_backups.
-          // The actual chain (restore → createBackup → ackVaultDrain) is wired
-          // below alongside restoreBackup so the ack depends on a confirmed
-          // post-restore upload, not the gate-deferred no-op this used to be.
-          // Until ackVaultDrain runs the drain is idempotent: messages stay
-          // unread server-side and OTP private keys stay in the blob, so a
-          // logout / iOS PWA eviction between drain and backup just re-drains
-          // on next login instead of permanently losing the messages.
-          const drainP = processVaultMessages(userId).catch(err => {
-            console.warn('vault drain failed:', err); return 0
-          })
+          // Personal vault inbox: no login drain. Every device reads its vault
+          // tail from its own cursor (useSignalMessages), restore-first.
 
           // Initialize clinic vault devices (clinic persona — parallel to personal vault).
           // Iterates assigned + surrogate so a loaned medic sees both clinics overlaid.
@@ -908,31 +898,10 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
           // Initialize LoRa mesh subsystem (lazy — no-ops if flag is off)
           initLoRaMesh(userId).catch(() => {})
 
-          // Server-side encrypted backup: restore first. If the vault drain
-          // (kicked off above as drainP) produced messages, explicitly upload
-          // a backup that contains them and only THEN ack the drain so they
-          // get marked read + OTPs replenished. If the upload fails the ack
-          // is skipped — next login will re-drain the same messages and try
-          // again. After all that, schedule the ongoing periodic backups.
+          // Server-side encrypted backup: restore first — the vault inbox waits
+          // on it to seed a new device's cursor from the snapshot watermark.
           // All device roles restore so conversations survive logout/re-login.
           restoreBackup(userId)
-            .then(async () => {
-              const drainCount = await drainP
-              if (drainCount > 0) {
-                const uploaded = await createBackup(userId)
-                if (uploaded) await ackVaultDrain()
-              } else if (!isVaultKeyCached()) {
-                // The drain bailed because the wrapping key wasn't cached — a
-                // live-session resume (e.g. post-SW-update reload) that never ran
-                // the password sign-in path and had no persisted key to restore.
-                // If messages are actually waiting, surface the blocking vault
-                // re-auth gate (LockGate → PasswordLockScreen reason="vault") to
-                // re-enter the password and drain without a full re-login.
-                if (await hasPendingVaultMessages(userId)) {
-                  set({ vaultKeyPromptNeeded: true })
-                }
-              }
-            })
             .catch(() => {})
             .finally(() => scheduleBackup(userId))
         }

@@ -126,7 +126,6 @@ export {
 
   // Key bundles
   uploadKeyBundle,
-  fetchPeerBundle,
   fetchPeerBundleForDevice,
 
   // Messaging

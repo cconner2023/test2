@@ -1,20 +1,23 @@
 /**
- * Vault Device — E2EE messaging bridge for offline recipients.
+ * Vault Device — the user's personal inbox (vault-first messaging).
  *
- * The vault is a permanent virtual Signal device whose public key bundle
- * is always available in `signal_key_bundles`. Senders encrypt to it via
- * existing multi-device fan-out (zero changes to sending path). Private
- * keys are wrapped with a password-derived AES-256-GCM key and stored
- * opaque in `vault_device_keys`.
+ * The vault is a permanent virtual Signal device whose public key bundle is
+ * always available in `signal_key_bundles`. Every personal message is ONE row
+ * addressed to the recipient user's vault (vaultSend.ts) — a self-contained
+ * X3DH to the vault's signed pre-key. Private keys are wrapped with a
+ * password-derived AES-256-GCM key and stored opaque in `vault_device_keys`;
+ * every device of the user recovers them (getVaultDecryptKeys) and reads the
+ * vault tail from its own cursor (vaultCursor.ts, useSignalMessages).
  *
- * When a real device logs in it recovers the vault keys, batch-decrypts
- * pending messages, and continues normally.
+ * The vault is a STABLE entity: it is never rotated on logout or device
+ * removal (device revocation is auth/RLS — a signed-out device cannot read
+ * rows). Only a password reset re-provisions it.
  *
  * Security notes:
- * - Vault messages have weaker forward secrecy than real-device messages
- *   (the vault never sends replies, so the DH ratchet never advances).
- * - The vault signed pre-key is rotated on drain, but at most once per
- *   VAULT_SPK_ROTATION_INTERVAL_MS (periodic hygiene, not every call).
+ * - Forward secrecy is bounded by signed pre-key retention (no ratchet, no
+ *   one-time pre-keys): the SPK rotates at most once per
+ *   VAULT_SPK_ROTATION_INTERVAL_MS and the previous VAULT_PREVIOUS_SPK_RETENTION
+ *   are kept so unreaped rows stay openable.
  * - PBKDF2 with 600K iterations (Web Crypto — no native Argon2).
  */
 
@@ -25,27 +28,19 @@ import { supabase } from '../supabase'
 import { dbName } from '../idbEnv'
 import { SIGNAL } from '../constants'
 import { ok, err, type Result } from '../result'
-import { unseal } from './sealedSender'
-import { x3dhRespond } from './x3dh'
-import { initReceiver, ratchetDecrypt } from './ratchet'
-import { importDhPublicKey } from './keyManager'
 import { uploadKeyBundle, registerDevice } from './signalService'
-import { saveMessage, deleteMessagesByOriginId, getTombstone } from './messageStore'
-import { useMessagingStore } from '../../stores/useMessagingStore'
-import { isCalendarEvent, routeCalendarEvent, initCalendarTombstones } from '../calendarRouting'
-import { isMapOverlay, isMapFeature, routeMapOverlay, routeMapFeature, initOverlayTombstones } from '../mapOverlayRouting'
-import { routeOutsideEntityReply } from '../outsideEntityRouting'
-import type { CalendarEventContent, MapOverlayContent, MapFeatureContent } from './messageContent'
-import { parseMessageContent } from './messageContent'
-import type { PublicKeyBundle, InitialMessage, EncryptedMessage, RatchetState, RatchetKeyPair } from './types'
-import type { DecryptedSignalMessage, SignalMessageRow, SyncMessagePayload } from './transportTypes'
-import type { SealedEnvelope } from './sealedSender'
+import type { PublicKeyBundle } from './types'
+import type { VaultDecryptKeys } from './session'
 
 const logger = createLogger('VaultDevice')
 
 // ---- Constants ----
 
 export const VAULT_DEVICE_ID = 'vault'
+
+/** Fired on window when the vault wrapping key becomes available on this device;
+ *  the vault-first receive path re-runs its catch-up on it. */
+export const VAULT_UNLOCKED_EVENT = 'vault-unlocked'
 const VAULT_KDF_ITERATIONS = 600_000
 const VAULT_PREKEY_BATCH_SIZE = 500
 /** Cap on retained previous signed pre-keys. The previous N keep in-flight
@@ -150,7 +145,7 @@ let cachedVaultKey: CryptoKey | null = null
 let _cachedVaultDh: { userId: string; dhPrivateKey: CryptoKey; dhPublicKeyBase64: string } | null = null
 
 /** Promise that resolves when the vault wrapping key derivation completes.
- *  processVaultMessages awaits this so it doesn't race with the PBKDF2
+ *  getVaultDecryptKeys awaits this so it doesn't race with the PBKDF2
  *  derivation that runs fire-and-forget from signIn().
  *  Mirrors _backupKeyReady in backupService.ts. */
 let _vaultKeyReady: Promise<void> | null = null
@@ -274,10 +269,10 @@ async function restoreVaultKeyFromIdb(
 // ---- Vault row (encrypted blob) cache — egress reduction ----
 //
 // The vault row's encrypted_blob is a fixed ~350 KB: it carries the full
-// one-time pre-key batch (VAULT_PREKEY_BATCH_SIZE JWK keypairs). processVaultMessages
-// runs on EVERY login AND every PWA session resume (SIGNED_IN + INITIAL_SESSION
-// both drain — useAuthStore), so re-downloading that blob each time dominated DB
-// egress even when nothing was waiting to drain.
+// one-time pre-key batch (VAULT_PREKEY_BATCH_SIZE JWK keypairs). Every device
+// loads it (getVaultDecryptKeys) on EVERY session start and PWA resume to open
+// its vault inbox, so re-downloading that blob each time would dominate DB
+// egress even when nothing is waiting.
 //
 // Every writer of encrypted_blob (provision, SPK rotation, OTP replenish, password
 // re-encrypt) bumps `version`, so version is a COMPLETE cache key — a version match
@@ -384,18 +379,6 @@ async function fetchVaultRow(userId: string): Promise<VaultDeviceKeysRow | null>
     .catch(() => logger.warn('Failed to cache vault row to IDB'))
   return row as VaultDeviceKeysRow
 }
-
-// ---- Pending drain ack (two-phase drain) ----
-
-/** Held between the drain (Phase 1) and the post-backup ack (Phase 2).
- *  See processVaultMessages header. Module-scope so callers don't have to
- *  thread state through the auth chain. Cleared on sign-out + on ack. */
-interface PendingVaultAck {
-  userId: string
-  processedIds: string[]
-  consumedOtpIds: number[]
-}
-let _pendingVaultAck: PendingVaultAck | null = null
 
 // ---- PBKDF2 Key Derivation ----
 
@@ -671,11 +654,12 @@ export async function deriveAndCacheVaultKey(
   void persistVaultKeyToIdb({ key: cachedVaultKey, userId, salt: saltHex, iterations: iters })
     .catch(() => logger.warn('Failed to persist vault key to IDB'))
   logger.info('Vault wrapping key cached')
+  window.dispatchEvent(new Event(VAULT_UNLOCKED_EVENT))
 }
 
 /**
  * True when the password-derived wrapping key is held in memory. When false,
- * processVaultMessages bails (warn + return 0) without decrypting anything — the
+ * getVaultDecryptKeys throws VaultLockedError without decrypting anything — the
  * caller can use this to distinguish a "no key" bail from a "no messages" drain
  * and offer a non-blocking re-enter-password prompt.
  */
@@ -683,42 +667,12 @@ export function isVaultKeyCached(): boolean {
   return cachedVaultKey !== null
 }
 
-/**
- * Cheap existence check for undrained vault messages — used to decide whether a
- * key-not-cached bail is worth surfacing a re-auth prompt for (don't nag when
- * nothing is actually waiting). Mirrors processVaultMessages' unread filter
- * (recipient + vault device + read_at null, minus per-recipient read rows).
- */
-export async function hasPendingVaultMessages(userId: string): Promise<boolean> {
-  const { data: readRows } = await supabase
-    .from('signal_message_reads')
-    .select('message_id')
-    .eq('recipient_id', userId)
-  const readIds = (readRows ?? []).map(r => r.message_id)
-
-  let q = supabase
-    .from('signal_messages')
-    .select('id')
-    .eq('recipient_id', userId)
-    .eq('recipient_device_id', VAULT_DEVICE_ID)
-    .is('read_at', null)
-    .limit(1)
-  if (readIds.length > 0) {
-    q = q.not('id', 'in', `(${readIds.join(',')})`)
-  }
-  const { data } = await q
-  return (data?.length ?? 0) > 0
-}
-
 /** Clear cached vault key (called on sign-out). */
 export function clearVaultKey(): void {
   cachedVaultKey = null
   _cachedVaultDh = null
   _vaultKeyReady = null
-  // Drop any stashed drain ack — it belongs to the prior session and would
-  // otherwise mark-read / replenish under the wrong identity if a different
-  // user signs in next.
-  _pendingVaultAck = null
+  _cachedDecryptKeys = null
   // Wipe the persisted key so the next user on this device can't load it. The
   // userId tag on the record is a second guard if this fire-and-forget races.
   void clearVaultKeyFromIdb().catch(() => {})
@@ -858,533 +812,88 @@ export async function getVaultIdentityDh(
   return { dhPrivateKey: keys.dhPrivateKey, dhPublicKeyBase64: keys.dhPublicKeyBase64 }
 }
 
-// ---- Vault Message Processing ----
+// ---- Vault Inbox Keys ----
+
+/** Vault keys for the vault-first inbox, cached per user + vault row version. */
+let _cachedDecryptKeys: { userId: string; version: number; keys: VaultPrivateKeys } | null = null
 
 /**
- * Fetch and decrypt all pending vault messages for this user.
- * Saves decrypted messages to local messageStore.
- * Returns the count of processed messages.
+ * Thrown when a vault row can't be opened because the password-derived wrapping
+ * key isn't available on this device (live-session resume without the password).
+ * The receive path stops at that row and surfaces the vault re-auth prompt.
  */
-export async function processVaultMessages(userId: string): Promise<number> {
-  // 0. Ensure tombstones are loaded before replaying any messages
-  await initCalendarTombstones()
-  await initOverlayTombstones()
+export class VaultLockedError extends Error {
+  constructor() {
+    super('Vault wrapping key not available on this device')
+    this.name = 'VaultLockedError'
+  }
+}
 
-  // 1. Fetch vault_device_keys row. The ~350 KB encrypted_blob is served from an
-  //    IDB cache when its version is unchanged, so repeat drains/PWA resumes cost
-  //    only a single-int version probe instead of re-downloading the blob.
+/**
+ * Private keys of the user's vault, ready to open vault rows. Vault-first: every
+ * personal message is one row addressed to the recipient's vault and EVERY
+ * device of the user opens it with these keys (replaces the login-time drain).
+ *
+ * Returns null when the user has no vault. Throws VaultLockedError when the
+ * wrapping key can't be restored. A definitive AES-GCM auth failure on the blob
+ * means the password was reset: the vault is wiped for re-provision (same rule
+ * the drain applied) and null is returned.
+ *
+ * Also runs the periodic signed pre-key rotation (no-op while the SPK is fresh).
+ */
+export async function getVaultDecryptKeys(userId: string): Promise<VaultDecryptKeys | null> {
   const vaultRow = await fetchVaultRow(userId)
+  if (!vaultRow) return null
 
-  if (!vaultRow) {
-    logger.info('No vault found — skipping vault message processing')
-    return 0
+  if (
+    _cachedDecryptKeys &&
+    _cachedDecryptKeys.userId === userId &&
+    _cachedDecryptKeys.version === vaultRow.version
+  ) {
+    return toDecryptKeys(_cachedDecryptKeys.keys)
   }
 
   // Wait for the vault key derivation that runs fire-and-forget from signIn()
   try { if (_vaultKeyReady) await _vaultKeyReady } catch { /* fall through */ }
 
-  // Live-session resume (e.g. PWA cold start with a valid token) never runs the
-  // password sign-in path, so the key was never re-derived. Restore it from IDB,
-  // gated on a salt+iterations match so a stale key is discarded, not used.
+  // Live-session resume never runs the password sign-in path; restore the key
+  // from IDB, gated on a salt+iterations match so a stale key is discarded.
   if (!cachedVaultKey) {
-    const row = vaultRow as VaultDeviceKeysRow
-    await restoreVaultKeyFromIdb(userId, row.salt, row.kdf_iterations)
+    await restoreVaultKeyFromIdb(userId, vaultRow.salt, vaultRow.kdf_iterations)
   }
+  if (!cachedVaultKey) throw new VaultLockedError()
 
-  if (!cachedVaultKey) {
-    logger.warn('Vault wrapping key not cached — cannot process vault messages')
-    return 0
-  }
-
-  // 2. Recover vault keys.
-  // Only wipe + re-provision on a definitive AES-GCM auth-tag failure
-  // (DOMException name 'OperationError'), which is the unambiguous
-  // "wrong wrapping key" signal — i.e. password reset. Any other throw
-  // (network, blob parse, transient Web Crypto blip) is treated as
-  // transient: we abort the drain and leave the vault intact, so senders
-  // fanning out to the cached bundle don't lose messages to a fresh
-  // identity racing the next login.
   let vaultKeys: VaultPrivateKeys
   try {
-    vaultKeys = await recoverVaultKeys(vaultRow as VaultDeviceKeysRow)
+    vaultKeys = await recoverVaultKeys(vaultRow)
   } catch (e) {
     const isAuthTagFailure = e instanceof DOMException && e.name === 'OperationError'
-    if (!isAuthTagFailure) {
-      logger.warn('Vault key recovery failed (transient) — leaving vault intact:', e)
-      return 0
-    }
+    if (!isAuthTagFailure) throw e
     logger.error('Vault AES-GCM auth failure — password changed; wiping vault for re-provision:', e)
     await supabase.from('vault_device_keys').delete().eq('user_id', userId)
     await supabase.from('signal_key_bundles').delete()
       .eq('user_id', userId).eq('device_id', VAULT_DEVICE_ID)
     await supabase.from('user_devices').delete()
       .eq('user_id', userId).eq('device_id', VAULT_DEVICE_ID)
-    // Invalidate the cached blob — it belongs to the now-wiped identity and must
-    // not be served to the re-provisioned vault that replaces it.
     void clearVaultRowFromIdb().catch(() => {})
-    return 0
+    _cachedDecryptKeys = null
+    return null
   }
 
-  // 3. Fetch unread vault messages.
-  // Per-recipient read state lives in signal_message_reads; legacy read_at
-  // is kept as a silent-fail "already read" fallback for pre-migration rows
-  // (see 20260514_signal_message_reads).
-  const { data: readRows } = await supabase
-    .from('signal_message_reads')
-    .select('message_id')
-    .eq('recipient_id', userId)
-  const readIds = (readRows ?? []).map(r => r.message_id)
+  _cachedDecryptKeys = { userId, version: vaultRow.version, keys: vaultKeys }
 
-  let vaultQuery = supabase
-    .from('signal_messages')
-    .select('*')
-    .eq('recipient_id', userId)
-    .eq('recipient_device_id', VAULT_DEVICE_ID)
-    .is('read_at', null)
-    .order('created_at', { ascending: true })
+  // Rotation bumps the row version; the next call re-recovers the new blob.
+  void rotateVaultSignedPreKey(userId, vaultKeys, vaultRow).catch(() => {})
 
-  if (readIds.length > 0) {
-    vaultQuery = vaultQuery.not('id', 'in', `(${readIds.join(',')})`)
-  }
-
-  const { data: rows, error: fetchError } = await vaultQuery
-
-  if (fetchError || !rows || rows.length === 0) {
-    if (fetchError) logger.warn('Failed to fetch vault messages:', fetchError)
-    else logger.info('No pending vault messages')
-
-    // Still rotate SPK even if no messages (staleness mitigation)
-    await rotateVaultSignedPreKey(userId, vaultKeys, vaultRow as VaultDeviceKeysRow)
-    return 0
-  }
-
-  logger.info(`Processing ${rows.length} vault messages`)
-
-  // 4. Build ephemeral session map for batch processing
-  const sessionMap = new Map<string, { state: RatchetState; ad: Uint8Array }>()
-  const processedIds: string[] = []
-  let processedCount = 0
-
-  // Track consumed OTP key IDs so we don't reuse them
-  const consumedOtpIds = new Set<number>()
-
-  // Collect calendar event routes for delete-aware dispatch after the main loop.
-  // This prevents an earlier create/update from resurrecting an event that is
-  // deleted by a later message in the same vault batch.
-  const calendarRoutes: CalendarEventContent[] = []
-  const overlayRoutes: MapOverlayContent[] = []
-  const featureRoutes: MapFeatureContent[] = []
-
-  // 5. Process each message in order
-  for (const row of rows as SignalMessageRow[]) {
-    try {
-      const envelope = row.payload as unknown as SealedEnvelope
-      const senderDeviceId = row.sender_device_id ?? 'unknown'
-
-      // Unseal with vault's DH keys and skipExpiry
-      const { inner, senderUuid } = await unseal(
-        envelope,
-        userId,
-        vaultKeys.dhPrivateKey,
-        vaultKeys.dhPublicKeyBase64,
-        { skipExpiry: true }
-      )
-
-      let plaintext: string
-
-      const sessionKey = `${senderUuid}:${senderDeviceId}`
-
-      if ('identitySigningKey' in inner) {
-        // X3DH initial message
-        const initial = inner as unknown as InitialMessage
-
-        // Look up the SPK referenced by the InitialMessage. Senders may have
-        // fetched the bundle before the most recent vault drain rotated SPK,
-        // so fall back through previousSignedPreKeys before giving up.
-        const matchedSpk = vaultKeys.signedPreKey.keyId === initial.signedPreKeyId
-          ? vaultKeys.signedPreKey
-          : vaultKeys.previousSignedPreKeys.find(s => s.keyId === initial.signedPreKeyId)
-        if (!matchedSpk) {
-          // The referenced signed pre-key has rotated OUT of the vault blob
-          // (previousSignedPreKeys is bounded; SPKs are only ever removed,
-          // never re-added), so this row can NEVER decrypt on any future drain.
-          // Consume it — same dead-row treatment as the OperationError branch in
-          // the per-row catch below — so it stops re-warning on every login.
-          // processedCount++ ensures a drain made up ENTIRELY of these rows still
-          // trips the caller's `drainCount > 0` gate → createBackup → ackVaultDrain.
-          // Content (if any) is recoverable from backup-service history.
-          logger.warn(`Vault SPK ${initial.signedPreKeyId} not found (current or previous) — consuming row ${row.id}`)
-          processedIds.push(row.id)
-          processedCount++
-          continue
-        }
-        const spkPair = {
-          publicKey: matchedSpk.publicKey,
-          privateKey: matchedSpk.privateKey,
-        }
-
-        // Find and consume one-time pre-key
-        let otpkPair: { publicKey: CryptoKey; privateKey: CryptoKey } | null = null
-        if (initial.oneTimePreKeyId !== null) {
-          const otpk = vaultKeys.preKeys.find(
-            pk => pk.keyId === initial.oneTimePreKeyId && !consumedOtpIds.has(pk.keyId)
-          )
-          if (otpk) {
-            otpkPair = { publicKey: otpk.publicKey, privateKey: otpk.privateKey }
-            consumedOtpIds.add(otpk.keyId)
-          }
-        }
-
-        // X3DH respond with vault identity
-        const x3dh = await x3dhRespond(
-          {
-            deviceId: VAULT_DEVICE_ID,
-            signingPublicKey: vaultKeys.signingPublicKey,
-            signingPrivateKey: vaultKeys.signingPrivateKey,
-            dhPublicKey: vaultKeys.dhPublicKey,
-            dhPrivateKey: vaultKeys.dhPrivateKey,
-            signingPublicKeyBase64: vaultKeys.signingPublicKeyBase64,
-            dhPublicKeyBase64: vaultKeys.dhPublicKeyBase64,
-            nextPreKeyId: vaultKeys.nextPreKeyId,
-            createdAt: '',
-          },
-          spkPair,
-          otpkPair,
-          initial.identityDhKey,
-          initial.ephemeralKey
-        )
-
-        // Initialize receiver ratchet against the matched SPK
-        const ratchetState = await initReceiver(x3dh.sharedSecret, {
-          publicKey: matchedSpk.publicKey,
-          privateKey: matchedSpk.privateKey,
-          publicKeyBase64: matchedSpk.publicKeyBase64,
-        })
-
-        // Decrypt first message
-        const { state, plaintext: ptBytes } = await ratchetDecrypt(
-          ratchetState, initial.message, x3dh.associatedData
-        )
-        plaintext = new TextDecoder().decode(ptBytes)
-
-        // Store session for subsequent messages from same sender
-        sessionMap.set(sessionKey, { state, ad: x3dh.associatedData })
-
-      } else {
-        // Established session message
-        const encMsg = inner as unknown as EncryptedMessage
-        const existing = sessionMap.get(sessionKey)
-        if (!existing) {
-          // Orphaned message: its X3DH initial was consumed in a prior session.
-          // Mark as read so it doesn't accumulate. The backup service already
-          // handles conversation history restoration.
-          processedIds.push(row.id)
-          continue
-        }
-
-        const { state, plaintext: ptBytes } = await ratchetDecrypt(
-          existing.state, encMsg, existing.ad
-        )
-        plaintext = new TextDecoder().decode(ptBytes)
-
-        // Update session state for next message in chain
-        sessionMap.set(sessionKey, { state, ad: existing.ad })
-      }
-
-      // Save decrypted message to local store
-      const { plaintext: displayText, content, replyTo } = parseMessageContent(plaintext)
-
-      // Handle sync messages
-      if (row.message_type === 'sync') {
-        try {
-          const maybeSyncType = JSON.parse(plaintext) as Record<string, unknown>
-          if (maybeSyncType.__syncType === 'read') {
-            processedIds.push(row.id)
-            processedCount++
-            continue
-          }
-        } catch { /* not a read-sync, proceed as normal sync */ }
-        const sync = JSON.parse(plaintext) as SyncMessagePayload
-        // Conversation-deleted sync (own-device conversation delete fanned through
-        // the vault). The marker is nested INSIDE sync.serialized — not top-level —
-        // so the read-sync check above misses it. Apply the tombstone out-of-band
-        // (mirror useMessages.handleIncomingMessage) and NEVER surface it as a
-        // bubble; falling through to saveMessage/addMessage resurrects the deleted
-        // conversation as a raw "[conversation-deleted]" JSON row.
-        try {
-          const innerSync = JSON.parse(sync.serialized) as Record<string, unknown>
-          if (innerSync.__syncType === 'conversation-deleted') {
-            await useMessagingStore.getState().deleteConversation(innerSync.conversationKey as string)
-            processedIds.push(row.id)
-            processedCount++
-            continue
-          }
-        } catch { /* serialized isn't a control envelope — proceed as normal sync */ }
-        const { plaintext: syncText, content: syncContent, replyTo: syncReply } = parseMessageContent(sync.serialized)
-        const syncMsg: DecryptedSignalMessage = {
-          id: sync.originalMessageId,
-          senderId: senderUuid,
-          recipientId: sync.forPeerId,
-          plaintext: syncText,
-          content: syncContent,
-          messageType: sync.originalMessageType,
-          createdAt: sync.originalTimestamp,
-          readAt: new Date().toISOString(),
-          ...(syncReply && { threadId: syncReply.messageId, replyPreview: syncReply.preview }),
-          ...(sync.forGroupId && { groupId: sync.forGroupId }),
-          originId: sync.originId ?? row.origin_id ?? undefined,
-        }
-        const syncConversationKey = sync.forGroupId ?? sync.forPeerId
-        const syncTombstoneAt = await getTombstone(syncConversationKey)
-        if (!syncTombstoneAt || sync.originalTimestamp >= syncTombstoneAt) {
-          if (syncContent?.type === 'reaction') {
-            // Own-device reaction synced through the vault. Fold it onto the
-            // target (out-of-band, like the live path's handleIncomingMessage)
-            // instead of surfacing it as a bubble. The reactor is this user.
-            const { targetId, emoji, remove } = syncContent
-            const store = useMessagingStore.getState()
-            store.applyReaction(syncConversationKey, targetId, emoji, senderUuid, !!remove)
-            const updated = store.conversations[syncConversationKey]?.find(
-              m => m.id === targetId || m.originId === targetId,
-            )
-            if (updated) await saveMessage(updated, userId).catch(() => {})
-          } else {
-            await saveMessage(syncMsg, userId)
-            // Push to live store so UI reflects drained messages without a reload.
-            // addMessage dedupes by id + originId so realtime/catch-up races are safe.
-            useMessagingStore.getState().addMessage(syncMsg)
-            if (isCalendarEvent(syncContent)) calendarRoutes.push(syncContent)
-            else if (isMapOverlay(syncContent)) overlayRoutes.push(syncContent)
-            else if (isMapFeature(syncContent)) featureRoutes.push(syncContent)
-          }
-        }
-      } else if (row.message_type === 'delete') {
-        try {
-          const { originIds } = JSON.parse(plaintext) as { originIds: string[] }
-          await deleteMessagesByOriginId(originIds)
-        } catch { /* ignore parse errors */ }
-      } else if (content?.type === 'reaction') {
-        // Emoji reactions fold onto the target message (out-of-band, like the
-        // live path's handleIncomingMessage) — they are NEVER a bubble. A vault
-        // replay of an add/remove reaction must mutate the target's `reactions`
-        // map and persist it, not surface a stray "[reaction]" row. The reactor
-        // identity is the reaction message's sender.
-        const { targetId, emoji, remove } = content
-        const conversationKey = row.group_id ?? (senderUuid === userId ? row.recipient_id : senderUuid)
-        const tombstoneAt = await getTombstone(conversationKey)
-        if (!tombstoneAt || row.created_at >= tombstoneAt) {
-          const store = useMessagingStore.getState()
-          store.applyReaction(conversationKey, targetId, emoji, senderUuid, !!remove)
-          const updated = store.conversations[conversationKey]?.find(
-            m => m.id === targetId || m.originId === targetId,
-          )
-          if (updated) await saveMessage(updated, userId).catch(() => {})
-        }
-      } else if (content?.type === 'outside_entity_reply') {
-        // Relayed outside→medic reply. Its raw form is a placeholder authored by the
-        // relay under the SYSTEM sender, so falling through to the generic branch files
-        // a second '[outside reply]' row keyed under SYSTEM alongside the real message
-        // the live path already delivered — the duplicate the medic sees per reply.
-        // Open the inner seal and re-author under the channel's conversation, exactly
-        // as the live path does. No channel key ⇒ revoked/expired/never held here: drop.
-        const text = await routeOutsideEntityReply(content)
-        if (text !== null) {
-          const relayed: DecryptedSignalMessage = {
-            id: content.message_id,
-            senderId: content.entity_id,
-            recipientId: row.recipient_id,
-            plaintext: text,
-            content: { type: 'text', text },
-            messageType: 'message',
-            createdAt: content.created_at,
-            readAt: null,
-            originId: content.message_id,
-          }
-          const replyTombstoneAt = await getTombstone(content.entity_id)
-          if (!replyTombstoneAt || content.created_at >= replyTombstoneAt) {
-            await saveMessage(relayed, userId)
-            useMessagingStore.getState().addMessage(relayed)
-          }
-        }
-      } else {
-        const isCalEvent = isCalendarEvent(content)
-        const isOverlay = isMapOverlay(content)
-        const isFeature = isMapFeature(content)
-        const msg: DecryptedSignalMessage = {
-          id: row.id,
-          senderId: senderUuid,
-          recipientId: row.recipient_id,
-          plaintext: displayText,
-          content,
-          messageType: row.message_type,
-          createdAt: row.created_at,
-          readAt: (isCalEvent || isOverlay || isFeature) ? new Date().toISOString() : null,
-          ...(replyTo && { threadId: replyTo.messageId, replyPreview: replyTo.preview }),
-          ...(row.group_id && { groupId: row.group_id }),
-          originId: row.origin_id ?? undefined,
-        }
-        const msgConversationKey = row.group_id ?? (senderUuid === userId ? row.recipient_id : senderUuid)
-        const msgTombstoneAt = await getTombstone(msgConversationKey)
-        if (!msgTombstoneAt || row.created_at >= msgTombstoneAt) {
-          await saveMessage(msg, userId)
-          useMessagingStore.getState().addMessage(msg)
-          if (isCalEvent) calendarRoutes.push(content as CalendarEventContent)
-          else if (isOverlay) overlayRoutes.push(content as MapOverlayContent)
-          else if (isFeature) featureRoutes.push(content as MapFeatureContent)
-        }
-      }
-
-      processedIds.push(row.id)
-      processedCount++
-    } catch (e) {
-      // An AES-GCM/ratchet auth-tag failure (DOMException 'OperationError') is
-      // DETERMINISTIC: the pre-key material this message's X3DH referenced (a
-      // one-time / signed pre-key) has rotated out of the vault blob, so it can
-      // NEVER decrypt on any future drain. Consume it (stash for ackVaultDrain
-      // to mark read) so it stops re-failing on every login and the backlog
-      // doesn't accumulate. Content, if any, is recoverable from backup-service
-      // conversation history — same rationale as the orphaned-session branch.
-      // This mirrors the OperationError discrimination the wipe path trusts;
-      // dead messages never matched an OTPK, so consumedOtpIds is untouched.
-      const isAuthTagFailure = e instanceof DOMException && e.name === 'OperationError'
-      if (isAuthTagFailure) {
-        logger.warn(`Vault message ${row.id} permanently undecryptable (pre-key rotated out) — consuming`)
-        processedIds.push(row.id)
-        // Count it as processed so the caller's `drainCount > 0` gate runs
-        // createBackup → ackVaultDrain. Otherwise a drain made up ENTIRELY of
-        // dead rows returns 0, ackVaultDrain never fires, and these rows stay
-        // read_at=null → re-fetched + re-warned on every login forever. Dead
-        // rows carry no recoverable content, so acking them without a fresh
-        // backup is safe (nothing to lose from the backstop contract).
-        processedCount++
-      } else {
-        // Transient (network / parse / Web Crypto blip) — leave unread so a
-        // later drain retries. Do NOT consume.
-        logger.error(`Failed to process vault message ${row.id}:`, e instanceof Error ? e.message : e)
-      }
-    }
-  }
-
-  // 5b. Dispatch collected calendar routes with delete-awareness.
-  // Pre-scan for deleted event IDs so earlier create/update messages in the
-  // same batch don't resurrect an event that was subsequently deleted.
-  if (calendarRoutes.length > 0) {
-    const deletedEventIds = new Set<string>()
-    for (const c of calendarRoutes) {
-      if (c.action === 'delete') deletedEventIds.add(c.data.id)
-    }
-    for (const c of calendarRoutes) {
-      if (c.action === 'delete' || !deletedEventIds.has(c.data.id)) {
-        routeCalendarEvent(c)
-      }
-    }
-  }
-
-  // 5c. Same delete-aware dispatch for map overlays.
-  if (overlayRoutes.length > 0) {
-    const deletedOverlayIds = new Set<string>()
-    for (const c of overlayRoutes) {
-      if (c.action === 'delete') deletedOverlayIds.add(c.data.id)
-    }
-    // Serial await — overlay/feature routes share a single IDB row under RMW.
-    for (const c of overlayRoutes) {
-      if (c.action === 'delete' || !deletedOverlayIds.has(c.data.id)) {
-        await routeMapOverlay(c).catch(() => {})
-      }
-    }
-  }
-
-  // 5d. Map feature envelopes. Delete-aware on (overlay_id, feature_id) so
-  // an in-batch create+delete pair never resurrects a removed feature.
-  if (featureRoutes.length > 0) {
-    const deletedFeatureKeys = new Set<string>()
-    const keyOf = (c: MapFeatureContent) => `${c.data.overlay_id}::${c.data.feature.id}`
-    for (const c of featureRoutes) {
-      if (c.action === 'delete') deletedFeatureKeys.add(keyOf(c))
-    }
-    for (const c of featureRoutes) {
-      if (c.action === 'delete' || !deletedFeatureKeys.has(keyOf(c))) {
-        await routeMapFeature(c).catch(() => {})
-      }
-    }
-  }
-
-  // 6. Two-phase drain: stash mark-read + OTP replenishment for ackVaultDrain()
-  //    to run AFTER createBackup confirms the just-drained messages are in
-  //    signal_backups. If we acked inline and the user logged out / iOS
-  //    evicted before the next backup, the messages would be marked read
-  //    (invisible to next drain) AND OTP private keys would be gone
-  //    (undecryptable even if re-fetched) — and they wouldn't be in any
-  //    backup. Vault loses its backstop contract.
-  //
-  //    Until ackVaultDrain runs the drain is fully idempotent:
-  //      - messages stay unread server-side → re-drained on next login
-  //      - OTP private keys stay in blob   → re-decryption works
-  //      - saveMessage + addMessage dedupe by id → no UI duplication
-  if (processedIds.length > 0 || consumedOtpIds.size > 0) {
-    _pendingVaultAck = {
-      userId,
-      processedIds,
-      consumedOtpIds: [...consumedOtpIds],
-    }
-  }
-
-  // 7. Rotate vault signed pre-key — orthogonal to ack (SPK rotation doesn't
-  //    touch OTP private keys or message rows, and is just staleness
-  //    mitigation). Safe to run before backup confirms.
-  await rotateVaultSignedPreKey(userId, vaultKeys, vaultRow as VaultDeviceKeysRow)
-
-  logger.info(`Processed ${processedCount} vault messages (ack pending)`)
-  return processedCount
+  return toDecryptKeys(vaultKeys)
 }
 
-/**
- * Phase 2 of vault drain — call AFTER createBackup confirms the just-drained
- * messages have been uploaded to signal_backups. Marks the messages read
- * server-side (so they don't re-drain) and replenishes the consumed OTPs.
- *
- * Idempotent: second call is a no-op. Safe to call when no drain is pending.
- *
- * Re-recovers the latest vault row before replenishing so concurrent SPK
- * rotation or another device's replenish doesn't trigger OCC failure.
- */
-export async function ackVaultDrain(): Promise<void> {
-  const ack = _pendingVaultAck
-  if (!ack) return
-  _pendingVaultAck = null
-
-  try {
-    if (ack.processedIds.length > 0) {
-      const { error } = await supabase.rpc('mark_signal_messages_read', {
-        p_message_ids: ack.processedIds,
-        p_recipient_id: ack.userId,
-      })
-      if (error) logger.warn('ackVaultDrain mark-read failed:', error.message)
-    }
-
-    if (ack.consumedOtpIds.length > 0) {
-      // Re-recover with latest state. Wrapping key still cached; cheap.
-      const { data: latestRow } = await supabase
-        .from('vault_device_keys')
-        .select('*')
-        .eq('user_id', ack.userId)
-        .single()
-      if (latestRow) {
-        try {
-          const latestKeys = await recoverVaultKeys(latestRow as VaultDeviceKeysRow)
-          await replenishVaultPreKeys(
-            ack.userId,
-            latestKeys,
-            new Set(ack.consumedOtpIds),
-            latestRow as VaultDeviceKeysRow,
-          )
-        } catch (e) {
-          logger.warn('ackVaultDrain replenish failed:', e instanceof Error ? e.message : e)
-        }
-      }
-    }
-  } catch (e) {
-    logger.warn('ackVaultDrain failed:', e instanceof Error ? e.message : e)
+function toDecryptKeys(keys: VaultPrivateKeys): VaultDecryptKeys {
+  return {
+    dhPrivateKey: keys.dhPrivateKey,
+    dhPublicKeyBase64: keys.dhPublicKeyBase64,
+    signedPreKeys: [keys.signedPreKey, ...keys.previousSignedPreKeys],
+    preKeys: keys.preKeys,
   }
 }
 
@@ -1508,108 +1017,6 @@ async function rotateVaultSignedPreKey(
     logger.info(`Vault signed pre-key rotated to ID ${newSpkId}`)
   } catch (e) {
     logger.warn('Failed to rotate vault signed pre-key:', e)
-  }
-}
-
-/**
- * Replenish consumed one-time pre-keys in the vault.
- */
-async function replenishVaultPreKeys(
-  userId: string,
-  vaultKeys: VaultPrivateKeys,
-  consumedIds: Set<number>,
-  vaultRow: VaultDeviceKeysRow
-): Promise<void> {
-  if (!cachedVaultKey) return
-
-  try {
-    // Remove consumed keys
-    const remainingPreKeys = vaultKeys.preKeys.filter(pk => !consumedIds.has(pk.keyId))
-
-    // Generate replacements
-    let nextId = vaultKeys.nextPreKeyId
-    const newPreKeys: VaultBlobPlaintext['preKeys'] = []
-    for (let i = 0; i < consumedIds.size; i++) {
-      const pair = await generateDhPair()
-      const pubBase64 = await exportPubKey(pair.publicKey, 'raw')
-      newPreKeys.push({
-        keyId: nextId,
-        privateKey: await crypto.subtle.exportKey('jwk', pair.privateKey),
-        publicKey: await crypto.subtle.exportKey('jwk', pair.publicKey),
-        publicKeyBase64: pubBase64,
-      })
-      nextId++
-    }
-
-    // Combine for the new blob
-    const allPreKeysJwk = [
-      ...await Promise.all(remainingPreKeys.map(async pk => ({
-        keyId: pk.keyId,
-        privateKey: await crypto.subtle.exportKey('jwk', pk.privateKey),
-        publicKey: await crypto.subtle.exportKey('jwk', pk.publicKey),
-        publicKeyBase64: pk.publicKeyBase64,
-      }))),
-      ...newPreKeys,
-    ]
-
-    // Re-encrypt blob (fetching the latest version to avoid conflicts)
-    const { data: latestRow } = await supabase
-      .from('vault_device_keys')
-      .select('*')
-      .eq('user_id', userId)
-      .single()
-
-    if (!latestRow) return
-
-    // Decrypt latest to get the current SPK (may have been rotated above)
-    const latestBlob = await decryptBlob(latestRow.encrypted_blob, latestRow.iv, cachedVaultKey)
-    latestBlob.preKeys = allPreKeysJwk
-    latestBlob.nextPreKeyId = nextId
-
-    // Re-encrypt
-    const newIv = crypto.getRandomValues(new Uint8Array(12))
-    const ptBytes = new TextEncoder().encode(JSON.stringify(latestBlob))
-    const ciphertext = await crypto.subtle.encrypt(
-      { name: 'AES-GCM', iv: newIv },
-      cachedVaultKey,
-      ptBytes
-    )
-
-    const { data: replenishData, error: replenishError } = await supabase
-      .from('vault_device_keys')
-      .update({
-        encrypted_blob: uint8ToBase64(new Uint8Array(ciphertext)),
-        iv: uint8ToBase64(newIv),
-        version: latestRow.version + 1,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('user_id', userId)
-      .eq('version', latestRow.version)
-      .select('user_id')
-
-    if (replenishError || !replenishData?.length) {
-      logger.warn('Vault update conflict — another device won the race, skipping')
-      return
-    }
-
-    // Update the signal_key_bundles one_time_pre_keys with remaining + new
-    const allPublicOtps = [
-      ...remainingPreKeys.map(pk => ({ keyId: pk.keyId, publicKey: pk.publicKeyBase64 })),
-      ...newPreKeys.map(pk => ({ keyId: pk.keyId, publicKey: pk.publicKeyBase64 })),
-    ]
-
-    await supabase
-      .from('signal_key_bundles')
-      .update({
-        one_time_pre_keys: allPublicOtps,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('user_id', userId)
-      .eq('device_id', VAULT_DEVICE_ID)
-
-    logger.info(`Replenished ${consumedIds.size} vault pre-keys (next ID: ${nextId})`)
-  } catch (e) {
-    logger.warn('Failed to replenish vault pre-keys:', e)
   }
 }
 

@@ -184,18 +184,11 @@ export async function uploadKeyBundle(
   return result
 }
 
-export async function fetchPeerBundle(
-  peerId: string
-): Promise<Result<PeerBundleRpcResult>> {
-  const result = await callRpc<PeerBundleRpcResult | null>(
-    () => supabase.rpc('consume_peer_bundle', { p_peer_id: peerId }),
-    'fetchPeerBundle', logger,
-  )
-  if (!result.ok) return result
-  if (!result.data) return err('No key bundle found for peer')
-  return ok(result.data)
-}
-
+/**
+ * Consume a peer device's bundle for an X3DH handshake. Pops one one-time
+ * pre-key server-side — call ONLY when actually opening a session; use
+ * {@link fetchPeerBundlePublic} when nothing is consumed.
+ */
 export async function fetchPeerBundleForDevice(
   peerId: string,
   deviceId: string
@@ -210,6 +203,68 @@ export async function fetchPeerBundleForDevice(
   if (!result.ok) return result
   if (!result.data) return err(`No key bundle found for peer ${peerId} device ${deviceId}`)
   return ok(result.data)
+}
+
+/**
+ * Read a peer device's bundle WITHOUT popping a one-time pre-key (identity +
+ * signed pre-key only). For stateless sends that never hold a session — the
+ * vault — where a consumed pre-key per message would cost an RPC and drain the
+ * pool for no forward-secrecy gain (the vault never replies).
+ */
+export async function fetchPeerBundlePublic(
+  peerId: string,
+  deviceId: string
+): Promise<Result<PeerBundleRpcResult>> {
+  const result = await callRpc<{
+    identity_signing_key: string
+    identity_dh_key: string
+    signed_pre_key_id: number
+    signed_pre_key: string
+    signed_pre_key_sig: string
+  } | null>(
+    () => supabase
+      .from('signal_key_bundles')
+      .select('identity_signing_key, identity_dh_key, signed_pre_key_id, signed_pre_key, signed_pre_key_sig')
+      .eq('user_id', peerId)
+      .eq('device_id', deviceId)
+      .maybeSingle(),
+    'fetchPeerBundlePublic', logger,
+  )
+  if (!result.ok) return result
+  if (!result.data) return err(`No key bundle found for peer ${peerId} device ${deviceId}`)
+  return ok({
+    userId: peerId,
+    deviceId,
+    identitySigningKey: result.data.identity_signing_key,
+    identityDhKey: result.data.identity_dh_key,
+    signedPreKeyId: result.data.signed_pre_key_id,
+    signedPreKey: result.data.signed_pre_key,
+    signedPreKeySig: result.data.signed_pre_key_sig,
+    oneTimePreKey: null,
+  })
+}
+
+/**
+ * Every identity a user has ever published, across all their devices.
+ * The directory the receive path checks a first-seen or changed sender
+ * certificate against: the cert is self-signed, so only a match against keys
+ * the user published under their own auth proves the sender is who it claims.
+ * Reads the append-only signal_identity_log (filled by a trigger on
+ * signal_key_bundles), not the bundles themselves — stale linked devices lose
+ * their bundle after 30 min, which would strand their in-flight messages.
+ */
+export async function fetchPublishedIdentities(
+  userId: string
+): Promise<Result<Array<{ signing: string; dh: string }>>> {
+  const result = await callRpc<Array<{ identity_signing_key: string; identity_dh_key: string }>>(
+    () => supabase
+      .from('signal_identity_log')
+      .select('identity_signing_key, identity_dh_key')
+      .eq('user_id', userId),
+    'fetchPublishedIdentities', logger, [],
+  )
+  if (!result.ok) return result
+  return ok(result.data.map(r => ({ signing: r.identity_signing_key, dh: r.identity_dh_key })))
 }
 
 export async function deleteKeyBundle(
@@ -355,6 +410,33 @@ export async function hardDeleteSystemOrigin(
   originIds: string[]
 ): Promise<Result<void>> {
   return transportManager.hardDeleteSystemOrigin(originIds)
+}
+
+/**
+ * One page of the user's vault inbox at or after `since`, oldest first
+ * (vault-first). Callers pass the cursor minus the overlap window and dedupe by
+ * row id. Served by idx_signal_messages_recipient_device.
+ */
+export async function fetchVaultTail(
+  userId: string,
+  since: string | null,
+  limit: number,
+): Promise<Result<SignalMessageRow[]>> {
+  return callRpc<SignalMessageRow[]>(
+    () => {
+      let q = supabase
+        .from('signal_messages')
+        .select('*')
+        .eq('recipient_id', userId)
+        .eq('recipient_device_id', 'vault')
+        .order('created_at', { ascending: true })
+        .order('id', { ascending: true })
+        .limit(limit)
+      if (since) q = q.gte('created_at', since)
+      return q
+    },
+    'fetchVaultTail', logger, [],
+  )
 }
 
 export async function fetchConversation(

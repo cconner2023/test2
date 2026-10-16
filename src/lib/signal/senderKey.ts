@@ -57,73 +57,39 @@ const ECDSA_SIGN_PARAMS: EcdsaParams = { name: 'ECDSA', hash: 'SHA-256' }
 /** Time-to-live for skipped sender-key message keys (7 days in ms). */
 const SKIPPED_KEY_TTL_MS = 7 * 24 * 60 * 60 * 1000
 
-// ---- Skipped Key Storage (module-scoped, per sender key) ----
+// ---- Errors ----
 
 /**
- * In-memory store for skipped message keys awaiting out-of-order messages.
- *
- * Format: Map<senderKeyId, Map<iteration, { key: Uint8Array; ts: number }>>
- *
- * These are NOT persisted to IDB — if the page reloads before the skipped
- * messages arrive, they will fail to decrypt (same trade-off as the Double
- * Ratchet skipped key store in ratchet.ts which IS persisted via session state).
- * A future improvement could persist these alongside the SenderKeyState.
+ * We hold no usable sender key for this sender: none at all (missed the
+ * distribution), or a different key than the message was sent under (sender
+ * rotated or reinstalled). Recoverable only by asking the sender to
+ * re-distribute (retry-receipt).
  */
-const skippedSenderKeys = new Map<string, Map<number, { key: Uint8Array; ts: number }>>()
-
-/** Store a skipped message key for later out-of-order decryption. */
-function storeSkippedKey(senderKeyId: string, iteration: number, key: Uint8Array): void {
-  let map = skippedSenderKeys.get(senderKeyId)
-  if (!map) {
-    map = new Map()
-    skippedSenderKeys.set(senderKeyId, map)
+export class SenderKeyMissingError extends Error {
+  constructor(readonly senderKeyId: string, reason: string) {
+    super(`No sender key for ${senderKeyId} (${reason}) — request re-distribution from this sender`)
+    this.name = 'SenderKeyMissingError'
   }
-  map.set(iteration, { key, ts: Date.now() })
 }
 
-/** Retrieve and consume a skipped message key. Returns null if not found or expired. */
-function consumeSkippedKey(senderKeyId: string, iteration: number): Uint8Array | null {
-  const map = skippedSenderKeys.get(senderKeyId)
-  if (!map) return null
+// ---- Skipped Key Storage (persisted on the SenderKeyState) ----
 
-  const entry = map.get(iteration)
-  if (!entry) return null
+type SkippedKeys = NonNullable<SenderKeyState['skippedKeys']>
 
-  if (Date.now() - entry.ts > SKIPPED_KEY_TTL_MS) {
-    map.delete(iteration)
-    return null
-  }
-
-  map.delete(iteration)
-  return entry.key
-}
-
-/** Evict expired skipped keys for a sender and enforce per-sender cap. */
-function pruneSkippedKeysForSender(senderKeyId: string): void {
-  const map = skippedSenderKeys.get(senderKeyId)
-  if (!map) return
-
+/**
+ * Drop expired skipped keys and enforce the per-sender MAX_SKIP cap (oldest
+ * iterations evicted first). Returns a new map.
+ */
+function pruneSkippedKeys(senderKeyId: string, skipped: SkippedKeys): SkippedKeys {
   const now = Date.now()
-  const toDelete: number[] = []
-
-  for (const [iter, entry] of map) {
-    if (now - entry.ts > SKIPPED_KEY_TTL_MS) {
-      toDelete.push(iter)
-    }
-  }
-  for (const iter of toDelete) map.delete(iter)
-
-  // Enforce MAX_SKIP cap — evict oldest by iteration number
-  if (map.size > SIGNAL.MAX_SKIP) {
-    const sorted = [...map.keys()].sort((a, b) => a - b)
-    const evictCount = map.size - SIGNAL.MAX_SKIP
-    for (let i = 0; i < evictCount; i++) {
-      map.delete(sorted[i])
-    }
+  const live = Object.entries(skipped)
+    .filter(([, e]) => now - e.ts <= SKIPPED_KEY_TTL_MS)
+    .sort(([a], [b]) => Number(a) - Number(b))
+  const evictCount = Math.max(0, live.length - SIGNAL.MAX_SKIP)
+  if (evictCount > 0) {
     logger.warn(`Evicted ${evictCount} skipped sender-key message(s) for ${senderKeyId} to enforce MAX_SKIP cap`)
   }
-
-  if (map.size === 0) skippedSenderKeys.delete(senderKeyId)
+  return Object.fromEntries(live.slice(evictCount))
 }
 
 
@@ -265,6 +231,7 @@ export async function generateSenderKey(
     signingPublicKey,
     signingPrivateKey: nonExtractablePrivate,
     epoch,
+    keyId: crypto.randomUUID(),
     createdAt: new Date().toISOString(),
   }
 
@@ -290,6 +257,7 @@ export function createDistribution(key: SenderKeyState): SenderKeyDistribution {
     chainKey: key.chainKey,
     iteration: key.iteration,
     signingPublicKey: key.signingPublicKey,
+    keyId: key.keyId,
   }
 }
 
@@ -304,33 +272,60 @@ export function createDistribution(key: SenderKeyState): SenderKeyDistribution {
  * @param groupMembers - List of known member IDs for the group. The distribution
  *                       is rejected if the sender is not present in the list
  *                       (prevents rogue key injection from non-members).
- * @returns true if the key was stored, false if rejected by membership check
+ * @param sender       - The authenticated 1:1 sender the distribution arrived
+ *                       from. A member may only distribute its OWN key for the
+ *                       device it sent from — otherwise any member could replace
+ *                       another member's key and sign messages as them.
+ * @returns true if the key was stored, false if rejected
  */
 export async function processSenderKeyDistribution(
   dist: SenderKeyDistribution,
-  groupMembers: string[]
+  groupMembers: string[],
+  sender: { userId: string; deviceId: string },
 ): Promise<boolean> {
+  if (dist.memberId !== sender.userId || dist.deviceId !== sender.deviceId) {
+    logger.warn(
+      `Rejected sender key distribution for ${dist.memberId}:${dist.deviceId} ` +
+      `delivered by ${sender.userId}:${sender.deviceId}`
+    )
+    return false
+  }
   if (!groupMembers.includes(dist.memberId)) {
     logger.warn(`Rejected sender key distribution: ${dist.memberId} is not a member of group ${dist.groupId}`)
     return false
   }
 
   const senderKeyId = `${dist.groupId}:${dist.memberId}:${dist.deviceId}`
-  const state: SenderKeyState = {
-    groupId: dist.groupId,
-    memberId: dist.memberId,
-    deviceId: dist.deviceId,
-    senderKeyId,
-    chainKey: dist.chainKey,
-    iteration: dist.iteration,
-    signingPublicKey: dist.signingPublicKey,
-    // No signingPrivateKey — this is a peer's key, we can only verify
-    createdAt: new Date().toISOString(),
-  }
+  return withSenderKeyLock(senderKeyId, async () => {
+    // A re-delivery of the key we already hold must not rewind our chain
+    // position — that would make every message since then undecryptable.
+    const existing = await loadSenderKey(dist.groupId, dist.memberId, dist.deviceId)
+    if (
+      existing &&
+      (existing.keyId ?? null) === (dist.keyId ?? null) &&
+      existing.signingPublicKey === dist.signingPublicKey &&
+      existing.iteration >= dist.iteration
+    ) {
+      logger.debug(`Ignoring stale/duplicate sender key distribution for ${senderKeyId}`)
+      return true
+    }
 
-  await saveSenderKey(state)
-  logger.info(`Stored sender key distribution from ${dist.memberId}:${dist.deviceId} for group ${dist.groupId}`)
-  return true
+    const state: SenderKeyState = {
+      groupId: dist.groupId,
+      memberId: dist.memberId,
+      deviceId: dist.deviceId,
+      senderKeyId,
+      chainKey: dist.chainKey,
+      iteration: dist.iteration,
+      signingPublicKey: dist.signingPublicKey,
+      keyId: dist.keyId,
+      createdAt: new Date().toISOString(),
+    }
+
+    await saveSenderKey(state)
+    logger.info(`Stored sender key distribution from ${dist.memberId}:${dist.deviceId} for group ${dist.groupId}`)
+    return true
+  })
 }
 
 /**
@@ -405,6 +400,7 @@ export async function senderKeyEncrypt(
     senderId: memberId,
     senderDeviceId: deviceId,
     iteration: currentIteration,
+    ...(state.keyId ? { keyId: state.keyId } : {}),
     ciphertext,
     signature,
   }
@@ -437,24 +433,41 @@ export async function senderKeyDecrypt(message: SenderKeyMessage): Promise<strin
   return withSenderKeyLock(senderKeyId, async () => {
   const state = await loadSenderKey(groupId, senderId, senderDeviceId)
   if (!state) {
-    throw new Error(
-      `No sender key for ${senderKeyId} — ` +
-      'request re-distribution from this sender'
-    )
+    throw new SenderKeyMissingError(senderKeyId, 'never received')
+  }
+  if (message.keyId && state.keyId && message.keyId !== state.keyId) {
+    throw new SenderKeyMissingError(senderKeyId, 'sender is on a newer key')
   }
 
-  // 3. Check skipped key cache (out-of-order delivery)
-  const skippedMessageKey = consumeSkippedKey(senderKeyId, iteration)
-  if (skippedMessageKey !== null) {
-    // Verify signature before decrypting — fail fast on tampering
+  const skipped: SkippedKeys = { ...(state.skippedKeys ?? {}) }
+
+  // Out-of-order: a key we derived earlier while skipping ahead.
+  const skippedEntry = skipped[iteration]
+  if (skippedEntry && Date.now() - skippedEntry.ts <= SKIPPED_KEY_TTL_MS) {
     await verifySenderSignature(state.signingPublicKey, groupId, senderId, senderDeviceId, iteration, ciphertext, signature)
-    const plaintext = await aeadDecrypt(skippedMessageKey, ciphertext)
+    const plaintext = await aeadDecrypt(base64ToUint8(skippedEntry.key), ciphertext)
+    delete skipped[iteration]
+    await saveSenderKey({ ...state, skippedKeys: skipped })
     logger.info(`Decrypted out-of-order group message from ${senderKeyId} at iteration ${iteration}`)
     return new TextDecoder().decode(plaintext)
   }
 
-  // 4. Handle future iterations: advance chain, storing skipped keys
-  let workingState = state
+  if (iteration < state.iteration) {
+    // A key minted before keyIds existed can't be told apart from a rotated one
+    // by id; an iteration behind our position with nothing skipped means our
+    // copy is not the key this message was sent under (or it is a replay).
+    if (!message.keyId || !state.keyId) {
+      throw new SenderKeyMissingError(senderKeyId, `iteration ${iteration} behind chain position ${state.iteration}`)
+    }
+    throw new Error(
+      `Cannot decrypt group message from ${senderKeyId}: ` +
+      `iteration ${iteration} is behind current chain position ${state.iteration} ` +
+      'and was not found in the skipped key cache'
+    )
+  }
+
+  // Advance the chain to the message's iteration, keeping skipped keys
+  let ck = state.chainKey
   if (iteration > state.iteration) {
     const toSkip = iteration - state.iteration
     if (toSkip > SIGNAL.MAX_SKIP) {
@@ -462,44 +475,30 @@ export async function senderKeyDecrypt(message: SenderKeyMessage): Promise<strin
         `Cannot skip ${toSkip} sender key messages for ${senderKeyId} (max: ${SIGNAL.MAX_SKIP})`
       )
     }
-
-    // Advance chain from state.iteration up to (but not including) the target iteration,
-    // storing each skipped message key for potential out-of-order delivery
-    let ck = state.chainKey
+    const now = Date.now()
     for (let i = state.iteration; i < iteration; i++) {
       const { messageKey: skippedMk, chainKey: nextCk } = await kdfChainKey(ck)
-      storeSkippedKey(senderKeyId, i, skippedMk)
+      skipped[i] = { key: uint8ToBase64(skippedMk), ts: now }
       ck = nextCk
     }
-
-    pruneSkippedKeysForSender(senderKeyId)
-    workingState = { ...state, chainKey: ck, iteration }
   }
 
-  // If iteration < state.iteration and not in skipped cache, the message is a duplicate
-  // or the key has already been advanced past it — cannot decrypt
-  if (iteration < workingState.iteration) {
-    throw new Error(
-      `Cannot decrypt group message from ${senderKeyId}: ` +
-      `iteration ${iteration} is behind current chain position ${workingState.iteration} ` +
-      'and was not found in the skipped key cache'
-    )
-  }
+  // Verify signature BEFORE decrypting (fail fast on tampering)
+  await verifySenderSignature(state.signingPublicKey, groupId, senderId, senderDeviceId, iteration, ciphertext, signature)
 
-  // 5. Verify ECDSA signature BEFORE decrypting
-  await verifySenderSignature(workingState.signingPublicKey, groupId, senderId, senderDeviceId, iteration, ciphertext, signature)
+  // Derive the message key for this iteration and advance
+  const { messageKey, chainKey: nextChainKey } = await kdfChainKey(ck)
 
-  // Derive message key for this iteration via HMAC-SHA256(chainKey, 0x01)
-  const { messageKey, chainKey: nextChainKey } = await kdfChainKey(workingState.chainKey)
-
-  // 6. Decrypt
+  // Decrypt
   const plaintext = await aeadDecrypt(messageKey, ciphertext)
-  const updatedState: SenderKeyState = {
-    ...workingState,
+
+  // Persist the advanced chain only after a successful decrypt
+  await saveSenderKey({
+    ...state,
     chainKey: nextChainKey,
     iteration: iteration + 1,
-  }
-  await saveSenderKey(updatedState)
+    skippedKeys: pruneSkippedKeys(senderKeyId, skipped),
+  })
 
   logger.info(`Decrypted group message from ${senderKeyId} at iteration ${iteration}`)
   return new TextDecoder().decode(plaintext)

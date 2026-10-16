@@ -3,8 +3,8 @@ import { Lock, Lightbulb, X, Check, RefreshCw, ScanFace } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { verifyPasswordLocally, storePasswordHash } from '../lib/authService'
 import { isBiometricAvailable, isBiometricEnrolled, verifyBiometric } from '../lib/biometricService'
-import { deriveAndStoreBackupKey, createBackup } from '../lib/signal/backupService'
-import { ensureVaultExists, deriveAndCacheVaultKey, setVaultKeyReady, processVaultMessages, ackVaultDrain } from '../lib/signal/vaultDevice'
+import { deriveAndStoreBackupKey } from '../lib/signal/backupService'
+import { ensureVaultExists, deriveAndCacheVaultKey, setVaultKeyReady } from '../lib/signal/vaultDevice'
 import { useAuthStore } from '../stores/useAuthStore'
 import { PasswordInput } from '@/Components/primitives/FormInputs'
 import { ErrorDisplay } from '@/Components/primitives/ErrorDisplay'
@@ -145,24 +145,14 @@ export const PasswordLockScreen = ({ onUnlock, email, reason = 'inactivity' }: P
         storePasswordHash(password).catch(() => { })
         const uid = authData.user?.id || storeUserId
         deriveAndStoreBackupKey(password, uid).catch(() => { })
-        // Re-cache vault wrapping key (cleared on page reload) so processVaultMessages
-        // can run after the SIGNED_IN event fires from this re-auth.
+        // Re-cache vault wrapping key (cleared on page reload). Caching it fires
+        // VAULT_UNLOCKED_EVENT, which makes the vault inbox catch up.
         if (uid) {
           const vaultKeyP = ensureVaultExists(uid, password)
             .then(() => deriveAndCacheVaultKey(password, uid))
             .catch(() => {})
           setVaultKeyReady(vaultKeyP)
-          // reason==='vault': messages were waiting and the wrapping key was missing.
-          // The SIGNED_IN event's drain RACES this slow PBKDF2 derivation and bails
-          // if it wins, so drain explicitly once the key is cached. Idempotent: rows
-          // stay unread until ackVaultDrain; createBackup dedupes by id.
-          if (reason === 'vault') {
-            await vaultKeyP
-            try {
-              const drained = await processVaultMessages(uid)
-              if (drained > 0 && await createBackup(uid)) await ackVaultDrain()
-            } catch { /* next online drain retries */ }
-          }
+          if (reason === 'vault') await vaultKeyP
         }
         setFailures(0)
         onUnlock()

@@ -34,6 +34,23 @@ const MAX_TOTAL_SKIPPED = 1024
  *  Keys older than this are evicted on the next decrypt operation. */
 const SKIPPED_KEY_TTL_MS = 7 * 24 * 60 * 60 * 1000
 
+/** Number of superseded receiving-chain keys remembered for replay detection. */
+const MAX_PREVIOUS_RECEIVING_DH = 5
+
+// ---- Errors ----
+
+/**
+ * The packet belongs to a chain this state already consumed: its message key
+ * was used (or expired) and is gone. A replay or re-delivery — never a reason
+ * to reset the session.
+ */
+export class DuplicateMessageError extends Error {
+  constructor(message = 'Duplicate message: key already consumed') {
+    super(message)
+    this.name = 'DuplicateMessageError'
+  }
+}
+
 // ---- Helpers ----
 
 /**
@@ -321,8 +338,13 @@ async function dhRatchetStep(
   const dh2 = await performDh(newDhSending.privateKey, peerDhKey)
   const { rootKey: rk2, chainKey: cks } = await kdfRootKey(rk1, dh2)
 
+  const previousReceivingDh = state.dhReceivingBase64
+    ? [state.dhReceivingBase64, ...(state.previousReceivingDh ?? [])].slice(0, MAX_PREVIOUS_RECEIVING_DH)
+    : state.previousReceivingDh
+
   return {
     ...state,
+    previousReceivingDh,
     previousSendingCount: state.sendingCount,
     sendingCount: 0,
     receivingCount: 0,
@@ -433,6 +455,15 @@ export async function ratchetDecrypt(
     delete newSkipped[skipKey]
     // Continue with updated skipped keys
     state = { ...state, skippedKeys: newSkipped }
+  }
+
+  // A packet on the current chain behind our position, or on a chain we already
+  // ratcheted past, whose key is no longer in the skipped store: replay.
+  if (
+    (header.dh === state.dhReceivingBase64 && header.n < state.receivingCount) ||
+    state.previousReceivingDh?.includes(header.dh)
+  ) {
+    throw new DuplicateMessageError()
   }
 
   let newState = { ...state, skippedKeys: { ...state.skippedKeys } }

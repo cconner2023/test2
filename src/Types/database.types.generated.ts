@@ -1729,6 +1729,7 @@ export type Database = {
           salt: string
           snapshot_id: string
           user_id: string
+          vault_watermark: string | null
         }
         Insert: {
           backup_version?: number
@@ -1738,6 +1739,7 @@ export type Database = {
           salt: string
           snapshot_id?: string
           user_id: string
+          vault_watermark?: string | null
         }
         Update: {
           backup_version?: number
@@ -1747,6 +1749,7 @@ export type Database = {
           salt?: string
           snapshot_id?: string
           user_id?: string
+          vault_watermark?: string | null
         }
         Relationships: []
       }
@@ -1755,6 +1758,7 @@ export type Database = {
           device_id: string
           identity_dh_key: string
           identity_signing_key: string
+          max_published_otpk_id: number
           one_time_pre_keys: Json
           signed_pre_key: string
           signed_pre_key_id: number
@@ -1766,6 +1770,7 @@ export type Database = {
           device_id: string
           identity_dh_key: string
           identity_signing_key: string
+          max_published_otpk_id?: number
           one_time_pre_keys?: Json
           signed_pre_key: string
           signed_pre_key_id: number
@@ -1777,11 +1782,36 @@ export type Database = {
           device_id?: string
           identity_dh_key?: string
           identity_signing_key?: string
+          max_published_otpk_id?: number
           one_time_pre_keys?: Json
           signed_pre_key?: string
           signed_pre_key_id?: number
           signed_pre_key_sig?: string
           updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      signal_identity_log: {
+        Row: {
+          device_id: string
+          first_seen: string
+          identity_dh_key: string
+          identity_signing_key: string
+          user_id: string
+        }
+        Insert: {
+          device_id: string
+          first_seen?: string
+          identity_dh_key: string
+          identity_signing_key: string
+          user_id: string
+        }
+        Update: {
+          device_id?: string
+          first_seen?: string
+          identity_dh_key?: string
+          identity_signing_key?: string
           user_id?: string
         }
         Relationships: []
@@ -2000,6 +2030,30 @@ export type Database = {
         }
         Relationships: []
       }
+      vault_cursors: {
+        Row: {
+          device_id: string
+          last_created_at: string
+          last_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          device_id: string
+          last_created_at: string
+          last_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          device_id?: string
+          last_created_at?: string
+          last_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       vault_device_keys: {
         Row: {
           created_at: string
@@ -2038,6 +2092,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      advance_vault_cursor: {
+        Args: { p_created_at: string; p_device_id: string; p_id: string }
+        Returns: undefined
+      }
       _assert_line_supervisor: { Args: { p_cred_id: string }; Returns: string }
       _assert_supervisor_or_dev: {
         Args: { p_clinic_id: string }

@@ -330,6 +330,16 @@ export async function saveMessage(
   }
 }
 
+/** Whether a message with this id is already persisted locally. */
+export async function hasMessage(messageId: string): Promise<boolean> {
+  try {
+    const db = await getDb()
+    return (await db.getKey('messages', messageId)) !== undefined
+  } catch {
+    return false
+  }
+}
+
 // ---- Load ----
 
 /** Load all messages for a peer, sorted oldest-first. */

@@ -169,7 +169,7 @@ export async function signIn(
     // Ensure vault exists (migration for pre-vault users), then cache wrapping key.
     // Sequential: deriveAndCacheVaultKey needs the vault row to exist before fetching salt.
     // Retry once on failure — vault is critical for messageability.
-    // The promise is registered so processVaultMessages can await it instead of racing.
+    // The promise is registered so the vault inbox can await it instead of racing.
     const vaultKeyP = ensureVaultExists(data.user.id, password)
       .then(() => deriveAndCacheVaultKey(password, data.user.id))
       .catch(() =>

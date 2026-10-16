@@ -131,20 +131,50 @@ export interface RatchetState {
   /** Skipped message keys for out-of-order delivery.
    *  Key format: `${dhPublicKeyBase64}:${messageNumber}` → message key base64. */
   skippedKeys: Record<string, string | { key: string; ts: number }>
+  /** Peer ratchet keys of receiving chains we have already ratcheted past
+   *  (newest first, bounded). A packet on one of these chains with no skipped
+   *  key left is a replay, not a session mismatch. Absent on pre-existing state. */
+  previousReceivingDh?: string[]
 }
 
-/** An established session between us and a peer, persisted in IndexedDB. */
-export interface StoredSession {
-  peerId: string
-  /** Peer's device ID for this session. */
-  peerDeviceId: string
-  /** Compound key: `${peerId}:${peerDeviceId}` — used as IndexedDB key. */
-  sessionKey: string
+/** X3DH fields the initiator re-attaches to every outbound message until the
+ *  peer replies in that session (Signal's "pending pre-key"). Lets the peer
+ *  open any of those messages even if the first one is lost or arrives late. */
+export interface PendingPreKey {
+  identitySigningKey: string
+  identityDhKey: string
+  ephemeralKey: string
+  signedPreKeyId: number
+  oneTimePreKeyId: number | null
+}
+
+/** One ratchet session with a peer device (current or archived). */
+export interface SessionState {
   state: RatchetState
   /** Associated data for AEAD: concat(initiator identity DH pub, responder identity DH pub), base64. */
   associatedData: string
   /** Peer's identity DH public key (raw base64), used to seal outbound messages. */
   peerIdentityDhKey: string
+  /** X3DH base key (initiator's ephemeral public key) — identifies the
+   *  handshake this session came from. Absent on pre-existing sessions. */
+  baseKey?: string
+  /** Set while we are the initiator and the peer has not yet replied. */
+  pendingPreKey?: PendingPreKey
+}
+
+/** Session record with a peer device, persisted in IndexedDB. The top-level
+ *  SessionState fields are the CURRENT session (used for sending);
+ *  previousStates are archived sessions still tried on receive, so crossed
+ *  handshakes (both sides initiating at once) and in-flight packets from a
+ *  superseded session keep decrypting. */
+export interface StoredSession extends SessionState {
+  peerId: string
+  /** Peer's device ID for this session. */
+  peerDeviceId: string
+  /** Compound key: `${peerId}:${peerDeviceId}` — used as IndexedDB key. */
+  sessionKey: string
+  /** Archived sessions, newest first, bounded. */
+  previousStates?: SessionState[]
   createdAt: string
   updatedAt: string
 }
@@ -216,6 +246,13 @@ export interface SenderKeyState {
   /** Membership epoch (message_groups.key_epoch) this key was minted under.
    *  Absent on pre-epoch keys → treated as 0. Drives lazy rotation on removal. */
   epoch?: number
+  /** Random id minted with the key. Messages carry it so a recipient holding a
+   *  different key for this sender (rotation, reinstall) knows to ask for the
+   *  new one. Absent on keys minted before keyIds existed. */
+  keyId?: string
+  /** Message keys derived while skipping ahead, for out-of-order delivery.
+   *  Iteration → { key: base64, ts }. Persisted so they survive reloads. */
+  skippedKeys?: Record<number, { key: string; ts: number }>
   createdAt: string
 }
 
@@ -241,6 +278,8 @@ export interface SenderKeyDistribution {
   iteration: number
   /** ECDSA P-256 signing public key (SPKI base64) — used to verify future messages. */
   signingPublicKey: string
+  /** Id of the key being distributed (see SenderKeyState.keyId). */
+  keyId?: string
   /** Per-group symmetric secret for group-NAME encryption (base64). Piggybacked
    *  on the distribution so every member can decrypt the group name. Present only
    *  when the distributing member currently holds the secret. */
@@ -266,6 +305,9 @@ export interface SenderKeyMessage {
   senderDeviceId: string
   /** Chain iteration at which this message was encrypted. */
   iteration: number
+  /** Id of the sender key used (see SenderKeyState.keyId). Routing hint only —
+   *  authenticity comes from the signature. */
+  keyId?: string
   /** AES-256-GCM ciphertext with 12-byte IV prepended (base64). */
   ciphertext: string
   /** ECDSA-SHA256 signature over (groupId + senderId + iteration + ciphertext) (base64). */

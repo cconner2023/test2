@@ -15,14 +15,21 @@ import { useEffect, useRef, useCallback, useMemo, useState } from 'react'
 import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 import { createLogger } from '../Utilities/Logger'
 import { useSupabaseSubscription } from './useSupabaseSubscription'
-import { fetchUnreadMessages, markMessagesRead, deleteMessages as hardDeleteMessages, hardDeleteByOriginId, onLoRaMessage, sendMessage as sendSignalMessage } from '../lib/signal/signalService'
-import { deleteMessagesByOriginId as deleteMessagesByOriginIdFromDb, updateReadAt } from '../lib/signal/messageStore'
-import { scheduleBackup } from '../lib/signal/backupService'
+import { fetchUnreadMessages, fetchVaultTail, markMessagesRead, deleteMessages as hardDeleteMessages, hardDeleteByOriginId, onLoRaMessage } from '../lib/signal/signalService'
+import { deleteMessagesByOriginId as deleteMessagesByOriginIdFromDb, updateReadAt, hasMessage } from '../lib/signal/messageStore'
+import { scheduleBackup, whenRestoreSettled, getRestoredVaultWatermark } from '../lib/signal/backupService'
 import { LORA_MESH_ENABLED } from '../lib/featureFlags'
-import { processIncomingMessage, encryptMessage, unsealOnly, NoSessionError } from '../lib/signal/session'
+import { processIncomingMessage, openVaultEnvelope, unsealOnly, NoSessionError, SessionMismatchError, DuplicateMessageError } from '../lib/signal/session'
+import { getVaultDecryptKeys, VaultLockedError, VAULT_DEVICE_ID, VAULT_UNLOCKED_EVENT } from '../lib/signal/vaultDevice'
+import {
+  loadVaultCursor, seedVaultCursor, currentVaultCursor, advanceVaultCursor, flushVaultCursor,
+  wasVaultRowProcessed, markVaultRowProcessed, CURSOR_OVERLAP_MS,
+} from '../lib/signal/vaultCursor'
+import { sendToUser } from '../lib/signal/vaultSend'
+import { useAuthStore } from '../stores/useAuthStore'
 import { processClinicIncomingMessage } from '../lib/signal/clinicSession'
 import { drainSystemInbox, SYSTEM_USER_ID } from '../lib/signal/systemIdentity'
-import { processSenderKeyDistribution, senderKeyDecrypt } from '../lib/signal/senderKey'
+import { processSenderKeyDistribution, senderKeyDecrypt, SenderKeyMissingError } from '../lib/signal/senderKey'
 import { getGroupSecretMeta, setGroupSecret } from '../lib/signal/groupNameCrypto'
 import { emitGroupRefresh } from '../lib/signal/groupRefreshBus'
 import { useMessagingStore } from '../stores/useMessagingStore'
@@ -63,10 +70,10 @@ function isUnrecoverableClinicDecrypt(e: unknown): boolean {
 // unread-delta fetch. Visibility/backup triggers stay unthrottled (user-paced).
 const ONLINE_CATCHUP_THROTTLE_MS = 15_000
 
-/** Send a delivery receipt back to the original sender. Fire-and-forget — never throws. */
+/** Send a delivery receipt to the original sender's vault (every one of their
+ *  devices sees it). Fire-and-forget — never throws. Silent: no push wake. */
 async function sendDeliveryReceipt(
   senderUuid: string,
-  senderDeviceId: string,
   messageIds: string[],
   myUuid: string,
   myDeviceId: string,
@@ -79,15 +86,7 @@ async function sendDeliveryReceipt(
       ...(originIds && originIds.length > 0 && { originIds }),
       deliveredAt: new Date().toISOString(),
     })
-    const envelope = await encryptMessage(senderUuid, senderDeviceId, payload, myUuid)
-    await sendSignalMessage(
-      myUuid,
-      senderUuid,
-      envelope as unknown as Record<string, never>,
-      'receipt',
-      myDeviceId,
-      senderDeviceId,
-    )
+    await sendToUser(myUuid, myDeviceId, senderUuid, payload, 'receipt', { silent: true })
   } catch {
     // Delivery receipts are best-effort — silently ignore failures
   }
@@ -127,6 +126,9 @@ interface DecryptSideEffects {
   onSessionMissing?: (peerId: string, peerDeviceId: string, rowId: string, originId?: string) => void
   /** A peer device rebuilt its session with us and asks us to re-send these. */
   onSessionReset?: (peerId: string, peerDeviceId: string, originIds: string[]) => void
+  /** The row could not be decrypted (decryptRow returned null because of a
+   *  failure, not because the row is control-plane). */
+  onDecryptFailed?: (rowId: string) => void
 }
 
 /**
@@ -138,11 +140,41 @@ interface DecryptSideEffects {
  */
 const CONTROL_PLANE_TYPES = new Set(['sender-key-distribution', 'call-signal', 'sender-key-request', 'receipt'])
 
+/** A ratchet packet no held session can open — our half is missing
+ *  (NoSessionError) or diverged from the peer's (SessionMismatchError). Either
+ *  way only a fresh handshake recovers it: request a session reset. */
 function reportNoSession(e: unknown, row: SignalMessageRow, sideEffects?: DecryptSideEffects): void {
-  if (!(e instanceof NoSessionError)) return
+  if (!(e instanceof NoSessionError) && !(e instanceof SessionMismatchError)) return
   const resendable = !row.group_id && !!row.origin_id &&
     (row.message_type === 'message' || row.message_type === 'request')
   sideEffects?.onSessionMissing?.(e.peerId, e.peerDeviceId, row.id, resendable ? row.origin_id ?? undefined : undefined)
+}
+
+/**
+ * Vault-first group content carries the per-group name secret alongside the
+ * payload ({ __g: { s, e }, c }) — the job the sender-key distribution used to
+ * do. Adopt the secret when its epoch is newer than ours (a post-removal
+ * rotation supersedes), then return the inner payload. Non-wrapped input is
+ * returned unchanged.
+ */
+async function unwrapGroupPayload(raw: string, groupId: string | null): Promise<string> {
+  if (!groupId || !raw.startsWith('{"__g"')) return raw
+  try {
+    const parsed = JSON.parse(raw) as { __g?: { s?: string; e?: number }; c?: string }
+    if (typeof parsed.c !== 'string') return raw
+    const secret = parsed.__g?.s
+    if (secret) {
+      const incomingEpoch = parsed.__g?.e ?? 0
+      const existing = await getGroupSecretMeta(groupId)
+      if (!existing || incomingEpoch > existing.epoch) {
+        await setGroupSecret(groupId, secret, incomingEpoch)
+        emitGroupRefresh(groupId)
+      }
+    }
+    return parsed.c
+  } catch {
+    return raw
+  }
 }
 
 async function decryptRow(
@@ -304,11 +336,21 @@ async function decryptRow(
     const envelope = row.payload as unknown as SealedEnvelope
     const senderDeviceId = row.sender_device_id ?? 'unknown'
 
+    // Vault-first rows are stateless X3DH envelopes to the user's vault, opened
+    // with the vault keys; per-device rows (pre-vault-first senders) still go
+    // through the pairwise session.
+    const openRow = async (): Promise<{ plaintext: string; senderUuid: string }> => {
+      if (row.recipient_device_id !== VAULT_DEVICE_ID) {
+        return processIncomingMessage(senderDeviceId, envelope, myUuid)
+      }
+      const keys = await getVaultDecryptKeys(myUuid)
+      if (!keys) throw new Error('No vault for this user')
+      return openVaultEnvelope(senderDeviceId, envelope, myUuid, keys)
+    }
+
     // Delete messages: decrypt through session, extract originIds
     if (row.message_type === 'delete') {
-      const { plaintext: rawPlaintext, senderUuid } = await processIncomingMessage(
-        senderDeviceId, envelope, myUuid
-      )
+      const { plaintext: rawPlaintext, senderUuid } = await openRow()
       const { originIds } = JSON.parse(rawPlaintext) as { originIds: string[] }
       return {
         id: row.id,
@@ -323,9 +365,7 @@ async function decryptRow(
 
     // Sync messages: sealed envelope containing a SyncMessagePayload or ReadSyncPayload
     if (row.message_type === 'sync') {
-      const { plaintext: rawPlaintext, senderUuid } = await processIncomingMessage(
-        senderDeviceId, envelope, myUuid
-      )
+      const { plaintext: rawPlaintext, senderUuid } = await openRow()
 
       // Check for read-sync (cross-device read status update)
       try {
@@ -368,9 +408,7 @@ async function decryptRow(
 
     // Requests: sealed envelope (X3DH InitialMessage inside)
     if (row.message_type === 'request') {
-      const { plaintext: rawPlaintext, senderUuid } = await processIncomingMessage(
-        senderDeviceId, envelope, myUuid
-      )
+      const { plaintext: rawPlaintext, senderUuid } = await openRow()
       const { plaintext, content, replyTo } = parseMessageContent(rawPlaintext)
       return {
         id: row.id,
@@ -389,9 +427,7 @@ async function decryptRow(
 
     // Request-accepted: decrypt through session to get senderUuid
     if (row.message_type === 'request-accepted') {
-      const { senderUuid } = await processIncomingMessage(
-        senderDeviceId, envelope, myUuid
-      )
+      const { senderUuid } = await openRow()
       return {
         id: row.id,
         senderId: senderUuid,
@@ -407,9 +443,7 @@ async function decryptRow(
 
     // Delivery receipt: dedicated protocol type — decrypt and surface as _deliveryReceipt
     if (row.message_type === 'receipt') {
-      const { plaintext: rawPlaintext, senderUuid } = await processIncomingMessage(
-        senderDeviceId, envelope, myUuid
-      )
+      const { plaintext: rawPlaintext, senderUuid } = await openRow()
       const parsed = JSON.parse(rawPlaintext) as Record<string, unknown>
       // Session-reset request: rides the 'receipt' type because the server's
       // message_type CHECK admits it (no migration) and older clients treat the
@@ -441,9 +475,7 @@ async function decryptRow(
     // Sender key distribution: arrives via pairwise 1:1 session (Double Ratchet encrypted).
     // Decrypt through the session, then store the distribution for future group decryption.
     if (row.message_type === 'sender-key-distribution') {
-      const { plaintext: rawPlaintext, senderUuid } = await processIncomingMessage(
-        senderDeviceId, envelope, myUuid
-      )
+      const { plaintext: rawPlaintext, senderUuid } = await openRow()
       try {
         const dist = JSON.parse(rawPlaintext) as SenderKeyDistribution
         const groupId = dist.groupId ?? row.group_id ?? ''
@@ -460,7 +492,8 @@ async function decryptRow(
         } catch {
           logger.debug(`Offline or failed to fetch members for group ${groupId}, trusting authenticated sender`)
         }
-        await processSenderKeyDistribution(dist, memberIds)
+        const stored = await processSenderKeyDistribution(dist, memberIds, { userId: senderUuid, deviceId: senderDeviceId })
+        if (!stored) return null
         logger.debug(`Stored sender key distribution from ${senderUuid} for group ${groupId}`)
 
         // Adopt the piggybacked group-name secret. Epoch-gated: only take it when
@@ -490,12 +523,11 @@ async function decryptRow(
     // to the call layer via the bus, and never surface as a chat message.
     if (row.message_type === 'call-signal') {
       try {
-        const { plaintext: rawPlaintext, senderUuid } = await processIncomingMessage(
-          senderDeviceId, envelope, myUuid
-        )
+        const { plaintext: rawPlaintext, senderUuid } = await openRow()
         const body = JSON.parse(rawPlaintext) as CallSignalBody
         emitCallSignal({ ...body, senderId: senderUuid })
       } catch (e) {
+        if (e instanceof VaultLockedError) throw e
         logger.warn(`Failed to process call-signal ${row.id}:`, e instanceof Error ? e.message : e)
         reportNoSession(e, row, sideEffects)
       }
@@ -510,12 +542,11 @@ async function decryptRow(
     // never surface as a chat message.
     if (row.message_type === 'sender-key-request') {
       try {
-        const { plaintext: rawPlaintext, senderUuid } = await processIncomingMessage(
-          senderDeviceId, envelope, myUuid
-        )
+        const { plaintext: rawPlaintext, senderUuid } = await openRow()
         const body = JSON.parse(rawPlaintext) as { type?: string; groupId?: string }
         if (body.groupId) sideEffects?.onSenderKeyRequest?.(body.groupId, senderUuid)
       } catch (e) {
+        if (e instanceof VaultLockedError) throw e
         logger.warn(`Failed to process sender-key-request ${row.id}:`, e instanceof Error ? e.message : e)
         reportNoSession(e, row, sideEffects)
       }
@@ -542,12 +573,16 @@ async function decryptRow(
       let senderKeyMsg: SenderKeyMessage
       if (isSealed) {
         try {
-          const { inner, senderUuid } = await unsealOnly(rawPayload as unknown as SealedEnvelope, myUuid)
+          const { inner, senderUuid } = await unsealOnly(rawPayload as unknown as SealedEnvelope, myUuid, row.sender_device_id ?? 'unknown')
           senderKeyMsg = inner as unknown as SenderKeyMessage
           // Authenticity: the inner sender MUST match the cert-authenticated
-          // sender. Pre-sealing, senderId was attacker-settable cleartext; the
-          // cert now binds it, so a mismatch is a forgery attempt — reject.
-          if (senderKeyMsg.senderId !== senderUuid) {
+          // sender (and the device it sent from). Pre-sealing, senderId was
+          // attacker-settable cleartext; the cert now binds it, so a mismatch is
+          // a forgery attempt — reject.
+          if (
+            senderKeyMsg.senderId !== senderUuid ||
+            (row.sender_device_id && senderKeyMsg.senderDeviceId !== row.sender_device_id)
+          ) {
             logger.error(`sender-key-message ${row.id}: inner senderId ${senderKeyMsg.senderId} != cert ${senderUuid} — rejecting`)
             return null
           }
@@ -590,14 +625,12 @@ async function decryptRow(
         }
       } catch (e) {
         logger.error(`Failed to decrypt sender-key-message ${row.id}:`, e instanceof Error ? e.message : e)
-        // We hold no sender-key state for this sender ⇒ we missed their
-        // distribution. Fire the retry-receipt so the sender re-distributes
-        // (Signal-style). Only meaningful now that we KNOW the row was addressed
-        // to us (sealed rows already passed the recipient check on unseal).
-        if (
-          row.group_id && senderKeyMsg.senderId &&
-          e instanceof Error && e.message.includes('No sender key')
-        ) {
+        // We hold no sender-key state for this sender, or a different key than
+        // the message was sent under ⇒ we missed their (re-)distribution. Fire
+        // the retry-receipt so the sender re-distributes (Signal-style). Only
+        // meaningful now that we KNOW the row was addressed to us (sealed rows
+        // already passed the recipient check on unseal).
+        if (row.group_id && senderKeyMsg.senderId && e instanceof SenderKeyMissingError) {
           sideEffects?.onSenderKeyMissing?.(row.group_id, senderKeyMsg.senderId)
         }
         errorBus.emit({
@@ -611,10 +644,9 @@ async function decryptRow(
       }
     }
 
-    // Initial and message types: both go through processIncomingMessage
-    const { plaintext: rawPlaintext, senderUuid } = await processIncomingMessage(
-      senderDeviceId, envelope, myUuid
-    )
+    // Initial and message types (1:1 and vault-first group content)
+    const { plaintext: opened, senderUuid } = await openRow()
+    const rawPlaintext = await unwrapGroupPayload(opened, row.group_id ?? null)
 
     // Legacy: receipts sent as 'message' before protocol upgrade — still handle gracefully
     try {
@@ -654,7 +686,19 @@ async function decryptRow(
       originId: row.origin_id ?? undefined,
     }
   } catch (e) {
+    // The vault is locked on this device — not a row failure; the vault inbox
+    // stops here and prompts for the password.
+    if (e instanceof VaultLockedError) throw e
+    // Re-delivery of a packet we already opened (catch-up replay of a row that
+    // stays unread until its conversation is opened). Nothing to do — ack it so
+    // it stops coming back, and never treat it as a broken session.
+    if (e instanceof DuplicateMessageError) {
+      logger.debug(`Duplicate delivery of ${row.id} — acking`)
+      markMessagesRead([row.id]).catch(() => {})
+      return null
+    }
     logger.error(`Failed to decrypt message ${row.id}:`, e instanceof Error ? e.message : e)
+    sideEffects?.onDecryptFailed?.(row.id)
     reportNoSession(e, row, sideEffects)
     errorBus.emit({
       code: ErrorCode.DECRYPT_FAILED,
@@ -665,6 +709,39 @@ async function decryptRow(
     })
     return null
   }
+}
+
+/** Vault rows fetched per catch-up page. */
+const VAULT_PAGE_SIZE = 200
+
+/** Attempts before an undecryptable vault row is skipped so it can't pin the
+ *  cursor (and the server reap) forever. Counted per catch-up / realtime try. */
+const VAULT_ROW_MAX_ATTEMPTS = 3
+
+/** Wire types whose decrypted message is persisted under the row id. */
+const PERSISTED_CONTENT_TYPES = new Set(['message', 'initial', 'request', 'sender-key-message'])
+
+let decryptChain: Promise<unknown> = Promise.resolve()
+
+/**
+ * Single ordered inbound pipeline shared by realtime, catch-up and LoRa.
+ * Rows decrypt one at a time in arrival order: run concurrently, a follow-up
+ * could win the session lock ahead of the handshake that creates the session,
+ * or a group message ahead of its key distribution. Rows already persisted
+ * locally (a conversation row stays unread server-side until opened, so every
+ * catch-up re-fetches it) are skipped instead of being decrypted again.
+ */
+function decryptRowInOrder(
+  row: SignalMessageRow,
+  myUuid: string,
+  sideEffects?: DecryptSideEffects,
+): Promise<DecryptedSignalMessage | null> {
+  const run = decryptChain.then(async () => {
+    if (PERSISTED_CONTENT_TYPES.has(row.message_type) && await hasMessage(row.id)) return null
+    return decryptRow(row, myUuid, sideEffects)
+  })
+  decryptChain = run.catch(() => {})
+  return run
 }
 
 export function useSignalMessages({
@@ -810,8 +887,17 @@ export function useSignalMessages({
       setCatchUpTrigger(t => t + 1)
     }
     window.addEventListener('backup-restored', onBackupRestored)
-    return () => window.removeEventListener('backup-restored', onBackupRestored)
+    window.addEventListener(VAULT_UNLOCKED_EVENT, onBackupRestored)
+    return () => {
+      window.removeEventListener('backup-restored', onBackupRestored)
+      window.removeEventListener(VAULT_UNLOCKED_EVENT, onBackupRestored)
+    }
   }, [])
+
+  // Persist the vault cursor before the page may be frozen/evicted.
+  useEffect(() => {
+    if (!isPageVisible) void flushVaultCursor()
+  }, [isPageVisible])
 
   // Re-trigger catch-up on network reconnect. A long-lived, continuously-
   // foregrounded session fires no visibilitychange, so without this it never
@@ -855,20 +941,29 @@ export function useSignalMessages({
       // next catch-up (especially sync rows which are never user-read).
       const processedRowIds: string[] = []
 
-      // Decrypt sequentially to preserve ratchet state ordering
-      for (const row of result.data) {
-        if (processedIds.current.has(row.id)) continue
-        trackProcessed(row.id)
-        const decrypted = await decryptRow(row, userId, decryptSideEffectsRef.current)
+      // Enqueue the whole backlog at once, in server order, so realtime rows
+      // arriving mid-drain line up behind it instead of jumping ahead.
+      const queued = result.data
+        .filter(row => !processedIds.current.has(row.id))
+        .map(row => {
+          trackProcessed(row.id)
+          return { row, pending: decryptRowInOrder(row, userId, decryptSideEffectsRef.current) }
+        })
+
+      for (const { row, pending } of queued) {
+        const decrypted = await pending
         // Null return means non-visible (sender-key-distribution) or decrypt failure.
         // Only mark-read for non-recoverable types — leave handshake/session failures
         // unread so the next session's catch-up retries after pre-keys replenish,
         // sessions restore from backup, etc. Without this, a transient X3DH failure
         // (e.g. recipient on a fresh provisional tab) permanently loses the row,
         // which is exactly how request-accepted disappears and the gate sticks.
+        // Untrack it too, or the in-memory dedupe would block that retry until reload.
         if (!decrypted) {
           if (CONTROL_PLANE_TYPES.has(row.message_type)) {
             processedRowIds.push(row.id)
+          } else {
+            processedIds.current.delete(row.id)
           }
           continue
         }
@@ -903,7 +998,6 @@ export function useSignalMessages({
           ) {
             sendDeliveryReceipt(
               decrypted.senderId,
-              row.sender_device_id ?? 'unknown',
               [row.id],
               userIdRef.current,
               localDeviceId,
@@ -921,6 +1015,191 @@ export function useSignalMessages({
       // Pruning handled by trackProcessed()
     })()
   }, [isAuthenticated, userId, localDeviceId, catchUpTrigger])
+
+  /**
+   * Apply a decrypted personal row: deletes strip local state, everything else
+   * goes to onMessage, and conversation content from others gets a delivery
+   * receipt. Vault rows are NEVER hard-deleted or read-marked here — the user's
+   * other devices still read them from their own cursors; the server reap
+   * removes them once every active device and a backup have them.
+   */
+  const applyDecrypted = useCallback((
+    row: SignalMessageRow,
+    decrypted: DecryptedSignalMessage,
+    myUuid: string,
+    myDeviceId: string | null,
+  ) => {
+    const isVaultRow = row.recipient_device_id === VAULT_DEVICE_ID
+    if (decrypted.messageType === 'delete') {
+      try {
+        const { originIds } = JSON.parse(decrypted.plaintext) as { originIds: string[] }
+        deleteMessagesByOriginIdFromDb(originIds).catch(e => errorBus.emit({ code: ErrorCode.STORAGE_ERROR, source: 'useSignalMessages.apply', message: 'Failed to delete messages from local DB', timestamp: Date.now(), metadata: { error: e } }))
+        onDeleteRef.current?.(originIds)
+        hardDeleteByOriginId(originIds).catch(e => errorBus.emit({ code: ErrorCode.SYNC_FAILED, source: 'useSignalMessages.apply', message: 'Failed to hard-delete origin messages from server', timestamp: Date.now(), metadata: { error: e } }))
+        if (!isVaultRow) {
+          hardDeleteMessages([decrypted.id]).catch(e => errorBus.emit({ code: ErrorCode.SYNC_FAILED, source: 'useSignalMessages.apply', message: 'Failed to hard-delete processed message from server', timestamp: Date.now(), metadata: { error: e } }))
+        }
+        if (userIdRef.current) scheduleBackup(userIdRef.current)
+      } catch { /* ignore parse errors */ }
+      return
+    }
+    // Determine if this is a user-visible message from another person (the only
+    // kind that should remain unread until the user opens the conversation).
+    const isUserMessage =
+      decrypted.messageType === 'message' ||
+      decrypted.messageType === 'initial' ||
+      decrypted.messageType === 'request'
+    const isFromOther = decrypted.senderId !== myUuid
+    const isConversationContent =
+      isUserMessage && isFromOther &&
+      !decrypted._deliveryReceipt &&
+      !isCalendarEvent(decrypted.content) &&
+      !isMapOverlay(decrypted.content) &&
+      !isMapFeature(decrypted.content)
+
+    // Mark per-device non-conversation rows as read so the cron cleanup can
+    // purge them. User messages are marked read when the conversation is opened.
+    if (!isConversationContent && !isVaultRow) {
+      markMessagesRead([row.id]).catch(() => {})
+    }
+
+    onMessageRef.current(decrypted)
+
+    // Send delivery receipt only for user-visible messages from others
+    if (isConversationContent && !decrypted.plaintext.includes('"__type":"delivery-receipt"') && myDeviceId) {
+      sendDeliveryReceipt(
+        decrypted.senderId,
+        [row.id],
+        myUuid,
+        myDeviceId,
+        row.origin_id ? [row.origin_id] : undefined,
+      ).catch(() => {})
+    }
+  }, [])
+
+  // ── Vault inbox (vault-first) ─────────────────────────────────────────────
+  // Every personal message is one row addressed to the user's vault. This
+  // device reads them in order from its own cursor; realtime rows and the
+  // catch-up share one chain so the cursor only moves over rows actually handled.
+  const vaultChain = useRef<Promise<unknown>>(Promise.resolve())
+  const vaultFailures = useRef(new Map<string, number>())
+  const vaultCatchUpRunning = useRef(false)
+  const vaultCatchUpAgain = useRef(false)
+
+  /** Handle one vault row. Returns false when processing must stop at this row
+   *  (vault locked, or a retriable failure) — the cursor is not moved past it. */
+  const processVaultRow = useCallback(async (row: SignalMessageRow): Promise<boolean> => {
+    const myUuid = userIdRef.current
+    const myDeviceId = localDeviceIdRef.current
+    if (!myUuid || !myDeviceId) return false
+
+    const advance = () => {
+      // Hold the cursor while an earlier row is still retrying.
+      if (vaultFailures.current.size === 0) advanceVaultCursor(row)
+    }
+
+    if (wasVaultRowProcessed(row.id)) {
+      advance()
+      return true
+    }
+    // This device's own row (own-device sync, own receipts): already applied here.
+    if (row.sender_device_id === myDeviceId) {
+      markVaultRowProcessed(row.id)
+      advance()
+      return true
+    }
+
+    let failed = false
+    let decrypted: DecryptedSignalMessage | null = null
+    try {
+      decrypted = await decryptRowInOrder(row, myUuid, {
+        ...decryptSideEffectsRef.current,
+        onDecryptFailed: () => { failed = true },
+      })
+    } catch (e) {
+      if (e instanceof VaultLockedError) {
+        useAuthStore.getState().setVaultKeyPromptNeeded(true)
+        return false
+      }
+      failed = true
+    }
+
+    if (failed) {
+      const attempts = (vaultFailures.current.get(row.id) ?? 0) + 1
+      if (attempts < VAULT_ROW_MAX_ATTEMPTS) {
+        vaultFailures.current.set(row.id, attempts)
+        return false
+      }
+      vaultFailures.current.delete(row.id)
+      logger.warn(`Vault row ${row.id} undecryptable after ${attempts} attempts — skipping`)
+    } else {
+      vaultFailures.current.delete(row.id)
+    }
+
+    trackProcessed(row.id)
+    markVaultRowProcessed(row.id)
+    if (decrypted) applyDecrypted(row, decrypted, myUuid, myDeviceId)
+    advance()
+    return true
+  }, [applyDecrypted])
+
+  const enqueueVaultRow = useCallback((row: SignalMessageRow): Promise<boolean> => {
+    const run = vaultChain.current.then(() => processVaultRow(row))
+    vaultChain.current = run.catch(() => {})
+    return run
+  }, [processVaultRow])
+
+  // Vault catch-up: read the vault tail from this device's cursor (minus the
+  // overlap window), page by page. A device with no cursor starts from the
+  // restored backup's watermark — rows below it are in the snapshot.
+  useEffect(() => {
+    if (!isAuthenticated || !userId || !localDeviceId) return
+    let cancelled = false
+
+    const run = async () => {
+      if (vaultCatchUpRunning.current) {
+        vaultCatchUpAgain.current = true
+        return
+      }
+      vaultCatchUpRunning.current = true
+      try {
+        await Promise.race([whenRestoreSettled(), new Promise(r => setTimeout(r, 15_000))])
+        if (cancelled) return
+
+        let cursor = await loadVaultCursor(userId, localDeviceId)
+        if (!cursor) {
+          const watermark = getRestoredVaultWatermark()
+          if (watermark) seedVaultCursor(userId, localDeviceId, watermark)
+          cursor = currentVaultCursor()
+        }
+        let since = cursor
+          ? new Date(Date.parse(cursor.createdAt) - CURSOR_OVERLAP_MS).toISOString()
+          : null
+
+        for (;;) {
+          const page = await fetchVaultTail(userId, since, VAULT_PAGE_SIZE)
+          if (!page.ok || cancelled) return
+          for (const row of page.data) {
+            if (!(await enqueueVaultRow(row))) return
+          }
+          if (page.data.length < VAULT_PAGE_SIZE) break
+          const last = page.data[page.data.length - 1].created_at
+          if (last === since) break // a full page sharing one timestamp — next trigger continues
+          since = last
+        }
+        void flushVaultCursor()
+      } finally {
+        vaultCatchUpRunning.current = false
+        if (vaultCatchUpAgain.current && !cancelled) {
+          vaultCatchUpAgain.current = false
+          void run()
+        }
+      }
+    }
+
+    void run()
+    return () => { cancelled = true }
+  }, [isAuthenticated, userId, localDeviceId, catchUpTrigger, enqueueVaultRow])
 
   // Clinic device offline catch-up: drain unread messages for EVERY clinic the
   // user belongs to (home ∪ loans). Each clinic's inbox is addressed to the same
@@ -1001,10 +1280,12 @@ export function useSignalMessages({
       if (processedIds.current.has(row.id)) return
       trackProcessed(row.id)
 
-      decryptRow(row, myUuid, decryptSideEffectsRef.current).then((decrypted) => {
+      decryptRowInOrder(row, myUuid, decryptSideEffectsRef.current).then((decrypted) => {
         if (!decrypted) {
           if (CONTROL_PLANE_TYPES.has(row.message_type)) {
             markMessagesRead([row.id]).catch(() => {})
+          } else {
+            processedIds.current.delete(row.id)
           }
           return
         }
@@ -1040,7 +1321,6 @@ export function useSignalMessages({
         if (isConversationContent && !decrypted.plaintext.includes('"__type":"delivery-receipt"') && myUuid && myDeviceId) {
           sendDeliveryReceipt(
             decrypted.senderId,
-            row.sender_device_id ?? 'unknown',
             [row.id],
             myUuid,
             myDeviceId,
@@ -1066,6 +1346,14 @@ export function useSignalMessages({
       const myDeviceId = localDeviceIdRef.current
       const myUuid = userIdRef.current
       if (!myUuid) return
+
+      // Vault-first rows: every device of the user reads them, in order, via
+      // the vault chain (which owns dedupe and the cursor).
+      if (row.recipient_device_id === VAULT_DEVICE_ID) {
+        void enqueueVaultRow(row)
+        return
+      }
+
       if (myDeviceId && row.recipient_device_id && row.recipient_device_id !== myDeviceId) {
         logger.debug(`Skipping message ${row.id}: for device ${row.recipient_device_id}, not ${myDeviceId}`)
         return
@@ -1077,65 +1365,24 @@ export function useSignalMessages({
       }
       trackProcessed(row.id)
 
-      decryptRow(row, myUuid, decryptSideEffectsRef.current).then((decrypted) => {
+      decryptRowInOrder(row, myUuid, decryptSideEffectsRef.current).then((decrypted) => {
         if (!decrypted) {
           // Null means non-visible (sender-key-distribution) or decrypt failure.
           // Only mark-read for non-recoverable types — handshake/session failures
-          // stay unread so catch-up retries on the next session (after sessions
+          // stay unread (and untracked) so catch-up retries them (after sessions
           // restore from backup, pre-keys replenish, etc.). Marking them read here
           // is how request-accepted rows on fresh-X3DH paths disappear permanently.
           if (CONTROL_PLANE_TYPES.has(row.message_type)) {
             markMessagesRead([row.id]).catch(() => {})
+          } else {
+            processedIds.current.delete(row.id)
           }
           return
         }
-        if (decrypted.messageType === 'delete') {
-          try {
-            const { originIds } = JSON.parse(decrypted.plaintext) as { originIds: string[] }
-            deleteMessagesByOriginIdFromDb(originIds).catch(e => errorBus.emit({ code: ErrorCode.STORAGE_ERROR, source: 'useSignalMessages.realtime', message: 'Failed to delete messages from local DB', timestamp: Date.now(), metadata: { error: e } }))
-            onDeleteRef.current?.(originIds)
-            hardDeleteByOriginId(originIds).catch(e => errorBus.emit({ code: ErrorCode.SYNC_FAILED, source: 'useSignalMessages.realtime', message: 'Failed to hard-delete origin messages from server', timestamp: Date.now(), metadata: { error: e } }))
-            hardDeleteMessages([decrypted.id]).catch(e => errorBus.emit({ code: ErrorCode.SYNC_FAILED, source: 'useSignalMessages.realtime', message: 'Failed to hard-delete processed message from server', timestamp: Date.now(), metadata: { error: e } }))
-            if (userIdRef.current) scheduleBackup(userIdRef.current)
-          } catch { /* ignore parse errors */ }
-          return
-        }
-        // Determine if this is a user-visible message from another person (the only
-        // kind that should remain unread until the user opens the conversation).
-        const isUserMessage =
-          decrypted.messageType === 'message' ||
-          decrypted.messageType === 'initial' ||
-          decrypted.messageType === 'request'
-        const isFromOther = decrypted.senderId !== myUuid
-        const isConversationContent =
-          isUserMessage && isFromOther &&
-          !decrypted._deliveryReceipt &&
-          !isCalendarEvent(decrypted.content) &&
-          !isMapOverlay(decrypted.content) &&
-          !isMapFeature(decrypted.content)
-
-        // Mark all non-conversation rows as read so the cron cleanup can purge them.
-        // User messages are marked read later when the conversation is opened.
-        if (!isConversationContent) {
-          markMessagesRead([row.id]).catch(() => {})
-        }
-
-        onMessageRef.current(decrypted)
-
-        // Send delivery receipt only for user-visible messages from others
-        if (isConversationContent && !decrypted.plaintext.includes('"__type":"delivery-receipt"') && myUuid && myDeviceId) {
-          sendDeliveryReceipt(
-            decrypted.senderId,
-            row.sender_device_id ?? 'unknown',
-            [row.id],
-            myUuid,
-            myDeviceId,
-            row.origin_id ? [row.origin_id] : undefined,
-          ).catch(() => {})
-        }
+        applyDecrypted(row, decrypted, myUuid, myDeviceId)
       })
     },
-    [],
+    [applyDecrypted, enqueueVaultRow],
   )
 
   const postgresFilter = useMemo(

@@ -217,7 +217,7 @@ export const services = {
     tables: { reads: ['signal_messages'], writes: ['vault_device_keys', 'signal_key_bundles', 'user_devices'] },
     idb: ['adtmc-signal-store', 'adtmc-message-store'],
     exports: ['generateVaultIdentity', 'uploadVaultDevice', 'deriveAndCacheVaultKey',
-              'processVaultMessages', 'ensureVaultExists', 'setVaultKeyReady', 'deleteVaultIdentity'],
+              'getVaultDecryptKeys', 'ensureVaultExists', 'setVaultKeyReady', 'deleteVaultIdentity'],
   },
   'signal/clinicVaultDevice': {
     path: 'lib/signal/clinicVaultDevice.ts',

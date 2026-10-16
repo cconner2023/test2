@@ -35,6 +35,7 @@ import {
   type OutsideEntityChannel,
 } from '../outsideEntityChannelStore'
 import type { StoredMessage } from './messageStore'
+import { currentVaultCursor } from './vaultCursor'
 
 const logger = createLogger('BackupService')
 
@@ -78,6 +79,25 @@ let _hydrationComplete = false
  *  device receives a delete envelope, deletes from IDB, schedules a backup,
  *  and the backup races the still-in-flight restore. */
 let _restoreCompleted = false
+
+/** Settles when the current restoreBackup finishes (any outcome). The vault
+ *  inbox waits on it so a new device seeds its cursor from the snapshot. */
+let _restoreSettled: Promise<void> = new Promise(() => {})
+let _resolveRestoreSettled: () => void = () => {}
+
+/** Newest vault_watermark among the snapshots restoreBackup folded in — every
+ *  vault row at or below it is in the restored history (null: none recorded). */
+let _restoredVaultWatermark: string | null = null
+
+/** Resolves once restoreBackup has finished on this page (any outcome). */
+export function whenRestoreSettled(): Promise<void> {
+  return _restoreSettled
+}
+
+/** See _restoredVaultWatermark. */
+export function getRestoredVaultWatermark(): string | null {
+  return _restoredVaultWatermark
+}
 
 /** Single-flight lock for createBackup. Multiple concurrent invocations
  *  (delete handler + incoming sync + periodic timer) collapse into one
@@ -285,6 +305,8 @@ export function clearBackupKey(): void {
   _backupKeyReady = null
   _hydrationComplete = false
   _restoreCompleted = false
+  _restoreSettled = new Promise(() => {})
+  _restoredVaultWatermark = null
   _createBackupInFlight = null
   _firstDirtyAt = null
   _dirtySinceLastBackup = false
@@ -555,6 +577,9 @@ async function doCreateBackup(userId: string): Promise<boolean> {
         message_count: messages.length,
         backup_version: 3,
         created_at: new Date().toISOString(),
+        // This device's vault cursor: every vault row at or below it is in this
+        // snapshot, so the server reap may delete it (reap_personal_vaults).
+        vault_watermark: currentVaultCursor()?.createdAt ?? null,
       })
 
     if (error) {
@@ -611,6 +636,8 @@ const RESTORE_HARD_TIMEOUT_MS = 15_000
  *  indefinitely is intentional: a permanent block would mean no device could
  *  ever back up after a restore failure. */
 export async function restoreBackup(userId: string): Promise<void> {
+  _restoreSettled = new Promise<void>(resolve => { _resolveRestoreSettled = resolve })
+  _restoredVaultWatermark = null
   const hardTimeout = setTimeout(() => {
     if (!_restoreCompleted) {
       logger.warn(`restoreBackup hard-timeout after ${RESTORE_HARD_TIMEOUT_MS}ms — opening createBackup gate`)
@@ -652,11 +679,11 @@ export async function restoreBackup(userId: string): Promise<void> {
     // tombstones (restored first, below) keep the fold delete-correct: an older
     // snapshot can never resurrect a message tombstoned in a newer one. After a
     // fold the device's IDB is rich again, so its next backup self-heals.
-    type SnapRow = { snapshot_id: string; salt: string; ciphertext: string; created_at: string }
+    type SnapRow = { snapshot_id: string; salt: string; ciphertext: string; created_at: string; vault_watermark: string | null }
 
     const { data: recentSnaps, error } = await supabase
       .from('signal_backups')
-      .select('snapshot_id, salt, ciphertext, created_at')
+      .select('snapshot_id, salt, ciphertext, created_at, vault_watermark')
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
       .limit(BACKUP_RETAIN_COUNT)
@@ -665,7 +692,7 @@ export async function restoreBackup(userId: string): Promise<void> {
     // Best-effort: a failure here just falls back to the recent set.
     const { data: richSnaps } = await supabase
       .from('signal_backups')
-      .select('snapshot_id, salt, ciphertext, created_at')
+      .select('snapshot_id, salt, ciphertext, created_at, vault_watermark')
       .eq('user_id', userId)
       .order('message_count', { ascending: false })
       .limit(1)
@@ -745,6 +772,9 @@ export async function restoreBackup(userId: string): Promise<void> {
               mergedOutsideChannels.set(ch.entity_id, ch)
             }
           }
+        }
+        if (snap.vault_watermark && (!_restoredVaultWatermark || snap.vault_watermark > _restoredVaultWatermark)) {
+          _restoredVaultWatermark = snap.vault_watermark
         }
         foldedCount++
       } catch (e) {
@@ -861,6 +891,7 @@ export async function restoreBackup(userId: string): Promise<void> {
     // migration so its createBackup call passes the gate.
     _restoreCompleted = true
     clearTimeout(hardTimeout)
+    _resolveRestoreSettled()
   }
 
   // Migration: re-encrypt with the current (per-user) key and clear legacy key slot.
