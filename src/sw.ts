@@ -199,12 +199,13 @@ const SW_BUILD_KEY = 'build-id';
 // ─── Forced update epoch ─────────────────────────────────────────────
 // Bump to force EVERY open client onto this build, bypassing the dismissable
 // app-level prompt — for wire-protocol breaks where an old client can't
-// interoperate (1 = vault-first messaging). Enforced entirely here, so it works
+// interoperate (2 = vault-first messaging; epoch 1 shipped with an activation
+// deadlock, so 2 replaces any worker stuck on it). Enforced entirely here, so it works
 // on clients still running the old page code: the new worker skips waiting,
 // claims every window and reloads it in place. The old page can't do it — in
 // prompt mode it only reloads after the worker sits in `waiting`, which a
 // skip-waiting worker never does.
-const FORCED_UPDATE_EPOCH = 1;
+const FORCED_UPDATE_EPOCH = 2;
 const SW_FORCED_EPOCH_KEY = 'forced-epoch';
 
 async function storedForcedEpoch(): Promise<number> {
@@ -227,26 +228,32 @@ self.addEventListener('install', (event) => {
 
 // ─── Activate: stamp build ID in meta cache; enforce forced epoch ─────
 self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    (async () => {
-      const cache = await caches.open(SW_META_CACHE);
-      // Only an UPGRADE from an earlier build reloads its windows; a first
-      // install has nothing stale to replace.
-      const upgrading = !!(await cache.match(SW_BUILD_KEY));
-      const forced = upgrading && (await storedForcedEpoch()) < FORCED_UPDATE_EPOCH;
-      await cache.put(SW_BUILD_KEY, new Response(__BUILD_ID__, {
-        headers: { 'Content-Type': 'text/plain' },
-      }));
-      await cache.put(SW_FORCED_EPOCH_KEY, new Response(String(FORCED_UPDATE_EPOCH), {
-        headers: { 'Content-Type': 'text/plain' },
-      }));
-      if (!forced) return;
-      // Take over every open window and reload it onto this build.
-      await self.clients.claim();
-      const windows = await self.clients.matchAll({ type: 'window' });
-      await Promise.all(windows.map(client => client.navigate(client.url).catch(() => null)));
-    })()
-  );
+  const stamped = (async () => {
+    const cache = await caches.open(SW_META_CACHE);
+    // Only an UPGRADE from an earlier build reloads its windows; a first
+    // install has nothing stale to replace.
+    const upgrading = !!(await cache.match(SW_BUILD_KEY));
+    const forced = upgrading && (await storedForcedEpoch()) < FORCED_UPDATE_EPOCH;
+    await cache.put(SW_BUILD_KEY, new Response(__BUILD_ID__, {
+      headers: { 'Content-Type': 'text/plain' },
+    }));
+    await cache.put(SW_FORCED_EPOCH_KEY, new Response(String(FORCED_UPDATE_EPOCH), {
+      headers: { 'Content-Type': 'text/plain' },
+    }));
+    return forced;
+  })();
+  event.waitUntil(stamped);
+
+  // Reload the open windows only AFTER activation. The reload's requests are
+  // held until this worker is activated, and activation waits on everything
+  // passed to waitUntil — awaiting navigate() in there deadlocks every page on
+  // the loading screen. So it is deliberately NOT part of waitUntil.
+  void stamped.then(async forced => {
+    if (!forced) return;
+    await self.clients.claim();
+    const windows = await self.clients.matchAll({ type: 'window' });
+    for (const client of windows) client.navigate(client.url).catch(() => null);
+  }).catch(() => {});
 });
 
 // ─── Skip waiting + queue notification on message ────────────────────
