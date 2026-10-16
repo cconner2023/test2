@@ -18,6 +18,7 @@ export interface ReleaseNoteTypes {
 }
 
 export const ReleaseNotes: ReleaseNoteTypes[] = [
+    { version: '2.8.0', type: 'changed', sectionId: 'messaging', text: 'Messaging rebuilt for reliability: each message is delivered once to your secure inbox and every one of your devices reads it from there, so conversations stay in sync across devices with less data use. This update installs automatically.' },
     { version: '2.7.5', type: 'started', sectionId: 'writing-notes', text: 'Seeded Notes via algorithm choices (i.e. HPI, PE, plan optionally auto-generate what you already answered in the algorithm). So you don\'t have to type it twice' },
     { version: '2.7.5', type: 'started', sectionId: 'knowledge-base', text: 'Prolonged Field Care and CPG database.' },
     { version: '2.7.5', type: 'added', sectionId: 'knowledge-base', text: 'updated ICTLs: in progress. Mapping to Algorithms and testable data so supervisors have visibility.' },

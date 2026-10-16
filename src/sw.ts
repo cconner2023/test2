@@ -188,32 +188,64 @@ self.addEventListener('notificationclick', (event) => {
 });
 
 // ─── Install: selective skipWaiting ──────────────────────────────────
-// Skip waiting only when no prior build ID exists in the meta cache —
-// i.e. this is a pre-auth build that predates the update prompt system.
-// Post-auth users have the entry stamped on activate; their updates flow
-// through the app-level prompt so silent bug fixes and intentional bumps
-// are handled separately.
+// Skip waiting when no prior build ID exists in the meta cache — i.e. this is
+// a pre-auth build that predates the update prompt system — or when this build
+// raises the forced-update epoch (see below). Post-auth users otherwise have
+// the entry stamped on activate; their updates flow through the app-level
+// prompt so silent bug fixes and intentional bumps are handled separately.
 const SW_META_CACHE = 'sw-meta';
 const SW_BUILD_KEY = 'build-id';
 
+// ─── Forced update epoch ─────────────────────────────────────────────
+// Bump to force EVERY open client onto this build, bypassing the dismissable
+// app-level prompt — for wire-protocol breaks where an old client can't
+// interoperate (1 = vault-first messaging). Enforced entirely here, so it works
+// on clients still running the old page code: the new worker skips waiting,
+// claims every window and reloads it in place. The old page can't do it — in
+// prompt mode it only reloads after the worker sits in `waiting`, which a
+// skip-waiting worker never does.
+const FORCED_UPDATE_EPOCH = 1;
+const SW_FORCED_EPOCH_KEY = 'forced-epoch';
+
+async function storedForcedEpoch(): Promise<number> {
+  const cache = await caches.open(SW_META_CACHE);
+  const entry = await cache.match(SW_FORCED_EPOCH_KEY);
+  return entry ? Number(await entry.text()) || 0 : 0;
+}
+
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(SW_META_CACHE).then(cache =>
-      cache.match(SW_BUILD_KEY).then(entry => {
-        if (!entry) self.skipWaiting();
-      })
-    )
+    (async () => {
+      const cache = await caches.open(SW_META_CACHE);
+      const buildEntry = await cache.match(SW_BUILD_KEY);
+      if (!buildEntry || (await storedForcedEpoch()) < FORCED_UPDATE_EPOCH) {
+        self.skipWaiting();
+      }
+    })()
   );
 });
 
-// ─── Activate: stamp build ID in meta cache ───────────────────────────
+// ─── Activate: stamp build ID in meta cache; enforce forced epoch ─────
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.open(SW_META_CACHE).then(cache =>
-      cache.put(SW_BUILD_KEY, new Response(__BUILD_ID__, {
+    (async () => {
+      const cache = await caches.open(SW_META_CACHE);
+      // Only an UPGRADE from an earlier build reloads its windows; a first
+      // install has nothing stale to replace.
+      const upgrading = !!(await cache.match(SW_BUILD_KEY));
+      const forced = upgrading && (await storedForcedEpoch()) < FORCED_UPDATE_EPOCH;
+      await cache.put(SW_BUILD_KEY, new Response(__BUILD_ID__, {
         headers: { 'Content-Type': 'text/plain' },
-      }))
-    )
+      }));
+      await cache.put(SW_FORCED_EPOCH_KEY, new Response(String(FORCED_UPDATE_EPOCH), {
+        headers: { 'Content-Type': 'text/plain' },
+      }));
+      if (!forced) return;
+      // Take over every open window and reload it onto this build.
+      await self.clients.claim();
+      const windows = await self.clients.matchAll({ type: 'window' });
+      await Promise.all(windows.map(client => client.navigate(client.url).catch(() => null)));
+    })()
   );
 });
 
