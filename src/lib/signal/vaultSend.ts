@@ -22,16 +22,13 @@ import { err, ok, type Result } from '../result'
 import { VAULT } from '../constants'
 import { ensureLocalIdentity } from './keyManager'
 import { encryptAsSystemWith } from './systemSender'
+import { SYSTEM_USER_ID, SYSTEM_DEVICE_ID } from './systemConstants'
 import { fetchPeerBundlePublic, sendMessageFanOut } from './signalService'
 import type { PublicKeyBundle } from './types'
 import type { FanOutMessageInput, SignalMessageType } from './transportTypes'
 
 const logger = createLogger('VaultSend')
 
-/** SYSTEM sender/recipient uuid — mirrors systemIdentity.SYSTEM_USER_ID. */
-const SYSTEM_USER_ID = '00000000-0000-0000-0000-000000000001'
-/** SYSTEM's single inbox device — mirrors systemIdentity.SYSTEM_DEVICE_ID. */
-const SYSTEM_DEVICE_ID = 'primary'
 
 /** Bundles are read, never consumed; refresh often enough that a re-provisioned
  *  vault (password reset) is picked up quickly. */

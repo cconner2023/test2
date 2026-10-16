@@ -74,17 +74,16 @@ import type {
   RatchetState,
 } from './types'
 import type { DecryptedSignalMessage, SignalMessageRow } from './transportTypes'
-import type { ClinicMedic } from '../../Types/SupervisorTestTypes'
 
 const logger = createLogger('SystemIdentity')
 
 // ── Constants ───────────────────────────────────────────────────────────────
 
-/** Sentinel pseudo-user UUID for the shared "System" entity. */
-export const SYSTEM_USER_ID = '00000000-0000-0000-0000-000000000001'
-
-/** Singleton device id for system's Signal key bundle. */
-export const SYSTEM_DEVICE_ID = 'primary'
+// SYSTEM_USER_ID / SYSTEM_DEVICE_ID / SYSTEM_PEER_PROFILE live in the
+// dependency-free systemConstants.ts (the messaging store needs them at
+// creation and this module imports the store). Re-exported for callers.
+import { SYSTEM_USER_ID, SYSTEM_DEVICE_ID, SYSTEM_PEER_PROFILE } from './systemConstants'
+export { SYSTEM_USER_ID, SYSTEM_DEVICE_ID, SYSTEM_PEER_PROFILE }
 
 /** Same KDF iterations as vault — Web Crypto has no native Argon2. */
 const SYSTEM_KDF_ITERATIONS = 600_000
@@ -92,22 +91,6 @@ const SYSTEM_KDF_ITERATIONS = 600_000
 /** Initial OTP pool size. v1 has no replenishment; 500 is plenty for pilot. */
 const SYSTEM_OTP_BATCH_SIZE = 500
 
-/**
- * Synthetic ClinicMedic for the System entity. Injected into
- * useMessagingStore.peerProfiles on hydration so existing name/avatar
- * resolution paths render 'System' anywhere SYSTEM_USER_ID appears as
- * sender or recipient — no profiles row required (and intentionally
- * absent: profiles.id FKs to auth.users).
- */
-export const SYSTEM_PEER_PROFILE: ClinicMedic = {
-  id: SYSTEM_USER_ID,
-  firstName: 'System',
-  lastName: null,
-  middleInitial: null,
-  rank: null,
-  credential: null,
-  avatarId: null,
-}
 
 // ── Internal types ──────────────────────────────────────────────────────────
 

@@ -29,7 +29,7 @@ import { createLogger } from '../Utilities/Logger'
 import type { DecryptedSignalMessage } from '../lib/signal/transportTypes'
 import type { GroupInfo } from '../lib/signal/groupTypes'
 import type { ClinicMedic } from '../Types/SupervisorTestTypes'
-import { SYSTEM_USER_ID, SYSTEM_PEER_PROFILE } from '../lib/signal/systemIdentity'
+import { SYSTEM_USER_ID, SYSTEM_PEER_PROFILE } from '../lib/signal/systemConstants'
 
 const logger = createLogger('MessagingStore')
 

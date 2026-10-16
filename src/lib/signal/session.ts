@@ -34,6 +34,7 @@ import { initSender, initReceiver, ratchetEncrypt, ratchetDecrypt, DuplicateMess
 import { importDhPublicKey } from './keyManager'
 import { seal, unseal } from './sealedSender'
 import { uploadKeyBundle, fetchPublishedIdentities } from './signalService'
+import { SYSTEM_USER_ID } from './systemConstants'
 import { SIGNAL } from '../constants'
 import type { SealedEnvelope, SenderCertificate } from './sealedSender'
 import type {
@@ -216,10 +217,6 @@ function makeRecord(
 
 // ---- Sender Identity ----
 
-/** SYSTEM sender uuid — mirrors systemIdentity.SYSTEM_USER_ID (not imported:
- *  that module pulls in supabase/zustand). Its edge-function identity is not
- *  in the published directory, so SYSTEM stays trust-on-first-use. */
-const SYSTEM_USER_ID = '00000000-0000-0000-0000-000000000001'
 
 /**
  * Authenticate the sender certificate. The cert is self-signed, so on its own
@@ -244,6 +241,8 @@ async function verifySenderIdentity(
   ) {
     return
   }
+  // SYSTEM's edge-function identity is not in the published directory, so
+  // SYSTEM stays trust-on-first-use.
   if (senderUuid === SYSTEM_USER_ID) return
 
   const published = await fetchPublishedIdentities(senderUuid)
