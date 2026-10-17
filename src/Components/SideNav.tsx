@@ -1,5 +1,5 @@
-import { useCallback, useRef, useState, useSyncExternalStore } from 'react'
-import { Upload, BookOpen, Package, ClipboardCheck, Settings, HelpCircle, UserCog, Radio, Map as MapIcon, Eye, CalendarDays, Stethoscope, MessageSquare, Pin, ChevronUp, ChevronDown, EyeOff, Crosshair } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { Upload, BookOpen, Package, ClipboardCheck, Settings, HelpCircle, UserCog, Radio, Map as MapIcon, Eye, CalendarDays, Stethoscope, MessageSquare, Pin, ChevronUp, ChevronDown, EyeOff, Crosshair, Trash2 } from 'lucide-react'
 import { useAuth } from '../Hooks/useAuth'
 import { useAuthStore } from '../stores/useAuthStore'
 import { useAvatar } from '../Utilities/AvatarContext'
@@ -10,6 +10,9 @@ import { useNavItems } from '../Hooks/useNavItems'
 import { type ContextMenuItem } from '@/Components/primitives/ContextMenu'
 import { LiftedRowMenu } from '@/Components/primitives/LiftedRowMenu'
 import { liftPressHandlers, type LiftPressState, type LiftSnapshot } from './liftPress'
+import { useSavedNotesStore } from '../stores/useSavedNotesStore'
+import { useOpenSavedNote } from '../Hooks/useOpenSavedNote'
+import type { SavedNote } from '../lib/savedNotesDb'
 
 const iconMapMobile: Record<string, React.ReactNode> = {
   'import': <Upload size={20} className="text-primary" />,
@@ -76,6 +79,20 @@ export function SideNav({ onClose, onMenuItemClick, isMobile = true }: SideNavPr
 
   const [lifted, setLifted] = useState<({ action: string; label: string } & LiftSnapshot) | null>(null)
   const pressRef = useRef<LiftPressState | null>(null)
+
+  // My Notes — device-local, scoped to the signed-in user (guest = null).
+  const authUserId = useAuthStore(s => s.user?.id ?? null)
+  const savedNotes = useSavedNotesStore(s => s.notes)
+  const loadSavedNotes = useSavedNotesStore(s => s.load)
+  const removeSavedNote = useSavedNotesStore(s => s.remove)
+  const openSavedNote = useOpenSavedNote()
+  const [liftedNote, setLiftedNote] = useState<({ note: SavedNote } & LiftSnapshot) | null>(null)
+  useEffect(() => { loadSavedNotes(authUserId) }, [authUserId, loadSavedNotes])
+
+  const handleNoteClick = async (note: SavedNote) => {
+    if (pressRef.current?.fired) return
+    if (await openSavedNote(note)) onClose()
+  }
 
   const handleItemClick = (action: string) => {
     onMenuItemClick(action)
@@ -191,6 +208,32 @@ export function SideNav({ onClose, onMenuItemClick, isMobile = true }: SideNavPr
             <span>{hiddenCount} hidden — tap to restore</span>
           </button>
         )}
+
+        {savedNotes.length > 0 && (
+          <div className="mt-2 mb-2">
+            <div className="mx-4 mb-1.5 border-t border-tertiary/10" />
+            <p className={`${isMobile ? 'pl-7' : 'pl-5'} pt-1 pb-1 text-[9pt] font-semibold text-tertiary uppercase tracking-wider`}>My Notes</p>
+            <div className="space-y-1">
+              {savedNotes.map(note => (
+                <button
+                  key={note.id}
+                  onClick={() => handleNoteClick(note)}
+                  {...liftPressHandlers((snap) => setLiftedNote({ note, ...snap }), pressRef)}
+                  className={`w-full text-left flex items-center ${isMobile ? 'pl-7 pr-4 py-3' : 'pl-5 pr-3 py-2'} rounded-xl cursor-pointer hover:bg-themewhite2/60 bg-transparent active:scale-95 transform-gpu transition-colors`}
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className={`${isMobile ? 'text-[11pt]' : 'text-[10pt]'} text-primary font-medium truncate`}>
+                      {note.symptomIcon ? `${note.symptomIcon} ` : ''}{note.symptomText}
+                    </div>
+                    <div className="text-[9pt] text-tertiary truncate">
+                      {[note.dispositionType, new Date(note.savedAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })].filter(Boolean).join(' · ')}
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Footer */}
@@ -205,6 +248,23 @@ export function SideNav({ onClose, onMenuItemClick, isMobile = true }: SideNavPr
           </div>
         </div>
       </div>
+
+      {liftedNote && (
+        <LiftedRowMenu
+          isOpen
+          anchorRect={liftedNote.rect}
+          row={<div dangerouslySetInnerHTML={{ __html: liftedNote.html }} />}
+          onClose={() => setLiftedNote(null)}
+          layout="list"
+          items={[{
+            key: 'delete',
+            label: 'Delete',
+            icon: Trash2,
+            onAction: () => removeSavedNote(liftedNote.note.id),
+            destructive: true,
+          }]}
+        />
+      )}
 
       {lifted && (() => {
         const canMoveUp = currentActionOrder.indexOf(lifted.action) > 0

@@ -3,7 +3,7 @@
  * Overlays note text onto SF600_1.pdf (first page with header/footer)
  * and SF600_2.pdf (continuation pages)
  */
-import { toWinAnsi } from './pdfText'
+import { toWinAnsi, wrapText } from './pdfText'
 export { downloadPdfBytes } from './downloadUtils'
 
 /**
@@ -103,42 +103,6 @@ const FACILITY_BOX = {
 } as const
 
 const GENDER_LABEL = { M: 'Male', F: 'Female' } as const
-
-/**
- * Word-wrap text to fit within maxWidth at a given font size.
- * Uses pdf-lib font metrics for accurate measurement.
- */
-function wrapText(
-  text: string,
-  font: { widthOfTextAtSize: (t: string, s: number) => number },
-  fontSize: number,
-  maxWidth: number,
-): string[] {
-  const lines: string[] = []
-
-  for (const paragraph of text.split('\n')) {
-    if (!paragraph) {
-      lines.push('')
-      continue
-    }
-    const words = paragraph.split(/\s+/)
-    let current = ''
-
-    for (const word of words) {
-      const candidate = current ? `${current} ${word}` : word
-      if (font.widthOfTextAtSize(candidate, fontSize) <= maxWidth) {
-        current = candidate
-      } else {
-        if (current) lines.push(current)
-        // If a single word exceeds maxWidth, push it anyway (will be clipped)
-        current = word
-      }
-    }
-    if (current) lines.push(current)
-  }
-
-  return lines
-}
 
 /**
  * Generate a filled SF600 PDF by overlaying note text on the templates.

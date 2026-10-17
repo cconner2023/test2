@@ -10,6 +10,7 @@ import type { MedevacRequest } from '../Types/MedevacTypes'
 import type { AlgorithmOptions, dispositionType } from '../Types/AlgorithmTypes'
 import type { EventCategory } from '../Types/CalendarTypes'
 import type { CardState } from '../Hooks/useAlgorithm'
+import type { PEState } from '../Types/PETypes'
 import type { ImportPreview } from '../Hooks/useNoteImport'
 
 type ViewState = 'main' | 'subcategory' | 'questions'
@@ -53,6 +54,20 @@ export interface WriteNoteData {
     cardStates: CardState[];
     selectedSymptom: { icon: string; text: string };
     initialPage?: number;
+    /** Reopened My Notes entry — seeds the editor; re-save overwrites this id. */
+    restore?: RestoredNote;
+}
+
+export interface RestoredNote {
+    savedNoteId: string;
+    hpi: string;
+    peNote: string;
+    peState: PEState | null;
+    planNote: string;
+    assessmentNote: string;
+    selectedDdx: string[];
+    customDdx: string[];
+    includeDecisionMaking: boolean;
 }
 
 /** Fields preserved across all drawer toggles (not in CLOSE_ALL_DRAWERS). */

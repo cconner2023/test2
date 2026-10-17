@@ -14,11 +14,11 @@ import { NoteWizardFooter } from './WriteNoteHelpers';
 import { ExpandableInput } from '@/Components/primitives/ExpandableInput';
 import { useAlgorithmMetrics } from '../Hooks/useAlgorithmMetrics';
 import { useMergedNoteContent } from '../Hooks/useMergedNoteContent';
-import { X, Plus, Check, RotateCcw, ChevronRight, ClipboardList, FileText } from 'lucide-react';
+import { X, Plus, Check, RotateCcw, ChevronRight, ClipboardList, FileText, Save, GraduationCap } from 'lucide-react';
 import { PreviewOverlay } from './PreviewOverlay';
 import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog';
 import { PdfPreviewModal } from './PdfPreviewModal';
-import { PatientIdPopover } from './PatientIdPopover';
+import { PatientIdPopover, type PatientIdForm } from './PatientIdPopover';
 import { BottomIsland } from '@/Components/primitives/BottomIsland';
 import { AddFab } from '@/Components/primitives/AddFab';
 import { NoteOutputSections } from './NoteOutputSections';
@@ -31,6 +31,11 @@ import type { CategoryLetter } from '../Data/PhysicalExamData';
 import { composeAlgorithmNoteRouting } from '../Utilities/algorithmNoteRouting';
 import type { PEState } from '../Types/PETypes';
 import { useBetaFlag } from '../lib/betaFeatures';
+import { ActionSheet, type ActionSheetOption } from '@/Components/primitives/ActionSheet';
+import { useSavedNotesStore } from '../stores/useSavedNotesStore';
+import { SAVED_NOTES_CAP } from '../lib/savedNotesDb';
+import { emitCopied } from '../lib/copyFeedback';
+import type { RestoredNote } from '../stores/useNavigationStore';
 
 const SECTION_LABEL_CLASS = 'text-[9pt] font-semibold text-primary uppercase tracking-wider';
 const CARD_CLASS = 'relative rounded-2xl bg-themewhite2 overflow-hidden';
@@ -122,6 +127,8 @@ interface WriteNoteProps {
     };
     isMobile?: boolean;
     initialPage?: number;
+    /** Reopened My Notes entry — seeds the editor and opens on Full Note. */
+    restore?: RestoredNote;
 }
 
 export const WriteNotePage = ({
@@ -133,17 +140,22 @@ export const WriteNotePage = ({
     selectedSymptom = { icon: '', text: '' },
     isMobile = false,
     initialPage = 0,
+    restore,
 }: WriteNoteProps) => {
     const { profile } = useUserProfile();
     const { logNow } = useAlgorithmMetrics();
-    const [logConfirmOpen, setLogConfirmOpen] = useState(false);
-    const loggedRef = useRef(false);
+    const [finishOpen, setFinishOpen] = useState(false);
+    const [logged, setLogged] = useState(false);
+    const savedNotes = useSavedNotesStore(s => s.notes);
+    const saveNote = useSavedNotesStore(s => s.save);
+    // My Notes entry this session writes to — the reopened one, or the first save.
+    const savedIdRef = useRef(restore?.savedNoteId);
     const { expanders, orderTags, instructionTags, orderSets } = useMergedNoteContent();
     const colors = getColorClasses(disposition.type);
-    const [viewMode, setViewMode] = useState<'preview' | 'fullnote'>('preview');
-    const [includeDecisionMaking, setIncludeDecisionMaking] = useState(true);
+    const [viewMode, setViewMode] = useState<'preview' | 'fullnote'>(restore ? 'fullnote' : 'preview');
+    const [includeDecisionMaking, setIncludeDecisionMaking] = useState(restore?.includeDecisionMaking ?? true);
     const [dmConfirmOpen, setDmConfirmOpen] = useState(false);
-    const [patientGateOpen, setPatientGateOpen] = useState(false);
+    const [patientGate, setPatientGate] = useState<PatientIdForm | null>(null);
 
     const visiblePages = useMemo(() => [
         { id: 'edit' as const, label: 'Write Note' },
@@ -162,6 +174,7 @@ export const WriteNotePage = ({
         isMobile,
         initialPage,
         colors,
+        restore,
     });
 
     const {
@@ -202,6 +215,7 @@ export const WriteNotePage = ({
     );
 
     const [selectedBlockKeys, setSelectedBlockKeys] = useState<string[]>(() => {
+        if (restore) return restore.peState?.blockKeys ?? [];
         const cat = (getCategoryFromSymptomCode(symptomCode) || 'A') as CategoryLetter;
         const templateKeys = getBlocksForFocusedExam(cat, symptomCode).blocks.map(b => b.key);
         return [...new Set([...templateKeys, ...algoRouting.peBlockKeys])];
@@ -230,7 +244,7 @@ export const WriteNotePage = ({
     // HPI seed from algorithm tags — composed narrative, only when HPI is empty
     // (non-destructive: medic edits always win). Only generates once the medic
     // opens the Full Note view — mirrors PE/Plan, which only mount in that subtree.
-    const hpiSeededRef = useRef(false);
+    const hpiSeededRef = useRef(!!restore);
     useEffect(() => {
         if (hpiSeededRef.current || viewMode !== 'fullnote' || !algoRouting.hpiText) return;
         hpiSeededRef.current = true;
@@ -239,7 +253,7 @@ export const WriteNotePage = ({
 
     // Assessment seed — test results the algorithm recorded (answer noteResult).
     // Same one-time, non-destructive contract as the HPI seed.
-    const assessmentSeededRef = useRef(false);
+    const assessmentSeededRef = useRef(!!restore);
     useEffect(() => {
         if (assessmentSeededRef.current || viewMode !== 'fullnote' || !algoRouting.assessmentText) return;
         assessmentSeededRef.current = true;
@@ -253,7 +267,7 @@ export const WriteNotePage = ({
     // Plan seed from the active disposition's decision-making (meds + instructions).
     // Passed as Plan initialText at mount (Plan parses initialText once); planNote
     // empty → seed used, non-destructive once the medic edits (planNote wins).
-    const planSeedText = planNote || algoRouting.planText;
+    const planSeedText = planNote || (restore ? '' : algoRouting.planText);
     const planHasContent = !!planSeedText;
 
     // ── DDx popover state ──────────────────────────────────────────────────
@@ -288,7 +302,7 @@ export const WriteNotePage = ({
 
     // A single available differential is the algorithm's answer, not a choice —
     // select it rather than making the medic tick the only box.
-    const ddxSeededRef = useRef(false);
+    const ddxSeededRef = useRef(!!restore);
     useEffect(() => {
         if (ddxSeededRef.current || !noteRoutingEnabled || viewMode !== 'fullnote') return;
         if (availableDdx.length !== 1) return;
@@ -312,10 +326,58 @@ export const WriteNotePage = ({
     }, [selectedDdx, customDdx, setCustomDdx]);
 
     const handleLog = useCallback(async () => {
-        if (loggedRef.current) return;
-        loggedRef.current = true;
+        if (logged) return;
+        setLogged(true);
         await logNow(selectedSymptom.icon);
-    }, [logNow, selectedSymptom.icon]);
+    }, [logged, logNow, selectedSymptom.icon]);
+
+    // My Notes keeps only the encoded string (enc: token when signed in) — the
+    // de-identified barcode payload, never the composed note text.
+    const handleSave = useCallback(async (): Promise<boolean> => {
+        if (!encodedValue) return false;
+        const id = await saveNote({
+            id: savedIdRef.current,
+            userId: authUserId ?? null,
+            encodedText: encodedValue,
+            symptomIcon: selectedSymptom.icon,
+            symptomText: selectedSymptom.text,
+            dispositionType: disposition.type,
+            dispositionText: disposition.text,
+        });
+        if (id) savedIdRef.current = id;
+        return !!id;
+    }, [encodedValue, saveNote, authUserId, selectedSymptom.icon, selectedSymptom.text, disposition.type, disposition.text]);
+
+    const finishOptions = useMemo<ActionSheetOption[]>(() => {
+        const isUpdate = !!savedIdRef.current && savedNotes.some(n => n.id === savedIdRef.current);
+        const saveLabel = isUpdate
+            ? 'Update My Notes'
+            : savedNotes.length >= SAVED_NOTES_CAP ? 'Save to My Notes (replaces oldest)' : 'Save to My Notes';
+        const close = () => onExpansionChange(false);
+        const opts: ActionSheetOption[] = [];
+        if (encodedValue) {
+            opts.push({ key: 'save', label: saveLabel, icon: Save, onAction: async () => {
+                if (await handleSave()) emitCopied('Saved to My Notes');
+                close();
+            } });
+        }
+        if (!logged) {
+            opts.push({ key: 'log', label: 'Log training', icon: GraduationCap, onAction: () => {
+                void handleLog();
+                emitCopied('Training logged');
+                close();
+            } });
+            if (encodedValue) {
+                opts.push({ key: 'save-log', label: `${isUpdate ? 'Update' : 'Save'} & log training`, icon: Check, onAction: async () => {
+                void handleLog();
+                emitCopied(await handleSave() ? 'Saved & logged' : 'Training logged');
+                close();
+            } });
+            }
+        }
+        opts.push({ key: 'close', label: 'Close', icon: X, onAction: close });
+        return opts;
+    }, [savedNotes, encodedValue, logged, handleSave, handleLog, onExpansionChange]);
 
     return (
         <>
@@ -376,7 +438,7 @@ export const WriteNotePage = ({
                                     >
                                         <PhysicalExam
                                             initialText={peNote}
-                                            initialState={peState ?? algoPeSeed}
+                                            initialState={peState ?? (restore ? null : algoPeSeed)}
                                             onChange={setPeNote}
                                             onStateChange={setPeState}
                                             colors={colors}
@@ -559,10 +621,10 @@ export const WriteNotePage = ({
                                     <NoteOutputSections
                                         previewNote={previewNote}
                                         onCopyNote={() => handleCopy(previewNote)}
-                                        onExportSF600={() => { if (previewNote) setPatientGateOpen(true); }}
+                                        onExportSF600={() => { if (previewNote) setPatientGate('sf600'); }}
                                         onCopyEncoded={() => handleCopy(encodedValue)}
                                         onShare={handleShare}
-                                        onExportDD689={handleExportDD689}
+                                        onExportDD689={() => { if (encodedValue) setPatientGate('dd689'); }}
                                         encodedLength={encodedValue.length}
                                         barcode={
                                             <NoteBarcodeGenerator
@@ -622,7 +684,7 @@ export const WriteNotePage = ({
                     // Full Note page (terminal): the Done FAB over the glass footer.
                     <NoteWizardFooter
                         currentPage={currentPage} visiblePages={visiblePages} slideDirection={slideDirection}
-                        handleNext={() => setLogConfirmOpen(true)}
+                        handleNext={() => setFinishOpen(true)}
                         hasPII={hasPII} isMobile={isMobile}
                     />
                 )}
@@ -636,23 +698,20 @@ export const WriteNotePage = ({
                     onConfirm={() => { setIncludeDecisionMaking(true); setDmConfirmOpen(false); handleNext(); }}
                     onCancel={() => { setIncludeDecisionMaking(false); setDmConfirmOpen(false); handleNext(); }}
                 />
-                <ConfirmDialog
-                    visible={logConfirmOpen}
-                    title="Log training?"
-                    subtitle="Records this algorithm to your training timeline — visible to supervisors. No patient details are included."
-                    variant="primary"
-                    confirmLabel="Log training"
-                    cancelLabel="Skip"
-                    onConfirm={async () => { await handleLog(); setLogConfirmOpen(false); onExpansionChange(false); }}
-                    onCancel={() => { setLogConfirmOpen(false); onExpansionChange(false); }}
+                <ActionSheet
+                    visible={finishOpen}
+                    title="Finish note"
+                    options={finishOptions}
+                    onClose={() => setFinishOpen(false)}
                 />
             </div>
         </BaseDrawer>
         <PatientIdPopover
-            isOpen={patientGateOpen}
+            isOpen={patientGate !== null}
             anchorRect={null}
-            onClose={() => setPatientGateOpen(false)}
-            onConfirm={handleExportSF600}
+            form={patientGate ?? undefined}
+            onClose={() => setPatientGate(null)}
+            onConfirm={(patient, extras) => patientGate === 'dd689' ? handleExportDD689(patient, extras) : handleExportSF600(patient)}
         />
         <PdfPreviewModal
             preview={sf600Preview ?? dd689Preview ?? null}

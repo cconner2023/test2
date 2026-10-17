@@ -1,46 +1,21 @@
 /* Modal tokens: bg-themewhite rounded-2xl shadow-2xl border-tertiary/10 z-70. Ref: ProvisionalDeviceModal */
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import { X, Download, RefreshCw } from 'lucide-react';
 import { useServiceWorker } from '../Hooks/useServiceWorker';
 
 const UpdateNotification: React.FC<{ onVisibilityChange?: (visible: boolean) => void }> = ({ onVisibilityChange }) => {
     const {
         updateAvailable,
+        newVersion,
+        dismissed,
         skipWaiting,
         dismissUpdate,
         isUpdating,
-        appVersion
     } = useServiceWorker();
 
-    const [isVisible, setIsVisible] = useState(false);
-    const [dismissed, setDismissed] = useState(false);
-
-    useEffect(() => {
-        // Load dismissed state from localStorage (timestamp-based, 1-hour expiry)
-        try {
-            const dismissedState = localStorage.getItem('updateDismissed');
-            if (dismissedState) {
-                const dismissedAt = parseInt(dismissedState, 10);
-                if (!isNaN(dismissedAt) && Date.now() - dismissedAt < 60 * 60 * 1000) {
-                    setDismissed(true);
-                } else {
-                    // Expired — clean up stale flag
-                    localStorage.removeItem('updateDismissed');
-                }
-            }
-        } catch {
-            // localStorage unavailable — treat as not dismissed
-        }
-    }, []);
-
-    useEffect(() => {
-        // Show update notification
-        if (updateAvailable && !dismissed) {
-            setIsVisible(true);
-        } else {
-            setIsVisible(false);
-        }
-    }, [updateAvailable, dismissed]);
+    // Dismissal ("Later", 1-hour expiry) is owned by swService so it lapses
+    // in-session, not only on remount.
+    const isVisible = updateAvailable && !dismissed;
 
     useEffect(() => {
         onVisibilityChange?.(isVisible);
@@ -51,8 +26,6 @@ const UpdateNotification: React.FC<{ onVisibilityChange?: (visible: boolean) => 
     };
 
     const handleDismiss = () => {
-        setIsVisible(false);
-        setDismissed(true);
         dismissUpdate();
     };
 
@@ -81,7 +54,7 @@ const UpdateNotification: React.FC<{ onVisibilityChange?: (visible: boolean) => 
                                 <div>
                                     <p className="text-sm font-semibold text-primary">Update Available</p>
                                     <p className="text-[10pt] text-tertiary mt-0.5">
-                                        Version {appVersion} ready.
+                                        {newVersion ? `Version ${newVersion} ready.` : 'A new version is ready.'}
                                     </p>
                                 </div>
                             </div>

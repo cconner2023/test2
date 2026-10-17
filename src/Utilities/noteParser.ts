@@ -36,6 +36,8 @@ export interface ParsedNote {
     actionEntries: { index: number; status: 'performed' | 'deferred-pending' | 'deferred-continue' | 'deferred-stop' }[];
     hpiText: string;
     peText: string;
+    /** Medic PE compact (v9) when structured — restores PEState for re-editing. */
+    peRaw?: string;
     planText: string;
     assessmentText: string;
     /** Differential diagnoses — library picks and free-text entries. */
@@ -266,6 +268,7 @@ export function parseNoteEncoding(encodedText: string): ParsedNote | null {
             case 'P': {
                 const pe = decodePE(value, symptomCode);
                 result.peText = pe.text;
+                if (pe.raw) result.peRaw = pe.raw;
                 break;
             }
             case 'N': {

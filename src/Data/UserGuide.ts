@@ -486,6 +486,7 @@ export const UserGuide: GuideChapter[] = [
                     { kind: 'steps', items: [
                         'From the Note Preview, Copy note text or Export SF600 PDF.',
                         'From the Encoded Note, Copy encoded text, Share note as image, or Export DD689 PDF.',
+                        'Both PDFs open a Patient Identification card first. For the DD689 it fills the name, DoD ID and grade blocks, stamps today\'s date, and lets you add profile limitations (printed beside the data matrix) and your drawn signature. Nothing you enter is saved.',
                         'On the receiving device, use the import bar — Scan barcode, Upload image, or paste the code — then Decode to keep working on it.',
                         'Or copy the plain text and paste it directly into the EHR.',
                     ] },

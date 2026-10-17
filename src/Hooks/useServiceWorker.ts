@@ -1,8 +1,12 @@
 // Hooks/useServiceWorker.ts
-import { useState, useEffect, useCallback, useRef } from 'react'
-import { subscribe, getState, skipWaiting as swSkipWaiting, checkForUpdate as swCheckForUpdate } from '../lib/swService'
-
-const UPDATE_DISMISS_TIMEOUT_MS = 60 * 60 * 1000
+import { useState, useEffect, useCallback } from 'react'
+import {
+  subscribe,
+  getState,
+  skipWaiting as swSkipWaiting,
+  checkForUpdate as swCheckForUpdate,
+  dismissUpdate as swDismissUpdate,
+} from '../lib/swService'
 
 /**
  * React interface over swService. swService owns the SW lifecycle and fires
@@ -11,7 +15,6 @@ const UPDATE_DISMISS_TIMEOUT_MS = 60 * 60 * 1000
  */
 export function useServiceWorker() {
   const [swState, setSwState] = useState(getState)
-  const dismissTimeoutRef = useRef<number>(0)
 
   useEffect(() => subscribe(setSwState), [])
 
@@ -24,16 +27,13 @@ export function useServiceWorker() {
   }, [])
 
   const dismissUpdate = useCallback(() => {
-    try { localStorage.setItem('updateDismissed', Date.now().toString()) } catch { /* storage unavailable */ }
-    if (dismissTimeoutRef.current) clearTimeout(dismissTimeoutRef.current)
-    dismissTimeoutRef.current = window.setTimeout(() => {
-      try { localStorage.removeItem('updateDismissed') } catch { /* storage unavailable */ }
-      dismissTimeoutRef.current = 0
-    }, UPDATE_DISMISS_TIMEOUT_MS)
+    swDismissUpdate()
   }, [])
 
   return {
     updateAvailable: swState.updateAvailable,
+    newVersion: swState.newVersion,
+    dismissed: swState.dismissed,
     offlineReady: swState.offlineReady,
     skipWaiting,
     checkForUpdate,

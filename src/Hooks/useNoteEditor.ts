@@ -8,6 +8,7 @@ import { useNoteShare } from './useNoteShare';
 import { useDD689Export } from './useDD689Export';
 import { useSF600Export } from './useSF600Export';
 import type { PatientIdentification } from '../Utilities/SF600Export';
+import type { DD689Extras } from '../Utilities/DD689Export';
 import { useUserProfile } from './useUserProfile';
 import { useAuthStore } from '../stores/useAuthStore';
 import { usePageSwipe } from './usePageSwipe';
@@ -16,6 +17,7 @@ import { formatSignature } from '../Utilities/NoteFormatter';
 import { getColorClasses } from '../Utilities/ColorUtilities';
 import { UI_TIMING } from '../Utilities/constants';
 import { copyWithHtml } from '../Utilities/clipboardUtils';
+import type { RestoredNote } from '../stores/useNavigationStore';
 
 type PageId = string;
 
@@ -33,6 +35,8 @@ export interface NoteEditorConfig {
     colors: ReturnType<typeof getColorClasses>;
     // Optional — WriteNotePage manages these externally
     shareSymptomText?: string;
+    /** Reopened My Notes entry — initial editor content. */
+    restore?: RestoredNote;
 }
 
 export function useNoteEditor(config: NoteEditorConfig) {
@@ -49,6 +53,7 @@ export function useNoteEditor(config: NoteEditorConfig) {
         initialPage = 0,
         colors: _colors,
         shareSymptomText,
+        restore,
     } = config;
 
     const { profile } = useUserProfile();
@@ -57,14 +62,14 @@ export function useNoteEditor(config: NoteEditorConfig) {
     const formClinicName = useClusterLabel(useAuthStore(s => s.clinicId), profile.clinicName);
 
     // --- Note content state ---
-    const [note, setNote] = useState('');
+    const [note, setNote] = useState(restore?.hpi ?? '');
     const [previewNote, setPreviewNote] = useState('');
-    const [peNote, setPeNote] = useState('');
-    const [peState, setPeState] = useState<PEState | null>(null);
-    const [planNote, setPlanNote] = useState('');
-    const [assessmentNote, setAssessmentNote] = useState('');
-    const [selectedDdx, setSelectedDdx] = useState<string[]>([]);
-    const [customDdx, setCustomDdx] = useState<string[]>([]);
+    const [peNote, setPeNote] = useState(restore?.peNote ?? '');
+    const [peState, setPeState] = useState<PEState | null>(restore?.peState ?? null);
+    const [planNote, setPlanNote] = useState(restore?.planNote ?? '');
+    const [assessmentNote, setAssessmentNote] = useState(restore?.assessmentNote ?? '');
+    const [selectedDdx, setSelectedDdx] = useState<string[]>(restore?.selectedDdx ?? []);
+    const [customDdx, setCustomDdx] = useState<string[]>(restore?.customDdx ?? []);
     const [encodedValue, setEncodedValue] = useState('');
 
     // --- Page navigation state ---
@@ -131,7 +136,7 @@ export function useNoteEditor(config: NoteEditorConfig) {
     }, [encodedValue, selectedSymptom, dispositionType, dispositionText, isMobile, shareNote, shareSymptomText]);
 
     // --- DD689 PDF export handler ---
-    const handleExportDD689 = useCallback(() => {
+    const handleExportDD689 = useCallback((patient?: PatientIdentification, extras?: DD689Extras) => {
         if (!encodedValue) return;
         const authorParts = [
             profile.lastName,
@@ -147,6 +152,8 @@ export function useNoteEditor(config: NoteEditorConfig) {
             symptomText: shareSymptomText ?? selectedSymptom?.text ?? 'Note',
             clinicName: formClinicName || '',
             authorLine: authorParts.length ? authorParts.join(', ') : undefined,
+            patient,
+            ...extras,
         });
     }, [encodedValue, dispositionType, dispositionText, selectedSymptom, exportDD689, profile, shareSymptomText, formClinicName]);
 

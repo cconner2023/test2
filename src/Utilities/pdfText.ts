@@ -44,3 +44,39 @@ export function toWinAnsi(text: string, font: MeasurableFont): string {
   }
   return out
 }
+
+/**
+ * Word-wrap text to fit within maxWidth at a given font size.
+ * Uses pdf-lib font metrics for accurate measurement.
+ */
+export function wrapText(
+  text: string,
+  font: MeasurableFont,
+  fontSize: number,
+  maxWidth: number,
+): string[] {
+  const lines: string[] = []
+
+  for (const paragraph of text.split('\n')) {
+    if (!paragraph) {
+      lines.push('')
+      continue
+    }
+    const words = paragraph.split(/\s+/)
+    let current = ''
+
+    for (const word of words) {
+      const candidate = current ? `${current} ${word}` : word
+      if (font.widthOfTextAtSize(candidate, fontSize) <= maxWidth) {
+        current = candidate
+      } else {
+        if (current) lines.push(current)
+        // If a single word exceeds maxWidth, push it anyway (will be clipped)
+        current = word
+      }
+    }
+    if (current) lines.push(current)
+  }
+
+  return lines
+}

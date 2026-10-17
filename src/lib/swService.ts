@@ -6,6 +6,26 @@ import { createLogger } from '../Utilities/Logger'
 
 const logger = createLogger('PWA')
 const UPDATE_CHECK_INTERVAL_MS = 5 * 60 * 1000
+/** Floor between resume-triggered update checks (visibilitychange can flap). */
+const RESUME_CHECK_MIN_GAP_MS = 30 * 1000
+/** A silent update reloads immediately only this soon after launch/resume —
+ *  before the user is into a task. Later ones wait for the app to background. */
+const SILENT_APPLY_WINDOW_MS = 10 * 1000
+const UPDATE_DISMISS_TIMEOUT_MS = 60 * 60 * 1000
+
+/** Last launch or return to the foreground. Module load counts as a launch. */
+let lastResumeAt = Date.now()
+
+/** Numeric dotted-version compare: <0 when a < b. Missing parts count as 0. */
+function compareVersions(a: string, b: string): number {
+  const pa = a.split('.').map(n => parseInt(n, 10) || 0)
+  const pb = b.split('.').map(n => parseInt(n, 10) || 0)
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const d = (pa[i] ?? 0) - (pb[i] ?? 0)
+    if (d !== 0) return d
+  }
+  return 0
+}
 
 function isForcedUpdate(): boolean {
   try { return localStorage.getItem('appBuildId') === null } catch { return false }
@@ -19,14 +39,40 @@ function stampBuildId(): void {
  * Silent (non-optional) update: stamp a flag so the index.html splash can show
  * "Installing update…" on the imminent reload — otherwise an unprompted reload
  * reads as a glitch. The splash script clears the flag after reading it.
+ *
+ * The reload must not land mid-task (a note, a form, a live call). Apply now
+ * when the page is hidden or the user only just launched/resumed; otherwise
+ * defer to the next time the app goes to the background.
  */
+let silentApplyDeferred = false
 function silentApply(update: (reloadPage?: boolean) => Promise<void>): void {
-  try { localStorage.setItem('updateReloadPending', '1') } catch { /* storage unavailable */ }
-  update(true).catch(() => {})
+  const apply = () => {
+    try { localStorage.setItem('updateReloadPending', '1') } catch { /* storage unavailable */ }
+    update(true).catch(() => {})
+  }
+  const justResumed = Date.now() - lastResumeAt < SILENT_APPLY_WINDOW_MS
+  if (document.visibilityState === 'hidden' || justResumed) {
+    apply()
+    return
+  }
+  if (silentApplyDeferred) return
+  silentApplyDeferred = true
+  logger.info('Update ready — applying when the app is next backgrounded')
+  const onHide = () => {
+    if (document.visibilityState !== 'hidden') return
+    document.removeEventListener('visibilitychange', onHide)
+    silentApplyDeferred = false
+    apply()
+  }
+  document.addEventListener('visibilitychange', onHide)
 }
 
 export interface SWState {
   updateAvailable: boolean
+  /** Version published in version.json for the waiting update, when known. */
+  newVersion: string | null
+  /** The update card was dismissed ("Later") within the last hour. */
+  dismissed: boolean
   offlineReady: boolean
   isUpdating: boolean
   registration: ServiceWorkerRegistration | undefined
@@ -36,9 +82,44 @@ type Listener = (state: SWState) => void
 
 let _state: SWState = {
   updateAvailable: false,
+  newVersion: null,
+  dismissed: false,
   offlineReady: false,
   isUpdating: false,
   registration: undefined,
+}
+
+// Dismissal lives here, not in the card, so it expires in-session too — a
+// backgrounded iOS PWA can stay alive for days without remounting anything.
+let dismissTimer: ReturnType<typeof setTimeout> | undefined
+
+function scheduleDismissExpiry(ms: number): void {
+  if (dismissTimer) clearTimeout(dismissTimer)
+  dismissTimer = setTimeout(() => {
+    dismissTimer = undefined
+    try { localStorage.removeItem('updateDismissed') } catch { /* storage unavailable */ }
+    patch({ dismissed: false })
+  }, ms)
+}
+
+;(() => {
+  try {
+    const at = parseInt(localStorage.getItem('updateDismissed') ?? '', 10)
+    if (isNaN(at)) return
+    const remaining = UPDATE_DISMISS_TIMEOUT_MS - (Date.now() - at)
+    if (remaining > 0) {
+      _state = { ..._state, dismissed: true }
+      scheduleDismissExpiry(remaining)
+    } else {
+      localStorage.removeItem('updateDismissed')
+    }
+  } catch { /* storage unavailable — treat as not dismissed */ }
+})()
+
+export function dismissUpdate(): void {
+  try { localStorage.setItem('updateDismissed', Date.now().toString()) } catch { /* storage unavailable */ }
+  patch({ dismissed: true })
+  scheduleDismissExpiry(UPDATE_DISMISS_TIMEOUT_MS)
 }
 
 let _updateFn: ((reloadPage?: boolean) => Promise<void>) | null = null
@@ -67,7 +148,7 @@ export async function skipWaiting(): Promise<void> {
 }
 
 export function checkForUpdate(): void {
-  _state.registration?.update()
+  _state.registration?.update().catch(() => {})
 }
 
 /**
@@ -144,9 +225,17 @@ export function initSW(): void {
       try {
         const res = await fetch(`${import.meta.env.BASE_URL}version.json?t=${Date.now()}`)
         if (!res.ok) throw new Error(`version.json returned ${res.status}`)
-        const { version: newVersion } = await res.json()
+        const { version: newVersion, minVersion } = await res.json() as { version: string; minVersion?: string }
+        patch({ newVersion: typeof newVersion === 'string' ? newVersion : null })
         if (newVersion === __APP_VERSION__) {
           logger.info('Same version, applying silently')
+          silentApply(update)
+          return
+        }
+        // Mandatory update: this client is below the published floor (a
+        // wire-protocol break it can't interoperate across) — no prompt.
+        if (minVersion && compareVersions(__APP_VERSION__, minVersion) < 0) {
+          logger.info(`Version ${__APP_VERSION__} below minimum ${minVersion}, applying silently`)
           silentApply(update)
           return
         }
@@ -177,8 +266,22 @@ export function initSW(): void {
       if (r) {
         setInterval(() => {
           logger.debug('Checking for updates...')
-          r.update()
+          r.update().catch(() => {})
         }, UPDATE_CHECK_INTERVAL_MS)
+        // iOS freezes timers for a backgrounded PWA and resuming it is not a
+        // navigation, so the interval alone can leave a device on a stale build
+        // indefinitely — never fetching the new sw.js.
+        // Check on every return to the foreground.
+        let lastResumeCheck = 0
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState !== 'visible') return
+          const now = Date.now()
+          lastResumeAt = now
+          if (now - lastResumeCheck < RESUME_CHECK_MIN_GAP_MS) return
+          lastResumeCheck = now
+          logger.debug('Resumed — checking for updates...')
+          r.update().catch(() => {})
+        })
       }
     },
     onRegisterError(error) {

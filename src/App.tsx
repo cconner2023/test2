@@ -882,6 +882,7 @@ case 'mapOverlay':
         {navigation.writeNoteData && (
           <ErrorBoundary>
           <WriteNotePage
+            key={navigation.writeNoteData.restore?.savedNoteId ?? 'live'}
             isVisible={navigation.isWriteNoteVisible}
             disposition={navigation.writeNoteData.disposition}
             algorithmOptions={navigation.writeNoteData.algorithmOptions}
@@ -890,6 +891,7 @@ case 'mapOverlay':
             selectedSymptom={navigation.writeNoteData.selectedSymptom}
             isMobile={navigation.isMobile}
             initialPage={navigation.writeNoteData.initialPage}
+            restore={navigation.writeNoteData.restore}
           />
           </ErrorBoundary>
         )}

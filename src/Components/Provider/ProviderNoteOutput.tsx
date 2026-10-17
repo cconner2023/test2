@@ -13,8 +13,9 @@ import { encodeProviderNote, encodeProviderBundle } from '../../Utilities/notePa
 import { encryptBarcode } from '../../Utilities/barcodeCodec';
 import { selectIsAuthenticated, useAuthStore } from '../../stores/useAuthStore';
 import { PdfPreviewModal } from '../PdfPreviewModal';
-import { PatientIdPopover } from '../PatientIdPopover';
+import { PatientIdPopover, type PatientIdForm } from '../PatientIdPopover';
 import type { PatientIdentification } from '../../Utilities/SF600Export';
+import type { DD689Extras } from '../../Utilities/DD689Export';
 
 import type { ImportedMedicNote } from '../ProviderDrawer'
 import type { PEState } from '../../Types/PETypes'
@@ -150,7 +151,7 @@ export function ProviderNoteOutput({
         shareNote({ encodedText: encodedValue, symptomText: 'Provider Note' }, isMobile);
     }
 
-    const [patientGateOpen, setPatientGateOpen] = useState(false);
+    const [patientGate, setPatientGate] = useState<PatientIdForm | null>(null);
 
     function doExportSF600(patient: PatientIdentification) {
         if (!previewNote) return;
@@ -168,7 +169,7 @@ export function ProviderNoteOutput({
         });
     }
 
-    function handleExportDD689() {
+    function handleExportDD689(patient: PatientIdentification, extras: DD689Extras) {
         exportDD689({
             encodedValue,
             dispositionType: '',
@@ -176,6 +177,8 @@ export function ProviderNoteOutput({
             symptomText: 'Provider Note',
             clinicName: formClinicName || '',
             authorLine: signature || undefined,
+            patient,
+            ...extras,
         });
     }
 
@@ -184,18 +187,19 @@ export function ProviderNoteOutput({
             <NoteOutputSections
                 previewNote={previewNote}
                 onCopyNote={() => copyWithHtml(previewNote)}
-                onExportSF600={() => { if (previewNote) setPatientGateOpen(true); }}
+                onExportSF600={() => { if (previewNote) setPatientGate('sf600'); }}
                 onCopyEncoded={() => copyWithHtml(encodedValue)}
                 onShare={handleShare}
-                onExportDD689={handleExportDD689}
+                onExportDD689={() => setPatientGate('dd689')}
                 encodedLength={encodedValue.length}
                 barcode={<BarcodeDisplay encodedText={encodedValue} layout={encodedValue.length > 300 ? 'col' : 'row'} />}
             />
             <PatientIdPopover
-                isOpen={patientGateOpen}
+                isOpen={patientGate !== null}
                 anchorRect={null}
-                onClose={() => setPatientGateOpen(false)}
-                onConfirm={doExportSF600}
+                form={patientGate ?? undefined}
+                onClose={() => setPatientGate(null)}
+                onConfirm={(patient, extras) => patientGate === 'dd689' ? handleExportDD689(patient, extras) : doExportSF600(patient)}
             />
             <PdfPreviewModal
                 preview={sf600Preview ?? dd689Preview ?? null}

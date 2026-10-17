@@ -23,6 +23,9 @@ cleanupOutdatedCaches();
 precacheAndRoute(self.__WB_MANIFEST);
 
 // ─── Client claim ────────────────────────────────────────────────────
+// Load-bearing for updates: after the page sends SKIP_WAITING, the claim fires
+// controllerchange → workbox `controlling` → the page reloads itself. Without
+// it the activated worker never controls the open page and no reload happens.
 clientsClaim();
 
 // ─── Navigation fallback (SPA) ───────────────────────────────────────
@@ -188,74 +191,39 @@ self.addEventListener('notificationclick', (event) => {
 });
 
 // ─── Install: selective skipWaiting ──────────────────────────────────
-// Skip waiting when no prior build ID exists in the meta cache — i.e. this is
-// a pre-auth build that predates the update prompt system — or when this build
-// raises the forced-update epoch (see below). Post-auth users otherwise have
-// the entry stamped on activate; their updates flow through the app-level
-// prompt so silent bug fixes and intentional bumps are handled separately.
+// Skip waiting only when no prior build ID exists in the meta cache —
+// i.e. this is a pre-auth build that predates the update prompt system.
+// Post-auth users have the entry stamped on activate; their updates flow
+// through the app-level prompt so silent bug fixes and intentional bumps
+// are handled separately.
+//
+// Never skip waiting to force an update. The page only reloads after a worker
+// sits in `waiting` (onNeedRefresh → swService), and the worker can't reload
+// it on iOS (no client.navigate()) — a skip-waiting worker strands iOS pages on
+// the old bundle. Mandatory updates are a page-side policy: raise MIN_VERSION
+// in vite.config.ts (published in version.json).
 const SW_META_CACHE = 'sw-meta';
 const SW_BUILD_KEY = 'build-id';
 
-// ─── Forced update epoch ─────────────────────────────────────────────
-// Bump to force EVERY open client onto this build, bypassing the dismissable
-// app-level prompt — for wire-protocol breaks where an old client can't
-// interoperate (2 = vault-first messaging; epoch 1 shipped with an activation
-// deadlock, so 2 replaces any worker stuck on it; 3 = vault catch-up no longer
-// halts at an undecryptable row — un-updated devices never see new messages).
-// Enforced entirely here, so it works
-// on clients still running the old page code: the new worker skips waiting,
-// claims every window and reloads it in place. The old page can't do it — in
-// prompt mode it only reloads after the worker sits in `waiting`, which a
-// skip-waiting worker never does.
-const FORCED_UPDATE_EPOCH = 3;
-const SW_FORCED_EPOCH_KEY = 'forced-epoch';
-
-async function storedForcedEpoch(): Promise<number> {
-  const cache = await caches.open(SW_META_CACHE);
-  const entry = await cache.match(SW_FORCED_EPOCH_KEY);
-  return entry ? Number(await entry.text()) || 0 : 0;
-}
-
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    (async () => {
-      const cache = await caches.open(SW_META_CACHE);
-      const buildEntry = await cache.match(SW_BUILD_KEY);
-      if (!buildEntry || (await storedForcedEpoch()) < FORCED_UPDATE_EPOCH) {
-        self.skipWaiting();
-      }
-    })()
+    caches.open(SW_META_CACHE).then(cache =>
+      cache.match(SW_BUILD_KEY).then(entry => {
+        if (!entry) self.skipWaiting();
+      })
+    )
   );
 });
 
-// ─── Activate: stamp build ID in meta cache; enforce forced epoch ─────
+// ─── Activate: stamp build ID in meta cache ───────────────────────────
 self.addEventListener('activate', (event) => {
-  const stamped = (async () => {
-    const cache = await caches.open(SW_META_CACHE);
-    // Only an UPGRADE from an earlier build reloads its windows; a first
-    // install has nothing stale to replace.
-    const upgrading = !!(await cache.match(SW_BUILD_KEY));
-    const forced = upgrading && (await storedForcedEpoch()) < FORCED_UPDATE_EPOCH;
-    await cache.put(SW_BUILD_KEY, new Response(__BUILD_ID__, {
-      headers: { 'Content-Type': 'text/plain' },
-    }));
-    await cache.put(SW_FORCED_EPOCH_KEY, new Response(String(FORCED_UPDATE_EPOCH), {
-      headers: { 'Content-Type': 'text/plain' },
-    }));
-    return forced;
-  })();
-  event.waitUntil(stamped);
-
-  // Reload the open windows only AFTER activation. The reload's requests are
-  // held until this worker is activated, and activation waits on everything
-  // passed to waitUntil — awaiting navigate() in there deadlocks every page on
-  // the loading screen. So it is deliberately NOT part of waitUntil.
-  void stamped.then(async forced => {
-    if (!forced) return;
-    await self.clients.claim();
-    const windows = await self.clients.matchAll({ type: 'window' });
-    for (const client of windows) client.navigate(client.url).catch(() => null);
-  }).catch(() => {});
+  event.waitUntil(
+    caches.open(SW_META_CACHE).then(cache =>
+      cache.put(SW_BUILD_KEY, new Response(__BUILD_ID__, {
+        headers: { 'Content-Type': 'text/plain' },
+      }))
+    )
+  );
 });
 
 // ─── Skip waiting + queue notification on message ────────────────────

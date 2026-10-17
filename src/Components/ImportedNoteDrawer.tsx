@@ -5,11 +5,12 @@ import { BaseDrawer } from '@/Components/primitives/BaseDrawer'
 import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill'
 import { NoteOutputSections } from './NoteOutputSections'
 import { BarcodeDisplay } from './Barcode'
-import { PatientIdPopover } from './PatientIdPopover'
+import { PatientIdPopover, type PatientIdForm } from './PatientIdPopover'
 import { PdfPreviewModal } from './PdfPreviewModal'
 import type { ImportPreview } from '../Hooks/useNoteImport'
 import type { MedevacRequest } from '../Types/MedevacTypes'
 import type { PatientIdentification } from '../Utilities/SF600Export'
+import type { DD689Extras } from '../Utilities/DD689Export'
 import { useNoteShare } from '../Hooks/useNoteShare'
 import { useDD689Export } from '../Hooks/useDD689Export'
 import { useSF600Export } from '../Hooks/useSF600Export'
@@ -43,7 +44,7 @@ export function ImportedNoteDrawer({ preview, onClose, onOpenMedevac, isMobile }
   const { shareNote } = useNoteShare()
   const { exportDD689, exportStatus, dd689Preview, downloadDD689, clearDD689Preview } = useDD689Export()
   const { exportSF600, sf600ExportStatus, sf600Preview, downloadSF600, clearSF600Preview } = useSF600Export()
-  const [patientGateOpen, setPatientGateOpen] = useState(false)
+  const [patientGate, setPatientGate] = useState<PatientIdForm | null>(null)
   const [authorAvatarSvg, setAuthorAvatarSvg] = useState<ReactNode>(null)
 
   const userId = shown?.userId
@@ -86,7 +87,7 @@ export function ImportedNoteDrawer({ preview, onClose, onOpenMedevac, isMobile }
     }, isMobile)
   }
 
-  const handleExportDD689 = () => {
+  const handleExportDD689 = (patient: PatientIdentification, extras: DD689Extras) => {
     if (!shown || !encoded) return
     exportDD689({
       encodedValue: encoded,
@@ -95,6 +96,8 @@ export function ImportedNoteDrawer({ preview, onClose, onOpenMedevac, isMobile }
       symptomText: shown.symptomText || 'Note',
       clinicName: formClinicName || '',
       authorLine: authorSig,
+      patient,
+      ...extras,
     })
   }
 
@@ -147,10 +150,10 @@ export function ImportedNoteDrawer({ preview, onClose, onOpenMedevac, isMobile }
               <NoteOutputSections
                 previewNote={note}
                 onCopyNote={() => copyWithHtml(note)}
-                onExportSF600={() => { if (note) setPatientGateOpen(true) }}
+                onExportSF600={() => { if (note) setPatientGate('sf600') }}
                 onCopyEncoded={() => copyWithHtml(encoded)}
                 onShare={handleShare}
-                onExportDD689={handleExportDD689}
+                onExportDD689={() => { if (encoded) setPatientGate('dd689') }}
                 encodedLength={encoded.length}
                 barcode={<BarcodeDisplay encodedText={encoded} layout={encoded.length > 300 ? 'col' : 'row'} />}
               />
@@ -159,10 +162,11 @@ export function ImportedNoteDrawer({ preview, onClose, onOpenMedevac, isMobile }
         )}
       </BaseDrawer>
       <PatientIdPopover
-        isOpen={patientGateOpen}
+        isOpen={patientGate !== null}
         anchorRect={null}
-        onClose={() => setPatientGateOpen(false)}
-        onConfirm={handleExportSF600}
+        form={patientGate ?? undefined}
+        onClose={() => setPatientGate(null)}
+        onConfirm={(patient, extras) => patientGate === 'dd689' ? handleExportDD689(patient, extras) : handleExportSF600(patient)}
       />
       <PdfPreviewModal
         preview={sf600Preview ?? dd689Preview ?? null}

@@ -10,6 +10,37 @@ import { initSW } from './lib/swService.ts'
 // works even when the user is on the login screen.
 initSW()
 
+// Stale-bundle recovery. A page left running under a newer worker (or across a
+// deploy) asks for hashed chunks its own build shipped; the new precache and the
+// host no longer have them, so every lazy import fails and features silently
+// die. Reload once onto the current build. Guarded so a genuinely missing chunk
+// (offline with no cache) can't reload-loop — the error then propagates as usual.
+const CHUNK_RELOAD_KEY = 'chunkReloadAt'
+const CHUNK_RELOAD_GUARD_MS = 30 * 1000
+function reloadForStaleBundle(reason: unknown): void {
+  // Offline, a reload can't fetch anything newer — it would only cost the user
+  // their in-progress state.
+  if (!navigator.onLine) return
+  try {
+    const last = Number(sessionStorage.getItem(CHUNK_RELOAD_KEY)) || 0
+    if (Date.now() - last < CHUNK_RELOAD_GUARD_MS) return
+    sessionStorage.setItem(CHUNK_RELOAD_KEY, String(Date.now()))
+    localStorage.setItem('updateReloadPending', '1')
+  } catch { return } // no storage → no loop guard → don't risk a loop
+  logger.warn('Chunk load failed — reloading onto the current build:', reason)
+  window.location.reload()
+}
+window.addEventListener('vite:preloadError', (e) => {
+  reloadForStaleBundle((e as Event & { payload?: unknown }).payload)
+})
+// Dynamic imports Vite didn't wrap (no preload deps) only surface here, and only
+// when the caller didn't catch them. Messages per engine: Chromium, WebKit, Gecko.
+const CHUNK_ERROR_RE = /Failed to fetch dynamically imported module|Importing a module script failed|error loading dynamically imported module/i
+window.addEventListener('unhandledrejection', (e) => {
+  const msg = e.reason instanceof Error ? e.reason.message : String(e.reason ?? '')
+  if (CHUNK_ERROR_RE.test(msg)) reloadForStaleBundle(e.reason)
+})
+
 const logger = createLogger('App')
 
 // Verify Supabase connection on startup (non-blocking)
