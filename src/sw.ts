@@ -191,18 +191,12 @@ self.addEventListener('notificationclick', (event) => {
 });
 
 // ─── Install: selective skipWaiting ──────────────────────────────────
-// Skip waiting when no prior build ID exists in the meta cache — i.e. this is
-// a pre-auth build that predates the update prompt system — or while
-// FORCE_UPDATES is on.
-//
-// FORCE_UPDATES: every new build activates immediately instead of sitting in
-// `waiting` for the app-level prompt. On iOS a waiting worker was never
-// promoted (not by the prompt, backgrounding, or a cold launch), stranding
-// devices on stale builds. The worker never reloads pages itself (iOS has no
-// client.navigate()): the claim below fires controllerchange and swService
-// reloads the page; pages on older code pick the build up on next launch.
-// Set false to return to prompt-mode updates (onNeedRefresh + MIN_VERSION).
-const FORCE_UPDATES = true;
+// Skip waiting only on a first install (no build ID in the meta cache) — there
+// is no open page to disrupt. Every later build waits for the "Update
+// available" card (swService, prompt-always); the user's tap sends
+// SKIP_WAITING. Never skip waiting or reload pages from here to force an
+// update: iOS has no client.navigate(), and a worker swapped under a running
+// page strands it on a bundle the new precache no longer serves.
 const SW_META_CACHE = 'sw-meta';
 const SW_BUILD_KEY = 'build-id';
 
@@ -210,7 +204,7 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(SW_META_CACHE).then(cache =>
       cache.match(SW_BUILD_KEY).then(entry => {
-        if (!entry || FORCE_UPDATES) self.skipWaiting();
+        if (!entry) self.skipWaiting();
       })
     )
   );

@@ -9,10 +9,6 @@ import { resolve } from 'path'
 import { hudSplashMarkup } from './src/lib/hudGeometry'
 
 const APP_VERSION = '2.8.0'
-// Mandatory-update floor, published in version.json. A running client below it
-// applies the waiting update silently instead of prompting (swService). Raise it
-// for wire-protocol breaks an old client can't interoperate with.
-const MIN_VERSION = '2.8.0'
 const BUILD_ID = 'A1'
 
 export default defineConfig({
@@ -103,7 +99,7 @@ export default defineConfig({
         mkdirSync(outDir, { recursive: true })
         writeFileSync(
           resolve(outDir, 'version.json'),
-          JSON.stringify({ version: APP_VERSION, minVersion: MIN_VERSION })
+          JSON.stringify({ version: APP_VERSION })
         )
       }
     },

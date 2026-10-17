@@ -184,7 +184,6 @@ function AppContent() {
     onOpen: handleMessagesOpen,
     onClose: handleMessagesClose,
   })
-  const [updateVisible, setUpdateVisible] = useState(false)
   const [postUpdatePending, setPostUpdatePending] = useState(!!_postUpdateNav)
   // Store-held so a chat "Decode note" can open the same drawer from deep inside Messages.
   const importPreview = useNavigationStore(s => s.importPreview)
@@ -903,7 +902,6 @@ case 'mapOverlay':
           onOpenMedevac={handleOpenMedevac}
           isMobile={navigation.isMobile}
         />
-        <UpdateNotification onVisibilityChange={setUpdateVisible} />
         <PasswordResetOverlay />
       </div>
       <CallOverlay />
@@ -981,6 +979,10 @@ function App() {
       {/* Outside LockGate: the account this browser belongs to has to be settled
           before any gate inside it means anything. */}
       <ForeignLinkSwitchScreen />
+      {/* Outside LockGate so a user stuck at login or a lock screen can still
+          take an update — the card is the only way a new build is applied. */}
+      <UpdateNotification />
+
     </ThemeProvider>
   )
 }

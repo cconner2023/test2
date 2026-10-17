@@ -1,4 +1,5 @@
-/* Modal tokens: bg-themewhite rounded-2xl shadow-2xl border-tertiary/10 z-70. Ref: ProvisionalDeviceModal */
+/* Modal tokens: bg-themewhite rounded-2xl shadow-2xl border-tertiary/10. Ref: ProvisionalDeviceModal
+   z-[110]: mounted outside LockGate and must sit above the login (z-30) and lock screens (z-100). */
 import React, { useEffect } from 'react';
 import { X, Download, RefreshCw } from 'lucide-react';
 import { useServiceWorker } from '../Hooks/useServiceWorker';
@@ -32,7 +33,7 @@ const UpdateNotification: React.FC<{ onVisibilityChange?: (visible: boolean) => 
     if (!isVisible) return null;
 
     return (
-        <div className="fixed inset-0 z-70 flex items-end sm:items-center justify-center pointer-events-none">
+        <div className="fixed inset-0 z-[110] flex items-end sm:items-center justify-center pointer-events-none">
             {/* Subtle backdrop on mobile */}
             <div
                 className="absolute inset-0 bg-black/10 pointer-events-auto sm:bg-black/15 transition-opacity"
