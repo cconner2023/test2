@@ -2,7 +2,8 @@
 //
 // iOS standalone has no reachable console without a Mac, so warnings, errors,
 // uncaught exceptions and boot milestones are mirrored into localStorage and
-// surfaced by DiagnosticsPill. Stays on the device; the user copies it out.
+// surfaced in Settings → Local Storage → Error Log (ErrorLogSheet). Stays on
+// the device; the user copies it out.
 //
 // Must be the FIRST import in main.tsx: createLogger() binds console.warn /
 // console.error at module scope, so the patch has to land before any other

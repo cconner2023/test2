@@ -18,7 +18,6 @@ import { useDesktopHotkeys } from './Hooks/useDesktopHotkeys'
 import { useMenuSlide, MENU_NAV_WIDTH_MOBILE, MENU_NAV_WIDTH_DESKTOP } from './Hooks/useMenuSlide'
 import { useMessagesSlide } from './Hooks/useMessagesSlide'
 import UpdateNotification from './Components/UpdateNotification'
-import DiagnosticsPill from './Components/DiagnosticsPill'
 import PasswordResetOverlay from './Components/PasswordResetOverlay'
 import { ColumnA } from './Components/ColumnA'
 import { TC3Drawer } from './Components/TC3/TC3Drawer'
@@ -983,7 +982,7 @@ function App() {
       {/* Outside LockGate so a user stuck at login or a lock screen can still
           take an update — the card is the only way a new build is applied. */}
       <UpdateNotification />
-      <DiagnosticsPill />
+
     </ThemeProvider>
   )
 }

@@ -1,10 +1,12 @@
 import { useState, useEffect, useCallback, type ReactNode } from 'react'
-import { RefreshCw, Trash2, ArrowUpDown, Calendar, Archive, Map, MessageSquare, Loader2 } from 'lucide-react'
+import { RefreshCw, Trash2, ArrowUpDown, Calendar, Archive, Map, MessageSquare, Loader2, Bug, Eye } from 'lucide-react'
 import { ActionButton } from '@/Components/primitives/ActionButton'
 import { ActionPill } from '@/Components/primitives/ActionPill'
 import { getStorageStats, type StorageStats } from '../../lib/storageService'
 import { clearTileCache, resetAllFailedItems } from '../../lib/offlineDb'
 import { useAuth } from '../../Hooks/useAuth'
+import { getDiagEntries, subscribeDiag } from '../../lib/diagLog'
+import { ErrorLogSheet } from './ErrorLogSheet'
 
 function formatBytes(bytes: number): string {
     if (bytes === 0) return '0 B'
@@ -62,6 +64,12 @@ export function StoragePanel() {
     const [stats, setStats] = useState<StorageStats | null>(null)
     const [retrying, setRetrying]  = useState(false)
     const [clearing, setClearing]  = useState(false)
+    const [logOpen, setLogOpen]    = useState(false)
+    const [, setLogTick]           = useState(0)
+
+    useEffect(() => subscribeDiag(() => setLogTick(t => t + 1)), [])
+    const diagEntries = getDiagEntries()
+    const issueCount  = diagEntries.filter(e => e.level === 'warn' || e.level === 'error').length
 
     const load = useCallback(async () => {
         const s = await getStorageStats()
@@ -230,6 +238,32 @@ export function StoragePanel() {
                 }
                 indicator={(stats?.messages.outboundPending ?? 0) > 0}
             />
+
+            {/* Error Log */}
+            <StorageCard
+                preview={
+                    issueCount === 0 ? (
+                        <div className="flex items-center gap-2">
+                            <div className="w-1.5 h-1.5 rounded-full bg-themegreen" />
+                            <span className="text-[9pt] font-medium text-themegreen">No issues logged</span>
+                        </div>
+                    ) : (
+                        <div className="flex items-center gap-2">
+                            <div className="w-1.5 h-1.5 rounded-full bg-themeredred" />
+                            <span className="text-[9pt] font-medium text-themeredred">
+                                {issueCount} {issueCount === 1 ? 'issue' : 'issues'} logged
+                            </span>
+                        </div>
+                    )
+                }
+                icon={<Bug size={15} />}
+                label="Error Log"
+                tagline={`${diagEntries.length} entries · stays on this device`}
+                action={diagEntries.length > 0 ? (
+                    <ActionButton icon={Eye} label="View error log" onClick={() => setLogOpen(true)} />
+                ) : undefined}
+            />
+            {logOpen && <ErrorLogSheet onClose={() => setLogOpen(false)} />}
         </div>
     )
 }
