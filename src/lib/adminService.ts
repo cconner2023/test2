@@ -101,7 +101,8 @@ export async function isDevUser(): Promise<boolean> {
 let accountRequestsCache: { gen: number; byStatus: Map<string, Promise<AccountRequest[]>> } | null = null
 
 /**
- * Get all account requests, optionally filtered by status (dev only).
+ * Get account requests, optionally filtered by status (dev only). Without a
+ * status, approved requests are excluded server-side (pending + rejected only).
  * Served from the gen-keyed promise cache; bust via invalidate('requests').
  */
 export async function getAllAccountRequests(
@@ -126,14 +127,17 @@ async function fetchAccountRequests(
   key: string,
 ): Promise<AccountRequest[]> {
   try {
+    // Explicit columns: `*` would ship password_hash (and unused audit columns)
+    // to the client on every read.
     let query = supabase
       .from('account_requests')
-      .select('*')
+      .select('id, email, first_name, last_name, middle_initial, credential, rank, component, uic, status, request_type, status_check_token, user_id, requested_at, reviewed_at, rejection_reason, notes')
       .order('requested_at', { ascending: false })
 
-    if (status) {
-      query = query.eq('status', status)
-    }
+    // Approved requests are no longer triage and no caller renders them; the
+    // unfiltered read would otherwise grow with every signup (auto-approvals
+    // included) only to be dropped client-side.
+    query = status ? query.eq('status', status) : query.neq('status', 'approved')
 
     const { data, error } = await query
 

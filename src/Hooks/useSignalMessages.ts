@@ -1086,8 +1086,11 @@ export function useSignalMessages({
   const vaultCatchUpRunning = useRef(false)
   const vaultCatchUpAgain = useRef(false)
 
-  /** Handle one vault row. Returns false when processing must stop at this row
-   *  (vault locked, or a retriable failure) — the cursor is not moved past it. */
+  /** Handle one vault row. Returns false only when processing must stop (vault
+   *  locked). A retriable decrypt failure does NOT stop the tail: later rows are
+   *  still applied, and the cursor is held behind the failed row (see advance)
+   *  so the next catch-up retries it. Stopping here would wedge every newer
+   *  message behind one undecryptable row (e.g. a pre-cut ratchet packet). */
   const processVaultRow = useCallback(async (row: SignalMessageRow): Promise<boolean> => {
     const myUuid = userIdRef.current
     const myDeviceId = localDeviceIdRef.current
@@ -1128,7 +1131,7 @@ export function useSignalMessages({
       const attempts = (vaultFailures.current.get(row.id) ?? 0) + 1
       if (attempts < VAULT_ROW_MAX_ATTEMPTS) {
         vaultFailures.current.set(row.id, attempts)
-        return false
+        return true
       }
       vaultFailures.current.delete(row.id)
       logger.warn(`Vault row ${row.id} undecryptable after ${attempts} attempts — skipping`)
