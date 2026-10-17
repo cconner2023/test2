@@ -9,6 +9,7 @@
  */
 
 import { create } from 'zustand'
+import { diag } from '../lib/diagLog'
 import { supabase } from '../lib/supabase'
 import { isPinEnabled, hydrateFromCloud, removePin, initPinService } from '../lib/pinService'
 import { removeBiometric } from '../lib/biometricService'
@@ -762,6 +763,7 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
     // device-level, not account-level).
     const fcmToken = localStorage.getItem('adtmc_fcm_token')
     const savedTheme = localStorage.getItem('theme')
+    const diagLog = localStorage.getItem('diag_log')
     try { localStorage.clear() } catch { /* ignore */ }
     try { sessionStorage.clear() } catch { /* ignore */ }
     if (fcmToken) {
@@ -769,6 +771,9 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
     }
     if (savedTheme) {
       try { localStorage.setItem('theme', savedTheme) } catch { /* ignore */ }
+    }
+    if (diagLog) {
+      try { localStorage.setItem('diag_log', diagLog) } catch { /* ignore */ }
     }
   }
 
@@ -815,6 +820,7 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
       // Signal init runs in the background — the app unlocks after profile only.
       // Messaging surfaces read `signalReady` to show a subtle init state.
       initSignalBundle(userId).then(async initResult => {
+        diag('boot', `signal init role=${initResult?.role ?? 'null'} hasPrimary=${initResult?.hasPrimary ?? 'n/a'}`)
         if (initResult) {
           // role === null means registration was unconfirmed (e.g. flaky connection).
           // Don't overwrite a known deviceRole or flip cleanup-isPrimary — doing so
@@ -905,7 +911,8 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
             .catch(() => {})
             .finally(() => scheduleBackup(userId))
         }
-      }).catch(() => {
+      }).catch(e => {
+        diag('error', 'signal init failed', e)
         set({ signalReady: true }) // Mark ready even on failure — don't block UI permanently
         // Signal init failed — no trustworthy full-replay set, so never prune.
         useCalendarStore.getState().setFullReplayLiveIds(null)
@@ -1016,6 +1023,7 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
+      diag('boot', `auth ${event} session=${!!session} localSession=${!!get().localSession}`)
       // Released before the gate check so a held link still paints its own screen
       // instead of parking the app on the loading gate until LockGate's timeout.
       if (event === 'INITIAL_SESSION') set({ loading: false })

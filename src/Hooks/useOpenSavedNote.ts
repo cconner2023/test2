@@ -9,9 +9,11 @@ import type { SavedNote } from '../lib/savedNotesDb'
  * Reopen a My Notes entry in WriteNotePage at Full Note. Decrypts on-device,
  * rebuilds the algorithm card states, and seeds HPI/PE/DDx/Plan so the medic
  * can step back to Write Note, edit, and re-save over the same entry.
+ * Provider entries re-import into the Provider drawer instead.
  */
 export function useOpenSavedNote() {
   const openWriteNote = useNavigationStore(s => s.openWriteNote)
+  const openProviderNote = useNavigationStore(s => s.openProviderNote)
 
   return useCallback(async (saved: SavedNote): Promise<boolean> => {
     try {
@@ -20,6 +22,10 @@ export function useOpenSavedNote() {
         const decrypted = await decryptBarcode(ascii)
         if (!decrypted) throw new Error('decrypt failed — key unavailable')
         ascii = decrypted
+      }
+      if (saved.kind === 'provider') {
+        openProviderNote({ savedNoteId: saved.id, payload: ascii })
+        return true
       }
       const parsed = parseNoteEncoding(ascii)
       if (!parsed?.symptomCode) throw new Error('unparseable saved note')
@@ -56,5 +62,5 @@ export function useOpenSavedNote() {
       logError('useOpenSavedNote', e)
       return false
     }
-  }, [openWriteNote])
+  }, [openWriteNote, openProviderNote])
 }

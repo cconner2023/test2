@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { useClusterLabel } from '../../Utilities/clusterLabel';
 import { useSF600Export } from '../../Hooks/useSF600Export';
 import { useDD689Export } from '../../Hooks/useDD689Export';
@@ -9,35 +9,31 @@ import { useIsMobile } from '../../Hooks/useIsMobile';
 import { useNoteShare } from '../../Hooks/useNoteShare';
 import { formatSignature } from '../../Utilities/NoteFormatter';
 import { copyWithHtml } from '../../Utilities/clipboardUtils';
-import { encodeProviderNote, encodeProviderBundle } from '../../Utilities/noteParser';
-import { encryptBarcode } from '../../Utilities/barcodeCodec';
-import { selectIsAuthenticated, useAuthStore } from '../../stores/useAuthStore';
+import { useAuthStore } from '../../stores/useAuthStore';
 import { PdfPreviewModal } from '../PdfPreviewModal';
 import { PatientIdPopover, type PatientIdForm } from '../PatientIdPopover';
 import type { PatientIdentification } from '../../Utilities/SF600Export';
 import type { DD689Extras } from '../../Utilities/DD689Export';
 
 import type { ImportedMedicNote } from '../ProviderDrawer'
-import type { PEState } from '../../Types/PETypes'
 
 export interface ProviderNoteOutputProps {
     hpiNote: string;
     peNote: string;
-    peState?: PEState | null;
     assessmentNote: string;
     planNote: string;
     importedMedicNote?: ImportedMedicNote | null;
-    medicBarcode?: string;
+    /** From useProviderEncoded — the drawer owns it so Done can save it to My Notes. */
+    encodedValue: string;
 }
 
 export function ProviderNoteOutput({
     hpiNote,
     peNote,
-    peState,
     assessmentNote,
     planNote,
     importedMedicNote,
-    medicBarcode,
+    encodedValue,
 }: ProviderNoteOutputProps) {
     const { profile } = useUserProfile();
     const isMobile = useIsMobile();
@@ -50,48 +46,8 @@ export function ProviderNoteOutput({
         [profile]
     );
 
-    const isAuthenticated = useAuthStore(selectIsAuthenticated);
-    const userId = useAuthStore(s => s.user?.id);
     // SF600 / DD689 facility line — cluster nickname, falling back to unit name.
     const formClinicName = useClusterLabel(useAuthStore(s => s.clinicId), profile.clinicName);
-
-    const compactString = useMemo(() => {
-        const providerOptions = {
-            hpiNote,
-            peNote,
-            peState: peState ?? undefined,
-            assessmentNote,
-            planNote,
-            user: profile ?? undefined,
-            userId: userId ?? undefined,
-        };
-
-        if (importedMedicNote && medicBarcode) {
-            return encodeProviderBundle(medicBarcode, providerOptions);
-        }
-        return encodeProviderNote(providerOptions);
-    }, [hpiNote, peNote, peState, assessmentNote, planNote, profile, userId, importedMedicNote, medicBarcode]);
-
-    const [encodedValue, setEncodedValue] = useState(compactString);
-
-    useEffect(() => {
-        let cancelled = false;
-        (async () => {
-            if (!isAuthenticated) {
-                if (!cancelled) { setEncodedValue(compactString); }
-                return;
-            }
-            try {
-                const encrypted = await encryptBarcode(compactString);
-                if (!cancelled) {
-                    setEncodedValue(encrypted ?? compactString);
-                }
-            } catch {
-                if (!cancelled) { setEncodedValue(compactString); }
-            }
-        })();
-        return () => { cancelled = true; };
-    }, [compactString, isAuthenticated]);
 
     const medicSignature = importedMedicNote?.medicSignature || '';
 

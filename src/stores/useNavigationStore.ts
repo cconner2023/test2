@@ -70,6 +70,12 @@ export interface RestoredNote {
     includeDecisionMaking: boolean;
 }
 
+/** Reopened provider My Notes entry — decrypted payload the Provider drawer re-imports. */
+export interface ProviderRestore {
+    savedNoteId: string;
+    payload: string;
+}
+
 /** Fields preserved across all drawer toggles (not in CLOSE_ALL_DRAWERS). */
 const PRESERVED_FIELDS = (s: NavigationState) => ({
     viewState: s.viewState,
@@ -173,6 +179,8 @@ interface NavigationState {
     showAdminDrawer: boolean
     showSupervisorDrawer: boolean
     showProviderDrawer: boolean
+    /** Consumed once by ProviderDrawer on open, then cleared. */
+    providerRestore: ProviderRestore | null
     showUserGuideDrawer: boolean
     /** Deep-link target: a section/subsection id the guide should scroll to on open. */
     userGuideDrawerSectionId: string | null
@@ -234,6 +242,8 @@ interface NavigationActions {
     setShowAdminDrawer: (show: boolean) => void
     setShowSupervisorDrawer: (show: boolean) => void
     setShowProviderDrawer: (show: boolean) => void
+    openProviderNote: (restore: ProviderRestore) => void
+    clearProviderRestore: () => void
     /** Open the User Guide drawer, optionally deep-linked to a section/subsection id. */
     setShowUserGuideDrawer: (show: boolean, sectionId?: string | null) => void
     /** Set the deep-link target only — for a host that already has the guide open. */
@@ -293,6 +303,7 @@ export const useNavigationStore = create<NavigationStore>()((set, get) => ({
     showAdminDrawer: false,
     showSupervisorDrawer: false,
     showProviderDrawer: false,
+    providerRestore: null,
     showUserGuideDrawer: false,
     userGuideDrawerSectionId: null,
     isMobile: typeof window !== 'undefined'
@@ -633,6 +644,15 @@ export const useNavigationStore = create<NavigationStore>()((set, get) => ({
         ...PRESERVED_FIELDS(s),
         showProviderDrawer: show,
     })),
+
+    openProviderNote: (restore) => set((s) => ({
+        ...CLOSE_ALL_DRAWERS,
+        ...PRESERVED_FIELDS(s),
+        showProviderDrawer: true,
+        providerRestore: restore,
+    })),
+
+    clearProviderRestore: () => set({ providerRestore: null }),
 
     setShowUserGuideDrawer: (show, sectionId) => set((s) => ({
         ...(show ? CLOSE_ALL_DRAWERS : {}),

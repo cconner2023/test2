@@ -226,7 +226,7 @@ export function SideNav({ onClose, onMenuItemClick, isMobile = true }: SideNavPr
                       {note.symptomIcon ? `${note.symptomIcon} ` : ''}{note.symptomText}
                     </div>
                     <div className="text-[9pt] text-tertiary truncate">
-                      {[note.dispositionType, new Date(note.savedAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })].filter(Boolean).join(' · ')}
+                      {[note.kind === 'provider' ? 'Provider' : note.dispositionType, new Date(note.savedAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })].filter(Boolean).join(' · ')}
                     </div>
                   </div>
                 </button>

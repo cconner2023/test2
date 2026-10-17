@@ -10,6 +10,8 @@ export interface SavedNote {
   id: string
   /** Owner auth id; null for guest-written notes. */
   userId: string | null
+  /** Which surface reopens it; absent = medic (pre-provider entries). */
+  kind?: 'medic' | 'provider'
   encodedText: string
   symptomIcon: string
   symptomText: string

@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
-import { ScanLine, X, LayoutTemplate, Pencil, Check, ChevronLeft, ChevronRight } from 'lucide-react'
+import { ScanLine, X, LayoutTemplate, Pencil, Check, ChevronLeft, ChevronRight, Save } from 'lucide-react'
 import { ImportInputBar } from './ImportInputBar'
 import { ImportResultPopover } from './ImportResultPopover'
 import { BaseDrawer } from '@/Components/primitives/BaseDrawer'
@@ -10,6 +10,7 @@ import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill'
 import { SearchInput } from '@/Components/primitives/SearchInput'
 import { ActionButton } from '@/Components/primitives/ActionButton'
 import { AddFab } from '@/Components/primitives/AddFab'
+import { ActionSheet, type ActionSheetOption } from '@/Components/primitives/ActionSheet'
 import { SlideRevealPane } from '@/Components/primitives/SlideRevealPane'
 import { useStack } from '@/Components/primitives/useStack'
 import { type StackNav, type StackScreen } from './stackNav'
@@ -17,6 +18,7 @@ import { useSwipeBack } from '../Hooks/useSwipeBack'
 import { useIsMobile } from '../Hooks/useIsMobile'
 import { useEscBackout } from '../Hooks/useEscBackout'
 import { useBarcodeImport } from '../Hooks/useBarcodeImport'
+import { useProviderEncoded } from '../Hooks/useProviderEncoded'
 import { UI_TIMING } from '../Utilities/constants'
 import { ProviderNote, type ProviderSection } from './Provider/ProviderNote'
 import { ProviderNoteOutput } from './Provider/ProviderNoteOutput'
@@ -43,6 +45,12 @@ import { getMasterBlockByKey } from '../Data/PhysicalExamData'
 import { parseNoteEncoding, findAlgorithmByCode, findSymptomByCode, reconstructCardStates } from '../Utilities/noteParser'
 import { decodePEState } from '../Utilities/peCodec'
 import { assembleNote, formatSignature } from '../Utilities/NoteFormatter'
+import { useSavedNotesStore } from '../stores/useSavedNotesStore'
+import { useNavigationStore } from '../stores/useNavigationStore'
+import { useAuthStore } from '../stores/useAuthStore'
+import { SAVED_NOTES_CAP } from '../lib/savedNotesDb'
+import { emitCopied } from '../lib/copyFeedback'
+import { logError } from '../Utilities/ErrorHandler'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -88,6 +96,8 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
   // ── Import bar state ──────────────────────────────────────────────────────
   const [importExpanded, setImportExpanded] = useState(false)
   const importInputRef = useRef<HTMLInputElement>(null)
+  // My Notes entry this session writes to — the reopened one, or the first save.
+  const savedIdRef = useRef<string | undefined>(undefined)
 
   const isMobile = useIsMobile()
   const { profile, updateProfile, syncProfileField } = useUserProfile()
@@ -378,9 +388,75 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
     setImportedMedicNote(null)
     setMedicBarcode('')
     setImportExpanded(false)
+    savedIdRef.current = undefined
     barcodeImport.reset()
     onClose()
   }, [onClose, barcodeImport.reset])
+
+  // ── My Notes (save from output Done; reopen via providerRestore) ──────────
+
+  const encodedValue = useProviderEncoded({
+    hpiNote, peNote, peState, assessmentNote, planNote, importedMedicNote, medicBarcode,
+  })
+  const authUserId = useAuthStore(s => s.user?.id)
+  const savedNotes = useSavedNotesStore(s => s.notes)
+  const saveNote = useSavedNotesStore(s => s.save)
+  const providerRestore = useNavigationStore(s => s.providerRestore)
+  const clearProviderRestore = useNavigationStore(s => s.clearProviderRestore)
+  const [finishOpen, setFinishOpen] = useState(false)
+
+  // Reopened entry: re-import its payload (same path as a scanned note) and
+  // remember the id so a re-save overwrites it. Opens on the editing view.
+  useEffect(() => {
+    if (!isVisible || !providerRestore) return
+    clearProviderRestore()
+    try {
+      handleProviderDecoded({ payload: providerRestore.payload, encodedText: providerRestore.payload })
+      savedIdRef.current = providerRestore.savedNoteId
+    } catch (e) {
+      logError('ProviderDrawer.restore', e)
+    }
+  }, [isVisible, providerRestore, clearProviderRestore, handleProviderDecoded])
+
+  // Stores only the encoded string (enc: token when signed in), like the medic save.
+  // A bundled medic note lends its symptom label to the My Notes row.
+  const handleSave = useCallback(async (): Promise<boolean> => {
+    if (!encodedValue) return false
+    const medicCode = medicBarcode ? parseNoteEncoding(medicBarcode)?.symptomCode : undefined
+    const symptom = medicCode ? findSymptomByCode(medicCode)?.symptom : undefined
+    const id = await saveNote({
+      id: savedIdRef.current,
+      userId: authUserId ?? null,
+      kind: 'provider',
+      encodedText: encodedValue,
+      symptomIcon: symptom?.icon || '',
+      symptomText: symptom?.text || 'Provider Note',
+      dispositionType: '',
+      dispositionText: '',
+    })
+    if (id) savedIdRef.current = id
+    return !!id
+  }, [encodedValue, medicBarcode, saveNote, authUserId])
+
+  const finishOptions = useMemo<ActionSheetOption[]>(() => {
+    const isUpdate = !!savedIdRef.current && savedNotes.some(n => n.id === savedIdRef.current)
+    const saveLabel = isUpdate
+      ? 'Update My Notes'
+      : savedNotes.length >= SAVED_NOTES_CAP ? 'Save to My Notes (replaces oldest)' : 'Save to My Notes'
+    const opts: ActionSheetOption[] = []
+    if (encodedValue) {
+      opts.push({ key: 'save', label: saveLabel, icon: Save, onAction: async () => {
+        if (await handleSave()) emitCopied('Saved to My Notes')
+        handleClose()
+      } })
+    }
+    opts.push({ key: 'close', label: 'Close', icon: X, onAction: handleClose })
+    return opts
+  }, [savedNotes, encodedValue, handleSave, handleClose])
+
+  const finishHeaderAction = (
+    <PillButton icon={Check} iconSize={18} accent="success" onClick={() => setFinishOpen(true)} label="Done" />
+  )
 
   // ── Swipe Back (mobile output) ──────────────────────────────────────────────
 
@@ -486,15 +562,15 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
     },
     output: {
       title: 'Note Output',
+      headerActions: finishHeaderAction,
       render: () => (
         <ProviderNoteOutput
           hpiNote={hpiNote}
           peNote={peNote}
-          peState={peState}
           assessmentNote={assessmentNote}
           planNote={planNote}
           importedMedicNote={importedMedicNote}
-          medicBarcode={medicBarcode}
+          encodedValue={encodedValue}
         />
       ),
     },
@@ -544,7 +620,18 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
 
   const headerConfig = useMemo(() => {
     if (isMobile && view === 'output') {
-      return { title: 'Note Output', showBack: true, onBack: handleBack }
+      return {
+        title: 'Note Output',
+        showBack: true,
+        onBack: handleBack,
+        rightContent: (
+          <HeaderPill>
+            {finishHeaderAction}
+            <PillButton icon={X} onClick={handleClose} label="Close" />
+          </HeaderPill>
+        ),
+        hideDefaultClose: true,
+      }
     }
     if (isMobile) {
       if (importExpanded) {
@@ -592,7 +679,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
       hideDefaultClose: true,
       rightContentFill: importExpanded,
     }
-  }, [view, handleBack, isMobile, importExpanded, desktopHeaderRight, handleClose,
+  }, [view, handleBack, isMobile, importExpanded, desktopHeaderRight, finishHeaderAction, handleClose,
       handleExpandImport, handleCollapseImport, barcodeImport.importText,
       barcodeImport.setImportText, barcodeImport.handleSubmit, barcodeImport.handleScan,
       barcodeImport.handleSerialScan, barcodeImport.isSerialSupported,
@@ -769,11 +856,10 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
                 <ProviderNoteOutput
                   hpiNote={hpiNote}
                   peNote={peNote}
-                  peState={peState}
                   assessmentNote={assessmentNote}
                   planNote={planNote}
                   importedMedicNote={importedMedicNote}
-                  medicBarcode={medicBarcode}
+                  encodedValue={encodedValue}
                 />
               )}
             </div>
@@ -801,6 +887,13 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
           onDismissImage={barcodeImport.clearStagedImage}
           onStopScan={barcodeImport.handleStopScan}
           onClose={barcodeImport.reset}
+        />
+
+        <ActionSheet
+          visible={finishOpen}
+          title="Finish note"
+          options={finishOptions}
+          onClose={() => setFinishOpen(false)}
         />
 
         {/* Mobile template picker — Sheet (not a nested BaseDrawer, which

@@ -1,3 +1,5 @@
+// Must stay first: patches console before any module binds it (see diagLog.ts).
+import { diag } from './lib/diagLog'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
@@ -99,4 +101,11 @@ const splashStart = performance.now()
     // Fallback removal if transitionend doesn't fire
     setTimeout(() => { if (splashEl.parentNode) splashEl.remove() }, 500)
   }, remaining)
+  diag('boot', `splash dismissed at ${Math.round(elapsed)}ms`)
 }
+
+// A cold load that never settles auth leaves the splash up with no error —
+// record it so the diagnostics pill surfaces.
+setTimeout(() => {
+  if (document.getElementById('splash')) diag('error', 'boot stall: splash still up after 15s')
+}, 15_000)
