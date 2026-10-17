@@ -1,0 +1,3 @@
+const l={"♀":"F","♂":"M","→":"->","←":"<-","↑":"^","↓":"v","↔":"<->","≥":">=","≤":"<=","≠":"!=","≈":"~","✓":"x","✔":"x","✗":"x","✘":"x"," ":" ","	":" ","\r":""},d=/[\p{M}\p{Cf}]/u,u=new WeakMap;function a(i,n){let e=u.get(n);e||u.set(n,e=new Map);let t=e.get(i);if(t===void 0){try{n.widthOfTextAtSize(i,1),t=!0}catch{t=!1}e.set(i,t)}return t}function w(i,n){let e="";for(const t of i){if(t===`
+`||a(t,n)){e+=t;continue}if(d.test(t))continue;const o=l[t];e+=o!==void 0&&[...o].every(c=>a(c,n))?o:"?"}return e}function x(i,n,e,t){const o=[];for(const c of i.split(`
+`)){if(!c){o.push("");continue}const p=c.split(/\s+/);let s="";for(const r of p){const f=s?`${s} ${r}`:r;n.widthOfTextAtSize(f,e)<=t?s=f:(s&&o.push(s),s=r)}s&&o.push(s)}return o}export{w as t,x as w};

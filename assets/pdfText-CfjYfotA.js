@@ -1,2 +1,0 @@
-const u={"♀":"F","♂":"M","→":"->","←":"<-","↑":"^","↓":"v","↔":"<->","≥":">=","≤":"<=","≠":"!=","≈":"~","✓":"x","✔":"x","✗":"x","✘":"x"," ":" ","	":" ","\r":""},a=/[\p{M}\p{Cf}]/u,c=new WeakMap;function s(o,n){let e=c.get(n);e||c.set(n,e=new Map);let t=e.get(o);if(t===void 0){try{n.widthOfTextAtSize(o,1),t=!0}catch{t=!1}e.set(o,t)}return t}function f(o,n){let e="";for(const t of o){if(t===`
-`||s(t,n)){e+=t;continue}if(a.test(t))continue;const i=u[t];e+=i!==void 0&&[...i].every(r=>s(r,n))?i:"?"}return e}export{f as t};
