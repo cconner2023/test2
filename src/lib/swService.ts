@@ -8,13 +8,7 @@ const logger = createLogger('PWA')
 const UPDATE_CHECK_INTERVAL_MS = 5 * 60 * 1000
 /** Floor between resume-triggered update checks (visibilitychange can flap). */
 const RESUME_CHECK_MIN_GAP_MS = 30 * 1000
-/** A silent update reloads immediately only this soon after launch/resume —
- *  before the user is into a task. Later ones wait for the app to background. */
-const SILENT_APPLY_WINDOW_MS = 10 * 1000
 const UPDATE_DISMISS_TIMEOUT_MS = 60 * 60 * 1000
-
-/** Last launch or return to the foreground. Module load counts as a launch. */
-let lastResumeAt = Date.now()
 
 /** Numeric dotted-version compare: <0 when a < b. Missing parts count as 0. */
 function compareVersions(a: string, b: string): number {
@@ -39,32 +33,10 @@ function stampBuildId(): void {
  * Silent (non-optional) update: stamp a flag so the index.html splash can show
  * "Installing update…" on the imminent reload — otherwise an unprompted reload
  * reads as a glitch. The splash script clears the flag after reading it.
- *
- * The reload must not land mid-task (a note, a form, a live call). Apply now
- * when the page is hidden or the user only just launched/resumed; otherwise
- * defer to the next time the app goes to the background.
  */
-let silentApplyDeferred = false
 function silentApply(update: (reloadPage?: boolean) => Promise<void>): void {
-  const apply = () => {
-    try { localStorage.setItem('updateReloadPending', '1') } catch { /* storage unavailable */ }
-    update(true).catch(() => {})
-  }
-  const justResumed = Date.now() - lastResumeAt < SILENT_APPLY_WINDOW_MS
-  if (document.visibilityState === 'hidden' || justResumed) {
-    apply()
-    return
-  }
-  if (silentApplyDeferred) return
-  silentApplyDeferred = true
-  logger.info('Update ready — applying when the app is next backgrounded')
-  const onHide = () => {
-    if (document.visibilityState !== 'hidden') return
-    document.removeEventListener('visibilitychange', onHide)
-    silentApplyDeferred = false
-    apply()
-  }
-  document.addEventListener('visibilitychange', onHide)
+  try { localStorage.setItem('updateReloadPending', '1') } catch { /* storage unavailable */ }
+  update(true).catch(() => {})
 }
 
 export interface SWState {
@@ -218,6 +190,23 @@ export function initSW(): void {
   if (_initialized) return
   _initialized = true
 
+  // Forced updates (sw.ts FORCE_UPDATES): the new worker skips waiting and
+  // claims this page, so onNeedRefresh never fires and workbox never reloads.
+  // A controller swap on a page that already had one is that update landing —
+  // reload onto it here (the worker can't: no client.navigate() on iOS). A
+  // first install has no prior controller and is left alone.
+  if ('serviceWorker' in navigator) {
+    const hadController = !!navigator.serviceWorker.controller
+    let reloading = false
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!hadController || reloading) return
+      reloading = true
+      logger.info('New service worker took control — reloading onto the new build')
+      try { localStorage.setItem('updateReloadPending', '1') } catch { /* storage unavailable */ }
+      window.location.reload()
+    })
+  }
+
   const update = registerSW({
     immediate: true,
     async onNeedRefresh() {
@@ -276,7 +265,6 @@ export function initSW(): void {
         document.addEventListener('visibilitychange', () => {
           if (document.visibilityState !== 'visible') return
           const now = Date.now()
-          lastResumeAt = now
           if (now - lastResumeCheck < RESUME_CHECK_MIN_GAP_MS) return
           lastResumeCheck = now
           logger.debug('Resumed — checking for updates...')

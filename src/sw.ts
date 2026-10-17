@@ -191,17 +191,18 @@ self.addEventListener('notificationclick', (event) => {
 });
 
 // ─── Install: selective skipWaiting ──────────────────────────────────
-// Skip waiting only when no prior build ID exists in the meta cache —
-// i.e. this is a pre-auth build that predates the update prompt system.
-// Post-auth users have the entry stamped on activate; their updates flow
-// through the app-level prompt so silent bug fixes and intentional bumps
-// are handled separately.
+// Skip waiting when no prior build ID exists in the meta cache — i.e. this is
+// a pre-auth build that predates the update prompt system — or while
+// FORCE_UPDATES is on.
 //
-// Never skip waiting to force an update. The page only reloads after a worker
-// sits in `waiting` (onNeedRefresh → swService), and the worker can't reload
-// it on iOS (no client.navigate()) — a skip-waiting worker strands iOS pages on
-// the old bundle. Mandatory updates are a page-side policy: raise MIN_VERSION
-// in vite.config.ts (published in version.json).
+// FORCE_UPDATES: every new build activates immediately instead of sitting in
+// `waiting` for the app-level prompt. On iOS a waiting worker was never
+// promoted (not by the prompt, backgrounding, or a cold launch), stranding
+// devices on stale builds. The worker never reloads pages itself (iOS has no
+// client.navigate()): the claim below fires controllerchange and swService
+// reloads the page; pages on older code pick the build up on next launch.
+// Set false to return to prompt-mode updates (onNeedRefresh + MIN_VERSION).
+const FORCE_UPDATES = true;
 const SW_META_CACHE = 'sw-meta';
 const SW_BUILD_KEY = 'build-id';
 
@@ -209,7 +210,7 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(SW_META_CACHE).then(cache =>
       cache.match(SW_BUILD_KEY).then(entry => {
-        if (!entry) self.skipWaiting();
+        if (!entry || FORCE_UPDATES) self.skipWaiting();
       })
     )
   );
