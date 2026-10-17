@@ -715,8 +715,33 @@ async function decryptRow(
 const VAULT_PAGE_SIZE = 200
 
 /** Attempts before an undecryptable vault row is skipped so it can't pin the
- *  cursor (and the server reap) forever. Counted per catch-up / realtime try. */
+ *  cursor (and the server reap) forever. Persisted per user+device so the count
+ *  survives reloads — in memory, a permanently undecryptable row (pre-cut
+ *  ratchet packet) reset to 0 on every reload and held the cursor forever. */
 const VAULT_ROW_MAX_ATTEMPTS = 3
+
+/** Minimum spacing between counted attempts on one row, so the burst of
+ *  catch-ups at startup (mount, backup-restored, vault-unlocked) can't burn
+ *  every attempt on one transient failure. */
+const VAULT_ROW_ATTEMPT_SPACING_MS = 60_000
+
+type VaultRowFailures = Record<string, { n: number; at: number }>
+
+const vaultFailuresKey = (userId: string, deviceId: string) => `vault_failures:${userId}:${deviceId}`
+
+function readVaultFailures(userId: string, deviceId: string): VaultRowFailures {
+  try {
+    const raw = localStorage.getItem(vaultFailuresKey(userId, deviceId))
+    return raw ? JSON.parse(raw) as VaultRowFailures : {}
+  } catch { return {} }
+}
+
+function writeVaultFailures(userId: string, deviceId: string, map: VaultRowFailures): void {
+  try {
+    if (Object.keys(map).length === 0) localStorage.removeItem(vaultFailuresKey(userId, deviceId))
+    else localStorage.setItem(vaultFailuresKey(userId, deviceId), JSON.stringify(map))
+  } catch { /* ignore */ }
+}
 
 /** Wire types whose decrypted message is persisted under the row id. */
 const PERSISTED_CONTENT_TYPES = new Set(['message', 'initial', 'request', 'sender-key-message'])
@@ -1127,15 +1152,28 @@ export function useSignalMessages({
       failed = true
     }
 
+    const stored = readVaultFailures(myUuid, myDeviceId)
     if (failed) {
-      const attempts = (vaultFailures.current.get(row.id) ?? 0) + 1
+      const now = Date.now()
+      const prev = stored[row.id]
+      const attempts = prev && now - prev.at < VAULT_ROW_ATTEMPT_SPACING_MS ? prev.n : (prev?.n ?? 0) + 1
       if (attempts < VAULT_ROW_MAX_ATTEMPTS) {
+        if (attempts !== prev?.n) {
+          stored[row.id] = { n: attempts, at: now }
+          writeVaultFailures(myUuid, myDeviceId, stored)
+        }
         vaultFailures.current.set(row.id, attempts)
         return true
       }
+      delete stored[row.id]
+      writeVaultFailures(myUuid, myDeviceId, stored)
       vaultFailures.current.delete(row.id)
       logger.warn(`Vault row ${row.id} undecryptable after ${attempts} attempts — skipping`)
     } else {
+      if (row.id in stored) {
+        delete stored[row.id]
+        writeVaultFailures(myUuid, myDeviceId, stored)
+      }
       vaultFailures.current.delete(row.id)
     }
 

@@ -200,12 +200,14 @@ const SW_BUILD_KEY = 'build-id';
 // Bump to force EVERY open client onto this build, bypassing the dismissable
 // app-level prompt — for wire-protocol breaks where an old client can't
 // interoperate (2 = vault-first messaging; epoch 1 shipped with an activation
-// deadlock, so 2 replaces any worker stuck on it). Enforced entirely here, so it works
+// deadlock, so 2 replaces any worker stuck on it; 3 = vault catch-up no longer
+// halts at an undecryptable row — un-updated devices never see new messages).
+// Enforced entirely here, so it works
 // on clients still running the old page code: the new worker skips waiting,
 // claims every window and reloads it in place. The old page can't do it — in
 // prompt mode it only reloads after the worker sits in `waiting`, which a
 // skip-waiting worker never does.
-const FORCED_UPDATE_EPOCH = 2;
+const FORCED_UPDATE_EPOCH = 3;
 const SW_FORCED_EPOCH_KEY = 'forced-epoch';
 
 async function storedForcedEpoch(): Promise<number> {
