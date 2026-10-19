@@ -348,7 +348,11 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
   const amendMedic = useCallback((edits: MedicAmendment, raw?: Partial<ImportedMedicNote>) => {
     if (!medicBarcode) return
     const next = amendMedicBarcode(medicBarcode, edits)
-    if (next === medicBarcode) return
+    // Trailing space/newline trims to the same bundle — still keep the raw text.
+    if (next === medicBarcode) {
+      if (raw) setImportedMedicNote(prev => prev && { ...prev, ...raw })
+      return
+    }
     const parsed = parseNoteEncoding(next)
     const algorithmOptions = parsed ? findAlgorithmByCode(parsed.symptomCode) : null
     if (!parsed || !algorithmOptions?.length) return
