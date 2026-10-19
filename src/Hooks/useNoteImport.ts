@@ -193,9 +193,11 @@ export const useNoteImport = () => {
             layout.push(['ASSESSMENT:', result.sections.assessment, parsed.providerAssessment, false]);
             layout.push(['PLAN:', result.sections.plan, parsed.providerPlan, false]);
 
-            // Every block is signed by its author
-            const medicLine = medicSig || 'Unknown Medic';
+            // Every block is signed by its author; provider amendments are disclosed
             const providerLine = providerSig || 'Unknown Provider';
+            const medicLine = parsed.flags.amended
+                ? `${medicSig || 'Unknown Medic'} (amended by ${providerLine})`
+                : medicSig || 'Unknown Medic';
             const parts: string[] = [];
             layout.forEach(([header, medicText, providerText, isMedicOnly]) => {
                 if (!medicText && !providerText) return;

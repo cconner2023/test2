@@ -42,7 +42,7 @@ export interface ParsedNote {
     assessmentText: string;
     /** Differential diagnoses — library picks and free-text entries. */
     ddx: { selected: string[]; custom: string[] };
-    flags: { includeAlgorithm: boolean; includeDecisionMaking: boolean; includeHPI: boolean; includePhysicalExam: boolean; includePlan: boolean; includeAssessment: boolean };
+    flags: { includeAlgorithm: boolean; includeDecisionMaking: boolean; includeHPI: boolean; includePhysicalExam: boolean; includePlan: boolean; includeAssessment: boolean; amended: boolean };
     user: UserTypes | null;
     userId: string | null;
     // Provider overlay fields (lowercase prefix segments)
@@ -237,6 +237,7 @@ export function parseNoteEncoding(encodedText: string): ParsedNote | null {
             includePhysicalExam: false,
             includePlan: false,
             includeAssessment: false,
+            amended: false,
         },
         user: null,
         userId: null,
@@ -286,6 +287,8 @@ export function parseNoteEncoding(encodedText: string): ParsedNote | null {
                     includePhysicalExam: !!(f & 8),
                     includePlan: !!(f & 16),
                     includeAssessment: !!(f & 32),
+                    // Bit 128 = a provider amended the medic's free-text sections.
+                    amended: !!(f & 128),
                 };
                 break;
             }
@@ -834,6 +837,70 @@ export function encodeProviderBundle(medicBarcode: string, options: ProviderNote
     appendProviderSegments(providerParts, options);
     if (providerParts.length === 0) return medicOnly;
     return medicOnly + '|' + providerParts.join('|');
+}
+
+/** Medic sections a provider can amend in a bundle. PE takes structured state
+ *  (stays editable as exam blocks + vitals) or, for a legacy text exam, text. */
+export interface MedicAmendment {
+    hpi?: string;
+    pe?: string;
+    peState?: PEState;
+    assessment?: string;
+    plan?: string;
+}
+
+const AMEND_TEXT_SEGMENTS: { key: 'hpi' | 'pe' | 'assessment' | 'plan'; prefix: string; bit: number }[] = [
+    { key: 'hpi', prefix: 'H', bit: 4 },
+    { key: 'pe', prefix: 'P', bit: 8 },
+    { key: 'plan', prefix: 'N', bit: 16 },
+    { key: 'assessment', prefix: 'X', bit: 32 },
+];
+
+/**
+ * Rewrite a medic barcode's section segments (H/P/N/X) in place, keeping the
+ * algorithm, DDx, and author intact. Include-flags track the new content and
+ * bit 128 marks the note as provider-amended. Returns the barcode unchanged when
+ * the edit encodes identically (editor re-emits never flag a note amended).
+ * Provider segments pass through untouched.
+ */
+export function amendMedicBarcode(medicBarcode: string, edits: MedicAmendment): string {
+    const parts = medicBarcode.split('|');
+    const symptomCode = parts[0];
+    const contentStart = contentStartIndex(symptomCode);
+    const head = parts.slice(0, contentStart);
+    let body = parts.slice(contentStart);
+
+    let flags = 0;
+    const fIdx = body.findIndex(p => p[0] === 'F');
+    if (fIdx >= 0) flags = parseInt(body[fIdx].substring(1), 10) || 0;
+
+    let changed = false;
+    const replace = (prefix: string, bit: number, value: string | null) => {
+        const current = body.find(p => p[0] === prefix)?.substring(1) ?? null;
+        if (current === value) return;
+        changed = true;
+        body = body.filter(p => p[0] !== prefix);
+        if (value) {
+            body.push(`${prefix}${value}`);
+            flags |= bit;
+        } else {
+            flags &= ~bit;
+        }
+    };
+
+    for (const { key, prefix, bit } of AMEND_TEXT_SEGMENTS) {
+        const next = edits[key];
+        if (next === undefined) continue;
+        const trimmed = next.trim();
+        replace(prefix, bit, trimmed ? compressText(trimmed) : null);
+    }
+    if (edits.peState) replace('P', 8, encodePE(edits.peState, undefined, symptomCode));
+
+    if (!changed) return medicBarcode;
+    flags |= 128;
+    body = body.filter(p => p[0] !== 'F');
+    body.push(`F${flags}`);
+    return [...head, ...body].join('|');
 }
 
 const PROVIDER_PREFIXES = new Set(['h', 'p', 'x', 'n', 'u', 'i']);

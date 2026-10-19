@@ -20,12 +20,13 @@ import { useEscBackout } from '../Hooks/useEscBackout'
 import { useBarcodeImport } from '../Hooks/useBarcodeImport'
 import { useProviderEncoded } from '../Hooks/useProviderEncoded'
 import { UI_TIMING } from '../Utilities/constants'
-import { ProviderNote, type ProviderSection } from './Provider/ProviderNote'
+import { ProviderNote, MedicContextCard, MedicSectionFrame, type ProviderSection } from './Provider/ProviderNote'
+import { MEDIC_FIELD_TITLES, MEDIC_FIELD_KEYS, medicFieldText, type MedicField } from './Provider/medicFields'
 import { ProviderNoteOutput } from './Provider/ProviderNoteOutput'
 import { ProviderTemplateTree } from './Provider/ProviderTemplateTree'
 import { TemplateDetailBody } from './Provider/ProviderTemplateDetail'
 import { TextSectionEditor } from './Provider/ProviderPaneSections'
-import { usePEPaneScreens, PECenter } from './Provider/ProviderPESections'
+import { usePEPaneScreens, PECenter, PEBody } from './Provider/ProviderPESections'
 import { usePlanPaneScreens } from './Provider/ProviderPlanSections'
 import { generatePEText } from './PhysicalExam'
 import { parsePlanState } from './Plan'
@@ -42,7 +43,8 @@ import type { UserTypes, ProviderNoteTemplate, TextExpander, PlanOrderSet, PlanB
 import { PLAN_ORDER_LABELS } from '../Data/User'
 import { useUserProfile } from '../Hooks/useUserProfile'
 import { getMasterBlockByKey } from '../Data/PhysicalExamData'
-import { parseNoteEncoding, findAlgorithmByCode, findSymptomByCode, reconstructCardStates } from '../Utilities/noteParser'
+import { parseNoteEncoding, findAlgorithmByCode, findSymptomByCode, reconstructCardStates, amendMedicBarcode, type ParsedNote, type MedicAmendment } from '../Utilities/noteParser'
+import type { AlgorithmOptions } from '../Types/AlgorithmTypes'
 import { decodePEState } from '../Utilities/peCodec'
 import { assembleNote, formatSignature } from '../Utilities/NoteFormatter'
 import { useSavedNotesStore } from '../stores/useSavedNotesStore'
@@ -64,10 +66,50 @@ type PaneScreen = { key: string; params?: unknown }
 export interface ImportedMedicNote {
   medicHpi: string
   medicPe: string
+  /** Assembled ASSESSMENT section (narrative + algorithm + DDx + decision making). */
   medicAssessment: string
+  /** The medic's free-text narrative alone — the editable part of the assessment. */
+  medicAssessmentNarrative: string
   medicPlan: string
+  /** The medic's exam as structured state (template mode) — amended through the
+   *  same exam blocks + vitals editors. Null for a legacy text exam (text editor). */
+  medicPeState: PEState | null
+  medicSymptomCode: string
   medicName: string
   medicSignature: string
+  /** A provider amended the medic's sections. */
+  amended: boolean
+}
+
+/** Medic sections as the medic's note renders them; ASSESSMENT is narrative,
+ *  algorithm, differentials, decision making (disposition). */
+function buildImportedMedicNote(parsed: ParsedNote, algorithmOptions: AlgorithmOptions[]): ImportedMedicNote {
+  const authorLabel = parsed.user ? formatSignature(parsed.user) || 'Unknown Medic' : 'Unknown Medic'
+  const { cardStates, disposition } = reconstructCardStates(algorithmOptions, parsed)
+  const symptomInfo = findSymptomByCode(parsed.symptomCode)
+  const selectedSymptom = symptomInfo ? { icon: symptomInfo.symptom.icon || '', text: symptomInfo.symptom.text || '' } : undefined
+  const peState = parsed.peRaw ? decodePEState(parsed.peRaw, parsed.symptomCode) : null
+  const assembled = assembleNote(
+    {
+      includeAlgorithm: parsed.flags.includeAlgorithm,
+      includeDecisionMaking: parsed.flags.includeDecisionMaking,
+      customNote: '',
+      assessmentNote: parsed.flags.includeAssessment ? parsed.assessmentText : '',
+      selectedDdx: parsed.ddx.selected,
+      customDdx: parsed.ddx.custom,
+    },
+    algorithmOptions, cardStates, disposition?.type ?? '', disposition?.text ?? '', selectedSymptom,
+  )
+  return {
+    medicHpi: parsed.hpiText || '', medicPe: parsed.peText || '',
+    medicAssessment: assembled.sections.assessmentSection ?? '',
+    medicAssessmentNarrative: parsed.flags.includeAssessment ? parsed.assessmentText : '',
+    medicPlan: parsed.planText || '',
+    medicPeState: peState?.mode === 'template' && peState.blockKeys ? peState : null,
+    medicSymptomCode: parsed.symptomCode,
+    medicName: authorLabel, medicSignature: authorLabel,
+    amended: parsed.flags.amended,
+  }
 }
 
 interface ProviderDrawerProps {
@@ -92,6 +134,10 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
   const [planNote, setPlanNote] = useState('')
   const [importedMedicNote, setImportedMedicNote] = useState<ImportedMedicNote | null>(null)
   const [medicBarcode, setMedicBarcode] = useState('')
+  // Desktop medic plan editor state (the pane editor commits PlanState → text).
+  const [medicPlanState, setMedicPlanState] = useState<PlanState | null>(null)
+  // Remounts the mobile medic exam/plan editors on a new import.
+  const [medicResetKey, setMedicResetKey] = useState(0)
 
   // ── Import bar state ──────────────────────────────────────────────────────
   const [importExpanded, setImportExpanded] = useState(false)
@@ -288,33 +334,38 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
       }
     }
 
-    const authorLabel = parsed.user ? formatSignature(parsed.user) || 'Unknown Medic' : 'Unknown Medic'
-    // Medic ASSESSMENT exactly as the medic's note renders it: narrative,
-    // algorithm, differentials, decision making (disposition).
-    const { cardStates, disposition } = reconstructCardStates(algorithmOptions, parsed)
-    const symptomInfo = findSymptomByCode(parsed.symptomCode)
-    const selectedSymptom = symptomInfo ? { icon: symptomInfo.symptom.icon || '', text: symptomInfo.symptom.text || '' } : undefined
-    const assembled = assembleNote(
-      {
-        includeAlgorithm: parsed.flags.includeAlgorithm,
-        includeDecisionMaking: parsed.flags.includeDecisionMaking,
-        customNote: '',
-        assessmentNote: parsed.flags.includeAssessment ? parsed.assessmentText : '',
-        selectedDdx: parsed.ddx.selected,
-        customDdx: parsed.ddx.custom,
-      },
-      algorithmOptions, cardStates, disposition?.type ?? '', disposition?.text ?? '', selectedSymptom,
-    )
-    setImportedMedicNote({
-      medicHpi: parsed.hpiText || '', medicPe: parsed.peText || '',
-      medicAssessment: assembled.sections.assessmentSection ?? '', medicPlan: parsed.planText || '',
-      medicName: authorLabel, medicSignature: authorLabel,
-    })
+    setImportedMedicNote(buildImportedMedicNote(parsed, algorithmOptions))
     setMedicBarcode(payload)
+    setMedicPlanState(parsed.planText ? parsePlanState(parsed.planText, planOrderTags, planInstructionTags) : null)
+    setMedicResetKey(k => k + 1)
     setImportExpanded(false)
   }, [planOrderTags, planInstructionTags])
 
   const barcodeImport = useBarcodeImport({ onDecoded: handleProviderDecoded })
+
+  // Fix a medic section in place instead of having the medic resend: rewrites the
+  // bundled medic segments (flagged amended) and re-derives the medic cards.
+  const amendMedic = useCallback((edits: MedicAmendment, raw?: Partial<ImportedMedicNote>) => {
+    if (!medicBarcode) return
+    const next = amendMedicBarcode(medicBarcode, edits)
+    if (next === medicBarcode) return
+    const parsed = parseNoteEncoding(next)
+    const algorithmOptions = parsed ? findAlgorithmByCode(parsed.symptomCode) : null
+    if (!parsed || !algorithmOptions?.length) return
+    setMedicBarcode(next)
+    setImportedMedicNote({ ...buildImportedMedicNote(parsed, algorithmOptions), ...raw })
+  }, [medicBarcode])
+
+  // Text sections. The codec trims; keep the edited field raw so live typing keeps
+  // trailing space/newlines.
+  const handleEditMedic = useCallback((field: MedicField, text: string) => {
+    amendMedic({ [field]: text }, { [MEDIC_FIELD_KEYS[field]]: text })
+  }, [amendMedic])
+
+  // Structured exam (blocks + vitals) — stays structured in the bundle.
+  const handleEditMedicPe = useCallback((state: PEState) => {
+    amendMedic({ peState: state })
+  }, [amendMedic])
 
   // Collapse import bar when popover takes over (scan/staged image)
   useEffect(() => {
@@ -363,6 +414,11 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
     setPaneScreen({ key: `s-${s}` })
   }, [])
 
+  // Desktop: amend a medic text section in the pane; plan opens the plan editor.
+  const openMedic = useCallback((field: MedicField) => {
+    setPaneScreen(field === 'plan' ? { key: 'm-s-plan' } : { key: 'm-edit', params: { field } })
+  }, [])
+
   // Desktop: New template → pane editor (Case A). Mobile: New → lifted popover.
   const handleNewTemplate = useCallback((anchor: DOMRect) => {
     setTemplateEditState({ mode: 'new', anchor })
@@ -387,6 +443,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
     setPlanState(null)
     setImportedMedicNote(null)
     setMedicBarcode('')
+    setMedicPlanState(null)
     setImportExpanded(false)
     savedIdRef.current = undefined
     barcodeImport.reset()
@@ -490,14 +547,55 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
     onClose: closePane,
   })
 
+  // Medic exam pane screens (desktop, `m-` prefixed): the same system selector /
+  // findings / vitals editors, amending the bundled medic exam.
+  const medicPeState = importedMedicNote?.medicPeState ?? null
+  const medicPeKeys = useMemo(() => {
+    if (!medicPeState?.blockKeys) return []
+    const keys = medicPeState.blockKeys
+    const order = medicPeState.blockOrder?.filter(k => keys.includes(k)) ?? []
+    return [...order, ...keys.filter(k => !order.includes(k))]
+  }, [medicPeState])
+  const { screens: medicPePaneScreens, reorder: reorderMedicPe } = usePEPaneScreens({
+    peState: medicPeState,
+    selectedBlockKeys: medicPeKeys,
+    onPeStateChange: handleEditMedicPe,
+    onBlockKeysChange: () => {},
+    onPeNoteChange: () => {},
+    onClose: closePane,
+    keyPrefix: 'm-',
+  })
+
+  // Imported medic's exam: structured → exam rows edited in place; legacy text → text card.
+  const medicPeCard = importedMedicNote && (
+    medicPeState ? (
+      <MedicSectionFrame note={importedMedicNote}>
+        <PEBody
+          selectedBlockKeys={medicPeKeys}
+          items={medicPeState.items}
+          vitals={medicPeState.vitals}
+          onOpenSelector={() => setPaneScreen({ key: 'm-s-pe' })}
+          onOpenBlock={(blockKey) => setPaneScreen({ key: 'm-s-pe-block', params: { blockKey } })}
+          onOpenVitals={() => setPaneScreen({ key: 'm-s-pe-vitals' })}
+          onReorder={reorderMedicPe}
+        />
+      </MedicSectionFrame>
+    ) : (
+      <MedicContextCard note={importedMedicNote} field="pe" onEdit={() => openMedic('pe')} />
+    )
+  )
+
   // PE section for the desktop center (MAIN pane) — movable cards once systems are
   // selected; tap a card → findings in the right pane; dashed + → the selector.
   const peCenter = (
     <PECenter
       selectedBlockKeys={selectedBlockKeys}
       items={peState?.items ?? {}}
+      vitals={peState?.vitals ?? {}}
+      medicCard={medicPeCard}
       onOpenSelector={() => setPaneScreen({ key: 's-pe' })}
       onOpenBlock={(blockKey) => setPaneScreen({ key: 's-pe-block', params: { blockKey } })}
+      onOpenVitals={() => setPaneScreen({ key: 's-pe-vitals' })}
       onReorder={reorderPe}
     />
   )
@@ -515,6 +613,18 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
     onClose: closePane,
   })
 
+  // Medic plan (desktop `m-s-plan`): the same plan editor, amending the medic plan.
+  const { screens: medicPlanPaneScreens } = usePlanPaneScreens({
+    planState: medicPlanState,
+    orderTags: planOrderTags,
+    instructionTags: planInstructionTags,
+    orderSets: planOrderSets,
+    onPlanStateChange: setMedicPlanState,
+    onPlanNoteChange: (text) => handleEditMedic('plan', text),
+    onClose: closePane,
+    keyPrefix: 'm-',
+  })
+
   // Section-editor submit — a Check that rides the pane header beside Close (the
   // calendar edit-event pattern). Edits bind live, so "Done" just closes the pane.
   const doneHeaderAction = (
@@ -525,6 +635,8 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
     ...templateEditorScreens,
     ...pePaneScreens,
     ...planPaneScreens,
+    ...medicPePaneScreens,
+    ...medicPlanPaneScreens,
     detail: {
       title: selectedTemplate?.name ?? 'Template',
       // Bare PillButton — the pane chrome supplies the shared HeaderPill (Edit + Close).
@@ -559,6 +671,17 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
       title: 'Assessment',
       headerActions: doneHeaderAction,
       render: () => <TextSectionEditor value={assessmentNote} onChange={setAssessmentNote} placeholder="Clinical assessment, diagnosis, differential..." />,
+    },
+    'm-edit': {
+      title: (p: { field: MedicField }) => MEDIC_FIELD_TITLES[p.field],
+      headerActions: doneHeaderAction,
+      render: (p: { field: MedicField }) => importedMedicNote ? (
+        <TextSectionEditor
+          value={medicFieldText(importedMedicNote, p.field)}
+          onChange={(text) => handleEditMedic(p.field, text)}
+          placeholder={p.field === 'assessment' ? 'Medic assessment narrative...' : ''}
+        />
+      ) : null,
     },
     output: {
       title: 'Note Output',
@@ -751,6 +874,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
                     <ProviderNote
                       summaryMode
                       onOpenSection={openSection}
+                      onOpenMedic={openMedic}
                       peCenter={peCenter}
                       hpiNote={hpiNote}
                       setHpiNote={setHpiNote}
@@ -836,6 +960,9 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
               <div className="px-5 pb-24">
                 {view === 'note' ? (
                 <ProviderNote
+                  onEditMedic={handleEditMedic}
+                  onEditMedicPe={handleEditMedicPe}
+                  medicResetKey={medicResetKey}
                   hpiNote={hpiNote}
                   setHpiNote={setHpiNote}
                   peNote={peNote}

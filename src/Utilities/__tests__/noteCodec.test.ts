@@ -10,6 +10,7 @@ import {
     encodeNoteState,
     encodeProviderNote,
     encodeProviderBundle,
+    amendMedicBarcode,
     parseNoteEncoding,
     encodedContentEquals,
     reconstructCardStates,
@@ -269,6 +270,35 @@ describe('Note Encoding round-trips', () => {
         expect(encoded.split('|').some(p => p.startsWith('D'))).toBe(false);
         const parsed = parseNoteEncoding(encoded);
         expect(parsed!.ddx).toEqual({ selected: [], custom: [] });
+    });
+
+    it('amendMedicBarcode rewrites medic free text and keeps the provider layer', () => {
+        const states = buildCardStates();
+        const opts: NoteEncodeOptions = { includeAlgorithm: true, selectedDdx: ['Migraine'], customNote: 'HPI typo', planNote: 'Plan text' };
+        const medic = encodeNoteState(mockAlgorithm, states, opts, symptomCode);
+        const bundle = encodeProviderBundle(medic, { hpiNote: 'Provider HPI', peNote: '', assessmentNote: '', planNote: '' });
+
+        const amended = amendMedicBarcode(bundle, { hpi: 'HPI fixed', plan: '', assessment: 'Narrative' });
+        const parsed = parseNoteEncoding(amended)!;
+
+        expect(parsed.hpiText).toBe('HPI fixed');
+        expect(parsed.planText).toBe('');
+        expect(parsed.assessmentText).toBe('Narrative');
+        expect(parsed.flags.includeHPI).toBe(true);
+        expect(parsed.flags.includePlan).toBe(false);
+        expect(parsed.flags.includeAssessment).toBe(true);
+        expect(parsed.flags.includeAlgorithm).toBe(true);
+        expect(parsed.flags.amended).toBe(true);
+        expect(parsed.ddx.selected).toEqual(['Migraine']);
+        expect(parsed.providerHpi).toBe('Provider HPI');
+        expect(parsed.cardEntries).toEqual(parseNoteEncoding(medic)!.cardEntries);
+    });
+
+    it('amendMedicBarcode is a no-op when the edit encodes identically', () => {
+        const states = buildCardStates();
+        const medic = encodeNoteState(mockAlgorithm, states, { includeAlgorithm: true, customNote: 'Same' }, symptomCode);
+        expect(amendMedicBarcode(medic, { hpi: 'Same' })).toBe(medic);
+        expect(parseNoteEncoding(amendMedicBarcode(medic, { hpi: 'Changed' }))!.flags.amended).toBe(true);
     });
 
     it('round-trips decision making toggled off', () => {

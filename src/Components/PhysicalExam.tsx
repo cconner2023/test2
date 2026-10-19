@@ -67,6 +67,8 @@ interface PhysicalExamProps {
     pickerOpenSignal?: number;
     /** Template mode: anchor rect used the next time pickerOpenSignal increments. */
     pickerOpenAnchor?: DOMRect | null;
+    /** Template mode: render the card (Vital Signs row) even before any system is picked. */
+    pinVitals?: boolean;
 }
 
 // ── Helpers ───────────────────────────────────────────────────
@@ -488,6 +490,7 @@ export function PhysicalExam({
     expanders = [],
     pickerOpenSignal,
     pickerOpenAnchor = null,
+    pinVitals = false,
 }: PhysicalExamProps) {
     const categoryLetter = (getCategoryFromSymptomCode(symptomCode) || 'A') as CategoryLetter;
     const isBack = isBackPainCode(symptomCode);
@@ -1021,7 +1024,7 @@ export function PhysicalExam({
     return (
         <div className="space-y-4">
             {/* ── Exam Blocks ──────────────────────────────────────── */}
-            {mode === 'template' && flatBlockList.length === 0 && !hasAnyVitals ? (
+            {mode === 'template' && flatBlockList.length === 0 && !hasAnyVitals && !pinVitals ? (
                 /* Empty state owned by parent — picker is auto-opened via initialPickerAnchor. */
                 null
             ) : (

@@ -64,14 +64,15 @@ export function ProviderNoteOutput({
                 ['PLAN', medic.medicPlan || undefined, planNote || undefined],
             ];
 
-            // Every block is signed by its author
+            // Every block is signed by its author; provider amendments are disclosed
             const providerSig = signature || 'Unknown Provider';
+            const medicLine = medic.amended ? `${medicSignature} (amended by ${providerSig})` : medicSignature;
             layout.forEach(([header, medicText, providerText]) => {
                 if (!medicText && !providerText) return;
                 sections.push(header);
                 if (medicText) {
                     sections.push(medicText);
-                    sections.push(medicSignature);
+                    sections.push(medicLine);
                 }
                 if (providerText) {
                     sections.push(providerText);

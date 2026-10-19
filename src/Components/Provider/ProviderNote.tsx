@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Plus, RotateCcw, Check } from 'lucide-react';
 import { detectPII } from '../../lib/piiDetector';
 import { PIIWarningBanner } from '../PIIWarningBanner';
@@ -10,8 +10,11 @@ import { EmptyState } from '@/Components/primitives/EmptyState';
 import { PreviewOverlay } from '../PreviewOverlay';
 import { useMergedNoteContent } from '../../Hooks/useMergedNoteContent';
 import { getColorClasses } from '../../Utilities/ColorUtilities';
-import type { TextExpander } from '../../Data/User';
+import { encodePEState } from '../../Utilities/peCodec';
+import type { TextExpander, PlanOrderTags } from '../../Data/User';
+import type { MergedPlanOrderSet } from '../../Hooks/useMergedNoteContent';
 import type { ImportedMedicNote } from '../ProviderDrawer';
+import { MEDIC_FIELD_TITLES, medicFieldText, type MedicField } from './medicFields';
 import type { PEState } from '../../Types/PETypes';
 import { FooterPill } from '@/Components/primitives/FooterPill'
 
@@ -43,6 +46,19 @@ interface ProviderNoteProps {
   /** Desktop (summaryMode): the PE section element — movable cards + selector entry.
    *  Composed by ProviderDrawer since PE editing lives in the right pane. */
   peCenter?: ReactNode;
+  /** Mobile: amend a medic text section (live, from the card's editor overlay). */
+  onEditMedic?: (field: MedicField, text: string) => void;
+  /** Mobile: amend the medic's structured exam (blocks + vitals, edited in place). */
+  onEditMedicPe?: (state: PEState) => void;
+  /** Mobile: remounts the in-place medic exam/plan editors on a new import. */
+  medicResetKey?: number;
+  /** Desktop (summaryMode): open a medic section's editor in the right pane. */
+  onOpenMedic?: (field: MedicField) => void;
+}
+
+/** Display text of a medic section card (assessment shows the assembled section). */
+function medicDisplayText(note: ImportedMedicNote, field: MedicField): string {
+  return field === 'assessment' ? note.medicAssessment : medicFieldText(note, field);
 }
 
 const SECTION_LABEL_CLASS = 'text-[9pt] font-semibold text-primary uppercase tracking-wider';
@@ -52,13 +68,167 @@ const TEXTAREA_CLASS =
   'w-full bg-transparent px-4 py-3 text-base md:text-sm text-primary placeholder:text-tertiary ' +
   'focus:outline-none resize-none overflow-hidden min-h-[200px]';
 
-/** Read-only card for the imported medic's voice (HPI/PE/Assessment/Plan). */
-function MedicContextCard({ name, text }: { name: string; text: string }) {
+/** Card for the imported medic's voice (HPI/PE/Assessment/Plan). Tappable to
+ *  amend when onEdit is given; renders nothing for an empty section. */
+export function MedicContextCard({ note, field, onEdit }: {
+  note: ImportedMedicNote;
+  field: MedicField;
+  onEdit?: (anchor: DOMRect) => void;
+}) {
+  const text = medicDisplayText(note, field);
+  if (!text) return null;
   return (
-    <div className={`${CARD_CLASS} px-4 py-3`}>
-      <p className="text-[10pt] text-tertiary mb-1">{name}</p>
+    <div
+      onClick={onEdit ? (e) => onEdit(e.currentTarget.getBoundingClientRect()) : undefined}
+      className={`${CARD_CLASS} px-4 py-3 ${onEdit ? 'cursor-pointer active:scale-[0.99] transition-all' : ''}`}
+    >
+      <p className="text-[10pt] text-tertiary truncate mb-1">
+        {note.medicName}{note.amended && ' · amended'}
+      </p>
       <div className="text-sm text-primary whitespace-pre-wrap">{text}</div>
     </div>
+  );
+}
+
+/** Medic author line (· amended) over a medic section rendered by its own editor.
+ *  `card` adds the medic card chrome; editors that own chrome (PhysicalExam, Plan)
+ *  sit bare beneath the line. */
+export function MedicSectionFrame({ note, card = true, children }: {
+  note: ImportedMedicNote;
+  card?: boolean;
+  children: ReactNode;
+}) {
+  const label = (
+    <p className="text-[10pt] text-tertiary truncate mb-1">
+      {note.medicName}{note.amended && ' · amended'}
+    </p>
+  );
+  if (!card) return <div>{label}{children}</div>;
+  return <div className={`${CARD_CLASS} px-4 py-3`}>{label}{children}</div>;
+}
+
+/**
+ * Forwards an in-place editor's emissions only once the user actually changes
+ * something — PhysicalExam/Plan emit on mount (and on re-render), and a
+ * re-encoded seed must not flag the medic note amended.
+ */
+function useDirtyForward<T>(fingerprint: (v: T) => string, forward: ((v: T) => void) | undefined) {
+  const baseline = useRef<string | null>(null);
+  const dirty = useRef(false);
+  const forwardRef = useRef(forward);
+  useEffect(() => { forwardRef.current = forward; }, [forward]);
+  return useCallback((v: T) => {
+    if (!dirty.current) {
+      const fp = fingerprint(v);
+      if (baseline.current === null) { baseline.current = fp; return; }
+      if (fp === baseline.current) return;
+      dirty.current = true;
+    }
+    forwardRef.current?.(v);
+  }, [fingerprint]);
+}
+
+const noop = () => {};
+
+/** Mobile: the medic's structured exam in the same PhysicalExam editor (system
+ *  blocks + Vital Signs box), amending the bundled medic exam. */
+function MedicPhysicalExam({ note, peState, expanders, onEditMedicPe }: {
+  note: ImportedMedicNote;
+  peState: PEState;
+  expanders: TextExpander[];
+  onEditMedicPe?: (state: PEState) => void;
+}) {
+  const symptomCode = note.medicSymptomCode;
+  const [blockKeys, setBlockKeys] = useState<string[]>(() => peState.blockKeys ?? []);
+  const fingerprint = useCallback((s: PEState) => {
+    try { return encodePEState(s, symptomCode); } catch { return JSON.stringify(s); }
+  }, [symptomCode]);
+  const handleState = useDirtyForward(fingerprint, onEditMedicPe);
+  return (
+    <MedicSectionFrame note={note} card={false}>
+      <PhysicalExam
+        initialState={peState}
+        onChange={noop}
+        onStateChange={handleState}
+        colors={getColorClasses()}
+        symptomCode={symptomCode}
+        mode="template"
+        templateBlockKeys={blockKeys}
+        onBlockKeysChange={setBlockKeys}
+        expanders={expanders}
+        pinVitals
+      />
+    </MedicSectionFrame>
+  );
+}
+
+const planFingerprint = (text: string) => text.trim();
+
+/** Mobile: the medic's plan in the same Plan editor, amending the medic plan. */
+function MedicPlan({ note, orderTags, instructionTags, orderSets, expanders, onEditMedic }: {
+  note: ImportedMedicNote;
+  orderTags: PlanOrderTags;
+  instructionTags: string[];
+  orderSets: MergedPlanOrderSet[];
+  expanders: TextExpander[];
+  onEditMedic?: (field: MedicField, text: string) => void;
+}) {
+  const forward = useMemo(() => onEditMedic ? (text: string) => onEditMedic('plan', text) : undefined, [onEditMedic]);
+  const handleChange = useDirtyForward(planFingerprint, forward);
+  // Only a medic who wrote a plan gets one; stays mounted if the edit clears it.
+  const [hadPlan] = useState(() => !!note.medicPlan.trim());
+  if (!hadPlan) return null;
+  return (
+    <MedicSectionFrame note={note} card={false}>
+      <Plan
+        orderTags={orderTags}
+        instructionTags={instructionTags}
+        orderSets={orderSets}
+        initialText={note.medicPlan}
+        onChange={handleChange}
+        expanders={expanders}
+      />
+    </MedicSectionFrame>
+  );
+}
+
+/** Mobile: medic card + its lifted editor overlay. Edits amend the bundled medic
+ *  note live; the overlay stays mounted even if the section is cleared. */
+function MedicEditableCard({ note, field, expanders, onEditMedic }: {
+  note: ImportedMedicNote;
+  field: MedicField;
+  expanders: TextExpander[];
+  onEditMedic?: (field: MedicField, text: string) => void;
+}) {
+  const [anchor, setAnchor] = useState<DOMRect | null>(null);
+  return (
+    <>
+      <MedicContextCard note={note} field={field} onEdit={onEditMedic ? setAnchor : undefined} />
+      {onEditMedic && (
+        <PreviewOverlay
+          isOpen={anchor !== null}
+          onClose={() => setAnchor(null)}
+          anchorRect={anchor}
+          title={MEDIC_FIELD_TITLES[field]}
+          previewMaxHeight="50dvh"
+          rightFooter={
+            <FooterPill side="right">
+              <ActionButton icon={Check} label="Done" onClick={() => setAnchor(null)} />
+            </FooterPill>
+          }
+        >
+          <ExpandableInput
+            value={medicFieldText(note, field)}
+            onChange={(v) => onEditMedic(field, v)}
+            expanders={expanders}
+            multiline
+            hideClear
+            className={TEXTAREA_CLASS}
+            placeholder={field === 'assessment' ? 'Medic assessment narrative...' : ''}
+          />
+        </PreviewOverlay>
+      )}
+    </>
   );
 }
 
@@ -149,19 +319,22 @@ function TextSectionCard({ addLabel, value, onChange, expanders, placeholder }: 
  * structure; the live editor lives in the pane and this card refreshes on save.
  */
 function SummarySection({
-  label, value, addLabel, medicName, medicText, onOpen,
+  label, value, addLabel, medic, medicField, onOpenMedic, onOpen,
 }: {
   label: string;
   value: string;
   addLabel: string;
-  medicName?: string;
-  medicText?: string;
+  medic: ImportedMedicNote | null;
+  medicField: MedicField;
+  onOpenMedic?: (field: MedicField) => void;
   onOpen: () => void;
 }) {
   return (
     <div className="space-y-3 md:space-y-2">
       <p className={SECTION_LABEL_CLASS}>{label}</p>
-      {medicText && <MedicContextCard name={medicName ?? ''} text={medicText} />}
+      {medic && (
+        <MedicContextCard note={medic} field={medicField} onEdit={onOpenMedic ? () => onOpenMedic(medicField) : undefined} />
+      )}
       {value ? (
         <div
           onClick={onOpen}
@@ -200,6 +373,10 @@ export function ProviderNote({
   summaryMode = false,
   onOpenSection,
   peCenter,
+  onEditMedic,
+  onOpenMedic,
+  onEditMedicPe,
+  medicResetKey = 0,
 }: ProviderNoteProps) {
 
   const { expanders, orderTags, instructionTags, orderSets } = useMergedNoteContent();
@@ -220,9 +397,6 @@ export function ProviderNote({
   // ── PE: empty card → opens PhysicalExam's block picker via signal counter ──
   const [pePickerSignal, setPePickerSignal] = useState(0);
   const [pePickerAnchor, setPePickerAnchor] = useState<DOMRect | null>(null);
-  // peState is auto-emitted on PE mount (PhysicalExam.tsx useEffect), so it can't be used
-  // as a "user has done something" signal. selectedBlockKeys + peNote are the real indicators.
-  const peHasContent = !!peNote || selectedBlockKeys.length > 0;
 
   // ── Plan: same pattern ──
   const [planPickerSignal, setPlanPickerSignal] = useState(0);
@@ -237,20 +411,30 @@ export function ProviderNote({
   const peSection = (
     <div className="space-y-3 md:space-y-2">
       <p className={SECTION_LABEL_CLASS}>Physical Exam</p>
-      {importedMedicNote?.medicPe && (
-        <MedicContextCard name={importedMedicNote.medicName} text={importedMedicNote.medicPe} />
+      {importedMedicNote && (
+        importedMedicNote.medicPeState ? (
+          <MedicPhysicalExam
+            key={medicResetKey}
+            note={importedMedicNote}
+            peState={importedMedicNote.medicPeState}
+            expanders={expanders}
+            onEditMedicPe={onEditMedicPe}
+          />
+        ) : (
+          <MedicEditableCard note={importedMedicNote} field="pe" expanders={expanders} onEditMedic={onEditMedic} />
+        )
       )}
-      {/* Always-mounted PE — wrapper is visibility-only. PhysicalExam owns its own
-          bordered chrome + placement="overlay" action pill; wrapping in CARD_CLASS
-          here would double-chrome and clip the negative-translated pill. */}
-      <div style={peHasContent ? undefined : { display: 'none' }} aria-hidden={!peHasContent}>
+      {/* Always-mounted PE with the Vital Signs row pinned, so vitals go in before
+          any system. PhysicalExam owns its own bordered chrome + placement="overlay"
+          action pill; wrapping in CARD_CLASS here would double-chrome and clip it. */}
+      <div>
         <PhysicalExam
           key={peResetKey}
           initialText={peNote}
           initialState={peState}
           onChange={setPeNote}
           onStateChange={onPeStateChange}
-          colors={getColorClasses('routine')}
+          colors={getColorClasses()}
           symptomCode="A-1"
           mode="template"
           templateBlockKeys={selectedBlockKeys}
@@ -258,9 +442,10 @@ export function ProviderNote({
           expanders={expanders}
           pickerOpenSignal={pePickerSignal}
           pickerOpenAnchor={pePickerAnchor}
+          pinVitals
         />
       </div>
-      {!peHasContent && (
+      {selectedBlockKeys.length === 0 && (
         <EmptyState
           title="Add physical exam"
           action={{
@@ -279,8 +464,16 @@ export function ProviderNote({
   const planSection = (
     <div className="space-y-3 md:space-y-2">
       <p className={SECTION_LABEL_CLASS}>Plan</p>
-      {importedMedicNote?.medicPlan && (
-        <MedicContextCard name={importedMedicNote.medicName} text={importedMedicNote.medicPlan} />
+      {importedMedicNote && (
+        <MedicPlan
+          key={medicResetKey}
+          note={importedMedicNote}
+          orderTags={orderTags}
+          instructionTags={instructionTags}
+          orderSets={orderSets}
+          expanders={expanders}
+          onEditMedic={onEditMedic}
+        />
       )}
       {/* Always-mounted Plan — wrapper visibility-only. Plan owns its own bordered
           chrome + overlay pill; CARD_CLASS here would double-chrome and clip. */}
@@ -324,20 +517,20 @@ export function ProviderNote({
         <SummarySection
           label="History of Present Illness" addLabel="Add HPI"
           value={hpiNote}
-          medicName={importedMedicNote?.medicName} medicText={importedMedicNote?.medicHpi}
+          medic={importedMedicNote} medicField="hpi" onOpenMedic={onOpenMedic}
           onOpen={() => open('hpi')}
         />
         {peCenter}
         <SummarySection
           label="Assessment" addLabel="Add assessment"
           value={assessmentNote}
-          medicName={importedMedicNote?.medicName} medicText={importedMedicNote?.medicAssessment}
+          medic={importedMedicNote} medicField="assessment" onOpenMedic={onOpenMedic}
           onOpen={() => open('assessment')}
         />
         <SummarySection
           label="Plan" addLabel="Add plan"
           value={planNote}
-          medicName={importedMedicNote?.medicName} medicText={importedMedicNote?.medicPlan}
+          medic={importedMedicNote} medicField="plan" onOpenMedic={onOpenMedic}
           onOpen={() => open('plan')}
         />
       </div>
@@ -351,8 +544,8 @@ export function ProviderNote({
       {/* ── HPI ───────────────────────────────────────────────── */}
       <div className="space-y-3 md:space-y-2">
         <p className={SECTION_LABEL_CLASS}>History of Present Illness</p>
-        {importedMedicNote?.medicHpi && (
-          <MedicContextCard name={importedMedicNote.medicName} text={importedMedicNote.medicHpi} />
+        {importedMedicNote && (
+          <MedicEditableCard note={importedMedicNote} field="hpi" expanders={expanders} onEditMedic={onEditMedic} />
         )}
         <TextSectionCard
           addLabel="Add HPI"
@@ -369,8 +562,8 @@ export function ProviderNote({
       {/* ── Assessment ────────────────────────────────────────── */}
       <div className="space-y-3 md:space-y-2">
         <p className={SECTION_LABEL_CLASS}>Assessment</p>
-        {importedMedicNote?.medicAssessment && (
-          <MedicContextCard name={importedMedicNote.medicName} text={importedMedicNote.medicAssessment} />
+        {importedMedicNote && (
+          <MedicEditableCard note={importedMedicNote} field="assessment" expanders={expanders} onEditMedic={onEditMedic} />
         )}
         <TextSectionCard
           addLabel="Add assessment"

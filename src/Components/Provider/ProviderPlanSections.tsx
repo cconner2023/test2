@@ -319,7 +319,7 @@ function PlanHeaderMenu({ items }: { items: ContextMenuItem[] }) {
 // ── Pane screen: a single `s-plan` editor (no per-category drill) ──
 
 export function usePlanPaneScreens({
-  planState, orderTags, instructionTags, orderSets, onPlanStateChange, onPlanNoteChange, onClose,
+  planState, orderTags, instructionTags, orderSets, onPlanStateChange, onPlanNoteChange, onClose, keyPrefix = '',
 }: {
   planState: PlanState | null;
   orderTags: PlanOrderTags;
@@ -329,6 +329,9 @@ export function usePlanPaneScreens({
   onPlanNoteChange: (text: string) => void;
   /** Close the right pane (the editor's Done). */
   onClose: () => void;
+  /** Namespaces the screen key so a host stack can merge two instances (provider
+   *  plan vs the imported medic's plan). */
+  keyPrefix?: string;
 }): { screens: Record<string, StackScreen>; headerMenuItems: ContextMenuItem[] } {
   const base = planState ?? FRESH_PLAN_STATE;
   const allTags = allTagsFor(base, orderTags, instructionTags);
@@ -347,7 +350,7 @@ export function usePlanPaneScreens({
   ];
 
   const screens: Record<string, StackScreen> = {
-    's-plan': {
+    [`${keyPrefix}s-plan`]: {
       title: 'Plan',
       // Ellipsis (Free text · Reset) rides the header's LEFT; Done joins Close on the right.
       headerLeft: (

@@ -1,5 +1,5 @@
-import { useState, useRef, useCallback } from 'react';
-import { Check, Plus, GripVertical, MoreHorizontal, RotateCcw, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useState, useRef, useCallback, type ReactNode } from 'react';
+import { Check, Plus, GripVertical, MoreHorizontal, RotateCcw, Trash2, ChevronLeft, ChevronRight, Activity } from 'lucide-react';
 import { SearchInput } from '@/Components/primitives/SearchInput';
 import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill';
 import { ListItemRow } from '@/Components/primitives/ListItemRow';
@@ -7,6 +7,7 @@ import { EmptyState } from '@/Components/primitives/EmptyState';
 import { AnchoredMenu } from '@/Components/primitives/LiftedRowMenu';
 import type { ContextMenuItem } from '@/Components/primitives/ContextMenu';
 import { ExamBlockPreview } from '../ExamBlockPreview';
+import { VitalSignsCalculator } from '../VitalSignsCalculator';
 import { generatePEText } from '../PhysicalExam';
 import { type StackScreen, type StackNav } from '../stackNav';
 import {
@@ -16,6 +17,7 @@ import {
   getMasterBlockByKey,
   getBlocksForTemplate,
   applySpecify,
+  VITAL_SIGNS,
 } from '../../Data/PhysicalExamData';
 import type { MasterPEBlock, PEBlock } from '../../Data/PhysicalExamData';
 import type { PEState, PEItemState } from '../../Types/PETypes';
@@ -265,22 +267,75 @@ function PEDetailList({ blocks, items, onTap, onReorder }: {
   );
 }
 
-/**
- * PE section for the desktop center ("main" pane). Once systems are selected they
- * render as movable cards here (drag to reorder); tapping a card opens that
- * system's findings in the right pane. The dashed "+" opens the system selector.
- */
-export function PECenter({ selectedBlockKeys, items, onOpenSelector, onOpenBlock, onReorder }: {
+/** Every vital key present (blank) — VitalSignsCalculator reads them as controlled inputs. */
+function emptyVitals(): Record<string, string> {
+  return Object.fromEntries(VITAL_SIGNS.map(v => [v.key, '']));
+}
+
+/** One-line vitals summary (BP sys/dia combined) — PhysicalExam's pinned-row text. */
+function summarizeVitals(vitals: Record<string, string>): string {
+  const parts: string[] = [];
+  const sys = vitals['bpSys']?.trim();
+  const dia = vitals['bpDia']?.trim();
+  if (sys || dia) parts.push(`BP ${sys || '—'}/${dia || '—'}`);
+  for (const v of VITAL_SIGNS) {
+    if (v.key === 'bpSys' || v.key === 'bpDia') continue;
+    const val = vitals[v.key]?.trim();
+    if (val) parts.push(`${v.shortLabel} ${val}`);
+  }
+  return parts.join(' · ');
+}
+
+interface PEBodyProps {
   selectedBlockKeys: string[];
   items: Record<string, PEItemState>;
+  vitals: Record<string, string>;
   onOpenSelector: () => void;
   onOpenBlock: (blockKey: string) => void;
+  onOpenVitals: () => void;
   onReorder: (keys: string[]) => void;
+}
+
+/**
+ * PE section for the desktop center ("main" pane). A pinned Vital Signs row opens
+ * the vitals editor in the right pane. Once systems are selected they render as
+ * movable cards here (drag to reorder); tapping a card opens that system's
+ * findings in the right pane. The dashed "+" opens the system selector.
+ */
+export function PECenter({ medicCard, ...body }: PEBodyProps & {
+  /** Imported medic's PE card, shown under the section label. */
+  medicCard?: ReactNode;
 }) {
-  const blocks = getBlocksForTemplate(selectedBlockKeys);
   return (
     <div className="space-y-3 md:space-y-2">
       <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">Physical Exam</p>
+      {medicCard}
+      <PEBody {...body} />
+    </div>
+  );
+}
+
+/** Vitals row + movable system cards + "+" — shared by the provider's exam and the
+ *  imported medic's exam (amended through its own pane screens). */
+export function PEBody({ selectedBlockKeys, items, vitals, onOpenSelector, onOpenBlock, onOpenVitals, onReorder }: PEBodyProps) {
+  const blocks = getBlocksForTemplate(selectedBlockKeys);
+  const vitalsSummary = summarizeVitals(vitals);
+  return (
+    <div className="space-y-3 md:space-y-2">
+      <ListItemRow
+        as="div"
+        onClick={onOpenVitals}
+        className="py-2.5 active:scale-[0.98] transition-all cursor-pointer"
+        left={<div className="shrink-0 text-tertiary"><Activity size={16} /></div>}
+        center={
+          <>
+            <p className="text-sm font-medium text-primary truncate">Vital Signs</p>
+            <p className={`text-[9pt] mt-0.5 whitespace-normal break-words ${vitalsSummary ? 'text-tertiary' : 'text-tertiary/60 italic'}`}>
+              {vitalsSummary || 'Tap to add'}
+            </p>
+          </>
+        }
+      />
       {blocks.length > 0 && (
         <PEDetailList blocks={blocks} items={items} onTap={onOpenBlock} onReorder={onReorder} />
       )}
@@ -312,7 +367,7 @@ function PEBlockMenu({ onRefresh, onRemove }: { onRefresh: () => void; onRemove:
   );
 }
 
-// ── Pane screens: `s-pe` (select systems) → `s-pe-block` (findings) ──
+// ── Pane screens: `s-pe` (select systems) → `s-pe-block` (findings); `s-pe-vitals` ──
 
 const FRESH_PE_STATE: PEState = {
   categoryLetter: 'A', laterality: 'right', spineRegion: 'lumbar',
@@ -341,10 +396,11 @@ export function usePEPaneScreens({
   const base = peState ?? FRESH_PE_STATE;
   const SELECT_KEY = `${keyPrefix}s-pe`;
   const BLOCK_KEY = `${keyPrefix}s-pe-block`;
+  const VITALS_KEY = `${keyPrefix}s-pe-vitals`;
 
   // Commit a next peState: keep items/blockKeys aligned + re-derive peNote.
-  const commit = (items: Record<string, PEItemState>, blockKeys: string[]) => {
-    const next: PEState = { ...base, items, blockKeys, blockOrder: blockKeys, mode: 'template' };
+  const commit = (items: Record<string, PEItemState>, blockKeys: string[], vitals = base.vitals) => {
+    const next: PEState = { ...base, items, blockKeys, blockOrder: blockKeys, vitals, mode: 'template' };
     onPeStateChange(next);
     onBlockKeysChange(blockKeys);
     onPeNoteChange(generatePEText(next));
@@ -390,6 +446,25 @@ export function usePEPaneScreens({
         <PillButton icon={Check} iconSize={18} accent="success" onClick={onClose} label="Accept" />
       ),
       render: () => <PESystemSelector selectedKeys={selectedBlockKeys} onToggle={toggleSystem} />,
+    },
+    // Vital signs — Reset (header left) clears; Done closes (edits bind live).
+    [VITALS_KEY]: {
+      title: 'Vital Signs',
+      headerLeft: (
+        <HeaderPill>
+          <PillButton icon={RotateCcw} iconSize={16} label="Reset vitals"
+            onClick={() => commit(base.items, selectedBlockKeys, emptyVitals())} />
+        </HeaderPill>
+      ),
+      headerActions: (
+        <PillButton icon={Check} iconSize={18} accent="success" onClick={onClose} label="Done" />
+      ),
+      render: () => (
+        <VitalSignsCalculator
+          value={{ ...emptyVitals(), ...base.vitals }}
+          onChange={(vitals) => commit(base.items, selectedBlockKeys, vitals)}
+        />
+      ),
     },
     [BLOCK_KEY]: {
       title: (p: { blockKey: string }) => getMasterBlockByKey(p?.blockKey)?.label ?? 'System',
