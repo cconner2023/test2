@@ -55,7 +55,17 @@ export function createIdbSingleton<T extends DBSchema>(
 
   async function getDb(): Promise<IDBPDatabase<T>> {
     if (instance) return instance
-    instance = await openDB<T>(scopedName, version, callbacks)
+    const db = await openDB<T>(scopedName, version, {
+      ...callbacks,
+      // Browser closed the connection abnormally (iOS does this on background).
+      // Drop the cached handle so the next call reopens instead of throwing
+      // InvalidStateError on every transaction until reload.
+      terminated() {
+        if (instance === db) instance = null
+        callbacks.terminated?.()
+      },
+    })
+    instance = db
     return instance
   }
 

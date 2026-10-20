@@ -3,6 +3,7 @@ import { useNavigationStore } from '../stores/useNavigationStore'
 import { isEncryptedBarcode, decryptBarcode, parseNoteEncoding, findAlgorithmByCode, findSymptomByCode, reconstructCardStates } from '../Utilities/NoteCodec'
 import { decodePEState } from '../Utilities/peCodec'
 import { logError } from '../Utilities/ErrorHandler'
+import { withTimeout } from '../Utilities/withTimeout'
 import type { SavedNote } from '../lib/savedNotesDb'
 
 /**
@@ -19,7 +20,8 @@ export function useOpenSavedNote() {
     try {
       let ascii = saved.encodedText
       if (isEncryptedBarcode(ascii)) {
-        const decrypted = await decryptBarcode(ascii)
+        // Key lookup can fall through to IDB/network; never let the tap hang on it.
+        const decrypted = await withTimeout(decryptBarcode(ascii), 10_000, 'savedNote.decrypt')
         if (!decrypted) throw new Error('decrypt failed — key unavailable')
         ascii = decrypted
       }

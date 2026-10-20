@@ -921,7 +921,11 @@ export function useSignalMessages({
 
   // Persist the vault cursor before the page may be frozen/evicted.
   useEffect(() => {
-    if (!isPageVisible) void flushVaultCursor()
+    if (!isPageVisible) {
+      // Realtime drops while hidden — rows can land below the next realtime one.
+      vaultTailSynced.current = false
+      void flushVaultCursor()
+    }
   }, [isPageVisible])
 
   // Re-trigger catch-up on network reconnect. A long-lived, continuously-
@@ -933,6 +937,7 @@ export function useSignalMessages({
   // actually arrived offline (egress-bounded). Throttled against link flap.
   useEffect(() => {
     const onOnline = () => {
+      vaultTailSynced.current = false
       const now = Date.now()
       if (now - lastOnlineCatchUpAt.current < ONLINE_CATCHUP_THROTTLE_MS) return
       lastOnlineCatchUpAt.current = now
@@ -1110,19 +1115,29 @@ export function useSignalMessages({
   const vaultFailures = useRef(new Map<string, number>())
   const vaultCatchUpRunning = useRef(false)
   const vaultCatchUpAgain = useRef(false)
+  // Latest effect's run(). A re-run queued while an older run was in flight must
+  // start from the CURRENT effect — the older closure is cancelled by then.
+  const vaultRunRef = useRef<(() => Promise<void>) | null>(null)
+  // True only once a catch-up has read the tail to the end with nothing missed
+  // since. Realtime rows may only advance the cursor while synced: on resume,
+  // realtime reconnects before (or without) a catch-up, and advancing on a fresh
+  // row would jump the cursor past the backlog that arrived while hidden.
+  const vaultTailSynced = useRef(false)
 
   /** Handle one vault row. Returns false only when processing must stop (vault
    *  locked). A retriable decrypt failure does NOT stop the tail: later rows are
    *  still applied, and the cursor is held behind the failed row (see advance)
    *  so the next catch-up retries it. Stopping here would wedge every newer
    *  message behind one undecryptable row (e.g. a pre-cut ratchet packet). */
-  const processVaultRow = useCallback(async (row: SignalMessageRow): Promise<boolean> => {
+  const processVaultRow = useCallback(async (row: SignalMessageRow, fromTail: boolean): Promise<boolean> => {
     const myUuid = userIdRef.current
     const myDeviceId = localDeviceIdRef.current
     if (!myUuid || !myDeviceId) return false
 
     const advance = () => {
-      // Hold the cursor while an earlier row is still retrying.
+      // Hold the cursor while an earlier row is still retrying, and never let a
+      // realtime row move it while unread backlog may sit below it.
+      if (!fromTail && !vaultTailSynced.current) return
       if (vaultFailures.current.size === 0) advanceVaultCursor(row)
     }
 
@@ -1184,8 +1199,8 @@ export function useSignalMessages({
     return true
   }, [applyDecrypted])
 
-  const enqueueVaultRow = useCallback((row: SignalMessageRow): Promise<boolean> => {
-    const run = vaultChain.current.then(() => processVaultRow(row))
+  const enqueueVaultRow = useCallback((row: SignalMessageRow, fromTail = false): Promise<boolean> => {
+    const run = vaultChain.current.then(() => processVaultRow(row, fromTail))
     vaultChain.current = run.catch(() => {})
     return run
   }, [processVaultRow])
@@ -1203,6 +1218,7 @@ export function useSignalMessages({
         return
       }
       vaultCatchUpRunning.current = true
+      vaultTailSynced.current = false
       try {
         await Promise.race([whenRestoreSettled(), new Promise(r => setTimeout(r, 15_000))])
         if (cancelled) return
@@ -1221,9 +1237,12 @@ export function useSignalMessages({
           const page = await fetchVaultTail(userId, since, VAULT_PAGE_SIZE)
           if (!page.ok || cancelled) return
           for (const row of page.data) {
-            if (!(await enqueueVaultRow(row))) return
+            if (!(await enqueueVaultRow(row, true))) return
           }
-          if (page.data.length < VAULT_PAGE_SIZE) break
+          if (page.data.length < VAULT_PAGE_SIZE) {
+            if (!vaultCatchUpAgain.current) vaultTailSynced.current = true
+            break
+          }
           const last = page.data[page.data.length - 1].created_at
           if (last === since) break // a full page sharing one timestamp — next trigger continues
           since = last
@@ -1231,15 +1250,21 @@ export function useSignalMessages({
         void flushVaultCursor()
       } finally {
         vaultCatchUpRunning.current = false
-        if (vaultCatchUpAgain.current && !cancelled) {
+        // A trigger that landed mid-run cancelled THIS closure and queued itself;
+        // run it from the current effect, or the catch-up is silently dropped.
+        if (vaultCatchUpAgain.current) {
           vaultCatchUpAgain.current = false
-          void run()
+          void vaultRunRef.current?.()
         }
       }
     }
 
+    vaultRunRef.current = run
     void run()
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+      if (vaultRunRef.current === run) vaultRunRef.current = null
+    }
   }, [isAuthenticated, userId, localDeviceId, catchUpTrigger, enqueueVaultRow])
 
   // Clinic device offline catch-up: drain unread messages for EVERY clinic the

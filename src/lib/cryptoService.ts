@@ -228,12 +228,15 @@ export async function getBarcodeKey(): Promise<CryptoKey | null> {
     logger.warn('Failed to load barcode key from store:', err)
   }
 
-  // 3. Fetch from Supabase app_keys table
+  // 3. Fetch from Supabase app_keys table (bounded — lie-fi must not stall callers)
+  const abort = new AbortController()
+  const abortTimer = setTimeout(() => abort.abort(), 8000)
   try {
     const { data, error } = await supabase
       .from('app_keys')
       .select('key_base64')
       .eq('id', BARCODE_KEY_ID)
+      .abortSignal(abort.signal)
       .single()
 
     if (error || !data?.key_base64) {
@@ -252,6 +255,8 @@ export async function getBarcodeKey(): Promise<CryptoKey | null> {
   } catch (err) {
     logger.warn('Failed to fetch barcode encryption key:', err)
     return null
+  } finally {
+    clearTimeout(abortTimer)
   }
 }
 
