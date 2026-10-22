@@ -47,6 +47,7 @@ import { OutsideSessionCallHost } from './Components/Messages/OutsideSessionCall
 import { MessageNotificationToast } from './Components/MessageNotificationToast'
 import { PushNotificationToast } from './Components/PushNotificationToast'
 import { CopiedModal } from '@/Components/primitives/CopiedModal'
+import { ErrorToastHost } from './Components/StorageErrorToast'
 import { usePushNotifications } from './Hooks/usePushNotifications'
 import type { MessageNotification } from './Hooks/useMessageNotifications'
 
@@ -910,6 +911,7 @@ case 'mapOverlay':
       <MessageToastBridge onTap={handleNotificationTap} />
       <PushToastBridge />
       <CopiedModal />
+      <ErrorToastHost />
       <FeatureVotePrompt
         onOpenPanel={() => {
           setSettingsInitialPanel('feature-votes')

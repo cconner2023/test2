@@ -1,11 +1,13 @@
 // Components/StorageErrorToast.tsx
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { UI_TIMING } from '../Utilities/constants';
+import { onErrorToast, type ErrorToast } from '../lib/errorFeedback';
 
 interface StorageErrorToastProps {
     message: string | null;
     onDismiss: () => void;
+    title?: string;
 }
 
 /**
@@ -13,7 +15,7 @@ interface StorageErrorToastProps {
  * (e.g., QuotaExceededError or storage unavailable).
  * Auto-dismisses after 5 seconds or on user tap.
  */
-const StorageErrorToast: React.FC<StorageErrorToastProps> = ({ message, onDismiss }) => {
+const StorageErrorToast: React.FC<StorageErrorToastProps> = ({ message, onDismiss, title = 'Storage Error' }) => {
     const [visible, setVisible] = useState(false);
 
     useEffect(() => {
@@ -51,12 +53,20 @@ const StorageErrorToast: React.FC<StorageErrorToastProps> = ({ message, onDismis
                     <AlertTriangle className="h-5 w-5 text-themeredred" />
                 </div>
                 <div>
-                    <p className="text-sm font-medium text-primary">Storage Error</p>
+                    <p className="text-sm font-medium text-primary">{title}</p>
                     <p className="text-[10pt] text-tertiary">{message}</p>
                 </div>
             </div>
         </div>
     );
+};
+
+/** App-root host: shows whatever `emitErrorToast` sends. */
+export const ErrorToastHost: React.FC = () => {
+    const [toast, setToast] = useState<ErrorToast | null>(null);
+    useEffect(() => onErrorToast(setToast), []);
+    const dismiss = useCallback(() => setToast(null), []);
+    return <StorageErrorToast message={toast?.message ?? null} title={toast?.title} onDismiss={dismiss} />;
 };
 
 export default StorageErrorToast;

@@ -23,6 +23,12 @@ export interface IdbSingleton<T extends DBSchema> {
    * and reset internal state. Safe to call even if never opened.
    */
   destroy: () => Promise<void>
+  /**
+   * Close and forget the cached connection without deleting data. For callers
+   * whose request hung (WebKit can wedge a handle with no `terminated` event) —
+   * the next getDb() opens a fresh connection.
+   */
+  reset: () => void
 }
 
 /**
@@ -87,5 +93,10 @@ export function createIdbSingleton<T extends DBSchema>(
     }
   }
 
-  return { getDb, destroy }
+  function reset(): void {
+    try { instance?.close() } catch { /* already closed */ }
+    instance = null
+  }
+
+  return { getDb, destroy, reset }
 }

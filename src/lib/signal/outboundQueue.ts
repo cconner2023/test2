@@ -27,6 +27,7 @@ export interface OutboundQueueEntry {
   senderDeviceId: string | null
   recipientDeviceId: string | null
   groupId: string | null  // set for group messages
+  originId?: string | null // shared fan-out UUID (deletes/receipts/read-sync match on it); absent on pre-fix entries
   messageType: SignalMessageType
   payload: string         // encrypted via encryptString()
   createdAt: string       // ISO timestamp
@@ -76,6 +77,7 @@ export async function enqueue(params: SendMessageParams): Promise<void> {
       senderDeviceId: params.senderDeviceId ?? null,
       recipientDeviceId: params.recipientDeviceId ?? null,
       groupId: params.groupId ?? null,
+      originId: params.originId ?? null,
       messageType: params.messageType,
       payload: encPayload,
       createdAt: new Date().toISOString(),
@@ -109,6 +111,7 @@ export async function enqueueBatch(params: SendBatchParams): Promise<void> {
         senderDeviceId: params.senderDeviceId,
         recipientDeviceId: m.recipientDeviceId,
         groupId: params.groupId ?? null,
+        originId: params.originId ?? null,
         messageType: m.messageType,
         payload: encPayload,
         createdAt: new Date().toISOString(),
@@ -147,6 +150,7 @@ export async function dequeueAll(): Promise<SendMessageParams[]> {
           senderDeviceId: entry.senderDeviceId ?? undefined,
           recipientDeviceId: entry.recipientDeviceId ?? undefined,
           groupId: entry.groupId ?? undefined,
+          originId: entry.originId ?? undefined,
           messageType: entry.messageType,
           payload,
           silent: entry.silent,

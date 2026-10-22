@@ -8,9 +8,10 @@
 import { compressText, decompressText } from './textCodec';
 import {
     VITAL_SIGNS,
-    MASTER_BLOCK_LIBRARY,
+    MASTER_BLOCK_CODEC_LIBRARY,
     getBlocksForFocusedExam,
     applySpecify,
+    lateralLabel,
 } from '../Data/PhysicalExamData';
 import type {
     CategoryLetter,
@@ -54,7 +55,7 @@ function getCanonicalBlocks(state: Pick<PEState, 'mode' | 'blockKeys' | 'categor
     if (state.mode === 'template' && state.blockKeys?.length) {
         return state.blockKeys
             .map(key => {
-                const block = MASTER_BLOCK_LIBRARY[key];
+                const block = MASTER_BLOCK_CODEC_LIBRARY[key];
                 return block ? { key: block.key, findings: block.findings } : null;
             })
             .filter((b): b is CanonicalBlock => b !== null);
@@ -110,7 +111,7 @@ export function encodePEState(state: PEState, symptomCode?: string): string {
         const blockIdx = canonicalKeyIndex.get(blockKey);
         if (blockIdx === undefined) continue;
 
-        const masterBlock = MASTER_BLOCK_LIBRARY[blockKey];
+        const masterBlock = MASTER_BLOCK_CODEC_LIBRARY[blockKey];
         if (!masterBlock) continue;
 
         const allFindings = masterBlock.findings;
@@ -157,6 +158,7 @@ export function encodePEState(state: PEState, symptomCode?: string): string {
 
         // Specify details for "(specify…)" abnormals, keyed by flattened abnormal index.
         // Appended last as *{compressed JSON} — '*' never appears in base64 free text.
+        let specifySeg = '';
         if (itemState.specifyDetails) {
             const specifyObj: Record<string, string> = {};
             for (const ai of abnormalIndices) {
@@ -164,9 +166,17 @@ export function encodePEState(state: PEState, symptomCode?: string): string {
                 if (detail) specifyObj[ai] = detail;
             }
             if (Object.keys(specifyObj).length > 0) {
-                entry += '*' + compressText(JSON.stringify(specifyObj));
+                specifySeg = compressText(JSON.stringify(specifyObj));
             }
         }
+
+        // Per-block laterality rides inside the specify segment as a trailing ^{L|R|B}.
+        // Older decoders fail to parse that segment and drop it silently (only the
+        // tag and any specify text are lost), so no version bump is needed.
+        const latSeg = masterBlock.lateral && itemState.laterality
+            ? '^' + itemState.laterality[0].toUpperCase()
+            : '';
+        if (specifySeg || latSeg) entry += '*' + specifySeg + latSeg;
 
         entries.push(entry);
     }
@@ -255,7 +265,10 @@ function decodePEStateBody(data: string, symptomCode: string): PEState | null {
             // Split off the trailing *{compressed specify JSON} segment, if present.
             const starIdx = rawEntry.indexOf('*');
             const entry = starIdx >= 0 ? rawEntry.substring(0, starIdx) : rawEntry;
-            const specifyStr = starIdx >= 0 ? rawEntry.substring(starIdx + 1) : '';
+            const tailStr = starIdx >= 0 ? rawEntry.substring(starIdx + 1) : '';
+            const caretIdx = tailStr.indexOf('^');
+            const specifyStr = caretIdx >= 0 ? tailStr.substring(0, caretIdx) : tailStr;
+            const blockLaterality = caretIdx >= 0 ? charToLaterality(tailStr.substring(caretIdx + 1)) : undefined;
 
             let pos = 0;
             const blockIdx = charToIdx(entry[pos]);
@@ -263,7 +276,7 @@ function decodePEStateBody(data: string, symptomCode: string): PEState | null {
 
             if (blockIdx < 0 || blockIdx >= canonical.length) continue;
             const canonBlock = canonical[blockIdx];
-            const masterBlock = MASTER_BLOCK_LIBRARY[canonBlock.key];
+            const masterBlock = MASTER_BLOCK_CODEC_LIBRARY[canonBlock.key];
             if (!masterBlock) continue;
 
             // Parse optional partial exam indices [findingIndices]
@@ -334,8 +347,10 @@ function decodePEStateBody(data: string, symptomCode: string): PEState | null {
                 } catch { /* ignore malformed specify blob */ }
             }
 
-            const status = selectedAbnormals.length > 0 ? 'abnormal' : 'normal';
+            // Free text = custom findings, which are always abnormal.
+            const status = selectedAbnormals.length > 0 || freeText.trim() ? 'abnormal' : 'normal';
             items[canonBlock.key] = { status, selectedNormals, selectedAbnormals, specifyDetails, findings: freeText };
+            if (masterBlock.lateral && blockLaterality) items[canonBlock.key].laterality = blockLaterality;
         }
     }
 
@@ -401,7 +416,7 @@ export function renderPEStateToTextWithCode(state: PEState, symptomCode: string)
         const itemState = items[blockKey];
         if (!itemState || itemState.status === 'not-examined') continue;
 
-        const block = MASTER_BLOCK_LIBRARY[blockKey];
+        const block = MASTER_BLOCK_CODEC_LIBRARY[blockKey];
         if (!block) continue;
 
         examLines.push(formatItemLineMaster(block, itemState));
@@ -441,8 +456,8 @@ function charToLaterality(char: string): PEState['laterality'] {
     return 'right';
 }
 
-function formatItemLineMaster(block: { label: string; findings: MasterPEFinding[] }, itemState: PEItemState): string {
-    const uLabel = block.label.toUpperCase();
+function formatItemLineMaster(block: { label: string; findings: MasterPEFinding[]; lateral?: true }, itemState: PEItemState): string {
+    const uLabel = lateralLabel(block.label.toUpperCase(), block.lateral ? itemState.laterality : undefined);
 
     const normalLabels: string[] = [];
     if (itemState.selectedNormals.length > 0) {

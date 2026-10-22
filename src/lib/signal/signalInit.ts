@@ -138,7 +138,7 @@ export async function initSignalBundle(userId: string): Promise<SignalInitResult
 
   // Registration CONFIRMED a role → trust it (including a genuine 'provisional').
   // Registration FAILED (network/RPC error on flaky service) → role is UNKNOWN.
-  // Falling back to 'provisional' here is what makes the "No Primary Device" modal
+  // Falling back to 'provisional' here is what makes the provisional install modal
   // false-fire when a real primary device has bad cell service. Instead preserve
   // the last server-confirmed role; return null only if we've never confirmed one.
   let role: DeviceRole | null

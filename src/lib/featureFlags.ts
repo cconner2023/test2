@@ -9,7 +9,7 @@
  * Note: This controls runtime subsystem initialization, not UI visibility.
  * UI gating is handled by the access/stage system in CatData.
  */
-export const LORA_MESH_ENABLED = true;
+export const LORA_MESH_ENABLED = false;
 
 /**
  * BURN_CALCULATOR_ENABLED: When true, the TBSA/Parkland burn assessment

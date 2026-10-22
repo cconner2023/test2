@@ -1,9 +1,8 @@
 import { useCallback } from 'react'
 import { useNavigationStore } from '../stores/useNavigationStore'
-import { isEncryptedBarcode, decryptBarcode, parseNoteEncoding, findAlgorithmByCode, findSymptomByCode, reconstructCardStates } from '../Utilities/NoteCodec'
-import { decodePEState } from '../Utilities/peCodec'
+import { decodeSavedNote, savedNoteErrorMessage } from '../Utilities/savedNoteCodec'
+import { emitErrorToast } from '../lib/errorFeedback'
 import { logError } from '../Utilities/ErrorHandler'
-import { withTimeout } from '../Utilities/withTimeout'
 import type { SavedNote } from '../lib/savedNotesDb'
 
 /**
@@ -11,6 +10,7 @@ import type { SavedNote } from '../lib/savedNotesDb'
  * rebuilds the algorithm card states, and seeds HPI/PE/DDx/Plan so the medic
  * can step back to Write Note, edit, and re-save over the same entry.
  * Provider entries re-import into the Provider drawer instead.
+ * Failure is shown to the user; the stored entry is never touched.
  */
 export function useOpenSavedNote() {
   const openWriteNote = useNavigationStore(s => s.openWriteNote)
@@ -18,40 +18,26 @@ export function useOpenSavedNote() {
 
   return useCallback(async (saved: SavedNote): Promise<boolean> => {
     try {
-      let ascii = saved.encodedText
-      if (isEncryptedBarcode(ascii)) {
-        // Key lookup can fall through to IDB/network; never let the tap hang on it.
-        const decrypted = await withTimeout(decryptBarcode(ascii), 10_000, 'savedNote.decrypt')
-        if (!decrypted) throw new Error('decrypt failed — key unavailable')
-        ascii = decrypted
-      }
-      if (saved.kind === 'provider') {
-        openProviderNote({ savedNoteId: saved.id, payload: ascii })
+      const decoded = await decodeSavedNote(saved)
+      if (decoded.kind === 'provider') {
+        openProviderNote({ savedNoteId: saved.id, payload: decoded.ascii })
         return true
       }
-      const parsed = parseNoteEncoding(ascii)
-      if (!parsed?.symptomCode) throw new Error('unparseable saved note')
-      const algorithmOptions = findAlgorithmByCode(parsed.symptomCode)
-      if (!algorithmOptions?.length) throw new Error(`Algorithm ${parsed.symptomCode} not found`)
-
-      const { cardStates, disposition } = reconstructCardStates(algorithmOptions, parsed)
-      if (!disposition) throw new Error('saved note has no disposition')
-      const found = findSymptomByCode(parsed.symptomCode)
-
+      const { parsed } = decoded
       openWriteNote({
-        disposition,
-        algorithmOptions,
-        cardStates,
+        disposition: decoded.disposition,
+        algorithmOptions: decoded.algorithmOptions,
+        cardStates: decoded.cardStates,
         selectedSymptom: {
-          icon: found?.symptom.icon || saved.symptomIcon,
-          text: found?.symptom.text || saved.symptomText,
+          icon: decoded.symptom?.icon || saved.symptomIcon,
+          text: decoded.symptom?.text || saved.symptomText,
         },
         initialPage: 1,
         restore: {
           savedNoteId: saved.id,
           hpi: parsed.flags.includeHPI ? parsed.hpiText : '',
           peNote: parsed.flags.includePhysicalExam ? parsed.peText : '',
-          peState: parsed.peRaw ? decodePEState(parsed.peRaw, parsed.symptomCode) : null,
+          peState: decoded.peState,
           planNote: parsed.flags.includePlan ? parsed.planText : '',
           assessmentNote: parsed.flags.includeAssessment ? parsed.assessmentText : '',
           selectedDdx: parsed.ddx.selected,
@@ -62,6 +48,7 @@ export function useOpenSavedNote() {
       return true
     } catch (e) {
       logError('useOpenSavedNote', e)
+      emitErrorToast('Couldn’t open note', savedNoteErrorMessage(e, 'This note could not be opened. It is still saved — try again.'))
       return false
     }
   }, [openWriteNote, openProviderNote])

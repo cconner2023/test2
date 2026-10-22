@@ -13,12 +13,13 @@
  *   - Wrapping mutable callbacks in refs before passing `onPayload`
  */
 
-import { useEffect, useRef, useCallback } from 'react'
+import { useEffect, useRef, useCallback, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import type {
   RealtimeChannel,
   RealtimePostgresChangesPayload,
 } from '@supabase/supabase-js'
+import type { REALTIME_SUBSCRIBE_STATES } from '@supabase/realtime-js'
 import type { Logger } from '../Utilities/Logger'
 
 interface PostgresChangesFilter {
@@ -45,7 +46,16 @@ interface UseSupabaseSubscriptionOptions<TRow extends Record<string, unknown>> {
   onPayload: (payload: RealtimePostgresChangesPayload<TRow>) => void
   /** Logger instance for status messages. */
   logger: Logger
+  /**
+   * Every channel status change, including the SUBSCRIBED that follows an
+   * automatic rejoin. Realtime does not replay rows inserted while the channel
+   * was down — callers that must not miss rows re-fetch on rejoin.
+   */
+  onStatus?: (status: `${REALTIME_SUBSCRIBE_STATES}`) => void
 }
+
+/** Delays before rebuilding a server-closed channel; reset once it joins. */
+const REOPEN_BACKOFF_MS = [3_000, 10_000, 30_000, 60_000]
 
 export function useSupabaseSubscription<TRow extends Record<string, unknown>>({
   shouldSubscribe,
@@ -53,8 +63,18 @@ export function useSupabaseSubscription<TRow extends Record<string, unknown>>({
   postgresFilter,
   onPayload,
   logger,
+  onStatus,
 }: UseSupabaseSubscriptionOptions<TRow>): void {
   const channelRef = useRef<RealtimeChannel | null>(null)
+  // Bumped to rebuild a channel the server closed. supabase-js rejoins after
+  // CHANNEL_ERROR/TIMED_OUT on its own, but a server-side close is final.
+  const [reopen, setReopen] = useState(0)
+  const reopenAttempt = useRef(0)
+  // Per-subscribe topic suffix. removeChannel is async — the old channel stays
+  // registered until the leave reply — so re-subscribing under the same name
+  // (a quick hidden→visible flip) would get the leaving channel back from
+  // supabase.channel() and never receive SUBSCRIBED.
+  const topicSeq = useRef(0)
 
   // Keep the payload handler in a ref so the subscription never goes stale
   // while also not causing re-subscriptions when the callback identity changes.
@@ -62,6 +82,11 @@ export function useSupabaseSubscription<TRow extends Record<string, unknown>>({
   useEffect(() => {
     onPayloadRef.current = onPayload
   }, [onPayload])
+
+  const onStatusRef = useRef(onStatus)
+  useEffect(() => {
+    onStatusRef.current = onStatus
+  }, [onStatus])
 
   const cleanup = useCallback(() => {
     if (channelRef.current) {
@@ -81,9 +106,12 @@ export function useSupabaseSubscription<TRow extends Record<string, unknown>>({
     cleanup()
 
     logger.info(`Subscribing to ${channelName}`)
+    let disposed = false
+    let reopenTimer: ReturnType<typeof setTimeout> | null = null
+    topicSeq.current += 1
 
     const channel = supabase
-      .channel(channelName)
+      .channel(`${channelName}:${topicSeq.current}`)
       .on<TRow>(
         'postgres_changes',
         {
@@ -95,6 +123,14 @@ export function useSupabaseSubscription<TRow extends Record<string, unknown>>({
         (payload) => onPayloadRef.current(payload),
       )
       .subscribe((status, err) => {
+        onStatusRef.current?.(status)
+        if (status === 'SUBSCRIBED') reopenAttempt.current = 0
+        if (status === 'CLOSED' && !disposed && !reopenTimer) {
+          const delay = REOPEN_BACKOFF_MS[Math.min(reopenAttempt.current, REOPEN_BACKOFF_MS.length - 1)]
+          reopenAttempt.current += 1
+          logger.warn(`${channelName} closed by server, reopening in ${delay}ms`)
+          reopenTimer = setTimeout(() => { if (!disposed) setReopen(n => n + 1) }, delay)
+        }
         if (status === 'SUBSCRIBED') {
           logger.info(`Subscribed to ${channelName}`)
         } else if (status === 'CHANNEL_ERROR') {
@@ -108,10 +144,14 @@ export function useSupabaseSubscription<TRow extends Record<string, unknown>>({
 
     channelRef.current = channel
 
-    return cleanup
+    return () => {
+      disposed = true
+      if (reopenTimer) clearTimeout(reopenTimer)
+      cleanup()
+    }
     // channelName and postgresFilter are expected to change when the
     // caller's identity values (userId, clinicId, etc.) change, which
     // should trigger a re-subscription.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shouldSubscribe, channelName, postgresFilter.table, postgresFilter.filter, postgresFilter.event, cleanup])
+  }, [shouldSubscribe, channelName, postgresFilter.table, postgresFilter.filter, postgresFilter.event, cleanup, reopen])
 }

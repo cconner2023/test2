@@ -14,9 +14,7 @@ import { useAuth } from './useAuth'
 import { usePageVisibility } from './usePageVisibility'
 import { useSignalMessages } from './useSignalMessages'
 import {
-  fetchPeerBundleForDevice,
   fetchPeerBundlePublic,
-  sendMessageFanOut,
   fetchGroupConversation,
   markMessagesRead,
   hardDeleteByOriginId,
@@ -36,7 +34,6 @@ import {
   fetchGroupMembers as fetchGroupMembersRpc,
 } from '../lib/signal/groupService'
 import type { GroupInfo, GroupMember } from '../lib/signal/groupTypes'
-import { createOutboundSession } from '../lib/signal/session'
 import {
   getLocalDeviceId,
 } from '../lib/signal/keyManager'
@@ -84,20 +81,12 @@ import { errorBus } from '../lib/errorBus'
 import { ErrorCode } from '../lib/errorCodes'
 import { resizeImage, getImageDimensions, generateThumbnail, dataUrlToBlob } from '../Utilities/imageUtils'
 import type { VoiceRecordingResult } from '../Utilities/voiceUtils'
-import type { DecryptedSignalMessage, FanOutMessageInput, SyncMessagePayload } from '../lib/signal/transportTypes'
+import type { DecryptedSignalMessage, SyncMessagePayload } from '../lib/signal/transportTypes'
 import type { PublicKeyBundle } from '../lib/signal/types'
 import type { PeerBundleRpcResult } from '../lib/signal/transportTypes'
 import { useMessagingStore } from '../stores/useMessagingStore'
 
 const logger = createLogger('Messages')
-
-/** Session-reset recovery (see requestSessionReset). Failures from one peer
- *  device are batched for SESSION_RESET_BATCH_MS so a catch-up burst sends one
- *  reset; resets per device are throttled to one per SESSION_RESET_THROTTLE_MS
- *  (each one consumes a one-time pre-key). Resend lists are capped. */
-const SESSION_RESET_BATCH_MS = 1_500
-const SESSION_RESET_THROTTLE_MS = 60_000
-const SESSION_RESET_MAX_RESEND = 100
 
 /** Membership-change announcements. These are ordinary group messages sent by
  *  the actor (the UI already labels the sender), so they read as "Doe: created
@@ -134,7 +123,7 @@ export function getRequestStatus(
   // Match both 'message' and 'initial' — peer replies arrive as 'initial' on the
   // wire whenever they need a fresh X3DH (e.g. peer is on a provisional tab with
   // no persisted session state, so every send is a new handshake). Mirrors the
-  // isUserMessage definition in useSignalMessages.ts.
+  // chat types in useSignalMessages.isConversationContent.
   if (weSentRequest) {
     for (const m of msgs) {
       if (m.senderId !== userId && (m.messageType === 'message' || m.messageType === 'initial')) return 'accepted'
@@ -430,11 +419,6 @@ export function useMessages(): UseMessagesReturn {
   // merely newly-created locally or absent from a racing fetch.
   const serverGroupIdsRef = useRef<Set<string>>(new Set())
 
-  // Session-reset recovery state, keyed `${peerId}:${peerDeviceId}`: failures
-  // pending a batched reset, and the last reset attempt per device.
-  const pendingSessionResetRef = useRef<Map<string, { rowIds: Set<string>; originIds: Set<string> }>>(new Map())
-  const sessionResetAtRef = useRef<Map<string, number>>(new Map())
-
   // External listener ref — MessagesContext sets this to fire notifications
   const onIncomingRef = useRef<((msg: DecryptedSignalMessage) => void) | null>(null)
 
@@ -695,105 +679,6 @@ export function useMessages(): UseMessagesReturn {
     }
   }, [])
 
-  // Session-reset recovery, receiver side. A peer device sent us a ratchet
-  // packet but we hold no session with it (our half was lost while theirs
-  // survived), so everything it sends fails. Reply with a fresh X3DH initial to
-  // that one device: decrypting it replaces the peer's stale session, and the
-  // payload lists the 1:1 content originIds that failed so the peer re-sends
-  // them. Rides the 'receipt' wire type (see decryptRow). Failed rows are
-  // marked read only once the reset is out — until then catch-up retries them.
-  const requestSessionReset = useCallback((peerId: string, peerDeviceId: string, rowId: string, originId?: string) => {
-    if (!userId || peerId === SYSTEM_USER_ID || peerDeviceId === 'unknown' || peerDeviceId === 'edge') return
-    const key = `${peerId}:${peerDeviceId}`
-    const pending = pendingSessionResetRef.current.get(key)
-    if (pending) {
-      pending.rowIds.add(rowId)
-      if (originId) pending.originIds.add(originId)
-      return
-    }
-    pendingSessionResetRef.current.set(key, {
-      rowIds: new Set([rowId]),
-      originIds: new Set(originId ? [originId] : []),
-    })
-
-    setTimeout(() => {
-      void (async () => {
-        const batch = pendingSessionResetRef.current.get(key)
-        pendingSessionResetRef.current.delete(key)
-        const localDeviceId = useMessagingStore.getState().localDeviceId
-        if (!batch || !localDeviceId) return
-        const now = Date.now()
-        if (now - (sessionResetAtRef.current.get(key) ?? 0) < SESSION_RESET_THROTTLE_MS) return
-        sessionResetAtRef.current.set(key, now)
-
-        try {
-          // messageIds:[] + no originIds makes this a no-op receipt on older clients.
-          const body = JSON.stringify({
-            __type: 'session-reset',
-            messageIds: [],
-            resendOriginIds: [...batch.originIds].slice(0, SESSION_RESET_MAX_RESEND),
-            deliveredAt: new Date().toISOString(),
-          })
-          // Always a NEW handshake — a session may exist but have diverged
-          // (SessionMismatchError), and re-using it would just fail again. The
-          // superseded session is archived, not dropped.
-          const bundleResult = await fetchPeerBundleForDevice(peerId, peerDeviceId)
-          if (!bundleResult.ok) {
-            sessionResetAtRef.current.delete(key)
-            return
-          }
-          const envelope = await createOutboundSession(peerId, peerDeviceId, rpcResultToBundle(bundleResult.data), body, userId)
-          const fanOutInputs: FanOutMessageInput[] = [{
-            recipientDeviceId: peerDeviceId,
-            payload: envelope as unknown as Record<string, unknown>,
-            messageType: 'receipt',
-          }]
-          const sent = await sendMessageFanOut(userId, localDeviceId, peerId, fanOutInputs, undefined, undefined, true)
-          if (!sent.ok) {
-            sessionResetAtRef.current.delete(key)
-            return
-          }
-          markMessagesRead([...batch.rowIds]).catch(() => {})
-          logger.info(`Requested session reset from ${key} (${batch.originIds.size} to re-send)`)
-        } catch (e) {
-          sessionResetAtRef.current.delete(key)
-          logger.warn('requestSessionReset failed:', e instanceof Error ? e.message : e)
-        }
-      })()
-    }, SESSION_RESET_BATCH_MS)
-  }, [userId])
-
-  // Session-reset recovery, sender side (pre-vault-first per-device rows). A
-  // peer device couldn't open 1:1 messages we sent before the vault-first cut;
-  // re-send them to the peer's vault under their original originIds so receipts
-  // and deletes still line up (their other devices dedupe by originId).
-  const handleSessionReset = useCallback(async (requesterId: string, requesterDeviceId: string, originIds: string[]) => {
-    const localDeviceId = useMessagingStore.getState().localDeviceId
-    if (!userId || !localDeviceId || requesterId === userId || originIds.length === 0) return
-    const wanted = new Set(originIds.slice(0, SESSION_RESET_MAX_RESEND))
-    const toResend = (store().conversations[requesterId] ?? [])
-      .filter(m =>
-        m.senderId === userId && !m.groupId && !!m.originId && wanted.has(m.originId) &&
-        (m.messageType === 'message' || m.messageType === 'request'))
-      .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
-    if (toResend.length === 0) return
-
-    for (const m of toResend) {
-      try {
-        const content: MessageContent = m.content ?? {
-          type: 'text',
-          text: m.plaintext,
-          ...(m.threadId ? { replyTo: { messageId: m.threadId, preview: m.replyPreview ?? '' } } : {}),
-        }
-        const type = m.messageType === 'request' ? 'request' : 'message'
-        await sendToUser(userId, localDeviceId, requesterId, serializeContent(content), type, { originId: m.originId })
-      } catch (e) {
-        logger.warn(`Session-reset re-send of ${m.originId} failed:`, e instanceof Error ? e.message : e)
-      }
-    }
-    logger.info(`Re-sent ${toResend.length} message(s) to ${requesterId}:${requesterDeviceId} after session reset`)
-  }, [userId])
-
   // Subscribe to realtime incoming messages
   useSignalMessages({
     userId,
@@ -806,8 +691,6 @@ export function useMessages(): UseMessagesReturn {
     isPageVisible,
     onMessage: handleIncomingMessage,
     onDelete: removeMessagesByOriginIds,
-    onSessionMissing: requestSessionReset,
-    onSessionReset: handleSessionReset,
   })
 
   // Hydrate from IDB on mount and re-hydrate after backup restore. Keyed on the
@@ -2416,12 +2299,8 @@ export function useMessages(): UseMessagesReturn {
       return
     }
     await refreshGroups()
-    // Announce the add. Adding a member does NOT bump the key epoch, so this send
-    // reuses our existing sender key and (post rate-limit fix) does not proactively
-    // re-distribute. The new member instead self-heals off this very message: they
-    // receive our undecryptable sender-key-message → onSenderKeyMissing →
-    // sender-key-request → we redistribute our key + the group-name secret. One
-    // round-trip, no per-send fan-out to the whole group.
+    // Announce the add. Every group row carries the group-name secret
+    // (wrapGroupPayload), so the new member picks it up off this message.
     await sendGroupMessage(groupId, GROUP_ANNOUNCE.memberAdded).catch(e =>
       logger.warn('Member-added announcement failed:', e instanceof Error ? e.message : e)
     )

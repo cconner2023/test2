@@ -62,6 +62,7 @@ function writeLocal(userId: string, deviceId: string, cursor: VaultCursor): void
 /**
  * Load this device's cursor: local copy, else the server row, else null (the
  * caller then starts from the restored backup watermark, or the beginning).
+ * Throws when the server read fails, so the caller retries instead.
  */
 export async function loadVaultCursor(userId: string, deviceId: string): Promise<VaultCursor | null> {
   if (_owner?.userId !== userId || _owner?.deviceId !== deviceId) {
@@ -84,8 +85,9 @@ export async function loadVaultCursor(userId: string, deviceId: string): Promise
     .eq('device_id', deviceId)
     .maybeSingle()
   if (error) {
+    // Not "no cursor" — starting from null would replay the whole vault.
     logger.warn('loadVaultCursor failed:', error.message)
-    return null
+    throw new Error(`loadVaultCursor failed: ${error.message}`)
   }
   if (!data) return null
   _cursor = { createdAt: data.last_created_at, id: data.last_id }

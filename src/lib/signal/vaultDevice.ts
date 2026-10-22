@@ -347,15 +347,32 @@ async function clearVaultRowFromIdb(): Promise<void> {
  * full fetch, so the cache can never serve a stale/wrong blob — version is bumped
  * by every blob writer, so a version match is byte-identical.
  */
+/** Version probes are reused this long — the receive drain opens rows one by
+ *  one and must not pay a round-trip per row. A rotation another device makes
+ *  inside the window only delays rows sealed to the new SPK to the next drain. */
+const VAULT_PROBE_TTL_MS = 15_000
+let _probeCache: { userId: string; version: number | null; at: number } | null = null
+
 async function fetchVaultRow(userId: string): Promise<VaultDeviceKeysRow | null> {
   // Cheap probe — does a vault exist, and at what version?
-  const { data: probe } = await supabase
-    .from('vault_device_keys')
-    .select('version')
-    .eq('user_id', userId)
-    .maybeSingle()
+  let version: number | null
+  if (_probeCache && _probeCache.userId === userId && Date.now() - _probeCache.at < VAULT_PROBE_TTL_MS) {
+    version = _probeCache.version
+  } else {
+    const { data: probe, error: probeError } = await supabase
+      .from('vault_device_keys')
+      .select('version')
+      .eq('user_id', userId)
+      .maybeSingle()
+    // A failed probe is NOT "no vault" — reading it as one fails every row on a
+    // flaky link and burns their retry attempts.
+    if (probeError) throw new VaultUnavailableError(probeError.message)
+    version = probe?.version ?? null
+    _probeCache = { userId, version, at: Date.now() }
+  }
 
-  if (!probe) return null // No vault for this user.
+  if (version === null) return null // No vault for this user.
+  const probe = { version }
 
   // Serve the cached blob when the version matches.
   try {
@@ -374,7 +391,8 @@ async function fetchVaultRow(userId: string): Promise<VaultDeviceKeysRow | null>
     .eq('user_id', userId)
     .single()
 
-  if (error || !row) return null
+  if (error) throw new VaultUnavailableError(error.message)
+  if (!row) return null
   void persistVaultRowToIdb({ userId, version: row.version, row: row as VaultDeviceKeysRow })
     .catch(() => logger.warn('Failed to cache vault row to IDB'))
   return row as VaultDeviceKeysRow
@@ -673,6 +691,7 @@ export function clearVaultKey(): void {
   _cachedVaultDh = null
   _vaultKeyReady = null
   _cachedDecryptKeys = null
+  _probeCache = null
   // Wipe the persisted key so the next user on this device can't load it. The
   // userId tag on the record is a second guard if this fire-and-forget races.
   void clearVaultKeyFromIdb().catch(() => {})
@@ -822,6 +841,17 @@ let _cachedDecryptKeys: { userId: string; version: number; keys: VaultPrivateKey
  * key isn't available on this device (live-session resume without the password).
  * The receive path stops at that row and surfaces the vault re-auth prompt.
  */
+/**
+ * Thrown when the vault row can't be fetched (network/RPC failure). Transient:
+ * the receive drain retries without counting it against the row.
+ */
+export class VaultUnavailableError extends Error {
+  constructor(reason: string) {
+    super(`Vault keys unavailable: ${reason}`)
+    this.name = 'VaultUnavailableError'
+  }
+}
+
 export class VaultLockedError extends Error {
   constructor() {
     super('Vault wrapping key not available on this device')
@@ -877,6 +907,7 @@ export async function getVaultDecryptKeys(userId: string): Promise<VaultDecryptK
       .eq('user_id', userId).eq('device_id', VAULT_DEVICE_ID)
     void clearVaultRowFromIdb().catch(() => {})
     _cachedDecryptKeys = null
+    _probeCache = null
     return null
   }
 

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { Check, RotateCcw, Plus, AlertTriangle, ChevronRight, Trash2, GripVertical, Activity, MoreHorizontal } from 'lucide-react';
 import { PreviewOverlay } from './PreviewOverlay';
 import type { ContextMenuAction } from './PreviewOverlay';
-import { ExamBlockPreview } from './ExamBlockPreview';
+import { ExamBlockPreview, addCustomFinding as appendCustom, removeCustomFinding } from './ExamBlockPreview';
 import { ListItemRow } from '@/Components/primitives/ListItemRow';
 import { SwipeToDeleteRow } from '@/Components/primitives/SwipeToDeleteRow';
 import { ActionPill } from '@/Components/primitives/ActionPill';
@@ -25,6 +25,7 @@ import {
     getMasterBlockByKey,
     FOCUSED_EXPANSION,
     applySpecify,
+    lateralLabel,
 } from '../Data/PhysicalExamData';
 import type {
     CategoryLetter,
@@ -50,6 +51,8 @@ interface ItemState {
     /** Detail text for "(specify…)" abnormals, keyed by abnormal key. */
     specifyDetails: Record<string, string>;
     findings: string;
+    /** Per-block side for `lateral` blocks (Eyes). */
+    laterality?: Laterality;
 }
 
 interface PhysicalExamProps {
@@ -84,7 +87,7 @@ function toViewFindings(findings: MasterPEFinding[]): PEFinding[] {
 
 /** Convert a MasterPEBlock (or filtered subset) to the PEBlock shape expected by ExamBlockPreview */
 function toViewBlock(block: MasterPEBlock, visibleFindings: MasterPEFinding[]): PEBlock {
-    return { key: block.key, label: block.label, findings: toViewFindings(visibleFindings) };
+    return { key: block.key, label: block.label, findings: toViewFindings(visibleFindings), ...(block.lateral && { lateral: true as const }) };
 }
 
 /** Get the findings that should be visible for a block given expansion state */
@@ -119,8 +122,16 @@ function parseItemLine(
     label: string,
     block: PEBlock,
 ): ItemState | null {
-    if (!line.toUpperCase().startsWith(`${label.toUpperCase()}:`)) return null;
-    const rest = line.slice(label.length + 1).trim();
+    const upper = line.toUpperCase();
+    const uLabel = label.toUpperCase();
+    if (!upper.startsWith(uLabel)) return null;
+    // Optional laterality tag between label and colon — "EYES (L):"
+    const head = /^\s*(?:\((L|R|BILAT)\))?\s*:/.exec(upper.slice(uLabel.length));
+    if (!head) return null;
+    const tagLat: Laterality | undefined = block.lateral && head[1]
+        ? (head[1] === 'L' ? 'left' : head[1] === 'R' ? 'right' : 'bilateral')
+        : undefined;
+    const rest = line.slice(uLabel.length + head[0].length).trim();
 
     const allNormalTexts: Array<{ key: string; text: string }> = block.findings
         .filter(f => f.normal)
@@ -130,7 +141,7 @@ function parseItemLine(
     );
 
     if (rest === 'Normal') {
-        return allNormalsSelected(block.findings);
+        return { ...allNormalsSelected(block.findings), laterality: tagLat };
     }
 
     const segments = rest.split(/[,;]/).map(s => s.trim()).filter(Boolean);
@@ -152,7 +163,7 @@ function parseItemLine(
 
     if (status === 'not-examined' && !rest) return null;
 
-    return { status, selectedNormals, selectedAbnormals, specifyDetails: {}, findings: freeTextParts.join('; ') };
+    return { status, selectedNormals, selectedAbnormals, specifyDetails: {}, findings: freeTextParts.join('; '), laterality: tagLat };
 }
 
 // ── Parse initial text against master blocks ──────────────────
@@ -290,8 +301,8 @@ function parseInitialText(
 
 // ── Text generation ──────────────────────────────────────────
 
-function formatExamLine(label: string, state: ItemState, findings: PEFinding[]): string {
-    const uLabel = label.toUpperCase();
+function formatExamLine(label: string, state: ItemState, findings: PEFinding[], lateral?: boolean): string {
+    const uLabel = lateralLabel(label.toUpperCase(), lateral ? state.laterality : undefined);
     const normalParts: string[] = [];
     const abnormalParts: string[] = [];
 
@@ -339,7 +350,7 @@ function generateText(
 
         const isExpanded = expandedKeys.has(block.key);
         const visibleFindings = getVisibleFindings(block, isExpanded);
-        examLines.push(formatExamLine(block.label, state, toViewFindings(visibleFindings)));
+        examLines.push(formatExamLine(block.label, state, toViewFindings(visibleFindings), block.lateral));
     }
 
     if (examLines.length > 0) {
@@ -442,7 +453,7 @@ function ExamItemRow({ block, state, onTap, index, isDragging, dragOffset, onDra
                 }
                 center={
                     <>
-                        <p className="text-sm font-medium text-primary truncate">{block.label}</p>
+                        <p className="text-sm font-medium text-primary truncate">{lateralLabel(block.label, block.lateral ? state.laterality : undefined)}</p>
                         {hasSummary && (
                             <p className="text-[9pt] mt-0.5 whitespace-normal break-words">
                                 {normals.length > 0 && <span className="text-tertiary">{normals.join(', ')}</span>}
@@ -469,6 +480,7 @@ function toEncodableState(blockStates: Record<string, ItemState>): Record<string
             selectedAbnormals: state.selectedAbnormals,
             specifyDetails: state.specifyDetails,
             findings: state.findings,
+            ...(state.laterality && { laterality: state.laterality }),
         };
     }
     return result;
@@ -533,6 +545,7 @@ export function PhysicalExam({
                         selectedAbnormals: [...seeded.selectedAbnormals],
                         specifyDetails: { ...(seeded.specifyDetails ?? {}) },
                         findings: seeded.findings,
+                        laterality: seeded.laterality,
                     }
                     : defaultItemState();
             }
@@ -706,7 +719,7 @@ export function PhysicalExam({
                     .map(f => f.abnormals[0].key);
                 return {
                     ...prev,
-                    [key]: { status: 'abnormal', selectedNormals: [], selectedAbnormals: autoAbnormals, specifyDetails: cur.specifyDetails, findings: cur.findings },
+                    [key]: { status: 'abnormal', selectedNormals: [], selectedAbnormals: autoAbnormals, specifyDetails: cur.specifyDetails, findings: cur.findings, laterality: cur.laterality },
                 };
             }
             return { ...prev, [key]: defaultItemState() };
@@ -730,7 +743,7 @@ export function PhysicalExam({
                 }
             }
 
-            const hasAbnormal = abnormals.length > 0;
+            const hasAbnormal = abnormals.length > 0 || cur.findings.trim().length > 0;
             const hasNormal = normals.length > 0;
             const status: SystemStatus = hasAbnormal ? 'abnormal' : hasNormal ? 'normal' : 'not-examined';
             return { ...prev, [blockKey]: { ...cur, selectedNormals: normals, selectedAbnormals: abnormals, status } };
@@ -753,18 +766,23 @@ export function PhysicalExam({
                 }
             }
 
-            const hasAbnormal = abnormals.length > 0;
+            const hasAbnormal = abnormals.length > 0 || cur.findings.trim().length > 0;
             const hasNormal = normals.length > 0;
             const status: SystemStatus = hasAbnormal ? 'abnormal' : hasNormal ? 'normal' : 'not-examined';
             return { ...prev, [blockKey]: { ...cur, selectedNormals: normals, selectedAbnormals: abnormals, status } };
         });
     };
 
+    // Custom findings live in the block's free-text `findings` ('; '-joined) — the
+    // field the codec encodes and the note text renders. Any custom text = abnormal.
     const setFindingsText = (key: string, findings: string) => {
-        setBlockStates(prev => ({
-            ...prev,
-            [key]: { ...(prev[key] ?? defaultItemState()), findings },
-        }));
+        setBlockStates(prev => {
+            const cur = prev[key] ?? defaultItemState();
+            const status: SystemStatus = cur.selectedAbnormals.length > 0 || findings.trim()
+                ? 'abnormal'
+                : cur.selectedNormals.length > 0 ? 'normal' : 'not-examined';
+            return { ...prev, [key]: { ...cur, findings, status } };
+        });
     };
 
     const setSpecifyDetail = (blockKey: string, abnormalKey: string, value: string) => {
@@ -777,12 +795,20 @@ export function PhysicalExam({
         });
     };
 
+    /** Tapping the active side again clears it. */
+    const setBlockLaterality = (blockKey: string, lat: Laterality) => {
+        setBlockStates(prev => {
+            const cur = prev[blockKey] ?? defaultItemState();
+            return { ...prev, [blockKey]: { ...cur, laterality: cur.laterality === lat ? undefined : lat } };
+        });
+    };
+
     // ── Bulk actions ──────────────────────────────────────────
     const markAllNormal = () => {
         setBlockStates(prev => {
             const next = { ...prev };
             for (const [key, vb] of viewBlockMap) {
-                next[key] = allNormalsSelected(vb.findings);
+                next[key] = { ...allNormalsSelected(vb.findings), laterality: prev[key]?.laterality };
             }
             return next;
         });
@@ -792,7 +818,7 @@ export function PhysicalExam({
         setBlockStates(prev => {
             const next = { ...prev };
             for (const [key, vb] of viewBlockMap) {
-                next[key] = allAbnormalsSelected(vb.findings);
+                next[key] = { ...allAbnormalsSelected(vb.findings), findings: prev[key]?.findings ?? '', laterality: prev[key]?.laterality };
             }
             return next;
         });
@@ -851,43 +877,9 @@ export function PhysicalExam({
     }, [activeBlocks, viewBlockMap, addedBlocks, blockOrder]);
 
     // ── Custom findings added inline via popover ──────────────
-    const [customFindings, setCustomFindings] = useState<Record<string, { key: string; label: string }[]>>({});
-
-    const augmentBlock = useCallback((viewBlock: PEBlock, blockKey: string): PEBlock => {
-        const extras = customFindings[blockKey];
-        if (!extras || extras.length === 0) return viewBlock;
-        return {
-            ...viewBlock,
-            findings: [
-                ...viewBlock.findings,
-                ...extras.map(cf => ({
-                    key: cf.key,
-                    normal: '',
-                    abnormals: [{ key: cf.key, label: cf.label }],
-                })),
-            ],
-        };
-    }, [customFindings]);
-
-    const addCustomFinding = useCallback((blockKey: string, value: string) => {
-        const cfKey = `custom_${blockKey}_${Date.now()}`;
-        setCustomFindings(prev => ({
-            ...prev,
-            [blockKey]: [...(prev[blockKey] ?? []), { key: cfKey, label: value }],
-        }));
-        // Auto-select as abnormal
-        setBlockStates(prev => {
-            const cur = prev[blockKey] ?? defaultItemState();
-            return {
-                ...prev,
-                [blockKey]: {
-                    ...cur,
-                    status: 'abnormal',
-                    selectedAbnormals: [...cur.selectedAbnormals, cfKey],
-                },
-            };
-        });
-    }, []);
+    const addCustomFinding = (blockKey: string, value: string) => {
+        setFindingsText(blockKey, appendCustom(blockStates[blockKey]?.findings ?? '', value));
+    };
 
     // ── Lifted popover state ──────────────────────────────────
     const [editingIndex, setEditingIndex] = useState<number | null>(null);
@@ -1162,17 +1154,19 @@ export function PhysicalExam({
                     hideHeaderClose
                     searchPlaceholder="Filter findings..."
                     preview={(filter, clearFilter) => {
-                        const augmented = augmentBlock(editingEntry.viewBlock, editingEntry.key);
+                        const view = editingEntry.viewBlock;
                         return (
                             <ExamBlockPreview
-                                block={augmented}
+                                block={view}
                                 state={editingState}
                                 filter={filter}
-                                onToggleNormal={(fk) => { toggleNormal(editingEntry.key, fk, augmented); clearFilter(); }}
-                                onToggleAbnormal={(ak) => { toggleAbnormal(editingEntry.key, ak, augmented); clearFilter(); }}
+                                onToggleNormal={(fk) => { toggleNormal(editingEntry.key, fk, view); clearFilter(); }}
+                                onToggleAbnormal={(ak) => { toggleAbnormal(editingEntry.key, ak, view); clearFilter(); }}
                                 onSpecifyChange={(ak, v) => setSpecifyDetail(editingEntry.key, ak, v)}
-                                onAllNormal={() => { setBlockStates(prev => ({ ...prev, [editingEntry.key]: allNormalsSelected(augmented.findings) })); clearFilter(); }}
-                                onAllAbnormal={() => { setBlockStates(prev => ({ ...prev, [editingEntry.key]: allAbnormalsSelected(augmented.findings) })); clearFilter(); }}
+                                onAllNormal={() => { setBlockStates(prev => ({ ...prev, [editingEntry.key]: { ...allNormalsSelected(view.findings), laterality: prev[editingEntry.key]?.laterality } })); clearFilter(); }}
+                                onAllAbnormal={() => { setBlockStates(prev => ({ ...prev, [editingEntry.key]: { ...allAbnormalsSelected(view.findings), findings: prev[editingEntry.key]?.findings ?? '', laterality: prev[editingEntry.key]?.laterality } })); clearFilter(); }}
+                                onLateralityChange={(lat) => setBlockLaterality(editingEntry.key, lat)}
+                                onRemoveCustom={(i) => setFindingsText(editingEntry.key, removeCustomFinding(editingState.findings, i))}
                             />
                         );
                     }}

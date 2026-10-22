@@ -7,7 +7,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Smartphone, Monitor, LogOut, Info, Shield, QrCode } from 'lucide-react'
+import { Smartphone, Monitor, LogOut, Shield, QrCode } from 'lucide-react'
 import { EmptyState } from '@/Components/primitives/EmptyState'
 import { ActionPill } from '@/Components/primitives/ActionPill'
 import { ActionButton } from '@/Components/primitives/ActionButton'
@@ -82,12 +82,11 @@ export function SessionsDevicesPanel() {
       return
     }
 
-    // Sort: current device first, then primary, then by recency
+    // Sort: current device first, then by recency
     const sorted = [...devicesResult.data].sort((a, b) => {
       const aIsCurrent = a.deviceId === deviceIdResult
       const bIsCurrent = b.deviceId === deviceIdResult
       if (aIsCurrent !== bIsCurrent) return aIsCurrent ? -1 : 1
-      if (a.isPrimary !== b.isPrimary) return a.isPrimary ? -1 : 1
       return new Date(b.lastActiveAt).getTime() - new Date(a.lastActiveAt).getTime()
     })
 
@@ -311,7 +310,7 @@ export function SessionsDevicesPanel() {
                 onClick={isVault ? undefined : handleTap}
                 disabled={isVault}
                 divided={idx > 0}
-                // No badges — current/vault/primary read as plain meta text.
+                // No badges — current/vault read as plain meta text.
                 subtitle={
                   <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                     <span className={`inline-block w-1.5 h-1.5 rounded-full ${activity.color}`} />
@@ -321,7 +320,6 @@ export function SessionsDevicesPanel() {
                       <span className="font-medium text-themeblue2">This device</span>
                     </>)}
                     {isVault && (<><span>&middot;</span><span>Vault</span></>)}
-                    {device.isPrimary && (<><span>&middot;</span><span>Primary</span></>)}
                     <span>&middot;</span>
                     <span className="font-mono">{shortId}</span>
                   </span>
@@ -350,17 +348,6 @@ export function SessionsDevicesPanel() {
           onConfirm={handleLogoutAll}
           onCancel={() => setConfirmLogoutAll(false)}
         />
-
-        {/* Info note for non-primary devices */}
-        {!isPrimary && (
-          <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-tertiary/5">
-            <Info size={14} className="text-tertiary shrink-0 mt-0.5" />
-            <p className="text-[9pt] text-tertiary leading-relaxed">
-              Only the primary device can sign out all other sessions. Tap individual
-              devices to remove them.
-            </p>
-          </div>
-        )}
       </div>
 
       {/* Confirm link device — fires after a successful QR scan */}

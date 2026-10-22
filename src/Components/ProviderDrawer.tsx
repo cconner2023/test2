@@ -48,6 +48,7 @@ import type { AlgorithmOptions } from '../Types/AlgorithmTypes'
 import { decodePEState } from '../Utilities/peCodec'
 import { assembleNote, formatSignature } from '../Utilities/NoteFormatter'
 import { useSavedNotesStore } from '../stores/useSavedNotesStore'
+import { emitErrorToast } from '../lib/errorFeedback'
 import { useNavigationStore } from '../stores/useNavigationStore'
 import { useAuthStore } from '../stores/useAuthStore'
 import { SAVED_NOTES_CAP } from '../lib/savedNotesDb'
@@ -300,8 +301,13 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
       if (parsed.providerHpi) setHpiNote(parsed.providerHpi)
       if (parsed.providerPe) setPeNote(parsed.providerPe)
       if (parsed.providerPeRaw) {
-        const restored = decodePEState(parsed.providerPeRaw, 'PRV')
-        if (restored) setPeState(restored)
+        // A PE codec mismatch must not abort the rest of the import.
+        try {
+          const restored = decodePEState(parsed.providerPeRaw, 'PRV')
+          if (restored) setPeState(restored)
+        } catch (e) {
+          logError('ProviderDrawer.decodePE', e)
+        }
       }
       setPeResetKey(k => k + 1)
       if (parsed.providerAssessment) setAssessmentNote(parsed.providerAssessment)
@@ -476,6 +482,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
       savedIdRef.current = providerRestore.savedNoteId
     } catch (e) {
       logError('ProviderDrawer.restore', e)
+      emitErrorToast('Couldn’t open note', 'This note could not be opened. It is still saved — try again.')
     }
   }, [isVisible, providerRestore, clearProviderRestore, handleProviderDecoded])
 
@@ -506,8 +513,10 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
       : savedNotes.length >= SAVED_NOTES_CAP ? 'Save to My Notes (replaces oldest)' : 'Save to My Notes'
     const opts: ActionSheetOption[] = []
     if (encodedValue) {
+      // Failed save keeps the drawer open (store already showed why) so the note isn't lost.
       opts.push({ key: 'save', label: saveLabel, icon: Save, onAction: async () => {
-        if (await handleSave()) emitCopied('Saved to My Notes')
+        if (!await handleSave()) return
+        emitCopied('Saved to My Notes')
         handleClose()
       } })
     }
@@ -582,6 +591,8 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
           onOpenBlock={(blockKey) => setPaneScreen({ key: 'm-s-pe-block', params: { blockKey } })}
           onOpenVitals={() => setPaneScreen({ key: 'm-s-pe-vitals' })}
           onReorder={reorderMedicPe}
+          additional={medicPeState.additional}
+          onOpenFreeText={() => setPaneScreen({ key: 'm-s-pe-freetext' })}
         />
       </MedicSectionFrame>
     ) : (
@@ -601,6 +612,8 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
       onOpenBlock={(blockKey) => setPaneScreen({ key: 's-pe-block', params: { blockKey } })}
       onOpenVitals={() => setPaneScreen({ key: 's-pe-vitals' })}
       onReorder={reorderPe}
+      additional={peState?.additional ?? ''}
+      onOpenFreeText={() => setPaneScreen({ key: 's-pe-freetext' })}
     />
   )
 

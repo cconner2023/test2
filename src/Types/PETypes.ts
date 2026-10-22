@@ -17,6 +17,8 @@ export interface PEItemState {
     specifyDetails?: Record<string, string>;
     /** Free-text findings (always available). */
     findings: string;
+    /** Per-block side, only for blocks flagged `lateral` (e.g. Eyes). Unset = not specified. */
+    laterality?: Laterality;
 }
 
 /** Complete PE state passed from PhysicalExam component to the encoder. */

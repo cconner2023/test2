@@ -1,12 +1,13 @@
 import { useState, useRef, useCallback, type ReactNode } from 'react';
-import { Check, Plus, GripVertical, MoreHorizontal, RotateCcw, Trash2, ChevronLeft, ChevronRight, Activity } from 'lucide-react';
+import { Check, Plus, GripVertical, MoreHorizontal, RotateCcw, Trash2, ChevronLeft, ChevronRight, Activity, Type } from 'lucide-react';
 import { SearchInput } from '@/Components/primitives/SearchInput';
 import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill';
 import { ListItemRow } from '@/Components/primitives/ListItemRow';
 import { EmptyState } from '@/Components/primitives/EmptyState';
 import { AnchoredMenu } from '@/Components/primitives/LiftedRowMenu';
 import type { ContextMenuItem } from '@/Components/primitives/ContextMenu';
-import { ExamBlockPreview } from '../ExamBlockPreview';
+import { ExamBlockPreview, addCustomFinding, removeCustomFinding } from '../ExamBlockPreview';
+import { TextSectionEditor } from './ProviderPaneSections';
 import { VitalSignsCalculator } from '../VitalSignsCalculator';
 import { generatePEText } from '../PhysicalExam';
 import { type StackScreen, type StackNav } from '../stackNav';
@@ -17,9 +18,10 @@ import {
   getMasterBlockByKey,
   getBlocksForTemplate,
   applySpecify,
+  lateralLabel,
   VITAL_SIGNS,
 } from '../../Data/PhysicalExamData';
-import type { MasterPEBlock, PEBlock } from '../../Data/PhysicalExamData';
+import type { MasterPEBlock, PEBlock, Laterality } from '../../Data/PhysicalExamData';
 import type { PEState, PEItemState } from '../../Types/PETypes';
 
 // ── Item-state helpers (pure; re-expressed from PhysicalExam's block mutators) ──
@@ -38,7 +40,7 @@ function allAbnormalState(block: PEBlock): PEItemState {
 
 /** All findings visible (template mode = fully expanded), stripped to the PEBlock view shape. */
 function toViewBlock(block: MasterPEBlock): PEBlock {
-  return { key: block.key, label: block.label, findings: block.findings.map(({ key, normal, abnormals }) => ({ key, normal, abnormals })) };
+  return { key: block.key, label: block.label, findings: block.findings.map(({ key, normal, abnormals }) => ({ key, normal, abnormals })), ...(block.lateral && { lateral: true as const }) };
 }
 
 function recomputeStatus(selectedNormals: string[], selectedAbnormals: string[], findings: string): PEItemState['status'] {
@@ -75,6 +77,16 @@ function toggleAbnormal(state: PEItemState, block: PEBlock, abnormalKey: string)
     if (finding?.normal) selectedNormals = selectedNormals.filter(k => k !== finding.key);
   }
   return { ...state, selectedNormals, selectedAbnormals, status: recomputeStatus(selectedNormals, selectedAbnormals, state.findings) };
+}
+
+/** Tapping the active side again clears it. */
+function setLaterality(state: PEItemState, lat: Laterality): PEItemState {
+  return { ...state, laterality: state.laterality === lat ? undefined : lat };
+}
+
+/** Custom findings ('; '-joined free text) — any text marks the block abnormal. */
+function setFindings(state: PEItemState, findings: string): PEItemState {
+  return { ...state, findings, status: recomputeStatus(state.selectedNormals, state.selectedAbnormals, findings) };
 }
 
 function setSpecify(state: PEItemState, abnormalKey: string, value: string): PEItemState {
@@ -193,7 +205,7 @@ function PEDetailRow({ block, state, index, isDragging, dragOffset, onDragStart,
         }
         center={
           <>
-            <p className="text-sm font-medium text-primary truncate">{block.label}</p>
+            <p className="text-sm font-medium text-primary truncate">{lateralLabel(block.label, block.lateral ? state.laterality : undefined)}</p>
             {hasSummary && (
               <p className="text-[9pt] mt-0.5 whitespace-normal break-words">
                 {normals.length > 0 && <span className="text-tertiary">{normals.join(', ')}</span>}
@@ -294,6 +306,9 @@ interface PEBodyProps {
   onOpenBlock: (blockKey: string) => void;
   onOpenVitals: () => void;
   onReorder: (keys: string[]) => void;
+  /** Exam-level free text ("Additional Findings"). Row renders only with onOpenFreeText. */
+  additional?: string;
+  onOpenFreeText?: () => void;
 }
 
 /**
@@ -317,7 +332,7 @@ export function PECenter({ medicCard, ...body }: PEBodyProps & {
 
 /** Vitals row + movable system cards + "+" — shared by the provider's exam and the
  *  imported medic's exam (amended through its own pane screens). */
-export function PEBody({ selectedBlockKeys, items, vitals, onOpenSelector, onOpenBlock, onOpenVitals, onReorder }: PEBodyProps) {
+export function PEBody({ selectedBlockKeys, items, vitals, onOpenSelector, onOpenBlock, onOpenVitals, onReorder, additional = '', onOpenFreeText }: PEBodyProps) {
   const blocks = getBlocksForTemplate(selectedBlockKeys);
   const vitalsSummary = summarizeVitals(vitals);
   return (
@@ -338,6 +353,22 @@ export function PEBody({ selectedBlockKeys, items, vitals, onOpenSelector, onOpe
       />
       {blocks.length > 0 && (
         <PEDetailList blocks={blocks} items={items} onTap={onOpenBlock} onReorder={onReorder} />
+      )}
+      {onOpenFreeText && (
+        <ListItemRow
+          as="div"
+          onClick={onOpenFreeText}
+          className="py-2.5 active:scale-[0.98] transition-all cursor-pointer"
+          left={<div className="shrink-0 text-tertiary"><Type size={16} /></div>}
+          center={
+            <>
+              <p className="text-sm font-medium text-primary truncate">Additional Findings</p>
+              <p className={`text-[9pt] mt-0.5 whitespace-pre-line break-words ${additional.trim() ? 'text-primary' : 'text-tertiary/60 italic'}`}>
+                {additional.trim() || 'Tap to add free text'}
+              </p>
+            </>
+          }
+        />
       )}
       <EmptyState
         title={blocks.length ? 'Add system' : 'Add physical exam'}
@@ -367,7 +398,7 @@ function PEBlockMenu({ onRefresh, onRemove }: { onRefresh: () => void; onRemove:
   );
 }
 
-// ── Pane screens: `s-pe` (select systems) → `s-pe-block` (findings); `s-pe-vitals` ──
+// ── Pane screens: `s-pe` (select systems) → `s-pe-block` (findings); `s-pe-vitals`; `s-pe-freetext` ──
 
 const FRESH_PE_STATE: PEState = {
   categoryLetter: 'A', laterality: 'right', spineRegion: 'lumbar',
@@ -397,10 +428,11 @@ export function usePEPaneScreens({
   const SELECT_KEY = `${keyPrefix}s-pe`;
   const BLOCK_KEY = `${keyPrefix}s-pe-block`;
   const VITALS_KEY = `${keyPrefix}s-pe-vitals`;
+  const FREETEXT_KEY = `${keyPrefix}s-pe-freetext`;
 
   // Commit a next peState: keep items/blockKeys aligned + re-derive peNote.
-  const commit = (items: Record<string, PEItemState>, blockKeys: string[], vitals = base.vitals) => {
-    const next: PEState = { ...base, items, blockKeys, blockOrder: blockKeys, vitals, mode: 'template' };
+  const commit = (items: Record<string, PEItemState>, blockKeys: string[], vitals = base.vitals, additional = base.additional) => {
+    const next: PEState = { ...base, items, blockKeys, blockOrder: blockKeys, vitals, additional, mode: 'template' };
     onPeStateChange(next);
     onBlockKeysChange(blockKeys);
     onPeNoteChange(generatePEText(next));
@@ -466,6 +498,27 @@ export function usePEPaneScreens({
         />
       ),
     },
+    // Additional Findings — exam-level free text (encoded as PEState.additional,
+    // rendered as the trailing "Additional Findings:" line). Reset clears; Done closes.
+    [FREETEXT_KEY]: {
+      title: 'Additional Findings',
+      headerLeft: (
+        <HeaderPill>
+          <PillButton icon={RotateCcw} iconSize={16} label="Clear free text"
+            onClick={() => commit(base.items, selectedBlockKeys, base.vitals, '')} />
+        </HeaderPill>
+      ),
+      headerActions: (
+        <PillButton icon={Check} iconSize={18} accent="success" onClick={onClose} label="Done" />
+      ),
+      render: () => (
+        <TextSectionEditor
+          value={base.additional ?? ''}
+          onChange={(v) => commit(base.items, selectedBlockKeys, base.vitals, v)}
+          placeholder="Free-text exam findings…"
+        />
+      ),
+    },
     [BLOCK_KEY]: {
       title: (p: { blockKey: string }) => getMasterBlockByKey(p?.blockKey)?.label ?? 'System',
       // Ellipsis (Refresh · Remove) rides the header's LEFT, matching the ellipsis-left
@@ -505,8 +558,11 @@ export function usePEPaneScreens({
             onToggleNormal={fk => applyItem(p.blockKey, toggleNormal(st, view, fk))}
             onToggleAbnormal={ak => applyItem(p.blockKey, toggleAbnormal(st, view, ak))}
             onSpecifyChange={(ak, v) => applyItem(p.blockKey, setSpecify(st, ak, v))}
-            onAllNormal={() => applyItem(p.blockKey, allNormalState(view))}
-            onAllAbnormal={() => applyItem(p.blockKey, allAbnormalState(view))}
+            onAllNormal={() => applyItem(p.blockKey, { ...allNormalState(view), laterality: st.laterality })}
+            onAllAbnormal={() => applyItem(p.blockKey, { ...allAbnormalState(view), findings: st.findings, laterality: st.laterality })}
+            onLateralityChange={lat => applyItem(p.blockKey, setLaterality(st, lat))}
+            onAddCustom={text => applyItem(p.blockKey, setFindings(st, addCustomFinding(st.findings, text)))}
+            onRemoveCustom={i => applyItem(p.blockKey, setFindings(st, removeCustomFinding(st.findings, i)))}
           />
         );
       },

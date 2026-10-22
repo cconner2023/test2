@@ -824,7 +824,7 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
         if (initResult) {
           // role === null means registration was unconfirmed (e.g. flaky connection).
           // Don't overwrite a known deviceRole or flip cleanup-isPrimary — doing so
-          // is what false-fired the No-Primary-Device modal on bad cell service.
+          // is what false-fired the provisional install modal on bad cell service.
           if (initResult.role) {
             set({ deviceRole: initResult.role, signalReady: true })
             updateCleanupIsPrimary(initResult.role === 'primary')

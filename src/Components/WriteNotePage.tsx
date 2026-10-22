@@ -356,8 +356,10 @@ export const WriteNotePage = ({
         const close = () => onExpansionChange(false);
         const opts: ActionSheetOption[] = [];
         if (encodedValue) {
+            // Failed save keeps the page open (store already showed why) so the note isn't lost.
             opts.push({ key: 'save', label: saveLabel, icon: Save, onAction: async () => {
-                if (await handleSave()) emitCopied('Saved to My Notes');
+                if (!await handleSave()) return;
+                emitCopied('Saved to My Notes');
                 close();
             } });
         }
@@ -370,7 +372,8 @@ export const WriteNotePage = ({
             if (encodedValue) {
                 opts.push({ key: 'save-log', label: `${isUpdate ? 'Update' : 'Save'} & log training`, icon: Check, onAction: async () => {
                 void handleLog();
-                emitCopied(await handleSave() ? 'Saved & logged' : 'Training logged');
+                if (!await handleSave()) return;
+                emitCopied('Saved & logged');
                 close();
             } });
             }

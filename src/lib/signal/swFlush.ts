@@ -105,7 +105,9 @@ interface QueueEntry {
   senderDeviceId: string | null
   recipientDeviceId: string | null
   groupId: string | null
+  originId?: string | null // absent on entries queued before the field existed
   messageType: string
+  silent?: boolean
   payload: string // encrypted
   createdAt: string
   status: string
@@ -180,13 +182,27 @@ export async function flushOutboundQueue(): Promise<number> {
             p_message_type: entry.messageType,
             p_payload: payload,
             p_group_id: entry.groupId ?? null,
-            p_origin_id: null, // originId not stored in queue entry yet
+            p_origin_id: entry.originId ?? null,
           }),
         })
 
         if (response.ok || response.status === 201) {
           await idbDelete(queueDb, 'queue', entry.id)
           sent++
+          // Same rule as SupabaseTransport.fireNotif — without it a message the
+          // SW delivered sits unseen until the recipient happens to open the app.
+          const notifiable = entry.messageType === 'message' || entry.messageType === 'initial' || entry.messageType === 'request'
+          if (notifiable && !entry.silent && entry.senderId !== entry.recipientId) {
+            fetch(`${auth.url}/functions/v1/send-push-notification`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'apikey': auth.anonKey,
+                'Authorization': `Bearer ${auth.accessToken}`,
+              },
+              body: JSON.stringify({ user_id: entry.recipientId, title: 'ADTMC', body: 'New Message', type: 'signal_message' }),
+            }).catch(() => { /* best-effort */ })
+          }
         } else {
           // Server rejection — increment retry
           const updated = { ...entry, status: 'failed', retryCount: entry.retryCount + 1 }

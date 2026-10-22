@@ -23,6 +23,8 @@ export interface PEBlock {
     key: string;
     label: string;
     findings: PEFinding[];
+    /** Block takes a per-block L / R / BILAT selector. */
+    lateral?: true;
 }
 
 export interface VitalSignDef {
@@ -39,6 +41,9 @@ export interface MasterPEFinding {
     normal: string;
     abnormals: AbnormalOption[];
     tier: 'baseline' | 'expanded';
+    /** Removed from the exam UI but kept in place: peCodec is index-based, so the
+     *  slot must survive for old barcodes to decode. Never delete — retire. */
+    retired?: true;
 }
 
 export interface MasterPEBlock {
@@ -47,6 +52,8 @@ export interface MasterPEBlock {
     findings: MasterPEFinding[];
     /** If set, this block is a child of another block (e.g. msk_back is child of msk) */
     parent?: string;
+    /** Block takes a per-block L / R / BILAT selector. */
+    lateral?: true;
 }
 
 export const VITAL_SIGNS: VitalSignDef[] = [
@@ -63,6 +70,13 @@ export const VITAL_SIGNS: VitalSignDef[] = [
 
 export function isBackPainCode(code: string): boolean {
     return code === 'B-1';
+}
+
+/** Exam-line label with the block's laterality tag, e.g. "EYES (L)". */
+export function lateralLabel(label: string, laterality?: Laterality): string {
+    if (!laterality) return label;
+    const tag = laterality === 'bilateral' ? 'BILAT' : laterality === 'left' ? 'L' : 'R';
+    return `${label} (${tag})`;
 }
 
 /** True when an abnormal label asks the examiner to "(specify…)" a detail. */
@@ -101,7 +115,8 @@ function jointExamFindings(prefix: string): MasterPEFinding[] {
 // MASTER BLOCKS — consolidated PE with tiered findings
 // ══════════════════════════════════════════════════════════════
 
-export const MASTER_BLOCKS: MasterPEBlock[] = [
+/** Codec-positional source of truth — includes retired findings. Only peCodec reads this. */
+export const MASTER_BLOCKS_CODEC: MasterPEBlock[] = [
     {
         key: 'gen',
         label: 'General',
@@ -110,7 +125,7 @@ export const MASTER_BLOCKS: MasterPEBlock[] = [
         { key: 'wnwd', normal: 'WNWD', abnormals: [
                 { key: 'thinAppearing', label: 'Thin appearing' },
                 { key: 'excessiveAbdominalAdiposity', label: 'Excessive abdominal adiposity' },
-            ], tier: 'baseline' },
+            ], tier: 'baseline', retired: true },
         { key: 'noAcuteDistress', normal: 'No acute distress', abnormals: [
                 { key: 'acuteDistress', label: 'Acute distress' },
                 { key: 'mildDistress', label: 'Mild distress' },
@@ -132,6 +147,7 @@ export const MASTER_BLOCKS: MasterPEBlock[] = [
     {
         key: 'eyes',
         label: 'Eyes',
+        lateral: true,
         findings: [
         { key: 'perrl', normal: 'PERRL', abnormals: [
                 { key: 'anisocoria', label: 'Anisocoria' },
@@ -151,7 +167,7 @@ export const MASTER_BLOCKS: MasterPEBlock[] = [
                 { key: 'decreasedAcuityL', label: 'Decreased acuity (L)' },
                 { key: 'decreasedAcuityR', label: 'Decreased acuity (R)' },
                 { key: 'decreasedAcuityBl', label: 'Decreased acuity (BL)' },
-            ], tier: 'expanded' },
+            ], tier: 'expanded', retired: true },
         { key: 'conjunctivaeClear', normal: 'Conjunctivae clear', abnormals: [
                 { key: 'conjunctivalInjection', label: 'Conjunctival injection' },
                 { key: 'chemosis', label: 'Chemosis' },
@@ -680,6 +696,16 @@ export const MASTER_BLOCKS: MasterPEBlock[] = [
     },
 
 ];
+
+export const MASTER_BLOCK_CODEC_LIBRARY: Record<string, MasterPEBlock> = Object.fromEntries(
+    MASTER_BLOCKS_CODEC.map(b => [b.key, b])
+);
+
+/** UI-facing blocks — retired findings stripped. */
+export const MASTER_BLOCKS: MasterPEBlock[] = MASTER_BLOCKS_CODEC.map(b => ({
+    ...b,
+    findings: b.findings.filter(f => !f.retired),
+}));
 
 export const MASTER_BLOCK_LIBRARY: Record<string, MasterPEBlock> = Object.fromEntries(
     MASTER_BLOCKS.map(b => [b.key, b])

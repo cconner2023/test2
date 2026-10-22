@@ -477,10 +477,11 @@ export const Plan = ({ orderTags, instructionTags, orderSets = [], initialText, 
         // pipe form so qty and sig land on the tag; plain text passes through.
         const value = addTarget === 'meds' ? parseMedNoteEntry(raw) : raw;
         // Resolve target: explicit selection → first category with a matching tag → first with tags
-        const key = (addTarget as PlanBlockKey)
+        // → Instructions (no templated items anywhere, so there's no category to infer from)
+        const key: PlanBlockKey = (addTarget as PlanBlockKey)
             ?? ALL_BLOCK_KEYS.find(k => allTags[k].includes(value))
-            ?? ALL_BLOCK_KEYS.find(k => allTags[k].length > 0);
-        if (!key) return;
+            ?? ALL_BLOCK_KEYS.find(k => allTags[k].length > 0)
+            ?? 'instructions';
         if (allTags[key].includes(value)) {
             toggleTag(key, value);
         } else {
