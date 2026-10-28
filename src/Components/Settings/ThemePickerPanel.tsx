@@ -44,6 +44,13 @@ const THEME_DEFS: {
             dark: { bg: '#0c100a', surface: '#141a10', accent: '#a4944c', text: '#dcd4bc' },
             light: { bg: '#f1ead3', surface: '#e7dec4', accent: '#605824', text: '#1c180c' },
         },
+        {
+            name: 'violet',
+            label: 'Violet',
+            tagline: 'Twilight Operations',
+            dark: { bg: '#100c18', surface: '#191424', accent: '#8e64d6', text: '#e4dcf2' },
+            light: { bg: '#faf7fd', surface: '#f0ebf8', accent: '#643ca0', text: '#181024' },
+        },
 ];
 
 export function ThemePickerPanel() {

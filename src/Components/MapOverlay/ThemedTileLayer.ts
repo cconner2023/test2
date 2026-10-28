@@ -29,6 +29,9 @@ const TILE_THEMES: Record<`${ThemeName}-${ThemeMode}`, TileTheme> = {
 
   'topo-light':       { background: [241, 234, 211], foreground: [28,  24,  12 ], accent: [96,  88,  36 ] },
   'topo-dark':        { background: [12,  16,  10 ], foreground: [220, 212, 188], accent: [164, 148, 76 ] },
+
+  'violet-light':     { background: [250, 247, 253], foreground: [24,  16,  36 ], accent: [100, 60,  160] },
+  'violet-dark':      { background: [16,  12,  24 ], foreground: [228, 220, 242], accent: [142, 100, 214] },
 };
 
 export function getTileTheme(name: ThemeName, mode: ThemeMode): TileTheme {

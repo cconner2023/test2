@@ -238,6 +238,50 @@
   --color-zone-accent: rgba(96, 88, 36, 1);
   --color-glass-tint: rgba(241, 234, 211, 0.96);
 }
+[data-theme="violet-dark"] {
+  /* Canvas is deep violet-black. Amethyst accent, rose secondary in the purple slot. */
+  --color-themeredred: rgb(196, 70, 80, 1);
+  --color-themered: rgba(172, 100, 108, 1);
+  --color-themeyellow: rgba(236, 196, 60, 1);
+  --color-themeyellowlow: rgba(236, 196, 60, 0.7);
+  --color-themegreen: rgba(96, 160, 110, 1);
+  --color-themewhite: rgba(16, 12, 24, 1);       /* violet-black canvas */
+  --color-themewhite2: rgba(25, 20, 36, 1);      /* in-content surface */
+  --color-themewhite3: rgba(32, 26, 46, 1);      /* raised surface — above w2 */
+  --color-themegray1: rgba(50, 42, 68, 1);       /* separator */
+  --color-themegray2: rgba(70, 60, 94, 1);       /* raised separator */
+  --color-themeblue1: rgba(196, 172, 240, 1);    /* lavender highlight */
+  --color-themeblue2: rgba(142, 100, 214, 1);    /* amethyst — primary accent */
+  --color-themeblue3: rgba(84, 52, 140, 1);      /* deep violet anchor */
+  --color-themepurple: rgba(204, 112, 160, 1);   /* rose — distinct from accent */
+  --color-primary: rgba(228, 220, 242, 1);       /* lavender-white text */
+  --color-secondary: rgba(180, 170, 200, 1);
+  --color-tertiary: rgba(146, 136, 168, 1);
+  --color-zone-accent: rgba(142, 100, 214, 1);
+  --color-glass-tint: rgba(20, 15, 30, 0.98);
+}
+[data-theme="violet-light"] {
+  /* Canvas is pale lilac paper. Deep violet accent. */
+  --color-themeredred: rgb(176, 56, 64, 1);
+  --color-themered: rgba(160, 96, 100, 1);
+  --color-themeyellow: rgba(200, 160, 30, 1);
+  --color-themeyellowlow: rgba(200, 160, 30, 0.7);
+  --color-themegreen: rgba(72, 136, 84, 1);
+  --color-themewhite: rgba(250, 247, 253, 1);    /* lilac paper */
+  --color-themewhite2: rgba(240, 235, 248, 1);   /* lilac surface */
+  --color-themewhite3: rgba(250, 247, 253, 1);
+  --color-themegray1: rgba(214, 204, 230, 1);    /* lilac border */
+  --color-themegray2: rgba(186, 174, 206, 1);    /* lilac mid */
+  --color-themeblue1: rgba(140, 110, 192, 1);    /* lavender in daylight */
+  --color-themeblue2: rgba(100, 60, 160, 1);     /* deep violet — primary */
+  --color-themeblue3: rgba(60, 30, 106, 1);      /* violet anchor */
+  --color-themepurple: rgba(162, 60, 112, 1);    /* rose */
+  --color-primary: rgba(24, 16, 36, 1);          /* violet-black text */
+  --color-secondary: rgba(62, 50, 82, 1);
+  --color-tertiary: rgba(98, 86, 118, 1);        /* ~5:1 vs lilac surface */
+  --color-zone-accent: rgba(100, 60, 160, 1);
+  --color-glass-tint: rgba(250, 247, 253, 0.96);
+}
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme]) {
     --color-themeredred: rgb(170, 65, 65, 1);
@@ -272,7 +316,7 @@
    Current values clear themewhite2 by ~1.07:1 and the SCRIMMED canvas (canvas
    composited with black/45) by 1.22–1.31:1:
      default-dark    30,40,50   ironclad-dark 42,42,42   void-dark  28,33,45
-     slipstream-dark 33,41,48   topo-dark     26,34,21
+     slipstream-dark 33,41,48   topo-dark     26,34,21   violet-dark 32,26,46
    That band is deliberately about half the lift tried on 2026-07-24, which went
    to ~1.36:1 and washed the dark themes out — a soft surface edge was mostly the
    scrim compositing wrong (see Scrim.tsx), not a token-contrast shortfall. Check

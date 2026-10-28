@@ -37,6 +37,9 @@ const GRID_THEMES: Record<`${ThemeName}-${ThemeMode}`, GridTheme> = {
 
   'topo-light':       { lineColor: 'rgba(96,88,36,0.80)',      lineColorMajor: 'rgba(96,88,36,1.00)',      labelColor: '#605824', labelBg: 'rgba(241,234,211,0.9)' },
   'topo-dark':        { lineColor: 'rgba(164,148,76,0.75)',    lineColorMajor: 'rgba(164,148,76,0.95)',    labelColor: '#A4944C', labelBg: 'rgba(12,16,10,0.9)' },
+
+  'violet-light':     { lineColor: 'rgba(100,60,160,0.78)',    lineColorMajor: 'rgba(100,60,160,1.00)',    labelColor: '#643CA0', labelBg: 'rgba(250,247,253,0.9)' },
+  'violet-dark':      { lineColor: 'rgba(170,136,230,0.75)',   lineColorMajor: 'rgba(170,136,230,0.95)',   labelColor: '#AA88E6', labelBg: 'rgba(16,12,24,0.9)' },
 }
 
 export function getGridTheme(name: ThemeName, mode: ThemeMode): GridTheme {
