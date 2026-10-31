@@ -1,4 +1,4 @@
-import { LayoutDashboard, ListTodo, Map, CalendarDays, Package, MessageSquare, Thermometer } from 'lucide-react'
+import { LayoutDashboard, ListTodo, Map, CalendarDays, Package, MessageSquare, Thermometer, FileText } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useUserProfile } from '../../Hooks/useUserProfile'
 import { useFeatureGate } from '../../lib/featureGate'
@@ -16,9 +16,10 @@ const WIDGET_ICONS: Record<OverviewWidgetId, LucideIcon> = {
     'property':    Package,
     'messages':    MessageSquare,
     'weather':     Thermometer,
+    'saved-notes': FileText,
 }
 
-const WIDGET_ORDER: OverviewWidgetId[] = ['task-list', 'map-overlay', 'week-view', 'property', 'messages', 'weather']
+const WIDGET_ORDER: OverviewWidgetId[] = ['task-list', 'map-overlay', 'week-view', 'property', 'messages', 'weather', 'saved-notes']
 
 const DEFAULT_WIDGETS: OverviewWidgetId[] = ['task-list', 'messages']
 

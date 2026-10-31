@@ -1,6 +1,6 @@
 import { useCallback, useState, useEffect, useRef, useMemo } from 'react'
 import type { ReactNode } from 'react'
-import { ChevronLeft, ChevronRight, Pencil, Pin, Plus, Trash2, Users, MessageSquare, Map as MapIcon, Package } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Pencil, Pin, Plus, Trash2, Users, MessageSquare, Map as MapIcon, Package, FileText } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useAuth } from '../../Hooks/useAuth'
 import { useNavigationStore } from '../../stores/useNavigationStore'
@@ -23,12 +23,15 @@ import { getDisplayName } from '../../Utilities/nameUtils'
 import { lastActivityMessage, activityPreview } from '../../Utilities/conversationActivity'
 import { UserAvatar } from '../Settings/UserAvatar'
 import { useProfileAvatar } from '../../Hooks/useProfileAvatar'
+import type { SavedNote } from '../../lib/savedNotesDb'
 import type { ClinicMedic } from '../../Types/SupervisorTestTypes'
 import { displayGroupName, type GroupInfo } from '../../lib/signal/groupTypes'
 import { MissionMapCard } from './MissionMapCard'
 import { WeatherWidget } from './WeatherWidget'
 import { PropertyWidget } from './PropertyWidget'
 import { useFeatureGate } from '../../lib/featureGate'
+import { useSavedNotesStore } from '../../stores/useSavedNotesStore'
+import { useOpenSavedNote } from '../../Hooks/useOpenSavedNote'
 import {
   TaskRow, statusMenuItems,
   offsetDate,
@@ -45,6 +48,7 @@ import { SectionCard } from '@/Components/primitives/Section'
 
 const TASK_PREVIEW_LIMIT = 4
 const WEEK_PREVIEW_LIMIT = 3
+const NOTES_PREVIEW_LIMIT = 3
 
 const EVENT_CLONE_W = 300
 const EVENT_CLONE_H = 60
@@ -292,6 +296,85 @@ function MessagesWidget({ action }: { action: WidgetActionDescriptor | null }) {
   )
 }
 
+// ── My Notes widget ──────────────────────────────────────────────────────────
+
+function SavedNoteRowContent({ note }: { note: SavedNote }) {
+  const meta = [
+    note.kind === 'provider' ? 'Provider' : note.dispositionType,
+    new Date(note.savedAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }),
+  ].filter(Boolean).join(' · ')
+  return (
+    <div className="flex items-center gap-4 px-3 py-3 active:bg-themeblue2/5">
+      <div className="w-8 h-8 rounded-full bg-themeblue2/10 flex items-center justify-center shrink-0">
+        {note.symptomIcon
+          ? <span className="text-[11pt] leading-none">{note.symptomIcon}</span>
+          : <FileText size={15} className="text-themeblue2" />}
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-[10pt] font-medium text-primary truncate">{note.symptomText}</p>
+        <p className="text-[9pt] text-secondary truncate">{meta}</p>
+      </div>
+    </div>
+  )
+}
+
+/** Device-local My Notes — same entries as the side nav list, newest first. */
+function SavedNotesWidget() {
+  const authUserId = useAuthStore(s => s.user?.id ?? null)
+  const notes = useSavedNotesStore(s => s.notes)
+  const loadNotes = useSavedNotesStore(s => s.load)
+  const removeNote = useSavedNotesStore(s => s.remove)
+  const openSavedNote = useOpenSavedNote()
+  const toggleMenu = useNavigationStore(s => s.toggleMenu)
+  const [liftedMenu, setLiftedMenu] = useState<{ rect: DOMRect; note: SavedNote } | null>(null)
+  const closeMenu = useCallback(() => setLiftedMenu(null), [])
+
+  useEffect(() => { loadNotes(authUserId) }, [authUserId, loadNotes])
+
+  if (notes.length === 0) {
+    return <EmptyState title="No saved notes" bordered={false} />
+  }
+
+  const displayed = notes.slice(0, NOTES_PREVIEW_LIMIT)
+  const extra = notes.length - displayed.length
+
+  return (
+    <div className="divide-y divide-themeblue3/8">
+      {displayed.map(note => (
+        <ConvRow
+          key={note.id}
+          onTap={() => { void openSavedNote(note) }}
+          onOpenMenu={(rect) => setLiftedMenu({ rect, note })}
+        >
+          <SavedNoteRowContent note={note} />
+        </ConvRow>
+      ))}
+      {extra > 0 && (
+        <button
+          onClick={toggleMenu}
+          className="w-full text-[9pt] font-medium text-secondary text-left px-3 py-1.5 active:text-themeblue1"
+        >
+          +{extra} more
+        </button>
+      )}
+      <LiftedRowMenu
+        isOpen={!!liftedMenu}
+        anchorRect={liftedMenu?.rect ?? null}
+        row={liftedMenu ? <SavedNoteRowContent note={liftedMenu.note} /> : null}
+        items={liftedMenu ? [{
+          key: 'delete',
+          label: 'Delete',
+          icon: Trash2,
+          destructive: true,
+          onAction: () => removeNote(liftedMenu.note.id),
+        }] : []}
+        onClose={closeMenu}
+        layout="list"
+      />
+    </div>
+  )
+}
+
 function getWeekDays(date: Date): Date[] {
   const d = new Date(date)
   const day = d.getDay()
@@ -450,7 +533,7 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
   if (overviewWidgets === null) return null
 
   const DEFAULT_WIDGETS: OverviewWidgetId[] = ['task-list', 'messages']
-  const VALID_IDS: OverviewWidgetId[] = ['task-list', 'map-overlay', 'week-view', 'property', 'messages', 'weather']
+  const VALID_IDS: OverviewWidgetId[] = ['task-list', 'map-overlay', 'week-view', 'property', 'messages', 'weather', 'saved-notes']
   const widgets: OverviewWidgetId[] = Array.from(new Set(
     (overviewWidgets ?? DEFAULT_WIDGETS)
       .map(id => (id as string) === 'gantt' || (id as string) === 'kanban' ? 'week-view' : id)
@@ -656,6 +739,9 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
             {renderActionOverlay(id)}
           </div>
         )
+
+      case 'saved-notes':
+        return <SavedNotesWidget key="saved-notes" />
 
       default:
         return null

@@ -120,6 +120,16 @@ export const features = {
     drawer: { id: 'showTC3Drawer', wrapper: 'TC3Drawer.tsx' }, // desktop master-detail (rail + DD1380) / mobile wizard
   },
 
+  trackingBoard: {
+    label: 'Tracking Board (patient flow, BRN × station)',
+    store: null, // skeleton — mock data only; will ride calendar events (tracking_data)
+    services: [],
+    tables: [],
+    idb: [],
+    components: 'Components/TrackingBoard/',
+    drawer: { id: 'showTrackingBoardDrawer', wrapper: 'TrackingBoardDrawer.tsx' },
+  },
+
   messaging: {
     label: 'E2EE Messaging (Signal Protocol)',
     store: 'useMessagingStore',

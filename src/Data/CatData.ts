@@ -51,7 +51,6 @@ export const menuData: sideMenuDataType[] = [
         group: 'modules',
         access: 'authenticated',
     },
-    // Modules — beta
     {
         text: "Property Book",
         icon: 'property',
@@ -63,6 +62,14 @@ export const menuData: sideMenuDataType[] = [
         text: "Map Overlay",
         icon: 'mapOverlay',
         action: 'mapOverlay',
+        group: 'modules',
+        access: 'authenticated',
+    },
+    // Modules — beta (dev-role only)
+    {
+        text: "Tracking Board",
+        icon: 'trackingBoard',
+        action: 'trackingBoard',
         group: 'modules',
         access: 'authenticated',
         stage: 'beta',

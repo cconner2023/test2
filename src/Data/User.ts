@@ -203,7 +203,7 @@ export interface UserTypes {
     avatarBlob?: AvatarBlob | null
 }
 
-export type OverviewWidgetId = 'task-list' | 'map-overlay' | 'week-view' | 'property' | 'messages' | 'weather'
+export type OverviewWidgetId = 'task-list' | 'map-overlay' | 'week-view' | 'property' | 'messages' | 'weather' | 'saved-notes'
 
 export const OVERVIEW_WIDGET_META: Record<OverviewWidgetId, { label: string; subtitle: string; disabled?: boolean }> = {
   'task-list':   { label: 'Task List',    subtitle: 'Your assigned tasks for the day' },
@@ -212,6 +212,7 @@ export const OVERVIEW_WIDGET_META: Record<OverviewWidgetId, { label: string; sub
   'property':    { label: 'Property',     subtitle: 'Shortages & expiring dispatches' },
   'messages':    { label: 'Messages',     subtitle: 'Recent encrypted messages' },
   'weather':     { label: 'Weather',      subtitle: 'Current temp, humidity & heat category' },
+  'saved-notes': { label: 'My Notes',     subtitle: 'Notes saved on this device' },
 }
 
 // NOTE: order matters — noteParser.ts encodes credential by array index.

@@ -407,8 +407,15 @@ function encodeAlgorithmCompact(
             continue;
         }
 
-        // Initial with no questionOptions: skip (answer derived from RF presence)
+        // Initial with no questionOptions: answer is derived from RF presence — only encode
+        // it when it differs (e.g. algorithms with no RF card answered "Yes").
         if (card.type === 'initial' && card.questionOptions.length === 0) {
+            if (state.answer) {
+                const answerIdx = card.answerOptions.findIndex(a => a.text === state.answer?.text);
+                const hasRf = algorithmOptions.some((c, j) => c.type === 'rf' && (cardStates[j]?.selectedOptions.length ?? 0) > 0);
+                const derivedIdx = hasRf ? 0 : (card.answerOptions.length > 1 ? 1 : -1);
+                if (answerIdx >= 0 && answerIdx !== derivedIdx) groups.push(idx + answerIdx.toString());
+            }
             continue;
         }
 
@@ -462,8 +469,8 @@ function decodeAlgorithmCompact(
     const screenerEntries: ScreenerEntry[] = [];
     const actionEntries: { index: number; status: 'performed' | 'deferred' }[] = [];
 
-    if (!compact) return { rfSelections, cardEntries, screenerEntries, actionEntries };
-
+    // An empty compact is still a valid flow (e.g. no red flags + "No" to every card
+    // encodes zero groups) — replay it rather than returning early.
     // Parse groups into a lookup: cardIndex → rest-of-group
     const groupMap = new Map<number, string>();
     for (const group of compact.split('-')) {

@@ -60,6 +60,7 @@ const DRAWER_CLOSERS: [keyof NavigationStore, (n: NavigationStore) => void][] = 
     ['showMessagesDrawer', (n) => { n.setShowMessagesDrawer(false); n.clearMessagesConversation() }],
     ['showPropertyDrawer', (n) => n.setShowPropertyDrawer(false)],
     ['showTC3Drawer', (n) => n.setShowTC3Drawer(false)],
+    ['showTrackingBoardDrawer', (n) => n.setShowTrackingBoardDrawer(false)],
     ['showMapOverlayDrawer', (n) => n.setShowMapOverlayDrawer(false)],
     ['showCalendarDrawer', (n) => n.setShowCalendarDrawer(false)],
     ['showAdminDrawer', (n) => n.setShowAdminDrawer(false)],

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
-import { Upload, BookOpen, Package, ClipboardCheck, Settings, HelpCircle, UserCog, Radio, Map as MapIcon, Eye, CalendarDays, Stethoscope, MessageSquare, Pin, ChevronUp, ChevronDown, EyeOff, Crosshair, Trash2 } from 'lucide-react'
+import { Upload, BookOpen, Package, ClipboardCheck, Settings, HelpCircle, UserCog, Radio, Map as MapIcon, Eye, CalendarDays, Stethoscope, MessageSquare, Pin, ChevronUp, ChevronDown, EyeOff, Crosshair, Trash2, ClipboardList } from 'lucide-react'
 import { useAuth } from '../Hooks/useAuth'
 import { useAuthStore } from '../stores/useAuthStore'
 import { useAvatar } from '../Utilities/AvatarContext'
@@ -27,6 +27,7 @@ const iconMapMobile: Record<string, React.ReactNode> = {
   'mapOverlay': <MapIcon size={20} className="text-primary" />,
   'calendar': <CalendarDays size={20} className="text-primary" />,
   'tc3': <Crosshair size={20} className="text-primary" />,
+  'trackingBoard': <ClipboardList size={20} className="text-primary" />,
 }
 
 const iconMapDesktop: Record<string, React.ReactNode> = {
@@ -42,6 +43,7 @@ const iconMapDesktop: Record<string, React.ReactNode> = {
   'mapOverlay': <MapIcon size={16} className="text-primary" />,
   'calendar': <CalendarDays size={16} className="text-primary" />,
   'tc3': <Crosshair size={16} className="text-primary" />,
+  'trackingBoard': <ClipboardList size={16} className="text-primary" />,
 }
 
 const BETA_ACTIONS = new Set(['lora'])

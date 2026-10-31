@@ -21,6 +21,7 @@ import UpdateNotification from './Components/UpdateNotification'
 import PasswordResetOverlay from './Components/PasswordResetOverlay'
 import { ColumnA } from './Components/ColumnA'
 import { TC3Drawer } from './Components/TC3/TC3Drawer'
+import { TrackingBoardDrawer } from './Components/TrackingBoard/TrackingBoardDrawer'
 import { TC3WriteNote } from './Components/TC3/TC3WriteNote'
 import { useTC3Store, hydrateTC3Store } from './stores/useTC3Store'
 import { hydrateMedevacStore } from './stores/useMedevacStore'
@@ -325,6 +326,9 @@ case 'mapOverlay':
       case 'tc3':
         navigation.setShowTC3Drawer(true)
         break
+      case 'trackingBoard':
+        navigation.setShowTrackingBoardDrawer(true)
+        break
       case 'calendar':
         handleCalendarClick()
         break
@@ -340,7 +344,7 @@ case 'mapOverlay':
         navigation.setShowSettings(true)
         break
     }
-  }, [navigation.isMobile, navigation.toggleImportExpanded, navigation.setShowSettings, navigation.setShowTC3Drawer, handleKnowledgeBaseClick, handleMessagesClick, handlePropertyClick, handleMapOverlayClick, handleCalendarClick, handleSupervisorClick, handleAdminClick])
+  }, [navigation.isMobile, navigation.toggleImportExpanded, navigation.setShowSettings, navigation.setShowTC3Drawer, navigation.setShowTrackingBoardDrawer, handleKnowledgeBaseClick, handleMessagesClick, handlePropertyClick, handleMapOverlayClick, handleCalendarClick, handleSupervisorClick, handleAdminClick])
 
   // Desktop keyboard hotkeys: Ctrl+Alt+<letter> jumps to drawers, Esc backs out one layer.
   useDesktopHotkeys({
@@ -842,6 +846,12 @@ case 'mapOverlay':
         <TC3Drawer
           isVisible={navigation.showTC3Drawer}
           onClose={() => navigation.setShowTC3Drawer(false)}
+        />
+        </ErrorBoundary>
+        <ErrorBoundary>
+        <TrackingBoardDrawer
+          isVisible={navigation.showTrackingBoardDrawer}
+          onClose={() => navigation.setShowTrackingBoardDrawer(false)}
         />
         </ErrorBoundary>
         <ErrorBoundary>

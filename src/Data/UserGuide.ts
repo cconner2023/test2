@@ -462,6 +462,14 @@ export const UserGuide: GuideChapter[] = [
                 ],
             },
             {
+                id: 'my-notes',
+                title: 'My Notes',
+                summary: 'Save notes on this device and reopen them from the side bar or mission overview.',
+                blocks: [
+                    { kind: 'p', text: ['You can always save your notes locally in your workflow by tapping the ', { btn: { icon: 'check', label: 'Done' } }, ' complete button. Tapping again from the edited form will allow you to update the saved notes. You can save a max number of five notes on each device. Please note that this does not save across devices'] },
+                ],
+            },
+            {
                 id: 'app-content',
                 title: 'Customizing your note content',
                 summary: 'Build order sets, autotext, and templates under Settings → App Content.',

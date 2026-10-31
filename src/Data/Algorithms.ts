@@ -487,7 +487,7 @@ export const Algorithm: AlgorithmType[] = [
                             }
                         ],
                         next: null,
-                        selectAll: false
+                        selectAll: true
                     },
                     {
                         text: "No",

@@ -41,8 +41,9 @@ export function useNavItems(): UseNavItemsReturn {
   }), [isAuthenticated, isProviderRole, isSupervisorRole, isDevRole])
 
   const gatedItems = useMemo(
-    () => menuData.filter(item => accessChecks[item.access ?? 'public']),
-    [accessChecks]
+    // Beta items are dev-role only until released (drop `stage` to release).
+    () => menuData.filter(item => accessChecks[item.access ?? 'public'] && (item.stage !== 'beta' || isDevRole)),
+    [accessChecks, isDevRole]
   )
 
   const visibleItems = useMemo(() => {
