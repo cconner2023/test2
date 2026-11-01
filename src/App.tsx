@@ -16,7 +16,7 @@ import { useNavigationStore } from './stores/useNavigationStore'
 import { useSwipeNavigation } from './Hooks/useSwipeNavigation'
 import { useDesktopHotkeys } from './Hooks/useDesktopHotkeys'
 import { useMenuSlide, MENU_NAV_WIDTH_MOBILE, MENU_NAV_WIDTH_DESKTOP } from './Hooks/useMenuSlide'
-import { useMessagesSlide } from './Hooks/useMessagesSlide'
+import { useRightPanelSlide } from './Hooks/useRightPanelSlide'
 import UpdateNotification from './Components/UpdateNotification'
 import PasswordResetOverlay from './Components/PasswordResetOverlay'
 import { ColumnA } from './Components/ColumnA'
@@ -180,12 +180,32 @@ function AppContent() {
     navigation.setShowMessagesDrawer(true)
   }, [navigation.setShowMessagesDrawer])
 
-  const messagesSlide = useMessagesSlide({
+  const messagesSlide = useRightPanelSlide({
     enabled: navigation.isMobile,
     isOpen: navigation.showMessagesDrawer,
     onOpen: handleMessagesOpen,
     onClose: handleMessagesClose,
   })
+
+  // ── Tracking Board slide (mobile only — identical to Messages, minus right-edge drag-to-open) ──
+  const handleTrackingBoardClose = useCallback(() => {
+    navigation.setShowTrackingBoardDrawer(false)
+  }, [navigation.setShowTrackingBoardDrawer])
+
+  const handleTrackingBoardOpen = useCallback(() => {
+    navigation.setShowTrackingBoardDrawer(true)
+  }, [navigation.setShowTrackingBoardDrawer])
+
+  const trackingSlide = useRightPanelSlide({
+    enabled: navigation.isMobile,
+    isOpen: navigation.showTrackingBoardDrawer,
+    onOpen: handleTrackingBoardOpen,
+    onClose: handleTrackingBoardClose,
+  })
+
+  // Content strip parallax follows whichever right panel is in play.
+  const rightPanelProgress = Math.max(messagesSlide.progress, trackingSlide.progress)
+  const rightPanelDragging = messagesSlide.isDragging || trackingSlide.isDragging
   const [postUpdatePending, setPostUpdatePending] = useState(!!_postUpdateNav)
   // Store-held so a chat "Decode note" can open the same drawer from deep inside Messages.
   const importPreview = useNavigationStore(s => s.importPreview)
@@ -564,10 +584,10 @@ case 'mapOverlay':
           style={{
             width: `calc(100% + ${menuNavWidth}px)`,
             transform: navigation.isMobile
-              ? `translateX(${menuSlide.position - menuNavWidth - messagesSlide.progress * 80}px)`
+              ? `translateX(${menuSlide.position - menuNavWidth - rightPanelProgress * 80}px)`
               : `translateX(${menuSlide.position - menuNavWidth}px)`,
-            transition: (menuSlide.isDragging || messagesSlide.isDragging) ? 'none' : `transform ${DRAWER_TIMING.TRANSITION}ms cubic-bezier(0.32, 0.72, 0, 1)`,
-            willChange: (menuSlide.isDragging || messagesSlide.isDragging) ? 'transform' : 'auto',
+            transition: (menuSlide.isDragging || rightPanelDragging) ? 'none' : `transform ${DRAWER_TIMING.TRANSITION}ms cubic-bezier(0.32, 0.72, 0, 1)`,
+            willChange: (menuSlide.isDragging || rightPanelDragging) ? 'transform' : 'auto',
           }}
         >
           {/* SideNav — same level, left of content */}
@@ -740,6 +760,26 @@ case 'mapOverlay':
               />
             </div>
           )}
+
+          {/* Tracking Board backdrop — same as the Messages backdrop */}
+          {navigation.isMobile && (
+            <div
+              className="absolute inset-0 z-40"
+              style={{
+                pointerEvents: (navigation.showTrackingBoardDrawer || trackingSlide.progress > 0) ? 'auto' : 'none',
+                touchAction: (navigation.showTrackingBoardDrawer || trackingSlide.progress > 0) ? 'none' : 'auto',
+              }}
+              {...trackingSlide.closeHandlers}
+            >
+              <Scrim
+                progress={trackingSlide.backdropProgress}
+                position="absolute"
+                scope="container"
+                interactive={false}
+                transition={trackingSlide.backdropTransition}
+              />
+            </div>
+          )}
           </animated.div>
         </div>
 
@@ -763,6 +803,26 @@ case 'mapOverlay':
               initialGroupId={navigation.messagesInitialGroupId}
               initialPeerName={navigation.messagesInitialPeerName}
               initialMessageId={navigation.messagesInitialMessageId}
+            />
+            </ErrorBoundary>
+          </div>
+        )}
+
+        {/* Tracking Board panel — slides over content from right (mobile only, always mounted) */}
+        {navigation.isMobile && (
+          <div
+            className="absolute inset-0 z-50 overflow-hidden touch-pan-y"
+            style={{
+              transform: `translateX(${(1 - trackingSlide.progress) * 100}%)`,
+              transition: trackingSlide.transition,
+              willChange: trackingSlide.isDragging ? 'transform' : 'auto',
+              pointerEvents: (navigation.showTrackingBoardDrawer || trackingSlide.progress > 0) ? 'auto' : 'none',
+            }}
+          >
+            <ErrorBoundary>
+            <TrackingBoardDrawer
+              isVisible={navigation.showTrackingBoardDrawer}
+              onClose={handleTrackingBoardClose}
             />
             </ErrorBoundary>
           </div>
@@ -848,12 +908,15 @@ case 'mapOverlay':
           onClose={() => navigation.setShowTC3Drawer(false)}
         />
         </ErrorBoundary>
+        {/* Desktop only — mobile mounts it in the right-slide panel above */}
+        {!navigation.isMobile && (
         <ErrorBoundary>
         <TrackingBoardDrawer
           isVisible={navigation.showTrackingBoardDrawer}
-          onClose={() => navigation.setShowTrackingBoardDrawer(false)}
+          onClose={handleTrackingBoardClose}
         />
         </ErrorBoundary>
+        )}
         <ErrorBoundary>
         <MapOverlayDrawer
           isVisible={navigation.showMapOverlayDrawer}

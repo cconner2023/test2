@@ -489,14 +489,14 @@ export function ChatDetailView({
     }
 
     return (
-      // Mobile: overlay the composer on top of the conversation so the iOS
-      // keyboard floats the input up without resizing the message list.
-      // Desktop: normal flex child below the scroll area.
-      <div className="absolute inset-x-0 bottom-0 z-10 pb-[max(0rem,var(--sab,0px))] md:static md:inset-auto md:bottom-auto md:shrink-0 md:pb-0">
-        {/* Mobile-only frosted footer band on its own layer so it feathers into
-            nothing at the top edge (no hard CSS line) without masking the
-            composer content above it. Desktop renders a plain flex child. */}
-        <GlassBand edge="bottom" className="inset-0 md:hidden" />
+      // Overlay the composer on top of the conversation (both breakpoints) so
+      // messages scroll under the glass footer; on iOS this also lets the
+      // keyboard float the input up without resizing the message list.
+      <div className="absolute inset-x-0 bottom-0 z-10 pb-[max(0rem,var(--sab,0px))]">
+        {/* Frosted footer band on its own layer so it feathers into nothing at
+            the top edge (no hard CSS line) without masking the composer
+            content above it. */}
+        <GlassBand edge="bottom" className="inset-0" />
         {showUnavailableBanner && <UnavailableBanner participants={participants} />}
 
         {replyingTo && !activeThreadId && (
@@ -718,7 +718,7 @@ export function ChatDetailView({
             )}
           </div>
         )}
-        <div className="px-4 pt-3 pb-28 md:pb-3">
+        <div className="px-4 pt-3 pb-28">
           {listMsgs.length === 0 ? (
             pinnedRoot ? null : (
               <div className="flex items-center justify-center h-full">

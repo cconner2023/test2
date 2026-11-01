@@ -83,19 +83,39 @@ export const BloodPressureInput = ({
   )
 }
 
-/* ── UIC Pin Input (6-digit auto-advance) ── */
+/* ── 6-char pin inputs (UIC, BRN) — shared auto-advance cell row ── */
 
-export function UicPinInput({ value, onChange, spread, label, placeholder = 'UIC' }: { value: string; onChange: (v: string) => void; spread?: boolean; label?: string; placeholder?: string }) {
+/** Per-cell accepted class. Drives both the filter and the iOS keyboard. */
+type PinSlot = 'alnum' | 'alpha' | 'digit'
+
+const SLOT_FILTER: Record<PinSlot, RegExp> = {
+  alnum: /[^0-9A-Z]/g,
+  alpha: /[^A-Z]/g,
+  digit: /[^0-9]/g,
+}
+
+function CodePinInput({ slots, value, onChange, spread, label, placeholder, autoFocus, onComplete }: {
+  slots: PinSlot[]
+  value: string
+  onChange: (v: string) => void
+  spread?: boolean
+  label?: string
+  placeholder: string
+  autoFocus?: boolean
+  /** Fired on Enter once every cell is filled. */
+  onComplete?: () => void
+}) {
+  const n = slots.length
   const refs = useRef<(HTMLInputElement | null)[]>([])
-  const chars = (value + '      ').slice(0, 6).split('')
+  const chars = (value + ' '.repeat(n)).slice(0, n).split('')
 
   const handleChange = (i: number, char: string) => {
-    const c = char.toUpperCase().replace(/[^0-9A-Z]/g, '')
+    const c = char.toUpperCase().replace(SLOT_FILTER[slots[i]], '')
     if (!c) return
     const next = [...chars]
-    next[i] = c
+    next[i] = c.slice(-1)
     onChange(next.join('').replace(/ /g, ''))
-    if (i < 5) refs.current[i + 1]?.focus()
+    if (i < n - 1) refs.current[i + 1]?.focus()
   }
 
   const handleKeyDown = (i: number, e: KeyboardEvent) => {
@@ -112,8 +132,11 @@ export function UicPinInput({ value, onChange, spread, label, placeholder = 'UIC
       }
     } else if (e.key === 'ArrowLeft' && i > 0) {
       refs.current[i - 1]?.focus()
-    } else if (e.key === 'ArrowRight' && i < 5) {
+    } else if (e.key === 'ArrowRight' && i < n - 1) {
       refs.current[i + 1]?.focus()
+    } else if (e.key === 'Enter' && onComplete && value.length === n) {
+      e.preventDefault()
+      onComplete()
     }
   }
 
@@ -132,7 +155,9 @@ export function UicPinInput({ value, onChange, spread, label, placeholder = 'UIC
           key={i}
           ref={el => { refs.current[i] = el }}
           type="text"
-          inputMode="text"
+          inputMode={slots[i] === 'digit' ? 'numeric' : 'text'}
+          autoCapitalize="characters"
+          autoFocus={autoFocus && i === 0}
           maxLength={1}
           value={c === ' ' ? '' : c}
           onChange={(e) => handleChange(i, e.target.value)}
@@ -144,6 +169,27 @@ export function UicPinInput({ value, onChange, spread, label, placeholder = 'UIC
       </div>
     </label>
   )
+}
+
+const UIC_SLOTS: PinSlot[] = ['alnum', 'alnum', 'alnum', 'alnum', 'alnum', 'alnum']
+/** BRN: two letters then four digits (AB1234). */
+const BRN_SLOTS: PinSlot[] = ['alpha', 'alpha', 'digit', 'digit', 'digit', 'digit']
+export const BRN_PATTERN = /^[A-Z]{2}[0-9]{4}$/
+
+export function UicPinInput({ value, onChange, spread, label, placeholder = 'UIC' }: { value: string; onChange: (v: string) => void; spread?: boolean; label?: string; placeholder?: string }) {
+  return <CodePinInput slots={UIC_SLOTS} value={value} onChange={onChange} spread={spread} label={label} placeholder={placeholder} />
+}
+
+export function BrnPinInput({ value, onChange, spread, label, placeholder = 'BRN', autoFocus, onComplete }: {
+  value: string
+  onChange: (v: string) => void
+  spread?: boolean
+  label?: string
+  placeholder?: string
+  autoFocus?: boolean
+  onComplete?: () => void
+}) {
+  return <CodePinInput slots={BRN_SLOTS} value={value} onChange={onChange} spread={spread} label={label} placeholder={placeholder} autoFocus={autoFocus} onComplete={onComplete} />
 }
 
 /* ── Fuel Meter (vehicle fuel-level intake) ── */

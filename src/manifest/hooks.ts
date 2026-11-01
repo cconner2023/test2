@@ -16,7 +16,7 @@ export const hooks = {
   useNavigation:          { path: 'Hooks/useNavigation.ts',          stores: ['useNavigationStore'], services: [], purpose: 'Navigation store wrapper with back/menu helpers' },
   useNavItems:            { path: 'Hooks/useNavItems.ts',            stores: ['useNavPreferencesStore'], services: [], purpose: 'Menu customization (visibility, starring, reorder)' },
   useMenuSlide:           { path: 'Hooks/useMenuSlide.ts',           stores: ['useNavigationStore'], services: [], purpose: 'CSS-transition menu slide with drag/swipe' },
-  useMessagesSlide:       { path: 'Hooks/useMessagesSlide.ts',       stores: ['useNavigationStore'], services: [], purpose: 'Messages panel slide with right-edge drag-to-open' },
+  useRightPanelSlide:     { path: 'Hooks/useRightPanelSlide.ts',     stores: ['useNavigationStore'], services: [], purpose: 'Mobile right-entering panel slide (Messages, Tracking Board); right-edge drag-to-open for Messages' },
   useOverlay:             { path: 'Hooks/useOverlay.ts',             stores: [], services: [], purpose: 'Mount/unmount animation + mobile drag-to-dismiss' },
   useIsMobile:            { path: 'Hooks/useIsMobile.ts',            stores: [], services: [], purpose: 'Media query: viewport ≤ 767px' },
   useOnboardingReady:     { path: 'Hooks/useOnboardingReady.ts',     stores: [], services: [], purpose: 'Aggregate blocking UI signals into readiness boolean' },

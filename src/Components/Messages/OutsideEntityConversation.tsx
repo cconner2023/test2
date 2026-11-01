@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { ChevronLeft, Info } from 'lucide-react'
+import { Info } from 'lucide-react'
 import type { DecryptedSignalMessage } from '../../lib/signal/transportTypes'
 import type { OutsideEntityMessageEntry } from '../../lib/signal/messageContent'
 import type { OutsideEntityChannel } from '../../lib/outsideEntityChannelStore'
@@ -13,6 +13,7 @@ import { ChatDetailView, type ParticipantStatus } from '../ChatDetailView'
 import { ConversationInfoPanel } from '../Settings/ConversationInfoPanel'
 import { UserAvatar } from '../Settings/UserAvatar'
 import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill'
+import { MobilePageHeader } from '@/Components/primitives/MobilePageHeader'
 import { ErrorPill } from '@/Components/primitives/ErrorPill'
 
 interface Props {
@@ -191,20 +192,19 @@ export function OutsideEntityConversation({
     return <UserAvatar avatarId={null} firstName={channel.recipient_email} lastName={null} className="w-7 h-7" />
   }, [channel.recipient_email])
 
+  // Info is unconditional here (a 1:1 dev-gates it) because the info card is
+  // where this channel's kill switch lives — same slot as a group's Purge.
   const mobileHeader = (
-    <div className="md:hidden shrink-0 px-3 py-2 pt-[max(0.5rem,var(--sat,0px))] flex items-center">
-      <div className="rounded-full border border-tertiary/20 bg-themewhite p-0.5 overflow-hidden shrink-0">
-        <button onClick={onBack} className="w-11 h-11 rounded-full flex items-center justify-center active:scale-95 transition-transform">
-          <ChevronLeft className="w-6 h-6 text-tertiary" />
-        </button>
-      </div>
-      <p className="flex-1 text-sm font-medium text-primary truncate mx-3">{clusterName}</p>
-      {/* Info is unconditional here (a 1:1 dev-gates it) because the info card is
-          where this channel's kill switch lives — same slot as a group's Purge. */}
-      <HeaderPill>
-        <PillButton icon={Info} onClick={() => onShowInfo(true)} label="Conversation info" />
-      </HeaderPill>
-    </div>
+    <MobilePageHeader
+      className="md:hidden"
+      onBack={onBack}
+      title={clusterName}
+      actions={
+        <HeaderPill>
+          <PillButton icon={Info} onClick={() => onShowInfo(true)} label="Conversation info" />
+        </HeaderPill>
+      }
+    />
   )
 
   return (

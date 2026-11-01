@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect, useMemo, type ReactNode } from 'react';
 import type { CalendarEvent } from '../../Types/CalendarTypes';
 import { useSpring, animated } from '@react-spring/web';
-import { ChevronLeft, ChevronRight, Settings, MapPin, Route, Pentagon, Trash2, X, Ruler, Undo2, Activity, Pause, Play, Square, Plus, Check, Navigation, Layers, Pencil, Clock, MoreHorizontal, MessageSquare, Share2, Copy, LocateFixed, RadioTower } from 'lucide-react';
+import { ChevronLeft, ChevronRight, MapPin, Route, Pentagon, Trash2, X, Ruler, Undo2, Activity, Pause, Play, Square, Plus, Check, Navigation, Layers, Pencil, Clock, MoreHorizontal, MessageSquare, Share2, Copy, LocateFixed, RadioTower } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { ActionSheet, type ActionSheetOption } from '@/Components/primitives/ActionSheet';
 import { AddFab } from '@/Components/primitives/AddFab';
@@ -19,6 +19,7 @@ import { BaseDrawer } from '@/Components/primitives/BaseDrawer';
 import { Sheet } from '@/Components/primitives/Sheet';
 import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill';
 import { SearchInput } from '@/Components/primitives/SearchInput';
+import { RailSearchRow } from '@/Components/primitives/RailSearchRow';
 import { ContentWrapper } from '@/Components/primitives/ContentWrapper';
 import { SlideRevealPane } from '@/Components/primitives/SlideRevealPane';
 import { PaneHeader } from '@/Components/primitives/PaneHeader';
@@ -2414,27 +2415,20 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
               keepMounted
               className="border-r border-primary/10 bg-themewhite"
             >
-              <div className="shrink-0 flex items-center gap-1.5 px-3 pt-2 pb-1">
-                <div className="flex-1 min-w-0">
+              <RailSearchRow
+                tight
+                search={
                   <SearchInput
                     value={searchQuery}
                     onChange={setSearchQuery}
                     onSubmit={handleSearchSubmit}
                     placeholder="Address, grid, lat/lng…"
                   />
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowPopover(prev => !prev)}
-                  className={`shrink-0 w-9 h-9 rounded-full flex items-center justify-center active:scale-95 transition-all ${
-                    showPopover ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'
-                  }`}
-                  aria-label="Map settings"
-                  title="Map settings"
-                >
-                  <Settings size={17} />
-                </button>
-              </div>
+                }
+                onSettings={() => setShowPopover(prev => !prev)}
+                active={showPopover}
+                settingsLabel="Map settings"
+              />
               {recentSearches.length > 0 && (
                 <div className="shrink-0 border-b border-primary/10 px-3 py-2">
                   <div className="flex items-center justify-between mb-1">

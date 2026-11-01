@@ -8,6 +8,7 @@ import { Sheet } from '@/Components/primitives/Sheet'
 import { CalendarPanel } from './Calendar/CalendarPanel'
 import { MiniCalendar } from './Calendar/MiniCalendar'
 import { SearchInput } from '@/Components/primitives/SearchInput'
+import { RailSearchRow } from '@/Components/primitives/RailSearchRow'
 import { PersonnelRow, PersonnelGroupBand, PersonnelCheck } from '@/Components/primitives/PersonnelRow'
 import { SlideRevealPane } from '@/Components/primitives/SlideRevealPane'
 import { useCalendarStore } from '../stores/useCalendarStore'
@@ -349,27 +350,20 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
                             keepMounted
                             className="border-r border-primary/10"
                         >
-                            <div className="shrink-0 flex items-center gap-1.5 px-3 pt-2 pb-1">
-                                <div className="flex-1 min-w-0">
+                            {/* Settings gear holds clinic config (supervisor only);
+                                per-view layout prefs moved to the island "view options" button. */}
+                            <RailSearchRow
+                                tight
+                                search={
                                     <SearchInput
                                         value={rosterSearchQuery}
                                         onChange={setRosterSearchQuery}
                                         placeholder="Search personnel"
                                     />
-                                </div>
-                                {/* Settings gear holds clinic config (supervisor only);
-                                    per-view layout prefs moved to the island "view options" button. */}
-                                {isSupervisorRole && (
-                                    <button
-                                        onClick={() => setShowSettings(true)}
-                                        className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center transition-colors active:scale-95 text-tertiary hover:text-primary"
-                                        aria-label="Calendar settings"
-                                        title="Calendar settings"
-                                    >
-                                        <SettingsIcon className="w-4 h-4" />
-                                    </button>
-                                )}
-                            </div>
+                                }
+                                onSettings={isSupervisorRole ? () => setShowSettings(true) : undefined}
+                                settingsLabel="Calendar settings"
+                            />
                             <div className="shrink-0">
                                 <MiniCalendar
                                     selectedDate={selectedDate}

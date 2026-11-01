@@ -1,9 +1,11 @@
 import { useState, useRef, useEffect, useCallback, memo, useImperativeHandle, forwardRef, useMemo } from 'react'
 import { clusterLabel } from '../../Utilities/clusterLabel'
 import type { ReactNode } from 'react'
-import { Trash2, Headset, Play, MessageSquare, Info, ChevronLeft, ChevronRight, ChevronDown, Pin, Check, Settings, Send } from 'lucide-react'
+import { Trash2, Headset, Play, MessageSquare, Info, ChevronRight, ChevronDown, Pin, Check, Send } from 'lucide-react'
 import { useSpring, animated } from '@react-spring/web'
 import { SearchInput } from '@/Components/primitives/SearchInput'
+import { MobilePageHeader, PageCircleButton } from '@/Components/primitives/MobilePageHeader'
+import { RailSearchRow } from '@/Components/primitives/RailSearchRow'
 import { FooterPill } from '@/Components/primitives/FooterPill'
 import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill'
 import { useClinicMedics } from '../../Hooks/useClinicMedics'
@@ -764,21 +766,12 @@ function ChatDetail({
 
   const canCall = !isSelf && (requestStatus === 'accepted' || requestStatus === 'none') && (onStartCall || onStartVideoCall)
 
-  const backButton = (
-    <div className="rounded-full border border-tertiary/20 bg-themewhite p-0.5 overflow-hidden shrink-0">
-      <button onClick={onBack} className="w-11 h-11 rounded-full flex items-center justify-center active:scale-95 transition-transform">
-        <ChevronLeft className="w-6 h-6 text-tertiary" />
-      </button>
-    </div>
-  )
-
   const mobileHeader = (
-    <div className="md:hidden shrink-0 px-3 py-2 pt-[max(0.5rem,var(--sat,0px))] flex items-center">
-      {backButton}
-      <p className="flex-1 text-sm font-medium text-primary truncate mx-3">
-        {peerName ?? (isSelf ? 'Notes' : 'Chat')}
-      </p>
-      {canCall || showInfoButton ? (
+    <MobilePageHeader
+      className="md:hidden"
+      onBack={onBack}
+      title={peerName ?? (isSelf ? 'Notes' : 'Chat')}
+      actions={canCall || showInfoButton ? (
         <HeaderPill>
           {canCall && onStartVideoCall && (
             <PillButton icon={Play} onClick={onStartVideoCall} label="Video call" />
@@ -790,10 +783,8 @@ function ChatDetail({
             <PillButton icon={Info} onClick={() => setShowInfo(true)} label="Conversation info" />
           )}
         </HeaderPill>
-      ) : (
-        <div className="w-12 shrink-0" />
-      )}
-    </div>
+      ) : undefined}
+    />
   )
 
   return (
@@ -982,27 +973,18 @@ function GroupChatDetail({
     return res
   }, [purgeGroup, onBack])
 
-  const backButton = (
-    <div className="rounded-full border border-tertiary/20 bg-themewhite p-0.5 overflow-hidden shrink-0">
-      <button onClick={onBack} className="w-11 h-11 rounded-full flex items-center justify-center active:scale-95 transition-transform">
-        <ChevronLeft className="w-6 h-6 text-tertiary" />
-      </button>
-    </div>
-  )
-
   const mobileHeader = (
-    <div className="md:hidden shrink-0 px-3 py-2 pt-[max(0.5rem,var(--sat,0px))] flex items-center">
-      {backButton}
-      <div className="flex-1 min-w-0 text-center mx-3">
-        <p className="text-sm font-medium text-primary truncate">{displayGroupName(group.name)}</p>
-        <p className="text-[9pt] text-tertiary">{group.memberCount} members</p>
-      </div>
-      <div className="rounded-full border border-tertiary/20 bg-themewhite p-0.5 overflow-hidden shrink-0">
-        <button onClick={() => onShowGroupInfo(true)} className="w-11 h-11 rounded-full flex items-center justify-center active:scale-95 transition-transform">
-          <Info className="w-5 h-5 text-tertiary" />
-        </button>
-      </div>
-    </div>
+    <MobilePageHeader
+      className="md:hidden"
+      onBack={onBack}
+      title={
+        <div className="text-center">
+          <p className="text-sm font-medium text-primary truncate">{displayGroupName(group.name)}</p>
+          <p className="text-[9pt] text-tertiary">{group.memberCount} members</p>
+        </div>
+      }
+      actions={<PageCircleButton icon={Info} onClick={() => onShowGroupInfo(true)} label="Group info" iconClassName="w-5 h-5" />}
+    />
   )
 
   return (
@@ -1524,21 +1506,11 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
         </div>
       )}
       <div className="hidden md:flex md:flex-col w-80 shrink-0 border-r border-primary/10 overflow-hidden">
-        <div className="shrink-0 flex items-center gap-1.5 px-3 py-2">
-          <div className="flex-1 min-w-0">
-            <SearchInput value={searchQuery} onChange={onSearchChange} placeholder="Search..." />
-          </div>
-          {onOpenSettings && (
-            <button
-              onClick={onOpenSettings}
-              className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center transition-colors active:scale-95 text-tertiary hover:text-primary"
-              aria-label="Messaging settings"
-              title="Messaging settings"
-            >
-              <Settings className="w-4 h-4" />
-            </button>
-          )}
-        </div>
+        <RailSearchRow
+          search={<SearchInput value={searchQuery} onChange={onSearchChange} placeholder="Search..." />}
+          onSettings={onOpenSettings}
+          settingsLabel="Messaging settings"
+        />
         {onLensChange && (
           <div className="shrink-0 border-b border-primary/10 pb-1">
             {(['chat', 'calls'] as const).map(l => (

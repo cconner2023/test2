@@ -6,10 +6,10 @@ import { DRAWER_TIMING } from '../Utilities/constants'
 const SLIDE_TRANSITION = `transform ${DRAWER_TIMING.TRANSITION}ms cubic-bezier(0.32, 0.72, 0, 1)`
 const OPACITY_TRANSITION = `opacity ${DRAWER_TIMING.TRANSITION}ms cubic-bezier(0.32, 0.72, 0, 1)`
 
-interface UseMessagesSlideOptions {
+interface UseRightPanelSlideOptions {
   /** Only active on mobile */
   enabled: boolean
-  /** Messages panel open state */
+  /** Panel open state */
   isOpen: boolean
   /** Called when gesture commits to opening */
   onOpen: () => void
@@ -18,11 +18,13 @@ interface UseMessagesSlideOptions {
 }
 
 /**
- * CSS-transition-based slide animation for the messages panel.
+ * CSS-transition-based slide animation for a full-screen mobile panel that
+ * enters from the right (Messages, Tracking Board).
  * Progress: 0 = closed (off-screen right), 1 = open (visible).
- * Includes right-edge drag-to-open via onEdgeDrag/onEdgeDragEnd delegation.
+ * Includes right-edge drag-to-open via onEdgeDrag/onEdgeDragEnd delegation
+ * (wired for Messages only; other panels just use open/close + backdrop drag).
  */
-export function useMessagesSlide({ enabled, isOpen, onOpen, onClose }: UseMessagesSlideOptions) {
+export function useRightPanelSlide({ enabled, isOpen, onOpen, onClose }: UseRightPanelSlideOptions) {
   const [progress, setProgress] = useState(0)
   const [isDragging, setIsDragging] = useState(false)
 
