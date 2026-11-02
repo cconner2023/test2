@@ -1,12 +1,13 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
-import { ChevronRight, RotateCcw, Pin, Pill, BookOpen, MoreHorizontal } from 'lucide-react'
+import { ChevronRight, RotateCcw, Pin, Pill, BookOpen, MoreHorizontal, GraduationCap, type LucideIcon } from 'lucide-react'
 import { SearchInput } from '@/Components/primitives/SearchInput'
+import { SearchCancelButton, SearchDropdownCard, SearchDropdownGroup } from '@/Components/primitives/SearchDropdown'
 import { FooterPill } from '@/Components/primitives/FooterPill'
 import { Chip, ChipBar } from '@/Components/primitives/Chip'
 import { ActionButton } from '@/Components/primitives/ActionButton'
 import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill'
 import { BaseDrawer } from '@/Components/primitives/BaseDrawer'
-import { TrainingPanel, type TrainingView } from './Settings/TrainingPanel'
+import { TrainingPanel, buildAllTasksByCategory, type TrainingView } from './Settings/TrainingPanel'
 import { MedicationContent } from './MedicationContent'
 import { ContentWrapper } from '@/Components/primitives/ContentWrapper'
 import { QuestionRow, WordListContent } from './ScreenerDrawer'
@@ -29,9 +30,9 @@ import { getScreenerMaxScore, isQuestionScored } from '../Data/SpecTesting'
 import { stp68wTraining } from '../Data/TrainingTaskList'
 import { getTaskData } from '../Data/TrainingData'
 import { getIctlTaskData } from '../Data/ICTLContent'
-import { IctlPanel, type IctlView } from './Settings/IctlPanel'
+import { IctlPanel, buildIctlByArea, type IctlView } from './Settings/IctlPanel'
 import { TcccModulePanel, type TcccView } from './Settings/TcccModulePanel'
-import { getTcccModule } from '../Data/TcccModules'
+import { getTcccModule, tcccModules } from '../Data/TcccModules'
 import { Check } from 'lucide-react'
 import { UI_TIMING } from '../Utilities/constants'
 import { BURN_CALCULATOR_ENABLED } from '../lib/featureFlags'
@@ -107,8 +108,29 @@ export function KnowledgeBaseDrawer({
     const setMedevacReq = useMedevacStore(s => s.setReq)
     const resetMedevacReq = useMedevacStore(s => s.resetReq)
 
+    const searchScope: KBSearchScope | null = (SEARCH_SCOPES as readonly string[]).includes(view) ? view as KBSearchScope : null
+    const [searchOpen, setSearchOpen] = useState(false)
+    const searchRowRef = useRef<HTMLDivElement>(null)
+    const searchInputRef = useRef<HTMLInputElement>(null)
+    const cancelSearch = useCallback(() => {
+        setSearchQuery('')
+        setSearchOpen(false)
+        searchInputRef.current?.blur()
+    }, [])
+
     // Clear search when navigating between views (e.g., clicking a search result)
-    useEffect(() => { setSearchQuery('') }, [view])
+    useEffect(() => { setSearchQuery(''); setSearchOpen(false) }, [view])
+
+    // Tap/click outside the search row (input + dropdown) dismisses the dropdown;
+    // the query survives so re-focusing reopens it.
+    useEffect(() => {
+        if (!searchOpen) return
+        const onDown = (e: PointerEvent) => {
+            if (!searchRowRef.current?.contains(e.target as Node)) setSearchOpen(false)
+        }
+        document.addEventListener('pointerdown', onDown)
+        return () => document.removeEventListener('pointerdown', onDown)
+    }, [searchOpen])
 
     // ── Deep-link / initial view handling ───────────────────────
     useEffect(() => {
@@ -276,6 +298,7 @@ export function KnowledgeBaseDrawer({
     // ── Close handler ───────────────────────────────────────────
     const handleClose = useCallback(() => {
         setSearchQuery('')
+        setSearchOpen(false)
         setCalculatorOpen(false)
         setView('home')
         setSelectedTask(null)
@@ -357,80 +380,77 @@ export function KnowledgeBaseDrawer({
             scrollResetKey={view}
         >
             <ContentWrapper slideDirection={slideDirection} swipeHandlers={canSwipeBack ? swipeHandlers : undefined}>
-                {view === 'home' && (
-                    <>
-                        <div className="px-3 py-2">
-                            <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Search..." />
+                {/* Search template (home + every browse list): results lift as a
+                    dropdown card under the row, scoped to the current view, and
+                    overlay the list — the list itself never swaps or filters. */}
+                {searchScope && (
+                        <div ref={searchRowRef} className="relative z-30 px-3 py-2">
+                            <div className="flex items-center gap-2">
+                                <div className="flex-1 min-w-0">
+                                    <SearchInput
+                                        ref={searchInputRef}
+                                        value={searchQuery}
+                                        onChange={(v) => { setSearchQuery(v); setSearchOpen(true) }}
+                                        onFocus={() => setSearchOpen(true)}
+                                        onKeyDown={(e) => { if (e.key === 'Escape') { setSearchOpen(false); searchInputRef.current?.blur() } }}
+                                        placeholder={SEARCH_PLACEHOLDER[searchScope]}
+                                        hideClear
+                                    />
+                                </div>
+                                {(searchOpen || searchQuery) && <SearchCancelButton onClick={cancelSearch} />}
+                            </div>
+                            {searchOpen && searchQuery.trim() && (
+                                <div className="absolute left-3 right-3 top-full z-40">
+                                    <KBSearchDropdown
+                                        scope={searchScope}
+                                        query={searchQuery}
+                                        tc3Mode={tc3Mode}
+                                        onCategoryClick={handleCategoryClick}
+                                        onSelectTask={handleSelectTask}
+                                        onSelectIctlTask={handleSelectIctlTask}
+                                        onSelectTcccModule={handleSelectTcccModule}
+                                        onMedicationSelect={handleMedicationSelect}
+                                    />
+                                </div>
+                            )}
                         </div>
-                        <KBHome
-                            onCategoryClick={handleCategoryClick}
-                            searchQuery={searchQuery}
-                            onSelectTask={handleSelectTask}
-                            onMedicationSelect={handleMedicationSelect}
-                            tc3Mode={tc3Mode}
-                        />
-                    </>
+                )}
+                {view === 'home' && (
+                    <KBHome
+                        onCategoryClick={handleCategoryClick}
+                        onSelectTask={handleSelectTask}
+                        onMedicationSelect={handleMedicationSelect}
+                        tc3Mode={tc3Mode}
+                    />
                 )}
                 {(view === 'training' || view === 'training-detail') && (
-                    <>
-                        {view === 'training' && (
-                            <div className="px-3 py-2">
-                                <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Search..." />
-                            </div>
-                        )}
-                        <TrainingPanel
-                            view={view as TrainingView}
-                            selectedTask={selectedTask}
-                            onSelectTask={handleSelectTask}
-                            searchQuery={searchQuery}
-                        />
-                    </>
+                    <TrainingPanel
+                        view={view as TrainingView}
+                        selectedTask={selectedTask}
+                        onSelectTask={handleSelectTask}
+                    />
                 )}
                 {(view === 'ictl' || view === 'ictl-detail') && (
-                    <>
-                        {view === 'ictl' && (
-                            <div className="px-3 py-2">
-                                <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Search..." />
-                            </div>
-                        )}
-                        <IctlPanel
-                            view={view as IctlView}
-                            selectedTaskId={selectedIctlTaskId}
-                            onSelectTask={handleSelectIctlTask}
-                            searchQuery={searchQuery}
-                            onOpenTccc={handleSelectTcccModule}
-                        />
-                    </>
+                    <IctlPanel
+                        view={view as IctlView}
+                        selectedTaskId={selectedIctlTaskId}
+                        onSelectTask={handleSelectIctlTask}
+                        onOpenTccc={handleSelectTcccModule}
+                    />
                 )}
                 {(view === 'tccc' || view === 'tccc-detail') && (
-                    <>
-                        {view === 'tccc' && (
-                            <div className="px-3 py-2">
-                                <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Search..." />
-                            </div>
-                        )}
-                        <TcccModulePanel
-                            view={view as TcccView}
-                            selectedModuleKey={selectedTcccKey}
-                            onSelectModule={handleSelectTcccModule}
-                            searchQuery={searchQuery}
-                        />
-                    </>
+                    <TcccModulePanel
+                        view={view as TcccView}
+                        selectedModuleKey={selectedTcccKey}
+                        onSelectModule={handleSelectTcccModule}
+                    />
                 )}
                 {(view === 'medications' || view === 'medication-detail') && (
-                    <>
-                        {view === 'medications' && (
-                            <div className="px-3 py-2">
-                                <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Search..." />
-                            </div>
-                        )}
-                        <MedicationContent
-                            selectedMedication={selectedMedication}
-                            onMedicationSelect={handleMedicationSelect}
-                            tc3Mode={tc3Mode}
-                            searchQuery={searchQuery}
-                        />
-                    </>
+                    <MedicationContent
+                        selectedMedication={selectedMedication}
+                        onMedicationSelect={handleMedicationSelect}
+                        tc3Mode={tc3Mode}
+                    />
                 )}
                 {view === 'screener' && activeScreener && (
                     <StandaloneScreener screenerConfig={activeScreener} />
@@ -519,15 +539,158 @@ export function KnowledgeBaseDrawer({
     )
 }
 
-// ── KB Search Result Types ────────────────────────────────────────────────────
+// ── KB search dropdown ────────────────────────────────────────────────────────
+// Lifted card under the KB home search row (shared SearchDropdown primitive).
+// Rows match the main search dropdown: tinted icon circle + title + subtitle.
 
-type KBSearchResult = {
-    type: 'category' | 'task' | 'medication'
+// Views that carry the search row; the dropdown searches only that view's scope.
+const SEARCH_SCOPES = ['home', 'training', 'ictl', 'tccc', 'medications'] as const
+type KBSearchScope = typeof SEARCH_SCOPES[number]
+
+const SEARCH_PLACEHOLDER: Record<KBSearchScope, string> = {
+    home: 'Search knowledge base',
+    training: 'Search STP tasks',
+    ictl: 'Search ICTL tasks',
+    tccc: 'Search TCCC modules',
+    medications: 'Search medications',
+}
+
+type KBSearchEntry = {
+    key: string
     label: string
     subtitle: string
-    badge: string
-    badgeClass: string
-    onSelect: () => void
+    icon: LucideIcon
+    tint: string
+    select: () => void
+}
+type KBSearchGroupData = { title: string; items: KBSearchEntry[] }
+
+const KB_GROUP_TINT: Record<string, string> = {
+    screening: 'bg-themegreen/15 text-themegreen',
+    calculators: 'bg-themeblue2/15 text-themeblue2',
+}
+const TASK_TINT = 'bg-themeblue3/10 text-themeblue1'
+const MED_TINT = 'bg-themeyellowlow/30 text-secondary'
+
+const KB_RESULT_ROW = 'w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-themewhite2 active:bg-themewhite2 transition-colors'
+const KB_RESULT_GROUP_LIMIT = 25
+
+function KBSearchDropdown({
+    scope,
+    query,
+    tc3Mode,
+    onCategoryClick,
+    onSelectTask,
+    onSelectIctlTask,
+    onSelectTcccModule,
+    onMedicationSelect,
+}: {
+    scope: KBSearchScope
+    query: string
+    tc3Mode: boolean
+    onCategoryClick: (cat: KBCategory) => void
+    onSelectTask: (task: subjectAreaArrayOptions) => void
+    onSelectIctlTask: (taskId: string) => void
+    onSelectTcccModule: (moduleKey: string) => void
+    onMedicationSelect: (medication: medListTypes) => void
+}) {
+    // Unfiltered index for the current scope; groups mirror the list underneath.
+    // Coming-soon entries are left out — a result row always opens something.
+    const index = useMemo<KBSearchGroupData[]>(() => {
+        const medEntries = (): KBSearchEntry[] => (tc3Mode ? tc3MedList : medList).map(med => ({
+            key: `med-${med.icon}`, label: med.icon, subtitle: med.text,
+            icon: Pill, tint: MED_TINT, select: () => onMedicationSelect(med),
+        }))
+        const stpGroups = (): KBSearchGroupData[] => Array.from(buildAllTasksByCategory()).map(([area, tasks]) => ({
+            title: area,
+            items: tasks.filter(t => getTaskData(t.taskId)).map(t => ({
+                key: `task-${t.taskId}`, label: t.title, subtitle: `${t.taskId} · ${area}`,
+                icon: GraduationCap, tint: TASK_TINT, select: () => onSelectTask(t.option),
+            })),
+        }))
+
+        switch (scope) {
+            case 'training':
+                return stpGroups()
+            case 'ictl':
+                return Array.from(buildIctlByArea()).map(([area, tasks]) => ({
+                    title: area,
+                    items: tasks.filter(t => getIctlTaskData(t.taskId)).map(t => ({
+                        key: `ictl-${t.taskId}`, label: t.title, subtitle: t.taskId,
+                        icon: BookOpen, tint: TASK_TINT, select: () => onSelectIctlTask(t.taskId),
+                    })),
+                }))
+            case 'tccc':
+                return [{
+                    title: 'TCCC Modules',
+                    items: tcccModules.filter(m => !m.pending).map(m => ({
+                        key: `tccc-${m.key}`, label: m.name, subtitle: m.module ?? 'TCCC',
+                        icon: BookOpen, tint: TASK_TINT, select: () => onSelectTcccModule(m.key),
+                    })),
+                }]
+            case 'medications':
+                return [{ title: 'Medications', items: medEntries() }]
+            case 'home': {
+                const categories = kbCategories
+                    .filter(cat => !cat.comingSoon && GATED_KB_IDS[cat.id] !== false)
+                    .map(cat => ({
+                        key: `cat-${cat.id}`, label: cat.label,
+                        subtitle: `${kbGroupLabels[cat.group]} · ${cat.description}`,
+                        icon: cat.icon, tint: KB_GROUP_TINT[cat.group] ?? 'bg-themeblue3/15 text-themeblue1',
+                        select: () => onCategoryClick(cat),
+                    }))
+                return [
+                    { title: 'Knowledge Base', items: categories },
+                    { title: 'Medications', items: medEntries() },
+                    {
+                        title: 'STP Tasks',
+                        // A task can sit in more than one subject area — list it once.
+                        items: Array.from(new Map(stpGroups().flatMap(g => g.items).map(e => [e.key, e])).values()),
+                    },
+                ]
+            }
+        }
+    }, [scope, tc3Mode, onCategoryClick, onSelectTask, onSelectIctlTask, onSelectTcccModule, onMedicationSelect])
+
+    const groups = useMemo(() => {
+        const q = query.trim().toLowerCase()
+        const match = (e: KBSearchEntry) => e.label.toLowerCase().includes(q) || e.subtitle.toLowerCase().includes(q)
+        return index
+            .map(g => ({ title: g.title, items: g.items.filter(match) }))
+            .filter(g => g.items.length > 0)
+    }, [query, index])
+
+    return (
+        <SearchDropdownCard ariaLabel="Knowledge base search results">
+            {groups.length === 0 ? (
+                <div className="px-4 py-6 text-center">
+                    <p className="text-[10pt] text-primary">No results for "{query.trim()}"</p>
+                    <p className="text-[9pt] text-tertiary mt-1">Try different keywords</p>
+                </div>
+            ) : groups.map(g => (
+                <SearchDropdownGroup
+                    key={g.title}
+                    title={g.title}
+                    trailing={<span className="text-[9pt] text-tertiary">{g.items.length}</span>}
+                >
+                    {g.items.slice(0, KB_RESULT_GROUP_LIMIT).map(e => {
+                        const Icon = e.icon
+                        return (
+                            <button key={e.key} type="button" onClick={e.select} className={KB_RESULT_ROW}>
+                                <span className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${e.tint}`}>
+                                    <Icon size={18} />
+                                </span>
+                                <span className="flex-1 min-w-0">
+                                    <span className="block text-[11pt] text-primary truncate">{e.label}</span>
+                                    <span className="block text-[9pt] text-tertiary truncate mt-0.5">{e.subtitle}</span>
+                                </span>
+                            </button>
+                        )
+                    })}
+                </SearchDropdownGroup>
+            ))}
+        </SearchDropdownCard>
+    )
 }
 
 // ── Liftable KB row ───────────────────────────────────────────────────────────
@@ -600,13 +763,11 @@ const GATED_KB_IDS: Record<string, boolean> = {
 
 function KBHome({
     onCategoryClick,
-    searchQuery,
     onSelectTask,
     onMedicationSelect,
     tc3Mode,
 }: {
     onCategoryClick: (cat: KBCategory) => void
-    searchQuery: string
     onSelectTask: (task: subjectAreaArrayOptions) => void
     onMedicationSelect: (medication: medListTypes) => void
     tc3Mode: boolean
@@ -638,71 +799,7 @@ function KBHome({
         return map
     }, [visibleCategories])
 
-    // Build KB-scoped search index once
-    const kbSearchIndex = useMemo(() => {
-        const items: Omit<KBSearchResult, 'onSelect'>[] = []
-
-        // KB categories
-        visibleCategories.forEach(cat => {
-            if (cat.comingSoon) return
-            items.push({
-                type: 'category',
-                label: cat.label,
-                subtitle: cat.description,
-                badge: kbGroupLabels[cat.group],
-                badgeClass: cat.group === 'screening'
-                    ? 'bg-themegreen/15 text-themegreen'
-                    : cat.group === 'calculators'
-                    ? 'bg-themeblue2/15 text-themeblue2'
-                    : 'bg-themewhite2 text-secondary',
-            })
-        })
-
-        // Training tasks (deduplicated)
-        const seenTaskIds = new Set<string>()
-        stp68wTraining.forEach(level => {
-            level.subjectArea.forEach((area, areaIdx) => {
-                area.tasks.forEach((task, taskIdx) => {
-                    if (seenTaskIds.has(task.id)) return
-                    seenTaskIds.add(task.id)
-                    items.push({
-                        type: 'task',
-                        label: task.title,
-                        subtitle: `${task.id} · ${area.name}`,
-                        badge: 'STP TASK',
-                        badgeClass: 'bg-themewhite2 text-themeblue1',
-                    })
-                })
-            })
-        })
-
-        // Medications
-        const list = tc3Mode ? tc3MedList : medList
-        list.forEach(med => {
-            items.push({
-                type: 'medication',
-                label: med.icon,
-                subtitle: med.text,
-                badge: 'MEDICATION',
-                badgeClass: 'bg-themeyellowlow/30 text-secondary',
-            })
-        })
-
-        return items
-    }, [tc3Mode, visibleCategories])
-
-    // Filter results when searching
-    const searchResults = useMemo(() => {
-        const q = searchQuery.trim().toLowerCase()
-        if (!q) return null
-
-        return kbSearchIndex.filter(item =>
-            item.label.toLowerCase().includes(q) ||
-            item.subtitle.toLowerCase().includes(q)
-        ).slice(0, 50)
-    }, [searchQuery, kbSearchIndex])
-
-    // Pinned items — must be declared before any early return (Rules of Hooks).
+    // Pinned items
     const { pinnedMeds, pinnedTasks } = useMemo(() => {
         const list = tc3Mode ? tc3MedList : medList
         const meds: medListTypes[] = []
@@ -718,73 +815,6 @@ function KBHome({
         }
         return { pinnedMeds: meds, pinnedTasks: tasks }
     }, [pinnedKB, tc3Mode])
-
-    // Resolve click handlers for search results
-    const handleResultClick = useCallback((result: typeof kbSearchIndex[0]) => {
-        if (result.type === 'category') {
-            const cat = visibleCategories.find(c => c.label === result.label)
-            if (cat) onCategoryClick(cat)
-        } else if (result.type === 'task') {
-            const taskId = result.subtitle.split(' · ')[0]
-            for (const level of stp68wTraining) {
-                for (let areaIdx = 0; areaIdx < level.subjectArea.length; areaIdx++) {
-                    const area = level.subjectArea[areaIdx]
-                    const taskIdx = area.tasks.findIndex(t => t.id === taskId)
-                    if (taskIdx !== -1) {
-                        onSelectTask({
-                            id: taskIdx,
-                            icon: taskId,
-                            text: area.tasks[taskIdx].title,
-                            isParent: false,
-                            parentId: areaIdx,
-                        })
-                        return
-                    }
-                }
-            }
-        } else if (result.type === 'medication') {
-            const list = tc3Mode ? tc3MedList : medList
-            const med = list.find(m => m.icon === result.label)
-            if (med) onMedicationSelect(med)
-        }
-    }, [onCategoryClick, onSelectTask, onMedicationSelect, tc3Mode, visibleCategories])
-
-    // ── Search results view ───────────────────────────────────
-    if (searchResults) {
-        if (searchResults.length === 0) {
-            return (
-                <div className="h-full flex items-center justify-center text-themeblue1">
-                    <div className="text-center">
-                        <p className="text-sm">No results for "{searchQuery}"</p>
-                        <p className="text-[10pt] mt-1 text-tertiary">Try different keywords</p>
-                    </div>
-                </div>
-            )
-        }
-
-        return (
-            <>
-                <div className="px-3 py-2 text-[10pt] text-tertiary border-b border-themewhite2">
-                    {searchResults.length} result{searchResults.length !== 1 ? 's' : ''}
-                </div>
-                {searchResults.map((result, idx) => (
-                    <button
-                        key={`${result.type}-${result.label}-${idx}`}
-                        className="flex items-start gap-3 w-full px-4 py-3 text-left border-b border-themewhite2/50 hover:bg-themewhite2 active:scale-95 transition-all cursor-pointer"
-                        onClick={() => handleResultClick(result)}
-                    >
-                        <span className={`text-[9pt] px-2 py-1 rounded-md shrink-0 ${result.badgeClass}`}>
-                            {result.badge}
-                        </span>
-                        <div className="flex-1 min-w-0">
-                            <p className="text-sm text-primary truncate">{result.label}</p>
-                            <p className="text-[9pt] text-themeblue1/70 mt-0.5">{result.subtitle}</p>
-                        </div>
-                    </button>
-                ))}
-            </>
-        )
-    }
 
     // ── Pinned items (categories, individual meds, individual tasks) ──
     const pinnedCategories = visibleCategories.filter(c => pinnedKB.includes(c.id) && !c.comingSoon)

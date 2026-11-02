@@ -1,10 +1,10 @@
 import { createContext, useContext, useState, type ReactNode } from 'react'
 import { UnderlineTabs } from '@/Components/primitives/UnderlineTabs'
-import { ArrowRightLeft, ArrowRight, Eye, Forward, Trash2, Ban, Pencil, Check, Navigation, MapPinCheck, X, Plus, LogOut } from 'lucide-react'
+import { ArrowRightLeft, ArrowRight, Eye, Forward, Trash2, Ban, Pencil, Check, Navigation, MapPinCheck, MapPin, X } from 'lucide-react'
 import { ListItemRow } from '@/Components/primitives/ListItemRow'
 import { PersonnelGroupBand } from '@/Components/primitives/PersonnelRow'
 import { BrnPinInput, BRN_PATTERN } from '@/Components/DomainInputs'
-import { LiftedRowMenu, AnchoredMenu } from '@/Components/primitives/LiftedRowMenu'
+import { LiftedRowMenu } from '@/Components/primitives/LiftedRowMenu'
 import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
 import type { ContextMenuItem } from '@/Components/primitives/ContextMenu'
 import { SwipeActionRow, type SwipeSide } from '@/Components/primitives/SwipeActionRow'
@@ -13,34 +13,37 @@ import {
   TRACKING_SWIPE_POOL, useTrackingSwipeActions, setTrackingSwipeActions, type TrackingSwipeBinding,
 } from '../../Utilities/trackingSwipeActions'
 import { SectionCard, CardLabel, PageSectionHeader } from '@/Components/primitives/Section'
-import { TextArea, TextInput } from '@/Components/primitives/FormInputs'
+import { TextArea } from '@/Components/primitives/FormInputs'
 import { formatDtg } from '../../Utilities/propertyDates'
+import { ToggleSwitch } from '../Settings/ToggleSwitch'
+import type { LinkedFeatureRef } from '../../Types/MissionTypes'
 import {
-  MOCK_CLUSTERS, MOCK_STATIONS, MOCK_AXPS, clusterById, positionOf, sinceAt, placeKey, samePlace, placeLabel, stationLabel,
-  destinationLabel, placeOwnerLabel, originUic, moveTargets, boardLayout, boardAxps, atUnassigned, stationsOf, availableStations,
+  MOCK_CLUSTERS, MOCK_OVERLAYS, derivePlaces, clusterById, positionOf, sinceAt, placeKey, samePlace, placeLabel, stationLabel,
+  destinationLabel, placeOwnerLabel, originUic, moveTargets, boardLayout, knownPlaces, refOf,
   type MockEntry, type MockComment, type TrackingPosition, type TrackingNetwork, type BoardGroupDef,
 } from './trackingModel'
 
 export { buildMockEntries, type MockEntry, type MockComment } from './trackingModel'
 
 /**
- * Tracking Board — SKELETON. Patient-flow board (BRN across cluster stations),
+ * Tracking Board — SKELETON. Patient-flow board (BRN across places),
  * echelon-aware. Mock data only (trackingModel.ts); no store, no vault send.
  *
- * Every BRN sits in exactly one place: a cluster station (station null =
- * Unassigned at that cluster) or an AXP (unowned exchange point, scoped to the
- * cluster it hands into; AXP columns sit just before that cluster). In transit
+ * Every BRN sits at one station — a map pin marked "Add to tracking board"
+ * (AXPs included), shown by the pin's cluster plus related clusters that toggled
+ * it on — or at none (Unassigned: the lack of a station, not a pin). In transit
  * is a card marker ("→ destination"), not a place. A board shows patients ORIGINATED in the viewer's
  * cluster or below (origin + ancestors visibility), so a Role II board carries
  * its Role Is' patients and follows them up to Role III.
  * Desktop: T2T-style grid — one column group per cluster along the patient flow
- * (Role I → Role III), Unassigned + that cluster's stations under it; the
+ * (Role I → Role III) after a leading Unassigned column, the stations it shows
+ * under it (a shared station listed once, under the first cluster showing it); the
  * current place's whole cell is the marker. Rail / mobile tabs: the viewer's own
  * places one by one, every other cluster as one group.
  *
  * Final shape: one hidden `tracking` calendar event per visit carrying
  * tracking_data { brn, origin_clinic_id, moves[{ to: place }], transit?, comments[] },
- * fanned to origin + ancestors. Places (stations + members, AXPs) are plaintext
+ * fanned to origin + ancestors. Stations are pins in E2E map overlays
  * rows — names only; entries reference them by id.
  * Comments ride the same E2E event payload (free text may carry PHI — never a
  * plaintext column, log or push body). moves[] / comments[] union-merge by id;
@@ -53,7 +56,7 @@ interface BoardScope {
   net: TrackingNetwork
   viewerId: string
 }
-const BoardScopeContext = createContext<BoardScope>({ net: { clusters: MOCK_CLUSTERS, stations: MOCK_STATIONS, axps: MOCK_AXPS }, viewerId: MOCK_CLUSTERS[0].id })
+const BoardScopeContext = createContext<BoardScope>({ net: { clusters: MOCK_CLUSTERS, places: derivePlaces(MOCK_OVERLAYS) }, viewerId: MOCK_CLUSTERS[0].id })
 export const TrackingBoardScope = BoardScopeContext.Provider
 const useBoardScope = () => useContext(BoardScopeContext)
 
@@ -71,10 +74,10 @@ export const filterEntries = (entries: MockEntry[], query: string) => {
   return q ? entries.filter(e => e.brn.includes(q)) : entries
 }
 
-/** A board group's places — cluster: Unassigned + the stations it lists; AXP group: each AXP. */
+/** A board group's stations. */
 const groupPlaces = (g: BoardGroupDef) => g.places
-const groupKey = (g: BoardGroupDef) => (g.kind === 'axps' ? `axps:${g.scope.id}` : `cluster:${g.cluster.id}`)
-const groupLabel = (g: BoardGroupDef) => (g.kind === 'axps' ? `AXPs → ${g.scope.label}` : g.cluster.label)
+const groupKey = (g: BoardGroupDef) => `cluster:${g.cluster.id}`
+const groupLabel = (g: BoardGroupDef) => g.cluster.label
 
 interface ListProps {
   entries: MockEntry[]
@@ -102,9 +105,13 @@ const ROW_HEIGHT = 36
 
 export function TrackingGrid({ entries, activeId, onSelect }: ListProps) {
   const { net, viewerId } = useBoardScope()
-  // Column groups along the patient flow (Role I → Role III); a cluster's AXPs sit just before it.
+  // Column groups along the patient flow (Role I → Role III).
+  // Unassigned leads (no cluster band over it), then one band per cluster.
   const groups = boardLayout(net, viewerId, entries).map(g => ({ def: g, places: groupPlaces(g) }))
-  const columns = groups.flatMap(g => g.places.map((pl, i) => ({ ...pl, first: i === 0 })))
+  const columns: { pos: TrackingPosition; label: string; first: boolean }[] = [
+    { pos: null, label: 'Unassigned', first: true },
+    ...groups.flatMap(g => g.places.map((pl, i) => ({ ...pl, first: i === 0 }))),
+  ]
   const cols = `${BRN_COL_WIDTH}px repeat(${columns.length}, minmax(${CELL_MIN_WIDTH}px, 1fr))`
   return (
     <div className="h-full overflow-auto bg-themewhite">
@@ -114,13 +121,14 @@ export function TrackingGrid({ entries, activeId, onSelect }: ListProps) {
           <div className="sticky left-0 z-20 row-span-2 flex items-end px-2 py-1.5 border-r border-primary/10 bg-themewhite">
             <span className="text-[9pt] font-semibold uppercase tracking-wider text-tertiary">BRN</span>
           </div>
+          <div className="border-l border-l-primary/10" />
           {groups.map(g => (
             <div
               key={groupKey(g.def)}
               className="flex items-center px-2 pt-1.5 border-l border-l-primary/10"
               style={{ gridColumn: `span ${g.places.length}` }}
             >
-              <span className={`text-[9pt] font-semibold truncate ${g.def.kind === 'cluster' && g.def.cluster.id === viewerId ? 'text-primary' : 'text-secondary'}`}>{groupLabel(g.def)}</span>
+              <span className={`text-[9pt] font-semibold truncate ${g.def.cluster.id === viewerId ? 'text-primary' : 'text-secondary'}`}>{groupLabel(g.def)}</span>
             </div>
           ))}
           {columns.map(c => (
@@ -175,10 +183,10 @@ export function TrackingGrid({ entries, activeId, onSelect }: ListProps) {
 }
 
 // ── Grouping shared by the desktop rail and the mobile tabs ──
-// The viewer's own cluster splits into its places (Unassigned + stations);
-// every other cluster / AXP group on the board is ONE group (the card footer names the place).
+// Unassigned first; the viewer's own cluster splits into its stations;
+// every other cluster on the board is ONE group (the card footer names the place).
 
-/** 'all', a place key (own cluster), `cluster:<id>` or `axps:<scope id>`. */
+/** 'all', 'unassigned', a station key (own cluster) or `cluster:<id>`. */
 export type TrackingCategory = string
 
 interface BoardGroup {
@@ -188,9 +196,9 @@ interface BoardGroup {
 }
 
 function boardGroups(net: TrackingNetwork, viewerId: string, entries: MockEntry[]): BoardGroup[] {
-  const out: BoardGroup[] = []
+  const out: BoardGroup[] = [{ key: 'unassigned', label: 'Unassigned', match: e => positionOf(e) === null }]
   for (const g of boardLayout(net, viewerId, entries)) {
-    if (g.kind === 'cluster' && g.cluster.id === viewerId) {
+    if (g.cluster.id === viewerId) {
       for (const pl of groupPlaces(g)) out.push({ key: placeKey(pl.pos), label: pl.label, match: e => samePlace(positionOf(e), pl.pos) })
     } else {
       const keys = new Set(groupPlaces(g).map(pl => placeKey(pl.pos)))
@@ -284,10 +292,10 @@ interface CardListProps {
   onSelect: (entry: MockEntry, origin?: CardOrigin) => void
   /** Open the BRN straight into its edit form. */
   onEdit: (entry: MockEntry, origin?: CardOrigin) => void
-  /** Move a BRN to a place in its origin's chain (station null = Unassigned there). */
+  /** Move a BRN to a station its origin's chain shows, or Unassigned (null). */
   onMove: (entry: MockEntry, to: TrackingPosition) => void
-  /** Set / clear the "leaving → destination" marker. */
-  onTransit: (entry: MockEntry, to: TrackingPosition | null) => void
+  /** Set / clear (null) the "leaving → destination station" marker. */
+  onTransit: (entry: MockEntry, to: LinkedFeatureRef | null) => void
   /** Hand the BRN off to another member/cluster. */
   onForward: (entry: MockEntry) => void
   /** Remove the BRN from the board — called after the ConfirmDialog. */
@@ -306,7 +314,7 @@ export const TRACKING_SWIPE_DISPLAY: Record<TrackingSwipeBinding, SwipeBindingDi
   off: { label: 'None', icon: Ban, panel: null },
 }
 
-/** Station shell tints, by station-id hash — the card sits
+/** Station shell tints, by pin-id hash — the card sits
  *  on its place's color (footer band reads on it), so the board scans by color
  *  before text. Unassigned is always gray. */
 const UNASSIGNED_TINT = { shell: 'bg-themegray1/30', foot: 'text-secondary' }
@@ -318,15 +326,13 @@ const STATION_TINTS: { shell: string; foot: string }[] = [
   { shell: 'bg-themered/30', foot: 'text-themeredred' },
   { shell: 'bg-themegreen/25', foot: 'text-themegreen' },
 ]
-const AXP_TINT = { shell: 'bg-themeblue3/20', foot: 'text-themeblue3' }
 export function tintFor(e: MockEntry) {
   const p = positionOf(e)
-  if (p.kind === 'axp') return AXP_TINT
-  if (p.kind === 'unassigned') return UNASSIGNED_TINT
-  // Hash of the station id — stable on every device and board, no lookup, and a
-  // station added later gets a color too.
+  if (!p) return UNASSIGNED_TINT
+  // Hash of the place id — stable on every device and board, no lookup, and a
+  // place added later gets a color too.
   let h = 0
-  for (const ch of p.stationId) h = (h * 31 + ch.charCodeAt(0)) | 0
+  for (const ch of p.feature_id) h = (h * 31 + ch.charCodeAt(0)) | 0
   return STATION_TINTS[Math.abs(h) % STATION_TINTS.length]
 }
 
@@ -431,32 +437,32 @@ function BrnRailCard({ entry, hidden, onSelect }: {
   )
 }
 
-/** "Move to" targets — every place in the origin's chain (Role I → Role III,
- *  each cluster's AXPs just before it) except the BRN's current one. One group
- *  = flat list; several = a submenu per group. */
+/** "Move to" targets — Unassigned, then every station the origin's chain shows
+ *  (Role I → Role III), minus the BRN's current spot. One cluster = flat list;
+ *  several = a submenu per cluster. */
 export function trackingMoveItems(e: MockEntry, onMove: (entry: MockEntry, to: TrackingPosition) => void, net: TrackingNetwork): ContextMenuItem[] {
   const at = positionOf(e)
   const placeItems = (g: BoardGroupDef): ContextMenuItem[] => groupPlaces(g)
     .filter(pl => !samePlace(pl.pos, at))
     .map(pl => ({ key: placeKey(pl.pos), label: pl.label, icon: ArrowRight, onAction: () => onMove(e, pl.pos) }))
+  const unassigned: ContextMenuItem[] = at ? [{ key: 'unassigned', label: 'Unassigned', icon: ArrowRight, onAction: () => onMove(e, null) }] : []
   const groups = moveTargets(net, e)
-  if (groups.length === 1) return placeItems(groups[0])
-  return groups.map(g => ({ key: groupKey(g), label: groupLabel(g), icon: ArrowRightLeft, submenu: placeItems(g) }))
+  if (groups.length === 1) return [...unassigned, ...placeItems(groups[0])]
+  return [...unassigned, ...groups.map(g => ({ key: groupKey(g), label: groupLabel(g), icon: ArrowRightLeft, submenu: placeItems(g) }))]
 }
 
-/** "Send to" destinations — every cluster in the origin's chain (lands in its
- *  Unassigned) and every AXP into one, minus where the BRN sits / is headed. */
-export function trackingTransitItems(e: MockEntry, onTransit: (entry: MockEntry, to: TrackingPosition | null) => void, net: TrackingNetwork): ContextMenuItem[] {
+/** "Send to" destinations — every station the origin's chain shows, minus where
+ *  the BRN sits / is already headed. Submenu per cluster when there are several. */
+export function trackingTransitItems(e: MockEntry, onTransit: (entry: MockEntry, to: LinkedFeatureRef | null) => void, net: TrackingNetwork): ContextMenuItem[] {
   const at = positionOf(e)
-  const items: ContextMenuItem[] = []
-  for (const g of moveTargets(net, e)) {
-    const dest = g.kind === 'axps' ? g.places : [{ pos: atUnassigned(g.cluster.id), label: g.cluster.label }]
-    for (const d of dest) {
-      if (samePlace(d.pos, at) || (e.transit && samePlace(d.pos, e.transit.to))) continue
-      items.push({ key: placeKey(d.pos), label: d.label, icon: Navigation, onAction: () => onTransit(e, d.pos) })
-    }
-  }
-  return items
+  const items = (g: BoardGroupDef): ContextMenuItem[] => g.places
+    .filter(d => !samePlace(d.pos, at) && !(e.transit && samePlace(d.pos, e.transit.to)))
+    .map(d => ({ key: placeKey(d.pos), label: d.label, icon: Navigation, onAction: () => onTransit(e, d.pos) }))
+  const groups = moveTargets(net, e)
+  if (groups.length === 1) return items(groups[0])
+  return groups
+    .map(g => ({ key: groupKey(g), label: groupLabel(g), icon: Navigation, submenu: items(g) }))
+    .filter(g => g.submenu.length > 0)
 }
 
 /** BRN action menu — shared by the card long-press, the mobile detail Sheet
@@ -465,8 +471,8 @@ export function buildTrackingMenuItems(e: MockEntry, h: {
   onOpen?: (entry: MockEntry) => void
   onEdit: (entry: MockEntry) => void
   onMove: (entry: MockEntry, to: TrackingPosition) => void
-  /** Set (or clear, null) the "leaving → destination" marker. */
-  onTransit: (entry: MockEntry, to: TrackingPosition | null) => void
+  /** Set (or clear, null) the "leaving → destination station" marker. */
+  onTransit: (entry: MockEntry, to: LinkedFeatureRef | null) => void
   onForward: (entry: MockEntry) => void
   onDelete: (entry: MockEntry) => void
   net: TrackingNetwork
@@ -497,7 +503,7 @@ export function buildTrackingMenuItems(e: MockEntry, h: {
 export function TrackingCardList({ entries, onSelect, onEdit, onMove, onTransit, onForward, onDelete, expandedId }: CardListProps) {
   const { net } = useBoardScope()
   const swipe = useTrackingSwipeActions()
-  // mode 'all' = long-press menu; 'move' = swipe-bound Move, straight to the stations.
+  // mode 'all' = long-press menu; 'move' = swipe-bound Move, straight to the places.
   const [menu, setMenu] = useState<{ entry: MockEntry; rect: DOMRect; mode: 'all' | 'move' } | null>(null)
   const [pendingDelete, setPendingDelete] = useState<MockEntry | null>(null)
 
@@ -691,7 +697,7 @@ export function TrackingEditForm({ entry, draft, onChange }: {
 export function TrackingBoardDetail({ entry, now }: { entry: MockEntry; now: number }) {
   const { net } = useBoardScope()
   const clusterName = (id: string) => clusterById(net.clusters, id)?.label ?? id
-  const where = (p: TrackingPosition) => placeOwnerLabel(net, p)
+  const where = (p: TrackingPosition) => placeOwnerLabel(net, p) || undefined
   return (
     <div className="space-y-4">
       <SectionCard>
@@ -745,147 +751,23 @@ export function TrackingBoardDetail({ entry, now }: { entry: MockEntry; now: num
 
 // ── Settings (mirrors Messaging settings: section header + card, in Sheet / PreviewOverlay) ──
 
-const ROUND_BTN = 'w-9 h-9 rounded-full flex items-center justify-center active:scale-95 transition-all shrink-0'
-
-/** Inline add — primitive TextInput + circular + (shown once there's text). */
-function PlaceAddRow({ placeholder, ariaLabel, onAdd }: { placeholder: string; ariaLabel: string; onAdd: (label: string) => void }) {
-  const [draft, setDraft] = useState('')
-  const add = () => {
-    const label = draft.trim()
-    if (!label) return
-    onAdd(label)
-    setDraft('')
-  }
-  return (
-    <div className="flex items-center gap-2 px-3 py-2">
-      <div className="flex-1 min-w-0">
-        <TextInput value={draft} onChange={setDraft} placeholder={placeholder} maxLength={40} ariaLabel={ariaLabel} />
-      </div>
-      {draft.trim() && (
-        <button type="button" aria-label={ariaLabel} onClick={add} className={`${ROUND_BTN} bg-themeblue3 text-white`}>
-          <Plus size={16} />
-        </button>
-      )}
-    </div>
-  )
-}
-
-/** Rename form — the row swapped for an input after menu → Rename (never tap-to-edit). */
-function PlaceRenameRow({ label, onChange, onCancel, onSave }: {
-  label: string
-  onChange: (label: string) => void
-  onCancel: () => void
-  onSave: () => void
-}) {
-  return (
-    <div className="flex items-center gap-2 px-3 py-2 border-b border-primary/5">
-      <div className="flex-1 min-w-0">
-        <TextInput value={label} onChange={onChange} maxLength={40} ariaLabel="Name" autoFocus />
-      </div>
-      <button type="button" aria-label="Cancel rename" onClick={onCancel} className={`${ROUND_BTN} bg-themegray1/40 text-secondary`}>
-        <X size={16} />
-      </button>
-      {label.trim() && (
-        <button type="button" aria-label="Save name" onClick={onSave} className={`${ROUND_BTN} bg-themeblue3 text-white`}>
-          <Check size={16} />
-        </button>
-      )}
-    </div>
-  )
-}
-
-/** Tappable place row (opens the row menu, anchored to the row). */
-function PlaceRow({ id, title, sub, onOpen }: { id: string; title: string; sub?: string; onOpen?: (rect: DOMRect) => void }) {
-  return (
-    <div data-place-row={id}>
-      <ListItemRow
-        as={onOpen ? 'button' : 'div'}
-        onClick={onOpen ? () => {
-          const rect = document.querySelector<HTMLElement>(`[data-place-row="${CSS.escape(id)}"]`)?.getBoundingClientRect()
-          if (rect) onOpen(rect)
-        } : undefined}
-        className="px-4 py-2.5 border-b border-primary/5"
-        center={
-          <div className="min-w-0">
-            <p className="text-[10pt] text-primary truncate">{title}</p>
-            {sub && <p className="text-[9pt] text-tertiary truncate">{sub}</p>}
-          </div>
-        }
-      />
-    </div>
-  )
-}
-
-type PlaceKind = 'station' | 'axp'
-
 export interface TrackingSettingsHandlers {
   /** SKELETON: switch the viewing cluster to demo echelon visibility. Goes away
    *  with real data (viewer = the member's own cluster). */
   onViewerChange?: (clusterId: string) => void
-  /** Stations — the creating cluster adds / renames / removes its own. A removed
-   *  station's patients read as Unassigned (boardEntries → resolvePlaces). */
-  onAddStation?: (label: string) => void
-  onRenameStation?: (id: string, label: string) => void
-  onRemoveStation?: (id: string) => void
-  /** Use a station another related cluster made (same physical place, no duplicate). */
-  onOptIn?: (stationId: string) => void
-  /** Stop using an opted-in station (the creator can't leave its own). */
-  onLeave?: (stationId: string) => void
-  /** AXPs — unowned: anyone who sees one adds / renames / removes it. New ones
-   *  hand into the viewer's parent (or the viewer at the top). */
-  onAddAxp?: (label: string) => void
-  onRenameAxp?: (id: string, label: string) => void
-  onRemoveAxp?: (id: string) => void
+  /** Show / hide a known station on this cluster's board (writes the pin's
+   *  tracking_clinic_ids). Stations themselves are made / renamed / removed on
+   *  the map ("Add to tracking board" on a pin). */
+  onTogglePlace?: (ref: LinkedFeatureRef) => void
 }
 
 export function TrackingBoardSettings(h: TrackingSettingsHandlers) {
   const { net, viewerId } = useBoardScope()
   const swipe = useTrackingSwipeActions()
-  const used = stationsOf(net, viewerId)
-  const available = availableStations(net, viewerId)
-  const axps = boardAxps(net, viewerId)
+  const known = knownPlaces(net, viewerId)
+  const own = known.filter(p => p.clinicId === viewerId)
+  const others = known.filter(p => p.clinicId !== viewerId)
   const clusterName = (id: string) => clusterById(net.clusters, id)?.label ?? ''
-
-  // One row menu / rename / remove-confirm across stations and AXPs.
-  const [menu, setMenu] = useState<{ kind: PlaceKind; id: string; rect: DOMRect } | null>(null)
-  const [renaming, setRenaming] = useState<{ kind: PlaceKind; id: string; label: string } | null>(null)
-  const [pendingRemove, setPendingRemove] = useState<{ kind: PlaceKind; id: string; label: string } | null>(null)
-
-  const labelOf = (kind: PlaceKind, id: string) =>
-    (kind === 'axp' ? axps.find(a => a.id === id)?.label : net.stations.find(s => s.id === id)?.label) ?? ''
-
-  const saveRename = () => {
-    const label = renaming?.label.trim()
-    if (renaming && label) (renaming.kind === 'axp' ? h.onRenameAxp : h.onRenameStation)?.(renaming.id, label)
-    setRenaming(null)
-  }
-
-  const menuItems = (): ContextMenuItem[] => {
-    if (!menu) return []
-    const { kind, id } = menu
-    const close = () => setMenu(null)
-    const own = kind === 'axp' || net.stations.find(s => s.id === id)?.createdByClinicId === viewerId
-    if (!own) {
-      return h.onLeave ? [{ key: 'leave', label: 'Stop using', icon: LogOut, destructive: true, onAction: () => { h.onLeave!(id); close() } }] : []
-    }
-    const rename = kind === 'axp' ? h.onRenameAxp : h.onRenameStation
-    const remove = kind === 'axp' ? h.onRemoveAxp : h.onRemoveStation
-    return [
-      ...(rename ? [{ key: 'rename', label: 'Rename', icon: Pencil, onAction: () => { setRenaming({ kind, id, label: labelOf(kind, id) }); close() } }] : []),
-      ...(remove ? [{ key: 'remove', label: 'Remove', icon: Trash2, destructive: true, onAction: () => { setPendingRemove({ kind, id, label: labelOf(kind, id) }); close() } }] : []),
-    ]
-  }
-
-  const openMenu = (kind: PlaceKind, id: string) => (rect: DOMRect) => setMenu({ kind, id, rect })
-  const renameRow = (kind: PlaceKind, id: string) => renaming?.kind === kind && renaming.id === id && (
-    <PlaceRenameRow
-      key={id}
-      label={renaming.label}
-      onChange={label => setRenaming({ kind, id, label })}
-      onCancel={() => setRenaming(null)}
-      onSave={saveRename}
-    />
-  )
 
   return (
     <div className="px-5 py-4 space-y-6">
@@ -898,89 +780,45 @@ export function TrackingBoardSettings(h: TrackingSettingsHandlers) {
         onChange={setTrackingSwipeActions}
       />
 
-      {/* Stations this cluster uses — its own plus ones opted in to (same place,
-          no duplicate). Own: Rename / Remove. Opted in: Stop using. */}
-      <section>
-        <PageSectionHeader>Stations</PageSectionHeader>
-        <SectionCard>
-          {used.map(st => {
-            const mine = st.createdByClinicId === viewerId
-            const others = st.memberClinicIds.filter(id => id !== viewerId).map(clusterName)
-            const sub = mine ? (others.length > 0 ? `Shared with ${others.join(', ')}` : undefined) : `From ${clusterName(st.createdByClinicId)}`
-            const canAct = mine ? !!(h.onRenameStation || h.onRemoveStation) : !!h.onLeave
-            return renameRow('station', st.id) || (
-              <PlaceRow key={st.id} id={st.id} title={st.label} sub={sub} onOpen={canAct ? openMenu('station', st.id) : undefined} />
-            )
-          })}
-          {h.onAddStation && <PlaceAddRow placeholder="Add a station" ariaLabel="Add station" onAdd={h.onAddStation} />}
-        </SectionCard>
-      </section>
-
-      {/* Stations related clusters made — opt in to use the same place. */}
-      {h.onOptIn && available.length > 0 && (
-        <section>
-          <PageSectionHeader>Available stations</PageSectionHeader>
+      {/* Stations — every tracking pin this cluster knows: its own, then related
+          clusters'. Toggle = show on this board (same physical spot, no duplicate).
+          Made / renamed / removed on the map. */}
+      {[{ title: 'Your stations', rows: own }, { title: 'Other clusters', rows: others }].map(sec => sec.rows.length > 0 && (
+        <section key={sec.title}>
+          <PageSectionHeader>{sec.title}</PageSectionHeader>
           <SectionCard>
-            {available.map(st => (
-              <ListItemRow
-                key={st.id}
-                as="div"
-                className="px-4 py-2 border-b border-primary/5 last:border-b-0"
-                center={
-                  <div className="min-w-0">
-                    <p className="text-[10pt] text-primary truncate">{st.label}</p>
-                    <p className="text-[9pt] text-tertiary truncate">From {clusterName(st.createdByClinicId)}</p>
-                  </div>
-                }
-                right={
-                  <button type="button" aria-label={`Use ${st.label}`} onClick={() => h.onOptIn!(st.id)} className={`${ROUND_BTN} bg-themeblue3 text-white`}>
-                    <Plus size={16} />
-                  </button>
-                }
-              />
-            ))}
+            {sec.rows.map(pl => {
+              const on = pl.targetClinicIds.includes(viewerId)
+              const alsoOn = pl.targetClinicIds.filter(id => id !== viewerId && id !== pl.clinicId).map(clusterName)
+              const sub = pl.clinicId === viewerId
+                ? (alsoOn.length > 0 ? `Also on ${alsoOn.join(', ')}` : undefined)
+                : clusterName(pl.clinicId)
+              return (
+                <ListItemRow
+                  key={pl.featureId}
+                  onClick={h.onTogglePlace ? () => h.onTogglePlace!(refOf(pl)) : undefined}
+                  className="px-4 py-2.5 border-b border-primary/5 last:border-b-0"
+                  left={
+                    <span className="w-9 h-9 rounded-full bg-themewhite2 flex items-center justify-center text-themeblue3 shrink-0">
+                      <MapPin size={15} />
+                    </span>
+                  }
+                  center={
+                    <div className="min-w-0">
+                      <p className="text-[10pt] text-primary truncate">{pl.label}</p>
+                      {sub && <p className="text-[9pt] text-tertiary truncate">{sub}</p>}
+                    </div>
+                  }
+                  right={<ToggleSwitch checked={on} />}
+                />
+              )
+            })}
           </SectionCard>
         </section>
+      ))}
+      {known.length === 0 && (
+        <p className="text-[9pt] text-tertiary px-1">No stations yet — on the map, open a pin and turn on “Add to tracking board”.</p>
       )}
-
-      {/* AXPs — unowned exchange points into a cluster; anyone who sees one edits it. */}
-      <section>
-        <PageSectionHeader>Exchange points</PageSectionHeader>
-        <SectionCard>
-          {axps.map(a => renameRow('axp', a.id) || (
-            <PlaceRow
-              key={a.id}
-              id={a.id}
-              title={a.label}
-              sub={`Into ${clusterName(a.scopeClinicId)}`}
-              onOpen={h.onRenameAxp || h.onRemoveAxp ? openMenu('axp', a.id) : undefined}
-            />
-          ))}
-          {h.onAddAxp && <PlaceAddRow placeholder="Add an AXP" ariaLabel="Add AXP" onAdd={h.onAddAxp} />}
-        </SectionCard>
-      </section>
-
-      <AnchoredMenu
-        isOpen={!!menu}
-        anchorRect={menu?.rect ?? null}
-        onClose={() => setMenu(null)}
-        layout="list"
-        align="right"
-        items={menuItems()}
-      />
-      <ConfirmDialog
-        visible={!!pendingRemove}
-        title={`Remove ${pendingRemove?.label ?? ''}?`}
-        subtitle="Patients there move to Unassigned."
-        confirmLabel="Remove"
-        variant="danger"
-        onConfirm={() => {
-          const r = pendingRemove
-          setPendingRemove(null)
-          if (r) (r.kind === 'axp' ? h.onRemoveAxp : h.onRemoveStation)?.(r.id)
-        }}
-        onCancel={() => setPendingRemove(null)}
-      />
 
       {h.onViewerChange && (
         <section>

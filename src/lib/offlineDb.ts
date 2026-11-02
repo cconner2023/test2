@@ -1547,6 +1547,16 @@ export async function getLocalMapOverlays(clinicId: string): Promise<LocalMapOve
 }
 
 /**
+ * Get ALL local map overlays across clusters. Overlays fanned in from related
+ * clusters for their tracking pins keep their own clinic_id, so the by-clinic
+ * index misses them — snapshot + Tracking Board filter on target_clinic_ids in JS.
+ */
+export async function getAllLocalMapOverlays(): Promise<LocalMapOverlay[]> {
+  const db = await getDb()
+  return db.getAll('mapOverlays')
+}
+
+/**
  * Get a single local map overlay by ID.
  */
 export async function getLocalMapOverlay(overlayId: string): Promise<LocalMapOverlay | undefined> {

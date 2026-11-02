@@ -30,17 +30,22 @@ export function SearchDropdownCard({
     children,
     className = '',
     ariaLabel = 'Search results',
+    header,
 }: {
     children: ReactNode
     className?: string
     ariaLabel?: string
+    /** Optional pinned header above the scroll region (e.g. a PaneHeader when the
+     *  card hosts a detail — map feature card). */
+    header?: ReactNode
 }) {
     return (
         <div
             className={`flex flex-col max-h-[min(70vh,560px)] rounded-2xl bg-themewhite border border-primary/6 shadow-lg overflow-hidden animate-surface-in-down ${className}`}
             aria-label={ariaLabel}
         >
-            <div className="min-h-0 overflow-y-auto overscroll-contain py-1">{children}</div>
+            {header && <div className="shrink-0">{header}</div>}
+            <div className={`min-h-0 overflow-y-auto overscroll-contain ${header ? '' : 'py-1'}`}>{children}</div>
         </div>
     )
 }

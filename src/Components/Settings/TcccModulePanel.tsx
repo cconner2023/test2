@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { EmptyState } from '@/Components/primitives/EmptyState'
 import { SectionHeader, SectionCard, CardLabel } from '@/Components/primitives/Section'
@@ -14,20 +14,10 @@ export type TcccView = 'tccc' | 'tccc-detail'
 
 function TcccList({
     onSelectModule,
-    searchQuery,
 }: {
     onSelectModule: (moduleKey: string) => void
-    searchQuery: string
 }) {
-    const modules = useMemo(() => {
-        const q = searchQuery.trim().toLowerCase()
-        if (!q) return tcccModules
-        return tcccModules.filter(
-            m => m.name.toLowerCase().includes(q) || (m.module?.toLowerCase().includes(q) ?? false)
-        )
-    }, [searchQuery])
-
-    const isSearching = searchQuery.trim().length > 0
+    const modules = tcccModules
 
     return (
         <div className="px-5 py-4 space-y-5">
@@ -36,14 +26,8 @@ function TcccList({
                 component referenced by one or more ICTL tasks.
             </p>
 
-            {isSearching && (
-                <p className="text-[9pt] text-tertiary">
-                    {modules.length} result{modules.length !== 1 ? 's' : ''}
-                </p>
-            )}
-
             {modules.length === 0 ? (
-                <EmptyState title={isSearching ? 'No modules match your search' : 'No TCCC modules yet'} />
+                <EmptyState title="No TCCC modules yet" />
             ) : (
                 <SectionCard>
                     {modules.map((m, idx) => {
@@ -237,13 +221,12 @@ interface TcccModulePanelProps {
     view: TcccView
     selectedModuleKey: string | null
     onSelectModule: (moduleKey: string) => void
-    searchQuery: string
 }
 
-export function TcccModulePanel({ view, selectedModuleKey, onSelectModule, searchQuery }: TcccModulePanelProps) {
+export function TcccModulePanel({ view, selectedModuleKey, onSelectModule }: TcccModulePanelProps) {
     if (view === 'tccc-detail' && selectedModuleKey) {
         const module = getTcccModule(selectedModuleKey)
         if (module) return <TcccModuleDetail module={module} />
     }
-    return <TcccList onSelectModule={onSelectModule} searchQuery={searchQuery} />
+    return <TcccList onSelectModule={onSelectModule} />
 }

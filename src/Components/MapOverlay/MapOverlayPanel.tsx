@@ -19,10 +19,9 @@ import { BaseDrawer } from '@/Components/primitives/BaseDrawer';
 import { Sheet } from '@/Components/primitives/Sheet';
 import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill';
 import { SearchInput } from '@/Components/primitives/SearchInput';
-import { SearchCancelButton } from '@/Components/primitives/SearchDropdown';
+import { SearchCancelButton, SearchDropdownCard } from '@/Components/primitives/SearchDropdown';
 import { RailSearchRow } from '@/Components/primitives/RailSearchRow';
 import { ContentWrapper } from '@/Components/primitives/ContentWrapper';
-import { SlideRevealPane } from '@/Components/primitives/SlideRevealPane';
 import { PaneHeader } from '@/Components/primitives/PaneHeader';
 import { useEscBackout } from '../../Hooks/useEscBackout';
 import { ErrorDisplay } from '@/Components/primitives/ErrorDisplay';
@@ -425,7 +424,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
   const [showPopover, setShowPopover] = useState(false);
   const [showMobileTree, setShowMobileTree] = useState(false);
   // "My location" rides the SAME host as a feature: mobile Sheet / desktop
-  // right pane. Opened from the island's locate glyph, or by picking a
+  // detail card. Opened from the island's locate glyph, or by picking a
   // Personnel row in the tree.
   const [showMyLocation, setShowMyLocation] = useState(false);
   // Whose marker that surface is about. null = the signed-in user's own fix;
@@ -903,7 +902,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
 
   const selectedFeature = features.find(f => f.id === selectedFeatureId) ?? null;
 
-  // The right pane / sheet holds one surface at a time. Anything that claims it
+  // The desktop detail card / mobile sheet holds one surface at a time. Anything that claims it
   // retires My location outright, so closing that surface doesn't resurrect it.
   useEffect(() => {
     if (selectedFeature || tempPoint || tempRoute) handleCloseLocation();
@@ -2046,7 +2045,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
   // Parent-overlay breadcrumb walk-up: deselect the feature and land back on the
   // level above it — the overlay tree. Mobile morphs the SAME sheet back to its
   // tree step (setShowMobileTree(true)); desktop just deselects, which collapses
-  // the right pane and reveals the rail tree. Mirrors property's root-crumb →
+  // the map detail card (rail tree is always visible). Mirrors property's root-crumb →
   // tree-step walk (handleBreadcrumbNavigate(null)).
   const handleFeatureBreadcrumbUp = useCallback(() => {
     setSelectedFeatureId(null);
@@ -2055,7 +2054,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
     if (isMobile) setShowMobileTree(true);
   }, [drawMode, handleModeChange, isMobile]);
 
-  // Desktop Esc: back out the open right pane one layer — geo-PDF overlay first
+  // Desktop Esc: back out the open detail card one layer — geo-PDF overlay first
   // (it sits on top), then the feature editor / temp point / temp route — before
   // the drawer itself closes.
   useEscBackout(!isMobile && !!(selectedFeature || tempPoint || tempRoute || geoPdfFormOpen || showMyLocation), () => {
@@ -2419,15 +2418,9 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
             ]}
           />
           {/* Desktop left pane — search/layers row + overlay tree, mirrors CalendarDrawer rail.
-              Collapses (slides out left) when a feature/temp/geo-PDF editor opens the right pane. */}
+              Always open: details float over the map as a lifted card (below). */}
           {!isMobile && (
-            <SlideRevealPane
-              open={!(selectedFeature || tempPoint || tempRoute || geoPdfFormOpen || showMyLocation)}
-              side="left"
-              width={240}
-              keepMounted
-              className="border-r border-primary/10 bg-themewhite"
-            >
+            <div className="w-[240px] shrink-0 flex flex-col border-r border-primary/10 bg-themewhite">
               <RailSearchRow
                 value={searchQuery}
                 onChange={setSearchQuery}
@@ -2521,7 +2514,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                 title="Linked events (feature)"
                 zIndex={1100}
               />
-            </SlideRevealPane>
+            </div>
           )}
           <div className="flex flex-col flex-1 min-w-0 relative">
             {/* Error feedback */}
@@ -2567,7 +2560,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                 selectedPresenceUserId={showMyLocation ? (locationSubjectUserId ?? user?.id ?? null) : null}
                 myLocationShared={myLocationShared}
                 onOpenMyLocation={() => {
-                  // One right pane / one sheet: opening this closes whatever
+                  // One detail card / one sheet: opening this closes whatever
                   // transient surface currently owns it.
                   handleCloseTempPoint();
                   handleCloseTempRoute();
@@ -2593,7 +2586,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                 onToggleGrid={() => setShowGrid(prev => !prev)}
               />
               {/* Geo-PDF import — mobile detail sheet (desktop hosts it in the
-                  right pane above). Mirrors the feature-editor Sheet mechanic. */}
+                  detail card below). Mirrors the feature-editor Sheet mechanic. */}
               {isMobile && (
                 <Sheet
                   isOpen={geoPdfFormOpen}
@@ -3173,174 +3166,179 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
             </div>
           </div>
 
-          {/* Desktop right pane — slides in from the right, mirrors CalendarPanel.
-              Map column is flex-1 so it reflows as this pane opens/closes. */}
-          {!isMobile && (
-            <SlideRevealPane
-              open={!!(selectedFeature || tempPoint || tempRoute || geoPdfFormOpen || showMyLocation)}
-              side="right"
-              width={320}
-              className="border-l border-primary/10 bg-themewhite relative"
-            >
-              {!selectedFeature && !tempPoint && !tempRoute && showMyLocation && (
-                <div className="relative flex flex-col flex-1 min-h-0">
-                  <PaneHeader
-                    leading={locationHeaderMenu}
-                    title={locationTitle}
-                    actions={
-                      <HeaderPill>
-                        <PillButton icon={X} iconSize={18} onClick={handleCloseLocation} label="Close" />
-                      </HeaderPill>
-                    }
-                  />
-                  <div className="flex-1 min-h-0 overflow-y-auto">
-                    <LocationBody
-                      fix={position}
-                      shared={myLocationShared}
-                      label={subjectMarker ? subjectMarker.label : myPresenceLabel}
-                      marker={subjectMarker}
+          {/* Desktop detail card — the map search dropdown's lifted card, floated
+              over the map (top-left, clear of the rail) instead of a right pane.
+              The rail stays open so desktop users keep their list. One surface at
+              a time: geo-PDF import > feature > temp point > temp route > location. */}
+          {!isMobile && (geoPdfFormOpen || selectedFeature || tempPoint || tempRoute || showMyLocation) && (
+            <div className="absolute top-3 left-[252px] z-[1020] w-[360px] pointer-events-none">
+              {geoPdfFormOpen ? (
+                <SearchDropdownCard
+                  className="pointer-events-auto"
+                  ariaLabel="Import geo-PDF"
+                  header={
+                    <PaneHeader
+                      title="Import geo-PDF"
+                      actions={
+                        <HeaderPill>
+                          <PillButton icon={X} iconSize={18} onClick={() => setGeoPdfFormOpen(false)} label="Close" />
+                        </HeaderPill>
+                      }
                     />
+                  }
+                >
+                  <div className="px-4 py-4 pb-8">
+                    <GeoPdfImportForm onClose={() => setGeoPdfFormOpen(false)} onSubmit={handleGeoPdfSubmit} />
                   </div>
-                </div>
-              )}
-              {!selectedFeature && tempPoint && (
-                <div className="relative flex flex-col flex-1 min-h-0">
-                  <PaneHeader
-                    title="Temp point"
-                    actions={
-                      <HeaderPill>
-                        <PillButton icon={Check} iconSize={18} onClick={handlePromoteTempPoint} label="Save as waypoint" />
-                        <PillButton
-                          icon={Navigation}
-                          iconSize={18}
-                          onClick={() => handleStartNavigation(tempPoint.lat, tempPoint.lng, null)}
-                          label="Navigate from here"
+                </SearchDropdownCard>
+              ) : selectedFeature ? (
+                <SearchDropdownCard
+                  key={selectedFeature.id}
+                  className="pointer-events-auto relative"
+                  ariaLabel="Feature details"
+                  header={
+                    // READ mode shows the parent-overlay breadcrumb stacked above the
+                    // feature name; tapping it deselects (closes the card, the rail
+                    // tree is the walk-up target). EDIT mode drops both so the body
+                    // TextInput is the single source of truth for the name.
+                    <PaneHeader
+                      eyebrow={isFeatureEditMode ? undefined : (
+                        <MapOverlayBreadcrumb
+                          label={overlayName.trim() || 'Overlay'}
+                          onNavigate={handleFeatureBreadcrumbUp}
                         />
-                        <PillButton icon={X} iconSize={18} onClick={handleCloseTempPoint} label="Close" />
-                      </HeaderPill>
-                    }
-                  />
-                  <div className="flex-1 min-h-0 overflow-y-auto">
-                    <TempPointBody lat={tempPoint.lat} lng={tempPoint.lng} />
-                  </div>
-                </div>
-              )}
-              {!selectedFeature && !tempPoint && tempRoute && (
-                <div className="relative flex flex-col flex-1 min-h-0">
-                  <PaneHeader
-                    title="Temp route"
-                    actions={
-                      <HeaderPill>
-                        <PillButton
-                          icon={Undo2}
-                          iconSize={18}
-                          onClick={handleUndoTempRoute}
-                          label="Undo"
-                          disabled={tempRoute.history.length === 0}
-                        />
-                        <PillButton
-                          icon={Route}
-                          iconSize={18}
-                          onClick={handleSaveTempRouteAsFeature}
-                          label="Save as route"
-                          disabled={tempRoute.points.length < 2}
-                        />
-                        <PillButton
-                          icon={Pentagon}
-                          iconSize={18}
-                          onClick={handleSaveTempRouteAsArea}
-                          label="Save as area"
-                          disabled={tempRoute.points.length < 3}
-                        />
-                        <PillButton icon={X} iconSize={18} onClick={handleCloseTempRoute} label="Close" />
-                      </HeaderPill>
-                    }
-                  />
-                  <div className="flex-1 min-h-0 overflow-y-auto">
-                    <TempRouteBody points={tempRoute.points} onRemoveVertex={handleRemoveTempRouteVertex} onAddVertex={handleAddTempRouteVertex} />
-                  </div>
-                </div>
-              )}
-              {selectedFeature && (
-                <div className="relative flex flex-col flex-1 min-h-0">
+                      )}
+                      title={isFeatureEditMode ? undefined : (
+                        selectedFeature.label
+                        || (selectedFeature.type === 'waypoint' ? 'Waypoint'
+                          : selectedFeature.type === 'route' ? 'Route'
+                          : 'Area')
+                      )}
+                      onBack={isFeatureEditMode ? handleToggleFeatureEditMode : undefined}
+                      actions={
+                        <HeaderPill>
+                          {isFeatureEditMode ? (
+                            <>
+                              <PillButton icon={Check} iconSize={18} onClick={handleSaveAndExitEdit} label="Save changes" accent={isDirty ? 'info' : undefined} />
+                              <PillButton icon={X} iconSize={18} onClick={handleCloseFeatureEditor} label="Close" />
+                            </>
+                          ) : (
+                            <>
+                              <span className="inline-flex" onClick={openFeatureMenu}>
+                                <PillButton icon={MoreHorizontal} iconSize={18} onClick={() => {}} label="More actions" />
+                              </span>
+                              <PillButton icon={X} iconSize={18} onClick={handleCloseFeatureEditor} label="Close" />
+                            </>
+                          )}
+                        </HeaderPill>
+                      }
+                    />
+                  }
+                >
                   <LoadingOverlay visible={savingOverlay} />
-                  {/* READ mode shows the parent-overlay breadcrumb stacked above the
-                      feature name (admin/property desktop pattern) — tapping the
-                      breadcrumb deselects, collapsing this pane and revealing the rail
-                      tree = the walk-up target. EDIT mode drops both so the body
-                      TextInput is the single source of truth for the name. */}
-                  <PaneHeader
-                    eyebrow={isFeatureEditMode ? undefined : (
-                      <MapOverlayBreadcrumb
-                        label={overlayName.trim() || 'Overlay'}
-                        onNavigate={handleFeatureBreadcrumbUp}
-                      />
-                    )}
-                    title={isFeatureEditMode ? undefined : (
-                      selectedFeature.label
-                      || (selectedFeature.type === 'waypoint' ? 'Waypoint'
-                        : selectedFeature.type === 'route' ? 'Route'
-                        : 'Area')
-                    )}
-                    onBack={isFeatureEditMode ? handleToggleFeatureEditMode : undefined}
-                    actions={
-                      <HeaderPill>
-                        {isFeatureEditMode ? (
-                          <>
-                            <PillButton icon={Check} iconSize={18} onClick={handleSaveAndExitEdit} label="Save changes" accent={isDirty ? 'info' : undefined} />
-                            <PillButton icon={X} iconSize={18} onClick={handleCloseFeatureEditor} label="Close" />
-                          </>
-                        ) : (
-                          <>
-                            <span className="inline-flex" onClick={openFeatureMenu}>
-                              <PillButton icon={MoreHorizontal} iconSize={18} onClick={() => {}} label="More actions" />
-                            </span>
-                            <PillButton icon={X} iconSize={18} onClick={handleCloseFeatureEditor} label="Close" />
-                          </>
-                        )}
-                      </HeaderPill>
-                    }
+                  <FeatureEditor
+                    feature={selectedFeature}
+                    onUpdate={handleUpdateSelectedFeature}
+                    waypoints={features.filter(f => f.type === 'waypoint')}
+                    onFocusLeg={(bbox) => mapRef.current?.fitBounds(bbox)}
+                    linkedEventCount={allEvents.reduce((n, e) => {
+                      const explicit = e.linked_features?.some(f => f.overlay_id === selectedFeature.overlay_id && f.feature_id === selectedFeature.id)
+                      const implied = e.linked_overlays?.includes(selectedFeature.overlay_id)
+                      return n + (explicit || implied ? 1 : 0)
+                    }, 0)}
+                    onOpenLinksEditor={(anchor) => handleOpenFeatureLinksEditor(selectedFeature.overlay_id, selectedFeature.id, anchor)}
+                    isEditMode={isFeatureEditMode}
+                    floors={floorLevels}
+                    onChangeFloor={handleChangeFeatureFloor}
                   />
-                  <div className="flex-1 min-h-0 overflow-y-auto">
-                    <FeatureEditor
-                      feature={selectedFeature}
-                      onUpdate={handleUpdateSelectedFeature}
-                      waypoints={features.filter(f => f.type === 'waypoint')}
-                      onFocusLeg={(bbox) => mapRef.current?.fitBounds(bbox)}
-                      linkedEventCount={allEvents.reduce((n, e) => {
-                        const explicit = e.linked_features?.some(f => f.overlay_id === selectedFeature.overlay_id && f.feature_id === selectedFeature.id)
-                        const implied = e.linked_overlays?.includes(selectedFeature.overlay_id)
-                        return n + (explicit || implied ? 1 : 0)
-                      }, 0)}
-                      onOpenLinksEditor={(anchor) => handleOpenFeatureLinksEditor(selectedFeature.overlay_id, selectedFeature.id, anchor)}
-                      isEditMode={isFeatureEditMode}
-                      floors={floorLevels}
-                      onChangeFloor={handleChangeFeatureFloor}
+                </SearchDropdownCard>
+              ) : tempPoint ? (
+                <SearchDropdownCard
+                  className="pointer-events-auto"
+                  ariaLabel="Temp point"
+                  header={
+                    <PaneHeader
+                      title="Temp point"
+                      actions={
+                        <HeaderPill>
+                          <PillButton icon={Check} iconSize={18} onClick={handlePromoteTempPoint} label="Save as waypoint" />
+                          <PillButton
+                            icon={Navigation}
+                            iconSize={18}
+                            onClick={() => handleStartNavigation(tempPoint.lat, tempPoint.lng, null)}
+                            label="Navigate from here"
+                          />
+                          <PillButton icon={X} iconSize={18} onClick={handleCloseTempPoint} label="Close" />
+                        </HeaderPill>
+                      }
                     />
-                  </div>
-                </div>
-              )}
-              {/* Geo-PDF import — sole occupant of the right pane (left rail
-                  collapses, pane opens). Absolute overlay so it covers the
-                  feature/temp branches without entangling their conditions. */}
-              {geoPdfFormOpen && (
-                <div className="absolute inset-0 z-10 flex flex-col bg-themewhite">
-                  <PaneHeader
-                    title="Import geo-PDF"
-                    actions={
-                      <HeaderPill>
-                        <PillButton icon={X} iconSize={18} onClick={() => setGeoPdfFormOpen(false)} label="Close" />
-                      </HeaderPill>
-                    }
+                  }
+                >
+                  <TempPointBody lat={tempPoint.lat} lng={tempPoint.lng} />
+                </SearchDropdownCard>
+              ) : tempRoute ? (
+                <SearchDropdownCard
+                  className="pointer-events-auto"
+                  ariaLabel="Temp route"
+                  header={
+                    <PaneHeader
+                      title="Temp route"
+                      actions={
+                        <HeaderPill>
+                          <PillButton
+                            icon={Undo2}
+                            iconSize={18}
+                            onClick={handleUndoTempRoute}
+                            label="Undo"
+                            disabled={tempRoute.history.length === 0}
+                          />
+                          <PillButton
+                            icon={Route}
+                            iconSize={18}
+                            onClick={handleSaveTempRouteAsFeature}
+                            label="Save as route"
+                            disabled={tempRoute.points.length < 2}
+                          />
+                          <PillButton
+                            icon={Pentagon}
+                            iconSize={18}
+                            onClick={handleSaveTempRouteAsArea}
+                            label="Save as area"
+                            disabled={tempRoute.points.length < 3}
+                          />
+                          <PillButton icon={X} iconSize={18} onClick={handleCloseTempRoute} label="Close" />
+                        </HeaderPill>
+                      }
+                    />
+                  }
+                >
+                  <TempRouteBody points={tempRoute.points} onRemoveVertex={handleRemoveTempRouteVertex} onAddVertex={handleAddTempRouteVertex} />
+                </SearchDropdownCard>
+              ) : (
+                <SearchDropdownCard
+                  className="pointer-events-auto"
+                  ariaLabel="Location"
+                  header={
+                    <PaneHeader
+                      leading={locationHeaderMenu}
+                      title={locationTitle}
+                      actions={
+                        <HeaderPill>
+                          <PillButton icon={X} iconSize={18} onClick={handleCloseLocation} label="Close" />
+                        </HeaderPill>
+                      }
+                    />
+                  }
+                >
+                  <LocationBody
+                    fix={position}
+                    shared={myLocationShared}
+                    label={subjectMarker ? subjectMarker.label : myPresenceLabel}
+                    marker={subjectMarker}
                   />
-                  <div className="flex-1 min-h-0 overflow-y-auto">
-                    <div className="px-4 py-4 pb-8">
-                      <GeoPdfImportForm onClose={() => setGeoPdfFormOpen(false)} onSubmit={handleGeoPdfSubmit} />
-                    </div>
-                  </div>
-                </div>
+                </SearchDropdownCard>
               )}
-            </SlideRevealPane>
+            </div>
           )}
 
           </div>

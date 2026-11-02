@@ -15,7 +15,7 @@ import type { MessageContent, MapOverlayContent, MapOverlayPayload, MapFeatureCo
 import type { LocalMapOverlay, OverlayFeature } from '../Types/MapOverlayTypes'
 import {
   getLocalMapOverlay,
-  getLocalMapOverlays,
+  getAllLocalMapOverlays,
   saveLocalMapOverlay,
   deleteLocalMapOverlay,
 } from './offlineDb'
@@ -151,6 +151,7 @@ function mergeOverlay(
       ...(data.zoom !== undefined && { zoom: data.zoom }),
       ...(data.features !== undefined && { features: data.features }),
       ...(data.floors !== undefined && { floors: data.floors }),
+      ...(data.target_clinic_ids !== undefined && { target_clinic_ids: data.target_clinic_ids }),
       ...(data.created_by !== undefined && { created_by: data.created_by }),
       ...(data.created_at !== undefined && { created_at: data.created_at }),
       ...(data.updated_at !== undefined && { updated_at: data.updated_at }),
@@ -173,6 +174,7 @@ function mergeOverlay(
     zoom: data.zoom ?? 12,
     features: data.features ?? [],
     floors: data.floors,
+    target_clinic_ids: data.target_clinic_ids,
     created_by: data.created_by,
     created_at: data.created_at ?? new Date().toISOString(),
     updated_at: data.updated_at ?? new Date().toISOString(),
@@ -285,7 +287,11 @@ export async function loadSnapshotOverlays(overlays: LocalMapOverlay[]): Promise
  * snapshotCalendarEvents + useCalendarSync Phase B's retain predicate.
  */
 export async function snapshotOverlays(clinicId: string, vaultLiveIds?: Set<string>): Promise<LocalMapOverlay[]> {
-  const overlays = await getLocalMapOverlays(clinicId)
+  // Own overlays plus related clusters' overlays fanned here for their tracking
+  // pins (target_clinic_ids) — the by-clinic index misses the latter, so a fresh
+  // device would otherwise lose them once the vault tail is reaped.
+  const overlays = (await getAllLocalMapOverlays())
+    .filter(o => o.clinic_id === clinicId || (o.target_clinic_ids?.includes(clinicId) ?? false))
   return overlays.filter(o => {
     if (_tombstones.has(o.id)) return false
     if (vaultLiveIds && o.originId && !vaultLiveIds.has(o.id)) return false

@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
-import { Copy, ChevronDown, Spline, Hexagon, Navigation, Plus } from 'lucide-react';
+import { Copy, ChevronDown, Spline, Hexagon, Navigation, Plus, ClipboardList } from 'lucide-react';
+import { ToggleSwitch } from '../Settings/ToggleSwitch';
 import { floorLabel } from './FloorSelector';
 import { latLngToMgrs } from '../../lib/mgrsFormat';
 import { latLngToUTM } from './utmProjection';
@@ -281,6 +282,13 @@ export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg, l
     });
   }, [feature, onUpdate]);
 
+  // Station on/off. Off clears the opt-ins too; undefined tracking_clinic_ids
+  // = the overlay's own cluster only (the board fills that default in).
+  const handleTrackingToggle = useCallback(() => {
+    const on = !feature.tracking;
+    onUpdate({ ...feature, tracking: on || undefined, tracking_clinic_ids: on ? feature.tracking_clinic_ids : undefined, updated_at: new Date().toISOString() });
+  }, [feature, onUpdate]);
+
   const handleWaypointTypeChange = useCallback((waypoint_type: WaypointType) => {
     onUpdate({ ...feature, waypoint_type, updated_at: new Date().toISOString() });
   }, [feature, onUpdate]);
@@ -418,6 +426,24 @@ export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg, l
             );
           })}
         </div>
+      )}
+
+      {/* Tracking Board station — EDIT mode, waypoints only. On = the pin is a
+          station on this cluster's tracking board (other related clusters can
+          toggle it onto theirs). Off = plain pin; patients there read as Unassigned. */}
+      {isEditMode && feature.type === 'waypoint' && (
+        <button
+          type="button"
+          onClick={handleTrackingToggle}
+          className="w-full px-3 py-2 border-b border-primary/6 flex items-center gap-3 text-left active:scale-[0.99] transition-all"
+          aria-pressed={!!feature.tracking}
+        >
+          <div className="w-9 h-9 rounded-full bg-themewhite flex items-center justify-center text-themeblue3 shrink-0">
+            <ClipboardList size={15} />
+          </div>
+          <span className="flex-1 min-w-0 text-[10pt] font-medium text-primary truncate">Add to tracking board</span>
+          <ToggleSwitch checked={!!feature.tracking} />
+        </button>
       )}
 
       {/* Build MEDEVAC — EDIT mode action (relocated from read view).

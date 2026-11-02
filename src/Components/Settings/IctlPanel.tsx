@@ -1,6 +1,5 @@
 import { useMemo, type ReactNode } from 'react'
 import { Check, ChevronRight, Lock, BookOpen } from 'lucide-react'
-import { EmptyState } from '@/Components/primitives/EmptyState'
 import { SectionHeader, SectionCard, CardLabel } from '@/Components/primitives/Section'
 import { ListItemRow } from '@/Components/primitives/ListItemRow'
 import { StepCallout, PerformanceStepItem, TcccSheetHeader } from '../TrainingStepComponents'
@@ -10,14 +9,14 @@ import { resolveTcccModuleRef, type TcccModule, type TcccSection } from '../../D
 
 export type IctlView = 'ictl' | 'ictl-detail'
 
-interface IctlTaskRow {
+export interface IctlTaskRow {
     taskId: string
     title: string
     areaName: string
 }
 
 /** Flatten the ICTL roster into { subjectArea -> tasks }, preserving packet order. */
-function buildIctlByArea(): Map<string, IctlTaskRow[]> {
+export function buildIctlByArea(): Map<string, IctlTaskRow[]> {
     const grouped = new Map<string, IctlTaskRow[]>()
     ictl68wSL1.forEach(level => {
         level.subjectArea.forEach(area => {
@@ -34,33 +33,10 @@ function buildIctlByArea(): Map<string, IctlTaskRow[]> {
 
 function IctlList({
     onSelectTask,
-    searchQuery,
 }: {
     onSelectTask: (taskId: string) => void
-    searchQuery: string
 }) {
     const byArea = useMemo(() => buildIctlByArea(), [])
-
-    const displayAreas = useMemo(() => {
-        const q = searchQuery.trim().toLowerCase()
-        if (!q) return byArea
-        const filtered = new Map<string, IctlTaskRow[]>()
-        for (const [area, tasks] of byArea) {
-            const matched = tasks.filter(
-                t => t.title.toLowerCase().includes(q) || t.taskId.toLowerCase().includes(q)
-            )
-            if (matched.length > 0) filtered.set(area, matched)
-        }
-        return filtered
-    }, [searchQuery, byArea])
-
-    const totalResults = useMemo(() => {
-        let n = 0
-        for (const tasks of displayAreas.values()) n += tasks.length
-        return n
-    }, [displayAreas])
-
-    const isSearching = searchQuery.trim().length > 0
 
     return (
         <div className="px-5 py-4 space-y-5">
@@ -68,16 +44,7 @@ function IctlList({
                 Individual Critical Task List — approved {ICTL_APPROVED_DATE}. Tasks fill in as content is added.
             </p>
 
-            {isSearching && (
-                <p className="text-[9pt] text-tertiary">
-                    {totalResults} result{totalResults !== 1 ? 's' : ''}
-                </p>
-            )}
-
-            {totalResults === 0 && isSearching ? (
-                <EmptyState title="No tasks match your search" />
-            ) : (
-                Array.from(displayAreas).map(([areaName, tasks]) => (
+            {Array.from(byArea).map(([areaName, tasks]) => (
                     <div key={areaName}>
                         <SectionHeader trailing={<span className="text-[9pt] text-tertiary">{tasks.length}</span>}>
                             {areaName}
@@ -114,8 +81,7 @@ function IctlList({
                             })}
                         </SectionCard>
                     </div>
-                ))
-            )}
+                ))}
         </div>
     )
 }
@@ -364,14 +330,13 @@ interface IctlPanelProps {
     view: IctlView
     selectedTaskId: string | null
     onSelectTask: (taskId: string) => void
-    searchQuery: string
     onOpenTccc: (moduleKey: string) => void
 }
 
-export function IctlPanel({ view, selectedTaskId, onSelectTask, searchQuery, onOpenTccc }: IctlPanelProps) {
+export function IctlPanel({ view, selectedTaskId, onSelectTask, onOpenTccc }: IctlPanelProps) {
     if (view === 'ictl-detail' && selectedTaskId) {
         const taskData = getIctlTaskData(selectedTaskId)
         if (taskData) return <IctlTaskDetail taskData={taskData} onOpenTccc={onOpenTccc} />
     }
-    return <IctlList onSelectTask={onSelectTask} searchQuery={searchQuery} />
+    return <IctlList onSelectTask={onSelectTask} />
 }

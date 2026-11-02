@@ -126,6 +126,12 @@ export interface MapOverlayPayload {
    * empty floor (added with no features yet) survive close/reopen and sync.
    */
   floors?: OverlayFloor[]
+  /**
+   * Clusters this overlay is fanned to = {clinic_id} ∪ related clusters when it
+   * carries any tracking pin (OverlayFeature.tracking). Absent → [clinic_id].
+   * Receivers outside clinic_id only surface its tracking pins (Tracking Board).
+   */
+  target_clinic_ids?: string[]
   created_by?: string
   created_at?: string
   updated_at?: string

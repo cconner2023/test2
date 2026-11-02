@@ -1,6 +1,5 @@
 import { useRef, useEffect, useCallback, useMemo, useState } from 'react'
 import { Check, ChevronRight, Lock, CalendarDays, ClipboardList, Pin, RotateCcw } from 'lucide-react'
-import { EmptyState } from '@/Components/primitives/EmptyState'
 import { AddFab } from '@/Components/primitives/AddFab'
 import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
 import { useCalendarVault } from '../../Hooks/useCalendarVault'
@@ -22,7 +21,7 @@ import { liftPressHandlers, type LiftPressState, type LiftSnapshot } from '../li
 import { useNavPreferencesStore } from '../../stores/useNavPreferencesStore'
 import { useShallow } from 'zustand/react/shallow'
 
-interface FlatTask {
+export interface FlatTask {
     taskId: string
     title: string
     levelIdx: number
@@ -36,7 +35,7 @@ interface FlatTask {
  * De-duplicates by task ID within a category (keeps lowest skill level).
  * Sorted by (1) category order, (2) skill level, (3) title alphabetically.
  */
-function buildAllTasksByCategory(): Map<string, FlatTask[]> {
+export function buildAllTasksByCategory(): Map<string, FlatTask[]> {
     const seen = new Map<string, Set<string>>() // areaName -> set of taskIds
     const grouped = new Map<string, FlatTask[]>()
 
@@ -250,10 +249,8 @@ function TaskRow({
 
 function TrainingList({
     onSelectTask,
-    searchQuery,
 }: {
     onSelectTask: (task: subjectAreaArrayOptions) => void
-    searchQuery: string
 }) {
     const { isTaskCompleted, isTaskViewed, getAssignment, getPendingAssignments } = useTrainingCompletions()
     const { medics } = useClinicMedics()
@@ -284,32 +281,9 @@ function TrainingList({
 
     const allByCategory = useMemo(() => buildAllTasksByCategory(), [])
 
-    // Filter when searching
-    const displayCategories = useMemo(() => {
-        const q = searchQuery.trim().toLowerCase()
-        if (!q) return allByCategory
-
-        const filtered = new Map<string, FlatTask[]>()
-        for (const [cat, tasks] of allByCategory) {
-            const matched = tasks.filter(
-                t => t.title.toLowerCase().includes(q) || t.taskId.toLowerCase().includes(q)
-            )
-            if (matched.length > 0) filtered.set(cat, matched)
-        }
-        return filtered
-    }, [searchQuery, allByCategory])
-
-    const totalResults = useMemo(() => {
-        let n = 0
-        for (const tasks of displayCategories.values()) n += tasks.length
-        return n
-    }, [displayCategories])
-
-    const isSearching = searchQuery.trim().length > 0
-
     return (
         <>
-        {!isSearching && pendingAssignments.length > 0 && (
+        {pendingAssignments.length > 0 && (
             <AssignmentsSection
                 assignments={pendingAssignments}
                 onSelectTask={onSelectTask}
@@ -321,16 +295,7 @@ function TrainingList({
                 Select a task to begin studying.
             </p>
 
-            {isSearching && (
-                <p className="text-[9pt] text-tertiary">
-                    {totalResults} result{totalResults !== 1 ? 's' : ''}
-                </p>
-            )}
-
-            {totalResults === 0 && isSearching ? (
-                <EmptyState title="No tasks match your search" />
-            ) : (
-                Array.from(displayCategories).map(([categoryName, tasks]) => (
+            {Array.from(allByCategory).map(([categoryName, tasks]) => (
                     <div key={categoryName}>
                         <SectionHeader trailing={<span className="text-[9pt] text-tertiary">{tasks.length}</span>}>
                             {categoryName}
@@ -351,8 +316,7 @@ function TrainingList({
                             ))}
                         </SectionCard>
                     </div>
-                ))
-            )}
+                ))}
         </div>
 
         {lifted && (
@@ -564,14 +528,12 @@ interface TrainingPanelProps {
     view: TrainingView
     selectedTask: subjectAreaArrayOptions | null
     onSelectTask: (task: subjectAreaArrayOptions) => void
-    searchQuery: string
 }
 
 export function TrainingPanel({
     view,
     selectedTask,
     onSelectTask,
-    searchQuery,
 }: TrainingPanelProps) {
     if (view === 'training-detail' && selectedTask) {
         const taskData = getTaskData(selectedTask.icon)
@@ -580,5 +542,5 @@ export function TrainingPanel({
         }
     }
 
-    return <TrainingList onSelectTask={onSelectTask} searchQuery={searchQuery} />
+    return <TrainingList onSelectTask={onSelectTask} />
 }

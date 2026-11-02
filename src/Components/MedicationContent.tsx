@@ -40,7 +40,6 @@ interface MedicationContentProps {
     selectedMedication: medListTypes | null
     onMedicationSelect: (medication: medListTypes) => void
     tc3Mode: boolean
-    searchQuery: string
 }
 
 /**
@@ -51,7 +50,6 @@ export function MedicationContent({
     selectedMedication,
     onMedicationSelect,
     tc3Mode,
-    searchQuery,
 }: MedicationContentProps) {
     const { pinnedKB, togglePinKB } = useNavPreferencesStore(
         useShallow(s => ({ pinnedKB: s.pinnedKB, togglePinKB: s.togglePinKB }))
@@ -72,20 +70,15 @@ export function MedicationContent({
 
     // ── Pinned / unpinned split ──────────────────────────────
     const { pinnedMeds, otherMeds } = useMemo(() => {
-        const query = searchQuery.trim().toLowerCase()
         const isPinned = (m: medListTypes) => pinnedKB.includes('med:' + m.icon)
-        const matchesQuery = (m: medListTypes) =>
-            !query || m.icon.toLowerCase().includes(query) || m.text.toLowerCase().includes(query)
-
         const pinned: medListTypes[] = []
         const others: medListTypes[] = []
         for (const m of list) {
-            if (!matchesQuery(m)) continue
             if (isPinned(m)) pinned.push(m)
             else others.push(m)
         }
         return { pinnedMeds: pinned, otherMeds: others }
-    }, [list, pinnedKB, searchQuery])
+    }, [list, pinnedKB])
 
     if (selectedMedication) {
         return (

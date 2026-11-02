@@ -53,6 +53,21 @@ export interface OverlayFeature {
    * for free, so no new sync path is required.
    */
   level?: number
+  /**
+   * Tracking Board station. A pin with this set is a station patients can sit
+   * at on the board — set by the "Add to tracking board" toggle in the pin
+   * editor. Only the overlay's own cluster (overlay.clinic_id) edits / removes
+   * the pin; a removed pin's patients read as Unassigned on the board. Rides
+   * the overlay's E2E payload like every other feature field (names + coords
+   * only, no PHI).
+   */
+  tracking?: boolean
+  /**
+   * Clusters showing this station on their board — the creating cluster by
+   * default, plus related clusters that toggled it on in board settings (same
+   * physical spot, no duplicate station).
+   */
+  tracking_clinic_ids?: string[]
 }
 
 /**
@@ -83,6 +98,13 @@ export interface MapOverlay {
    * reaches the clinic vault — lets a later 'd' pair-clean the vault row.
    */
   originId?: string
+  /**
+   * Clusters this overlay is fanned to. {clinic_id} ∪ related clusters (up /
+   * down the chain, siblings) while it carries any tracking pin; absent =
+   * [clinic_id]. Related clusters store the WHOLE overlay but only ever surface
+   * its tracking pins (Tracking Board stations) — never on their map.
+   */
+  target_clinic_ids?: string[]
   /**
    * Reserved for labelled floors. v1 derives the floor list from feature
    * `level` values and does not persist this array.

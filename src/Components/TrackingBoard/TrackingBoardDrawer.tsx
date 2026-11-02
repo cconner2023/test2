@@ -21,10 +21,12 @@ import {
     measureBrnCard, measureRailCard, measureGridRow, TrackingBoardScope,
 } from './TrackingBoardPanel'
 import {
-    MOCK_CLUSTERS, MOCK_STATIONS, MOCK_AXPS, DEFAULT_VIEWER_ID, optInStation, leaveStation, addStation, renameStation, removeStation, boardEntries, applyMove, applyTransit, clearTransit, subtree, renameAxp, removeAxp,
-    type TrackingPosition, type TrackingExchangePoint, type TrackingStation,
+    MOCK_CLUSTERS, MOCK_OVERLAYS, DEFAULT_VIEWER_ID, derivePlaces, togglePlace,
+    boardEntries, applyMove, applyTransit, clearTransit, subtree,
+    type TrackingPosition, type MockOverlay,
 } from './trackingModel'
 import { TrackingCardOverlay } from './TrackingCardOverlay'
+import type { LinkedFeatureRef } from '../../Types/MissionTypes'
 
 interface TrackingBoardDrawerProps {
     isVisible: boolean
@@ -72,11 +74,10 @@ export function TrackingBoardDrawer({ isVisible, onClose }: TrackingBoardDrawerP
     // SKELETON: viewing cluster (settings switch). Real path: the member's own cluster.
     const [viewerId, setViewerId] = useState(DEFAULT_VIEWER_ID)
     const clusters = MOCK_CLUSTERS
-    // AXPs: unowned, any member sets one up (real path: shared plaintext rows — names only, no PHI).
-    const [axps, setAxps] = useState<TrackingExchangePoint[]>(MOCK_AXPS)
-    // Stations: shared places — created by one cluster, others opt in (real path: plaintext rows).
-    const [stations, setStations] = useState<TrackingStation[]>(MOCK_STATIONS)
-    const net = useMemo(() => ({ clusters, stations, axps }), [clusters, stations, axps])
+    // Stations = map pins marked "Add to tracking board" (AXPs included). Real
+    // path: useMapOverlaysStore — overlays fanned E2E across related clusters.
+    const [overlays, setOverlays] = useState<MockOverlay[]>(MOCK_OVERLAYS)
+    const net = useMemo(() => ({ clusters, places: derivePlaces(overlays) }), [clusters, overlays])
     const scope = useMemo(() => ({ net, viewerId }), [net, viewerId])
     // Board = origin in the viewer's subtree, unexpired, newest-per-BRN, capped.
     const board = useMemo(() => boardEntries(allEntries, net, viewerId, now), [allEntries, net, viewerId, now])
@@ -118,20 +119,15 @@ export function TrackingBoardDrawer({ isVisible, onClose }: TrackingBoardDrawerP
     const forwardEntry = (_entry: MockEntry) => {}
 
     // Mock move (card Move to): append a move to any place in the origin's chain.
-    // Moving up an echelon is just a move into the parent cluster's station.
+    // Moving up an echelon is just a move into a place the parent cluster uses.
     const moveEntry = (entry: MockEntry, to: TrackingPosition) => {
         const at = Date.now()
         setAllEntries(prev => prev.map(e => e.id !== entry.id ? e : applyMove(e, to, at)))
     }
     // Transit marker: "leaving → destination" (null clears). The patient stays put.
-    const transitEntry = (entry: MockEntry, to: TrackingPosition | null) => {
+    const transitEntry = (entry: MockEntry, to: LinkedFeatureRef | null) => {
         const at = Date.now()
         setAllEntries(prev => prev.map(e => e.id !== entry.id ? e : to ? applyTransit(e, to, me, at) : clearTransit(e)))
-    }
-    // New AXP scoped to the cluster it hands INTO: the viewer's parent, or the viewer at the top.
-    const addAxp = (label: string) => {
-        const scopeClinicId = clusters.find(c => c.id === viewerId)?.parentId ?? viewerId
-        setAxps(prev => [...prev, { id: `axp-${Date.now()}`, label, scopeClinicId, createdByClinicId: viewerId }])
     }
 
     // Final action on the OPEN BRN: hold the loading morph / overlay through the
@@ -271,14 +267,7 @@ export function TrackingBoardDrawer({ isVisible, onClose }: TrackingBoardDrawerP
         >
             <TrackingBoardSettings
                 onViewerChange={changeViewer}
-                onAddAxp={addAxp}
-                onRenameAxp={(id, label) => setAxps(prev => renameAxp(prev, id, label))}
-                onRemoveAxp={id => setAxps(prev => removeAxp(prev, id))}
-                onAddStation={label => setStations(prev => addStation(prev, label, viewerId, Date.now()))}
-                onRenameStation={(id, label) => setStations(prev => renameStation(prev, id, label))}
-                onRemoveStation={id => setStations(prev => removeStation(prev, id))}
-                onOptIn={id => setStations(prev => optInStation(prev, id, viewerId))}
-                onLeave={id => setStations(prev => leaveStation(prev, id, viewerId))}
+                onTogglePlace={ref => setOverlays(prev => togglePlace(prev, ref, viewerId))}
             />
         </Sheet>
     ) : (
@@ -292,14 +281,7 @@ export function TrackingBoardDrawer({ isVisible, onClose }: TrackingBoardDrawerP
         >
             <TrackingBoardSettings
                 onViewerChange={changeViewer}
-                onAddAxp={addAxp}
-                onRenameAxp={(id, label) => setAxps(prev => renameAxp(prev, id, label))}
-                onRemoveAxp={id => setAxps(prev => removeAxp(prev, id))}
-                onAddStation={label => setStations(prev => addStation(prev, label, viewerId, Date.now()))}
-                onRenameStation={(id, label) => setStations(prev => renameStation(prev, id, label))}
-                onRemoveStation={id => setStations(prev => removeStation(prev, id))}
-                onOptIn={id => setStations(prev => optInStation(prev, id, viewerId))}
-                onLeave={id => setStations(prev => leaveStation(prev, id, viewerId))}
+                onTogglePlace={ref => setOverlays(prev => togglePlace(prev, ref, viewerId))}
             />
         </PreviewOverlay>
     )
