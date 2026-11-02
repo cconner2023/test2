@@ -5,7 +5,7 @@ import { BottomIsland } from '@/Components/primitives/BottomIsland'
 import { AddFab } from '@/Components/primitives/AddFab'
 import { SlideRevealPane } from '@/Components/primitives/SlideRevealPane'
 import { PaneHeader } from '@/Components/primitives/PaneHeader'
-import { SearchInput } from '@/Components/primitives/SearchInput'
+import { RailSearchRow } from '@/Components/primitives/RailSearchRow'
 import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill'
 import { ContentWrapper } from '@/Components/primitives/ContentWrapper'
 import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
@@ -403,15 +403,13 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
 
     const searchPlaceholder = SECTIONS.find(s => s.id === section)?.search
     const listPane = (
-        <div className={`relative h-full flex flex-col ${isMobile ? 'pt-[calc(var(--drawer-header-h,3.5rem)+0.5rem)]' : 'pt-3'}`}>
+        <div className={`relative h-full flex flex-col ${isMobile ? 'pt-[var(--drawer-header-h,3.5rem)]' : ''}`}>
             {searchPlaceholder && (
-                <div className="shrink-0 px-3 pb-2">
-                    <SearchInput
-                        value={query}
-                        onChange={q => setQueries(prev => ({ ...prev, [section]: q }))}
-                        placeholder={searchPlaceholder}
-                    />
-                </div>
+                <RailSearchRow
+                    value={query}
+                    onChange={q => setQueries(prev => ({ ...prev, [section]: q }))}
+                    placeholder={searchPlaceholder}
+                />
             )}
             {/* pb clears the floating island. */}
             <div className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain pb-24">{renderList()}</div>

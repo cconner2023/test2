@@ -7,7 +7,6 @@ import { PreviewOverlay } from './PreviewOverlay'
 import { Sheet } from '@/Components/primitives/Sheet'
 import { CalendarPanel } from './Calendar/CalendarPanel'
 import { MiniCalendar } from './Calendar/MiniCalendar'
-import { SearchInput } from '@/Components/primitives/SearchInput'
 import { RailSearchRow } from '@/Components/primitives/RailSearchRow'
 import { PersonnelRow, PersonnelGroupBand, PersonnelCheck } from '@/Components/primitives/PersonnelRow'
 import { SlideRevealPane } from '@/Components/primitives/SlideRevealPane'
@@ -353,14 +352,9 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
                             {/* Settings gear holds clinic config (supervisor only);
                                 per-view layout prefs moved to the island "view options" button. */}
                             <RailSearchRow
-                                tight
-                                search={
-                                    <SearchInput
-                                        value={rosterSearchQuery}
-                                        onChange={setRosterSearchQuery}
-                                        placeholder="Search personnel"
-                                    />
-                                }
+                                value={rosterSearchQuery}
+                                onChange={setRosterSearchQuery}
+                                placeholder="Search personnel"
                                 onSettings={isSupervisorRole ? () => setShowSettings(true) : undefined}
                                 settingsLabel="Calendar settings"
                             />

@@ -1507,7 +1507,9 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
       )}
       <div className="hidden md:flex md:flex-col w-80 shrink-0 border-r border-primary/10 overflow-hidden">
         <RailSearchRow
-          search={<SearchInput value={searchQuery} onChange={onSearchChange} placeholder="Search..." />}
+          value={searchQuery}
+          onChange={onSearchChange}
+          placeholder="Search..."
           onSettings={onOpenSettings}
           settingsLabel="Messaging settings"
         />

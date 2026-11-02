@@ -4,7 +4,7 @@ import { Building2, Users } from 'lucide-react'
 import { UserAvatar } from '../UserAvatar'
 import { SupervisorClinicFilterPanel } from '../../SupervisorClinicSwitcher'
 import { SubjectCard, type SubjectCardProps } from '../SubjectCard'
-import { SearchInput } from '@/Components/primitives/SearchInput'
+import { RailSearchRow } from '@/Components/primitives/RailSearchRow'
 import { SupervisorTree, type TreeSelection } from './SupervisorTree'
 import { formatMedicName, rollupReadiness, medicsInSubCluster } from './supervisorHelpers'
 import { useSubClusters } from '../../../Hooks/useSubClusters'
@@ -96,13 +96,11 @@ export function SupervisorRail({
   const head = (
     <>
       {onSearchChange ? (
-        <div className="px-3 py-2">
-          <SearchInput
-            value={searchQuery}
-            onChange={onSearchChange}
-            placeholder="Search personnel"
-          />
-        </div>
+        <RailSearchRow
+          value={searchQuery}
+          onChange={onSearchChange}
+          placeholder="Search personnel"
+        />
       ) : (
         <div className="pt-3" />
       )}

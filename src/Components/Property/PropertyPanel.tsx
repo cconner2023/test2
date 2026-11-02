@@ -47,7 +47,7 @@ import { PropertyAuthorizedPanel } from './PropertyAuthorizedPanel'
 import { isLinContainer, isAuthTarget, isZoneShadow } from '../../Utilities/propertyAuthorized'
 import { SignOutForm, type SignOutFormHandle } from './SignOutForm'
 import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill'
-import { SearchInput } from '@/Components/primitives/SearchInput'
+import { RailSearchRow } from '@/Components/primitives/RailSearchRow'
 import { SlideRevealPane } from '@/Components/primitives/SlideRevealPane'
 import { PaneHeader } from '@/Components/primitives/PaneHeader'
 import { useEscBackout } from '../../Hooks/useEscBackout'
@@ -1285,13 +1285,11 @@ export const PropertyPanel = memo(function PropertyPanel({
           >
             {/* Location tree is always present in the rail (reached by search here);
                 it is no longer an island tab. */}
-            <div className="shrink-0 px-3 pt-2 pb-1">
-              <SearchInput
-                value={desktopSearch}
-                onChange={setDesktopSearch}
-                placeholder="Search items, serials, locations"
-              />
-            </div>
+            <RailSearchRow
+              value={desktopSearch}
+              onChange={setDesktopSearch}
+              placeholder="Search items, serials, locations"
+            />
             {/* Filter + tree share this rail (the desktop equivalent of the mobile
                 Locations sheet) — one entry point for both. Both live in ONE scroll
                 region (mirrors the calendar sidebar: only search + picker stay pinned),

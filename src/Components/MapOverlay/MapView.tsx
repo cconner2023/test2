@@ -889,6 +889,25 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
         />
       )}
 
+      {showGrid && (() => {
+        const gt = getGridTheme(themeName, theme);
+        // Center crosshair — marks map.getCenter() (the point the coordinate readout reports).
+        return (
+          <div className="absolute inset-0 z-[650] pointer-events-none flex items-center justify-center" aria-hidden>
+            <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
+              <g stroke={gt.labelBg} strokeWidth="4" strokeLinecap="round">
+                <path d="M20 4v10M20 26v10M4 20h10M26 20h10" />
+                <circle cx="20" cy="20" r="1.5" />
+              </g>
+              <g stroke={gt.labelColor} strokeWidth="1.75" strokeLinecap="round">
+                <path d="M20 4v10M20 26v10M4 20h10M26 20h10" />
+              </g>
+              <circle cx="20" cy="20" r="1.5" fill={gt.labelColor} />
+            </svg>
+          </div>
+        );
+      })()}
+
       <PreviewOverlay
         isOpen={showReadout}
         onClose={() => setShowReadout(false)}

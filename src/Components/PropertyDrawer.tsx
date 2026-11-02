@@ -1,8 +1,9 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
-import { Pencil, X, Trash2, ChevronLeft, List } from 'lucide-react'
+import { Pencil, X, Trash2, List } from 'lucide-react'
 import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill'
 import { Scrim } from '@/Components/primitives/Scrim'
 import { SearchInput } from '@/Components/primitives/SearchInput'
+import { SearchCancelButton } from '@/Components/primitives/SearchDropdown'
 import { BaseDrawer } from '@/Components/primitives/BaseDrawer'
 import { PropertyPanel, type PropertyView } from './Property/PropertyPanel'
 import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
@@ -56,6 +57,12 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
 
     const [searchQuery, setSearchQuery] = useState('')
     const [searchFocused, setSearchFocused] = useState(false)
+    const searchInputRef = useRef<HTMLInputElement>(null)
+    const cancelSearch = useCallback(() => {
+        setSearchQuery('')
+        setSearchFocused(false)
+        searchInputRef.current?.blur()
+    }, [])
     const [selectedItem, setSelectedItem] = useState<LocalPropertyItem | null>(null)
     const [pendingDeleteItem, setPendingDeleteItem] = useState<LocalPropertyItem | null>(null)
     const [enrollingItem, setEnrollingItem] = useState<LocalPropertyItem | null>(null)
@@ -236,34 +243,35 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
         switch (view) {
             case 'property':
                 if (!isMobile) return { title: 'Property Book', rightContent: mainHeaderActions, hideDefaultClose: true }
-                // Mobile mirrors the map overlay shell: left Locations/Back pill ·
-                // center search · right Close. Focusing the search opens the
-                // results page (PropertySearchOverlay) over the full-screen canvas.
+                // Mobile mirrors the map overlay shell: left Locations pill · center
+                // search · right Close (cancel X while focused). Focusing the search
+                // drops the PropertySearchOverlay dropdown under the header.
                 return {
                     title: '',
                     rightContentFill: true,
                     rightContent: (
                         <div className="flex items-center w-full gap-2">
-                            {searchFocused ? (
-                                <HeaderPill>
-                                    <PillButton icon={ChevronLeft} onClick={() => setSearchFocused(false)} label="Back" />
-                                </HeaderPill>
-                            ) : (
-                                <HeaderPill>
-                                    <PillButton icon={List} onClick={() => openLocationsTriggerRef.current?.()} label="Locations" />
-                                </HeaderPill>
-                            )}
+                            <HeaderPill>
+                                <PillButton icon={List} onClick={() => { if (searchFocused) cancelSearch(); openLocationsTriggerRef.current?.() }} label="Locations" />
+                            </HeaderPill>
                             <div className="flex-1 min-w-0">
                                 <SearchInput
+                                    ref={searchInputRef}
                                     value={searchQuery}
                                     onChange={setSearchQuery}
                                     onFocus={() => setSearchFocused(true)}
                                     placeholder="Search items..."
+                                    hideClear
                                 />
                             </div>
-                            <HeaderPill>
-                                <PillButton icon={X} onClick={handleClose} label="Close" />
-                            </HeaderPill>
+                            {/* Mobile search template: while focused, the cancel X takes over the right icons. */}
+                            {searchFocused ? (
+                                <SearchCancelButton onClick={cancelSearch} />
+                            ) : (
+                                <HeaderPill>
+                                    <PillButton icon={X} onClick={handleClose} label="Close" />
+                                </HeaderPill>
+                            )}
                         </div>
                     ),
                     hideDefaultClose: true,
@@ -285,7 +293,7 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                 if (!isMobile) return { title: 'Property Book', rightContent: mainHeaderActions, hideDefaultClose: true }
                 return { title: selectedItem ? 'Edit Item' : 'Add Item', showBack: true, onBack: handleBack }
         }
-    }, [view, handleBack, isMobile, mainHeaderActions, selectedItem, handleEditItem, handleDeleteItem, isSupervisorRole, searchFocused, searchQuery, handleClose])
+    }, [view, handleBack, isMobile, mainHeaderActions, selectedItem, handleEditItem, handleDeleteItem, isSupervisorRole, searchFocused, searchQuery, handleClose, cancelSearch])
 
     return (
         <BaseDrawer

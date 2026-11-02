@@ -9,10 +9,11 @@
  * download (and navigator.share rejects) once transient activation is lost.
  */
 export function downloadBlob(blob: Blob, filename: string): void {
-  // Touch devices (iOS standalone PWA ignores <a download> on blob URLs) → share
-  // sheet, which offers "Save to Files". Desktop keeps the plain anchor download.
+  // Mobile OS only (iOS standalone PWA ignores <a download> on blob URLs) → share
+  // sheet, which offers "Save to Files". Desktop — including Windows/macOS Chrome
+  // and Edge, which DO support file shares — keeps the plain anchor download.
   const file = new File([blob], filename, { type: blob.type })
-  if (window.matchMedia?.('(pointer: coarse)').matches && navigator.canShare?.({ files: [file] })) {
+  if (isMobileOS() && navigator.canShare?.({ files: [file] })) {
     navigator.share({ files: [file], title: filename }).catch((err: unknown) => {
       // AbortError = user dismissed the sheet; anything else → anchor fallback.
       if ((err as DOMException)?.name !== 'AbortError') anchorDownload(blob, filename)
@@ -20,6 +21,16 @@ export function downloadBlob(blob: Blob, filename: string): void {
     return
   }
   anchorDownload(blob, filename)
+}
+
+/** iOS / iPadOS / Android. UA-based rather than pointer:coarse — an iPad with a
+ *  trackpad reports a fine pointer, a touchscreen laptop a coarse one. */
+function isMobileOS(): boolean {
+  if (typeof navigator === 'undefined') return false
+  const ua = navigator.userAgent
+  if (/iPhone|iPad|iPod|Android/i.test(ua)) return true
+  // iPadOS 13+ masquerades as desktop Safari.
+  return /Macintosh/.test(ua) && navigator.maxTouchPoints > 1
 }
 
 function anchorDownload(blob: Blob, filename: string): void {

@@ -9,7 +9,7 @@ import { PatientIdPopover, type PatientIdForm } from './PatientIdPopover'
 import { PdfPreviewModal } from './PdfPreviewModal'
 import type { ImportPreview } from '../Hooks/useNoteImport'
 import type { MedevacRequest } from '../Types/MedevacTypes'
-import type { PatientIdentification } from '../Utilities/SF600Export'
+import { formatDob, type PatientIdentification, type SF600Stamp } from '../Utilities/SF600Export'
 import type { DD689Extras } from '../Utilities/DD689Export'
 import { useNoteShare } from '../Hooks/useNoteShare'
 import { useDD689Export } from '../Hooks/useDD689Export'
@@ -71,10 +71,9 @@ export function ImportedNoteDrawer({ preview, onClose, onOpenMedevac, isMobile }
     ? shown.authorLabel.slice('Signed: '.length)
     : undefined
 
-  const handleExportSF600 = (patient: PatientIdentification) => {
+  const handleExportSF600 = (patient: PatientIdentification, stamp: SF600Stamp) => {
     if (!note) return
-    const dateStr = new Date().toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase()
-    exportSF600({ noteText: note, date: dateStr, signatureName: authorSig, patient, facility: formClinicName || undefined })
+    exportSF600({ noteText: note, date: formatDob(stamp.date), time: stamp.time, signatureName: authorSig, patient, facility: formClinicName || undefined })
   }
 
   const handleShare = () => {
@@ -166,7 +165,7 @@ export function ImportedNoteDrawer({ preview, onClose, onOpenMedevac, isMobile }
         anchorRect={null}
         form={patientGate ?? undefined}
         onClose={() => setPatientGate(null)}
-        onConfirm={(patient, extras) => patientGate === 'dd689' ? handleExportDD689(patient, extras) : handleExportSF600(patient)}
+        onConfirm={(patient, extras, stamp) => patientGate === 'dd689' ? handleExportDD689(patient, extras) : handleExportSF600(patient, stamp)}
       />
       <PdfPreviewModal
         preview={sf600Preview ?? dd689Preview ?? null}

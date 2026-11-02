@@ -1,9 +1,8 @@
 import { useRef, useEffect, memo, useState, useCallback } from 'react'
-import { X } from 'lucide-react'
-import { animated, type SpringValue } from '@react-spring/web'
 import { CategoryList } from './CategoryList'
 import { SearchResults } from './SearchResults'
 import { SearchInput } from '@/Components/primitives/SearchInput'
+import { SearchCancelButton } from '@/Components/primitives/SearchDropdown'
 import { MissionBoardPanel } from './MissionBoard/MissionBoardPanel'
 import { useColumnCarousel } from '../Hooks/useColumnCarousel'
 import type { SearchResultType } from '../Types/CatTypes'
@@ -22,11 +21,9 @@ interface ColumnAProps {
   onSearchChange?: (value: string) => void
   searchResults?: SearchResultType[]
   isSearching?: boolean
-  onSearchFocusChange?: (focused: boolean) => void
-  headerCollapse?: SpringValue<number>
 }
 
-export const ColumnA = memo(function ColumnA({ onNavigate, onEdgeDrag, onEdgeDragEnd, onRightEdgeDrag, onRightEdgeDragEnd, searchInput = '', onSearchChange, searchResults, isSearching, onSearchFocusChange, headerCollapse }: ColumnAProps) {
+export const ColumnA = memo(function ColumnA({ onNavigate, onEdgeDrag, onEdgeDragEnd, onRightEdgeDrag, onRightEdgeDragEnd, searchInput = '', onSearchChange, searchResults, isSearching }: ColumnAProps) {
   const selectedCategory = useNavigationStore((s) => s.selectedCategory)
   const selectedSymptom = useNavigationStore((s) => s.selectedSymptom)
   const isMobile = useNavigationStore((s) => s.isMobile)
@@ -133,17 +130,15 @@ export const ColumnA = memo(function ColumnA({ onNavigate, onEdgeDrag, onEdgeDra
 
   const handleColumnSearchFocus = useCallback(() => {
     setSearchFocused(true)
-    onSearchFocusChange?.(true)
     // Scroll active panel to top so search bar is fully visible
     const ref = panelIndex === 0 ? panel0ScrollRef : subcategoryScrollRef
     ref.current?.scrollTo({ top: 0, behavior: 'smooth' })
-  }, [onSearchFocusChange, panelIndex])
+  }, [panelIndex])
 
   // Unfocus when searchInput is cleared externally (e.g., search result navigation)
   useEffect(() => {
     if (searchFocused && !hasSearch && searchInputRef.current && document.activeElement !== searchInputRef.current) {
       setSearchFocused(false)
-      onSearchFocusChange?.(false)
       const ref = panelIndex === 0 ? panel0ScrollRef : subcategoryScrollRef
       const el = ref.current
       const wrapper = wrapperRef.current
@@ -155,12 +150,11 @@ export const ColumnA = memo(function ColumnA({ onNavigate, onEdgeDrag, onEdgeDra
           : '1'
       }
     }
-  }, [searchFocused, hasSearch, onSearchFocusChange, panelIndex, barHeight])
+  }, [searchFocused, hasSearch, panelIndex, barHeight])
 
   const handleColumnSearchClose = useCallback(() => {
     onSearchChange?.('')
     setSearchFocused(false)
-    onSearchFocusChange?.(false)
     searchInputRef.current?.blur()
     // Recompute collapse to current scroll position
     const ref = panelIndex === 0 ? panel0ScrollRef : subcategoryScrollRef
@@ -172,12 +166,11 @@ export const ColumnA = memo(function ColumnA({ onNavigate, onEdgeDrag, onEdgeDra
     wrapper.style.opacity = barHeight > 0
       ? String(1 - (collapsed / barHeight) * 0.6)
       : '1'
-  }, [onSearchChange, onSearchFocusChange, panelIndex, barHeight])
+  }, [onSearchChange, panelIndex, barHeight])
 
   const handleColumnSearchBlur = useCallback(() => {
     if (!hasSearchRef.current) {
       setSearchFocused(false)
-      onSearchFocusChange?.(false)
       const ref = panelIndex === 0 ? panel0ScrollRef : subcategoryScrollRef
       const el = ref.current
       const wrapper = wrapperRef.current
@@ -188,7 +181,7 @@ export const ColumnA = memo(function ColumnA({ onNavigate, onEdgeDrag, onEdgeDra
         ? String(1 - (collapsed / barHeight) * 0.6)
         : '1'
     }
-  }, [onSearchFocusChange, panelIndex, barHeight])
+  }, [panelIndex, barHeight])
 
   const handleColumnSearchKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
@@ -201,25 +194,16 @@ export const ColumnA = memo(function ColumnA({ onNavigate, onEdgeDrag, onEdgeDra
     }
   }, [hasSearch, onSearchChange, handleColumnSearchClose])
 
-  const mobilePaddingTop = isMobile && headerCollapse
-    ? headerCollapse.to((c: number) => `calc(var(--sat, 0px) + 4rem * ${1 - c})`)
-    : isMobile ? 'calc(var(--sat, 0px) + 4rem)' : undefined
+  const mobilePaddingTop = isMobile ? 'calc(var(--sat, 0px) + 4rem)' : undefined
 
-  // Panel 0 content offset — header + search bar (mission board is in-flow at top of panel 0)
+  // Content offset — header + search bar
   const barExtra = hasMobileSearch ? ` + ${barHeight}px` : ''
-  const panel0Padding = isMobile && headerCollapse
-    ? headerCollapse.to((c: number) => `calc(var(--sat, 0px) + 4rem * ${1 - c}${barExtra})`)
-    : isMobile ? `calc(var(--sat, 0px) + 4rem${barExtra})` : undefined
-
-  // Other panels + search results — header + search bar only
-  const mobilePanelPadding = isMobile && headerCollapse
-    ? headerCollapse.to((c: number) => `calc(var(--sat, 0px) + 4rem * ${1 - c}${barExtra})`)
-    : isMobile ? `calc(var(--sat, 0px) + 4rem${barExtra})` : undefined
+  const mobilePanelPadding = isMobile ? `calc(var(--sat, 0px) + 4rem${barExtra})` : undefined
 
   const panelWidth = `${100 / panelCount}%`
 
   return (
-    <animated.div
+    <div
       className="h-full overflow-hidden relative flex flex-col"
       style={{
         touchAction: 'pan-y',
@@ -228,7 +212,7 @@ export const ColumnA = memo(function ColumnA({ onNavigate, onEdgeDrag, onEdgeDra
     >
       {/* Mobile header zone — search bar only, 1:1 scroll-driven collapse */}
       {hasMobileSearch && (
-        <animated.div
+        <div
           ref={wrapperRef}
           className={`overflow-hidden ${isMobile ? 'absolute left-0 right-0 z-10 bg-themewhite' : 'shrink-0'}`}
           style={{
@@ -249,65 +233,61 @@ export const ColumnA = memo(function ColumnA({ onNavigate, onEdgeDrag, onEdgeDra
                   onFocus={handleColumnSearchFocus}
                   onBlur={handleColumnSearchBlur}
                   onKeyDown={handleColumnSearchKeyDown}
+                  hideClear
                   className="flex-1 min-w-0"
                 />
                 {/* Close button — appears when focused */}
                 <div className={`transition-all duration-200 overflow-hidden ${
                   searchFocused ? 'w-10 opacity-100' : 'w-0 opacity-0'
                 }`}>
-                  <button
-                    type="button"
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={handleColumnSearchClose}
-                    className="w-10 h-10 rounded-full flex items-center justify-center bg-tertiary/10 active:scale-95 shrink-0"
-                    aria-label="Cancel search"
-                  >
-                    <X size={18} className="text-tertiary" />
-                  </button>
+                  <SearchCancelButton onClick={handleColumnSearchClose} />
                 </div>
               </div>
             </div>
           </div>
-        </animated.div>
+        </div>
       )}
 
-      {/* Search results overlay — shown during active search on mobile */}
+      {/* Search dropdown — lifted card anchored under the search row; the
+          carousel stays mounted and visible beneath it. */}
       {hasSearch && (
-        <animated.div className="flex-1 min-h-0 overflow-y-auto bg-themewhite" style={{ paddingTop: mobilePanelPadding }}>
-          <div className="px-2 min-h-full">
-            <SearchResults
-              results={searchResults ?? []}
-              searchTerm={searchInput}
-              onResultClick={onNavigate}
-              isSearching={isSearching}
-            />
-          </div>
-        </animated.div>
+        <div
+          className="absolute left-0 right-0 z-20 px-3 pt-1 pointer-events-none"
+          style={{ top: mobilePanelPadding }}
+        >
+          <SearchResults
+            results={searchResults ?? []}
+            searchTerm={searchInput}
+            onResultClick={onNavigate}
+            isSearching={isSearching}
+            className="pointer-events-auto"
+          />
+        </div>
       )}
 
       {/* Carousel — always mounted to preserve scroll positions and refs */}
       <div
         ref={carousel.containerRef}
-        className={`flex flex-1 min-h-0 ${hasSearch ? 'hidden' : ''}`}
+        className="flex flex-1 min-h-0"
         style={{ width: `${panelCount * 100}%` }}
       >
         {/* Panel 0: Mission board (scrolls naturally) + main categories */}
         <div ref={panel0ScrollRef} className="h-full overflow-y-auto bg-themewhite" style={{ flex: `0 0 ${panelWidth}` }}>
-          <animated.div className="px-2 md:px-0 min-h-full" style={{ paddingTop: mobilePanelPadding }}>
+          <div className="px-2 md:px-0 min-h-full" style={{ paddingTop: mobilePanelPadding }}>
             {isMobile && (
               <div ref={missionBoardSectionRef} className="pb-2">
                 <MissionBoardPanel />
               </div>
             )}
             <CategoryList mobilePanel="main" onNavigate={onNavigate} />
-          </animated.div>
+          </div>
         </div>
 
         {/* Panel 1: Subcategories */}
         <div ref={subcategoryScrollRef} className="h-full overflow-y-auto bg-themewhite" style={{ flex: `0 0 ${panelWidth}` }}>
-          <animated.div className="px-2 md:px-0 min-h-full" style={{ paddingTop: mobilePanelPadding }}>
+          <div className="px-2 md:px-0 min-h-full" style={{ paddingTop: mobilePanelPadding }}>
             <CategoryList mobilePanel="subcategory" onNavigate={onNavigate} />
-          </animated.div>
+          </div>
         </div>
 
         {/* Panel 2: Symptom info (desktop only) */}
@@ -319,6 +299,6 @@ export const ColumnA = memo(function ColumnA({ onNavigate, onEdgeDrag, onEdgeDra
           </div>
         )}
       </div>
-    </animated.div>
+    </div>
   )
 })

@@ -18,6 +18,7 @@
 
 import { getExpirationStatus, statusLabel } from '../Components/Certifications/certHelpers'
 import type { Certification } from '../Data/User'
+import { downloadBlob } from '../Utilities/downloadUtils'
 
 export interface CertificationExportRow {
   soldier: string
@@ -94,20 +95,5 @@ export async function shareCertificationCsv(
   // BOM so Excel reads UTF-8 names correctly.
   const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' })
 
-  if (
-    typeof navigator !== 'undefined'
-    && navigator.share
-    && navigator.canShare?.({ files: [new File([blob], filename, { type: blob.type })] })
-  ) {
-    const file = new File([blob], filename, { type: blob.type })
-    await navigator.share({ files: [file], title: 'Certifications' })
-    return
-  }
-
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  a.click()
-  URL.revokeObjectURL(url)
+  downloadBlob(blob, filename)
 }

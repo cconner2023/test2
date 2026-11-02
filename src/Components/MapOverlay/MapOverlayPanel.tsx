@@ -19,6 +19,7 @@ import { BaseDrawer } from '@/Components/primitives/BaseDrawer';
 import { Sheet } from '@/Components/primitives/Sheet';
 import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill';
 import { SearchInput } from '@/Components/primitives/SearchInput';
+import { SearchCancelButton } from '@/Components/primitives/SearchDropdown';
 import { RailSearchRow } from '@/Components/primitives/RailSearchRow';
 import { ContentWrapper } from '@/Components/primitives/ContentWrapper';
 import { SlideRevealPane } from '@/Components/primitives/SlideRevealPane';
@@ -2322,16 +2323,24 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
   const headerTitle = overlayName.trim() ? `Map · ${overlayName.trim()}` : 'Map';
 
   // The map drawer HEADER owns the one real search input (mobile + desktop).
-  // On mobile, focusing it opens MapSearchOverlay (a results-only screen — it
-  // no longer renders its own input, which would double-bar under the header
-  // since the drawer's glassHeader content is `isolate`d and can't be covered).
+  // On mobile, focusing it drops the MapSearchOverlay dropdown under the header
+  // (main-search template); the cancel X replaces the right Close until done.
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const cancelSearch = () => {
+    setSearchQuery('');
+    setSearchFocused(false);
+    searchInputRef.current?.blur();
+  };
+
   const searchInputEl = (
     <SearchInput
+      ref={searchInputRef}
       value={searchQuery}
       onChange={setSearchQuery}
       onSubmit={handleSearchSubmit}
       onFocus={() => setSearchFocused(true)}
       placeholder="Address, grid, lat/lng…"
+      hideClear={isMobile}
       className={isMobile ? '' : 'w-[260px]'}
     />
   );
@@ -2353,20 +2362,24 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
           rightContent: (
             <div className="flex items-center w-full gap-2">
               <HeaderPill>
-                {searchFocused
-                  ? <PillButton icon={ChevronLeft} onClick={() => setSearchFocused(false)} label="Back" />
-                  : <PillButton icon={Layers} onClick={() => {
-                      // Merged morphing sheet: if a feature is open, walk up to the
-                      // tree step (deselect + show tree) rather than leaving the
-                      // pill inert; otherwise toggle the tree step.
-                      if (selectedFeature) { handleFeatureBreadcrumbUp(); return; }
-                      setShowMobileTree(prev => !prev);
-                    }} label="Overlays & settings" />}
+                <PillButton icon={Layers} onClick={() => {
+                  if (searchFocused) cancelSearch();
+                  // Merged morphing sheet: if a feature is open, walk up to the
+                  // tree step (deselect + show tree) rather than leaving the
+                  // pill inert; otherwise toggle the tree step.
+                  if (selectedFeature) { handleFeatureBreadcrumbUp(); return; }
+                  setShowMobileTree(prev => !prev);
+                }} label="Overlays & settings" />
               </HeaderPill>
               <div className="flex-1 min-w-0">{searchInputEl}</div>
-              <HeaderPill>
-                <PillButton icon={X} onClick={onClose} label="Close" />
-              </HeaderPill>
+              {/* Mobile search template: while focused, the cancel X takes over the right icons. */}
+              {searchFocused ? (
+                <SearchCancelButton onClick={cancelSearch} />
+              ) : (
+                <HeaderPill>
+                  <PillButton icon={X} onClick={onClose} label="Close" />
+                </HeaderPill>
+              )}
             </div>
           ),
           hideDefaultClose: true,
@@ -2416,15 +2429,10 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
               className="border-r border-primary/10 bg-themewhite"
             >
               <RailSearchRow
-                tight
-                search={
-                  <SearchInput
-                    value={searchQuery}
-                    onChange={setSearchQuery}
-                    onSubmit={handleSearchSubmit}
-                    placeholder="Address, grid, lat/lng…"
-                  />
-                }
+                value={searchQuery}
+                onChange={setSearchQuery}
+                onSubmit={handleSearchSubmit}
+                placeholder="Address, grid, lat/lng…"
                 onSettings={() => setShowPopover(prev => !prev)}
                 active={showPopover}
                 settingsLabel="Map settings"

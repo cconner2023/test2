@@ -469,6 +469,9 @@ export function AnchoredMenu({ isOpen, anchorRect: anchorRectProp, anchorRef, ro
       {/* Lifted row clone (peek only) */}
       {hasClone && (
         <div
+          // Live visual rect of the lifted clone — lets a surface opened from
+          // this menu grow out of the lifted row (TrackingCardOverlay).
+          data-lifted-clone=""
           className={
             bare
               ? 'absolute pointer-events-none'

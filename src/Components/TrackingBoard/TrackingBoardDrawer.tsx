@@ -1,23 +1,30 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronLeft, Settings, Plus, MoreHorizontal, X } from 'lucide-react'
-import { BaseDrawer, ScrollPane } from '@/Components/primitives/BaseDrawer'
+import { ChevronLeft, Settings, Plus, MoreHorizontal, X, Check } from 'lucide-react'
+import { BaseDrawer } from '@/Components/primitives/BaseDrawer'
 import { Sheet } from '@/Components/primitives/Sheet'
 import { PreviewOverlay } from '../PreviewOverlay'
-import { SearchInput } from '@/Components/primitives/SearchInput'
+import { MobileSearchBar } from '@/Components/primitives/MobileSearchBar'
 import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill'
+import { GlassBand } from '@/Components/primitives/GlassBand'
 import { RailSearchRow } from '@/Components/primitives/RailSearchRow'
 import { AnchoredMenu } from '@/Components/primitives/LiftedRowMenu'
 import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
-import { LoadingOverlay } from '@/Components/primitives/LoadingOverlay'
 import { useIsMobile } from '../../Hooks/useIsMobile'
 import { useEscBackout } from '../../Hooks/useEscBackout'
 import { useSwipeBack } from '../../Hooks/useSwipeBack'
 import { useAuthStore } from '../../stores/useAuthStore'
 import {
-    TrackingBoardList, TrackingGrid, TrackingBoardDetail, TrackingBoardSettings, TrackingCheckIn,
+    TrackingBoardList, TrackingGrid, TrackingBoardDetail, TrackingBoardSettings,
     TrackingCategoryBar, TrackingCardList, filterByCategory, buildTrackingMenuItems,
-    buildMockEntries, filterEntries, type MockEntry, type TrackingCategory,
+    buildMockEntries, filterEntries, type MockEntry, type TrackingCategory, type CardOrigin,
+    TrackingEditForm, draftFromEntry, draftIsValid, applyDraft, emptyDraft, type TrackingEditDraft,
+    measureBrnCard, measureRailCard, measureGridRow, TrackingBoardScope,
 } from './TrackingBoardPanel'
+import {
+    MOCK_CLUSTERS, MOCK_STATIONS, MOCK_AXPS, DEFAULT_VIEWER_ID, optInStation, leaveStation, addStation, renameStation, removeStation, boardEntries, applyMove, applyTransit, clearTransit, subtree, renameAxp, removeAxp,
+    type TrackingPosition, type TrackingExchangePoint, type TrackingStation,
+} from './trackingModel'
+import { TrackingCardOverlay } from './TrackingCardOverlay'
 
 interface TrackingBoardDrawerProps {
     isVisible: boolean
@@ -25,30 +32,36 @@ interface TrackingBoardDrawerProps {
 }
 
 /** SKELETON stand-in for the vault write, so final actions visibly run the
- *  loading morph (mobile Sheet) / LoadingOverlay (desktop pane). */
+ *  LoadingOverlay over the card overlay. */
 const MOCK_WRITE_MS = 600
 
 /**
  * Large drawer (desktop) / full-screen right-slide panel (mobile — App.tsx
  * mounts it in the same slide as Messages, via useRightPanelSlide). Mirrors Messaging.
- * Desktop: persistent left rail (search + gear + list grouped by station) and
- * a main pane that shows the T2T-style grid as the overview until a BRN is
- * selected, then the detail. While a BRN is open the drawer header carries its
- * title + back arrow, and an ellipsis beside the close (Move to / Forward /
- * Delete) — Esc also backs out.
+ * Desktop: persistent left rail (search + gear + condensed BRN cards grouped by
+ * station) and a main pane that always shows the T2T-style grid. A rail card or
+ * grid row opens the same TrackingCardOverlay as mobile, centered (placement
+ * 'center'): it grows out of the clicked card / row and collapses back into it.
+ * Ellipsis + close sit in the card head; Esc / scrim backs out.
  * Mobile: header = back · title · [check in + settings] (Messaging), then
  * search + a horizontal-scroll category strip (All / Unassigned / stations)
  * over BRN cards; cards swipe (user bindings) / long-press (LiftedRowMenu) /
- * tap (open), like chat. Tap opens the BRN in a bottom Sheet (Calendar event
- * detail idiom): BRN title, ellipsis in the Sheet header LEFT, close RIGHT.
+ * tap (open), like chat. Card → lifted row → overlay are one object: tap (or
+ * Open/Edit from the long-press menu) container-transforms the card itself
+ * into TrackingCardOverlay — it grows in place (from the lifted clone when
+ * opened from the menu) and collapses back into the card on close. Ellipsis +
+ * close fade in at the card head's top-right.
  * Left-edge swipe closes the panel. Settings mirror Messaging: bottom Sheet on
  * mobile, PreviewOverlay popover on desktop.
- * Final actions from an open BRN run the Sheet's loading morph on mobile (puck
- * holds through the write, expands back into the updated detail; Delete closes
- * the sheet instead) and a LoadingOverlay over the desktop detail pane.
+ * Final actions from an open BRN run a LoadingOverlay over the card overlay
+ * (Delete closes it — the card is gone, so it fades instead of collapsing).
+ * Edit (ellipsis / card long-press → Edit): Calendar idiom — the detail swaps
+ * to TrackingEditForm (BRN + existing comments); card head = Back (→ detail),
+ * Save + Close. Save is last-write-wins over the entry.
  * Check-in: a + in the header (mobile header pill beside the gear; desktop
- * drawer header) opens a PreviewOverlay with the BRN pin input — same
- * header-control → popover pattern as the Calendar's month/date picker.
+ * drawer header) opens a PreviewOverlay with the same TrackingEditForm (BRN +
+ * comment) and a Save pill in its header — the create half of the Calendar
+ * EventForm idiom. Comments are never written from the detail itself.
  */
 export function TrackingBoardDrawer({ isVisible, onClose }: TrackingBoardDrawerProps) {
     const isMobile = useIsMobile()
@@ -56,23 +69,45 @@ export function TrackingBoardDrawer({ isVisible, onClose }: TrackingBoardDrawerP
     // Local state over the mock seed so check-in works in the skeleton.
     const [allEntries, setAllEntries] = useState<MockEntry[]>(() => buildMockEntries(now))
     useEffect(() => { setAllEntries(buildMockEntries(now)) }, [now])
+    // SKELETON: viewing cluster (settings switch). Real path: the member's own cluster.
+    const [viewerId, setViewerId] = useState(DEFAULT_VIEWER_ID)
+    const clusters = MOCK_CLUSTERS
+    // AXPs: unowned, any member sets one up (real path: shared plaintext rows — names only, no PHI).
+    const [axps, setAxps] = useState<TrackingExchangePoint[]>(MOCK_AXPS)
+    // Stations: shared places — created by one cluster, others opt in (real path: plaintext rows).
+    const [stations, setStations] = useState<TrackingStation[]>(MOCK_STATIONS)
+    const net = useMemo(() => ({ clusters, stations, axps }), [clusters, stations, axps])
+    const scope = useMemo(() => ({ net, viewerId }), [net, viewerId])
+    // Board = origin in the viewer's subtree, unexpired, newest-per-BRN, capped.
+    const board = useMemo(() => boardEntries(allEntries, net, viewerId, now), [allEntries, net, viewerId, now])
     const [query, setQuery] = useState('')
-    const entries = useMemo(() => filterEntries(allEntries, query), [allEntries, query])
+    const entries = useMemo(() => filterEntries(board, query), [board, query])
     // By id, so the open detail reflects moves made from its own menu.
     const [selectedId, setSelectedId] = useState<string | null>(null)
-    const selected = useMemo(() => allEntries.find(e => e.id === selectedId) ?? null, [allEntries, selectedId])
-    // Last open entry — keeps the mobile Sheet body populated through its slide-down.
+    const selected = useMemo(() => board.find(e => e.id === selectedId) ?? null, [board, selectedId])
+    // Last open entry — keeps the mobile overlay populated through its collapse.
     const lastSelected = useRef<MockEntry | null>(null)
     if (selected) lastSelected.current = selected
     const [showSettings, setShowSettings] = useState(false)
-    const [showCheckIn, setShowCheckIn] = useState(false)
+    // Non-null = check-in popover open (create draft; Save in its header).
+    const [checkInDraft, setCheckInDraft] = useState<TrackingEditDraft | null>(null)
+    const [checkInBusy, setCheckInBusy] = useState(false)
+    const showCheckIn = !!checkInDraft
     const [category, setCategory] = useState<TrackingCategory>('all')
-    const cards = useMemo(() => filterByCategory(entries, category), [entries, category])
+    const cards = useMemo(() => filterByCategory(entries, category, net, viewerId), [entries, category, net, viewerId])
     // Open-BRN ellipsis menu (anchor rect) + its delete confirm + in-flight write.
     const [moreRect, setMoreRect] = useState<DOMRect | null>(null)
     const moreBtnRef = useRef<HTMLDivElement>(null)
     const [pendingDelete, setPendingDelete] = useState<MockEntry | null>(null)
     const [busy, setBusy] = useState(false)
+    // Non-null = the open BRN is in edit mode (draft owned here; Save in header).
+    const [editDraft, setEditDraft] = useState<TrackingEditDraft | null>(null)
+    const editing = !!editDraft && !!selected
+    // Card overlay: where it grows from, which list card it IS (held invisible
+    // until the collapse settles), and which surface to collapse back into.
+    const [origin, setOrigin] = useState<CardOrigin | null>(null)
+    const [expandedId, setExpandedId] = useState<string | null>(null)
+    const [originSrc, setOriginSrc] = useState<'card' | 'rail' | 'grid'>('card')
 
     // Mock remove (card Delete, after ConfirmDialog).
     const deleteEntry = (entry: MockEntry) => {
@@ -82,13 +117,21 @@ export function TrackingBoardDrawer({ isVisible, onClose }: TrackingBoardDrawerP
     // plain message (no BAA); needs the E2E calendar/tracking pipeline. No-op for now.
     const forwardEntry = (_entry: MockEntry) => {}
 
-    // Mock move (card Move to): append a move, or clear moves for Unassigned.
-    const moveEntry = (entry: MockEntry, stationId: string | null) => {
+    // Mock move (card Move to): append a move to any place in the origin's chain.
+    // Moving up an echelon is just a move into the parent cluster's station.
+    const moveEntry = (entry: MockEntry, to: TrackingPosition) => {
         const at = Date.now()
-        setAllEntries(prev => prev.map(e => e.id !== entry.id ? e : {
-            ...e,
-            moves: stationId ? [...e.moves, { to: stationId, at }] : [],
-        }))
+        setAllEntries(prev => prev.map(e => e.id !== entry.id ? e : applyMove(e, to, at)))
+    }
+    // Transit marker: "leaving → destination" (null clears). The patient stays put.
+    const transitEntry = (entry: MockEntry, to: TrackingPosition | null) => {
+        const at = Date.now()
+        setAllEntries(prev => prev.map(e => e.id !== entry.id ? e : to ? applyTransit(e, to, me, at) : clearTransit(e)))
+    }
+    // New AXP scoped to the cluster it hands INTO: the viewer's parent, or the viewer at the top.
+    const addAxp = (label: string) => {
+        const scopeClinicId = clusters.find(c => c.id === viewerId)?.parentId ?? viewerId
+        setAxps(prev => [...prev, { id: `axp-${Date.now()}`, label, scopeClinicId, createdByClinicId: viewerId }])
     }
 
     // Final action on the OPEN BRN: hold the loading morph / overlay through the
@@ -101,10 +144,28 @@ export function TrackingBoardDrawer({ isVisible, onClose }: TrackingBoardDrawerP
         setBusy(false)
     }
 
+    const openEntry = (e: MockEntry, from?: CardOrigin, src: 'card' | 'rail' | 'grid' = 'card') => {
+        setOrigin(from ?? null)
+        // Grid rows stay visible (a hole in the grid reads worse than the overlap).
+        setExpandedId(from && src !== 'grid' ? e.id : null)
+        setOriginSrc(src)
+        setSelectedId(e.id)
+    }
+    // From the open card's ellipsis the overlay is already up — keep its origin.
+    const startEdit = (e: MockEntry, from?: CardOrigin) => {
+        if (selectedId !== e.id) openEntry(e, from)
+        setEditDraft(draftFromEntry(e)); setMoreRect(null)
+    }
+    const cancelEdit = () => setEditDraft(null)
+    const canSave = !!editDraft && draftIsValid(editDraft)
+
     const detailMenuItems = selected ? buildTrackingMenuItems(selected, {
-        onMove: (e, stationId) => { void runAction(() => moveEntry(e, stationId)) },
+        onEdit: startEdit,
+        onMove: (e, to) => { void runAction(() => moveEntry(e, to)) },
+        onTransit: (e, to) => { void runAction(() => transitEntry(e, to)) },
         onForward: (e) => { void runAction(() => forwardEntry(e)) },
         onDelete: setPendingDelete,
+        net,
     }) : []
     const openMore = () => {
         const rect = moreBtnRef.current?.getBoundingClientRect()
@@ -116,30 +177,59 @@ export function TrackingBoardDrawer({ isVisible, onClose }: TrackingBoardDrawerP
         </div>
     )
 
-    // Stamped with the checking-in member's cluster UIC (same battalion in the
-    // normal case; cross-unit edge cases TBD).
-    const ownUic = useAuthStore(s => s.profile?.uic) ?? ''
-    const checkIn = (brn: string) => {
+    // Stamped with the checking-in member's cluster (origin → drives visibility).
+    const ownRank = useAuthStore(s => s.profile?.rank) ?? ''
+    const ownLast = useAuthStore(s => s.profile?.lastName) ?? ''
+    const me = [ownRank, ownLast].filter(Boolean).join(' ') || 'Member'
+    // Edit Save — loading morph / overlay through the (mock) write, then back to
+    // the detail. Real path: whole tracking_data re-sent, last-write-wins.
+    const saveEdit = () => {
+        const d = editDraft
+        if (!d || !selected || !draftIsValid(d)) return
+        const id = selected.id
+        void runAction(() => {
+            const at = Date.now()
+            setAllEntries(prev => prev.map(e => e.id !== id ? e : applyDraft(e, d, me, at)))
+            setEditDraft(null)
+        })
+    }
+    // Check-in Save — popover loading morph through the (mock) write.
+    const saveCheckIn = async () => {
+        const d = checkInDraft
+        if (!d || !draftIsValid(d)) return
+        setCheckInBusy(true)
+        await new Promise(r => setTimeout(r, MOCK_WRITE_MS))
         const at = Date.now()
-        setAllEntries(prev => [{ id: `e-${at}`, brn, uic: ownUic.toUpperCase(), checkedInAt: at, moves: [] }, ...prev])
-        setShowCheckIn(false)
+        const blank: MockEntry = { id: `e-${at}`, brn: d.brn, originClinicId: viewerId, checkedInAt: at, moves: [], comments: [] }
+        // Duplicate BRN → newest injury wins: reset (drop) any older visit the
+        // checker can see. Visits outside their view collapse at render
+        // (boardEntries dedupe) on any board that holds both.
+        const mine = subtree(clusters, viewerId)
+        setAllEntries(prev => [applyDraft(blank, d, me, at), ...prev.filter(e => !(e.brn === d.brn && mine.has(e.originClinicId)))])
+        setCheckInDraft(null)
+        setCheckInBusy(false)
     }
 
-    const select = (e: MockEntry) => setSelectedId(e.id)
-    const clear = () => { setSelectedId(null); setMoreRect(null) }
-    const handleClose = () => { clear(); setShowSettings(false); setShowCheckIn(false); onClose() }
+    const select = (e: MockEntry, from?: CardOrigin) => openEntry(e, from)
+    const clear = () => { setSelectedId(null); setMoreRect(null); setEditDraft(null) }
+    const handleClose = () => { clear(); setShowSettings(false); setCheckInDraft(null); onClose() }
     const openSettings = () => setShowSettings(true)
-    useEscBackout(!isMobile && !!selected && !showSettings && !showCheckIn && !moreRect && !pendingDelete && !busy, clear)
-    // Mobile left-edge swipe closes the panel (the BRN detail is a Sheet, not a page).
+    useEscBackout(!isMobile && !!selected && !showSettings && !showCheckIn && !moreRect && !pendingDelete && !busy, editing ? cancelEdit : clear)
+    const measureRest = originSrc === 'rail' ? measureRailCard : originSrc === 'grid' ? measureGridRow : measureBrnCard
+    // Mobile left-edge swipe closes the panel (the BRN detail is an overlay, not a page).
     const swipeBack = useSwipeBack(handleClose, isMobile)
 
     // Mobile panel stays mounted (App slide), and a backdrop tap closes it
     // without going through handleClose — reset so it reopens on the list.
     useEffect(() => {
-        if (!isVisible) { setSelectedId(null); setShowSettings(false); setShowCheckIn(false); setMoreRect(null); setPendingDelete(null) }
+        if (!isVisible) { setSelectedId(null); setShowSettings(false); setCheckInDraft(null); setMoreRect(null); setPendingDelete(null); setEditDraft(null) }
     }, [isVisible])
 
-    const listProps = { entries, now, activeId: selected?.id ?? null, onSelect: select }
+    const activeId = selected?.id ?? null
+
+    const editForm = editing && (
+        <TrackingEditForm entry={selected} draft={editDraft} onChange={setEditDraft} />
+    )
 
     const moreMenu = moreRect && selected && (
         <AnchoredMenu
@@ -147,12 +237,12 @@ export function TrackingBoardDrawer({ isVisible, onClose }: TrackingBoardDrawerP
             anchorRect={moreRect}
             onClose={() => setMoreRect(null)}
             layout="list"
-            align={isMobile ? 'left' : 'right'}
+            align="right"
             items={detailMenuItems}
         />
     )
 
-    // Mobile: must be a CHILD of the detail Sheet to stack above it (Calendar note).
+    // Must be a CHILD of the card overlay to stack above it (it publishes the z ceiling).
     const deleteConfirm = (
         <ConfirmDialog
             visible={!!pendingDelete}
@@ -168,6 +258,8 @@ export function TrackingBoardDrawer({ isVisible, onClose }: TrackingBoardDrawerP
         />
     )
 
+    const changeViewer = (id: string) => { setViewerId(id); setCategory('all'); clear() }
+
     const settingsSurface = isMobile ? (
         <Sheet
             isOpen={showSettings}
@@ -177,7 +269,17 @@ export function TrackingBoardDrawer({ isVisible, onClose }: TrackingBoardDrawerP
             maxHeight={60}
             zIndex={1200}
         >
-            <TrackingBoardSettings />
+            <TrackingBoardSettings
+                onViewerChange={changeViewer}
+                onAddAxp={addAxp}
+                onRenameAxp={(id, label) => setAxps(prev => renameAxp(prev, id, label))}
+                onRemoveAxp={id => setAxps(prev => removeAxp(prev, id))}
+                onAddStation={label => setStations(prev => addStation(prev, label, viewerId, Date.now()))}
+                onRenameStation={(id, label) => setStations(prev => renameStation(prev, id, label))}
+                onRemoveStation={id => setStations(prev => removeStation(prev, id))}
+                onOptIn={id => setStations(prev => optInStation(prev, id, viewerId))}
+                onLeave={id => setStations(prev => leaveStation(prev, id, viewerId))}
+            />
         </Sheet>
     ) : (
         <PreviewOverlay
@@ -188,34 +290,85 @@ export function TrackingBoardDrawer({ isVisible, onClose }: TrackingBoardDrawerP
             maxWidth={360}
             previewMaxHeight="70dvh"
         >
-            <TrackingBoardSettings />
+            <TrackingBoardSettings
+                onViewerChange={changeViewer}
+                onAddAxp={addAxp}
+                onRenameAxp={(id, label) => setAxps(prev => renameAxp(prev, id, label))}
+                onRemoveAxp={id => setAxps(prev => removeAxp(prev, id))}
+                onAddStation={label => setStations(prev => addStation(prev, label, viewerId, Date.now()))}
+                onRenameStation={(id, label) => setStations(prev => renameStation(prev, id, label))}
+                onRemoveStation={id => setStations(prev => removeStation(prev, id))}
+                onOptIn={id => setStations(prev => optInStation(prev, id, viewerId))}
+                onLeave={id => setStations(prev => leaveStation(prev, id, viewerId))}
+            />
         </PreviewOverlay>
     )
 
     const checkInSurface = (
         <PreviewOverlay
             isOpen={showCheckIn}
-            onClose={() => setShowCheckIn(false)}
+            onClose={() => { if (!checkInBusy) setCheckInDraft(null) }}
             anchorRect={null}
             title="Check in"
-            maxWidth={340}
+            maxWidth={380}
+            previewMaxHeight="70dvh"
+            loading={checkInBusy}
+            headerActions={checkInDraft && draftIsValid(checkInDraft) ? (
+                <PillButton icon={Check} iconSize={18} accent="success" onClick={() => { void saveCheckIn() }} label="Save" />
+            ) : undefined}
         >
-            <TrackingCheckIn onCheckIn={checkIn} />
+            {checkInDraft && (
+                <div className="px-4 py-4">
+                    <TrackingEditForm draft={checkInDraft} onChange={setCheckInDraft} />
+                </div>
+            )}
         </PreviewOverlay>
     )
 
-    const openCheckIn = () => setShowCheckIn(true)
-
-    const searchInput = <SearchInput value={query} onChange={setQuery} placeholder="Search..." />
+    const openCheckIn = () => setCheckInDraft(emptyDraft())
 
     // Mobile bypasses BaseDrawer, same as MessagesDrawer: App.tsx owns the
     // horizontal slide-in, which BaseDrawer's vertical drawer model would fight.
+    // BRN detail — the card itself, expanded (card → lifted → overlay). Mobile:
+    // in the card's column; desktop: centered. Edit mode (Calendar idiom): Back
+    // → detail, Save once valid, Close.
+    const cardEntry = selected ?? lastSelected.current
+    const cardOverlay = (
+        <TrackingCardOverlay
+            entry={cardEntry}
+            open={!!selected}
+            origin={origin}
+            placement={isMobile ? 'column' : 'center'}
+            measureRest={measureRest}
+            onClose={() => { if (!busy) clear() }}
+            onSettled={() => setExpandedId(null)}
+            loading={busy}
+            headRight={busy || !selected ? undefined : (
+                <HeaderPill>
+                    {editing ? (
+                        <>
+                            <PillButton icon={ChevronLeft} iconSize={18} onClick={cancelEdit} label="Back" />
+                            {canSave && <PillButton icon={Check} iconSize={18} accent="success" onClick={saveEdit} label="Save" />}
+                        </>
+                    ) : moreButton}
+                    <PillButton icon={X} iconSize={18} onClick={clear} label="Close" />
+                </HeaderPill>
+            )}
+        >
+            {cardEntry && (editing ? editForm : <TrackingBoardDetail entry={cardEntry} now={now} />)}
+            {/* Child of the overlay so it stacks above it (overlay publishes the z ceiling). */}
+            {deleteConfirm}
+        </TrackingCardOverlay>
+    )
+
     if (isMobile) {
-        const sheetEntry = selected ?? lastSelected.current
         return (
+            <TrackingBoardScope value={scope}>
             <div className="h-full relative bg-themewhite" {...swipeBack}>
-                <div className="h-full flex flex-col">
-                    <div className="shrink-0 px-3 py-3 pt-[max(0.75rem,var(--sat,0px))] flex items-center gap-2">
+                <div className="h-full relative">
+                    {/* Glass header — floats over the list; content scrolls up behind it. */}
+                    <div className="absolute top-0 inset-x-0 z-10 px-3 pb-4 pt-[max(0.75rem,var(--sat,0px))] flex items-center gap-2">
+                        <GlassBand edge="top" className="inset-0" />
                         <HeaderPill>
                             <PillButton icon={ChevronLeft} onClick={handleClose} label="Back" />
                         </HeaderPill>
@@ -225,101 +378,78 @@ export function TrackingBoardDrawer({ isVisible, onClose }: TrackingBoardDrawerP
                             <PillButton icon={Settings} onClick={openSettings} label="Settings" />
                         </HeaderPill>
                     </div>
-                    {/* Search + category strip pinned under the header; cards scroll. */}
-                    <div className="shrink-0 px-3 pb-3 space-y-2">
-                        {searchInput}
-                        <TrackingCategoryBar value={category} onChange={setCategory} />
+                    {/* Mobile search template (main search): the bar collapses with
+                        scroll, expands on focus, and its cancel X slides in beside it.
+                        The query filters the card list in place. */}
+                    {/* paddingTop clears the floating header: safe-area top + pb-4 + mobile
+                        HeaderPill (43px button + 2×2px pad + 2×1px border = 49px). */}
+                    <div className="h-full isolate">
+                        <MobileSearchBar
+                            value={query}
+                            onChange={setQuery}
+                            placeholder="Search..."
+                            className="overscroll-y-contain"
+                            style={{ paddingTop: 'calc(max(0.75rem, var(--sat, 0px)) + 1rem + 49px)', paddingBottom: 'calc(1rem + var(--sab,0px))' }}
+                        >
+                            <div className="px-3 pb-3">
+                                <TrackingCategoryBar entries={entries} value={category} onChange={setCategory} />
+                            </div>
+                            <TrackingCardList entries={cards} onSelect={select} onEdit={startEdit} onMove={moveEntry} onTransit={transitEntry} onForward={forwardEntry} onDelete={deleteEntry} expandedId={expandedId} />
+                        </MobileSearchBar>
                     </div>
-                    <div className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain">
-                        <TrackingCardList entries={cards} onSelect={select} onMove={moveEntry} onForward={forwardEntry} onDelete={deleteEntry} />
+                    {/* Glass footer — feathered band so cards scroll under the home indicator. */}
+                    <div className="absolute bottom-0 inset-x-0 z-10 h-[calc(2rem+var(--sab,0px))] pointer-events-none">
+                        <GlassBand edge="bottom" className="inset-0" />
                     </div>
                 </div>
 
-                {/* BRN detail — bottom Sheet; ellipsis LEFT, close RIGHT (Calendar event detail). */}
-                <Sheet
-                    isOpen={!!selected}
-                    onClose={clear}
-                    title={sheetEntry?.brn ?? ''}
-                    height="fit"
-                    maxHeight={85}
-                    zIndex={1200}
-                    loading={busy}
-                    draggable={!busy}
-                    leftContent={selected && !busy ? <HeaderPill>{moreButton}</HeaderPill> : undefined}
-                >
-                    {sheetEntry && (
-                        <div className="px-4 pt-1 pb-6">
-                            <TrackingBoardDetail entry={sheetEntry} now={now} />
-                        </div>
-                    )}
-                    {deleteConfirm}
-                </Sheet>
+                {cardOverlay}
                 {moreMenu}
                 {settingsSurface}
                 {checkInSurface}
             </div>
+            </TrackingBoardScope>
         )
     }
 
     // ── Desktop: BaseDrawer overlay ──
     return (
+        <TrackingBoardScope value={scope}>
         <BaseDrawer
             isVisible={isVisible}
             onClose={handleClose}
             desktopWidth="w-[90%]"
-            header={selected
-                ? {
-                    title: selected.brn,
-                    showBack: true,
-                    onBack: clear,
-                    // Ellipsis folded into the close pill (EventDetailPanel header idiom).
-                    hideDefaultClose: true,
-                    rightContent: (
-                        <HeaderPill>
-                            {moreButton}
-                            <PillButton icon={X} onClick={handleClose} label="Close" />
-                        </HeaderPill>
-                    ),
-                }
-                : {
-                    title: 'Tracking Board',
-                    rightContent: (
-                        <HeaderPill>
-                            <PillButton icon={Plus} onClick={openCheckIn} label="Check in" />
-                        </HeaderPill>
-                    ),
-                }}
+            header={{
+                title: 'Tracking Board',
+                rightContent: (
+                    <HeaderPill>
+                        <PillButton icon={Plus} onClick={openCheckIn} label="Check in" />
+                    </HeaderPill>
+                ),
+            }}
             scrollDisabled
         >
             <div className="relative h-full">
                 <div className="flex absolute inset-0 overflow-hidden">
                     {/* Left rail — mirrors the Messaging left pane: search + bare gear, then the grouped list */}
                     <div className="w-[320px] shrink-0 flex flex-col border-r border-primary/10">
-                        <RailSearchRow search={searchInput} onSettings={openSettings} settingsLabel="Tracking board settings" />
+                        <RailSearchRow value={query} onChange={setQuery} placeholder="Search..." onSettings={openSettings} settingsLabel="Tracking board settings" />
                         <div className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain">
-                            <TrackingBoardList {...listProps} />
+                            <TrackingBoardList entries={entries} now={now} activeId={activeId} expandedId={expandedId} onSelect={(e, from) => openEntry(e, from, 'rail')} />
                         </div>
                     </div>
 
-                    {/* Main pane — grid overview until a BRN is selected, then its detail */}
+                    {/* Main pane — the grid, always; a row opens the centered card overlay */}
                     <div className="relative flex-1 min-w-0 bg-themewhite">
-                        {selected ? (
-                            <ScrollPane key={selected.id}>
-                                <div className="max-w-2xl mx-auto">
-                                    <TrackingBoardDetail entry={selected} now={now} />
-                                </div>
-                            </ScrollPane>
-                        ) : (
-                            <TrackingGrid {...listProps} />
-                        )}
-                        <LoadingOverlay visible={busy} />
+                        <TrackingGrid entries={entries} now={now} activeId={activeId} onSelect={(e, from) => openEntry(e, from, 'grid')} />
                     </div>
                 </div>
             </div>
+            {cardOverlay}
             {moreMenu}
-            {deleteConfirm}
             {settingsSurface}
             {checkInSurface}
         </BaseDrawer>
+        </TrackingBoardScope>
     )
 }

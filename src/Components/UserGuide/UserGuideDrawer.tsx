@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { X, List } from 'lucide-react';
 import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill';
 import { SearchInput } from '@/Components/primitives/SearchInput';
+import { RailSearchRow } from '@/Components/primitives/RailSearchRow';
 import { BaseDrawer } from '@/Components/primitives/BaseDrawer';
 import { Sheet } from '@/Components/primitives/Sheet';
 import { useIsMobile } from '@/Hooks/useIsMobile';
@@ -103,9 +104,7 @@ export function UserGuideDrawer({ isVisible, onClose }: UserGuideDrawerProps) {
                     // Desktop — two panes: tree (left) + body (right).
                     <div className="h-full flex">
                         <aside className="w-[260px] shrink-0 border-r border-tertiary/12 flex flex-col">
-                            <div className="p-2.5 border-b border-tertiary/10">
-                                <SearchInput value={query} onChange={setQuery} placeholder="Search the guide" />
-                            </div>
+                            <RailSearchRow value={query} onChange={setQuery} placeholder="Search the guide" />
                             <div className="flex-1 min-h-0 overflow-y-auto">
                                 <UserGuideTree
                                     chapters={visibleChapters}

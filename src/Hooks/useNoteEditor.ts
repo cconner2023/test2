@@ -7,7 +7,7 @@ import { useNoteCapture } from './useNoteCapture';
 import { useNoteShare } from './useNoteShare';
 import { useDD689Export } from './useDD689Export';
 import { useSF600Export } from './useSF600Export';
-import type { PatientIdentification } from '../Utilities/SF600Export';
+import { formatDob, nowStamp, type PatientIdentification, type SF600Stamp } from '../Utilities/SF600Export';
 import type { DD689Extras } from '../Utilities/DD689Export';
 import { useUserProfile } from './useUserProfile';
 import { useAuthStore } from '../stores/useAuthStore';
@@ -158,16 +158,15 @@ export function useNoteEditor(config: NoteEditorConfig) {
     }, [encodedValue, dispositionType, dispositionText, selectedSymptom, exportDD689, profile, shareSymptomText, formClinicName]);
 
     // --- SF600 PDF export handler ---
-    const handleExportSF600 = useCallback((patient?: PatientIdentification) => {
+    const handleExportSF600 = useCallback((patient?: PatientIdentification, stamp: SF600Stamp = nowStamp()) => {
         if (!previewNote) return;
-        const now = new Date();
-        const dateStr = now.toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase();
         const nameParts = [profile.lastName, profile.firstName, profile.middleInitial].filter(Boolean).join(' ');
         const suffix = [profile.credential, profile.rank, profile.component].filter(Boolean).join(', ');
         const sigName = suffix ? `${nameParts} ${suffix}` : nameParts;
         exportSF600({
             noteText: previewNote,
-            date: dateStr,
+            date: formatDob(stamp.date),
+            time: stamp.time,
             signatureName: sigName || undefined,
             patient,
             facility: formClinicName || undefined,

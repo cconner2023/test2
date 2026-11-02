@@ -46,9 +46,10 @@ interface UIState {
   dynamicTitle?: string
   isMobile: boolean
   isAlgorithmView?: boolean
-  isSearchFocused?: boolean
   /** Mode-scoped chrome injected into the mobile right-side slot, replacing the default messages/info buttons. */
   rightSlot?: React.ReactNode
+  /** Desktop: lifted results card anchored under the search pill. */
+  searchDropdown?: React.ReactNode
 }
 
 /**

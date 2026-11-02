@@ -1,4 +1,7 @@
-/** Shared search input with two variants:
+/** Shared search input with two variants. Owns no submit button — Enter / the
+ *  keyboard's search key submits via `onSubmit`. Owns a clear X unless the caller
+ *  has its own cancel outside (`hideClear`).
+ *
  *  - `underline` (default): border-b only, search icon, used inline within panels/drawers/overlays.
  *  - `bordered`: rounded-full pill with shadow; reserved for NavTop and other top-level chrome.
  */
@@ -13,6 +16,8 @@ interface SearchInputProps {
     className?: string
     autoFocus?: boolean
     hideSearchIcon?: boolean
+    /** Drop the inline clear X — set when the caller renders its own cancel/close outside the field. */
+    hideClear?: boolean
     variant?: 'underline' | 'bordered'
     onFocus?: () => void
     onBlur?: () => void
@@ -29,6 +34,7 @@ export const SearchInput = forwardRef<HTMLInputElement, SearchInputProps>(
             className = '',
             autoFocus = false,
             hideSearchIcon = false,
+            hideClear = false,
             variant = 'underline',
             onFocus,
             onBlur,
@@ -64,6 +70,7 @@ export const SearchInput = forwardRef<HTMLInputElement, SearchInputProps>(
                 <input
                     ref={setRef}
                     type="search"
+                    enterKeyHint="search"
                     value={value}
                     onChange={(e) => onChange(e.target.value)}
                     onFocus={onFocus}
@@ -82,19 +89,7 @@ export const SearchInput = forwardRef<HTMLInputElement, SearchInputProps>(
                         ${isBordered ? 'rounded-l-full' : ''} min-w-0 placeholder:text-tertiary
                         [&::-webkit-search-cancel-button]:hidden`}
                 />
-                {hasValue && onSubmit && (
-                    <button
-                        type="button"
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={onSubmit}
-                        className="w-7 h-7 shrink-0 rounded-full flex items-center justify-center
-                            bg-themeblue3 text-white active:scale-95 transition-all"
-                        aria-label="Submit search"
-                    >
-                        <Search size={13} />
-                    </button>
-                )}
-                {hasValue && (
+                {hasValue && !hideClear && (
                     <button
                         type="button"
                         onMouseDown={(e) => e.preventDefault()}

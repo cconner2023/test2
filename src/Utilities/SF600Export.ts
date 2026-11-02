@@ -23,7 +23,8 @@ export interface PatientIdentification {
 
 export interface SF600Params {
   noteText: string
-  date: string        // display date string (e.g. "18 MAR 2026")
+  date: string        // display date string (e.g. "18 MAR 2026") — DATE column, row 1
+  time?: string       // military time 'HHMM' — DATE column, row 2
   signatureName?: string  // e.g. "CONNER CHRISTOPHER D PA-C, CPT, USA"
   patient?: PatientIdentification  // bottom-left patient identification block (page 1)
   /** Page-1 "HOSPITAL OR MEDICAL FACILITY" box — the cluster label
@@ -41,8 +42,23 @@ function signatureInitials(name: string): string {
   return [first?.[0], mi, last?.[0]].filter(Boolean).join('').toUpperCase()
 }
 
-/** Format an ISO 'YYYY-MM-DD' DOB as 'DD MMM YYYY' for the patient block. */
-function formatDob(iso: string): string {
+/** Note date/time chosen at export (defaults to now, user-adjustable). */
+export interface SF600Stamp {
+  date: string  // ISO 'YYYY-MM-DD' (local)
+  time: string  // military 'HHMM'
+}
+
+/** Current local date/time as an SF600Stamp. */
+export function nowStamp(d = new Date()): SF600Stamp {
+  const p = (n: number) => String(n).padStart(2, '0')
+  return {
+    date: `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`,
+    time: `${p(d.getHours())}${p(d.getMinutes())}`,
+  }
+}
+
+/** Format an ISO 'YYYY-MM-DD' as 'DD MMM YYYY' (SF600 date column / patient block). */
+export function formatDob(iso: string): string {
   if (!iso) return ''
   const [y, m, d] = iso.split('-')
   const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
@@ -169,6 +185,16 @@ export async function generateSF600(params: SF600Params): Promise<Uint8Array> {
     p1.drawText(params.date, {
       x: LAYOUT.dateCol.x,
       y: PAGE1_ROW_Y[0],
+      size: LAYOUT.fontSize,
+      font,
+      color: black,
+    })
+  }
+  // Military time in DATE column (second row)
+  if (params.time) {
+    p1.drawText(params.time, {
+      x: LAYOUT.dateCol.x,
+      y: PAGE1_ROW_Y[1],
       size: LAYOUT.fontSize,
       font,
       color: black,

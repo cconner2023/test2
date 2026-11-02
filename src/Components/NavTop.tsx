@@ -42,14 +42,29 @@ export function NavTop({ search, import: importProps, actions, ui }: NavTopProps
         dynamicTitle,
         isMobile,
         isAlgorithmView = false,
-        isSearchFocused = false,
         rightSlot,
+        searchDropdown,
     } = ui
 
     // Refs and computed values
     const internalInputRef = useRef<HTMLInputElement>(null);
     const inputRef = searchInputRef || internalInputRef;
     const hasSearchInput = searchInput.trim().length > 0;
+
+    // Desktop results dropdown — open while typing/focused, dismissed by an
+    // outside click or Escape without discarding the query.
+    const desktopSearchRef = useRef<HTMLDivElement>(null);
+    const [dropdownOpen, setDropdownOpen] = useState(false);
+    useEffect(() => {
+        if (!dropdownOpen) return;
+        const onDown = (e: PointerEvent) => {
+            if (!desktopSearchRef.current?.contains(e.target as Node)) setDropdownOpen(false);
+        };
+        document.addEventListener('pointerdown', onDown);
+        return () => document.removeEventListener('pointerdown', onDown);
+    }, [dropdownOpen]);
+    // A pick clears the query upstream — close with it.
+    useEffect(() => { if (!hasSearchInput) setDropdownOpen(false); }, [hasSearchInput]);
 
     // Mobile-specific UI flags
     const shouldShowMessagesButton = isMobile && isAuthenticated && !isSearchExpanded;
@@ -170,7 +185,7 @@ export function NavTop({ search, import: importProps, actions, ui }: NavTopProps
         <div className={`flex items-center h-full w-full px-2 md:pl-4 transition-all duration-300 md:bg-themewhite bg-transparent relative`}>
             {/* Left section: buttons - hidden when mobile search is expanded */}
             {(!isMobile || !isAnyExpanded) && (
-                <div className={`flex items-center shrink-0 transition-opacity duration-200${isSearchFocused && isMobile ? ' opacity-0 pointer-events-none' : ''}`}>
+                <div className="flex items-center shrink-0">
                     {/* Mobile: Back + Avatar button crossfade */}
                     {isMobile && (
                         <div className="relative">
@@ -303,7 +318,7 @@ export function NavTop({ search, import: importProps, actions, ui }: NavTopProps
 
             {/* Title - Centered on mobile, hidden on desktop */}
             {isMobile && !isAnyExpanded && (
-                <div className={`flex-1 min-w-0 px-2 transition-opacity duration-200${isSearchFocused ? ' opacity-0 pointer-events-none' : ''}`}>
+                <div className="flex-1 min-w-0 px-2">
                     <div className="truncate whitespace-nowrap text-center">
                         <span className="text-[9pt] text-primary font-normal">
                             {dynamicTitle || 'ADTMC'}
@@ -332,7 +347,7 @@ export function NavTop({ search, import: importProps, actions, ui }: NavTopProps
 
                     {/* Mobile collapsed: messages + info buttons, with mode-scoped rightSlot tacked into the same pill */}
                     {!isAnyExpanded && (
-                        <div className={`flex items-center justify-end h-full transition-opacity duration-200${isSearchFocused ? ' opacity-0 pointer-events-none' : ''}`}>
+                        <div className="flex items-center justify-end h-full">
                             <HeaderPill multi={(shouldShowMessagesButton ? 1 : 0) + (shouldShowInfoButton ? 1 : 0) + (rightSlot ? 1 : 0) > 1}>
                                 <div className={`
                                     transition-all duration-300 ease-out overflow-hidden
@@ -383,19 +398,25 @@ export function NavTop({ search, import: importProps, actions, ui }: NavTopProps
             {/* Desktop: Search + Import + Messages — wrapped so import overlay covers search area */}
             {!isMobile && (
                 <div className="flex-1 min-w-0 flex items-center gap-2 ml-4 mr-2 relative">
-                    {/* Persistent search input */}
-                    <div className="flex-1 min-w-0">
+                    {/* Persistent search input + anchored results dropdown */}
+                    <div ref={desktopSearchRef} className="flex-1 min-w-0 relative">
                         <div className="flex items-center w-full rounded-full border border-themeblue3/20 shadow-xs focus-within:border-themeblue1/40 focus-within:bg-themewhite2 bg-themewhite transition-all duration-300">
                             <input
                                 ref={inputRef}
                                 type="search"
                                 placeholder="Search"
                                 value={searchInput}
-                                onChange={(e) => onSearchChange(e.target.value)}
-                                onFocus={handleSearchFocus}
+                                onChange={(e) => { onSearchChange(e.target.value); setDropdownOpen(true); }}
+                                onFocus={() => { handleSearchFocus(); setDropdownOpen(true); }}
+                                onKeyDown={(e) => { if (e.key === 'Escape') { setDropdownOpen(false); inputRef.current?.blur(); } }}
                                 className="text-tertiary bg-transparent outline-none text-sm w-full px-4 py-1.5 rounded-full min-w-0 [&::-webkit-search-cancel-button]:hidden"
                             />
                         </div>
+                        {dropdownOpen && hasSearchInput && searchDropdown && (
+                            <div className="absolute left-0 right-0 top-full mt-2 z-40">
+                                {searchDropdown}
+                            </div>
+                        )}
                     </div>
                     {hasSearchInput && (
                         <button

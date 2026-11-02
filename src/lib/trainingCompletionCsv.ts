@@ -18,6 +18,7 @@
 import { getEvaluableTaskData } from '../Utilities/algorithmCompetency'
 import { stp68wTraining } from '../Data/TrainingTaskList'
 import type { TrainingCompletionUI } from './trainingService'
+import { downloadBlob } from '../Utilities/downloadUtils'
 
 export interface TrainingCompletionExportRow {
   soldier: string
@@ -124,20 +125,5 @@ export async function shareTrainingCompletionCsv(
   // BOM so Excel reads UTF-8 names correctly.
   const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' })
 
-  if (
-    typeof navigator !== 'undefined'
-    && navigator.share
-    && navigator.canShare?.({ files: [new File([blob], filename, { type: blob.type })] })
-  ) {
-    const file = new File([blob], filename, { type: blob.type })
-    await navigator.share({ files: [file], title: 'Training completions' })
-    return
-  }
-
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  a.click()
-  URL.revokeObjectURL(url)
+  downloadBlob(blob, filename)
 }

@@ -1,5 +1,4 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
-import { useSpring, animated } from '@react-spring/web'
 import { DRAWER_TIMING } from './Utilities/constants'
 import './App.css'
 import { NavTop } from './Components/NavTop'
@@ -162,11 +161,6 @@ function AppContent() {
   })
 
   // ── Settings/training targeting state (lightweight replacement for useActiveNote) ──
-  const [searchFocused, setSearchFocused] = useState(false)
-  const headerCollapseSpring = useSpring({
-    collapse: searchFocused ? 1 : 0,
-    config: { tension: 280, friction: 28 },
-  })
   const [settingsInitialPanel, setSettingsInitialPanel] = useState<'main' | 'release-notes' | 'user-profile' | 'feedback' | 'feature-votes' | 'clinic'>('main')
   const [initialTrainingTaskId, setInitialTrainingTaskId] = useState<string | null>(null)
 
@@ -565,11 +559,10 @@ case 'mapOverlay':
   // On mobile, search is handled by a separate overlay so the key stays stable
   // to prevent AlgorithmPage from remounting (and losing state) during search.
   const desktopContentKey = useMemo(() => {
-    if (!navigation.isMobile && search.searchInput) return 'search'
     if (navigation.selectedSymptom && navigation.showQuestionCard)
       return `algo-${navigation.selectedSymptom.icon}`
     return 'empty'
-  }, [navigation.isMobile, search.searchInput, navigation.selectedSymptom, navigation.showQuestionCard])
+  }, [navigation.selectedSymptom, navigation.showQuestionCard])
 
   return (
     <AvatarProvider value={avatarState}>
@@ -600,26 +593,12 @@ case 'mapOverlay':
           </div>
 
           {/* Content — takes full viewport width */}
-          <animated.div
-            className="flex flex-col h-full flex-1 min-w-0 relative"
-            style={{
-              '--header-collapse': headerCollapseSpring.collapse,
-            } as React.CSSProperties}
-          >
+          <div className="flex flex-col h-full flex-1 min-w-0 relative">
           {/* Navbar - overlaps content on mobile for blur effect, extends into safe area on iOS */}
-          <animated.div className={`${navigation.isMobile
-            ? 'absolute top-0 left-0 right-0 z-30 pt-[var(--sat)] backdrop-blur-xs bg-themewhite/10 overflow-hidden h-[3.75rem]'
-            : 'relative h-13.75'
-            } w-full rounded-t-md flex justify-end`}
-            style={navigation.isMobile ? {
-              height: headerCollapseSpring.collapse.to(
-                (c: number) => `calc((var(--sat, 0px) + 3.75rem) * ${1 - c})`
-              ),
-              opacity: headerCollapseSpring.collapse.to((c: number) => 1 - c),
-              transform: headerCollapseSpring.collapse.to(
-                (c: number) => `scale(${1 - c * 0.03})`
-              ),
-            } : undefined}>
+          <div className={`${navigation.isMobile
+            ? 'absolute top-0 left-0 right-0 z-30 pt-[var(--sat)] backdrop-blur-xs bg-themewhite/10 overflow-hidden h-[calc(var(--sat,0px)+3.75rem)]'
+            : 'relative z-30 h-13.75'
+            } w-full rounded-t-md flex justify-end`}>
             <NavTop
               search={{
                 searchInput: search.searchInput,
@@ -652,11 +631,18 @@ case 'mapOverlay':
                 dynamicTitle: title,
                 isMobile: navigation.isMobile,
                 isAlgorithmView: navigation.showQuestionCard,
-                isSearchFocused: searchFocused,
                 rightSlot: undefined,
+                searchDropdown: navigation.isMobile ? undefined : (
+                  <SearchResults
+                    results={search.searchResults}
+                    searchTerm={search.searchInput}
+                    onResultClick={handleNavigationClick}
+                    isSearching={search.isSearching}
+                  />
+                ),
               }}
             />
-          </animated.div>
+          </div>
 
           {/* Content area — ADTMC 2-column grid (TC3 now lives in its own drawer) */}
           <div className="md:flex-1 h-full overflow-hidden absolute inset-0 md:relative md:inset-auto md:mt-2 md:mx-2">
@@ -676,37 +662,22 @@ case 'mapOverlay':
                   onSearchChange={navigation.isMobile ? handleSearchChange : undefined}
                   searchResults={search.searchResults}
                   isSearching={search.isSearching}
-                  onSearchFocusChange={setSearchFocused}
-                  headerCollapse={headerCollapseSpring.collapse}
                 />
               </div>
 
               {/* Column B: Content — algorithm, search, or empty */}
               <div className="h-full overflow-hidden" style={{ minWidth: 0 }}>
                 <div key={desktopContentKey} className="h-full animate-desktopContentIn md:pt-3">
-                  {!navigation.isMobile && search.searchInput ? (
-                    <div className="h-full overflow-y-auto">
-                      <div className="px-2 min-h-full">
-                        <SearchResults
-                          results={search.searchResults}
-                          searchTerm={search.searchInput}
-                          onResultClick={handleNavigationClick}
-                          isSearching={search.isSearching}
-                        />
-                      </div>
-                    </div>
-                  ) : navigation.selectedSymptom && navigation.showQuestionCard ? (
+                  {navigation.selectedSymptom && navigation.showQuestionCard ? (
                     <div className="h-full overflow-hidden">
                       <ErrorBoundary>
                       <AlgorithmPage
                         key={`algo-${navigation.selectedSymptom.icon}`}
                         searchInput={search.searchInput}
                         onSearchChange={navigation.isMobile ? handleSearchChange : undefined}
-                        onSearchFocusChange={setSearchFocused}
                         searchResults={search.searchResults}
                         isSearching={search.isSearching}
                         onSearchResultClick={handleNavigationClick}
-                        headerCollapse={headerCollapseSpring.collapse}
                       />
                       </ErrorBoundary>
                     </div>
@@ -780,7 +751,7 @@ case 'mapOverlay':
               />
             </div>
           )}
-          </animated.div>
+          </div>
         </div>
 
         {/* Messages panel — slides over content from right (mobile only, always mounted) */}
@@ -808,10 +779,12 @@ case 'mapOverlay':
           </div>
         )}
 
-        {/* Tracking Board panel — slides over content from right (mobile only, always mounted) */}
+        {/* Tracking Board panel — slides over content from right (mobile only, always mounted).
+            No touch-pan-y here: iOS intersects touch-action down the tree, which would kill the
+            category strip's horizontal scroll. The card list carries pan-y instead. */}
         {navigation.isMobile && (
           <div
-            className="absolute inset-0 z-50 overflow-hidden touch-pan-y"
+            className="absolute inset-0 z-50 overflow-hidden"
             style={{
               transform: `translateX(${(1 - trackingSlide.progress) * 100}%)`,
               transition: trackingSlide.transition,

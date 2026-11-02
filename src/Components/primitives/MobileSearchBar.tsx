@@ -9,7 +9,6 @@
  *
  * Overscroll: mild upward translateY (0.3x factor) on iOS bounce.
  */
-import { X } from 'lucide-react'
 import {
     useRef,
     useState,
@@ -19,6 +18,7 @@ import {
     type ReactNode,
 } from 'react'
 import { SearchInput } from '@/Components/primitives/SearchInput'
+import { SearchCancelButton } from '@/Components/primitives/SearchDropdown'
 
 const VARIANT_PLACEHOLDERS: Record<string, string> = {
     default: 'Search...',
@@ -44,6 +44,8 @@ interface MobileSearchBarProps {
     variant?: 'default' | 'messages' | 'admin' | 'supervisor' | 'property'
     /** When true, skip creating own scroll container — parent handles scrolling */
     inheritScroll?: boolean
+    /** Lifted results card anchored directly under the bar, overlaying `children`. */
+    dropdown?: ReactNode
 }
 
 function setExternalRef<T>(ref: React.Ref<T> | undefined, value: T | null) {
@@ -66,6 +68,7 @@ export const MobileSearchBar = forwardRef<HTMLDivElement, MobileSearchBarProps>(
             onFocusChange,
             variant = 'default',
             inheritScroll = false,
+            dropdown,
         },
         externalRef,
     ) {
@@ -272,6 +275,9 @@ export const MobileSearchBar = forwardRef<HTMLDivElement, MobileSearchBarProps>(
                 className={`${inheritScroll ? '' : 'h-full overflow-y-auto'} ${className}`}
                 style={style}
             >
+                {/* Bar + anchored dropdown. The bar's wrapper clips (collapse), so
+                    the dropdown hangs off this unclipped relative parent. */}
+                <div className="relative z-20">
                 {/* Inline search bar — collapses with scroll, expands on focus */}
                 <div
                     ref={wrapperRef}
@@ -288,24 +294,23 @@ export const MobileSearchBar = forwardRef<HTMLDivElement, MobileSearchBarProps>(
                                 onFocus={handleFocus}
                                 onBlur={handleBlur}
                                 onKeyDown={handleKeyDown}
+                                hideClear
                                 className="flex-1 min-w-0"
                             />
                             {/* Close button — appears when focused, shortens pill width */}
                             <div className={`transition-all duration-200 overflow-hidden ${
                                 focused ? 'w-10 opacity-100' : 'w-0 opacity-0'
                             }`}>
-                                <button
-                                    type="button"
-                                    onMouseDown={(e) => e.preventDefault()}
-                                    onClick={handleClose}
-                                    className="w-10 h-10 rounded-full flex items-center justify-center bg-tertiary/10 active:scale-95 shrink-0"
-                                    aria-label="Cancel search"
-                                >
-                                    <X size={18} className="text-tertiary" />
-                                </button>
+                                <SearchCancelButton onClick={handleClose} />
                             </div>
                         </div>
                     </div>
+                </div>
+                {dropdown && (
+                    <div className="absolute left-0 right-0 top-full px-3 pt-1">
+                        {dropdown}
+                    </div>
+                )}
                 </div>
 
                 {children}

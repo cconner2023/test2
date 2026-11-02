@@ -12,6 +12,7 @@ import { PROVIDER_HUDDLE_TASK_ID, eventFallsOnDate, toDateKey } from '../Types/C
 import type { ClinicMedic } from '../Types/SupervisorTestTypes'
 import type { ClinicHuddleTask } from './supervisorService'
 import { getDisplayName } from '../Utilities/nameUtils'
+import { downloadBlob } from '../Utilities/downloadUtils'
 
 // ---- Helpers ----
 
@@ -152,23 +153,7 @@ export async function shareCalendar(events: CalendarEvent[], options?: IcsExport
   const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' })
   const filename = 'calendar-export.ics'
 
-  if (
-    typeof navigator !== 'undefined' &&
-    navigator.share &&
-    navigator.canShare?.({ files: [new File([blob], filename, { type: blob.type })] })
-  ) {
-    const file = new File([blob], filename, { type: blob.type })
-    await navigator.share({ files: [file], title: 'Calendar Export' })
-    return
-  }
-
-  // Fallback: trigger browser download
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  a.click()
-  URL.revokeObjectURL(url)
+  downloadBlob(blob, filename)
 }
 
 // ---- Troops-to-task CSV export ----
@@ -303,22 +288,7 @@ export async function shareTroopsToTaskCsv(events: CalendarEvent[], options: T2T
   const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' })
   const filename = 'troops-to-task.csv'
 
-  if (
-    typeof navigator !== 'undefined' &&
-    navigator.share &&
-    navigator.canShare?.({ files: [new File([blob], filename, { type: blob.type })] })
-  ) {
-    const file = new File([blob], filename, { type: blob.type })
-    await navigator.share({ files: [file], title: 'Troops-to-Task' })
-    return
-  }
-
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  a.click()
-  URL.revokeObjectURL(url)
+  downloadBlob(blob, filename)
 }
 
 /**
@@ -329,20 +299,5 @@ export async function shareSingleEvent(event: CalendarEvent): Promise<void> {
   const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' })
   const filename = `${event.title.replace(/[^a-z0-9]/gi, '-').toLowerCase()}.ics`
 
-  if (
-    typeof navigator !== 'undefined' &&
-    navigator.share &&
-    navigator.canShare?.({ files: [new File([blob], filename, { type: blob.type })] })
-  ) {
-    const file = new File([blob], filename, { type: blob.type })
-    await navigator.share({ files: [file], title: event.title })
-    return
-  }
-
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  a.click()
-  URL.revokeObjectURL(url)
+  downloadBlob(blob, filename)
 }

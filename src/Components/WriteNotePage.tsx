@@ -714,7 +714,7 @@ export const WriteNotePage = ({
             anchorRect={null}
             form={patientGate ?? undefined}
             onClose={() => setPatientGate(null)}
-            onConfirm={(patient, extras) => patientGate === 'dd689' ? handleExportDD689(patient, extras) : handleExportSF600(patient)}
+            onConfirm={(patient, extras, stamp) => patientGate === 'dd689' ? handleExportDD689(patient, extras) : handleExportSF600(patient, stamp)}
         />
         <PdfPreviewModal
             preview={sf600Preview ?? dd689Preview ?? null}

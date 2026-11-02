@@ -3,10 +3,10 @@ import { Check, PenLine, X } from 'lucide-react'
 import { PreviewOverlay } from './PreviewOverlay'
 import { FooterPill } from '@/Components/primitives/FooterPill'
 import { PillButton } from '@/Components/primitives/HeaderPill'
-import { TextInput, TextArea, DatePickerInput } from '@/Components/primitives/FormInputs'
+import { TextInput, TextArea, DatePickerInput, TimeInput } from '@/Components/primitives/FormInputs'
 import { SignaturePad } from '@/Components/primitives/SignaturePad'
 import { Chip, ChipBar } from '@/Components/primitives/Chip'
-import type { PatientIdentification } from '../Utilities/SF600Export'
+import { nowStamp, type PatientIdentification, type SF600Stamp } from '../Utilities/SF600Export'
 import type { DD689Extras } from '../Utilities/DD689Export'
 
 const EMPTY: PatientIdentification = {
@@ -41,12 +41,13 @@ export function PatientIdPopover({
   anchorRect: DOMRect | null
   form?: PatientIdForm
   onClose: () => void
-  onConfirm: (patient: PatientIdentification, extras: DD689Extras) => void
+  onConfirm: (patient: PatientIdentification, extras: DD689Extras, stamp: SF600Stamp) => void
 }) {
   const [draft, setDraft] = useState<PatientIdentification>({ ...EMPTY })
   const [profile, setProfile] = useState('')
   const [signatureImage, setSignatureImage] = useState<string | undefined>()
   const [signing, setSigning] = useState(false)
+  const [stamp, setStamp] = useState<SF600Stamp>(() => nowStamp())
   const isDD689 = form === 'dd689'
 
   // Fresh card each time the popover opens.
@@ -55,6 +56,7 @@ export function PatientIdPopover({
       setDraft({ ...EMPTY })
       setProfile('')
       setSignatureImage(undefined)
+      setStamp(nowStamp())
     }
   }, [isOpen])
 
@@ -62,11 +64,11 @@ export function PatientIdPopover({
     setDraft(prev => ({ ...prev, ...fields }))
 
   const confirm = () => {
-    onConfirm(draft, { profile, signatureImage })
+    onConfirm(draft, { profile, signatureImage }, stamp)
     onClose()
   }
 
-  const today = new Date().toISOString().slice(0, 10)
+  const today = nowStamp().date
 
   return (
     <PreviewOverlay
@@ -142,6 +144,22 @@ export function PatientIdPopover({
           onChange={(v) => upd({ rankGrade: v })}
           placeholder="Rank / Grade"
         />
+
+        {/* Note date / time — SF600 DATE column rows 1–2 */}
+        {!isDD689 && (
+          <>
+            <DatePickerInput
+              value={stamp.date}
+              onChange={(v) => setStamp(prev => ({ ...prev, date: v || prev.date }))}
+              placeholder="Note date"
+            />
+            <TimeInput
+              value={stamp.time}
+              onChange={(v) => setStamp(prev => ({ ...prev, time: v }))}
+              label="Time"
+            />
+          </>
+        )}
 
         {isDD689 && (
           <>

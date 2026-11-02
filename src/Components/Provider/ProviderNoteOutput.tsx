@@ -12,7 +12,7 @@ import { copyWithHtml } from '../../Utilities/clipboardUtils';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { PdfPreviewModal } from '../PdfPreviewModal';
 import { PatientIdPopover, type PatientIdForm } from '../PatientIdPopover';
-import type { PatientIdentification } from '../../Utilities/SF600Export';
+import { formatDob, type PatientIdentification, type SF600Stamp } from '../../Utilities/SF600Export';
 import type { DD689Extras } from '../../Utilities/DD689Export';
 
 import type { ImportedMedicNote } from '../ProviderDrawer'
@@ -110,16 +110,15 @@ export function ProviderNoteOutput({
 
     const [patientGate, setPatientGate] = useState<PatientIdForm | null>(null);
 
-    function doExportSF600(patient: PatientIdentification) {
+    function doExportSF600(patient: PatientIdentification, stamp: SF600Stamp) {
         if (!previewNote) return;
-        const now = new Date();
-        const dateStr = now.toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase();
         const nameParts = [profile.lastName, profile.firstName, profile.middleInitial].filter(Boolean).join(' ');
         const suffix = [profile.credential, profile.rank, profile.component].filter(Boolean).join(', ');
         const sigName = suffix ? `${nameParts} ${suffix}` : nameParts;
         exportSF600({
             noteText: previewNote,
-            date: dateStr,
+            date: formatDob(stamp.date),
+            time: stamp.time,
             signatureName: sigName || undefined,
             patient,
             facility: formClinicName || undefined,
@@ -156,7 +155,7 @@ export function ProviderNoteOutput({
                 anchorRect={null}
                 form={patientGate ?? undefined}
                 onClose={() => setPatientGate(null)}
-                onConfirm={(patient, extras) => patientGate === 'dd689' ? handleExportDD689(patient, extras) : doExportSF600(patient)}
+                onConfirm={(patient, extras, stamp) => patientGate === 'dd689' ? handleExportDD689(patient, extras) : doExportSF600(patient, stamp)}
             />
             <PdfPreviewModal
                 preview={sf600Preview ?? dd689Preview ?? null}

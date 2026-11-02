@@ -1,38 +1,50 @@
-// Components/SearchResults.tsx - COMPLETE WORKING VERSION
+// Components/SearchResults.tsx — the lifted search dropdown.
+//
+// Renders as a floating card anchored directly under the search row that owns
+// it (NavTop pill on desktop, the collapsing bar on mobile). It overlays the
+// page instead of replacing it — callers position it (absolute, under the
+// row); this component owns only the card chrome, rows and states.
 import { useState, useEffect, useMemo } from 'react';
+import {
+    LayoutGrid, Stethoscope, ListTree, Pill, GraduationCap, ClipboardCheck,
+    Calculator, User, Users, MessageSquare, CalendarDays, Layers, MapPin,
+    Package, Warehouse, FileText, Search, type LucideIcon,
+} from 'lucide-react';
 import type { SearchResultType } from "../Types/CatTypes";
 import { Skeleton } from '@/Components/primitives/Skeleton';
 import { useMinLoadTime } from '../Hooks/useMinLoadTime';
-import { Chip, ChipBar } from '@/Components/primitives/Chip';
+import { UnderlineTabs } from '@/Components/primitives/UnderlineTabs';
+import { kbCategories } from '../Data/KnowledgeBaseCategories'
 
 export interface SearchResultsProps {
     results: SearchResultType[]
     searchTerm: string
     onResultClick: (result: SearchResultType) => void
     isSearching?: boolean
+    className?: string
 }
 
-import { kbCategories } from '../Data/KnowledgeBaseCategories'
-
-// Badge configuration map for cleaner lookup
-const BADGE_CONFIG: Record<string, { label: string; className: string }> = {
-    category: { label: 'CATEGORY', className: 'bg-themeblue3/15 text-themeblue1' },
-    CC: { label: 'COMPLAINT', className: 'bg-themewhite2 text-secondary' },
-    medication: { label: 'MEDICATION', className: 'bg-themeyellowlow/30 text-secondary' },
-    training: { label: 'GUIDELINE', className: 'bg-themewhite2 text-themeblue1' },
-    DDX: { label: 'DDX', className: 'bg-themewhite2 text-themeblue1' },
-    screener: { label: 'SCREENER', className: 'bg-themegreen/15 text-themegreen' },
-    calculator: { label: 'CALCULATOR', className: 'bg-themeblue2/15 text-themeblue2' },
-    'chat-contact': { label: 'CHAT', className: 'bg-themeblue1/15 text-themeblue1' },
-    'chat-group': { label: 'GROUP', className: 'bg-themeblue1/15 text-themeblue1' },
-    'chat-message': { label: 'MESSAGE', className: 'bg-themeblue1/15 text-themeblue1' },
-    'calendar-event': { label: 'EVENT', className: 'bg-themepurple/15 text-themepurple' },
-    'map-overlay': { label: 'MAP', className: 'bg-themeyellow/15 text-themeyellow' },
-    'map-feature': { label: 'MAP PIN', className: 'bg-themeyellow/15 text-themeyellow' },
-    'property-item': { label: 'ITEM', className: 'bg-themeblue2/15 text-themeblue2' },
-    'property-zone': { label: 'ZONE', className: 'bg-themeblue2/15 text-themeblue2' },
-    'da2062': { label: 'DA 2062', className: 'bg-themeblue2/15 text-themeblue2' },
+// Per-type avatar: icon + tint for the leading circle, label for the fallback subtitle.
+const TYPE_CONFIG: Record<string, { label: string; icon: LucideIcon; tint: string }> = {
+    category: { label: 'Category', icon: LayoutGrid, tint: 'bg-themeblue3/15 text-themeblue1' },
+    CC: { label: 'Complaint', icon: Stethoscope, tint: 'bg-themeblue3/10 text-themeblue1' },
+    medication: { label: 'Medication', icon: Pill, tint: 'bg-themeyellowlow/30 text-secondary' },
+    training: { label: 'Guideline', icon: GraduationCap, tint: 'bg-themeblue3/10 text-themeblue1' },
+    DDX: { label: 'DDX', icon: ListTree, tint: 'bg-themeblue3/10 text-themeblue1' },
+    screener: { label: 'Screener', icon: ClipboardCheck, tint: 'bg-themegreen/15 text-themegreen' },
+    calculator: { label: 'Calculator', icon: Calculator, tint: 'bg-themeblue2/15 text-themeblue2' },
+    'chat-contact': { label: 'Chat', icon: User, tint: 'bg-themeblue1/15 text-themeblue1' },
+    'chat-group': { label: 'Group', icon: Users, tint: 'bg-themeblue1/15 text-themeblue1' },
+    'chat-message': { label: 'Message', icon: MessageSquare, tint: 'bg-themeblue1/15 text-themeblue1' },
+    'calendar-event': { label: 'Event', icon: CalendarDays, tint: 'bg-themepurple/15 text-themepurple' },
+    'map-overlay': { label: 'Map', icon: Layers, tint: 'bg-themeyellow/15 text-themeyellow' },
+    'map-feature': { label: 'Map pin', icon: MapPin, tint: 'bg-themeyellow/15 text-themeyellow' },
+    'property-item': { label: 'Item', icon: Package, tint: 'bg-themeblue2/15 text-themeblue2' },
+    'property-zone': { label: 'Zone', icon: Warehouse, tint: 'bg-themeblue2/15 text-themeblue2' },
+    'da2062': { label: 'DA 2062', icon: FileText, tint: 'bg-themeblue2/15 text-themeblue2' },
 }
+
+const FALLBACK_TYPE = { label: '', icon: Search, tint: 'bg-themewhite2 text-tertiary' }
 
 // Result type → scope bucket for the filter chips.
 type Scope = 'all' | 'clinical' | 'comms' | 'calendar' | 'map' | 'property'
@@ -47,7 +59,6 @@ const SCOPE_OF: Record<string, Exclude<Scope, 'all'>> = {
     'property-item': 'property', 'property-zone': 'property', 'da2062': 'property',
 }
 
-// Display order + labels for the scope chips.
 const SCOPES: { key: Exclude<Scope, 'all'>; label: string }[] = [
     { key: 'clinical', label: 'Clinical' },
     { key: 'comms', label: 'Comms' },
@@ -56,57 +67,50 @@ const SCOPES: { key: Exclude<Scope, 'all'>; label: string }[] = [
     { key: 'property', label: 'Property' },
 ]
 
-// Only surface a bucket's count once it's crowded enough that its size helps the
-// user decide whether to filter into it.
-const COUNT_HINT_THRESHOLD = 10
-
-// Training type specific labels
 const TRAINING_LABELS: Record<string, string> = {
     medcom: 'MEDCOM',
-    'stp-task': 'STP TASK',
+    'stp-task': 'STP task',
 }
 
-// Get badge info for a result - simplified
-function getBadgeInfo(result: SearchResultType) {
-    const config = BADGE_CONFIG[result.type] || { label: '', className: '' }
-
-    // Override label for training types based on guidelineType
+function typeLabel(result: SearchResultType): string {
     if (result.type === 'training' && result.data?.guidelineType) {
         const label = TRAINING_LABELS[result.data.guidelineType]
-        if (label) return { ...config, label }
+        if (label) return label
     }
-
-    return config
+    return (TYPE_CONFIG[result.type] ?? FALLBACK_TYPE).label
 }
 
-// Badge component for consistent rendering
-interface ResultBadgeProps {
-    result: SearchResultType
-}
-
-function ResultBadge({ result }: ResultBadgeProps) {
-    const { label, className } = getBadgeInfo(result)
-    return (
-        <div className={`text-[9pt] px-2 py-1 rounded-md ${className} shrink-0`}>
-            {label}
-        </div>
-    )
+/** Secondary line: the result's context (breadcrumb / subtitle) when it has
+ *  one, prefixed by its type so the row still says what kind of thing it is. */
+function subtitleFor(result: SearchResultType): string {
+    const d = result.data
+    let detail: string | undefined
+    if ((result.type === 'CC' || result.type === 'DDX') && d?.categoryRef) detail = d.categoryRef.text
+    else if (result.type === 'training' && d?.guidelineType === 'stp-task' && d.skillLevel) detail = `${d.skillLevel} › ${d.subjectArea}`
+    else if (result.type === 'training' && d?.guidelineType === 'medcom' && d?.categoryRef) detail = d.categoryRef.text
+    else if ((result.type === 'screener' || result.type === 'calculator') && d?.kbCategoryId) detail = kbCategories.find(c => c.id === d.kbCategoryId)?.description
+    else if ((result.type === 'chat-message' || result.type === 'chat-contact') && d?.chatSubtitle) detail = d.chatSubtitle
+    else if (result.type === 'calendar-event' && d?.eventSubtitle) detail = d.eventSubtitle
+    else if (result.type === 'map-feature' && d?.featureSubtitle) detail = d.featureSubtitle
+    else if ((result.type === 'property-item' || result.type === 'da2062') && d?.propertySubtitle) detail = d.propertySubtitle
+    const label = typeLabel(result)
+    if (!detail) return label
+    return label ? `${label} · ${detail}` : detail
 }
 
 export function SearchResults({
     results,
     searchTerm,
     onResultClick,
-    isSearching = false
+    isSearching = false,
+    className = '',
 }: SearchResultsProps) {
     const showLoading = useMinLoadTime(isSearching)
     const [scope, setScope] = useState<Scope>('all')
 
-    // Reset to All only when the box is emptied — not on every keystroke, so a
-    // chosen scope survives further typing.
+    // Reset to All only when the box is emptied — a chosen scope survives typing.
     useEffect(() => { if (!searchTerm.trim()) setScope('all') }, [searchTerm])
 
-    // Per-scope counts from the full result set (drives which chips render).
     const counts = useMemo(() => {
         const c: Record<string, number> = {}
         for (const r of results) {
@@ -121,141 +125,78 @@ export function SearchResults({
         [results, scope],
     )
 
-    if (!searchTerm.trim()) {
-        return (
-            <div className="h-full w-full mx-5 py-2 flex items-center justify-center text-tertiary">
-                <p>Search symptoms, medications, screeners, or training</p>
-            </div>
-        )
-    }
+    // Nothing typed → no dropdown.
+    if (!searchTerm.trim()) return null
 
-    // Searching state — quiet skeleton rows matching the result-row shape (badge
-    // + text lines). Leaf-level: no HUD inside the already-open search surface.
-    if (showLoading) {
-        return (
-            <div className="flex flex-col h-full overflow-hidden pt-2" aria-hidden="true">
-                {Array.from({ length: 7 }).map((_, i) => (
-                    <div key={i} className="px-2 py-3 border-b border-themewhite2/50">
-                        <div className="flex items-start gap-3">
-                            <Skeleton className="w-9 h-9 rounded-lg shrink-0" />
-                            <div className="flex-1 min-w-0 space-y-2">
-                                <Skeleton className="h-3.5 w-3/4 rounded-full" />
-                                <Skeleton className="h-2.5 w-1/3 rounded-full" />
-                            </div>
-                        </div>
-                    </div>
-                ))}
-            </div>
-        )
-    }
-
-    // No results state
-    if (results.length === 0) {
-        return (
-            <div className="h-full flex items-center justify-center text-themeblue1">
-                <div className="text-center">
-                    <p>No results found for "{searchTerm}"</p>
-                    <p className="text-sm mt-2">Try different keywords</p>
-                </div>
-            </div>
-        )
-    }
-
-    // Scope chips — only when there's more than one bucket to choose between.
     const presentScopes = SCOPES.filter(s => counts[s.key] > 0)
 
-    // Results state
-    return (
-        <div className="flex flex-col h-full">
-            {presentScopes.length >= 2 && (
-                <div className="px-3 pt-2">
-                    <ChipBar bordered>
-                        <Chip active={scope === 'all'} onClick={() => setScope('all')}>
-                            All
-                        </Chip>
-                        {presentScopes.map(s => (
-                            <Chip key={s.key} active={scope === s.key} onClick={() => setScope(s.key)}>
-                                {s.label}
-                                {counts[s.key] >= COUNT_HINT_THRESHOLD && (
-                                    <span className="ml-1 opacity-60">{counts[s.key]}</span>
-                                )}
-                            </Chip>
-                        ))}
-                    </ChipBar>
-                </div>
-            )}
-            <div className="px-3 py-2 text-[10pt] text-tertiary border-b border-themewhite2">
-                Found {visible.length} result{visible.length !== 1 ? 's' : ''}
-            </div>
-            <div className="flex-1 overflow-y-auto pb-4">
-                {visible.map((result, index) => (
-                    <div
-                        key={`${result.type}-${result.id}-${result.data?.categoryId || 0}-${index}`}
-                        className="px-2 py-3 w-full border-b border-themewhite2/50 hover:bg-themewhite2 cursor-pointer transition-colors"
-                        onClick={() => onResultClick(result)}
-                    >
-                        <div className="flex items-start gap-3">
-                            {/* Type Badge */}
-                            <ResultBadge result={result} />
-
-                            {/* Content */}
-                            <div className="flex-1 min-w-0">
-                                {/* Main text */}
-                                <div className="font-normal text-primary truncate">
-                                    {result.text}
-                                </div>
-
-                                {/* Breadcrumb for symptoms, guidelines, and training tasks */}
-                                {(result.type === 'CC' || result.type === 'DDX') && result.data?.categoryRef && (
-                                    <div className="text-[9pt] text-secondary mt-1">
-                                        {result.data.categoryRef.text}
-                                    </div>
-                                )}
-                                {result.type === 'training' && result.data?.guidelineType === 'stp-task' && result.data.skillLevel && (
-                                    <div className="text-[9pt] text-secondary mt-1">
-                                        {result.data.skillLevel} &gt; {result.data.subjectArea}
-                                    </div>
-                                )}
-                                {result.type === 'training' && result.data?.guidelineType === 'medcom' && result.data?.categoryRef && (
-                                    <div className="text-[9pt] text-secondary mt-1">
-                                        {result.data.categoryRef.text}
-                                    </div>
-                                )}
-                                {(result.type === 'screener' || result.type === 'calculator') && result.data?.kbCategoryId && (
-                                    <div className="text-[9pt] text-secondary mt-1">
-                                        {kbCategories.find(c => c.id === result.data!.kbCategoryId)?.description}
-                                    </div>
-                                )}
-                                {result.type === 'chat-message' && result.data?.chatSubtitle && (
-                                    <div className="text-[9pt] text-secondary mt-1 truncate">
-                                        {result.data.chatSubtitle}
-                                    </div>
-                                )}
-                                {result.type === 'chat-contact' && result.data?.chatSubtitle && (
-                                    <div className="text-[9pt] text-secondary mt-1 truncate">
-                                        {result.data.chatSubtitle}
-                                    </div>
-                                )}
-                                {result.type === 'calendar-event' && result.data?.eventSubtitle && (
-                                    <div className="text-[9pt] text-secondary mt-1 truncate">
-                                        {result.data.eventSubtitle}
-                                    </div>
-                                )}
-                                {result.type === 'map-feature' && result.data?.featureSubtitle && (
-                                    <div className="text-[9pt] text-secondary mt-1 truncate">
-                                        {result.data.featureSubtitle}
-                                    </div>
-                                )}
-                                {(result.type === 'property-item' || result.type === 'da2062') && result.data?.propertySubtitle && (
-                                    <div className="text-[9pt] text-secondary mt-1 truncate">
-                                        {result.data.propertySubtitle}
-                                    </div>
-                                )}
-                            </div>
+    let body: React.ReactNode
+    if (showLoading) {
+        body = (
+            <div className="py-1" aria-hidden="true">
+                {Array.from({ length: 5 }).map((_, i) => (
+                    <div key={i} className="flex items-center gap-3 px-4 py-2.5">
+                        <Skeleton className="w-10 h-10 rounded-full shrink-0" />
+                        <div className="flex-1 min-w-0 space-y-2">
+                            <Skeleton className="h-3.5 w-3/5 rounded-full" />
+                            <Skeleton className="h-2.5 w-2/5 rounded-full" />
                         </div>
                     </div>
                 ))}
             </div>
+        )
+    } else if (results.length === 0) {
+        body = (
+            <div className="px-4 py-6 text-center">
+                <p className="text-[10pt] text-primary">No results for "{searchTerm.trim()}"</p>
+                <p className="text-[9pt] text-tertiary mt-1">Try different keywords</p>
+            </div>
+        )
+    } else {
+        body = (
+            <>
+                {presentScopes.length >= 2 && (
+                    <UnderlineTabs
+                        tabs={[{ key: 'all' as Scope, label: 'All' }, ...presentScopes]}
+                        value={scope}
+                        onChange={setScope}
+                        ariaLabel="Result type"
+                        className="shrink-0 px-4 mb-1 border-b border-primary/6"
+                    />
+                )}
+                <div className="min-h-0 overflow-y-auto overscroll-contain pb-2">
+                    {visible.map((result, index) => {
+                        const { icon: Icon, tint } = TYPE_CONFIG[result.type] ?? FALLBACK_TYPE
+                        return (
+                            <button
+                                type="button"
+                                key={`${result.type}-${result.id}-${result.data?.categoryId || 0}-${index}`}
+                                // No preventDefault on mousedown: the pick must blur the field so
+                                // the mobile bars drop their focused state and resume scroll-collapse.
+                                onClick={() => onResultClick(result)}
+                                className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-themewhite2 active:bg-themewhite2 transition-colors"
+                            >
+                                <span className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${tint}`}>
+                                    <Icon className="w-[18px] h-[18px]" />
+                                </span>
+                                <span className="flex-1 min-w-0">
+                                    <span className="block text-[11pt] text-primary truncate">{result.text}</span>
+                                    <span className="block text-[9pt] text-tertiary truncate mt-0.5">{subtitleFor(result)}</span>
+                                </span>
+                            </button>
+                        )
+                    })}
+                </div>
+            </>
+        )
+    }
+
+    return (
+        <div
+            className={`flex flex-col max-h-[min(70vh,560px)] rounded-2xl bg-themewhite border border-primary/6 shadow-lg overflow-hidden pt-1 animate-surface-in-down ${className}`}
+            aria-label="Search results"
+        >
+            {body}
         </div>
     )
 }

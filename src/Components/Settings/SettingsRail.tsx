@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { ChevronRight } from 'lucide-react';
 import { PANEL_TARGET, type SettingsItem } from './SettingsTypes';
-import { SearchInput } from '@/Components/primitives/SearchInput';
+import { RailSearchRow } from '@/Components/primitives/RailSearchRow';
 import { useAvatar } from '../../Utilities/AvatarContext';
 import { useAuth } from '../../Hooks/useAuth';
 import { useCertifications } from '../../Hooks/useCertifications';
@@ -112,9 +112,7 @@ export function SettingsRail({
             {/* Search header — matches the SupervisorDrawer rail. Carries no
                 hairline: search and the pinned card are ONE head block, and the
                 rule belongs under them (see the scroller below). */}
-            <div className="shrink-0 px-3 py-2">
-                <SearchInput value={query} onChange={setQuery} placeholder="Search settings…" />
-            </div>
+            <RailSearchRow value={query} onChange={setQuery} placeholder="Search settings…" />
 
             {/* Pinned subject — you. Sits above the scroll with the search, the way
                 SupervisorRail pins the selected soldier or cluster. */}
