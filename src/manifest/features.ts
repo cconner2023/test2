@@ -122,8 +122,8 @@ export const features = {
 
   trackingBoard: {
     label: 'Tracking Board (patient flow, BRN × station)',
-    store: null, // skeleton — mock data only; will ride calendar events (tracking_data)
-    services: [],
+    store: 'useCalendarStore', // .tracking — hidden calendar events carrying tracking_data
+    services: ['useTrackingBoardData', 'useTrackingWrite', 'calendarRouting'],
     tables: [],
     idb: [],
     components: 'Components/TrackingBoard/',

@@ -5,7 +5,7 @@ import { Scrim } from '@/Components/primitives/Scrim'
 import { OverlayStackContext, STACK_BUMP } from '@/Components/primitives/BaseOverlay'
 import { LoadingOverlay } from '@/Components/primitives/LoadingOverlay'
 import { DesktopChrome } from '@/Components/primitives/HeaderPill'
-import { BrnCardHead, BrnCardFoot, tintFor, fmtTime, measureBrnCard, type CardOrigin, type MockEntry } from './TrackingBoardPanel'
+import { BrnCardHead, BrnCardFoot, tintFor, fmtTime, measureBrnCard, type CardOrigin, type TrackingEntry } from './TrackingBoardPanel'
 
 /** Viewport gutter around the expanded card (on top of the safe areas). */
 const GUTTER = 12
@@ -18,7 +18,7 @@ const CENTER_TOP = 64
 
 interface TrackingCardOverlayProps {
   /** Entry to show — kept populated by the caller through the collapse. */
-  entry: MockEntry | null
+  entry: TrackingEntry | null
   open: boolean
   /** Captured at open; the card's rest rect is re-measured at close. */
   origin: CardOrigin | null

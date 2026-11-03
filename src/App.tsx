@@ -780,8 +780,7 @@ case 'mapOverlay':
         )}
 
         {/* Tracking Board panel — slides over content from right (mobile only, always mounted).
-            No touch-pan-y here: iOS intersects touch-action down the tree, which would kill the
-            category strip's horizontal scroll. The card list carries pan-y instead. */}
+            The category strip opts out of the global pan-y via .touch-pan-xy (UnderlineTabs). */}
         {navigation.isMobile && (
           <div
             className="absolute inset-0 z-50 overflow-hidden"

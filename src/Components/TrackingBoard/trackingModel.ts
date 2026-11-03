@@ -1,53 +1,48 @@
 /**
- * Tracking Board model — MOCK echelon data + pure helpers (no store, no vault).
+ * Tracking Board model — pure helpers over real data (no store, no vault).
  *
  * Echelon rules (2026-11-01 / 02):
- *  - ONE shared entry per patient visit, synced across the chain like a loaned
- *    calendar event. Real path: target_clinic_ids = origin + every ancestor
- *    (clinics.parent_clinic_id chain — child_clinic_ids is not the source).
- *  - Visibility = origin + ancestors: a viewer sees an entry when its ORIGIN
- *    cluster is the viewer or one of the viewer's descendants. Role I sees only
- *    its own patients; Role II its own + below; Role III everything. Where the
- *    patient currently sits never widens that.
- *  - STATIONS ARE MAP PINS. A waypoint with `tracking: true` (map pin editor →
+ *  - ONE shared entry per patient visit = a hidden calendar event carrying
+ *    tracking_data (Types/TrackingTypes.ts), fanned to origin + every ancestor
+ *    (tracking_clinic_chain). Visibility therefore = origin + ancestors: an
+ *    entry reaches a board only when the viewer is its origin or above it.
+ *  - STATIONS ARE MAP PINS. A waypoint with `tracking: true` (pin editor →
  *    "Add to tracking board") is a station; AXPs, CCPs, tents — all just pins.
  *    Only the overlay's own cluster edits / removes the pin (on the map). Other
- *    related clusters (up / down the chain, siblings) toggle it onto their
- *    board in board settings → `tracking_clinic_ids` (same physical spot, no
- *    duplicate). Real path: the overlay's E2E payload, overlays fanned to
- *    related clusters via target_clinic_ids. No server table.
- *  - A position is a pin reference { overlay_id, feature_id } (the calendar's
- *    LinkedFeatureRef shape) or null = UNASSIGNED — the lack of a station, not
- *    a pin. A board lists each station once, under the first cluster using it.
+ *    related clusters toggle it onto their board in board settings →
+ *    `tracking_clinic_ids`. Overlays reach related clusters via target_clinic_ids.
+ *  - A position is a pin ref { overlay_id, feature_id } or null = UNASSIGNED.
+ *    A board lists each station once, under the first cluster using it.
  *  - Entries hold pin refs only → renames show up everywhere; a removed pin (or
- *    one no longer marked a station) resolves AT READ TIME to Unassigned
+ *    one no longer a station) resolves AT READ TIME to Unassigned
  *    (resolvePlaces). Events are never rewritten for it.
- *  - In transit is NOT a station: it's a marker on the entry (`transit`) — the
- *    patient stays where they are, flagged "leaving → destination station",
- *    until a move lands them (any move clears it).
+ *  - In transit is NOT a station: a marker on the entry, superseded by the
+ *    next move.
  *  - Leaves the board ONLY by expire, delete, or max cap.
- *  - Duplicate BRN → newest check-in wins (older entry reset/removed).
+ *  - Duplicate BRN → newest check-in wins (older entry removed at check-in,
+ *    collapsed at read elsewhere).
  */
 
 import type { LinkedFeatureRef } from '../../Types/MissionTypes'
+import type { CalendarEvent } from '../../Types/CalendarTypes'
+import type { LocalMapOverlay, OverlayFeature } from '../../Types/MapOverlayTypes'
+import {
+  TRACKING_MAX_ENTRIES, isTrackingExpired,
+  type TrackingData, type TrackingMove, type TrackingTransit, type TrackingComment, type TrackingPosition,
+} from '../../Types/TrackingTypes'
+
+export type { TrackingMove, TrackingTransit, TrackingComment, TrackingPosition } from '../../Types/TrackingTypes'
 
 // ── Shapes ──
 
 export interface TrackingCluster {
   id: string
-  /** Nickname-style working name (real path: clusterLabel). */
+  /** Nickname-style working name (clusterLabel). */
   label: string
   uic: string
-  /** 1 = Role I … 3 = Role III. Orders groups along the patient flow. */
+  /** 1 = lowest echelon in the known tree (Role I) … Orders groups along the patient flow. */
   echelon: number
   parentId: string | null
-}
-
-/** The slice of a map overlay the board needs (real path: useMapOverlaysStore). */
-export interface MockOverlay {
-  id: string
-  clinic_id: string
-  pins: { id: string; label: string; tracking?: boolean; tracking_clinic_ids?: string[] }[]
 }
 
 /** A station — a tracking pin, flattened. */
@@ -61,44 +56,19 @@ export interface TrackingPlace {
   targetClinicIds: string[]
 }
 
-/** Pin ref, or null = Unassigned. */
-export type TrackingPosition = LinkedFeatureRef | null
-
-export interface TrackingMove {
-  id: string
-  to: TrackingPosition
-  at: number // epoch ms
-}
-
-/** "Leaving → destination station" marker. Cleared by the next move. */
-export interface TrackingTransit {
-  to: LinkedFeatureRef
-  at: number
-  by: string
-}
-
-export interface MockComment {
-  id: string
-  text: string
-  /** Author display name, stamped at write (rank + last name). */
-  by: string
-  at: number // epoch ms
-  /** Set on edit — last-write-wins; `editedBy` = whoever wrote last. */
-  editedAt?: number
-  editedBy?: string
-}
-
-export interface MockEntry {
+/** Board view of one entry (derived from its calendar event). */
+export interface TrackingEntry {
   id: string
   brn: string
   /** Cluster that checked the patient in — drives visibility. */
   originClinicId: string
   checkedInAt: number
-  /** Empty = Unassigned. Append-only (union-merge by id on sync). */
+  /** Oldest first. Empty = Unassigned. */
   moves: TrackingMove[]
-  /** Oldest first. Union-merge by id on sync. */
-  comments: MockComment[]
-  transit?: TrackingTransit | null
+  /** Live (non-deleted) comments, oldest first. */
+  comments: TrackingComment[]
+  /** Only while newer than the last move. */
+  transit: TrackingTransit | null
 }
 
 export interface TrackingNetwork {
@@ -107,96 +77,55 @@ export interface TrackingNetwork {
   places: TrackingPlace[]
 }
 
-// ── Board limits (placeholders until settled) ──
+// ── Derivation ──
 
-/** Entry drops off every board this long after check-in. */
-export const TRACKING_EXPIRE_MS = 72 * 60 * 60 * 1000
-/** Max entries a board shows — newest check-ins kept. */
-export const TRACKING_MAX_ENTRIES = 200
-
-// ── Mock network: Role III ← Role II ← two Role Is, one overlay each ──
-
-export const MOCK_CLUSTERS: TrackingCluster[] = [
-  { id: 'r3', label: 'CSH', uic: 'WFG3H0', echelon: 3, parentId: null },
-  { id: 'r2', label: 'Role II FSMC', uic: 'WCD2E0', echelon: 2, parentId: 'r3' },
-  { id: 'r1n', label: 'BAS North', uic: 'WAB1C0', echelon: 1, parentId: 'r2' },
-  { id: 'r1s', label: 'BAS South', uic: 'WAB2C0', echelon: 1, parentId: 'r2' },
-]
-
-export const MOCK_OVERLAYS: MockOverlay[] = [
-  {
-    id: 'ov-n', clinic_id: 'r1n', pins: [
-      { id: 'n-checkin', label: 'Check-in', tracking: true },
-      // One Triage tent — BAS South toggled it on.
-      { id: 'n-triage', label: 'Triage', tracking: true, tracking_clinic_ids: ['r1n', 'r1s'] },
-      { id: 'n-treat', label: 'Treatment', tracking: true },
-      // AXP — just a pin. Role II toggled it on.
-      { id: 'axp-copper', label: 'AXP Copper', tracking: true, tracking_clinic_ids: ['r1n', 'r2'] },
-      { id: 'n-rally', label: 'Rally point' }, // plain pin, not a station
-    ],
-  },
-  {
-    id: 'ov-s', clinic_id: 'r1s', pins: [
-      // Duplicate name, BAS North hasn't toggled it on.
-      { id: 's-checkin', label: 'Check-in', tracking: true },
-      { id: 's-treat', label: 'Treatment', tracking: true },
-      { id: 'axp-iron', label: 'AXP Iron', tracking: true, tracking_clinic_ids: ['r1s', 'r2'] },
-    ],
-  },
-  {
-    id: 'ov-2', clinic_id: 'r2', pins: [
-      { id: '2-triage', label: 'Triage', tracking: true },
-      { id: '2-surgery', label: 'Surgery', tracking: true },
-      { id: '2-hold', label: 'Hold', tracking: true },
-    ],
-  },
-  {
-    id: 'ov-3', clinic_id: 'r3', pins: [
-      { id: '3-er', label: 'ER', tracking: true },
-      { id: '3-or', label: 'OR', tracking: true },
-      { id: '3-icu', label: 'ICU', tracking: true },
-      { id: '3-ward', label: 'Ward', tracking: true },
-    ],
-  },
-]
+/** Raw cluster rows (tracking_cluster_tree) → clusters with echelon by tree height. */
+export function buildClusters(rows: { id: string; label: string; uic: string; parentId: string | null }[]): TrackingCluster[] {
+  const byId = new Map(rows.map(r => [r.id, r]))
+  const depth = (id: string): number => {
+    let d = 0
+    const seen = new Set<string>()
+    let cur = byId.get(id)
+    while (cur?.parentId && byId.has(cur.parentId) && !seen.has(cur.id)) {
+      seen.add(cur.id); d++; cur = byId.get(cur.parentId)
+    }
+    return d
+  }
+  const depths = new Map(rows.map(r => [r.id, depth(r.id)]))
+  const max = Math.max(0, ...depths.values())
+  return rows.map(r => ({ ...r, echelon: max - (depths.get(r.id) ?? 0) + 1 }))
+}
 
 /** Tracking pins → stations. Unset tracking_clinic_ids = the overlay's cluster only. */
-export const derivePlaces = (overlays: MockOverlay[]): TrackingPlace[] =>
-  overlays.flatMap(o => o.pins
-    .filter(p => p.tracking)
-    .map(p => ({ overlayId: o.id, featureId: p.id, label: p.label, clinicId: o.clinic_id, targetClinicIds: p.tracking_clinic_ids ?? [o.clinic_id] })))
+export const derivePlaces = (overlays: LocalMapOverlay[]): TrackingPlace[] =>
+  overlays.flatMap(o => o.features
+    .filter(f => f.tracking && f.type === 'waypoint')
+    .map(f => ({
+      overlayId: o.id,
+      featureId: f.id,
+      label: f.label || 'Station',
+      clinicId: o.clinic_id,
+      targetClinicIds: f.tracking_clinic_ids ?? [o.clinic_id],
+    })))
 
-export const DEFAULT_VIEWER_ID = 'r2'
-
-const MIN = 60 * 1000
-
-/** Pin ref for a mock station (feature ids are unique across the mock overlays). */
-const pin = (featureId: string): LinkedFeatureRef => {
-  const o = MOCK_OVERLAYS.find(ov => ov.pins.some(p => p.id === featureId))
-  return { overlay_id: o?.id ?? '', feature_id: featureId }
+/** Calendar event → board entry. Soft-deleted comments and stale transit dropped. */
+export function toEntry(ev: CalendarEvent): TrackingEntry | null {
+  const d = ev.tracking_data
+  if (!d) return null
+  const moves = [...(d.moves ?? [])].sort((a, b) => a.at - b.at)
+  const lastAt = moves[moves.length - 1]?.at ?? 0
+  return {
+    id: ev.id,
+    brn: d.brn,
+    originClinicId: ev.clinic_id,
+    checkedInAt: d.checked_in_at,
+    moves,
+    comments: (d.comments ?? []).filter(c => !c.deleted),
+    transit: d.transit && d.transit.at >= lastAt ? d.transit : null,
+  }
 }
 
-/** Mock entries anchored to "now". Includes one duplicated BRN (older loses). */
-export function buildMockEntries(now: number): MockEntry[] {
-  const ago = (m: number) => now - m * MIN
-  let n = 0
-  const mv = (to: TrackingPosition, m: number): TrackingMove => ({ id: `m${++n}`, to, at: ago(m) })
-  return [
-    { id: 'e1', brn: 'AB1234', originClinicId: 'r1n', checkedInAt: ago(3), moves: [], comments: [] },
-    { id: 'e2', brn: 'CD5678', originClinicId: 'r1n', checkedInAt: ago(190), moves: [mv(pin('n-checkin'), 188), mv(pin('n-triage'), 175), mv(pin('n-treat'), 160), mv(pin('axp-copper'), 135), mv(pin('2-triage'), 120), mv(pin('2-surgery'), 95), mv(pin('3-er'), 20)], comments: [{ id: 'c1', text: 'GSW L thigh, TQ 1405', by: 'SGT Doe', at: ago(185) }] },
-    { id: 'e3', brn: 'EF9012', originClinicId: 'r1s', checkedInAt: ago(72), moves: [mv(pin('s-checkin'), 70), mv(pin('s-treat'), 60), mv(pin('axp-iron'), 25)], comments: [{ id: 'c2', text: 'Awaiting x-ray read', by: 'SPC Roe', at: ago(30) }], transit: { to: pin('2-triage'), at: ago(4), by: 'SPC Roe' } },
-    { id: 'e4', brn: 'GH3456', originClinicId: 'r2', checkedInAt: ago(41), moves: [mv(pin('2-triage'), 40), mv(pin('2-hold'), 28)], comments: [] },
-    // Two clusters' patients in the one shared Triage.
-    { id: 'e5', brn: 'JK7890', originClinicId: 'r1s', checkedInAt: ago(23), moves: [mv(pin('s-checkin'), 22), mv(pin('n-triage'), 12)], comments: [] },
-    { id: 'e9', brn: 'QR4680', originClinicId: 'r1n', checkedInAt: ago(15), moves: [mv(pin('n-checkin'), 14), mv(pin('n-triage'), 10)], comments: [] },
-    { id: 'e6', brn: 'LM2468', originClinicId: 'r3', checkedInAt: ago(7), moves: [mv(pin('3-er'), 6)], comments: [] },
-    { id: 'e7', brn: 'NP1357', originClinicId: 'r1n', checkedInAt: ago(9), moves: [mv(pin('n-treat'), 8)], comments: [], transit: { to: pin('axp-copper'), at: ago(2), by: 'SGT Doe' } },
-    // Duplicate BRN — the older visit is superseded by e7's newer check-in.
-    { id: 'e8', brn: 'NP1357', originClinicId: 'r1s', checkedInAt: ago(300), moves: [mv(pin('s-treat'), 290)], comments: [] },
-  ]
-}
-
-// ── Tree helpers (real path: parent_clinic_id chain RPC + cluster directory) ──
+// ── Tree helpers ──
 
 export const clusterById = (clusters: TrackingCluster[], id: string) => clusters.find(c => c.id === id)
 
@@ -204,6 +133,7 @@ export const clusterById = (clusters: TrackingCluster[], id: string) => clusters
 export function ancestorChain(clusters: TrackingCluster[], id: string): string[] {
   const out: string[] = []
   let cur = clusterById(clusters, id)
+  if (!cur) return [id]
   while (cur && !out.includes(cur.id)) {
     out.push(cur.id)
     cur = cur.parentId ? clusterById(clusters, cur.parentId) : undefined
@@ -224,8 +154,7 @@ export function subtree(clusters: TrackingCluster[], id: string): Set<string> {
   return out
 }
 
-/** Clusters whose stations `id` knows about: ancestors, descendants and
- *  siblings (same parent). Real path: overlays fanned across this set. */
+/** Clusters whose stations `id` knows about: ancestors, descendants, siblings. */
 export function relatedClusters(clusters: TrackingCluster[], id: string): Set<string> {
   const out = new Set([...ancestorChain(clusters, id), ...subtree(clusters, id)])
   const parent = clusterById(clusters, id)?.parentId
@@ -255,13 +184,13 @@ export const knownPlaces = (net: TrackingNetwork, clinicId: string) => {
 
 // ── Position helpers ──
 
-const lastMove = (e: MockEntry) => e.moves[e.moves.length - 1] as TrackingMove | undefined
+const lastMove = (e: TrackingEntry) => e.moves[e.moves.length - 1] as TrackingMove | undefined
 
-export const positionOf = (e: MockEntry): TrackingPosition => lastMove(e)?.to ?? null
+export const positionOf = (e: TrackingEntry): TrackingPosition => lastMove(e)?.to ?? null
 
-export const sinceAt = (e: MockEntry) => lastMove(e)?.at ?? e.checkedInAt
+export const sinceAt = (e: TrackingEntry) => lastMove(e)?.at ?? e.checkedInAt
 
-const clusterName = (net: TrackingNetwork, id: string) => clusterById(net.clusters, id)?.label ?? id
+const clusterName = (net: TrackingNetwork, id: string) => clusterById(net.clusters, id)?.label ?? 'Cluster'
 
 /** Short name — station label / Unassigned. */
 export function stationLabel(net: TrackingNetwork, p: TrackingPosition): string {
@@ -288,13 +217,13 @@ export function placeOwnerLabel(net: TrackingNetwork, p: TrackingPosition): stri
   return pl ? pl.targetClinicIds.map(id => clusterName(net, id)).join(' · ') : ''
 }
 
-export const originUic = (clusters: TrackingCluster[], e: MockEntry) => clusterById(clusters, e.originClinicId)?.uic ?? ''
+export const originUic = (clusters: TrackingCluster[], e: TrackingEntry) => clusterById(clusters, e.originClinicId)?.uic ?? ''
 
 // ── Board composition ──
 
 /** Newest check-in per BRN wins. */
-export function dedupeByBrn(entries: MockEntry[]): MockEntry[] {
-  const best = new Map<string, MockEntry>()
+export function dedupeByBrn(entries: TrackingEntry[]): TrackingEntry[] {
+  const best = new Map<string, TrackingEntry>()
   for (const e of entries) {
     const cur = best.get(e.brn)
     if (!cur || e.checkedInAt > cur.checkedInAt) best.set(e.brn, e)
@@ -303,12 +232,10 @@ export function dedupeByBrn(entries: MockEntry[]): MockEntry[] {
 }
 
 /**
- * Read-time resolution — pins are renamed / removed / un-stationed on the map
- * and entries only hold refs, so a rename shows up everywhere for free. A move
- * onto a pin that's gone (or no longer a station) reads as Unassigned; a
- * transit marker pointing at one is dropped.
+ * Read-time resolution — a move onto a pin that's gone (or no longer a
+ * station) reads as Unassigned; a transit marker pointing at one is dropped.
  */
-export function resolvePlaces(e: MockEntry, net: TrackingNetwork): MockEntry {
+export function resolvePlaces(e: TrackingEntry, net: TrackingNetwork): TrackingEntry {
   const live = (p: TrackingPosition) => !p || !!placeByRef(net, p)
   if (e.moves.every(m => live(m.to)) && (!e.transit || live(e.transit.to))) return e
   return {
@@ -319,13 +246,16 @@ export function resolvePlaces(e: MockEntry, net: TrackingNetwork): MockEntry {
 }
 
 /**
- * What a viewer's board holds: origin in the viewer's subtree → not expired →
- * duplicate BRNs collapsed to the newest → capped to the newest check-ins →
- * gone stations resolved to Unassigned.
+ * What a viewer's board holds: events fanned to the viewer (origin + ancestors)
+ * → not expired → duplicate BRNs collapsed to the newest → capped to the newest
+ * check-ins → gone stations resolved to Unassigned.
  */
-export function boardEntries(all: MockEntry[], net: TrackingNetwork, viewerId: string, now: number): MockEntry[] {
-  const mine = subtree(net.clusters, viewerId)
-  const live = all.filter(e => mine.has(e.originClinicId) && now - e.checkedInAt < TRACKING_EXPIRE_MS)
+export function boardEntries(events: CalendarEvent[], net: TrackingNetwork, viewerId: string, now: number): TrackingEntry[] {
+  const live = events
+    .filter(ev => ev.tracking_data && !isTrackingExpired(ev.tracking_data, now)
+      && (ev.clinic_id === viewerId || (ev.target_clinic_ids?.includes(viewerId) ?? false)))
+    .map(toEntry)
+    .filter((e): e is TrackingEntry => !!e)
   return dedupeByBrn(live)
     .map(e => resolvePlaces(e, net))
     .sort((a, b) => b.checkedInAt - a.checkedInAt)
@@ -365,7 +295,7 @@ function buildGroups(net: TrackingNetwork, clusterIds: Set<string>): BoardGroupD
  * A viewer's board: its subtree's clusters, plus the pin's cluster for any
  * entry sitting at a station nobody on the board shows (moved above the viewer).
  */
-export function boardLayout(net: TrackingNetwork, viewerId: string, entries: MockEntry[]): BoardGroupDef[] {
+export function boardLayout(net: TrackingNetwork, viewerId: string, entries: TrackingEntry[]): BoardGroupDef[] {
   const clusterIds = subtree(net.clusters, viewerId)
   for (const e of entries) {
     const p = positionOf(e)
@@ -376,35 +306,65 @@ export function boardLayout(net: TrackingNetwork, viewerId: string, entries: Moc
 }
 
 /** Stations an entry may move to: what its origin's chain shows, lowest echelon first. */
-export const moveTargets = (net: TrackingNetwork, e: MockEntry): BoardGroupDef[] =>
+export const moveTargets = (net: TrackingNetwork, e: TrackingEntry): BoardGroupDef[] =>
   buildGroups(net, new Set(ancestorChain(net.clusters, e.originClinicId)))
 
-// ── Writes ──
+// ── Writes (mutators over TrackingData — useTrackingWrite.updateEntry) ──
 
-/** Add a move; clears any transit marker. Unchanged position = no-op. */
-export function applyMove(e: MockEntry, to: TrackingPosition, at: number): MockEntry {
-  if (samePlace(positionOf(e), to)) return e
-  return { ...e, transit: null, moves: [...e.moves, { id: `m-${at}`, to, at }] }
+const newId = () => crypto.randomUUID()
+
+/** Fresh entry data for a check-in. */
+export const newTrackingData = (brn: string, at: number): TrackingData =>
+  ({ brn, brn_at: at, checked_in_at: at, moves: [], comments: [], transit: null, transit_at: at })
+
+/** Add a move; supersedes any transit marker. Unchanged position = no-op. */
+export function moveData(d: TrackingData, to: TrackingPosition, by: string, at: number): TrackingData {
+  const last = [...d.moves].sort((a, b) => a.at - b.at)[d.moves.length - 1]
+  if (samePlace(last?.to ?? null, to)) return d
+  return { ...d, transit: null, transit_at: at, moves: [...d.moves, { id: newId(), to, at, by }] }
 }
 
-/** Flag the patient as leaving for station `to` (they stay put until a move lands them). */
-export const applyTransit = (e: MockEntry, to: LinkedFeatureRef, by: string, at: number): MockEntry =>
-  ({ ...e, transit: { to, by, at } })
+/** Set (or clear, null) the "leaving → destination station" marker. */
+export const transitData = (d: TrackingData, to: LinkedFeatureRef | null, by: string, at: number): TrackingData =>
+  ({ ...d, transit: to ? { to, by, at } : null, transit_at: at })
 
-export const clearTransit = (e: MockEntry): MockEntry => ({ ...e, transit: null })
+/** Draft the drawer owns — the Save pill lives in the surface header. */
+export interface TrackingEditDraft {
+  brn: string
+  /** Existing comments by id; cleared text = removed on save. */
+  comments: { id: string; text: string }[]
+  /** New comment appended on save (blank = none). */
+  newComment: string
+}
+
+/** Apply a saved draft. Removed comments are soft-deleted so the merge keeps them gone. */
+export function draftData(d: TrackingData, draft: TrackingEditDraft, by: string, at: number): TrackingData {
+  const byId = new Map(draft.comments.map(c => [c.id, c.text.trim()]))
+  const added = draft.newComment.trim()
+  return {
+    ...d,
+    ...(draft.brn !== d.brn ? { brn: draft.brn, brn_at: at } : {}),
+    comments: [
+      ...d.comments.map(c => {
+        if (c.deleted || !byId.has(c.id)) return c
+        const text = byId.get(c.id)!
+        if (!text) return { ...c, deleted: true, editedAt: at, editedBy: by }
+        return text === c.text ? c : { ...c, text, editedAt: at, editedBy: by }
+      }),
+      ...(added ? [{ id: newId(), text: added, by, at }] : []),
+    ],
+  }
+}
 
 /**
- * Board settings toggle — show / hide a known station on `clinicId`'s board.
- * Writes the pin's tracking_clinic_ids (real path: an overlay feature edit,
- * fanned to the overlay's targets like any other pin edit).
+ * Board settings toggle — show / hide a station on `clinicId`'s board. Returns
+ * the edited pin for useMapOverlayWrite.upsertFeature (fans to the overlay's targets).
  */
-export function togglePlace(overlays: MockOverlay[], ref: LinkedFeatureRef, clinicId: string): MockOverlay[] {
-  return overlays.map(o => o.id !== ref.overlay_id ? o : {
-    ...o,
-    pins: o.pins.map(p => {
-      if (p.id !== ref.feature_id) return p
-      const cur = p.tracking_clinic_ids ?? [o.clinic_id]
-      return { ...p, tracking_clinic_ids: cur.includes(clinicId) ? cur.filter(c => c !== clinicId) : [...cur, clinicId] }
-    }),
-  })
+export function toggledFeature(f: OverlayFeature, ownerClinicId: string, clinicId: string): OverlayFeature {
+  const cur = f.tracking_clinic_ids ?? [ownerClinicId]
+  return {
+    ...f,
+    tracking_clinic_ids: cur.includes(clinicId) ? cur.filter(c => c !== clinicId) : [...cur, clinicId],
+    updated_at: new Date().toISOString(),
+  }
 }

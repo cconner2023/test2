@@ -27,7 +27,7 @@ import { purgeClinicScopedData } from './offlineDb'
 import { clearClinicUsersCache } from './clinicUsersCache'
 import { clearSubClusterCache } from './subClusterCache'
 import { clearSubClusterSnapshots } from '../Hooks/useSubClusters'
-import { useCalendarStore } from '../stores/useCalendarStore'
+import { useCalendarStore, allCalendarStoreEvents } from '../stores/useCalendarStore'
 import { useMapOverlaysStore } from '../stores/useMapOverlaysStore'
 import { usePropertyStore } from '../stores/usePropertyStore'
 import { invalidate } from '../stores/useInvalidationStore'
@@ -55,7 +55,7 @@ export async function evictClinicData(clinicId: string): Promise<void> {
   try {
     const cal = useCalendarStore.getState()
     // setEvents is the unwrapped hydration setter (no write-back), safe here.
-    cal.setEvents(cal.events.filter(e => e.clinic_id !== clinicId))
+    cal.setEvents(allCalendarStoreEvents().filter(e => e.clinic_id !== clinicId))
   } catch (e) {
     logger.warn('Failed to prune in-memory calendar events:', e)
   }

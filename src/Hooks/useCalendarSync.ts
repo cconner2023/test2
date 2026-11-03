@@ -28,7 +28,7 @@
  */
 
 import { useEffect } from 'react'
-import { useCalendarStore } from '../stores/useCalendarStore'
+import { useCalendarStore, allCalendarStoreEvents } from '../stores/useCalendarStore'
 import { loadCalendarEvents, clearExpiredTombstones, saveCalendarEvents } from '../lib/calendarEventStore'
 import { initCalendarTombstones, getTombstones } from '../lib/calendarRouting'
 import { createLogger } from '../Utilities/Logger'
@@ -56,7 +56,7 @@ export function useCalendarSync() {
         const tomb = getTombstones()
         // Merge into whatever the drain may have already routed; store wins on
         // conflict so a concurrent drain can't be clobbered by stale cache.
-        const byId = new Map(useCalendarStore.getState().events.map(e => [e.id, e]))
+        const byId = new Map(allCalendarStoreEvents().map(e => [e.id, e]))
         for (const e of idbEvents) {
           if (tomb.has(e.id)) continue
           if (!byId.has(e.id)) byId.set(e.id, e)
@@ -79,7 +79,7 @@ export function useCalendarSync() {
 
     const live = new Set(liveIds)
     const tomb = getTombstones()
-    const events = useCalendarStore.getState().events
+    const events = allCalendarStoreEvents()
     const pruned = events.filter(e => {
       if (tomb.has(e.id)) return false
       // Keep events the full replay confirmed live, plus locally-created events

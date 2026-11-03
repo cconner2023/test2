@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, type ReactNode } from 'react'
 import { UnderlineTabs } from '@/Components/primitives/UnderlineTabs'
-import { ArrowRightLeft, ArrowRight, Eye, Forward, Trash2, Ban, Pencil, Check, Navigation, MapPinCheck, MapPin, X } from 'lucide-react'
+import { ArrowRightLeft, ArrowRight, Eye, Trash2, Ban, Pencil, Navigation, MapPinCheck, MapPin, X } from 'lucide-react'
 import { ListItemRow } from '@/Components/primitives/ListItemRow'
 import { PersonnelGroupBand } from '@/Components/primitives/PersonnelRow'
 import { BrnPinInput, BRN_PATTERN } from '@/Components/DomainInputs'
@@ -18,16 +18,18 @@ import { formatDtg } from '../../Utilities/propertyDates'
 import { ToggleSwitch } from '../Settings/ToggleSwitch'
 import type { LinkedFeatureRef } from '../../Types/MissionTypes'
 import {
-  MOCK_CLUSTERS, MOCK_OVERLAYS, derivePlaces, clusterById, positionOf, sinceAt, placeKey, samePlace, placeLabel, stationLabel,
+  clusterById, positionOf, sinceAt, placeKey, samePlace, placeLabel, stationLabel,
   destinationLabel, placeOwnerLabel, originUic, moveTargets, boardLayout, knownPlaces, refOf,
-  type MockEntry, type MockComment, type TrackingPosition, type TrackingNetwork, type BoardGroupDef,
+  type TrackingEntry, type TrackingComment, type TrackingPosition, type TrackingNetwork, type BoardGroupDef,
+  type TrackingEditDraft,
 } from './trackingModel'
 
-export { buildMockEntries, type MockEntry, type MockComment } from './trackingModel'
+export type { TrackingEntry, TrackingComment, TrackingEditDraft } from './trackingModel'
 
 /**
- * Tracking Board — SKELETON. Patient-flow board (BRN across places),
- * echelon-aware. Mock data only (trackingModel.ts); no store, no vault send.
+ * Tracking Board — patient-flow board (BRN across places), echelon-aware.
+ * Pure presentation over trackingModel.ts; data + writes live in the drawer
+ * (useTrackingBoardData / useTrackingWrite).
  *
  * Every BRN sits at one station — a map pin marked "Add to tracking board"
  * (AXPs included), shown by the pin's cluster plus related clusters that toggled
@@ -41,10 +43,10 @@ export { buildMockEntries, type MockEntry, type MockComment } from './trackingMo
  * current place's whole cell is the marker. Rail / mobile tabs: the viewer's own
  * places one by one, every other cluster as one group.
  *
- * Final shape: one hidden `tracking` calendar event per visit carrying
- * tracking_data { brn, origin_clinic_id, moves[{ to: place }], transit?, comments[] },
- * fanned to origin + ancestors. Stations are pins in E2E map overlays
- * rows — names only; entries reference them by id.
+ * Data: one hidden calendar event per visit carrying tracking_data
+ * { brn, moves[{ to: pin ref }], transit, comments[] } (Types/TrackingTypes.ts),
+ * fanned to origin + ancestors. Stations are pins in E2E map overlays — names
+ * only; entries reference them by id.
  * Comments ride the same E2E event payload (free text may carry PHI — never a
  * plaintext column, log or push body). moves[] / comments[] union-merge by id;
  * BRN last-write-wins.
@@ -56,7 +58,7 @@ interface BoardScope {
   net: TrackingNetwork
   viewerId: string
 }
-const BoardScopeContext = createContext<BoardScope>({ net: { clusters: MOCK_CLUSTERS, places: derivePlaces(MOCK_OVERLAYS) }, viewerId: MOCK_CLUSTERS[0].id })
+const BoardScopeContext = createContext<BoardScope>({ net: { clusters: [], places: [] }, viewerId: '' })
 export const TrackingBoardScope = BoardScopeContext.Provider
 const useBoardScope = () => useContext(BoardScopeContext)
 
@@ -67,9 +69,9 @@ export const fmtTime = (ms: number) =>
 /** Military date-time — 31OCT26 1423. */
 const fmtDateTime = (ms: number) => `${formatDtg(new Date(ms).toISOString())} ${fmtTime(ms)}`
 const MIN = 60 * 1000
-const dwellMin = (e: MockEntry, now: number) => Math.max(0, Math.round((now - sinceAt(e)) / MIN))
+const dwellMin = (e: TrackingEntry, now: number) => Math.max(0, Math.round((now - sinceAt(e)) / MIN))
 
-export const filterEntries = (entries: MockEntry[], query: string) => {
+export const filterEntries = (entries: TrackingEntry[], query: string) => {
   const q = query.trim().toUpperCase()
   return q ? entries.filter(e => e.brn.includes(q)) : entries
 }
@@ -80,11 +82,11 @@ const groupKey = (g: BoardGroupDef) => `cluster:${g.cluster.id}`
 const groupLabel = (g: BoardGroupDef) => g.cluster.label
 
 interface ListProps {
-  entries: MockEntry[]
+  entries: TrackingEntry[]
   now: number
   activeId: string | null
   /** `origin` = the clicked card / row rect, for the overlay container transform. */
-  onSelect: (entry: MockEntry, origin?: CardOrigin) => void
+  onSelect: (entry: TrackingEntry, origin?: CardOrigin) => void
   /** Entry expanded into the overlay — its rail card is held invisible. */
   expandedId?: string | null
 }
@@ -192,10 +194,10 @@ export type TrackingCategory = string
 interface BoardGroup {
   key: TrackingCategory
   label: string
-  match: (e: MockEntry) => boolean
+  match: (e: TrackingEntry) => boolean
 }
 
-function boardGroups(net: TrackingNetwork, viewerId: string, entries: MockEntry[]): BoardGroup[] {
+function boardGroups(net: TrackingNetwork, viewerId: string, entries: TrackingEntry[]): BoardGroup[] {
   const out: BoardGroup[] = [{ key: 'unassigned', label: 'Unassigned', match: e => positionOf(e) === null }]
   for (const g of boardLayout(net, viewerId, entries)) {
     if (g.cluster.id === viewerId) {
@@ -249,13 +251,13 @@ export function TrackingBoardList({ entries, onSelect, expandedId }: ListProps) 
 
 /** Horizontal-scroll category strip: All, own places, then other clusters.
  *  Plain text tabs; the active one alone carries a themeblue3 underline. */
-export function TrackingCategoryBar({ entries, value, onChange }: { entries: MockEntry[]; value: TrackingCategory; onChange: (v: TrackingCategory) => void }) {
+export function TrackingCategoryBar({ entries, value, onChange }: { entries: TrackingEntry[]; value: TrackingCategory; onChange: (v: TrackingCategory) => void }) {
   const { net, viewerId } = useBoardScope()
   const tabs = [{ key: 'all', label: 'All' }, ...boardGroups(net, viewerId, entries).map(g => ({ key: g.key, label: g.label }))]
   return <UnderlineTabs tabs={tabs} value={value} onChange={onChange} ariaLabel="Location" />
 }
 
-export function filterByCategory(entries: MockEntry[], cat: TrackingCategory, net: TrackingNetwork, viewerId: string): MockEntry[] {
+export function filterByCategory(entries: TrackingEntry[], cat: TrackingCategory, net: TrackingNetwork, viewerId: string): TrackingEntry[] {
   if (cat === 'all') return entries
   const g = boardGroups(net, viewerId, entries).find(x => x.key === cat)
   return g ? entries.filter(g.match) : entries
@@ -288,18 +290,16 @@ function originFor(id: string): CardOrigin | undefined {
 }
 
 interface CardListProps {
-  entries: MockEntry[]
-  onSelect: (entry: MockEntry, origin?: CardOrigin) => void
+  entries: TrackingEntry[]
+  onSelect: (entry: TrackingEntry, origin?: CardOrigin) => void
   /** Open the BRN straight into its edit form. */
-  onEdit: (entry: MockEntry, origin?: CardOrigin) => void
+  onEdit: (entry: TrackingEntry, origin?: CardOrigin) => void
   /** Move a BRN to a station its origin's chain shows, or Unassigned (null). */
-  onMove: (entry: MockEntry, to: TrackingPosition) => void
+  onMove: (entry: TrackingEntry, to: TrackingPosition) => void
   /** Set / clear (null) the "leaving → destination station" marker. */
-  onTransit: (entry: MockEntry, to: LinkedFeatureRef | null) => void
-  /** Hand the BRN off to another member/cluster. */
-  onForward: (entry: MockEntry) => void
+  onTransit: (entry: TrackingEntry, to: LinkedFeatureRef | null) => void
   /** Remove the BRN from the board — called after the ConfirmDialog. */
-  onDelete: (entry: MockEntry) => void
+  onDelete: (entry: TrackingEntry) => void
   /** Card currently expanded into the overlay — held invisible in the list so
    *  the overlay reads as the card itself, not a copy. */
   expandedId?: string | null
@@ -309,7 +309,6 @@ interface CardListProps {
 export const TRACKING_SWIPE_DISPLAY: Record<TrackingSwipeBinding, SwipeBindingDisplay> = {
   open: { label: 'Open', icon: Eye, panel: 'bg-themeblue2' },
   move: { label: 'Move', icon: ArrowRightLeft, panel: 'bg-themeblue3' },
-  forward: { label: 'Forward', icon: Forward, panel: 'bg-themeblue1' },
   delete: { label: 'Delete', icon: Trash2, panel: 'bg-themeredred' },
   off: { label: 'None', icon: Ban, panel: null },
 }
@@ -326,7 +325,7 @@ const STATION_TINTS: { shell: string; foot: string }[] = [
   { shell: 'bg-themered/30', foot: 'text-themeredred' },
   { shell: 'bg-themegreen/25', foot: 'text-themegreen' },
 ]
-export function tintFor(e: MockEntry) {
+export function tintFor(e: TrackingEntry) {
   const p = positionOf(e)
   if (!p) return UNASSIGNED_TINT
   // Hash of the place id — stable on every device and board, no lookup, and a
@@ -342,7 +341,7 @@ const clip = (t: string, n: number) => (t.length > n ? `${t.slice(0, n).trimEnd(
 
 /** Card head — UIC · check-in time over the BRN. Shared by the list card and
  *  the expanded overlay (which swaps `inTime` for a fading copy). */
-export function BrnCardHead({ entry, inTime }: { entry: MockEntry; inTime?: ReactNode }) {
+export function BrnCardHead({ entry, inTime }: { entry: TrackingEntry; inTime?: ReactNode }) {
   const { net } = useBoardScope()
   return (
     <>
@@ -357,7 +356,7 @@ export function BrnCardHead({ entry, inTime }: { entry: MockEntry; inTime?: Reac
 
 /** Footer band on the tint: location · since — or, while in transit, the
  *  "→ destination" marker and when they left. */
-export function BrnCardFoot({ entry }: { entry: MockEntry }) {
+export function BrnCardFoot({ entry }: { entry: TrackingEntry }) {
   const { net, viewerId } = useBoardScope()
   const t = entry.transit
   return (
@@ -374,7 +373,7 @@ export function BrnCardFoot({ entry }: { entry: MockEntry }) {
 /** Card body — rendered in the list AND as the lifted clone in the menu, and
  *  the collapsed state of TrackingCardOverlay. Tinted shell → white inner card
  *  (head + latest comment) → footer band on the tint. */
-function BrnCard({ entry }: { entry: MockEntry }) {
+function BrnCard({ entry }: { entry: TrackingEntry }) {
   const latest = entry.comments[entry.comments.length - 1]
   const more = entry.comments.length - 1
   return (
@@ -398,10 +397,10 @@ function BrnCard({ entry }: { entry: MockEntry }) {
  *  the place, so the footer carries only the since stamp. Click grows it into
  *  the centered TrackingCardOverlay. */
 function BrnRailCard({ entry, hidden, onSelect }: {
-  entry: MockEntry
+  entry: TrackingEntry
   /** Expanded into the overlay — held invisible so the overlay reads as the card. */
   hidden: boolean
-  onSelect: (entry: MockEntry, origin?: CardOrigin) => void
+  onSelect: (entry: TrackingEntry, origin?: CardOrigin) => void
 }) {
   const { net } = useBoardScope()
   const latest = entry.comments[entry.comments.length - 1]
@@ -440,7 +439,7 @@ function BrnRailCard({ entry, hidden, onSelect }: {
 /** "Move to" targets — Unassigned, then every station the origin's chain shows
  *  (Role I → Role III), minus the BRN's current spot. One cluster = flat list;
  *  several = a submenu per cluster. */
-export function trackingMoveItems(e: MockEntry, onMove: (entry: MockEntry, to: TrackingPosition) => void, net: TrackingNetwork): ContextMenuItem[] {
+export function trackingMoveItems(e: TrackingEntry, onMove: (entry: TrackingEntry, to: TrackingPosition) => void, net: TrackingNetwork): ContextMenuItem[] {
   const at = positionOf(e)
   const placeItems = (g: BoardGroupDef): ContextMenuItem[] => groupPlaces(g)
     .filter(pl => !samePlace(pl.pos, at))
@@ -453,7 +452,7 @@ export function trackingMoveItems(e: MockEntry, onMove: (entry: MockEntry, to: T
 
 /** "Send to" destinations — every station the origin's chain shows, minus where
  *  the BRN sits / is already headed. Submenu per cluster when there are several. */
-export function trackingTransitItems(e: MockEntry, onTransit: (entry: MockEntry, to: LinkedFeatureRef | null) => void, net: TrackingNetwork): ContextMenuItem[] {
+export function trackingTransitItems(e: TrackingEntry, onTransit: (entry: TrackingEntry, to: LinkedFeatureRef | null) => void, net: TrackingNetwork): ContextMenuItem[] {
   const at = positionOf(e)
   const items = (g: BoardGroupDef): ContextMenuItem[] => g.places
     .filter(d => !samePlace(d.pos, at) && !(e.transit && samePlace(d.pos, e.transit.to)))
@@ -467,14 +466,13 @@ export function trackingTransitItems(e: MockEntry, onTransit: (entry: MockEntry,
 
 /** BRN action menu — shared by the card long-press, the mobile detail Sheet
  *  ellipsis and the desktop header ellipsis. `onOpen` omitted = already open. */
-export function buildTrackingMenuItems(e: MockEntry, h: {
-  onOpen?: (entry: MockEntry) => void
-  onEdit: (entry: MockEntry) => void
-  onMove: (entry: MockEntry, to: TrackingPosition) => void
+export function buildTrackingMenuItems(e: TrackingEntry, h: {
+  onOpen?: (entry: TrackingEntry) => void
+  onEdit: (entry: TrackingEntry) => void
+  onMove: (entry: TrackingEntry, to: TrackingPosition) => void
   /** Set (or clear, null) the "leaving → destination station" marker. */
-  onTransit: (entry: MockEntry, to: LinkedFeatureRef | null) => void
-  onForward: (entry: MockEntry) => void
-  onDelete: (entry: MockEntry) => void
+  onTransit: (entry: TrackingEntry, to: LinkedFeatureRef | null) => void
+  onDelete: (entry: TrackingEntry) => void
   net: TrackingNetwork
 }): ContextMenuItem[] {
   const t = e.transit
@@ -489,39 +487,37 @@ export function buildTrackingMenuItems(e: MockEntry, h: {
       { key: 'cancel-transit', label: 'Cancel en route', icon: X, onAction: () => h.onTransit(e, null) },
     ] : []),
     ...(sendTo.length > 0 ? [{ key: 'send', label: t ? 'Redirect to…' : 'Send to…', icon: Navigation, submenu: sendTo }] : []),
-    { key: 'forward', label: 'Forward', icon: Forward, onAction: () => h.onForward(e) },
     { key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => h.onDelete(e) },
   ]
 }
 
 /**
  * BRN cards with the chat gesture set (SwipeActionRow): tap opens, long-press /
- * right-click lifts the card into the LiftedRowMenu (Open / Move to… / Forward /
- * Delete); swipe left/right fire the user's Tracking swipe bindings (same four,
+ * right-click lifts the card into the LiftedRowMenu (Open / Move to… /
+ * Delete); swipe left/right fire the user's Tracking swipe bindings (same set,
  * picked in board settings via Messaging's picker).
  */
-export function TrackingCardList({ entries, onSelect, onEdit, onMove, onTransit, onForward, onDelete, expandedId }: CardListProps) {
+export function TrackingCardList({ entries, onSelect, onEdit, onMove, onTransit, onDelete, expandedId }: CardListProps) {
   const { net } = useBoardScope()
   const swipe = useTrackingSwipeActions()
   // mode 'all' = long-press menu; 'move' = swipe-bound Move, straight to the places.
-  const [menu, setMenu] = useState<{ entry: MockEntry; rect: DOMRect; mode: 'all' | 'move' } | null>(null)
-  const [pendingDelete, setPendingDelete] = useState<MockEntry | null>(null)
+  const [menu, setMenu] = useState<{ entry: TrackingEntry; rect: DOMRect; mode: 'all' | 'move' } | null>(null)
+  const [pendingDelete, setPendingDelete] = useState<TrackingEntry | null>(null)
 
-  const moveItems = (e: MockEntry) => trackingMoveItems(e, onMove, net)
+  const moveItems = (e: TrackingEntry) => trackingMoveItems(e, onMove, net)
   // Open / Edit from the lifted menu grow out of the lifted clone (still mounted
   // when onAction fires); tap / swipe-open grow out of the rest card.
-  const open = (e: MockEntry) => onSelect(e, originFor(e.id))
-  const edit = (e: MockEntry) => onEdit(e, originFor(e.id))
-  const menuItems = (e: MockEntry) => buildTrackingMenuItems(e, { onOpen: open, onEdit: edit, onMove, onTransit, onForward, onDelete: setPendingDelete, net })
+  const open = (e: TrackingEntry) => onSelect(e, originFor(e.id))
+  const edit = (e: TrackingEntry) => onEdit(e, originFor(e.id))
+  const menuItems = (e: TrackingEntry) => buildTrackingMenuItems(e, { onOpen: open, onEdit: edit, onMove, onTransit, onDelete: setPendingDelete, net })
 
-  const fire = (b: TrackingSwipeBinding, e: MockEntry, rect: DOMRect) => {
+  const fire = (b: TrackingSwipeBinding, e: TrackingEntry, rect: DOMRect) => {
     if (b === 'open') open(e)
     else if (b === 'move') setMenu({ entry: e, rect, mode: 'move' })
-    else if (b === 'forward') onForward(e)
     else if (b === 'delete') setPendingDelete(e)
   }
 
-  const sideFor = (b: TrackingSwipeBinding, e: MockEntry): SwipeSide | null => {
+  const sideFor = (b: TrackingSwipeBinding, e: TrackingEntry): SwipeSide | null => {
     const d = TRACKING_SWIPE_DISPLAY[b]
     return d.panel ? { icon: d.icon, panel: d.panel, onFire: rect => fire(b, e, rect) } : null
   }
@@ -566,7 +562,7 @@ export function TrackingCardList({ entries, onSelect, onEdit, onMove, onTransit,
 
 /** Comments — read-only thread in the detail (Calendar "Notes" idiom). All
  *  writes (add / change / remove) go through the form: check-in or ellipsis Edit. */
-function TrackingComments({ entry }: { entry: MockEntry }) {
+function TrackingComments({ entry }: { entry: TrackingEntry }) {
   if (entry.comments.length === 0) return null
   return (
     <CardLabel label="Comments">
@@ -583,7 +579,7 @@ function TrackingComments({ entry }: { entry: MockEntry }) {
 }
 
 /** Author · edited marker on the left, DTG (last write) on the right. */
-function CommentMeta({ comment }: { comment: MockComment }) {
+function CommentMeta({ comment }: { comment: TrackingComment }) {
   const edited = comment.editedAt
     ? ` · edited${comment.editedBy && comment.editedBy !== comment.by ? ` by ${comment.editedBy}` : ''}`
     : ''
@@ -597,18 +593,9 @@ function CommentMeta({ comment }: { comment: MockComment }) {
 
 // ── Form (check-in create + ellipsis Edit; Calendar EventForm idiom) ──
 
-/** Draft the drawer owns — the Save pill lives in the surface header. */
-export interface TrackingEditDraft {
-  brn: string
-  /** Existing comments by id; cleared text = removed on save. */
-  comments: { id: string; text: string }[]
-  /** New comment appended on save (blank = none). */
-  newComment: string
-}
-
 export const emptyDraft = (): TrackingEditDraft => ({ brn: '', comments: [], newComment: '' })
 
-export const draftFromEntry = (e: MockEntry): TrackingEditDraft => ({
+export const draftFromEntry = (e: TrackingEntry): TrackingEditDraft => ({
   brn: e.brn,
   comments: e.comments.map(c => ({ id: c.id, text: c.text })),
   newComment: '',
@@ -616,30 +603,11 @@ export const draftFromEntry = (e: MockEntry): TrackingEditDraft => ({
 
 export const draftIsValid = (d: TrackingEditDraft) => BRN_PATTERN.test(d.brn)
 
-/** Apply a saved draft — last-write-wins over the whole entry. */
-export function applyDraft(e: MockEntry, d: TrackingEditDraft, by: string, at: number): MockEntry {
-  const byId = new Map(d.comments.map(c => [c.id, c.text.trim()]))
-  const added = d.newComment.trim()
-  return {
-    ...e,
-    brn: d.brn,
-    comments: [
-      ...e.comments
-        .filter(c => byId.get(c.id))
-        .map(c => {
-          const text = byId.get(c.id)!
-          return text === c.text ? c : { ...c, text, editedAt: at, editedBy: by }
-        }),
-      ...(added ? [{ id: `c-${at}`, text: added, by, at }] : []),
-    ],
-  }
-}
-
 const commentAreaClass = 'w-full bg-transparent px-4 pt-1 pb-2.5 text-base md:text-[10pt] text-primary placeholder:text-tertiary focus:outline-none resize-none'
 
 /** BRN + comments. `entry` omitted = check-in (new BRN, focus the pin cells). */
 export function TrackingEditForm({ entry, draft, onChange }: {
-  entry?: MockEntry
+  entry?: TrackingEntry
   draft: TrackingEditDraft
   onChange: (d: TrackingEditDraft) => void
 }) {
@@ -694,9 +662,9 @@ export function TrackingEditForm({ entry, draft, onChange }: {
   )
 }
 
-export function TrackingBoardDetail({ entry, now }: { entry: MockEntry; now: number }) {
+export function TrackingBoardDetail({ entry, now }: { entry: TrackingEntry; now: number }) {
   const { net } = useBoardScope()
-  const clusterName = (id: string) => clusterById(net.clusters, id)?.label ?? id
+  const clusterName = (id: string) => clusterById(net.clusters, id)?.label ?? 'Cluster'
   const where = (p: TrackingPosition) => placeOwnerLabel(net, p) || undefined
   return (
     <div className="space-y-4">
@@ -752,9 +720,6 @@ export function TrackingBoardDetail({ entry, now }: { entry: MockEntry; now: num
 // ── Settings (mirrors Messaging settings: section header + card, in Sheet / PreviewOverlay) ──
 
 export interface TrackingSettingsHandlers {
-  /** SKELETON: switch the viewing cluster to demo echelon visibility. Goes away
-   *  with real data (viewer = the member's own cluster). */
-  onViewerChange?: (clusterId: string) => void
   /** Show / hide a known station on this cluster's board (writes the pin's
    *  tracking_clinic_ids). Stations themselves are made / renamed / removed on
    *  the map ("Add to tracking board" on a pin). */
@@ -820,27 +785,6 @@ export function TrackingBoardSettings(h: TrackingSettingsHandlers) {
         <p className="text-[9pt] text-tertiary px-1">No stations yet — on the map, open a pin and turn on “Add to tracking board”.</p>
       )}
 
-      {h.onViewerChange && (
-        <section>
-          <PageSectionHeader>Viewing as (mock)</PageSectionHeader>
-          <SectionCard>
-            {[...net.clusters].sort((x, y) => y.echelon - x.echelon).map(c => (
-              <ListItemRow
-                key={c.id}
-                onClick={() => h.onViewerChange!(c.id)}
-                className="px-4 py-2.5 border-b border-primary/5 last:border-b-0"
-                center={
-                  <div className="min-w-0">
-                    <p className="text-[10pt] text-primary truncate">{c.label}</p>
-                    <p className="text-[9pt] text-tertiary truncate">Role {'I'.repeat(c.echelon)} · {c.uic}</p>
-                  </div>
-                }
-                right={c.id === viewerId && <Check size={16} className="text-themeblue3 shrink-0" />}
-              />
-            ))}
-          </SectionCard>
-        </section>
-      )}
     </div>
   )
 }

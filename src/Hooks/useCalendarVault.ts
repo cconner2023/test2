@@ -253,7 +253,11 @@ export function useCalendarVault(): UseCalendarVaultResult {
         // 'online'), resolve the full set so loaned-assignee events reach
         // every relevant clinic vault. Falls back to the event's own clinic
         // on RPC failure.
-        const targets = await resolveTargetClinics(item.event.clinic_id, item.event.assigned_to ?? [])
+        // Tracking records fan along the origin's chain (stamped at write), not
+        // by assignee — keep their stored targets.
+        const targets = item.event.tracking_data && item.event.target_clinic_ids?.length
+          ? item.event.target_clinic_ids
+          : await resolveTargetClinics(item.event.clinic_id, item.event.assigned_to ?? [])
         const stamped = { ...item.event, target_clinic_ids: targets }
         const originId = await sendEvent('c', stamped)
         if (originId) {

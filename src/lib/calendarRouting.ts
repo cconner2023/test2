@@ -10,7 +10,8 @@
 
 import type { MessageContent, CalendarEventContent } from './signal/messageContent'
 import type { CalendarEvent } from '../Types/CalendarTypes'
-import { useCalendarStore } from '../stores/useCalendarStore'
+import { useCalendarStore, allCalendarStoreEvents } from '../stores/useCalendarStore'
+import { mergeTrackingData, isTrackingExpired } from '../Types/TrackingTypes'
 import { loadCalendarTombstones, addCalendarTombstone } from './calendarEventStore'
 
 /** Returns true if the content is a calendar event message. */
@@ -76,21 +77,26 @@ export function routeCalendarEvent(content: CalendarEventContent): void {
   // Guard: skip create/update for any tombstoned event.
   if (_tombstones.has(data.id)) return
 
-  if (action === 'create') {
-    // Upsert: if the event already exists (replacement message after edit),
-    // update it with the full new state; otherwise add as new.
-    if (store.events.some(e => e.id === data.id)) {
-      store.updateEvent(data.id, data as Partial<CalendarEvent>)
-    } else {
-      store.addEvent(data as CalendarEvent)
-    }
-  } else if (action === 'update') {
-    // Legacy delta updates — kept for backward compat with in-flight messages
-    if (store.events.some(e => e.id === data.id)) {
-      store.updateEvent(data.id, data as Partial<CalendarEvent>)
-    } else {
-      store.addEvent(data as CalendarEvent)
-    }
+  // 'create' = full replacement after an edit; 'update' = legacy delta. Both upsert.
+  upsertRouted(data as Partial<CalendarEvent> & { id: string })
+}
+
+/**
+ * Tombstone-free upsert. Tracking records merge instead of overwrite: two
+ * clusters editing the same patient concurrently each keep their moves and
+ * comments (mergeTrackingData); every other event is last-write-wins.
+ */
+function upsertRouted(data: Partial<CalendarEvent> & { id: string }): void {
+  const store = useCalendarStore.getState()
+  const existing = allCalendarStoreEvents().find(e => e.id === data.id)
+  if (!existing) {
+    store.addEvent(data as CalendarEvent)
+    return
+  }
+  if (existing.tracking_data && data.tracking_data) {
+    store.updateEvent(data.id, { ...data, tracking_data: mergeTrackingData(existing.tracking_data, data.tracking_data) })
+  } else {
+    store.updateEvent(data.id, data)
   }
 }
 
@@ -109,8 +115,12 @@ export function routeCalendarEvent(content: CalendarEventContent): void {
  * cross-cluster copy after the first snapshot cycle.
  */
 export function snapshotCalendarEvents(clinicId: string, vaultLiveIds?: Set<string>): CalendarEvent[] {
-  return useCalendarStore.getState().events.filter(e => {
+  const now = Date.now()
+  return allCalendarStoreEvents().filter(e => {
     if (_tombstones.has(e.id)) return false
+    // Tracking records past their board lifetime are left out on purpose — the
+    // reap then drops them clinic-wide (the board's "expire" exit).
+    if (e.tracking_data && isTrackingExpired(e.tracking_data, now)) return false
     const inClinic = e.clinic_id === clinicId || (e.target_clinic_ids?.includes(clinicId) ?? false)
     if (!inClinic) return false
     // When the caller supplies the authoritative vault-resolved id set (snapshot
@@ -157,13 +167,8 @@ export async function applyCalendarTombstones(ids: string[]): Promise<void> {
  * can never resurrect an event deleted locally after the snapshot was sealed.
  */
 export function loadSnapshotCalendarEvents(events: CalendarEvent[]): void {
-  const store = useCalendarStore.getState()
   for (const ev of events) {
     if (_tombstones.has(ev.id)) continue
-    if (store.events.some(e => e.id === ev.id)) {
-      store.updateEvent(ev.id, ev as Partial<CalendarEvent>)
-    } else {
-      store.addEvent(ev)
-    }
+    upsertRouted(ev)
   }
 }

@@ -1,5 +1,5 @@
 import { create, type StateCreator } from 'zustand'
-import type { CalendarEvent, EventCategory, CategoryColorMap } from '../Types/CalendarTypes'
+import { isTrackingEvent, type CalendarEvent, type EventCategory, type CategoryColorMap } from '../Types/CalendarTypes'
 import type { SubClusterFilter } from '../Utilities/subCluster'
 import { putCalendarEvent, deleteCalendarEvent, addCalendarTombstone } from '../lib/calendarEventStore'
 import { createLogger } from '../Utilities/Logger'
@@ -76,6 +76,12 @@ interface CalendarState {
   // sub-cluster, string[] = explicit subset. See Utilities/subCluster.ts.
   subClusterFilter: SubClusterFilter
   events: CalendarEvent[]
+  /**
+   * Tracking Board records (events carrying tracking_data). Kept OUT of
+   * `events` so no calendar surface ever sees them; same persistence, vault
+   * snapshot and reconcile path. Read both via allCalendarStoreEvents().
+   */
+  tracking: CalendarEvent[]
   rosterSearchQuery: string
   showRosterMobile: boolean
   personnelFilter: string[]
@@ -167,7 +173,7 @@ const calendarPersist = (
 
   const persistPut = (id: string) => {
     if (!get().hydrated) return
-    const event = get().events.find(e => e.id === id)
+    const event = get().events.find(e => e.id === id) ?? get().tracking.find(e => e.id === id)
     if (event) putCalendarEvent(event).catch(e => logger.warn('IDB put failed:', e))
   }
 
@@ -216,6 +222,7 @@ export const useCalendarStore = create<CalendarStore>()(calendarPersist((set) =>
   clusterFilter: null,
   subClusterFilter: null,
   events: [],
+  tracking: [],
   rosterSearchQuery: '',
   showRosterMobile: false,
   personnelFilter: [],
@@ -242,14 +249,18 @@ export const useCalendarStore = create<CalendarStore>()(calendarPersist((set) =>
   setShowRosterMobile: (show) => set({ showRosterMobile: show }),
 
   addEvent: (event) => set((s) => {
-    if (s.events.some(e => e.id === event.id)) return s
-    return { events: [...s.events, event] }
+    if (s.events.some(e => e.id === event.id) || s.tracking.some(e => e.id === event.id)) return s
+    return isTrackingEvent(event) ? { tracking: [...s.tracking, event] } : { events: [...s.events, event] }
   }),
-  updateEvent: (id, updates) => set((s) => ({
-    events: s.events.map(e => e.id === id ? { ...e, ...updates, updated_at: new Date().toISOString() } : e),
-  })),
+  updateEvent: (id, updates) => set((s) => {
+    const patch = (e: CalendarEvent) => e.id === id ? { ...e, ...updates, updated_at: new Date().toISOString() } : e
+    return s.tracking.some(e => e.id === id)
+      ? { tracking: s.tracking.map(patch) }
+      : { events: s.events.map(patch) }
+  }),
   removeEvent: (id) => set((s) => ({
     events: s.events.filter(e => e.id !== id),
+    tracking: s.tracking.filter(e => e.id !== id),
     selectedEventId: s.selectedEventId === id ? null : s.selectedEventId,
   })),
   moveEvent: (id, daysDelta, newStartTime) => set((s) => ({
@@ -269,7 +280,12 @@ export const useCalendarStore = create<CalendarStore>()(calendarPersist((set) =>
       return { ...e, start_time: newStart, end_time: newEnd, updated_at: now }
     }),
   })),
-  setEvents: (events) => set({ events }),
+  // Takes the FULL list (calendar + tracking) and partitions it — callers read
+  // the base via allCalendarStoreEvents() so tracking records survive.
+  setEvents: (events) => set({
+    events: events.filter(e => !isTrackingEvent(e)),
+    tracking: events.filter(isTrackingEvent),
+  }),
 
   assignPersonnel: (eventId, userId) => set((s) => ({
     events: s.events.map(e =>
@@ -326,3 +342,10 @@ export const useCalendarStore = create<CalendarStore>()(calendarPersist((set) =>
   }),
   setClinicCategoryColors: (colors) => set({ clinicCategoryColors: colors }),
 })))
+
+/** Every event in the store — calendar + tracking. Use for vault / IDB
+ *  bookkeeping (routing, snapshot, reconcile, eviction), never for display. */
+export function allCalendarStoreEvents(): CalendarEvent[] {
+  const s = useCalendarStore.getState()
+  return [...s.events, ...s.tracking]
+}

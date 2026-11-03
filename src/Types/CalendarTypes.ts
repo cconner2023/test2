@@ -5,6 +5,10 @@ export type EventStatus = 'pending' | 'in_progress' | 'completed' | 'cancelled'
 
 import type { LinkedFeatureRef, ResourceAllocation, StructuredLocation } from './MissionTypes'
 import type { MedevacRequest } from './MedevacTypes'
+import type { TrackingData } from './TrackingTypes'
+
+/** Tracking Board record (hidden from every calendar surface). */
+export const isTrackingEvent = (e: Pick<CalendarEvent, 'tracking_data'>): boolean => !!e.tracking_data
 
 export interface CalendarEvent {
   id: string
@@ -95,6 +99,13 @@ export interface CalendarEvent {
    * an encounter record. Operational vocabulary only (algorithm id) — never PHI.
    */
   encounter_algorithm_id?: string | null
+  /**
+   * Tracking Board entry. Present → this event is a hidden patient-tracking
+   * record, never shown on the calendar (useCalendarStore keeps it in
+   * `tracking`, not `events`). DELIBERATE PHI EXCEPTION: carries the full BRN +
+   * free-text comments, E2E only — see Types/TrackingTypes.ts.
+   */
+  tracking_data?: TrackingData | null
 }
 
 /** Origin of an event subtask. 'standardized' = seeded from a clinic Checklist template; 'custom' = added ad-hoc on the event. */

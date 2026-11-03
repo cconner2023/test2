@@ -20,7 +20,9 @@ export function UnderlineTabs<T extends string>({
         <div
             role="tablist"
             aria-label={ariaLabel}
-            className={`flex gap-5 px-1 overflow-x-auto ${className}`}
+            // touch-pan-xy: overrides the global `* { touch-action: pan-y }` (App.css),
+            // which otherwise blocks horizontal swipes on the strip and its tabs.
+            className={`touch-pan-xy flex gap-5 px-1 overflow-x-auto ${className}`}
             style={{ scrollbarWidth: 'none' }}
         >
             {tabs.map(t => {

@@ -6,24 +6,23 @@ import { useSyncExternalStore } from 'react'
  *
  *   open    — open the BRN page (same as tap)
  *   move    — lift the card into a "Move to" station picker
- *   forward — hand the BRN off (skeleton: wired to a no-op in the drawer)
  *   delete  — remove the BRN from the board (ConfirmDialog first)
  *   off     — direction disabled
  *
- * Stale stored values (the old advance/back/menu) coerce back to defaults.
+ * Stale stored values (the old advance/back/menu, and the removed forward) coerce back to defaults.
  *
  * SKELETON persistence: per-device localStorage. When the board goes live this
  * should ride the profiles row like messaging's swipe_actions (cross-device).
  */
 
-export type TrackingSwipeBinding = 'open' | 'move' | 'forward' | 'delete' | 'off'
+export type TrackingSwipeBinding = 'open' | 'move' | 'delete' | 'off'
 
 export interface TrackingSwipeActions {
   ltr: TrackingSwipeBinding
   rtl: TrackingSwipeBinding
 }
 
-export const TRACKING_SWIPE_POOL: readonly TrackingSwipeBinding[] = ['open', 'move', 'forward', 'delete', 'off']
+export const TRACKING_SWIPE_POOL: readonly TrackingSwipeBinding[] = ['open', 'move', 'delete', 'off']
 export const DEFAULT_TRACKING_SWIPE: TrackingSwipeActions = { ltr: 'move', rtl: 'delete' }
 
 const KEY = 'tracking-swipe-actions'

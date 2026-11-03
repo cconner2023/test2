@@ -13,17 +13,19 @@ import { useIsMobile } from '../../Hooks/useIsMobile'
 import { useEscBackout } from '../../Hooks/useEscBackout'
 import { useSwipeBack } from '../../Hooks/useSwipeBack'
 import { useAuthStore } from '../../stores/useAuthStore'
+import { useTrackingBoardData } from '../../Hooks/useTrackingBoardData'
+import { useTrackingWrite } from '../../Hooks/useTrackingWrite'
+import { useMapOverlayWrite } from '../../Hooks/useMapOverlayWrite'
 import {
     TrackingBoardList, TrackingGrid, TrackingBoardDetail, TrackingBoardSettings,
     TrackingCategoryBar, TrackingCardList, filterByCategory, buildTrackingMenuItems,
-    buildMockEntries, filterEntries, type MockEntry, type TrackingCategory, type CardOrigin,
-    TrackingEditForm, draftFromEntry, draftIsValid, applyDraft, emptyDraft, type TrackingEditDraft,
+    filterEntries, type TrackingEntry, type TrackingCategory, type CardOrigin,
+    TrackingEditForm, draftFromEntry, draftIsValid, emptyDraft, type TrackingEditDraft,
     measureBrnCard, measureRailCard, measureGridRow, TrackingBoardScope,
 } from './TrackingBoardPanel'
 import {
-    MOCK_CLUSTERS, MOCK_OVERLAYS, DEFAULT_VIEWER_ID, derivePlaces, togglePlace,
-    boardEntries, applyMove, applyTransit, clearTransit, subtree,
-    type TrackingPosition, type MockOverlay,
+    boardEntries, moveData, transitData, draftData, newTrackingData, toggledFeature, toEntry,
+    type TrackingPosition,
 } from './trackingModel'
 import { TrackingCardOverlay } from './TrackingCardOverlay'
 import type { LinkedFeatureRef } from '../../Types/MissionTypes'
@@ -32,10 +34,6 @@ interface TrackingBoardDrawerProps {
     isVisible: boolean
     onClose: () => void
 }
-
-/** SKELETON stand-in for the vault write, so final actions visibly run the
- *  LoadingOverlay over the card overlay. */
-const MOCK_WRITE_MS = 600
 
 /**
  * Large drawer (desktop) / full-screen right-slide panel (mobile — App.tsx
@@ -59,7 +57,7 @@ const MOCK_WRITE_MS = 600
  * (Delete closes it — the card is gone, so it fades instead of collapsing).
  * Edit (ellipsis / card long-press → Edit): Calendar idiom — the detail swaps
  * to TrackingEditForm (BRN + existing comments); card head = Back (→ detail),
- * Save + Close. Save is last-write-wins over the entry.
+ * Save + Close. Save merges into the shared entry (comments union by id).
  * Check-in: a + in the header (mobile header pill beside the gear; desktop
  * drawer header) opens a PreviewOverlay with the same TrackingEditForm (BRN +
  * comment) and a Save pill in its header — the create half of the Calendar
@@ -67,27 +65,21 @@ const MOCK_WRITE_MS = 600
  */
 export function TrackingBoardDrawer({ isVisible, onClose }: TrackingBoardDrawerProps) {
     const isMobile = useIsMobile()
-    const now = useMemo(() => Date.now(), [isVisible]) // eslint-disable-line react-hooks/exhaustive-deps
-    // Local state over the mock seed so check-in works in the skeleton.
-    const [allEntries, setAllEntries] = useState<MockEntry[]>(() => buildMockEntries(now))
-    useEffect(() => { setAllEntries(buildMockEntries(now)) }, [now])
-    // SKELETON: viewing cluster (settings switch). Real path: the member's own cluster.
-    const [viewerId, setViewerId] = useState(DEFAULT_VIEWER_ID)
-    const clusters = MOCK_CLUSTERS
-    // Stations = map pins marked "Add to tracking board" (AXPs included). Real
-    // path: useMapOverlaysStore — overlays fanned E2E across related clusters.
-    const [overlays, setOverlays] = useState<MockOverlay[]>(MOCK_OVERLAYS)
-    const net = useMemo(() => ({ clusters, places: derivePlaces(overlays) }), [clusters, overlays])
+    const { viewerId, net, events, overlays } = useTrackingBoardData(isVisible)
+    // Re-read on every board change so expiry / dwell track the data.
+    const now = useMemo(() => Date.now(), [isVisible, events]) // eslint-disable-line react-hooks/exhaustive-deps
+    const { checkIn, updateEntry, deleteEntry: removeEntry } = useTrackingWrite()
+    const { upsertFeature } = useMapOverlayWrite()
     const scope = useMemo(() => ({ net, viewerId }), [net, viewerId])
-    // Board = origin in the viewer's subtree, unexpired, newest-per-BRN, capped.
-    const board = useMemo(() => boardEntries(allEntries, net, viewerId, now), [allEntries, net, viewerId, now])
+    // Board = fanned to the viewer (origin + ancestors), unexpired, newest-per-BRN, capped.
+    const board = useMemo(() => boardEntries(events, net, viewerId, now), [events, net, viewerId, now])
     const [query, setQuery] = useState('')
     const entries = useMemo(() => filterEntries(board, query), [board, query])
     // By id, so the open detail reflects moves made from its own menu.
     const [selectedId, setSelectedId] = useState<string | null>(null)
     const selected = useMemo(() => board.find(e => e.id === selectedId) ?? null, [board, selectedId])
     // Last open entry — keeps the mobile overlay populated through its collapse.
-    const lastSelected = useRef<MockEntry | null>(null)
+    const lastSelected = useRef<TrackingEntry | null>(null)
     if (selected) lastSelected.current = selected
     const [showSettings, setShowSettings] = useState(false)
     // Non-null = check-in popover open (create draft; Save in its header).
@@ -99,7 +91,7 @@ export function TrackingBoardDrawer({ isVisible, onClose }: TrackingBoardDrawerP
     // Open-BRN ellipsis menu (anchor rect) + its delete confirm + in-flight write.
     const [moreRect, setMoreRect] = useState<DOMRect | null>(null)
     const moreBtnRef = useRef<HTMLDivElement>(null)
-    const [pendingDelete, setPendingDelete] = useState<MockEntry | null>(null)
+    const [pendingDelete, setPendingDelete] = useState<TrackingEntry | null>(null)
     const [busy, setBusy] = useState(false)
     // Non-null = the open BRN is in edit mode (draft owned here; Save in header).
     const [editDraft, setEditDraft] = useState<TrackingEditDraft | null>(null)
@@ -110,37 +102,28 @@ export function TrackingBoardDrawer({ isVisible, onClose }: TrackingBoardDrawerP
     const [expandedId, setExpandedId] = useState<string | null>(null)
     const [originSrc, setOriginSrc] = useState<'card' | 'rail' | 'grid'>('card')
 
-    // Mock remove (card Delete, after ConfirmDialog).
-    const deleteEntry = (entry: MockEntry) => {
-        setAllEntries(prev => prev.filter(e => e.id !== entry.id))
-    }
-    // Forward: hand-off target/transport TBD. BRN is PHI, so it cannot ride a
-    // plain message (no BAA); needs the E2E calendar/tracking pipeline. No-op for now.
-    const forwardEntry = (_entry: MockEntry) => {}
+    // Card Delete, after ConfirmDialog — 'd' to every board in the chain.
+    const deleteEntry = (entry: TrackingEntry) => removeEntry(entry.id)
 
-    // Mock move (card Move to): append a move to any place in the origin's chain.
-    // Moving up an echelon is just a move into a place the parent cluster uses.
-    const moveEntry = (entry: MockEntry, to: TrackingPosition) => {
-        const at = Date.now()
-        setAllEntries(prev => prev.map(e => e.id !== entry.id ? e : applyMove(e, to, at)))
-    }
+    // Move to any station in the origin's chain. Moving up an echelon is just a
+    // move into a station the parent cluster uses.
+    const moveEntry = (entry: TrackingEntry, to: TrackingPosition) =>
+        updateEntry(entry.id, d => moveData(d, to, me, Date.now()))
     // Transit marker: "leaving → destination" (null clears). The patient stays put.
-    const transitEntry = (entry: MockEntry, to: LinkedFeatureRef | null) => {
-        const at = Date.now()
-        setAllEntries(prev => prev.map(e => e.id !== entry.id ? e : to ? applyTransit(e, to, me, at) : clearTransit(e)))
-    }
+    const transitEntry = (entry: TrackingEntry, to: LinkedFeatureRef | null) =>
+        updateEntry(entry.id, d => transitData(d, to, me, Date.now()))
 
     // Final action on the OPEN BRN: hold the loading morph / overlay through the
-    // (mock) write, then apply. closeAfter = the entry is gone → close the detail.
-    const runAction = async (apply: () => void, closeAfter = false) => {
+    // write. closeAfter = the entry is gone → close the detail.
+    const runAction = async (apply: () => Promise<void> | void, closeAfter = false) => {
         setBusy(true)
-        await new Promise(r => setTimeout(r, MOCK_WRITE_MS))
-        apply()
-        if (closeAfter) setSelectedId(null)
-        setBusy(false)
+        try { await apply() } finally {
+            if (closeAfter) setSelectedId(null)
+            setBusy(false)
+        }
     }
 
-    const openEntry = (e: MockEntry, from?: CardOrigin, src: 'card' | 'rail' | 'grid' = 'card') => {
+    const openEntry = (e: TrackingEntry, from?: CardOrigin, src: 'card' | 'rail' | 'grid' = 'card') => {
         setOrigin(from ?? null)
         // Grid rows stay visible (a hole in the grid reads worse than the overlap).
         setExpandedId(from && src !== 'grid' ? e.id : null)
@@ -148,7 +131,7 @@ export function TrackingBoardDrawer({ isVisible, onClose }: TrackingBoardDrawerP
         setSelectedId(e.id)
     }
     // From the open card's ellipsis the overlay is already up — keep its origin.
-    const startEdit = (e: MockEntry, from?: CardOrigin) => {
+    const startEdit = (e: TrackingEntry, from?: CardOrigin) => {
         if (selectedId !== e.id) openEntry(e, from)
         setEditDraft(draftFromEntry(e)); setMoreRect(null)
     }
@@ -159,7 +142,6 @@ export function TrackingBoardDrawer({ isVisible, onClose }: TrackingBoardDrawerP
         onEdit: startEdit,
         onMove: (e, to) => { void runAction(() => moveEntry(e, to)) },
         onTransit: (e, to) => { void runAction(() => transitEntry(e, to)) },
-        onForward: (e) => { void runAction(() => forwardEntry(e)) },
         onDelete: setPendingDelete,
         net,
     }) : []
@@ -177,36 +159,48 @@ export function TrackingBoardDrawer({ isVisible, onClose }: TrackingBoardDrawerP
     const ownRank = useAuthStore(s => s.profile?.rank) ?? ''
     const ownLast = useAuthStore(s => s.profile?.lastName) ?? ''
     const me = [ownRank, ownLast].filter(Boolean).join(' ') || 'Member'
-    // Edit Save — loading morph / overlay through the (mock) write, then back to
-    // the detail. Real path: whole tracking_data re-sent, last-write-wins.
+    // Edit Save — loading morph / overlay through the write, then back to the
+    // detail. Comments union-merge across clusters; removed = soft-deleted.
     const saveEdit = () => {
         const d = editDraft
         if (!d || !selected || !draftIsValid(d)) return
         const id = selected.id
-        void runAction(() => {
-            const at = Date.now()
-            setAllEntries(prev => prev.map(e => e.id !== id ? e : applyDraft(e, d, me, at)))
+        void runAction(async () => {
+            await updateEntry(id, td => draftData(td, d, me, Date.now()))
             setEditDraft(null)
         })
     }
-    // Check-in Save — popover loading morph through the (mock) write.
+    // Check-in Save — popover loading morph through the write. Origin = the
+    // checker's operating cluster (drives visibility up the chain).
+    const userId = useAuthStore(s => s.user?.id) ?? ''
     const saveCheckIn = async () => {
         const d = checkInDraft
-        if (!d || !draftIsValid(d)) return
+        if (!d || !draftIsValid(d) || !viewerId) return
         setCheckInBusy(true)
-        await new Promise(r => setTimeout(r, MOCK_WRITE_MS))
-        const at = Date.now()
-        const blank: MockEntry = { id: `e-${at}`, brn: d.brn, originClinicId: viewerId, checkedInAt: at, moves: [], comments: [] }
-        // Duplicate BRN → newest injury wins: reset (drop) any older visit the
-        // checker can see. Visits outside their view collapse at render
-        // (boardEntries dedupe) on any board that holds both.
-        const mine = subtree(clusters, viewerId)
-        setAllEntries(prev => [applyDraft(blank, d, me, at), ...prev.filter(e => !(e.brn === d.brn && mine.has(e.originClinicId)))])
-        setCheckInDraft(null)
-        setCheckInBusy(false)
+        try {
+            const at = Date.now()
+            // Duplicate BRN → newest check-in wins: remove any older visit this
+            // board holds. Visits outside the checker's view collapse at read
+            // (boardEntries dedupe) on any board that holds both.
+            const older = events.map(toEntry).filter((e): e is TrackingEntry => !!e && e.brn === d.brn)
+            await Promise.all(older.map(e => removeEntry(e.id)))
+            await checkIn(viewerId, draftData(newTrackingData(d.brn, at), { ...d, comments: [] }, me, at), userId)
+            setCheckInDraft(null)
+        } finally {
+            setCheckInBusy(false)
+        }
     }
 
-    const select = (e: MockEntry, from?: CardOrigin) => openEntry(e, from)
+    // Board settings toggle — edits the pin's tracking_clinic_ids on its overlay
+    // (fans to the overlay's targets like any pin edit).
+    const togglePlace = (ref: LinkedFeatureRef) => {
+        const o = overlays.find(x => x.id === ref.overlay_id)
+        const f = o?.features.find(x => x.id === ref.feature_id)
+        if (!o || !f || !viewerId) return
+        void upsertFeature({ overlayId: o.id, clinicId: o.clinic_id, feature: toggledFeature(f, o.clinic_id, viewerId) })
+    }
+
+    const select = (e: TrackingEntry, from?: CardOrigin) => openEntry(e, from)
     const clear = () => { setSelectedId(null); setMoreRect(null); setEditDraft(null) }
     const handleClose = () => { clear(); setShowSettings(false); setCheckInDraft(null); onClose() }
     const openSettings = () => setShowSettings(true)
@@ -254,8 +248,6 @@ export function TrackingBoardDrawer({ isVisible, onClose }: TrackingBoardDrawerP
         />
     )
 
-    const changeViewer = (id: string) => { setViewerId(id); setCategory('all'); clear() }
-
     const settingsSurface = isMobile ? (
         <Sheet
             isOpen={showSettings}
@@ -265,10 +257,7 @@ export function TrackingBoardDrawer({ isVisible, onClose }: TrackingBoardDrawerP
             maxHeight={60}
             zIndex={1200}
         >
-            <TrackingBoardSettings
-                onViewerChange={changeViewer}
-                onTogglePlace={ref => setOverlays(prev => togglePlace(prev, ref, viewerId))}
-            />
+            <TrackingBoardSettings onTogglePlace={togglePlace} />
         </Sheet>
     ) : (
         <PreviewOverlay
@@ -279,10 +268,7 @@ export function TrackingBoardDrawer({ isVisible, onClose }: TrackingBoardDrawerP
             maxWidth={360}
             previewMaxHeight="70dvh"
         >
-            <TrackingBoardSettings
-                onViewerChange={changeViewer}
-                onTogglePlace={ref => setOverlays(prev => togglePlace(prev, ref, viewerId))}
-            />
+            <TrackingBoardSettings onTogglePlace={togglePlace} />
         </PreviewOverlay>
     )
 
@@ -376,7 +362,7 @@ export function TrackingBoardDrawer({ isVisible, onClose }: TrackingBoardDrawerP
                             <div className="px-3 pb-3">
                                 <TrackingCategoryBar entries={entries} value={category} onChange={setCategory} />
                             </div>
-                            <TrackingCardList entries={cards} onSelect={select} onEdit={startEdit} onMove={moveEntry} onTransit={transitEntry} onForward={forwardEntry} onDelete={deleteEntry} expandedId={expandedId} />
+                            <TrackingCardList entries={cards} onSelect={select} onEdit={startEdit} onMove={moveEntry} onTransit={transitEntry} onDelete={deleteEntry} expandedId={expandedId} />
                         </MobileSearchBar>
                     </div>
                     {/* Glass footer — feathered band so cards scroll under the home indicator. */}

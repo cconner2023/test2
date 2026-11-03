@@ -755,7 +755,7 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
     clearDeviceCache()
     clearSubClusterSnapshots()
     useCallStore.getState().reset()
-    useCalendarStore.setState({ events: [], hydrated: false, vaultReplayDone: false })
+    useCalendarStore.setState({ events: [], tracking: [], hydrated: false, vaultReplayDone: false })
 
     // Aggressively wipe browser storage, but preserve keys that should survive
     // sign-out: FCM token (so push subscriptions survive involuntary SIGNED_OUT
