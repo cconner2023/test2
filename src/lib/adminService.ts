@@ -977,6 +977,10 @@ export async function createClinic(data: {
     // Auto-associate with existing clinics that share the same canonical location.
     // Legacy clinics without location_id don't participate until backfilled.
     const seedAssociated = new Set(data.associated_clinic_ids || [])
+    // Hierarchy parent always joins the messaging cluster — get_location_medics
+    // reads associated_clinic_ids only, so a parent at a different location
+    // would otherwise see the child in Supervisor but not in Messages.
+    if (data.parent_clinic_id) seedAssociated.add(data.parent_clinic_id)
     if (data.location_id) {
       const { data: sameLocation, error: locError } = await supabase
         .from('clinics')

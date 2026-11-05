@@ -319,7 +319,7 @@ export function PropertySearchOverlay({
   // Desktop: fills the center pane over the live canvas.
   return (
     <div
-      className="absolute inset-0 z-[1020] bg-themewhite3 overflow-y-auto"
+      className="absolute inset-0 z-[45] bg-themewhite3 overflow-y-auto"
       role="dialog"
       aria-label="Property search results"
     >

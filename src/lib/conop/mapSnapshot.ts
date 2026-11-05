@@ -369,7 +369,7 @@ export async function renderConopMapSnapshot(
     const [lat, lng] = f.geometry[0]
     const [px, py] = toPx(lat, lng)
     const color = resolveColor(f.style?.color ?? 'var(--color-themeblue2)')
-    const svg = waypointIconSvg(f.waypoint_type, color, GLYPH, false, !!f.tc3_card_id)
+    const svg = waypointIconSvg(f.waypoint_type, color, GLYPH, false)
     try {
       const img = await loadImage('data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg))
       ctx.drawImage(img, px - GLYPH / 2, py - GLYPH / 2, GLYPH, GLYPH)

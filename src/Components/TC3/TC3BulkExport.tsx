@@ -92,6 +92,7 @@ export const TC3BulkExport = memo(function TC3BulkExport({ isVisible, onClose, c
       onClose={onClose}
       fullHeight="90dvh"
       mobileClassName="flex flex-col bg-themewhite2"
+      desktopSize="half"
       header={{ title: `Export All — ${cards.length} Casualties` }}
     >
       <div className="rounded-xl bg-themewhite overflow-hidden mx-4 my-4">

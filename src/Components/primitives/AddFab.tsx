@@ -23,11 +23,11 @@
  * it a short viewport compressed the height while width held, rendering it oblong.
  */
 import { Plus, type LucideIcon } from 'lucide-react'
-import type { ReactNode } from 'react'
+import type { MouseEvent, ReactNode } from 'react'
 import { PAD, RAIL_GLASS, THUMB } from '@/Components/primitives/SliderRail'
 
 interface AddFabProps {
-  onClick: () => void
+  onClick: (e: MouseEvent<HTMLButtonElement>) => void
   /** aria-label + tooltip. Default 'Add'. */
   label?: string
   /** Glyph component; default `Plus`. Rendered at `w-5 h-5`. */
@@ -41,6 +41,8 @@ interface AddFabProps {
   /** Optional overlay badge (e.g. a recording dot), anchored to the button. */
   badge?: ReactNode
   disabled?: boolean
+  /** Fill class; default `bg-themeblue3`. TC3 passes the casualty's band colour. */
+  colorClass?: string
 }
 
 export function AddFab({
@@ -52,6 +54,7 @@ export function AddFab({
   className = '',
   badge,
   disabled,
+  colorClass = 'bg-themeblue3',
 }: AddFabProps) {
   const dim = size === 'lg' ? THUMB + 8 : THUMB
   const button = (
@@ -62,7 +65,7 @@ export function AddFab({
       aria-label={label}
       title={label}
       style={{ width: dim, height: dim }}
-      className={`relative shrink-0 rounded-full bg-themeblue3 text-white flex items-center justify-center ring-1 ring-white/40 shadow-md active:scale-95 transition-all duration-200 disabled:opacity-30 ${
+      className={`relative shrink-0 rounded-full ${colorClass} text-white flex items-center justify-center ring-1 ring-white/40 shadow-md active:scale-95 transition-all duration-200 disabled:opacity-30 ${
         tray ? '' : `pointer-events-auto ${className}`
       }`}
     >

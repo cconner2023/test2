@@ -286,6 +286,18 @@ export const stores = {
     crossStoreRefs: { reads: [], writes: [] },
     services: [],
   },
+  useDrawerPushStore: {
+    path: 'stores/useDrawerPushStore.ts',
+    purpose: 'Open desktop drawers in order, so each pushes the app strip or the drawer beneath it',
+    fields: {
+      stack: 'PushingDrawer[]',
+      nextSeq: 'number',
+    },
+    actions: ['pushDrawer', 'removeDrawer'],
+    middleware: [],
+    crossStoreRefs: { reads: [], writes: [] },
+    services: [],
+  },
 } as const;
 
 export type StoreId = keyof typeof stores;

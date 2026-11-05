@@ -21,7 +21,7 @@ import { waypointIconSvg } from './WaypointIcon'
  * for scrolling lists / message bubbles where live tiles aren't worth it.
  *
  * NO-PHI INVARIANT: renders only geometry/labels/glyphs already on the
- * OverlayFeature; tc3_card_id stays an opaque link and never surfaces here.
+ * OverlayFeature.
  */
 interface OverlayTilePreviewProps {
   features: OverlayFeature[]
@@ -91,7 +91,7 @@ export function OverlayTilePreview({ features, overlayId, basemapId, onClick, cl
       if (feature.type === 'waypoint' && geom.length > 0) {
         const [lat, lng] = geom[0]
         const icon = L.divIcon({
-          html: waypointIconSvg(feature.waypoint_type, color, 20, false, !!feature.tc3_card_id),
+          html: waypointIconSvg(feature.waypoint_type, color, 20, false),
           className: '',
           iconSize: [20, 20],
           iconAnchor: [10, 10],

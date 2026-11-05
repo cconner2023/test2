@@ -17,8 +17,11 @@ import { useAuthStore } from '../../stores/useAuthStore'
 import { usePropertyLabelExport } from '../../Hooks/usePropertyLabelExport'
 import { useShareToChat } from '../Messages/ShareToChatPicker'
 import { PmcsSheet } from './PmcsSheet'
+import type { CardMorphHost } from '@/Components/primitives/OverlayStack'
 
 export interface ItemActionMenuHandle {
+  /** Close the sheet morphed into the detail card (its subject lost focus). */
+  closeCardSheets: () => void
   /** Open the shared item action menu anchored to a trigger's bounding rect. Pass
    *  `{ view: true }` from surfaces where the item isn't already open (tree /
    *  sign-out tab) so a leading "View" row is offered; omit it on the item detail
@@ -34,6 +37,8 @@ interface ItemActionMenuProps {
    *  scope to on desktop — they dim/center within it. Null on mobile → centered
    *  fixed above the sheet. */
   containerRef?: RefObject<HTMLElement | null>
+  /** Desktop: PMCS morphs into the detail card instead of opening an overlay. */
+  cardHost?: CardMorphHost
   /** Open the item's detail — only emitted (as "View") when the menu is opened with
    *  `{ view: true }`, i.e. from a surface that isn't already showing the item. */
   onView?: (item: LocalPropertyItem) => void
@@ -97,7 +102,7 @@ function QtyField({
  * call the props.
  */
 export const ItemActionMenu = forwardRef<ItemActionMenuHandle, ItemActionMenuProps>(
-  function ItemActionMenu({ items, locations, containerRef, onView, onEdit, onDelete, canDelete, onEnroll, onStageTurnIn }, ref) {
+  function ItemActionMenu({ items, locations, containerRef, cardHost, onView, onEdit, onDelete, canDelete, onEnroll, onStageTurnIn }, ref) {
   const splitItem = usePropertyStore(s => s.splitItem)
   const mergeItems = usePropertyStore(s => s.mergeItems)
   const expendItem = usePropertyStore(s => s.expendItem)
@@ -125,6 +130,7 @@ export const ItemActionMenu = forwardRef<ItemActionMenuHandle, ItemActionMenuPro
   const [splitTargetId, setSplitTargetId] = useState<string | null>(null)
 
   useImperativeHandle(ref, () => ({
+    closeCardSheets: () => setShowPmcs(false),
     openMenu: (item, anchor, opts) => {
       setActive({ item, showView: !!opts?.view })
       setAnchorRect(anchor)
@@ -446,6 +452,7 @@ export const ItemActionMenu = forwardRef<ItemActionMenuHandle, ItemActionMenuPro
         clinicId={item.clinic_id}
         containerRef={containerRef}
         zIndex={overlayZ}
+        cardHost={cardHost}
       />
 
       {/* Print label — stock choice then PDF preview, mirroring PropertyDrawer's

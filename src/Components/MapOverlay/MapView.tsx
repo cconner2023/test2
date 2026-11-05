@@ -4,6 +4,7 @@ import 'leaflet/dist/leaflet.css';
 import { latLngToMgrs } from '../../lib/mgrsFormat';
 import { Plus, Minus, Info, Copy, LocateFixed, Map as MapIcon, Globe, Mountain, MountainSnow } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
+import { MAP_CTRL_BTN } from './mapControls';
 import { PreviewOverlay } from '../PreviewOverlay';
 import { BottomIsland } from '@/Components/primitives/BottomIsland';
 import { THUMB } from '@/Components/primitives/SliderRail';
@@ -494,7 +495,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
       if (feature.type === 'waypoint' && feature.geometry.length > 0) {
         const [lat, lng] = feature.geometry[0];
         const iconSize = isSelected ? 32 : 24;
-        const svg = waypointIconSvg(feature.waypoint_type, color, iconSize, isSelected, !!feature.tc3_card_id);
+        const svg = waypointIconSvg(feature.waypoint_type, color, iconSize, isSelected);
 
         const icon = L.divIcon({
           html: svg,
@@ -632,7 +633,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
 
       if (feature.type === 'waypoint' && feature.geometry.length > 0) {
         const [lat, lng] = feature.geometry[0];
-        const svg = waypointIconSvg(feature.waypoint_type, color, 22, false, !!feature.tc3_card_id);
+        const svg = waypointIconSvg(feature.waypoint_type, color, 22, false);
         const icon = L.divIcon({
           html: svg,
           className: '',
@@ -870,7 +871,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
     },
   }), []);
 
-  const CTRL_BTN = 'w-9 h-9 rounded-lg flex items-center justify-center bg-themewhite2/90 dark:bg-themewhite3/90 text-primary shadow-sm active:scale-95 transition-all backdrop-blur-sm';
+  const CTRL_BTN = MAP_CTRL_BTN;
 
   return (
     <div ref={wrapperRef} className="relative w-full h-full">

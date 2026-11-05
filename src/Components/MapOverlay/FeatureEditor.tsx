@@ -10,8 +10,6 @@ import { WaypointIcon } from './WaypointIcon';
 import { useMapPrefsStore } from '../../stores/useMapPrefsStore';
 import { formatBearing } from '../../lib/declination';
 import { copyText } from '../../Utilities/clipboardUtils';
-import { useTC3Store } from '../../stores/useTC3Store';
-import { useNavigationStore } from '../../stores/useNavigationStore';
 import { useMedevacStore } from '../../stores/useMedevacStore';
 import { buildMedevacFromPin } from '../../lib/medevacFromPin';
 import { MedevacForm } from '../Medevac/MedevacForm';
@@ -20,7 +18,7 @@ import { Siren, FileDown as FileDownStripMap } from 'lucide-react';
 import { computeLegs, type Pace } from '../../lib/stripMap/computeLegs';
 import { generateStripMapPdf } from '../../lib/stripMap/generatePdf';
 import { downloadPdfBytes } from '../../Utilities/downloadUtils';
-import { TextInput, TextArea, PickerInput } from '@/Components/primitives/FormInputs';
+import { TextInput, TextArea } from '@/Components/primitives/FormInputs';
 
 
 interface FeatureEditorProps {
@@ -35,7 +33,7 @@ interface FeatureEditorProps {
   /** Open the per-feature event multi-pick popover anchored to the supplied element. */
   onOpenLinksEditor?: (anchor: HTMLElement) => void;
   /** When true, swap the body into form-edit chrome: TextInput for label,
-   *  PickerInput-style rows for TC3 + linked events. Read mode shows
+   *  a PickerInput-style row for linked events. Read mode shows
    *  informational rows and action affordances only. */
   isEditMode?: boolean;
   /** Distinct floor levels available in the overlay, ascending. When more than
@@ -94,39 +92,9 @@ function nearestWaypointLabel(
 
 export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg, linkedEventCount, onOpenLinksEditor, isEditMode = false, floors = [], onChangeFloor }: FeatureEditorProps) {
   const bearingReference = useMapPrefsStore(s => s.bearingReference);
-  // Phase 4.1 — TC3 link integration. We subscribe with selectors so the
-  // editor reactively shows the right state when the active card or queue
-  // changes while the editor is open.
-  const tc3ActiveCard = useTC3Store(s => s.card);
-  const tc3Queue = useTC3Store(s => s.casualtyQueue);
-  const tc3Restore = useTC3Store(s => s.restoreFromQueue);
-
-  const linkedId = feature.tc3_card_id;
-  const linkedIsActive = !!linkedId && tc3ActiveCard?.id === linkedId;
-  const linkedIsQueued = !!linkedId && tc3Queue.some(q => q.card.id === linkedId);
-  const linkedExists = linkedIsActive || linkedIsQueued;
-  const hasActiveCard = !!tc3ActiveCard?.id;
-  const activeAlreadyLinked = hasActiveCard && linkedId === tc3ActiveCard!.id;
-
-  const handleLinkActive = useCallback(() => {
-    if (!hasActiveCard) return;
-    onUpdate({ ...feature, tc3_card_id: tc3ActiveCard!.id, updated_at: new Date().toISOString() });
-  }, [feature, hasActiveCard, tc3ActiveCard, onUpdate]);
-
-  const handleUnlink = useCallback(() => {
-    onUpdate({ ...feature, tc3_card_id: undefined, updated_at: new Date().toISOString() });
-  }, [feature, onUpdate]);
-
-  const handleOpenTC3 = useCallback(() => {
-    if (!linkedId) return;
-    if (linkedIsQueued && !linkedIsActive) tc3Restore(linkedId);
-    // Open the TC3 drawer — same path as the menu item (closes the map drawer).
-    useNavigationStore.getState().setShowTC3Drawer(true);
-  }, [linkedId, linkedIsActive, linkedIsQueued, tc3Restore]);
-
   // Phase 4.2 — Build MEDEVAC from this pin. Pre-populates the MEDEVAC store
-  // with line 1 (pickup grid in MGRS), the cross-domain link fields, and any
-  // tc3CardId carried by the pin. Editor opens in a Modal.
+  // with line 1 (pickup grid in MGRS) and the cross-domain link fields.
+  // Editor opens in a Modal.
   const medevacReq = useMedevacStore(s => s.req);
   const setMedevacReq = useMedevacStore(s => s.setReq);
   const [medevacOpen, setMedevacOpen] = useState(false);
@@ -134,7 +102,7 @@ export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg, l
 
   const showMedevacAction = feature.type === 'waypoint'
     && feature.geometry.length > 0
-    && (feature.waypoint_type === 'pz' || feature.waypoint_type === 'lz' || !!feature.tc3_card_id);
+    && (feature.waypoint_type === 'pz' || feature.waypoint_type === 'lz');
 
   const handleBuildMedevac = useCallback(() => {
     setMedevacBuildError(null);
@@ -301,27 +269,6 @@ export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg, l
     onUpdate({ ...feature, label, updated_at: new Date().toISOString() });
   }, [feature, onUpdate]);
 
-  // Edit-mode TC3 selector — action-dispatch options bound to a PickerInput.
-  // value stays '' so PickerInput always shows the status placeholder; each
-  // option is an action ('link' / 'unlink' / 'open') routed in onChange.
-  const tc3Options = useMemo(() => {
-    const opts: { value: string; label: string }[] = [];
-    if (hasActiveCard && !activeAlreadyLinked) opts.push({ value: 'link', label: 'Link active casualty card' });
-    if (linkedId) opts.push({ value: 'unlink', label: 'Unlink' });
-    if (linkedExists) opts.push({ value: 'open', label: 'Open in TC3' });
-    return opts;
-  }, [hasActiveCard, activeAlreadyLinked, linkedId, linkedExists]);
-
-  const tc3StatusLabel = linkedExists
-    ? linkedIsActive ? 'Linked · active card' : 'Linked · queued card'
-    : linkedId ? 'Linked · card unavailable' : 'No casualty card linked';
-
-  const handleTc3Action = useCallback((action: string) => {
-    if (action === 'link') handleLinkActive();
-    else if (action === 'unlink') handleUnlink();
-    else if (action === 'open') handleOpenTC3();
-  }, [handleLinkActive, handleUnlink, handleOpenTC3]);
-
   const handleCopyMgrs = useCallback(() => {
     if (!mgrs || mgrs === 'Invalid') return;
     void copyText(mgrs, 'MGRS copied');
@@ -343,7 +290,7 @@ export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg, l
           while in edit mode. No in-body banner. */}
       {/* ─────────────────────────── EDIT MODE ───────────────────────────
           Form-field chrome: label TextInput, glyph picker, color picker,
-          TC3 + linked-events PickerInput selectors, notes textarea.
+          linked-events selector, notes textarea.
           The title is hidden from the BaseDrawer header while in this mode
           (driven by the parent panel) so the input is the single source of
           truth for the feature name. */}
@@ -430,7 +377,7 @@ export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg, l
 
       {/* Tracking Board station — EDIT mode, waypoints only. On = the pin is a
           station on this cluster's tracking board (other related clusters can
-          toggle it onto theirs). Off = plain pin; patients there read as Unassigned. */}
+          toggle it onto theirs). Off = plain pin; patients there read as Pending. */}
       {isEditMode && feature.type === 'waypoint' && (
         <button
           type="button"
@@ -447,7 +394,7 @@ export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg, l
       )}
 
       {/* Build MEDEVAC — EDIT mode action (relocated from read view).
-          Surfaced for PZ/LZ pins or any pin with a TC3 link. */}
+          Surfaced for PZ/LZ pins. */}
       {isEditMode && showMedevacAction && (
         <div className="px-3 py-2 border-b border-primary/6 flex items-center gap-3">
           <div className="w-9 h-9 rounded-full bg-themewhite flex items-center justify-center text-themeredred shrink-0">
@@ -456,7 +403,7 @@ export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg, l
           <div className="flex-1 min-w-0">
             <p className="text-[10pt] font-medium text-primary">9-line MEDEVAC</p>
             <p className="text-[9pt] text-tertiary">
-              Pre-fills line 1 (pickup grid) from this pin{feature.tc3_card_id ? ' and links the casualty card' : ''}.
+              Pre-fills line 1 (pickup grid) from this pin.
             </p>
             {medevacBuildError && (
               <p className="text-[9pt] text-themeredred mt-0.5">{medevacBuildError}</p>
@@ -482,24 +429,6 @@ export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg, l
           <MedevacForm value={medevacReq} onChange={handleMedevacChange} />
         </div>
       </Modal>
-
-      {/* TC3 link (waypoints only) — opaque id; no PHI in the OverlayFeature.
-          EDIT mode: PickerInput selector — value stays empty so the placeholder
-          carries the current status, and each option is an action dispatched
-          through handleTc3Action ('link' / 'unlink' / 'open'). */}
-      {isEditMode && feature.type === 'waypoint' && tc3Options.length > 0 && (
-        <PickerInput
-          value=""
-          onChange={handleTc3Action}
-          options={tc3Options}
-          placeholder={tc3StatusLabel}
-        />
-      )}
-      {isEditMode && feature.type === 'waypoint' && tc3Options.length === 0 && (
-        <div className="block border-b border-primary/6 px-4 py-3 text-base md:text-sm text-tertiary">
-          {tc3StatusLabel} · open a TC3 card to link
-        </div>
-      )}
 
       {/* Linked calendar events (N:N free-form). EDIT mode only — opens the
           existing OverlayEventPicker multi-pick via PickerInput-shaped row.

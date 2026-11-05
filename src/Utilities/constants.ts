@@ -20,6 +20,10 @@ export const DRAWER_TIMING = {
     CLOSE_UNMOUNT_DELAY: 50,
 } as const;
 
+/** Shared slide and scrim fade for the root left-nav and desktop drawers. */
+export const DRAWER_SLIDE_TRANSITION = `transform ${DRAWER_TIMING.TRANSITION}ms cubic-bezier(0.32, 0.72, 0, 1)`;
+export const DRAWER_FADE_TRANSITION = `opacity ${DRAWER_TIMING.TRANSITION}ms cubic-bezier(0.32, 0.72, 0, 1)`;
+
 /** General UI feedback timing */
 export const UI_TIMING = {
     FEEDBACK_DURATION: 2500,   // toast/modal auto-dismiss

@@ -1,13 +1,14 @@
 // components/BaseDrawer.tsx
-import { useEffect, useRef, useState, useCallback, type ReactNode } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState, useCallback, type ReactNode } from 'react';
 import { useDrag } from '@use-gesture/react';
 import { X, ChevronLeft } from 'lucide-react';
 import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill';
 import { GlassBand } from '@/Components/primitives/GlassBand';
 import { Scrim } from '@/Components/primitives/Scrim';
 import { GESTURE_THRESHOLDS, clamp } from '@/Utilities/GestureUtils';
-import { DRAWER_TIMING } from '@/Utilities/constants';
+import { DRAWER_FADE_TRANSITION, DRAWER_SLIDE_TRANSITION, DRAWER_TIMING } from '@/Utilities/constants';
 import { useIsMobile } from '@/Hooks/useIsMobile';
+import { drawerShift, useDrawerPushStore, type DrawerSide } from '@/stores/useDrawerPushStore';
 
 /** Render prop type: children can receive handleClose for animated close */
 type DrawerRenderProp = (handleClose: () => void) => ReactNode;
@@ -156,17 +157,18 @@ interface BaseDrawerProps {
     children: ReactNode | DrawerRenderProp;
     fullHeight?: string;
     disableDrag?: boolean;
-    /** Desktop panel column. 'right' overlays Column B (55%), 'left' overlays Column A (45%). Default 'right' */
-    desktopPosition?: 'left' | 'right';
-    /** If true, only render mobile drawer (no desktop modal). Default false */
+    /** Desktop edge the panel enters from; it pushes what's beneath toward the
+     *  opposite edge. Default 'right' */
+    desktopPosition?: DrawerSide;
+    /** Desktop panel size. 'half' (left 45%, right 55%) pushes what's beneath by
+     *  its own width and dims it, like the root left-nav. Default 'full' */
+    desktopSize?: 'full' | 'half';
+    /** If true, only render mobile drawer (no desktop panel). Default false */
     mobileOnly?: boolean;
     /** Extra className for the mobile drawer container */
     mobileClassName?: string;
     /** z-index class for mobile backdrop and drawer. Default 'z-60' */
     zIndex?: string;
-    /** Override the desktop panel width class (e.g. 'w-[70%]'). When omitted,
-     *  width is derived from desktopPosition (left=45%, right=55%). */
-    desktopWidth?: string;
     /** Optional header config. When provided, BaseDrawer renders a standardized
      *  header with drag handle (mobile), title, back button (optional), and
      *  close button (always). Children render below the header. */
@@ -174,9 +176,6 @@ interface BaseDrawerProps {
     /** When true, mobile drawer expands to 100dvh with no border-radius,
      *  drag is disabled, and the built-in header is hidden (children provide their own). */
     mobileFullScreen?: boolean;
-    /** When true, the drawer transforms into a compact card pushed upward,
-     *  leaving the bottom portion of the column free for companion content. */
-    cardMode?: boolean;
     /** When true on mobile, the drawer floats as an inset card with margin,
      *  full border-radius, and elevated shadow instead of sitting flush at the bottom. */
     mobileFloating?: boolean;
@@ -221,12 +220,6 @@ interface BaseDrawerProps {
      *  settles back to peek instead of closing, and drag-up release snaps
      *  to fully-open (100). Down-fling-to-close still works. Range 10–60. */
     peekPosition?: number;
-    /** Suppress the dimming backdrop entirely. Useful when the drawer opens
-     *  partially over interactive content (e.g. a map) and the user should be
-     *  able to keep interacting with what's underneath. Tap-to-close via
-     *  backdrop is also disabled — only the X button or a downward drag
-     *  dismisses. Default false. */
-    noBackdrop?: boolean;
     /** Disable drag-to-dismiss. Drawer can still be expanded/minimized via
      *  drag (between peek and 100), but a downward fling or release past the
      *  dismiss threshold snaps back to peek instead of closing. The only path
@@ -241,13 +234,12 @@ export function BaseDrawer({
     fullHeight = '90dvh',
     disableDrag = false,
     desktopPosition = 'right',
+    desktopSize = 'full',
     mobileOnly = false,
     mobileClassName = '',
     zIndex = 'z-60',
-    desktopWidth,
     header,
     mobileFullScreen = false,
-    cardMode = false,
     mobileFloating = false,
     headerFaded = false,
     glassHeader = false,
@@ -257,7 +249,6 @@ export function BaseDrawer({
     initialPosition = 100,
     lockPosition = false,
     peekPosition,
-    noBackdrop = false,
     noDragDismiss = false,
 }: BaseDrawerProps) {
     const restPosition = peekPosition ?? initialPosition;
@@ -290,6 +281,41 @@ export function BaseDrawer({
     }, [scrollResetKey]);
 
     const useMobileLayout = mobileOnly || isMobile;
+
+    // Desktop push: register before paint so an entering drawer's first frame
+    // already sits off its own edge.
+    const drawerId = useId();
+    const pushSeq = useRef(0);
+    const stack = useDrawerPushStore((s) => s.stack);
+    const isHalf = desktopSize === 'half';
+    const panelWidth = !isHalf ? 1 : desktopPosition === 'left' ? 0.45 : 0.55;
+    const pushing = isVisible && !useMobileLayout;
+    useLayoutEffect(() => {
+        if (!pushing) return;
+        const { pushDrawer, removeDrawer } = useDrawerPushStore.getState();
+        pushSeq.current = pushDrawer(drawerId, desktopPosition, panelWidth);
+        return () => removeDrawer(drawerId);
+    }, [pushing, drawerId, desktopPosition, panelWidth]);
+
+    const stackIndex = stack.findIndex((d) => d.id === drawerId);
+    const drawersAbove = stackIndex >= 0 ? stack.slice(stackIndex + 1) : [];
+    const newestDrawer = stack[stack.length - 1];
+    // Closing because a newer drawer replaced this one: leave the way it pushes,
+    // all the way off, however wide the new drawer is.
+    const replacedShift = !isVisible && newestDrawer && newestDrawer.seq > pushSeq.current
+        ? (newestDrawer.side === 'left' ? 1 : -1)
+        : 0;
+    const shift = replacedShift || drawersAbove.reduce((total, d) => total + drawerShift(d), 0);
+    // translateX percentages resolve against this panel's own width.
+    const desktopTranslate = shift
+        ? `${(shift / panelWidth) * 100}%`
+        : desktopOpen
+            ? '0'
+            : (desktopPosition === 'left' ? '-100%' : '100%');
+    const desktopHalf = isHalf && !useMobileLayout;
+    // Above full panels so its scrim dims the parent whatever the mount order.
+    const panelZIndex = desktopHalf ? 'z-[65]' : zIndex;
+    const halfClass = desktopPosition === 'left' ? 'left-0 w-[45%]' : 'right-0 w-[55%]';
 
     const dragStartPosition = useRef(0);
     const animationFrameId = useRef<number>(0);
@@ -427,84 +453,78 @@ export function BaseDrawer({
     closeHandlerRef.current = useMobileLayout ? mobileHandleClose : desktopHandleClose;
     const handleClose = useCallback(() => { closeHandlerRef.current(); }, []);
 
-    // Desktop column overlay — position and width based on target column
-    const desktopAlignClass = desktopPosition === 'left' ? 'left-0' : 'right-0';
-    const desktopWidthClass = desktopWidth ?? (desktopPosition === 'left' ? 'w-[45%]' : 'w-[55%]');
-
     // Resolve children ONCE — single React tree, no duplicate component instances
     const resolvedChildren = typeof children === 'function'
         ? (children as DrawerRenderProp)(handleClose)
         : children;
 
-    const mobileHeight = cardMode ? '35dvh' : (mobileFullScreen ? '100dvh' : fullHeight);
+    const mobileHeight = mobileFullScreen ? '100dvh' : fullHeight;
 
     if (!isMounted && !isVisible) return null;
 
     return (
         <>
-            {/* Backdrop */}
-            {!noBackdrop && (
+            {/* Backdrop. Desktop half panels dim the pushed content with the same
+                'solid' the left-nav uses, and drop it under a full panel above.
+                Desktop full panels have none: nothing is left to dim. */}
+            {desktopHalf && (
+                <Scrim
+                    variant="solid"
+                    progress={desktopOpen && !drawersAbove.some((d) => d.width === 1) ? 1 : 0}
+                    zIndexClass={panelZIndex}
+                    transition={DRAWER_FADE_TRANSITION}
+                    onClick={handleClose}
+                />
+            )}
+            {useMobileLayout && (
                 // progress is the drawer's TRAVEL fraction (0 -> 1), not a dim
                 // level — the tint lives in Scrim's class. Parking this below 1
                 // at rest would composite the paint away. See Scrim.tsx.
-                // Both variants are surface swaps like the root left-nav's
-                // 'solid', and neither blurs: nothing behind a field this dark is
-                // worth the iOS Safari cost on a layer that rides a drag. They
-                // differ in how much shell is left to see. Desktop 'drawer' (60%)
-                // keeps the shell beside the column faintly readable; mobile
-                // 'drawer-mobile' (94%) covers nearly the whole viewport, so the
-                // sliver around it is the content being replaced, not context.
+                // A surface swap like the root left-nav's 'solid', and no blur:
+                // nothing behind a field this dark is worth the iOS Safari cost
+                // on a layer that rides a drag.
                 <Scrim
-                    variant={useMobileLayout ? 'drawer-mobile' : 'drawer'}
-                    progress={useMobileLayout
-                        ? drawerPosition / 100
-                        : desktopOpen ? 1 : 0}
+                    variant="drawer-mobile"
+                    progress={drawerPosition / 100}
                     zIndexClass={zIndex}
-                    transition={useMobileLayout
-                        ? (isDragging ? 'none' : 'opacity 300ms ease-out')
-                        : 'opacity 250ms ease-out'}
+                    transition={isDragging ? 'none' : 'opacity 300ms ease-out'}
                     onClick={handleClose}
                 />
             )}
 
-            {/* Drawer / Panel — single container that adapts to viewport */}
+            {/* Drawer / Panel — single container that adapts to viewport.
+                Desktop: flat, pushes what's beneath toward the opposite edge on
+                the same transition as the root left-nav. */}
             <div
                 className={useMobileLayout
                     ? `fixed ${mobileFloating ? 'left-3 right-3' : 'left-0 right-0'} ${zIndex} bg-themewhite ${isDragging ? '' : 'transition-all duration-300 ease-out'} ${mobileClassName} ${header ? 'flex flex-col' : ''}`
-                    : `absolute ${desktopAlignClass} top-0 ${desktopWidthClass} ${zIndex}
-                        flex flex-col rounded-md surface-shadow
-                        bg-themewhite
-                        transform-gpu overflow-hidden text-primary text-sm`
+                    : `absolute inset-y-0 ${isHalf ? halfClass : 'inset-x-0'} ${panelZIndex} flex flex-col bg-themewhite transform-gpu overflow-hidden text-primary text-sm`
                 }
                 style={useMobileLayout ? {
                     height: mobileHeight,
                     maxHeight: mobileHeight,
                     width: mobileFloating ? undefined : '100%',
-                    bottom: cardMode
-                        ? '55dvh'
-                        : (mobileFloating ? 12 : 0),
+                    bottom: mobileFloating ? 12 : 0,
                     transform: `translateY(${100 - drawerPosition}%)`,
                     opacity: Math.min(1, drawerPosition / Math.max(10, restPosition)),
-                    borderRadius: (cardMode || mobileFloating) ? '1.25rem' : (mobileFullScreen ? '0' : '1.25rem 1.25rem 0 0'),
+                    borderRadius: mobileFloating ? '1.25rem' : (mobileFullScreen ? '0' : '1.25rem 1.25rem 0 0'),
                     willChange: isDragging ? 'transform' : 'auto',
-                    boxShadow: (cardMode || mobileFloating)
+                    boxShadow: mobileFloating
                         ? '0 4px 30px rgba(0, 0, 0, 0.12)'
                         : (mobileFullScreen ? 'none' : '0 -4px 20px rgba(0, 0, 0, 0.1)'),
                     overflow: 'hidden',
                     visibility: isMounted ? 'visible' : 'hidden',
                     ...(glassHeader ? { ['--drawer-header-h' as string]: `${headerHeight}px` } : {}),
                 } : {
-                    bottom: cardMode ? '60%' : 0,
-                    transition: 'opacity 250ms cubic-bezier(0.25, 0.1, 0.25, 1), transform 300ms cubic-bezier(0.32, 0.72, 0, 1), bottom 300ms cubic-bezier(0.32, 0.72, 0, 1)',
-                    opacity: desktopOpen ? 1 : 0,
-                    transform: desktopOpen ? 'scale(1)' : 'scale(0.95)',
-                    transformOrigin: desktopPosition === 'left' ? 'top left' : 'top right',
+                    transition: DRAWER_SLIDE_TRANSITION,
+                    transform: `translateX(${desktopTranslate})`,
                     pointerEvents: desktopOpen ? 'auto' : 'none',
                         ...(glassHeader ? { ['--drawer-header-h' as string]: `${headerHeight}px` } : {}),
                 }}
                 role="dialog"
                 aria-modal="true"
                 aria-label={header?.title}
+                inert={!useMobileLayout && drawersAbove.length > 0}
                 {...(useMobileLayout && !header ? bindDrawerDrag() : {})}
                 onClick={useMobileLayout ? undefined : (e) => e.stopPropagation()}
             >

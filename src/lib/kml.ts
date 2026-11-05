@@ -46,7 +46,6 @@ export function parseKML(xml: string, overlayId: string): ParseResult {
     const desc = textChild(placemark, 'description') ?? undefined
     const styleHex = resolveStyleColor(placemark, styleMap)
     const id = extData(placemark, 'beacon:id') ?? crypto.randomUUID()
-    const tc3CardId = extData(placemark, 'beacon:tc3CardId') ?? undefined
     const glyphRaw = extData(placemark, 'beacon:glyph')
     const ALL_GLYPHS: string[] = [
       'circle', 'cross', 'triangle',
@@ -54,7 +53,6 @@ export function parseKML(xml: string, overlayId: string): ParseResult {
       'lz', 'pz', 'dz',
       'ccp', 'axp', 'obj', 'rally',
       'hazard', 'target', 'supply', 'vehicle', 'medic', 'comms',
-      'casualty',
     ]
     const glyph = glyphRaw && ALL_GLYPHS.includes(glyphRaw) ? (glyphRaw as WaypointType) : undefined
 
@@ -71,7 +69,6 @@ export function parseKML(xml: string, overlayId: string): ParseResult {
           style: { ...DEFAULT_FEATURE_STYLE, color: styleHex ?? DEFAULT_FEATURE_STYLE.color },
           waypoint_type: glyph,
           notes: desc,
-          tc3_card_id: tc3CardId,
           created_at: now,
           updated_at: now,
         })
@@ -160,9 +157,6 @@ export function serializeKML(features: OverlayFeature[], overlayName: string): s
     out.push(`      <Data name="beacon:id"><value>${esc(f.id)}</value></Data>`)
     if (f.waypoint_type) {
       out.push(`      <Data name="beacon:glyph"><value>${esc(f.waypoint_type)}</value></Data>`)
-    }
-    if (f.tc3_card_id) {
-      out.push(`      <Data name="beacon:tc3CardId"><value>${esc(f.tc3_card_id)}</value></Data>`)
     }
     out.push(`    </ExtendedData>`)
 

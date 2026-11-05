@@ -13,7 +13,7 @@ import { TextInput } from '@/Components/primitives/FormInputs'
 import { FooterPill } from '@/Components/primitives/FooterPill'
 import { PartyPicker, partyLabel, type Party } from './PartyPicker'
 import { FuelMeter } from '@/Components/DomainInputs'
-import { OverlayStack, type StackNav } from '@/Components/primitives/OverlayStack'
+import { OverlayStack, type CardMorphHost, type StackNav } from '@/Components/primitives/OverlayStack'
 import { useRecordPreview } from './RecordPreview'
 import { DocScanner } from './DocScanner'
 import { ensurePdfFile } from '../../lib/docScan'
@@ -68,9 +68,11 @@ interface PmcsSheetProps {
    *  which mounts OUTSIDE any sheet (so there's no sheet context to inherit a ceiling
    *  from). Pass a value above the host sheet on mobile; omit when scoped (desktop). */
   zIndex?: number
+  /** Desktop: morph into the detail card instead of opening an overlay. */
+  cardHost?: CardMorphHost
 }
 
-export function PmcsSheet({ isOpen, onClose, subjectType = 'item', subjectId, clinicId, containerRef, zIndex }: PmcsSheetProps) {
+export function PmcsSheet({ isOpen, onClose, subjectType = 'item', subjectId, clinicId, containerRef, zIndex, cardHost }: PmcsSheetProps) {
   const [events, setEvents] = useState<AuditEvent[]>([])
   const [loading, setLoading] = useState(true)
   const [desc, setDesc] = useState('')
@@ -481,6 +483,7 @@ export function PmcsSheet({ isOpen, onClose, subjectType = 'item', subjectId, cl
       containerRef={containerRef}
       zIndex={zIndex}
       navRef={navRef}
+      cardHost={cardHost}
       initial={{ key: 'check' }}
       screens={screens}
       maxWidth={360}

@@ -21,6 +21,7 @@ import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill';
 import { SearchInput } from '@/Components/primitives/SearchInput';
 import { SearchCancelButton, SearchDropdownCard } from '@/Components/primitives/SearchDropdown';
 import { RailSearchRow } from '@/Components/primitives/RailSearchRow';
+import { DesktopRail } from '@/Components/primitives/DesktopRail';
 import { ContentWrapper } from '@/Components/primitives/ContentWrapper';
 import { PaneHeader } from '@/Components/primitives/PaneHeader';
 import { useEscBackout } from '../../Hooks/useEscBackout';
@@ -2399,7 +2400,6 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
       }}
       mobileFullScreen
       fullHeight="95dvh"
-      desktopWidth="w-[90%]"
       header={drawerHeader}
       glassHeader={isMobile}
       scrollDisabled={isMobile}
@@ -2420,7 +2420,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
           {/* Desktop left pane — search/layers row + overlay tree, mirrors CalendarDrawer rail.
               Always open: details float over the map as a lifted card (below). */}
           {!isMobile && (
-            <div className="w-[240px] shrink-0 flex flex-col border-r border-primary/10 bg-themewhite">
+            <DesktopRail>
               <RailSearchRow
                 value={searchQuery}
                 onChange={setSearchQuery}
@@ -2514,7 +2514,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                 title="Linked events (feature)"
                 zIndex={1100}
               />
-            </div>
+            </DesktopRail>
           )}
           <div className="flex flex-col flex-1 min-w-0 relative">
             {/* Error feedback */}

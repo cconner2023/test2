@@ -14,11 +14,14 @@
  *  - A position is a pin ref { overlay_id, feature_id } or null = UNASSIGNED.
  *    A board lists each station once, under the first cluster using it.
  *  - Entries hold pin refs only → renames show up everywhere; a removed pin (or
- *    one no longer a station) resolves AT READ TIME to Unassigned
+ *    one no longer a station) resolves AT READ TIME to Pending
  *    (resolvePlaces). Events are never rewritten for it.
  *  - In transit is NOT a station: a marker on the entry, superseded by the
  *    next move.
- *  - Leaves the board ONLY by expire, delete, or max cap.
+ *  - Status is derived from the last move: Pending (no station), in process (at
+ *    a station), Complete (dispositioned — a move flagged `complete`, so it
+ *    union-merges like any other and any later move reopens the entry).
+ *  - Leaves the board ONLY by expire, delete, or max cap — Complete stays on it.
  *  - Duplicate BRN → newest check-in wins (older entry removed at check-in,
  *    collapsed at read elsewhere).
  */
@@ -63,7 +66,7 @@ export interface TrackingEntry {
   /** Cluster that checked the patient in — drives visibility. */
   originClinicId: string
   checkedInAt: number
-  /** Oldest first. Empty = Unassigned. */
+  /** Oldest first. Empty = Pending. */
   moves: TrackingMove[]
   /** Live (non-deleted) comments, oldest first. */
   comments: TrackingComment[]
@@ -164,8 +167,8 @@ export function relatedClusters(clusters: TrackingCluster[], id: string): Set<st
 
 // ── Place helpers ──
 
-/** Stable key for a position — `pl:<feature id>` or `unassigned`. */
-export const placeKey = (p: TrackingPosition) => (p ? `pl:${p.feature_id}` : 'unassigned')
+/** Stable key for a position — `pl:<feature id>` or `pending`. */
+export const placeKey = (p: TrackingPosition) => (p ? `pl:${p.feature_id}` : 'pending')
 export const samePlace = (a: TrackingPosition, b: TrackingPosition) => placeKey(a) === placeKey(b)
 export const refOf = (p: TrackingPlace): LinkedFeatureRef => ({ overlay_id: p.overlayId, feature_id: p.featureId })
 
@@ -190,32 +193,22 @@ export const positionOf = (e: TrackingEntry): TrackingPosition => lastMove(e)?.t
 
 export const sinceAt = (e: TrackingEntry) => lastMove(e)?.at ?? e.checkedInAt
 
-const clusterName = (net: TrackingNetwork, id: string) => clusterById(net.clusters, id)?.label ?? 'Cluster'
+export const isComplete = (e: TrackingEntry) => !!lastMove(e)?.complete
+/** Waiting for a station — null position, not dispositioned. */
+export const isPending = (e: TrackingEntry) => positionOf(e) === null && !isComplete(e)
 
-/** Short name — station label / Unassigned. */
+
+/** Short name — station label / Pending. */
 export function stationLabel(net: TrackingNetwork, p: TrackingPosition): string {
-  return p ? placeByRef(net, p)?.label ?? 'Station' : 'Unassigned'
+  return p ? placeByRef(net, p)?.label ?? 'Station' : 'Pending'
 }
 
-/** Full name for a footer / detail. Bare when the viewer shows the station
- *  (or for Unassigned); otherwise prefixed with the pin's cluster. */
-export function placeLabel(net: TrackingNetwork, p: TrackingPosition, viewerId?: string): string {
-  const name = stationLabel(net, p)
-  if (!p) return name
-  const pl = placeByRef(net, p)
-  if (!pl || (viewerId && pl.targetClinicIds.includes(viewerId))) return name
-  return `${clusterName(net, pl.clinicId)} · ${name}`
-}
+/** Where the entry reads as being — station label / Pending / Complete. */
+export const placeLabel = (net: TrackingNetwork, e: TrackingEntry) =>
+  isComplete(e) ? 'Complete' : stationLabel(net, positionOf(e))
 
-/** Transit destination label. */
-export const destinationLabel = (net: TrackingNetwork, p: LinkedFeatureRef) => placeLabel(net, p)
-
-/** Detail sub-line: the clusters showing the station. */
-export function placeOwnerLabel(net: TrackingNetwork, p: TrackingPosition): string {
-  if (!p) return ''
-  const pl = placeByRef(net, p)
-  return pl ? pl.targetClinicIds.map(id => clusterName(net, id)).join(' · ') : ''
-}
+/** Transit destination label — the station name alone. */
+export const destinationLabel = (net: TrackingNetwork, p: LinkedFeatureRef) => stationLabel(net, p)
 
 export const originUic = (clusters: TrackingCluster[], e: TrackingEntry) => clusterById(clusters, e.originClinicId)?.uic ?? ''
 
@@ -233,7 +226,7 @@ export function dedupeByBrn(entries: TrackingEntry[]): TrackingEntry[] {
 
 /**
  * Read-time resolution — a move onto a pin that's gone (or no longer a
- * station) reads as Unassigned; a transit marker pointing at one is dropped.
+ * station) reads as Pending; a transit marker pointing at one is dropped.
  */
 export function resolvePlaces(e: TrackingEntry, net: TrackingNetwork): TrackingEntry {
   const live = (p: TrackingPosition) => !p || !!placeByRef(net, p)
@@ -248,7 +241,8 @@ export function resolvePlaces(e: TrackingEntry, net: TrackingNetwork): TrackingE
 /**
  * What a viewer's board holds: events fanned to the viewer (origin + ancestors)
  * → not expired → duplicate BRNs collapsed to the newest → capped to the newest
- * check-ins → gone stations resolved to Unassigned.
+ * check-ins → gone stations resolved to Pending. Complete entries sink below
+ * the open ones.
  */
 export function boardEntries(events: CalendarEvent[], net: TrackingNetwork, viewerId: string, now: number): TrackingEntry[] {
   const live = events
@@ -256,10 +250,11 @@ export function boardEntries(events: CalendarEvent[], net: TrackingNetwork, view
       && (ev.clinic_id === viewerId || (ev.target_clinic_ids?.includes(viewerId) ?? false)))
     .map(toEntry)
     .filter((e): e is TrackingEntry => !!e)
-  return dedupeByBrn(live)
+  const board = dedupeByBrn(live)
     .map(e => resolvePlaces(e, net))
     .sort((a, b) => b.checkedInAt - a.checkedInAt)
     .slice(0, TRACKING_MAX_ENTRIES)
+  return [...board.filter(e => !isComplete(e)), ...board.filter(isComplete)]
 }
 
 export interface BoardPlace {
@@ -267,7 +262,7 @@ export interface BoardPlace {
   label: string
 }
 
-/** A column group: one cluster's stations. Unassigned sits outside every group. */
+/** A column group: one cluster's stations. Pending sits outside every group. */
 export interface BoardGroupDef {
   cluster: TrackingCluster
   places: BoardPlace[]
@@ -317,11 +312,17 @@ const newId = () => crypto.randomUUID()
 export const newTrackingData = (brn: string, at: number): TrackingData =>
   ({ brn, brn_at: at, checked_in_at: at, moves: [], comments: [], transit: null, transit_at: at })
 
+/** Where a move can land: a position, or Complete. */
+export const COMPLETE = 'complete' as const
+export type TrackingTarget = TrackingPosition | typeof COMPLETE
+
 /** Add a move; supersedes any transit marker. Unchanged position = no-op. */
-export function moveData(d: TrackingData, to: TrackingPosition, by: string, at: number): TrackingData {
+export function moveData(d: TrackingData, target: TrackingTarget, by: string, at: number): TrackingData {
   const last = [...d.moves].sort((a, b) => a.at - b.at)[d.moves.length - 1]
-  if (samePlace(last?.to ?? null, to)) return d
-  return { ...d, transit: null, transit_at: at, moves: [...d.moves, { id: newId(), to, at, by }] }
+  const complete = target === COMPLETE
+  const to = complete ? null : target
+  if (!!last?.complete === complete && samePlace(last?.to ?? null, to)) return d
+  return { ...d, transit: null, transit_at: at, moves: [...d.moves, { id: newId(), to, at, by, ...(complete ? { complete } : {}) }] }
 }
 
 /** Set (or clear, null) the "leaving → destination station" marker. */

@@ -109,6 +109,7 @@ export function ImportedNoteDrawer({ preview, onClose, onOpenMedevac, isMobile }
         onClose={onClose}
         fullHeight="90dvh"
         mobileClassName=""
+        desktopSize="half"
         header={{
           title: 'Imported Note',
           ...(medevacReq && onOpenMedevac ? {

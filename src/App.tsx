@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
-import { DRAWER_TIMING } from './Utilities/constants'
+import { DRAWER_SLIDE_TRANSITION } from './Utilities/constants'
+import { drawerShift, useDrawerPushStore } from './stores/useDrawerPushStore'
 import './App.css'
 import { NavTop } from './Components/NavTop'
 import { SideNav } from './Components/SideNav'
@@ -146,6 +147,10 @@ function AppContent() {
   const tc3ExportCard = useTC3Store((s) => s.exportCard)
   const tc3ExportCards = useTC3Store((s) => s.exportCards)
   const closeTC3Export = useTC3Store((s) => s.closeExport)
+
+  // ── Desktop drawer push: the strip rides under every open drawer ──
+  const drawerPushOffset = useDrawerPushStore((s) => s.stack.reduce((total, d) => total + drawerShift(d), 0))
+  const hasOpenDrawer = useDrawerPushStore((s) => s.stack.length > 0)
 
   // ── Menu slide (mobile: swipe + click, desktop: click-only) ──
   const menuNavWidth = navigation.isMobile ? MENU_NAV_WIDTH_MOBILE : MENU_NAV_WIDTH_DESKTOP
@@ -574,12 +579,14 @@ case 'mapOverlay':
         {/* Viewport strip — SideNav + content side by side, pans to reveal nav or shift for messages */}
         <div
           className="flex h-full"
+          inert={hasOpenDrawer}
           style={{
             width: `calc(100% + ${menuNavWidth}px)`,
             transform: navigation.isMobile
               ? `translateX(${menuSlide.position - menuNavWidth - rightPanelProgress * 80}px)`
-              : `translateX(${menuSlide.position - menuNavWidth}px)`,
-            transition: (menuSlide.isDragging || rightPanelDragging) ? 'none' : `transform ${DRAWER_TIMING.TRANSITION}ms cubic-bezier(0.32, 0.72, 0, 1)`,
+              // (100% - nav) is one app-panel width: the strip is 100% + nav wide
+              : `translateX(calc(${menuSlide.position - menuNavWidth}px + ${drawerPushOffset} * (100% - ${menuNavWidth}px)))`,
+            transition: (menuSlide.isDragging || rightPanelDragging) ? 'none' : DRAWER_SLIDE_TRANSITION,
             willChange: (menuSlide.isDragging || rightPanelDragging) ? 'transform' : 'auto',
           }}
         >

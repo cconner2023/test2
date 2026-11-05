@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import type { Database } from '../Types/database.types.generated'
 import { createLogger } from '../Utilities/Logger'
 import { encryptedStorageAdapter } from './encryptedStorageAdapter'
+import { authFetch, setAuthRefresher } from './authFetch'
 
 const logger = createLogger('Supabase')
 
@@ -36,6 +37,13 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
     // Browser tab cleanup is handled by sessionCleanup.ts (pagehide listener).
     storage: encryptedStorageAdapter,
   },
+  // Clock-skew-proof expiry + no false revocation on intercepted refreshes.
+  global: { fetch: authFetch },
+})
+
+setAuthRefresher(async () => {
+  const { data } = await supabase.auth.refreshSession()
+  return data.session?.access_token ?? null
 })
 
 /**

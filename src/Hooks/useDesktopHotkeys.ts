@@ -50,11 +50,11 @@ const ACTION_ACCESS: Record<string, AccessLevel> = {
     settings: 'public',
 }
 
-/** Ordered drawer flag → close action. Drawers are mutually exclusive, so the
- *  first open one is the single overlay layer Esc pops back out of. */
+/** Ordered drawer flag → close action. Drawers are mutually exclusive except the
+ *  Knowledge Base, which sits on top of a parent on desktop and so comes first. */
 const DRAWER_CLOSERS: [keyof NavigationStore, (n: NavigationStore) => void][] = [
-    ['showSettings', (n) => n.setShowSettings(false)],
     ['showKnowledgeBase', (n) => n.setShowKnowledgeBase(false)],
+    ['showSettings', (n) => n.setShowSettings(false)],
     ['showSymptomInfo', (n) => n.setShowSymptomInfo(false)],
     ['showTrainingDrawer', (n) => n.setShowTrainingDrawer(null)],
     ['showMessagesDrawer', (n) => { n.setShowMessagesDrawer(false); n.clearMessagesConversation() }],

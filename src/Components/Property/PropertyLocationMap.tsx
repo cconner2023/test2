@@ -26,7 +26,7 @@ import { GlassBand } from '@/Components/primitives/GlassBand'
 import { collectSuppressedIds, computeExplodeOffsets, getLevels, levelShortLabel, nextFloorOrdinal } from './levelUtils'
 import type { ExplodeRect } from './levelUtils'
 import { FloorSlider } from './FloorSlider'
-import { PAD, RAIL_GLASS, THUMB } from '@/Components/primitives/SliderRail'
+import { MAP_CTRL_BTN } from '@/Components/MapOverlay/mapControls'
 import { createLogger } from '../../Utilities/Logger'
 import type { LocalPropertyItem, LocalPropertyLocation, PropertyLocation, LocationTag } from '../../Types/PropertyTypes'
 
@@ -214,17 +214,8 @@ const BASE_CANVAS_SCALE = 3
 /** Sub-zones appear once their parent fills at least this fraction of the viewport. */
 const LOD_FILL_THRESHOLD = 0.5
 
-/**
- * Every floating control on this canvas is built like the AddFab it shares the
- * canvas with: a track padded by PAD around a THUMB-diameter disc, so the edit
- * entry, the zoom stack, the FloorSlider and the FAB all share one width and one
- * shape. Two departures from the FAB, both because these are secondary: the disc
- * takes ActionButton's `default` fill (the tinted-action colour used everywhere
- * else in the app) instead of the accent, and it is not lifted — the track's
- * rail-shadow separates it from the canvas without raising it.
- */
-const CTRL_TRACK = `flex flex-col items-center ${RAIL_GLASS}`
-const CTRL_BTN = 'rounded-full flex items-center justify-center bg-themeblue2/8 text-primary ring-1 ring-white/40 active:scale-95 transition-all duration-200'
+/** Zoom + edit entry share MapView's control button (MAP_CTRL_BTN) so both map canvases match. */
+const CTRL_BTN = MAP_CTRL_BTN
 
 export interface MapNavHandle {
   navigateToZone: (targetId: string) => void
@@ -271,6 +262,13 @@ interface PropertyLocationMapProps {
   /** Fires when single-draw mode toggles on/off, so the parent can hide its mobile
    *  detail sheet while the user draws on the full-screen canvas. */
   onDrawingChange?: (active: boolean) => void
+}
+
+/** Canvas width covered by PropertyPanel's desktop detail card (px). Selection framing
+ *  reads it so a zone or item lands beside the card; overview fits ignore it. */
+function readLeftInset(el: HTMLElement | null): number {
+  if (!el) return 0
+  return parseFloat(getComputedStyle(el).getPropertyValue('--property-map-left-inset')) || 0
 }
 
 export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapProps>(function PropertyLocationMap({ clinicId, locations, items, onCreateLocation, onDeleteLocation, onEditItem, onUpdateLocation, onSelectItem, onCreateItem, onSelectZone, onZoneDrawn, onDrawingChange, selectedItem }, ref) {
@@ -729,7 +727,7 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
 
   // ── Zoom to a world-coord rect { x, y, width, height } ──
   const zoomToRect = useCallback(
-    (rect: { x: number; y: number; width: number; height: number }, smooth = true, bottomInset = 0, center = false) => {
+    (rect: { x: number; y: number; width: number; height: number }, smooth = true, bottomInset = 0, center = false, leftInset = 0) => {
       const container = scrollRef.current
       if (!container || !rect.width || !rect.height) return
 
@@ -751,7 +749,13 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
       const heightScale = bottomInset > 0
         ? (FILL * Math.max(1, vpH - topInset - bottomInset)) / (vpH * rect.height)
         : FILL / rect.height
-      const newScale = Math.min(FILL / rect.width, heightScale, 100)
+      // The desktop detail card covers the canvas's left edge, where top-left framing
+      // would land the target. Fit and place the rect in the band right of the card.
+      // Capped so a narrow canvas can't push the target out of the visible band.
+      const insetX = Math.min(leftInset, vpW / 2)
+      const visW = vpW - insetX
+      const widthScale = insetX > 0 ? (FILL * visW) / (vpW * rect.width) : FILL / rect.width
+      const newScale = Math.min(widthScale, heightScale, 100)
 
       setCanvasScale(newScale)
 
@@ -773,7 +777,7 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
       // framing shoved the building down-and-right. Centre uses the visible band (minus the
       // mobile header/sheet insets) so the fit still clears the floating chrome.
       const visH = bottomInset > 0 ? Math.max(1, vpH - topInset - bottomInset) : vpH - topInset
-      const padX = center ? Math.max(PADDING, (vpW - rect.width * contentW) / 2) : PADDING
+      const padX = insetX + (center ? Math.max(PADDING, (visW - rect.width * contentW) / 2) : PADDING)
       const padTop = center ? topInset + Math.max(0, (visH - rect.height * contentH) / 2) : topInset
       requestAnimationFrame(() => requestAnimationFrame(() => {
         const el = scrollRef.current
@@ -791,7 +795,7 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
   /** Convenience — zoom to a LocationTag. `center` frames a spilled fan's bbox centred. */
   const zoomToTag = useCallback(
     (tag: LocationTag, center = false) =>
-      zoomToRect({ x: tag.x, y: tag.y, width: tag.width ?? 0, height: tag.height ?? 0 }, true, 0, center),
+      zoomToRect({ x: tag.x, y: tag.y, width: tag.width ?? 0, height: tag.height ?? 0 }, true, 0, center, readLeftInset(scrollRef.current)),
     [zoomToRect],
   )
 
@@ -849,8 +853,9 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
         childZoneAutoTagsRef.current.find((t) => t.target_id === pin.location_id && (t.width ?? 0) > 0)
       // On mobile the property sheet covers the bottom of the canvas — frame the pin
       // in the band above it (PropertyPanel publishes the covered height on the map's
-      // ancestor). Desktop leaves the var unset → 0 → full-viewport framing.
+      // ancestor). Desktop leaves the var unset → 0, and insets the left edge instead.
       const container = scrollRef.current
+      const leftInset = readLeftInset(container)
       const bottomInset = container
         ? parseFloat(getComputedStyle(container).getPropertyValue('--property-map-bottom-inset')) || 0
         : 0
@@ -868,7 +873,7 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
         // so we never spill outside the container (which showed as a zoom-out).
         const x = Math.min(Math.max(pin.x - iw / 2, zx), zx + zw - iw)
         const y = Math.min(Math.max(pin.y - ih / 2, zy), zy + zh - ih)
-        zoomToRect({ x, y, width: iw, height: ih }, true, bottomInset)
+        zoomToRect({ x, y, width: iw, height: ih }, true, bottomInset, false, leftInset)
         return true
       }
 
@@ -879,7 +884,7 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
         y: Math.max(0, pin.y - half),
         width: ITEM_FOCUS_SPAN_MAX,
         height: ITEM_FOCUS_SPAN_MAX,
-      }, true, bottomInset)
+      }, true, bottomInset, false, leftInset)
       return true
     },
     [zoomToRect],
@@ -1080,7 +1085,7 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
 
   // ── Re-fit on container resize ──
   // The canvas geometry (contentW/padX) scales off vpSize; a resize (window OR the
-  // desktop right-pane open/close animating the center column width) leaves the
+  // browser zoom changing the center column width) leaves the
   // absolute scroll position pointing into the padding → zones scroll out of view.
   // Re-fit (to the selected zone, else all root zones) once the size settles.
   // Captured in a ref so the effect depends ONLY on vpSize (not on every store/tag change).
@@ -1090,9 +1095,9 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
     // programmatic zoomToTag here would fight the gesture (bug: "canvas loses the
     // hold on zoom and wilds out" while pinching inside a selected zone).
     if (isPinchingRef.current) return
-    // A focused item wins: keep the view framed on the tapped item (e.g. the desktop
-    // right-pane open that animates the center column width fires this re-fit — without
-    // this it would snap back to the whole zone and lose the item).
+    // A focused item wins: keep the view framed on the tapped item (a center column
+    // width change fires this re-fit — without this it would snap back to the whole
+    // zone and lose the item).
     const focusedItem = focusedItemIdRef.current
     if (focusedItem && focusItemPin(focusedItem)) return
     // A pending external item focus (route/tree/search select whose pin hasn't
@@ -1104,7 +1109,7 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
     const sel = store.selectedZoneId
     // A selected tag-less sub-zone lives in childZoneAutoTags, not allWorldTags. Consult
     // both so the re-fit zooms to it instead of falling through to handleResetZoom — which
-    // deselects (selectZone(null)) and would close the right pane the selection just opened.
+    // deselects (selectZone(null)) and would close the detail card the selection just opened.
     // expandTagForFan grows a building's rect to include its fanned floors (no-op for plain
     // zones), so a resize re-frames the whole fan instead of clipping the top floor.
     const selTag = sel
@@ -2228,45 +2233,30 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
           </div>
         )}
 
-        {/* Floating zoom controls — bottom-left, mirrors MapView's stacked Plus/Minus.
-            Each sits in its own track rather than sharing one: joined, they read as a
-            two-stop rail, i.e. one selector with two states, when they are two
-            independent momentary actions. The break from the rail is deliberate. */}
+        {/* Floating zoom controls — bottom-left, same stacked Plus/Minus as MapView. */}
         {!isEditing && (
           <div data-zoom-controls className="absolute bottom-3 left-3 z-30 flex flex-col gap-1.5 pb-[max(0rem,var(--sab,0px))]">
-            <div style={{ padding: PAD }} className={CTRL_TRACK}>
-              <button onClick={handleZoomIn} style={{ width: THUMB, height: THUMB }} className={CTRL_BTN} aria-label="Zoom in" title="Zoom in">
-                <Plus className="w-5 h-5" />
-              </button>
-            </div>
-            <div style={{ padding: PAD }} className={CTRL_TRACK}>
-              <button onClick={handleZoomOut} disabled={!isZoomed} style={{ width: THUMB, height: THUMB }} className={`${CTRL_BTN} disabled:opacity-30`} aria-label="Zoom out" title="Zoom out">
-                <Minus className="w-5 h-5" />
-              </button>
-            </div>
+            <button onClick={handleZoomIn} className={CTRL_BTN} aria-label="Zoom in" title="Zoom in">
+              <Plus size={16} />
+            </button>
+            <button onClick={handleZoomOut} disabled={!isZoomed} className={`${CTRL_BTN} disabled:opacity-30`} aria-label="Zoom out" title="Zoom out">
+              <Minus size={16} />
+            </button>
           </div>
         )}
 
-        {/* Top-right edit entry — view mode only. It stacks directly above the
-            FloorSlider on the same right edge, so sharing the track width is what
-            makes the two read as one column; round-on-glass is also the shape the
-            mobile header pill already uses. Mobile clears the floating glass header
-            via --drawer-header-h; desktop's solid header needs no offset. */}
+        {/* Top-right edit entry — view mode only, same slot + style as MapView's
+            attribution button. Mobile clears the floating glass header via
+            --drawer-header-h; desktop's solid header needs no offset. */}
         {!isEditing && (
-          <div
-            style={{ padding: PAD }}
-            className={`absolute right-3 z-20 ${CTRL_TRACK} ${isMobile ? 'top-[calc(var(--drawer-header-h,3.5rem)+0.75rem)]' : 'top-3'}`}
+          <button
+            onClick={() => handleEnterEdit()}
+            className={`absolute right-3 z-20 ${CTRL_BTN} ${isMobile ? 'top-[calc(var(--drawer-header-h,3.5rem)+0.75rem)]' : 'top-3'}`}
+            title="Edit layout"
+            aria-label="Edit layout"
           >
-            <button
-              onClick={() => handleEnterEdit()}
-              style={{ width: THUMB, height: THUMB }}
-              className={CTRL_BTN}
-              title="Edit layout"
-              aria-label="Edit layout"
-            >
-              <Pencil className="w-5 h-5" />
-            </button>
-          </div>
+            <Pencil size={16} />
+          </button>
         )}
 
         {/* Levels are shown as an exploded fan (computeExplodeOffsets) when the building is
@@ -2276,7 +2266,7 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
             surfaces each floor live; every notch is also tappable. Driven by explodeContainerId,
             so it appears identically for a canvas tap or a list/tree selection. */}
         {!isEditing && floorRail && (
-          <div className={`absolute right-3 z-20 ${isMobile ? 'top-[calc(var(--drawer-header-h,3.5rem)+4.625rem)]' : 'top-[4.625rem]'}`}>
+          <div className={`absolute right-3 z-20 ${isMobile ? 'top-[calc(var(--drawer-header-h,3.5rem)+3.75rem)]' : 'top-[3.75rem]'}`}>
             <FloorSlider entries={floorRail} activeId={activeFloorId} onSelect={handleSelectFloor} />
           </div>
         )}

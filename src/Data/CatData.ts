@@ -65,7 +65,7 @@ export const menuData: sideMenuDataType[] = [
         group: 'modules',
         access: 'authenticated',
     },
-    // Modules — beta (dev-role only)
+    // Modules — staged by lib/featureGate
     {
         text: "Tracking Board",
         icon: 'trackingBoard',
@@ -73,6 +73,7 @@ export const menuData: sideMenuDataType[] = [
         group: 'modules',
         access: 'authenticated',
         stage: 'beta',
+        gate: 'trackingBoard',
     },
     // System
     {

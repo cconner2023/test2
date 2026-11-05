@@ -1,4 +1,5 @@
 import type { TC3Card } from '../../Types/TC3Types'
+import type { CardTint } from '@/Components/primitives/TintedCard'
 
 /**
  * Triage ordering + labelling for the casualty roster and the level slider.
@@ -34,13 +35,14 @@ const BAND_RANK: Record<string, number> = { Urgent: 0, Priority: 1, Routine: 2, 
 /** Rank of a card on the triage ladder (Expectant folded in). */
 export const triageRank = (card: TC3Card): number => BAND_RANK[bandOf(card)] ?? 3
 
-/** Compact band code + fill colour, shared by the slider thumb/notches + dots. */
-export const BAND_META: Record<string, { code: string; color: string }> = {
-  Urgent: { code: 'U', color: 'bg-themeredred' },
-  Priority: { code: 'P', color: 'bg-amber-500' },
-  Routine: { code: 'R', color: 'bg-themegreen' },
-  E: { code: 'E', color: 'bg-neutral-800' },
-  '': { code: '·', color: 'bg-tertiary/40' },
+/** Compact band code + fill colour, shared by the slider thumb/notches + dots;
+ *  `label` + `tint` drive the roster's TintedCard (shell = band colour). */
+export const BAND_META: Record<string, { code: string; color: string; label: string; tint: CardTint }> = {
+  Urgent: { code: 'U', color: 'bg-themeredred', label: 'Urgent', tint: { shell: 'bg-themered/30', foot: 'text-primary' } },
+  Priority: { code: 'P', color: 'bg-amber-500', label: 'Priority', tint: { shell: 'bg-themeyellow/30', foot: 'text-primary' } },
+  Routine: { code: 'R', color: 'bg-themegreen', label: 'Routine', tint: { shell: 'bg-themegreen/25', foot: 'text-primary' } },
+  E: { code: 'E', color: 'bg-neutral-800', label: 'Expectant', tint: { shell: 'bg-neutral-800/25', foot: 'text-primary' } },
+  '': { code: '·', color: 'bg-tertiary/40', label: 'Untriaged', tint: { shell: 'bg-themegray1/30', foot: 'text-primary' } },
 }
 
 /** Sort `{ card }`-shaped rows by triage band, then createdAt. Pure (returns a copy). */

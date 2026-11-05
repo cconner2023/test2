@@ -216,6 +216,7 @@ export const TC3WriteNote = memo(function TC3WriteNote({ isVisible, onClose, car
       onClose={onClose}
       fullHeight="90dvh"
       mobileClassName="flex flex-col bg-themewhite2"
+      desktopSize="half"
       header={{ title, titleNode }}
       scrollDisabled
     >

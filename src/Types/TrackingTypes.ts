@@ -18,7 +18,7 @@
 
 import type { LinkedFeatureRef } from './MissionTypes'
 
-/** Pin ref (a map waypoint with `tracking: true`), or null = Unassigned. */
+/** Pin ref (a map waypoint with `tracking: true`), or null = Pending. */
 export type TrackingPosition = LinkedFeatureRef | null
 
 export interface TrackingMove {
@@ -28,6 +28,8 @@ export interface TrackingMove {
   at: number
   /** Mover display name (rank + last), stamped at write. */
   by?: string
+  /** Dispositioned — `to` stays null. A later move reopens the entry. */
+  complete?: boolean
 }
 
 /** "Leaving → destination station" marker. A later move supersedes it. */

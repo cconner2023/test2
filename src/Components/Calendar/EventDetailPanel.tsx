@@ -198,8 +198,9 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete, onMove, onC
   })
   const hasMenu = moreItems.length > 0 || statusReactions.length > 0
 
-  // Flat on the sheet's themewhite3 surface (no nested card) inside the mobile Sheet;
-  // the desktop side-panel keeps the SectionCard chrome.
+  // inSheet = hosted by a surface that owns the header (mobile Sheet, desktop
+  // floating card in CalendarPanel): flat body, no own header. Without it the panel
+  // keeps the standalone SectionCard + header chrome.
   const Wrapper = (inSheet ? 'div' : SectionCard) as ElementType
 
   return (

@@ -13,7 +13,6 @@ const KNOWN_TYPES: WaypointType[] = [
   'lz', 'pz', 'dz',
   'ccp', 'axp', 'obj', 'rally',
   'hazard', 'target', 'supply', 'vehicle', 'medic', 'comms',
-  'casualty',
 ];
 
 function normalize(type: string | undefined): WaypointType {
@@ -145,16 +144,6 @@ function glyphMarkup(type: WaypointType, size: number, color: string): string {
         `<path d="M ${c - size * 0.18} ${size * 0.36} A ${size * 0.18} ${size * 0.18} 0 0 1 ${c + size * 0.18} ${size * 0.36}" ${strokeFill} stroke-width="2"/>` +
         `<path d="M ${c - size * 0.30} ${size * 0.30} A ${size * 0.30} ${size * 0.30} 0 0 1 ${c + size * 0.30} ${size * 0.30}" ${strokeFill} stroke-width="2"/>`
       );
-    case 'casualty':
-      // White card with red cross + diagonal corner stripe — distinct from
-      // 'medic' (which represents a medic person/asset). The corner stripe
-      // signals "linked to a TC3 card" without exposing patient detail.
-      return (
-        `<rect x="${size * 0.16}" y="${size * 0.16}" width="${size * 0.68}" height="${size * 0.68}" rx="3" fill="#ffffff" ${stroke} stroke-width="1.75"/>` +
-        `<rect x="${size * 0.30}" y="${size * 0.46}" width="${size * 0.40}" height="${size * 0.08}" ${fill}/>` +
-        `<rect x="${size * 0.46}" y="${size * 0.30}" width="${size * 0.08}" height="${size * 0.40}" ${fill}/>` +
-        `<path d="M ${size * 0.62} ${size * 0.16} L ${size * 0.84} ${size * 0.16} L ${size * 0.84} ${size * 0.38} Z" ${fill}/>`
-      );
   }
 }
 
@@ -181,19 +170,14 @@ export function WaypointIcon({ type, color, size = 28, selected = false }: Waypo
  * SVG string for Leaflet's L.divIcon. Transparent background — only the glyph
  * is painted, in the feature's color. Unknown legacy waypoint_type values
  * from existing overlays fall back to 'circle'.
- *
- * `linkedCasualty` flag (Phase 4.1): when true, the casualty glyph is drawn
- * regardless of `type`. The link supersedes the chosen glyph because the
- * link state is the more important visual signal at a glance.
  */
 export function waypointIconSvg(
   type: string | undefined,
   color: string,
   size = 28,
   selected = false,
-  linkedCasualty = false,
 ): string {
-  const normalized = linkedCasualty ? 'casualty' as WaypointType : normalize(type);
+  const normalized = normalize(type);
   const ring = selected ? selectionRingMarkup(size, color) : '';
   return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg">${ring}${glyphMarkup(normalized, size, color)}</svg>`;
 }

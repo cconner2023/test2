@@ -12,7 +12,7 @@ import { TextInput, DatePickerInput } from '@/Components/primitives/FormInputs'
 import { FooterPill } from '@/Components/primitives/FooterPill'
 import { PartyPicker, partyLabel, type Party } from './PartyPicker'
 import { useClinicMedics } from '../../Hooks/useClinicMedics'
-import { OverlayStack, type StackNav } from '@/Components/primitives/OverlayStack'
+import { OverlayStack, type CardMorphHost, type StackNav } from '@/Components/primitives/OverlayStack'
 import { useRecordPreview } from './RecordPreview'
 import { DocScanner } from './DocScanner'
 import { ensurePdfFile } from '../../lib/docScan'
@@ -62,9 +62,11 @@ interface DispatchSheetProps {
   clinicId: string
   /** Desktop only — scopes the PreviewOverlay to the detail pane. */
   containerRef?: React.RefObject<HTMLElement | null>
+  /** Desktop: morph into the detail card instead of opening an overlay. */
+  cardHost?: CardMorphHost
 }
 
-export function DispatchSheet({ isOpen, onClose, subjectId, clinicId, containerRef }: DispatchSheetProps) {
+export function DispatchSheet({ isOpen, onClose, subjectId, clinicId, containerRef, cardHost }: DispatchSheetProps) {
   const [events, setEvents] = useState<AuditEvent[]>([])
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
@@ -380,6 +382,7 @@ export function DispatchSheet({ isOpen, onClose, subjectId, clinicId, containerR
       onClose={onClose}
       containerRef={containerRef}
       navRef={navRef}
+      cardHost={cardHost}
       initial={{ key: 'current' }}
       screens={screens}
       maxWidth={360}

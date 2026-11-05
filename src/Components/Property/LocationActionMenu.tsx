@@ -4,6 +4,7 @@ import { type ContextMenuItem } from '@/Components/primitives/ContextMenu'
 import { LiftedRowMenu } from '@/Components/primitives/LiftedRowMenu'
 import { PdfPreviewModal } from '../PdfPreviewModal'
 import { PmcsSheet } from './PmcsSheet'
+import type { CardMorphHost } from '@/Components/primitives/OverlayStack'
 import { DispatchSheet } from './DispatchSheet'
 import { DD1750Sheet } from './DD1750Sheet'
 import { isStructuralZone } from './levelUtils'
@@ -168,6 +169,8 @@ function buildLocationMenuItems(opts: {
 }
 
 export interface LocationActionMenuHandle {
+  /** Close any sheet morphed into the detail card (its subject lost focus). */
+  closeCardSheets: () => void
   /** Open the shared zone action menu anchored to a trigger's bounding rect —
    *  called from the location tree rows AND the zone-detail header. */
   openMenu: (location: LocalPropertyLocation, anchor: DOMRect) => void
@@ -180,6 +183,8 @@ interface LocationActionMenuProps {
   /** The property drawer/pane the co-located overlays (PMCS/Dispatch/DD1750) scope
    *  to on desktop. Null on mobile → centered/floated above the detail sheet. */
   containerRef?: RefObject<HTMLElement | null>
+  /** Desktop: PMCS, Dispatch and DD 1750 morph into the detail card instead of an overlay. */
+  cardHost?: CardMorphHost
   onEdit: (loc: LocalPropertyLocation) => void
   onNewItem: (loc: LocalPropertyLocation) => void
   onNewArea: (loc: LocalPropertyLocation) => void
@@ -209,7 +214,7 @@ interface LocationActionMenuProps {
  * delete confirm) call the props.
  */
 export const LocationActionMenu = forwardRef<LocationActionMenuHandle, LocationActionMenuProps>(
-  function LocationActionMenu({ items, locations, containerRef, onEdit, onNewItem, onNewArea, onAddLevel, onEditItems, onDelete, canDelete, onCompleteTurnIn, onRemoveTurnIn }, ref) {
+  function LocationActionMenu({ items, locations, containerRef, cardHost, onEdit, onNewItem, onNewArea, onAddLevel, onEditItems, onDelete, canDelete, onCompleteTurnIn, onRemoveTurnIn }, ref) {
   // The LATCHED subject: survives the menu closing so an open sheet keeps its zone.
   const [active, setActive] = useState<LocalPropertyLocation | null>(null)
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null)
@@ -221,6 +226,7 @@ export const LocationActionMenu = forwardRef<LocationActionMenuHandle, LocationA
   const { exportZoneLabels, zoneLabelPreview, downloadZoneLabels, clearZoneLabelPreview, status: zoneLabelStatus } = useZoneLabelExport()
 
   useImperativeHandle(ref, () => ({
+    closeCardSheets: () => { setShowPmcs(false); setShowDispatch(false); setShowDD1750(false) },
     openMenu: (location, anchor) => {
       setActive(location)
       setAnchorRect(anchor)
@@ -306,6 +312,7 @@ export const LocationActionMenu = forwardRef<LocationActionMenuHandle, LocationA
           subjectId={location.id}
           clinicId={location.clinic_id}
           containerRef={containerRef}
+          cardHost={cardHost}
         />
       )}
 
@@ -317,6 +324,7 @@ export const LocationActionMenu = forwardRef<LocationActionMenuHandle, LocationA
           subjectId={location.id}
           clinicId={location.clinic_id}
           containerRef={containerRef}
+          cardHost={cardHost}
         />
       )}
 
@@ -326,6 +334,7 @@ export const LocationActionMenu = forwardRef<LocationActionMenuHandle, LocationA
         onClose={() => setShowDD1750(false)}
         onCreate={handleDD1750Create}
         containerRef={containerRef}
+        cardHost={cardHost}
       />
 
       {/* DD 1750 packing list — high z so it floats above the detail sheet on mobile. */}

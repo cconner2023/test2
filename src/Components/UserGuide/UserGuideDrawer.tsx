@@ -3,6 +3,7 @@ import { X, List } from 'lucide-react';
 import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill';
 import { SearchInput } from '@/Components/primitives/SearchInput';
 import { RailSearchRow } from '@/Components/primitives/RailSearchRow';
+import { DesktopRail } from '@/Components/primitives/DesktopRail';
 import { BaseDrawer } from '@/Components/primitives/BaseDrawer';
 import { Sheet } from '@/Components/primitives/Sheet';
 import { useIsMobile } from '@/Hooks/useIsMobile';
@@ -80,12 +81,11 @@ export function UserGuideDrawer({ isVisible, onClose }: UserGuideDrawerProps) {
     return (
         <>
             <BaseDrawer
+                desktopPosition="left"
                 isVisible={isVisible}
                 onClose={handleClose}
                 mobileFullScreen
                 fullHeight="95dvh"
-                desktopPosition="left"
-                desktopWidth="w-[90%]"
                 header={headerConfig}
                 glassHeader={isMobile}
                 scrollDisabled
@@ -103,7 +103,7 @@ export function UserGuideDrawer({ isVisible, onClose }: UserGuideDrawerProps) {
                 ) : (
                     // Desktop — two panes: tree (left) + body (right).
                     <div className="h-full flex">
-                        <aside className="w-[260px] shrink-0 border-r border-tertiary/12 flex flex-col">
+                        <DesktopRail>
                             <RailSearchRow value={query} onChange={setQuery} placeholder="Search the guide" />
                             <div className="flex-1 min-h-0 overflow-y-auto">
                                 <UserGuideTree
@@ -117,7 +117,7 @@ export function UserGuideDrawer({ isVisible, onClose }: UserGuideDrawerProps) {
                                     expandAll={searching}
                                 />
                             </div>
-                        </aside>
+                        </DesktopRail>
                         <div ref={bodyScrollRef} className="flex-1 min-w-0 overflow-y-auto">
                             {emptyState || <UserGuideBody chapters={visibleChapters} isMobile={false} />}
                             <p className="text-[9pt] text-tertiary text-center pb-10">User Guide · v{USER_GUIDE_VERSION}</p>

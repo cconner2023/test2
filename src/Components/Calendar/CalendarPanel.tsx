@@ -23,7 +23,7 @@ import { useShareToChat } from '../Messages/ShareToChatPicker'
 import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
 import { ActionSheet } from '@/Components/primitives/ActionSheet'
 import { BaseDrawer } from '@/Components/primitives/BaseDrawer'
-import { SlideRevealPane } from '@/Components/primitives/SlideRevealPane'
+import { SearchDropdownCard } from '@/Components/primitives/SearchDropdown'
 import { PaneHeader } from '@/Components/primitives/PaneHeader'
 import { useEscBackout } from '../../Hooks/useEscBackout'
 import { Sheet } from '@/Components/primitives/Sheet'
@@ -194,11 +194,10 @@ function ConfigRow<T extends string | number | boolean>({ label, options, curren
 interface CalendarPanelProps {
   onBack: () => void
   scrollNonce?: number
-  onPanelStateChange?: (open: boolean) => void
   onOpenControls?: () => void
 }
 
-export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenControls }: CalendarPanelProps) {
+export function CalendarPanel({ onBack, scrollNonce, onOpenControls }: CalendarPanelProps) {
   const isMobile = useIsMobile()
   const [panelView, setPanelView] = useState<PanelView>('calendar')
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null)
@@ -214,10 +213,6 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
   const clearPendingCalendarAction = useNavigationStore(s => s.clearPendingCalendarAction)
   const clearCalendarPrefill = useNavigationStore(s => s.clearCalendarPrefill)
   const returnFromCalendar = useNavigationStore(s => s.returnFromCalendar)
-
-  useEffect(() => {
-    onPanelStateChange?.(panelView !== 'calendar')
-  }, [panelView, onPanelStateChange])
 
   const eventFormRef = useRef<EventFormHandle>(null)
   // Live title mirrored up from the open EventForm so the drawer/sheet/desktop
@@ -1243,8 +1238,9 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
   // moves the read-mode ellipsis here; same shared builders as the lifted-row peek.
   const [detailMoreMenu, setDetailMoreMenu] = useState<DOMRect | null>(null)
   const detailMoreBtnRef = useRef<HTMLDivElement>(null)
+  // Desktop's floating detail card uses the same header-owned menu.
   const detailMenu = (() => {
-    const ev = dayDrawerEvent
+    const ev = isMobile ? dayDrawerEvent : (panelView === 'detail' ? selectedEvent : null)
     if (!ev) return null
     const editable = isEventEditable(ev, isSupervisor)
     const anchor = roomAnchorFor(ev.room_id)
@@ -1254,8 +1250,8 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
       editable ? (status: EventStatus) => handleEventStatusChange(ev.id, status) : undefined,
     )
     const items = buildEventMenuItems({
-      onEdit: editable ? () => handleDayDrawerEdit(ev.id) : undefined,
-      onMove: editable ? () => { handleDayDrawerClose(); enterMoveMode(ev.id) } : undefined,
+      onEdit: editable ? () => (isMobile ? handleDayDrawerEdit(ev.id) : handleEditEvent(ev.id)) : undefined,
+      onMove: editable ? () => { if (isMobile) handleDayDrawerClose(); enterMoveMode(ev.id) } : undefined,
       onShareToChat: () => shareToChat(
         { type: 'shared_ref', refKind: 'calendar-event', refId: ev.id, label: ev.title || 'Event', subLabel: cloneTime(ev) },
         { kind: 'calendar-event', event: ev },
@@ -1313,23 +1309,39 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
   const showBlockDrawer = isMobile && panelView === 'block'
   const showImportDrawer = isMobile && panelView === 'import'
   const showDesktopPanel = !isMobile && (panelView === 'detail' || panelView === 'form' || panelView === 'template' || panelView === 'block' || panelView === 'import' || (panelView === 'dispatch' && !!dispatchDetail))
-  // Desktop Esc: close the right pane (form/detail/template/import) before the drawer closes.
-  useEscBackout(showDesktopPanel, handleDetailBack)
 
-  // ── Mobile edit/create surface = a MOUNT-PRESERVING drill stack ──
-  // The day-drawer Sheet hosts EventForm as the stack's ROOT frame; its selectors
+  // ── Edit/create surface = a MOUNT-PRESERVING drill stack (mobile Sheet + desktop card) ──
+  // The host surface holds EventForm as the stack's ROOT frame; its selectors
   // (category, cluster, sub-unit, times, room, huddle task) drill IN-PLACE via the
   // shared morph engine instead of stacking their own nested overlays. The form
   // frame stays MOUNTED under a drilled selector (LayeredStackBody), so in-progress
   // edits survive the drill — the reason this uses the layered body, not StackBody.
   const isMobileFormView = showDayDrawer && (dayDrawerView === 'edit' || dayDrawerView === 'create')
+  const isDesktopFormView = !isMobile && panelView === 'form'
   const formStack = useStack({
-    isOpen: isMobileFormView,
+    isOpen: isMobileFormView || isDesktopFormView,
     initial: { key: 'form' },
     screens: {
       form: {
         render: () =>
-          dayDrawerView === 'edit' && editingEvent ? (
+          isDesktopFormView ? (
+            <EventForm
+              key={formKey}
+              ref={eventFormRef}
+              initialData={editingEvent ? eventToFormData(editingEvent) : newEventInitialData}
+              onSave={handleSaveEvent}
+              isEditing={!!editingEvent}
+              subClusterApplicable={subClusterApplicable}
+              medics={medicList}
+              propertyItems={propertyItems}
+              overlayOptions={overlayOptions}
+              roomOptions={roomFormOptions}
+              huddleTaskOptions={huddleTaskFormOptions}
+              clinicOptions={clinicFormOptions}
+              onCreateOverlay={handleCreateOverlayForEvent}
+              onTitleChange={setFormTitle}
+            />
+          ) : dayDrawerView === 'edit' && editingEvent ? (
             <EventForm
               ref={eventFormRef}
               initialData={eventToFormData(editingEvent)}
@@ -1367,6 +1379,11 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
           ) : null,
       },
     },
+  })
+  // Desktop Esc: pop a drilled form selector first, then close the card before the drawer.
+  useEscBackout(showDesktopPanel, () => {
+    if (isDesktopFormView && formStack.canBack) formStack.nav.pop()
+    else handleDetailBack()
   })
 
   return (
@@ -1837,7 +1854,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
               anchorRect={detailMoreMenu}
               onClose={() => setDetailMoreMenu(null)}
               layout="list"
-              align="left"
+              align={isMobile ? 'left' : 'right'}
               reactions={detailMenu.reactions}
               items={detailMenu.items}
             />
@@ -1869,87 +1886,68 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
 
         </div>
 
-        {/* Desktop right panel — form or detail slides in alongside calendar */}
-        {!isMobile && (
-          <SlideRevealPane
-            open={showDesktopPanel}
-            side="right"
-            width={380}
-            className="border-l border-primary/10 bg-themewhite"
-          >
-            {showDesktopPanel && (
-              panelView === 'form' ? (
-                <div className="relative flex flex-col flex-1 min-h-0">
-                  {/* Edit-pane header mirrors the map FeatureEditor pattern
-                      (2026-07-02): LEFT = bare Back (→ read detail, or calendar
-                      on create); RIGHT = Save + Close. Delete is NOT here — it's
-                      in the read-mode ellipsis (EventDetailPanel onDelete). */}
+        {/* Desktop details float in a lifted card over the schedule (map/property
+            detail-card idiom) — no right pane, so the rail and grid keep their width.
+            ONE card instance across detail ↔ edit: the header slots swap and the body
+            swaps, so the surface never remounts or re-animates on the mode change.
+            EventForm's selectors drill INSIDE the card via formStack (same mount-
+            preserving morph as the mobile Sheet). z-40: above the banners (z-30) and
+            island (z-20), below the view-options popover (z-50); menus, confirms and
+            share pickers portal far above it. */}
+        {showDesktopPanel && (
+          <div className="absolute top-3 right-3 z-40 w-[360px] max-w-[calc(100%-1.5rem)] pointer-events-none">
+            <SearchDropdownCard
+              className="pointer-events-auto relative"
+              ariaLabel={panelView === 'form' ? 'Event form' : panelView === 'detail' ? 'Event details' : 'Calendar'}
+              selfScroll={panelView === 'dispatch'}
+              header={
+                panelView === 'form' ? (
+                  formStack.canBack ? (
+                    <PaneHeader title={formStack.title} onBack={formStack.onBack} actions={formStack.rightFooter} />
+                  ) : (
+                    // Edit header mirrors the map FeatureEditor pattern: LEFT = Back
+                    // (→ read detail, or close on create); RIGHT = Save + Close. Delete
+                    // lives in the read-mode ellipsis, not here.
+                    <PaneHeader
+                      title={formTitle.trim() || (editingEvent ? 'Edit Event' : 'New Event')}
+                      onBack={handleFormCancel}
+                      actions={
+                        <HeaderPill>
+                          <PillButton
+                            icon={Check}
+                            iconSize={18}
+                            accent="success"
+                            onClick={() => eventFormRef.current?.submit()}
+                            label="Save"
+                          />
+                          <PillButton icon={X} iconSize={18} onClick={handleDetailBack} label="Close" />
+                        </HeaderPill>
+                      }
+                    />
+                  )
+                ) : panelView === 'detail' && selectedEvent ? (
                   <PaneHeader
-                    title={formTitle.trim() || (editingEvent ? 'Edit Event' : 'New Event')}
-                    onBack={handleFormCancel}
+                    title={selectedEvent.title || 'Event'}
                     actions={
                       <HeaderPill>
-                        <PillButton
-                          icon={Check}
-                          iconSize={18}
-                          accent="success"
-                          onClick={() => eventFormRef.current?.submit()}
-                          label="Save"
-                        />
+                        {detailMenu?.hasMenu && (
+                          <div ref={detailMoreBtnRef}>
+                            <PillButton
+                              icon={MoreHorizontal}
+                              iconSize={18}
+                              onClick={() => {
+                                const rect = detailMoreBtnRef.current?.getBoundingClientRect()
+                                if (rect) setDetailMoreMenu(rect)
+                              }}
+                              label="More actions"
+                            />
+                          </div>
+                        )}
                         <PillButton icon={X} iconSize={18} onClick={handleDetailBack} label="Close" />
                       </HeaderPill>
                     }
                   />
-                  <div className="flex-1 min-h-0 overflow-y-auto">
-                    <EventForm
-                      key={formKey}
-                      ref={eventFormRef}
-                      initialData={editingEvent ? eventToFormData(editingEvent) : newEventInitialData}
-                      onSave={handleSaveEvent}
-                      isEditing={!!editingEvent}
-                      subClusterApplicable={subClusterApplicable}
-                      medics={medicList}
-                      propertyItems={propertyItems}
-                      overlayOptions={overlayOptions}
-                      roomOptions={roomFormOptions}
-                huddleTaskOptions={huddleTaskFormOptions}
-                clinicOptions={clinicFormOptions}
-                onCreateOverlay={handleCreateOverlayForEvent}
-                onTitleChange={setFormTitle}
-                    />
-                  </div>
-                  <LoadingOverlay visible={isFormPending || isWriting} className="rounded-xl" />
-                </div>
-              ) : panelView === 'detail' && selectedEvent ? (
-                <div className="relative flex flex-col flex-1 min-h-0">
-                  <EventDetailPanel
-                    event={selectedEvent}
-                    onClose={handleDetailBack}
-                    onEdit={handleEditEvent}
-                    onMove={enterMoveMode}
-                    onDelete={(id) => setConfirmDeleteEvent(id)}
-                    onCancelTemplate={handleCancelTemplate}
-                    apptTypeNames={apptTypeNames}
-                    canDeleteTemplate={isSupervisor}
-                    onStatusChange={handleEventStatusChange}
-                  onUpdateSubtasks={handleUpdateEventSubtasks}
-                    assignedNames={resolveAssigned(selectedEvent.assigned_to)}
-                    linkedPropertyItems={resolvePropertyItems(selectedEvent.property_item_ids ?? [])}
-                    overlayOptions={overlayOptions}
-                    roomAnchor={roomAnchorFor(selectedEvent.room_id)}
-                  />
-                </div>
-              ) : panelView === 'dispatch' && dispatchDetail && clinicId ? (
-                /* Derived dispatch-expiry entry — its own read/edit surface over the
-                   dispatch.opened audit event (see DispatchExpiryDetail). */
-                <DispatchExpiryDetail
-                  dispatchId={dispatchDetail.dispatchId}
-                  subjectId={dispatchDetail.subjectId}
-                  clinicId={clinicId}
-                  onClose={handleCloseDispatchDetail}
-                />
-              ) : panelView === 'template' && activeClinicId && user && isSupervisor ? (
-                <div className="relative flex flex-col flex-1 min-h-0">
+                ) : panelView === 'template' ? (
                   <PaneHeader
                     title="Provider Template"
                     actions={
@@ -1965,18 +1963,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                       </HeaderPill>
                     }
                   />
-                  <div className="flex-1 min-h-0 overflow-y-auto">
-                    <TemplateGeneratorPanel
-                      key={templateNonce}
-                      ref={templatePanelRef}
-                      clinicId={activeClinicId}
-                      userId={user.id}
-                      onDone={() => setPanelView('calendar')}
-                    />
-                  </div>
-                </div>
-              ) : panelView === 'block' && activeClinicId && isSupervisor ? (
-                <div className="relative flex flex-col flex-1 min-h-0">
+                ) : panelView === 'block' ? (
                   <PaneHeader
                     title="Clear Templates"
                     actions={
@@ -1993,17 +1980,7 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                       </HeaderPill>
                     }
                   />
-                  <div className="flex-1 min-h-0 overflow-y-auto">
-                    <BlockTemplatedPanel
-                      key={blockNonce}
-                      ref={blockPanelRef}
-                      clinicId={activeClinicId}
-                      onDone={() => setPanelView('calendar')}
-                    />
-                  </div>
-                </div>
-              ) : panelView === 'import' && activeClinicId && user ? (
-                <div className="relative flex flex-col flex-1 min-h-0">
+                ) : panelView === 'import' ? (
                   <PaneHeader
                     title="Import Calendar CSV"
                     actions={
@@ -2012,19 +1989,68 @@ export function CalendarPanel({ onBack, scrollNonce, onPanelStateChange, onOpenC
                       </HeaderPill>
                     }
                   />
-                  <div className="flex-1 min-h-0 overflow-y-auto">
-                    <div className="px-4 py-4 pb-8">
-                      <CalendarCSVImport
-                        clinicId={activeClinicId}
-                        userId={user.id}
-                        onClose={() => setPanelView('calendar')}
-                      />
-                    </div>
-                  </div>
+                ) : undefined
+              }
+            >
+              {panelView === 'form' ? (
+                <>
+                  <LoadingOverlay visible={isFormPending || isWriting} />
+                  <StackNavContext.Provider value={formStack.nav}>
+                    <LayeredStackBody frames={formStack.frames} searchPlaceholder={formStack.searchPlaceholder} />
+                  </StackNavContext.Provider>
+                </>
+              ) : panelView === 'detail' && selectedEvent ? (
+                <EventDetailPanel
+                  event={selectedEvent}
+                  onClose={handleDetailBack}
+                  onEdit={handleEditEvent}
+                  onMove={enterMoveMode}
+                  onDelete={(id) => setConfirmDeleteEvent(id)}
+                  onCancelTemplate={handleCancelTemplate}
+                  apptTypeNames={apptTypeNames}
+                  canDeleteTemplate={isSupervisor}
+                  onStatusChange={handleEventStatusChange}
+                  onUpdateSubtasks={handleUpdateEventSubtasks}
+                  assignedNames={resolveAssigned(selectedEvent.assigned_to)}
+                  linkedPropertyItems={resolvePropertyItems(selectedEvent.property_item_ids ?? [])}
+                  overlayOptions={overlayOptions}
+                  roomAnchor={roomAnchorFor(selectedEvent.room_id)}
+                  inSheet
+                />
+              ) : panelView === 'dispatch' && dispatchDetail && clinicId ? (
+                /* Derived dispatch-expiry entry — owns its header + scroller (selfScroll). */
+                <DispatchExpiryDetail
+                  dispatchId={dispatchDetail.dispatchId}
+                  subjectId={dispatchDetail.subjectId}
+                  clinicId={clinicId}
+                  onClose={handleCloseDispatchDetail}
+                />
+              ) : panelView === 'template' && activeClinicId && user && isSupervisor ? (
+                <TemplateGeneratorPanel
+                  key={templateNonce}
+                  ref={templatePanelRef}
+                  clinicId={activeClinicId}
+                  userId={user.id}
+                  onDone={() => setPanelView('calendar')}
+                />
+              ) : panelView === 'block' && activeClinicId && isSupervisor ? (
+                <BlockTemplatedPanel
+                  key={blockNonce}
+                  ref={blockPanelRef}
+                  clinicId={activeClinicId}
+                  onDone={() => setPanelView('calendar')}
+                />
+              ) : panelView === 'import' && activeClinicId && user ? (
+                <div className="px-4 py-4 pb-8">
+                  <CalendarCSVImport
+                    clinicId={activeClinicId}
+                    userId={user.id}
+                    onClose={() => setPanelView('calendar')}
+                  />
                 </div>
-              ) : null
-            )}
-          </SlideRevealPane>
+              ) : null}
+            </SearchDropdownCard>
+          </div>
         )}
       </div>
 

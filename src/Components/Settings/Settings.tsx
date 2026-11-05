@@ -487,12 +487,11 @@ const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
 
     return (<>
         <BaseDrawer
+            desktopPosition="left"
             isVisible={isVisible}
             onClose={handleClose}
             fullHeight="90dvh"
             disableDrag={false}
-            desktopPosition="left"
-            desktopWidth="w-[90%]"
             header={drawerHeader}
             scrollDisabled
             glassHeader={isMobile}

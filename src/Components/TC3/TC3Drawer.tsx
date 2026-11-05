@@ -3,7 +3,8 @@ import { Users, Plus, Download, X } from 'lucide-react'
 import { BaseDrawer } from '@/Components/primitives/BaseDrawer'
 import { Sheet } from '@/Components/primitives/Sheet'
 import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill'
-import { SlideRevealPane } from '@/Components/primitives/SlideRevealPane'
+import { DesktopRail } from '@/Components/primitives/DesktopRail'
+import { SearchDropdownCard } from '@/Components/primitives/SearchDropdown'
 import { useIsMobile } from '../../Hooks/useIsMobile'
 import { useTC3Store } from '../../stores/useTC3Store'
 import { TC3CardColumn } from './TC3CardColumn'
@@ -21,12 +22,13 @@ interface TC3DrawerProps {
  * TC3 (Tactical Combat Casualty Care) as a large base drawer — a sibling of the
  * calendar / map-overlay / property drawers rather than a global app "mode".
  *
- * Desktop = the three-zone panel primitive:
- *   • LEFT  — roster rail; collapses when a sub-editor opens.
+ * Desktop = rail + main, no right pane (Calendar / Property / Map idiom):
+ *   • LEFT  — roster rail (DesktopRail), always open.
  *   • MAIN  — the selected casualty's DD1380 card as ONE scrollable column.
- *   • RIGHT — docked detail pane. Card sub-editors (TC3EditorSurface) portal in
- *             via `paneRef`; while any is open the rail collapses and the pane
- *             opens (registerDetail ref-count → detailOpen).
+ *   • CARD  — sub-editors (TC3EditorSurface) portal into a lifted
+ *             SearchDropdownCard floated top-right over the main column via
+ *             `paneRef`; shown while any is open (registerDetail ref-count →
+ *             detailOpen).
  * Mobile: full-screen glass-header drawer — casualties (left) + New / Export All
  *   / close in the top-right pill, matching desktop. The casualties pill opens a
  *   bottom Sheet roster. Body = the same single scrollable card column;
@@ -61,7 +63,7 @@ export const TC3Drawer = memo(function TC3Drawer({ isVisible, onClose }: TC3Draw
     [card.id, restoreFromQueue],
   )
 
-  // Desktop detail pane: sub-editors register while open → rail collapses, pane opens.
+  // Desktop detail card: sub-editors register while open → the floating card shows.
   const paneRef = useRef<HTMLDivElement>(null)
   const [detailCount, setDetailCount] = useState(0)
   const registerDetail = useCallback(
@@ -131,7 +133,6 @@ export const TC3Drawer = memo(function TC3Drawer({ isVisible, onClose }: TC3Draw
         onClose={onClose}
         mobileFullScreen
         fullHeight="95dvh"
-        desktopWidth="w-[90%]"
         header={header}
         glassHeader={isMobile}
         scrollDisabled
@@ -151,30 +152,30 @@ export const TC3Drawer = memo(function TC3Drawer({ isVisible, onClose }: TC3Draw
           </div>
         ) : (
           <div className="flex h-full relative">
-            {/* Left — roster rail; collapses (slides out left) when a sub-editor opens the right pane. */}
-            <SlideRevealPane
-              open={!detailOpen}
-              side="left"
-              width={288}
-              keepMounted
-              className="border-r border-primary/10 bg-themewhite"
-            >
+            <DesktopRail>
               <CasualtyList variant="pane" />
-            </SlideRevealPane>
+            </DesktopRail>
             {/* Main — selected casualty's DD1380 card, one scrollable column.
                 (No slider here — the left roster rail is the desktop switcher.) */}
-            <div className="flex-1 min-w-0 h-full">
+            <div className="relative flex-1 min-w-0 h-full">
               <TC3CardColumn />
+              {/* Sub-editors float in a lifted card over the column (map / property /
+                  calendar detail-card idiom). ONE card instance: the slot stays mounted
+                  and only toggles `hidden`, so swapping editors (MARCH add-menu →
+                  intervention) keeps the card in place, and each open replays the
+                  surface-in morph (display:none → shown restarts the animation).
+                  z-40 matches Calendar's card; menus, confirms and pickers portal
+                  far above it. */}
+              <div
+                className={`absolute top-3 right-3 z-40 w-[360px] max-w-[calc(100%-1.5rem)] pointer-events-none ${
+                  detailOpen ? '' : 'hidden'
+                }`}
+              >
+                <SearchDropdownCard className="pointer-events-auto relative" ariaLabel="Casualty editor" selfScroll>
+                  <div ref={paneRef} className="flex flex-col flex-1 min-h-0" />
+                </SearchDropdownCard>
+              </div>
             </div>
-            {/* Right — docked detail pane; sub-editors render in directly
-                (EventDetailPanel-style) via a portal into paneRef. */}
-            <SlideRevealPane
-              ref={paneRef}
-              open={detailOpen}
-              side="right"
-              width={380}
-              className="border-l border-primary/10 bg-themewhite"
-            />
           </div>
         )}
       </BaseDrawer>

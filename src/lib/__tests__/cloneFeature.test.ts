@@ -42,14 +42,6 @@ describe('cloneFeatureForOverlay', () => {
     expect(c.style).toEqual({ color: '#ff0000', weight: 3, opacity: 1 })
   })
 
-  it('carries tc3_card_id (opaque, no PHI) so a copied casualty pin points the same card', () => {
-    const c = cloneFeatureForOverlay(
-      feat({ type: 'waypoint', tc3_card_id: 'card-xyz' }),
-      'ov-dest', { id: 'new-1', now: NOW },
-    )
-    expect(c.tc3_card_id).toBe('card-xyz')
-  })
-
   it('deep-copies geometry and style — mutating the copy never touches the source', () => {
     const src = feat()
     const c = cloneFeatureForOverlay(src, 'ov-dest', { id: 'new-1', now: NOW })

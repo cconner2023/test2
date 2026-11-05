@@ -46,7 +46,6 @@ export function parseGPX(xml: string, overlayId: string): ParseResult {
     const lat = numAttr(wpt, 'lat')
     const lon = numAttr(wpt, 'lon')
     if (lat == null || lon == null) continue
-    const tc3 = extChild(wpt, 'tc3CardId')
     features.push({
       id: extId(wpt) ?? crypto.randomUUID(),
       overlay_id: overlayId,
@@ -57,7 +56,6 @@ export function parseGPX(xml: string, overlayId: string): ParseResult {
       waypoint_type: extWaypointType(wpt) ?? glyphFromSym(textChild(wpt, 'sym')),
       notes: textChild(wpt, 'desc') ?? undefined,
       mgrs: undefined,
-      tc3_card_id: tc3 ?? undefined,
       created_at: now,
       updated_at: now,
     })
@@ -137,7 +135,6 @@ export function serializeGPX(features: OverlayFeature[], overlayName: string): s
       out.push(`      <beacon:id>${esc(f.id)}</beacon:id>`)
       out.push(`      <beacon:color>${esc(f.style.color)}</beacon:color>`)
       if (f.waypoint_type) out.push(`      <beacon:glyph>${esc(f.waypoint_type)}</beacon:glyph>`)
-      if (f.tc3_card_id) out.push(`      <beacon:tc3CardId>${esc(f.tc3_card_id)}</beacon:tc3CardId>`)
       out.push(`    </extensions>`)
       out.push(`  </wpt>`)
     } else if (f.type === 'route' && f.geometry.length > 0) {
@@ -212,7 +209,6 @@ const ALL_GLYPHS: WaypointType[] = [
   'lz', 'pz', 'dz',
   'ccp', 'axp', 'obj', 'rally',
   'hazard', 'target', 'supply', 'vehicle', 'medic', 'comms',
-  'casualty',
 ]
 
 function extWaypointType(el: Element): WaypointType | null {

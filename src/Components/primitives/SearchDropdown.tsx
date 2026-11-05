@@ -31,21 +31,31 @@ export function SearchDropdownCard({
     className = '',
     ariaLabel = 'Search results',
     header,
+    footer,
+    selfScroll = false,
 }: {
     children: ReactNode
     className?: string
     ariaLabel?: string
+    /** Child owns its own header + scroller (a flex-1 min-h-0 column); the card
+     *  then only clamps height instead of wrapping the child in its scroll region. */
+    selfScroll?: boolean
     /** Optional pinned header above the scroll region (e.g. a PaneHeader when the
      *  card hosts a detail — map feature card). */
     header?: ReactNode
+    /** Optional pinned footer below the scroll region (a detail's action pills). */
+    footer?: ReactNode
 }) {
     return (
         <div
-            className={`flex flex-col max-h-[min(70vh,560px)] rounded-2xl bg-themewhite border border-primary/6 shadow-lg overflow-hidden animate-surface-in-down ${className}`}
+            className={`flex flex-col max-h-[min(70vh,560px)] rounded-2xl bg-themewhite3 border border-primary/15 shadow-xl overflow-hidden animate-surface-in-down ${className}`}
             aria-label={ariaLabel}
         >
             {header && <div className="shrink-0">{header}</div>}
-            <div className={`min-h-0 overflow-y-auto overscroll-contain ${header ? '' : 'py-1'}`}>{children}</div>
+            {selfScroll
+                ? <div className="flex flex-col flex-1 min-h-0">{children}</div>
+                : <div className={`min-h-0 overflow-y-auto overscroll-contain ${header ? '' : 'py-1'}`}>{children}</div>}
+            {footer && <div className="shrink-0 border-t border-tertiary/10">{footer}</div>}
         </div>
     )
 }

@@ -1,6 +1,9 @@
 import { memo, useState } from 'react'
-import { ChevronRight, Crosshair, FileText } from 'lucide-react'
+import { ChevronRight, Crosshair } from 'lucide-react'
 import { SectionHeader } from '@/Components/primitives/Section'
+import { AddFab } from '@/Components/primitives/AddFab'
+import { GlassBand } from '@/Components/primitives/GlassBand'
+import { useIsMobile } from '../../Hooks/useIsMobile'
 import { useTQAlerts } from '../../Hooks/useTQAlerts'
 import { useTC3Store } from '../../stores/useTC3Store'
 import type { TC3Card } from '../../Types/TC3Types'
@@ -12,6 +15,7 @@ import { MARCHForm } from './MARCHForm'
 import { NotesPanel } from './NotesPanel'
 import { getRegionLabel, summarizeMarker } from '../../Utilities/bodyRegionMap'
 import { TQAlertBanner } from './TQAlertBanner'
+import { bandOf, BAND_META } from './casualtyOrder'
 
 function isPopulated(card: TC3Card): boolean {
   return (
@@ -28,9 +32,10 @@ function isPopulated(card: TC3Card): boolean {
 /**
  * The whole patient card as ONE scrollable column — the DD1380 front and back
  * merged (casualty · mechanism · body diagram · markers · vitals · MARCH · notes
- * · export). Replaces the old desktop 2-column grid and the mobile front/back
+ * ). Replaces the old desktop 2-column grid and the mobile front/back
  * wizard carousel; used by TC3Drawer on both platforms. The TQ alert banner
- * stays pinned above the scroll; export is the final section.
+ * stays pinned above the scroll; export (Note & Barcode) is the bottom-right
+ * advance FAB over a glass footer — the WriteNote NoteWizardFooter idiom.
  *
  * SURFACE: themewhite — the drawer's own surface, matching the roster rail and
  * the detail pane either side of it. It is NOT a canvas-coloured full-bleed
@@ -51,6 +56,7 @@ export const TC3CardColumn = memo(function TC3CardColumn() {
   const openExport = useTC3Store((s) => s.openExport)
   const [editingMarker, setEditingMarker] = useState<string | null>(null)
   const { alerts } = useTQAlerts()
+  const isMobile = useIsMobile()
   const hasTQBanner = alerts.length > 0
 
   const markerCount = card.markers.length
@@ -58,14 +64,14 @@ export const TC3CardColumn = memo(function TC3CardColumn() {
 
   return (
     <div
-      className="h-full flex flex-col bg-themewhite"
+      className="relative h-full flex flex-col bg-themewhite"
       style={hasTQBanner ? { paddingTop: 'var(--drawer-header-h, 0px)' } : undefined}
     >
       <TQAlertBanner alerts={alerts} />
 
       <div className="flex-1 min-h-0 overflow-y-auto">
         <div
-          className="mx-auto w-full max-w-2xl px-3 pb-4 space-y-6"
+          className={`w-full px-3 space-y-6 ${hasData ? 'pb-28' : 'pb-4'}`}
           style={{ paddingTop: hasTQBanner ? '1rem' : 'calc(var(--drawer-header-h, 0px) + 1rem)' }}
         >
           <CasualtyInfoForm />
@@ -113,27 +119,24 @@ export const TC3CardColumn = memo(function TC3CardColumn() {
 
           <NotesPanel />
 
-          {/* Export — final section of the column */}
-          {hasData && (
-            <button
-              type="button"
-              onClick={() => openExport()}
-              className="w-full rounded-2xl bg-themewhite2 overflow-hidden text-left active:scale-95 transition-all hover:bg-themeblue2/5"
-            >
-              <div className="flex items-center gap-3 px-4 py-3.5">
-                <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
-                  <FileText size={18} className="text-tertiary" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-primary">Export Note &amp; Barcode</p>
-                  <p className="text-[9pt] text-secondary mt-0.5">Generate encoded card for transfer</p>
-                </div>
-                <ChevronRight size={16} className="text-tertiary shrink-0" />
-              </div>
-            </button>
-          )}
         </div>
       </div>
+
+      {/* Export — advance FAB over a glass footer (WriteNote NoteWizardFooter idiom). */}
+      {hasData && (
+        <div
+          className={`absolute bottom-0 inset-x-0 z-20 flex justify-end pointer-events-none pt-8 ${isMobile ? 'px-6' : 'px-4'}`}
+          style={{ paddingBottom: isMobile ? 'max(1.5rem, calc(var(--sab, 0px) + 1.5rem))' : '1rem' }}
+        >
+          <GlassBand edge="bottom" className="inset-0" />
+          <AddFab
+            onClick={() => openExport()}
+            icon={ChevronRight}
+            label="Export note & barcode"
+            colorClass={(BAND_META[bandOf(card)] ?? BAND_META['']).tint.shell}
+          />
+        </div>
+      )}
     </div>
   )
 })

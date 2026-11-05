@@ -3,6 +3,7 @@ import { useShallow } from 'zustand/react/shallow'
 import { menuData } from '../Data/CatData'
 import { useAuth } from './useAuth'
 import { useNavPreferencesStore } from '../stores/useNavPreferencesStore'
+import { canSeeFeature } from '../lib/featureGate'
 import type { AccessLevel, sideMenuDataType } from '../Types/CatTypes'
 
 interface UseNavItemsReturn {
@@ -19,7 +20,7 @@ interface UseNavItemsReturn {
 }
 
 export function useNavItems(): UseNavItemsReturn {
-  const { isAuthenticated, isSupervisorRole, isDevRole, isProviderRole } = useAuth()
+  const { isAuthenticated, isSupervisorRole, isDevRole, isProviderRole, clinicId, supervisingClinicId } = useAuth()
 
   const { customOrder, starred, hidden, toggleStar, toggleHide, moveItem, resetToDefault } =
     useNavPreferencesStore(useShallow((s) => ({
@@ -41,9 +42,13 @@ export function useNavItems(): UseNavItemsReturn {
   }), [isAuthenticated, isProviderRole, isSupervisorRole, isDevRole])
 
   const gatedItems = useMemo(
-    // Beta items are dev-role only until released (drop `stage` to release).
-    () => menuData.filter(item => accessChecks[item.access ?? 'public'] && (item.stage !== 'beta' || isDevRole)),
-    [accessChecks, isDevRole]
+    // Beta items are dev-role only until released (drop `stage` to release); a
+    // `gate` hands the decision to featureGate (pilot clusters).
+    () => menuData.filter(item => accessChecks[item.access ?? 'public'] && (
+      item.stage !== 'beta'
+      || (item.gate ? canSeeFeature(item.gate, { isDevRole, clinicId: supervisingClinicId ?? clinicId }) : isDevRole)
+    )),
+    [accessChecks, isDevRole, clinicId, supervisingClinicId]
   )
 
   const visibleItems = useMemo(() => {

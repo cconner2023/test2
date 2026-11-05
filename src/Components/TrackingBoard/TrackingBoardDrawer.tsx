@@ -7,8 +7,11 @@ import { MobileSearchBar } from '@/Components/primitives/MobileSearchBar'
 import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill'
 import { GlassBand } from '@/Components/primitives/GlassBand'
 import { RailSearchRow } from '@/Components/primitives/RailSearchRow'
+import { DesktopRail } from '@/Components/primitives/DesktopRail'
 import { AnchoredMenu } from '@/Components/primitives/LiftedRowMenu'
 import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
+import { FooterPill } from '@/Components/primitives/FooterPill'
+import { ActionButton } from '@/Components/primitives/ActionButton'
 import { useIsMobile } from '../../Hooks/useIsMobile'
 import { useEscBackout } from '../../Hooks/useEscBackout'
 import { useSwipeBack } from '../../Hooks/useSwipeBack'
@@ -20,12 +23,12 @@ import {
     TrackingBoardList, TrackingGrid, TrackingBoardDetail, TrackingBoardSettings,
     TrackingCategoryBar, TrackingCardList, filterByCategory, buildTrackingMenuItems,
     filterEntries, type TrackingEntry, type TrackingCategory, type CardOrigin,
-    TrackingEditForm, draftFromEntry, draftIsValid, emptyDraft, type TrackingEditDraft,
+    TrackingEditForm, TrackingCheckInFields, draftFromEntry, draftIsValid, emptyDraft, type TrackingEditDraft,
     measureBrnCard, measureRailCard, measureGridRow, TrackingBoardScope,
 } from './TrackingBoardPanel'
 import {
     boardEntries, moveData, transitData, draftData, newTrackingData, toggledFeature, toEntry,
-    type TrackingPosition,
+    type TrackingTarget,
 } from './trackingModel'
 import { TrackingCardOverlay } from './TrackingCardOverlay'
 import type { LinkedFeatureRef } from '../../Types/MissionTypes'
@@ -42,9 +45,10 @@ interface TrackingBoardDrawerProps {
  * station) and a main pane that always shows the T2T-style grid. A rail card or
  * grid row opens the same TrackingCardOverlay as mobile, centered (placement
  * 'center'): it grows out of the clicked card / row and collapses back into it.
+ * Rail cards right-click / long-press into the same LiftedRowMenu as mobile.
  * Ellipsis + close sit in the card head; Esc / scrim backs out.
  * Mobile: header = back · title · [check in + settings] (Messaging), then
- * search + a horizontal-scroll category strip (All / Unassigned / stations)
+ * search + a horizontal-scroll category strip (All / Pending / stations / Complete)
  * over BRN cards; cards swipe (user bindings) / long-press (LiftedRowMenu) /
  * tap (open), like chat. Card → lifted row → overlay are one object: tap (or
  * Open/Edit from the long-press menu) container-transforms the card itself
@@ -59,17 +63,23 @@ interface TrackingBoardDrawerProps {
  * to TrackingEditForm (BRN + existing comments); card head = Back (→ detail),
  * Save + Close. Save merges into the shared entry (comments union by id).
  * Check-in: a + in the header (mobile header pill beside the gear; desktop
- * drawer header) opens a PreviewOverlay with the same TrackingEditForm (BRN +
- * comment) and a Save pill in its header — the create half of the Calendar
- * EventForm idiom. Comments are never written from the detail itself.
+ * drawer header) opens the standard PreviewOverlay form — self-rowing BRN pin +
+ * comment TextArea (TrackingCheckInFields), Check in on the right footer once
+ * the BRN is valid. Comments are never written from the detail itself.
  */
 export function TrackingBoardDrawer({ isVisible, onClose }: TrackingBoardDrawerProps) {
     const isMobile = useIsMobile()
-    const { viewerId, net, events, overlays } = useTrackingBoardData(isVisible)
+    const { viewerId, net, events, overlays, sharing, setSharing, relatedIds } = useTrackingBoardData(isVisible)
     // Re-read on every board change so expiry / dwell track the data.
     const now = useMemo(() => Date.now(), [isVisible, events]) // eslint-disable-line react-hooks/exhaustive-deps
     const { checkIn, updateEntry, deleteEntry: removeEntry } = useTrackingWrite()
-    const { upsertFeature } = useMapOverlayWrite()
+    const { upsertFeature, reconcileTargets } = useMapOverlayWrite()
+    const canManageSharing = useAuthStore(s => s.isSupervisorRole || s.isDevRole)
+    // Link changes reach this cluster's stations here. Compares locally first, so
+    // an unchanged set sends nothing.
+    useEffect(() => {
+        if (relatedIds && viewerId) void reconcileTargets(viewerId, relatedIds)
+    }, [relatedIds, viewerId, reconcileTargets])
     const scope = useMemo(() => ({ net, viewerId }), [net, viewerId])
     // Board = fanned to the viewer (origin + ancestors), unexpired, newest-per-BRN, capped.
     const board = useMemo(() => boardEntries(events, net, viewerId, now), [events, net, viewerId, now])
@@ -107,7 +117,7 @@ export function TrackingBoardDrawer({ isVisible, onClose }: TrackingBoardDrawerP
 
     // Move to any station in the origin's chain. Moving up an echelon is just a
     // move into a station the parent cluster uses.
-    const moveEntry = (entry: TrackingEntry, to: TrackingPosition) =>
+    const moveEntry = (entry: TrackingEntry, to: TrackingTarget) =>
         updateEntry(entry.id, d => moveData(d, to, me, Date.now()))
     // Transit marker: "leaving → destination" (null clears). The patient stays put.
     const transitEntry = (entry: TrackingEntry, to: LinkedFeatureRef | null) =>
@@ -131,8 +141,8 @@ export function TrackingBoardDrawer({ isVisible, onClose }: TrackingBoardDrawerP
         setSelectedId(e.id)
     }
     // From the open card's ellipsis the overlay is already up — keep its origin.
-    const startEdit = (e: TrackingEntry, from?: CardOrigin) => {
-        if (selectedId !== e.id) openEntry(e, from)
+    const startEdit = (e: TrackingEntry, from?: CardOrigin, src: 'card' | 'rail' = 'card') => {
+        if (selectedId !== e.id) openEntry(e, from, src)
         setEditDraft(draftFromEntry(e)); setMoreRect(null)
     }
     const cancelEdit = () => setEditDraft(null)
@@ -257,7 +267,7 @@ export function TrackingBoardDrawer({ isVisible, onClose }: TrackingBoardDrawerP
             maxHeight={60}
             zIndex={1200}
         >
-            <TrackingBoardSettings onTogglePlace={togglePlace} />
+            <TrackingBoardSettings onTogglePlace={togglePlace} sharing={canManageSharing ? sharing : null} onSetSharing={setSharing} />
         </Sheet>
     ) : (
         <PreviewOverlay
@@ -268,7 +278,7 @@ export function TrackingBoardDrawer({ isVisible, onClose }: TrackingBoardDrawerP
             maxWidth={360}
             previewMaxHeight="70dvh"
         >
-            <TrackingBoardSettings onTogglePlace={togglePlace} />
+            <TrackingBoardSettings onTogglePlace={togglePlace} sharing={canManageSharing ? sharing : null} onSetSharing={setSharing} />
         </PreviewOverlay>
     )
 
@@ -278,18 +288,16 @@ export function TrackingBoardDrawer({ isVisible, onClose }: TrackingBoardDrawerP
             onClose={() => { if (!checkInBusy) setCheckInDraft(null) }}
             anchorRect={null}
             title="Check in"
-            maxWidth={380}
-            previewMaxHeight="70dvh"
+            maxWidth={360}
+            previewMaxHeight="60dvh"
             loading={checkInBusy}
-            headerActions={checkInDraft && draftIsValid(checkInDraft) ? (
-                <PillButton icon={Check} iconSize={18} accent="success" onClick={() => { void saveCheckIn() }} label="Save" />
+            rightFooter={checkInDraft && draftIsValid(checkInDraft) ? (
+                <FooterPill side="right">
+                    <ActionButton icon={Check} label="Check in" variant="confirm" onClick={() => { void saveCheckIn() }} />
+                </FooterPill>
             ) : undefined}
         >
-            {checkInDraft && (
-                <div className="px-4 py-4">
-                    <TrackingEditForm draft={checkInDraft} onChange={setCheckInDraft} />
-                </div>
-            )}
+            {checkInDraft && <TrackingCheckInFields draft={checkInDraft} onChange={setCheckInDraft} />}
         </PreviewOverlay>
     )
 
@@ -323,7 +331,7 @@ export function TrackingBoardDrawer({ isVisible, onClose }: TrackingBoardDrawerP
                 </HeaderPill>
             )}
         >
-            {cardEntry && (editing ? editForm : <TrackingBoardDetail entry={cardEntry} now={now} />)}
+            {cardEntry && (editing ? editForm : <TrackingBoardDetail entry={cardEntry} />)}
             {/* Child of the overlay so it stacks above it (overlay publishes the z ceiling). */}
             {deleteConfirm}
         </TrackingCardOverlay>
@@ -386,7 +394,6 @@ export function TrackingBoardDrawer({ isVisible, onClose }: TrackingBoardDrawerP
         <BaseDrawer
             isVisible={isVisible}
             onClose={handleClose}
-            desktopWidth="w-[90%]"
             header={{
                 title: 'Tracking Board',
                 rightContent: (
@@ -400,12 +407,22 @@ export function TrackingBoardDrawer({ isVisible, onClose }: TrackingBoardDrawerP
             <div className="relative h-full">
                 <div className="flex absolute inset-0 overflow-hidden">
                     {/* Left rail — mirrors the Messaging left pane: search + bare gear, then the grouped list */}
-                    <div className="w-[320px] shrink-0 flex flex-col border-r border-primary/10">
+                    <DesktopRail>
                         <RailSearchRow value={query} onChange={setQuery} placeholder="Search..." onSettings={openSettings} settingsLabel="Tracking board settings" />
                         <div className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain">
-                            <TrackingBoardList entries={entries} now={now} activeId={activeId} expandedId={expandedId} onSelect={(e, from) => openEntry(e, from, 'rail')} />
+                            <TrackingBoardList
+                                entries={entries}
+                                now={now}
+                                activeId={activeId}
+                                expandedId={expandedId}
+                                onSelect={(e, from) => openEntry(e, from, 'rail')}
+                                onEdit={(e, from) => startEdit(e, from, 'rail')}
+                                onMove={moveEntry}
+                                onTransit={transitEntry}
+                                onDelete={deleteEntry}
+                            />
                         </div>
-                    </div>
+                    </DesktopRail>
 
                     {/* Main pane — the grid, always; a row opens the centered card overlay */}
                     <div className="relative flex-1 min-w-0 bg-themewhite">

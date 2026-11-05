@@ -1050,6 +1050,9 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
     // Visibility-change safety net: if the app resumes with a dead session that
     // didn't fire SIGNED_OUT (e.g. token expired while the tab was hidden and
     // Supabase's internal refresh already gave up), catch it here.
+    // Also on 'online': an involuntary sign-out while offline (or a refresh
+    // that hit a captive portal) returns 'retry' and leaves the refresh token
+    // intact — reconnecting is the moment to try again.
     const onVisibilityChange = () => {
       if (document.visibilityState !== 'visible') return
       const state = get()
@@ -1059,10 +1062,12 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
       })
     }
     document.addEventListener('visibilitychange', onVisibilityChange)
+    window.addEventListener('online', onVisibilityChange)
 
     return () => {
       subscription.unsubscribe()
       document.removeEventListener('visibilitychange', onVisibilityChange)
+      window.removeEventListener('online', onVisibilityChange)
     }
   },
 

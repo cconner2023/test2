@@ -4,7 +4,7 @@
  * Pure helper: takes an OverlayFeature (typically a PZ waypoint) and the
  * containing overlayId, returns a MedevacRequest with line 1 (pickup grid)
  * pre-populated from the pin's coordinates and the cross-domain link
- * fields (featureId, overlayId, tc3CardId) populated. Caller hands the
+ * fields (featureId, overlayId) populated. Caller hands the
  * result to useMedevacStore.setReq and opens the editor.
  */
 
@@ -50,7 +50,6 @@ export function buildMedevacFromPin(
     l1d: base.l1d || (feature.label ? feature.label : undefined),
     featureId: feature.id,
     overlayId,
-    tc3CardId: feature.tc3_card_id ?? base.tc3CardId,
   }
   return { req, mgrs }
 }

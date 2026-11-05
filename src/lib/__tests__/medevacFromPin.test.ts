@@ -32,11 +32,6 @@ describe('buildMedevacFromPin', () => {
     expect(r.req.overlayId).toBe('ov-99')
   })
 
-  it('carries through tc3_card_id from the pin when present', () => {
-    const r = buildMedevacFromPin(pin({ tc3_card_id: 'tc3-aaaa' }), { overlayId: 'ov-1' })
-    expect(r.req.tc3CardId).toBe('tc3-aaaa')
-  })
-
   it('uses the pin label as l1d (description) when not already set', () => {
     const r = buildMedevacFromPin(pin(), { overlayId: 'ov-1' })
     expect(r.req.l1d).toBe('PZ Bravo')

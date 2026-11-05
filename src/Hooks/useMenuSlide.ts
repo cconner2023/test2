@@ -1,15 +1,12 @@
 import { useEffect, useCallback, useState } from 'react'
 import { useDrag } from '@use-gesture/react'
 import { GESTURE_THRESHOLDS } from '../Utilities/GestureUtils'
-import { DRAWER_TIMING } from '../Utilities/constants'
+import { DRAWER_FADE_TRANSITION, DRAWER_SLIDE_TRANSITION } from '../Utilities/constants'
 
 export const MENU_NAV_WIDTH_MOBILE = 280
 export const MENU_NAV_WIDTH_DESKTOP = 280
 /** @deprecated Use MENU_NAV_WIDTH_MOBILE / MENU_NAV_WIDTH_DESKTOP */
 export const MENU_NAV_WIDTH = MENU_NAV_WIDTH_MOBILE
-
-const SLIDE_TRANSITION = `transform ${DRAWER_TIMING.TRANSITION}ms cubic-bezier(0.32, 0.72, 0, 1)`
-const OPACITY_TRANSITION = `opacity ${DRAWER_TIMING.TRANSITION}ms cubic-bezier(0.32, 0.72, 0, 1)`
 
 interface UseMenuSlideOptions {
   /** Hook is always enabled; swipe gestures are gated by isMobile */
@@ -105,7 +102,7 @@ export function useMenuSlide({ enabled, isOpen, onOpen, onClose, width = MENU_NA
     }
   )
 
-  const transition = isDragging ? 'none' : SLIDE_TRANSITION
+  const transition = isDragging ? 'none' : DRAWER_SLIDE_TRANSITION
 
   return {
     position,
@@ -116,7 +113,7 @@ export function useMenuSlide({ enabled, isOpen, onOpen, onClose, width = MENU_NA
     // Multiplying a dim level in here would park the element at fractional
     // opacity, which is what composited the blur away. See Scrim.tsx.
     backdropProgress: Math.min(position / width, 1),
-    backdropTransition: isDragging ? 'none' : OPACITY_TRANSITION,
+    backdropTransition: isDragging ? 'none' : DRAWER_FADE_TRANSITION,
     closeHandlers: enabled && isOpen ? closeBind() : {},
     width,
     onEdgeDrag,

@@ -11,19 +11,23 @@
  *
  * TRACKING PINS: while an overlay carries any OverlayFeature.tracking pin, its
  * target_clinic_ids = {owner} ∪ related clusters (tracking_related_clinic_ids
- * RPC — up / down the chain + siblings), so the whole overlay rides to them;
- * they surface only its tracking pins (Tracking Board), never on their map.
- * When the target set changes (first pin marked / last unmarked) the edit goes
- * out as a FULL overlay envelope to old ∪ new targets — new clusters get the
- * whole overlay, dropped ones see themselves removed from the targets. Only the
- * owning cluster recomputes targets; a related cluster's edit (station toggle)
- * keeps the stored set.
+ * RPC — clusters joined by an active send → receive link, see
+ * supervisor_set_tracking_sharing). They surface only its tracking pins
+ * (Tracking Board), never on their map.
+ * Targets are fetched once, when an overlay gains its first tracking pin; pin
+ * edits after that keep the stored set. A link change arrives through
+ * reconcileTargets (board open / settings toggle), which only sends when the
+ * set really differs. Target changes go out as DELTAS (sendTargetDelta): newly
+ * added clusters get the tracking pins, everyone else just the new target set.
+ * Only the owning cluster recomputes targets; a related cluster's edit (station
+ * toggle) keeps the stored set.
  */
 
 import { useState, useCallback } from 'react'
 import { useAuth } from './useAuth'
 import { useMapOverlayVault } from './useMapOverlayVault'
 import {
+  getAllLocalMapOverlays,
   getLocalMapOverlay,
   saveLocalMapOverlay,
   deleteLocalMapOverlay,
@@ -73,10 +77,10 @@ const union = (a: string[], b: string[]) => Array.from(new Set([...a, ...b]))
 const storedTargets = (o: { clinic_id: string; target_clinic_ids?: string[] } | undefined, fallback: string) =>
   o?.target_clinic_ids?.length ? o.target_clinic_ids : [o?.clinic_id ?? fallback]
 
-/** Related clusters (caller's own ∪ ancestors ∪ descendants ∪ siblings). null on failure. */
-async function fetchRelatedClinicIds(): Promise<string[] | null> {
+/** Clusters actively linked to `clinicId` (itself included). null on failure. */
+async function fetchRelatedClinicIds(clinicId: string): Promise<string[] | null> {
   try {
-    const { data, error } = await supabase.rpc('tracking_related_clinic_ids')
+    const { data, error } = await supabase.rpc('tracking_related_clinic_ids', { p_clinic_id: clinicId })
     if (error || !Array.isArray(data)) {
       if (error) logger.warn('tracking_related_clinic_ids failed:', error.message)
       return null
@@ -91,20 +95,26 @@ async function fetchRelatedClinicIds(): Promise<string[] | null> {
   }
 }
 
+const hasTrackingPin = (features: OverlayFeature[] | undefined) => features?.some(f => f.tracking) ?? false
+
 /**
- * Target clusters for an overlay with `features`. Only the owning cluster
- * recomputes (anyone else keeps `current`); no tracking pins → owner only; RPC
- * failure → keep `current` (never shrink on a network error).
+ * Target clusters for an overlay going from `prevFeatures` to `features`. Only
+ * the owning cluster recomputes (anyone else keeps `current`); no tracking pins
+ * → owner only; already tracking → keep `current` (reconcileTargets owns link
+ * changes, so an ordinary pin edit never hits the network); RPC failure → keep
+ * `current` (never shrink on a network error).
  */
 async function computeOverlayTargets(
   ownerClinicId: string,
   callerClinicId: string | null,
   features: OverlayFeature[],
+  prevFeatures: OverlayFeature[] | undefined,
   current: string[],
 ): Promise<string[]> {
   if (callerClinicId !== ownerClinicId) return current
-  if (!features.some(f => f.tracking)) return [ownerClinicId]
-  const related = await fetchRelatedClinicIds()
+  if (!hasTrackingPin(features)) return [ownerClinicId]
+  if (hasTrackingPin(prevFeatures)) return current
+  const related = await fetchRelatedClinicIds(ownerClinicId)
   return related ? union([ownerClinicId], related) : current
 }
 
@@ -177,6 +187,12 @@ export interface UseMapOverlayWriteResult {
    */
   deleteOverlay: (id: string) => Promise<void>
 
+  /**
+   * Bring this cluster's tracking overlays in line with `related` (its current
+   * linked clusters). Local compare first: no difference, no send.
+   */
+  reconcileTargets: (ownerClinicId: string, related: string[]) => Promise<void>
+
   /** True while writeOverlay is in flight. */
   isWriting: boolean
 
@@ -193,32 +209,36 @@ export function useMapOverlayWrite(): UseMapOverlayWriteResult {
   const callerClinicId = supervisingClinicId ?? homeClinicId ?? null
 
   /**
-   * Full-envelope resend to old ∪ new targets — used when an edit changes the
-   * overlay's target set, so newly related clusters get the whole overlay (a
-   * lone feature envelope would orphan there). Pair-cleans the prior overlay
-   * row in the owner's vault and records the new originId.
+   * Target-set change as a delta. Newly added clusters get the overlay shell +
+   * tracking pins (a lone feature envelope would orphan there); clusters that
+   * already hold it, and dropped ones, get only the new target set
+   * (mergeOverlay keeps features when the payload omits them). The owner's vault
+   * row is left alone: this envelope carries no features, so pair-cleaning the
+   * prior row would lose them for a fresh device.
    */
-  const resendWholeOverlay = useCallback(async (o: LocalMapOverlay, fanTo: string[]): Promise<boolean> => {
-    if (o.originId) deleteOverlayMessages([o.originId], o.clinic_id).catch(() => {})
-    const originId = await sendOverlay('u', {
+  const sendTargetDelta = useCallback(async (o: LocalMapOverlay, oldTargets: string[], newTargets: string[]): Promise<boolean> => {
+    const base: MapOverlayPayload = {
       id: o.id,
       clinic_id: o.clinic_id,
-      target_clinic_ids: o.target_clinic_ids,
-      name: o.name,
-      description: o.description,
-      center: o.center,
-      zoom: o.zoom,
-      features: o.features,
-      floors: o.floors,
+      target_clinic_ids: newTargets,
       created_by: o.created_by,
       created_at: o.created_at,
       updated_at: o.updated_at,
-    }, fanTo)
-    if (!originId) return false
-    const refreshed = await getLocalMapOverlay(o.id)
-    if (refreshed) await saveLocalMapOverlay({ ...refreshed, originId })
-    return true
-  }, [sendOverlay, deleteOverlayMessages])
+    }
+    const added = newTargets.filter(id => !oldTargets.includes(id))
+    if (added.length > 0) {
+      const sent = await sendOverlay('u', {
+        ...base,
+        name: o.name,
+        center: o.center,
+        zoom: o.zoom,
+        features: o.features.filter(f => f.tracking),
+      }, added)
+      if (!sent) return false
+    }
+    const rest = union(oldTargets, newTargets).filter(id => !added.includes(id))
+    return (await sendOverlay('u', base, rest)) !== null
+  }, [sendOverlay])
 
   const writeOverlay = useCallback(async (params: WriteOverlayParams): Promise<LocalMapOverlay | null> => {
     if (!userId) return null
@@ -231,7 +251,7 @@ export function useMapOverlayWrite(): UseMapOverlayWriteResult {
     const now = new Date().toISOString()
     const oldOriginId = existing?.originId ?? null
     const oldTargets = storedTargets(existing, params.clinicId)
-    const newTargets = await computeOverlayTargets(params.clinicId, callerClinicId, params.features, oldTargets)
+    const newTargets = await computeOverlayTargets(params.clinicId, callerClinicId, params.features, existing?.features, oldTargets)
 
     const overlay: LocalMapOverlay = {
       id: params.overlayId,
@@ -324,7 +344,7 @@ export function useMapOverlayWrite(): UseMapOverlayWriteResult {
       ? [...existing.features, feature]
       : existing.features.map((f, i) => i === idx ? feature : f)
     const oldTargets = storedTargets(existing, clinicId)
-    const newTargets = await computeOverlayTargets(existing.clinic_id, callerClinicId, nextFeatures, oldTargets)
+    const newTargets = await computeOverlayTargets(existing.clinic_id, callerClinicId, nextFeatures, existing.features, oldTargets)
     const next: LocalMapOverlay = {
       ...existing,
       features: nextFeatures,
@@ -334,10 +354,10 @@ export function useMapOverlayWrite(): UseMapOverlayWriteResult {
     await saveLocalMapOverlay(next)
     invalidate('mapOverlays')
 
-    // Target set changed (first tracking pin marked / last unmarked) — the whole
-    // overlay goes to old ∪ new instead of a lone feature envelope.
-    if (!sameSet(oldTargets, newTargets)) {
-      if (!(await resendWholeOverlay(next, union(oldTargets, newTargets)))) await queueOverlayResync(overlayId)
+    // Target set changed (first tracking pin marked / last unmarked) — delta
+    // first, then the feature below reaches the owner's own devices as usual.
+    if (!sameSet(oldTargets, newTargets) && !(await sendTargetDelta(next, oldTargets, newTargets))) {
+      await queueOverlayResync(overlayId)
       return
     }
 
@@ -364,7 +384,7 @@ export function useMapOverlayWrite(): UseMapOverlayWriteResult {
       // remote projection and includes the change we just made.
       await queueOverlayResync(overlayId)
     }
-  }, [userId, sendFeature, deleteOverlayMessages, callerClinicId, resendWholeOverlay])
+  }, [userId, sendFeature, deleteOverlayMessages, callerClinicId, sendTargetDelta])
 
   const removeFeature = useCallback(async (params: RemoveFeatureParams): Promise<void> => {
     const { overlayId, clinicId, featureId } = params
@@ -380,7 +400,7 @@ export function useMapOverlayWrite(): UseMapOverlayWriteResult {
 
     const nextFeatures = existing.features.filter(f => f.id !== featureId)
     const oldTargets = storedTargets(existing, clinicId)
-    const newTargets = await computeOverlayTargets(existing.clinic_id, callerClinicId, nextFeatures, oldTargets)
+    const newTargets = await computeOverlayTargets(existing.clinic_id, callerClinicId, nextFeatures, existing.features, oldTargets)
     const next: LocalMapOverlay = {
       ...existing,
       features: nextFeatures,
@@ -391,9 +411,10 @@ export function useMapOverlayWrite(): UseMapOverlayWriteResult {
     await saveLocalMapOverlay(next)
     invalidate('mapOverlays')
 
-    // Removing the last tracking pin shrinks the targets — full envelope to old ∪ new.
-    if (!sameSet(oldTargets, newTargets)) {
-      if (!(await resendWholeOverlay(next, union(oldTargets, newTargets)))) await queueOverlayResync(overlayId)
+    // Removing the last tracking pin shrinks the targets — delta to the dropped
+    // clusters, then the 'd' below to whoever remains.
+    if (!sameSet(oldTargets, newTargets) && !(await sendTargetDelta(next, oldTargets, newTargets))) {
+      await queueOverlayResync(overlayId)
       return
     }
 
@@ -412,7 +433,26 @@ export function useMapOverlayWrite(): UseMapOverlayWriteResult {
       // remote features[], picking up the local splice.
       await queueOverlayResync(overlayId)
     }
-  }, [userId, sendFeature, callerClinicId, resendWholeOverlay])
+  }, [userId, sendFeature, callerClinicId, sendTargetDelta])
+
+  const reconcileTargets = useCallback(async (ownerClinicId: string, related: string[]): Promise<void> => {
+    if (callerClinicId !== ownerClinicId) return
+    const next = union([ownerClinicId], related)
+    const tombstones = getOverlayTombstones()
+    const own = (await getAllLocalMapOverlays())
+      .filter(o => o.clinic_id === ownerClinicId && hasTrackingPin(o.features) && !tombstones.has(o.id))
+    let changed = false
+    for (const o of own) {
+      const old = storedTargets(o, ownerClinicId)
+      if (sameSet(old, next)) continue
+      // Failed sends leave the stored set alone, so the next reconcile retries.
+      if (!(await sendTargetDelta(o, old, next))) continue
+      const refreshed = await getLocalMapOverlay(o.id)
+      if (refreshed) await saveLocalMapOverlay({ ...refreshed, target_clinic_ids: next })
+      changed = true
+    }
+    if (changed) invalidate('mapOverlays')
+  }, [callerClinicId, sendTargetDelta])
 
   const writeOverlayMetadata = useCallback(async (params: WriteOverlayMetadataParams): Promise<void> => {
     const { overlayId, clinicId } = params
@@ -504,7 +544,7 @@ export function useMapOverlayWrite(): UseMapOverlayWriteResult {
     }
   }, [sendOverlay, deleteOverlayMessages])
 
-  return { writeOverlay, upsertFeature, removeFeature, writeOverlayMetadata, deleteOverlay, isWriting, isDeleting }
+  return { writeOverlay, upsertFeature, removeFeature, writeOverlayMetadata, deleteOverlay, reconcileTargets, isWriting, isDeleting }
 }
 
 /** Helper for callers that hold a MapOverlay-shaped object. */

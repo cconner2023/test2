@@ -195,6 +195,7 @@ export function TrainingDrawer({ isVisible, onClose, taskId }: TrainingDrawerPro
                 title: headerTitle,
             }}
             contentPadding="standard"
+            desktopSize="half"
         >
             {taskId ? (
                 <TrainingDrawerContent taskId={taskId} />

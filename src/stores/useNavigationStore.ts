@@ -473,7 +473,8 @@ export const useNavigationStore = create<NavigationStore>()((set, get) => ({
     })),
 
     setShowKnowledgeBase: (show, initialView, initialMedication, initialScreenerId, initialMedevacReq) => set((s) => ({
-        ...(show ? CLOSE_ALL_DRAWERS : {}),
+        // Desktop: the KB pushes its parent instead of replacing it.
+        ...(show && s.isMobile ? CLOSE_ALL_DRAWERS : {}),
         ...PRESERVED_FIELDS(s),
         showKnowledgeBase: show,
         kbInitialView: show ? (initialView ?? null) : null,

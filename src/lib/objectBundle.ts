@@ -15,7 +15,7 @@
  *    (`message-attachments` bucket; AES key rides inside the E2E Signal message).
  *
  * NO-PHI INVARIANT (enforced at EXPORT): events drop assignees / property /
- * subtasks / mission data; overlays drop `tc3_card_id`; property items drop the
+ * subtasks / mission data; property items drop the
  * holder / owner / zone placement and the enrollment photo + fingerprint. Only
  * operational vocabulary leaves the device. Mirrors the `.ics` export rule (which
  * already strips assignments) and the no-PHI-on-the-map overlay invariant.
@@ -52,8 +52,8 @@ export interface BundledEvent {
   opord_notes: string | null
 }
 
-/** Operational projection of a single overlay feature. No id / overlay_id /
- *  tc3_card_id — ids are reminted on import, the TC3 link never leaves. */
+/** Operational projection of a single overlay feature. No id / overlay_id —
+ *  ids are reminted on import. */
 export interface BundledFeature {
   type: OverlayFeature['type']
   geometry: [number, number][]

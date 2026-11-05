@@ -12,19 +12,23 @@
  *     Admin SDK. Requires the device to have been active within the window.
  *
  * Returns 'ok' if a session was restored (onAuthStateChange will fire),
+ * 'retry' if the server couldn't be reached (offline / lie-fi / captive portal —
+ * the refresh token is intact, try again when connectivity returns),
  * or 'needs-reauth' if the user must provide a credential manually.
  */
 
+import { isAuthRetryableFetchError } from '@supabase/supabase-js'
 import { supabase } from './supabase'
 import type { LocalSession } from '../stores/useAuthStore'
 
-/** Attempt Supabase's built-in token refresh. Returns true on success. */
-export async function tryRefreshSession(): Promise<boolean> {
+/** Attempt Supabase's built-in token refresh. */
+export async function tryRefreshSession(): Promise<'ok' | 'retry' | 'fail'> {
   try {
     const { data, error } = await supabase.auth.refreshSession()
-    return !error && !!data.session
+    if (!error && data.session) return 'ok'
+    return error && isAuthRetryableFetchError(error) ? 'retry' : 'fail'
   } catch {
-    return false
+    return 'retry'
   }
 }
 
@@ -41,12 +45,14 @@ export async function tryDeviceRestore(_localSession: LocalSession): Promise<boo
 
 /**
  * Run both silent restore tiers in sequence.
- * Returns 'ok' if session was restored, 'needs-reauth' if manual auth is required.
+ * A network-level refresh failure returns 'retry' — never escalate an
+ * unreachable server into a reauth prompt.
  */
 export async function attemptSilentRestore(
   localSession: LocalSession
-): Promise<'ok' | 'needs-reauth'> {
-  if (await tryRefreshSession()) return 'ok'
+): Promise<'ok' | 'retry' | 'needs-reauth'> {
+  const refresh = await tryRefreshSession()
+  if (refresh === 'ok') return 'ok'
   if (await tryDeviceRestore(localSession)) return 'ok'
-  return 'needs-reauth'
+  return refresh === 'retry' ? 'retry' : 'needs-reauth'
 }

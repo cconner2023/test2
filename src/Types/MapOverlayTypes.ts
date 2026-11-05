@@ -4,7 +4,6 @@ export type WaypointType =
   | 'lz' | 'pz' | 'dz'
   | 'ccp' | 'axp' | 'obj' | 'rally'
   | 'hazard' | 'target' | 'supply' | 'vehicle' | 'medic' | 'comms'
-  | 'casualty'
 
 export type FeatureType = 'waypoint' | 'route' | 'area'
 
@@ -38,14 +37,6 @@ export interface OverlayFeature {
   recorded_started_at?: string
   recorded_ended_at?: string
   /**
-   * Phase 4.1 — opaque link to a TC3 card (useTC3Store.card.id or queue
-   * entry id). The OverlayFeature carries ONLY this id. PHI lives device-
-   * side in the TC3 store, never in the overlay's payload, so syncing the
-   * overlay to Supabase / fanning out via Signal does not leak patient
-   * detail. Tap a linked waypoint to open its card.
-   */
-  tc3_card_id?: string
-  /**
    * Floor / depth index for Genshin-style multi-level overlays. `undefined`
    * or `0` = base floor. The map renders a feature only when the active floor
    * matches it (or "All" is selected). Carried verbatim through
@@ -57,7 +48,7 @@ export interface OverlayFeature {
    * Tracking Board station. A pin with this set is a station patients can sit
    * at on the board — set by the "Add to tracking board" toggle in the pin
    * editor. Only the overlay's own cluster (overlay.clinic_id) edits / removes
-   * the pin; a removed pin's patients read as Unassigned on the board. Rides
+   * the pin; a removed pin's patients read as Pending on the board. Rides
    * the overlay's E2E payload like every other feature field (names + coords
    * only, no PHI).
    */
@@ -148,7 +139,6 @@ export const WAYPOINT_LABELS: Record<WaypointType, string> = {
   vehicle: 'Vehicle',
   medic: 'Medic',
   comms: 'Comms',
-  casualty: 'Casualty',
 }
 
 export const WAYPOINT_CATEGORIES: { id: string; label: string; types: WaypointType[] }[] = [
@@ -158,12 +148,11 @@ export const WAYPOINT_CATEGORIES: { id: string; label: string; types: WaypointTy
   { id: 'mission', label: 'Mission', types: ['obj', 'ccp', 'axp', 'target'] },
   { id: 'assets', label: 'Assets', types: ['supply', 'vehicle', 'medic', 'comms'] },
   { id: 'caution', label: 'Caution', types: ['hazard'] },
-  { id: 'casualty', label: 'Casualty', types: ['casualty'] },
 ]
 
 // Flat, ordered list of waypoint glyphs offered in the map creation toolbar's
 // Drop-pin submenu AND in the FeatureEditor glyph picker. Single source of
-// truth — keep both surfaces in lockstep. Forces / assets / caution / casualty
+// truth — keep both surfaces in lockstep. Forces / assets / caution
 // are intentionally omitted to keep the picker mobile-friendly.
 export const PIN_GLYPHS: WaypointType[] = [
   'circle', 'cross', 'triangle',

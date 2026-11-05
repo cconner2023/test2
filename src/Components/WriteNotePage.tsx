@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef, type MouseEvent } from 'react';
 import type { dispositionType, AlgorithmOptions } from '../Types/AlgorithmTypes';
 import type { CardState } from '../Hooks/useAlgorithm';
 import { useNoteEditor } from '../Hooks/useNoteEditor';
@@ -145,6 +145,7 @@ export const WriteNotePage = ({
     const { profile } = useUserProfile();
     const { logNow } = useAlgorithmMetrics();
     const [finishOpen, setFinishOpen] = useState(false);
+    const [finishAnchor, setFinishAnchor] = useState<DOMRect | null>(null);
     const [logged, setLogged] = useState(false);
     const savedNotes = useSavedNotesStore(s => s.notes);
     const saveNote = useSavedNotesStore(s => s.save);
@@ -352,7 +353,7 @@ export const WriteNotePage = ({
         const isUpdate = !!savedIdRef.current && savedNotes.some(n => n.id === savedIdRef.current);
         const saveLabel = isUpdate
             ? 'Update My Notes'
-            : savedNotes.length >= SAVED_NOTES_CAP ? 'Save to My Notes (replaces oldest)' : 'Save to My Notes';
+            : savedNotes.length >= SAVED_NOTES_CAP ? 'Save (replaces oldest)' : 'Save to My Notes';
         const close = () => onExpansionChange(false);
         const opts: ActionSheetOption[] = [];
         if (encodedValue) {
@@ -378,9 +379,15 @@ export const WriteNotePage = ({
             } });
             }
         }
-        opts.push({ key: 'close', label: 'Close', icon: X, onAction: close });
         return opts;
     }, [savedNotes, encodedValue, logged, handleSave, handleLog, onExpansionChange]);
+
+    // Nothing left to save or log: Done just closes.
+    const handleDone = (e: MouseEvent<HTMLButtonElement>) => {
+        if (finishOptions.length === 0) { onExpansionChange(false); return; }
+        setFinishAnchor(e.currentTarget.getBoundingClientRect());
+        setFinishOpen(true);
+    };
 
     return (
         <>
@@ -389,6 +396,7 @@ export const WriteNotePage = ({
             onClose={() => onExpansionChange(false)}
             fullHeight="90dvh"
             mobileClassName=""
+            desktopSize="half"
             scrollDisabled
             header={{
                 title: visiblePages[currentPage]?.label ?? '',
@@ -687,7 +695,7 @@ export const WriteNotePage = ({
                     // Full Note page (terminal): the Done FAB over the glass footer.
                     <NoteWizardFooter
                         currentPage={currentPage} visiblePages={visiblePages} slideDirection={slideDirection}
-                        handleNext={() => setFinishOpen(true)}
+                        handleNext={handleDone}
                         hasPII={hasPII} isMobile={isMobile}
                     />
                 )}
@@ -706,6 +714,7 @@ export const WriteNotePage = ({
                     title="Finish note"
                     options={finishOptions}
                     onClose={() => setFinishOpen(false)}
+                    anchorRect={finishAnchor}
                 />
             </div>
         </BaseDrawer>

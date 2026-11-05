@@ -5,6 +5,8 @@ import { useIsMobile } from '@/Hooks/useIsMobile'
 import { Sheet } from '@/Components/primitives/Sheet'
 import { Z } from '@/Components/primitives/BaseOverlay'
 import { Menu } from '@/Components/primitives/Menu'
+import { AnchoredMenu } from '@/Components/primitives/LiftedRowMenu'
+import type { ContextMenuItem } from '@/Components/primitives/ContextMenu'
 
 export interface ActionSheetOption {
   key: string
@@ -28,13 +30,26 @@ interface ActionSheetProps {
    *  OUTSIDE a host detail sheet (e.g. the shared ItemActionMenu), where the default
    *  Z.MODAL (70) would fall behind that z1200 sheet. Ignored on desktop (Menu). */
   zIndex?: number
+  /** Trigger's rect. On desktop, swaps the centered Menu for an AnchoredMenu pinned
+   *  to the trigger: no title or Cancel row, an outside click dismisses. Ignored on
+   *  mobile (Sheet). */
+  anchorRect?: DOMRect | null
 }
+
+const toMenuItem = (o: ActionSheetOption): ContextMenuItem => ({
+  key: o.key,
+  label: o.label,
+  icon: o.icon,
+  destructive: o.variant === 'danger',
+  onAction: o.onAction,
+  submenu: o.children?.map(toMenuItem),
+})
 
 /**
  * ActionSheet — dual-mode option list: Sheet on mobile, Menu on desktop.
  * Wraps the new overlay primitives so consumers don't need to pick.
  */
-export function ActionSheet({ visible, title, options, onClose, zIndex = Z.MODAL }: ActionSheetProps) {
+export function ActionSheet({ visible, title, options, onClose, zIndex = Z.MODAL, anchorRect }: ActionSheetProps) {
   const isMobile = useIsMobile()
   // Drill-down path: keys of the group rows we've descended through. Empty = top.
   const [path, setPath] = useState<string[]>([])
@@ -162,6 +177,19 @@ export function ActionSheet({ visible, title, options, onClose, zIndex = Z.MODAL
           </button>
         </div>
       </Sheet>
+    )
+  }
+
+  if (anchorRect) {
+    return (
+      <AnchoredMenu
+        isOpen={visible}
+        anchorRect={anchorRect}
+        items={options.map(toMenuItem)}
+        onClose={onClose}
+        layout="list"
+        align="right"
+      />
     )
   }
 

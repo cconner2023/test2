@@ -7,6 +7,7 @@ import { Sheet } from '@/Components/primitives/Sheet'
 import { SearchInput } from '@/Components/primitives/SearchInput'
 import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill'
 import { TextInput } from '@/Components/primitives/FormInputs'
+import { PaneHeader } from '@/Components/primitives/PaneHeader'
 import { useTC3Detail } from './TC3DetailContext'
 import { useEscBackout } from '../../Hooks/useEscBackout'
 
@@ -23,11 +24,11 @@ type Props = ComponentProps<typeof PreviewOverlay> & {
  * The TC3 card sub-editor surface — same prop surface the forms already pass to
  * PreviewOverlay, but presented as the app's object-detail primitive rather than
  * a floating overlay:
- *   • Desktop — rendered DIRECTLY into TC3Drawer's right pane (portaled to
- *     `paneRef`), a plain flex-column with a host-owned header + Close, mirroring
- *     CalendarPanel → EventDetailPanel. Opening it collapses the roster rail.
+ *   • Desktop — portaled into TC3Drawer's lifted detail card (`paneRef`, a
+ *     SearchDropdownCard floated over the main column — Calendar / Property /
+ *     Map idiom): PaneHeader + own scroller. The roster rail stays open.
  *   • Mobile — a bottom Sheet (the same EventDetailPanel `inSheet` primitive).
- * No backdrop, no scale-in float — it reads as a docked detail pane.
+ * No backdrop — the card column behind stays live.
  */
 export function TC3EditorSurface(props: Props) {
   const isMobile = useIsMobile()
@@ -35,11 +36,11 @@ export function TC3EditorSurface(props: Props) {
 
   const { isOpen, onClose } = props
 
-  // Desktop Esc: while this editor is the open docked pane, close it (collapsing
-  // back to the roster rail) before the TC3 drawer itself closes.
+  // Desktop Esc: while this editor is the open card, close it before the TC3
+  // drawer itself closes.
   useEscBackout(!isMobile && !!detail && isOpen, onClose)
 
-  // Desktop: while open, collapse the rail and open the right pane. Guarded on
+  // Desktop: while open, show the host's floating card. Guarded on
   // `isOpen` so each surface contributes exactly one +1/-1 across its open span.
   useEffect(() => {
     if (isMobile || !detail || !isOpen) return
@@ -70,22 +71,23 @@ export function TC3EditorSurface(props: Props) {
     </>
   )
 
-  // ── Desktop — docked panel portaled into the right pane ──
-  // Header mirrors the app's edit-item pane: reset/remove (left) · title ·
-  // [ellipsis] Save · Close (right, one borderless cluster).
+  // ── Desktop — portaled into the host's lifted detail card ──
+  // PaneHeader: reset/remove (leading) · title · [ellipsis] Save · Close.
   if (!isMobile && detail) {
     if (!isOpen || !detail.paneRef.current) return null
     return createPortal(
-      <div className="flex flex-col h-full bg-themewhite">
-        <div className="shrink-0 flex items-center gap-2 px-3 py-2 border-b border-primary/10">
-          <LeftAction actions={props.actions} onClose={onClose} />
-          <span className="text-sm font-medium text-primary truncate min-w-0 flex-1">{props.title}</span>
-          <div className="flex items-center gap-2 shrink-0">
-            {props.headerActions}
-            <HeaderPill>{saveClosePills}</HeaderPill>
-          </div>
-        </div>
-        <div className="flex-1 min-h-0 overflow-y-auto px-1 py-1">{body}</div>
+      <div className="flex flex-col flex-1 min-h-0">
+        <PaneHeader
+          leading={<LeftAction actions={props.actions} onClose={onClose} />}
+          title={props.title}
+          actions={
+            <div className="flex items-center gap-2 shrink-0">
+              {props.headerActions}
+              <HeaderPill>{saveClosePills}</HeaderPill>
+            </div>
+          }
+        />
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-1 py-1">{body}</div>
       </div>,
       detail.paneRef.current,
     )

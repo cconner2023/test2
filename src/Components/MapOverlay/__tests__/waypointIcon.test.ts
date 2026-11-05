@@ -14,7 +14,6 @@ describe('expanded waypoint glyph set', () => {
     'lz', 'pz', 'dz',
     'ccp', 'axp', 'obj', 'rally',
     'hazard', 'target', 'supply', 'vehicle', 'medic', 'comms',
-    'casualty',
   ]
 
   it('every glyph has a human-readable label', () => {
@@ -45,14 +44,6 @@ describe('expanded waypoint glyph set', () => {
     const svg = waypointIconSvg('not-a-real-type', '#3b82f6')
     expect(svg).toContain('<svg')
     expect(svg).toContain('<circle')
-  })
-
-  it('linkedCasualty flag forces the casualty glyph regardless of type', () => {
-    // Casualty glyph has the white card with stroke + interior cross + corner stripe.
-    const asCasualty = waypointIconSvg('triangle', '#ff0000', 28, false, true)
-    expect(asCasualty).toContain('fill="#ffffff"')
-    const asTriangle = waypointIconSvg('triangle', '#ff0000', 28, false, false)
-    expect(asTriangle).not.toContain('fill="#ffffff"')
   })
 })
 

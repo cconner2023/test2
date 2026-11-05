@@ -2,15 +2,15 @@ import { createContext, useContext, type RefObject } from 'react'
 
 /**
  * Shared desktop detail-pane wiring for TC3 sub-editors. TC3Drawer provides it;
- * TC3EditorSurface consumes it so any editor can open in the docked right pane
- * (collapsing the roster rail) on desktop. Absent (null) on mobile — the surface
+ * TC3EditorSurface consumes it so any editor can open in the floating detail
+ * card over the main column on desktop. Absent (null) on mobile — the surface
  * falls back to a bottom Sheet.
  */
 export interface TC3DetailValue {
-  /** The docked right-pane element (flex flex-col) an open editor renders into
-   *  directly via createPortal — EventDetailPanel-style, not an overlay. */
+  /** The lifted card's body slot (flex flex-col, always mounted) an open editor
+   *  renders into via createPortal. */
   paneRef: RefObject<HTMLDivElement | null>
-  /** Called by an open editor to drive the rail-collapse / pane-open transition. */
+  /** Called by an open editor to show / hide the floating card. */
   registerDetail: (open: boolean) => void
 }
 

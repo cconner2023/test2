@@ -1,5 +1,6 @@
-import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
-import { ScanLine, X, LayoutTemplate, Pencil, Check, ChevronLeft, ChevronRight, Save } from 'lucide-react'
+import { useState, useCallback, useMemo, useRef, useEffect, type MouseEvent } from 'react'
+import { createPortal } from 'react-dom'
+import { ScanLine, X, LayoutTemplate, Pencil, Check, ChevronRight, Save } from 'lucide-react'
 import { ImportInputBar } from './ImportInputBar'
 import { ImportResultPopover } from './ImportResultPopover'
 import { BaseDrawer } from '@/Components/primitives/BaseDrawer'
@@ -11,7 +12,9 @@ import { SearchInput } from '@/Components/primitives/SearchInput'
 import { ActionButton } from '@/Components/primitives/ActionButton'
 import { AddFab } from '@/Components/primitives/AddFab'
 import { ActionSheet, type ActionSheetOption } from '@/Components/primitives/ActionSheet'
-import { SlideRevealPane } from '@/Components/primitives/SlideRevealPane'
+import { DesktopRail } from '@/Components/primitives/DesktopRail'
+import { SearchDropdownCard } from '@/Components/primitives/SearchDropdown'
+import { PaneHeader } from '@/Components/primitives/PaneHeader'
 import { useStack } from '@/Components/primitives/useStack'
 import { type StackNav, type StackScreen } from './stackNav'
 import { useSwipeBack } from '../Hooks/useSwipeBack'
@@ -59,7 +62,7 @@ import { logError } from '../Utilities/ErrorHandler'
 
 type ProviderView = 'note' | 'output'
 
-/** Which screen the desktop right pane shows (null = closed, rail expanded). The
+/** Which screen the desktop detail card shows (null = closed). The
  *  key indexes the pane's useStack `screens` map; `detail` reads selectedTemplateId
  *  live, `editor` reads templateEditState. */
 type PaneScreen = { key: string; params?: unknown }
@@ -147,6 +150,11 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
   const savedIdRef = useRef<string | undefined>(undefined)
 
   const isMobile = useIsMobile()
+  // Portal target for the desktop Note Output drawer. Resolved after mount: this
+  // drawer renders INSIDE #app-drawer-root, so on App's first render the element
+  // isn't in the DOM yet and createPortal(null) throws.
+  const [drawerRoot, setDrawerRoot] = useState<HTMLElement | null>(null)
+  useEffect(() => { setDrawerRoot(document.getElementById('app-drawer-root')) }, [])
   const { profile, updateProfile, syncProfileField } = useUserProfile()
   // Merged (personal + subscribed clinic) plan tags/order sets — the same source the
   // mobile Plan reads, so the desktop center + pane flow stay consistent with it.
@@ -157,14 +165,14 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
   // ── Mobile template drawer ─────────────────────────────────────────────────
   const [templateDrawerOpen, setTemplateDrawerOpen] = useState(false)
 
-  // ── Template rail search + selection (desktop three-zone) ──────────────────
+  // ── Template rail search + selection (desktop rail) ──────────────────
   const [templateSearch, setTemplateSearch] = useState('')
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null)
   const selectedTemplate = selectedTemplateId
     ? templates.find(t => t.id === selectedTemplateId) ?? null
     : null
 
-  // ── Desktop right pane (Case A/B/C) ────────────────────────────────────────
+  // ── Desktop detail card (Case A/B/C) ────────────────────────────────────────
   const [paneScreen, setPaneScreen] = useState<PaneScreen | null>(null)
   const paneOpen = paneScreen !== null
 
@@ -402,7 +410,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
 
   // ── Navigation ──────────────────────────────────────────────────────────────
 
-  // Output: desktop → right pane (Case C); mobile → center view-swap.
+  // Output: desktop → half drawer pushing this one; mobile → center view-swap.
   const goToOutput = useCallback(() => {
     if (isMobile) {
       handleSlideAnimation('left')
@@ -471,6 +479,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
   const providerRestore = useNavigationStore(s => s.providerRestore)
   const clearProviderRestore = useNavigationStore(s => s.clearProviderRestore)
   const [finishOpen, setFinishOpen] = useState(false)
+  const [finishAnchor, setFinishAnchor] = useState<DOMRect | null>(null)
 
   // Reopened entry: re-import its payload (same path as a scanned note) and
   // remember the id so a re-save overwrites it. Opens on the editing view.
@@ -510,7 +519,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
     const isUpdate = !!savedIdRef.current && savedNotes.some(n => n.id === savedIdRef.current)
     const saveLabel = isUpdate
       ? 'Update My Notes'
-      : savedNotes.length >= SAVED_NOTES_CAP ? 'Save to My Notes (replaces oldest)' : 'Save to My Notes'
+      : savedNotes.length >= SAVED_NOTES_CAP ? 'Save (replaces oldest)' : 'Save to My Notes'
     const opts: ActionSheetOption[] = []
     if (encodedValue) {
       // Failed save keeps the drawer open (store already showed why) so the note isn't lost.
@@ -520,12 +529,18 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
         handleClose()
       } })
     }
-    opts.push({ key: 'close', label: 'Close', icon: X, onAction: handleClose })
     return opts
   }, [savedNotes, encodedValue, handleSave, handleClose])
 
+  // Nothing to save: Done just closes.
+  const handleDone = (e: MouseEvent<HTMLButtonElement>) => {
+    if (finishOptions.length === 0) { handleClose(); return }
+    setFinishAnchor(e.currentTarget.getBoundingClientRect())
+    setFinishOpen(true)
+  }
+
   const finishHeaderAction = (
-    <PillButton icon={Check} iconSize={18} accent="success" onClick={() => setFinishOpen(true)} label="Done" />
+    <PillButton icon={Check} iconSize={18} accent="success" onClick={handleDone} label="Done" />
   )
 
   // ── Swipe Back (mobile output) ──────────────────────────────────────────────
@@ -541,7 +556,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
 
   // No auto-focus on expand — iOS keyboard open shifts the viewport
 
-  // ── Right-pane stack (desktop): detail · template editor · sections · output ─
+  // ── Detail-card stack (desktop): detail · template editor · sections · output ─
   // No onDelete → the editor hides its footer Delete; deletion lives on the template
   // tree's ellipsis (desktop rail + mobile Sheet) via handleTemplateDelete.
   const { screens: templateEditorScreens } = useProviderTemplateEditorScreens({
@@ -601,7 +616,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
   )
 
   // PE section for the desktop center (MAIN pane) — movable cards once systems are
-  // selected; tap a card → findings in the right pane; dashed + → the selector.
+  // selected; tap a card → findings in the detail card; dashed + → the selector.
   const peCenter = (
     <PECenter
       selectedBlockKeys={selectedBlockKeys}
@@ -700,24 +715,12 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
         />
       ) : null,
     },
-    output: {
-      title: 'Note Output',
-      headerActions: finishHeaderAction,
-      render: () => (
-        <ProviderNoteOutput
-          hpiNote={hpiNote}
-          peNote={peNote}
-          assessmentNote={assessmentNote}
-          planNote={planNote}
-          importedMedicNote={importedMedicNote}
-          encodedValue={encodedValue}
-        />
-      ),
-    },
   }
 
+  const outputOpen = !isMobile && paneScreen?.key === 'output'
+
   const paneStack = useStack({
-    isOpen: paneOpen,
+    isOpen: paneOpen && !outputOpen,
     initial: paneScreen ?? { key: 'detail' },
     screens: paneScreens,
   })
@@ -829,11 +832,10 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
 
   return (
     <BaseDrawer
+      desktopPosition="left"
       isVisible={isVisible}
       onClose={handleClose}
       fullHeight="90dvh"
-      desktopPosition="left"
-      desktopWidth="w-[90%]"
       header={headerConfig}
       scrollDisabled
       glassHeader={isMobile}
@@ -841,15 +843,9 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
       <div className="relative h-full">
         {!isMobile ? (
           <div className="flex h-full">
-            {/* Left rail — template search + tree. Collapses (slides out left) when
-                the right pane opens (rail-collapse 3-pane primitive). */}
-            <SlideRevealPane
-              open={!paneOpen}
-              side="left"
-              width={260}
-              keepMounted
-              className="border-r border-tertiary/10 bg-themewhite"
-            >
+            {/* Left rail — template search + tree. Always open; details float in
+                the lifted card over the center (Calendar / Property / Map idiom). */}
+            <DesktopRail>
               <div className="shrink-0 px-3 pt-2 pb-1 flex items-center gap-2">
                 <SearchInput
                   value={templateSearch}
@@ -876,9 +872,9 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
                   hoverActions
                 />
               </div>
-            </SlideRevealPane>
+            </DesktopRail>
 
-            {/* Center — note summary (editing routes into the right pane) */}
+            {/* Center — note summary (editing routes into the detail card) */}
             <div className="relative flex-1 min-w-0 flex flex-col min-h-0">
               <div className="flex-1 min-h-0 overflow-y-auto">
                 <ContentWrapper slideDirection="" swipeHandlers={undefined}>
@@ -912,54 +908,50 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
                   </div>
                 </ContentWrapper>
               </div>
-              {/* Next → note output (right pane). The canonical bottom-right add FAB
+              {/* Next → note output (detail card). The canonical bottom-right add FAB
                   (Property/Calendar), with the glyph swapped to a forward chevron. */}
               <div className="absolute bottom-4 right-4 z-30 pb-[max(0rem,var(--sab,0px))] pointer-events-none">
                 <AddFab icon={ChevronRight} label="Next" onClick={goToOutput} />
               </div>
             </div>
 
-            {/* Right pane — detail / template editor / section editor / output;
-                slides in from the right as the rail collapses. */}
-            <SlideRevealPane
-              open={paneOpen}
-              side="right"
-              width={380}
-              className="border-l border-primary/10 bg-themewhite"
-            >
-              {paneOpen && paneStack.hasScreen && (
-                <>
-                  <div className="shrink-0 flex items-center gap-2 px-4 py-3 border-b border-tertiary/10">
-                    {paneStack.canBack && (
-                      <button
-                        onClick={paneStack.onBack}
-                        aria-label="Back"
-                        className="w-8 h-8 shrink-0 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all"
-                      >
-                        <ChevronLeft size={18} />
-                      </button>
-                    )}
-                    {paneStack.headerLeft}
-                    <p className="flex-1 min-w-0 text-sm font-semibold text-primary truncate">{paneStack.title}</p>
-                    {/* Edit-overlay header (calendar edit-event pattern): a screen's
-                        submit/action pill joins Close in one HeaderPill. */}
-                    <HeaderPill>
-                      {paneStack.headerActions}
-                      <PillButton icon={X} iconSize={18} onClick={closePane} label="Close" />
-                    </HeaderPill>
-                  </div>
-                  <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-4 py-4">
-                    {paneStack.body('')}
-                  </div>
-                  {(paneStack.footer || paneStack.rightFooter) && (
-                    <div className="shrink-0 flex items-center justify-between gap-2 px-4 py-3 border-t border-tertiary/10">
+            {/* Detail card — detail / template editor / section editor float
+                in a lifted SearchDropdownCard top-right over the center (no right pane).
+                ONE card instance for the whole open: screens swap inside it through
+                paneStack's StackBody morph, so a drill / screen change never remounts
+                or re-animates the card. z-40: above the Next FAB (z-30), matching
+                Calendar's card; menus, confirms and pickers portal far above it. */}
+            {paneOpen && !outputOpen && paneStack.hasScreen && (
+              <div className="absolute top-3 right-3 z-40 w-[360px] max-w-[calc(100%-1.5rem)] pointer-events-none">
+                <SearchDropdownCard
+                  className="pointer-events-auto relative"
+                  ariaLabel={paneStack.title ?? 'Provider detail'}
+                  header={
+                    <PaneHeader
+                      onBack={paneStack.canBack ? paneStack.onBack : undefined}
+                      leading={paneStack.headerLeft}
+                      title={paneStack.title}
+                      actions={
+                        // Edit-overlay header (calendar edit-event pattern): a screen's
+                        // submit/action pill joins Close in one HeaderPill.
+                        <HeaderPill>
+                          {paneStack.headerActions}
+                          <PillButton icon={X} iconSize={18} onClick={closePane} label="Close" />
+                        </HeaderPill>
+                      }
+                    />
+                  }
+                  footer={(paneStack.footer || paneStack.rightFooter) ? (
+                    <div className="flex items-center justify-between gap-2 px-3 py-2">
                       <div className="flex items-center gap-2">{paneStack.footer}</div>
                       <div className="flex items-center gap-2">{paneStack.rightFooter}</div>
                     </div>
-                  )}
-                </>
-              )}
-            </SlideRevealPane>
+                  ) : undefined}
+                >
+                  <div className="px-4 py-3 overflow-x-hidden">{paneStack.body('')}</div>
+                </SearchDropdownCard>
+              </div>
+            )}
           </div>
         ) : (
             <ContentWrapper
@@ -1038,7 +1030,38 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
           title="Finish note"
           options={finishOptions}
           onClose={() => setFinishOpen(false)}
+          anchorRect={finishAnchor}
         />
+
+        {/* Note output — portaled out of this panel so it can push it. */}
+        {!isMobile && drawerRoot && createPortal(
+          <BaseDrawer
+            isVisible={outputOpen}
+            onClose={closePane}
+            desktopSize="half"
+            contentPadding="standard"
+            header={{
+              title: 'Note Output',
+              hideDefaultClose: true,
+              rightContent: (
+                <HeaderPill>
+                  {finishHeaderAction}
+                  <PillButton icon={X} iconSize={18} onClick={closePane} label="Close" />
+                </HeaderPill>
+              ),
+            }}
+          >
+            <ProviderNoteOutput
+              hpiNote={hpiNote}
+              peNote={peNote}
+              assessmentNote={assessmentNote}
+              planNote={planNote}
+              importedMedicNote={importedMedicNote}
+              encodedValue={encodedValue}
+            />
+          </BaseDrawer>,
+          drawerRoot,
+        )}
 
         {/* Mobile template picker — Sheet (not a nested BaseDrawer, which
             would be trapped under this drawer's glass header) */}
@@ -1081,7 +1104,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
         )}
 
         {/* Mobile only: the lifted editor popover. On desktop the same editor
-            (useProviderTemplateEditorScreens) mounts in the right pane instead. */}
+            (useProviderTemplateEditorScreens) mounts in the desktop detail card instead. */}
         {isMobile && (
           <ProviderTemplateEditPopover
             state={templateEditState}

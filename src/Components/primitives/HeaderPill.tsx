@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react'
-import { Children, createContext, useContext, type ReactNode } from 'react'
+import { Children, createContext, useContext, type MouseEvent, type ReactNode } from 'react'
 import { useIsMobile } from '@/Hooks/useIsMobile'
 
 /** When true, PillButton/HeaderPill render their DESKTOP treatment even on a
@@ -32,7 +32,7 @@ const ACCENT_UNDERLINE: Record<AccentTone, string> = {
 
 interface PillButtonProps {
     icon: LucideIcon
-    onClick: () => void
+    onClick: (e: MouseEvent<HTMLButtonElement>) => void
     label: string
     variant?: 'default' | 'danger'
     iconSize?: number

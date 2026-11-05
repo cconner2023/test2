@@ -5,7 +5,7 @@ import { Scrim } from '@/Components/primitives/Scrim'
 import { OverlayStackContext, STACK_BUMP } from '@/Components/primitives/BaseOverlay'
 import { LoadingOverlay } from '@/Components/primitives/LoadingOverlay'
 import { DesktopChrome } from '@/Components/primitives/HeaderPill'
-import { BrnCardHead, BrnCardFoot, tintFor, fmtTime, measureBrnCard, type CardOrigin, type TrackingEntry } from './TrackingBoardPanel'
+import { BrnCardHead, BrnStationLine, BrnCardFoot, tintFor, measureBrnCard, type CardOrigin, type TrackingEntry } from './TrackingBoardPanel'
 
 /** Viewport gutter around the expanded card (on top of the safe areas). */
 const GUTTER = 12
@@ -25,8 +25,8 @@ interface TrackingCardOverlayProps {
   onClose: () => void
   /** Collapse finished — the caller un-hides the list card. */
   onSettled: () => void
-  /** Pill group that fades in at the head's top-right as the check-in time
-   *  fades out (right only — a left group would collide with the BRN). */
+  /** Pill group that fades in at the head's top-right
+   *  (right only — a left group would collide with the BRN). */
   headRight?: ReactNode
   /** Detail or edit form. Height re-springs when it changes. */
   children: ReactNode
@@ -136,7 +136,6 @@ export function TrackingCardOverlay({
 
   if (!mounted || !entry) return null
   const fadeIn = { opacity: s.p }
-  const fadeOut = { opacity: s.p.to(p => 1 - p) }
 
   return createPortal(
     <OverlayStackContext.Provider value={zIndex + STACK_BUMP}>
@@ -163,10 +162,8 @@ export function TrackingCardOverlay({
         <div className={`h-full flex flex-col p-1.5 ${tintFor(entry).shell}`}>
           <div className="relative flex-1 min-h-0 flex flex-col rounded-xl bg-themewhite shadow-sm overflow-hidden">
             <div ref={headRef} className="shrink-0 px-4 pt-3 pb-3 min-w-0">
-              <BrnCardHead
-                entry={entry}
-                inTime={<animated.span style={fadeOut} className="text-[9pt] font-mono text-tertiary shrink-0">In {fmtTime(entry.checkedInAt)}</animated.span>}
-              />
+              <BrnCardHead entry={entry} />
+              <animated.div style={fadeIn}><BrnStationLine entry={entry} /></animated.div>
             </div>
             {/* Un-pilled, primitive header chrome (Sheet idiom): DesktopChrome drops the
                 capsule bubble and sizes PillButtons as bare 36px icon buttons. */}

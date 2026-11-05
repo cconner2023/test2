@@ -154,7 +154,6 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
     const contactsSwipeBack = useSwipeBack(view === 'messages' ? handleClose : undefined, isMobile)
 
     const isConversationView = view === 'messages-chat' || view === 'messages-group-chat'
-    const isMessagesActive = view === 'messages' || isConversationView
 
     // The open conversation only counts as "being read" while the drawer is
     // shown and the tab is foregrounded. Closing via swipe / Esc / another
@@ -365,8 +364,6 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
             fullHeight="90dvh"
             header={desktopHeaderConfig}
             mobileFullScreen={isConversationView}
-            desktopPosition="right"
-            desktopWidth={isMessagesActive ? 'w-[90%]' : undefined}
         >
             <div className="h-full">
                 {panelContent}

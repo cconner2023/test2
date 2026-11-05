@@ -1,5 +1,7 @@
 import { useState, useMemo, useCallback } from 'react';
 import { BaseDrawer } from '@/Components/primitives/BaseDrawer';
+import { useIsMobile } from '@/Hooks/useIsMobile';
+import { DRAWER_TIMING } from '@/Utilities/constants';
 import type { ScreenerConfig, ScreenerWordList } from '../Types/AlgorithmTypes';
 import { getScreenerMaxScore, isQuestionScored } from '../Data/SpecTesting';
 import { Check } from 'lucide-react';
@@ -21,6 +23,19 @@ export function ScreenerDrawer({
     onComplete,
     onClose,
 }: ScreenerDrawerProps) {
+    // The parent closes this drawer by unmounting it, so on desktop play the
+    // slide-out first; otherwise the panel vanishes before the content returns.
+    const isMobile = useIsMobile();
+    const [isVisible, setIsVisible] = useState(true);
+    const closeAfterSlide = useCallback((finish: () => void) => {
+        if (isMobile) {
+            finish();
+            return;
+        }
+        setIsVisible(false);
+        window.setTimeout(finish, DRAWER_TIMING.TRANSITION);
+    }, [isMobile]);
+
     const ext = screenerConfig.conditionalExtension;
     const extendedScreener = ext?.screener;
 
@@ -152,24 +167,24 @@ export function ScreenerDrawer({
                 ...baseResponses.map(v => v ?? 0),
                 ...extResponses.map(v => v ?? 0),
             ];
-            onComplete(extendedScreener.id, fullResponses);
+            closeAfterSlide(() => onComplete(extendedScreener.id, fullResponses));
         } else {
-            onComplete(
+            closeAfterSlide(() => onComplete(
                 screenerConfig.id,
                 baseResponses.map(v => v ?? 0),
                 followUpIdx !== null ? followUpIdx : undefined,
-            );
+            ));
         }
-    }, [allComplete, showExtension, extendedScreener, ext, baseResponses, extResponses, screenerConfig.id, followUpIdx, onComplete]);
+    }, [allComplete, showExtension, extendedScreener, ext, baseResponses, extResponses, screenerConfig.id, followUpIdx, onComplete, closeAfterSlide]);
 
     return (
         <BaseDrawer
-            isVisible={true}
-            onClose={onClose}
+            isVisible={isVisible}
+            onClose={() => closeAfterSlide(onClose)}
             header={{ title: activeScreener.title }}
             fullHeight="90dvh"
-            desktopPosition="right"
             contentPadding="compact"
+            desktopSize="half"
         >
             <div>
                 {/* Instruction */}

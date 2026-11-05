@@ -6,6 +6,7 @@ import { useSpring, animated } from '@react-spring/web'
 import { SearchInput } from '@/Components/primitives/SearchInput'
 import { MobilePageHeader, PageCircleButton } from '@/Components/primitives/MobilePageHeader'
 import { RailSearchRow } from '@/Components/primitives/RailSearchRow'
+import { DesktopRail } from '@/Components/primitives/DesktopRail'
 import { FooterPill } from '@/Components/primitives/FooterPill'
 import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill'
 import { useClinicMedics } from '../../Hooks/useClinicMedics'
@@ -1505,7 +1506,7 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
           {renderPane()}
         </div>
       )}
-      <div className="hidden md:flex md:flex-col w-80 shrink-0 border-r border-primary/10 overflow-hidden">
+      <DesktopRail mdOnly className="overflow-hidden">
         <RailSearchRow
           value={searchQuery}
           onChange={onSearchChange}
@@ -1534,7 +1535,7 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
         <div className="flex-1 min-h-0 overflow-y-auto">
           {renderPane()}
         </div>
-      </div>
+      </DesktopRail>
 
       {/* Main content area (chat detail on both, empty state on desktop) */}
       <div className="flex-1 min-w-0 h-full overflow-hidden">

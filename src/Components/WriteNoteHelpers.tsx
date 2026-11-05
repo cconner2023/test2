@@ -1,4 +1,4 @@
-import type { RefObject } from 'react';
+import type { MouseEvent, RefObject } from 'react';
 import { Check, ChevronRight } from 'lucide-react';
 import type { getColorClasses } from '../Utilities/ColorUtilities';
 import type { TextExpander } from '../Data/User';
@@ -300,7 +300,7 @@ export const NoteWizardFooter = ({
     currentPage: number;
     visiblePages: { id: string; label: string }[];
     slideDirection: 'left' | 'right' | '';
-    handleNext: () => void;
+    handleNext: (e: MouseEvent<HTMLButtonElement>) => void;
     hasPII: boolean;
     isMobile: boolean;
 }) => {

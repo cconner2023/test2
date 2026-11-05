@@ -80,23 +80,6 @@ describe('GPX round-trip', () => {
     expect(() => parseGPX('<not-gpx/>', 'ov-1')).toThrow(/expected <gpx>/)
   })
 
-  it('round-trips tc3_card_id via beacon-prefixed extension', () => {
-    const features: OverlayFeature[] = [{
-      id: 'wp-cas', overlay_id: 'ov-1', type: 'waypoint',
-      geometry: [[38.89, -77.05]],
-      label: 'Casualty A',
-      style: { color: '#ff0000', weight: 3, opacity: 1 },
-      waypoint_type: 'casualty',
-      tc3_card_id: 'tc3-9c1f',
-      created_at: NOW, updated_at: NOW,
-    }]
-    const xml = serializeGPX(features, 'ov')
-    expect(xml).toContain('<beacon:tc3CardId>tc3-9c1f</beacon:tc3CardId>')
-    const { features: parsed } = parseGPX(xml, 'ov-1')
-    expect(parsed[0].tc3_card_id).toBe('tc3-9c1f')
-    expect(parsed[0].waypoint_type).toBe('casualty')
-  })
-
   it('parses external GPX without beacon extensions (assigns new ids)', () => {
     const xml = `<?xml version="1.0"?>
       <gpx version="1.1" creator="OtherApp" xmlns="http://www.topografix.com/GPX/1/1">

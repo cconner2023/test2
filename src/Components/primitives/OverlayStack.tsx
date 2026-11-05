@@ -1,6 +1,15 @@
+import { useLayoutEffect } from 'react'
+import { createPortal } from 'react-dom'
+import { X } from 'lucide-react'
 import { StackNavContext, type StackNav, type StackScreen } from '@/Components/stackNav'
 import { PreviewOverlay } from '@/Components/PreviewOverlay'
-import { useStack } from '@/Components/primitives/useStack'
+import { useStack, type StackController } from '@/Components/primitives/useStack'
+import { LayeredStackBody } from '@/Components/primitives/LayeredStackBody'
+import { SearchDropdownCard } from '@/Components/primitives/SearchDropdown'
+import { LoadingOverlay } from '@/Components/primitives/LoadingOverlay'
+import { PaneHeader } from '@/Components/primitives/PaneHeader'
+import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill'
+import { useEscBackout } from '../../Hooks/useEscBackout'
 
 export type { StackNav, StackScreen } from '@/Components/stackNav'
 
@@ -35,6 +44,63 @@ export type { StackNav, StackScreen } from '@/Components/stackNav'
  * path into the node tree).
  */
 
+/** A lifted detail card that a stack can morph into instead of opening an overlay.
+ *  The host owns the slot and hides its own card while `onActiveChange(true)` holds. */
+export interface CardMorphHost {
+  el: HTMLElement | null
+  onActiveChange: (active: boolean) => void
+}
+
+/** The lifted-card shell for useStack: same engine and screens as the overlay, but
+ *  rendered into the host's card slot, with no scrim so the canvas stays live. */
+function CardStackShell({ stack, host, onClose, loading }: {
+  stack: StackController
+  host: CardMorphHost
+  onClose: () => void
+  loading?: boolean
+}) {
+  const { onActiveChange } = host
+  useLayoutEffect(() => {
+    onActiveChange(true)
+    return () => onActiveChange(false)
+  }, [onActiveChange])
+  useEscBackout(true, () => (stack.onBack ?? onClose)())
+
+  if (!host.el) return null
+  const hasFooter = !!(stack.footer || stack.rightFooter)
+  return createPortal(
+    <StackNavContext.Provider value={stack.nav}>
+      <SearchDropdownCard
+        className="pointer-events-auto relative"
+        ariaLabel={stack.title}
+        header={
+          <PaneHeader
+            onBack={stack.onBack}
+            leading={stack.headerLeft}
+            title={stack.title}
+            actions={
+              <HeaderPill>
+                {stack.headerActions}
+                <PillButton icon={X} iconSize={18} onClick={onClose} label="Close" />
+              </HeaderPill>
+            }
+          />
+        }
+        footer={hasFooter ? (
+          <div className="flex items-center justify-between px-2 py-2">
+            {stack.footer ?? <div />}
+            {stack.rightFooter}
+          </div>
+        ) : undefined}
+      >
+        <LoadingOverlay visible={!!loading} />
+        <LayeredStackBody frames={stack.frames} searchPlaceholder={stack.searchPlaceholder} />
+      </SearchDropdownCard>
+    </StackNavContext.Provider>,
+    host.el,
+  )
+}
+
 interface OverlayStackProps {
   isOpen: boolean
   onClose: () => void
@@ -56,16 +122,22 @@ interface OverlayStackProps {
    *  shell while the root screen's data loads. */
   loading?: boolean
   hudSize?: number
+  /** Morph into this lifted card instead of opening an overlay. */
+  cardHost?: CardMorphHost
 }
 
 export function OverlayStack({
-  isOpen, onClose, initial, screens, containerRef, anchorRect = null, navRef, maxWidth, previewMaxHeight, zIndex, loading, hudSize,
+  isOpen, onClose, initial, screens, containerRef, anchorRect = null, navRef, maxWidth, previewMaxHeight, zIndex, loading, hudSize, cardHost,
 }: OverlayStackProps) {
   const stack = useStack({ isOpen, initial, screens, navRef })
 
   // No resolvable screen (bad key + no ad-hoc frame) → render nothing, matching
   // the pre-extraction behavior (the card never mounted in that state).
   if (!stack.hasScreen) return null
+
+  if (cardHost) {
+    return isOpen ? <CardStackShell stack={stack} host={cardHost} onClose={onClose} loading={loading} /> : null
+  }
 
   // Searchable screens route through PreviewOverlay's `preview` slot so the card
   // pins its search box above the morphing body and feeds the live filter into

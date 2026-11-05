@@ -1519,11 +1519,10 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
   return (
     <>
       <BaseDrawer
+        desktopPosition="left"
         isVisible={isVisible}
         onClose={handleClose}
         mobileFullScreen
-        desktopPosition="left"
-        desktopWidth="w-[90%]"
         header={headerConfig}
         scrollDisabled
         glassHeader={isMobile && !!headerConfig}

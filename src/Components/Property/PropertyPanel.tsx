@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useMemo, memo, type CSSProperties } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo, memo, type CSSProperties, type ReactNode } from 'react'
 import { X, MoreHorizontal, Check, ChevronLeft, Map as MapIcon, Camera, ClipboardList, Download, Plus, Pencil, Rows3 } from 'lucide-react'
 import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
 import { LiftedRowMenu } from '@/Components/primitives/LiftedRowMenu'
@@ -48,7 +48,8 @@ import { isLinContainer, isAuthTarget, isZoneShadow } from '../../Utilities/prop
 import { SignOutForm, type SignOutFormHandle } from './SignOutForm'
 import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill'
 import { RailSearchRow } from '@/Components/primitives/RailSearchRow'
-import { SlideRevealPane } from '@/Components/primitives/SlideRevealPane'
+import { DesktopRail } from '@/Components/primitives/DesktopRail'
+import { SearchDropdownCard } from '@/Components/primitives/SearchDropdown'
 import { PaneHeader } from '@/Components/primitives/PaneHeader'
 import { useEscBackout } from '../../Hooks/useEscBackout'
 
@@ -78,9 +79,9 @@ interface PropertyPanelProps {
   /** Open the shared add ActionSheet (FAB lives over the center map pane). */
   onOpenAddSheet?: () => void
   /** Register a trigger to open the New DA 2062 sign-out in the detail surface
-   *  (right pane on desktop / detail sheet on mobile). Fired from the add ActionSheet. */
+   *  (detail card on desktop / detail sheet on mobile). Fired from the add ActionSheet. */
   onRegisterNewDA2062?: (trigger: () => void) => void
-  /** Register a trigger to open CSV import in the detail surface (right pane on
+  /** Register a trigger to open CSV import in the detail surface (detail card on
    *  desktop / detail sheet on mobile). Fired from the add ActionSheet. */
   onRegisterImport?: (trigger: () => void) => void
   /** Register a trigger to navigate the canvas to a zone (global-search deep-link). */
@@ -254,7 +255,7 @@ export const PropertyPanel = memo(function PropertyPanel({
 
   // Reprint a hand receipt's DA 2062 INTO this panel's object-view surface (right
   // pane desktop / detail sheet mobile) — CustodyPanel is MAIN-panel content, so its
-  // 2062 opens here as a right-pane/sheet, NOT a nested overlay. (Contrast SignOutForm,
+  // 2062 opens here as a detail-card/sheet, NOT a nested overlay. (Contrast SignOutForm,
   // which is itself hosted in the pane/sheet and so uses the nested Da2062Preview.)
   const { exportDA2062, da2062Preview, downloadDA2062, clearDA2062Preview } = useDA2062Export()
   const handleReprint = useCallback(
@@ -344,17 +345,18 @@ export const PropertyPanel = memo(function PropertyPanel({
   const da2062EditorRef = useRef<Da2062EditorHandle>(null)
   const recordDetailRef = useRef<PropertyRecordDetailHandle>(null)
   const shortageRef = useRef<PropertyShortageHandle>(null)
-  // Desktop right pane — scopes the item's split/merge PreviewOverlay so it dims
-  // and centers within the pane rather than spanning the whole viewport.
-  const detailPaneRef = useRef<HTMLDivElement>(null)
   // Whole property panel (desktop) — scopes the PMCS / Dispatch overlays so they
-  // dim and center over the ENTIRE drawer (rail · map · pane), not just the pane.
+  // dim and center over the ENTIRE drawer (rail · map · card), not just the card.
   // Null on mobile → those overlays float fixed, auto-stacked above the sheet.
   const panelRef = useRef<HTMLDivElement>(null)
+  // Desktop: the slot PMCS / Dispatch / DD 1750 morph into, replacing the detail card.
+  const [cardMorphEl, setCardMorphEl] = useState<HTMLDivElement | null>(null)
+  const [cardMorphActive, setCardMorphActive] = useState(false)
+  const cardHost = useMemo(() => ({ el: cardMorphEl, onActiveChange: setCardMorphActive }), [cardMorphEl])
   // Set when we programmatically navigate the canvas to an item's zone (item
   // select), so the resulting onSelectZone doesn't close the item we just opened.
   const pendingItemZoneRef = useRef<string | null>(null)
-  // The zone selected on the canvas (or tree) drives the right-pane detail (desktop)
+  // The zone selected on the canvas (or tree) drives the detail-card detail (desktop)
   // / detail sheet (mobile).
   const [selectedLocationId, setSelectedLocationId] = useState<string | null>(null)
   // Mobile: an item opened from the location sheet nests INSIDE it (back → its zone),
@@ -383,7 +385,7 @@ export const PropertyPanel = memo(function PropertyPanel({
   const [showLocations, setShowLocations] = useState(false)
   // Scan camera overlay (both platforms) — barcode / visual-ID → locate on map.
   const [showScanner, setShowScanner] = useState(false)
-  // Desktop: location form shown in the right pane (create or edit). pendingTag
+  // Desktop: location form shown in the detail card (create or edit). pendingTag
   // carries the rectangle drawn in the standardized draw-first add-zone flow.
   const [editLocationTarget, setEditLocationTarget] = useState<{ loc: LocalPropertyLocation | null; parentId: string | null; pendingTag?: PendingZoneTag | null } | null>(null)
   const [pendingDeleteItem, setPendingDeleteItem] = useState<LocalPropertyItem | null>(null)
@@ -393,14 +395,14 @@ export const PropertyPanel = memo(function PropertyPanel({
   // (each confirms below).
   const [pendingCompleteTurnIn, setPendingCompleteTurnIn] = useState<PendingTurnIn | null>(null)
   const [pendingRemoveTurnIn, setPendingRemoveTurnIn] = useState<PendingTurnIn | null>(null)
-  // New DA 2062 sign-out, hosted in the detail surface (right pane desktop /
+  // New DA 2062 sign-out, hosted in the detail surface (detail card desktop /
   // detail sheet mobile) — the same primitive item & zone selection use.
   const [signOutOpen, setSignOutOpen] = useState(false)
   // Save-in-flight for any hosted form (item / location / sign-out) — drives the
   // HUD loader (pane LoadingOverlay desktop / Sheet loading morph mobile). Delete
   // is the ConfirmDialog; save is the HUD (consistent across all 4 domains).
   const [formSaving, setFormSaving] = useState(false)
-  // CSV import, hosted in the SAME detail surface (right pane desktop / detail
+  // CSV import, hosted in the SAME detail surface (detail card desktop / detail
   // sheet mobile) — mirrors signOutOpen / da2062Preview.
   const [importOpen, setImportOpen] = useState(false)
   // Bulk manual-entry mode for the import surface: the New Item form's "Add multiple"
@@ -417,7 +419,7 @@ export const PropertyPanel = memo(function PropertyPanel({
   const [shortageOpen, setShortageOpen] = useState(false)
   const [authorizedOpen, setAuthorizedOpen] = useState(false)
   // Authorized surface MORPH: the add/edit item form, the read-only item detail, OR the
-  // CSV import wizard that temporarily REPLACES the authorized list in the same right pane
+  // CSV import wizard that temporarily REPLACES the authorized list in the same detail card
   // (desktop) / sheet (mobile). Not a nested overlay — the surface swaps list ↔ form/view/
   // import and back on save/close. Import has no ActionSheet: the header pill morphs
   // straight to it (its only action), with a back button returning to the list.
@@ -447,7 +449,7 @@ export const PropertyPanel = memo(function PropertyPanel({
   const closeAuthMorph = useCallback(() => { setAuthForm(null); setAuthView(null); setAuthImport(false) }, [])
   // Closing the authorized surface (or opening another) always drops any open morph.
   useEffect(() => { if (!authorizedOpen) { setAuthForm(null); setAuthView(null); setAuthImport(false) } }, [authorizedOpen])
-  // A Custody-roster card opened into the detail surface (right pane desktop /
+  // A Custody-roster card opened into the detail surface (detail card desktop /
   // sheet mobile): a DA 2062 hand receipt OR a PMCS/dispatch record. Same "main-
   // content card → pane/sheet detail" primitive the item/zone rows use; mutually
   // exclusive (selecting one clears the other).
@@ -519,7 +521,7 @@ export const PropertyPanel = memo(function PropertyPanel({
   }, [onRegisterOpenCustody, isMobile])
 
   // New DA 2062 opens in the detail surface — clear any open item/zone/form first
-  // so the sign-out is the sole occupant of the right pane / detail sheet.
+  // so the sign-out is the sole occupant of the detail card / detail sheet.
   useEffect(() => {
     onRegisterNewDA2062?.(() => {
       setMobileItem(null)
@@ -552,7 +554,7 @@ export const PropertyPanel = memo(function PropertyPanel({
   }, [onRegisterImport, store])
 
   // Cluster Hand Receipt (authorized/BOM) + Cluster Shortages open as the sole occupant of
-  // the detail surface (right pane desktop / sheet mobile), mirroring Import. Driven from the
+  // the detail surface (detail card desktop / sheet mobile), mirroring Import. Driven from the
   // left-pane "Cluster" nav rows (accountabilityNav) — the FAB is create-only now.
   const openShortages = useCallback(() => {
     setMobileItem(null)
@@ -564,8 +566,9 @@ export const PropertyPanel = memo(function PropertyPanel({
     setSignOutOpen(false)
     setImportOpen(false)
     setAuthorizedOpen(false)
+    clearDA2062Preview()
     setShortageOpen(true)
-  }, [store])
+  }, [store, clearDA2062Preview])
   useEffect(() => {
     onRegisterOpenShortages?.(() => openShortages())
   }, [onRegisterOpenShortages, openShortages])
@@ -579,12 +582,13 @@ export const PropertyPanel = memo(function PropertyPanel({
     setSignOutOpen(false)
     setImportOpen(false)
     setShortageOpen(false)
+    clearDA2062Preview()
     setAuthorizedOpen(true)
-  }, [store])
+  }, [store, clearDA2062Preview])
 
   // Left-pane "Cluster" access section — the cluster's book views (Hand Receipt = the
   // authorized/PHR list, Shortages = the requisition report). Sits ABOVE "My property".
-  // These are ACCESS points (open a right-pane/sheet morph), not creates — the FAB stays
+  // These are ACCESS points (open a detail-card/sheet morph), not creates — the FAB stays
   // create-only. Dev-gated like the rest of accountability. Row highlights when its pane is open.
   const accountabilityNav = showAccountability ? (
     <div className="flex flex-col">
@@ -694,7 +698,7 @@ export const PropertyPanel = memo(function PropertyPanel({
     if (full) handleSelectItem(full)
   }, [store.items, handleSelectItem, cameraTo])
 
-  // Open a Custody-roster card's detail in the host surface (right pane desktop /
+  // Open a Custody-roster card's detail in the host surface (detail card desktop /
   // sheet mobile). Clears the other card kind + any open item/zone/form so the detail
   // is the sole occupant (mirrors the map's onSelectZone view reset on desktop).
   const closeLocationDetail = useCallback(() => {
@@ -734,7 +738,7 @@ export const PropertyPanel = memo(function PropertyPanel({
     setSelectedRecord(record)
   }, [isMobile, view, onBack, closeLocationDetail])
 
-  // The roster's pending Turn-In card hands off to the staging ZONE's own sheet (right pane
+  // The roster's pending Turn-In card hands off to the staging ZONE's own sheet (detail card
   // desktop / detail sheet mobile) instead of a doc-shaped copy of the same rows: select the
   // zone AND navigate the canvas to it, so the surface that opens is the ordinary zone detail
   // — its item rows carry the full item menu, which is how a line leaves the run. Routed
@@ -760,6 +764,22 @@ export const PropertyPanel = memo(function PropertyPanel({
     setSelectedLocationId(null)
     mapRef.current?.clearSelection()
   }, [])
+
+  // Desktop: the rail and its search stay live behind the detail card, so a tap there
+  // can land while a higher-precedence surface occupies the card. Clear those so the
+  // tapped target actually surfaces instead of opening hidden underneath.
+  const clearDetailSurfaces = useCallback(() => {
+    setEditLocationTarget(null)
+    setSignOutOpen(false)
+    setImportOpen(false)
+    setShortageOpen(false)
+    setAuthorizedOpen(false)
+    clearDA2062Preview()
+    setSelectedReceiptId(null)
+    setReceiptEditingId(null)
+    setSignInIntent(null)
+    setSelectedRecord(null)
+  }, [clearDA2062Preview])
 
   // Drop the open receipt when it's deleted (vanishes from the refetched list); a
   // sign-in keeps it (still present, now 'returned' → moves to the History group).
@@ -851,13 +871,14 @@ export const PropertyPanel = memo(function PropertyPanel({
     else if (!fresh) setMobileItem(null)
   }, [store.items, mobileItem])
 
-  // Edit/create a location → form in the right pane (desktop) or nested sheet (mobile). The
+  // Edit/create a location → form in the detail card (desktop) or nested sheet (mobile). The
   // turn-in staging zone never reaches this: it is system-named and system-placed, so its
   // menu offers no Edit at all (see LocationActionMenu).
   const handleEditLocation = useCallback((loc: LocalPropertyLocation) => {
     if (isMobile) { openMobileLocationForm(loc, null); return }
+    clearDetailSurfaces()
     setEditLocationTarget({ loc, parentId: null })
-  }, [isMobile, openMobileLocationForm])
+  }, [isMobile, openMobileLocationForm, clearDetailSurfaces])
 
   // Add a zone (top-level or child) → standardized draw-first flow: enter canvas
   // draw mode for the parent's canvas; onZoneDrawn then opens the details sheet.
@@ -867,28 +888,31 @@ export const PropertyPanel = memo(function PropertyPanel({
   }, [isMobile])
 
   // Canvas reported a freshly-drawn zone rectangle → open the name/parent/type sheet
-  // (right pane on desktop, nested sheet on mobile) seeded with the drawn geometry.
+  // (detail card on desktop, nested sheet on mobile) seeded with the drawn geometry.
   const handleZoneDrawn = useCallback((rect: { x: number; y: number; width: number; height: number }, canvasId: string) => {
     const parentId = canvasId === store.rootLocationId ? null : canvasId
     const pendingTag: PendingZoneTag = { canvasId, ...rect }
-    if (isMobile) setMobileForm({ kind: 'location', loc: null, parentId, pendingTag })
-    else setEditLocationTarget({ loc: null, parentId, pendingTag })
-  }, [isMobile, store.rootLocationId])
+    if (isMobile) { setMobileForm({ kind: 'location', loc: null, parentId, pendingTag }); return }
+    clearDetailSurfaces()
+    setEditLocationTarget({ loc: null, parentId, pendingTag })
+  }, [isMobile, store.rootLocationId, clearDetailSurfaces])
 
-  // Edit an item from a row ellipsis → item form in the right pane / nested sheet.
+  // Edit an item from a row ellipsis → item form in the detail card / nested sheet.
   const handleEditItemRow = useCallback((item: LocalPropertyItem) => {
     if (isMobile) { openMobileItemForm(item, item.location_id ?? null); return }
+    clearDetailSurfaces()
     store.setEditingItem(item)
     store.setDefaultLocationId(item.location_id ?? null)
     onAddItem()
-  }, [isMobile, openMobileItemForm, store, onAddItem])
+  }, [isMobile, openMobileItemForm, store, onAddItem, clearDetailSurfaces])
 
   const handleAddItemAtLocation = useCallback((locationId: string | null) => {
     if (isMobile) { openMobileItemForm(null, locationId); return }
+    clearDetailSurfaces()
     store.setDefaultLocationId(locationId)
     store.setEditingItem(null)
     onAddItem()
-  }, [store, isMobile, onAddItem, openMobileItemForm])
+  }, [store, isMobile, onAddItem, openMobileItemForm, clearDetailSurfaces])
 
   // New Item form header "Add multiple" → flip the single form into the bulk grid,
   // carrying the zone it was launched at (defaultLocationId) so the grid's rows default
@@ -1042,7 +1066,7 @@ export const PropertyPanel = memo(function PropertyPanel({
   // The canvas/zone "map" — the single navigation surface, mirrored from the map
   // overlay shell. Center pane on desktop, full-screen on mobile. onSelectZone is
   // wired on BOTH platforms so the inline canvas popover is always suppressed; the
-  // selected zone surfaces in the right pane (desktop) / detail sheet (mobile).
+  // selected zone surfaces in the detail card (desktop) / detail sheet (mobile).
   const mapEl = store.clinicId ? (
     <PropertyLocationMap
       ref={mapRef}
@@ -1063,7 +1087,7 @@ export const PropertyPanel = memo(function PropertyPanel({
       onCreateItem={() => handleAddItemAtLocation(null)}
       onSelectZone={(id) => {
         setSelectedLocationId(id)
-        // Selecting a zone on the canvas takes over the right pane — drop any full-pane
+        // Selecting a zone on the canvas takes over the detail card — drop any full-pane
         // book view (Cluster Hand Receipt / Shortages) sitting over the map so the zone
         // detail surfaces instead of staying hidden behind that overlay.
         if (id) { setAuthorizedOpen(false); setShortageOpen(false) }
@@ -1071,7 +1095,7 @@ export const PropertyPanel = memo(function PropertyPanel({
         // revealed it; otherwise a real zone change closes the open item/form.
         if (id && id === pendingItemZoneRef.current) return
         setMobileItem(null); setMobileForm(null)
-        // Desktop: the right-pane precedence gates the zone detail on view==='property',
+        // Desktop: the detail-card precedence gates the zone detail on view==='property',
         // so an item detail/form already occupying the pane would otherwise swallow a
         // genuine map navigation (tap another zone while an item is open). Drop it —
         // onBack is a no-op when view is already 'property' — so the freshly-selected
@@ -1114,6 +1138,7 @@ export const PropertyPanel = memo(function PropertyPanel({
         items={store.items}
         locations={visibleLocations}
         containerRef={panelRef}
+        cardHost={isMobile ? undefined : cardHost}
         onView={handleSelectItem}
         onEdit={handleEditItemRow}
         onDelete={onDeleteItem ? (it) => setPendingDeleteItem(it) : undefined}
@@ -1134,6 +1159,7 @@ export const PropertyPanel = memo(function PropertyPanel({
       items={store.items}
       locations={visibleLocations}
       containerRef={panelRef}
+      cardHost={isMobile ? undefined : cardHost}
       onEdit={handleEditLocation}
       onNewItem={(loc) => handleAddItemAtLocation(loc.id)}
       onNewArea={(loc) => handleAddChildLocation(loc.id)}
@@ -1179,7 +1205,7 @@ export const PropertyPanel = memo(function PropertyPanel({
   // DatePickerInputs (and SignOutForm's stack-aware pickers) morph the SAME sheet in
   // place. One scoped stack for whichever form is open — the sheet still owns the
   // tree/detail/task surfaces. Hook runs unconditionally (before the desktop return);
-  // idle on desktop, where the forms render in the right pane with popover pickers.
+  // idle on desktop, where the forms render in the detail card with popover pickers.
   const activeForm =
     da2062Editing && selectedReceipt ? (
       // Hosted in the drill engine so its "Add items" picker morphs the sheet in place
@@ -1247,12 +1273,21 @@ export const PropertyPanel = memo(function PropertyPanel({
     </StackNavContext.Provider>
   )
 
-  // Desktop right-pane open state — the rail collapses while any detail/editor/overlay is up.
-  const railCollapsed = view === 'property-form' || view === 'property-detail' || !!editLocationTarget || !!selectedLocation || signOutOpen || importOpen || shortageOpen || authorizedOpen || !!da2062Preview || !!selectedReceipt || !!selectedRecord
-  // Desktop Esc: back out the open right pane one layer before the drawer closes.
+  // The card sits over the live canvas with no scrim, so a morphed sheet would keep
+  // showing its old subject after a new selection. Close it when the selection moves.
+  useEffect(() => {
+    if (isMobile) return
+    itemActionRef.current?.closeCardSheets()
+    locationActionRef.current?.closeCardSheets()
+  }, [isMobile, selectedLocationId, selectedItem?.id])
+
+  // Desktop detail card open state — any detail/editor/book view is up.
+  const detailCardOpen = view === 'property-form' || view === 'property-detail' || !!editLocationTarget || !!selectedLocation || signOutOpen || importOpen || shortageOpen || authorizedOpen || !!da2062Preview || !!selectedReceipt || !!selectedRecord
+  // Desktop Esc: back out the open detail card one layer before the drawer closes.
   // Priority mirrors render precedence — absolute overlays (import/shortage/authorized/
   // reprint) first, then the location/sign-out editors, then roster + item/location details.
-  useEscBackout(!isMobile && railCollapsed, () => {
+  useEscBackout(!isMobile && detailCardOpen, () => {
+    if (cardMorphActive) return // The morphed sheet handles Esc itself.
     if (importOpen) { setImportOpen(false); return }
     if (shortageOpen) { setShortageOpen(false); return }
     if (authorizedOpen) { setAuthorizedOpen(false); return }
@@ -1266,25 +1301,345 @@ export const PropertyPanel = memo(function PropertyPanel({
     if (selectedLocation) { closeLocationDetail(); return }
   })
 
-  // Desktop layout — left rail (location tree) · center map · right pane (detail/form),
-  // mirroring MapOverlayPanel: the rail collapses while the right pane is open.
+  // Desktop layout — left rail (location tree) · center map, with details in a lifted
+  // card floated over the center (the map overlay's detail surface). The rail stays open.
   if (!isMobile) {
     // When the rail search has a query, the results take over the CENTER pane
     // (mirrors mobile's overlay) instead of filtering the rail tree in place. The
-    // rail keeps the full tree for navigation context; results route to the right pane.
+    // rail keeps the full tree for navigation context; results route to the card.
     const desktopSearching = desktopSearch.trim().length > 0
+
+    const detailCard = (key: string, ariaLabel: string, header: ReactNode, body: ReactNode) => (
+      <SearchDropdownCard key={key} className="pointer-events-auto relative" ariaLabel={ariaLabel} header={header}>
+        <LoadingOverlay visible={formSaving} />
+        {body}
+      </SearchDropdownCard>
+    )
+
+    // Precedence: location form > sign-out > receipt > record > item > item form > zone.
+    const baseCard = editLocationTarget ? detailCard(
+      `location-form:${editLocationTarget.loc?.id ?? 'new'}`,
+      editLocationTarget.loc ? 'Edit location' : 'New location',
+      <PaneHeader
+        title={editLocationTarget.loc ? 'Edit Location' : 'New Location'}
+        actions={
+          <HeaderPill>
+            <PillButton icon={X} iconSize={18} onClick={() => setEditLocationTarget(null)} label="Cancel" />
+            <PillButton icon={Check} iconSize={18} accent="success" onClick={() => locationFormRef.current?.submit()} label="Save" />
+          </HeaderPill>
+        }
+      />,
+      <PropertyLocationForm
+        ref={locationFormRef}
+        editingLocation={editLocationTarget.loc}
+        defaultParentId={editLocationTarget.parentId}
+        pendingTag={editLocationTarget.pendingTag}
+        onClose={() => setEditLocationTarget(null)}
+        onSavingChange={setFormSaving}
+      />,
+    ) : signOutOpen ? detailCard(
+      'sign-out',
+      'New DA 2062',
+      <PaneHeader
+        title="New DA 2062"
+        actions={
+          <HeaderPill>
+            <PillButton icon={X} iconSize={18} onClick={() => setSignOutOpen(false)} label="Close" />
+            <PillButton icon={Check} iconSize={18} accent="success" onClick={() => signOutFormRef.current?.submit()} label="Sign out" />
+          </HeaderPill>
+        }
+      />,
+      <SignOutForm ref={signOutFormRef} onClose={() => setSignOutOpen(false)} onSavingChange={setFormSaving} />,
+    ) : selectedReceipt ? detailCard(
+      // DA 2062 hand receipt — opened from a Custody-roster card.
+      `receipt:${selectedReceipt.handReceiptId}`,
+      'Hand receipt',
+      <PaneHeader
+        eyebrow={da2062DetailSubtitle(selectedReceipt)}
+        title={selectedReceipt.recipientLabel}
+        actions={
+          da2062Editing ? (
+            <HeaderPill>
+              <PillButton icon={X} iconSize={18} onClick={() => setReceiptEditingId(null)} label="Cancel" />
+              <PillButton icon={Check} iconSize={18} accent="success" onClick={() => da2062EditorRef.current?.submit()} label="Save" />
+            </HeaderPill>
+          ) : (
+            <HeaderPill>
+              <span className="inline-flex" onClick={(e) => da2062DetailRef.current?.openMenu((e.currentTarget as HTMLElement).getBoundingClientRect())}>
+                <PillButton icon={MoreHorizontal} iconSize={18} onClick={() => {}} label="More actions" />
+              </span>
+              <PillButton icon={X} iconSize={18} onClick={closeRosterDetail} label="Close" />
+            </HeaderPill>
+          )
+        }
+      />,
+      da2062Editing ? (
+        <Da2062Editor
+          ref={da2062EditorRef}
+          receipt={selectedReceipt}
+          clinicId={store.clinicId!}
+          itemsById={receiptItemsById}
+          membersById={receiptMembersById}
+          refetch={refetchReceipts}
+          receipts={receipts}
+          onDone={() => setReceiptEditingId(null)}
+          onSavingChange={setFormSaving}
+        />
+      ) : (
+        <Da2062Detail
+          ref={da2062DetailRef}
+          receipt={selectedReceipt}
+          clinicId={store.clinicId!}
+          itemsById={receiptItemsById}
+          locationNameById={receiptLocationNameById}
+          membersById={receiptMembersById}
+          refetch={refetchReceipts}
+          onLocateItem={handleLocateReceiptItem}
+          onReprint={handleReprint}
+          onEdit={() => setReceiptEditingId(selectedReceipt.handReceiptId)}
+          drawerRef={panelRef}
+          signInIntent={signInIntent?.startsWith(`${selectedReceipt.handReceiptId}:`) ? signInIntent : null}
+        />
+      ),
+    ) : selectedRecord ? detailCard(
+      // PMCS / dispatch record — opened from a Custody-roster card.
+      `record:${selectedRecord.event.id}`,
+      'Record details',
+      <PaneHeader
+        title={selectedRecord.title}
+        eyebrow={
+          <button
+            type="button"
+            onClick={() => handleLocateSubject(selectedRecord)}
+            className="block max-w-full truncate text-left hover:text-primary active:scale-95 transition-all"
+          >
+            {selectedRecord.label}
+          </button>
+        }
+        actions={
+          <HeaderPill>
+            <span className="inline-flex" onClick={(e) => recordDetailRef.current?.openMenu((e.currentTarget as HTMLElement).getBoundingClientRect())}>
+              <PillButton icon={MoreHorizontal} iconSize={18} onClick={() => {}} label="More actions" />
+            </span>
+            <PillButton icon={X} iconSize={18} onClick={closeRosterDetail} label="Close" />
+          </HeaderPill>
+        }
+      />,
+      <PropertyRecordDetail
+        ref={recordDetailRef}
+        record={selectedRecord}
+        onDeleted={closeRosterDetail}
+        onEdited={closeRosterDetail}
+        containerRef={panelRef}
+      />,
+    ) : view === 'property-detail' && selectedItem ? detailCard(
+      `item:${selectedItem.id}`,
+      'Item details',
+      <PaneHeader
+        eyebrow={
+          <PropertyBreadcrumb
+            parentId={selectedItem.location_id ?? null}
+            locations={visibleLocations}
+            rootLabel={clinicName}
+            onNavigate={handleBreadcrumbNavigate}
+          />
+        }
+        title={selectedItem.name}
+        actions={
+          <HeaderPill>
+            <span className="inline-flex" onClick={(e) => openItemMenu(selectedItem, (e.currentTarget as HTMLElement).getBoundingClientRect())}>
+              <PillButton icon={MoreHorizontal} iconSize={18} onClick={() => {}} label="More actions" />
+            </span>
+            <PillButton icon={X} iconSize={18} onClick={() => { onBack(); closeLocationDetail() }} label="Close" />
+          </HeaderPill>
+        }
+      />,
+      <PropertyItemDetail
+        item={selectedItem}
+        locations={visibleLocations}
+        holders={store.holders}
+        items={store.items}
+        onLocateFiller={handleSelectItem}
+      />,
+    ) : view === 'property-form' ? detailCard(
+      'item-form',
+      store.editingItem ? 'Edit item' : 'New item',
+      <PaneHeader
+        title={store.editingItem ? 'Edit Item' : 'New Item'}
+        actions={
+          <HeaderPill>
+            {!store.editingItem && <PillButton icon={Rows3} iconSize={18} onClick={openBulkAdd} label="Add multiple" />}
+            <PillButton icon={X} iconSize={18} onClick={() => { store.setEditingItem(null); onBack() }} label="Cancel" />
+            <PillButton icon={Check} iconSize={18} accent="success" onClick={() => itemFormRef.current?.submit()} label="Save" />
+          </HeaderPill>
+        }
+      />,
+      <PropertyItemForm
+        ref={itemFormRef}
+        editingItem={store.editingItem}
+        onClose={() => { store.setEditingItem(null); onBack() }}
+        onEnrollNew={onEnrollNewItem}
+        onSavingChange={setFormSaving}
+      />,
+    ) : view === 'property' && selectedLocation ? detailCard(
+      `zone:${selectedLocation.id}`,
+      'Location details',
+      <PaneHeader
+        eyebrow={
+          <PropertyBreadcrumb
+            parentId={selectedLocation.parent_id ?? null}
+            locations={visibleLocations}
+            rootLabel={clinicName}
+            onNavigate={handleBreadcrumbNavigate}
+          />
+        }
+        title={selectedLocation.name}
+        actions={
+          <HeaderPill>
+            <span className="inline-flex" onClick={(e) => openLocationMenu(selectedLocation, (e.currentTarget as HTMLElement).getBoundingClientRect())}>
+              <PillButton icon={MoreHorizontal} iconSize={18} onClick={() => {}} label="More actions" />
+            </span>
+            <PillButton icon={X} iconSize={18} onClick={closeLocationDetail} label="Close" />
+          </HeaderPill>
+        }
+      />,
+      <PropertyLocationDetail
+        location={selectedLocation}
+        locations={visibleLocations}
+        items={store.items}
+        holders={store.holders}
+        onNavigateZone={(id) => mapRef.current?.navigateToZone(id)}
+        onSelectItem={handleSelectItem}
+        onOpenItemMenu={(item, rect) => openItemMenu(item, rect, { view: true })}
+        onOpenLocationMenu={openLocationMenu}
+      />,
+    ) : null
+
+    // Sole-occupant surfaces that sit over the base card.
+    // Precedence: reprint > authorized > shortages > import.
+    const overlayCard = da2062Preview ? detailCard(
+      'reprint',
+      'DA 2062',
+      <PaneHeader
+        title={da2062Preview.filename}
+        actions={
+          <HeaderPill>
+            <PillButton icon={Download} iconSize={18} accent="info" onClick={saveReprint} label="Save" />
+            <PillButton icon={X} iconSize={18} onClick={clearDA2062Preview} label="Close" />
+          </HeaderPill>
+        }
+      />,
+      // The PDF view fills a bounded parent, and the card's height is content-driven.
+      <div className="h-[60vh] max-h-[480px]">
+        <Da2062PdfView preview={da2062Preview} />
+      </div>,
+    ) : authorizedOpen ? detailCard(
+      'authorized',
+      'Authorized items',
+      authForm || authView || authImport ? (
+        // Morph header — back returns to the list; Save persists a form.
+        <PaneHeader
+          onBack={authImport ? () => csvImportRef.current?.back() : closeAuthMorph}
+          leading={authImport && csvImportInPreview
+            ? <PillButton icon={MoreHorizontal} iconSize={18} onClick={() => csvImportRef.current?.openMenu()} label="Import actions" />
+            : undefined}
+          title={authForm ? (authForm.item ? 'Edit authorized item' : 'Add authorized item') : authView ? authView.name : 'Import Property CSV'}
+          actions={
+            <HeaderPill>
+              {authForm && <PillButton icon={Check} iconSize={18} accent="success" onClick={() => authFormRef.current?.submit()} label="Save" />}
+              {authImport && csvImportReady && <PillButton icon={Check} iconSize={18} accent="success" onClick={() => csvImportRef.current?.apply()} label="Import" />}
+              {authView && (
+                <span className="inline-flex" onClick={(e) => setAuthViewMenu({ rect: (e.currentTarget as HTMLElement).getBoundingClientRect() })}>
+                  <PillButton icon={MoreHorizontal} iconSize={18} onClick={() => {}} label="More actions" />
+                </span>
+              )}
+              <PillButton icon={X} iconSize={18} onClick={() => setAuthorizedOpen(false)} label="Close" />
+            </HeaderPill>
+          }
+        />
+      ) : (
+        // List header — Import (its only "more action", morphs in place) left;
+        // add + close right.
+        <PaneHeader
+          leading={<PillButton icon={Download} iconSize={18} onClick={openAuthImport} label="Import from CSV" />}
+          title="Authorized items"
+          actions={
+            <HeaderPill>
+              <PillButton icon={Plus} iconSize={18} onClick={openAuthAdd} label="Add authorized item" />
+              <PillButton icon={X} iconSize={18} onClick={() => setAuthorizedOpen(false)} label="Close" />
+            </HeaderPill>
+          }
+        />
+      ),
+      <div className="px-4 py-4 pb-8">
+        {authForm ? (
+          <PropertyItemForm
+            ref={authFormRef}
+            editingItem={authForm.item}
+            showAuthorized
+            initialParentId={authForm.parentId}
+            onClose={closeAuthMorph}
+            onSavingChange={setFormSaving}
+          />
+        ) : authView ? (
+          <PropertyItemDetail
+            item={authView}
+            locations={visibleLocations}
+            holders={store.holders}
+            items={store.items}
+            onViewComponent={openAuthView}
+            onEditComponent={openAuthEdit}
+            onDeleteComponent={deauthorizeComponent}
+            onLocateFiller={handleSelectItem}
+          />
+        ) : authImport ? (
+          <PropertyCSVImport ref={csvImportRef} onReadyChange={setCsvImportReady} onInPreviewChange={setCsvImportInPreview} onClose={closeAuthMorph} />
+        ) : (
+          <PropertyAuthorizedPanel
+            onClose={() => setAuthorizedOpen(false)}
+            onEdit={openAuthEdit}
+            onView={openAuthView}
+          />
+        )}
+      </div>,
+    ) : shortageOpen ? detailCard(
+      'shortages',
+      'Shortages',
+      <PaneHeader
+        title="Shortages"
+        actions={
+          <HeaderPill>
+            <PillButton icon={Download} iconSize={18} onClick={() => shortageRef.current?.exportAnnex()} label="DA 2062 shortage annex" />
+            <PillButton icon={X} iconSize={18} onClick={() => setShortageOpen(false)} label="Close" />
+          </HeaderPill>
+        }
+      />,
+      <div className="px-4 py-4 pb-8">
+        <PropertyShortagePanel ref={shortageRef} onClose={() => setShortageOpen(false)} stagedTurnInIds={turnInItemIds} onLocate={handleSelectItem} />
+      </div>,
+    ) : importOpen ? detailCard(
+      'import',
+      'Import property',
+      <PaneHeader
+        title={importEditItems ? 'Edit items' : importBulk ? 'Add items' : 'Import Property CSV'}
+        onBack={csvImportInPreview ? handleImportBack : undefined}
+        actions={
+          <HeaderPill>
+            {csvImportReady && <PillButton icon={Check} iconSize={18} accent="success" onClick={() => csvImportRef.current?.apply()} label={importEditItems ? 'Save' : importBulk ? 'Add' : 'Import'} />}
+            <PillButton icon={X} iconSize={18} onClick={() => setImportOpen(false)} label="Close" />
+          </HeaderPill>
+        }
+      />,
+      // CSV import — sole occupant, mirroring the sign-out / reprint surfaces.
+      <div className="px-4 py-4 pb-8">
+        <PropertyCSVImport ref={csvImportRef} bulk={importBulk} defaultLocationId={importBulkLocationId} editItems={importEditItems ?? undefined} onReadyChange={setCsvImportReady} onInPreviewChange={setCsvImportInPreview} onClose={() => setImportOpen(false)} />
+      </div>,
+    ) : null
+
     return (
       <>
         <div ref={panelRef} className="flex h-full relative">
-          <SlideRevealPane
-            open={!railCollapsed}
-            side="left"
-            width={260}
-            keepMounted
-            className="border-r border-tertiary/10 bg-themewhite"
-          >
-            {/* Location tree is always present in the rail (reached by search here);
-                it is no longer an island tab. */}
+          <DesktopRail>
             <RailSearchRow
               value={desktopSearch}
               onChange={setDesktopSearch}
@@ -1310,17 +1665,19 @@ export const PropertyPanel = memo(function PropertyPanel({
                 currentUserId={currentUserId}
                 myZoneIds={myZoneIds}
                 activeLocationId={selectedLocationId}
-                onSelectLocation={handleSelectLocationDesktop}
-                onSelectItem={handleSelectItem}
-                onSelectAll={() => cameraTo({ kind: 'reset' })}
+                onSelectLocation={(loc) => { clearDetailSurfaces(); handleSelectLocationDesktop(loc) }}
+                onSelectItem={(item) => { clearDetailSurfaces(); handleSelectItem(item) }}
+                onSelectAll={() => { clearDetailSurfaces(); cameraTo({ kind: 'reset' }) }}
                 allSelected={!selectedLocationId}
                 onOpenItemMenu={(item, rect) => openItemMenu(item, rect, { view: true })}
                 onOpenLocationMenu={openLocationMenu}
               />
             </div>
-          </SlideRevealPane>
+          </DesktopRail>
 
-          <div className="flex-1 min-w-0 relative">
+          {/* The inset is the detail card's right edge (left-3 + 360px). Selection framing
+              reads it so the zone or item lands beside the card, not under it. */}
+          <div className="flex-1 min-w-0 relative" style={{ '--property-map-left-inset': '372px' } as CSSProperties}>
             {/* The island cycles Map (canvas) ↔ Sign-outs (custody); Camera is
                 momentary and returns to the map. Search results render as an OVERLAY
                 over the live map (below), mirroring the mobile shell. */}
@@ -1360,7 +1717,7 @@ export const PropertyPanel = memo(function PropertyPanel({
                     stays mounted underneath, so a result tap can actually drive it
                     (focusItem / navigateToZone) and clearing the query reveals the
                     navigated map. Previously the map was unmounted while searching, so
-                    mapRef was null and result taps opened the right pane but never
+                    mapRef was null and result taps opened the detail card but never
                     moved the canvas. */}
                 {desktopSearching && (
                   <PropertySearchOverlay
@@ -1373,9 +1730,9 @@ export const PropertyPanel = memo(function PropertyPanel({
                     receipts={receipts}
                     receiptItemsById={receiptItemsById}
                     showReceipts={showAccountability}
-                    onSelectItem={(item) => { setDesktopSearch(''); handleSelectItem(item) }}
-                    onOpenLocation={(loc) => { setDesktopSearch(''); mapRef.current?.navigateToZone(loc.id) }}
-                    onSelectReceiptItem={(item) => { setDesktopSearch(''); handleLocateReceiptItem(item) }}
+                    onSelectItem={(item) => { setDesktopSearch(''); clearDetailSurfaces(); handleSelectItem(item) }}
+                    onOpenLocation={(loc) => { setDesktopSearch(''); clearDetailSurfaces(); mapRef.current?.navigateToZone(loc.id) }}
+                    onSelectReceiptItem={(item) => { setDesktopSearch(''); clearDetailSurfaces(); handleLocateReceiptItem(item) }}
                   />
                 )}
               </>
@@ -1390,372 +1747,26 @@ export const PropertyPanel = memo(function PropertyPanel({
                 stops={tabStops}
               />
             )}
+            {/* Details float over the center pane in the same lifted card as the map's
+                feature details; the rail stays open beside them. Left on the map (clear
+                of its top-right controls), right on Sign-outs (clear of the row titles).
+                Hidden, not unmounted, while drawing or searching so forms keep state. */}
+            <div
+              // z-50: above the canvas chrome and search results, below the action
+              // overlays (split, expend, scanner) portaled into panelRef at z70+.
+              className={`absolute top-3 z-50 w-[360px] max-w-[calc(100%-1.5rem)] pointer-events-none ${
+                propertyTab === 'custody' ? 'right-3' : 'left-3'
+              } ${(drawingZone || desktopSearching) && !cardMorphActive ? 'hidden' : ''}`}
+            >
+              {/* The base stays mounted under a book view / reprint, so closing one
+                  returns to the same detail with its state intact. */}
+              <div className={cardMorphActive ? 'hidden' : undefined}>
+                {baseCard && <div className={overlayCard ? 'hidden' : undefined}>{baseCard}</div>}
+                {overlayCard}
+              </div>
+              <div ref={setCardMorphEl} />
+            </div>
           </div>
-
-          <SlideRevealPane
-            ref={detailPaneRef}
-            open={railCollapsed}
-            side="right"
-            width={380}
-            className="border-l border-primary/10 bg-themewhite relative"
-          >
-            <LoadingOverlay visible={formSaving} />
-            {editLocationTarget && (
-              <>
-                <PaneHeader
-                  title={editLocationTarget.loc ? 'Edit Location' : 'New Location'}
-                  actions={
-                    <HeaderPill>
-                      <PillButton icon={X} iconSize={16} onClick={() => setEditLocationTarget(null)} label="Cancel" />
-                      <PillButton icon={Check} iconSize={16} accent="success" onClick={() => locationFormRef.current?.submit()} label="Save" />
-                    </HeaderPill>
-                  }
-                />
-                <div className="flex-1 min-h-0 overflow-y-auto">
-                  <PropertyLocationForm
-                    ref={locationFormRef}
-                    editingLocation={editLocationTarget.loc}
-                    defaultParentId={editLocationTarget.parentId}
-                    pendingTag={editLocationTarget.pendingTag}
-                    onClose={() => setEditLocationTarget(null)}
-                    onSavingChange={setFormSaving}
-                  />
-                </div>
-              </>
-            )}
-            {!editLocationTarget && signOutOpen && (
-              <>
-                <PaneHeader
-                  title="New DA 2062"
-                  actions={
-                    <HeaderPill>
-                      <PillButton icon={X} iconSize={16} onClick={() => setSignOutOpen(false)} label="Close" />
-                      <PillButton icon={Check} iconSize={16} accent="success" onClick={() => signOutFormRef.current?.submit()} label="Sign out" />
-                    </HeaderPill>
-                  }
-                />
-                <div className="flex-1 min-h-0 overflow-y-auto">
-                  <SignOutForm ref={signOutFormRef} onClose={() => setSignOutOpen(false)} onSavingChange={setFormSaving} />
-                </div>
-              </>
-            )}
-            {!editLocationTarget && !signOutOpen && !selectedReceipt && !selectedRecord && view === 'property-detail' && selectedItem && (
-              <>
-                <PaneHeader
-                  eyebrow={
-                    <PropertyBreadcrumb
-                      parentId={selectedItem.location_id ?? null}
-                      locations={visibleLocations}
-                      rootLabel={clinicName}
-                      onNavigate={handleBreadcrumbNavigate}
-                    />
-                  }
-                  title={selectedItem.name}
-                  actions={
-                    <HeaderPill>
-                      <span className="inline-flex" onClick={(e) => openItemMenu(selectedItem, (e.currentTarget as HTMLElement).getBoundingClientRect())}>
-                        <PillButton icon={MoreHorizontal} iconSize={16} onClick={() => {}} label="More actions" />
-                      </span>
-                      <PillButton icon={X} iconSize={16} onClick={() => { onBack(); closeLocationDetail() }} label="Close" />
-                    </HeaderPill>
-                  }
-                />
-                <div className="flex-1 min-h-0 overflow-y-auto">
-                  <PropertyItemDetail
-                    item={selectedItem}
-                    locations={visibleLocations}
-                    holders={store.holders}
-                    items={store.items}
-                    onLocateFiller={handleSelectItem}
-                  />
-                </div>
-              </>
-            )}
-            {!editLocationTarget && !signOutOpen && !selectedReceipt && !selectedRecord && view === 'property-form' && (
-              <>
-                <PaneHeader
-                  title={store.editingItem ? 'Edit Item' : 'New Item'}
-                  actions={
-                    <HeaderPill>
-                      {!store.editingItem && <PillButton icon={Rows3} iconSize={16} onClick={openBulkAdd} label="Add multiple" />}
-                      <PillButton icon={X} iconSize={16} onClick={() => { store.setEditingItem(null); onBack() }} label="Cancel" />
-                      <PillButton icon={Check} iconSize={16} accent="success" onClick={() => itemFormRef.current?.submit()} label="Save" />
-                    </HeaderPill>
-                  }
-                />
-                <div className="flex-1 min-h-0 overflow-y-auto">
-                  <PropertyItemForm
-                    ref={itemFormRef}
-                    editingItem={store.editingItem}
-                    onClose={() => { store.setEditingItem(null); onBack() }}
-                    onEnrollNew={onEnrollNewItem}
-                    onSavingChange={setFormSaving}
-                  />
-                </div>
-              </>
-            )}
-            {!editLocationTarget && !signOutOpen && !selectedReceipt && !selectedRecord && view === 'property' && selectedLocation && (
-              <>
-                <PaneHeader
-                  eyebrow={
-                    <PropertyBreadcrumb
-                      parentId={selectedLocation.parent_id ?? null}
-                      locations={visibleLocations}
-                      rootLabel={clinicName}
-                      onNavigate={handleBreadcrumbNavigate}
-                    />
-                  }
-                  title={selectedLocation.name}
-                  actions={
-                    <HeaderPill>
-                      <span className="inline-flex" onClick={(e) => openLocationMenu(selectedLocation, (e.currentTarget as HTMLElement).getBoundingClientRect())}>
-                        <PillButton icon={MoreHorizontal} iconSize={16} onClick={() => {}} label="More actions" />
-                      </span>
-                      <PillButton icon={X} iconSize={16} onClick={closeLocationDetail} label="Close" />
-                    </HeaderPill>
-                  }
-                />
-                <div className="flex-1 min-h-0 overflow-y-auto">
-                  <PropertyLocationDetail
-                    location={selectedLocation}
-                    locations={visibleLocations}
-                    items={store.items}
-                    holders={store.holders}
-                    onNavigateZone={(id) => mapRef.current?.navigateToZone(id)}
-                    onSelectItem={handleSelectItem}
-                    onOpenItemMenu={(item, rect) => openItemMenu(item, rect, { view: true })}
-                    onOpenLocationMenu={openLocationMenu}
-                  />
-                </div>
-              </>
-            )}
-            {/* DA 2062 hand receipt — opened from a Custody-roster card. Header
-                mirrors the item detail (recipient + status·date, More menu, Close);
-                body is the receipt's item rows. */}
-            {!editLocationTarget && !signOutOpen && selectedReceipt && (
-              <>
-                <PaneHeader
-                  eyebrow={da2062DetailSubtitle(selectedReceipt)}
-                  title={selectedReceipt.recipientLabel}
-                  actions={
-                    da2062Editing ? (
-                      <HeaderPill>
-                        <PillButton icon={X} iconSize={16} onClick={() => setReceiptEditingId(null)} label="Cancel" />
-                        <PillButton icon={Check} iconSize={16} accent="success" onClick={() => da2062EditorRef.current?.submit()} label="Save" />
-                      </HeaderPill>
-                    ) : (
-                      <HeaderPill>
-                        <span className="inline-flex" onClick={(e) => da2062DetailRef.current?.openMenu((e.currentTarget as HTMLElement).getBoundingClientRect())}>
-                          <PillButton icon={MoreHorizontal} iconSize={16} onClick={() => {}} label="More actions" />
-                        </span>
-                        <PillButton icon={X} iconSize={16} onClick={closeRosterDetail} label="Close" />
-                      </HeaderPill>
-                    )
-                  }
-                />
-                <div className="flex-1 min-h-0 overflow-y-auto">
-                  {da2062Editing ? (
-                    <Da2062Editor
-                      ref={da2062EditorRef}
-                      receipt={selectedReceipt}
-                      clinicId={store.clinicId!}
-                      itemsById={receiptItemsById}
-                      membersById={receiptMembersById}
-                      refetch={refetchReceipts}
-                      receipts={receipts}
-                      onDone={() => setReceiptEditingId(null)}
-                      onSavingChange={setFormSaving}
-                    />
-                  ) : (
-                    <Da2062Detail
-                      ref={da2062DetailRef}
-                      receipt={selectedReceipt}
-                      clinicId={store.clinicId!}
-                      itemsById={receiptItemsById}
-                      locationNameById={receiptLocationNameById}
-                      membersById={receiptMembersById}
-                      refetch={refetchReceipts}
-                      onLocateItem={handleLocateReceiptItem}
-                      onReprint={handleReprint}
-                      onEdit={() => setReceiptEditingId(selectedReceipt.handReceiptId)}
-                      drawerRef={panelRef}
-                      signInIntent={signInIntent?.startsWith(`${selectedReceipt.handReceiptId}:`) ? signInIntent : null}
-                    />
-                  )}
-                </div>
-              </>
-            )}
-            {/* PMCS / dispatch record — opened from a Custody-roster card. */}
-            {!editLocationTarget && !signOutOpen && !selectedReceipt && selectedRecord && (
-              <>
-                <PaneHeader
-                  title={selectedRecord.title}
-                  eyebrow={
-                    <button
-                      type="button"
-                      onClick={() => handleLocateSubject(selectedRecord)}
-                      className="block max-w-full truncate text-left hover:text-primary active:scale-95 transition-all"
-                    >
-                      {selectedRecord.label}
-                    </button>
-                  }
-                  actions={
-                    <HeaderPill>
-                      <span className="inline-flex" onClick={(e) => recordDetailRef.current?.openMenu((e.currentTarget as HTMLElement).getBoundingClientRect())}>
-                        <PillButton icon={MoreHorizontal} iconSize={16} onClick={() => {}} label="More actions" />
-                      </span>
-                      <PillButton icon={X} iconSize={16} onClick={closeRosterDetail} label="Close" />
-                    </HeaderPill>
-                  }
-                />
-                <div className="flex-1 min-h-0 overflow-y-auto">
-                  <PropertyRecordDetail
-                    ref={recordDetailRef}
-                    record={selectedRecord}
-                    onDeleted={closeRosterDetail}
-                    onEdited={closeRosterDetail}
-                    containerRef={panelRef}
-                  />
-                </div>
-              </>
-            )}
-            {/* CSV import — sole occupant of the right pane (rail collapses, pane
-                opens), mirroring the sign-out / reprint surfaces. Absolute overlay
-                so it covers the pane without entangling the other branches. */}
-            {importOpen && (
-              <div className="absolute inset-0 z-10 flex flex-col bg-themewhite">
-                <PaneHeader
-                  title={importEditItems ? 'Edit items' : importBulk ? 'Add items' : 'Import Property CSV'}
-                  onBack={csvImportInPreview ? handleImportBack : undefined}
-                  actions={
-                    <HeaderPill>
-                      {csvImportReady && <PillButton icon={Check} iconSize={16} accent="success" onClick={() => csvImportRef.current?.apply()} label={importEditItems ? 'Save' : importBulk ? 'Add' : 'Import'} />}
-                      <PillButton icon={X} iconSize={16} onClick={() => setImportOpen(false)} label="Close" />
-                    </HeaderPill>
-                  }
-                />
-                <div className="flex-1 min-h-0 overflow-y-auto">
-                  <div className="px-4 py-4 pb-8">
-                    <PropertyCSVImport ref={csvImportRef} bulk={importBulk} defaultLocationId={importBulkLocationId} editItems={importEditItems ?? undefined} onReadyChange={setCsvImportReady} onInPreviewChange={setCsvImportInPreview} onClose={() => setImportOpen(false)} />
-                  </div>
-                </div>
-              </div>
-            )}
-            {/* Shortages / requisition report — sole occupant of the right pane, same
-                overlay treatment as CSV import. */}
-            {shortageOpen && (
-              <div className="absolute inset-0 z-10 flex flex-col bg-themewhite">
-                <PaneHeader
-                  title="Shortages"
-                  actions={
-                    <HeaderPill>
-                      <PillButton icon={Download} iconSize={16} onClick={() => shortageRef.current?.exportAnnex()} label="DA 2062 shortage annex" />
-                      <PillButton icon={X} iconSize={16} onClick={() => setShortageOpen(false)} label="Close" />
-                    </HeaderPill>
-                  }
-                />
-                <div className="flex-1 min-h-0 overflow-y-auto">
-                  <div className="px-4 py-4 pb-8">
-                    <PropertyShortagePanel ref={shortageRef} onClose={() => setShortageOpen(false)} stagedTurnInIds={turnInItemIds} onLocate={handleSelectItem} />
-                  </div>
-                </div>
-              </div>
-            )}
-            {/* Authorized items (BOM) manager — sole occupant of the right pane, same
-                overlay treatment as CSV import / Shortages. */}
-            {authorizedOpen && (
-              <div className="absolute inset-0 z-10 flex flex-col bg-themewhite">
-                <LoadingOverlay visible={formSaving} />
-                {authForm || authView || authImport ? (
-                  // Morph header — back returns to the list; Save persists a form.
-                  <PaneHeader
-                    onBack={authImport ? () => csvImportRef.current?.back() : closeAuthMorph}
-                    leading={authImport && csvImportInPreview
-                      ? <PillButton icon={MoreHorizontal} iconSize={16} onClick={() => csvImportRef.current?.openMenu()} label="Import actions" />
-                      : undefined}
-                    title={authForm ? (authForm.item ? 'Edit authorized item' : 'Add authorized item') : authView ? authView.name : 'Import Property CSV'}
-                    actions={
-                      <HeaderPill>
-                        {authForm && <PillButton icon={Check} iconSize={16} accent="success" onClick={() => authFormRef.current?.submit()} label="Save" />}
-                        {authImport && csvImportReady && <PillButton icon={Check} iconSize={16} accent="success" onClick={() => csvImportRef.current?.apply()} label="Import" />}
-                        {authView && (
-                          <span className="inline-flex" onClick={(e) => setAuthViewMenu({ rect: (e.currentTarget as HTMLElement).getBoundingClientRect() })}>
-                            <PillButton icon={MoreHorizontal} iconSize={16} onClick={() => {}} label="More actions" />
-                          </span>
-                        )}
-                        <PillButton icon={X} iconSize={16} onClick={() => setAuthorizedOpen(false)} label="Close" />
-                      </HeaderPill>
-                    }
-                  />
-                ) : (
-                  // List header — Import (its only "more action", morphs in place) left;
-                  // add + close right.
-                  <PaneHeader
-                    leading={<PillButton icon={Download} iconSize={16} onClick={openAuthImport} label="Import from CSV" />}
-                    title="Authorized items"
-                    actions={
-                      <HeaderPill>
-                        <PillButton icon={Plus} iconSize={16} onClick={openAuthAdd} label="Add authorized item" />
-                        <PillButton icon={X} iconSize={16} onClick={() => setAuthorizedOpen(false)} label="Close" />
-                      </HeaderPill>
-                    }
-                  />
-                )}
-                <div className="flex-1 min-h-0 overflow-y-auto">
-                  <div className="px-4 py-4 pb-8">
-                    {authForm ? (
-                      <PropertyItemForm
-                        ref={authFormRef}
-                        editingItem={authForm.item}
-                        showAuthorized
-                        initialParentId={authForm.parentId}
-                        onClose={closeAuthMorph}
-                        onSavingChange={setFormSaving}
-                      />
-                    ) : authView ? (
-                      <PropertyItemDetail
-                        item={authView}
-                        locations={visibleLocations}
-                        holders={store.holders}
-                        items={store.items}
-                        onViewComponent={openAuthView}
-                        onEditComponent={openAuthEdit}
-                        onDeleteComponent={deauthorizeComponent}
-                        onLocateFiller={handleSelectItem}
-                      />
-                    ) : authImport ? (
-                      <PropertyCSVImport ref={csvImportRef} onReadyChange={setCsvImportReady} onInPreviewChange={setCsvImportInPreview} onClose={closeAuthMorph} />
-                    ) : (
-                      <PropertyAuthorizedPanel
-                        onClose={() => setAuthorizedOpen(false)}
-                        onEdit={openAuthEdit}
-                        onView={openAuthView}
-                      />
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-            {/* Reprinted DA 2062 — the object-view surface for a Custody-tab reprint.
-                Absolute overlay so it covers the pane without entangling the other
-                branches' conditions. */}
-            {da2062Preview && (
-              <div className="absolute inset-0 z-10 flex flex-col bg-themewhite">
-                <PaneHeader
-                  title={da2062Preview.filename}
-                  actions={
-                    <HeaderPill>
-                      <PillButton icon={Download} iconSize={16} accent="info" onClick={saveReprint} label="Save" />
-                      <PillButton icon={X} iconSize={16} onClick={clearDA2062Preview} label="Close" />
-                    </HeaderPill>
-                  }
-                />
-                <div className="flex-1 min-h-0">
-                  <Da2062PdfView preview={da2062Preview} />
-                </div>
-              </div>
-            )}
-          </SlideRevealPane>
         </div>
 
         {locationActionMenuEl}

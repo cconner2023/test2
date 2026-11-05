@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Check } from 'lucide-react'
-import { OverlayStack } from '@/Components/primitives/OverlayStack'
+import { OverlayStack, type CardMorphHost } from '@/Components/primitives/OverlayStack'
 import { FooterPill } from '@/Components/primitives/FooterPill'
 import { PillButton } from '@/Components/primitives/HeaderPill'
 import { PartyPicker, partyLabel, type Party } from './PartyPicker'
@@ -24,6 +24,8 @@ interface DD1750SheetProps {
   /** Scopes the overlay to the property drawer (desktop); float+stack on mobile. */
   containerRef?: React.RefObject<HTMLElement | null>
   zIndex?: number
+  /** Desktop: morph into the detail card instead of opening an overlay. */
+  cardHost?: CardMorphHost
 }
 
 /** Format a roster member (or profile) as "RANK LAST FIRST". */
@@ -31,7 +33,7 @@ function memberName(m: { rank?: string; lastName?: string; firstName?: string })
   return [m.rank, m.lastName, m.firstName].filter(Boolean).join(' ').trim()
 }
 
-export function DD1750Sheet({ isOpen, onClose, onCreate, containerRef, zIndex }: DD1750SheetProps) {
+export function DD1750Sheet({ isOpen, onClose, onCreate, containerRef, zIndex, cardHost }: DD1750SheetProps) {
   const { medics } = useClinicMedics()
   const profile = useAuthStore((s) => s.profile)
   const selfName = memberName({ rank: profile.rank, lastName: profile.lastName, firstName: profile.firstName })
@@ -98,6 +100,7 @@ export function DD1750Sheet({ isOpen, onClose, onCreate, containerRef, zIndex }:
       onClose={onClose}
       containerRef={containerRef}
       zIndex={zIndex}
+      cardHost={cardHost}
       initial={{ key: 'pick' }}
       screens={screens}
       maxWidth={360}

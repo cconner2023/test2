@@ -371,13 +371,14 @@ export function KnowledgeBaseDrawer({
 
     return (
         <BaseDrawer
+            desktopPosition="left"
             isVisible={isVisible}
             onClose={handleClose}
             fullHeight="90dvh"
-            desktopPosition="left"
             header={headerConfig}
             glassHeader
             scrollResetKey={view}
+            desktopSize="half"
         >
             <ContentWrapper slideDirection={slideDirection} swipeHandlers={canSwipeBack ? swipeHandlers : undefined}>
                 {/* Search template (home + every browse list): results lift as a

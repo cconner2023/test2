@@ -8,8 +8,8 @@ import { Sheet } from '@/Components/primitives/Sheet'
 import { CalendarPanel } from './Calendar/CalendarPanel'
 import { MiniCalendar } from './Calendar/MiniCalendar'
 import { RailSearchRow } from '@/Components/primitives/RailSearchRow'
+import { DesktopRail } from '@/Components/primitives/DesktopRail'
 import { PersonnelRow, PersonnelGroupBand, PersonnelCheck } from '@/Components/primitives/PersonnelRow'
-import { SlideRevealPane } from '@/Components/primitives/SlideRevealPane'
 import { useCalendarStore } from '../stores/useCalendarStore'
 import { useNavigationStore } from '../stores/useNavigationStore'
 import { useIsMobile } from '../Hooks/useIsMobile'
@@ -80,7 +80,6 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
     }
 
     const [scrollNonce, setScrollNonce] = useState(1)
-    const [rightPanelOpen, setRightPanelOpen] = useState(false)
     const initialDate = useNavigationStore(s => s.calendarDrawerInitialDate)
     const clearInitialDate = useNavigationStore(s => s.clearCalendarDrawerInitialDate)
 
@@ -301,7 +300,6 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
             isVisible={isVisible}
             onClose={onClose}
             mobileFullScreen
-            desktopWidth="w-[90%]"
             header={{
                 title: isMobile ? '' : 'Calendar',
                 rightContentFill: isMobile,
@@ -340,15 +338,9 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
             <div className="relative h-full">
                 <div className="flex absolute inset-0 overflow-hidden">
                     {/* Contextual sidebar — desktop only, hidden for troops-to-task (has its own personnel column).
-                        Collapses (slides out left) when the schedule opens its right pane. */}
+                        Always open: event details float in a card over the schedule, not a right pane. */}
                     {!isMobile && viewMode !== 'troops' && (
-                        <SlideRevealPane
-                            open={!rightPanelOpen}
-                            side="left"
-                            width={240}
-                            keepMounted
-                            className="border-r border-primary/10"
-                        >
+                        <DesktopRail>
                             {/* Settings gear holds clinic config (supervisor only);
                                 per-view layout prefs moved to the island "view options" button. */}
                             <RailSearchRow
@@ -371,12 +363,12 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
                                 {hasHuddleEvents && categoryFilterPanel}
                                 {personnelFilterPanel}
                             </div>
-                        </SlideRevealPane>
+                        </DesktopRail>
                     )}
 
                     {/* Schedule — right pane (or full width on mobile) */}
                     <div className="flex-1 min-w-0">
-                        <CalendarPanel onBack={onClose} scrollNonce={scrollNonce} onPanelStateChange={setRightPanelOpen} onOpenControls={() => setShowDatePopover(true)} />
+                        <CalendarPanel onBack={onClose} scrollNonce={scrollNonce} onOpenControls={() => setShowDatePopover(true)} />
                     </div>
 
                 </div>

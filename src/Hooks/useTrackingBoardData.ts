@@ -2,16 +2,21 @@
  * useTrackingBoardData — real inputs for the Tracking Board.
  *
  *  - viewerId : the member's operating cluster (supervising ?? home)
- *  - clusters : tracking_cluster_tree RPC (related clusters: chain + siblings),
- *               cached per device in localStorage (names / UICs / parents only —
- *               no PHI) so the board groups offline
- *  - places   : tracking pins from EVERY local overlay — own and those fanned in
- *               from related clusters (getAllLocalMapOverlays; the by-clinic map
- *               store would miss the latter)
+ *  - clusters : tracking_cluster_tree RPC (clusters joined by an active
+ *               send → receive link), cached per device in localStorage (names /
+ *               UICs / parents / sharing flags only — no PHI) so the board groups
+ *               offline
+ *  - places   : tracking pins from local overlays — own and those fanned in from
+ *               linked clusters (getAllLocalMapOverlays; the by-clinic map store
+ *               would miss the latter). Overlays from a cluster no longer linked
+ *               drop out here, before the owner's reconcile lands.
  *  - events   : useCalendarStore.tracking (hidden tracking calendar events)
+ *  - sharing  : this cluster's send / receive toggles (null until known)
+ *  - relatedIds: linked cluster ids from the latest tree fetch (null until one
+ *               lands this session); the drawer feeds it to reconcileTargets
  */
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from './useAuth'
 import { useCalendarStore } from '../stores/useCalendarStore'
@@ -26,7 +31,17 @@ const logger = createLogger('TrackingBoardData')
 
 const CLUSTER_CACHE_KEY = 'tracking.clusterTree'
 
-interface ClusterRow { id: string; name: string; nickname: string | null; uic: string; parentId: string | null }
+interface ClusterRow {
+  id: string
+  name: string
+  nickname: string | null
+  uic: string
+  parentId: string | null
+  send?: boolean
+  receive?: boolean
+}
+
+export interface TrackingSharing { send: boolean; receive: boolean }
 
 function loadCachedRows(): ClusterRow[] {
   try {
@@ -45,30 +60,57 @@ export function useTrackingBoardData(isVisible: boolean) {
   const viewerId = supervisingClinicId ?? clinicId ?? ''
 
   const [rows, setRows] = useState<ClusterRow[]>(loadCachedRows)
+  const [relatedIds, setRelatedIds] = useState<string[] | null>(null)
+  const [treeGen, setTreeGen] = useState(0)
   useEffect(() => {
     if (!isVisible || !viewerId) return
     let cancelled = false
     void (async () => {
       try {
-        const { data, error } = await supabase.rpc('tracking_cluster_tree')
+        const { data, error } = await supabase.rpc('tracking_cluster_tree', { p_clinic_id: viewerId })
         if (error || !Array.isArray(data)) {
           if (error) logger.warn('tracking_cluster_tree failed:', error.message)
           return
         }
-        const next: ClusterRow[] = (data as Array<{ id: string; name: string | null; nickname: string | null; uics: string[] | null; parent_clinic_id: string | null }>)
-          .map(r => ({ id: r.id, name: r.name ?? '', nickname: r.nickname, uic: r.uics?.[0] ?? '', parentId: r.parent_clinic_id }))
+        const next: ClusterRow[] = (data as Array<{ id: string; name: string | null; nickname: string | null; uics: string[] | null; parent_clinic_id: string | null; tracking_send: boolean; tracking_receive: boolean }>)
+          .map(r => ({ id: r.id, name: r.name ?? '', nickname: r.nickname, uic: r.uics?.[0] ?? '', parentId: r.parent_clinic_id, send: r.tracking_send, receive: r.tracking_receive }))
         if (cancelled) return
         setRows(next)
+        setRelatedIds(next.map(r => r.id))
         saveCachedRows(next)
       } catch (e) {
         logger.warn('tracking_cluster_tree threw:', e instanceof Error ? e.message : e)
       }
     })()
     return () => { cancelled = true }
-  }, [isVisible, viewerId])
+  }, [isVisible, viewerId, treeGen])
+
+  const me = rows.find(r => r.id === viewerId)
+  const sharing = useMemo<TrackingSharing | null>(
+    () => (me ? { send: !!me.send, receive: !!me.receive } : null),
+    [me],
+  )
+
+  /** Optimistic toggle; a re-fetched tree then drives reconcileTargets. */
+  const setSharing = useCallback(async (next: TrackingSharing): Promise<void> => {
+    if (!viewerId) return
+    const prev = rows
+    setRows(prev.map(r => (r.id === viewerId ? { ...r, ...next } : r)))
+    const { error } = await supabase.rpc('supervisor_set_tracking_sharing', {
+      p_clinic_id: viewerId,
+      p_send: next.send,
+      p_receive: next.receive,
+    })
+    if (error) {
+      logger.warn('supervisor_set_tracking_sharing failed:', error.message)
+      setRows(prev)
+      return
+    }
+    setTreeGen(g => g + 1)
+  }, [viewerId, rows])
 
   const overlayGen = useInvalidation('mapOverlays')
-  const [overlays, setOverlays] = useState<LocalMapOverlay[]>([])
+  const [allOverlays, setOverlays] = useState<LocalMapOverlay[]>([])
   useEffect(() => {
     if (!isVisible) return
     let cancelled = false
@@ -77,6 +119,12 @@ export function useTrackingBoardData(isVisible: boolean) {
       .catch(e => logger.warn('overlay load failed:', e instanceof Error ? e.message : e))
     return () => { cancelled = true }
   }, [isVisible, overlayGen])
+
+  const overlays = useMemo(() => {
+    const linked = new Set(rows.map(r => r.id))
+    return allOverlays.filter(o => o.clinic_id === viewerId
+      || ((o.target_clinic_ids?.includes(viewerId) ?? false) && (rows.length === 0 || linked.has(o.clinic_id))))
+  }, [allOverlays, rows, viewerId])
 
   const events = useCalendarStore(s => s.tracking)
 
@@ -98,5 +146,5 @@ export function useTrackingBoardData(isVisible: boolean) {
     return { clusters, places }
   }, [rows, overlays, events, viewerId])
 
-  return { viewerId, net, events, overlays }
+  return { viewerId, net, events, overlays, sharing, setSharing, relatedIds }
 }

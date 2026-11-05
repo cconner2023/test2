@@ -19,7 +19,7 @@ import { useMapOverlaysStore } from '../../stores/useMapOverlaysStore'
  * parent width while keeping the width:height aspect ratio.
  *
  * NO-PHI INVARIANT: renders only geometry/labels/glyphs already on the
- * OverlayFeature. tc3_card_id is an opaque link and is never surfaced here.
+ * OverlayFeature.
  */
 interface OverlaySnapshotProps {
   features?: OverlayFeature[]
@@ -106,7 +106,7 @@ export function OverlaySnapshot({
       if (f.type === 'waypoint' && f.geometry.length > 0) {
         const [lat, lng] = f.geometry[0]
         const [px, py] = project(lat, lng)
-        const svg = waypointIconSvg(f.waypoint_type, color, glyphSize, false, !!f.tc3_card_id)
+        const svg = waypointIconSvg(f.waypoint_type, color, glyphSize, false)
         glyphs.push({
           x: px - glyphSize / 2,
           y: py - glyphSize / 2,

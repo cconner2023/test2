@@ -23,12 +23,8 @@ import type { OverlayFeature } from '../Types/MapOverlayTypes'
  *  - geometry,
  *    style        → DEEP-copied so the copy never shares mutable array/object
  *                   refs with the source.
- *  - everything else (label, notes, waypoint_type, mgrs, recorded* flags,
- *    tc3_card_id) → carried verbatim.
- *
- * tc3_card_id is carried intentionally: it is an opaque, device-resolvable id
- * (no PHI on the wire — patient detail lives device-side in useTC3Store), so a
- * copied casualty pin legitimately points the same casualty at a second map.
+ *  - everything else (label, notes, waypoint_type, mgrs, recorded* flags)
+ *                 → carried verbatim.
  *
  * Pure-ish: id/now are injectable for tests; production callers omit them.
  */

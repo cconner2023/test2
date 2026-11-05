@@ -6,7 +6,7 @@ import { SearchInput } from '@/Components/primitives/SearchInput'
  * Board, Calendar, Map, Property, Settings, Supervisor, Admin, User Guide)
  * renders its search through this — one spacing, one input variant, no
  * per-caller wrappers. Callers pass search props, not a node, so the field
- * can't drift. The bare gear renders only when `onSettings` is given;
+ * can't drift. Sits inside DesktopRail (the shared 280px container). The bare gear renders only when `onSettings` is given;
  * `active` fills it while its popover is open (Map).
  *
  * The other two search styles are NavTop's desktop pill and the mobile

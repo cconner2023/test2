@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, type ReactNode } from 'react'
 import { UnderlineTabs } from '@/Components/primitives/UnderlineTabs'
-import { ArrowRightLeft, ArrowRight, Eye, Trash2, Ban, Pencil, Navigation, MapPinCheck, MapPin, X } from 'lucide-react'
+import { ArrowRightLeft, ArrowRight, CircleCheck, Eye, Trash2, Ban, Pencil, Navigation, MapPinCheck, MapPin, X } from 'lucide-react'
 import { ListItemRow } from '@/Components/primitives/ListItemRow'
 import { PersonnelGroupBand } from '@/Components/primitives/PersonnelRow'
 import { BrnPinInput, BRN_PATTERN } from '@/Components/DomainInputs'
@@ -14,13 +14,14 @@ import {
 } from '../../Utilities/trackingSwipeActions'
 import { SectionCard, CardLabel, PageSectionHeader } from '@/Components/primitives/Section'
 import { TextArea } from '@/Components/primitives/FormInputs'
+import { TintedCard, TintedCardHead, TintedCardFoot, type CardTint } from '@/Components/primitives/TintedCard'
 import { formatDtg } from '../../Utilities/propertyDates'
 import { ToggleSwitch } from '../Settings/ToggleSwitch'
 import type { LinkedFeatureRef } from '../../Types/MissionTypes'
 import {
-  clusterById, positionOf, sinceAt, placeKey, samePlace, placeLabel, stationLabel,
-  destinationLabel, placeOwnerLabel, originUic, moveTargets, boardLayout, knownPlaces, refOf,
-  type TrackingEntry, type TrackingComment, type TrackingPosition, type TrackingNetwork, type BoardGroupDef,
+  clusterById, positionOf, sinceAt, placeKey, samePlace, stationLabel, placeLabel, originUic,
+  destinationLabel, moveTargets, boardLayout, knownPlaces, refOf, isComplete, isPending, COMPLETE,
+  type TrackingEntry, type TrackingComment, type TrackingTarget, type TrackingNetwork, type BoardGroupDef,
   type TrackingEditDraft,
 } from './trackingModel'
 
@@ -33,14 +34,14 @@ export type { TrackingEntry, TrackingComment, TrackingEditDraft } from './tracki
  *
  * Every BRN sits at one station — a map pin marked "Add to tracking board"
  * (AXPs included), shown by the pin's cluster plus related clusters that toggled
- * it on — or at none (Unassigned: the lack of a station, not a pin). In transit
+ * it on — or at none (Pending: the lack of a station, not a pin). Complete =
+ * dispositioned, a place of its own at the far end. In transit
  * is a card marker ("→ destination"), not a place. A board shows patients ORIGINATED in the viewer's
  * cluster or below (origin + ancestors visibility), so a Role II board carries
  * its Role Is' patients and follows them up to Role III.
- * Desktop: T2T-style grid — one column group per cluster along the patient flow
- * (Role I → Role III) after a leading Unassigned column, the stations it shows
- * under it (a shared station listed once, under the first cluster showing it); the
- * current place's whole cell is the marker. Rail / mobile tabs: the viewer's own
+ * Desktop: T2T-style grid — a leading Pending column, then one flat column per
+ * station along the patient flow (Role I → Role III; a shared station listed once),
+ * then a trailing Complete column; the current place's whole cell is the marker. Rail / mobile tabs: the viewer's own
  * places one by one, every other cluster as one group.
  *
  * Data: one hidden calendar event per visit carrying tracking_data
@@ -68,8 +69,6 @@ export const fmtTime = (ms: number) =>
   new Date(ms).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }).replace(':', '')
 /** Military date-time — 31OCT26 1423. */
 const fmtDateTime = (ms: number) => `${formatDtg(new Date(ms).toISOString())} ${fmtTime(ms)}`
-const MIN = 60 * 1000
-const dwellMin = (e: TrackingEntry, now: number) => Math.max(0, Math.round((now - sinceAt(e)) / MIN))
 
 export const filterEntries = (entries: TrackingEntry[], query: string) => {
   const q = query.trim().toUpperCase()
@@ -107,37 +106,25 @@ const ROW_HEIGHT = 36
 
 export function TrackingGrid({ entries, activeId, onSelect }: ListProps) {
   const { net, viewerId } = useBoardScope()
-  // Column groups along the patient flow (Role I → Role III).
-  // Unassigned leads (no cluster band over it), then one band per cluster.
-  const groups = boardLayout(net, viewerId, entries).map(g => ({ def: g, places: groupPlaces(g) }))
-  const columns: { pos: TrackingPosition; label: string; first: boolean }[] = [
-    { pos: null, label: 'Unassigned', first: true },
-    ...groups.flatMap(g => g.places.map((pl, i) => ({ ...pl, first: i === 0 }))),
+  // Pending leads, stations along the patient flow (Role I → Role III), Complete last.
+  const columns: { key: string; label: string; here: (e: TrackingEntry) => boolean }[] = [
+    { key: 'pending', label: 'Pending', here: isPending },
+    ...boardLayout(net, viewerId, entries).flatMap(g => groupPlaces(g)).map(pl => ({
+      key: placeKey(pl.pos), label: pl.label, here: (e: TrackingEntry) => samePlace(positionOf(e), pl.pos),
+    })),
+    { key: COMPLETE, label: 'Complete', here: isComplete },
   ]
   const cols = `${BRN_COL_WIDTH}px repeat(${columns.length}, minmax(${CELL_MIN_WIDTH}px, 1fr))`
   return (
     <div className="h-full overflow-auto bg-themewhite">
       <div className="min-w-max pb-8">
-        {/* Column header — sticky, like the T2T time header: cluster band over its places */}
+        {/* Column header — sticky, like the T2T time header */}
         <div className="sticky top-0 z-10 grid bg-themewhite border-b border-primary/10" style={{ gridTemplateColumns: cols }}>
-          <div className="sticky left-0 z-20 row-span-2 flex items-end px-2 py-1.5 border-r border-primary/10 bg-themewhite">
+          <div className="sticky left-0 z-20 flex items-center px-2 py-1.5 border-r border-primary/10 bg-themewhite">
             <span className="text-[9pt] font-semibold uppercase tracking-wider text-tertiary">BRN</span>
           </div>
-          <div className="border-l border-l-primary/10" />
-          {groups.map(g => (
-            <div
-              key={groupKey(g.def)}
-              className="flex items-center px-2 pt-1.5 border-l border-l-primary/10"
-              style={{ gridColumn: `span ${g.places.length}` }}
-            >
-              <span className={`text-[9pt] font-semibold truncate ${g.def.cluster.id === viewerId ? 'text-primary' : 'text-secondary'}`}>{groupLabel(g.def)}</span>
-            </div>
-          ))}
           {columns.map(c => (
-            <div
-              key={placeKey(c.pos)}
-              className={`flex items-center px-2 pb-1.5 pt-0.5 border-l ${c.first ? 'border-l-primary/10' : 'border-l-primary/5'}`}
-            >
+            <div key={c.key} className="flex items-center px-2 py-1.5 border-l border-l-primary/5">
               <span className="text-[8.5pt] font-semibold uppercase tracking-wider text-tertiary truncate">{c.label}</span>
             </div>
           ))}
@@ -145,7 +132,6 @@ export function TrackingGrid({ entries, activeId, onSelect }: ListProps) {
 
         {/* BRN rows — the current place's whole cell is the marker */}
         {entries.map(e => {
-          const at = positionOf(e)
           const active = activeId === e.id
           const tint = tintFor(e)
           return (
@@ -164,11 +150,11 @@ export function TrackingGrid({ entries, activeId, onSelect }: ListProps) {
               </div>
               {/* Current cell wears the place tint — same shell + text as the cards */}
               {columns.map(c => {
-                const here = samePlace(c.pos, at)
+                const here = c.here(e)
                 return (
                   <div
-                    key={placeKey(c.pos)}
-                    className={`flex items-center px-2 border-l ${c.first ? 'border-l-primary/10' : 'border-l-primary/5'} ${here ? tint.shell : ''}`}
+                    key={c.key}
+                    className={`flex items-center px-2 border-l border-l-primary/5 ${here ? tint.shell : ''}`}
                   >
                     {here && (e.transit
                       ? <span className={`text-[9pt] font-semibold truncate ${tint.foot}`}>→ {destinationLabel(net, e.transit.to)}</span>
@@ -185,10 +171,10 @@ export function TrackingGrid({ entries, activeId, onSelect }: ListProps) {
 }
 
 // ── Grouping shared by the desktop rail and the mobile tabs ──
-// Unassigned first; the viewer's own cluster splits into its stations;
+// Pending first, Complete last; the viewer's own cluster splits into its stations;
 // every other cluster on the board is ONE group (the card footer names the place).
 
-/** 'all', 'unassigned', a station key (own cluster) or `cluster:<id>`. */
+/** 'all', 'pending', 'complete', a station key (own cluster) or `cluster:<id>`. */
 export type TrackingCategory = string
 
 interface BoardGroup {
@@ -198,7 +184,7 @@ interface BoardGroup {
 }
 
 function boardGroups(net: TrackingNetwork, viewerId: string, entries: TrackingEntry[]): BoardGroup[] {
-  const out: BoardGroup[] = [{ key: 'unassigned', label: 'Unassigned', match: e => positionOf(e) === null }]
+  const out: BoardGroup[] = [{ key: 'pending', label: 'Pending', match: isPending }]
   for (const g of boardLayout(net, viewerId, entries)) {
     if (g.cluster.id === viewerId) {
       for (const pl of groupPlaces(g)) out.push({ key: placeKey(pl.pos), label: pl.label, match: e => samePlace(positionOf(e), pl.pos) })
@@ -207,6 +193,7 @@ function boardGroups(net: TrackingNetwork, viewerId: string, entries: TrackingEn
       out.push({ key: groupKey(g), label: groupLabel(g), match: e => keys.has(placeKey(positionOf(e))) })
     }
   }
+  out.push({ key: COMPLETE, label: 'Complete', match: isComplete })
   return out
 }
 
@@ -214,8 +201,11 @@ function boardGroups(net: TrackingNetwork, viewerId: string, entries: TrackingEn
 // Calendar personnel-filter idiom: collapsible PersonnelGroupBand per group,
 // condensed BRN cards (BrnRailCard) under it. No counts / dwell indicators.
 
-export function TrackingBoardList({ entries, onSelect, expandedId }: ListProps) {
+export function TrackingBoardList({ entries, onSelect, onEdit, onMove, onTransit, onDelete, expandedId }: ListProps & CardActions) {
   const { net, viewerId } = useBoardScope()
+  const cardMenu = useBrnCardMenu({ onSelect, onEdit, onMove, onTransit, onDelete }, measureRailCard, e => (
+    <div className="rounded-xl bg-themewhite overflow-hidden"><BrnRailCardBody entry={e} /></div>
+  ))
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set())
   const toggle = (key: string) => setCollapsed(prev => {
     const next = new Set(prev)
@@ -237,12 +227,21 @@ export function TrackingBoardList({ entries, onSelect, expandedId }: ListProps) 
             />
             {open && rows.length > 0 && (
               <div className="px-2 py-2 space-y-1.5">
-                {rows.map(e => <BrnRailCard key={e.id} entry={e} hidden={expandedId === e.id} onSelect={onSelect} />)}
+                {rows.map(e => (
+                  <BrnRailCard
+                    key={e.id}
+                    entry={e}
+                    hidden={expandedId === e.id}
+                    onOpen={() => cardMenu.open(e)}
+                    onMenu={rect => cardMenu.setMenu({ entry: e, rect, mode: 'all' })}
+                  />
+                ))}
               </div>
             )}
           </div>
         )
       })}
+      {cardMenu.surfaces}
     </div>
   )
 }
@@ -281,25 +280,28 @@ const cardEl = (id: string) => document.querySelector<HTMLElement>(`[data-brn-ca
 export const measureBrnCard = (id: string): DOMRect | null => cardEl(id)?.getBoundingClientRect() ?? null
 
 /** Origin for an open: the lifted clone when the long-press menu is up, else the rest card. */
-function originFor(id: string): CardOrigin | undefined {
-  const rest = measureBrnCard(id)
+function originFor(id: string, measure: (id: string) => DOMRect | null): CardOrigin | undefined {
+  const rest = measure(id)
   if (!rest) return undefined
   const v = document.querySelector<HTMLElement>('[data-lifted-clone]')?.getBoundingClientRect() ?? rest
   const scale = v.width / rest.width || 1
   return { left: rest.left, width: rest.width, top: v.top, height: v.height / scale, scale }
 }
 
-interface CardListProps {
-  entries: TrackingEntry[]
+interface CardActions {
   onSelect: (entry: TrackingEntry, origin?: CardOrigin) => void
   /** Open the BRN straight into its edit form. */
   onEdit: (entry: TrackingEntry, origin?: CardOrigin) => void
-  /** Move a BRN to a station its origin's chain shows, or Unassigned (null). */
-  onMove: (entry: TrackingEntry, to: TrackingPosition) => void
+  /** Move a BRN to a station its origin's chain shows, Pending (null) or Complete. */
+  onMove: (entry: TrackingEntry, to: TrackingTarget) => void
   /** Set / clear (null) the "leaving → destination station" marker. */
   onTransit: (entry: TrackingEntry, to: LinkedFeatureRef | null) => void
   /** Remove the BRN from the board — called after the ConfirmDialog. */
   onDelete: (entry: TrackingEntry) => void
+}
+
+interface CardListProps extends CardActions {
+  entries: TrackingEntry[]
   /** Card currently expanded into the overlay — held invisible in the list so
    *  the overlay reads as the card itself, not a copy. */
   expandedId?: string | null
@@ -315,19 +317,22 @@ export const TRACKING_SWIPE_DISPLAY: Record<TrackingSwipeBinding, SwipeBindingDi
 
 /** Station shell tints, by pin-id hash — the card sits
  *  on its place's color (footer band reads on it), so the board scans by color
- *  before text. Unassigned is always gray. */
-const UNASSIGNED_TINT = { shell: 'bg-themegray1/30', foot: 'text-secondary' }
-const STATION_TINTS: { shell: string; foot: string }[] = [
-  { shell: 'bg-themeblue1/30', foot: 'text-themeblue3' },
+ *  before text. Pending is always gray, Complete always green. Footer text is always the theme's
+ *  text-primary — accent tokens (themeblue3, themeredred…) stay dark in dark
+ *  themes and vanish on the tinted shell; the shell carries the color. */
+const PENDING_TINT: CardTint = { shell: 'bg-themegray1/30', foot: 'text-primary' }
+const COMPLETE_TINT: CardTint = { shell: 'bg-themegreen/25', foot: 'text-primary' }
+const STATION_TINTS: CardTint[] = [
+  { shell: 'bg-themeblue1/30', foot: 'text-primary' },
   { shell: 'bg-themeyellow/30', foot: 'text-primary' },
-  { shell: 'bg-themeblue2/25', foot: 'text-themeblue3' },
-  { shell: 'bg-themepurple/25', foot: 'text-themepurple' },
-  { shell: 'bg-themered/30', foot: 'text-themeredred' },
-  { shell: 'bg-themegreen/25', foot: 'text-themegreen' },
+  { shell: 'bg-themeblue2/25', foot: 'text-primary' },
+  { shell: 'bg-themepurple/25', foot: 'text-primary' },
+  { shell: 'bg-themered/30', foot: 'text-primary' },
 ]
-export function tintFor(e: TrackingEntry) {
+export function tintFor(e: TrackingEntry): CardTint {
+  if (isComplete(e)) return COMPLETE_TINT
   const p = positionOf(e)
-  if (!p) return UNASSIGNED_TINT
+  if (!p) return PENDING_TINT
   // Hash of the place id — stable on every device and board, no lookup, and a
   // place added later gets a color too.
   let h = 0
@@ -335,119 +340,121 @@ export function tintFor(e: TrackingEntry) {
   return STATION_TINTS[Math.abs(h) % STATION_TINTS.length]
 }
 
-/** Card comment preview — clipped past this many characters. */
-const COMMENT_PREVIEW_CHARS = 80
-const clip = (t: string, n: number) => (t.length > n ? `${t.slice(0, n).trimEnd()}…` : t)
+/** Card head — BRN with the origin UIC under it. Shared by the list card and
+ *  the expanded overlay. */
+export function BrnCardHead({ entry }: { entry: TrackingEntry }) {
+  const { net } = useBoardScope()
+  return <TintedCardHead title={entry.brn} subtitle={originUic(net.clusters, entry)} />
+}
 
-/** Card head — UIC · check-in time over the BRN. Shared by the list card and
- *  the expanded overlay (which swaps `inTime` for a fading copy). */
-export function BrnCardHead({ entry, inTime }: { entry: TrackingEntry; inTime?: ReactNode }) {
+/** Current station — the overlay's third head line, same rhythm as the UIC. */
+export function BrnStationLine({ entry }: { entry: TrackingEntry }) {
   const { net } = useBoardScope()
   return (
+    <p className="mt-0.5 text-[9pt] font-medium text-secondary truncate">
+      {placeLabel(net, entry)}
+      {entry.transit && <span className="text-themeblue2"> → {destinationLabel(net, entry.transit.to)}</span>}
+    </p>
+  )
+}
+
+const latestNote = (e: TrackingEntry) => e.comments[e.comments.length - 1]?.text
+
+/** Footer parts: location (→ destination while in transit) · since / en-route stamp. */
+function useBrnFoot(entry: TrackingEntry, arrowIcon: boolean) {
+  const { net } = useBoardScope()
+  const t = entry.transit
+  const left = (
     <>
-      <div className="flex items-center justify-between gap-3">
-        <span className="text-[9pt] font-mono font-medium text-tertiary truncate">{originUic(net.clusters, entry)}</span>
-        {inTime ?? <span className="text-[9pt] font-mono text-tertiary shrink-0">In {fmtTime(entry.checkedInAt)}</span>}
-      </div>
-      <p className="mt-1 text-[16pt] leading-tight font-mono font-bold tracking-wide text-primary truncate">{entry.brn}</p>
+      {placeLabel(net, entry)}
+      {t && (arrowIcon
+        ? <> <ArrowRight size={10} className="inline -mt-px" /> {destinationLabel(net, t.to)}</>
+        : ` → ${destinationLabel(net, t.to)}`)}
     </>
   )
+  const right = t ? `En route ${fmtTime(t.at)}` : `Since ${fmtDateTime(sinceAt(entry))}`
+  return { left, right }
 }
 
 /** Footer band on the tint: location · since — or, while in transit, the
  *  "→ destination" marker and when they left. */
 export function BrnCardFoot({ entry }: { entry: TrackingEntry }) {
-  const { net, viewerId } = useBoardScope()
-  const t = entry.transit
-  return (
-    <div className={`flex items-center justify-between gap-3 px-3 pt-1.5 pb-0.5 text-[8pt] font-semibold uppercase tracking-wider ${tintFor(entry).foot}`}>
-      <span className="truncate">
-        {placeLabel(net, positionOf(entry), viewerId)}
-        {t && <> <ArrowRight size={10} className="inline -mt-px" /> {destinationLabel(net, t.to)}</>}
-      </span>
-      <span className="font-mono shrink-0">{t ? `En route ${fmtTime(t.at)}` : `Since ${fmtDateTime(sinceAt(entry))}`}</span>
-    </div>
-  )
+  const { left, right } = useBrnFoot(entry, true)
+  return <TintedCardFoot tint={tintFor(entry)} left={left} right={right} />
 }
 
 /** Card body — rendered in the list AND as the lifted clone in the menu, and
  *  the collapsed state of TrackingCardOverlay. Tinted shell → white inner card
- *  (head + latest comment) → footer band on the tint. */
+ *  (BRN, UIC, latest note) → footer band (location) on the tint. */
 function BrnCard({ entry }: { entry: TrackingEntry }) {
-  const latest = entry.comments[entry.comments.length - 1]
-  const more = entry.comments.length - 1
+  const { net } = useBoardScope()
+  const { left, right } = useBrnFoot(entry, true)
   return (
-    <div className={`p-1.5 ${tintFor(entry).shell}`}>
-      <div className="rounded-xl bg-themewhite px-4 pt-3 pb-3.5 shadow-sm min-w-0">
-        <BrnCardHead entry={entry} />
-        {latest && (
-          <p className="mt-1.5 text-[9.5pt] leading-snug text-secondary break-words">
-            {clip(latest.text, COMMENT_PREVIEW_CHARS)}
-            {more > 0 && <span className="text-tertiary"> · {more} more</span>}
-          </p>
-        )}
-      </div>
-      <BrnCardFoot entry={entry} />
+    <TintedCard
+      tint={tintFor(entry)}
+      title={entry.brn}
+      subtitle={originUic(net.clusters, entry)}
+      note={latestNote(entry)}
+      footLeft={left}
+      footRight={right}
+    />
+  )
+}
+
+/** Condensed BrnCard — same tinted shell → white inner (BRN · UIC, latest note)
+ *  → footer band (location · since). Rail card and its lifted clone. */
+function BrnRailCardBody({ entry }: { entry: TrackingEntry }) {
+  const { net } = useBoardScope()
+  const { left, right } = useBrnFoot(entry, false)
+  return (
+    <TintedCard
+      compact
+      tint={tintFor(entry)}
+      title={entry.brn}
+      subtitle={originUic(net.clusters, entry)}
+      note={latestNote(entry)}
+      footLeft={left}
+      footRight={right}
+    />
+  )
+}
+
+/** Desktop rail card. Click grows it into the centered TrackingCardOverlay;
+ *  right-click / long-press lifts it into the shared card menu. */
+function BrnRailCard({ entry, hidden, onOpen, onMenu }: {
+  entry: TrackingEntry
+  /** Expanded into the overlay — held invisible so the overlay reads as the card. */
+  hidden: boolean
+  onOpen: () => void
+  onMenu: (rect: DOMRect) => void
+}) {
+  return (
+    <div data-brn-rail={entry.id} className={hidden ? 'invisible' : undefined}>
+      <SwipeActionRow
+        className="rounded-xl transition-shadow hover:shadow-md"
+        surfaceClassName="bg-themewhite"
+        onClick={onOpen}
+        onLongPress={onMenu}
+      >
+        <BrnRailCardBody entry={entry} />
+      </SwipeActionRow>
     </div>
   )
 }
 
-/** Condensed BrnCard for the desktop rail — same tinted shell → white inner →
- *  footer band, at one BRN line + one sub line. The group band already names
- *  the place, so the footer carries only the since stamp. Click grows it into
- *  the centered TrackingCardOverlay. */
-function BrnRailCard({ entry, hidden, onSelect }: {
-  entry: TrackingEntry
-  /** Expanded into the overlay — held invisible so the overlay reads as the card. */
-  hidden: boolean
-  onSelect: (entry: TrackingEntry, origin?: CardOrigin) => void
-}) {
-  const { net } = useBoardScope()
-  const latest = entry.comments[entry.comments.length - 1]
-  const tint = tintFor(entry)
-  return (
-    <button
-      type="button"
-      data-brn-rail={entry.id}
-      onClick={() => onSelect(entry, rectOrigin(measureRailCard(entry.id)))}
-      className={`block w-full text-left rounded-xl overflow-hidden transition-shadow hover:shadow-md ${
-        hidden ? 'invisible' : ''
-      }`}
-    >
-      <div className={`p-1 ${tint.shell}`}>
-        <div className="rounded-lg bg-themewhite px-3 py-1.5 shadow-sm min-w-0">
-          <div className="flex items-baseline justify-between gap-2">
-            <span className="text-[11pt] leading-tight font-mono font-bold tracking-wide text-primary truncate">{entry.brn}</span>
-            <span className="text-[8pt] font-mono text-tertiary shrink-0">In {fmtTime(entry.checkedInAt)}</span>
-          </div>
-          <p className="mt-0.5 text-[8.5pt] text-tertiary truncate">
-            <span className="font-mono font-medium">{originUic(net.clusters, entry)}</span>
-            {latest && <span className="text-secondary"> · {latest.text}</span>}
-          </p>
-        </div>
-        <div className={`flex items-center justify-between gap-2 px-2 pt-1 text-[7.5pt] font-semibold uppercase tracking-wider ${tint.foot}`}>
-          <span className="truncate">{entry.transit
-            ? `→ ${destinationLabel(net, entry.transit.to)}`
-            : entry.comments.length > 0 ? `${entry.comments.length} comment${entry.comments.length > 1 ? 's' : ''}` : ''}</span>
-          <span className="font-mono shrink-0">{entry.transit ? `En route ${fmtTime(entry.transit.at)}` : `Since ${fmtDateTime(sinceAt(entry))}`}</span>
-        </div>
-      </div>
-    </button>
-  )
-}
-
-/** "Move to" targets — Unassigned, then every station the origin's chain shows
- *  (Role I → Role III), minus the BRN's current spot. One cluster = flat list;
- *  several = a submenu per cluster. */
-export function trackingMoveItems(e: TrackingEntry, onMove: (entry: TrackingEntry, to: TrackingPosition) => void, net: TrackingNetwork): ContextMenuItem[] {
+/** "Move to" targets — Pending, every station the origin's chain shows
+ *  (Role I → Role III), then Complete, minus the BRN's current spot. One cluster
+ *  = flat list; several = a submenu per cluster. Moving a Complete BRN reopens it. */
+export function trackingMoveItems(e: TrackingEntry, onMove: (entry: TrackingEntry, to: TrackingTarget) => void, net: TrackingNetwork): ContextMenuItem[] {
   const at = positionOf(e)
   const placeItems = (g: BoardGroupDef): ContextMenuItem[] => groupPlaces(g)
     .filter(pl => !samePlace(pl.pos, at))
     .map(pl => ({ key: placeKey(pl.pos), label: pl.label, icon: ArrowRight, onAction: () => onMove(e, pl.pos) }))
-  const unassigned: ContextMenuItem[] = at ? [{ key: 'unassigned', label: 'Unassigned', icon: ArrowRight, onAction: () => onMove(e, null) }] : []
+  const pending: ContextMenuItem[] = isPending(e) ? [] : [{ key: 'pending', label: 'Pending', icon: ArrowRight, onAction: () => onMove(e, null) }]
+  const complete: ContextMenuItem[] = isComplete(e) ? [] : [{ key: COMPLETE, label: 'Complete', icon: CircleCheck, onAction: () => onMove(e, COMPLETE) }]
   const groups = moveTargets(net, e)
-  if (groups.length === 1) return [...unassigned, ...placeItems(groups[0])]
-  return [...unassigned, ...groups.map(g => ({ key: groupKey(g), label: groupLabel(g), icon: ArrowRightLeft, submenu: placeItems(g) }))]
+  if (groups.length === 1) return [...pending, ...placeItems(groups[0]), ...complete]
+  return [...pending, ...groups.map(g => ({ key: groupKey(g), label: groupLabel(g), icon: ArrowRightLeft, submenu: placeItems(g) })), ...complete]
 }
 
 /** "Send to" destinations — every station the origin's chain shows, minus where
@@ -469,14 +476,15 @@ export function trackingTransitItems(e: TrackingEntry, onTransit: (entry: Tracki
 export function buildTrackingMenuItems(e: TrackingEntry, h: {
   onOpen?: (entry: TrackingEntry) => void
   onEdit: (entry: TrackingEntry) => void
-  onMove: (entry: TrackingEntry, to: TrackingPosition) => void
+  onMove: (entry: TrackingEntry, to: TrackingTarget) => void
   /** Set (or clear, null) the "leaving → destination station" marker. */
   onTransit: (entry: TrackingEntry, to: LinkedFeatureRef | null) => void
   onDelete: (entry: TrackingEntry) => void
   net: TrackingNetwork
 }): ContextMenuItem[] {
   const t = e.transit
-  const sendTo = trackingTransitItems(e, h.onTransit, h.net)
+  // Complete = done moving; reopen through Move to… first.
+  const sendTo = isComplete(e) ? [] : trackingTransitItems(e, h.onTransit, h.net)
   return [
     ...(h.onOpen ? [{ key: 'open', label: 'Open', icon: Eye, onAction: () => h.onOpen!(e) }] : []),
     { key: 'edit', label: 'Edit', icon: Pencil, onAction: () => h.onEdit(e) },
@@ -492,29 +500,68 @@ export function buildTrackingMenuItems(e: TrackingEntry, h: {
 }
 
 /**
+ * Right-click / long-press card menu: the LiftedRowMenu over a clone of the card
+ * plus its delete confirm. Shared by the mobile cards and the desktop rail.
+ * `measure` = the card's rest rect; `row` = the lifted clone.
+ */
+function useBrnCardMenu(
+  { onSelect, onEdit, onMove, onTransit, onDelete }: CardActions,
+  measure: (id: string) => DOMRect | null,
+  row: (entry: TrackingEntry) => ReactNode,
+) {
+  const { net } = useBoardScope()
+  // mode 'all' = full menu; 'move' = swipe-bound Move, straight to the places.
+  const [menu, setMenu] = useState<{ entry: TrackingEntry; rect: DOMRect; mode: 'all' | 'move' } | null>(null)
+  const [pendingDelete, setPendingDelete] = useState<TrackingEntry | null>(null)
+
+  // Open / Edit from the lifted menu grow out of the lifted clone (still mounted
+  // when onAction fires); tap / swipe-open grow out of the rest card.
+  const open = (e: TrackingEntry) => onSelect(e, originFor(e.id, measure))
+  const edit = (e: TrackingEntry) => onEdit(e, originFor(e.id, measure))
+  const moveItems = (e: TrackingEntry) => trackingMoveItems(e, onMove, net)
+  const menuItems = (e: TrackingEntry) => buildTrackingMenuItems(e, { onOpen: open, onEdit: edit, onMove, onTransit, onDelete: setPendingDelete, net })
+
+  const surfaces = (
+    <>
+      <LiftedRowMenu
+        isOpen={!!menu}
+        anchorRect={menu?.rect ?? null}
+        row={menu && row(menu.entry)}
+        items={menu ? (menu.mode === 'move' ? moveItems(menu.entry) : menuItems(menu.entry)) : []}
+        header={menu?.mode === 'move' ? 'Move to' : undefined}
+        onClose={() => setMenu(null)}
+        layout="list"
+      />
+      <ConfirmDialog
+        visible={!!pendingDelete}
+        title={`Remove ${pendingDelete?.brn ?? ''} from the board?`}
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={() => { if (pendingDelete) onDelete(pendingDelete); setPendingDelete(null) }}
+        onCancel={() => setPendingDelete(null)}
+      />
+    </>
+  )
+
+  return { open, setMenu, setPendingDelete, surfaces }
+}
+
+/**
  * BRN cards with the chat gesture set (SwipeActionRow): tap opens, long-press /
  * right-click lifts the card into the LiftedRowMenu (Open / Move to… /
  * Delete); swipe left/right fire the user's Tracking swipe bindings (same set,
  * picked in board settings via Messaging's picker).
  */
 export function TrackingCardList({ entries, onSelect, onEdit, onMove, onTransit, onDelete, expandedId }: CardListProps) {
-  const { net } = useBoardScope()
   const swipe = useTrackingSwipeActions()
-  // mode 'all' = long-press menu; 'move' = swipe-bound Move, straight to the places.
-  const [menu, setMenu] = useState<{ entry: TrackingEntry; rect: DOMRect; mode: 'all' | 'move' } | null>(null)
-  const [pendingDelete, setPendingDelete] = useState<TrackingEntry | null>(null)
-
-  const moveItems = (e: TrackingEntry) => trackingMoveItems(e, onMove, net)
-  // Open / Edit from the lifted menu grow out of the lifted clone (still mounted
-  // when onAction fires); tap / swipe-open grow out of the rest card.
-  const open = (e: TrackingEntry) => onSelect(e, originFor(e.id))
-  const edit = (e: TrackingEntry) => onEdit(e, originFor(e.id))
-  const menuItems = (e: TrackingEntry) => buildTrackingMenuItems(e, { onOpen: open, onEdit: edit, onMove, onTransit, onDelete: setPendingDelete, net })
+  const cardMenu = useBrnCardMenu({ onSelect, onEdit, onMove, onTransit, onDelete }, measureBrnCard, e => (
+    <div className="rounded-2xl bg-themewhite2 overflow-hidden"><BrnCard entry={e} /></div>
+  ))
 
   const fire = (b: TrackingSwipeBinding, e: TrackingEntry, rect: DOMRect) => {
-    if (b === 'open') open(e)
-    else if (b === 'move') setMenu({ entry: e, rect, mode: 'move' })
-    else if (b === 'delete') setPendingDelete(e)
+    if (b === 'open') cardMenu.open(e)
+    else if (b === 'move') cardMenu.setMenu({ entry: e, rect, mode: 'move' })
+    else if (b === 'delete') cardMenu.setPendingDelete(e)
   }
 
   const sideFor = (b: TrackingSwipeBinding, e: TrackingEntry): SwipeSide | null => {
@@ -530,30 +577,14 @@ export function TrackingCardList({ entries, onSelect, onEdit, onMove, onTransit,
             className="rounded-2xl"
             ltr={sideFor(swipe.ltr, e)}
             rtl={sideFor(swipe.rtl, e)}
-            onClick={() => open(e)}
-            onLongPress={rect => setMenu({ entry: e, rect, mode: 'all' })}
+            onClick={() => cardMenu.open(e)}
+            onLongPress={rect => cardMenu.setMenu({ entry: e, rect, mode: 'all' })}
           >
             <BrnCard entry={e} />
           </SwipeActionRow>
         </div>
       ))}
-      <LiftedRowMenu
-        isOpen={!!menu}
-        anchorRect={menu?.rect ?? null}
-        row={menu && <div className="rounded-2xl bg-themewhite2 overflow-hidden"><BrnCard entry={menu.entry} /></div>}
-        items={menu ? (menu.mode === 'move' ? moveItems(menu.entry) : menuItems(menu.entry)) : []}
-        header={menu?.mode === 'move' ? 'Move to' : undefined}
-        onClose={() => setMenu(null)}
-        layout="list"
-      />
-      <ConfirmDialog
-        visible={!!pendingDelete}
-        title={`Remove ${pendingDelete?.brn ?? ''} from the board?`}
-        confirmLabel="Delete"
-        variant="danger"
-        onConfirm={() => { if (pendingDelete) onDelete(pendingDelete); setPendingDelete(null) }}
-        onCancel={() => setPendingDelete(null)}
-      />
+      {cardMenu.surfaces}
     </div>
   )
 }
@@ -605,7 +636,27 @@ export const draftIsValid = (d: TrackingEditDraft) => BRN_PATTERN.test(d.brn)
 
 const commentAreaClass = 'w-full bg-transparent px-4 pt-1 pb-2.5 text-base md:text-[10pt] text-primary placeholder:text-tertiary focus:outline-none resize-none'
 
-/** BRN + comments. `entry` omitted = check-in (new BRN, focus the pin cells). */
+/** Check-in — self-rowing primitives straight in the PreviewOverlay card
+ *  (no section chrome); Save rides the overlay's right footer. */
+export function TrackingCheckInFields({ draft, onChange }: {
+  draft: TrackingEditDraft
+  onChange: (d: TrackingEditDraft) => void
+}) {
+  return (
+    <>
+      <BrnPinInput value={draft.brn} onChange={brn => onChange({ ...draft, brn })} spread autoFocus />
+      <TextArea
+        value={draft.newComment}
+        onChange={newComment => onChange({ ...draft, newComment })}
+        placeholder="Comment"
+        maxLength={500}
+        rows={3}
+      />
+    </>
+  )
+}
+
+/** BRN + comments — the open BRN's ellipsis Edit form. */
 export function TrackingEditForm({ entry, draft, onChange }: {
   entry?: TrackingEntry
   draft: TrackingEditDraft
@@ -662,26 +713,10 @@ export function TrackingEditForm({ entry, draft, onChange }: {
   )
 }
 
-export function TrackingBoardDetail({ entry, now }: { entry: TrackingEntry; now: number }) {
+export function TrackingBoardDetail({ entry }: { entry: TrackingEntry }) {
   const { net } = useBoardScope()
-  const clusterName = (id: string) => clusterById(net.clusters, id)?.label ?? 'Cluster'
-  const where = (p: TrackingPosition) => placeOwnerLabel(net, p) || undefined
   return (
     <div className="space-y-4">
-      <SectionCard>
-        <div className="px-4 py-3">
-          <p className="text-[9pt] text-tertiary">Current location</p>
-          <p className="text-[10pt] font-semibold text-primary">{placeLabel(net, positionOf(entry))}</p>
-          <p className="text-[9pt] text-tertiary tabular-nums">{dwellMin(entry, now)}m · since {fmtTime(sinceAt(entry))}</p>
-          {entry.transit && (
-            <p className="mt-1 text-[9pt] font-semibold text-themeblue3">
-              En route → {destinationLabel(net, entry.transit.to)} · {fmtTime(entry.transit.at)} · {entry.transit.by}
-            </p>
-          )}
-        </div>
-      </SectionCard>
-
-      {/* One journey across the chain — every step names its cluster. */}
       <CardLabel label="History">
         <SectionCard>
           {[...entry.moves].reverse().map(m => (
@@ -689,24 +724,14 @@ export function TrackingBoardDetail({ entry, now }: { entry: TrackingEntry; now:
               key={m.id}
               as="div"
               className="px-4 py-2.5 border-b border-primary/5"
-              center={
-                <div className="min-w-0">
-                  <p className="text-[10pt] text-primary truncate">{stationLabel(net, m.to)}</p>
-                  <p className="text-[9pt] text-tertiary truncate">{where(m.to)}</p>
-                </div>
-              }
+              center={<p className="text-[10pt] text-primary truncate">{m.complete ? 'Complete' : stationLabel(net, m.to)}</p>}
               right={<span className="text-[9pt] font-mono text-tertiary shrink-0">{fmtDateTime(m.at)}</span>}
             />
           ))}
           <ListItemRow
             as="div"
             className="px-4 py-2.5"
-            center={
-              <div className="min-w-0">
-                <p className="text-[10pt] text-primary truncate">Checked in</p>
-                <p className="text-[9pt] text-tertiary truncate">{clusterName(entry.originClinicId)}</p>
-              </div>
-            }
+            center={<p className="text-[10pt] text-primary truncate">Checked in</p>}
             right={<span className="text-[9pt] font-mono text-tertiary shrink-0">{fmtDateTime(entry.checkedInAt)}</span>}
           />
         </SectionCard>
@@ -724,6 +749,9 @@ export interface TrackingSettingsHandlers {
    *  tracking_clinic_ids). Stations themselves are made / renamed / removed on
    *  the map ("Add to tracking board" on a pin). */
   onTogglePlace?: (ref: LinkedFeatureRef) => void
+  /** This cluster's sharing toggles. null = hidden (not a supervisor, or not loaded). */
+  sharing?: { send: boolean; receive: boolean } | null
+  onSetSharing?: (next: { send: boolean; receive: boolean }) => void
 }
 
 export function TrackingBoardSettings(h: TrackingSettingsHandlers) {
@@ -745,6 +773,33 @@ export function TrackingBoardSettings(h: TrackingSettingsHandlers) {
         onChange={setTrackingSwipeActions}
       />
 
+      {/* Sharing — a link runs only when the lower cluster sends AND the upper
+          cluster receives. Both off = this cluster's board stays internal. */}
+      {h.sharing && h.onSetSharing && (
+        <section>
+          <PageSectionHeader>Sharing</PageSectionHeader>
+          <SectionCard>
+            {[
+              { key: 'send' as const, label: 'Sending', sub: 'Your parent cluster sees your board when it is receiving' },
+              { key: 'receive' as const, label: 'Receiving', sub: 'You see the boards of clusters under you that are sending' },
+            ].map(row => (
+              <ListItemRow
+                key={row.key}
+                onClick={() => h.onSetSharing!({ ...h.sharing!, [row.key]: !h.sharing![row.key] })}
+                className="px-4 py-2.5 border-b border-primary/5 last:border-b-0"
+                center={
+                  <div className="min-w-0">
+                    <p className="text-[10pt] text-primary truncate">{row.label}</p>
+                    <p className="text-[9pt] text-tertiary">{row.sub}</p>
+                  </div>
+                }
+                right={<ToggleSwitch checked={h.sharing![row.key]} />}
+              />
+            ))}
+          </SectionCard>
+        </section>
+      )}
+
       {/* Stations — every tracking pin this cluster knows: its own, then related
           clusters'. Toggle = show on this board (same physical spot, no duplicate).
           Made / renamed / removed on the map. */}
@@ -763,11 +818,11 @@ export function TrackingBoardSettings(h: TrackingSettingsHandlers) {
                   key={pl.featureId}
                   onClick={h.onTogglePlace ? () => h.onTogglePlace!(refOf(pl)) : undefined}
                   className="px-4 py-2.5 border-b border-primary/5 last:border-b-0"
-                  left={
+                  left={pl.clinicId === viewerId ? undefined : (
                     <span className="w-9 h-9 rounded-full bg-themewhite2 flex items-center justify-center text-themeblue3 shrink-0">
                       <MapPin size={15} />
                     </span>
-                  }
+                  )}
                   center={
                     <div className="min-w-0">
                       <p className="text-[10pt] text-primary truncate">{pl.label}</p>

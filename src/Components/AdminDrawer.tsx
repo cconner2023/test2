@@ -451,12 +451,11 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
     return (
         <>
             <BaseDrawer
+                desktopPosition="left"
                 isVisible={isVisible}
                 onClose={handleClose}
                 fullHeight="95dvh"
                 mobileFullScreen
-                desktopPosition="left"
-                desktopWidth="w-[90%]"
                 header={header}
                 scrollDisabled
                 glassHeader={isMobile}

@@ -1,3 +1,4 @@
+import type { GatedFeature } from '../lib/featureGate'
 import { type medListTypes } from "../Data/MedData"
 
 export type GuidelineType = 'gen' | 'medcom' | 'stp' | 'stp-task' | 'DDX';
@@ -109,7 +110,8 @@ export type MenuGroup = 'roles' | 'utility' | 'modules' | 'system'
 /** Who can access the feature once released */
 export type AccessLevel = 'public' | 'authenticated' | 'provider' | 'supervisor' | 'admin'
 
-/** Release readiness — beta features are only visible to dev-role users */
+/** Release readiness — beta features are only visible to dev-role users, unless
+ *  the item names a `gate` (lib/featureGate), which then decides. */
 export type ReleaseStage = 'released' | 'beta'
 
 export interface sideMenuDataType {
@@ -119,5 +121,6 @@ export interface sideMenuDataType {
     group: MenuGroup,
     access?: AccessLevel,
     stage?: ReleaseStage,
+    gate?: GatedFeature,
     badge?: boolean
 }
