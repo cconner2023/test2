@@ -22,8 +22,8 @@
  *    a station), Complete (dispositioned — a move flagged `complete`, so it
  *    union-merges like any other and any later move reopens the entry).
  *  - Leaves the board ONLY by expire, delete, or max cap — Complete stays on it.
- *  - Duplicate BRN → newest check-in wins (older entry removed at check-in,
- *    collapsed at read elsewhere).
+ *  - Duplicate BRN → every entry stays; numbered at read, oldest check-in first:
+ *    BRN, BRN (2), BRN (3). Nothing is deleted or stored for it.
  */
 
 import type { LinkedFeatureRef } from '../../Types/MissionTypes'
@@ -63,6 +63,8 @@ export interface TrackingPlace {
 export interface TrackingEntry {
   id: string
   brn: string
+  /** What the board shows — `brn`, or `brn (2)` etc. when it's on the board more than once. */
+  brnLabel: string
   /** Cluster that checked the patient in — drives visibility. */
   originClinicId: string
   checkedInAt: number
@@ -120,6 +122,7 @@ export function toEntry(ev: CalendarEvent): TrackingEntry | null {
   return {
     id: ev.id,
     brn: d.brn,
+    brnLabel: d.brn,
     originClinicId: ev.clinic_id,
     checkedInAt: d.checked_in_at,
     moves,
@@ -214,14 +217,16 @@ export const originUic = (clusters: TrackingCluster[], e: TrackingEntry) => clus
 
 // ── Board composition ──
 
-/** Newest check-in per BRN wins. */
-export function dedupeByBrn(entries: TrackingEntry[]): TrackingEntry[] {
-  const best = new Map<string, TrackingEntry>()
-  for (const e of entries) {
-    const cur = best.get(e.brn)
-    if (!cur || e.checkedInAt > cur.checkedInAt) best.set(e.brn, e)
-  }
-  return entries.filter(e => best.get(e.brn) === e)
+/** Repeat BRNs get a visit number, oldest check-in first. Id breaks ties so devices agree. */
+export function numberDuplicateBrns(entries: TrackingEntry[]): TrackingEntry[] {
+  const counts = new Map<string, number>()
+  return [...entries]
+    .sort((a, b) => a.checkedInAt - b.checkedInAt || a.id.localeCompare(b.id))
+    .map(e => {
+      const n = (counts.get(e.brn) ?? 0) + 1
+      counts.set(e.brn, n)
+      return n > 1 ? { ...e, brnLabel: `${e.brn} (${n})` } : e
+    })
 }
 
 /**
@@ -240,9 +245,8 @@ export function resolvePlaces(e: TrackingEntry, net: TrackingNetwork): TrackingE
 
 /**
  * What a viewer's board holds: events fanned to the viewer (origin + ancestors)
- * → not expired → duplicate BRNs collapsed to the newest → capped to the newest
- * check-ins → gone stations resolved to Pending. Complete entries sink below
- * the open ones.
+ * → not expired → duplicate BRNs numbered → capped to the newest check-ins →
+ * gone stations resolved to Pending. Complete entries sink below the open ones.
  */
 export function boardEntries(events: CalendarEvent[], net: TrackingNetwork, viewerId: string, now: number): TrackingEntry[] {
   const live = events
@@ -250,7 +254,7 @@ export function boardEntries(events: CalendarEvent[], net: TrackingNetwork, view
       && (ev.clinic_id === viewerId || (ev.target_clinic_ids?.includes(viewerId) ?? false)))
     .map(toEntry)
     .filter((e): e is TrackingEntry => !!e)
-  const board = dedupeByBrn(live)
+  const board = numberDuplicateBrns(live)
     .map(e => resolvePlaces(e, net))
     .sort((a, b) => b.checkedInAt - a.checkedInAt)
     .slice(0, TRACKING_MAX_ENTRIES)

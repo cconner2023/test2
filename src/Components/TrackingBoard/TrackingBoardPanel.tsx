@@ -146,7 +146,7 @@ export function TrackingGrid({ entries, activeId, onSelect }: ListProps) {
               <div className={`sticky left-0 z-[5] flex items-center gap-2 px-2 border-r border-primary/10 ${
                 active ? 'bg-themeblue3/20' : 'bg-themewhite'
               }`}>
-                <span className="text-[10pt] font-mono font-medium text-primary truncate flex-1">{e.brn}</span>
+                <span className="text-[10pt] font-mono font-medium text-primary truncate flex-1">{e.brnLabel}</span>
               </div>
               {/* Current cell wears the place tint — same shell + text as the cards */}
               {columns.map(c => {
@@ -344,7 +344,7 @@ export function tintFor(e: TrackingEntry): CardTint {
  *  the expanded overlay. */
 export function BrnCardHead({ entry }: { entry: TrackingEntry }) {
   const { net } = useBoardScope()
-  return <TintedCardHead title={entry.brn} subtitle={originUic(net.clusters, entry)} />
+  return <TintedCardHead title={entry.brnLabel} subtitle={originUic(net.clusters, entry)} />
 }
 
 /** Current station — the overlay's third head line, same rhythm as the UIC. */
@@ -392,7 +392,7 @@ function BrnCard({ entry }: { entry: TrackingEntry }) {
   return (
     <TintedCard
       tint={tintFor(entry)}
-      title={entry.brn}
+      title={entry.brnLabel}
       subtitle={originUic(net.clusters, entry)}
       note={latestNote(entry)}
       footLeft={left}
@@ -410,7 +410,7 @@ function BrnRailCardBody({ entry }: { entry: TrackingEntry }) {
     <TintedCard
       compact
       tint={tintFor(entry)}
-      title={entry.brn}
+      title={entry.brnLabel}
       subtitle={originUic(net.clusters, entry)}
       note={latestNote(entry)}
       footLeft={left}
@@ -534,7 +534,7 @@ function useBrnCardMenu(
       />
       <ConfirmDialog
         visible={!!pendingDelete}
-        title={`Remove ${pendingDelete?.brn ?? ''} from the board?`}
+        title={`Remove ${pendingDelete?.brnLabel ?? ''} from the board?`}
         confirmLabel="Delete"
         variant="danger"
         onConfirm={() => { if (pendingDelete) onDelete(pendingDelete); setPendingDelete(null) }}

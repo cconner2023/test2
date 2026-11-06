@@ -98,7 +98,7 @@ export interface GuideChapter {
     sections: GuideSection[];
 }
 
-export const USER_GUIDE_VERSION = '2.7.2';
+export const USER_GUIDE_VERSION = '2.8.0';
 
 export const UserGuide: GuideChapter[] = [
     {
@@ -365,6 +365,29 @@ export const UserGuide: GuideChapter[] = [
                     { kind: 'note', text: 'If you\'re loaned to other clusters yourself, use the Switch cluster / "Operating as" control on the cluster card to manage each cluster\'s schedule and personnel in turn.' },
                 ],
             },
+            {
+                id: 'tracking-sharing',
+                title: 'Sharing the Tracking Board',
+                summary: 'Link your cluster\'s board with its parent cluster using Sending and Receiving.',
+                tier: 'supervisor',
+                blocks: [
+                    { kind: 'p', text: ['A Tracking Board stays inside its cluster until supervisors link it. Open the board settings with the ', { btn: 'settings' }, ' gear and use the Sharing toggles. Both are off by default.'] },
+                    {
+                        kind: 'list', items: [
+                            'Sending: your parent cluster sees your board when it is receiving.',
+                            'Receiving: you see the boards of clusters under you that are sending.',
+                        ]
+                    },
+                    { kind: 'p', text: 'A link needs both sides: the lower cluster sends and the upper cluster receives. To reach more than one echelon up, every link in the chain must be on.' },
+                    {
+                        kind: 'list', items: [
+                            'Patients are shared upward only. A parent cluster sees patients checked in below it, but a lower cluster does not see its parent\'s patients.',
+                            'Stations are shared across active links in both directions, and between sibling clusters under the same parent.',
+                            'Stations reach a newly linked cluster once a member of the cluster that owns them opens the board.',
+                        ]
+                    },
+                ],
+            },
         ],
     },
     {
@@ -534,6 +557,78 @@ export const UserGuide: GuideChapter[] = [
                                 'A row\'s menu offers View note, Reset card, or Discard.',
                                 'Export all hands off the whole queue at once.',
                             ] },
+                        ],
+                    },
+                ],
+            },
+            {
+                id: 'tracking-board',
+                title: 'Tracking Board',
+                summary: 'Follow patients by BRN from check-in through your stations to Complete.',
+                blocks: [
+                    { kind: 'image', src: 'tracking-board.png', srcMobile: 'tracking-board-mobile.png', alt: 'Tracking Board', caption: 'The Tracking Board.', side: 'right' },
+                    { kind: 'p', text: 'You can use the Tracking Board to follow your patients by Battle Roster Number as they go through your Unit medical system. Open Tracking Board from the side menu.' },
+                    { kind: 'sub', text: 'Add a casualty' },
+                    {
+                        kind: 'steps', items: [
+                            ['Tap the ', { btn: 'plus' }, ' add button in the header.'],
+                            'Enter the BRN and, if useful, add a comment.',
+                            ['Tap the ', { btn: 'check' }, ' check button to add the casualty to the board.'],
+                        ]
+                    },
+                    { kind: 'sub', text: 'Move a casualty' },
+                    {
+                        kind: 'steps', items: [
+                            ['Open the card and tap the ', { btn: 'more-horizontal' }, ' (More) menu, or long-press the card (right-click on desktop).'],
+                            'Choose Move to…, then pick a station.',
+                        ]
+                    },
+                    { kind: 'note', text: 'On mobile you can also swipe a card to expose the same options, or customize the swipe options in the settings' },
+                    { kind: 'note', text: 'The board is end-to-end encrypted, and designed so that you can work with other units across the field.' },
+                ],
+                subsections: [
+                    {
+                        id: 'tracking-stations',
+                        title: 'Setting up stations',
+                        blocks: [
+                            { kind: 'p', text: 'Stations are map pins. Pending and Completed are default, and anything inbetween is up to your specific AXP or CCPs' },
+                            {
+                                kind: 'steps', items: [
+                                    'On the map, drop a pin where the station is (or use one you already have).',
+                                    'Turn on Add to tracking board. The pin\'s name becomes the station name.',
+                                    ['Open the board settings with the ', { btn: 'settings' }, ' gear. Toggle under Your stations and Other clusters to choose which stations appear on your board.'],
+                                ]
+                            },
+                            { kind: 'note', text: 'Rename or remove a station on the map; only the cluster that owns the pin can do this. If a station is removed, casualties who were at it go back to Pending.' },
+                        ],
+                    },
+                    {
+                        id: 'tracking-en-route',
+                        title: 'Sending a casualty en route',
+                        blocks: [
+                            { kind: 'p', text: 'Use Send to… when a casualty has left one station but has not reached the next. The card shows them en route while they stay at their current station on the board.' },
+                            {
+                                kind: 'list', items: [
+                                    'Send to… marks the casualty en route to a station.',
+                                    'Redirect to… changes the destination while they are en route.',
+                                    'Arrived moves them into the destination station.',
+                                    'Cancel en route clears the marker and leaves them where they are.',
+                                ]
+                            },
+                        ],
+                    },
+                    {
+                        id: 'tracking-entries',
+                        title: 'Editing and clearing entries',
+                        blocks: [
+                            {
+                                kind: 'list', items: [
+                                    'Edit from the menu to correct a BRN or change comments, then Save.',
+                                    'Complete keeps the casualty on the board. Move them anywhere else to reopen the entry.',
+                                    'A board shows the 200 most recent casualties.',
+                                    'A casualty with repeat visits will be annotated in the card as BRN (2) or BRN (3) etc.',
+                                ]
+                            },
                         ],
                     },
                 ],

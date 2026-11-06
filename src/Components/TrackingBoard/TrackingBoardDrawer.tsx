@@ -27,7 +27,7 @@ import {
     measureBrnCard, measureRailCard, measureGridRow, TrackingBoardScope,
 } from './TrackingBoardPanel'
 import {
-    boardEntries, moveData, transitData, draftData, newTrackingData, toggledFeature, toEntry,
+    boardEntries, moveData, transitData, draftData, newTrackingData, toggledFeature,
     type TrackingTarget,
 } from './trackingModel'
 import { TrackingCardOverlay } from './TrackingCardOverlay'
@@ -189,11 +189,6 @@ export function TrackingBoardDrawer({ isVisible, onClose }: TrackingBoardDrawerP
         setCheckInBusy(true)
         try {
             const at = Date.now()
-            // Duplicate BRN → newest check-in wins: remove any older visit this
-            // board holds. Visits outside the checker's view collapse at read
-            // (boardEntries dedupe) on any board that holds both.
-            const older = events.map(toEntry).filter((e): e is TrackingEntry => !!e && e.brn === d.brn)
-            await Promise.all(older.map(e => removeEntry(e.id)))
             await checkIn(viewerId, draftData(newTrackingData(d.brn, at), { ...d, comments: [] }, me, at), userId)
             setCheckInDraft(null)
         } finally {
@@ -246,7 +241,7 @@ export function TrackingBoardDrawer({ isVisible, onClose }: TrackingBoardDrawerP
     const deleteConfirm = (
         <ConfirmDialog
             visible={!!pendingDelete}
-            title={`Remove ${pendingDelete?.brn ?? ''} from the board?`}
+            title={`Remove ${pendingDelete?.brnLabel ?? ''} from the board?`}
             confirmLabel="Delete"
             variant="danger"
             onConfirm={() => {

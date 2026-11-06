@@ -145,7 +145,7 @@ export function TrackingCardOverlay({
       <Scrim progress={scrimOn ? 1 : 0} zIndex={zIndex} onClick={onClose} transition="opacity 280ms ease-out" />
       <animated.div
         role="dialog"
-        aria-label={entry.brn}
+        aria-label={entry.brnLabel}
         className="fixed rounded-2xl bg-themewhite2 overflow-hidden"
         style={{
           zIndex: zIndex + 15,

@@ -48,7 +48,7 @@ const THEME_DEFS: {
         {
             name: 'violet',
             label: 'Violet',
-            tagline: 'Twilight Operations',
+            tagline: 'Twilight',
             dark: { bg: '#100c18', surface: '#191424', accent: '#8e64d6', text: '#e4dcf2' },
             light: { bg: '#faf7fd', surface: '#f0ebf8', accent: '#643ca0', text: '#181024' },
         },
