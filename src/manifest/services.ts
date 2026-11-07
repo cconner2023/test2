@@ -19,7 +19,7 @@ export const services = {
     tables: { reads: ['profiles', 'account_requests', 'clinics', 'user_devices'],
               writes: ['profiles', 'account_requests', 'clinics'] },
     idb: [],
-    exports: ['approveAccountRequest', 'rejectAccountRequest', 'promoteToAdmin',
+    exports: ['approveAccountRequest', 'deleteAccountRequest', 'promoteToAdmin',
               'demoteFromAdmin', 'getAccountRequests', 'getAllProfiles',
               'createClinic', 'updateClinic', 'deleteClinic',
               'associateClinic', 'disassociateClinic', 'getAssociatedClinics'],

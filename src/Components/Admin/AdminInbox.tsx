@@ -1,5 +1,5 @@
 import { useMemo, type ReactNode } from 'react'
-import { Clock, UserCheck, X, HelpCircle, MessageSquare, Lightbulb, Star, type LucideIcon } from 'lucide-react'
+import { Clock, UserCheck, HelpCircle, MessageSquare, Lightbulb, Star, type LucideIcon } from 'lucide-react'
 import { ListItemRow } from '@/Components/primitives/ListItemRow'
 import { ListGroupLabel } from '@/Components/primitives/Section'
 import { EmptyState } from '@/Components/primitives/EmptyState'
@@ -72,7 +72,6 @@ const REQUEST_GLYPH: Record<string, { icon: LucideIcon; tone: Tone }> = {
   support: { icon: HelpCircle, tone: 'blue' },
   pending: { icon: Clock, tone: 'yellow' },
   approved: { icon: UserCheck, tone: 'green' },
-  rejected: { icon: X, tone: 'red' },
 }
 
 /**
@@ -116,7 +115,7 @@ export function AdminInbox({
     if (item.kind === 'request') {
       const r = item.data
       const isSupport = r.request_type === 'support'
-      const glyph = REQUEST_GLYPH[isSupport ? 'support' : r.status] ?? REQUEST_GLYPH.rejected
+      const glyph = REQUEST_GLYPH[isSupport ? 'support' : r.status] ?? REQUEST_GLYPH.pending
       const cluster = r.uic ? inbox.uicToClinic.get(r.uic.toUpperCase()) : undefined
       return row(item.key, () => onOpenRequest(r), <Glyph {...glyph} />, isSupport
         ? <Lines title={[r.first_name, r.last_name].filter(Boolean).join(' ')} lines={[r.email, r.notes]} />

@@ -27,7 +27,6 @@ export type Database = {
           notes: string | null
           password_hash: string | null
           rank: string | null
-          rejection_reason: string | null
           request_type: Database["public"]["Enums"]["request_type"] | null
           requested_at: string
           reviewed_at: string | null
@@ -50,7 +49,6 @@ export type Database = {
           notes?: string | null
           password_hash?: string | null
           rank?: string | null
-          rejection_reason?: string | null
           request_type?: Database["public"]["Enums"]["request_type"] | null
           requested_at?: string
           reviewed_at?: string | null
@@ -73,7 +71,6 @@ export type Database = {
           notes?: string | null
           password_hash?: string | null
           rank?: string | null
-          rejection_reason?: string | null
           request_type?: Database["public"]["Enums"]["request_type"] | null
           requested_at?: string
           reviewed_at?: string | null
@@ -2683,10 +2680,6 @@ export type Database = {
           p_requester_name: string
         }
         Returns: Json
-      }
-      reject_account_request: {
-        Args: { admin_user_id: string; reason: string; request_id: string }
-        Returns: undefined
       }
       remove_group_member: {
         Args: { p_group_id: string; p_user_id: string }

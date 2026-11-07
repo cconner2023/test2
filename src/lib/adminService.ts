@@ -1,7 +1,7 @@
 /**
  * Admin Service
  *
- * Handles admin operations like approving/rejecting account requests
+ * Handles admin operations like approving/deleting account requests
  * and managing user roles.
  *
  * Role changes go through SECURITY DEFINER RPC functions to prevent
@@ -102,11 +102,11 @@ let accountRequestsCache: { gen: number; byStatus: Map<string, Promise<AccountRe
 
 /**
  * Get account requests, optionally filtered by status (dev only). Without a
- * status, approved requests are excluded server-side (pending + rejected only).
+ * status, approved requests are excluded server-side (pending only).
  * Served from the gen-keyed promise cache; bust via invalidate('requests').
  */
 export async function getAllAccountRequests(
-  status?: 'pending' | 'approved' | 'rejected'
+  status?: 'pending' | 'approved'
 ): Promise<AccountRequest[]> {
   const gen = useInvalidationStore.getState().generations.requests
   const key = status ?? '__all__'
@@ -122,7 +122,7 @@ export async function getAllAccountRequests(
 }
 
 async function fetchAccountRequests(
-  status: 'pending' | 'approved' | 'rejected' | undefined,
+  status: 'pending' | 'approved' | undefined,
   gen: number,
   key: string,
 ): Promise<AccountRequest[]> {
@@ -131,7 +131,7 @@ async function fetchAccountRequests(
     // to the client on every read.
     let query = supabase
       .from('account_requests')
-      .select('id, email, first_name, last_name, middle_initial, credential, rank, component, uic, status, request_type, status_check_token, user_id, requested_at, reviewed_at, rejection_reason, notes')
+      .select('id, email, first_name, last_name, middle_initial, credential, rank, component, uic, status, request_type, status_check_token, user_id, requested_at, reviewed_at, notes')
       .order('requested_at', { ascending: false })
 
     // Approved requests are no longer triage and no caller renders them; the
@@ -159,7 +159,6 @@ async function fetchAccountRequests(
       user_id: row.user_id,
       requested_at: row.requested_at,
       reviewed_at: row.reviewed_at,
-      rejection_reason: row.rejection_reason,
       notes: row.notes,
     }))
   } catch (error) {
@@ -244,59 +243,6 @@ export async function sendApprovalEmail(email: string): Promise<ServiceResult> {
     return succeed()
   } catch (error) {
     logger.warn('Approval notification email failed:', error)
-    return fail(getErrorMessage(error))
-  }
-}
-
-/**
- * Reject an account request.
- * The RPC function verifies the caller has dev role via auth.uid().
- */
-export async function rejectAccountRequest(
-  requestId: string,
-  reason: string
-): Promise<ServiceResult> {
-  try {
-    const currentUser = useAuthStore.getState().user
-    if (!currentUser) return fail('Not authenticated')
-
-    const { error } = await supabase.rpc('reject_account_request', {
-      request_id: requestId,
-      admin_user_id: currentUser.id,
-      reason,
-    })
-
-    if (error) return fail(error.message)
-    return succeed()
-  } catch (error) {
-    logger.error('Failed to reject request:', error)
-    return fail(getErrorMessage(error))
-  }
-}
-
-/**
- * Reopen a rejected account request (move back to pending).
- * Guards with .eq('status', 'rejected') to prevent stale-state corruption.
- */
-export async function reopenAccountRequest(
-  requestId: string
-): Promise<ServiceResult> {
-  try {
-    const { error } = await supabase
-      .from('account_requests')
-      .update({
-        status: 'pending',
-        reviewed_at: null,
-        reviewed_by: null,
-        rejection_reason: null,
-      })
-      .eq('id', requestId)
-      .eq('status', 'rejected')
-
-    if (error) return fail(error.message)
-    return succeed()
-  } catch (error) {
-    logger.error('Failed to reopen request:', error)
     return fail(getErrorMessage(error))
   }
 }
@@ -1425,7 +1371,7 @@ export async function updateUserEmail(
 /**
  * Correct a pending account request's email before approval — the earliest
  * point a typo can be caught, before any auth account is created. Dev has
- * UPDATE RLS on account_requests (same path as reopenAccountRequest).
+ * UPDATE RLS on account_requests.
  */
 export async function updateAccountRequestEmail(
   requestId: string,

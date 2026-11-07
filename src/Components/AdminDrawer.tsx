@@ -95,7 +95,7 @@ function detailTitle(d: Detail, peerName: (id: string) => string): string {
         case 'location': return d.location?.display_name || 'New location'
         case 'request':
             return d.request.request_type === 'support' ? 'Support request'
-                : d.request.status === 'pending' ? 'Approve request' : 'Rejected request'
+                : 'Approve request'
         case 'feedback': return 'User feedback'
         case 'suggestion': return 'Feature suggestion'
         case 'thread': return peerName(d.peerId)

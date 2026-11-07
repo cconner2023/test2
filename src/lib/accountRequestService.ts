@@ -35,13 +35,12 @@ export interface AccountRequest {
   rank: string | null
   component: string | null
   uic: string
-  status: 'pending' | 'approved' | 'rejected'
+  status: 'pending' | 'approved'
   request_type: 'new_account' | 'profile_change' | 'support'
   status_check_token: string | null
   user_id: string | null
   requested_at: string
   reviewed_at: string | null
-  rejection_reason: string | null
   notes: string | null
 }
 
@@ -311,7 +310,6 @@ export async function checkRequestStatus(
       request_type?: string
       requested_at?: string
       reviewed_at?: string | null
-      rejection_reason?: string | null
       message?: string
     }>(data, ['found'], 'checkRequestStatus')
 
@@ -336,7 +334,6 @@ export async function checkRequestStatus(
       user_id: null,
       requested_at: result.requested_at || '',
       reviewed_at: result.reviewed_at || null,
-      rejection_reason: result.rejection_reason || null,
       notes: null,
     }
   } catch (error) {

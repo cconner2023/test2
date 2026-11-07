@@ -192,6 +192,17 @@ export function SliderRail({
     },
     [applyFromPointer, horizontal],
   )
+  /**
+   * A cancel is the browser taking the gesture (it started a pan), not a release.
+   * Chrome builds that pointercancel with clientX/Y = 0, so committing from it
+   * resolves to stop 0 and the tab just picked on pointerdown snaps back to the
+   * first stop. Drop the drag visuals; whatever pointerdown selected stands.
+   */
+  const onPointerCancel = useCallback(() => {
+    setDragPos(null)
+    setDragWindow(null)
+    pointerHandled.current = true
+  }, [])
 
   const axis = horizontal
     ? { width: trackLen, height: 2 * PAD + THUMB }
@@ -212,7 +223,7 @@ export function SliderRail({
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
-      onPointerCancel={onPointerUp}
+      onPointerCancel={onPointerCancel}
       role={role}
       aria-label={label}
       {...(role === 'slider'
@@ -224,8 +235,11 @@ export function SliderRail({
             'aria-valuenow': horizontal ? activeIndex : n - 1 - activeIndex,
           }
         : {})}
-      className={`relative touch-none select-none ${RAIL_GLASS} ${clip} ${className}`}
-      style={axis}
+      className={`relative select-none ${RAIL_GLASS} ${clip} ${className}`}
+      // Inline, not `touch-none`: App.css's unlayered `* { touch-action: pan-y }`
+      // beats Tailwind's layered utility, so the class never applied and a tap
+      // with a little vertical drift got taken over as a pan (→ pointercancel).
+      style={{ ...axis, touchAction: 'none' }}
     >
       {windowStart > 0 && (
         <div className={`pointer-events-none absolute ${fadeStart} from-primary/15 to-transparent`} />

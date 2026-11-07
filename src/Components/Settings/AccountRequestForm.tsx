@@ -310,7 +310,6 @@ export const AccountRequestForm = ({ onBack, initialEmail = '', onSignIn }: Acco
         user_id: null,
         requested_at: new Date().toISOString(),
         reviewed_at: null,
-        rejection_reason: null,
         notes: notes || null,
       })
     } else {
@@ -346,9 +345,6 @@ export const AccountRequestForm = ({ onBack, initialEmail = '', onSignIn }: Acco
                 <p className="text-[10pt] text-secondary">
                   {requestStatus.status === 'pending' && 'Your request is pending review. You will be notified once approved.'}
                   {requestStatus.status === 'approved' && 'Your account has been approved. Sign in with your email and the password you created.'}
-                  {requestStatus.status === 'rejected' && (requestStatus.rejection_reason
-                    ? `Request declined — ${requestStatus.rejection_reason}`
-                    : 'Your request was not approved.')}
                 </p>
                 {autoApprovedClinic !== null && (
                   <p className="text-[9pt] text-secondary mt-1.5">

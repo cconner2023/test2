@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useEffect, useRef, type ReactNode } from 'react'
-import { Building2, Trash2, X, Check, Mail } from 'lucide-react'
+import { Building2, Trash2, Check, Mail } from 'lucide-react'
 import { TextInput, PickerInput, MultiPickerInput } from '@/Components/primitives/FormInputs'
 import { UicPinInput } from '@/Components/DomainInputs'
 import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
@@ -15,8 +15,6 @@ import { ASSIGNABLE_ROLES, roleOptions } from '../../Utilities/roles'
 import type { Component } from '../../Data/User'
 import {
   approveAccountRequest,
-  rejectAccountRequest,
-  reopenAccountRequest,
   updateUserProfile,
   setUserRoles,
   setUserClinic,
@@ -24,7 +22,6 @@ import {
   updateAccountRequestEmail,
   deleteAccountRequest,
   listClinics,
-  listAllUsers,
   isValidEmail,
 } from '../../lib/adminService'
 import type { AdminClinic } from '../../lib/adminService'
@@ -37,7 +34,7 @@ export interface RequestDetailProps {
   request: AccountRequest
   /** Fired after a full-success approval — parent opens the new user. */
   onApproved?: (userId: string, request: AccountRequest, configured: { roles: string[]; clinicId: string | null; warnings: string[] }) => void
-  /** Return to the list / close the detail pane (reject, reopen, delete, dismiss). */
+  /** Return to the list / close the detail pane (delete, dismiss). */
   onClose: () => void
   /** Publish this detail's header actions (primary commit + ellipsis extras) so the
    *  drawer renders them in the pane / sheet header. Cleared on unmount. */
@@ -45,27 +42,24 @@ export interface RequestDetailProps {
 }
 
 /**
- * Request detail — the approve / reject / reopen / support flow, rendered inside
+ * Request detail — the approve / delete / support flow, rendered inside
  * the admin drawer's detail pane (desktop) or Sheet (mobile) instead of an
  * anchored PreviewOverlay. Self-contained: owns its form + step state, its
- * reject / delete confirmations, and publishes its header actions upward.
+ * delete confirmation, and publishes its header actions upward.
  */
 export function RequestDetail({ request, onApproved, onClose, onHeaderActions }: RequestDetailProps) {
   const isSupport = request.request_type === 'support'
   const isPending = request.status === 'pending'
-  const isRejected = request.status === 'rejected'
 
   // ── Reference data (cheap — cached behind the invalidation gen) ─────────
-  const gen = useInvalidation('clinics', 'users')
+  const gen = useInvalidation('clinics')
   const [clinics, setClinics] = useState<AdminClinic[]>([])
-  const [userEmails, setUserEmails] = useState<Set<string>>(new Set())
   useEffect(() => {
     let cancelled = false
     void (async () => {
-      const [clinicData, userData] = await Promise.all([listClinics(), listAllUsers()])
+      const clinicData = await listClinics()
       if (cancelled) return
       setClinics(clinicData)
-      setUserEmails(new Set(userData.map(u => u.email?.toLowerCase()).filter(Boolean) as string[]))
     })()
     return () => { cancelled = true }
   }, [gen])
@@ -83,8 +77,6 @@ export function RequestDetail({ request, onApproved, onClose, onHeaderActions }:
   const [selectedClinicId, setSelectedClinicId] = useState('')
   const [processing, setProcessing] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [confirmReject, setConfirmReject] = useState(false)
-  const [rejectReason, setRejectReason] = useState('')
   const [confirmDelete, setConfirmDelete] = useState(false)
 
   // Approve flow — once approveAccountRequest succeeds the account exists and
@@ -110,7 +102,6 @@ export function RequestDetail({ request, onApproved, onClose, onHeaderActions }:
   )
 
   const formMatchedClinic = uic ? uicToClinic.get(uic.toUpperCase()) : undefined
-  const isExistingUser = isRejected && userEmails.has(request.email.toLowerCase())
 
   const handleComponentChange = useCallback((val: string) => {
     setComponent(val)
@@ -245,36 +236,6 @@ export function RequestDetail({ request, onApproved, onClose, onHeaderActions }:
     runApproveSteps()
   }, [processing, email, uic, roles, runApproveSteps])
 
-  const handleReject = useCallback(async () => {
-    const reason = rejectReason.trim()
-    if (!reason) return
-    setProcessing(true)
-    setError(null)
-    const result = await rejectAccountRequest(request.id, reason)
-    setProcessing(false)
-    if (result.success) {
-      setConfirmReject(false)
-      setRejectReason('')
-      invalidate('requests')
-      onClose()
-    } else {
-      setError(result.error || 'Failed to reject request')
-    }
-  }, [request.id, rejectReason, onClose])
-
-  const handleReopen = useCallback(async () => {
-    setProcessing(true)
-    setError(null)
-    const result = await reopenAccountRequest(request.id)
-    setProcessing(false)
-    if (result.success) {
-      invalidate('requests')
-      onClose()
-    } else {
-      setError(result.error || 'Failed to reopen request')
-    }
-  }, [request.id, onClose])
-
   const handleDelete = useCallback(async () => {
     setProcessing(true)
     const result = await deleteAccountRequest(request.id)
@@ -298,27 +259,19 @@ export function RequestDetail({ request, onApproved, onClose, onHeaderActions }:
   //    refs so typing in the form doesn't churn the published node. ────────
   const handleApproveRef = useRef(handleApprove)
   handleApproveRef.current = handleApprove
-  const handleReopenRef = useRef(handleReopen)
-  handleReopenRef.current = handleReopen
 
   const headerActions = useMemo(() => {
     const extras: ContextMenuItem[] = []
     if (request.email) {
       extras.push({ key: 'email', label: 'Email', icon: Mail, href: mailtoHref })
     }
-    if (isSupport) {
-      extras.push({ key: 'dismiss', label: 'Dismiss', icon: Trash2, destructive: true, onAction: () => setConfirmDelete(true) })
-    } else if (isPending) {
-      extras.push({ key: 'reject', label: 'Reject', icon: X, destructive: true, onAction: () => setConfirmReject(true) })
-    } else if (isRejected) {
-      extras.push({ key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => setConfirmDelete(true) })
-    }
+    extras.push(isSupport
+      ? { key: 'dismiss', label: 'Dismiss', icon: Trash2, destructive: true, onAction: () => setConfirmDelete(true) }
+      : { key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => setConfirmDelete(true) })
 
     const primary = isPending && !isSupport
       ? <PillButton icon={Check} accent="success" label="Approve" onClick={() => handleApproveRef.current()} />
-      : isRejected && !isSupport
-        ? <PillButton icon={Check} accent="success" label="Reopen" onClick={() => handleReopenRef.current()} />
-        : null
+      : null
 
     return (
       <HeaderPill multi={!!primary}>
@@ -326,7 +279,7 @@ export function RequestDetail({ request, onApproved, onClose, onHeaderActions }:
         <OverlayHeaderMenu items={extras} />
       </HeaderPill>
     )
-  }, [request.email, mailtoHref, isSupport, isPending, isRejected])
+  }, [request.email, mailtoHref, isSupport, isPending])
 
   useEffect(() => {
     onHeaderActions?.(headerActions)
@@ -420,43 +373,9 @@ export function RequestDetail({ request, onApproved, onClose, onHeaderActions }:
           </>
         )}
 
-        {/* Rejected request: read-only + reopen (via header) */}
-        {isRejected && !isSupport && (
-          <div className="px-4 py-3 space-y-3">
-            <div>
-              <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-1">Justification</p>
-              <p className={`text-sm whitespace-pre-wrap ${request.notes ? 'text-primary' : 'text-tertiary italic'}`}>
-                {request.notes || 'No justification provided'}
-              </p>
-            </div>
-            {isExistingUser && (
-              <p className="text-[10pt] text-tertiary">Already a user — safe to clear this request.</p>
-            )}
-            {request.rejection_reason && (
-              <div className="rounded-xl border border-themeredred/10 bg-themeredred/5 px-3.5 py-2.5">
-                <p className="text-[9pt] font-semibold text-themeredred/60 tracking-widest uppercase mb-1">Rejection Reason</p>
-                <p className="text-sm text-themeredred">{request.rejection_reason}</p>
-              </div>
-            )}
-          </div>
-        )}
       </div>
     </div>
     )}
-
-      <ConfirmDialog
-        visible={confirmReject}
-        title={`Reject ${request.first_name ?? ''} ${request.last_name ?? 'this request'}?`}
-        subtitle="The requester will see this reason."
-        confirmLabel="Reject"
-        variant="danger"
-        processing={processing}
-        inputValue={rejectReason}
-        onInputChange={setRejectReason}
-        inputPlaceholder="Reason for rejection *"
-        onConfirm={handleReject}
-        onCancel={() => { setConfirmReject(false); setRejectReason('') }}
-      />
 
       <ConfirmDialog
         visible={confirmDelete}
