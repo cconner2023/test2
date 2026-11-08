@@ -4,7 +4,6 @@ import type { CardState } from '../Hooks/useAlgorithm';
 import { useNoteEditor } from '../Hooks/useNoteEditor';
 import { useUserProfile } from '../Hooks/useUserProfile';
 import { getColorClasses } from '../Utilities/ColorUtilities';
-import { PIIWarningBanner } from './PIIWarningBanner';
 import { NoteBarcodeGenerator } from './Barcode';
 import { DecisionMaking } from './DecisionMaking';
 import { PhysicalExam } from './PhysicalExam';
@@ -189,7 +188,6 @@ export const WriteNotePage = ({
         currentPage, currentPageId, slideDirection,
         handleNext, handlePageBack,
         handleSwipeStart, handleSwipeMove, handleSwipeEnd,
-        piiWarnings, pePiiWarnings, assessmentPiiWarnings, hasPII,
         handleCopy, handleShare, handleExportDD689, handleExportSF600,
         exportStatus, sf600ExportStatus,
         dd689Preview, downloadDD689, clearDD689Preview,
@@ -617,18 +615,12 @@ export const WriteNotePage = ({
                                 </div>
                                 </>
                                 )}
-
-                                {/* PII warning */}
-                                {hasPII && <PIIWarningBanner warnings={[...new Set([...piiWarnings, ...pePiiWarnings, ...assessmentPiiWarnings])]} />}
                             </div>
                         </div>
 
                     {/* Full Note */}
                     <div className={`w-full px-2 pt-2 pb-32 ${currentPageId !== 'fullnote' ? 'hidden' : ''}`}>
                                 <div className="space-y-4 mx-2 mt-2">
-                                    {hasPII && (
-                                        <PIIWarningBanner warnings={[...new Set([...piiWarnings, ...pePiiWarnings, ...assessmentPiiWarnings])]} />
-                                    )}
                                     <NoteOutputSections
                                         previewNote={previewNote}
                                         onCopyNote={() => handleCopy(previewNote)}
@@ -685,8 +677,7 @@ export const WriteNotePage = ({
                             <AddFab
                                 onClick={() => setDmConfirmOpen(true)}
                                 icon={ChevronRight}
-                                label={hasPII ? 'Remove PII/PHI before continuing' : 'Next'}
-                                disabled={hasPII}
+                                label="Next"
                                 className="absolute right-4"
                             />
                         }
@@ -696,7 +687,7 @@ export const WriteNotePage = ({
                     <NoteWizardFooter
                         currentPage={currentPage} visiblePages={visiblePages} slideDirection={slideDirection}
                         handleNext={handleDone}
-                        hasPII={hasPII} isMobile={isMobile}
+                        isMobile={isMobile}
                     />
                 )}
                 <ConfirmDialog

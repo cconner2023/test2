@@ -387,12 +387,6 @@ export const services = {
     exports: ['playNotificationSound', 'playCriticalSound', 'setSoundEnabled',
               'isMessageSoundsEnabled', 'setMessageSoundsEnabled'],
   },
-  piiDetector: {
-    path: 'lib/piiDetector.ts',
-    tables: { reads: [], writes: [] },
-    idb: [],
-    exports: ['detectPII', 'sanitizePII'],
-  },
   secureStorage: {
     path: 'lib/secureStorage.ts',
     tables: { reads: [], writes: [] },

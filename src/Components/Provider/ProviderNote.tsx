@@ -1,7 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Plus, RotateCcw, Check } from 'lucide-react';
-import { detectPII } from '../../lib/piiDetector';
-import { PIIWarningBanner } from '../PIIWarningBanner';
 import { ExpandableInput } from '@/Components/primitives/ExpandableInput';
 import { PhysicalExam } from '../PhysicalExam';
 import { Plan } from '../Plan';
@@ -381,19 +379,6 @@ export function ProviderNote({
 
   const { expanders, orderTags, instructionTags, orderSets } = useMergedNoteContent();
 
-  const piiWarnings = useMemo(
-    () =>
-      Array.from(
-        new Set([
-          ...detectPII(hpiNote),
-          ...detectPII(peNote),
-          ...detectPII(assessmentNote),
-          ...detectPII(planNote),
-        ]),
-      ),
-    [hpiNote, peNote, assessmentNote, planNote],
-  );
-
   // ── PE: empty card → opens PhysicalExam's block picker via signal counter ──
   const [pePickerSignal, setPePickerSignal] = useState(0);
   const [pePickerAnchor, setPePickerAnchor] = useState<DOMRect | null>(null);
@@ -513,7 +498,6 @@ export function ProviderNote({
     const open = (s: ProviderSection) => onOpenSection?.(s);
     return (
       <div className="space-y-4 md:space-y-3">
-        {piiWarnings.length > 0 && <PIIWarningBanner warnings={piiWarnings} />}
         <SummarySection
           label="History of Present Illness" addLabel="Add HPI"
           value={hpiNote}
@@ -539,8 +523,6 @@ export function ProviderNote({
 
   return (
     <div className="space-y-4 md:space-y-3">
-      {piiWarnings.length > 0 && <PIIWarningBanner warnings={piiWarnings} />}
-
       {/* ── HPI ───────────────────────────────────────────────── */}
       <div className="space-y-3 md:space-y-2">
         <p className={SECTION_LABEL_CLASS}>History of Present Illness</p>

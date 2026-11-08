@@ -6,7 +6,6 @@ import type { useTemplateSession } from '../Hooks/useTemplateSession';
 import type { useTextExpander } from '../Hooks/useTextExpander';
 import { TextExpanderSuggestion } from './TextExpanderSuggestion';
 import { TemplateOverlay } from './TemplateOverlay';
-import { PIIWarningBanner } from './PIIWarningBanner';
 import { AddFab } from '@/Components/primitives/AddFab'
 import { GlassBand } from '@/Components/primitives/GlassBand'
 
@@ -212,7 +211,7 @@ export const ProgressDots = ({
     </div>
 );
 
-// NoteHPIEditor — HPI textarea with text expander, template overlay, PII banner.
+// NoteHPIEditor — HPI textarea with text expander, template overlay.
 // Shared note-wizard UI component.
 
 export const NoteHPIEditor = ({
@@ -221,7 +220,6 @@ export const NoteHPIEditor = ({
     endSession, dismissDropdown,
     hasExpanderSuggestion, expanderSuggestions, expanderIndex, dismissExpander,
     acceptExpander, startSession,
-    piiWarnings,
 }: {
     inputRef: RefObject<HTMLTextAreaElement | null>;
     note: string;
@@ -238,7 +236,6 @@ export const NoteHPIEditor = ({
     dismissExpander: () => void;
     acceptExpander: ReturnType<typeof useTextExpander>['accept'];
     startSession: ReturnType<typeof useTemplateSession>['startSession'];
-    piiWarnings: string[];
 }) => (
     <div className="mx-2 relative">
         <textarea
@@ -284,7 +281,6 @@ export const NoteHPIEditor = ({
                 onEndSession={endSession}
             />
         )}
-        <PIIWarningBanner warnings={piiWarnings} />
     </div>
 );
 // NoteWizardFooter — floating glass footer with the bottom-right advance FAB.
@@ -295,13 +291,12 @@ export const NoteHPIEditor = ({
 
 export const NoteWizardFooter = ({
     currentPage, visiblePages, slideDirection,
-    handleNext, hasPII, isMobile,
+    handleNext, isMobile,
 }: {
     currentPage: number;
     visiblePages: { id: string; label: string }[];
     slideDirection: 'left' | 'right' | '';
     handleNext: (e: MouseEvent<HTMLButtonElement>) => void;
-    hasPII: boolean;
     isMobile: boolean;
 }) => {
     const isLast = currentPage >= visiblePages.length - 1;
@@ -315,8 +310,7 @@ export const NoteWizardFooter = ({
                 <AddFab
                     onClick={handleNext}
                     icon={isLast ? Check : ChevronRight}
-                    label={isLast ? 'Done' : (hasPII ? 'Remove PII/PHI before continuing' : 'Next')}
-                    disabled={hasPII}
+                    label={isLast ? 'Done' : 'Next'}
                 />
             </div>
         </div>

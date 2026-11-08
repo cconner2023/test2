@@ -76,7 +76,7 @@ export const features = {
   provider: {
     label: 'Provider Notes',
     store: null,
-    services: ['piiDetector'],
+    services: [],
     tables: [],
     idb: [],
     components: 'Components/Provider/',

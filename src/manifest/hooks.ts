@@ -65,7 +65,7 @@ export const hooks = {
   // ─── Notes & Export ────────────────────────────────────────────
   useAlgorithm:           { path: 'Hooks/useAlgorithm.ts',           stores: [], services: [], purpose: 'Medical decision tree state machine (card, selections, undo)' },
   useNoteCapture:         { path: 'Hooks/useNoteCapture.ts',         stores: [], services: ['Utilities/NoteFormatter'], purpose: 'Generate structured notes from algorithm state' },
-  useNoteEditor:          { path: 'Hooks/useNoteEditor.ts',          stores: ['useAuthStore'], services: [], purpose: 'Note editing: pages, swipe, PII warnings, export' },
+  useNoteEditor:          { path: 'Hooks/useNoteEditor.ts',          stores: ['useAuthStore'], services: [], purpose: 'Note editing: pages, swipe, export' },
   useNoteImport:          { path: 'Hooks/useNoteImport.ts',          stores: [], services: ['Utilities/NoteCodec', 'Utilities/TC3Formatter'], purpose: 'Decode barcodes, reconstruct algorithm state + notes' },
   useNoteShare:           { path: 'Hooks/useNoteShare.ts',           stores: [], services: ['Utilities/NoteCodec'], purpose: 'Generate Data Matrix barcode, Web Share API / clipboard' },
   useBarcodeScanner:      { path: 'Hooks/useBarcodeScanner.ts',      stores: [], services: [], purpose: 'Camera barcode scanning via ZXing' },

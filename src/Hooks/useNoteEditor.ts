@@ -12,7 +12,6 @@ import type { DD689Extras } from '../Utilities/DD689Export';
 import { useUserProfile } from './useUserProfile';
 import { useAuthStore } from '../stores/useAuthStore';
 import { usePageSwipe } from './usePageSwipe';
-import { detectPII } from '../lib/piiDetector';
 import { formatSignature } from '../Utilities/NoteFormatter';
 import { getColorClasses } from '../Utilities/ColorUtilities';
 import { UI_TIMING } from '../Utilities/constants';
@@ -78,24 +77,6 @@ export function useNoteEditor(config: NoteEditorConfig) {
     );
     const currentPageId: PageId = visiblePages[currentPage]?.id ?? visiblePages[0]?.id ?? 'edit';
     const [slideDirection, setSlideDirection] = useState<'left' | 'right' | ''>('');
-
-    // --- PII detection (debounced) ---
-    const [piiWarnings, setPiiWarnings] = useState<string[]>([]);
-    const [pePiiWarnings, setPePiiWarnings] = useState<string[]>([]);
-    const [assessmentPiiWarnings, setAssessmentPiiWarnings] = useState<string[]>([]);
-    useEffect(() => {
-        const id = window.setTimeout(() => setPiiWarnings(detectPII(note)), 400);
-        return () => clearTimeout(id);
-    }, [note]);
-    useEffect(() => {
-        const id = window.setTimeout(() => setPePiiWarnings(detectPII(peNote)), 400);
-        return () => clearTimeout(id);
-    }, [peNote]);
-    useEffect(() => {
-        const id = window.setTimeout(() => setAssessmentPiiWarnings(detectPII(assessmentNote)), 400);
-        return () => clearTimeout(id);
-    }, [assessmentNote]);
-    const hasPII = piiWarnings.length > 0 || pePiiWarnings.length > 0 || assessmentPiiWarnings.length > 0;
 
     // --- Refs ---
     const currentPageRef = useRef(currentPage);
@@ -237,9 +218,6 @@ export function useNoteEditor(config: NoteEditorConfig) {
         // Swipe
         handleSwipeLeft, handleSwipeRight,
         handleSwipeStart, handleSwipeMove, handleSwipeEnd,
-
-        // PII
-        piiWarnings, pePiiWarnings, assessmentPiiWarnings, hasPII,
 
         // Handlers
         handleCopy, handleShare, handleExportDD689, handleExportSF600,
