@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronLeft, Settings, Plus, MoreHorizontal, X, Check } from 'lucide-react'
 import { BaseDrawer } from '@/Components/primitives/BaseDrawer'
-import { Sheet } from '@/Components/primitives/Sheet'
-import { PreviewOverlay } from '../PreviewOverlay'
+import { PaneSurface } from '@/Components/primitives/PaneCard'
 import { MobileSearchBar } from '@/Components/primitives/MobileSearchBar'
 import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill'
 import { GlassBand } from '@/Components/primitives/GlassBand'
@@ -10,12 +9,13 @@ import { RailSearchRow } from '@/Components/primitives/RailSearchRow'
 import { DesktopRail } from '@/Components/primitives/DesktopRail'
 import { AnchoredMenu } from '@/Components/primitives/LiftedRowMenu'
 import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
-import { FooterPill } from '@/Components/primitives/FooterPill'
-import { ActionButton } from '@/Components/primitives/ActionButton'
 import { useIsMobile } from '../../Hooks/useIsMobile'
 import { useEscBackout } from '../../Hooks/useEscBackout'
 import { useSwipeBack } from '../../Hooks/useSwipeBack'
 import { useAuthStore } from '../../stores/useAuthStore'
+import { useNavigationStore } from '../../stores/useNavigationStore'
+import { useCalendarStore } from '../../stores/useCalendarStore'
+import { SupervisorClinicFilterPanel, ClusterFilterPanel } from '../SupervisorClinicSwitcher'
 import { useTrackingBoardData } from '../../Hooks/useTrackingBoardData'
 import { useTrackingWrite } from '../../Hooks/useTrackingWrite'
 import { useMapOverlayWrite } from '../../Hooks/useMapOverlayWrite'
@@ -55,21 +55,26 @@ interface TrackingBoardDrawerProps {
  * into TrackingCardOverlay — it grows in place (from the lifted clone when
  * opened from the menu) and collapses back into the card on close. Ellipsis +
  * close fade in at the card head's top-right.
- * Left-edge swipe closes the panel. Settings mirror Messaging: bottom Sheet on
- * mobile, PreviewOverlay popover on desktop.
+ * Left-edge swipe closes the panel. Settings and check-in are PaneSurfaces:
+ * a lifted card over the grid pane (desktop) / fit Sheet (mobile).
  * Final actions from an open BRN run a LoadingOverlay over the card overlay
  * (Delete closes it — the card is gone, so it fades instead of collapsing).
  * Edit (ellipsis / card long-press → Edit): Calendar idiom — the detail swaps
  * to TrackingEditForm (BRN + existing comments); card head = Back (→ detail),
  * Save + Close. Save merges into the shared entry (comments union by id).
  * Check-in: a + in the header (mobile header pill beside the gear; desktop
- * drawer header) opens the standard PreviewOverlay form — self-rowing BRN pin +
- * comment TextArea (TrackingCheckInFields), Check in on the right footer once
- * the BRN is valid. Comments are never written from the detail itself.
+ * drawer header) opens the check-in surface — a lifted card over the grid pane
+ * (desktop) / fit Sheet (mobile), the Admin detail idiom — with the self-rowing
+ * BRN pin + comment TextArea (TrackingCheckInFields); Check in joins the header
+ * pill once the BRN is valid. Comments are never written from the detail itself.
+ * Loaned members get the calendar's Operating As + Filter Cluster panels in the
+ * same places as the calendar: the desktop rail, and the settings sheet on mobile.
  */
 export function TrackingBoardDrawer({ isVisible, onClose }: TrackingBoardDrawerProps) {
     const isMobile = useIsMobile()
-    const { viewerId, net, events, overlays, sharing, setSharing, relatedIds } = useTrackingBoardData(isVisible)
+    const { viewerId, viewerIds, originFilter, net, events, overlays, sharing, setSharing, relatedIds } = useTrackingBoardData(isVisible)
+    const trackingClusterFilter = useCalendarStore(s => s.trackingClusterFilter)
+    const setTrackingClusterFilter = useCalendarStore(s => s.setTrackingClusterFilter)
     // Re-read on every board change so expiry / dwell track the data.
     const now = useMemo(() => Date.now(), [isVisible, events]) // eslint-disable-line react-hooks/exhaustive-deps
     const { checkIn, updateEntry, deleteEntry: removeEntry } = useTrackingWrite()
@@ -81,8 +86,9 @@ export function TrackingBoardDrawer({ isVisible, onClose }: TrackingBoardDrawerP
         if (relatedIds && viewerId) void reconcileTargets(viewerId, relatedIds)
     }, [relatedIds, viewerId, reconcileTargets])
     const scope = useMemo(() => ({ net, viewerId }), [net, viewerId])
-    // Board = fanned to the viewer (origin + ancestors), unexpired, newest-per-BRN, capped.
-    const board = useMemo(() => boardEntries(events, net, viewerId, now), [events, net, viewerId, now])
+    // Board = fanned to any of my clusters (origin + ancestors), narrowed by
+    // check-in origin, unexpired, newest-per-BRN, capped.
+    const board = useMemo(() => boardEntries(events, net, viewerIds, now, originFilter), [events, net, viewerIds, now, originFilter])
     const [query, setQuery] = useState('')
     const entries = useMemo(() => filterEntries(board, query), [board, query])
     // By id, so the open detail reflects moves made from its own menu.
@@ -139,6 +145,9 @@ export function TrackingBoardDrawer({ isVisible, onClose }: TrackingBoardDrawerP
         setExpandedId(from && src !== 'grid' ? e.id : null)
         setOriginSrc(src)
         setSelectedId(e.id)
+        // One card at a time: a BRN takes the slot from settings / check-in.
+        setShowSettings(false)
+        if (!checkInBusy) setCheckInDraft(null)
     }
     // From the open card's ellipsis the overlay is already up — keep its origin.
     const startEdit = (e: TrackingEntry, from?: CardOrigin, src: 'card' | 'rail' = 'card') => {
@@ -208,7 +217,7 @@ export function TrackingBoardDrawer({ isVisible, onClose }: TrackingBoardDrawerP
     const select = (e: TrackingEntry, from?: CardOrigin) => openEntry(e, from)
     const clear = () => { setSelectedId(null); setMoreRect(null); setEditDraft(null) }
     const handleClose = () => { clear(); setShowSettings(false); setCheckInDraft(null); onClose() }
-    const openSettings = () => setShowSettings(true)
+    const openSettings = () => { clear(); setCheckInDraft(null); setShowSettings(true) }
     useEscBackout(!isMobile && !!selected && !showSettings && !showCheckIn && !moreRect && !pendingDelete && !busy, editing ? cancelEdit : clear)
     const measureRest = originSrc === 'rail' ? measureRailCard : originSrc === 'grid' ? measureGridRow : measureBrnCard
     // Mobile left-edge swipe closes the panel (the BRN detail is an overlay, not a page).
@@ -219,6 +228,28 @@ export function TrackingBoardDrawer({ isVisible, onClose }: TrackingBoardDrawerP
     useEffect(() => {
         if (!isVisible) { setSelectedId(null); setShowSettings(false); setCheckInDraft(null); setMoreRect(null); setPendingDelete(null); setEditDraft(null) }
     }, [isVisible])
+
+    // Deep link (mission overview widget): open that BRN — or its Edit — once
+    // the board has it. Waits while the entry is still hydrating.
+    const pendingEntry = useNavigationStore(s => s.trackingDrawerEntry)
+    const clearPendingEntry = useNavigationStore(s => s.clearTrackingDrawerEntry)
+    useEffect(() => {
+        if (!isVisible || !pendingEntry) return
+        const e = board.find(x => x.id === pendingEntry.id)
+        if (!e) return
+        clearPendingEntry()
+        openEntry(e)
+        setEditDraft(pendingEntry.edit ? draftFromEntry(e) : null)
+    }, [isVisible, pendingEntry, board]) // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Deep link (mission overview add button): straight into check-in.
+    const pendingCheckIn = useNavigationStore(s => s.trackingDrawerCheckIn)
+    const clearPendingCheckIn = useNavigationStore(s => s.clearTrackingDrawerCheckIn)
+    useEffect(() => {
+        if (!isVisible || !pendingCheckIn) return
+        clearPendingCheckIn()
+        setCheckInDraft(emptyDraft())
+    }, [isVisible, pendingCheckIn, clearPendingCheckIn])
 
     const activeId = selected?.id ?? null
 
@@ -253,50 +284,46 @@ export function TrackingBoardDrawer({ isVisible, onClose }: TrackingBoardDrawerP
         />
     )
 
-    const settingsSurface = isMobile ? (
-        <Sheet
+    // Settings + check-in share the board's one card slot (PaneSurface: lifted
+    // card over the grid pane on desktop, fit Sheet on mobile). Opening one
+    // closes the other and any open BRN.
+    const clusterFilterPanel = <ClusterFilterPanel value={trackingClusterFilter} onChange={setTrackingClusterFilter} />
+    const settingsSurface = (
+        <PaneSurface
             isOpen={showSettings}
             onClose={() => setShowSettings(false)}
             title="Tracking board settings"
-            height="fit"
-            maxHeight={60}
-            zIndex={1200}
         >
             <TrackingBoardSettings onTogglePlace={togglePlace} sharing={canManageSharing ? sharing : null} onSetSharing={setSharing} />
-        </Sheet>
-    ) : (
-        <PreviewOverlay
-            isOpen={showSettings}
-            onClose={() => setShowSettings(false)}
-            anchorRect={null}
-            title="Tracking board settings"
-            maxWidth={360}
-            previewMaxHeight="70dvh"
-        >
-            <TrackingBoardSettings onTogglePlace={togglePlace} sharing={canManageSharing ? sharing : null} onSetSharing={setSharing} />
-        </PreviewOverlay>
+            {/* Calendar idiom: scope panels ride the settings sheet on mobile;
+                desktop has them in the rail. Both render null without a loan. */}
+            {isMobile && (
+                <div className="pb-4">
+                    <SupervisorClinicFilterPanel />
+                    {clusterFilterPanel}
+                </div>
+            )}
+        </PaneSurface>
     )
 
+    const closeCheckIn = () => { if (!checkInBusy) setCheckInDraft(null) }
     const checkInSurface = (
-        <PreviewOverlay
+        <PaneSurface
             isOpen={showCheckIn}
-            onClose={() => { if (!checkInBusy) setCheckInDraft(null) }}
-            anchorRect={null}
+            onClose={closeCheckIn}
             title="Check in"
-            maxWidth={360}
-            previewMaxHeight="60dvh"
             loading={checkInBusy}
-            rightFooter={checkInDraft && draftIsValid(checkInDraft) ? (
-                <FooterPill side="right">
-                    <ActionButton icon={Check} label="Check in" variant="confirm" onClick={() => { void saveCheckIn() }} />
-                </FooterPill>
+            actions={checkInDraft && draftIsValid(checkInDraft) ? (
+                <PillButton icon={Check} iconSize={18} accent="success" onClick={() => { void saveCheckIn() }} label="Check in" />
             ) : undefined}
         >
-            {checkInDraft && <TrackingCheckInFields draft={checkInDraft} onChange={setCheckInDraft} />}
-        </PreviewOverlay>
+            <div className="px-4 pt-1 pb-6">
+                {checkInDraft && <TrackingCheckInFields draft={checkInDraft} onChange={setCheckInDraft} />}
+            </div>
+        </PaneSurface>
     )
 
-    const openCheckIn = () => setCheckInDraft(emptyDraft())
+    const openCheckIn = () => { clear(); setShowSettings(false); setCheckInDraft(emptyDraft()) }
 
     // Mobile bypasses BaseDrawer, same as MessagesDrawer: App.tsx owns the
     // horizontal slide-in, which BaseDrawer's vertical drawer model would fight.
@@ -405,6 +432,8 @@ export function TrackingBoardDrawer({ isVisible, onClose }: TrackingBoardDrawerP
                     <DesktopRail>
                         <RailSearchRow value={query} onChange={setQuery} placeholder="Search..." onSettings={openSettings} settingsLabel="Tracking board settings" />
                         <div className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain">
+                            <SupervisorClinicFilterPanel />
+                            {clusterFilterPanel}
                             <TrackingBoardList
                                 entries={entries}
                                 now={now}
@@ -422,13 +451,13 @@ export function TrackingBoardDrawer({ isVisible, onClose }: TrackingBoardDrawerP
                     {/* Main pane — the grid, always; a row opens the centered card overlay */}
                     <div className="relative flex-1 min-w-0 bg-themewhite">
                         <TrackingGrid entries={entries} now={now} activeId={activeId} onSelect={(e, from) => openEntry(e, from, 'grid')} />
-                    </div>
+                        {checkInSurface}
+                        {settingsSurface}
+                            </div>
                 </div>
             </div>
             {cardOverlay}
             {moreMenu}
-            {settingsSurface}
-            {checkInSurface}
         </BaseDrawer>
         </TrackingBoardScope>
     )

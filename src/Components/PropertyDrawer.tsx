@@ -12,6 +12,7 @@ import { EnrollScanStep } from './Property/EnrollScanStep'
 import { useIsMobile } from '../Hooks/useIsMobile'
 import type { LocalPropertyItem } from '../Types/PropertyTypes'
 import { ActionSheet } from '@/Components/primitives/ActionSheet'
+import type { ContextMenuItem } from '@/Components/primitives/ContextMenu'
 import { usePropertyStore } from '../stores/usePropertyStore'
 import { useAuthStore } from '../stores/useAuthStore'
 import { useFeatureGate } from '../lib/featureGate'
@@ -68,7 +69,6 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
     const [enrollingItem, setEnrollingItem] = useState<LocalPropertyItem | null>(null)
     const [enrollAutoStart, setEnrollAutoStart] = useState(false)
     const [pendingEnrollNew, setPendingEnrollNew] = useState<LocalPropertyItem | null>(null)
-    const [showAddSheet, setShowAddSheet] = useState(false)
     const [showLabelSheet, setShowLabelSheet] = useState(false)
     const { exportLabels, labelPreview, downloadLabels, clearLabelPreview, status: labelExportStatus } = usePropertyLabelExport()
     const addItemTriggerRef = useRef<(() => void) | null>(null)
@@ -295,6 +295,27 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
         }
     }, [view, handleBack, isMobile, mainHeaderActions, selectedItem, handleEditItem, handleDeleteItem, isSupervisorRole, searchFocused, searchQuery, handleClose, cancelSearch])
 
+    // The add FAB's menu, shared by the mobile and desktop panels.
+    const addItems: ContextMenuItem[] = [
+        // Frequent creates stay top-level; the periodic book-management
+        // tools fold behind two gateway rows (drill-down w/ Back pill).
+        { key: 'item', label: 'New Item', onAction: () => addItemTriggerRef.current?.() },
+        { key: 'location', label: 'New Location', onAction: () => addLocationTriggerRef.current?.() },
+        // The FAB is create-only: only "New DA 2062" (a create) stays. The
+        // Hand Receipt + Shortages VIEWS moved to the left-pane "Accountability"
+        // nav (PropertyPanel accountabilityNav) — access points, not creates.
+        ...(showAccountability ? [{ key: 'da2062', label: 'New DA 2062', onAction: () => newDA2062TriggerRef.current?.() }] : []),
+        {
+            key: 'data-labels',
+            label: 'Data & labels',
+            submenu: [
+                { key: 'import-csv', label: 'Import CSV', onAction: () => importTriggerRef.current?.() },
+                { key: 'export-csv', label: 'Export CSV', onAction: () => exportPropertyCSV(items, store.locations) },
+                { key: 'print-labels', label: 'Print labels', onAction: () => setShowLabelSheet(true) },
+            ],
+        },
+    ]
+
     return (
         <BaseDrawer
             desktopPosition="left"
@@ -317,7 +338,7 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                         onSearchFocusChange={setSearchFocused}
                         selectedItem={selectedItem}
                         onSelectItem={(item) => navSheetRef.current?.openItem(item)}
-                        onOpenAddSheet={() => setShowAddSheet(true)}
+                        addItems={addItems}
                         onDeleteItem={isSupervisorRole ? handleDeleteItem : undefined}
                         onAddItem={handleAddItem}
                         onBack={handleBack}
@@ -341,7 +362,7 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                         selectedItem={selectedItem}
                         onSearchChange={setSearchQuery}
                         onSelectItem={handleSelectItem}
-                        onOpenAddSheet={() => setShowAddSheet(true)}
+                        addItems={addItems}
                         onDeleteItem={handleDeleteItem}
                         onAddItem={handleAddItem}
                         onBack={handleBack}
@@ -369,31 +390,6 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                     />
                 )}
             </div>
-
-            <ActionSheet
-                visible={showAddSheet}
-                title="Add to Property Book"
-                options={[
-                    // Frequent creates stay top-level; the periodic book-management
-                    // tools fold behind two gateway rows (drill-down w/ Back pill).
-                    { key: 'item', label: 'New Item', onAction: () => { setShowAddSheet(false); addItemTriggerRef.current?.() } },
-                    { key: 'location', label: 'New Location', onAction: () => { setShowAddSheet(false); addLocationTriggerRef.current?.() } },
-                    // The FAB is create-only: only "New DA 2062" (a create) stays. The
-                    // Hand Receipt + Shortages VIEWS moved to the left-pane "Accountability"
-                    // nav (PropertyPanel accountabilityNav) — access points, not creates.
-                    ...(showAccountability ? [{ key: 'da2062', label: 'New DA 2062', onAction: () => { setShowAddSheet(false); newDA2062TriggerRef.current?.() } }] : []),
-                    {
-                        key: 'data-labels',
-                        label: 'Data & labels',
-                        children: [
-                            { key: 'import-csv', label: 'Import CSV', onAction: () => { setShowAddSheet(false); importTriggerRef.current?.() } },
-                            { key: 'export-csv', label: 'Export CSV', onAction: () => { setShowAddSheet(false); exportPropertyCSV(items, store.locations) } },
-                            { key: 'print-labels', label: 'Print labels', onAction: () => { setShowAddSheet(false); setShowLabelSheet(true) } },
-                        ],
-                    },
-                ]}
-                onClose={() => setShowAddSheet(false)}
-            />
 
             <ActionSheet
                 visible={showLabelSheet}

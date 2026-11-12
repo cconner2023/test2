@@ -38,7 +38,9 @@ the two tokens, so mixing them only shows up in dark. See App.css ELEVATION.
   ellipsis opening an anchored menu. Never hand-roll `w-9 h-9 rounded-full` corner buttons.
 - `TextButton` — text-label button. `HeaderPill` / `CardActionBar` — header/card action bars.
 - `AddFab` — floating add button. Its tray is `SliderRail`'s track and its button is that
-  rail's thumb, so a FAB parked beside an island reads as a one-stop rail.
+  rail's thumb, so a FAB parked beside an island reads as a one-stop rail. Pass `items`
+  for an add menu: the FAB opens its own `AnchoredMenu` (list layout, rising above it).
+  Don't pair a FAB with an `ActionSheet`.
 
 **Selectors**
 - `SliderRail` — **the** discrete selector, horizontal or vertical. Glass track, a thumb
@@ -62,6 +64,7 @@ the two tokens, so mixing them only shows up in dark. See App.css ELEVATION.
 
 **Containers / overlays**
 - `Modal` · `Sheet` · `BaseDrawer` · `BaseOverlay` · `BottomIsland` (a `SliderRail` host — see Selectors)
+- Split-panel surface: `PaneSurface` · `PaneCard` · `PaneSlot`
 - Stack system: `OverlayStack` · `StackBody` · `LayeredStackBody` · `useStack`
 - Menus: `Menu` · `ContextMenu` · `OverlayActionMenu` · `OverlayHeaderMenu` · `LiftedRowMenu` · `ActionSheet`
 
@@ -83,11 +86,13 @@ the two tokens, so mixing them only shows up in dark. See App.css ELEVATION.
 ## Which wrapper when (decision guide)
 
 **To open / overlay a thing — pick ONE, don't invent a new one:**
+- `PaneSurface` / `PaneCard` (`PaneCard.tsx`) — the split-panel record / form / settings surface: lifted card over the main pane (desktop) / fit Sheet (mobile). Holds its content through the exit. **Default for a detail, create form or settings opened from a rail + main pane panel.** Use `PaneCard` alone when mobile needs a different surface (Admin's morphing sheet) or the panel is desktop-only (Calendar, Property, Map, Provider, TC3 detail cards). Never hand-roll the `absolute top-3 right-3 w-[360px]` box or wrap a detail in `SearchDropdownCard` (search results only). Placement / layering: `side`, `inset`, `zIndex`; `header={false}` + `selfScroll` when the body owns its chrome; `hidden` keeps a covered card mounted; `keepMounted` keeps a portal target alive. A non-card occupant of the same slot (a morph portal target) goes in `PaneSlot`.
 - `PreviewOverlay` *(feature file, not in this folder — `@/Components/PreviewOverlay`)* — the workhorse. Tap a master-list row → card opens to view/edit; four fixed chrome slots. **Default choice for "open a thing."**
 - `OverlayStack` — drill-down / morph: one card whose *body* morphs between screens (wizard, row→detail, an internal step/stage/mode state machine) when the parent is no longer needed visually. Built on PreviewOverlay.
 - `Modal` — a true centered dialog that is NOT a ConfirmDialog and NOT row-anchored.
 - `Sheet` — bottom sheet (`fit`/`snap` modes), mobile-first.
-- `ActionSheet` — adaptive: renders a `Sheet` on mobile, a `Menu` on desktop.
+- `ActionSheet` — adaptive: renders a `Sheet` on mobile, a `Menu` on desktop. Being retired
+  in favour of `AnchoredMenu`; don't add new callers.
 - `ConfirmDialog` — destructive / confirm.
 - `BaseDrawer` — the App-mounted draggable domain drawers (Calendar/Property/Messages/…). Not for ad-hoc surfaces.
 - `BaseOverlay` — the z-index portal + stacking base everything builds on; rarely used directly.

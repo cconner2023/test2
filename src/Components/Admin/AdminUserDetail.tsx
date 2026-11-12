@@ -1,25 +1,26 @@
 /**
  * AdminUserDetail -- detailed view for a single user in the admin panel.
  *
- * Profile card (tap → edit overlay), clusters, certifications, timeline. The
- * corner action menu comes from useUserActions, shared with the Directory tree.
+ * View: profile card, clusters, certifications. The header ellipsis
+ * holds Edit first, then the action set shared with the Directory tree
+ * (useUserActions), Delete included — Delete lives there only.
+ * Edit swaps the body in place for the form (Tracking / Calendar idiom): header
+ * becomes Back · Save. Create is the same form, empty, with Save in the header.
  * Owns its own edit + delete state; the drawer only hears about dirtiness,
- * header actions (create-mode Save) and completion.
+ * header actions and completion.
  */
 
 import { useState, useEffect, useCallback, useMemo, useRef, type ReactNode } from 'react'
-import { Building2, ChevronRight, Check, RefreshCw, Trash2, Home, Plus, ArrowRightLeft } from 'lucide-react'
+import { Building2, ChevronRight, ChevronLeft, Check, RefreshCw, Trash2, Home, Plus, ArrowRightLeft, Pencil, type LucideIcon } from 'lucide-react'
 import type { Certification } from '../../Data/User'
 import { credentials, components, ranksByComponent } from '../../Data/User'
 import type { Component } from '../../Data/User'
-import { UserAvatar } from '../Settings/UserAvatar'
 import { UserRow } from '../UserRow'
 import { AdminCertsSection } from './AdminCertsSection'
-import { UserTimeline } from '../Timeline/UserTimeline'
 import { TextInput, PickerInput, MultiPickerInput, PasswordInput } from '@/Components/primitives/FormInputs'
-import { FooterPill } from '@/Components/primitives/FooterPill'
 import { UicPinInput } from '@/Components/DomainInputs'
 import { ErrorDisplay } from '@/Components/primitives/ErrorDisplay'
+import { SectionHeader } from '@/Components/primitives/Section'
 import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
 import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill'
 import { Z } from '@/Components/primitives/BaseOverlay'
@@ -28,7 +29,7 @@ import { ActionButton } from '@/Components/primitives/ActionButton'
 import { PreviewOverlay } from '../PreviewOverlay'
 import { type ContextMenuItem } from '@/Components/primitives/ContextMenu'
 import { AnchoredMenu } from '@/Components/primitives/LiftedRowMenu'
-import { OverlayActionMenu } from '@/Components/primitives/OverlayActionMenu'
+import { OverlayHeaderMenu } from '@/Components/primitives/OverlayHeaderMenu'
 import { formatLastActive, RoleBadge, SupervisorCreatedBadge } from './adminUtils'
 import { HudLoader } from '@/Components/primitives/HudLoader'
 import type { StepResult } from './StepResults'
@@ -160,16 +161,12 @@ export function AdminUserDetail({
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
-  // Corner action menu — shared with the Directory tree. The reset-password
-  // popover anchors to the pill.
-  const pillRef = useRef<HTMLDivElement>(null)
+  // Header ellipsis — Edit, then the action set shared with the Directory tree.
+  // The reset-password popover anchors to it.
+  const menuAnchorRef = useRef<HTMLSpanElement>(null)
   const { buildItems, overlays: userActionOverlays } = useUserActions({ currentUserId, onOpenConversation })
   // Clusters "+ Add loan" FAB anchor
   const addLoanFabRef = useRef<HTMLDivElement>(null)
-
-  // Edit overlay — tap user card → PreviewOverlay anchored to card rect.
-  const cardWrapperRef = useRef<HTMLDivElement>(null)
-  const [editAnchor, setEditAnchor] = useState<DOMRect | null>(null)
 
   // Clusters section — tap-to-overlay edit surface for home/loan. Replaces
   // the cluster pickers that used to live in the edit overlay.
@@ -287,30 +284,9 @@ export function AdminUserDetail({
     if (editing && !isFieldDirty('section')) setField('section', currentSection)
   }, [currentSection, editing, isFieldDirty, setField])
 
-  // ── Edit overlay ↔ editing sync ──────────────────────────────────────
-  // editing=true opens the overlay (startEditing lands here on mount);
-  // create mode renders its form inline in the card instead.
-  useEffect(() => {
-    if (editing && !isCreateMode) {
-      if (!editAnchor) {
-        const rect = cardWrapperRef.current?.getBoundingClientRect() ?? null
-        if (rect) setEditAnchor(rect)
-      }
-    } else {
-      setEditAnchor(null)
-    }
-  }, [editing, isCreateMode, editAnchor])
-
-  const openEditOverlay = useCallback(() => {
-    if (isCreateMode) return
-    const rect = cardWrapperRef.current?.getBoundingClientRect() ?? null
-    if (!rect) return
-    setEditAnchor(rect)
-    setEditing(true)
-  }, [isCreateMode])
-
-  const closeEditOverlay = useCallback(() => {
-    setEditAnchor(null)
+  // ── Edit in place ────────────────────────────────────────────────────
+  const startEdit = useCallback(() => { if (!isCreateMode) setEditing(true) }, [isCreateMode])
+  const cancelEdit = useCallback(() => {
     setStepResults([])
     setError(null)
     setEditing(false)
@@ -599,21 +575,53 @@ export function AdminUserDetail({
     setError(`Couldn't finish: ${next.filter(s => !s.ok).map(s => s.label).join(', ')}. Tap Save to retry.`)
   }, [user, editEmail, editFirstName, editLastName, editMiddleInitial, editCredential, editComponent, editRank, editUic, editClinicId, editLoanClinicIds, originalLoanClinicIds, editRoles, editSection, currentSection, loadData, isCreateMode, createEmail, createPassword, onCreated, stepResults, commitForm])
 
-  // ── Header actions — create mode publishes its Save pill. Through a ref so
-  //    typing in the form doesn't churn the published node. ─────────────
+  // ── Header actions — view: Edit · edit: Back · Save · create: Save. Save
+  //    mounts only once the form meets its minimums. Through a ref so typing
+  //    doesn't churn the published node; only the booleans below re-publish. ──
   const handleSaveRef = useRef(handleSave)
   handleSaveRef.current = handleSave
+  const busy = saving || stepResults.some(s => s.pending)
+  const hasFailures = stepResults.some(s => !s.ok)
+  const namesOk = !!editFirstName.trim() && !!editLastName.trim() && editRoles.length > 0
+  const canSave = isCreateMode
+    ? namesOk && isValidEmail(createEmail) && createPassword.length >= 12
+    : editing && namesOk && (form.dirty || hasFailures)
+      && (editEmail.trim().toLowerCase() === (user?.email || '').toLowerCase() || isValidEmail(editEmail))
   useEffect(() => {
-    onHeaderActions?.(isCreateMode ? (
-      <HeaderPill>
-        <PillButton icon={Check} iconSize={18} accent="success" label="Save" onClick={() => handleSaveRef.current()} />
-      </HeaderPill>
-    ) : null)
+    const save = canSave && (
+      <PillButton
+        icon={hasFailures ? RefreshCw : Check}
+        iconSize={18}
+        accent="success"
+        label={hasFailures ? 'Retry failed' : 'Save'}
+        onClick={() => handleSaveRef.current()}
+      />
+    )
+    onHeaderActions?.(busy ? null
+      : isCreateMode ? (save ? <HeaderPill>{save}</HeaderPill> : null)
+      : editing ? (
+        <HeaderPill multi={!!save}>
+          <PillButton icon={ChevronLeft} iconSize={18} label="Back" onClick={cancelEdit} />
+          {save}
+        </HeaderPill>
+      )
+      : user ? (
+        <HeaderPill>
+          <span ref={menuAnchorRef} className="inline-flex">
+            <OverlayHeaderMenu items={[
+              { key: 'edit', label: 'Edit', icon: Pencil, onAction: startEdit },
+              ...buildItems(user, {
+                resetAnchor: () => menuAnchorRef.current?.getBoundingClientRect() ?? null,
+                onDelete: onDeleted && currentUserId !== user.id ? () => setConfirmDelete(true) : undefined,
+              }),
+            ]} />
+          </span>
+        </HeaderPill>
+      ) : null)
     return () => onHeaderActions?.(null)
-  }, [isCreateMode, onHeaderActions])
+  }, [isCreateMode, editing, busy, canSave, hasFailures, user, buildItems, onDeleted, currentUserId, startEdit, cancelEdit, onHeaderActions]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const userName = [user?.first_name, user?.last_name].filter(Boolean).join(' ') || user?.email || 'user'
-  const canDelete = !!user && !!onDeleted && currentUserId !== user.id
 
   const handleDelete = async () => {
     if (!user) return
@@ -635,11 +643,11 @@ export function AdminUserDetail({
     await loadData()
   }, [loadData])
 
-  // Pure swap: changing home replaces the home cluster outright — the old home
-  // is dropped, NOT demoted to a loan. setUserClinic fires a DB trigger that
-  // wipes every loan, so re-apply only the user's OTHER existing loans (minus
-  // newId, which is now the home) to keep those from being lost.
-  const handlePickHome = useCallback(async (newId: string) => {
+  // Pure swap: the new home (picked fresh, or a loan being promoted) replaces the
+  // old one outright — the old home is dropped, NOT demoted to a loan.
+  // setUserClinic fires a DB trigger that wipes every loan, so re-apply the
+  // user's OTHER existing loans (minus the new home) to keep them.
+  const swapHome = useCallback(async (newId: string) => {
     if (!user) return
     setClusterBusy(true)
     const preservedLoans = viewLoanClinicIds
@@ -665,24 +673,6 @@ export function AdminUserDetail({
     else setError(r.error || 'Failed to end loan')
   }, [user, viewLoanClinicIds, refreshClusters])
 
-  // Promote a loan to home — pure swap, same as handlePickHome: the loan being
-  // promoted becomes the new home, the old home is dropped (not kept as a
-  // loan), and the user's other loans are preserved across the trigger wipe.
-  const handlePromoteLoan = useCallback(async (clinicId: string) => {
-    if (!user) return
-    setClusterBusy(true)
-    const preservedLoans = viewLoanClinicIds
-    const r = await setUserClinic(user.id, clinicId)
-    if (r.success) {
-      const nextLoans = preservedLoans.filter(id => id !== clinicId)
-      if (nextLoans.length > 0) await setUserLoans(user.id, nextLoans)
-    }
-    setClusterBusy(false)
-    setClusterAction(null)
-    if (r.success) refreshClusters()
-    else setError(r.error || 'Failed to promote loan to home')
-  }, [user, viewLoanClinicIds, refreshClusters])
-
   const handleAddLoan = useCallback(async (clinicId: string) => {
     if (!user) return
     setClusterBusy(true)
@@ -694,61 +684,122 @@ export function AdminUserDetail({
     else setError(r.error || 'Failed to add loan')
   }, [user, viewLoanClinicIds, refreshClusters])
 
-  // ── Full name helper ────────────────────────────────────────────────
+  // ── Cluster rows + picker list (shared by home, loans and both pickers) ──
+  const clusterRow = (clinic: AdminClinic | null, title: string, kind: string, onTap: (rect: DOMRect) => void) => (
+    <button
+      key={clinic?.id ?? 'none'}
+      type="button"
+      onClick={e => onTap(e.currentTarget.getBoundingClientRect())}
+      className="flex items-center gap-3 w-full px-4 py-3.5 text-left transition-all active:scale-95 hover:bg-themeblue2/5"
+    >
+      <span className={`w-9 h-9 rounded-full ${clinic ? 'bg-themeblue2/10' : 'bg-themeblue2/5'} flex items-center justify-center shrink-0`}>
+        <Building2 size={18} className={clinic ? 'text-themeblue2' : 'text-tertiary'} />
+      </span>
+      <div className="flex-1 min-w-0">
+        <p className={`text-[10pt] font-medium truncate ${clinic ? 'text-primary' : 'text-tertiary'}`}>{title}</p>
+        <p className="text-[9pt] text-tertiary mt-0.5 truncate">
+          {kind}{clinic && clinic.uics.length > 0 ? ` · ${clinic.uics.join(', ')}` : ''}
+        </p>
+      </div>
+      <ChevronRight size={16} className="text-tertiary shrink-0" />
+    </button>
+  )
+
+  const clusterPickList = (filter: string, exclude: Set<string>, onPick: (id: string) => void, Icon: LucideIcon, emptyText: string) => {
+    const q = filter.toLowerCase()
+    const filtered = clinics.filter(c => !exclude.has(c.id)
+      && (!filter || c.name.toLowerCase().includes(q) || c.uics.some(u => u.toLowerCase().includes(q))))
+    if (filtered.length === 0) return <p className="text-[9pt] text-tertiary text-center py-4">{emptyText}</p>
+    return (
+      <div role="listbox">
+        {filtered.map(c => (
+          <button
+            key={c.id}
+            type="button"
+            role="option"
+            onClick={() => onPick(c.id)}
+            className="w-full text-left px-3.5 py-2.5 hover:bg-primary/5 active:bg-primary/10 transition-colors flex items-center gap-2"
+          >
+            <span className="w-7 h-7 rounded-full bg-themeblue2/10 flex items-center justify-center shrink-0">
+              <Building2 size={14} className="text-themeblue2" />
+            </span>
+            <div className="flex-1 min-w-0">
+              <p className="text-[10pt] text-primary truncate">{c.name}</p>
+              {c.uics.length > 0 && <p className="text-[9pt] text-tertiary truncate">{c.uics.join(' · ')}</p>}
+            </div>
+            <Icon size={14} className="text-tertiary shrink-0" />
+          </button>
+        ))}
+      </div>
+    )
+  }
+
   // ── Render ──────────────────────────────────────────────────────────
 
   return (
-    <div className="pt-5">
+    <div className="pt-1">
       {/* Error banner */}
       {error && <div className="mb-4"><ErrorDisplay message={error} /></div>}
 
-      {/* Main card — view-mode UserRow for existing users (tap to open edit
-          overlay), legacy inline form for create-mode until Phase 3.
-          pt-5 above gives the overlay-pill -translate-y-1/2 protrusion room. */}
-      <div ref={cardWrapperRef} className="relative">
-        <div
-          className={`rounded-2xl bg-themewhite2 overflow-hidden ${user && !isCreateMode ? 'cursor-pointer active:bg-themeblue2/5 transition-colors' : ''}`}
-          onClick={user && !isCreateMode ? openEditOverlay : undefined}
-          role={user && !isCreateMode ? 'button' : undefined}
-          tabIndex={user && !isCreateMode ? 0 : undefined}
-          aria-label={user && !isCreateMode ? `Edit ${userName}` : undefined}
-          onKeyDown={user && !isCreateMode ? (e) => {
-            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openEditOverlay() }
-          } : undefined}
-        >
-          {isCreateMode && editing && saving ? (
-            // Create runs behind the HUD (single step — no checklist).
-            <div className="flex items-center justify-center py-16">
-              <HudLoader size={120} />
-            </div>
-          ) : isCreateMode && editing ? (
-            // Legacy inline create form — Phase 3 will move this to an overlay anchored to the FAB.
-            <div>
+      {busy ? (
+        // Saves run behind the HUD. On failure it clears and the form returns
+        // with the inline error above; on success the view returns.
+        <div className="flex items-center justify-center py-16">
+          <HudLoader size={120} />
+        </div>
+      ) : editing ? (
+        <div className="rounded-2xl bg-themewhite2 overflow-hidden">
+          {isCreateMode ? (
+            <>
               <TextInput value={createEmail} onChange={setCreateEmail} placeholder="Email *" type="email" required />
               <PasswordInput value={createPassword} onChange={setCreatePassword} placeholder="Temporary password (min 12 chars)" />
-              <TextInput value={editFirstName} onChange={bindField('firstName')} placeholder="First Name *" required />
-              <div className="flex items-stretch border-b border-primary/6">
-                <div className="flex-1 min-w-0">
-                  <TextInput value={editLastName} onChange={bindField('lastName')} placeholder="Last Name *" required />
-                </div>
-                <div className="w-16 shrink-0 border-l border-primary/6">
-                  <TextInput value={editMiddleInitial} onChange={v => setField('middleInitial', v.toUpperCase().slice(0, 1))} placeholder="MI" maxLength={1} />
-                </div>
-              </div>
-              <PickerInput value={editCredential} onChange={bindField('credential')} options={credentials} placeholder="Credential" />
-              <PickerInput value={editComponent} onChange={handleComponentChange} options={components} placeholder="Component" />
-              {editComponent && <PickerInput value={editRank} onChange={bindField('rank')} options={componentRanks} placeholder="Rank" />}
-              <UicPinInput value={editUic} onChange={bindField('uic')} spread />
-              <ClinicPickerInput value={editClinicId} onChange={bindField('clinicId')} allClinics={clinics} placeholder="Cluster" />
-              <MultiPickerInput
-                value={editRoles}
-                onChange={bindField('roles')}
-                options={roleOptions(ASSIGNABLE_ROLES)}
-                placeholder="Roles *"
-                required
-              />
+            </>
+          ) : (
+            <TextInput
+              value={editEmail}
+              onChange={bindField('email')}
+              placeholder="Email *"
+              type="email"
+              required
+              currentValue={user && editEmail !== (user.email || '') ? user.email : undefined}
+              hint={editEmail.length > 0 && !isValidEmail(editEmail) ? 'Enter a valid email address.' : undefined}
+            />
+          )}
+          <TextInput value={editFirstName} onChange={bindField('firstName')} placeholder="First Name *" required />
+          <div className="flex items-stretch border-b border-primary/6">
+            <div className="flex-1 min-w-0">
+              <TextInput value={editLastName} onChange={bindField('lastName')} placeholder="Last Name *" required />
             </div>
-          ) : user ? (
+            <div className="w-16 shrink-0 border-l border-primary/6">
+              <TextInput value={editMiddleInitial} onChange={v => setField('middleInitial', v.toUpperCase().slice(0, 1))} placeholder="MI" maxLength={1} />
+            </div>
+          </div>
+          <PickerInput value={editCredential} onChange={bindField('credential')} options={credentials} placeholder="Credential" />
+          <PickerInput value={editComponent} onChange={handleComponentChange} options={components} placeholder="Component" />
+          {editComponent && <PickerInput value={editRank} onChange={bindField('rank')} options={componentRanks} placeholder="Rank" />}
+          <UicPinInput value={editUic} onChange={bindField('uic')} spread />
+          {/* Existing users change clusters from the Clusters section (immediate
+              writes); only a brand-new user picks a starting home here. */}
+          {isCreateMode && <ClinicPickerInput value={editClinicId} onChange={bindField('clinicId')} allClinics={clinics} placeholder="Cluster" />}
+          <MultiPickerInput
+            value={editRoles}
+            onChange={bindField('roles')}
+            options={roleOptions(ASSIGNABLE_ROLES)}
+            placeholder="Roles *"
+            required
+          />
+          {/* Section (platoon/squad) — only when the user's home clinic has sub-units. */}
+          {!isCreateMode && sectionOpts.length > 0 && (
+            <PickerInput
+              value={editSection}
+              onChange={bindField('section')}
+              options={[{ value: '', label: 'HQ / Unassigned' }, ...sectionOpts]}
+              placeholder="Section"
+            />
+          )}
+        </div>
+      ) : user ? (
+        <div className="rounded-2xl bg-themewhite2 overflow-hidden">
             <UserRow
               avatarId={user.avatar_id}
               avatarBlob={user.avatar_blob}
@@ -758,11 +809,7 @@ export function AdminUserDetail({
               middleInitial={user.middle_initial}
               rank={user.rank}
               lastActiveAt={user.last_active_at}
-              subtitle={[
-                user.credential,
-                user.uic,
-                user.email,
-              ].filter(Boolean).join(' · ')}
+              subtitle={[user.credential, user.uic, user.email].filter(Boolean).join(' · ')}
               meta={(user.roles?.length > 0 || user.supervisor_created) && (
                 <div className="flex flex-wrap items-center gap-1">
                   {user.roles.map(r => <RoleBadge key={r} role={r} />)}
@@ -773,206 +820,29 @@ export function AdminUserDetail({
               showChevron={false}
               right={<span className="text-[9pt] text-tertiary/50 shrink-0">{formatLastActive(user.last_active_at)}</span>}
             />
-          ) : null}
         </div>
+      ) : null}
 
-        {/* Corner action menu — shared with the tree (useUserActions); empty
-            for self. Stop propagation so card-tap doesn't fire. */}
-        {user && (
-          <div onClick={(e) => e.stopPropagation()}>
-            <OverlayActionMenu
-              ref={pillRef}
-              items={buildItems(user, {
-                resetAnchor: () => pillRef.current?.getBoundingClientRect() ?? null,
-                onDelete: canDelete ? () => setConfirmDelete(true) : undefined,
-              })}
-            />
-          </div>
-        )}
-      </div>
-
-      {/* Edit overlay — tap user card → form fields here. Footer owns Save+Delete.
-          During an in-flight save (or while any step is still pending) the form +
-          footer hide and the HUD loader takes the body. On full success the
-          overlay auto-closes; on partial failure the form returns with an inline
-          error and Save re-runs only the failures. */}
-      {(() => {
-        const overlayPending = saving || stepResults.some(s => s.pending)
-        return (
-      <PreviewOverlay
-        isOpen={!!editAnchor && !isCreateMode}
-        onClose={closeEditOverlay}
-        anchorRect={editAnchor}
-        title={`Edit ${userName}`}
-        maxWidth={400}
-        previewMaxHeight="70dvh"
-        footer={
-          editAnchor && !overlayPending && canDelete ? (
-            <FooterPill>
-              <ActionButton
-                icon={Trash2}
-                label="Delete user"
-                variant="danger"
-                onClick={() => setConfirmDelete(true)}
-              />
-            </FooterPill>
-          ) : undefined
-        }
-        rightFooter={
-          editAnchor && user && !overlayPending ? (
-            <FooterPill side="right">
-              <ActionButton
-                icon={stepResults.some(s => !s.ok) ? RefreshCw : Check}
-                label={stepResults.some(s => !s.ok) ? 'Retry failed' : 'Save'}
-                variant="confirm"
-                onClick={handleSave}
-              />
-            </FooterPill>
-          ) : undefined
-        }
-      >
-        {editAnchor && user && (
-          <div>
-            {overlayPending && (
-              // The save runs behind the HUD (no step checklist — that pattern
-              // lives nowhere else in the app). On failure the HUD clears and the
-              // form returns with an inline error; on success the overlay closes.
-              <div className="flex items-center justify-center py-16">
-                <HudLoader size={120} />
-              </div>
-            )}
-            {!overlayPending && (
-              <>
-            {error && <div className="px-4 pt-3"><ErrorDisplay message={error} /></div>}
-            <div className="flex items-center gap-3 px-4 py-3 border-b border-primary/6">
-              <UserAvatar
-                avatarId={user.avatar_id}
-                avatarBlob={user.avatar_blob}
-                userId={user.id}
-                firstName={user.first_name}
-                lastName={user.last_name}
-                className="w-11 h-11"
-              />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-primary truncate">{userName}</p>
-              </div>
-            </div>
-            <TextInput
-              value={editEmail}
-              onChange={bindField('email')}
-              placeholder="Email *"
-              type="email"
-              required
-              currentValue={editEmail !== (user.email || '') ? user.email : undefined}
-              hint={editEmail.length > 0 && !isValidEmail(editEmail) ? 'Enter a valid email address.' : undefined}
-            />
-            <TextInput value={editFirstName} onChange={bindField('firstName')} placeholder="First Name *" required />
-            <div className="flex items-stretch border-b border-primary/6">
-              <div className="flex-1 min-w-0">
-                <TextInput value={editLastName} onChange={bindField('lastName')} placeholder="Last Name *" required />
-              </div>
-              <div className="w-16 shrink-0 border-l border-primary/6">
-                <TextInput value={editMiddleInitial} onChange={v => setField('middleInitial', v.toUpperCase().slice(0, 1))} placeholder="MI" maxLength={1} />
-              </div>
-            </div>
-            <PickerInput value={editCredential} onChange={bindField('credential')} options={credentials} placeholder="Credential" />
-            <PickerInput value={editComponent} onChange={handleComponentChange} options={components} placeholder="Component" />
-            {editComponent && <PickerInput value={editRank} onChange={bindField('rank')} options={componentRanks} placeholder="Rank" />}
-            <UicPinInput value={editUic} onChange={bindField('uic')} spread />
-            {/* Cluster + loan management moved to the Clusters section below
-                — tap a row or the section '+' to act. The pencil-edit overlay
-                only covers profile fields + roles now. */}
-
-            <MultiPickerInput
-              value={editRoles}
-              onChange={bindField('roles')}
-              options={roleOptions(ASSIGNABLE_ROLES)}
-              placeholder="Roles *"
-              required
-            />
-            {/* Section (platoon/squad) — only when the user's home clinic has sub-units. */}
-            {sectionOpts.length > 0 && (
-              <PickerInput
-                value={editSection}
-                onChange={bindField('section')}
-                options={[{ value: '', label: 'HQ / Unassigned' }, ...sectionOpts]}
-                placeholder="Section"
-              />
-            )}
-              </>
-            )}
-          </div>
-        )}
-      </PreviewOverlay>
-        )
-      })()}
-
-      {/* Clusters section — tap a row to act on it (change home, end loan,
-          promote loan to home, open cluster). Section "+ Add loan" lives in
-          the header. Replaces the cluster pickers from the edit overlay. */}
-      {!editing && !isCreateMode && user && (() => {
+      {/* Clusters — tap a row to act on it (change home, end loan, promote loan
+          to home, open cluster); "+ Add loan" rides the card edge. These write
+          immediately, so they live in the view, not the edit form. */}
+      {!editing && !busy && !isCreateMode && user && (() => {
         const homeClinic = user.clinic_id ? clinics.find(c => c.id === user.clinic_id) ?? null : null
         const loanClinics = viewLoanClinicIds
           .map(id => clinics.find(c => c.id === id))
           .filter((c): c is AdminClinic => !!c)
-        const rowCount = 1 + loanClinics.length
         return (
           <section className="mt-4">
-            <div className="pb-2">
-              <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider">Clusters</p>
-            </div>
+            <SectionHeader>Clusters</SectionHeader>
             <div className="relative">
-            <div className={`rounded-2xl bg-themewhite2 overflow-hidden${clusterBusy ? ' opacity-50 pointer-events-none' : ''}`}>
-              <button
-                type="button"
-                onClick={(e) => {
-                  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-                  if (homeClinic) {
-                    setClusterAction({ kind: 'home-row', rect, clinic: homeClinic })
-                  } else {
-                    setClusterAction({ kind: 'pick-home', rect })
-                  }
-                }}
-                className={`flex items-center gap-3 w-full px-4 py-3.5 text-left transition-all active:scale-95 hover:bg-themeblue2/5${rowCount > 1 ? ' border-b border-primary/6' : ''}`}
-              >
-                <span className={`w-9 h-9 rounded-full ${homeClinic ? 'bg-themeblue2/10' : 'bg-themeblue2/5'} flex items-center justify-center shrink-0`}>
-                  <Building2 size={18} className={homeClinic ? 'text-themeblue2' : 'text-tertiary'} />
-                </span>
-                <div className="flex-1 min-w-0">
-                  <p className={`text-sm font-medium truncate ${homeClinic ? 'text-primary' : 'text-tertiary'}`}>
-                    {homeClinic ? homeClinic.name : 'Assign home cluster'}
-                  </p>
-                  <p className="text-[9pt] text-tertiary mt-0.5 truncate">
-                    Home{homeClinic && homeClinic.uics.length > 0 ? ` · ${homeClinic.uics.join(', ')}` : ''}
-                  </p>
-                </div>
-                <ChevronRight size={16} className="text-tertiary shrink-0" />
-              </button>
-              {loanClinics.map((c, idx) => {
-                const isLast = idx === loanClinics.length - 1
-                return (
-                  <button
-                    key={c.id}
-                    type="button"
-                    onClick={(e) => {
-                      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-                      setClusterAction({ kind: 'loan-row', rect, clinic: c })
-                    }}
-                    className={`flex items-center gap-3 w-full px-4 py-3.5 text-left transition-all active:scale-95 hover:bg-themeblue2/5${isLast ? '' : ' border-b border-primary/6'}`}
-                  >
-                    <span className="w-9 h-9 rounded-full bg-themeblue2/10 flex items-center justify-center shrink-0">
-                      <Building2 size={18} className="text-themeblue2" />
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-primary truncate">{c.name}</p>
-                      <p className="text-[9pt] text-tertiary mt-0.5 truncate">
-                        Loan{c.uics.length > 0 ? ` · ${c.uics.join(', ')}` : ''}
-                      </p>
-                    </div>
-                    <ChevronRight size={16} className="text-tertiary shrink-0" />
-                  </button>
-                )
-              })}
+            <div className={`rounded-2xl bg-themewhite2 overflow-hidden divide-y divide-primary/6${clusterBusy ? ' opacity-50 pointer-events-none' : ''}`}>
+              {clusterRow(
+                homeClinic,
+                homeClinic ? homeClinic.name : 'Assign home cluster',
+                'Home',
+                rect => setClusterAction(homeClinic ? { kind: 'home-row', rect, clinic: homeClinic } : { kind: 'pick-home', rect }),
+              )}
+              {loanClinics.map(c => clusterRow(c, c.name, 'Loan', rect => setClusterAction({ kind: 'loan-row', rect, clinic: c })))}
             </div>
             <ActionPill ref={addLoanFabRef} shadow="sm" placement="overlay">
               <ActionButton
@@ -1038,7 +908,7 @@ export function AdminUserDetail({
             key: 'promote',
             label: 'Make home cluster',
             icon: Home,
-            onAction: () => handlePromoteLoan(c.id),
+            onAction: () => swapHome(c.id),
           },
         ]
         if (onSelectClinic) {
@@ -1069,42 +939,13 @@ export function AdminUserDetail({
         maxWidth={320}
         title="Set home cluster"
         searchPlaceholder="Search by name or UIC..."
-        preview={(filter) => {
-          const q = filter.toLowerCase()
-          const homeId = user?.clinic_id ?? null
-          const filtered = clinics.filter(c => {
-            if (c.id === homeId) return false
-            if (!filter) return true
-            return c.name.toLowerCase().includes(q) || c.uics.some(u => u.toLowerCase().includes(q))
-          })
-          if (filtered.length === 0) {
-            return <p className="text-[9pt] text-tertiary text-center py-4">No clusters match.</p>
-          }
-          return (
-            <div role="listbox">
-              {filtered.map(c => (
-                <button
-                  key={c.id}
-                  type="button"
-                  role="option"
-                  onClick={() => handlePickHome(c.id)}
-                  className="w-full text-left px-3.5 py-2.5 hover:bg-primary/5 active:bg-primary/10 transition-colors flex items-center gap-2"
-                >
-                  <span className="w-7 h-7 rounded-full bg-themeblue2/10 flex items-center justify-center shrink-0">
-                    <Building2 size={14} className="text-themeblue2" />
-                  </span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-primary truncate">{c.name}</p>
-                    {c.uics.length > 0 && (
-                      <p className="text-[9pt] text-tertiary truncate">{c.uics.join(' · ')}</p>
-                    )}
-                  </div>
-                  <ArrowRightLeft size={14} className="text-tertiary shrink-0" />
-                </button>
-              ))}
-            </div>
-          )
-        }}
+        preview={(filter) => clusterPickList(
+          filter,
+          new Set(user?.clinic_id ? [user.clinic_id] : []),
+          swapHome,
+          ArrowRightLeft,
+          'No clusters match.',
+        )}
       />
 
       {/* Add-loan picker — section "+" → pick a clinic to loan to. Excludes
@@ -1116,64 +957,23 @@ export function AdminUserDetail({
         maxWidth={320}
         title="Add loan cluster"
         searchPlaceholder="Search by name or UIC..."
-        preview={(filter) => {
-          const q = filter.toLowerCase()
-          const homeId = user?.clinic_id ?? null
-          const taken = new Set<string>([
-            ...(homeId ? [homeId] : []),
-            ...viewLoanClinicIds,
-          ])
-          const filtered = clinics.filter(c => {
-            if (taken.has(c.id)) return false
-            if (!filter) return true
-            return c.name.toLowerCase().includes(q) || c.uics.some(u => u.toLowerCase().includes(q))
-          })
-          if (filtered.length === 0) {
-            return <p className="text-[9pt] text-tertiary text-center py-4">No clusters available.</p>
-          }
-          return (
-            <div role="listbox">
-              {filtered.map(c => (
-                <button
-                  key={c.id}
-                  type="button"
-                  role="option"
-                  onClick={() => handleAddLoan(c.id)}
-                  className="w-full text-left px-3.5 py-2.5 hover:bg-primary/5 active:bg-primary/10 transition-colors flex items-center gap-2"
-                >
-                  <span className="w-7 h-7 rounded-full bg-themeblue2/10 flex items-center justify-center shrink-0">
-                    <Building2 size={14} className="text-themeblue2" />
-                  </span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-primary truncate">{c.name}</p>
-                    {c.uics.length > 0 && (
-                      <p className="text-[9pt] text-tertiary truncate">{c.uics.join(' · ')}</p>
-                    )}
-                  </div>
-                  <Plus size={14} className="text-tertiary shrink-0" />
-                </button>
-              ))}
-            </div>
-          )
-        }}
+        preview={(filter) => clusterPickList(
+          filter,
+          new Set([...(user?.clinic_id ? [user.clinic_id] : []), ...viewLoanClinicIds]),
+          handleAddLoan,
+          Plus,
+          'No clusters available.',
+        )}
       />
 
-      {!isCreateMode && (
+      {!isCreateMode && !editing && !busy && (
         <div className="mt-4">
-          <p className="text-[9pt] font-semibold text-primary uppercase tracking-wider mb-2">Certifications</p>
+          <SectionHeader>Certifications</SectionHeader>
           <AdminCertsSection
             userId={user!.id}
             certs={userCerts}
             onChanged={loadData}
           />
-        </div>
-      )}
-
-      {/* Provenance timeline — lifecycle spine from audit_log: cluster moves,
-          training, certs. Answers the CREATED_SOURCE / "when assigned" question. */}
-      {user?.clinic_id && (
-        <div className="mt-4">
-          <UserTimeline subjectId={user.id} clinicId={user.clinic_id} />
         </div>
       )}
 

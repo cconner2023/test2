@@ -146,7 +146,7 @@ export function ProviderNoteOutput({
                 onExportSF600={() => { if (previewNote) setPatientGate('sf600'); }}
                 onCopyEncoded={() => copyWithHtml(encodedValue)}
                 onShare={handleShare}
-                onExportDD689={() => setPatientGate('dd689')}
+                onExportDD689={() => { if (encodedValue) setPatientGate('dd689'); }}
                 encodedLength={encodedValue.length}
                 barcode={<BarcodeDisplay encodedText={encodedValue} layout={encodedValue.length > 300 ? 'col' : 'row'} />}
             />

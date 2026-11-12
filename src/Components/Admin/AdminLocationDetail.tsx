@@ -2,17 +2,16 @@
  * AdminLocationDetail.tsx
  *
  * View + edit a single location — the same shape as the user / cluster details:
- * an identity card that taps open an anchored edit overlay (footer: Archive ·
- * Save), and an inline form with a header Save in create mode. display_name
+ * header ⋯ (Edit · Archive) in view; Edit swaps the card for the form in place
+ * (header Back · Save); create is the same form with a header Save. display_name
  * auto-derives from the other fields unless the admin overrides it; timezone is
  * device-filled on create and not surfaced (see beacon.locations.timezone).
  */
 
 import { useEffect, useCallback, useMemo, useState, useRef, type ReactNode } from 'react'
-import { ChevronDown, ChevronRight, Check, Archive, Building2 } from 'lucide-react'
+import { ChevronDown, ChevronRight, ChevronLeft, Check, Archive, Building2, Pencil } from 'lucide-react'
 import { PreviewOverlay } from '../PreviewOverlay'
-import { ActionButton } from '@/Components/primitives/ActionButton'
-import { FooterPill } from '@/Components/primitives/FooterPill'
+import { OverlayHeaderMenu } from '@/Components/primitives/OverlayHeaderMenu'
 import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill'
 import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
 import { SectionCard, SectionHeader } from '@/Components/primitives/Section'
@@ -109,10 +108,9 @@ export function AdminLocationDetail({
   const [error, setError] = useState<string | null>(null)
   const [confirmArchive, setConfirmArchive] = useState(false)
 
-  // Edit overlay — tap card → PreviewOverlay anchored to the card rect.
-  const cardRef = useRef<HTMLDivElement>(null)
-  const [editAnchor, setEditAnchor] = useState<DOMRect | null>(null)
-  const editing = isCreateMode || !!editAnchor
+  // Edit swaps the card body for the form in place.
+  const [editingExisting, setEditingExisting] = useState(false)
+  const editing = isCreateMode || editingExisting
 
   const onLocationUpdatedRef = useRef(onLocationUpdated)
   onLocationUpdatedRef.current = onLocationUpdated
@@ -132,19 +130,18 @@ export function AdminLocationDetail({
   useEffect(() => { loadData() }, [loadData])
 
   const openEdit = () => {
-    const rect = cardRef.current?.getBoundingClientRect()
-    if (!rect || !location) return
+    if (!location) return
     resetForm(seedForm(location))
     setDisplayOverridden(location.display_name !== deriveDisplayName(
       location.country_code, location.subdivision, location.installation, location.sub_area,
     ))
     setCommandIsOther(isCustomCommand(location.command))
     setError(null)
-    setEditAnchor(rect)
+    setEditingExisting(true)
   }
 
   const closeEdit = () => {
-    setEditAnchor(null)
+    setEditingExisting(false)
     setError(null)
   }
 
@@ -199,21 +196,44 @@ export function AdminLocationDetail({
     if (!r.success) { setError(r.error || 'Failed to update location'); return }
     commitForm()
     invalidate('locations')
-    setEditAnchor(null)
+    setEditingExisting(false)
     loadData()
   }, [v, isCreateMode, location, commitForm, onCreated, loadData])
 
-  // Create mode publishes its Save pill (via ref so typing doesn't churn it).
+  // Header — view: ⋯ (Edit · Archive) · edit: Back · Save · create: Save. Save
+  // mounts once the required fields are filled. Handlers ride refs so typing
+  // doesn't churn the published node.
   const handleSaveRef = useRef(handleSave)
   handleSaveRef.current = handleSave
+  const openEditRef = useRef(openEdit)
+  openEditRef.current = openEdit
+  const closeEditRef = useRef(closeEdit)
+  closeEditRef.current = closeEdit
+  const requestArchiveRef = useRef<() => void>(() => {})
+  const canSave = !saving && !!v.country.trim() && !!v.installation.trim() && !!v.displayName.trim()
+    && (isCreateMode || form.dirty)
   useEffect(() => {
-    onHeaderActions?.(isCreateMode ? (
-      <HeaderPill>
-        <PillButton icon={Check} iconSize={18} accent="success" label="Save" onClick={() => handleSaveRef.current()} />
-      </HeaderPill>
-    ) : null)
+    const save = canSave && (
+      <PillButton icon={Check} iconSize={18} accent="success" label="Save" onClick={() => handleSaveRef.current()} />
+    )
+    onHeaderActions?.(
+      isCreateMode ? (save ? <HeaderPill>{save}</HeaderPill> : null)
+      : editingExisting ? (
+        <HeaderPill multi={!!save}>
+          <PillButton icon={ChevronLeft} iconSize={18} label="Back" onClick={() => closeEditRef.current()} />
+          {save}
+        </HeaderPill>
+      )
+      : location ? (
+        <HeaderPill>
+          <OverlayHeaderMenu items={[
+            { key: 'edit', label: 'Edit', icon: Pencil, onAction: () => openEditRef.current() },
+            { key: 'archive', label: 'Archive location', icon: Archive, destructive: true, onAction: () => requestArchiveRef.current() },
+          ]} />
+        </HeaderPill>
+      ) : null)
     return () => onHeaderActions?.(null)
-  }, [isCreateMode, onHeaderActions])
+  }, [isCreateMode, editingExisting, canSave, !!location, onHeaderActions]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // A referenced location can't be archived — name the blockers instead of
   // offering a confirm that would only fail.
@@ -223,6 +243,7 @@ export function AdminLocationDetail({
     const remainder = names.length > 3 ? ` and ${names.length - 3} more` : ''
     setError(`Cannot archive — referenced by ${names.slice(0, 3).join(', ')}${remainder}. Reassign or archive ${names.length === 1 ? 'it' : 'them'} first.`)
   }
+  requestArchiveRef.current = requestArchive
 
   const handleArchive = async () => {
     if (!location) return
@@ -280,11 +301,11 @@ export function AdminLocationDetail({
 
   return (
     <div>
-      {error && !editAnchor && <div className="mb-3"><ErrorDisplay message={error} /></div>}
+      {error && <div className="mb-3"><ErrorDisplay message={error} /></div>}
 
-      <div ref={cardRef}>
-        <SectionCard onClick={isCreateMode ? undefined : openEdit}>
-          {isCreateMode ? formBody : location && (
+      <div>
+        <SectionCard>
+          {editing ? formBody : location && (
             <div className="px-4 py-3">
               <LocationBreadcrumb
                 locationId={location.id}
@@ -312,7 +333,7 @@ export function AdminLocationDetail({
         </SectionCard>
       </div>
 
-      {clinicsAtLocation.length > 0 && (
+      {!editing && clinicsAtLocation.length > 0 && (
         <section className="mt-4">
           <SectionHeader>Clusters here</SectionHeader>
           <SectionCard className="divide-y divide-primary/6">
@@ -329,32 +350,6 @@ export function AdminLocationDetail({
           </SectionCard>
         </section>
       )}
-
-      <PreviewOverlay
-        isOpen={!!editAnchor}
-        onClose={closeEdit}
-        anchorRect={editAnchor}
-        title={`Edit ${location?.display_name ?? 'location'}`}
-        maxWidth={400}
-        previewMaxHeight="70dvh"
-        footer={editAnchor && (
-          <FooterPill>
-            <ActionButton icon={Archive} label="Archive location" variant="danger" onClick={requestArchive} />
-          </FooterPill>
-        )}
-        rightFooter={editAnchor && (
-          <FooterPill side="right">
-            <ActionButton icon={Check} label="Save" variant="confirm" onClick={handleSave} />
-          </FooterPill>
-        )}
-      >
-        {editAnchor && (
-          <div>
-            {error && <div className="px-4 pt-3"><ErrorDisplay message={error} /></div>}
-            {formBody}
-          </div>
-        )}
-      </PreviewOverlay>
 
       <ConfirmDialog
         visible={confirmArchive}

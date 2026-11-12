@@ -2277,7 +2277,6 @@ export type Database = {
           clinic_id: string
         }[]
       }
-      check_email_availability: { Args: { p_email: string }; Returns: Json }
       check_request_status: {
         Args: { p_email: string; p_token: string }
         Returns: Json

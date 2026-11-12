@@ -4,7 +4,6 @@ import { Activity, Ban, ChevronLeft, ChevronRight, ClipboardCheck, GraduationCap
 import { BaseDrawer } from '@/Components/primitives/BaseDrawer'
 import { BottomIsland } from '@/Components/primitives/BottomIsland'
 import { AddFab } from '@/Components/primitives/AddFab'
-import { ActionSheet } from '@/Components/primitives/ActionSheet'
 import { AnchoredMenu } from '@/Components/primitives/LiftedRowMenu'
 import type { ContextMenuItem } from '@/Components/primitives/ContextMenu'
 import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
@@ -253,7 +252,6 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
   // the number lives; while it is set the subject card carries it in place of the
   // subject's two training bars.
   const [ictlStat, setIctlStat] = useState<SubjectCardProps['stat']>(undefined)
-  const [actionSheetOpen, setActionSheetOpen] = useState(false)
   // Personnel search — DESKTOP ONLY, and it lives in the rail it filters
   // (calendar's roster search, CalendarDrawer.tsx:374). Mobile has no search at
   // all: the rail is a sheet there, so any header field either does nothing
@@ -1195,7 +1193,7 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
   // empty. It doubles as the export overlay's anchor.
   const islandFab = fabOptions.length > 0 ? (
     <div ref={fabRef} className="absolute right-4">
-      <AddFab label="Actions" onClick={() => setActionSheetOpen(true)} />
+      <AddFab label="Actions" items={fabOptions} menuHeader={subjectLabel} />
     </div>
   ) : undefined
 
@@ -1697,16 +1695,6 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
         }}
         onCancel={() => setConfirmDeleteRow(null)}
         zIndex={1300}
-      />
-
-      {/* The island's FAB. Its options follow the rail selection, so there is
-          one action surface rather than a pill per card — see fabOptions for why
-          it is soldier-scope-only. */}
-      <ActionSheet
-        visible={actionSheetOpen}
-        title={subjectLabel}
-        options={fabOptions}
-        onClose={() => setActionSheetOpen(false)}
       />
 
       {/* The one export surface, anchored on the FAB that opened it. Scoped by the

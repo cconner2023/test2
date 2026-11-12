@@ -4,8 +4,7 @@ import { ChevronLeft, Plus, X, Play, Headset, Info, Settings, MessageSquare } fr
 import { BaseDrawer } from '@/Components/primitives/BaseDrawer'
 import { BottomIsland } from '@/Components/primitives/BottomIsland'
 import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill'
-import { PreviewOverlay } from './PreviewOverlay'
-import { Sheet } from '@/Components/primitives/Sheet'
+import { PaneSurface } from '@/Components/primitives/PaneCard'
 import { VoicemailGreetingSection } from './Settings/VoicemailGreetingSection'
 import { IncomingCallsSection } from './Settings/IncomingCallsSection'
 import { MessagingOncallSettings } from './Settings/MessagingOncallSettings'
@@ -256,9 +255,8 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
         }
     }, [view, selectedPeerId, selectedGroupId, selectedPeerName, selectedPeerIsOutside, handleBack, handleClose, callActions])
 
-    // Messaging settings — mobile Sheet + desktop PreviewOverlay, both share
-    // content (mirrors the map-settings standard for mobile settings icons:
-    // settings icon → bottom Sheet on mobile, popover on desktop). Layout matches
+    // Messaging settings — PaneSurface: fit Sheet on mobile, lifted card over
+    // the conversation pane on desktop. Layout matches
     // Calendar Settings: text-tertiary section headers + themewhite2 cards.
     // On-call roster is open to all cluster members; the Outside-contact card
     // self-gates to supervisor inside MessagingOncallSettings.
@@ -277,30 +275,15 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
     const settingsActions = isSupervisorRole && settingsClinicId ? (
         <PillButton icon={Plus} onClick={openIntakeLineMint} label="Add line" />
     ) : undefined
-    const settingsSurface = isMobile ? (
-        <Sheet
+    const settingsSurface = (
+        <PaneSurface
             isOpen={showSettings}
             onClose={() => setShowSettings(false)}
             title="Messaging settings"
-            height="fit"
-            maxHeight={60}
-            zIndex={1200}
             actions={settingsActions}
         >
             {settingsContent}
-        </Sheet>
-    ) : (
-        <PreviewOverlay
-            isOpen={showSettings}
-            onClose={() => setShowSettings(false)}
-            anchorRect={null}
-            title="Messaging settings"
-            maxWidth={360}
-            previewMaxHeight="70dvh"
-            headerActions={settingsActions}
-        >
-            {settingsContent}
-        </PreviewOverlay>
+        </PaneSurface>
     )
 
     // Mobile bypasses BaseDrawer: App.tsx owns the horizontal slide-in
@@ -365,10 +348,11 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
             header={desktopHeaderConfig}
             mobileFullScreen={isConversationView}
         >
-            <div className="h-full">
+            {/* relative: the settings card floats over the conversation pane (right edge). */}
+            <div className="h-full relative">
                 {panelContent}
+                {settingsSurface}
             </div>
-            {settingsSurface}
         </BaseDrawer>
     )
 }

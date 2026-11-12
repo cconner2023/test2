@@ -1,15 +1,7 @@
 import { Grid3X3, Tag, Compass, MapPin } from 'lucide-react';
-import { PreviewOverlay } from '../PreviewOverlay';
 import { useMapPrefsStore } from '../../stores/useMapPrefsStore';
 import type { BearingReference } from '../../lib/declination';
 import type { CoordDisplay, LabelMode } from '../../stores/useMapPrefsStore';
-
-interface MapSettingsDrawerProps {
-  isOpen: boolean;
-  onClose: () => void;
-  showGrid: boolean;
-  onToggleGrid: () => void;
-}
 
 interface MapSettingsBodyProps {
   showGrid: boolean;
@@ -160,25 +152,3 @@ export function MapSettingsBody({ showGrid, onToggleGrid }: MapSettingsBodyProps
       </div>
   );
 }
-
-export function MapSettingsDrawer({
-  isOpen,
-  onClose,
-  showGrid,
-  onToggleGrid,
-}: MapSettingsDrawerProps) {
-  return (
-    <PreviewOverlay
-      isOpen={isOpen}
-      onClose={onClose}
-      anchorRect={null}
-      title="Map Settings"
-      maxWidth={380}
-      previewMaxHeight="70dvh"
-    >
-      <MapSettingsBody showGrid={showGrid} onToggleGrid={onToggleGrid} />
-    </PreviewOverlay>
-  );
-}
-
-export default MapSettingsDrawer;

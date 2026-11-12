@@ -13,11 +13,16 @@ export interface ReleaseNoteTypes {
      *  src/Data/UserGuide.ts). When set, the note becomes a tappable "Read more"
      *  row that opens the User Guide drawer and scrolls to that anchor. The link
      *  retires automatically when the note rolls off this list; keep the anchor id
-     *  stable as long as any shipped note points at it. */
+     *  stable as long as any shipped note points at it. Every new note sets one:
+     *  add or extend the guide section in the same change, with the same `tier`,
+     *  so a visible note never links to a hidden section. An unknown id silently
+     *  degrades to a plain row. */
     sectionId?: string
 }
 
 export const ReleaseNotes: ReleaseNoteTypes[] = [
+    { version: '2.8.0', type: 'changed', sectionId: 'tracking-board', text: 'BRN input primitive changed' },
+    { version: '2.8.0', type: 'changed', sectionId: 'tracking-board', text: 'Tracking board added to the mission overview widgets' },
     { version: '2.8.0', type: 'added', sectionId: 'tracking-board', text: 'Tracking Board: follow casualties by BRN from check-in through your chosen map pins (from POI through disposition). Boards stay inside your cluster unless supervisors turn on sharing.' },
     { version: '2.8.0', type: 'added', sectionId: 'writing-notes', text: 'local save on note drafts. Not pushed to server or across devices. Stored encrypted at rest.' },
     { version: '2.8.0', type: 'changed', sectionId: 'messaging', text: 'Messaging rebuilt for reliability: each message is delivered once to your secure inbox and every one of your devices reads it, so conversations stay in sync across devices with less data use.' },

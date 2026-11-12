@@ -538,8 +538,8 @@ export const MASTER_BLOCKS_CODEC: MasterPEBlock[] = [
                 { key: 'diffuseWidespread', label: 'Diffuse/widespread' },
                 { key: 'bilateral', label: 'Bilateral' },
                 { key: 'dermatomal', label: 'Dermatomal' },
-            ], tier: 'expanded' },
-        { key: 'wellDemarcated', normal: 'Well-demarcated', abnormals: [], tier: 'expanded' },
+            ], tier: 'expanded', retired: true },
+        { key: 'wellDemarcated', normal: 'Well-demarcated', abnormals: [], tier: 'expanded', retired: true },
         { key: 'smoothSurface', normal: 'Smooth surface', abnormals: [
                 { key: 'scaling', label: 'Scaling' },
                 { key: 'crusting', label: 'Crusting' },
@@ -549,8 +549,8 @@ export const MASTER_BLOCKS_CODEC: MasterPEBlock[] = [
             ], tier: 'expanded' },
         { key: 'noSurroundingErythema', normal: 'No surrounding erythema', abnormals: [{ key: 'surroundingErythema', label: 'Surrounding erythema' }, { key: 'induration', label: 'Induration' }], tier: 'expanded' },
         { key: 'noWarmthDerm', normal: 'No warmth', abnormals: [{ key: 'warmthDerm', label: 'Warmth' }], tier: 'expanded' },
-        { key: 'noSatelliteLesions', normal: 'No satellite lesions', abnormals: [{ key: 'satelliteLesions', label: 'Satellite lesions' }], tier: 'expanded' },
-        { key: 'noLymphangiaticStreaking', normal: 'No lymphangitic streaking', abnormals: [{ key: 'lymphangiticStreaking', label: 'Lymphangitic streaking' }], tier: 'expanded' },
+        { key: 'noSatelliteLesions', normal: 'No satellite lesions', abnormals: [{ key: 'satelliteLesions', label: 'Satellite lesions' }], tier: 'expanded', retired: true },
+        { key: 'noLymphangiaticStreaking', normal: 'No lymphangitic streaking', abnormals: [{ key: 'lymphangiticStreaking', label: 'Lymphangitic streaking' }], tier: 'expanded', retired: true },
         { key: 'skinIntact', normal: 'Skin intact', abnormals: [
                 { key: 'maceration', label: 'Maceration' },
                 { key: 'frostbite', label: 'Frostbite (specify degree)' },

@@ -13,8 +13,7 @@ import { ActionButton } from '@/Components/primitives/ActionButton'
 import { AddFab } from '@/Components/primitives/AddFab'
 import { ActionSheet, type ActionSheetOption } from '@/Components/primitives/ActionSheet'
 import { DesktopRail } from '@/Components/primitives/DesktopRail'
-import { SearchDropdownCard } from '@/Components/primitives/SearchDropdown'
-import { PaneHeader } from '@/Components/primitives/PaneHeader'
+import { PaneCard } from '@/Components/primitives/PaneCard'
 import { useStack } from '@/Components/primitives/useStack'
 import { type StackNav, type StackScreen } from './stackNav'
 import { useSwipeBack } from '../Hooks/useSwipeBack'
@@ -29,6 +28,7 @@ import { ProviderNoteOutput } from './Provider/ProviderNoteOutput'
 import { ProviderTemplateTree } from './Provider/ProviderTemplateTree'
 import { TemplateDetailBody } from './Provider/ProviderTemplateDetail'
 import { TextSectionEditor } from './Provider/ProviderPaneSections'
+import { NoteWizardFooter } from './WriteNoteHelpers'
 import { usePEPaneScreens, PECenter, PEBody } from './Provider/ProviderPESections'
 import { usePlanPaneScreens } from './Provider/ProviderPlanSections'
 import { generatePEText } from './PhysicalExam'
@@ -61,6 +61,9 @@ import { logError } from '../Utilities/ErrorHandler'
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type ProviderView = 'note' | 'output'
+
+// Output is the terminal page — NoteWizardFooter renders its Done (Check) FAB.
+const OUTPUT_PAGES = [{ id: 'note', label: 'Provider' }, { id: 'output', label: 'Note Output' }]
 
 /** Which screen the desktop detail card shows (null = closed). The
  *  key indexes the pane's useStack `screens` map; `detail` reads selectedTemplateId
@@ -539,10 +542,6 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
     setFinishOpen(true)
   }
 
-  const finishHeaderAction = (
-    <PillButton icon={Check} iconSize={18} accent="success" onClick={handleDone} label="Done" />
-  )
-
   // ── Swipe Back (mobile output) ──────────────────────────────────────────────
 
   const canSwipeBack = view === 'output'
@@ -769,7 +768,6 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
         onBack: handleBack,
         rightContent: (
           <HeaderPill>
-            {finishHeaderAction}
             <PillButton icon={X} onClick={handleClose} label="Close" />
           </HeaderPill>
         ),
@@ -822,7 +820,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
       hideDefaultClose: true,
       rightContentFill: importExpanded,
     }
-  }, [view, handleBack, isMobile, importExpanded, desktopHeaderRight, finishHeaderAction, handleClose,
+  }, [view, handleBack, isMobile, importExpanded, desktopHeaderRight, handleClose,
       handleExpandImport, handleCollapseImport, barcodeImport.importText,
       barcodeImport.setImportText, barcodeImport.handleSubmit, barcodeImport.handleScan,
       barcodeImport.handleSerialScan, barcodeImport.isSerialSupported,
@@ -915,43 +913,32 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
               </div>
             </div>
 
-            {/* Detail card — detail / template editor / section editor float
-                in a lifted SearchDropdownCard top-right over the center (no right pane).
-                ONE card instance for the whole open: screens swap inside it through
-                paneStack's StackBody morph, so a drill / screen change never remounts
-                or re-animates the card. z-40: above the Next FAB (z-30), matching
-                Calendar's card; menus, confirms and pickers portal far above it. */}
-            {paneOpen && !outputOpen && paneStack.hasScreen && (
-              <div className="absolute top-3 right-3 z-40 w-[360px] max-w-[calc(100%-1.5rem)] pointer-events-none">
-                <SearchDropdownCard
-                  className="pointer-events-auto relative"
-                  ariaLabel={paneStack.title ?? 'Provider detail'}
-                  header={
-                    <PaneHeader
-                      onBack={paneStack.canBack ? paneStack.onBack : undefined}
-                      leading={paneStack.headerLeft}
-                      title={paneStack.title}
-                      actions={
-                        // Edit-overlay header (calendar edit-event pattern): a screen's
-                        // submit/action pill joins Close in one HeaderPill.
-                        <HeaderPill>
-                          {paneStack.headerActions}
-                          <PillButton icon={X} iconSize={18} onClick={closePane} label="Close" />
-                        </HeaderPill>
-                      }
-                    />
-                  }
-                  footer={(paneStack.footer || paneStack.rightFooter) ? (
-                    <div className="flex items-center justify-between gap-2 px-3 py-2">
-                      <div className="flex items-center gap-2">{paneStack.footer}</div>
-                      <div className="flex items-center gap-2">{paneStack.rightFooter}</div>
-                    </div>
-                  ) : undefined}
-                >
-                  <div className="px-4 py-3 overflow-x-hidden">{paneStack.body('')}</div>
-                </SearchDropdownCard>
-              </div>
-            )}
+            {/* Detail card — detail / template editor / section editor float in a
+                PaneCard top-right over the center (no right pane). ONE card instance
+                for the whole open: screens swap inside it through paneStack's
+                StackBody morph, so a drill / screen change never remounts or
+                re-animates the card. A screen's submit/action pill folds into the
+                close pill. Esc is the drawer's (closePane). z-40: above the Next FAB
+                (z-30), matching Calendar's card; menus, confirms and pickers portal
+                far above it. */}
+            <PaneCard
+              isOpen={paneOpen && !outputOpen && paneStack.hasScreen}
+              onClose={closePane}
+              title={paneStack.title ?? 'Provider detail'}
+              onBack={paneStack.canBack ? paneStack.onBack : undefined}
+              leading={paneStack.headerLeft}
+              actions={paneStack.headerActions}
+              footer={(paneStack.footer || paneStack.rightFooter) ? (
+                <div className="flex items-center justify-between gap-2 px-3 py-2">
+                  <div className="flex items-center gap-2">{paneStack.footer}</div>
+                  <div className="flex items-center gap-2">{paneStack.rightFooter}</div>
+                </div>
+              ) : undefined}
+              closeOnEsc={false}
+              zIndex={40}
+            >
+              <div className="px-4 py-3 overflow-x-hidden">{paneStack.body('')}</div>
+            </PaneCard>
           </div>
         ) : (
             <ContentWrapper
@@ -966,7 +953,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
                   <div className="text-[10pt] text-themeredred">{barcodeImport.error}</div>
                 </div>
               )}
-              <div className="px-5 pb-24">
+              <div className={view === 'note' ? 'px-5 pb-24' : 'px-4 pt-2 pb-32'}>
                 {view === 'note' ? (
                 <ProviderNote
                   onEditMedic={handleEditMedic}
@@ -1010,6 +997,14 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
             <AddFab icon={ChevronRight} label="Next" onClick={goToOutput} />
           </div>
         )}
+        {/* Mobile output: Done (save) FAB over the glass footer — WriteNote's Full Note. */}
+        {isMobile && view === 'output' && (
+          <NoteWizardFooter
+            currentPage={1} visiblePages={OUTPUT_PAGES} slideDirection={slideDirection}
+            handleNext={handleDone}
+            isMobile
+          />
+        )}
 
         {/* Import popover for scan + staged image preview */}
         <ImportResultPopover
@@ -1039,26 +1034,37 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
             isVisible={outputOpen}
             onClose={closePane}
             desktopSize="half"
-            contentPadding="standard"
+            scrollDisabled
             header={{
               title: 'Note Output',
               hideDefaultClose: true,
               rightContent: (
                 <HeaderPill>
-                  {finishHeaderAction}
                   <PillButton icon={X} iconSize={18} onClick={closePane} label="Close" />
                 </HeaderPill>
               ),
             }}
           >
-            <ProviderNoteOutput
-              hpiNote={hpiNote}
-              peNote={peNote}
-              assessmentNote={assessmentNote}
-              planNote={planNote}
-              importedMedicNote={importedMedicNote}
-              encodedValue={encodedValue}
-            />
+            {/* WriteNote Full Note shell: own scroller + Done FAB over the glass footer. */}
+            <div className="h-full relative flex flex-col">
+              <div className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain">
+                <div className="px-4 pt-4 pb-32">
+                  <ProviderNoteOutput
+                    hpiNote={hpiNote}
+                    peNote={peNote}
+                    assessmentNote={assessmentNote}
+                    planNote={planNote}
+                    importedMedicNote={importedMedicNote}
+                    encodedValue={encodedValue}
+                  />
+                </div>
+              </div>
+              <NoteWizardFooter
+                currentPage={1} visiblePages={OUTPUT_PAGES} slideDirection=""
+                handleNext={handleDone}
+                isMobile={false}
+              />
+            </div>
           </BaseDrawer>,
           drawerRoot,
         )}

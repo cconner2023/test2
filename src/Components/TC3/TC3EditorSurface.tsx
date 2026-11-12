@@ -25,7 +25,7 @@ type Props = ComponentProps<typeof PreviewOverlay> & {
  * PreviewOverlay, but presented as the app's object-detail primitive rather than
  * a floating overlay:
  *   • Desktop — portaled into TC3Drawer's lifted detail card (`paneRef`, a
- *     SearchDropdownCard floated over the main column — Calendar / Property /
+ *     headerless PaneCard floated over the main column — Calendar / Property /
  *     Map idiom): PaneHeader + own scroller. The roster rail stays open.
  *   • Mobile — a bottom Sheet (the same EventDetailPanel `inSheet` primitive).
  * No backdrop — the card column behind stays live.

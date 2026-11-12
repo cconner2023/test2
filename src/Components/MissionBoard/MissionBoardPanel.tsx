@@ -27,15 +27,12 @@ import type { SavedNote } from '../../lib/savedNotesDb'
 import type { ClinicMedic } from '../../Types/SupervisorTestTypes'
 import { displayGroupName, type GroupInfo } from '../../lib/signal/groupTypes'
 import { MissionMapCard } from './MissionMapCard'
-import { WeatherWidget } from './WeatherWidget'
+import { TrackingWidget } from './TrackingWidget'
 import { PropertyWidget } from './PropertyWidget'
 import { useFeatureGate } from '../../lib/featureGate'
 import { useSavedNotesStore } from '../../stores/useSavedNotesStore'
 import { useOpenSavedNote } from '../../Hooks/useOpenSavedNote'
-import {
-  TaskRow, statusMenuItems,
-  offsetDate,
-} from './MissionGantt'
+import { statusMenuItems, offsetDate } from './MissionGantt'
 import { useCategoryColors } from '../../Hooks/useCategoryColors'
 import { useClinicCategoryColorsSync } from '../../Hooks/useClinicCategoryColors'
 import type { ContextMenuItem } from '@/Components/primitives/ContextMenu'
@@ -46,7 +43,6 @@ import { ActionPill } from '@/Components/primitives/ActionPill'
 import { EmptyState } from '@/Components/primitives/EmptyState'
 import { SectionCard } from '@/Components/primitives/Section'
 
-const TASK_PREVIEW_LIMIT = 4
 const WEEK_PREVIEW_LIMIT = 3
 const NOTES_PREVIEW_LIMIT = 3
 
@@ -54,8 +50,7 @@ const EVENT_CLONE_W = 300
 const EVENT_CLONE_H = 60
 
 /** Re-center a fixed EVENT_CLONE_W×H box on the press point and clamp to the
- *  viewport, so the differently-rendered event surfaces (task row, week bar)
- *  all lift as the SAME tidy clone card. Mirrors CalendarPanel's
+ *  viewport, so a pressed week bar lifts as a tidy clone card. Mirrors CalendarPanel's
  *  compactAnchorRect / generic-EventClone approach. */
 function compactAnchorRect(r: DOMRect, w: number, h: number): DOMRect {
   const vw = window.innerWidth
@@ -66,7 +61,7 @@ function compactAnchorRect(r: DOMRect, w: number, h: number): DOMRect {
 }
 
 /** Generic lifted-row clone for a mission event — category stripe + title +
- *  time. Same card regardless of which widget (task / week) was pressed. */
+ *  time. */
 function MissionEventClone({ event, stripe }: { event: CalendarEvent; stripe: string }) {
   const time = event.all_day
     ? 'All day'
@@ -404,12 +399,9 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
   const setShowMessagesDrawer = useNavigationStore(s => s.setShowMessagesDrawer)
   const setShowPropertyDrawer = useNavigationStore(s => s.setShowPropertyDrawer)
   const showPropertyWidget = useFeatureGate('propertyAccountability')
+  const showTrackingWidget = useFeatureGate('trackingBoard')
   const allEvents = useCalendarStore(s => s.events)
   const updateEvent = useCalendarStore(s => s.updateEvent)
-  // Prefer the sync-hydrated local session id: it carries the account id before
-  // the async auth round-trip populates `user`, so "my tasks" filters from the
-  // IDB-cached events on first paint instead of flashing "No tasks today".
-  const userId = useAuthStore(s => s.user?.id ?? s.localSession?.userId)
   const events = allEvents
   const isSupervisor = useAuthStore(s => s.isSupervisorRole)
   const overviewWidgets = useAuthStore(s => s.profile?.overviewWidgets)
@@ -498,14 +490,6 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
 
   const dateKey = toDateKey(selectedDate)
   const isToday = dateKey === toDateKey(new Date())
-  const allDayEvents = events.filter(e => eventFallsOnDate(e, dateKey))
-  const myTasks = allDayEvents
-    .filter(e => !!userId && e.assigned_to.includes(userId))
-    .sort((a, b) => a.start_time.localeCompare(b.start_time))
-
-  const previewTasks = myTasks.slice(0, TASK_PREVIEW_LIMIT)
-  const extraCount = Math.max(0, myTasks.length - TASK_PREVIEW_LIMIT)
-
   const navigate = (dir: -1 | 1) => setSelectedDate(d => offsetDate(d, dir))
 
   const openCalendarOnDate = useCallback((d: Date) => {
@@ -532,8 +516,8 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
   if (!isAuthenticated) return null
   if (overviewWidgets === null) return null
 
-  const DEFAULT_WIDGETS: OverviewWidgetId[] = ['task-list', 'messages']
-  const VALID_IDS: OverviewWidgetId[] = ['task-list', 'map-overlay', 'week-view', 'property', 'messages', 'weather', 'saved-notes']
+  const DEFAULT_WIDGETS: OverviewWidgetId[] = ['week-view', 'messages']
+  const VALID_IDS: OverviewWidgetId[] = ['map-overlay', 'week-view', 'tracking', 'property', 'messages', 'saved-notes']
   const widgets: OverviewWidgetId[] = Array.from(new Set(
     (overviewWidgets ?? DEFAULT_WIDGETS)
       .map(id => (id as string) === 'gantt' || (id as string) === 'kanban' ? 'week-view' : id)
@@ -541,6 +525,7 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
       // Property widget rides the propertyAccountability staged rollout — hide it
       // where the gate is off even if a stored profile still lists it.
       .filter(id => id !== 'property' || showPropertyWidget)
+      .filter(id => id !== 'tracking' || showTrackingWidget)
   ))
 
   const renderActionOverlay = (id: OverviewWidgetId) => {
@@ -555,34 +540,6 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
 
   const renderWidget = (id: OverviewWidgetId) => {
     switch (id) {
-      case 'task-list': {
-        if (myTasks.length === 0) {
-          const action = widgetAction(id)
-          return <EmptyState key="task-list" title="No tasks today" action={action ?? undefined} bordered={false} />
-        }
-        return (
-          <div key="task-list" className="px-2.5 py-2 flex flex-col gap-1.5 min-h-[90px]">
-            {previewTasks.map(event => (
-              <TaskRow
-                key={event.id}
-                event={event}
-                onClick={() => handleEventClick(event.id)}
-                onMenu={(rect) => openEventMenu(event, rect)}
-              />
-            ))}
-            {extraCount > 0 && (
-              <button
-                onClick={() => setShowCalendarDrawer(true)}
-                className="text-[9pt] font-medium text-secondary text-left pl-2 py-0.5 active:text-themeblue1"
-              >
-                +{extraCount} more
-              </button>
-            )}
-            {renderActionOverlay(id)}
-          </div>
-        )
-      }
-
       case 'map-overlay':
         return (
           <div key="map-overlay" className="h-[120px] p-1.5 relative">
@@ -732,13 +689,8 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
       case 'messages':
         return <MessagesWidget key="messages" action={widgetAction(id)} />
 
-      case 'weather':
-        return (
-          <div key="weather" className="relative">
-            <WeatherWidget />
-            {renderActionOverlay(id)}
-          </div>
-        )
+      case 'tracking':
+        return <TrackingWidget key="tracking" />
 
       case 'saved-notes':
         return <SavedNotesWidget key="saved-notes" />
@@ -767,7 +719,6 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
 
   const widgetAction = (id: OverviewWidgetId): WidgetActionDescriptor | null => {
     switch (id) {
-      case 'task-list':
       case 'week-view':
         return { icon: Plus, label: 'New Event', onClick: requestNewCalendarEvent }
       case 'messages':
@@ -776,8 +727,6 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
         return { icon: MapIcon, label: 'Open Map', onClick: () => setShowMapOverlayDrawer(true, missionOverlayId) }
       case 'property':
         return { icon: Package, label: 'Open Property', onClick: () => setShowPropertyDrawer(true) }
-      case 'weather':
-        return null
       default:
         return null
     }

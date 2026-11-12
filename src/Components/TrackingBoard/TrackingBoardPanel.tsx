@@ -53,7 +53,8 @@ export type { TrackingEntry, TrackingComment, TrackingEditDraft } from './tracki
  * BRN last-write-wins.
  */
 
-// ── Board scope (viewer cluster) ──
+// ── Board scope ──
+// viewerId = operating-as cluster: its stations are the board's columns / groups.
 
 interface BoardScope {
   net: TrackingNetwork
@@ -171,27 +172,22 @@ export function TrackingGrid({ entries, activeId, onSelect }: ListProps) {
 }
 
 // ── Grouping shared by the desktop rail and the mobile tabs ──
-// Pending first, Complete last; the viewer's own cluster splits into its stations;
-// every other cluster on the board is ONE group (the card footer names the place).
+// Pending first, stations along the patient flow (the grid's columns, same
+// labels), Complete last.
 
-/** 'all', 'pending', 'complete', a station key (own cluster) or `cluster:<id>`. */
+/** 'all', 'pending', 'complete' or a station key. */
 export type TrackingCategory = string
 
-interface BoardGroup {
+export interface BoardGroup {
   key: TrackingCategory
   label: string
   match: (e: TrackingEntry) => boolean
 }
 
-function boardGroups(net: TrackingNetwork, viewerId: string, entries: TrackingEntry[]): BoardGroup[] {
+export function boardGroups(net: TrackingNetwork, viewerId: string, entries: TrackingEntry[]): BoardGroup[] {
   const out: BoardGroup[] = [{ key: 'pending', label: 'Pending', match: isPending }]
   for (const g of boardLayout(net, viewerId, entries)) {
-    if (g.cluster.id === viewerId) {
-      for (const pl of groupPlaces(g)) out.push({ key: placeKey(pl.pos), label: pl.label, match: e => samePlace(positionOf(e), pl.pos) })
-    } else {
-      const keys = new Set(groupPlaces(g).map(pl => placeKey(pl.pos)))
-      out.push({ key: groupKey(g), label: groupLabel(g), match: e => keys.has(placeKey(positionOf(e))) })
-    }
+    for (const pl of groupPlaces(g)) out.push({ key: placeKey(pl.pos), label: pl.label, match: e => samePlace(positionOf(e), pl.pos) })
   }
   out.push({ key: COMPLETE, label: 'Complete', match: isComplete })
   return out

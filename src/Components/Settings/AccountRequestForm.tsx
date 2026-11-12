@@ -1,14 +1,15 @@
 import { useState, useEffect, useRef } from 'react'
-import { Check, X, RefreshCw, Copy } from 'lucide-react'
+import { Check, X, RefreshCw, Copy, ChevronRight, ChevronLeft } from 'lucide-react'
 import type { Component } from '../../Data/User'
-import { submitAccountRequest, checkRequestStatus, checkEmailAvailability, type AccountRequest } from '../../lib/accountRequestService'
+import { submitAccountRequest, checkRequestStatus, type AccountRequest } from '../../lib/accountRequestService'
 import { TextInput, PickerInput, PasswordInput } from '@/Components/primitives/FormInputs'
 import { UicPinInput } from '@/Components/DomainInputs'
 import { ErrorDisplay } from '@/Components/primitives/ErrorDisplay'
 import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
-import { validatePasswordComplexity } from '../../lib/constants'
+import { validatePasswordComplexity, PASSWORD_RULES } from '../../lib/constants'
 import { parseNameFromEmail, componentFromEmail, readRequestDraft, saveRequestDraft, clearRequestDraft } from '../../lib/loginPrefill'
 import { SectionCard } from '@/Components/primitives/Section'
+import { StackBody } from '@/Components/primitives/StackBody'
 import { copyText } from '../../Utilities/clipboardUtils'
 
 const LOCAL_STORAGE_TOKEN_KEY = 'account_request_token'
@@ -43,9 +44,10 @@ interface AccountRequestFormProps {
   onSignIn?: (email: string) => void
 }
 
-/** Where the typed address stands with the server. The rest of the form is only
- *  worth filling in once this reaches `available`. */
-type EmailStatus = 'idle' | 'checking' | 'available' | 'account_exists' | 'pending_request'
+/* Two steps. Step 1: identity, UIC, justification, consent; a chevron advances.
+ * Step 2: every PASSWORD_RULES entry as a live checklist above the password
+ * fields, then submit. Password fields never appear on step 1. Duplicate
+ * addresses are reported only by submitAccountRequest, never looked up early. */
 
 /** "first name", "first name and last name", "first name, last name and component" */
 function joinLabels(labels: string[]): string {
@@ -74,8 +76,9 @@ export const AccountRequestForm = ({ onBack, initialEmail = '', onSignIn }: Acco
   const [contactConsent, setContactConsent] = useState(false)
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [step, setStep] = useState<'identity' | 'password'>('identity')
+  const [stepDir, setStepDir] = useState<1 | -1>(1)
 
-  const [draftRestored, setDraftRestored] = useState(!!seed)
   const [prefillNote, setPrefillNote] = useState<string | null>(null)
 
   const [statusCheckToken, setStatusCheckToken] = useState('')
@@ -83,14 +86,11 @@ export const AccountRequestForm = ({ onBack, initialEmail = '', onSignIn }: Acco
   const [submitted, setSubmitted] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isDuplicateError, setIsDuplicateError] = useState(false)
+  const [isAccountExistsError, setIsAccountExistsError] = useState(false)
   const [showEmailConfirm, setShowEmailConfirm] = useState(false)
-  const [emailStatus, setEmailStatus] = useState<EmailStatus>('idle')
   // Cluster the UIC resolved to when the server provisioned the account outright.
   // Null means this submission went to the review queue like always.
   const [autoApprovedClinic, setAutoApprovedClinic] = useState<string | null>(null)
-  // Discards in-flight checks whose address is already stale.
-  const emailCheckSeq = useRef(0)
-  const emailBlocked = emailStatus === 'account_exists' || emailStatus === 'pending_request'
   const [requestStatus, setRequestStatus] = useState<AccountRequest | null>(null)
 
   const [userData, setUserData] = useState<{
@@ -167,61 +167,14 @@ export const AccountRequestForm = ({ onBack, initialEmail = '', onSignIn }: Acco
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  /** Drop the restored draft — this is a different person, or a fresh start. */
-  const startOver = () => {
-    clearRequestDraft()
-    setDraftRestored(false)
-    setPrefillNote(null)
-    setEmail('')
-    setFirstName('')
-    setLastName('')
-    setMiddleInitial('')
-    setCredential('')
-    setComponent('USA')
-    componentTouched.current = false
-    setRank('')
-    setUic('')
-    setNotes('')
-    setEmailStatus('idle')
-    setError(null)
-  }
-
-  /**
-   * The address decides whether the rest of the form is worth filling in, so it is
-   * checked the moment it looks like an address rather than at submit — finding out
-   * you already have an account should not cost you ten more fields of work.
-   */
-  const runEmailCheck = async (raw: string) => {
-    const trimmed = raw.trim()
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(trimmed)) {
-      emailCheckSeq.current++
-      setEmailStatus('idle')
-      return
-    }
-    const seq = ++emailCheckSeq.current
-    setEmailStatus('checking')
-    const result = await checkEmailAvailability(trimmed)
-    if (seq !== emailCheckSeq.current) return
-    if (result.available) {
-      setEmailStatus('available')
-    } else {
-      setEmailStatus(result.reason === 'account_exists' ? 'account_exists' : 'pending_request')
-    }
-  }
-
-  // Debounced so it tracks typing; also covers an address carried in from the
-  // sign-in card, which the user never touches and so never blurs.
-  useEffect(() => {
-    const t = window.setTimeout(() => { runEmailCheck(email) }, 500)
-    return () => window.clearTimeout(t)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [email])
-
+  // No pre-submit availability lookup: sending a typed .mil address off-domain
+  // before any user action reads as a phishing kit's email-validation step to
+  // DoD web filters, and the lookup doubled as an account-enumeration oracle.
+  // submit_account_request rejects duplicates server-side instead.
   const handleEmailBlur = () => {
     const trimmed = email.trim()
     if (!trimmed.includes('@')) return
     applyEmailDerived(trimmed)
-    runEmailCheck(trimmed)
   }
 
   const handleCheckStatus = async () => {
@@ -252,11 +205,21 @@ export const AccountRequestForm = ({ onBack, initialEmail = '', onSignIn }: Acco
     }
   }
 
+  const goStep = (next: 'identity' | 'password', dir: 1 | -1) => {
+    setStepDir(dir)
+    setStep(next)
+    setError(null)
+  }
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
 
-    if (emailBlocked) return
+    // Enter on the identity step advances rather than submitting.
+    if (step === 'identity') {
+      if (canContinue) goStep('password', 1)
+      return
+    }
 
     const pwError = validatePasswordComplexity(password)
     if (pwError) { setError(pwError); return }
@@ -271,6 +234,7 @@ export const AccountRequestForm = ({ onBack, initialEmail = '', onSignIn }: Acco
     setShowEmailConfirm(false)
     setError(null)
     setIsDuplicateError(false)
+    setIsAccountExistsError(false)
     setSubmitting(true)
 
     const result = await submitAccountRequest({
@@ -317,6 +281,8 @@ export const AccountRequestForm = ({ onBack, initialEmail = '', onSignIn }: Acco
       setError(errorMsg)
       if (errorMsg.includes('pending request for this email already exists')) {
         setIsDuplicateError(true)
+      } else if (errorMsg.includes('account with this email already exists')) {
+        setIsAccountExistsError(true)
       }
     }
   }
@@ -436,10 +402,10 @@ export const AccountRequestForm = ({ onBack, initialEmail = '', onSignIn }: Acco
 
   if (!userData) return null
 
-  const passwordIssue = password ? validatePasswordComplexity(password) : null
   const confirmIssue = confirmPassword && password !== confirmPassword ? 'Passwords do not match' : null
   const identityReady = firstName.trim() && lastName.trim() && email.trim() && credential && component && uic.trim().length === 6 && contactConsent && notes.trim()
-  const canSubmit = !!identityReady && !!password && !passwordIssue && !!confirmPassword && !confirmIssue && emailStatus === 'available'
+  const canContinue = !!identityReady
+  const canSubmit = canContinue && !validatePasswordComplexity(password) && !!confirmPassword && !confirmIssue
 
   return (
     <div>
@@ -457,29 +423,26 @@ export const AccountRequestForm = ({ onBack, initialEmail = '', onSignIn }: Acco
               Check Request Status
             </button>
           )}
+          {isAccountExistsError && (
+            <button
+              type="button"
+              onClick={() => { if (onSignIn) onSignIn(email.trim()); else onBack?.() }}
+              className="mt-2 w-full px-4 py-2 rounded-full bg-themeblue3 text-white text-sm font-medium
+                       active:scale-95 transition-transform"
+            >
+              Sign in instead
+            </button>
+          )}
         </div>
       )}
 
       <form onSubmit={handleSubmit}>
         <SectionCard>
-          {draftRestored && (
-            <div className="flex items-start justify-between gap-3 px-4 pt-3 pb-2.5 border-b border-primary/6">
-              <p className="text-[9pt] text-secondary leading-snug">
-                Picked up where you left off — nothing you typed was lost.
-              </p>
-              <button
-                type="button"
-                onClick={startOver}
-                className="shrink-0 text-[9pt] text-themeblue2 active:scale-95 transition-transform"
-              >
-                Start over
-              </button>
-            </div>
-          )}
-
+          <StackBody screenKey={step} dir={stepDir}>
+          {step === 'identity' ? (<>
           <TextInput
             value={email}
-            onChange={(val) => { setEmail(val); setIsDuplicateError(false) }}
+            onChange={(val) => { setEmail(val); setIsDuplicateError(false); setIsAccountExistsError(false) }}
             onBlur={handleEmailBlur}
             placeholder="Email *"
             type="email"
@@ -489,42 +452,6 @@ export const AccountRequestForm = ({ onBack, initialEmail = '', onSignIn }: Acco
             required
           />
 
-          {emailStatus === 'checking' && (
-            <p className="px-4 py-2.5 text-[9pt] text-secondary border-b border-primary/6">Checking this address…</p>
-          )}
-
-          {/* The address is already spoken for, so the rest of the form is withheld
-              and replaced by the action that actually helps. */}
-          {emailBlocked && (
-            <div className="px-4 py-3">
-              <p className="text-[10pt] text-primary leading-relaxed">
-                {emailStatus === 'account_exists'
-                  ? 'This address already has an account.'
-                  : 'A request for this address is already waiting on review. Approval arrives by email.'}
-              </p>
-              {/* No button in the pending case without a token on this device — it
-                  would only route to "enter your token", which they don't have. */}
-              {(emailStatus === 'account_exists' || getSavedToken()) && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (emailStatus === 'account_exists') {
-                      if (onSignIn) onSignIn(email.trim())
-                      else onBack?.()
-                    } else {
-                      handleCheckStatus()
-                    }
-                  }}
-                  className="mt-2.5 w-full px-4 py-2 rounded-full bg-themeblue3 text-white text-sm font-medium
-                           active:scale-95 transition-transform"
-                >
-                  {emailStatus === 'account_exists' ? 'Sign in instead' : 'Check request status'}
-                </button>
-              )}
-            </div>
-          )}
-
-          {!emailBlocked && (<>
           {prefillNote && (
             <div className="flex items-start justify-between gap-3 px-4 py-2.5 border-b border-primary/6">
               <p className="text-[9pt] text-secondary leading-snug">{prefillNote}</p>
@@ -559,22 +486,6 @@ export const AccountRequestForm = ({ onBack, initialEmail = '', onSignIn }: Acco
 
           <TextInput value={notes} onChange={setNotes} placeholder="Unit & justification *" required />
 
-          <PasswordInput
-            value={password}
-            onChange={setPassword}
-            placeholder="Password *"
-            name="new-password"
-            autoComplete="new-password"
-          />
-          <PasswordInput
-            value={confirmPassword}
-            onChange={setConfirmPassword}
-            placeholder="Confirm Password *"
-            name="confirm-password"
-            autoComplete="new-password"
-            hint={confirmIssue}
-          />
-
           <label className="flex items-start gap-2.5 cursor-pointer px-4 py-3 border-b border-primary/6 active:scale-[0.98] transition-transform select-none">
             <input
               type="checkbox"
@@ -591,7 +502,6 @@ export const AccountRequestForm = ({ onBack, initialEmail = '', onSignIn }: Acco
               I agree to be contacted by the developer at the email provided if my UIC cannot be verified.
             </span>
           </label>
-          </>)}
 
           <div className="flex items-center justify-end gap-2 px-3 py-2">
             {onBack && (
@@ -604,6 +514,54 @@ export const AccountRequestForm = ({ onBack, initialEmail = '', onSignIn }: Acco
               </button>
             )}
             <button
+              type="button"
+              onClick={() => goStep('password', 1)}
+              className={`shrink-0 h-9 rounded-full flex items-center justify-center bg-themeblue3 text-white overflow-hidden transition-all duration-300 ease-out active:scale-95 ${canContinue ? 'w-9 opacity-100' : 'w-0 opacity-0 pointer-events-none'}`}
+            >
+              <ChevronRight size={16} />
+            </button>
+          </div>
+          </>) : (<>
+          <div className="px-4 pt-3 pb-2.5 border-b border-primary/6">
+            <p className="text-[10pt] text-secondary leading-relaxed">Create your password.</p>
+            <ul className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1">
+              {PASSWORD_RULES.map(rule => {
+                const met = rule.test(password)
+                return (
+                  <li key={rule.label} className={`flex items-center gap-1.5 text-[9pt] transition-colors ${met ? 'text-themegreen' : 'text-tertiary'}`}>
+                    <Check size={12} className={`shrink-0 transition-opacity ${met ? 'opacity-100' : 'opacity-30'}`} />
+                    {rule.label}
+                  </li>
+                )
+              })}
+            </ul>
+          </div>
+
+          <PasswordInput
+            value={password}
+            onChange={setPassword}
+            placeholder="Password *"
+            name="new-password"
+            autoComplete="new-password"
+          />
+          <PasswordInput
+            value={confirmPassword}
+            onChange={setConfirmPassword}
+            placeholder="Confirm Password *"
+            name="confirm-password"
+            autoComplete="new-password"
+            hint={confirmIssue}
+          />
+
+          <div className="flex items-center justify-end gap-2 px-3 py-2">
+            <button
+              type="button"
+              onClick={() => goStep('identity', -1)}
+              className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
+            >
+              <ChevronLeft size={16} />
+            </button>
+            <button
               type="submit"
               disabled={submitting}
               className={`shrink-0 h-9 rounded-full flex items-center justify-center bg-themeblue3 text-white overflow-hidden transition-all duration-300 ease-out active:scale-95 ${canSubmit ? 'w-9 opacity-100' : 'w-0 opacity-0 pointer-events-none'}`}
@@ -611,6 +569,8 @@ export const AccountRequestForm = ({ onBack, initialEmail = '', onSignIn }: Acco
               {submitting ? <RefreshCw size={14} className="animate-spin" /> : <Check size={16} />}
             </button>
           </div>
+          </>)}
+          </StackBody>
         </SectionCard>
       </form>
 

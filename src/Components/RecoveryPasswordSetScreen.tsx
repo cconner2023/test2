@@ -83,7 +83,7 @@ export function RecoveryPasswordSetScreen({ email }: { email: string }) {
                 </div>
                 <h1 className="text-xl font-bold text-primary tracking-wide">Set a new password</h1>
                 <p className="text-sm text-tertiary mt-2 text-center">
-                  This device stays locked until you sign back in with it.
+                  This device stays locked until you sign back in.
                 </p>
               </div>
 

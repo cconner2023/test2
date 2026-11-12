@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useLayoutEffect, useMemo, useRef, typ
 import { useSpring, animated } from '@react-spring/web'
 import { Check, X, RefreshCw, ArrowLeft, ChevronLeft } from 'lucide-react'
 import { DeviceLinkQrView } from './DeviceLinkQrView'
+import { LoginArt } from './LoginArt'
 import { LoadingSpinner } from '@/Components/primitives/LoadingSpinner'
 import { HudLoader } from '@/Components/primitives/HudLoader'
 import { StackBody } from '@/Components/primitives/StackBody'
@@ -133,14 +134,23 @@ export function LoginScreen() {
     setError(null)
   }
 
+  // A failed sign-in shows on the password field (cleared, refocused, red
+  // hairline, morphed caption), never as an ErrorDisplay banner and never a
+  // shake. "Incorrect email or password" is the user's chosen wording.
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault()
     if (mode !== 'password') return
     setLoading(true)
     setError(null)
     const result = await signIn(email, password)
-    if (result.error) setError(result.error.message)
+    if (result.error) {
+      setError(result.error.code === 'invalid_credentials' || result.error.message === 'Invalid login credentials'
+        ? 'Incorrect email or password'
+        : result.error.message)
+      setPassword('')
+    }
     setLoading(false)
+    if (result.error) passwordRef.current?.focus()
   }
 
   const handleSendResetLink = async () => {
@@ -191,28 +201,38 @@ export function LoginScreen() {
   }
 
   return (
-    <div className="fixed inset-0 z-30 bg-themewhite dark:bg-themewhite3 overflow-y-auto"
+    <div className="fixed inset-0 z-30 bg-themewhite dark:bg-themewhite3 overflow-y-auto lg:overflow-hidden lg:flex"
       style={{ paddingTop: 'var(--sat)', paddingBottom: 'var(--sab)' }}>
 
-      <div className="min-h-full flex flex-col items-center justify-center py-8 px-4">
-        <div className="w-full max-w-sm">
-          {/* Branding */}
-          <div className={`text-center ${view === 'request' ? 'mb-6' : 'mb-8'}`}>
-            <div className={`relative mx-auto mb-2 transition-all duration-300 ease-out ${view === 'request' ? 'w-10 h-10' : 'w-17 h-17'}`}>
-              <svg className="relative w-full h-full" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <g transform="translate(20,20)">
-                  <rect x="-3" y="-11" width="6" height="22" rx="1.5" className="fill-themeblue3" />
-                  <rect x="-3" y="-11" width="6" height="22" rx="1.5" className="fill-themeblue3" transform="rotate(60)" />
-                  <rect x="-3" y="-11" width="6" height="22" rx="1.5" className="fill-themeblue3" transform="rotate(120)" />
-                </g>
-              </svg>
-            </div>
+      {/* Desktop brand pane. Branding moves here so the form pane carries only the
+          flow; it stays fixed while the form pane scrolls (request view is tall). */}
+      <aside className="relative overflow-hidden hidden lg:flex lg:w-[45%] shrink-0 flex-col justify-between gap-10 px-12 py-10 bg-themewhite2 dark:bg-themewhite border-r border-primary/6">
+        <LoginArt className="absolute inset-0 w-full h-full pointer-events-none" />
+        <div className="relative flex items-center gap-3">
+          <BrandMark className="shrink-0 w-10 h-10" />
+          <p className="text-[10pt] text-secondary leading-snug max-w-[220px]">
+            Medical Knowledge Repository and Operational Network
+          </p>
+        </div>
+        <Disclaimer className="relative max-w-sm text-[9pt] text-tertiary" />
+      </aside>
+
+      {/* Form pane: the whole screen on mobile/tablet, the right pane on desktop.
+          Background matches the "or" divider's label fill, so keep them in step. */}
+      <div className="min-h-full flex flex-col items-center justify-center py-8 px-4 lg:justify-start lg:flex-1 lg:min-w-0 lg:min-h-0 lg:h-full lg:overflow-y-auto lg:py-12 lg:px-12">
+        <div className="w-full max-w-sm lg:max-w-[400px] lg:my-auto">
+          {/* Branding (mobile only; desktop shows it in the brand pane) */}
+          <div className={`text-center lg:hidden ${view === 'request' ? 'mb-6' : 'mb-8'}`}>
+            <BrandMark className={`mx-auto mb-2 transition-all duration-300 ease-out ${view === 'request' ? 'w-10 h-10' : 'w-17 h-17'}`} />
             <h1 className="text-xl font-semibold tracking-[2px] text-themeblue2 dark:text-themeblue1">
               {view !== 'request' && <div className='text-[10pt] text-secondary'>Medical Knowledge Repository and Operational Network</div>}
             </h1>
           </div>
 
-          {error && <div className="mb-3"><ErrorDisplay message={error} /></div>}
+
+          {/* Sign-in failures render on the password field instead; a detached
+              banner above the card reads as untrusted chrome. */}
+          {error && view !== 'signin' && <div className="mb-3"><ErrorDisplay message={error} /></div>}
 
           {/* ── View-level morph — one card slides + height-morphs between screens.
                 A picker pushed from inside the request form morphs in over the top. ── */}
@@ -274,11 +294,13 @@ export function LoginScreen() {
                         />
                         <PasswordInput
                           value={password}
-                          onChange={setPassword}
+                          onChange={(v) => { setPassword(v); if (error) setError(null) }}
                           placeholder="Password *"
                           name="password"
                           autoComplete="current-password"
                           inputRef={passwordRef}
+                          invalid={!!error}
+                          hint={error}
                         />
                         <div className={`flex items-center justify-end gap-2 px-3 overflow-hidden transition-all duration-300 ease-out ${email.trim() && password ? 'max-h-14 py-2 opacity-100' : 'max-h-0 py-0 opacity-0'
                         }`}>
@@ -491,6 +513,27 @@ export function LoginScreen() {
         </div>
       </div>
     </div>
+  )
+}
+
+/** The three-bar mark, sized by the caller. */
+function BrandMark({ className = '' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <g transform="translate(20,20)">
+        <rect x="-3" y="-11" width="6" height="22" rx="1.5" className="fill-themeblue3" />
+        <rect x="-3" y="-11" width="6" height="22" rx="1.5" className="fill-themeblue3" transform="rotate(60)" />
+        <rect x="-3" y="-11" width="6" height="22" rx="1.5" className="fill-themeblue3" transform="rotate(120)" />
+      </g>
+    </svg>
+  )
+}
+
+function Disclaimer({ className = '' }: { className?: string }) {
+  return (
+    <p className={`text-center leading-relaxed mx-auto ${className}`}>
+      Not affiliated with or endorsed by the Department of Defense. Clinical references derived from publicly available U.S. Army doctrine.
+    </p>
   )
 }
 
@@ -710,9 +753,7 @@ function SigninFooter({ onGuest, onRequest, onHelp }: { onGuest: () => void; onR
         Need help? Contact support
       </button>
 
-      <p className="mt-6 text-[10pt] text-center text-secondary leading-relaxed max-w-xs mx-auto">
-        Not affiliated with or endorsed by the Department of Defense. Clinical references derived from publicly available U.S. Army doctrine.
-      </p>
+      <Disclaimer className="mt-6 max-w-xs text-[10pt] text-secondary lg:hidden" />
     </>
   )
 }

@@ -23,9 +23,16 @@
  * WINDOWING: when stops exceed `maxVisible`, the track caps its length and the
  * visible window scrolls — dragging to either edge surfaces the next stops in that
  * direction. At rest the window centers the active stop.
+ *
+ * COORDINATE-FREE COMMIT: a tap resolves from the hit stop's `data-stop-index`,
+ * a drag is a delta from pointerdown, and release commits the stop the gesture
+ * last resolved to. Never compute the target from `clientX/Y -
+ * getBoundingClientRect()` or from the pointerup event: Chromium on DHA/NIPR
+ * Windows delivers pointerup/pointercancel with zeroed coordinates, which
+ * clamped every selection to stop 0. __tests__/SliderRail.test.tsx guards this.
  */
 import type { ReactNode } from 'react'
-import { useCallback, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 
 /** Center-to-center stop spacing, thumb diameter, track padding (px). */
 export const STOP = 44
@@ -138,71 +145,91 @@ export function SliderRail({
   const activeColor = active?.colorClass ?? 'bg-themeblue3'
   const named = (s?: SliderStop) => s?.title ?? [stopNoun, s?.label].filter(Boolean).join(' ')
 
-  const applyFromPointer = useCallback(
-    (client: number, commit: boolean) => {
-      const rect = trackRef.current?.getBoundingClientRect()
-      if (!rect) return
-      const p = client - (horizontal ? rect.left : rect.top)
+  /** Global stop index under local track position `p`, given window start `ws`. */
+  const stopAt = (p: number, ws: number) =>
+    clamp(ws + clamp(Math.round((p - (PAD + THUMB / 2)) / STOP), 0, visibleCount - 1), 0, n - 1)
 
-      // Edge-scroll: dragging past either end of a capped track shifts the window
-      // one stop toward the finger, surfacing the next stop.
-      let ws = dragWindow ?? restingWindow
-      if (!commit) {
-        if (p < PAD && ws > 0) ws -= 1
-        else if (p > trackLen - PAD && ws < maxWindow) ws += 1
-      }
-
-      const localI = clamp(Math.round((p - (PAD + THUMB / 2)) / STOP), 0, visibleCount - 1)
-      const target = stops[clamp(ws + localI, 0, n - 1)]
-
-      setDragWindow(commit ? null : ws)
-      setDragPos(commit ? null : clamp(p, PAD + THUMB / 2, trackLen - PAD - THUMB / 2))
-
-      if (!target) return
-      // Momentary stops are actions, not destinations: a drag sweeping ACROSS one
-      // must not fire it, only a gesture ENDING on it — and then every time, since
-      // re-tapping an open toggle is how it closes.
-      const fire = commit ? target.momentary || target.id !== activeId : !target.momentary && target.id !== activeId
-      if (fire) onSelect(target.id)
-    },
-    [horizontal, dragWindow, restingWindow, trackLen, maxWindow, visibleCount, n, stops, activeId, onSelect],
-  )
+  /**
+   * The live gesture. Positions are tracked as a DELTA from the pointerdown, and the
+   * release commits whatever stop the gesture last resolved to — never the
+   * pointerup/pointercancel coordinates. Chromium on Windows touch/pen stacks (the
+   * DHA/NIPR fleet) can deliver those with clientX/Y = 0, and absolute client
+   * coordinates measured against getBoundingClientRect() have also disagreed there;
+   * either way the math clamped to stop 0 and the island "reverted to the first
+   * button". A tap that lands on a stop resolves from the button itself, so the
+   * common case uses no coordinates at all.
+   */
+  const gesture = useRef<{ pointerId: number; originClient: number; originP: number; ws: number; index: number } | null>(null)
 
   const coord = (e: React.PointerEvent) => (horizontal ? e.clientX : e.clientY)
 
-  const onPointerDown = useCallback(
-    (e: React.PointerEvent) => {
-      pointerHandled.current = false
-      e.currentTarget.setPointerCapture(e.pointerId)
-      applyFromPointer(coord(e), false)
-    },
-    [applyFromPointer, horizontal],
-  )
-  const onPointerMove = useCallback(
-    (e: React.PointerEvent) => {
-      if (dragPos == null && !e.currentTarget.hasPointerCapture(e.pointerId)) return
-      applyFromPointer(coord(e), false)
-    },
-    [applyFromPointer, dragPos, horizontal],
-  )
-  const onPointerUp = useCallback(
-    (e: React.PointerEvent) => {
-      applyFromPointer(coord(e), true)
-      pointerHandled.current = true
-    },
-    [applyFromPointer, horizontal],
-  )
-  /**
-   * A cancel is the browser taking the gesture (it started a pan), not a release.
-   * Chrome builds that pointercancel with clientX/Y = 0, so committing from it
-   * resolves to stop 0 and the tab just picked on pointerdown snaps back to the
-   * first stop. Drop the drag visuals; whatever pointerdown selected stands.
-   */
-  const onPointerCancel = useCallback(() => {
+  /** Move the thumb to `p` and live-select the stop under it (destinations only). */
+  const track = (p: number, ws: number) => {
+    const index = stopAt(p, ws)
+    setDragWindow(ws)
+    setDragPos(clamp(p, PAD + THUMB / 2, trackLen - PAD - THUMB / 2))
+    const target = stops[index]
+    // Momentary stops are actions, not destinations: a drag sweeping ACROSS one
+    // must not fire it, only a gesture ENDING on it (see onPointerUp).
+    if (target && !target.momentary && target.id !== activeId) onSelect(target.id)
+    return index
+  }
+
+  const endGesture = () => {
+    gesture.current = null
     setDragPos(null)
     setDragWindow(null)
+  }
+
+  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!e.isPrimary || (e.pointerType === 'mouse' && e.button !== 0)) return
+    pointerHandled.current = false
+    const ws = restingWindow
+    const hit = (e.target as Element).closest<HTMLElement>('[data-stop-index]')
+    let p: number
+    if (hit && e.currentTarget.contains(hit)) {
+      p = centerAt(Number(hit.dataset.stopIndex) - ws)
+    } else {
+      // Padding or a gap between stops: fall back to geometry.
+      const rect = e.currentTarget.getBoundingClientRect()
+      p = coord(e) - (horizontal ? rect.left : rect.top)
+    }
+    try { e.currentTarget.setPointerCapture(e.pointerId) } catch { /* pointer already gone */ }
+    gesture.current = { pointerId: e.pointerId, originClient: coord(e), originP: p, ws, index: track(p, ws) }
+  }
+
+  const onPointerMove = (e: React.PointerEvent) => {
+    const g = gesture.current
+    if (!g || e.pointerId !== g.pointerId) return
+    const p = g.originP + (coord(e) - g.originClient)
+    // Edge-scroll: dragging past either end of a capped track shifts the window
+    // one stop toward the finger, surfacing the next stop.
+    if (p < PAD && g.ws > 0) g.ws -= 1
+    else if (p > trackLen - PAD && g.ws < maxWindow) g.ws += 1
+    g.index = track(p, g.ws)
+  }
+
+  const onPointerUp = (e: React.PointerEvent) => {
+    const g = gesture.current
+    if (!g || e.pointerId !== g.pointerId) return
+    endGesture()
     pointerHandled.current = true
-  }, [])
+    const target = stops[g.index]
+    // A gesture ENDING on a momentary stop fires it every time, since re-tapping an
+    // open toggle is how it closes.
+    if (target && (target.momentary || target.id !== activeId)) onSelect(target.id)
+  }
+
+  /**
+   * A cancel (or losing capture) is the browser taking the gesture, not a release.
+   * Drop the drag visuals; whatever the gesture already selected stands.
+   */
+  const onPointerCancel = (e: React.PointerEvent) => {
+    const g = gesture.current
+    if (!g || e.pointerId !== g.pointerId) return
+    endGesture()
+    pointerHandled.current = true
+  }
 
   const axis = horizontal
     ? { width: trackLen, height: 2 * PAD + THUMB }
@@ -224,6 +251,7 @@ export function SliderRail({
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerCancel}
+      onLostPointerCapture={onPointerCancel}
       role={role}
       aria-label={label}
       {...(role === 'slider'
@@ -270,6 +298,7 @@ export function SliderRail({
         <button
           key={stop.id}
           type="button"
+          data-stop-index={windowStart + localI}
           onClick={(e) => {
             e.stopPropagation()
             if (pointerHandled.current) { pointerHandled.current = false; return }

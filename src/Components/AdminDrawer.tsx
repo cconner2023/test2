@@ -1,18 +1,19 @@
 import { useState, useCallback, useEffect, useRef, type ReactNode } from 'react'
-import { X, Inbox, Network, MapPin, MessageCircleQuestion, type LucideIcon } from 'lucide-react'
-import { BaseDrawer, ScrollPane } from '@/Components/primitives/BaseDrawer'
+import { X, Plus, Inbox, Network, MapPin, MessageCircleQuestion, UserPlus, Building2, type LucideIcon } from 'lucide-react'
+import { BaseDrawer } from '@/Components/primitives/BaseDrawer'
 import { BottomIsland } from '@/Components/primitives/BottomIsland'
 import { AddFab } from '@/Components/primitives/AddFab'
-import { SlideRevealPane } from '@/Components/primitives/SlideRevealPane'
-import { PaneHeader } from '@/Components/primitives/PaneHeader'
+import { DesktopRail } from '@/Components/primitives/DesktopRail'
+import { AnchoredMenu } from '@/Components/primitives/LiftedRowMenu'
+import { PaneCard } from '@/Components/primitives/PaneCard'
 import { RailSearchRow } from '@/Components/primitives/RailSearchRow'
 import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill'
 import { ContentWrapper } from '@/Components/primitives/ContentWrapper'
 import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
-import { ActionSheet } from '@/Components/primitives/ActionSheet'
 import { useSwipeBack } from '../Hooks/useSwipeBack'
 import { useIsMobile } from '../Hooks/useIsMobile'
 import { useEscBackout } from '../Hooks/useEscBackout'
+import { useHeldWhileOpen } from '../Hooks/useHeldWhileOpen'
 import { usePageVisibility } from '../Hooks/usePageVisibility'
 import { useAdminInbox } from '../Hooks/useAdminInbox'
 import { useAdminSystemConversations } from '../Hooks/useAdminSystemConversations'
@@ -35,6 +36,7 @@ import { RequestDetail } from './Admin/RequestDetail'
 import { FeedbackDetail } from './Admin/FeedbackDetail'
 import { SuggestionDetail } from './Admin/SuggestionDetail'
 import { AdminMobileSheet } from './Admin/AdminMobileSheet'
+import { AdminPeopleTable, AdminPeopleFilterPanel, RailGroupLabel, EMPTY_PEOPLE_FILTER, type PeopleFilter } from './Admin/AdminPeopleTable'
 import type { AdminUser, AdminClinic, AdminLocation } from '../lib/adminService'
 import type { AccountRequest } from '../lib/accountRequestService'
 import type { FeedbackRow } from '../lib/feedbackService'
@@ -43,11 +45,18 @@ import type { FeatureVoteSuggestion } from '../lib/featureVotingService'
 const logger = createLogger('AdminSystemInbox')
 
 /*
- * Admin panel — ONE model on every surface:
+ * Admin panel — ONE navigation model, two layouts:
  *
- *   section list (island: Directory · Inbox · Locations · Votes)
- *     └ detail (desktop: right pane · mobile: sheet; a system thread goes full-panel on mobile)
+ *   section (Directory · Inbox, plus Locations · Votes behind the rail gear)
+ *     └ detail (desktop: lifted card over the main pane · mobile: sheet; a
+ *       system thread goes full-panel on mobile)
  *         └ lateral hops (user → their cluster → a sibling) push a breadcrumb trail
+ *
+ * Desktop is the Property / Tracking split: DesktopRail (search · section nav ·
+ * people filter · cluster tree) beside a main pane that always shows real
+ * content (the people table, the inbox), with the detail floated over the main
+ * pane as a lifted card. Tapping a cluster in the rail scopes the table to it.
+ * Mobile keeps the list + bottom island + sheet.
  *
  * Every detail speaks the same contract — it owns its edit/delete state and
  * publishes header pills (onHeaderActions), dirtiness (onDirtyChange) and
@@ -73,6 +82,9 @@ type Detail =
     | { kind: 'thread'; peerId: string }
 
 const TRAIL_MAX = 3
+
+/** Desktop lifted detail card width. */
+const DETAIL_W = 420
 
 /** Entity identity — the React key (a hop remounts the detail fresh), the mobile
  *  sheet's morph key, and (for triage kinds) the inbox's feed key. */
@@ -154,7 +166,12 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
     const [dirty, setDirty] = useState(false)
     const [confirmDiscard, setConfirmDiscard] = useState(false)
     const pendingNav = useRef<(() => void) | null>(null)
-    const [showAddSheet, setShowAddSheet] = useState(false)
+    // Desktop only — the rail's cluster scope + people filter, and the two anchored menus.
+    const [scopeClinicId, setScopeClinicId] = useState<string | null>(null)
+    const [peopleFilter, setPeopleFilter] = useState<PeopleFilter>(EMPTY_PEOPLE_FILTER)
+    const [addMenuRect, setAddMenuRect] = useState<DOMRect | null>(null)
+    const [gearOpen, setGearOpen] = useState(false)
+    const gearAnchorRef = useRef<HTMLDivElement>(null)
 
     // The drawer is mounted for everyone — only read the triage feed while a dev has it open.
     const inbox = useAdminInbox(isVisible && isDevRole)
@@ -211,6 +228,8 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         show(null)
         setSection('directory')
         setQueries({})
+        setScopeClinicId(null)
+        setPeopleFilter(EMPTY_PEOPLE_FILTER)
         onClose()
     }), [guard, show, onClose])
 
@@ -377,7 +396,14 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         || threads.some(t => t.unreadCount > 0)
 
     const fab =
-        section === 'directory' ? <AddFab label="Add new" onClick={() => setShowAddSheet(true)} className="absolute right-4" />
+        section === 'directory' ? <AddFab
+            label="Add new"
+            items={[
+                { key: 'user', label: 'New User', onAction: () => open({ kind: 'user', user: null }) },
+                { key: 'clinic', label: 'New Cluster', onAction: () => open({ kind: 'clinic', clinic: null }) },
+            ]}
+            className="absolute right-4"
+        />
         : section === 'locations' ? <AddFab label="New location" onClick={() => open({ kind: 'location', location: null })} className="absolute right-4" />
         : null
 
@@ -418,7 +444,10 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
     )
 
     // ── Detail chrome ────────────────────────────────────────────────────────
-    const title = detail ? detailTitle(detail, peerName) : ''
+    // The last detail is held through a dismiss so the card (desktop) and sheet
+    // (mobile) leave WITH their content instead of emptying, then animating.
+    const shownDetail = useHeldWhileOpen(!!detail, detail)
+    const title = shownDetail ? detailTitle(shownDetail, peerName) : ''
     const crumbs = trail.length > 0 ? (
         <span className="flex items-center gap-1 min-w-0 overflow-hidden">
             {trail.map((entry, i) => (
@@ -436,17 +465,124 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         </span>
     ) : undefined
 
+    // Desktop creates from the drawer header (Tracking's Check-in idiom); mobile
+    // keeps the island FAB.
+    const desktopAdd = isMobile ? null
+        : section === 'directory' ? <PillButton icon={Plus} onClick={e => setAddMenuRect(e.currentTarget.getBoundingClientRect())} label="Add new" />
+        : section === 'locations' ? <PillButton icon={Plus} onClick={() => open({ kind: 'location', location: null })} label="New location" />
+        : null
+
     const header = isMobileThread
         ? { title, showBack: true, onBack: back, rightContent: headerActions }
         : {
             title: 'Admin Panel',
             rightContent: (
                 <HeaderPill>
+                    {desktopAdd}
                     <PillButton icon={X} onClick={handleClose} label="Close" />
                 </HeaderPill>
             ),
             hideDefaultClose: true,
         }
+
+    // ── Desktop: rail · main pane · lifted detail card ───────────────────────
+    const railRowCls = (active: boolean) =>
+        `w-full flex items-center gap-3 py-2.5 px-4 text-left transition-colors active:scale-95 border-l-2 ${
+            active ? 'bg-themeblue3/8 border-l-themeblue3' : 'border-l-transparent hover:bg-secondary/5'
+        }`
+
+    const navRow = (id: Section, active: boolean, onClick: () => void, extra?: ReactNode) => {
+        const meta = SECTIONS.find(x => x.id === id)!
+        const Icon = meta.icon
+        return (
+            <button key={id} type="button" className={railRowCls(active)} onClick={onClick} aria-current={active ? 'page' : undefined}>
+                <Icon size={16} className="text-tertiary shrink-0" />
+                <span className="text-[10pt] font-medium text-primary truncate flex-1">{meta.title}</span>
+                {extra}
+            </button>
+        )
+    }
+
+    // The Directory row doubles as "All people": it clears the cluster scope.
+    const goDirectory = () => {
+        if (section === 'directory') setScopeClinicId(null)
+        else guard(() => { setSection('directory'); setScopeClinicId(null); show(null) })
+    }
+    const scopeToCluster = (clinic: AdminClinic) => guard(() => {
+        setScopeClinicId(clinic.id)
+        show({ kind: 'clinic', clinic })
+    })
+
+    const rail = (
+        <DesktopRail>
+            <div ref={gearAnchorRef}>
+                <RailSearchRow
+                    value={query}
+                    onChange={q => setQueries(prev => ({ ...prev, [section]: q }))}
+                    placeholder={section === 'directory' ? 'Search people...' : searchPlaceholder ?? 'Search...'}
+                    onSettings={() => setGearOpen(true)}
+                    settingsLabel="Locations and feature votes"
+                    active={gearOpen}
+                />
+            </div>
+            <div className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain pb-4">
+                {navRow('directory', section === 'directory' && !scopeClinicId, goDirectory)}
+                {navRow('inbox', section === 'inbox', () => switchSection('inbox'),
+                    inboxNeedsAttention ? <span className="w-2 h-2 rounded-full bg-themeredred shrink-0" aria-label="Needs attention" /> : undefined)}
+                {(section === 'locations' || section === 'votes') && navRow(section, true, () => {})}
+                {section === 'directory' && (
+                    <>
+                        <AdminPeopleFilterPanel value={peopleFilter} onChange={setPeopleFilter} />
+                        <RailGroupLabel>Clusters</RailGroupLabel>
+                        <AdminDirectory
+                            clustersOnly
+                            searchQuery=""
+                            activeClinicId={scopeClinicId}
+                            onSelectClinic={scopeToCluster}
+                            onSelectUser={user => open({ kind: 'user', user })}
+                            onEditClinic={clinic => open({ kind: 'clinic', clinic, edit: true })}
+                            onEditUser={user => open({ kind: 'user', user, edit: true })}
+                            onChatUser={isDevRole ? user => open({ kind: 'thread', peerId: user.id }) : undefined}
+                            onCreateClinic={() => open({ kind: 'clinic', clinic: null })}
+                        />
+                    </>
+                )}
+            </div>
+        </DesktopRail>
+    )
+
+    const main = section === 'directory' ? (
+        <AdminPeopleTable
+            searchQuery={query}
+            filter={peopleFilter}
+            scopeClinicId={scopeClinicId}
+            activeUserId={detail?.kind === 'user' ? detail.user?.id ?? null : null}
+            onSelectUser={user => open({ kind: 'user', user })}
+        />
+    ) : (
+        <div className="h-full overflow-y-auto overscroll-y-contain pt-2 pb-6">{renderList()}</div>
+    )
+
+    // Lifted card over the main pane (PaneCard). Hops between details swap the
+    // body (keyed) without replaying the entrance. Esc runs `back` (useEscBackout
+    // above), so the card's own Esc is off.
+    const detailCard = !isMobile && shownDetail && (
+        <PaneCard
+            isOpen={!!detail}
+            onClose={dismiss}
+            title={title}
+            eyebrow={crumbs}
+            onBack={trail.length > 0 ? back : undefined}
+            rightContent={headerActions}
+            width={DETAIL_W}
+            fill={shownDetail.kind === 'thread'}
+            closeOnEsc={false}
+        >
+            {shownDetail.kind === 'thread'
+                ? <div key={paneKey(shownDetail)} className="h-full">{renderDetail(shownDetail)}</div>
+                : <div key={paneKey(shownDetail)} className="px-4 pt-1 pb-6">{renderDetail(shownDetail)}</div>}
+        </PaneCard>
+    )
 
     return (
         <>
@@ -462,25 +598,11 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
             >
                 {!isMobile ? (
                     <div className="flex h-full">
-                        <div className="flex-1 min-w-0">{listPane}</div>
-                        <SlideRevealPane open={!!detail} side="right" width={480} className="border-l border-primary/10 bg-themewhite">
-                            {detail && (
-                                <>
-                                    <PaneHeader
-                                        onBack={back}
-                                        backLabel={trail.length > 0 ? 'Back' : 'Close detail'}
-                                        eyebrow={crumbs}
-                                        title={title}
-                                        actions={headerActions}
-                                    />
-                                    <div className="flex-1 min-h-0 overflow-hidden">
-                                        {detail.kind === 'thread'
-                                            ? <div key={paneKey(detail)} className="h-full">{renderDetail(detail)}</div>
-                                            : <ScrollPane key={paneKey(detail)} className="px-4 py-3 md:p-5 pb-8">{renderDetail(detail)}</ScrollPane>}
-                                    </div>
-                                </>
-                            )}
-                        </SlideRevealPane>
+                        {rail}
+                        <div className="relative flex-1 min-w-0 bg-themewhite">
+                            {main}
+                            {detailCard}
+                        </div>
                     </div>
                 ) : detail?.kind === 'thread' ? (
                     // Chat owns its scroll — a fit-height sheet would fight it, so a
@@ -492,15 +614,34 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                     </ContentWrapper>
                 ) : listPane}
 
-                <ActionSheet
-                    visible={showAddSheet}
-                    title="Add New"
-                    options={[
-                        { key: 'user', label: 'New User', onAction: () => { setShowAddSheet(false); open({ kind: 'user', user: null }) } },
-                        { key: 'clinic', label: 'New Cluster', onAction: () => { setShowAddSheet(false); open({ kind: 'clinic', clinic: null }) } },
-                    ]}
-                    onClose={() => setShowAddSheet(false)}
-                />
+                {addMenuRect && (
+                    <AnchoredMenu
+                        isOpen
+                        anchorRect={addMenuRect}
+                        layout="list"
+                        align="right"
+                        items={[
+                            { key: 'user', label: 'New user', icon: UserPlus, onAction: () => open({ kind: 'user', user: null, prefillClinicId: scopeClinicId }) },
+                            { key: 'clinic', label: 'New cluster', icon: Building2, onAction: () => open({ kind: 'clinic', clinic: null }) },
+                        ]}
+                        onClose={() => setAddMenuRect(null)}
+                    />
+                )}
+
+                {gearOpen && (
+                    <AnchoredMenu
+                        isOpen
+                        anchorRect={null}
+                        anchorRef={gearAnchorRef}
+                        layout="list"
+                        align="right"
+                        items={[
+                            { key: 'locations', label: 'Locations', icon: MapPin, onAction: () => switchSection('locations') },
+                            { key: 'votes', label: 'Feature votes', icon: MessageCircleQuestion, onAction: () => switchSection('votes') },
+                        ]}
+                        onClose={() => setGearOpen(false)}
+                    />
+                )}
             </BaseDrawer>
 
             {isMobile && (
@@ -517,8 +658,8 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                     actions={headerActions}
                     onClose={dismiss}
                 >
-                    {detail && !isMobileThread && (
-                        <div key={paneKey(detail)} className="px-4 pt-1 pb-8">{renderDetail(detail)}</div>
+                    {shownDetail && shownDetail.kind !== 'thread' && (
+                        <div key={paneKey(shownDetail)} className="px-4 pt-1 pb-8">{renderDetail(shownDetail)}</div>
                     )}
                 </AdminMobileSheet>
             )}

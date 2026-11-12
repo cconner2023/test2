@@ -67,36 +67,16 @@ export type SubmitResult = ServiceResult<{
   clinicName?: string | null
 }>
 
-export type EmailAvailability = {
-  available: boolean
-  reason: 'account_exists' | 'pending_request' | 'invalid' | null
-}
-
-/**
- * Check if an email is available for a new account request.
- * Used for inline validation on the email field before submission.
- */
-export async function checkEmailAvailability(email: string): Promise<EmailAvailability> {
-  try {
-    if (!email) return { available: false, reason: 'invalid' }
-
-    const { data, error } = await supabase.rpc('check_email_availability', {
-      p_email: email.toLowerCase().trim(),
-    })
-
-    if (error) throw error
-
-    return data as EmailAvailability
-  } catch (error) {
-    logger.error('Failed to check email availability:', error)
-    // On network failure, let the form submit and the server will catch it
-    return { available: true, reason: null }
-  }
-}
-
 /**
  * Submit a new account request via the submit_account_request RPC.
  * Returns a status_check_token that the user must save to check status later.
+ *
+ * This RPC is the only place a duplicate account or pending request is
+ * detected. Do not add a keystroke, blur or mount-time email lookup on the
+ * login, request or forgot screens: the removed check_email_availability call
+ * tripped NIPR/DHA phishing warnings (a typed .mil address sent off-domain
+ * before any user action looks like a phishing kit's validation step) and let
+ * anyone probe whether an address has an account.
  */
 export async function submitAccountRequest(
   request: AccountRequestSubmission

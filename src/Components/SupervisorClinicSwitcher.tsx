@@ -5,7 +5,8 @@
  *   - SupervisorClinicFilterPanel — operating-as rows. CalendarDrawer's filter
  *     sidebar and the supervisor rail both mount it (mirrors
  *     categoryFilterPanel + personnelFilterPanel).
- *   - ClusterFilterPanel — render-only multi-select, calendar only.
+ *   - ClusterFilterPanel — render-only multi-select. Calendar's by default; the
+ *     Tracking Board passes its own value/onChange (trackingClusterFilter).
  *
  * A third surface, SupervisorClinicCardAction, used to ride the supervisor's
  * clinic overview card on mobile because that surface had no filter sidebar to
@@ -89,14 +90,17 @@ export function SupervisorClinicFilterPanel() {
  * shows WITHOUT touching supervisingClinicId (operating-as). Multi-select,
  * mirrors categoryFilterPanel: "All Clusters" clears to null; toggling rows
  * builds the selection; selecting every cluster collapses back to null.
- * Shown only to users with at least one active loan.
+ * Shown only to users with at least one active loan. value/onChange override
+ * the calendar's clusterFilter (pass both or neither).
  */
-export function ClusterFilterPanel() {
+export function ClusterFilterPanel({ value, onChange }: { value?: string[] | null; onChange?: (ids: string[] | null) => void } = {}) {
   const options = useSupervisorContextOptions()
-  const { clusterFilter, setClusterFilter } = useCalendarStore(useShallow(s => ({
+  const calendar = useCalendarStore(useShallow(s => ({
     clusterFilter: s.clusterFilter,
     setClusterFilter: s.setClusterFilter,
   })))
+  const clusterFilter = onChange ? value ?? null : calendar.clusterFilter
+  const setClusterFilter = onChange ?? calendar.setClusterFilter
   if (!options) return null
 
   const activeSet = clusterFilter === null ? new Set(options.map(c => c.id)) : new Set(clusterFilter)

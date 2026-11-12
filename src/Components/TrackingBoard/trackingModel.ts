@@ -244,16 +244,18 @@ export function resolvePlaces(e: TrackingEntry, net: TrackingNetwork): TrackingE
 }
 
 /**
- * What a viewer's board holds: events fanned to the viewer (origin + ancestors)
+ * What the viewers' boards hold: events fanned to any viewer (origin + ancestors)
  * → not expired → duplicate BRNs numbered → capped to the newest check-ins →
  * gone stations resolved to Pending. Complete entries sink below the open ones.
+ * viewerIds is home + loans for a loaned member (one id otherwise). origins
+ * narrows to entries checked in by those clusters (null = no narrowing).
  */
-export function boardEntries(events: CalendarEvent[], net: TrackingNetwork, viewerId: string, now: number): TrackingEntry[] {
+export function boardEntries(events: CalendarEvent[], net: TrackingNetwork, viewerIds: string[], now: number, origins: string[] | null = null): TrackingEntry[] {
   const live = events
     .filter(ev => ev.tracking_data && !isTrackingExpired(ev.tracking_data, now)
-      && (ev.clinic_id === viewerId || (ev.target_clinic_ids?.includes(viewerId) ?? false)))
+      && (viewerIds.includes(ev.clinic_id) || (ev.target_clinic_ids?.some(id => viewerIds.includes(id)) ?? false)))
     .map(toEntry)
-    .filter((e): e is TrackingEntry => !!e)
+    .filter((e): e is TrackingEntry => !!e && (!origins || origins.includes(e.originClinicId)))
   const board = numberDuplicateBrns(live)
     .map(e => resolvePlaces(e, net))
     .sort((a, b) => b.checkedInAt - a.checkedInAt)
@@ -292,7 +294,8 @@ function buildGroups(net: TrackingNetwork, clusterIds: Set<string>): BoardGroupD
 
 /**
  * A viewer's board: its subtree's clusters, plus the pin's cluster for any
- * entry sitting at a station nobody on the board shows (moved above the viewer).
+ * entry sitting at a station nobody on the board shows (moved above the viewer,
+ * or checked in by a loan cluster outside it).
  */
 export function boardLayout(net: TrackingNetwork, viewerId: string, entries: TrackingEntry[]): BoardGroupDef[] {
   const clusterIds = subtree(net.clusters, viewerId)

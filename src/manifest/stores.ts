@@ -269,7 +269,7 @@ export const stores = {
     middleware: ['persist (localStorage: cluster-directory)'],
     crossStoreRefs: { reads: ['useAuthStore', 'useInvalidationStore'], writes: [] },
     services: ['clusterDirectoryService'],
-    note: 'Self-hydrates on sign-in and on invalidate('clinics'); clears on sign-out',
+    note: "Self-hydrates on sign-in and on invalidate('clinics'); clears on sign-out",
   },
 
   useNavPreferencesStore: {

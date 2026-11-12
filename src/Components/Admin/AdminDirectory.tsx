@@ -29,6 +29,9 @@ interface AdminDirectoryProps {
   searchQuery: string
   activeClinicId?: string | null
   activeUserId?: string | null
+  /** Desktop rail mode: clusters only, with a member count. People live in the
+   *  main-pane table, so user leaves, sub-units and Unassigned drop out here. */
+  clustersOnly?: boolean
 }
 
 const fullName = (u: AdminUser) => [u.first_name, u.last_name].filter(Boolean).join(' ') || u.email || 'user'
@@ -71,6 +74,7 @@ export function AdminDirectory({
   searchQuery,
   activeClinicId,
   activeUserId,
+  clustersOnly = false,
 }: AdminDirectoryProps) {
   const gen = useInvalidation('users', 'clinics', 'locations', 'subClusters')
   const [clinics, setClinics] = useState<AdminClinic[]>([])
@@ -172,9 +176,9 @@ export function AdminDirectory({
       clinics: clinics
         .filter(c => c.name.toLowerCase().includes(q) || locName(c).toLowerCase().includes(q))
         .sort((a, b) => a.name.localeCompare(b.name)),
-      users: users.filter(u => userMatches(u, q)).sort(byName),
+      users: clustersOnly ? [] : users.filter(u => userMatches(u, q)).sort(byName),
     }
-  }, [q, clinics, users, locationsById])
+  }, [q, clinics, users, locationsById, clustersOnly])
 
   // ── Rows ────────────────────────────────────────────────────────────────
   const userRow = (user: AdminUser, depth: number) => (
@@ -198,6 +202,12 @@ export function AdminDirectory({
     />
   )
 
+  const memberCount = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const u of users) if (u.clinic_id) m.set(u.clinic_id, (m.get(u.clinic_id) ?? 0) + 1)
+    return m
+  }, [users])
+
   const clusterRow = (clinic: AdminClinic, depth: number, sub: string | null, expand?: { expanded: boolean; onToggle: () => void }) => (
     <TreeRow
       key={clinic.id}
@@ -211,18 +221,19 @@ export function AdminDirectory({
       active={activeClinicId === clinic.id}
       onOpenMenu={rect => setMenu({ kind: 'clinic', id: clinic.id, rect })}
       menuLabel={`${clinic.name} actions`}
+      trailing={clustersOnly && memberCount.get(clinic.id) ? <TreeRowCount>{memberCount.get(clinic.id)}</TreeRowCount> : undefined}
     />
   )
 
   const renderNode = (node: ClusterNode, depth: number) => {
-    const expandable = node.children.length > 0 || node.subUnits.length > 0 || node.users.length > 0
+    const expandable = node.children.length > 0 || (!clustersOnly && (node.subUnits.length > 0 || node.users.length > 0))
     const open = !collapsed.has(node.clinic.id)
     return (
       <div key={node.clinic.id}>
         {clusterRow(node.clinic, depth, node.locationLabel, expandable ? { expanded: open, onToggle: () => toggle(node.clinic.id) } : undefined)}
         {expandable && open && (
           <>
-            {node.subUnits.map(su => {
+            {!clustersOnly && node.subUnits.map(su => {
               const suOpen = !collapsed.has(su.id)
               return (
                 <div key={su.id}>
@@ -237,7 +248,7 @@ export function AdminDirectory({
                 </div>
               )
             })}
-            {node.users.map(u => userRow(u, depth + 1))}
+            {!clustersOnly && node.users.map(u => userRow(u, depth + 1))}
             {node.children.map(child => renderNode(child, depth + 1))}
           </>
         )}
@@ -282,7 +293,7 @@ export function AdminDirectory({
           <EmptyState title="No matches" bordered={false} />
         ) : (
           <>
-            {results.clinics.length > 0 && <ListGroupLabel>Clusters</ListGroupLabel>}
+            {results.clinics.length > 0 && !clustersOnly && <ListGroupLabel>Clusters</ListGroupLabel>}
             {results.clinics.map(c => clusterRow(c, 0, c.location_id ? locationsById.get(c.location_id)?.display_name ?? null : null))}
             {results.users.length > 0 && <ListGroupLabel>Users</ListGroupLabel>}
             {results.users.map(u => userRow(u, 0))}
@@ -291,7 +302,7 @@ export function AdminDirectory({
       ) : (
         <>
           {roots.map(node => renderNode(node, 0))}
-          {unassignedUsers.length > 0 && (
+          {!clustersOnly && unassignedUsers.length > 0 && (
             <>
               <TreeRow
                 title="Unassigned"

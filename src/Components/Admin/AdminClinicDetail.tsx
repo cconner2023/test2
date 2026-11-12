@@ -8,7 +8,7 @@
 
 import { useEffect, useCallback, useMemo, useState, useRef, type ReactNode } from 'react'
 import { useEntityForm } from '../../Hooks/useEntityForm'
-import { X, Plus, RefreshCw, Check, Trash2, ChevronRight, Building2, Key, MessageSquare, ArrowUp, ArrowDown, Link2, UserPlus } from 'lucide-react'
+import { X, Plus, RefreshCw, Check, Trash2, ChevronRight, ChevronLeft, Pencil, Building2, Key, MessageSquare, ArrowUp, ArrowDown, Link2, UserPlus } from 'lucide-react'
 import { UserRow } from '../UserRow'
 import { formatLastActive } from './adminUtils'
 import { ActionButton } from '@/Components/primitives/ActionButton'
@@ -27,7 +27,7 @@ import { invalidate, useInvalidation } from '../../stores/useInvalidationStore'
 import { PreviewOverlay } from '../PreviewOverlay'
 import { type ContextMenuItem } from '@/Components/primitives/ContextMenu'
 import { AnchoredMenu } from '@/Components/primitives/LiftedRowMenu'
-import { OverlayActionMenu } from '@/Components/primitives/OverlayActionMenu'
+import { OverlayHeaderMenu } from '@/Components/primitives/OverlayHeaderMenu'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { useMessagesContext } from '../../Hooks/MessagesContext'
 import { SystemMessageComposePopover } from './SystemMessageComposePopover'
@@ -183,7 +183,7 @@ const AdminClinicDetail = ({
   // system group, creating it on first use via get_or_create_clinic_system_group.
   const isDevRole = useAuthStore(s => s.isDevRole)
   const messagesCtx = useMessagesContext()
-  const sysMsgPillRef = useRef<HTMLDivElement>(null)
+  const menuAnchorRef = useRef<HTMLSpanElement>(null)
   const [sysMsgAnchor, setSysMsgAnchor] = useState<DOMRect | null>(null)
   const [vaultResult, setVaultResult] = useState<string | null>(null)
 
@@ -201,10 +201,6 @@ const AdminClinicDetail = ({
   const [editing, setEditing] = useState(isCreateMode || startEditing)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
-
-  // Edit overlay — tap clinic card → PreviewOverlay anchored to card rect.
-  const cardWrapperRef = useRef<HTMLDivElement>(null)
-  const [editAnchor, setEditAnchor] = useState<DOMRect | null>(null)
 
   const handleAddUic = useCallback(() => {
     if (uicDraft.length !== 6) return
@@ -264,30 +260,10 @@ const AdminClinicDetail = ({
     loadData()
   }, [loadData, usersGen, requestsGen])
 
-  // ── Edit overlay ↔ editing sync ──────────────────────────────────────
-  // editing=true opens the overlay (startEditing lands here on mount); create
-  // mode renders its form inline in the card instead.
-  useEffect(() => {
-    if (editing && !isCreateMode) {
-      if (!editAnchor) {
-        const rect = cardWrapperRef.current?.getBoundingClientRect() ?? null
-        if (rect) setEditAnchor(rect)
-      }
-    } else {
-      setEditAnchor(null)
-    }
-  }, [editing, isCreateMode, editAnchor])
-
-  const openEditOverlay = useCallback(() => {
-    if (isCreateMode) return
-    const rect = cardWrapperRef.current?.getBoundingClientRect() ?? null
-    if (!rect) return
-    setEditAnchor(rect)
-    setEditing(true)
-  }, [isCreateMode])
-
-  const closeEditOverlay = useCallback(() => {
-    setEditAnchor(null)
+  // ── Edit in place (Tracking / Calendar idiom): the card body swaps to the form.
+  const startEdit = useCallback(() => { if (!isCreateMode) setEditing(true) }, [isCreateMode])
+  const cancelEdit = useCallback(() => {
+    setError(null)
     setEditing(false)
   }, [])
 
@@ -409,18 +385,67 @@ const AdminClinicDetail = ({
     }
   }, [clinic?.location_id, loadData])
 
-  // ── Header actions — create mode publishes its Save pill (via ref so typing
-  //    doesn't churn the published node). ───────────────────────────────
+  // ── Header actions — view: Edit · edit: Back · Save · create: Save. Save
+  //    mounts only once the form is saveable. Via ref so typing doesn't churn
+  //    the published node; only the booleans below re-publish. ─────────────
   const handleSaveRef = useRef(handleSave)
   handleSaveRef.current = handleSave
+  const canSave = !saving && !!editName.trim() && (isCreateMode || (editing && form.dirty))
+  // Header ellipsis — Edit first, then every other cluster action, Delete included.
+  const menuItems = useMemo<ContextMenuItem[]>(() => !clinic ? [] : [
+    { key: 'edit', label: 'Edit', icon: Pencil, onAction: startEdit },
+    ...(isDevRole && messagesCtx ? [{
+      key: 'send-msg',
+      label: 'Send system message to this cluster',
+      icon: MessageSquare,
+      onAction: () => {
+        const rect = menuAnchorRef.current?.getBoundingClientRect() ?? null
+        setSysMsgAnchor(rect)
+      },
+    }] as ContextMenuItem[] : []),
+    ...(clinic.location_id ? [{
+      key: 'rescue',
+      label: rescuing ? 'Rescuing peers…' : 'Rescue peer associations at this location',
+      icon: RefreshCw,
+      variant: rescuing ? 'disabled' : 'default',
+      onAction: handleRescueAssociations,
+    }] as ContextMenuItem[] : []),
+    ...(vaultMissing ? [{
+      key: 'provision',
+      label: vaultProvisioning ? 'Provisioning vault…' : "Provision this cluster's encryption identity",
+      icon: vaultProvisioning ? RefreshCw : Key,
+      variant: vaultProvisioning ? 'disabled' : 'danger',
+      onAction: handleProvisionVault,
+    }] as ContextMenuItem[] : []),
+    ...(onDeleted ? [{
+      key: 'delete',
+      label: 'Delete cluster',
+      icon: Trash2,
+      destructive: true,
+      onAction: () => setConfirmDelete(true),
+    }] as ContextMenuItem[] : []),
+  ], [clinic, isDevRole, messagesCtx, rescuing, vaultMissing, vaultProvisioning, handleRescueAssociations, handleProvisionVault, onDeleted, startEdit])
   useEffect(() => {
-    onHeaderActions?.(isCreateMode ? (
-      <HeaderPill>
-        <PillButton icon={Check} iconSize={18} accent="success" label="Save" onClick={() => handleSaveRef.current()} />
-      </HeaderPill>
-    ) : null)
+    const save = canSave && (
+      <PillButton icon={Check} iconSize={18} accent="success" label="Save" onClick={() => handleSaveRef.current()} />
+    )
+    onHeaderActions?.(
+      isCreateMode ? (save ? <HeaderPill>{save}</HeaderPill> : null)
+      : editing ? (
+        <HeaderPill multi={!!save}>
+          <PillButton icon={ChevronLeft} iconSize={18} label="Back" onClick={cancelEdit} />
+          {save}
+        </HeaderPill>
+      )
+      : clinic ? (
+        <HeaderPill>
+          <span ref={menuAnchorRef} className="inline-flex">
+            <OverlayHeaderMenu items={menuItems} />
+          </span>
+        </HeaderPill>
+      ) : null)
     return () => onHeaderActions?.(null)
-  }, [isCreateMode, onHeaderActions])
+  }, [isCreateMode, editing, canSave, !!clinic, menuItems, cancelEdit, onHeaderActions]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleDelete = useCallback(async () => {
     if (!clinic) return
@@ -649,14 +674,16 @@ const AdminClinicDetail = ({
         <div className="flex-1 min-w-0">
           <UicPinInput value={uicDraft} onChange={(v) => { setUicDraft(v); setUicError(null); setUicOwner(null) }} spread />
         </div>
-        <button
-          type="button"
-          onClick={handleAddUic}
-          disabled={uicDraft.length !== 6}
-          className="shrink-0 w-9 h-9 mr-3 rounded-full bg-themeblue3 text-white flex items-center justify-center disabled:opacity-30 active:scale-95 transition-all"
-        >
-          <Plus size={16} />
-        </button>
+        {uicDraft.length === 6 && (
+          <button
+            type="button"
+            onClick={handleAddUic}
+            aria-label="Add UIC"
+            className="shrink-0 w-9 h-9 mr-3 rounded-full bg-themeblue3 text-white flex items-center justify-center active:scale-95 transition-all"
+          >
+            <Plus size={16} />
+          </button>
+        )}
       </div>
       {uicError && (
         <p className="px-4 py-2 text-[10pt] text-themeredred border-b border-primary/6">
@@ -755,55 +782,12 @@ const AdminClinicDetail = ({
     </div>
   )
 
-  const clinicLabel = clinic?.name || 'cluster'
-
   return (
     <div className={saving ? 'opacity-50 pointer-events-none' : undefined}>
       {error && <div className="mb-3"><ErrorDisplay message={error} /></div>}
 
-      {/* Main card — view-mode card for existing records (tap to open edit
-          overlay), inline form during create mode until the FAB-anchored
-          overlay lands. pt-0; the parent ScrollPane already gives padding. */}
-      <div ref={cardWrapperRef} className="relative mt-6">
-        {clinic && !isCreateMode && (
-          <div ref={sysMsgPillRef} onClick={(e) => e.stopPropagation()}>
-            <OverlayActionMenu
-              items={[
-                ...(isDevRole && messagesCtx ? [{
-                  key: 'send-msg',
-                  label: 'Send system message to this cluster',
-                  icon: MessageSquare,
-                  onAction: () => {
-                    const rect = sysMsgPillRef.current?.getBoundingClientRect() ?? null
-                    setSysMsgAnchor(rect)
-                  },
-                }] as ContextMenuItem[] : []),
-                ...(clinic.location_id ? [{
-                  key: 'rescue',
-                  label: rescuing ? 'Rescuing peers…' : 'Rescue peer associations at this location',
-                  icon: RefreshCw,
-                  variant: rescuing ? 'disabled' : 'default',
-                  onAction: handleRescueAssociations,
-                }] as ContextMenuItem[] : []),
-                ...(vaultMissing ? [{
-                  key: 'provision',
-                  label: vaultProvisioning ? 'Provisioning vault…' : "Provision this cluster's encryption identity",
-                  icon: vaultProvisioning ? RefreshCw : Key,
-                  variant: vaultProvisioning ? 'disabled' : 'danger',
-                  onAction: handleProvisionVault,
-                }] as ContextMenuItem[] : []),
-                ...(onDeleted ? [{
-                  key: 'delete',
-                  label: 'Delete cluster',
-                  icon: Trash2,
-                  destructive: true,
-                  onAction: () => setConfirmDelete(true),
-                }] as ContextMenuItem[] : []),
-              ]}
-            />
-          </div>
-        )}
-
+      {/* Identity card — the view, or (editing / creating) the form in its place. */}
+      <div className="relative mt-1">
         {clinic && messagesCtx && (
           <SystemMessageComposePopover
             anchorRect={sysMsgAnchor}
@@ -812,17 +796,8 @@ const AdminClinicDetail = ({
             onSend={async (text) => messagesCtx.sendSystemMessageToClinic(clinic.id, text)}
           />
         )}
-        <div
-          className={`rounded-2xl bg-themewhite2 overflow-hidden ${clinic && !isCreateMode ? 'cursor-pointer active:bg-themeblue2/5 transition-colors' : ''}`}
-          onClick={clinic && !isCreateMode ? openEditOverlay : undefined}
-          role={clinic && !isCreateMode ? 'button' : undefined}
-          tabIndex={clinic && !isCreateMode ? 0 : undefined}
-          aria-label={clinic && !isCreateMode ? `Edit ${clinicLabel}` : undefined}
-          onKeyDown={clinic && !isCreateMode ? (e) => {
-            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openEditOverlay() }
-          } : undefined}
-        >
-        {isCreateMode && editing ? (
+        <div className="rounded-2xl bg-themewhite2 overflow-hidden">
+        {editing ? (
           editFormBody
         ) : clinic ? (
           <div className="px-4 py-3">
@@ -859,51 +834,13 @@ const AdminClinicDetail = ({
         )}
       </div>
 
-      {/* Edit overlay — tap clinic card → form fields here. Footer owns Save+Delete. */}
-      <PreviewOverlay
-        isOpen={!!editAnchor && !isCreateMode}
-        onClose={closeEditOverlay}
-        anchorRect={editAnchor}
-        title={`Edit ${clinicLabel}`}
-        maxWidth={400}
-        previewMaxHeight="70dvh"
-        footer={
-          editAnchor && clinic && onDeleted ? (
-            <FooterPill>
-              <ActionButton
-                icon={Trash2}
-                label="Delete cluster"
-                variant="danger"
-                onClick={() => { closeEditOverlay(); setConfirmDelete(true) }}
-              />
-            </FooterPill>
-          ) : undefined
-        }
-        rightFooter={
-          editAnchor && clinic ? (
-            <FooterPill side="right">
-              <ActionButton
-                icon={saving ? RefreshCw : Check}
-                label={saving ? 'Saving…' : 'Save'}
-                variant={saving ? 'disabled' : 'confirm'}
-                onClick={handleSave}
-              />
-            </FooterPill>
-          ) : undefined
-        }
-      >
-        {editAnchor && clinic && editFormBody}
-      </PreviewOverlay>
-
       {/* ── Roster ───────────────────────────────────────────────────────
           ONE section for everyone in this cluster: sub-unit groups (whose ⋯
           renames/deletes the group itself), HQ / Unassigned, and the two loan
           buckets. Replaces the old Assigned Users + Sub-units + Loaned In +
           Loaned Out stack, where the roster showed group headers but the group
           manager lived in a separate card below it. */}
-      {/* No !editing gate — the edit surface is an anchored overlay now, so
-          collapsing the page behind it would yank the layout out from under. */}
-      {!isCreateMode && clinic && (
+      {!isCreateMode && !editing && clinic && (
         <ClusterRosterSection
           subUnits={subUnits}
           members={assignedUsers}
@@ -940,7 +877,7 @@ const AdminClinicDetail = ({
           near-identical card+FAB sections read as three unrelated features.
           The chip also disambiguates a child cluster ("child") from the
           roster's sub-units above, which used to share the "sub-" name. */}
-      {!isCreateMode && clinic && (
+      {!isCreateMode && !editing && clinic && (
         <section className="mt-4">
           <div className="flex items-center gap-2 pb-2">
             <p className="flex-1 text-[9pt] font-semibold text-primary uppercase tracking-wider">Related clusters</p>
@@ -1165,7 +1102,7 @@ const AdminClinicDetail = ({
 
       <ConfirmDialog
         visible={confirmDelete}
-        title={`Delete ${clinicLabel}?`}
+        title={`Delete ${clinic?.name || 'cluster'}?`}
         subtitle="Permanent. All associated data removed."
         confirmLabel="Delete"
         variant="danger"

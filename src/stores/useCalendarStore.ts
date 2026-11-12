@@ -71,6 +71,10 @@ interface CalendarState {
   // Distinct from supervisingClinicId (operating-as) — this never changes
   // derived scope, it only narrows which events the calendar shows.
   clusterFilter: string[] | null
+  // Tracking Board's render-only cluster filter: narrows cards by check-in
+  // origin (null = all my clusters). Separate from clusterFilter so narrowing
+  // one surface never hides data on the other.
+  trackingClusterFilter: string[] | null
   // Render-only intra-clinic sub-cluster (platoon/squad) filter. Three-state:
   // null = unset (fall back to viewer's default squad lens), 'all' = show every
   // sub-cluster, string[] = explicit subset. See Utilities/subCluster.ts.
@@ -124,6 +128,7 @@ interface CalendarActions {
   setShowEventForm: (show: boolean) => void
   setCategoryFilter: (categories: EventCategory[] | null) => void
   setClusterFilter: (clinicIds: string[] | null) => void
+  setTrackingClusterFilter: (clinicIds: string[] | null) => void
   setSubClusterFilter: (filter: SubClusterFilter) => void
   addEvent: (event: CalendarEvent) => void
   updateEvent: (id: string, updates: Partial<CalendarEvent>) => void
@@ -220,6 +225,7 @@ export const useCalendarStore = create<CalendarStore>()(calendarPersist((set) =>
   showEventForm: false,
   categoryFilter: null,
   clusterFilter: null,
+  trackingClusterFilter: null,
   subClusterFilter: null,
   events: [],
   tracking: [],
@@ -244,6 +250,7 @@ export const useCalendarStore = create<CalendarStore>()(calendarPersist((set) =>
   setShowEventForm: (show) => set({ showEventForm: show, editingEventId: show ? undefined : null }),
   setCategoryFilter: (categories) => set({ categoryFilter: categories }),
   setClusterFilter: (clinicIds) => set({ clusterFilter: clinicIds }),
+  setTrackingClusterFilter: (clinicIds) => set({ trackingClusterFilter: clinicIds }),
   setSubClusterFilter: (filter) => set({ subClusterFilter: filter }),
   setRosterSearchQuery: (query) => set({ rosterSearchQuery: query }),
   setShowRosterMobile: (show) => set({ showRosterMobile: show }),

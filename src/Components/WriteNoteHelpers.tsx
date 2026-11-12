@@ -288,6 +288,10 @@ export const NoteHPIEditor = ({
 // (ChevronRight) on non-terminal pages and finishes (Check → onDone) on the last.
 // Pins to the drawer bottom over a feathered glass band; the host owns bottom
 // scroll padding so content clears it. Sits inside the drawer's `relative` shell.
+// Every note's terminal output page (WriteNote, Provider, later TC3 / imported)
+// finishes through this Check FAB, never a header Done pill; the header keeps
+// only Close/Back. Host: `h-full relative flex flex-col`, own scroller, `pb-32`,
+// `handleNext={handleDone}`; on a BaseDrawer set `scrollDisabled`.
 
 export const NoteWizardFooter = ({
     currentPage, visiblePages, slideDirection,

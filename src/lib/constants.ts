@@ -14,25 +14,22 @@ export const SECURITY = {
   LOCKOUT_MAX_SECONDS: 300,
 } as const
 
+/** Password complexity rules, in the order they are reported. `label` is the
+ *  short form a checklist shows; `message` is the single-error form.
+ *  The only definition of the rules: UI checklists and validators read from
+ *  here and never restate a regex. */
+export const PASSWORD_RULES = [
+  { label: `${SECURITY.MIN_PASSWORD_LENGTH}+ characters`, message: `Password must be at least ${SECURITY.MIN_PASSWORD_LENGTH} characters`, test: (p: string) => p.length >= SECURITY.MIN_PASSWORD_LENGTH },
+  { label: 'Uppercase letter', message: 'Password must contain at least one uppercase letter', test: (p: string) => /[A-Z]/.test(p) },
+  { label: 'Lowercase letter', message: 'Password must contain at least one lowercase letter', test: (p: string) => /[a-z]/.test(p) },
+  { label: 'Number', message: 'Password must contain at least one digit', test: (p: string) => /[0-9]/.test(p) },
+  { label: 'Special character', message: 'Password must contain at least one special character', test: (p: string) => /[^A-Za-z0-9]/.test(p) },
+] as const
+
 /** Validate password meets complexity requirements.
  *  Returns null if valid, or an error message string. */
 export function validatePasswordComplexity(password: string): string | null {
-  if (password.length < SECURITY.MIN_PASSWORD_LENGTH) {
-    return `Password must be at least ${SECURITY.MIN_PASSWORD_LENGTH} characters`
-  }
-  if (!/[A-Z]/.test(password)) {
-    return 'Password must contain at least one uppercase letter'
-  }
-  if (!/[a-z]/.test(password)) {
-    return 'Password must contain at least one lowercase letter'
-  }
-  if (!/[0-9]/.test(password)) {
-    return 'Password must contain at least one digit'
-  }
-  if (!/[^A-Za-z0-9]/.test(password)) {
-    return 'Password must contain at least one special character'
-  }
-  return null
+  return PASSWORD_RULES.find(r => !r.test(password))?.message ?? null
 }
 
 export const STORAGE = {

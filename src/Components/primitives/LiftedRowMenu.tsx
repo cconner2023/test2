@@ -7,6 +7,7 @@ import { ActionPill } from '@/Components/primitives/ActionPill'
 import { SearchInput } from '@/Components/primitives/SearchInput'
 import { Scrim } from '@/Components/primitives/Scrim'
 import { PopoverHeader } from '@/Components/PreviewOverlay'
+import { useOverlay } from '@/Hooks/useOverlay'
 import { MenuItemButton, contextMenuItemVariant, type ContextMenuItem, type MenuCardRow, type SearchLevelSpec } from '@/Components/primitives/ContextMenu'
 export type { SearchLevelSpec, MenuCardRow } from '@/Components/primitives/ContextMenu'
 
@@ -165,7 +166,13 @@ function MenuCardListRow({ row, onSelect }: { row: MenuCardRow; onSelect: (row: 
  * `LiftedRowMenu` is a back-compat alias for callers that pass a clone.
  */
 export function AnchoredMenu({ isOpen, anchorRect: anchorRectProp, anchorRef, row, items, onClose, bare = false, align = 'left', direction = 'auto', layout = 'pill', reactions, backdrop, header, rootSearch }: AnchoredMenuProps) {
-  const [visible, setVisible] = useState(false)
+  // Stays mounted through the exit so the menu (and scrim / lifted clone) animate
+  // OUT the same way they came in, rather than blinking away on close.
+  const { mounted, open: visible } = useOverlay(isOpen)
+  // Last non-null prop rect. Callers commonly close by nulling the rect
+  // (`setRect(null)`), which would otherwise strand the exit with nowhere to draw.
+  const [heldRect, setHeldRect] = useState<DOMRect | null>(anchorRectProp)
+  if (anchorRectProp && anchorRectProp !== heldRect) setHeldRect(anchorRectProp)
   // Live-anchor rect — re-measured from `anchorRef` on any reflow (see prop doc).
   const [liveRect, setLiveRect] = useState<DOMRect | null>(null)
   // Drill stack — empty = root. A pushed level is a plain submenu (`menu`) or a
@@ -234,23 +241,20 @@ export function AnchoredMenu({ isOpen, anchorRect: anchorRectProp, anchorRef, ro
     config: { tension: 320, friction: 30 },
   })
 
+  // Reset the drill state once the exit has finished — not on close, which would
+  // swap the leaving card back to the root level mid-animation.
   useEffect(() => {
-    if (!isOpen) {
-      setVisible(false)
-      setStack([])
-      setQuery('')
-      firstH.current = true
-      setContentH(undefined)
-      return
-    }
-    const raf = requestAnimationFrame(() => setVisible(true))
-    return () => cancelAnimationFrame(raf)
-  }, [isOpen])
+    if (mounted) return
+    setStack([])
+    setQuery('')
+    firstH.current = true
+    setContentH(undefined)
+  }, [mounted])
 
   // Re-read the trigger's rect on scroll / resize / visualViewport changes so an
   // iOS keyboard collapse re-pins the menu instead of freezing a stale snapshot.
   useEffect(() => {
-    if (!isOpen || !anchorRef) { setLiveRect(null); return }
+    if (!isOpen || !anchorRef) return
     const measure = () => { const el = anchorRef.current; if (el) setLiveRect(el.getBoundingClientRect()) }
     measure()
     const vvp = window.visualViewport
@@ -266,8 +270,8 @@ export function AnchoredMenu({ isOpen, anchorRect: anchorRectProp, anchorRef, ro
     }
   }, [isOpen, anchorRef])
 
-  const anchorRect = anchorRef ? liveRect : anchorRectProp
-  if (!isOpen || !anchorRect) return null
+  const anchorRect = anchorRef ? liveRect : (anchorRectProp ?? heldRect)
+  if (!mounted || !anchorRect) return null
 
   const vw = window.innerWidth
   const vh = window.innerHeight
@@ -344,6 +348,11 @@ export function AnchoredMenu({ isOpen, anchorRect: anchorRectProp, anchorRef, ro
   // Entrance: a clone-peek menu settles DOWN beneath the lifted row; a clone-less
   // menu RISES UP into place (echoes the lifted feel) instead of dropping flat.
   const menuHidden = hasClone ? 'scale(0.92) translateY(-8px)' : 'scale(0.96) translateY(12px)'
+  // Enter springs in after a beat (lets the clone lift first); exit eases straight
+  // back out with no delay so it finishes inside useOverlay's unmount window.
+  const menuTransition = visible
+    ? 'transform 260ms cubic-bezier(0.34, 1.45, 0.64, 1) 70ms, opacity 200ms ease-out 70ms, box-shadow 260ms ease-out'
+    : 'transform 200ms ease-in, opacity 180ms ease-in, box-shadow 200ms ease-in'
 
   const renderRow = (item: ContextMenuItem) =>
     item.render ? (
@@ -447,7 +456,8 @@ export function AnchoredMenu({ isOpen, anchorRect: anchorRectProp, anchorRef, ro
   }
 
   return createPortal(
-    <div className="fixed inset-0" style={{ zIndex: 9998 }}>
+    // A closing menu no longer catches input — taps reach the page while it exits.
+    <div className="fixed inset-0" style={{ zIndex: 9998, pointerEvents: isOpen ? undefined : 'none' }}>
       {/* Backdrop — dim+blur for peek, transparent catcher for dropdowns */}
       {/* Scrim is visual only (interactive={false}); the catcher below owns
           dismissal, because this menu closes on PRESS (mousedown/touchstart)
@@ -486,8 +496,9 @@ export function AnchoredMenu({ isOpen, anchorRect: anchorRectProp, anchorRef, ro
               : { boxShadow: visible ? '0 18px 44px rgba(0,0,0,0.28)' : '0 0 0 rgba(0,0,0,0)' }),
             transform: visible ? `translateY(${-lift}px) scale(1.05)` : 'translateY(0) scale(1)',
             transformOrigin: cloneOrigin,
-            transition:
-              'transform 320ms cubic-bezier(0.2, 1.5, 0.5, 1), filter 320ms ease-out, box-shadow 320ms ease-out',
+            transition: visible
+              ? 'transform 320ms cubic-bezier(0.2, 1.5, 0.5, 1), filter 320ms ease-out, box-shadow 320ms ease-out'
+              : 'transform 240ms ease-in, filter 240ms ease-in, box-shadow 240ms ease-in',
           }}
         >
           {row}
@@ -515,8 +526,7 @@ export function AnchoredMenu({ isOpen, anchorRect: anchorRectProp, anchorRef, ro
             transform: visible ? 'scale(1) translateY(0)' : menuHidden,
             opacity: visible ? 1 : 0,
             transformOrigin: menuOrigin,
-            transition:
-              'transform 260ms cubic-bezier(0.34, 1.45, 0.64, 1) 70ms, opacity 200ms ease-out 70ms, box-shadow 260ms ease-out',
+            transition: menuTransition,
           }}
         >
           {/* Invisible sizer — the settling level, measured so the height spring has a
@@ -542,8 +552,7 @@ export function AnchoredMenu({ isOpen, anchorRect: anchorRectProp, anchorRef, ro
             transform: visible ? 'scale(1) translateY(0)' : menuHidden,
             opacity: visible ? 1 : 0,
             transformOrigin: menuOrigin,
-            transition:
-              'transform 260ms cubic-bezier(0.34, 1.45, 0.64, 1) 70ms, opacity 200ms ease-out 70ms',
+            transition: menuTransition,
           }}
         >
           {/* Submenu Back tile — pill layout can't host a full header, so drill-out

@@ -4,7 +4,7 @@ import { X, Settings as SettingsIcon, Check, ChevronLeft, ChevronRight } from 'l
 import { BaseDrawer } from '@/Components/primitives/BaseDrawer'
 import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill'
 import { PreviewOverlay } from './PreviewOverlay'
-import { Sheet } from '@/Components/primitives/Sheet'
+import { PaneSurface } from '@/Components/primitives/PaneCard'
 import { CalendarPanel } from './Calendar/CalendarPanel'
 import { MiniCalendar } from './Calendar/MiniCalendar'
 import { RailSearchRow } from '@/Components/primitives/RailSearchRow'
@@ -395,41 +395,27 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
                     </div>
                 </PreviewOverlay>
 
-                {/* Calendar settings — mobile Sheet + desktop popover, both share
-                    content (map-settings standard for mobile settings icons). */}
-                {isMobile ? (
-                    <Sheet
-                        isOpen={showSettings}
-                        onClose={() => setShowSettings(false)}
-                        title="Calendar Settings"
-                        height="fit"
-                        maxHeight={60}
-                        zIndex={1200}
-                    >
-                        {/* Fixed pad only — the Sheet owns var(--sab) now that it
-                            sits flush to the bottom edge; repeating it double-counts. */}
-                        <div className="pb-4">
-                            {layoutSection}
-                            <SupervisorClinicFilterPanel />
-                            <ClusterFilterPanel />
-                            {hasHuddleEvents && categoryFilterPanel}
-                            {personnelFilterPanel}
-                        </div>
-                    </Sheet>
-                ) : (
-                    <PreviewOverlay
-                        isOpen={showSettings}
-                        onClose={() => setShowSettings(false)}
-                        anchorRect={null}
-                        title="Calendar Settings"
-                        maxWidth={360}
-                        previewMaxHeight="70dvh"
-                    >
-                        <div>
-                            {layoutSection}
-                        </div>
-                    </PreviewOverlay>
-                )}
+                {/* Calendar settings — PaneSurface: fit Sheet on mobile (layout +
+                    filters), lifted card over the schedule on desktop (layout only;
+                    the filters live in the rail there). */}
+                <PaneSurface
+                    isOpen={showSettings}
+                    onClose={() => setShowSettings(false)}
+                    title="Calendar Settings"
+                >
+                    {/* Fixed pad only — the Sheet owns var(--sab); repeating it double-counts. */}
+                    <div className="pb-4">
+                        {layoutSection}
+                        {isMobile && (
+                            <>
+                                <SupervisorClinicFilterPanel />
+                                <ClusterFilterPanel />
+                                {hasHuddleEvents && categoryFilterPanel}
+                                {personnelFilterPanel}
+                            </>
+                        )}
+                    </div>
+                </PaneSurface>
             </div>
         </BaseDrawer>
     )

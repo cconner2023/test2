@@ -1644,31 +1644,25 @@ export async function clearTileCache(): Promise<void> {
  */
 export async function clearAllUserData(): Promise<void> {
   const db = await getDb()
-  const tx = db.transaction(
-    ['syncQueue', 'trainingCompletions', 'propertyItems', 'propertyLocations', 'propertyDiscrepancies', 'custodyLedger', 'locationTags', 'locationTagCanvasMeta', 'mapOverlays', 'cachedTiles', 'tileMetadata', 'featureVoteCycles', 'featureVoteCandidates', 'featureVotes', 'featureVoteSuggestions', 'auditLog', 'auditCursors', 'trainingCalendarLinks'],
-    'readwrite',
-  )
-  await tx.objectStore('syncQueue').clear()
-  await tx.objectStore('trainingCompletions').clear()
-  await tx.objectStore('auditLog').clear()
-  // Must go with auditLog — a cursor outliving its rows resumes mid-stream
-  // against an empty cache and the skipped events never arrive.
-  await tx.objectStore('auditCursors').clear()
-  await tx.objectStore('trainingCalendarLinks').clear()
-  await tx.objectStore('propertyItems').clear()
-  await tx.objectStore('propertyLocations').clear()
-  await tx.objectStore('propertyDiscrepancies').clear()
-  await tx.objectStore('custodyLedger').clear()
-  await tx.objectStore('locationTags').clear()
-  await tx.objectStore('locationTagCanvasMeta').clear()
-  await tx.objectStore('mapOverlays').clear()
-  await tx.objectStore('cachedTiles').clear()
-  await tx.objectStore('tileMetadata').clear()
-  await tx.objectStore('featureVoteCycles').clear()
-  await tx.objectStore('featureVoteCandidates').clear()
-  await tx.objectStore('featureVotes').clear()
-  await tx.objectStore('featureVoteSuggestions').clear()
-  await tx.done
+  const wanted = [
+    'syncQueue', 'trainingCompletions',
+    // auditCursors must go with auditLog (same transaction) — a cursor outliving
+    // its rows resumes mid-stream against an empty cache and the skipped events
+    // never arrive.
+    'auditLog', 'auditCursors', 'trainingCalendarLinks',
+    'propertyItems', 'propertyLocations', 'propertyDiscrepancies', 'custodyLedger',
+    'locationTags', 'locationTagCanvasMeta', 'mapOverlays', 'cachedTiles', 'tileMetadata',
+    'featureVoteCycles', 'featureVoteCandidates', 'featureVotes', 'featureVoteSuggestions',
+  ] as const
+  // A DB whose version number outran its schema (a dev build that bumped
+  // DB_VERSION with a different store set) is missing stores the upgrade will
+  // never create. Naming one in transaction() throws NotFoundError for the whole
+  // wipe, which aborts sign-out — so clear what exists and report the rest.
+  const stores = wanted.filter(s => db.objectStoreNames.contains(s))
+  const missing = wanted.filter(s => !db.objectStoreNames.contains(s))
+  if (missing.length) logger.warn(`clearAllUserData: stores missing from IndexedDB, skipped: ${missing.join(', ')}`)
+  const tx = db.transaction(stores, 'readwrite')
+  await Promise.all([...stores.map(s => tx.objectStore(s).clear()), tx.done])
   logger.info('Cleared all user data from IndexedDB')
 }
 

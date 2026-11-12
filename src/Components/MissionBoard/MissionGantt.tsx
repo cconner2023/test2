@@ -5,8 +5,6 @@ import { toDateKey, formatShortDayLabel } from '../../Types/CalendarTypes'
 import type { CalendarEvent, EventStatus } from '../../Types/CalendarTypes'
 import { MissionEventBar } from './MissionEventBar'
 import { type ContextMenuItem } from '@/Components/primitives/ContextMenu'
-import { menuPressHandlers, type MenuPressState } from '../Calendar/menuPress'
-import { useCategoryColors } from '../../Hooks/useCategoryColors'
 
 // ─── Gantt constants ────────────────────────────────────────────────────────
 
@@ -64,8 +62,6 @@ function assignLanesAbs(events: CalendarEvent[]): number[] {
   }
   return result
 }
-
-// ─── Task list constants ─────────────────────────────────────────────────────
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -131,45 +127,6 @@ export const STATUS_META: Record<string, { label: string; pill: string } | null>
   in_progress: { label: 'Active',     pill: 'text-themeblue1 bg-themeblue1/10' },
   completed:   { label: 'Done',       pill: 'text-themegreen bg-themegreen/10' },
   cancelled:   { label: 'Cancelled',  pill: 'text-themeredred bg-themeredred/10' },
-}
-
-// ─── Task row ─────────────────────────────────────────────────────────────────
-
-const STATUS_CIRCLE: Partial<Record<string, string>> = {
-  in_progress: 'bg-themeblue1',
-  completed:   'bg-themegreen',
-  cancelled:   'bg-themeredred',
-}
-
-export function TaskRow({ event, onClick, onMenu }: { event: CalendarEvent; onClick: () => void; onMenu: (rect: DOMRect) => void }) {
-  const { resolve: resolveCategoryColor } = useCategoryColors()
-  const stripe = resolveCategoryColor(event.category, event.color).solid
-  const isDone   = event.status === 'completed' || event.status === 'cancelled'
-  const isActive = event.status === 'in_progress'
-  const circleColor = STATUS_CIRCLE[event.status]
-  const pressRef = useRef<MenuPressState | null>(null)
-
-  return (
-    <button
-      {...menuPressHandlers(onMenu, pressRef, { onTap: onClick })}
-      className={`w-full flex items-stretch text-left rounded-lg overflow-hidden border border-themeblue3/10 active:scale-[0.99] transition-opacity duration-100 ${
-        isDone ? 'opacity-45' : 'opacity-100'
-      }`}
-    >
-      <div className={`w-1 shrink-0 ${stripe} ${isActive ? 'animate-pulse' : ''}`} />
-      <div className="flex-1 min-w-0 px-2 py-1.5 bg-themewhite2 flex items-center gap-2">
-        {circleColor && (
-          <div className={`w-2 h-2 rounded-full shrink-0 ${circleColor}`} />
-        )}
-        <span className="text-[9pt] text-secondary tabular-nums shrink-0">
-          {formatTimeRange(event.start_time, event.end_time)}
-        </span>
-        <span className="flex-1 text-[10pt] font-medium text-primary truncate">
-          {event.title}
-        </span>
-      </div>
-    </button>
-  )
 }
 
 // ─── Gantt body ───────────────────────────────────────────────────────────────

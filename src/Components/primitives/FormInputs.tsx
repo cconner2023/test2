@@ -819,8 +819,11 @@ export const DatePickerInput = ({
 }
 
 
-/* ── Code Input (auto-advance, auto-submit, configurable length) ── */
+/* ── Code Input (one input over outlined cells, auto-submit, configurable length) ── */
 
+/** A single native input (transparent, stretched over the row) drives a row of
+ *  outlined digit cells, so typing, backspace, paste and autofill are all native.
+ *  Same pattern as CodePinInput in DomainInputs. Submits once every cell is filled. */
 export function PinCodeInput({ onSubmit, error, disabled, label, placeholder, length = 4 }: {
   onSubmit: (code: string) => void
   error?: string
@@ -829,9 +832,9 @@ export function PinCodeInput({ onSubmit, error, disabled, label, placeholder, le
   placeholder?: string
   length?: number
 }) {
-  const lastIdx = length - 1
-  const refs = useRef<(HTMLInputElement | null)[]>([])
-  const [digits, setDigits] = useState(() => Array(length).fill(''))
+  const inputRef = useRef<HTMLInputElement>(null)
+  const [code, setCode] = useState('')
+  const [focused, setFocused] = useState(false)
   const [shaking, setShaking] = useState(false)
   const submitted = useRef(false)
 
@@ -842,88 +845,52 @@ export function PinCodeInput({ onSubmit, error, disabled, label, placeholder, le
     setShaking(true)
     setTimeout(() => {
       setShaking(false)
-      setDigits(Array(length).fill(''))
-      refs.current[0]?.focus()
+      setCode('')
+      inputRef.current?.focus()
     }, 400)
-  }, [error, length])
+  }, [error])
 
-  const handleChange = (i: number, char: string) => {
+  const handleChange = (raw: string) => {
     if (disabled) return
-    const c = char.replace(/[^0-9]/g, '')
-    if (!c) return
-    const next = [...digits]
-    next[i] = c
-    setDigits(next)
-    if (i < lastIdx) {
-      refs.current[i + 1]?.focus()
-    } else if (next.every(d => d)) {
+    const next = raw.replace(/[^0-9]/g, '').slice(0, length)
+    setCode(next)
+    if (next.length === length) {
       submitted.current = true
-      onSubmit(next.join(''))
+      onSubmit(next)
     }
   }
-
-  const handleKeyDown = (i: number, e: React.KeyboardEvent) => {
-    if (disabled) return
-    if (e.key === 'Backspace') {
-      e.preventDefault()
-      const next = [...digits]
-      if (next[i]) {
-        next[i] = ''
-        setDigits(next)
-      } else if (i > 0) {
-        next[i - 1] = ''
-        setDigits(next)
-        refs.current[i - 1]?.focus()
-      }
-    } else if (e.key === 'ArrowLeft' && i > 0) {
-      refs.current[i - 1]?.focus()
-    } else if (e.key === 'ArrowRight' && i < lastIdx) {
-      refs.current[i + 1]?.focus()
-    }
-  }
-
-  const handlePaste = (e: React.ClipboardEvent) => {
-    e.preventDefault()
-    const pasted = e.clipboardData.getData('text').replace(/[^0-9]/g, '').slice(0, length)
-    if (!pasted) return
-    const next = Array(length).fill('')
-    pasted.split('').forEach((c, i) => { next[i] = c })
-    setDigits(next)
-    if (pasted.length === length) {
-      submitted.current = true
-      onSubmit(next.join(''))
-    } else {
-      refs.current[Math.min(pasted.length, lastIdx)]?.focus()
-    }
-  }
-
-  const empty = digits.every(d => !d)
 
   return (
     <label className="block border-b border-primary/6 last:border-b-0 cursor-text">
       <div className="px-4 py-3">
         {label && <p className={`mb-1 text-[10pt] ${error && shaking ? 'text-themeredred' : 'text-tertiary'}`}>{error && shaking ? error : label}</p>}
-        <div className={`relative flex items-center gap-2 ${shaking ? 'animate-shake' : ''}`} onPaste={handlePaste}>
-          {empty && placeholder && (
-            <span className="absolute left-0 top-1/2 -translate-y-1/2 text-base md:text-sm text-tertiary pointer-events-none">
-              {placeholder}
-            </span>
-          )}
-          {digits.map((d, i) => (
-            <input
-              key={i}
-              ref={el => { refs.current[i] = el }}
-              type="text"
-              inputMode="numeric"
-              maxLength={1}
-              value={d}
-              onChange={(e) => handleChange(i, e.target.value)}
-              onKeyDown={(e) => handleKeyDown(i, e)}
-              onFocus={(e) => e.target.select()}
-              disabled={disabled}
-              className="flex-1 min-w-0 h-7 bg-transparent border-none text-center text-base md:text-sm font-mono text-primary focus:outline-none disabled:opacity-50"
-            />
-          ))}
+        <div className={`relative flex items-center gap-2 ${shaking ? 'animate-shake' : ''} ${disabled ? 'opacity-50' : ''}`}>
+          {Array.from({ length }, (_, i) => {
+            const c = code[i]
+            const active = focused && i === Math.min(code.length, length - 1)
+            return (
+              <span
+                key={i}
+                aria-hidden
+                className={`flex-1 min-w-0 h-8 flex items-center justify-center rounded-md border text-base md:text-sm font-mono text-primary transition-colors ${active ? 'border-themeblue3' : c ? 'border-primary/30' : 'border-primary/15'}`}
+              >
+                {c ?? ''}
+              </span>
+            )
+          })}
+          <input
+            ref={inputRef}
+            type="text"
+            inputMode="numeric"
+            autoComplete="off"
+            value={code}
+            aria-label={label ?? placeholder}
+            onChange={(e) => handleChange(e.target.value)}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
+            disabled={disabled}
+            className="absolute inset-0 w-full h-full opacity-0 text-base cursor-text"
+          />
         </div>
       </div>
     </label>
@@ -942,6 +909,7 @@ export const PasswordInput = ({
   inputRef,
   hint,
   name,
+  invalid,
 }: {
   label?: string
   value: string
@@ -952,11 +920,14 @@ export const PasswordInput = ({
   inputRef?: React.RefObject<HTMLInputElement | null>
   hint?: React.ReactNode
   name?: string
+  invalid?: boolean
 }) => {
   const [show, setShow] = useState(false)
+  const lastHint = useRef<React.ReactNode>(null)
+  if (hint) lastHint.current = hint
 
   return (
-    <label className="block border-b border-primary/6 last:border-b-0">
+    <label className={`block border-b last:border-b-0 transition-colors ${invalid ? 'border-themeredred/50' : 'border-primary/6'}`}>
       <div className="flex items-center gap-3 px-4 py-3">
         <input
           ref={inputRef}
@@ -977,9 +948,13 @@ export const PasswordInput = ({
           {show ? <EyeOff size={16} /> : <Eye size={16} />}
         </button>
       </div>
-      {hint && (
-        <span className="block px-4 pb-2 text-[10pt] text-themeredred">{hint}</span>
-      )}
+      {/* Height-morphs open and closed. The last hint is held so the text stays
+          visible while the row collapses. */}
+      <div className={`grid transition-all duration-300 ease-out ${hint ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
+        <span className="block overflow-hidden">
+          <span className="block px-4 pb-2 text-[10pt] text-themeredred">{hint ?? lastHint.current}</span>
+        </span>
+      </div>
     </label>
   )
 }

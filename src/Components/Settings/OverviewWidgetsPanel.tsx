@@ -1,4 +1,4 @@
-import { LayoutDashboard, ListTodo, Map, CalendarDays, Package, MessageSquare, Thermometer, FileText } from 'lucide-react'
+import { LayoutDashboard, Map, CalendarDays, ClipboardList, Package, MessageSquare, FileText } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useUserProfile } from '../../Hooks/useUserProfile'
 import { useFeatureGate } from '../../lib/featureGate'
@@ -10,25 +10,27 @@ import { SectionCard, SectionHeader } from '@/Components/primitives/Section'
 import { MetaBadge } from '@/Components/primitives/MetaBadge'
 
 const WIDGET_ICONS: Record<OverviewWidgetId, LucideIcon> = {
-    'task-list':   ListTodo,
     'map-overlay': Map,
     'week-view':   CalendarDays,
+    'tracking':    ClipboardList,
     'property':    Package,
     'messages':    MessageSquare,
-    'weather':     Thermometer,
     'saved-notes': FileText,
 }
 
-const WIDGET_ORDER: OverviewWidgetId[] = ['task-list', 'map-overlay', 'week-view', 'property', 'messages', 'weather', 'saved-notes']
+const WIDGET_ORDER: OverviewWidgetId[] = ['week-view', 'tracking', 'map-overlay', 'property', 'messages', 'saved-notes']
 
-const DEFAULT_WIDGETS: OverviewWidgetId[] = ['task-list', 'messages']
+const DEFAULT_WIDGETS: OverviewWidgetId[] = ['week-view', 'messages']
 
 export function OverviewWidgetsPanel() {
     const { profile, updateProfile, syncProfileField } = useUserProfile()
     // Property widget surfaces shortages + dispatch — both propertyAccountability
     // staged-rollout features, so it's only offered where that gate is on.
     const showProperty = useFeatureGate('propertyAccountability')
-    const widgetOrder = WIDGET_ORDER.filter(id => id !== 'property' || showProperty)
+    const showTracking = useFeatureGate('trackingBoard')
+    const widgetOrder = WIDGET_ORDER
+        .filter(id => id !== 'property' || showProperty)
+        .filter(id => id !== 'tracking' || showTracking)
 
     const isVisible = profile.overviewWidgets !== null
     const VALID_IDS = new Set<string>(widgetOrder)

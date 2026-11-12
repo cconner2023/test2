@@ -18,16 +18,29 @@
  * - `icon`: glyph component, default `Plus`, rendered at `w-5 h-5`. Map swaps this
  *   per draw mode.
  * - `badge`: optional overlay node (Map's recording dot).
+ * - `items`: when set, a tap opens an AnchoredMenu (list layout) pinned to the
+ *   button and rising above it, instead of calling `onClick`. The FAB owns the open
+ *   state, so callers hand in the options and nothing else. Pass `undefined` to
+ *   fall back to `onClick` (Map does this while a draw mode is active, where the
+ *   tap exits the mode).
  *
  * `shrink-0` is baked in: the Map FAB lives in a `flex flex-col` stack, and without
  * it a short viewport compressed the height while width held, rendering it oblong.
  */
+import { useRef, useState } from 'react'
 import { Plus, type LucideIcon } from 'lucide-react'
 import type { MouseEvent, ReactNode } from 'react'
 import { PAD, RAIL_GLASS, THUMB } from '@/Components/primitives/SliderRail'
+import { AnchoredMenu } from '@/Components/primitives/LiftedRowMenu'
+import type { ContextMenuItem } from '@/Components/primitives/ContextMenu'
 
 interface AddFabProps {
-  onClick: (e: MouseEvent<HTMLButtonElement>) => void
+  /** Fired on tap when no `items` are set. */
+  onClick?: (e: MouseEvent<HTMLButtonElement>) => void
+  /** Menu options. When set, a tap opens them in an AnchoredMenu pinned to the FAB. */
+  items?: ContextMenuItem[]
+  /** Optional section header atop the menu (e.g. the scope the options act on). */
+  menuHeader?: string
   /** aria-label + tooltip. Default 'Add'. */
   label?: string
   /** Glyph component; default `Plus`. Rendered at `w-5 h-5`. */
@@ -47,6 +60,8 @@ interface AddFabProps {
 
 export function AddFab({
   onClick,
+  items,
+  menuHeader,
   label = 'Add',
   icon: Icon = Plus,
   size = 'md',
@@ -56,11 +71,20 @@ export function AddFab({
   disabled,
   colorClass = 'bg-themeblue3',
 }: AddFabProps) {
+  const btnRef = useRef<HTMLButtonElement>(null)
+  const [menuOpen, setMenuOpen] = useState(false)
+  // Last non-empty `items`, so the menu can finish its exit even when the caller
+  // drops them on the same tap (Map: picking Route enters route mode, which
+  // swaps the FAB to its exit-mode glyph and passes `items={undefined}`).
+  const [heldItems, setHeldItems] = useState(items)
+  if (items && items !== heldItems) setHeldItems(items)
+  if (!items && menuOpen) setMenuOpen(false)
   const dim = size === 'lg' ? THUMB + 8 : THUMB
   const button = (
     <button
+      ref={btnRef}
       type="button"
-      onClick={onClick}
+      onClick={(e) => (items ? setMenuOpen(true) : onClick?.(e))}
       disabled={disabled}
       aria-label={label}
       title={label}
@@ -74,7 +98,21 @@ export function AddFab({
     </button>
   )
 
-  if (!tray) return button
+  const menu = heldItems ? (
+    <AnchoredMenu
+      isOpen={menuOpen}
+      anchorRef={btnRef}
+      anchorRect={null}
+      items={heldItems}
+      onClose={() => setMenuOpen(false)}
+      layout="list"
+      align="right"
+      direction="up"
+      header={menuHeader}
+    />
+  ) : null
+
+  if (!tray) return <>{button}{menu}</>
 
   return (
     <div
@@ -82,6 +120,7 @@ export function AddFab({
       className={`pointer-events-auto ${RAIL_GLASS} ${className}`}
     >
       {button}
+      {menu}
     </div>
   )
 }

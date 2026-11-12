@@ -14,16 +14,15 @@ function waypointGlyphIcon(type: WaypointType): LucideIcon {
   )) as unknown as LucideIcon;
 }
 import { LoadingSpinner } from '@/Components/primitives/LoadingSpinner';
-import { LoadingOverlay } from '@/Components/primitives/LoadingOverlay';
 import { BaseDrawer } from '@/Components/primitives/BaseDrawer';
 import { Sheet } from '@/Components/primitives/Sheet';
 import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill';
 import { SearchInput } from '@/Components/primitives/SearchInput';
-import { SearchCancelButton, SearchDropdownCard } from '@/Components/primitives/SearchDropdown';
+import { SearchCancelButton } from '@/Components/primitives/SearchDropdown';
+import { PaneCard, type PaneCardProps } from '@/Components/primitives/PaneCard';
 import { RailSearchRow } from '@/Components/primitives/RailSearchRow';
 import { DesktopRail } from '@/Components/primitives/DesktopRail';
 import { ContentWrapper } from '@/Components/primitives/ContentWrapper';
-import { PaneHeader } from '@/Components/primitives/PaneHeader';
 import { useEscBackout } from '../../Hooks/useEscBackout';
 import { ErrorDisplay } from '@/Components/primitives/ErrorDisplay';
 import { TextInput } from '@/Components/primitives/FormInputs';
@@ -65,7 +64,7 @@ import { useCalendarStore } from '../../stores/useCalendarStore';
 import { useMapPrefsStore } from '../../stores/useMapPrefsStore';
 import { formatBearing } from '../../lib/declination';
 import { MGRSConverter } from './MGRSConverter';
-import { MapSettingsDrawer, MapSettingsBody } from './MapSettingsDrawer';
+import { MapSettingsBody } from './MapSettingsDrawer';
 import { FeatureEditor } from './FeatureEditor';
 import { MapOverlayTree } from './MapOverlayTree';
 import { MapOverlayBreadcrumb } from './MapOverlayBreadcrumb';
@@ -431,7 +430,6 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
   // Whose marker that surface is about. null = the signed-in user's own fix;
   // a user id = the teammate whose Personnel row was picked (read-only).
   const [locationSubjectUserId, setLocationSubjectUserId] = useState<string | null>(null);
-  const [addSheet, setAddSheet] = useState<'root' | 'feature' | 'import' | null>(null);
   const [pinPickerPage, setPinPickerPage] = useState<number | null>(null);
   const [visibleOverlayIds, setVisibleOverlayIds] = useState<Set<string>>(new Set());
   const [overlayId, setOverlayId] = useState<string | null>(null);
@@ -908,6 +906,10 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
   useEffect(() => {
     if (selectedFeature || tempPoint || tempRoute) handleCloseLocation();
   }, [selectedFeature, tempPoint, tempRoute, handleCloseLocation]);
+  // Map settings sit at the top of the same slot; anything else claiming it closes them.
+  useEffect(() => {
+    if (selectedFeature || tempPoint || tempRoute || geoPdfFormOpen || showMyLocation) setShowPopover(false);
+  }, [selectedFeature, tempPoint, tempRoute, geoPdfFormOpen, showMyLocation]);
 
   // ── Floors / depth ──
   // Distinct levels present, ascending: base (0, always implied) ∪ every
@@ -2058,7 +2060,8 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
   // Desktop Esc: back out the open detail card one layer — geo-PDF overlay first
   // (it sits on top), then the feature editor / temp point / temp route — before
   // the drawer itself closes.
-  useEscBackout(!isMobile && !!(selectedFeature || tempPoint || tempRoute || geoPdfFormOpen || showMyLocation), () => {
+  useEscBackout(!isMobile && !!(showPopover || selectedFeature || tempPoint || tempRoute || geoPdfFormOpen || showMyLocation), () => {
+    if (showPopover) { setShowPopover(false); return; }
     if (geoPdfFormOpen) { setGeoPdfFormOpen(false); return; }
     if (selectedFeature) { handleCloseFeatureEditor(); return; }
     if (tempPoint) { handleCloseTempPoint(); return; }
@@ -2388,6 +2391,126 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
           title: headerTitle,
         };
 
+  // Desktop detail card — one PaneCard slot, one occupant at a time:
+  // settings > geo-PDF import > feature > temp point > temp route > location.
+  const desktopCardOpen = !isMobile && !!(showPopover || geoPdfFormOpen || selectedFeature || tempPoint || tempRoute || showMyLocation);
+  const desktopCard: Omit<PaneCardProps, 'isOpen'> = showPopover ? {
+    title: 'Map settings',
+    onClose: () => setShowPopover(false),
+    children: <MapSettingsBody showGrid={showGrid} onToggleGrid={() => setShowGrid(prev => !prev)} />,
+  } : geoPdfFormOpen ? {
+    title: 'Import geo-PDF',
+    onClose: () => setGeoPdfFormOpen(false),
+    children: (
+      <div className="px-4 py-4 pb-8">
+        <GeoPdfImportForm onClose={() => setGeoPdfFormOpen(false)} onSubmit={handleGeoPdfSubmit} />
+      </div>
+    ),
+  } : selectedFeature ? {
+    // READ mode shows the parent-overlay breadcrumb stacked above the feature
+    // name; tapping it deselects (closes the card, the rail tree is the walk-up
+    // target). EDIT mode drops both so the body TextInput is the single source
+    // of truth for the name.
+    ariaLabel: isFeatureEditMode ? 'Edit feature' : undefined,
+    title: isFeatureEditMode ? '' : (
+      selectedFeature.label
+      || (selectedFeature.type === 'waypoint' ? 'Waypoint'
+        : selectedFeature.type === 'route' ? 'Route'
+        : 'Area')
+    ),
+    eyebrow: isFeatureEditMode ? undefined : (
+      <MapOverlayBreadcrumb
+        label={overlayName.trim() || 'Overlay'}
+        onNavigate={handleFeatureBreadcrumbUp}
+      />
+    ),
+    onBack: isFeatureEditMode ? handleToggleFeatureEditMode : undefined,
+    onClose: handleCloseFeatureEditor,
+    loading: savingOverlay,
+    actions: isFeatureEditMode ? (
+      <PillButton icon={Check} iconSize={18} onClick={handleSaveAndExitEdit} label="Save changes" accent={isDirty ? 'info' : undefined} />
+    ) : (
+      <span className="inline-flex" onClick={openFeatureMenu}>
+        <PillButton icon={MoreHorizontal} iconSize={18} onClick={() => {}} label="More actions" />
+      </span>
+    ),
+    // Keyed so a different feature remounts the editor (fresh local state).
+    children: (
+      <FeatureEditor
+        key={selectedFeature.id}
+        feature={selectedFeature}
+        onUpdate={handleUpdateSelectedFeature}
+        waypoints={features.filter(f => f.type === 'waypoint')}
+        onFocusLeg={(bbox) => mapRef.current?.fitBounds(bbox)}
+        linkedEventCount={allEvents.reduce((n, e) => {
+          const explicit = e.linked_features?.some(f => f.overlay_id === selectedFeature.overlay_id && f.feature_id === selectedFeature.id)
+          const implied = e.linked_overlays?.includes(selectedFeature.overlay_id)
+          return n + (explicit || implied ? 1 : 0)
+        }, 0)}
+        onOpenLinksEditor={(anchor) => handleOpenFeatureLinksEditor(selectedFeature.overlay_id, selectedFeature.id, anchor)}
+        isEditMode={isFeatureEditMode}
+        floors={floorLevels}
+        onChangeFloor={handleChangeFeatureFloor}
+      />
+    ),
+  } : tempPoint ? {
+    title: 'Temp point',
+    onClose: handleCloseTempPoint,
+    actions: (
+      <>
+        <PillButton icon={Check} iconSize={18} onClick={handlePromoteTempPoint} label="Save as waypoint" />
+        <PillButton
+          icon={Navigation}
+          iconSize={18}
+          onClick={() => handleStartNavigation(tempPoint.lat, tempPoint.lng, null)}
+          label="Navigate from here"
+        />
+      </>
+    ),
+    children: <TempPointBody lat={tempPoint.lat} lng={tempPoint.lng} />,
+  } : tempRoute ? {
+    title: 'Temp route',
+    onClose: handleCloseTempRoute,
+    actions: (
+      <>
+        <PillButton
+          icon={Undo2}
+          iconSize={18}
+          onClick={handleUndoTempRoute}
+          label="Undo"
+          disabled={tempRoute.history.length === 0}
+        />
+        <PillButton
+          icon={Route}
+          iconSize={18}
+          onClick={handleSaveTempRouteAsFeature}
+          label="Save as route"
+          disabled={tempRoute.points.length < 2}
+        />
+        <PillButton
+          icon={Pentagon}
+          iconSize={18}
+          onClick={handleSaveTempRouteAsArea}
+          label="Save as area"
+          disabled={tempRoute.points.length < 3}
+        />
+      </>
+    ),
+    children: <TempRouteBody points={tempRoute.points} onRemoveVertex={handleRemoveTempRouteVertex} onAddVertex={handleAddTempRouteVertex} />,
+  } : {
+    title: locationTitle,
+    leading: locationHeaderMenu,
+    onClose: handleCloseLocation,
+    children: (
+      <LocationBody
+        fix={position}
+        shared={myLocationShared}
+        label={subjectMarker ? subjectMarker.label : myPresenceLabel}
+        marker={subjectMarker}
+      />
+    ),
+  };
+
   return (
     <BaseDrawer
       isVisible={isVisible}
@@ -2578,13 +2701,6 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                 onDeleteFloor={handleDeleteFloor}
               />
 
-              {/* ── Map settings (overlays + grid) — drawer/preview-overlay, calendar-settings pattern ── */}
-              <MapSettingsDrawer
-                isOpen={showPopover}
-                onClose={() => setShowPopover(false)}
-                showGrid={showGrid}
-                onToggleGrid={() => setShowGrid(prev => !prev)}
-              />
               {/* Geo-PDF import — mobile detail sheet (desktop hosts it in the
                   detail card below). Mirrors the feature-editor Sheet mechanic. */}
               {isMobile && (
@@ -2926,19 +3042,41 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                   );
                 })()}
 
-                {/* Add FAB — opens a context menu of create tools (Pin / Route / Area / Measure / Track).
-                    Lights up + swaps glyph while a create mode is active; tap again to exit to pan. */}
+                {/* Add FAB — opens the add menu. Root condenses to 'New overlay',
+                    'New feature', 'Import'; Feature + Import each drill into a
+                    submenu so the root stays short. Lights up + swaps glyph while a
+                    create mode is active; a tap then exits to pan instead. */}
                 <AddFab
                   size="lg"
                   tray={false}
-                  onClick={() => {
-                    const inCreateMode = drawMode === 'pin' || drawMode === 'route' || drawMode === 'area' || drawMode === 'track' || drawMode === 'measure';
-                    if (inCreateMode) {
-                      handleModeChange('pan');
-                      return;
-                    }
-                    setAddSheet('root');
-                  }}
+                  items={drawMode === 'pin' || drawMode === 'route' || drawMode === 'area' || drawMode === 'track' || drawMode === 'measure' ? undefined : [
+                    { key: 'new-overlay', label: 'New overlay', onAction: () => handleNewOverlay() },
+                    { key: 'new-feature', label: 'New feature', submenu: [
+                      {
+                        key: 'pin',
+                        label: 'Drop pin',
+                        onAction: () => {
+                          // Enter pin mode immediately with the current pinType so
+                          // the user can tap-to-drop without first selecting an
+                          // icon. The glyph picker still appears alongside the FAB
+                          // for those who want to refine the icon before placing.
+                          const idx = Math.max(0, PIN_GLYPHS.indexOf(pinType));
+                          setPinPickerPage(Math.floor(idx / 3));
+                          handleModeChange('pin');
+                        },
+                      },
+                      { key: 'route', label: 'Route', onAction: () => handleModeChange('route') },
+                      { key: 'area', label: 'Area', onAction: () => handleModeChange('area') },
+                      { key: 'measure', label: 'Measure', onAction: () => handleModeChange('measure') },
+                      { key: 'track', label: 'Track GPS', onAction: () => handleModeChange('track') },
+                    ] },
+                    { key: 'import', label: 'Import', submenu: [
+                      { key: 'import-gpx', label: 'GPX/KML', onAction: () => gpxKmlInputRef.current?.click() },
+                      { key: 'import-geopdf', label: 'Geo-PDF', onAction: () => handleOpenGeoPdfForm() },
+                      { key: 'import-mbtiles', label: 'MBTiles', onAction: () => mbtilesInputRef.current?.click() },
+                    ] },
+                  ]}
+                  onClick={() => handleModeChange('pan')}
                   icon={
                     drawMode === 'pin' ? MapPin
                       : drawMode === 'route' ? Route
@@ -2960,53 +3098,6 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                   ) : undefined}
                 />
               </div>
-
-              {/* Add ActionSheet — root condenses to 'New overlay', 'New feature', 'Import'.
-                  Feature + Import each push to a nested sheet so the root stays short. */}
-              {(() => {
-                const rootOptions: ActionSheetOption[] = [
-                  { key: 'new-overlay', label: 'New overlay', onAction: () => handleNewOverlay() },
-                  { key: 'new-feature', label: 'New feature', onAction: () => setAddSheet('feature') },
-                  { key: 'import', label: 'Import', onAction: () => setAddSheet('import') },
-                ];
-                const featureOptions: ActionSheetOption[] = [
-                  {
-                    key: 'pin',
-                    label: 'Drop pin',
-                    onAction: () => {
-                      // Enter pin mode immediately with the current pinType so
-                      // the user can tap-to-drop without first selecting an
-                      // icon. The glyph picker still appears alongside the FAB
-                      // for those who want to refine the icon before placing.
-                      const idx = Math.max(0, PIN_GLYPHS.indexOf(pinType));
-                      setPinPickerPage(Math.floor(idx / 3));
-                      if (drawMode !== 'pin') handleModeChange('pin');
-                    },
-                  },
-                  { key: 'route', label: 'Route', onAction: () => handleModeChange('route') },
-                  { key: 'area', label: 'Area', onAction: () => handleModeChange('area') },
-                  { key: 'measure', label: 'Measure', onAction: () => handleModeChange('measure') },
-                  { key: 'track', label: 'Track GPS', onAction: () => handleModeChange('track') },
-                ];
-                const importOptions: ActionSheetOption[] = [
-                  { key: 'import-gpx', label: 'GPX/KML', onAction: () => gpxKmlInputRef.current?.click() },
-                  { key: 'import-geopdf', label: 'Geo-PDF', onAction: () => handleOpenGeoPdfForm() },
-                  { key: 'import-mbtiles', label: 'MBTiles', onAction: () => mbtilesInputRef.current?.click() },
-                ];
-                const { title, options } = addSheet === 'feature'
-                  ? { title: 'New feature', options: featureOptions }
-                  : addSheet === 'import'
-                    ? { title: 'Import', options: importOptions }
-                    : { title: 'Add to map', options: rootOptions };
-                return (
-                  <ActionSheet
-                    visible={addSheet !== null}
-                    title={title}
-                    options={options}
-                    onClose={() => setAddSheet(null)}
-                  />
-                );
-              })()}
 
               {/* Copy-to-overlay target chooser — "New overlay" first so the
                   user is never trapped into an existing overlay, then every
@@ -3166,180 +3257,18 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
             </div>
           </div>
 
-          {/* Desktop detail card — the map search dropdown's lifted card, floated
-              over the map (top-left, clear of the rail) instead of a right pane.
-              The rail stays open so desktop users keep their list. One surface at
-              a time: geo-PDF import > feature > temp point > temp route > location. */}
-          {!isMobile && (geoPdfFormOpen || selectedFeature || tempPoint || tempRoute || showMyLocation) && (
-            <div className="absolute top-3 left-[252px] z-[1020] w-[360px] pointer-events-none">
-              {geoPdfFormOpen ? (
-                <SearchDropdownCard
-                  className="pointer-events-auto"
-                  ariaLabel="Import geo-PDF"
-                  header={
-                    <PaneHeader
-                      title="Import geo-PDF"
-                      actions={
-                        <HeaderPill>
-                          <PillButton icon={X} iconSize={18} onClick={() => setGeoPdfFormOpen(false)} label="Close" />
-                        </HeaderPill>
-                      }
-                    />
-                  }
-                >
-                  <div className="px-4 py-4 pb-8">
-                    <GeoPdfImportForm onClose={() => setGeoPdfFormOpen(false)} onSubmit={handleGeoPdfSubmit} />
-                  </div>
-                </SearchDropdownCard>
-              ) : selectedFeature ? (
-                <SearchDropdownCard
-                  key={selectedFeature.id}
-                  className="pointer-events-auto relative"
-                  ariaLabel="Feature details"
-                  header={
-                    // READ mode shows the parent-overlay breadcrumb stacked above the
-                    // feature name; tapping it deselects (closes the card, the rail
-                    // tree is the walk-up target). EDIT mode drops both so the body
-                    // TextInput is the single source of truth for the name.
-                    <PaneHeader
-                      eyebrow={isFeatureEditMode ? undefined : (
-                        <MapOverlayBreadcrumb
-                          label={overlayName.trim() || 'Overlay'}
-                          onNavigate={handleFeatureBreadcrumbUp}
-                        />
-                      )}
-                      title={isFeatureEditMode ? undefined : (
-                        selectedFeature.label
-                        || (selectedFeature.type === 'waypoint' ? 'Waypoint'
-                          : selectedFeature.type === 'route' ? 'Route'
-                          : 'Area')
-                      )}
-                      onBack={isFeatureEditMode ? handleToggleFeatureEditMode : undefined}
-                      actions={
-                        <HeaderPill>
-                          {isFeatureEditMode ? (
-                            <>
-                              <PillButton icon={Check} iconSize={18} onClick={handleSaveAndExitEdit} label="Save changes" accent={isDirty ? 'info' : undefined} />
-                              <PillButton icon={X} iconSize={18} onClick={handleCloseFeatureEditor} label="Close" />
-                            </>
-                          ) : (
-                            <>
-                              <span className="inline-flex" onClick={openFeatureMenu}>
-                                <PillButton icon={MoreHorizontal} iconSize={18} onClick={() => {}} label="More actions" />
-                              </span>
-                              <PillButton icon={X} iconSize={18} onClick={handleCloseFeatureEditor} label="Close" />
-                            </>
-                          )}
-                        </HeaderPill>
-                      }
-                    />
-                  }
-                >
-                  <LoadingOverlay visible={savingOverlay} />
-                  <FeatureEditor
-                    feature={selectedFeature}
-                    onUpdate={handleUpdateSelectedFeature}
-                    waypoints={features.filter(f => f.type === 'waypoint')}
-                    onFocusLeg={(bbox) => mapRef.current?.fitBounds(bbox)}
-                    linkedEventCount={allEvents.reduce((n, e) => {
-                      const explicit = e.linked_features?.some(f => f.overlay_id === selectedFeature.overlay_id && f.feature_id === selectedFeature.id)
-                      const implied = e.linked_overlays?.includes(selectedFeature.overlay_id)
-                      return n + (explicit || implied ? 1 : 0)
-                    }, 0)}
-                    onOpenLinksEditor={(anchor) => handleOpenFeatureLinksEditor(selectedFeature.overlay_id, selectedFeature.id, anchor)}
-                    isEditMode={isFeatureEditMode}
-                    floors={floorLevels}
-                    onChangeFloor={handleChangeFeatureFloor}
-                  />
-                </SearchDropdownCard>
-              ) : tempPoint ? (
-                <SearchDropdownCard
-                  className="pointer-events-auto"
-                  ariaLabel="Temp point"
-                  header={
-                    <PaneHeader
-                      title="Temp point"
-                      actions={
-                        <HeaderPill>
-                          <PillButton icon={Check} iconSize={18} onClick={handlePromoteTempPoint} label="Save as waypoint" />
-                          <PillButton
-                            icon={Navigation}
-                            iconSize={18}
-                            onClick={() => handleStartNavigation(tempPoint.lat, tempPoint.lng, null)}
-                            label="Navigate from here"
-                          />
-                          <PillButton icon={X} iconSize={18} onClick={handleCloseTempPoint} label="Close" />
-                        </HeaderPill>
-                      }
-                    />
-                  }
-                >
-                  <TempPointBody lat={tempPoint.lat} lng={tempPoint.lng} />
-                </SearchDropdownCard>
-              ) : tempRoute ? (
-                <SearchDropdownCard
-                  className="pointer-events-auto"
-                  ariaLabel="Temp route"
-                  header={
-                    <PaneHeader
-                      title="Temp route"
-                      actions={
-                        <HeaderPill>
-                          <PillButton
-                            icon={Undo2}
-                            iconSize={18}
-                            onClick={handleUndoTempRoute}
-                            label="Undo"
-                            disabled={tempRoute.history.length === 0}
-                          />
-                          <PillButton
-                            icon={Route}
-                            iconSize={18}
-                            onClick={handleSaveTempRouteAsFeature}
-                            label="Save as route"
-                            disabled={tempRoute.points.length < 2}
-                          />
-                          <PillButton
-                            icon={Pentagon}
-                            iconSize={18}
-                            onClick={handleSaveTempRouteAsArea}
-                            label="Save as area"
-                            disabled={tempRoute.points.length < 3}
-                          />
-                          <PillButton icon={X} iconSize={18} onClick={handleCloseTempRoute} label="Close" />
-                        </HeaderPill>
-                      }
-                    />
-                  }
-                >
-                  <TempRouteBody points={tempRoute.points} onRemoveVertex={handleRemoveTempRouteVertex} onAddVertex={handleAddTempRouteVertex} />
-                </SearchDropdownCard>
-              ) : (
-                <SearchDropdownCard
-                  className="pointer-events-auto"
-                  ariaLabel="Location"
-                  header={
-                    <PaneHeader
-                      leading={locationHeaderMenu}
-                      title={locationTitle}
-                      actions={
-                        <HeaderPill>
-                          <PillButton icon={X} iconSize={18} onClick={handleCloseLocation} label="Close" />
-                        </HeaderPill>
-                      }
-                    />
-                  }
-                >
-                  <LocationBody
-                    fix={position}
-                    shared={myLocationShared}
-                    label={subjectMarker ? subjectMarker.label : myPresenceLabel}
-                    marker={subjectMarker}
-                  />
-                </SearchDropdownCard>
-              )}
-            </div>
-          )}
+          {/* Desktop detail card — a PaneCard floated over the map (top-left, clear
+              of the rail) instead of a right pane. The rail stays open so desktop
+              users keep their list. Occupant props are `desktopCard`. Esc is the
+              panel's own backout (one handler for every occupant). */}
+          <PaneCard
+            {...desktopCard}
+            isOpen={desktopCardOpen}
+            side="left"
+            inset={252}
+            zIndex={1020}
+            closeOnEsc={false}
+          />
 
           </div>
         )}

@@ -4,7 +4,7 @@ import { BaseDrawer } from '@/Components/primitives/BaseDrawer'
 import { Sheet } from '@/Components/primitives/Sheet'
 import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill'
 import { DesktopRail } from '@/Components/primitives/DesktopRail'
-import { SearchDropdownCard } from '@/Components/primitives/SearchDropdown'
+import { PaneCard } from '@/Components/primitives/PaneCard'
 import { useIsMobile } from '../../Hooks/useIsMobile'
 import { useTC3Store } from '../../stores/useTC3Store'
 import { TC3CardColumn } from './TC3CardColumn'
@@ -26,7 +26,7 @@ interface TC3DrawerProps {
  *   • LEFT  — roster rail (DesktopRail), always open.
  *   • MAIN  — the selected casualty's DD1380 card as ONE scrollable column.
  *   • CARD  — sub-editors (TC3EditorSurface) portal into a lifted
- *             SearchDropdownCard floated top-right over the main column via
+ *             PaneCard floated top-right over the main column via
  *             `paneRef`; shown while any is open (registerDetail ref-count →
  *             detailOpen).
  * Mobile: full-screen glass-header drawer — casualties (left) + New / Export All
@@ -159,22 +159,24 @@ export const TC3Drawer = memo(function TC3Drawer({ isVisible, onClose }: TC3Draw
                 (No slider here — the left roster rail is the desktop switcher.) */}
             <div className="relative flex-1 min-w-0 h-full">
               <TC3CardColumn />
-              {/* Sub-editors float in a lifted card over the column (map / property /
-                  calendar detail-card idiom). ONE card instance: the slot stays mounted
-                  and only toggles `hidden`, so swapping editors (MARCH add-menu →
-                  intervention) keeps the card in place, and each open replays the
-                  surface-in morph (display:none → shown restarts the animation).
-                  z-40 matches Calendar's card; menus, confirms and pickers portal
-                  far above it. */}
-              <div
-                className={`absolute top-3 right-3 z-40 w-[360px] max-w-[calc(100%-1.5rem)] pointer-events-none ${
-                  detailOpen ? '' : 'hidden'
-                }`}
+              {/* Sub-editors float in a PaneCard over the column. keepMounted: editors
+                  portal into paneRef, so the target must outlive a close; swapping
+                  editors (MARCH add-menu → intervention) keeps the card in place.
+                  header={false}: each editor brings its own PaneHeader. Esc is the
+                  editor's (TC3EditorSurface). z-40 matches Calendar's card; menus,
+                  confirms and pickers portal far above it. */}
+              <PaneCard
+                isOpen={detailOpen}
+                onClose={() => {}}
+                title="Casualty editor"
+                header={false}
+                selfScroll
+                keepMounted
+                closeOnEsc={false}
+                zIndex={40}
               >
-                <SearchDropdownCard className="pointer-events-auto relative" ariaLabel="Casualty editor" selfScroll>
-                  <div ref={paneRef} className="flex flex-col flex-1 min-h-0" />
-                </SearchDropdownCard>
-              </div>
+                <div ref={paneRef} className="flex flex-col flex-1 min-h-0" />
+              </PaneCard>
             </div>
           </div>
         )}

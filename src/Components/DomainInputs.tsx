@@ -6,7 +6,7 @@
  * Generic inputs (TextInput, PickerInput, DatePickerInput, …) live in
  * @/Components/primitives/FormInputs.
  */
-import { useRef, type KeyboardEvent } from 'react'
+import { useState, type KeyboardEvent } from 'react'
 
 /** Paired systolic / diastolic entry. Stores a single 'sys/dia' string (diastolic
  *  may be 'p' for palpable). Same transparent / border-bottom family as TextInput —
@@ -83,17 +83,33 @@ export const BloodPressureInput = ({
   )
 }
 
-/* ── 6-char pin inputs (UIC, BRN) — shared auto-advance cell row ── */
+/* ── 6-char pin inputs (UIC, BRN) — one input over outlined cells ── */
 
-/** Per-cell accepted class. Drives both the filter and the iOS keyboard. */
+/** Per-cell accepted class. Drives the filter and (when uniform) the iOS keyboard. */
 type PinSlot = 'alnum' | 'alpha' | 'digit'
 
-const SLOT_FILTER: Record<PinSlot, RegExp> = {
-  alnum: /[^0-9A-Z]/g,
-  alpha: /[^A-Z]/g,
-  digit: /[^0-9]/g,
+const SLOT_TEST: Record<PinSlot, RegExp> = {
+  alnum: /^[0-9A-Z]$/,
+  alpha: /^[A-Z]$/,
+  digit: /^[0-9]$/,
 }
 
+/** Keep each typed/pasted char only if it fits the slot it would land in. */
+function fitSlots(raw: string, slots: PinSlot[]): string {
+  let out = ''
+  for (const ch of raw.toUpperCase()) {
+    if (out.length === slots.length) break
+    if (SLOT_TEST[slots[out.length]].test(ch)) out += ch
+  }
+  return out
+}
+
+/**
+ * A single native input (transparent, stretched over the row) drives a row of
+ * outlined display cells. No per-cell inputs means no focus hopping: typing,
+ * backspace, paste and autofill are all native, and the next cell lights up as
+ * the active one.
+ */
 function CodePinInput({ slots, value, onChange, spread, label, placeholder, autoFocus, onComplete }: {
   slots: PinSlot[]
   value: string
@@ -106,66 +122,53 @@ function CodePinInput({ slots, value, onChange, spread, label, placeholder, auto
   onComplete?: () => void
 }) {
   const n = slots.length
-  const refs = useRef<(HTMLInputElement | null)[]>([])
-  const chars = (value + ' '.repeat(n)).slice(0, n).split('')
+  const [focused, setFocused] = useState(false)
 
-  const handleChange = (i: number, char: string) => {
-    const c = char.toUpperCase().replace(SLOT_FILTER[slots[i]], '')
-    if (!c) return
-    const next = [...chars]
-    next[i] = c.slice(-1)
-    onChange(next.join('').replace(/ /g, ''))
-    if (i < n - 1) refs.current[i + 1]?.focus()
-  }
-
-  const handleKeyDown = (i: number, e: KeyboardEvent) => {
-    if (e.key === 'Backspace') {
-      e.preventDefault()
-      const next = [...chars]
-      if (next[i] !== ' ' && next[i] !== '') {
-        next[i] = ' '
-        onChange(next.join('').trim())
-      } else if (i > 0) {
-        next[i - 1] = ' '
-        onChange(next.join('').trim())
-        refs.current[i - 1]?.focus()
-      }
-    } else if (e.key === 'ArrowLeft' && i > 0) {
-      refs.current[i - 1]?.focus()
-    } else if (e.key === 'ArrowRight' && i < n - 1) {
-      refs.current[i + 1]?.focus()
-    } else if (e.key === 'Enter' && onComplete && value.length === n) {
+  const handleKeyDown = (e: KeyboardEvent) => {
+    if (e.key === 'Enter' && onComplete && value.length === n) {
       e.preventDefault()
       onComplete()
     }
   }
 
-  const empty = !value
-
   return (
     <label className="block border-b border-primary/6 last:border-b-0 cursor-text">
-      <div className={`relative flex items-center px-4 py-3 ${spread ? 'gap-2' : 'gap-1.5'}`}>
-        {empty && (
-          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-base md:text-sm text-tertiary pointer-events-none">
-            {label ?? placeholder}
-          </span>
-        )}
-        {chars.map((c, i) => (
-        <input
-          key={i}
-          ref={el => { refs.current[i] = el }}
-          type="text"
-          inputMode={slots[i] === 'digit' ? 'numeric' : 'text'}
-          autoCapitalize="characters"
-          autoFocus={autoFocus && i === 0}
-          maxLength={1}
-          value={c === ' ' ? '' : c}
-          onChange={(e) => handleChange(i, e.target.value)}
-          onKeyDown={(e) => handleKeyDown(i, e)}
-          onFocus={(e) => e.target.select()}
-          className={`h-7 bg-transparent border-none text-center text-base md:text-sm font-mono text-primary focus:outline-none ${spread ? 'flex-1 min-w-0' : 'w-7'}`}
-        />
-        ))}
+      <div className="flex items-center gap-3 px-4 py-3">
+        <span className="shrink-0 text-base md:text-sm text-tertiary">{label ?? placeholder}</span>
+        <div className={`relative flex items-center ${spread ? 'flex-1 min-w-0 gap-2' : 'ml-auto gap-1.5'}`}>
+          {slots.map((_, i) => {
+            const c = value[i]
+            const active = focused && i === Math.min(value.length, n - 1)
+            return (
+              <span
+                key={i}
+                aria-hidden
+                className={`h-8 flex items-center justify-center rounded-md border text-base md:text-sm font-mono text-primary transition-colors ${active ? 'border-themeblue3' : c ? 'border-primary/30' : 'border-primary/15'} ${spread ? 'flex-1 min-w-0' : 'w-7'}`}
+              >
+                {c ?? ''}
+              </span>
+            )
+          })}
+          <input
+            type="text"
+            inputMode={slots.every(s => s === 'digit') ? 'numeric' : 'text'}
+            autoCapitalize="characters"
+            autoComplete="off"
+            autoCorrect="off"
+            spellCheck={false}
+            autoFocus={autoFocus}
+            value={value}
+            aria-label={label ?? placeholder}
+            onChange={(e) => onChange(fitSlots(e.target.value, slots))}
+            onKeyDown={handleKeyDown}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
+            // Hidden by colour, not opacity-0: iOS skips the keyboard scroll-to-reveal
+            // for a transparent focused field, which left the row under the keyboard
+            // in bottom sheets.
+            className="absolute inset-0 w-full h-full text-transparent caret-transparent bg-transparent selection:bg-transparent border-0 focus:outline-none text-base cursor-text"
+          />
+        </div>
       </div>
     </label>
   )

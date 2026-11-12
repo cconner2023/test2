@@ -98,6 +98,9 @@ export interface GuideChapter {
     sections: GuideSection[];
 }
 
+/** Keep in step with APP_VERSION in vite.config. The User Guide replaced guided
+ *  tours (removed 2026-07-05): a request for a "tour" means a guide section.
+ *  Image blocks take a bare filename in public/userGuide/. */
 export const USER_GUIDE_VERSION = '2.8.0';
 
 export const UserGuide: GuideChapter[] = [

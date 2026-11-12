@@ -113,6 +113,8 @@ const CLOSE_ALL_DRAWERS = {
     showLoRaDrawer: false,
     showTC3Drawer: false,
     showTrackingBoardDrawer: false,
+    trackingDrawerEntry: null as { id: string; edit: boolean } | null,
+    trackingDrawerCheckIn: false,
     showMapOverlayDrawer: false,
     mapOverlayDrawerOverlayId: null as string | null,
     mapOverlayDrawerFeatureId: null as string | null,
@@ -168,6 +170,10 @@ interface NavigationState {
     showLoRaDrawer: boolean
     showTC3Drawer: boolean
     showTrackingBoardDrawer: boolean
+    /** BRN to open once the Tracking Board drawer is up (edit = straight into Edit). */
+    trackingDrawerEntry: { id: string; edit: boolean } | null
+    /** Open the Tracking Board drawer straight into the check-in form. */
+    trackingDrawerCheckIn: boolean
     showMapOverlayDrawer: boolean
     mapOverlayDrawerOverlayId: string | null
     mapOverlayDrawerFeatureId: string | null
@@ -230,6 +236,10 @@ interface NavigationActions {
     setShowLoRaDrawer: (show: boolean) => void
     setShowTC3Drawer: (show: boolean) => void
     setShowTrackingBoardDrawer: (show: boolean) => void
+    openTrackingEntry: (entryId: string, edit?: boolean) => void
+    clearTrackingDrawerEntry: () => void
+    openTrackingCheckIn: () => void
+    clearTrackingDrawerCheckIn: () => void
     setShowMapOverlayDrawer: (show: boolean, overlayId?: string | null, featureId?: string | null) => void
     setShowCalendarDrawer: (show: boolean, initialDate?: string | null) => void
     openCalendarEvent: (eventId: string) => void
@@ -294,6 +304,8 @@ export const useNavigationStore = create<NavigationStore>()((set, get) => ({
     showLoRaDrawer: false,
     showTC3Drawer: false,
     showTrackingBoardDrawer: false,
+    trackingDrawerEntry: null,
+    trackingDrawerCheckIn: false,
     showMapOverlayDrawer: false,
     mapOverlayDrawerOverlayId: null,
     mapOverlayDrawerFeatureId: null,
@@ -574,7 +586,26 @@ export const useNavigationStore = create<NavigationStore>()((set, get) => ({
         ...(show ? CLOSE_ALL_DRAWERS : {}),
         ...PRESERVED_FIELDS(s),
         showTrackingBoardDrawer: show,
+        ...(show ? {} : { trackingDrawerEntry: null, trackingDrawerCheckIn: false }),
     })),
+
+    openTrackingEntry: (entryId, edit = false) => set((s) => ({
+        ...CLOSE_ALL_DRAWERS,
+        ...PRESERVED_FIELDS(s),
+        showTrackingBoardDrawer: true,
+        trackingDrawerEntry: { id: entryId, edit },
+    })),
+
+    clearTrackingDrawerEntry: () => set({ trackingDrawerEntry: null }),
+
+    openTrackingCheckIn: () => set((s) => ({
+        ...CLOSE_ALL_DRAWERS,
+        ...PRESERVED_FIELDS(s),
+        showTrackingBoardDrawer: true,
+        trackingDrawerCheckIn: true,
+    })),
+
+    clearTrackingDrawerCheckIn: () => set({ trackingDrawerCheckIn: false }),
 
     setShowMapOverlayDrawer: (show, overlayId, featureId) => set((s) => ({
         ...(show ? CLOSE_ALL_DRAWERS : {}),
