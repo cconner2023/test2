@@ -47,6 +47,7 @@ import { usePlanPaneScreens } from './Provider/ProviderPlanSections';
 import { generatePEText } from './PhysicalExam';
 import { parsePlanState } from './Plan';
 import type { PlanState } from '../Types/PlanTypes';
+import { NoteHistorySection, historyPaneScreen } from './NoteHistorySection';
 
 const SECTION_LABEL_CLASS = 'text-[9pt] font-semibold text-primary uppercase tracking-wider';
 const CARD_CLASS = 'relative rounded-2xl bg-themewhite2 overflow-hidden';
@@ -127,6 +128,7 @@ function TextSectionCard({ addLabel, value, onChange, expanders, placeholder, on
     );
 }
 
+
 type PageId = 'edit' | 'fullnote';
 
 interface WriteNoteProps {
@@ -200,6 +202,7 @@ export const WriteNotePage = ({
         peState, setPeState,
         planNote, setPlanNote,
         assessmentNote, setAssessmentNote,
+        history, setHistory,
         selectedDdx, setSelectedDdx, customDdx, setCustomDdx,
         encodedValue, setEncodedValue,
         currentPage, currentPageId, slideDirection,
@@ -285,6 +288,7 @@ export const WriteNotePage = ({
     // empty → seed used, non-destructive once the medic edits (planNote wins).
     const planSeedText = planNote || (restore ? '' : algoRouting.planText);
     const planHasContent = !!planSeedText;
+
 
     // ── DDx popover state ──────────────────────────────────────────────────
     const [ddxPopoverVisible, setDdxPopoverVisible] = useState(false);
@@ -473,6 +477,7 @@ export const WriteNotePage = ({
             headerActions: doneHeaderAction,
             render: () => <TextSectionEditor value={note} onChange={setNote} placeholder="Chief complaint, onset, duration, character, associated symptoms..." />,
         },
+        's-hx': historyPaneScreen(history, setHistory, doneHeaderAction),
         's-ddx': {
             title: 'Differential Diagnosis',
             headerActions: doneHeaderAction,
@@ -629,6 +634,13 @@ export const WriteNotePage = ({
                                         expanders={expanders}
                                         placeholder="Chief complaint, onset, duration, character, associated symptoms..."
                                         onOpen={paneMode ? () => setPaneScreen({ key: 's-hpi' }) : undefined}
+                                    />
+                                    {/* History items sit in the HPI group, no section label of their own */}
+                                    <NoteHistorySection
+                                        value={history}
+                                        onChange={setHistory}
+                                        expanders={expanders}
+                                        onOpenPane={paneMode ? (key) => setPaneScreen({ key: 's-hx', params: { key } }) : undefined}
                                     />
                                 </div>
 
@@ -813,6 +825,7 @@ export const WriteNotePage = ({
                                                     physicalExamNote: peNote,
                                                     peState: peState ?? undefined,
                                                     planNote,
+                                                    history,
                                                     user: profile,
                                                     userId: authUserId,
                                                 }}

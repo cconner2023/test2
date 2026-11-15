@@ -2,7 +2,7 @@ import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { Palette, Shield, Lock, MessageSquare, Bell, Stethoscope, Scale, X, Building2, Check, Radio, LayoutDashboard, HardDrive, Smartphone, BookOpen, Plus } from 'lucide-react';
 import { BaseDrawer } from '@/Components/primitives/BaseDrawer';
 import { useIsMobile } from '../../Hooks/useIsMobile';
-import { ChildClinicRosterBody } from './Supervisor/ChildClinicRosterSheet';
+import { ChildClinicRosterCard } from './Supervisor/ChildClinicRosterSheet';
 import { resizeImage } from '../../Hooks/useProfileAvatar';
 import { useAvatar } from '../../Utilities/AvatarContext';
 import { useUserProfile } from '../../Hooks/useUserProfile';
@@ -31,14 +31,9 @@ import { MainSettingsPanel } from './MainSettingsPanel';
 import { SettingsRail } from './SettingsRail';
 import { AvatarPickerPanel } from './AvatarPickerPanel';
 import { ContentWrapper } from '@/Components/primitives/ContentWrapper';
-import { SlideRevealPane } from '@/Components/primitives/SlideRevealPane';
-import { PaneHeader } from '@/Components/primitives/PaneHeader';
-import { SearchInput } from '@/Components/primitives/SearchInput';
-import { UserGuideTree } from '@/Components/UserGuide/UserGuideTree';
-import { UserGuideBody } from '@/Components/UserGuide/UserGuideBody';
-import { useUserGuideNav } from '@/Components/UserGuide/useUserGuideNav';
-import { USER_GUIDE_VERSION } from '@/Data/UserGuide';
-import { useEscBackout } from '../../Hooks/useEscBackout';
+import { PaneCard, PaneSlot } from '@/Components/primitives/PaneCard';
+import type { CardMorphHost } from '@/Components/primitives/OverlayStack';
+import { useHeldWhileOpen } from '../../Hooks/useHeldWhileOpen';
 import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill';
 import { SessionsDevicesPanel } from './SessionsDevicesPanel';
 import { ClinicPanel } from './ClinicPanel';
@@ -54,15 +49,24 @@ import { useTheme } from '../../Utilities/ThemeContext';
 import { clusterLabel, useClusterDirectoryVersion } from '../../Utilities/clusterLabel';
 
 
+/** Desktop panels laid out with SettingsPage, which handle their own width. The
+ *  rest keep the max-w-3xl cap on purpose: single short forms (Notifications,
+ *  Feedback, Feature Votes, WhisperNet) and prose (Privacy) read
+ *  worse stretched, not better. */
+const WIDE_PANELS = new Set<string>([
+    'clinic', 'user-profile', 'pin-setup', 'sessions-devices', 'storage',
+    'overview-widgets', 'theme-picker', 'avatar-picker', 'release-notes', 'note-content',
+]);
+
 interface SettingsDrawerProps {
     isVisible: boolean;
     onClose: () => void;
     initialPanel?: 'main' | 'release-notes' | 'user-profile' | 'feedback' | 'feature-votes' | 'clinic';
 }
 
-/** Desktop right-pane content. The center keeps its own `activePanel`; this is
- *  the nested detail drilled from within a panel (mobile routes these through
- *  the center slide-push / local Sheet instead, so `detailView` stays 'none'). */
+/** Desktop PaneCard content, floated over the main pane. The main pane keeps its
+ *  own `activePanel`; this is the record drilled from within a panel (mobile routes
+ *  these through the slide-push / local Sheet instead, so `detailView` stays 'none'). */
 type DetailView =
     | { kind: 'none' }
     | { kind: 'child-cluster'; id: string; name: string }
@@ -76,23 +80,25 @@ export const Settings = ({
     const { currentAvatar, setAvatar, avatarList, customImage, isCustom, setCustomImage, clearCustomImage } = useAvatar();
     const { themeName } = useTheme();
     const isMobile = useIsMobile();
-    const [activePanel, setActivePanel] = useState<'main' | 'release-notes' | 'avatar-picker' | 'user-profile' | 'pin-setup' | 'notification-settings' | 'feedback' | 'note-content' | 'privacy-policy' | 'sessions-devices' | 'clinic' | 'lora' | 'plan-settings' | 'text-templates' | 'provider-templates' | 'overview-widgets' | 'theme-picker' | 'storage' | 'feature-votes' | 'user-guide'>('main');
-    // Desktop three-pane right detail. Never set on mobile (drills slide-push /
-    // use a local Sheet instead). See DetailView above.
+    const [activePanel, setActivePanel] = useState<'main' | 'release-notes' | 'avatar-picker' | 'user-profile' | 'pin-setup' | 'notification-settings' | 'feedback' | 'note-content' | 'privacy-policy' | 'sessions-devices' | 'clinic' | 'lora' | 'plan-settings' | 'text-templates' | 'provider-templates' | 'overview-widgets' | 'theme-picker' | 'storage' | 'feature-votes'>('main');
+    // Desktop PaneCard detail. Never set on mobile. See DetailView above. PaneCard's
+    // own Esc closes it first; a second Esc closes the drawer.
     const [detailView, setDetailView] = useState<DetailView>({ kind: 'none' });
     const detailOpen = detailView.kind !== 'none';
+    const shownDetail = useHeldWhileOpen(detailOpen, detailView);
     const closeDetail = useCallback(() => setDetailView({ kind: 'none' }), []);
-    // Desktop Esc: collapse the right detail pane first; a second Esc closes the drawer.
-    useEscBackout(!isMobile && detailOpen, closeDetail);
-    // MOBILE: the User Guide is its own top-level drawer, so opening it flips a
-    // nav-store flag (which runs CLOSE_ALL_DRAWERS and takes Settings with it —
-    // correct on a phone, where one full-screen surface replaces another).
-    // DESKTOP: it is a center panel instead. Leaving Settings to read the guide
-    // dropped you out of the surface entirely with nothing to come back to.
+    // An App Content item's editor morphs into the subpage card's slot rather than
+    // floating a second overlay over it (PropertyPanel's cardHost pattern). The
+    // subpage card stays mounted but hidden while the editor holds the slot, so
+    // Back / Close returns to the list with its scroll and state intact.
+    const [morphEl, setMorphEl] = useState<HTMLDivElement | null>(null);
+    const [morphActive, setMorphActive] = useState(false);
+    const cardHost = useMemo<CardMorphHost>(() => ({ el: morphEl, onActiveChange: setMorphActive }), [morphEl]);
+    // The User Guide is its own top-level drawer on every platform (also in the
+    // SideNav). Opening it runs CLOSE_ALL_DRAWERS, taking Settings with it. The
+    // desktop guide once lived inside this drawer's rail; that buried it and gave
+    // it chrome no other rail had. v2-decisions/settings 2026-11-15.
     const setShowUserGuideDrawer = useNavigationStore((s) => s.setShowUserGuideDrawer);
-    const setUserGuideSection = useNavigationStore((s) => s.setUserGuideSection);
-    const guideActive = !isMobile && isVisible && activePanel === 'user-guide';
-    const guide = useUserGuideNav(guideActive);
     const { profile, updateProfile } = useUserProfile();
     const [slideDirection, setSlideDirection] = useState<'left' | 'right' | ''>('');
     const prevVisibleRef = useRef(false);
@@ -203,18 +209,6 @@ export const Settings = ({
         else go();
     }, [activePanel, clinicHasPending, guardedClinicAction]);
 
-    // Esc inside the nested guide steps back to the settings tree before closing the
-    // drawer — the same layering the detail pane gets above. The two are mutually
-    // exclusive, so only one listener is ever attached.
-    useEscBackout(!isMobile && !detailOpen && activePanel === 'user-guide', () => navigateCenter(homePanel));
-
-    // 'user-guide' is a desktop-only center panel; on mobile the guide is its own
-    // drawer and panelMap has no entry, so a desktop→mobile resize while reading it
-    // would render an empty panel. Fall back to the menu.
-    useEffect(() => {
-        if (isMobile && activePanel === 'user-guide') setActivePanel('main');
-    }, [isMobile, activePanel]);
-
 const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
         if (id === PANEL.CLOSE) { closeDrawer(); return; }
         if (id === PANEL.BACK_TO_MAIN) {
@@ -305,10 +299,7 @@ const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
         if (isAuthenticated) {
             items.push(
                 opt(PANEL.USER_GUIDE, <BookOpen size={20} />, 'User Guide', 'How everything works', {
-                    action: () => {
-                        if (isMobile) { setShowUserGuideDrawer(true); closeDrawer(); }
-                        else navigateCenter('user-guide');
-                    },
+                    action: () => { setShowUserGuideDrawer(true); closeDrawer(); },
                 }),
                 opt(PANEL.RELEASE_NOTES, <Shield size={20} />, 'Release Notes', 'What\'s new in this version', hasUnvotedCycle ? { dot: true } : undefined),
             );
@@ -328,7 +319,7 @@ const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
         }
 
         return items;
-    }, [themeName, handleItemClick, isDevRole, isAuthenticated, isSupervisorRole, clinicId, profile.clinicName, clusterOptions, clusterDirectory, activeClinicId, setSupervisingClinic, updateProfile, hasUnvotedCycle, whisperNetVisible, setShowUserGuideDrawer, isMobile, navigateCenter]);
+    }, [themeName, handleItemClick, isDevRole, isAuthenticated, isSupervisorRole, clinicId, profile.clinicName, clusterOptions, clusterDirectory, activeClinicId, setSupervisingClinic, updateProfile, hasUnvotedCycle, whisperNetVisible, setShowUserGuideDrawer]);
 
     // Swipe-back for sub-panels (mobile touch only)
     const swipeHandlers = useSwipeBack(
@@ -391,9 +382,6 @@ const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
                 };
             // All panels below slide right back to main
             case 'release-notes':       return { title: 'Release Notes', ...backTo() };
-            // Desktop-only panel — the rail carries its own back row, so this title
-            // is really just the drawer naming itself.
-            case 'user-guide':          return { title: 'User Guide', ...backTo() };
             case 'feature-votes':       return { title: 'Feature Votes', ...backTo() };
             case 'avatar-picker':       return { title: 'Choose Avatar', ...backTo() };
             case 'user-profile':        return { title: 'Profile', ...backTo() };
@@ -582,10 +570,6 @@ const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
                             'release-notes': (
                                 <ReleaseNotesPanel
                                     onOpenFeatureVotes={() => { handleSlideAnimation('left'); setActivePanel('feature-votes'); }}
-                                    onOpenGuide={isMobile ? undefined : (sectionId) => {
-                                        navigateCenter('user-guide');
-                                        setUserGuideSection(sectionId);
-                                    }}
                                 />
                             ),
                             'feature-votes':        <FeatureVotesPanel onOpenFeedback={() => { handleSlideAnimation('left'); setActivePanel('feedback'); }} />,
@@ -637,35 +621,46 @@ const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
                 // pt-[calc(var(--drawer-header-h,3.5rem)+…)] collapses to the +… floor.
                 const paneStyle = { ['--drawer-header-h' as string]: '0px' } as React.CSSProperties;
 
-                // Desktop right pane: nested detail drilled from the center panel.
+                // Desktop PaneCard over the main pane. Rendered while closed too
+                // (PaneCard unmounts itself after the exit) so shownDetail can
+                // carry the content out.
                 const renderDetail = () => {
-                    if (detailView.kind === 'child-cluster') {
+                    if (shownDetail.kind === 'child-cluster') {
                         return (
-                            <ChildClinicRosterBody
-                                key={detailView.id}
-                                clinicId={detailView.id}
+                            <ChildClinicRosterCard
+                                isOpen={detailOpen}
+                                clinicId={shownDetail.id}
+                                clinicName={shownDetail.name}
                                 currentUserId={user?.id ?? null}
-                                title={clusterLabel(detailView.id, detailView.name)}
-                                onBack={closeDetail}
+                                onClose={closeDetail}
                             />
                         );
                     }
-                    if (detailView.kind === 'app-content') {
-                        const titleMap: Record<typeof detailView.panel, string> = {
+                    if (shownDetail.kind === 'app-content') {
+                        const titleMap: Record<typeof shownDetail.panel, string> = {
                             'plan-settings': 'Plan',
                             'text-templates': 'Text Templates',
                             'provider-templates': 'Provider Templates',
                         };
-                        return (
-                            <div className="flex h-full flex-col">
-                                <PaneHeader title={titleMap[detailView.panel]} onBack={closeDetail} />
-                                <div className="flex-1 min-h-0 overflow-y-auto">
-                                    {detailView.panel === 'plan-settings' && <PlanPanel />}
-                                    {detailView.panel === 'text-templates' && <TextTemplatesPanel />}
-                                    {detailView.panel === 'provider-templates' && <ProviderTemplatesPanel />}
+                        return (<>
+                            <PaneCard
+                                isOpen={detailOpen}
+                                onClose={closeDetail}
+                                title={titleMap[shownDetail.panel]}
+                                width={420}
+                                fill
+                                hidden={morphActive}
+                            >
+                                <div key={shownDetail.panel} className="h-full" style={paneStyle}>
+                                    {shownDetail.panel === 'plan-settings' && <PlanPanel cardHost={cardHost} />}
+                                    {shownDetail.panel === 'text-templates' && <TextTemplatesPanel cardHost={cardHost} />}
+                                    {shownDetail.panel === 'provider-templates' && <ProviderTemplatesPanel cardHost={cardHost} />}
                                 </div>
-                            </div>
-                        );
+                            </PaneCard>
+                            <PaneSlot width={420}>
+                                <div ref={setMorphEl} className="flex flex-col min-h-0 max-h-full" />
+                            </PaneSlot>
+                        </>);
                     }
                     return null;
                 };
@@ -680,95 +675,24 @@ const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
                             panelMap[activePanel] ?? null
                         ) : (
                             <div className="flex h-full">
-                                {/* Left rail — condensed settings tree + search. Collapses
-                                    (slides out left) when the right detail pane opens. */}
-                                <SlideRevealPane
-                                    open={!detailOpen}
-                                    side="left"
-                                    width={260}
-                                    keepMounted
-                                    className="border-r border-tertiary/10 bg-themewhite/50"
-                                    style={paneStyle}
-                                >
-                                    {activePanel === 'user-guide' ? (
-                                        // The guide's own three-level TOC takes over the rail.
-                                        // Nesting it here is the point: the settings tree is one
-                                        // Back away, so reading the guide is a drill rather than
-                                        // a jump to a different drawer.
-                                        <div className="h-full flex flex-col">
-                                            <PaneHeader
-                                                title="User Guide"
-                                                onBack={() => navigateCenter(homePanel)}
-                                                backLabel="Back to Settings"
-                                            />
-                                            <div className="shrink-0 px-2.5 py-2 border-b border-tertiary/10">
-                                                <SearchInput
-                                                    value={guide.query}
-                                                    onChange={guide.setQuery}
-                                                    placeholder="Search the guide"
-                                                />
-                                            </div>
-                                            <div className="flex-1 min-h-0 overflow-y-auto">
-                                                <UserGuideTree
-                                                    chapters={guide.visibleChapters}
-                                                    activeId={guide.activeId}
-                                                    expandedChapters={guide.expandedChapters}
-                                                    expandedSections={guide.expandedSections}
-                                                    onToggleChapter={guide.toggleChapter}
-                                                    onToggleSection={guide.toggleSection}
-                                                    onJump={guide.jumpTo}
-                                                    expandAll={guide.searching}
-                                                />
-                                            </div>
-                                        </div>
-                                    ) : (
-                                        <SettingsRail {...mainPanelProps} activeId={activePanel} />
-                                    )}
-                                </SlideRevealPane>
-                                {/* Center — the selected top-level panel, capped to a reading
-                                    measure and centered in the remaining space. Every panel is
-                                    authored as a phone surface (medallion icon left, control
-                                    right); across the full width of a 90% drawer those two ends
-                                    sit a pane apart. The panel keeps its own scrolling root, so
-                                    the scrollbar rides the column edge, not the pane edge. */}
-                                <div className="flex-1 min-w-0 flex justify-center">
-                                    {activePanel === 'user-guide' ? (
-                                        // Not capped with the rest: the guide is a reading
-                                        // surface that already carries its own measure
-                                        // (UserGuideBody caps prose at 64rem).
-                                        <div ref={guide.bodyScrollRef} className="w-full h-full overflow-y-auto" style={paneStyle}>
-                                            {guide.visibleChapters.length === 0 ? (
-                                                <p className="text-[10pt] text-tertiary text-center py-16">
-                                                    No sections match “{guide.query}”.
-                                                </p>
-                                            ) : (
-                                                <UserGuideBody chapters={guide.visibleChapters} isMobile={false} />
-                                            )}
-                                            <p className="text-[9pt] text-tertiary text-center pb-10">
-                                                User Guide · v{USER_GUIDE_VERSION}
-                                            </p>
-                                        </div>
-                                    ) : (
-                                        <div className="w-full max-w-3xl flex flex-col overflow-hidden" style={paneStyle}>
-                                            {/* 'main' is the mobile menu screen and has no desktop
-                                                meaning — the rail is the menu. It can still appear
-                                                here for a frame after handleClose resets, so it
-                                                resolves to the same panel the drawer opens on. */}
-                                            {panelMap[activePanel === 'main' ? homePanel : activePanel] ?? null}
-                                        </div>
-                                    )}
-                                </div>
-                                {/* Right — nested detail (child roster / App Content subpage);
-                                    slides in from the right as the rail collapses. */}
-                                <SlideRevealPane
-                                    open={detailOpen}
-                                    side="right"
-                                    width={380}
-                                    className="border-l border-primary/10 bg-themewhite"
-                                    style={paneStyle}
-                                >
+                                <SettingsRail {...mainPanelProps} activeId={activePanel} />
+                                {/* Main pane. `relative` is the PaneCard's positioning box.
+                                    Panels outside WIDE_PANELS keep a max-w-3xl cap: a phone
+                                    surface stretched across a 90% drawer puts its icon and
+                                    control a pane apart. */}
+                                <div className="relative flex-1 min-w-0 flex justify-center bg-themewhite">
+                                    <div
+                                        className={`w-full flex flex-col overflow-hidden ${WIDE_PANELS.has(activePanel) ? '' : 'max-w-3xl'}`}
+                                        style={paneStyle}
+                                    >
+                                        {/* 'main' is the mobile menu screen; the rail is the
+                                            desktop menu. It can still appear here for a frame
+                                            after handleClose resets, so it resolves to the
+                                            panel the drawer opens on. */}
+                                        {panelMap[activePanel === 'main' ? homePanel : activePanel] ?? null}
+                                    </div>
                                     {renderDetail()}
-                                </SlideRevealPane>
+                                </div>
                             </div>
                         )}
                     </ContentWrapper>

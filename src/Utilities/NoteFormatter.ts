@@ -7,6 +7,7 @@ import type { CardState } from '../Hooks/useAlgorithm';
 import type { UserTypes } from '../Data/User';
 import { screenerRegistry, getScreenerMaxScore, getScreenerScore, isQuestionScored, isScreenerGateOpen } from '../Data/SpecTesting';
 import { bitmaskToIndices } from './textCodec';
+import { formatHistory, type NoteHistory } from './noteHistory';
 
 // ---------------------------------------------------------------------------
 // Algorithm content
@@ -304,6 +305,7 @@ export interface NoteAssemblyOptions {
     customNote: string;
     physicalExamNote?: string;
     planNote?: string;
+    history?: NoteHistory;
     signature?: string;
 }
 
@@ -317,6 +319,8 @@ export interface AssembledNote {
         assessmentSection?: string;
         physicalExam?: string;
         plan?: string;
+        /** Formatted history lines; rendered in fullNote under SUBJECTIVE after the HPI. */
+        history?: string;
         customNote: string;
     };
     fullNote: string;
@@ -337,10 +341,12 @@ export function assembleNote(
     const fullNoteParts: string[] = [];
     const customNote = options.customNote.trim();
 
-    // SUBJECTIVE (HPI)
-    if (customNote) {
+    // SUBJECTIVE (HPI, then histories)
+    const history = formatHistory(options.history);
+    if (customNote || history) {
         fullNoteParts.push('SUBJECTIVE:');
-        fullNoteParts.push(customNote);
+        if (customNote) fullNoteParts.push(customNote);
+        if (history) fullNoteParts.push(history);
     }
 
     // OBJECTIVE (Physical Exam)
@@ -428,6 +434,7 @@ export function assembleNote(
             assessmentSection: assessmentParts.length > 0 ? assessmentParts.join('\n') : undefined,
             physicalExam: physicalExamNote || undefined,
             plan: planNote || undefined,
+            history: history || undefined,
             customNote,
         },
         fullNote: fullNoteParts.join('\n').trim(),

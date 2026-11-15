@@ -2,6 +2,7 @@ import { useCallback } from 'react';
 import type { AlgorithmOptions } from '../Types/AlgorithmTypes';
 import type { CardState } from './useAlgorithm';
 import { assembleNote } from '../Utilities/NoteFormatter';
+import type { NoteHistory } from '../Utilities/noteHistory';
 
 interface NoteCaptureOptions {
     includeAlgorithm: boolean;
@@ -12,6 +13,7 @@ interface NoteCaptureOptions {
     customNote: string;
     physicalExamNote?: string;
     planNote?: string;
+    history?: NoteHistory;
     signature?: string;
 }
 

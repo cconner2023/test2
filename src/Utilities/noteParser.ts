@@ -4,6 +4,7 @@
 import { compressText, decompressText } from './textCodec';
 import { decodePECompact, encodePEState } from './peCodec';
 import { applyRedFlagFloor } from './dispositionSeverity';
+import { encodeHistory, decodeHistory, type NoteHistory } from './noteHistory';
 import { logError } from './ErrorHandler';
 
 import type { PEState } from '../Types/PETypes';
@@ -40,6 +41,8 @@ export interface ParsedNote {
     peRaw?: string;
     planText: string;
     assessmentText: string;
+    /** Medic histories (M segment). Absent on notes written before histories existed. */
+    history?: NoteHistory;
     /** Differential diagnoses — library picks and free-text entries. */
     ddx: { selected: string[]; custom: string[] };
     flags: { includeAlgorithm: boolean; includeDecisionMaking: boolean; includeHPI: boolean; includePhysicalExam: boolean; includePlan: boolean; includeAssessment: boolean; amended: boolean };
@@ -51,6 +54,9 @@ export interface ParsedNote {
     providerPeRaw?: string;
     providerAssessment?: string;
     providerPlan?: string;
+    /** Provider's histories (m segment). Seeded from the medic's on import, so when
+     *  present it supersedes `history` as the note's one histories block. */
+    providerHistory?: NoteHistory;
     providerUser?: UserTypes | null;
     providerUserId?: string | null;
 }
@@ -66,6 +72,7 @@ export interface NoteEncodeOptions {
     physicalExamNote?: string;
     peState?: PEState;
     planNote?: string;
+    history?: NoteHistory;
     user?: UserTypes;
     userId?: string;
 }
@@ -76,6 +83,7 @@ export interface ProviderNoteEncodeOptions {
     peState?: PEState;
     assessmentNote: string;
     planNote: string;
+    history?: NoteHistory;
     user?: UserTypes;
     userId?: string;
 }
@@ -296,6 +304,10 @@ export function parseNoteEncoding(encodedText: string): ParsedNote | null {
                 result.assessmentText = decompressText(value);
                 break;
             }
+            case 'M': {
+                result.history = decodeHistory(value);
+                break;
+            }
             case 'U': {
                 result.user = decodeUser(value);
                 break;
@@ -325,6 +337,10 @@ export function parseNoteEncoding(encodedText: string): ParsedNote | null {
             }
             case 'n': {
                 result.providerPlan = decompressText(value);
+                break;
+            }
+            case 'm': {
+                result.providerHistory = decodeHistory(value);
                 break;
             }
             case 'u': {
@@ -694,6 +710,11 @@ export function encodeNoteState(
     const assessmentNoteText = noteOptions.assessmentNote?.trim();
     if (assessmentNoteText) parts.push(`X${compressText(assessmentNoteText)}`);
 
+    // Histories. No include-flag bit: presence is the flag, and decoders that
+    // predate M skip unknown prefixes, so older builds read these notes minus histories.
+    const historyEncoded = encodeHistory(noteOptions.history);
+    if (historyEncoded) parts.push(`M${historyEncoded}`);
+
     // DDx list
     const ddxEncoded = encodeDdx(noteOptions.selectedDdx, noteOptions.customDdx);
     if (ddxEncoded) parts.push(`D${ddxEncoded}`);
@@ -910,7 +931,7 @@ export function amendMedicBarcode(medicBarcode: string, edits: MedicAmendment): 
     return [...head, ...body].join('|');
 }
 
-const PROVIDER_PREFIXES = new Set(['h', 'p', 'x', 'n', 'u', 'i']);
+const PROVIDER_PREFIXES = new Set(['h', 'p', 'x', 'n', 'm', 'u', 'i']);
 
 /** Drop provider (lowercase-prefixed) segments, leaving the medic note. */
 function stripProviderSegments(barcode: string): string {
@@ -929,6 +950,9 @@ function appendProviderSegments(parts: string[], options: ProviderNoteEncodeOpti
 
     if (options.assessmentNote.trim()) parts.push(`x${compressText(options.assessmentNote.trim())}`);
     if (options.planNote.trim()) parts.push(`n${compressText(options.planNote.trim())}`);
+
+    const historyEncoded = encodeHistory(options.history);
+    if (historyEncoded) parts.push(`m${historyEncoded}`);
 
     const userEncoded = encodeUser(options.user);
     if (userEncoded) parts.push(`u${userEncoded}`);

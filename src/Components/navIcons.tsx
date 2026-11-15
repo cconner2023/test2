@@ -9,6 +9,7 @@ const NAV_ICONS: Record<string, LucideIcon> = {
   provider: Stethoscope,
   supervisor: ClipboardCheck,
   settings: Settings,
+  userGuide: HelpCircle,
   admin: UserCog,
   lora: Radio,
   mapOverlay: MapIcon,
@@ -39,4 +40,5 @@ export const NAV_OPEN_STATE: Record<string, [keyof NavigationStore, (n: Navigati
   trackingBoard: ['showTrackingBoardDrawer', (n) => n.setShowTrackingBoardDrawer(false)],
   messages: ['showMessagesDrawer', (n) => { n.setShowMessagesDrawer(false); n.clearMessagesConversation() }],
   settings: ['showSettings', (n) => n.setShowSettings(false)],
+  userGuide: ['showUserGuideDrawer', (n) => n.setShowUserGuideDrawer(false)],
 }

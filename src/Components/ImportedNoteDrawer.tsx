@@ -73,7 +73,7 @@ export function ImportedNoteDrawer({ preview, onClose, onOpenMedevac, isMobile }
 
   const handleExportSF600 = (patient: PatientIdentification, stamp: SF600Stamp) => {
     if (!note) return
-    exportSF600({ noteText: note, date: formatDob(stamp.date), time: stamp.time, signatureName: authorSig, patient, facility: formClinicName || undefined })
+    exportSF600({ noteText: note, date: formatDob(stamp.date), time: stamp.time, signatureName: authorSig, patient, facility: formClinicName || undefined, history: shown?.parsed?.providerHistory ?? shown?.parsed?.history })
   }
 
   const handleShare = () => {

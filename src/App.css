@@ -1091,8 +1091,11 @@ html {
   100% { flex: 1 1 0%; }
 }
 
+/* Unlayered, so this shorthand beats Tailwind's transition-all on the same
+   element: border/background must be listed here or the focus border snaps. */
 .chat-input-bar {
-  transition: flex 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: flex 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
+              border-color 0.3s ease, background-color 0.3s ease;
 }
 
 /* Property dashboard — scroll-to flash highlight */

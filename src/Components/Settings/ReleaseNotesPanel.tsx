@@ -8,6 +8,7 @@ import { useNavigationStore } from '../../stores/useNavigationStore';
 import { UserGuideAnchorsById } from '../../Data/UserGuide';
 import { SectionCard, SectionHeader } from '@/Components/primitives/Section'
 import { MetaBadge } from '@/Components/primitives/MetaBadge'
+import { SettingsPage, SettingsColumn } from './SettingsPage'
 
 type NoteType = Exclude<ReleaseNoteTypes['type'], undefined> | 'default';
 
@@ -23,14 +24,12 @@ const NOTE_ICONS: Record<NoteType, {
     default: { icon: PlusCircle, className: "text-tertiary" }
 };
 
-const ReleaseNoteItem = ({ note, onOpenGuide }: { note: ReleaseNoteTypes; onOpenGuide?: (sectionId: string) => void }) => {
+const ReleaseNoteItem = ({ note }: { note: ReleaseNoteTypes }) => {
     const noteType: NoteType = note.type || 'default';
     const { icon: Icon, className } = NOTE_ICONS[noteType];
 
     const openUserGuideDrawer = useNavigationStore((s) => s.setShowUserGuideDrawer);
-    // Default = open the standalone guide drawer. A host that can show the guide
-    // without leaving itself (desktop Settings) passes onOpenGuide instead.
-    const openUserGuide = onOpenGuide ?? ((sectionId: string) => openUserGuideDrawer(true, sectionId));
+    const openUserGuide = (sectionId: string) => openUserGuideDrawer(true, sectionId);
 
     // A note is tappable when it points at an existing User Guide section/subsection.
     const hasSection = !!note.sectionId && !!UserGuideAnchorsById[note.sectionId];
@@ -127,9 +126,6 @@ const VersionStatusCard = () => {
 
 interface ReleaseNotesPanelProps {
     onOpenFeatureVotes?: () => void;
-    /** Route a note's "Read more" somewhere other than the standalone guide drawer
-     *  — desktop Settings hosts the guide in its own panes. */
-    onOpenGuide?: (sectionId: string) => void;
 }
 
 const FeatureVotesCard = ({ onOpen }: { onOpen: () => void }) => {
@@ -174,7 +170,7 @@ const FeatureVotesCard = ({ onOpen }: { onOpen: () => void }) => {
     );
 };
 
-export const ReleaseNotesPanel = ({ onOpenFeatureVotes, onOpenGuide }: ReleaseNotesPanelProps = {}) => {
+export const ReleaseNotesPanel = ({ onOpenFeatureVotes }: ReleaseNotesPanelProps = {}) => {
     const isSupervisor = useAuthStore((s) => s.isSupervisorRole);
     const isProvider = useAuthStore((s) => s.isProviderRole);
 
@@ -195,13 +191,21 @@ export const ReleaseNotesPanel = ({ onOpenFeatureVotes, onOpenGuide }: ReleaseNo
     const versions = Object.keys(groupedNotes).sort((a, b) => parseFloat(b) - parseFloat(a));
 
     return (
-        <div className="h-full overflow-y-auto">
-            <div className="px-5 pb-4 space-y-5 pt-[calc(var(--drawer-header-h,3.5rem)+0.75rem)]">
-                <div>
+        <SettingsPage className="h-full">
+            <SettingsColumn>
+                <div className="order-1">
                     <SectionHeader>App Version</SectionHeader>
                     <VersionStatusCard />
                 </div>
-                {onOpenFeatureVotes && <FeatureVotesCard onOpen={onOpenFeatureVotes} />}
+                {onOpenFeatureVotes && (
+                    <div className="order-2 empty:hidden">
+                        <FeatureVotesCard onOpen={onOpenFeatureVotes} />
+                    </div>
+                )}
+            </SettingsColumn>
+            {/* The version cards keep their own tighter spacing as one group. */}
+            <SettingsColumn>
+                <div className="order-3 space-y-5">
                 {versions.map((version, versionIndex) => {
                     const notes = groupedNotes[version];
                     const isLatest = versionIndex === 0;
@@ -216,7 +220,6 @@ export const ReleaseNotesPanel = ({ onOpenFeatureVotes, onOpenGuide }: ReleaseNo
                                     <ReleaseNoteItem
                                         key={`${version}-${noteIndex}`}
                                         note={note}
-                                        onOpenGuide={onOpenGuide}
                                     />
                                 ))}
                                 {notes[0]?.date && (
@@ -228,7 +231,8 @@ export const ReleaseNotesPanel = ({ onOpenFeatureVotes, onOpenGuide }: ReleaseNo
                         </div>
                     );
                 })}
-            </div>
-        </div>
+                </div>
+            </SettingsColumn>
+        </SettingsPage>
     );
 };

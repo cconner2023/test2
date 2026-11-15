@@ -7,6 +7,7 @@ import { OverlayActionMenu } from '@/Components/primitives/OverlayActionMenu';
 import { useCsvActionsItems } from './CsvActionsMenu';
 import { exportProviderTemplatesCSV } from '../../Utilities/noteBlocksCSV';
 import { ProviderTemplateEditPopover, type EditState } from '../Provider/ProviderTemplateEditPopover';
+import type { CardMorphHost } from '@/Components/primitives/OverlayStack';
 import { PageSectionHeader } from '@/Components/primitives/Section';
 
 function fieldPreview(t: ProviderNoteTemplate): string {
@@ -21,7 +22,7 @@ function fieldPreview(t: ProviderNoteTemplate): string {
 
 // ── Main panel ──────────────────────────────────────────────────────────────
 
-export const ProviderTemplatesPanel = () => {
+export const ProviderTemplatesPanel = ({ cardHost }: { cardHost?: CardMorphHost } = {}) => {
     const { profile, updateProfile, syncProfileField } = useUserProfile();
     const clinicPlanOrderSets = useAuthStore(s => s.clinicPlanOrderSets);
 
@@ -123,6 +124,7 @@ export const ProviderTemplatesPanel = () => {
                 onClose={() => setEditState(null)}
                 onSave={handleSave}
                 onDelete={handleDelete}
+                cardHost={cardHost}
             />
         </div>
     );

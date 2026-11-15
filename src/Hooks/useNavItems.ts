@@ -62,15 +62,15 @@ export function useNavItems(): UseNavItemsReturn {
     if (customOrder) {
       const inOrder = new Set(customOrder)
       const missing = gatedItems.filter(i => !inOrder.has(i.action))
-      const settingsIdx = ordered.findIndex(i => i.action === 'settings')
-      if (settingsIdx !== -1) {
-        ordered.splice(settingsIdx, 0, ...missing)
+      const systemIdx = ordered.findIndex(i => i.group === 'system')
+      if (systemIdx !== -1) {
+        ordered.splice(systemIdx, 0, ...missing)
       } else {
         ordered.push(...missing)
       }
     }
 
-    const pinnedActions = new Set(['settings'])
+    const pinnedActions = new Set(['settings', 'userGuide'])
     const hiddenSet = new Set(hidden)
     ordered = ordered.filter(i => !hiddenSet.has(i.action) || pinnedActions.has(i.action))
 

@@ -7,6 +7,7 @@ import { clearTileCache, resetAllFailedItems } from '../../lib/offlineDb'
 import { useAuth } from '../../Hooks/useAuth'
 import { getDiagEntries, subscribeDiag } from '../../lib/diagLog'
 import { ErrorLogSheet } from './ErrorLogSheet'
+import { SettingsPage } from './SettingsPage'
 
 function formatBytes(bytes: number): string {
     if (bytes === 0) return '0 B'
@@ -100,7 +101,12 @@ export function StoragePanel() {
     const hasTiles  = (stats?.map.tileSizeBytes ?? 0) > 0
 
     return (
-        <div className="px-5 pb-4 space-y-3 pt-[calc(var(--drawer-header-h,3.5rem)+0.75rem)]">
+        <>
+        <SettingsPage className="h-full" split={false}>
+            {/* TileGrid's breakpoints, but gap-3: these are separate cards, not
+                rows of one card, and TileGrid's gap-1 would pack them on phones. */}
+            <div className="@container/tiles">
+            <div className="grid gap-3 @lg/tiles:grid-cols-2 @3xl/tiles:grid-cols-3">
             {/* Sync Queue */}
             <StorageCard
                 preview={
@@ -263,7 +269,10 @@ export function StoragePanel() {
                     <ActionButton icon={Eye} label="View error log" onClick={() => setLogOpen(true)} />
                 ) : undefined}
             />
-            {logOpen && <ErrorLogSheet onClose={() => setLogOpen(false)} />}
-        </div>
+            </div>
+            </div>
+        </SettingsPage>
+        {logOpen && <ErrorLogSheet onClose={() => setLogOpen(false)} />}
+        </>
     )
 }

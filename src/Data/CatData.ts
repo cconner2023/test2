@@ -75,7 +75,15 @@ export const menuData: sideMenuDataType[] = [
         stage: 'beta',
         gate: 'trackingBoard',
     },
-    // System
+    // System — pinned to the foot of the desktop rail (SideNav SYSTEM_ACTIONS).
+    // The guide sits beside Settings rather than inside it, where it was buried.
+    {
+        text: 'User Guide',
+        icon: 'userGuide',
+        action: 'userGuide',
+        group: 'system',
+        access: 'authenticated',
+    },
     {
         text: 'Settings',
         icon: 'settings',

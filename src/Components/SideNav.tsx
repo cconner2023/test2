@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
-import { Eye, Pin, ChevronUp, ChevronDown, EyeOff, Trash2 } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type MouseEvent } from 'react'
+import { Eye, Pin, ChevronUp, ChevronDown, EyeOff, Trash2, FileText } from 'lucide-react'
 import { NavIcon, DESKTOP_HIDDEN_ACTIONS, NAV_OPEN_STATE } from './navIcons'
 import { useShallow } from 'zustand/react/shallow'
 import { useNavigationStore } from '../stores/useNavigationStore'
@@ -20,6 +20,8 @@ import { PaneCard } from './primitives/PaneCard'
 import type { SavedNote } from '../lib/savedNotesDb'
 
 const BETA_ACTIONS = new Set(['lora'])
+/** Pinned to the foot of the desktop rail and exempt from reorder / hide. */
+const SYSTEM_ACTIONS = new Set(['userGuide', 'settings'])
 
 const subscribeOnline = (cb: () => void) => {
   window.addEventListener('online', cb)
@@ -53,7 +55,7 @@ export function SideNav({ onClose, onMenuItemClick, rail }: SideNavProps) {
   } = useNavItems()
 
   // Collapsed-rail hover hint, a PaneCard pinned at a viewport point: the rail's scroller would clip an in-flow one.
-  const [railTip, setRailTip] = useState<{ text: string; hotkey: string[] | null; x: number; y: number } | null>(null)
+  const [railTip, setRailTip] = useState<{ text: string; hotkey: string[] | null; detail?: string; x: number; y: number } | null>(null)
   useEffect(() => { if (!rail?.collapsed) setRailTip(null) }, [rail?.collapsed])
 
   const [lifted, setLifted] = useState<({ action: string; label: string } & LiftSnapshot) | null>(null)
@@ -124,8 +126,8 @@ export function SideNav({ onClose, onMenuItemClick, rail }: SideNavProps) {
         const canMoveUp = currentActionOrder.indexOf(lifted.action) > 0
         const canMoveDown = (() => {
           const idx = currentActionOrder.indexOf(lifted.action)
-          const settingsIdx = currentActionOrder.indexOf('settings')
-          return idx < (settingsIdx !== -1 ? settingsIdx - 1 : currentActionOrder.length - 1)
+          const systemIdx = currentActionOrder.findIndex(a => SYSTEM_ACTIONS.has(a))
+          return idx < (systemIdx !== -1 ? systemIdx - 1 : currentActionOrder.length - 1)
         })()
         const isStarred = starred.includes(lifted.action)
         const items: ContextMenuItem[] = [
@@ -174,7 +176,7 @@ export function SideNav({ onClose, onMenuItemClick, rail }: SideNavProps) {
   if (rail) {
     const { collapsed, onExpand } = rail
     const railItems = visibleItems.filter(i => !DESKTOP_HIDDEN_ACTIONS.has(i.action))
-    const settingsItem = railItems.find(i => i.action === 'settings')
+    const systemItems = railItems.filter(i => SYSTEM_ACTIONS.has(i.action))
     // Labels fade in after the width starts moving, out before it shrinks.
     const reveal = `transition-opacity duration-200 ${collapsed ? 'opacity-0 pointer-events-none' : 'opacity-100 delay-100'}`
 
@@ -188,9 +190,19 @@ export function SideNav({ onClose, onMenuItemClick, rail }: SideNavProps) {
       }
     }
 
+    const railDivider = (key: string) => (
+      <div key={key} className={`mx-3 my-1.5 border-t border-tertiary/10 transition-[width] duration-300 ${collapsed ? 'w-8' : 'w-[calc(100%-1.5rem)]'}`} />
+    )
+
+    const showTip = (e: MouseEvent<HTMLElement>, text: string, hotkey: string[] | null, detail?: string) => {
+      const r = (e.currentTarget.closest('nav') ?? e.currentTarget).getBoundingClientRect()
+      const row = e.currentTarget.getBoundingClientRect()
+      setRailTip({ text, hotkey, detail, x: r.right + 8, y: row.top + row.height / 2 })
+    }
+
     const railRow = (item: (typeof railItems)[number]) => {
       const active = !!openFlags[item.action]
-      const isPinned = item.action === 'settings' || item.group === 'utility'
+      const isPinned = SYSTEM_ACTIONS.has(item.action) || item.group === 'utility'
       return (
         <button
           key={item.action}
@@ -198,11 +210,7 @@ export function SideNav({ onClose, onMenuItemClick, rail }: SideNavProps) {
           {...(collapsed || isPinned ? {} : makeHandlers(item.action, item.text))}
           aria-label={item.text}
           aria-pressed={active}
-          onMouseEnter={collapsed ? (e) => {
-            const r = (e.currentTarget.closest('nav') ?? e.currentTarget).getBoundingClientRect()
-            const row = e.currentTarget.getBoundingClientRect()
-            setRailTip({ text: item.text, hotkey: hotkeyKeys(item.action), x: r.right + 8, y: row.top + row.height / 2 })
-          } : undefined}
+          onMouseEnter={collapsed ? (e) => showTip(e, item.text, hotkeyKeys(item.action)) : undefined}
           onMouseLeave={() => setRailTip(null)}
           className={`group relative flex items-center mx-2 w-[calc(100%-1rem)] h-10 px-1 shrink-0 rounded-full text-left active:scale-95 transform-gpu transition-colors ${collapsed ? '' : 'hover:bg-themewhite2/60'}`}
         >
@@ -266,7 +274,11 @@ export function SideNav({ onClose, onMenuItemClick, rail }: SideNavProps) {
         <div className={`mx-3 border-t border-tertiary/10 transition-[width] duration-300 ${collapsed ? 'w-8' : 'w-[calc(100%-1.5rem)]'}`} />
 
         <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden py-2 space-y-1">
-          {railItems.filter(i => i.action !== 'settings').map(railRow)}
+          {/* Roles split from the tool modules; starred items can sit out of group order, so the split follows adjacency. */}
+          {railItems.filter(i => !SYSTEM_ACTIONS.has(i.action)).flatMap((item, i, arr) =>
+            i > 0 && (arr[i - 1].group === 'roles') !== (item.group === 'roles')
+              ? [railDivider(`div-${item.action}`), railRow(item)]
+              : [railRow(item)])}
 
           {!collapsed && hiddenCount > 0 && (
             <button
@@ -278,33 +290,42 @@ export function SideNav({ onClose, onMenuItemClick, rail }: SideNavProps) {
             </button>
           )}
 
-          {!collapsed && savedNotes.length > 0 && (
-            <div className="mt-2">
-              <div className="mx-3 mb-1.5 border-t border-tertiary/10" />
-              <p className="pl-4 pt-1 pb-1 text-[9pt] font-semibold text-tertiary uppercase tracking-wider whitespace-nowrap">My Notes</p>
-              {savedNotes.map(note => (
-                <button
-                  key={note.id}
-                  onClick={() => handleNoteClick(note)}
-                  {...liftPressHandlers((snap) => setLiftedNote({ note, ...snap }), pressRef)}
-                  className="w-full text-left flex items-center px-4 py-2 rounded-xl hover:bg-themewhite2/60 active:scale-95 transform-gpu transition-colors"
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="text-[10pt] text-primary font-medium truncate">
-                      {note.symptomIcon ? `${note.symptomIcon} ` : ''}{note.symptomText}
+          {savedNotes.length > 0 && (
+            <>
+              {railDivider('div-notes')}
+              {!collapsed && (
+                <p className="pl-4 pt-1 pb-1 text-[9pt] font-semibold text-tertiary uppercase tracking-wider whitespace-nowrap">My Notes</p>
+              )}
+              {savedNotes.map(note => {
+                const label = `${note.symptomIcon ? `${note.symptomIcon} ` : ''}${note.symptomText}`
+                const meta = [note.kind === 'provider' ? 'Provider' : note.dispositionType, new Date(note.savedAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })].filter(Boolean).join(' · ')
+                return (
+                  <button
+                    key={note.id}
+                    onClick={() => handleNoteClick(note)}
+                    {...(collapsed ? {} : liftPressHandlers((snap) => setLiftedNote({ note, ...snap }), pressRef))}
+                    aria-label={label}
+                    onMouseEnter={collapsed ? (e) => showTip(e, label, null, meta) : undefined}
+                    onMouseLeave={() => setRailTip(null)}
+                    className={`group relative flex items-center mx-2 w-[calc(100%-1rem)] h-10 px-1 shrink-0 rounded-full text-left active:scale-95 transform-gpu transition-colors ${collapsed ? '' : 'hover:bg-themewhite2/60'}`}
+                  >
+                    <span className="w-8 h-8 shrink-0 rounded-full flex items-center justify-center bg-themewhite2 group-hover:bg-themewhite transition-colors">
+                      <FileText size={16} className="stroke-themeblue1" />
+                    </span>
+                    <div className={`ml-3 min-w-0 flex-1 ${reveal}`}>
+                      <div className="text-[10pt] text-primary font-medium truncate">{label}</div>
+                      <div className="text-[9pt] text-tertiary truncate leading-tight">{meta}</div>
                     </div>
-                    <div className="text-[9pt] text-tertiary truncate">
-                      {[note.kind === 'provider' ? 'Provider' : note.dispositionType, new Date(note.savedAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })].filter(Boolean).join(' · ')}
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
+                  </button>
+                )
+              })}
+            </>
           )}
         </div>
 
-        <div className="py-2 shrink-0">
-          {settingsItem && railRow(settingsItem)}
+        <div className="pb-2 shrink-0 space-y-1">
+          {railDivider('div-system')}
+          {systemItems.map(railRow)}
           {!collapsed && (
             <div className="flex items-center gap-1.5 px-4 pt-2 whitespace-nowrap">
               <span className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-themegreen' : 'bg-tertiary/40'}`} />
@@ -322,6 +343,9 @@ export function SideNav({ onClose, onMenuItemClick, rail }: SideNavProps) {
           title={railTip?.text ?? ''}
           anchor={railTip ? { x: railTip.x, y: railTip.y } : undefined}
         >
+          {railTip?.detail && (
+            <p className="px-3 py-2 text-[9pt] text-tertiary whitespace-nowrap">{railTip.detail}</p>
+          )}
           {railTip?.hotkey && (
             <div className="flex gap-1 px-3 py-2">
               {railTip.hotkey.map(k => (
@@ -381,7 +405,7 @@ export function SideNav({ onClose, onMenuItemClick, rail }: SideNavProps) {
         <div className="space-y-1">
           {visibleItems.map((item, i, filtered) => {
             const showGroupDivider = i > 0 && filtered[i - 1].group !== item.group
-            const isPinned = item.action === 'settings' || item.group === 'utility'
+            const isPinned = SYSTEM_ACTIONS.has(item.action) || item.group === 'utility'
 
             return (
               <div key={item.action}>

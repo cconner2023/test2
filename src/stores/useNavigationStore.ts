@@ -11,6 +11,7 @@ import type { AlgorithmOptions, dispositionType } from '../Types/AlgorithmTypes'
 import type { EventCategory } from '../Types/CalendarTypes'
 import type { CardState } from '../Hooks/useAlgorithm'
 import type { PEState } from '../Types/PETypes'
+import type { NoteHistory } from '../Utilities/noteHistory'
 import type { ImportPreview } from '../Hooks/useNoteImport'
 
 type ViewState = 'main' | 'subcategory' | 'questions'
@@ -65,6 +66,7 @@ export interface RestoredNote {
     peState: PEState | null;
     planNote: string;
     assessmentNote: string;
+    history?: NoteHistory;
     selectedDdx: string[];
     customDdx: string[];
     includeDecisionMaking: boolean;
@@ -260,7 +262,6 @@ interface NavigationActions {
     /** Open the User Guide drawer, optionally deep-linked to a section/subsection id. */
     setShowUserGuideDrawer: (show: boolean, sectionId?: string | null) => void
     /** Set the deep-link target only — for a host that already has the guide open. */
-    setUserGuideSection: (sectionId: string) => void
     clearUserGuideSection: () => void
     openWriteNote: (data: WriteNoteData) => void
     closeWriteNote: () => void
@@ -702,12 +703,6 @@ export const useNavigationStore = create<NavigationStore>()((set, get) => ({
         showUserGuideDrawer: show,
         userGuideDrawerSectionId: show ? (sectionId ?? null) : null,
     })),
-
-    // Deep-link WITHOUT opening the standalone drawer. Settings hosts the guide
-    // nested in its own panes on desktop, so a "Read more" tapped from there must
-    // not run CLOSE_ALL_DRAWERS — that would close the Settings drawer the guide
-    // is being read inside of.
-    setUserGuideSection: (sectionId) => set({ userGuideDrawerSectionId: sectionId }),
 
     clearUserGuideSection: () => set({ userGuideDrawerSectionId: null }),
 

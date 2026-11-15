@@ -146,7 +146,7 @@ export const UserGuide: GuideChapter[] = [
                         blocks: [
                             { kind: 'list', items: [
                                 'The side navigation opens the major areas — calendar, messages, map, property, triage, training, and your clinical tools.',
-                                ['Settings ', { btn: 'settings' }, ' (the gear) holds your profile, preferences, security, and this User Guide.'],
+                                ['Settings ', { btn: 'settings' }, ' (the gear) holds your profile, preferences, and security. This User Guide sits just above it in the side navigation.'],
                                 'A red indicator on an item means something needs your attention.',
                                 'On desktop most tools open a two-pane drawer (a list on the left, detail on the right); on mobile the detail slides up as a sheet. The controls are the same either way.',
                             ] },
@@ -171,6 +171,7 @@ export const UserGuide: GuideChapter[] = [
                         'Ctrl + Alt + O — Map overlay',
                         'Ctrl + Alt + I — Import note',
                         'Ctrl + Alt + S — Settings',
+                        'Ctrl + Alt + G — User guide',
                     ] },
                     { kind: 'sub', text: 'Role tools' },
                     { kind: 'p', text: 'These open only if you hold the matching role:' },

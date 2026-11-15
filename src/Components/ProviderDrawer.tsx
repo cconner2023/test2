@@ -50,6 +50,8 @@ import { parseNoteEncoding, findAlgorithmByCode, findSymptomByCode, reconstructC
 import type { AlgorithmOptions } from '../Types/AlgorithmTypes'
 import { decodePEState } from '../Utilities/peCodec'
 import { assembleNote, formatSignature } from '../Utilities/NoteFormatter'
+import { EMPTY_HISTORY, type NoteHistory } from '../Utilities/noteHistory'
+import { historyPaneScreen } from './NoteHistorySection'
 import { useSavedNotesStore } from '../stores/useSavedNotesStore'
 import { emitErrorToast } from '../lib/errorFeedback'
 import { useNavigationStore } from '../stores/useNavigationStore'
@@ -72,6 +74,7 @@ type PaneScreen = { key: string; params?: unknown }
 
 export interface ImportedMedicNote {
   medicHpi: string
+  /** Formatted medic histories. Read-only here: amendMedicBarcode never touches the M segment. */
   medicPe: string
   /** Assembled ASSESSMENT section (narrative + algorithm + DDx + decision making). */
   medicAssessment: string
@@ -139,6 +142,9 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
   const [selectedBlockKeys, setSelectedBlockKeys] = useState<string[]>([])
   const [assessmentNote, setAssessmentNote] = useState('')
   const [planNote, setPlanNote] = useState('')
+  // One histories block per note: seeded from the medic's on import, the provider's
+  // copy is what encodes (m segment) and prints.
+  const [history, setHistory] = useState<NoteHistory>(EMPTY_HISTORY)
   const [importedMedicNote, setImportedMedicNote] = useState<ImportedMedicNote | null>(null)
   const [medicBarcode, setMedicBarcode] = useState('')
   // Desktop medic plan editor state (the pane editor commits PlanState → text).
@@ -326,6 +332,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
         setPlanNote(parsed.providerPlan)
         setPlanState(parsePlanState(parsed.providerPlan, planOrderTags, planInstructionTags))
       }
+      if (parsed.providerHistory) setHistory(parsed.providerHistory)
       setImportedMedicNote(null)
       setMedicBarcode('')
       setImportExpanded(false)
@@ -351,6 +358,8 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
       }
     }
 
+    const seededHistory = parsed.providerHistory ?? parsed.history
+    if (seededHistory) setHistory(seededHistory)
     setImportedMedicNote(buildImportedMedicNote(parsed, algorithmOptions))
     setMedicBarcode(payload)
     setMedicPlanState(parsed.planText ? parsePlanState(parsed.planText, planOrderTags, planInstructionTags) : null)
@@ -462,6 +471,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
     setAssessmentNote('')
     setPlanNote('')
     setPlanState(null)
+    setHistory(EMPTY_HISTORY)
     setImportedMedicNote(null)
     setMedicBarcode('')
     setMedicPlanState(null)
@@ -474,7 +484,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
   // ── My Notes (save from output Done; reopen via providerRestore) ──────────
 
   const encodedValue = useProviderEncoded({
-    hpiNote, peNote, peState, assessmentNote, planNote, importedMedicNote, medicBarcode,
+    hpiNote, peNote, peState, assessmentNote, planNote, history, importedMedicNote, medicBarcode,
   })
   const authUserId = useAuthStore(s => s.user?.id)
   const savedNotes = useSavedNotesStore(s => s.notes)
@@ -698,6 +708,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
       headerActions: doneHeaderAction,
       render: () => <TextSectionEditor value={hpiNote} onChange={setHpiNote} placeholder="Chief complaint, onset, duration, character, associated symptoms..." />,
     },
+    's-hx': historyPaneScreen(history, setHistory, doneHeaderAction),
     's-assessment': {
       title: 'Assessment',
       headerActions: doneHeaderAction,
@@ -901,6 +912,9 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
                       setAssessmentNote={setAssessmentNote}
                       planNote={planNote}
                       setPlanNote={setPlanNote}
+                      history={history}
+                      setHistory={setHistory}
+                      onOpenHistory={(key) => setPaneScreen({ key: 's-hx', params: { key } })}
                       importedMedicNote={importedMedicNote}
                     />
                   </div>
@@ -973,6 +987,8 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
                   setAssessmentNote={setAssessmentNote}
                   planNote={planNote}
                   setPlanNote={setPlanNote}
+                  history={history}
+                  setHistory={setHistory}
                   importedMedicNote={importedMedicNote}
                 />
               ) : (
@@ -981,6 +997,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
                   peNote={peNote}
                   assessmentNote={assessmentNote}
                   planNote={planNote}
+                  history={history}
                   importedMedicNote={importedMedicNote}
                   encodedValue={encodedValue}
                 />
@@ -1054,6 +1071,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
                     peNote={peNote}
                     assessmentNote={assessmentNote}
                     planNote={planNote}
+                    history={history}
                     importedMedicNote={importedMedicNote}
                     encodedValue={encodedValue}
                   />

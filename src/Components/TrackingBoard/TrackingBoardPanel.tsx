@@ -965,8 +965,8 @@ export function TrackingEditForm({ entry, draft, onChange }: {
             >
               <Plus size={18} className="text-tertiary" />
             </button>
-            <div className="chat-input-bar relative flex flex-1 items-center rounded-2xl border border-themeblue3/10 shadow-xs bg-themewhite
-                focus-within:border-themeblue1/30 focus-within:bg-themewhite2 transition-all duration-300">
+            <div className="chat-input-bar relative flex flex-1 items-center rounded-[22px] border border-themeblue3/20 shadow-xs bg-themewhite
+                focus-within:border-themeblue1/40 focus-within:bg-themewhite2 transition-all duration-300">
               <textarea
                 ref={inputRef}
                 rows={1}
@@ -977,7 +977,7 @@ export function TrackingEditForm({ entry, draft, onChange }: {
                 placeholder={upload.task ? 'Add a comment...' : 'Type a comment...'}
                 aria-label="Comment"
                 className="w-full bg-transparent outline-none text-[12pt] text-tertiary px-3.5 py-2.5
-                    rounded-2xl min-w-0 placeholder:text-tertiary resize-none leading-snug"
+                    rounded-[22px] min-w-0 placeholder:text-tertiary resize-none leading-snug"
               />
             </div>
             {canSend && (

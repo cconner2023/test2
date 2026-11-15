@@ -15,6 +15,7 @@ import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
 import { SkeletonRows } from '@/Components/primitives/Skeleton'
 import { SectionCard } from '@/Components/primitives/Section'
 import { SettingsRow } from './SettingsToggleRow'
+import { SettingsPage, SettingsColumn } from './SettingsPage'
 import { useBarcodeScanner } from '../../Hooks/useBarcodeScanner'
 import { useLinkerBroadcast } from '../../Hooks/useDeviceLink'
 import { useAuth } from '../../Hooks/useAuth'
@@ -211,11 +212,14 @@ export function SessionsDevicesPanel() {
   // --- Cold load (no cache yet): quiet skeleton rows, not a full-screen loader ---
   if (loading && devices.length === 0) {
     return (
-      <div className="px-5 pb-4 space-y-3 pt-[calc(var(--drawer-header-h,3.5rem)+0.75rem)]">
-        <SectionCard>
-          <SkeletonRows count={3} />
-        </SectionCard>
-      </div>
+      // The skeleton sits in the main track, where the device list will land.
+      <SettingsPage className="h-full">
+        <div className="@4xl/page:col-start-2">
+          <SectionCard>
+            <SkeletonRows count={3} />
+          </SectionCard>
+        </div>
+      </SettingsPage>
     )
   }
 
@@ -232,9 +236,12 @@ export function SessionsDevicesPanel() {
   }
 
   return (
-    <div className="h-full overflow-y-auto">
-      <div className="px-5 pb-4 space-y-3 pt-[calc(var(--drawer-header-h,3.5rem)+0.75rem)]">
-
+    <>
+      {/* Linking (scanner, status, link row) in the aside; the device list, which
+          grows per device, in the main column. Phone order is unchanged. */}
+      <SettingsPage className="h-full">
+        <SettingsColumn>
+        <div className="order-1 space-y-3 empty:hidden">
         {addPhase === 'scanning' && (
           <SectionCard>
             <div className="px-4 py-3 space-y-2">
@@ -281,9 +288,12 @@ export function SessionsDevicesPanel() {
             />
           </SectionCard>
         )}
+        </div>
+        </SettingsColumn>
 
+        <SettingsColumn>
         {/* Device list — Sign Out All corner pill rides the top edge (primary only) */}
-        <div className="relative">
+        <div className="relative order-2">
         <SectionCard>
           {devices.map((device, idx) => {
             const isCurrent = device.deviceId === localDeviceId
@@ -339,16 +349,17 @@ export function SessionsDevicesPanel() {
           </ActionPill>
         )}
         </div>
+        </SettingsColumn>
+      </SettingsPage>
 
-        <ConfirmDialog
-          visible={confirmLogoutAll}
-          title="Sign out all other sessions?"
-          confirmLabel="Sign Out All"
-          variant="danger"
-          onConfirm={handleLogoutAll}
-          onCancel={() => setConfirmLogoutAll(false)}
-        />
-      </div>
+      <ConfirmDialog
+        visible={confirmLogoutAll}
+        title="Sign out all other sessions?"
+        confirmLabel="Sign Out All"
+        variant="danger"
+        onConfirm={handleLogoutAll}
+        onCancel={() => setConfirmLogoutAll(false)}
+      />
 
       {/* Confirm link device — fires after a successful QR scan */}
       <ConfirmDialog
@@ -395,7 +406,7 @@ export function SessionsDevicesPanel() {
         }}
         onCancel={() => setConfirmSignOut(false)}
       />
-    </div>
+    </>
   )
 }
 

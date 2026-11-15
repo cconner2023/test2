@@ -4,6 +4,7 @@
  * and SF600_2.pdf (continuation pages)
  */
 import { toWinAnsi, wrapText } from './pdfText'
+import { historyLine, type NoteHistory } from './noteHistory'
 export { downloadPdfBytes } from './downloadUtils'
 
 /**
@@ -30,6 +31,9 @@ export interface SF600Params {
   /** Page-1 "HOSPITAL OR MEDICAL FACILITY" box — the cluster label
    *  (nickname, falling back to unit name). */
   facility?: string
+  /** Allergy / meds / social history go in the left (DATE) column under the time,
+   *  and their lines are dropped from noteText. Surgical history stays in the body. */
+  history?: NoteHistory
 }
 
 /**
@@ -118,6 +122,13 @@ const FACILITY_BOX = {
   maxWidth: 210,
 } as const
 
+// Left (DATE) column history block: one line per ruled row, starting on page 1
+// under the time row and continuing down page 2+ when it runs out of rows.
+const HISTORY_BLOCK = {
+  fontSize: 8,
+  maxWidth: 95,
+} as const
+
 const GENDER_LABEL = { M: 'Male', F: 'Female' } as const
 
 /**
@@ -150,7 +161,13 @@ export async function generateSF600(params: SF600Params): Promise<Uint8Array> {
   // Strip existing "Signed:" line — SF600 renders its own signature row
   const dateStamp = new Date().toISOString().slice(0, 10).replace(/-/g, '')
   const clean = (s: string) => toWinAnsi(s, font)
-  let noteBody = clean(params.noteText.replace(/\n?Signed:.*$/m, '').trimEnd())
+  let noteText = params.noteText
+  const h = params.history
+  if (h) {
+    const moved = new Set((['allergies', 'homeMeds', 'tobacco', 'etoh'] as const).map(k => historyLine(h, k)).filter(Boolean))
+    noteText = noteText.split('\n').filter(l => !moved.has(l.trim())).join('\n')
+  }
+  let noteBody = clean(noteText.replace(/\n?Signed:.*$/m, '').trimEnd())
 
   // Wrap note text into visual lines, then append signature row marker
   const SIG_LINE = '__SIG_LINE__'
@@ -159,12 +176,30 @@ export async function generateSF600(params: SF600Params): Promise<Uint8Array> {
     allLines.push(SIG_LINE)
   }
 
-  // Paginate: first chunk → page 1, remaining → continuation pages
+  // Left-column history lines (allergy / meds / social). Every title always
+  // prints; a blank field reads 'Denies'.
+  const histLines: { text: string; bold?: boolean }[] = []
+  if (h) {
+    const val = (v: string) => v.trim() || 'Denies'
+    const add = (title: string, values: string[]) => {
+      histLines.push({ text: title, bold: true })
+      for (const v of values) {
+        for (const l of wrapText(clean(v), font, HISTORY_BLOCK.fontSize, HISTORY_BLOCK.maxWidth)) histLines.push({ text: l })
+      }
+    }
+    add('ALLERGY:', [val(h.allergies)])
+    add('MEDS:', [val(h.homeMeds)])
+    add('SocHx:', [`Tobacco: ${val(h.tobacco)}`, `ETOH: ${val(h.etoh)}`])
+  }
+  const HIST_PAGE1_START = 2 // rows 0-1 hold date and time
+  const histPage1 = histLines.slice(0, PAGE1_ROW_Y.length - HIST_PAGE1_START)
+  const histOverflow = histLines.slice(histPage1.length)
+
+  // Paginate: first chunk → page 1, remaining → continuation pages. Whichever
+  // column (note body or history) runs longer sets the page count.
   const page1Lines = allLines.slice(0, PAGE1_ROW_Y.length)
   const overflowLines = allLines.slice(PAGE1_ROW_Y.length)
-  const continuationPageCount = overflowLines.length > 0
-    ? Math.ceil(overflowLines.length / PAGE2_ROW_Y.length)
-    : 0
+  const continuationPageCount = Math.ceil(Math.max(overflowLines.length, histOverflow.length) / PAGE2_ROW_Y.length)
 
   // Add continuation pages from SF600_2 template
   if (continuationPageCount > 0) {
@@ -200,6 +235,12 @@ export async function generateSF600(params: SF600Params): Promise<Uint8Array> {
       color: black,
     })
   }
+
+  // ── History block (left column), one line per row ──
+  const drawHistLine = (page: ReturnType<typeof pdfDoc.getPages>[0], l: { text: string; bold?: boolean }, y: number) => {
+    page.drawText(l.text, { x: LAYOUT.dateCol.x, y, size: HISTORY_BLOCK.fontSize, font: l.bold ? boldFont : font, color: black })
+  }
+  histPage1.forEach((l, i) => drawHistLine(p1, l, PAGE1_ROW_Y[HIST_PAGE1_START + i]))
 
   // ── Hospital or medical facility (page 1 only) ──
   // Shrink to fit the box down to minFontSize, then truncate.
@@ -270,6 +311,8 @@ export async function generateSF600(params: SF600Params): Promise<Uint8Array> {
     chunk.forEach((line, i) => {
       drawLine(page, line, LAYOUT.page2NoteX, PAGE2_ROW_Y[i])
     })
+    histOverflow.slice(startLine, startLine + PAGE2_ROW_Y.length)
+      .forEach((l, i) => drawHistLine(page, l, PAGE2_ROW_Y[i]))
   }
 
   return pdfDoc.save()

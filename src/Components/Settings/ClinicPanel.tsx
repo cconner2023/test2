@@ -56,6 +56,7 @@ import { MemberEditPopover } from '../ClinicAdmin/MemberEditPopover'
 import { AddMemberPopover } from '../ClinicAdmin/AddMemberPopover'
 import { SwipeToDeleteRow } from '@/Components/primitives/SwipeToDeleteRow'
 import { PageSectionHeader, SectionCard } from '@/Components/primitives/Section'
+import { SettingsPage, SettingsColumn, SettingsSpan, TileGrid } from './SettingsPage'
 import { FieldLabel } from '@/Components/primitives/FieldCell'
 import { copyText, copyImage } from '../../Utilities/clipboardUtils'
 
@@ -76,10 +77,10 @@ interface ClinicPanelProps {
   addingMember: boolean
   onAddingMemberChange: (v: boolean) => void
   onPendingChangesChange?: (hasPending: boolean) => void
-  /** Desktop: routes a subordinate-cluster drill to the Settings right pane
+  /** Desktop: routes a subordinate-cluster drill to the Settings PaneCard
    *  instead of the local bottom Sheet. Undefined on mobile → Sheet is used. */
   onOpenChild?: (child: { id: string; name: string }) => void
-  /** Desktop: highlights the child whose roster is open in the right pane. */
+  /** Desktop: highlights the child whose roster is open in the PaneCard. */
   activeChildId?: string | null
 }
 
@@ -736,13 +737,24 @@ export function ClinicPanel({
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex-1 overflow-y-auto px-5 pb-4 space-y-6 pt-[calc(var(--drawer-header-h,3.5rem)+0.75rem)]">
-        {hookError && <ErrorDisplay message={hookError} />}
-        {error && <ErrorDisplay message={error} />}
-        {success && <ErrorDisplay type="success" message={success} />}
+      {/* Two columns once the page is wide: identity, outside contact and
+          associations in the aside; the roster and subordinate clusters, which
+          grow with headcount, in the main column. The order-* classes keep the
+          phone sequence (cluster, contact, roster, subordinates, associated). */}
+      <SettingsPage className="flex-1 min-h-0" split={isSupervisorRole && !!clinicId}>
+        {(hookError || error || success) && (
+          <SettingsSpan>
+            <div className="space-y-2">
+              {hookError && <ErrorDisplay message={hookError} />}
+              {error && <ErrorDisplay message={error} />}
+              {success && <ErrorDisplay type="success" message={success} />}
+            </div>
+          </SettingsSpan>
+        )}
 
+        <SettingsColumn>
         {/* ── Clinic ───────────────────────────────────────────────── */}
-        <section>
+        <section className="order-1">
           <PageSectionHeader>Cluster</PageSectionHeader>
           <div className="relative"><SectionCard ref={clinicCardRef}>
             <button
@@ -813,67 +825,13 @@ export function ClinicPanel({
 
         {/* ── Outside contact (event intake + allow calls/messaging, dev-wrapped) ── */}
         {clinicId && (
-          <IntakeMintSection clinicId={clinicId} />
-        )}
-
-        {/* ── Roster (supervisor-gated) ────────────────────────────────────
-             ONE section: sub-unit groups (whose ⋯ renames/deletes the sub-unit
-             itself) plus a Loaned-in bucket. Replaces the old separate
-             "Sub-units" manager card + flat "Users" list — the roster showed
-             the groups while the thing that manages them lived elsewhere.
-             In a surrogate (loaned) context the sub-unit RPCs target the
-             caller's OWN primary clinic, so we pass no sub-units and no
-             mutators: the roster degrades to a flat, unmanaged list. */}
-        {isSupervisorRole && clinicId && (
-          <ClusterRosterSection
-            title="Roster"
-            subUnits={canManageSubUnits ? subClusters : NO_SUB_UNITS}
-            members={assignedMembers}
-            subUnitIdOf={memberSubUnitId}
-            extraGroups={loanedInGroup}
-            renderItem={renderRosterRow}
-            itemsClassName="px-2 py-2 space-y-1"
-            cardClassName="rounded-xl bg-themewhite2 overflow-hidden"
-            emptyText="No members assigned"
-            addActions={rosterAddActions}
-            addAnchorRef={addMemberFabRef}
-            onCreateSubUnit={canManageSubUnits ? async (name) => {
-              const r = await createSubCluster(name)
-              if (r.success) invalidate('subClusters')
-              return r.success
-            } : undefined}
-            onRenameSubUnit={canManageSubUnits ? async (id, name) => {
-              const r = await renameSubCluster(id, name)
-              if (r.success) invalidate('subClusters')
-              return r.success
-            } : undefined}
-            onDeleteSubUnit={canManageSubUnits ? async (id) => {
-              const r = await deleteSubCluster(id)
-              if (r.success) invalidate('subClusters', 'users')
-              return r.success
-            } : undefined}
-          >
-            <LoadingOverlay visible={medicsLoading} size={120} className="rounded-xl" />
-          </ClusterRosterSection>
-        )}
-
-        {/* ── Subordinate Clusters (echelon children) — roster mgmt. Renders for the
-             operating-as clinic (home OR a loan cluster you supervise); the child RPC
-             is subtree-authorized via auth_supervisor_scope_ids, not own-clinic bound,
-             and SubordinateClustersManager renders nothing when there are no children
-             (or the clinic is out of server scope). ── */}
-        {isSupervisorRole && clinicId && (
-          <SubordinateClustersManager
-            clinicId={clinicId}
-            isSupervisor={isSupervisorRole}
-            currentUserId={user?.id ?? null}
-            onSelectChild={onOpenChild}
-            activeChildId={activeChildId}
-          />
+          <div className="order-2">
+            <IntakeMintSection clinicId={clinicId} />
+          </div>
         )}
 
         {/* ── Associated ─────────────────────────────────────────── */}
-        <section>
+        <section className="order-5">
           <PageSectionHeader trailing={showColocatedBanner ? <span className="w-1.5 h-1.5 rounded-full bg-themered" /> : undefined}>
             Associated
           </PageSectionHeader>
@@ -918,7 +876,7 @@ export function ClinicPanel({
               {nearbyClinicMap.length === 0 ? (
                 <p className="text-[10pt] text-tertiary py-4 text-center">No associated clusters</p>
               ) : (
-                <div className="space-y-1">
+                <TileGrid>
                   {nearbyClinicMap.map((clinic) => (
                     <SwipeToDeleteRow
                       key={clinic.clinicId}
@@ -947,7 +905,7 @@ export function ClinicPanel({
                     </button>
                     </SwipeToDeleteRow>
                   ))}
-                </div>
+                </TileGrid>
               )}
             </div>
             </div>
@@ -956,8 +914,72 @@ export function ClinicPanel({
             </ActionPill>
           </div>
         </section>
+        </SettingsColumn>
 
-      </div>
+        <SettingsColumn>
+
+        {/* ── Roster (supervisor-gated) ────────────────────────────────────
+             ONE section: sub-unit groups (whose ⋯ renames/deletes the sub-unit
+             itself) plus a Loaned-in bucket. Replaces the old separate
+             "Sub-units" manager card + flat "Users" list — the roster showed
+             the groups while the thing that manages them lived elsewhere.
+             In a surrogate (loaned) context the sub-unit RPCs target the
+             caller's OWN primary clinic, so we pass no sub-units and no
+             mutators: the roster degrades to a flat, unmanaged list. */}
+        {isSupervisorRole && clinicId && (
+          <div className="order-3">
+          <ClusterRosterSection
+            title="Roster"
+            subUnits={canManageSubUnits ? subClusters : NO_SUB_UNITS}
+            members={assignedMembers}
+            subUnitIdOf={memberSubUnitId}
+            extraGroups={loanedInGroup}
+            renderItem={renderRosterRow}
+            itemsClassName="px-2 py-2 grid gap-1 @lg/roster:grid-cols-2 @lg/roster:gap-x-2 @3xl/roster:grid-cols-3"
+            cardClassName="rounded-xl bg-themewhite2 overflow-hidden"
+            emptyText="No members assigned"
+            className=""
+            addActions={rosterAddActions}
+            addAnchorRef={addMemberFabRef}
+            onCreateSubUnit={canManageSubUnits ? async (name) => {
+              const r = await createSubCluster(name)
+              if (r.success) invalidate('subClusters')
+              return r.success
+            } : undefined}
+            onRenameSubUnit={canManageSubUnits ? async (id, name) => {
+              const r = await renameSubCluster(id, name)
+              if (r.success) invalidate('subClusters')
+              return r.success
+            } : undefined}
+            onDeleteSubUnit={canManageSubUnits ? async (id) => {
+              const r = await deleteSubCluster(id)
+              if (r.success) invalidate('subClusters', 'users')
+              return r.success
+            } : undefined}
+          >
+            <LoadingOverlay visible={medicsLoading} size={120} className="rounded-xl" />
+          </ClusterRosterSection>
+          </div>
+        )}
+
+        {/* ── Subordinate Clusters (echelon children) — roster mgmt. Renders for the
+             operating-as clinic (home OR a loan cluster you supervise); the child RPC
+             is subtree-authorized via auth_supervisor_scope_ids, not own-clinic bound,
+             and SubordinateClustersManager renders nothing when there are no children
+             (or the clinic is out of server scope). ── */}
+        {isSupervisorRole && clinicId && (
+          <div className="order-4 empty:hidden">
+          <SubordinateClustersManager
+            clinicId={clinicId}
+            isSupervisor={isSupervisorRole}
+            currentUserId={user?.id ?? null}
+            onSelectChild={onOpenChild}
+            activeChildId={activeChildId}
+          />
+          </div>
+        )}
+        </SettingsColumn>
+      </SettingsPage>
 
       {/* Clinic identity edit popover — shared with SupervisorDrawer */}
       <ClinicIdentityEditPopover

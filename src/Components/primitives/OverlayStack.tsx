@@ -122,7 +122,9 @@ function CardStackShell({ stack, host, onClose, loading }: {
         ariaLabel={stack.title}
         header={
           <PaneHeader
-            onBack={stack.onBack}
+            // Back at the root closes the morph, which reveals the host card this
+            // stack replaced (the same back the Sheet publisher gives on mobile).
+            onBack={stack.onBack ?? onClose}
             leading={stack.headerLeft}
             title={stack.title}
             actions={

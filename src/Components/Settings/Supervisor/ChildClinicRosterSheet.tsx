@@ -2,8 +2,8 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { clusterLabel } from '../../../Utilities/clusterLabel'
 import { Plus } from 'lucide-react'
 import { Sheet } from '@/Components/primitives/Sheet'
-import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill'
-import { PaneHeader } from '@/Components/primitives/PaneHeader'
+import { PillButton } from '@/Components/primitives/HeaderPill'
+import { PaneCard } from '@/Components/primitives/PaneCard'
 import { SwipeToDeleteRow } from '@/Components/primitives/SwipeToDeleteRow'
 import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
 import { clinicMemberName } from './supervisorHelpers'
@@ -48,35 +48,27 @@ function toFallbackProfile(m: ClinicMember): MemberProfileData {
 }
 
 /**
- * Roster body for a subordinate (direct-child) cluster. Surface-agnostic so it can
- * host inside a Sheet (mobile) OR the supervisor's right detail pane (desktop) —
- * mirrors the shared-settings-body pattern (MapSettingsBody). All chrome (add pill,
- * add popover, remove confirm) lives here so both host surfaces behave identically.
+ * Roster body for a subordinate (direct-child) cluster. Surface-agnostic: hosted by
+ * ChildClinicRosterSheet (mobile) and ChildClinicRosterCard (desktop PaneCard). The
+ * add-member trigger lives in each host's header, so a host bumps `reloadToken`
+ * after an add.
  */
 export function ChildClinicRosterBody({
   clinicId,
   currentUserId,
-  title,
-  onBack,
   reloadToken,
 }: {
   clinicId: string
   currentUserId: string | null
-  /** Desktop pane host: renders a detail header (back + title + Add-member icon
-   *  primitive on the right) instead of the mobile overlay add-pill above the list. */
-  title?: string
-  onBack?: () => void
-  /** Mobile host nudge: the add-member trigger lives in the Sheet header (outside
-   *  this body), so bumping this token tells the body to re-fetch after an add. */
+  /** The add-member trigger lives in the host header (outside this body), so
+   *  bumping this token tells the body to re-fetch after an add. */
   reloadToken?: number
 }) {
   const [members, setMembers] = useState<ClinicMember[]>([])
   const [loading, setLoading] = useState(true)
-  const [addAnchor, setAddAnchor] = useState<DOMRect | null>(null)
   const [removeTarget, setRemoveTarget] = useState<ClinicMember | null>(null)
   const [removing, setRemoving] = useState(false)
   const [editTarget, setEditTarget] = useState<{ member: ClinicMember; anchor: DOMRect } | null>(null)
-  const addPillRef = useRef<HTMLDivElement>(null)
 
   const refresh = useCallback(async () => {
     const res = await listClinicMembers(clinicId)
@@ -98,10 +90,6 @@ export function ChildClinicRosterBody({
       setRemoveTarget(null)
     }
   }, [removeTarget, clinicId])
-
-  const openAdd = () => {
-    if (addPillRef.current) setAddAnchor(addPillRef.current.getBoundingClientRect())
-  }
 
   const roster = loading ? (
     <p className="text-sm text-tertiary py-8 text-center">Loading…</p>
@@ -132,16 +120,6 @@ export function ChildClinicRosterBody({
 
   const popovers = (
     <>
-      <AddMemberPopover
-        isOpen={!!addAnchor}
-        anchorRect={addAnchor}
-        clinicId={clinicId}
-        onClose={() => setAddAnchor(null)}
-        onAdded={() => {
-          setAddAnchor(null)
-          refresh()
-        }}
-      />
       <ConfirmDialog
         visible={!!removeTarget}
         title={removeTarget ? `Remove ${clinicMemberName(removeTarget)}?` : ''}
@@ -170,34 +148,7 @@ export function ChildClinicRosterBody({
     </>
   )
 
-  // Desktop pane host: detail header (back + name + Add icon primitive on the right),
-  // scrollable roster below. Mirrors ProviderTemplateDetail's header layout.
-  if (title || onBack) {
-    return (
-      <div className="flex h-full flex-col">
-        <PaneHeader
-          title={title}
-          onBack={onBack}
-          backLabel="Back to dashboard"
-          actions={
-            <div ref={addPillRef}>
-              <HeaderPill>
-                <PillButton icon={Plus} iconSize={16} onClick={openAdd} label="Add member" />
-              </HeaderPill>
-            </div>
-          }
-        />
-        <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-6 pt-3">
-          {roster}
-        </div>
-        {popovers}
-      </div>
-    )
-  }
-
-  // Mobile Sheet host: the add-member trigger lives in the Sheet header (folded
-  // into the close pill via the Sheet `actions` slot — see ChildClinicRosterSheet).
-  // No section label — the Sheet title already names the cluster; this is its roster.
+  // No section label: the host header already names the cluster.
   return (
     <div className="px-4 pb-6 pt-3">
       {roster}
@@ -260,5 +211,60 @@ export function ChildClinicRosterSheet({
         }}
       />
     </Sheet>
+  )
+}
+
+/** Desktop host: the roster body in a PaneCard over the Settings main pane. Same
+ *  header shape as the mobile Sheet (Add member folded into the close pill). The
+ *  caller holds `clinicId` / `clinicName` through the exit (useHeldWhileOpen). */
+export function ChildClinicRosterCard({
+  isOpen,
+  clinicId,
+  clinicName,
+  currentUserId,
+  onClose,
+}: {
+  isOpen: boolean
+  clinicId: string
+  clinicName: string
+  currentUserId: string | null
+  onClose: () => void
+}) {
+  const [addAnchor, setAddAnchor] = useState<DOMRect | null>(null)
+  const [reloadToken, setReloadToken] = useState(0)
+  const addBtnRef = useRef<HTMLDivElement>(null)
+
+  const openAdd = () => {
+    if (addBtnRef.current) setAddAnchor(addBtnRef.current.getBoundingClientRect())
+  }
+
+  return (
+    <PaneCard
+      isOpen={isOpen}
+      onClose={onClose}
+      title={clusterLabel(clinicId, clinicName)}
+      actions={
+        <div ref={addBtnRef}>
+          <PillButton icon={Plus} iconSize={18} onClick={openAdd} label="Add member" />
+        </div>
+      }
+    >
+      <ChildClinicRosterBody
+        key={clinicId}
+        clinicId={clinicId}
+        currentUserId={currentUserId}
+        reloadToken={reloadToken}
+      />
+      <AddMemberPopover
+        isOpen={!!addAnchor}
+        anchorRect={addAnchor}
+        clinicId={clinicId}
+        onClose={() => setAddAnchor(null)}
+        onAdded={() => {
+          setAddAnchor(null)
+          setReloadToken((t) => t + 1)
+        }}
+      />
+    </PaneCard>
   )
 }

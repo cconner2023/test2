@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { Check, X, User, Building2, Plus } from 'lucide-react';
 import { useUserProfile } from '../../Hooks/useUserProfile';
 import { useAuthStore } from '../../stores/useAuthStore';
@@ -6,6 +6,8 @@ import { useEditableClinicContent } from '../../Hooks/useEditableClinicContent';
 import type { UserTypes, PlanBlockKey, PlanOrderSet, PlanOrderTags } from '../../Data/User';
 import { PLAN_ORDER_CATEGORIES } from '../../Data/User';
 import { PreviewOverlay } from '../PreviewOverlay';
+import { OverlayStack, type CardMorphHost } from '@/Components/primitives/OverlayStack';
+import { PillButton } from '@/Components/primitives/HeaderPill';
 import { SearchInput } from '@/Components/primitives/SearchInput';
 import { TextInput } from '@/Components/primitives/FormInputs';
 import { ActionButton } from '@/Components/primitives/ActionButton';
@@ -34,7 +36,9 @@ type OrderSetPopover =
     | { mode: 'edit'; anchor: DOMRect; orderSet: PlanOrderSet; isClinic: boolean }
     | { mode: 'new'; anchor: DOMRect };
 
-export const PlanPanel = () => {
+/** `cardHost` (desktop Settings): item editors morph into the host card's slot
+ *  instead of floating a PreviewOverlay over it. */
+export const PlanPanel = ({ cardHost }: { cardHost?: CardMorphHost } = {}) => {
     const { profile, updateProfile, syncProfileField } = useUserProfile();
     const transfer = useNoteBlocksTransfer();
     const isSupervisorRole = useAuthStore(s => s.isSupervisorRole);
@@ -321,6 +325,7 @@ export const PlanPanel = () => {
                 hasClinic={!!clinicId}
                 onSubmitMany={(scope, key, tags) => { addTags(scope, key, tags); setTagPopover(null); }}
                 onRename={(scope, key, original, next) => { renameTag(scope, key, original, next); setTagPopover(null); }}
+                cardHost={cardHost}
             />
 
             <OrderSetEditPopover
@@ -331,6 +336,7 @@ export const PlanPanel = () => {
                 isSupervisorRole={!!isSupervisorRole}
                 hasClinic={!!clinicId}
                 onSave={(scope, set) => { upsertOrderSet(scope, set); setOrderSetPopover(null); }}
+                cardHost={cardHost}
             />
 
             {transfer.picker}
@@ -393,13 +399,14 @@ function SigInput({ value, onChange, onEnter }: {
     );
 }
 
-function TagEditPopover({ state, onClose, isSupervisorRole, hasClinic, onSubmitMany, onRename }: {
+function TagEditPopover({ state, onClose, isSupervisorRole, hasClinic, onSubmitMany, onRename, cardHost }: {
     state: TagPopover | null;
     onClose: () => void;
     isSupervisorRole: boolean;
     hasClinic: boolean;
     onSubmitMany: (scope: Scope, key: PlanBlockKey, tags: string[]) => void;
     onRename: (scope: Scope, key: PlanBlockKey, original: string, next: string) => void;
+    cardHost?: CardMorphHost;
 }) {
     // New mode builds an array (one row per tag); edit mode is a single row.
     // Med rows carry a quantity and sig alongside the label — all three are
@@ -530,6 +537,101 @@ function TagEditPopover({ state, onClose, isSupervisorRole, hasClinic, onSubmitM
         }
     }
 
+    // Left footer: "Add additional" appends a shapeable row for the next tag.
+    // Rendered only once the current last row has content (no dimmed dead-end,
+    // no stacked blanks); the array grows one non-empty row at a time.
+    const addFooter = !isEdit && lastFilled ? (
+        <FooterPill>
+            <ActionButton icon={Plus} label="Add additional" onClick={addRow} />
+        </FooterPill>
+    ) : undefined;
+
+    const body = isEdit ? (
+            <div className="px-3 py-2 space-y-1.5">
+            <div className="flex items-center gap-2">
+                {editMeta && (
+                    <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${editMeta.bg}`}>
+                        <editMeta.icon size={14} className={editMeta.color} />
+                    </div>
+                )}
+                <input
+                    autoFocus
+                    type="text"
+                    value={values[0] ?? ''}
+                    onChange={(e) => setValueAt(0, e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleSave(); } }}
+                    placeholder={placeholder}
+                    className="flex-1 bg-transparent text-primary placeholder:text-tertiary focus:outline-none text-sm min-w-0"
+                />
+                {isMedCategory && <QtyInput value={qtys[0] ?? ''} onChange={(v) => setQtyAt(0, v)} onEnter={handleSave} />}
+            </div>
+            {isMedCategory && <SigInput value={sigs[0] ?? ''} onChange={(v) => setSigAt(0, v)} onEnter={handleSave} />}
+            </div>
+        ) : (
+            <div className="py-1">
+                {values.map((val, i) => (
+                    <div key={i} className={`px-3 py-1.5 space-y-1 ${isMedCategory && i > 0 ? 'border-t border-primary/6' : ''}`}>
+                    <div className="flex items-center gap-2">
+                        <input
+                            autoFocus={i === 0}
+                            ref={(el) => { inputRefs.current[i] = el; }}
+                            type="text"
+                            value={val}
+                            onChange={(e) => setValueAt(i, e.target.value)}
+                            onKeyDown={(e) => {
+                                if (e.key !== 'Enter') return;
+                                e.preventDefault();
+                                // Enter builds the list: a filled last row spawns the
+                                // next; otherwise it commits.
+                                if (i === values.length - 1 && val.trim()) addRow();
+                                else handleSave();
+                            }}
+                            placeholder={placeholder}
+                            className="flex-1 bg-transparent text-primary placeholder:text-tertiary focus:outline-none text-sm min-w-0"
+                        />
+                        {isMedCategory && <QtyInput value={qtys[i] ?? ''} onChange={(v) => setQtyAt(i, v)} onEnter={handleSave} />}
+                        {values.length > 1 && (
+                            <button
+                                type="button"
+                                onClick={() => removeRow(i)}
+                                className="shrink-0 p-1 text-tertiary active:text-themeredred transition-colors"
+                                aria-label="Remove"
+                            >
+                                <X size={12} />
+                            </button>
+                        )}
+                    </div>
+                    {isMedCategory && <SigInput value={sigs[i] ?? ''} onChange={(v) => setSigAt(i, v)} onEnter={handleSave} />}
+                    </div>
+                ))}
+            </div>
+        );
+
+    if (cardHost) {
+        // In the card, Save rides the header and renders only when usable.
+        return (
+            <OverlayStack
+                isOpen={isOpen}
+                onClose={onClose}
+                initial={{ key: 'edit' }}
+                cardHost={cardHost}
+                screens={{
+                    edit: {
+                        title: editTitle,
+                        headerActions: (
+                            <>
+                                <OverlayHeaderMenu items={modifierItems} />
+                                {canSave && <PillButton icon={Check} iconSize={18} accent="success" label="Save" onClick={handleSave} />}
+                            </>
+                        ),
+                        footer: addFooter,
+                        render: () => body,
+                    },
+                }}
+            />
+        );
+    }
+
     return (
         <PreviewOverlay
             isOpen={isOpen}
@@ -538,14 +640,7 @@ function TagEditPopover({ state, onClose, isSupervisorRole, hasClinic, onSubmitM
             title={editTitle}
             maxWidth={360}
             headerActions={<OverlayHeaderMenu items={modifierItems} />}
-            // Left footer — "Add additional" appends a shapeable row for the next
-            // tag. Rendered only once the current last row has content (no dimmed
-            // dead-end, no stacked blanks); the array grows one non-empty row at a time.
-            footer={!isEdit && lastFilled ? (
-                <FooterPill>
-                    <ActionButton icon={Plus} label="Add additional" onClick={addRow} />
-                </FooterPill>
-            ) : undefined}
+            footer={addFooter}
             rightFooter={
                 <FooterPill side="right">
                     <ActionButton
@@ -557,66 +652,7 @@ function TagEditPopover({ state, onClose, isSupervisorRole, hasClinic, onSubmitM
                 </FooterPill>
             }
         >
-            {isEdit ? (
-                <div className="px-3 py-2 space-y-1.5">
-                <div className="flex items-center gap-2">
-                    {editMeta && (
-                        <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${editMeta.bg}`}>
-                            <editMeta.icon size={14} className={editMeta.color} />
-                        </div>
-                    )}
-                    <input
-                        autoFocus
-                        type="text"
-                        value={values[0] ?? ''}
-                        onChange={(e) => setValueAt(0, e.target.value)}
-                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleSave(); } }}
-                        placeholder={placeholder}
-                        className="flex-1 bg-transparent text-primary placeholder:text-tertiary focus:outline-none text-sm min-w-0"
-                    />
-                    {isMedCategory && <QtyInput value={qtys[0] ?? ''} onChange={(v) => setQtyAt(0, v)} onEnter={handleSave} />}
-                </div>
-                {isMedCategory && <SigInput value={sigs[0] ?? ''} onChange={(v) => setSigAt(0, v)} onEnter={handleSave} />}
-                </div>
-            ) : (
-                <div className="py-1">
-                    {values.map((val, i) => (
-                        <div key={i} className={`px-3 py-1.5 space-y-1 ${isMedCategory && i > 0 ? 'border-t border-primary/6' : ''}`}>
-                        <div className="flex items-center gap-2">
-                            <input
-                                autoFocus={i === 0}
-                                ref={(el) => { inputRefs.current[i] = el; }}
-                                type="text"
-                                value={val}
-                                onChange={(e) => setValueAt(i, e.target.value)}
-                                onKeyDown={(e) => {
-                                    if (e.key !== 'Enter') return;
-                                    e.preventDefault();
-                                    // Enter builds the list: a filled last row spawns the
-                                    // next; otherwise it commits.
-                                    if (i === values.length - 1 && val.trim()) addRow();
-                                    else handleSave();
-                                }}
-                                placeholder={placeholder}
-                                className="flex-1 bg-transparent text-primary placeholder:text-tertiary focus:outline-none text-sm min-w-0"
-                            />
-                            {isMedCategory && <QtyInput value={qtys[i] ?? ''} onChange={(v) => setQtyAt(i, v)} onEnter={handleSave} />}
-                            {values.length > 1 && (
-                                <button
-                                    type="button"
-                                    onClick={() => removeRow(i)}
-                                    className="shrink-0 p-1 text-tertiary active:text-themeredred transition-colors"
-                                    aria-label="Remove"
-                                >
-                                    <X size={12} />
-                                </button>
-                            )}
-                        </div>
-                        {isMedCategory && <SigInput value={sigs[i] ?? ''} onChange={(v) => setSigAt(i, v)} onEnter={handleSave} />}
-                        </div>
-                    ))}
-                </div>
-            )}
+            {body}
         </PreviewOverlay>
     );
 }
@@ -625,7 +661,7 @@ function TagEditPopover({ state, onClose, isSupervisorRole, hasClinic, onSubmitM
 
 function OrderSetEditPopover({
     state, onClose, allOrderTags, allInstructionTags, isSupervisorRole, hasClinic,
-    onSave,
+    onSave, cardHost,
 }: {
     state: OrderSetPopover | null;
     onClose: () => void;
@@ -634,6 +670,7 @@ function OrderSetEditPopover({
     isSupervisorRole: boolean;
     hasClinic: boolean;
     onSave: (scope: Scope, set: PlanOrderSet) => void;
+    cardHost?: CardMorphHost;
 }) {
     const [name, setName] = useState('');
     const [presets, setPresets] = useState<Partial<Record<PlanBlockKey, string[]>>>({});
@@ -720,6 +757,69 @@ function OrderSetEditPopover({
         });
     }
 
+    const nameField = (
+        <TextInput
+            value={name}
+            onChange={setName}
+            placeholder="Name (e.g. URI Basic)"
+        />
+    );
+
+    const renderList = (filter: string, clearFilter: () => void) => (
+        <div>
+            {selectedFlat.length > 0 && (
+                <div className="border-b border-primary/6">
+                    <ListGroupLabel>Selected</ListGroupLabel>
+                    <div className="px-4 pb-2">
+                        {selectedFlat.map(({ catKey, tag }) => (
+                            <div key={`${catKey}-${tag}`} className="flex items-center gap-2 py-1">
+                                <span className="flex-1 text-sm text-primary break-words min-w-0">{planTagDisplay(catKey, tag)}</span>
+                                <button
+                                    type="button"
+                                    onClick={() => togglePreset(catKey, tag)}
+                                    className="shrink-0 p-1 text-tertiary active:text-themeredred transition-colors"
+                                >
+                                    <X size={12} />
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+            <PlanAllBlocksPreview
+                categories={categories}
+                filter={filter}
+                onToggleTag={(catKey, tag) => { togglePreset(catKey as PlanBlockKey, tag); clearFilter(); }}
+                activeTab={null}
+            />
+        </div>
+    );
+
+    if (cardHost) {
+        // In the card the search is local to the body: the stack shell's pinned
+        // search has no clear hook, and picking a tag should reset the filter.
+        return (
+            <OverlayStack
+                isOpen={isOpen}
+                onClose={onClose}
+                initial={{ key: 'edit' }}
+                cardHost={cardHost}
+                screens={{
+                    edit: {
+                        title: osTitle,
+                        headerActions: (
+                            <>
+                                <OverlayHeaderMenu items={modifierItems} />
+                                {canSave && <PillButton icon={Check} iconSize={18} accent="success" label="Save" onClick={handleSave} />}
+                            </>
+                        ),
+                        render: () => <LocalSearch placeholder="Search tags" pinned={nameField}>{renderList}</LocalSearch>,
+                    },
+                }}
+            />
+        );
+    }
+
     return (
         <PreviewOverlay
             isOpen={isOpen}
@@ -733,38 +833,8 @@ function OrderSetEditPopover({
                 <div>
                     {/* Sits on the PreviewOverlay card surface — a distinct bg here
                         reads as a second, standalone search bar under the real one. */}
-                    <div className="sticky top-0 z-10 bg-themewhite3">
-                        <TextInput
-                            value={name}
-                            onChange={setName}
-                            placeholder="Name (e.g. URI Basic)"
-                        />
-                    </div>
-                    {selectedFlat.length > 0 && (
-                        <div className="border-b border-primary/6">
-                            <ListGroupLabel>Selected</ListGroupLabel>
-                            <div className="px-4 pb-2">
-                                {selectedFlat.map(({ catKey, tag }) => (
-                                    <div key={`${catKey}-${tag}`} className="flex items-center gap-2 py-1">
-                                        <span className="flex-1 text-sm text-primary break-words min-w-0">{planTagDisplay(catKey, tag)}</span>
-                                        <button
-                                            type="button"
-                                            onClick={() => togglePreset(catKey, tag)}
-                                            className="shrink-0 p-1 text-tertiary active:text-themeredred transition-colors"
-                                        >
-                                            <X size={12} />
-                                        </button>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-                    <PlanAllBlocksPreview
-                        categories={categories}
-                        filter={filter}
-                        onToggleTag={(catKey, tag) => { togglePreset(catKey as PlanBlockKey, tag); clearFilter(); }}
-                        activeTab={null}
-                    />
+                    <div className="sticky top-0 z-10 bg-themewhite3">{nameField}</div>
+                    {renderList(filter, clearFilter)}
                 </div>
             )}
             headerActions={<OverlayHeaderMenu items={modifierItems} />}
@@ -779,5 +849,26 @@ function OrderSetEditPopover({
                 </FooterPill>
             }
         />
+    );
+}
+
+/** Search row owned by the body, for card-hosted editors whose filter must be
+ *  clearable from inside (see OrderSetEditPopover). `pinned` sticks with it. */
+function LocalSearch({ placeholder, pinned, children }: {
+    placeholder: string;
+    pinned?: ReactNode;
+    children: (filter: string, clearFilter: () => void) => ReactNode;
+}) {
+    const [filter, setFilter] = useState('');
+    return (
+        <>
+            <div className="sticky top-0 z-10 bg-themewhite3">
+                <div className="px-3 py-2">
+                    <SearchInput value={filter} onChange={setFilter} placeholder={placeholder} />
+                </div>
+                {pinned}
+            </div>
+            {children(filter, () => setFilter(''))}
+        </>
     );
 }

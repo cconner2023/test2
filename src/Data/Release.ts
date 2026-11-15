@@ -21,6 +21,7 @@ export interface ReleaseNoteTypes {
 }
 
 export const ReleaseNotes: ReleaseNoteTypes[] = [
+    { version: '2.8.0', type: 'changed', sectionId: 'getting-around', text: 'The User Guide moved out of Settings into the side navigation, next to Settings. Desktop: Ctrl+Alt+G.' },
     { version: '2.8.0', type: 'added', sectionId: 'messaging-media', text: 'Send files in chat: any type up to 25 MB, encrypted on your device. Photos can be sent at original quality. Attachments expire after 21 days.' },
     { version: '2.8.0', type: 'changed', sectionId: 'tracking-board', text: 'BRN input primitive changed' },
     { version: '2.8.0', type: 'changed', sectionId: 'tracking-board', text: 'Tracking board added to the mission overview widgets' },

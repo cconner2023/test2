@@ -78,7 +78,7 @@ function packSegment(segment: string): Uint8Array {
     return packPrefixedBlob(prefix, segment.substring(2))
   }
 
-  if ((prefix === 'X' || prefix === 'x') && segment[1] === '!') {
+  if ((prefix === 'X' || prefix === 'x' || prefix === 'M' || prefix === 'm') && segment[1] === '!') {
     return packPrefixedBlob(prefix, segment.substring(2))
   }
 

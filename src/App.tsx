@@ -352,6 +352,9 @@ case 'mapOverlay':
       case 'settings':
         navigation.setShowSettings(true)
         break
+      case 'userGuide':
+        navigation.setShowUserGuideDrawer(true)
+        break
       case 'settings-profile':
         setSettingsInitialPanel('user-profile')
         navigation.setShowSettings(true)
@@ -361,7 +364,7 @@ case 'mapOverlay':
         navigation.setShowSettings(true)
         break
     }
-  }, [navigation.isMobile, navigation.toggleImportExpanded, navigation.setShowSettings, navigation.setShowTC3Drawer, navigation.setShowTrackingBoardDrawer, handleKnowledgeBaseClick, handleMessagesClick, handlePropertyClick, handleMapOverlayClick, handleCalendarClick, handleSupervisorClick, handleAdminClick])
+  }, [navigation.isMobile, navigation.toggleImportExpanded, navigation.setShowSettings, navigation.setShowUserGuideDrawer, navigation.setShowTC3Drawer, navigation.setShowTrackingBoardDrawer, handleKnowledgeBaseClick, handleMessagesClick, handlePropertyClick, handleMapOverlayClick, handleCalendarClick, handleSupervisorClick, handleAdminClick])
 
   // Desktop keyboard hotkeys: Ctrl+Alt+<letter> jumps to drawers, Esc backs out one layer.
   useDesktopHotkeys({

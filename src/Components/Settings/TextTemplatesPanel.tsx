@@ -6,11 +6,12 @@ import type { UserTypes, TextExpander } from '../../Data/User';
 import { SearchInput } from '@/Components/primitives/SearchInput';
 import { TextExpanderManager } from './TextExpanderManager';
 import { TextExpanderEditPopover, type TextExpanderEditState, type ExpanderScope } from './TextExpanderEditPopover';
+import type { CardMorphHost } from '@/Components/primitives/OverlayStack';
 import { useClusterEditItem } from './ClusterEditPicker';
 import { useNoteBlocksTransferItems } from './NoteBlocksTransferMenu';
 import { useNoteBlocksTransfer } from '../../Hooks/useNoteBlocksTransfer';
 
-export const TextTemplatesPanel = () => {
+export const TextTemplatesPanel = ({ cardHost }: { cardHost?: CardMorphHost } = {}) => {
     const { profile, updateProfile, syncProfileField } = useUserProfile();
     const transfer = useNoteBlocksTransfer();
     const isSupervisorRole = useAuthStore(s => s.isSupervisorRole);
@@ -147,6 +148,7 @@ export const TextTemplatesPanel = () => {
                 isSupervisorRole={isSupervisorRole}
                 onClose={() => setEditState(null)}
                 onSave={handleSave}
+                cardHost={cardHost}
             />
 
             {transfer.picker}

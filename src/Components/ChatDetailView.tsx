@@ -733,8 +733,11 @@ export function ChatDetailView({
                   <Plus size={18} className="text-tertiary" />
                 </button>
               )}
-              <div className="chat-input-bar relative flex flex-1 items-center rounded-2xl border border-themeblue3/10 shadow-xs bg-themewhite
-                  focus-within:border-themeblue1/30 focus-within:bg-themewhite2 transition-all duration-300">
+              {/* Same shape and focus border as NavTop's desktop search. 22px is half the
+                  one-line height, so a single line is a full pill; rounded-full would
+                  stretch into a stadium once the textarea grows. TrackingBoardPanel mirrors this. */}
+              <div className="chat-input-bar relative flex flex-1 items-center rounded-[22px] border border-themeblue3/20 shadow-xs bg-themewhite
+                  focus-within:border-themeblue1/40 focus-within:bg-themewhite2 transition-all duration-300">
                 <textarea
                   ref={inputRef}
                   rows={1}
@@ -747,7 +750,7 @@ export function ChatDetailView({
                   })}
                   placeholder={placeholder}
                   className="w-full bg-transparent outline-none text-[12pt] text-tertiary px-3.5 py-2.5
-                      rounded-2xl min-w-0 placeholder:text-tertiary resize-none leading-snug"
+                      rounded-[22px] min-w-0 placeholder:text-tertiary resize-none leading-snug"
                   disabled={inputDisabled}
                 />
               </div>

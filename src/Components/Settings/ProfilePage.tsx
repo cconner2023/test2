@@ -37,6 +37,7 @@ import { ErrorDisplay } from '@/Components/primitives/ErrorDisplay';
 import { supabase } from '../../lib/supabase';
 import { reEncryptVaultKeys } from '../../lib/signal/vaultDevice';
 import { copyText, copyImage } from '../../Utilities/clipboardUtils';
+import { SettingsPage, SettingsColumn, TileGrid } from './SettingsPage';
 
 interface ProfilePageProps {
     onAvatarClick: () => void;
@@ -427,10 +428,13 @@ export const ProfilePage = ({
     };
 
     return (
-        <div className="h-full overflow-y-auto">
-            <div className="px-5 pb-4 space-y-5 pt-[calc(var(--drawer-header-h,3.5rem)+0.75rem)]">
+        <div className="flex flex-col h-full">
+            {/* Identity and account actions in the aside; certifications and
+                readiness, which grow with the user's record, in the main column. */}
+            <SettingsPage className="flex-1 min-h-0">
+                <SettingsColumn>
                 {/* User Card */}
-                <section>
+                <section className="order-1">
                     <PageSectionHeader>Profile</PageSectionHeader>
                     <div className="relative">
                 <SectionCard>
@@ -583,9 +587,11 @@ export const ProfilePage = ({
                         </>
                     )}
                 </section>
+                </SettingsColumn>
 
+                <SettingsColumn>
                 {/* Certifications Card */}
-                <section>
+                <section className="order-2">
                     <PageSectionHeader>Certifications</PageSectionHeader>
                     <div className="relative"><SectionCard>
                     {certsLoading && certs.length === 0 ? (
@@ -593,7 +599,8 @@ export const ProfilePage = ({
                     ) : certs.length === 0 ? (
                         <p className={`${CARD_EMPTY} py-6 text-center`}>No certifications</p>
                     ) : (
-                        <div className="px-2 py-2 space-y-1">
+                        <div className="px-2 py-2">
+                            <TileGrid>
                             {certs.map((cert) => (
                                 <CertificationRow
                                     key={cert.id}
@@ -613,6 +620,7 @@ export const ProfilePage = ({
                                     }}
                                 />
                             ))}
+                            </TileGrid>
                         </div>
                     )}
                     </SectionCard>
@@ -625,8 +633,11 @@ export const ProfilePage = ({
                 {/* Readiness — read-only self view of the same stats a supervisor
                     sees, computed from the user's own delta-synced training
                     completions + certs. */}
-                <MyReadinessSection certs={certs} />
-            </div>
+                <div className="order-3 empty:hidden">
+                    <MyReadinessSection certs={certs} />
+                </div>
+                </SettingsColumn>
+            </SettingsPage>
 
             {/* Leave Cluster Confirm + failure notice */}
             <ConfirmDialog

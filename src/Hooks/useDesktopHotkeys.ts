@@ -33,6 +33,7 @@ const KEY_TO_ACTION: Record<string, string> = {
     KeyT: 'tc3',           // TC3
     KeyC: 'calendar',      // Calendar
     KeyS: 'settings',      // Settings
+    KeyG: 'userGuide',     // user Guide
 }
 
 const IS_APPLE = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.userAgent)
@@ -58,6 +59,7 @@ const ACTION_ACCESS: Record<string, AccessLevel> = {
     tc3: 'public',
     calendar: 'authenticated',
     settings: 'public',
+    userGuide: 'authenticated',
 }
 
 /** Ordered drawer flag → close action. Drawers are mutually exclusive except the

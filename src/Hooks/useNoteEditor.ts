@@ -17,6 +17,7 @@ import { getColorClasses } from '../Utilities/ColorUtilities';
 import { UI_TIMING } from '../Utilities/constants';
 import { copyWithHtml } from '../Utilities/clipboardUtils';
 import type { RestoredNote } from '../stores/useNavigationStore';
+import { EMPTY_HISTORY, type NoteHistory } from '../Utilities/noteHistory';
 
 type PageId = string;
 
@@ -67,6 +68,7 @@ export function useNoteEditor(config: NoteEditorConfig) {
     const [peState, setPeState] = useState<PEState | null>(restore?.peState ?? null);
     const [planNote, setPlanNote] = useState(restore?.planNote ?? '');
     const [assessmentNote, setAssessmentNote] = useState(restore?.assessmentNote ?? '');
+    const [history, setHistory] = useState<NoteHistory>(restore?.history ?? EMPTY_HISTORY);
     const [selectedDdx, setSelectedDdx] = useState<string[]>(restore?.selectedDdx ?? []);
     const [customDdx, setCustomDdx] = useState<string[]>(restore?.customDdx ?? []);
     const [encodedValue, setEncodedValue] = useState('');
@@ -92,13 +94,13 @@ export function useNoteEditor(config: NoteEditorConfig) {
     // --- Preview note generation ---
     useEffect(() => {
         const result = generateNote(
-            { includeAlgorithm, includeDecisionMaking, assessmentNote, selectedDdx, customDdx, customNote: note, physicalExamNote: peNote, planNote },
+            { includeAlgorithm, includeDecisionMaking, assessmentNote, selectedDdx, customDdx, customNote: note, physicalExamNote: peNote, planNote, history },
             dispositionType,
             dispositionText,
             selectedSymptom,
         );
         setPreviewNote(result.fullNote);
-    }, [note, assessmentNote, selectedDdx, customDdx, peNote, planNote, generateNote, dispositionType, dispositionText, selectedSymptom, includeAlgorithm, includeDecisionMaking]);
+    }, [note, assessmentNote, selectedDdx, customDdx, peNote, planNote, history, generateNote, dispositionType, dispositionText, selectedSymptom, includeAlgorithm, includeDecisionMaking]);
 
     // --- Copy handler — confirmation is the shared CopiedModal, raised by copyWithHtml ---
     const handleCopy = useCallback((text: string) => {
@@ -151,8 +153,9 @@ export function useNoteEditor(config: NoteEditorConfig) {
             signatureName: sigName || undefined,
             patient,
             facility: formClinicName || undefined,
+            history,
         });
-    }, [previewNote, exportSF600, profile, formClinicName]);
+    }, [previewNote, exportSF600, profile, formClinicName, history]);
 
     // --- Slide animation helper ---
     const handleSlideAnimation = useCallback((direction: 'left' | 'right') => {
@@ -207,6 +210,7 @@ export function useNoteEditor(config: NoteEditorConfig) {
         peState, setPeState,
         planNote, setPlanNote,
         assessmentNote, setAssessmentNote,
+        history, setHistory,
         selectedDdx, setSelectedDdx,
         customDdx, setCustomDdx,
         encodedValue, setEncodedValue,

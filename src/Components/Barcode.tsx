@@ -5,6 +5,7 @@ import type { UserTypes } from '../Data/User';
 import { encodeNoteState, encryptBarcode, renderBarcodeToCanvas } from '../Utilities/NoteCodec';
 import { logError } from '../Utilities/ErrorHandler';
 import { selectIsAuthenticated, useAuthStore } from '../stores/useAuthStore';
+import type { NoteHistory } from '../Utilities/noteHistory';
 
 // ---------------------------------------------------------------------------
 // BarcodeDisplay — shared visual component for barcode canvas + encoded text
@@ -64,6 +65,7 @@ interface NoteBarcodeGeneratorProps {
         customNote: string;
         physicalExamNote?: string;
         planNote?: string;
+        history?: NoteHistory;
         user?: UserTypes;
         userId?: string;
     };
@@ -85,7 +87,7 @@ export function NoteBarcodeGenerator({
 
     const compactString = useMemo(() =>
         encodeNoteState(algorithmOptions, cardStates, noteOptions, symptomCode),
-        [algorithmOptions, cardStates, noteOptions.includeAlgorithm, noteOptions.includeDecisionMaking, noteOptions.assessmentNote, noteOptions.selectedDdx, noteOptions.customDdx, noteOptions.customNote, noteOptions.physicalExamNote, noteOptions.planNote, noteOptions.user, noteOptions.userId, symptomCode]
+        [algorithmOptions, cardStates, noteOptions.includeAlgorithm, noteOptions.includeDecisionMaking, noteOptions.assessmentNote, noteOptions.selectedDdx, noteOptions.customDdx, noteOptions.customNote, noteOptions.physicalExamNote, noteOptions.planNote, noteOptions.history, noteOptions.user, noteOptions.userId, symptomCode]
     );
 
     // Encrypt (pack + deflate + AES-GCM + base64); skip for guests, fall back to plain ASCII if no key

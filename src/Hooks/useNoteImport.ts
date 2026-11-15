@@ -10,6 +10,7 @@ import { formatTC3Note } from '../Utilities/TC3Formatter';
 import type { ParsedNote } from '../Utilities/NoteCodec';
 import type { TC3Card } from '../Types/TC3Types';
 import { assembleNote, formatSignature } from '../Utilities/NoteFormatter';
+import { formatHistory } from '../Utilities/noteHistory';
 import { medevacFromCompact, medevacToText } from '../lib/reportExport';
 import type { MedevacRequest } from '../Types/MedevacTypes';
 
@@ -136,6 +137,7 @@ export const useNoteImport = () => {
                 customDdx: parsed.ddx.custom,
                 physicalExamNote: parsed.flags.includePhysicalExam ? parsed.peText : '',
                 planNote: parsed.flags.includePlan ? parsed.planText : '',
+                history: parsed.history,
                 signature: parsed.user ? formatSignature(parsed.user) : undefined,
             },
             algorithmOptions ?? [],
@@ -146,12 +148,16 @@ export const useNoteImport = () => {
         );
 
         // 7. If provider fields exist, rebuild with alternating signatures
-        const hasProviderFields = !!(parsed.providerHpi || parsed.providerPe || parsed.providerAssessment || parsed.providerPlan);
+        const hasProviderFields = !!(parsed.providerHpi || parsed.providerPe || parsed.providerAssessment || parsed.providerPlan || parsed.providerHistory);
         const providerSig = parsed.providerUser ? formatSignature(parsed.providerUser) : '';
         const medicSig = parsed.user ? formatSignature(parsed.user) : '';
         const sameAuthor = !!(medicSig && providerSig && medicSig === providerSig);
         const hasMixed = hasProviderFields && !sameAuthor;
 
+        // Histories carry no header of their own; they ride the HPI block of whoever
+        // last confirmed them — the provider's copy (m) supersedes the medic's (M).
+        const medicSubjective = [result.sections.customNote, parsed.providerHistory ? '' : result.sections.history].filter(Boolean).join('\n');
+        const providerSubjective = [parsed.providerHpi, formatHistory(parsed.providerHistory)].filter(Boolean).join('\n');
         let fullNote = result.fullNote;
         if (hasProviderFields && sameAuthor) {
             // Same person — merge content, single signature at bottom
@@ -163,7 +169,7 @@ export const useNoteImport = () => {
                 parts.push(header);
                 parts.push(combined);
             };
-            addMerged('HPI:', result.sections.customNote || undefined, parsed.providerHpi);
+            addMerged('HPI:', medicSubjective || undefined, providerSubjective || undefined);
             addMerged('PHYSICAL EXAM:', result.sections.physicalExam, parsed.providerPe);
             if (result.sections.algorithm) { parts.push(''); const t = selectedSymptom?.icon && selectedSymptom?.text ? `${selectedSymptom.icon}: ${selectedSymptom.text}:` : 'ALGORITHM:'; parts.push(t); parts.push(result.sections.algorithm); }
             if (result.sections.differentials) { parts.push(''); parts.push('DIFFERENTIALS:'); parts.push(result.sections.differentials); }
@@ -175,7 +181,7 @@ export const useNoteImport = () => {
         } else if (hasMixed) {
             // Layout: [header, medicText, providerText, isMedicOnly]
             const layout: [string, string | undefined, string | undefined, boolean][] = [
-                ['HPI:', result.sections.customNote || undefined, parsed.providerHpi, false],
+                ['HPI:', medicSubjective || undefined, providerSubjective || undefined, false],
                 ['PHYSICAL EXAM:', result.sections.physicalExam, parsed.providerPe, false],
             ];
             // Algorithm, DDx + Decision Making are medic-only sections

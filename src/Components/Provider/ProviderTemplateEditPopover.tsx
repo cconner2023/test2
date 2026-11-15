@@ -12,7 +12,7 @@ import { TextSectionEditor } from './ProviderPaneSections';
 import { ActionButton } from '@/Components/primitives/ActionButton';
 import { PillButton } from '@/Components/primitives/HeaderPill';
 import { OverlayHeaderMenu } from '@/Components/primitives/OverlayHeaderMenu';
-import { OverlayStack, type StackNav, type StackScreen } from '@/Components/primitives/OverlayStack';
+import { OverlayStack, type StackNav, type StackScreen, type CardMorphHost } from '@/Components/primitives/OverlayStack';
 import { TextInput } from '@/Components/primitives/FormInputs';
 import { FooterPill } from '@/Components/primitives/FooterPill'
 
@@ -60,6 +60,8 @@ interface Props {
      *  (body portal at z-[1200]) when launched from the mobile picker; the
      *  nested PE/Plan overlays auto-bump above this via the overlay stack. */
     zIndex?: number;
+    /** Desktop Settings: morph into the host card's slot instead of floating. */
+    cardHost?: CardMorphHost;
 }
 
 /**
@@ -266,10 +268,11 @@ export function useProviderTemplateEditorScreens({
 
 /**
  * Lifted OverlayStack popover for the mobile Templates picker + Settings panel.
- * On desktop the ProviderDrawer mounts the same editor via the right-pane stack
- * (useProviderTemplateEditorScreens) instead of this floating popover.
+ * Desktop Settings passes `cardHost` so it morphs into the Provider Templates card;
+ * the ProviderDrawer mounts the same editor via its own pane stack
+ * (useProviderTemplateEditorScreens) instead.
  */
-export function ProviderTemplateEditPopover({ state, onClose, onSave, onDelete, zIndex }: Props) {
+export function ProviderTemplateEditPopover({ state, onClose, onSave, onDelete, zIndex, cardHost }: Props) {
     const { screens, isOpen } = useProviderTemplateEditorScreens({ state, onSave, onDelete });
     return (
         <OverlayStack
@@ -280,6 +283,7 @@ export function ProviderTemplateEditPopover({ state, onClose, onSave, onDelete, 
             maxWidth={520}
             previewMaxHeight="60dvh"
             zIndex={zIndex}
+            cardHost={cardHost}
         />
     );
 }

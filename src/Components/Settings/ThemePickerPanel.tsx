@@ -2,6 +2,7 @@ import { useTheme, type ThemeName, type ThemeMode } from '../../Utilities/ThemeC
 import { useUserProfile } from '../../Hooks/useUserProfile';
 import { ActionPill } from '@/Components/primitives/ActionPill'
 import { SelectedCheck } from '@/Components/primitives/SelectedCheck'
+import { SettingsPage } from './SettingsPage'
 
 const THEME_DEFS: {
     name: ThemeName;
@@ -59,8 +60,8 @@ export function ThemePickerPanel() {
     const { syncProfileField } = useUserProfile();
 
     return (
-        <div className="h-full overflow-y-auto">
-        <div className="px-5 pb-4 space-y-3 pt-[calc(var(--drawer-header-h,3.5rem)+0.75rem)]">
+        <SettingsPage className="h-full" split={false}>
+        <div className="grid gap-3 @2xl/page:grid-cols-2 @5xl/page:grid-cols-3">
             {THEME_DEFS.map((def) => {
                 const isSelected = themeName === def.name;
                 const pal = themeMode === 'dark' ? def.dark : def.light;
@@ -154,6 +155,6 @@ export function ThemePickerPanel() {
                 );
             })}
         </div>
-        </div>
+        </SettingsPage>
     );
 }

@@ -3,6 +3,7 @@ import { Check, Camera, X } from 'lucide-react';
 import { useAvatar } from '../../Utilities/AvatarContext';
 import { useAuth } from '../../Hooks/useAuth';
 import { getInitials } from '../../Utilities/nameUtils';
+import { SettingsPage } from './SettingsPage';
 
 export interface AvatarPickerPanelProps {
     onSelect: (id: string) => void;
@@ -20,9 +21,9 @@ export const AvatarPickerPanel = ({
     const initials = getInitials(profile.firstName, profile.lastName);
 
     return (
-        <div className="h-full overflow-y-auto">
-            <div className="px-4 pb-3 md:px-5 md:pb-5 pt-[calc(var(--drawer-header-h,3.5rem)+0.75rem)]">
-                <div className="grid grid-cols-3 gap-4 justify-items-center md:grid-cols-4">
+        <SettingsPage className="h-full" split={false}>
+            <div>
+                <div className="grid grid-cols-3 gap-4 justify-items-center @md/page:grid-cols-4 @2xl/page:grid-cols-6 @4xl/page:grid-cols-8 @6xl/page:grid-cols-10">
                     {/* Initials avatar */}
                     <button
                         onClick={() => onSelect('initials')}
@@ -101,6 +102,6 @@ export const AvatarPickerPanel = ({
                     }}
                 />
             </div>
-        </div>
+        </SettingsPage>
     );
 };

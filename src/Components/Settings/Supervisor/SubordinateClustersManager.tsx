@@ -4,6 +4,7 @@ import { Building2, ChevronRight } from 'lucide-react'
 import { useEchelonSummaries } from '../../../Hooks/useEchelonSummaries'
 import { ChildClinicRosterSheet } from './ChildClinicRosterSheet'
 import { PageSectionHeader } from '@/Components/primitives/Section'
+import { TileGrid } from '../SettingsPage'
 
 /**
  * "Subordinate Clusters" — the echelon child-cluster ROSTER-MANAGEMENT surface for
@@ -35,9 +36,9 @@ export function SubordinateClustersManager({
   isSupervisor: boolean
   currentUserId: string | null
   /** When provided (desktop), tapping a card routes the drill to the Settings
-   *  right pane instead of opening the local Sheet. */
+   *  PaneCard instead of opening the local Sheet. */
   onSelectChild?: (child: { id: string; name: string }) => void
-  /** Highlights the card whose roster is open in the right pane (desktop). */
+  /** Highlights the card whose roster is open in the PaneCard (desktop). */
   activeChildId?: string | null
 }) {
   const { cards } = useEchelonSummaries(clinicId, isSupervisor)
@@ -54,7 +55,7 @@ export function SubordinateClustersManager({
       <PageSectionHeader>Subordinate Clusters</PageSectionHeader>
       <div className="rounded-xl bg-themewhite2 overflow-hidden">
         <div className="px-4 py-3">
-          <div className="space-y-1">
+          <TileGrid>
             {cards.map((card) => (
               <button
                 key={card.clinicId}
@@ -76,11 +77,11 @@ export function SubordinateClustersManager({
                 <ChevronRight size={16} className="text-tertiary shrink-0" />
               </button>
             ))}
-          </div>
+          </TileGrid>
         </div>
       </div>
 
-      {/* Mobile host: inline Sheet. Desktop routes to the right pane via onSelectChild. */}
+      {/* Mobile host: inline Sheet. Desktop routes to Settings' PaneCard via onSelectChild. */}
       {!onSelectChild && openChild && (
         <ChildClinicRosterSheet
           clinicId={openChild.id}

@@ -14,6 +14,7 @@ import { PdfPreviewModal } from '../PdfPreviewModal';
 import { PatientIdPopover, type PatientIdForm } from '../PatientIdPopover';
 import { formatDob, type PatientIdentification, type SF600Stamp } from '../../Utilities/SF600Export';
 import type { DD689Extras } from '../../Utilities/DD689Export';
+import { formatHistory, type NoteHistory } from '../../Utilities/noteHistory';
 
 import type { ImportedMedicNote } from '../ProviderDrawer'
 
@@ -22,6 +23,8 @@ export interface ProviderNoteOutputProps {
     peNote: string;
     assessmentNote: string;
     planNote: string;
+    /** The note's one histories block (provider's copy, seeded from the medic's). */
+    history: NoteHistory;
     importedMedicNote?: ImportedMedicNote | null;
     /** From useProviderEncoded — the drawer owns it so Done can save it to My Notes. */
     encodedValue: string;
@@ -32,6 +35,7 @@ export function ProviderNoteOutput({
     peNote,
     assessmentNote,
     planNote,
+    history,
     importedMedicNote,
     encodedValue,
 }: ProviderNoteOutputProps) {
@@ -55,10 +59,12 @@ export function ProviderNoteOutput({
         const sections: string[] = [];
         const medic = importedMedicNote;
         const sameAuthor = !!medic && !!medicSignature && medicSignature === signature;
+        // Histories ride the provider's SUBJECTIVE block: the provider confirmed them.
+        const providerSubjective = [hpiNote, formatHistory(history)].filter(Boolean).join('\n');
 
         if (medic && !sameAuthor) {
             const layout: [string, string?, string?][] = [
-                ['SUBJECTIVE', medic.medicHpi || undefined, hpiNote || undefined],
+                ['SUBJECTIVE', medic.medicHpi || undefined, providerSubjective || undefined],
                 ['OBJECTIVE', medic.medicPe || undefined, peNote || undefined],
                 ['ASSESSMENT', medic.medicAssessment || undefined, assessmentNote || undefined],
                 ['PLAN', medic.medicPlan || undefined, planNote || undefined],
@@ -88,12 +94,12 @@ export function ProviderNoteOutput({
                 sections.push(combined);
             };
             if (medic) {
-                addSection('SUBJECTIVE', medic.medicHpi, hpiNote);
+                addSection('SUBJECTIVE', medic.medicHpi, providerSubjective);
                 addSection('OBJECTIVE', medic.medicPe, peNote);
                 addSection('ASSESSMENT', medic.medicAssessment, assessmentNote);
                 addSection('PLAN', medic.medicPlan, planNote);
             } else {
-                addSection('SUBJECTIVE', undefined, hpiNote);
+                addSection('SUBJECTIVE', undefined, providerSubjective);
                 addSection('OBJECTIVE', undefined, peNote);
                 addSection('ASSESSMENT', undefined, assessmentNote);
                 addSection('PLAN', undefined, planNote);
@@ -102,7 +108,7 @@ export function ProviderNoteOutput({
         }
 
         return sections.join('\n');
-    }, [hpiNote, peNote, assessmentNote, planNote, importedMedicNote, signature, medicSignature]);
+    }, [hpiNote, peNote, assessmentNote, planNote, history, importedMedicNote, signature, medicSignature]);
 
     function handleShare() {
         shareNote({ encodedText: encodedValue, symptomText: 'Provider Note' }, isMobile);
@@ -122,6 +128,7 @@ export function ProviderNoteOutput({
             signatureName: sigName || undefined,
             patient,
             facility: formClinicName || undefined,
+            history,
         });
     }
 

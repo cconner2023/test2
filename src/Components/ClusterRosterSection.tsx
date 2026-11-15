@@ -80,6 +80,8 @@ interface ClusterRosterSectionProps<T> {
   /** Rendered inside the card, after the groups — e.g. a LoadingOverlay. */
   children?: ReactNode
   emptyText?: string
+  /** Section wrapper spacing. Default 'mt-4'; a gap-laid parent passes ''. */
+  className?: string
 }
 
 export function ClusterRosterSection<T>({
@@ -98,6 +100,7 @@ export function ClusterRosterSection<T>({
   cardClassName = 'rounded-2xl bg-themewhite2 overflow-hidden',
   children,
   emptyText = 'No members assigned',
+  className = 'mt-4',
 }: ClusterRosterSectionProps<T>) {
   const pillRef = useRef<HTMLDivElement | null>(null)
   const [menuRect, setMenuRect] = useState<DOMRect | null>(null)
@@ -208,7 +211,7 @@ export function ClusterRosterSection<T>({
   const headerBase = 'w-full flex items-center gap-2 py-2 px-4 text-left bg-secondary/5 border-primary/5'
 
   return (
-    <section className="mt-4">
+    <section className={className}>
       <div className="pb-2">
         <p className="text-[9pt] font-semibold text-tertiary uppercase tracking-widest">{title}</p>
       </div>
@@ -217,7 +220,9 @@ export function ClusterRosterSection<T>({
           card under this relative wrapper — the card's overflow-hidden would
           otherwise clip the pill's negative translate (see ActionPill docs). */}
       <div className="relative">
-        <div className={`relative ${cardClassName}`}>
+        {/* `@container/roster` lets a caller's itemsClassName wrap rows into
+            columns by the card's own width (ClinicPanel at desktop width). */}
+        <div className={`relative @container/roster ${cardClassName}`}>
           {/* NOTE: no blanket empty state. A cluster with sub-units but no
               members must still render its group headers — they're the only
               manage surface. */}

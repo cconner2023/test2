@@ -5,6 +5,7 @@ import { encryptBarcode } from '../Utilities/barcodeCodec';
 import { selectIsAuthenticated, useAuthStore } from '../stores/useAuthStore';
 import type { ImportedMedicNote } from '../Components/ProviderDrawer';
 import type { PEState } from '../Types/PETypes';
+import type { NoteHistory } from '../Utilities/noteHistory';
 
 interface ProviderEncodedInput {
     hpiNote: string;
@@ -12,6 +13,7 @@ interface ProviderEncodedInput {
     peState?: PEState | null;
     assessmentNote: string;
     planNote: string;
+    history?: NoteHistory;
     importedMedicNote?: ImportedMedicNote | null;
     medicBarcode?: string;
 }
@@ -22,7 +24,7 @@ interface ProviderEncodedInput {
  * ProviderNoteOutput so the drawer can save the same string to My Notes.
  */
 export function useProviderEncoded({
-    hpiNote, peNote, peState, assessmentNote, planNote, importedMedicNote, medicBarcode,
+    hpiNote, peNote, peState, assessmentNote, planNote, history, importedMedicNote, medicBarcode,
 }: ProviderEncodedInput): string {
     const { profile } = useUserProfile();
     const isAuthenticated = useAuthStore(selectIsAuthenticated);
@@ -35,6 +37,7 @@ export function useProviderEncoded({
             peState: peState ?? undefined,
             assessmentNote,
             planNote,
+            history,
             user: profile ?? undefined,
             userId: userId ?? undefined,
         };
@@ -43,7 +46,7 @@ export function useProviderEncoded({
             return encodeProviderBundle(medicBarcode, providerOptions);
         }
         return encodeProviderNote(providerOptions);
-    }, [hpiNote, peNote, peState, assessmentNote, planNote, profile, userId, importedMedicNote, medicBarcode]);
+    }, [hpiNote, peNote, peState, assessmentNote, planNote, history, profile, userId, importedMedicNote, medicBarcode]);
 
     const [encodedValue, setEncodedValue] = useState(compactString);
 

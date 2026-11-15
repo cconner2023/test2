@@ -15,6 +15,8 @@ import type { ImportedMedicNote } from '../ProviderDrawer';
 import { MEDIC_FIELD_TITLES, medicFieldText, type MedicField } from './medicFields';
 import type { PEState } from '../../Types/PETypes';
 import { FooterPill } from '@/Components/primitives/FooterPill'
+import { NoteHistorySection } from '../NoteHistorySection';
+import type { NoteHistory, HistoryKey } from '../../Utilities/noteHistory';
 
 /** The four editable provider-note sections — the pane-editor routing key. */
 export type ProviderSection = 'hpi' | 'pe' | 'assessment' | 'plan';
@@ -34,6 +36,10 @@ interface ProviderNoteProps {
   setAssessmentNote: (note: string) => void;
   planNote: string;
   setPlanNote: (note: string) => void;
+  history: NoteHistory;
+  setHistory: React.Dispatch<React.SetStateAction<NoteHistory>>;
+  /** Desktop (summaryMode): open a history item's editor in the right pane. */
+  onOpenHistory?: (key: HistoryKey) => void;
   importedMedicNote: ImportedMedicNote | null;
   /** Desktop 3-pane: render sections as read-only summary cards that route editing
    *  into the right pane (the live editors mount there). Omit/false on mobile, where
@@ -367,6 +373,9 @@ export function ProviderNote({
   setAssessmentNote,
   planNote,
   setPlanNote,
+  history,
+  setHistory,
+  onOpenHistory,
   importedMedicNote,
   summaryMode = false,
   onOpenSection,
@@ -496,27 +505,41 @@ export function ProviderNote({
   //    from pane edits (they bind to the same lifted state). ──
   if (summaryMode) {
     const open = (s: ProviderSection) => onOpenSection?.(s);
+    // Container query, not viewport (same reasoning as Settings' SettingsPage): the
+    // center is whatever is left of a 90% drawer after the rail. Wide, it splits
+    // S/O left and A/P right, so DOM order is already SOAP order and the narrow
+    // stack needs no order-* classes.
     return (
-      <div className="space-y-4 md:space-y-3">
-        <SummarySection
-          label="History of Present Illness" addLabel="Add HPI"
-          value={hpiNote}
-          medic={importedMedicNote} medicField="hpi" onOpenMedic={onOpenMedic}
-          onOpen={() => open('hpi')}
-        />
-        {peCenter}
-        <SummarySection
-          label="Assessment" addLabel="Add assessment"
-          value={assessmentNote}
-          medic={importedMedicNote} medicField="assessment" onOpenMedic={onOpenMedic}
-          onOpen={() => open('assessment')}
-        />
-        <SummarySection
-          label="Plan" addLabel="Add plan"
-          value={planNote}
-          medic={importedMedicNote} medicField="plan" onOpenMedic={onOpenMedic}
-          onOpen={() => open('plan')}
-        />
+      <div className="@container/note">
+        <div className="flex flex-col gap-4 md:gap-3 @4xl/note:grid @4xl/note:grid-cols-2 @4xl/note:items-start @4xl/note:gap-8">
+          <div className="flex flex-col gap-4 md:gap-3 min-w-0">
+            <div className="space-y-3 md:space-y-2">
+              <SummarySection
+                label="History of Present Illness" addLabel="Add HPI"
+                value={hpiNote}
+                medic={importedMedicNote} medicField="hpi" onOpenMedic={onOpenMedic}
+                onOpen={() => open('hpi')}
+              />
+              {/* History items sit in the HPI group, no section label of their own */}
+              <NoteHistorySection value={history} onChange={setHistory} expanders={expanders} onOpenPane={onOpenHistory} />
+            </div>
+            {peCenter}
+          </div>
+          <div className="flex flex-col gap-4 md:gap-3 min-w-0">
+            <SummarySection
+              label="Assessment" addLabel="Add assessment"
+              value={assessmentNote}
+              medic={importedMedicNote} medicField="assessment" onOpenMedic={onOpenMedic}
+              onOpen={() => open('assessment')}
+            />
+            <SummarySection
+              label="Plan" addLabel="Add plan"
+              value={planNote}
+              medic={importedMedicNote} medicField="plan" onOpenMedic={onOpenMedic}
+              onOpen={() => open('plan')}
+            />
+          </div>
+        </div>
       </div>
     );
   }
@@ -536,6 +559,8 @@ export function ProviderNote({
           expanders={expanders}
           placeholder="Chief complaint, onset, duration, character, associated symptoms..."
         />
+        {/* History items sit in the HPI group, no section label of their own */}
+        <NoteHistorySection value={history} onChange={setHistory} expanders={expanders} />
       </div>
 
       {/* ── Physical Exam ─────────────────────────────────────── */}

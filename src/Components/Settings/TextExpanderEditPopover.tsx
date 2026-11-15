@@ -13,7 +13,7 @@ import {
 import { FieldTextEditor, type FieldEditorHandle } from './FieldTextEditor';
 import { InsertFieldForm, FieldInsertFooter, buildFieldInfo, emptyInsertDraft, type InsertDraft, type FieldType } from './InsertFieldButton';
 import { ActionButton } from '@/Components/primitives/ActionButton';
-import { OverlayStack, type StackNav } from '@/Components/primitives/OverlayStack';
+import { OverlayStack, type StackNav, type CardMorphHost } from '@/Components/primitives/OverlayStack';
 import { FooterPill } from '@/Components/primitives/FooterPill'
 import { OverlayHeaderMenu } from '@/Components/primitives/OverlayHeaderMenu';
 import type { ContextMenuItem } from '@/Components/primitives/ContextMenu';
@@ -31,6 +31,8 @@ interface Props {
     isSupervisorRole?: boolean;
     onClose: () => void;
     onSave: (expander: TextExpander, source: ExpanderScope, originalAbbr?: string, originalSource?: ExpanderScope) => void;
+    /** Desktop Settings: morph into the host card's slot instead of floating. */
+    cardHost?: CardMorphHost;
 }
 
 const initialModeFromState = (state: TextExpanderEditState | null): 'simple' | 'template' => {
@@ -50,7 +52,7 @@ const initialModeFromState = (state: TextExpanderEditState | null): 'simple' | '
  * over this one. See makeTemplateScreens in TemplateBuilder.
  */
 export const TextExpanderEditPopover = ({
-    state, existingAbbrs, isSupervisorRole = false, onClose, onSave,
+    state, existingAbbrs, isSupervisorRole = false, onClose, onSave, cardHost,
 }: Props) => {
     const isOpen = !!state;
     const isNew = state?.mode === 'new';
@@ -283,6 +285,7 @@ export const TextExpanderEditPopover = ({
             screens={screens}
             maxWidth={560}
             previewMaxHeight="60dvh"
+            cardHost={cardHost}
         />
     );
 };

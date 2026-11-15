@@ -33,6 +33,7 @@ import {
 } from '../../lib/biometricService'
 import { usePinLockoutTimer } from '../../Hooks/usePinLockoutTimer'
 import { SectionCard, SectionHeader } from '@/Components/primitives/Section'
+import { SettingsPage, SettingsColumn, SettingsSpan } from './SettingsPage'
 
 type PinView = 'status' | 'set-new' | 'confirm-new' | 'verify-current' | 'change-new' | 'change-confirm'
 type PendingAction = 'change' | 'remove' | null
@@ -245,15 +246,23 @@ export const PinSetupPanel = () => {
       }
     }
 
+    const showPermissions = isAuthenticated || cameraPermission !== 'unsupported' || locationPermission !== 'unsupported'
+
     return (
-      <div className="h-full overflow-y-auto">
-        <div className="px-5 pb-4 space-y-5 pt-[calc(var(--drawer-header-h,3.5rem)+0.75rem)]">
+      <SettingsPage className="h-full" split={showPermissions}>
 
-          {success && <ErrorDisplay type="success" message={success} />}
-          {error && <ErrorDisplay type="error" message={error} />}
+          {(success || error) && (
+            <SettingsSpan>
+              <div className="space-y-5">
+                {success && <ErrorDisplay type="success" message={success} />}
+                {error && <ErrorDisplay type="error" message={error} />}
+              </div>
+            </SettingsSpan>
+          )}
 
+          <SettingsColumn>
           {/* ── Lock ─────────────────────────────────────────────── */}
-          <div>
+          <div className="order-1">
             <SectionHeader>Lock</SectionHeader>
             <SectionCard>
 
@@ -330,10 +339,12 @@ export const PinSetupPanel = () => {
 
             </SectionCard>
           </div>
+          </SettingsColumn>
 
+          <SettingsColumn>
           {/* ── Permissions ──────────────────────────────────────── */}
-          {(isAuthenticated || cameraPermission !== 'unsupported' || locationPermission !== 'unsupported') && (
-            <div>
+          {showPermissions && (
+            <div className="order-2">
               <SectionHeader>Permissions</SectionHeader>
               <SectionCard>
 
@@ -386,9 +397,9 @@ export const PinSetupPanel = () => {
               </SectionCard>
             </div>
           )}
+          </SettingsColumn>
 
-        </div>
-      </div>
+      </SettingsPage>
     )
   }
 

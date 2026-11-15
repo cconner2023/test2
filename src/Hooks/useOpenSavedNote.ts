@@ -40,6 +40,7 @@ export function useOpenSavedNote() {
           peState: decoded.peState,
           planNote: parsed.flags.includePlan ? parsed.planText : '',
           assessmentNote: parsed.flags.includeAssessment ? parsed.assessmentText : '',
+          history: parsed.history,
           selectedDdx: parsed.ddx.selected,
           customDdx: parsed.ddx.custom,
           includeDecisionMaking: parsed.flags.includeDecisionMaking,

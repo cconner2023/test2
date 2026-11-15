@@ -8,6 +8,7 @@ import { ToggleSwitch } from './ToggleSwitch'
 import { SettingsRow, SettingsToggleRow } from './SettingsToggleRow'
 import { SectionCard, SectionHeader } from '@/Components/primitives/Section'
 import { MetaBadge } from '@/Components/primitives/MetaBadge'
+import { SettingsPage, SettingsColumn } from './SettingsPage'
 
 const WIDGET_ICONS: Record<OverviewWidgetId, LucideIcon> = {
     'map-overlay': Map,
@@ -60,13 +61,15 @@ export function OverviewWidgetsPanel() {
     }
 
     return (
-        <div className="h-full overflow-y-auto">
-            <div className="px-5 pb-4 space-y-5 pt-[calc(var(--drawer-header-h,3.5rem)+0.75rem)]">
-                <p className="text-[10pt] text-tertiary leading-relaxed">
+        // Split even while hidden leaves the widget list's track empty: that keeps the
+        // toggle in place across the switch and stops its row stretching the pane.
+        <SettingsPage className="h-full">
+            <SettingsColumn>
+                <p className="order-1 text-[10pt] text-tertiary leading-relaxed">
                     Choose up to 3 widgets shown in the mission overview. Hiding it removes the panel from the home screen.
                 </p>
 
-                <div className="rounded-2xl overflow-hidden">
+                <div className="order-2 rounded-2xl overflow-hidden">
                     <SettingsToggleRow
                         icon={LayoutDashboard}
                         label="Show Mission Overview"
@@ -76,9 +79,11 @@ export function OverviewWidgetsPanel() {
                         card
                     />
                 </div>
+            </SettingsColumn>
 
+            <SettingsColumn>
                 {isVisible && (
-                    <div>
+                    <div className="order-3">
                         <SectionHeader trailing={<p className="text-[9pt] text-tertiary">{active.length} / 3</p>}>
                             Widgets
                         </SectionHeader>
@@ -108,7 +113,7 @@ export function OverviewWidgetsPanel() {
                         </SectionCard>
                     </div>
                 )}
-            </div>
-        </div>
+            </SettingsColumn>
+        </SettingsPage>
     )
 }
