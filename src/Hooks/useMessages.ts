@@ -74,7 +74,8 @@ import { useCalendarStore } from '../stores/useCalendarStore'
 import { isCalendarEvent, routeCalendarEvent } from '../lib/calendarRouting'
 import { isMapOverlay, isMapFeature, routeMapOverlay, routeMapFeature } from '../lib/mapOverlayRouting'
 import { isPropertyEvent, routePropertyEvent } from '../lib/propertyEventRouting'
-import { uploadEncryptedAttachment } from '../lib/signal/attachmentService'
+import { uploadEncryptedAttachment, attachmentFailureMessage } from '../lib/signal/attachmentService'
+import { emitErrorToast } from '../lib/errorFeedback'
 import { createBackup, markHydrationComplete, scheduleBackup } from '../lib/signal/backupService'
 import { ok as okResult, err as errResult, type Result } from '../lib/result'
 import { errorBus } from '../lib/errorBus'
@@ -264,13 +265,15 @@ async function encryptAndSendToGroupMembers(
 /**
  * Resize an image and generate a thumbnail for inline preview.
  */
-async function resizeAndThumbnail(file: File): Promise<{
+export async function resizeAndThumbnail(file: File, original = false): Promise<{
   resizedDataUrl: string
   width: number
   height: number
   thumbnail: string
 }> {
-  const resizedDataUrl = await resizeImage(file, 800, 0.7)
+  // "Send original" still goes through the canvas (JPEG 0.92) so EXIF/GPS is dropped;
+  // 4096 only guards against a huge paste, the crop step already caps at 2000px.
+  const resizedDataUrl = original ? await resizeImage(file, 4096, 0.92) : await resizeImage(file, 800, 0.7)
   const { width, height } = await getImageDimensions(resizedDataUrl)
   const thumbnail = await generateThumbnail(resizedDataUrl, 60, 0.5)
   return { resizedDataUrl, width, height, thumbnail }
@@ -280,7 +283,7 @@ export interface UseMessagesReturn {
   /** Send a plaintext message to a peer. Handles session creation if needed. Optional threadId for thread replies. */
   sendMessage: (peerId: string, text: string, threadId?: string) => Promise<boolean>
   /** Send an image to a peer. Compresses, encrypts, uploads, and sends via Signal. */
-  sendImage: (peerId: string, file: File) => Promise<boolean>
+  sendImage: (peerId: string, file: File, opts?: { original?: boolean }) => Promise<boolean>
   /**
    * Send a structured-content message to a peer (1:1). Mirrors sendMessage's
    * accepted-conversation path but accepts arbitrary MessageContent + a
@@ -334,7 +337,7 @@ export interface UseMessagesReturn {
   /** Send a text message to a group (encrypts to each member's devices). */
   sendGroupMessage: (groupId: string, text: string, threadId?: string) => Promise<boolean>
   /** Send an image to a group. */
-  sendGroupImage: (groupId: string, file: File) => Promise<boolean>
+  sendGroupImage: (groupId: string, file: File, opts?: { original?: boolean }) => Promise<boolean>
   /** Send a voice note to a group. */
   sendGroupVoice: (groupId: string, recording: VoiceRecordingResult) => Promise<boolean>
   /** Create a new group. */
@@ -501,8 +504,23 @@ export function useMessages(): UseMessagesReturn {
         const parsed = JSON.parse(msg.plaintext) as Record<string, unknown>
         if (parsed.__syncType === 'conversation-deleted') {
           const conversationKey = parsed.conversationKey as string
+          // Apply the deleting device's bound, never "now" here: this row can be
+          // drained hours later, after the peer has replied, and an unbounded
+          // purge would delete and origin-tombstone that reply for good. Older
+          // clients send only deletedAt (their wall clock), still a valid bound.
+          const through = typeof parsed.through === 'string' ? parsed.through
+            : typeof parsed.deletedAt === 'string' ? parsed.deletedAt
+            : undefined
+          const origins = Array.isArray(parsed.origins)
+            ? parsed.origins.filter((x): x is string => typeof x === 'string')
+            : []
+          const accepted = !store().groups[conversationKey] && !!userId
+            && getRequestStatus(store().conversations[conversationKey], userId) === 'accepted'
           // Sessions + sender keys are kept — see deleteConversation.
-          await store().deleteConversation(conversationKey)
+          await store().deleteConversation(conversationKey, {
+            ...(through && { bound: { through, origins } }),
+            preserveAcceptance: accepted,
+          })
           markMessagesRead([msg.id]).catch(() => {})
           return
         }
@@ -1345,7 +1363,7 @@ export function useMessages(): UseMessagesReturn {
   }, [userId, addMessage, updateMessageStatus, removeOptimisticMessage])
 
   /** Send an image message to a peer. */
-  const sendImage = useCallback(async (peerId: string, file: File): Promise<boolean> => {
+  const sendImage = useCallback(async (peerId: string, file: File, opts?: { original?: boolean }): Promise<boolean> => {
     const localDeviceId = useMessagingStore.getState().localDeviceId
     if (!userId || !localDeviceId) return false
 
@@ -1355,7 +1373,7 @@ export function useMessages(): UseMessagesReturn {
       const now = new Date().toISOString()
       store().setSending(peerId, true)
       try {
-        const { resizedDataUrl, width, height, thumbnail } = await resizeAndThumbnail(file)
+        const { resizedDataUrl, width, height, thumbnail } = await resizeAndThumbnail(file, opts?.original)
 
         const placeholderContent: ImageContent = {
           type: 'image', mime: 'image/jpeg', key: '', path: '', width, height, thumbnail,
@@ -1374,16 +1392,17 @@ export function useMessages(): UseMessagesReturn {
         })
 
         const imageBlob = dataUrlToBlob(resizedDataUrl)
-        const uploadResult = await uploadEncryptedAttachment(userId, imageBlob)
+        const uploadResult = await uploadEncryptedAttachment(userId, imageBlob, { class: 'm' })
         if (!uploadResult.ok) {
           logger.error('Self-note image upload failed:', uploadResult.error)
+          emitErrorToast('Couldn’t send attachment', attachmentFailureMessage(uploadResult.error))
           removeOptimisticMessage(userId, localId)
           return false
         }
 
-        const { path, key } = uploadResult.data
+        const { path, key, store: attStore } = uploadResult.data
         const imageContent: ImageContent = {
-          type: 'image', mime: 'image/jpeg', key, path, width, height, thumbnail,
+          type: 'image', mime: 'image/jpeg', key, path, store: attStore, width, height, thumbnail,
         }
 
         store().updateMessageContent(userId, localId, imageContent)
@@ -1432,7 +1451,7 @@ export function useMessages(): UseMessagesReturn {
     const originId = crypto.randomUUID()
     store().setSending(peerId, true)
     try {
-      const { resizedDataUrl, width, height, thumbnail } = await resizeAndThumbnail(file)
+      const { resizedDataUrl, width, height, thumbnail } = await resizeAndThumbnail(file, opts?.original)
 
       localId = crypto.randomUUID()
       const placeholderContent: ImageContent = {
@@ -1452,16 +1471,17 @@ export function useMessages(): UseMessagesReturn {
       })
 
       const imageBlob = dataUrlToBlob(resizedDataUrl)
-      const uploadResult = await uploadEncryptedAttachment(userId, imageBlob)
+      const uploadResult = await uploadEncryptedAttachment(userId, imageBlob, { class: 'm' })
       if (!uploadResult.ok) {
         logger.error('Image upload failed:', uploadResult.error)
+        emitErrorToast('Couldn’t send attachment', attachmentFailureMessage(uploadResult.error))
         removeOptimisticMessage(peerId, localId)
         return false
       }
 
-      const { path, key } = uploadResult.data
+      const { path, key, store: attStore } = uploadResult.data
       const imageContent: ImageContent = {
-        type: 'image', mime: 'image/jpeg', key, path, width, height, thumbnail,
+        type: 'image', mime: 'image/jpeg', key, path, store: attStore, width, height, thumbnail,
       }
 
       store().updateMessageContent(peerId, localId, imageContent)
@@ -1530,16 +1550,17 @@ export function useMessages(): UseMessagesReturn {
           status: 'sending', originId,
         })
 
-        const uploadResult = await uploadEncryptedAttachment(userId, recording.blob)
+        const uploadResult = await uploadEncryptedAttachment(userId, recording.blob, { class: 'm' })
         if (!uploadResult.ok) {
           logger.error('Self-note voice upload failed:', uploadResult.error)
+          emitErrorToast('Couldn’t send attachment', attachmentFailureMessage(uploadResult.error))
           removeOptimisticMessage(userId, localId)
           return false
         }
 
-        const { path, key } = uploadResult.data
+        const { path, key, store: attStore } = uploadResult.data
         const voiceContent: VoiceContent = {
-          type: 'voice', mime: recording.mime, key, path,
+          type: 'voice', mime: recording.mime, key, path, store: attStore,
           duration: recording.duration, waveform: recording.waveform,
         }
 
@@ -1595,16 +1616,17 @@ export function useMessages(): UseMessagesReturn {
         readAt: null, status: 'sending', originId,
       })
 
-      const uploadResult = await uploadEncryptedAttachment(userId, recording.blob)
+      const uploadResult = await uploadEncryptedAttachment(userId, recording.blob, { class: 'm' })
       if (!uploadResult.ok) {
         logger.error('Voice upload failed:', uploadResult.error)
+        emitErrorToast('Couldn’t send attachment', attachmentFailureMessage(uploadResult.error))
         removeOptimisticMessage(peerId, localId)
         return false
       }
 
-      const { path, key } = uploadResult.data
+      const { path, key, store: attStore } = uploadResult.data
       const voiceContent: VoiceContent = {
-        type: 'voice', mime: recording.mime, key, path,
+        type: 'voice', mime: recording.mime, key, path, store: attStore,
         duration: recording.duration, waveform: recording.waveform,
       }
 
@@ -1939,8 +1961,18 @@ export function useMessages(): UseMessagesReturn {
       await removeOutsideEntityChannel(conversationKey).catch(() => {})
     }
 
+    // Deleting history must not re-run the request handshake with a peer we
+    // already accepted (Signal keeps acceptance on the contact, not in history).
+    // Without this, our first reply after the delete goes out as a 'request' and,
+    // if the peer's message hadn't landed, we sit at 'Waiting for … to accept'
+    // while the peer, still accepted on their side, never sends request-accepted.
+    // An outside channel is ended by this delete, so nothing to preserve there.
+    const preserveAcceptance = !channel && !!userId && conversationKey !== userId
+      && !store().groups[conversationKey]
+      && getRequestStatus(msgs, userId) === 'accepted'
+
     // Write tombstone to store + IDB, remove from state
-    await store().deleteConversation(conversationKey)
+    const bound = await store().deleteConversation(conversationKey, { preserveAcceptance })
 
     // No crypto cleanup: deleting a conversation clears history, it does not end
     // the relationship. 1:1 pairwise sessions and group sender keys are transport
@@ -1960,7 +1992,13 @@ export function useMessages(): UseMessagesReturn {
       const deletedAt = new Date().toISOString()
       sendSyncToOwnDevices(userId, localDeviceId, {
         forPeerId: conversationKey,
-        serialized: JSON.stringify({ __syncType: 'conversation-deleted', conversationKey, deletedAt }),
+        // through + origins: the bound our other devices apply (see
+        // ConversationDeleteBound). deletedAt stays the wall clock for older
+        // receivers' fallback.
+        serialized: JSON.stringify({
+          __syncType: 'conversation-deleted', conversationKey, deletedAt,
+          through: bound.through, origins: bound.origins,
+        }),
         originalMessageType: 'sync',
         originalTimestamp: deletedAt,
         originalMessageId: crypto.randomUUID(),
@@ -2105,7 +2143,7 @@ export function useMessages(): UseMessagesReturn {
   }, [userId, addMessage, updateMessageStatus, removeOptimisticMessage, buildReplyTo])
 
   /** Send an image to a group. */
-  const sendGroupImage = useCallback(async (groupId: string, file: File): Promise<boolean> => {
+  const sendGroupImage = useCallback(async (groupId: string, file: File, opts?: { original?: boolean }): Promise<boolean> => {
     const localDeviceId = useMessagingStore.getState().localDeviceId
     if (!userId || !localDeviceId) return false
 
@@ -2113,7 +2151,7 @@ export function useMessages(): UseMessagesReturn {
     const originId = crypto.randomUUID()
     store().setSending(groupId, true)
     try {
-      const { resizedDataUrl, width, height, thumbnail } = await resizeAndThumbnail(file)
+      const { resizedDataUrl, width, height, thumbnail } = await resizeAndThumbnail(file, opts?.original)
 
       localId = crypto.randomUUID()
       const placeholderContent: ImageContent = {
@@ -2134,16 +2172,17 @@ export function useMessages(): UseMessagesReturn {
       })
 
       const imageBlob = dataUrlToBlob(resizedDataUrl)
-      const uploadResult = await uploadEncryptedAttachment(userId, imageBlob)
+      const uploadResult = await uploadEncryptedAttachment(userId, imageBlob, { class: 'm' })
       if (!uploadResult.ok) {
         logger.error('Group image upload failed:', uploadResult.error)
+        emitErrorToast('Couldn’t send attachment', attachmentFailureMessage(uploadResult.error))
         removeOptimisticMessage(groupId, localId)
         return false
       }
 
-      const { path, key } = uploadResult.data
+      const { path, key, store: attStore } = uploadResult.data
       const imageContent: ImageContent = {
-        type: 'image', mime: 'image/jpeg', key, path, width, height, thumbnail,
+        type: 'image', mime: 'image/jpeg', key, path, store: attStore, width, height, thumbnail,
       }
 
       store().updateMessageContent(groupId, localId, imageContent)
@@ -2201,16 +2240,17 @@ export function useMessages(): UseMessagesReturn {
         groupId, originId,
       })
 
-      const uploadResult = await uploadEncryptedAttachment(userId, recording.blob)
+      const uploadResult = await uploadEncryptedAttachment(userId, recording.blob, { class: 'm' })
       if (!uploadResult.ok) {
         logger.error('Group voice upload failed:', uploadResult.error)
+        emitErrorToast('Couldn’t send attachment', attachmentFailureMessage(uploadResult.error))
         removeOptimisticMessage(groupId, localId)
         return false
       }
 
-      const { path, key } = uploadResult.data
+      const { path, key, store: attStore } = uploadResult.data
       const voiceContent: VoiceContent = {
-        type: 'voice', mime: recording.mime, key, path,
+        type: 'voice', mime: recording.mime, key, path, store: attStore,
         duration: recording.duration, waveform: recording.waveform,
       }
 

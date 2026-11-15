@@ -248,35 +248,9 @@ export function NavTop({ search, import: importProps, actions, ui }: NavTopProps
                         </div>
                     )}
 
-                    {/* Desktop: Avatar (opens SideNav) + Back + KB */}
+                    {/* Desktop: Back + KB. The avatar lives in NavRail. */}
                     {!isMobile && (
                         <div className="flex justify-center items-center shrink-0 gap-2">
-                            {/* Avatar — opens SideNav */}
-                            <button
-                                onClick={onMenuClick}
-                                className="relative w-8 h-8 rounded-full shrink-0 active:scale-95 transition-transform"
-                                aria-label="Open menu"
-                                title="Menu"
-                            >
-                                <div className="w-full h-full rounded-full overflow-hidden">
-                                    {isCustom && customImage ? (
-                                        <img src={customImage} alt="Profile" className="w-full h-full object-cover rounded-full" />
-                                    ) : isInitials ? (
-                                        <div className="w-full h-full rounded-full bg-themeblue2/15 flex items-center justify-center">
-                                            <span className="text-[10pt] font-semibold text-themeblue2">
-                                                {getInitials(profile.firstName, profile.lastName)}
-                                            </span>
-                                        </div>
-                                    ) : (
-                                        <div className="w-full h-full rounded-full overflow-hidden">
-                                            {currentAvatar.svg}
-                                        </div>
-                                    )}
-                                </div>
-                                {hasUnvotedCycle && (
-                                    <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-themeredred ring-2 ring-themewhite" aria-label="New in settings" />
-                                )}
-                            </button>
                             <animated.div
                                 className="overflow-hidden shrink-0"
                                 style={{

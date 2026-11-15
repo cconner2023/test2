@@ -59,7 +59,14 @@ interface MessageDB extends DBSchema {
     key: string // conversationKey
     value: {
       conversationKey: string
+      // The suppression cutoff, not necessarily the wall-clock moment of the
+      // delete: a conversation delete is bounded at the newest message the
+      // deleting device had seen (Signal's model), so this can be much older.
       deletedAt: string // ISO 8601
+      // Wall-clock time the tombstone was written; drives the 30-day expiry.
+      // Absent on rows written before the bound existed (deletedAt was then
+      // the wall clock, so expiry falls back to it).
+      recordedAt?: string
     }
   }
   originTombstones: {
@@ -160,11 +167,17 @@ export function setOnMessageSaved(cb: ((localUserId: string) => void) | null): v
 
 // ---- Tombstone CRUD ----
 
-/** Persist a conversation tombstone (conversationKey → deletedAt). */
-export async function saveTombstone(conversationKey: string, deletedAt: string): Promise<void> {
+/** Persist a conversation tombstone (conversationKey → cutoff). recordedAt
+ *  defaults to now, which is also right for a backup restore: the restored
+ *  tombstone then lives a full 30 days on this device. */
+export async function saveTombstone(
+  conversationKey: string,
+  deletedAt: string,
+  recordedAt: string = new Date().toISOString(),
+): Promise<void> {
   try {
     const db = await getDb()
-    await db.put('conversationTombstones', { conversationKey, deletedAt })
+    await db.put('conversationTombstones', { conversationKey, deletedAt, recordedAt })
   } catch (err) {
     logger.warn('Failed to save tombstone:', err)
   }
@@ -217,7 +230,7 @@ export async function cleanExpiredTombstones(): Promise<void> {
     const convoTx = db.transaction('conversationTombstones', 'readwrite')
     await Promise.all(
       convoAll
-        .filter(row => row.deletedAt < cutoff)
+        .filter(row => (row.recordedAt ?? row.deletedAt) < cutoff)
         .map(row => convoTx.store.delete(row.conversationKey)),
     )
     await convoTx.done
@@ -574,10 +587,20 @@ export async function deleteMessagesByOriginId(
  *  any message with createdAt >= deletedAt arrives, so a conversation-delete
  *  that only wrote the conversation tombstone would resurrect. Mirrors
  *  deleteMessagesByOriginId. Returns the origins tombstoned so the store can
- *  mirror them into in-memory state for same-session suppression. */
+ *  mirror them into in-memory state for same-session suppression.
+ *
+ *  `bound` limits the purge to what the deleting device had seen, as Signal's
+ *  linked-device delete does: rows created at or before `through`, plus rows
+ *  whose originId is in `origins` (the deleting device's newest messages, which
+ *  this device may hold under a later local createdAt, e.g. own sends that
+ *  arrived by sync stamped with the sending device's clock). Anything newer
+ *  survives. Without the bound, a delete synced from another device and
+ *  applied late wiped a reply that arrived after the delete, and tombstoned its
+ *  origin so it could never come back. Omit `bound` only for a full purge. */
 export async function deleteConversation(
   conversationKey: string,
   deletedAt: string = new Date().toISOString(),
+  bound?: { through: string; origins?: string[] },
 ): Promise<string[]> {
   try {
     const db = await getDb()
@@ -586,14 +609,21 @@ export async function deleteConversation(
     const originStore = tx.objectStore('originTombstones')
     const index = messagesStore.index('by-peer')
     const purgedOrigins: string[] = []
+    const throughMs = bound ? Date.parse(bound.through) : NaN
+    const boundOrigins = new Set(bound?.origins ?? [])
     let cursor = await index.openCursor(conversationKey)
     while (cursor) {
-      const originId = cursor.value.originId
-      if (originId) {
-        await originStore.put({ originId, deletedAt })
-        purgedOrigins.push(originId)
+      const row = cursor.value
+      const inBound = !bound
+        || (row.originId && boundOrigins.has(row.originId))
+        || !(Date.parse(row.createdAt) > throughMs)
+      if (inBound) {
+        if (row.originId) {
+          await originStore.put({ originId: row.originId, deletedAt })
+          purgedOrigins.push(row.originId)
+        }
+        await cursor.delete()
       }
-      await cursor.delete()
       cursor = await cursor.continue()
     }
     await tx.done

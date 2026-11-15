@@ -722,15 +722,17 @@ export const UserGuide: GuideChapter[] = [
                 subsections: [
                     {
                         id: 'messaging-media',
-                        title: 'Photos, voice notes & sharing',
+                        title: 'Photos, files, voice notes & sharing',
                         blocks: [
                             { kind: 'list', items: [
-                                ['Tap the ', { btn: 'plus' }, ' in the composer to attach a photo, or share a calendar event or a map overlay straight into the chat.'],
+                                ['Tap the ', { btn: 'plus' }, ' in the composer to attach a photo or a file, or share a calendar event or a map overlay straight into the chat.'],
+                                'Files can be any type up to 25 MB (PDFs, documents, video). They are sent as-is. Tap a received file once to download it, then open, share, or save it.',
+                                'Photos are compressed by default. Turn on "Send original" in the photo editor to keep full quality; location and camera details are removed either way.',
                                 ['Hold the ', { btn: 'mic' }, ' mic button to record a voice note.'],
                                 'Share a property item, event, or overlay from that object\'s own menu ("Share to chat") — pick recipients and send. The other person taps through to it.',
                                 'Long-press a message to Reply, Forward, Copy, Save media, or Delete.',
                             ] },
-                            { kind: 'note', text: 'The app doesn\'t keep a file locker. Attachments live in the conversation where you sent them, not a separate documents area.' },
+                            { kind: 'note', text: 'The app doesn\'t keep a file locker. Attachments live in the conversation where you sent them and are removed after 21 days; save anything you need to keep. Attachments are encrypted on your device before upload.' },
                         ],
                     },
                     {

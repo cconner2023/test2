@@ -5,6 +5,7 @@ import { BaseDrawer } from '@/Components/primitives/BaseDrawer'
 import { BottomIsland } from '@/Components/primitives/BottomIsland'
 import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill'
 import { PaneSurface } from '@/Components/primitives/PaneCard'
+import { createPaneHostStore, HostedPaneCard, PaneHostContext, type PaneHost } from '@/Components/primitives/paneHost'
 import { VoicemailGreetingSection } from './Settings/VoicemailGreetingSection'
 import { IncomingCallsSection } from './Settings/IncomingCallsSection'
 import { MessagingOncallSettings } from './Settings/MessagingOncallSettings'
@@ -40,7 +41,17 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
     const [searchQuery, setSearchQuery] = useState('')
     const [lens, setLens] = useState<MessagingLens>('chat')
     const [showSettings, setShowSettings] = useState(false)
-    const openSettings = useCallback(() => setShowSettings(true), [])
+    // Desktop: settings and conversation info share one PaneCard. Opening either
+    // swaps the card's content; last opened wins.
+    const [paneStore] = useState(createPaneHostStore)
+    const paneHost = useMemo<PaneHost>(() => ({
+        store: paneStore,
+        onActiveChange: (active) => { if (active) setShowSettings(false) },
+    }), [paneStore])
+    const openSettings = useCallback(() => {
+        paneStore.get()?.onClose()
+        setShowSettings(true)
+    }, [paneStore])
     const handleScrollConsumed = useCallback(() => setPendingScrollMsgId(null), [])
 
     // Clear search when navigating between views (e.g., clicking a search result)
@@ -255,8 +266,8 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
         }
     }, [view, selectedPeerId, selectedGroupId, selectedPeerName, selectedPeerIsOutside, handleBack, handleClose, callActions])
 
-    // Messaging settings — PaneSurface: fit Sheet on mobile, lifted card over
-    // the conversation pane on desktop. Layout matches
+    // Messaging settings — PaneSurface (fit Sheet) on mobile; on desktop the
+    // fallback content of the shared HostedPaneCard. Layout matches
     // Calendar Settings: text-tertiary section headers + themewhite2 cards.
     // On-call roster is open to all cluster members; the Outside-contact card
     // self-gates to supervisor inside MessagingOncallSettings.
@@ -348,11 +359,22 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
             header={desktopHeaderConfig}
             mobileFullScreen={isConversationView}
         >
-            {/* relative: the settings card floats over the conversation pane (right edge). */}
-            <div className="h-full relative">
-                {panelContent}
-                {settingsSurface}
-            </div>
+            {/* relative: the shared card floats over the conversation pane (right edge). */}
+            <PaneHostContext.Provider value={paneHost}>
+                <div className="h-full relative">
+                    {panelContent}
+                    <HostedPaneCard
+                        store={paneStore}
+                        fallback={{
+                            isOpen: showSettings,
+                            onClose: () => setShowSettings(false),
+                            title: 'Messaging settings',
+                            actions: settingsActions,
+                            children: settingsContent,
+                        }}
+                    />
+                </div>
+            </PaneHostContext.Provider>
         </BaseDrawer>
     )
 }

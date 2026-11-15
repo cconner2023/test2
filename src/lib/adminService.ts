@@ -67,6 +67,7 @@ export interface AdminUser {
   last_active_at: string | null
   avatar_id: string | null
   avatar_blob?: AvatarBlob | null
+  avatar_ref?: AvatarBlob | null
   supervisor_created: boolean
 }
 

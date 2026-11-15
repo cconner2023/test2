@@ -50,7 +50,7 @@ export function useSharedObjectActions() {
   const addBundle = useCallback(async (c: SharedBundleContent, scope: IngestScope = 'personal') => {
     if (!user?.id || !clinicId) return
     try {
-      const res = await unpackBundle(c.path, c.key, c.contentHash)
+      const res = await unpackBundle(c.path, c.key, c.contentHash, c.store)
       if (!res.ok) { logger.warn('Bundle unpack failed'); return }
       const b = res.data
       const ctx = { clinicId, userId: user.id, now: new Date().toISOString() }

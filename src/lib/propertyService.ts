@@ -532,14 +532,17 @@ export async function updateItem(
 export type PropertyFaultSubject = 'item' | 'location'
 
 /**
- * An attached 5988E worksheet. The file is encrypted client-side into the
- * message-attachments bucket via uploadEncryptedAttachment; `key` is the random
- * AES key the recipient needs to decrypt it (rides in the encrypted payload, so
- * the server never sees the plaintext file). No PHI — equipment maintenance.
+ * An attached 5988E worksheet / dispatch form. The file is encrypted client-side and
+ * stored on R2 p/ (permanent; store:'r2') or, for older docs, the legacy
+ * message-attachments bucket (no store). `key` is the random AES key the recipient
+ * needs to decrypt it (rides in the encrypted payload, so the server never sees the
+ * plaintext file). No ref_table on the ledger row: the server cannot read these
+ * payloads, so the orphan sweep never touches them. No PHI — equipment maintenance.
  */
 export interface PmcsDoc {
   path: string
   key: string
+  store?: 'r2'
   mime?: string
   name?: string
 }

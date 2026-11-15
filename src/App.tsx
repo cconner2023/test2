@@ -4,6 +4,7 @@ import { drawerShift, useDrawerPushStore } from './stores/useDrawerPushStore'
 import './App.css'
 import { NavTop } from './Components/NavTop'
 import { SideNav } from './Components/SideNav'
+import { NavRail } from './Components/NavRail'
 import { Scrim } from '@/Components/primitives/Scrim'
 import { SearchResults } from './Components/SearchResults'
 import { ThemeProvider, parseThemeId, useTheme } from './Utilities/ThemeContext'
@@ -15,7 +16,7 @@ import { useNavigation } from './Hooks/useNavigation'
 import { useNavigationStore } from './stores/useNavigationStore'
 import { useSwipeNavigation } from './Hooks/useSwipeNavigation'
 import { useDesktopHotkeys } from './Hooks/useDesktopHotkeys'
-import { useMenuSlide, MENU_NAV_WIDTH_MOBILE, MENU_NAV_WIDTH_DESKTOP } from './Hooks/useMenuSlide'
+import { useMenuSlide, MENU_NAV_WIDTH } from './Hooks/useMenuSlide'
 import { useRightPanelSlide } from './Hooks/useRightPanelSlide'
 import UpdateNotification from './Components/UpdateNotification'
 import PasswordResetOverlay from './Components/PasswordResetOverlay'
@@ -152,17 +153,14 @@ function AppContent() {
   const drawerPushOffset = useDrawerPushStore((s) => s.stack.reduce((total, d) => total + drawerShift(d), 0))
   const hasOpenDrawer = useDrawerPushStore((s) => s.stack.length > 0)
 
-  // ── Menu slide (mobile: swipe + click, desktop: click-only) ──
-  const menuNavWidth = navigation.isMobile ? MENU_NAV_WIDTH_MOBILE : MENU_NAV_WIDTH_DESKTOP
+  // ── Menu slide (mobile only; md+ nav is the NavRail, outside the strip) ──
   const menuSlide = useMenuSlide({
-    enabled: true,
+    enabled: navigation.isMobile,
     isOpen: navigation.isMenuOpen,
     onOpen: useCallback(() => {
       if (!navigation.isMenuOpen) navigation.toggleMenu()
     }, [navigation.isMenuOpen, navigation.toggleMenu]),
     onClose: navigation.closeMenu,
-    width: menuNavWidth,
-    disableGestures: !navigation.isMobile,
   })
 
   // ── Settings/training targeting state (lightweight replacement for useActiveNote) ──
@@ -574,30 +572,38 @@ case 'mapOverlay':
     <MessagesProvider>
     <CallProvider>
     <div className='h-screen bg-themewhite md:bg-themewhite2 md:p-2.5 flex overflow-hidden'>
-      <div id="app-drawer-root" className="w-full h-full md:rounded-lg md:border md:border-[rgba(0,0,0,0.04)] overflow-hidden relative md:bg-themewhite">
+      {!navigation.isMobile && (
+        <NavRail
+          expanded={navigation.isMenuOpen}
+          onExpand={navigation.toggleMenu}
+          onClose={navigation.closeMenu}
+          onMenuItemClick={handleMenuItemClick}
+        />
+      )}
+      <div id="app-drawer-root" className="w-full min-w-0 h-full md:rounded-lg md:border md:border-[rgba(0,0,0,0.04)] overflow-hidden relative md:bg-themewhite">
 
         {/* Viewport strip — SideNav + content side by side, pans to reveal nav or shift for messages */}
         <div
           className="flex h-full"
           inert={hasOpenDrawer}
           style={{
-            width: `calc(100% + ${menuNavWidth}px)`,
+            width: navigation.isMobile ? `calc(100% + ${MENU_NAV_WIDTH}px)` : '100%',
             transform: navigation.isMobile
-              ? `translateX(${menuSlide.position - menuNavWidth - rightPanelProgress * 80}px)`
-              // (100% - nav) is one app-panel width: the strip is 100% + nav wide
-              : `translateX(calc(${menuSlide.position - menuNavWidth}px + ${drawerPushOffset} * (100% - ${menuNavWidth}px)))`,
+              ? `translateX(${menuSlide.position - MENU_NAV_WIDTH - rightPanelProgress * 80}px)`
+              : `translateX(calc(${drawerPushOffset} * 100%))`,
             transition: (menuSlide.isDragging || rightPanelDragging) ? 'none' : DRAWER_SLIDE_TRANSITION,
             willChange: (menuSlide.isDragging || rightPanelDragging) ? 'transform' : 'auto',
           }}
         >
           {/* SideNav — same level, left of content */}
-          <div className="h-full shrink-0" style={{ width: menuNavWidth }}>
-            <SideNav
-              onClose={navigation.closeMenu}
-              onMenuItemClick={handleMenuItemClick}
-              isMobile={navigation.isMobile}
-            />
-          </div>
+          {navigation.isMobile && (
+            <div className="h-full shrink-0" style={{ width: MENU_NAV_WIDTH }}>
+              <SideNav
+                onClose={navigation.closeMenu}
+                onMenuItemClick={handleMenuItemClick}
+              />
+            </div>
+          )}
 
           {/* Content — takes full viewport width */}
           <div className="flex flex-col h-full flex-1 min-w-0 relative">
@@ -699,15 +705,15 @@ case 'mapOverlay':
 
           </div>
 
-          {/* Menu backdrop — overlays content when menu is open, handles tap/drag to close */}
-          <div
+          {/* Menu backdrop — overlays content when menu is open, handles tap/drag to close.
+              The NavRail brings its own scrim. */}
+          {navigation.isMobile && <div
             className="absolute inset-0 z-40"
             style={{
               pointerEvents: navigation.isMenuOpen ? 'auto' : 'none',
               touchAction: navigation.isMenuOpen ? 'none' : 'auto',
             }}
-            onClick={navigation.isMobile ? undefined : navigation.closeMenu}
-            {...(navigation.isMobile ? menuSlide.closeHandlers : {})}
+            {...menuSlide.closeHandlers}
           >
             <Scrim
               progress={menuSlide.backdropProgress}
@@ -717,7 +723,7 @@ case 'mapOverlay':
               interactive={false}
               transition={menuSlide.backdropTransition}
             />
-          </div>
+          </div>}
 
           {/* Messages backdrop — overlays content when messages is open */}
           {navigation.isMobile && (

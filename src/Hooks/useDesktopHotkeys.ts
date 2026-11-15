@@ -35,6 +35,16 @@ const KEY_TO_ACTION: Record<string, string> = {
     KeyS: 'settings',      // Settings
 }
 
+const IS_APPLE = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.userAgent)
+
+/** Keycaps for an action's hotkey (rail hover hint), or null if it has none. */
+export function hotkeyKeys(action: string): string[] | null {
+    const code = Object.keys(KEY_TO_ACTION).find(k => KEY_TO_ACTION[k] === action)
+    if (!code) return null
+    const letter = code.slice(3)
+    return IS_APPLE ? ['⌃', '⌥', letter] : ['Ctrl', 'Alt', letter]
+}
+
 /** Access level required per action — mirrors menuData in Data/CatData.ts. */
 const ACTION_ACCESS: Record<string, AccessLevel> = {
     import: 'public',

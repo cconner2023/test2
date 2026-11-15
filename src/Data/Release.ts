@@ -21,6 +21,7 @@ export interface ReleaseNoteTypes {
 }
 
 export const ReleaseNotes: ReleaseNoteTypes[] = [
+    { version: '2.8.0', type: 'added', sectionId: 'messaging-media', text: 'Send files in chat: any type up to 25 MB, encrypted on your device. Photos can be sent at original quality. Attachments expire after 21 days.' },
     { version: '2.8.0', type: 'changed', sectionId: 'tracking-board', text: 'BRN input primitive changed' },
     { version: '2.8.0', type: 'changed', sectionId: 'tracking-board', text: 'Tracking board added to the mission overview widgets' },
     { version: '2.8.0', type: 'added', sectionId: 'tracking-board', text: 'Tracking Board: follow casualties by BRN from check-in through your chosen map pins (from POI through disposition). Boards stay inside your cluster unless supervisors turn on sharing.' },

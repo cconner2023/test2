@@ -2,23 +2,25 @@
  * Custom profile-photo persistence service.
  *
  * A user's custom avatar is operational, non-PHI imagery that ANY authenticated
- * viewer may render (rosters, chat headers, contact lists) — so, like the
- * voicemail greeting (see voicemailService.ts), it can't ride the per-recipient
- * Signal/attachment key path. It is AES-256-GCM encrypted with the app-wide
- * barcode key (getBarcodeKey), which every authenticated user already caches
- * locally, and stored inline on profiles.avatar_blob as { enc, mime }. avatar_id
- * stays the selector: the value 'custom' means "render avatar_blob".
+ * viewer may render (rosters, chat headers, contact lists), so it can't ride the
+ * per-recipient Signal key path. The 160px JPEG is encrypted with a random per-object
+ * AES key and stored on R2 p/; profiles.avatar_ref = {store:'r2', k, ak, mime} carries
+ * the key, so roster reads ship ~150 bytes instead of the image. avatar_id stays the
+ * selector: 'custom' means "render the avatar ref".
  *
- * Inline storage is deliberate (the downscaled JPEG is a few KB). It is the seam
- * for a future move to Supabase Storage / S3: only the save/decrypt internals
- * change; the column name, ClinicMedic.avatarBlob, and UserAvatar stay put.
+ * Legacy rows hold the image inline on profiles.avatar_blob, encrypted with the
+ * app-wide barcode key. They still decrypt; the owner's next sign-in re-uploads to R2
+ * (useProfileAvatar) and nulls avatar_blob, and the RPCs stop returning avatar_blob as
+ * soon as avatar_ref is set.
  *
- * Not security-critical (no src/lib/signal/* involvement).
+ * Not security-critical (no src/lib/signal/* involvement beyond the shared
+ * attachmentService upload/download).
  */
 
 import { supabase } from './supabase'
 import { getBarcodeKey } from './cryptoService'
-import { aesGcmEncrypt, aesGcmDecrypt } from './aesGcm'
+import { aesGcmDecrypt } from './aesGcm'
+import { uploadEncryptedAttachment, downloadDecryptedAttachment, deleteAttachments } from './signal/attachmentService'
 import { bytesToBase64, base64ToBytes } from './base64Utils'
 import { createLogger } from '../Utilities/Logger'
 import type { AvatarBlob } from '../Types/SupervisorTestTypes'
@@ -49,17 +51,27 @@ function parseDataUrl(dataUrl: string): { mime: string; bytes: Uint8Array } | nu
   return { mime: match[1], bytes: base64ToBytes(match[2]) }
 }
 
-/** Encrypt + persist the signed-in user's custom photo and flip avatar_id to
- *  'custom'. `dataUrl` is the downscaled JPEG data URL from resizeImage().
- *  Returns false if the barcode key is unavailable (offline cold start) or the
- *  write fails. */
+function dataUrlToBlob(parsed: { mime: string; bytes: Uint8Array }): Blob {
+  return new Blob([parsed.bytes as BlobPart], { type: parsed.mime })
+}
+
+/** Cache key for a stored avatar: the R2 object key, or the legacy ciphertext. */
+export function avatarCacheKey(blob: AvatarBlob): string {
+  return blob.store === 'r2' ? blob.k : blob.enc
+}
+
+async function currentAvatarKey(userId: string): Promise<string | null> {
+  const { data } = await supabase.from('profiles').select('avatar_ref').eq('id', userId).single()
+  const ref = (data as { avatar_ref?: AvatarBlob | null } | null)?.avatar_ref
+  return ref?.store === 'r2' ? ref.k : null
+}
+
+/** Upload the signed-in user's custom photo to R2 and flip avatar_id to 'custom'.
+ *  `dataUrl` is the downscaled JPEG data URL from resizeImage(). The previous R2
+ *  object is deleted after the row points at the new one; if that delete fails the
+ *  nightly orphan sweep collects it. Returns false when offline or the write fails. */
 export async function saveOwnAvatarBlob(dataUrl: string): Promise<boolean> {
   try {
-    const key = await getBarcodeKey()
-    if (!key) {
-      logger.warn('No barcode key available — cannot save avatar')
-      return false
-    }
     const parsed = parseDataUrl(dataUrl)
     if (!parsed) {
       logger.warn('Unrecognized avatar data URL')
@@ -69,20 +81,26 @@ export async function saveOwnAvatarBlob(dataUrl: string): Promise<boolean> {
     const userId = auth.user?.id
     if (!userId) return false
 
-    const combined = await aesGcmEncrypt(key, parsed.bytes)
-    const blob: AvatarBlob = { enc: bytesToBase64(combined), mime: parsed.mime }
+    const previous = await currentAvatarKey(userId)
+    const up = await uploadEncryptedAttachment(userId, dataUrlToBlob(parsed), { class: 'p', refTable: 'profiles' })
+    if (!up.ok) {
+      logger.warn('Avatar upload failed:', up.error)
+      return false
+    }
+    const ref: AvatarBlob = { store: 'r2', k: up.data.path, ak: up.data.key, mime: parsed.mime }
 
     const { error } = await supabase
       .from('profiles')
-      .update({ avatar_blob: blob as unknown as Json, avatar_id: 'custom' })
+      .update({ avatar_ref: ref as unknown as Json, avatar_blob: null, avatar_id: 'custom' })
       .eq('id', userId)
-
     if (error) {
       logger.warn('Failed to save avatar:', error.message)
+      void deleteAttachments([up.data.path])
       return false
     }
-    // Seed both cache keys: the signed-in user renders instantly everywhere.
-    urlCache.set(blob.enc, dataUrl)
+    if (previous && previous !== up.data.path) void deleteAttachments([previous])
+
+    urlCache.set(ref.k, dataUrl)
     urlCache.set(`user:${userId}`, dataUrl)
     return true
   } catch (e) {
@@ -91,21 +109,23 @@ export async function saveOwnAvatarBlob(dataUrl: string): Promise<boolean> {
   }
 }
 
-/** Clear the signed-in user's custom photo blob. The avatar_id reset is handled
- *  by the caller (useProfileAvatar.clearCustomImage falls back to 'initials'). */
+/** Clear the signed-in user's custom photo (R2 object and both columns). The avatar_id
+ *  reset is handled by the caller (useProfileAvatar.clearCustomImage falls back to 'initials'). */
 export async function clearOwnAvatarBlob(): Promise<boolean> {
   try {
     const { data: auth } = await supabase.auth.getUser()
     const userId = auth.user?.id
     if (!userId) return false
+    const previous = await currentAvatarKey(userId)
     const { error } = await supabase
       .from('profiles')
-      .update({ avatar_blob: null })
+      .update({ avatar_blob: null, avatar_ref: null })
       .eq('id', userId)
     if (error) {
       logger.warn('Failed to clear avatar:', error.message)
       return false
     }
+    if (previous) void deleteAttachments([previous])
     urlCache.delete(`user:${userId}`)
     return true
   } catch (e) {
@@ -114,18 +134,26 @@ export async function clearOwnAvatarBlob(): Promise<boolean> {
   }
 }
 
-/** Decrypt an avatar blob into a renderable base64 data URL (memoized by `enc`).
- *  Returns null if the barcode key is unavailable or decryption fails. */
+/** Decrypt an avatar (R2 ref or legacy inline blob) into a renderable data URL,
+ *  memoized by object key / ciphertext. R2 bytes also sit in the ciphertext IDB cache,
+ *  so a seen avatar renders offline. Returns null on any failure. */
 export async function decryptAvatarToUrl(blob: AvatarBlob): Promise<string | null> {
-  const cached = urlCache.get(blob.enc)
+  const cacheKey = avatarCacheKey(blob)
+  const cached = urlCache.get(cacheKey)
   if (cached) return cached
   try {
-    const key = await getBarcodeKey()
-    if (!key) return null
-    const combined = base64ToBytes(blob.enc)
-    const plain = await aesGcmDecrypt(key, combined)
+    let plain: Uint8Array
+    if (blob.store === 'r2') {
+      const res = await downloadDecryptedAttachment(blob.k, blob.ak, 'r2', blob.mime)
+      if (!res.ok) return null
+      plain = new Uint8Array(await res.data.arrayBuffer())
+    } else {
+      const key = await getBarcodeKey()
+      if (!key) return null
+      plain = await aesGcmDecrypt(key, base64ToBytes(blob.enc))
+    }
     const dataUrl = `data:${blob.mime || 'image/jpeg'};base64,${bytesToBase64(plain)}`
-    urlCache.set(blob.enc, dataUrl)
+    urlCache.set(cacheKey, dataUrl)
     return dataUrl
   } catch (e) {
     logger.warn('decryptAvatarToUrl error:', e instanceof Error ? e.message : e)

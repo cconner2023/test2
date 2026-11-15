@@ -62,7 +62,7 @@ interface DispatchSheetProps {
   clinicId: string
   /** Desktop only — scopes the PreviewOverlay to the detail pane. */
   containerRef?: React.RefObject<HTMLElement | null>
-  /** Desktop: morph into the detail card instead of opening an overlay. */
+  /** Morph into the host's detail card (desktop) or bottom sheet (mobile) instead of opening an overlay. */
   cardHost?: CardMorphHost
 }
 
@@ -144,13 +144,13 @@ export function DispatchSheet({ isOpen, onClose, subjectId, clinicId, containerR
   const uploadDoc = async (file: File): Promise<PmcsDoc | null> => {
     if (!userId) return null
     const pdf = await ensurePdfFile(file)
-    const up = await uploadEncryptedAttachment(userId, pdf)
+    const up = await uploadEncryptedAttachment(userId, pdf, { class: 'p' })
     if (!up.ok) {
       logger.warn('dispatch doc upload failed:', up.error)
       setDocError('Could not upload the document — try again.')
       return null
     }
-    return { path: up.data.path, key: up.data.key, mime: pdf.type || undefined, name: pdf.name }
+    return { path: up.data.path, key: up.data.key, ...(up.data.store ? { store: up.data.store } : {}), mime: pdf.type || undefined, name: pdf.name }
   }
 
   const handleOpen = async () => {

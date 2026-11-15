@@ -125,21 +125,45 @@ export async function primaryLogoutAll(): Promise<Result<{ devicesDeleted: numbe
   )
 }
 
-/** Clean up stale linked devices (called on login). */
+/**
+ * Both stale-device reaps are idempotent server-side TTL sweeps, called from
+ * login and the heartbeat. Each call is a billed request, so they share one
+ * persisted gate per scope: within REAP_GATE_MS of the last call, skip it. A
+ * skipped reap only delays the sweep (fan-out may include a dead device a
+ * little longer); it never affects this device, whose row the caller keeps
+ * fresh. The gate matches the 30-min TTL, so a sweep can't find much new sooner.
+ */
+const REAP_GATE_MS = 30 * 60 * 1000
+
+function reapDue(key: string): boolean {
+  const now = Date.now()
+  try {
+    const last = Number(localStorage.getItem(key))
+    if (Number.isFinite(last) && now - last < REAP_GATE_MS) return false
+    localStorage.setItem(key, String(now))
+  } catch { /* storage unavailable: just run it */ }
+  return true
+}
+
+const REAP_SKIPPED = { devicesDeleted: 0, bundlesDeleted: 0 }
+
+/** Clean up stale linked devices (called on login). Gated, see reapDue. */
 export async function cleanupStaleDevices(
   staleMinutes: number = 30
 ): Promise<Result<{ devicesDeleted: number; bundlesDeleted: number }>> {
+  if (!reapDue('adtmc_reap_linked')) return ok(REAP_SKIPPED)
   return callRpc<{ devicesDeleted: number; bundlesDeleted: number }>(
     () => supabase.rpc('cleanup_stale_linked_devices', { p_stale_minutes: staleMinutes }),
     'cleanupStaleDevices', logger,
   )
 }
 
-/** Clean up stale clinic devices via server-side TTL. */
+/** Clean up stale clinic devices via server-side TTL. Gated per clinic, see reapDue. */
 export async function cleanupStaleClinicDevices(
   clinicId: string,
   staleMinutes: number = 30
 ): Promise<Result<{ devicesDeleted: number; bundlesDeleted: number }>> {
+  if (!reapDue(`adtmc_reap_clinic:${clinicId}`)) return ok(REAP_SKIPPED)
   return callRpc<{ devicesDeleted: number; bundlesDeleted: number }>(
     () => supabase.rpc('cleanup_stale_clinic_devices', {
       p_clinic_id: clinicId,

@@ -26,7 +26,7 @@ import type { PEState, PEItemState } from '../../Types/PETypes';
 
 // ── Item-state helpers (pure; re-expressed from PhysicalExam's block mutators) ──
 
-function defaultItemState(): PEItemState {
+export function defaultItemState(): PEItemState {
   return { status: 'not-examined', selectedNormals: [], selectedAbnormals: [], specifyDetails: {}, findings: '' };
 }
 

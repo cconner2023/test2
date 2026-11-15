@@ -1,15 +1,14 @@
 import { useEffect, useCallback, useState } from 'react'
 import { useDrag } from '@use-gesture/react'
 import { GESTURE_THRESHOLDS } from '../Utilities/GestureUtils'
-import { DRAWER_FADE_TRANSITION, DRAWER_SLIDE_TRANSITION } from '../Utilities/constants'
+import { DRAWER_FADE_TRANSITION } from '../Utilities/constants'
 
-export const MENU_NAV_WIDTH_MOBILE = 280
-export const MENU_NAV_WIDTH_DESKTOP = 280
-/** @deprecated Use MENU_NAV_WIDTH_MOBILE / MENU_NAV_WIDTH_DESKTOP */
-export const MENU_NAV_WIDTH = MENU_NAV_WIDTH_MOBILE
+/** Nav width: the mobile off-canvas SideNav and the expanded NavRail. */
+export const MENU_NAV_WIDTH = 280
 
+/** Mobile off-canvas nav. md+ uses NavRail, so pass enabled=false there: the
+ *  position stays 0 and every gesture is inert. */
 interface UseMenuSlideOptions {
-  /** Hook is always enabled; swipe gestures are gated by isMobile */
   enabled: boolean
   /** Menu open state from navigation store */
   isOpen: boolean
@@ -17,54 +16,47 @@ interface UseMenuSlideOptions {
   onOpen: () => void
   /** Called when gesture commits to closing */
   onClose: () => void
-  /** Nav width — defaults to 280 (mobile) */
-  width?: number
-  /** When true, disables drag/swipe gestures (click-only) */
-  disableGestures?: boolean
 }
 
-export function useMenuSlide({ enabled, isOpen, onOpen, onClose, width = MENU_NAV_WIDTH_MOBILE, disableGestures = false }: UseMenuSlideOptions) {
+export function useMenuSlide({ enabled, isOpen, onOpen, onClose }: UseMenuSlideOptions) {
   const [position, setPosition] = useState(0)
   const [isDragging, setIsDragging] = useState(false)
 
   // Sync position with external isOpen state (menu item click, CLOSE_ALL_DRAWERS, etc.)
   useEffect(() => {
     if (isDragging) return
-    setPosition(isOpen ? width : 0)
-  }, [isOpen, width, isDragging])
+    setPosition(enabled && isOpen ? MENU_NAV_WIDTH : 0)
+  }, [enabled, isOpen, isDragging])
 
   // Body scroll lock when menu is open
   useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = 'hidden'
-    } else {
-      document.body.style.overflow = ''
-    }
+    if (!enabled || !isOpen) return
+    document.body.style.overflow = 'hidden'
     return () => { document.body.style.overflow = '' }
-  }, [isOpen])
+  }, [enabled, isOpen])
 
   // ── Carousel edge-drag integration (open gesture) ──
 
   const onEdgeDrag = useCallback((offset: number) => {
-    if (disableGestures) return
+    if (!enabled) return
     setIsDragging(true)
-    const clamped = Math.max(0, Math.min(offset, width * 1.05))
+    const clamped = Math.max(0, Math.min(offset, MENU_NAV_WIDTH * 1.05))
     setPosition(clamped)
-  }, [width, disableGestures])
+  }, [enabled])
 
   const onEdgeDragEnd = useCallback((offset: number, velocity: number) => {
-    if (disableGestures) return
+    if (!enabled) return
     setIsDragging(false)
     const clamped = Math.max(0, offset)
-    const shouldOpen = clamped > width * 0.3 || velocity > GESTURE_THRESHOLDS.FLING_VELOCITY
+    const shouldOpen = clamped > MENU_NAV_WIDTH * 0.3 || velocity > GESTURE_THRESHOLDS.FLING_VELOCITY
 
     if (shouldOpen) {
-      setPosition(width)
+      setPosition(MENU_NAV_WIDTH)
       onOpen()
     } else {
       setPosition(0)
     }
-  }, [onOpen, width, disableGestures])
+  }, [onOpen, enabled])
 
   // ── Backdrop close gesture (drag left or tap to close) ──
 
@@ -78,23 +70,23 @@ export function useMenuSlide({ enabled, isOpen, onOpen, onClose, width = MENU_NA
 
       if (active) {
         setIsDragging(true)
-        const offset = Math.max(0, width + mx)
+        const offset = Math.max(0, MENU_NAV_WIDTH + mx)
         setPosition(offset)
       } else {
         setIsDragging(false)
-        const offset = Math.max(0, width + mx)
-        const shouldClose = offset < width * 0.7 || (vx > GESTURE_THRESHOLDS.FLING_VELOCITY && dx < 0)
+        const offset = Math.max(0, MENU_NAV_WIDTH + mx)
+        const shouldClose = offset < MENU_NAV_WIDTH * 0.7 || (vx > GESTURE_THRESHOLDS.FLING_VELOCITY && dx < 0)
 
         if (shouldClose) {
           setPosition(0)
           onClose()
         } else {
-          setPosition(width)
+          setPosition(MENU_NAV_WIDTH)
         }
       }
     },
     {
-      enabled: enabled && isOpen && !disableGestures,
+      enabled: enabled && isOpen,
       axis: 'x',
       filterTaps: true,
       pointer: { touch: true },
@@ -102,20 +94,16 @@ export function useMenuSlide({ enabled, isOpen, onOpen, onClose, width = MENU_NA
     }
   )
 
-  const transition = isDragging ? 'none' : DRAWER_SLIDE_TRANSITION
-
   return {
     position,
     isDragging,
-    transition,
     // TRAVEL fraction (0 -> 1) for <Scrim progress>, NOT a dim level — the tint
     // lives in Scrim's class (the nav uses variant="solid", 94% black, no blur).
     // Multiplying a dim level in here would park the element at fractional
     // opacity, which is what composited the blur away. See Scrim.tsx.
-    backdropProgress: Math.min(position / width, 1),
+    backdropProgress: Math.min(position / MENU_NAV_WIDTH, 1),
     backdropTransition: isDragging ? 'none' : DRAWER_FADE_TRANSITION,
     closeHandlers: enabled && isOpen ? closeBind() : {},
-    width,
     onEdgeDrag,
     onEdgeDragEnd,
   }

@@ -239,14 +239,16 @@ export function useRecordPreview({ event, onClose, label, detail, Icon, tint, in
     if (newDocFile) {
       if (!userId) { setDocError('Could not upload the document — try again.'); setBusy(false); return }
       const pdf = await ensurePdfFile(newDocFile)
-      const up = await uploadEncryptedAttachment(userId, pdf)
+      // The replaced doc's object is kept: the event's earlier version in the audit
+      // history still points at it, and the server cannot see audit payloads to tell.
+      const up = await uploadEncryptedAttachment(userId, pdf, { class: 'p' })
       if (!up.ok) {
         logger.warn('record doc upload failed:', up.error)
         setDocError('Could not upload the document — try again.')
         setBusy(false)
         return
       }
-      resolvedDoc = { path: up.data.path, key: up.data.key, mime: pdf.type || undefined, name: pdf.name }
+      resolvedDoc = { path: up.data.path, key: up.data.key, ...(up.data.store ? { store: up.data.store } : {}), mime: pdf.type || undefined, name: pdf.name }
     } else if (doc && !docRemoved) {
       resolvedDoc = doc
     }
@@ -307,7 +309,7 @@ export function useRecordPreview({ event, onClose, label, detail, Icon, tint, in
   const openDoc = async () => {
     if (!doc || busy) return
     setBusy(true)
-    const res = await downloadDecryptedAttachment(doc.path, doc.key)
+    const res = await downloadDecryptedAttachment(doc.path, doc.key, doc.store)
     setBusy(false)
     if (!res.ok) { logger.warn('document download failed:', res.error); return }
     const blob = doc.mime ? new Blob([res.data], { type: doc.mime }) : res.data
@@ -699,7 +701,7 @@ export function RecordReviewBody({ event }: { event: AuditEvent }) {
   const openDoc = async () => {
     if (!doc || busy) return
     setBusy(true)
-    const res = await downloadDecryptedAttachment(doc.path, doc.key)
+    const res = await downloadDecryptedAttachment(doc.path, doc.key, doc.store)
     setBusy(false)
     if (!res.ok) { logger.warn('document download failed:', res.error); return }
     const blob = doc.mime ? new Blob([res.data], { type: doc.mime }) : res.data

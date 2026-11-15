@@ -102,6 +102,9 @@ export async function submitOncallVoicemail(
       mime: args.mime,
       duration: Math.round(args.duration),
       waveform: args.waveform,
+      // Audio plaintext is size-padded (attachmentPadding.ts). An edge without this flag
+      // handling would store it on the legacy bucket, where readers do not unpad.
+      padded: true,
     },
   })
   if (error) return false

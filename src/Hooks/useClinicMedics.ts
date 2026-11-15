@@ -56,7 +56,7 @@ async function fetchMedicsFromNetwork(userId: string): Promise<ClinicMedic[] | n
         id: string; first_name: string; last_name: string; middle_initial: string;
         rank: string; credential: string; avatar_id: string; clinic_id: string; clinic_name: string;
         roles?: string[]; surrogate_clinic_id?: string | null; is_loaned_in?: boolean;
-        avatar_blob?: ClinicMedic['avatarBlob']; sub_cluster_id?: string | null
+        avatar_blob?: ClinicMedic['avatarBlob']; avatar_ref?: ClinicMedic['avatarBlob']; sub_cluster_id?: string | null
       }) => ({
         id: p.id,
         firstName: p.first_name,
@@ -65,7 +65,7 @@ async function fetchMedicsFromNetwork(userId: string): Promise<ClinicMedic[] | n
         rank: p.rank,
         credential: p.credential,
         avatarId: p.avatar_id ?? null,
-        avatarBlob: p.avatar_blob ?? null,
+        avatarBlob: p.avatar_ref ?? p.avatar_blob ?? null,
         roles: p.roles ?? [],
         clinicId: p.clinic_id,
         clinicName: p.clinic_name,
@@ -98,7 +98,7 @@ async function fetchMedicsFromNetwork(userId: string): Promise<ClinicMedic[] | n
 
   const { data: clinicProfiles, error: clinicError } = await supabase
     .from('profiles')
-    .select('id, first_name, last_name, middle_initial, rank, credential, roles, avatar_id, avatar_blob, sub_cluster_id')
+    .select('id, first_name, last_name, middle_initial, rank, credential, roles, avatar_id, avatar_blob, avatar_ref, sub_cluster_id')
     .eq('clinic_id', profile.clinic_id)
 
   if (clinicError) {
@@ -114,7 +114,7 @@ async function fetchMedicsFromNetwork(userId: string): Promise<ClinicMedic[] | n
     rank: p.rank,
     credential: p.credential,
     avatarId: p.avatar_id ?? null,
-    avatarBlob: (p as { avatar_blob?: ClinicMedic['avatarBlob'] }).avatar_blob ?? null,
+    avatarBlob: (p as { avatar_ref?: ClinicMedic['avatarBlob'] }).avatar_ref ?? (p as { avatar_blob?: ClinicMedic['avatarBlob'] }).avatar_blob ?? null,
     roles: (p as { roles?: string[] }).roles ?? [],
     subClusterId: (p as { sub_cluster_id?: string | null }).sub_cluster_id ?? null,
   }))

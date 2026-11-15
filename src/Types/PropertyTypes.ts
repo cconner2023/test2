@@ -90,6 +90,8 @@ export interface PropertyItem {
   owner_user_id: string | null
   location_tag_id: string | null
   photo_url: string | null
+  /** R2 item photo (src/lib/propertyPhotoService.ts). Wins over photo_url when present. */
+  photo_ref?: import('../lib/propertyPhotoService').PhotoRef | null
   visual_fingerprint: VisualFingerprint | null
   expiry_date: string | null      // ISO date (YYYY-MM-DD) for consumable/medical supply tracking
   /** True when signed out on a DA 2062 to a recipient OUTSIDE the cluster (no profile
@@ -174,7 +176,9 @@ export interface PropertyLocation {
   clinic_id: string
   parent_id: string | null  // self-FK for nesting
   name: string
-  photo_data: string | null   // base64 data URL
+  photo_data: string | null   // legacy inline base64 data URL; null once photo_ref is set
+  /** R2 photo (src/lib/propertyPhotoService.ts). Wins over photo_data when present. */
+  photo_ref?: import('../lib/propertyPhotoService').PhotoRef | null
   holder_user_id: string | null  // set on member-locations; null for physical locations
   /**
    * Sub-zone shape discriminator:

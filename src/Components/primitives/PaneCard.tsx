@@ -97,6 +97,10 @@ export interface PaneCardProps extends Omit<PaneSlotProps, 'children'> {
     /** Esc closes the card (desktop layered Esc). Default true; turn off when the
      *  host runs its own useEscBackout (drill-back, dirty guard). */
     closeOnEsc?: boolean
+    /** Temporary hover hint (the nav rail's): pinned at a viewport point (left
+     *  edge, vertical centre) instead of the slot, and inert, so no drag, close
+     *  pill or Esc. Held through the exit like the rest of the content. */
+    anchor?: { x: number; y: number }
 }
 
 const DRAG_IGNORE = 'button, a, input, textarea, select, [role="button"], [contenteditable="true"]'
@@ -165,63 +169,81 @@ interface Held {
     selfScroll?: boolean
     hideClose?: boolean
     ariaLabel?: string
+    anchor?: { x: number; y: number }
 }
 
 export function PaneCard({
     isOpen, onClose, title, children, eyebrow, onBack, leading, rightContent, actions,
-    hideClose, ariaLabel, loading, fill, selfScroll, header, footer, keepMounted, closeOnEsc = true,
+    hideClose, ariaLabel, loading, fill, selfScroll, header, footer, keepMounted, closeOnEsc = true, anchor,
     side, inset, width, zIndex, hidden,
 }: PaneCardProps) {
     const card = useOverlay(isOpen)
     // Every mode-dependent slot is held, so a card whose host flips mode on close
     // (a headerless detail → none) leaves in the shape it had.
-    const shown = useHeldWhileOpen<Held>(isOpen, { title, children, eyebrow, rightContent, actions, footer, leading, header, selfScroll, hideClose, ariaLabel })
-    useEscBackout(closeOnEsc && isOpen && !loading && !hidden, onClose)
+    const shown = useHeldWhileOpen<Held>(isOpen, { title, children, eyebrow, rightContent, actions, footer, leading, header, selfScroll, hideClose, ariaLabel, anchor })
+    const hint = shown.anchor
+    useEscBackout(closeOnEsc && !hint && isOpen && !loading && !hidden, onClose)
     const drag = usePaneDrag(card.mounted)
     if (!card.mounted && !keepMounted) return null
+
+    const headerRow = (
+        <PaneHeader
+            onBack={isOpen ? onBack : undefined}
+            eyebrow={shown.eyebrow}
+            leading={shown.leading}
+            title={shown.title}
+            actions={hint ? undefined : (
+                <>
+                    {shown.rightContent}
+                    {!shown.hideClose && (
+                        <HeaderPill>
+                            {!loading && shown.actions}
+                            <PillButton icon={X} iconSize={18} onClick={onClose} label="Close" />
+                        </HeaderPill>
+                    )}
+                </>
+            )}
+        />
+    )
+
+    const surface = (
+        <div
+            role={hint ? 'tooltip' : 'dialog'}
+            aria-label={shown.ariaLabel || shown.title}
+            aria-hidden={!card.open || undefined}
+            className={`relative flex flex-col min-h-0 ${fill ? 'h-full' : 'max-h-full'} rounded-2xl bg-themewhite3 border border-primary/15 shadow-xl overflow-hidden surface-motion ${
+                card.open ? (hint ? '' : 'pointer-events-auto') : 'surface-hidden-above'
+            }`}
+        >
+            {shown.header !== false && (hint ? headerRow : (
+                <div {...drag.handle} className={`shrink-0 touch-none select-none ${drag.dragging ? 'cursor-grabbing' : 'cursor-grab'}`}>
+                    {headerRow}
+                </div>
+            ))}
+            {fill
+                ? <div className="flex-1 min-h-0">{shown.children}</div>
+                : shown.selfScroll
+                    ? <div className="flex flex-col flex-1 min-h-0">{shown.children}</div>
+                    : <div className="min-h-0 overflow-y-auto overscroll-contain">{shown.children}</div>}
+            {shown.footer && <div className="shrink-0 border-t border-tertiary/10">{shown.footer}</div>}
+            {loading !== undefined && <LoadingOverlay visible={loading} />}
+        </div>
+    )
+
+    if (hint) {
+        return (
+            <div className="fixed -translate-y-1/2 w-max pointer-events-none" style={{ left: hint.x, top: hint.y, zIndex: zIndex ?? 100 }}>
+                {surface}
+            </div>
+        )
+    }
 
     return (
         <PaneSlot side={side} inset={inset} width={width} zIndex={zIndex} hidden={hidden || !card.mounted}>
             {/* The drag offset lives on this wrapper, not the card: the card's
                 transform belongs to surface-motion and would fight it. */}
             <div ref={drag.boxRef} style={drag.style} className={`flex flex-col min-h-0 ${fill ? 'h-full' : 'max-h-full'}`}>
-            <div
-                role="dialog"
-                aria-label={shown.ariaLabel || shown.title}
-                aria-hidden={!card.open || undefined}
-                className={`relative flex flex-col min-h-0 ${fill ? 'h-full' : 'max-h-full'} rounded-2xl bg-themewhite3 border border-primary/15 shadow-xl overflow-hidden surface-motion ${
-                    card.open ? 'pointer-events-auto' : 'surface-hidden-above'
-                }`}
-            >
-                {shown.header !== false && (
-                    <div {...drag.handle} className={`shrink-0 touch-none select-none ${drag.dragging ? 'cursor-grabbing' : 'cursor-grab'}`}>
-                    <PaneHeader
-                        onBack={isOpen ? onBack : undefined}
-                        eyebrow={shown.eyebrow}
-                        leading={shown.leading}
-                        title={shown.title}
-                        actions={
-                            <>
-                                {shown.rightContent}
-                                {!shown.hideClose && (
-                                    <HeaderPill>
-                                        {!loading && shown.actions}
-                                        <PillButton icon={X} iconSize={18} onClick={onClose} label="Close" />
-                                    </HeaderPill>
-                                )}
-                            </>
-                        }
-                    />
-                    </div>
-                )}
-                {fill
-                    ? <div className="flex-1 min-h-0">{shown.children}</div>
-                    : shown.selfScroll
-                        ? <div className="flex flex-col flex-1 min-h-0">{shown.children}</div>
-                        : <div className="min-h-0 overflow-y-auto overscroll-contain">{shown.children}</div>}
-                {shown.footer && <div className="shrink-0 border-t border-tertiary/10">{shown.footer}</div>}
-                {loading !== undefined && <LoadingOverlay visible={loading} />}
-            </div>
+                {surface}
             </div>
         </PaneSlot>
     )

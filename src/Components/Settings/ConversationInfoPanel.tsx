@@ -3,10 +3,14 @@ import { X, LogOut, Plus, Star, Pencil, Check, UserPlus, Trash2, Image as ImageI
 import { UserAvatar } from './UserAvatar'
 import { getDisplayName } from '../../Utilities/nameUtils'
 import { formatAudioDuration } from '../../Utilities/voiceUtils'
-import { OverlayStack, type StackNav } from '@/Components/primitives/OverlayStack'
+import { PaneCard } from '@/Components/primitives/PaneCard'
+import { usePaneHost, usePublishToPaneHost, type PaneHost } from '@/Components/primitives/paneHost'
+import { useStack, type StackController } from '@/Components/primitives/useStack'
+import { LayeredStackBody } from '@/Components/primitives/LayeredStackBody'
+import { StackNavContext, type StackNav, type StackScreen } from '@/Components/stackNav'
+import { useEscBackout } from '../../Hooks/useEscBackout'
 import { FooterPill } from '@/Components/primitives/FooterPill'
 import { SheetStack } from '@/Components/primitives/SheetStack'
-import type { StackScreen } from '@/Components/stackNav'
 import { ActionButton } from '@/Components/primitives/ActionButton'
 import { OverlayHeaderMenu } from '@/Components/primitives/OverlayHeaderMenu'
 import type { ContextMenuItem } from '@/Components/primitives/ContextMenu'
@@ -20,6 +24,74 @@ import type { DecryptedSignalMessage } from '../../lib/signal/transportTypes'
 import type { ImageContent, VoiceContent } from '../../lib/signal/messageContent'
 
 type ActionResult = { ok: boolean; error?: string }
+
+const ROOT = { key: 'root' }
+
+function stackFooter(stack: StackController) {
+  return stack.footer || stack.rightFooter ? (
+    <div className="flex items-center justify-between px-2 py-2">
+      {stack.footer ?? <div />}
+      {stack.rightFooter}
+    </div>
+  ) : undefined
+}
+
+/** Desktop, inside a pane host (the Messages drawer): publish into the host's one
+ *  card, so opening info while settings is open swaps content instead of
+ *  stacking a second card. Mounted only while open. */
+function InfoPanePublisher({ host, onClose, screens, navRef }: {
+  host: PaneHost
+  onClose: () => void
+  screens: Record<string, StackScreen>
+  navRef: React.MutableRefObject<StackNav | null>
+}) {
+  const stack = useStack({ isOpen: true, initial: ROOT, screens, navRef })
+  useEscBackout(true, () => (stack.onBack ?? onClose)())
+  usePublishToPaneHost(host, {
+    title: stack.title ?? '',
+    onBack: stack.onBack,
+    leading: stack.headerLeft,
+    actions: stack.headerActions,
+    footer: stackFooter(stack),
+    onClose,
+    body: (
+      <StackNavContext.Provider value={stack.nav}>
+        <LayeredStackBody frames={stack.frames} searchPlaceholder={stack.searchPlaceholder} />
+      </StackNavContext.Provider>
+    ),
+  })
+  return null
+}
+
+/** Desktop with no pane host: the drill engine in its own PaneCard floated over
+ *  the conversation pane (ChatDetailView's `relative` root), so the thread stays
+ *  visible and live beside it. Esc is drill-back first, hence the card's own
+ *  Esc is off. */
+function InfoPaneCard({ isOpen, onClose, screens, navRef }: {
+  isOpen: boolean
+  onClose: () => void
+  screens: Record<string, StackScreen>
+  navRef: React.MutableRefObject<StackNav | null>
+}) {
+  const stack = useStack({ isOpen, initial: ROOT, screens, navRef })
+  useEscBackout(isOpen, () => (stack.onBack ?? onClose)())
+  return (
+    <PaneCard
+      isOpen={isOpen}
+      onClose={onClose}
+      closeOnEsc={false}
+      title={stack.title ?? ''}
+      onBack={stack.onBack}
+      leading={stack.headerLeft}
+      actions={stack.headerActions}
+      footer={stackFooter(stack)}
+    >
+      <StackNavContext.Provider value={stack.nav}>
+        <LayeredStackBody frames={stack.frames} searchPlaceholder={stack.searchPlaceholder} />
+      </StackNavContext.Provider>
+    </PaneCard>
+  )
+}
 
 /** Identity block for a 1:1 conversation (mutually exclusive with `group`). */
 interface DirectPeer {
@@ -50,8 +122,9 @@ interface ConversationInfoPanelProps {
   onClose: () => void
   /** Every message in this conversation — drives the shared-media index. */
   messages: DecryptedSignalMessage[]
-  /** Media browsing is a dev-only surface for now. */
-  isDevRole: boolean
+  /** Shared-media browsing. Dev-only for now, except in Notes, where reaching
+   *  what you sent yourself is the point of the card. */
+  showMedia: boolean
   /** Jump the thread to a message (reuses ChatDetailView's scroll-to plumbing). */
   onJumpToMessage?: (messageId: string) => void
   /** Present for a 1:1 conversation. */
@@ -115,7 +188,7 @@ export function ConversationInfoPanel({
   isOpen,
   onClose,
   messages,
-  isDevRole,
+  showMedia,
   onJumpToMessage,
   peer,
   directAction,
@@ -140,9 +213,10 @@ export function ConversationInfoPanel({
   const [confirmDirect, setConfirmDirect] = useState(false)
   const [pendingRemove, setPendingRemove] = useState<string | null>(null)
   const isMobile = useIsMobile()
+  const paneHost = usePaneHost()
 
-  // The drill "morph" runs on the shared useStack engine (OverlayStack card on
-  // desktop / SheetStack bottom-sheet on mobile). navRef drives handler-initiated
+  // The drill "morph" runs on the shared useStack engine (PaneCard on desktop /
+  // SheetStack bottom-sheet on mobile). navRef drives handler-initiated
   // navigation (Add action) from outside a screen render.
   const navRef = useRef<StackNav | null>(null)
 
@@ -312,7 +386,7 @@ export function ConversationInfoPanel({
         : { key: 'edit', label: 'Edit', icon: Pencil, onAction: enterGroupEdit })
     : null
 
-  // DESKTOP chrome nodes. OverlayStack reads the root screen's footer (left) +
+  // DESKTOP chrome nodes. InfoPaneCard reads the root screen's footer (left) +
   // rightFooter (right) slots — the danger-cluster-left / primary-right split is
   // kept on the roomy desktop card.
   const leftFooterNode = leftActions.length > 0 ? (
@@ -444,7 +518,7 @@ export function ConversationInfoPanel({
   }
 
   // ── Root view (governance / identity + shared media) ───────────────────────
-  const mediaSection = isDevRole && (
+  const mediaSection = showMedia && (
     <div className="pb-1">
       <p className="px-4 pt-3 pb-1.5 text-[10pt] text-tertiary">Shared media</p>
       {media.photos.length === 0 && media.voice.length === 0 ? (
@@ -618,7 +692,7 @@ export function ConversationInfoPanel({
 
   // Drill-down screens for the shared useStack engine. Chrome (title/back/footer)
   // is read fresh each render, so these closures over host state stay live. Root
-  // chrome differs per shell: OverlayStack reads the root screen's footer/rightFooter;
+  // chrome differs per shell: InfoPaneCard reads the root screen's footer/rightFooter;
   // SheetStack shows rootLeftContent/rootRightContent (below). The off-roster
   // (QR / Email / Code) screens come from useOffRosterAdd — the same primitive the
   // New Message / New Group builder uses.
@@ -644,7 +718,7 @@ export function ConversationInfoPanel({
     ...offRoster.screens,
   }
 
-  // SheetStack (mobile bottom-sheet) / OverlayStack (desktop card) shell the SAME
+  // SheetStack (mobile bottom-sheet) / InfoPaneCard (desktop) shell the SAME
   // drill engine, so both morph identically. Root chrome = the governance actions;
   // drilled screens surface their own title/back/footer via the engine.
   return isMobile ? (
@@ -661,14 +735,8 @@ export function ConversationInfoPanel({
       zIndex={1200}
     />
   ) : (
-    <OverlayStack
-      isOpen={isOpen}
-      onClose={onClose}
-      initial={{ key: 'root' }}
-      screens={screens}
-      navRef={navRef}
-      anchorRect={null}
-      previewMaxHeight="55dvh"
-    />
+    paneHost
+      ? (isOpen ? <InfoPanePublisher host={paneHost} onClose={onClose} screens={screens} navRef={navRef} /> : null)
+      : <InfoPaneCard isOpen={isOpen} onClose={onClose} screens={screens} navRef={navRef} />
   )
 }

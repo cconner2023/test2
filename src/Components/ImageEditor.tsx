@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { Check, Crop, ZoomIn } from 'lucide-react'
+import { Check, Crop, ZoomIn, Maximize2 } from 'lucide-react'
 import { PreviewOverlay } from './PreviewOverlay'
 import { PillButton } from '@/Components/primitives/HeaderPill'
 import { FooterPill } from '@/Components/primitives/FooterPill'
@@ -28,8 +28,10 @@ interface ImageEditorProps {
   /** The picked/pasted/captured image awaiting review; null keeps the overlay closed. */
   file: File | null
   onCancel: () => void
-  /** Receives the cropped JPEG File (caller sends it, then clears `file`). */
-  onConfirm: (edited: File) => void
+  /** Receives the cropped JPEG File (caller sends it, then clears `file`). `original`
+   *  asks the send pipeline to skip its 800px downscale; the crop is already a canvas
+   *  re-encode, so EXIF/GPS is stripped either way. */
+  onConfirm: (edited: File, original: boolean) => void
   /** Scopes the overlay to the conversation container (matches SharedObjectPicker). */
   containerRef?: React.RefObject<HTMLElement | null>
 }
@@ -75,6 +77,10 @@ export function ImageEditor({ file, onCancel, onConfirm, containerRef }: ImageEd
     return () => { cancelled = true }
   }, [file])
 
+  // Per pick: a new image starts compressed again.
+  const [original, setOriginal] = useState(false)
+  useEffect(() => { setOriginal(false) }, [file])
+
   const handleConfirm = useCallback(() => {
     if (!src || busy) return
     setBusy(true)
@@ -84,13 +90,13 @@ export function ImageEditor({ file, onCancel, onConfirm, containerRef }: ImageEd
         { x: rect.x0, y: rect.y0, w: rect.x1 - rect.x0, h: rect.y1 - rect.y0 },
         { name: file?.name },
       )
-      onConfirm(out)
+      onConfirm(out, original)
     } catch (err) {
       logger.warn('crop failed:', err)
       setError('Could not prepare that image — try again.')
       setBusy(false)
     }
-  }, [src, busy, rect, file, onConfirm])
+  }, [src, busy, rect, file, onConfirm, original])
 
   const resetEdits = useCallback(() => {
     setRect(FULL)
@@ -120,6 +126,7 @@ export function ImageEditor({ file, onCancel, onConfirm, containerRef }: ImageEd
       footer={
         <FooterPill>
           <ActionButton icon={Crop} label="Reset" variant={src ? 'default' : 'disabled'} onClick={resetEdits} />
+          <ActionButton icon={Maximize2} label="Send original" variant={original ? 'success' : 'default'} onClick={() => setOriginal(o => !o)} />
         </FooterPill>
       }
       rightFooter={

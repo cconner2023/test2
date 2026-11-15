@@ -802,7 +802,7 @@ export function AdminUserDetail({
         <div className="rounded-2xl bg-themewhite2 overflow-hidden">
             <UserRow
               avatarId={user.avatar_id}
-              avatarBlob={user.avatar_blob}
+              avatarBlob={user.avatar_ref ?? user.avatar_blob}
               userId={user.id}
               firstName={user.first_name}
               lastName={user.last_name}

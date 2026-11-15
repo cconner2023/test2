@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Calendar, Map as MapIcon, Image as ImageIcon, Package, FileText } from 'lucide-react'
+import { Calendar, Map as MapIcon, Image as ImageIcon, Package, FileText, Paperclip } from 'lucide-react'
 import { AnchoredMenu } from '@/Components/primitives/LiftedRowMenu'
 import type { ContextMenuItem, MenuCardRow, SearchLevelSpec } from '@/Components/primitives/ContextMenu'
 import { useCalendarStore } from '../../stores/useCalendarStore'
@@ -41,17 +41,20 @@ interface SharedObjectPickerProps {
   onClose: () => void
   /** User chose "Photo" — caller opens its file picker. */
   onPickPhoto: () => void
-  /** User picked a clustered object to share (live shared_ref). */
-  onPick: (content: SharedRefContent) => void
+  /** User chose "File" — caller opens an any-type picker (sent as-is, 25 MB cap). */
+  onPickFile: () => void
+  /** User picked a clustered object to share (live shared_ref). Absent hides
+   *  Event / Map / Property (a surface that only takes photos and files). */
+  onPick?: (content: SharedRefContent) => void
   /** User picked a text template / order set — sent as a frozen note-blocks bundle
    *  (no live ref exists for config). Caller packs + sends into the chat. */
-  onPickBundle: (source: BundleSource) => void
+  onPickBundle?: (source: BundleSource) => void
 }
 
 /**
  * Anchored "+" add menu for the chat composer — a single {@link AnchoredMenu} (list
- * layout). The root is Photo / Event / Map / Property / Template; every non-Photo
- * entry drills into a SEARCHABLE card list inside the same menu (Map drills again to
+ * layout). The root is Photo / File / Event / Map / Property / Template; Event, Map,
+ * Property and Template drill into a SEARCHABLE card list inside the same menu (Map drills again to
  * a feature step). One primitive, real Back navigation — no PreviewOverlay stitch.
  *
  * Event / Map / Property send a LIVE `shared_ref` (opaque id + operational label,
@@ -65,6 +68,7 @@ export function SharedObjectPicker({
   clinicId,
   onClose,
   onPickPhoto,
+  onPickFile,
   onPick,
   onPickBundle,
 }: SharedObjectPickerProps) {
@@ -108,12 +112,12 @@ export function SharedObjectPicker({
 
   // Same for the pick callbacks + clinicId — lets `menuItems` build ONCE (stable
   // identity) without going stale on prop changes.
-  const ctxRef = useRef({ onPick, onPickBundle, onPickPhoto, clinicId })
-  ctxRef.current = { onPick, onPickBundle, onPickPhoto, clinicId }
+  const ctxRef = useRef({ onPick, onPickBundle, onPickPhoto, onPickFile, clinicId })
+  ctxRef.current = { onPick, onPickBundle, onPickPhoto, onPickFile, clinicId }
 
   const menuItems = useMemo<ContextMenuItem[]>(() => {
     const pickRef = (kind: RefKind, row: MenuCardRow) =>
-      ctxRef.current.onPick({ type: 'shared_ref', refKind: kind, refId: row.id, label: row.label, subLabel: row.sub })
+      ctxRef.current.onPick?.({ type: 'shared_ref', refKind: kind, refId: row.id, label: row.label, subLabel: row.sub })
 
     const eventSpec: SearchLevelSpec = {
       title: 'Share an event',
@@ -184,7 +188,7 @@ export function SharedObjectPicker({
         const overlay = dataRef.current.overlays.find(o => o.id === overlayId)
         const f = overlay?.features?.find(ff => ff.id === featureId)
         if (!overlay || !f) return
-        ctxRef.current.onPick({
+        ctxRef.current.onPick?.({
           type: 'shared_ref', refKind: 'map-overlay', refId: overlay.id, featureId: f.id,
           label: f.label || 'Waypoint', subLabel: overlay.name || 'Overlay',
         })
@@ -209,11 +213,11 @@ export function SharedObjectPicker({
         if (r.id.startsWith('os:')) {
           const o = dataRef.current.orderSets.find(x => `os:${x.id}` === r.id)
           if (!o) return
-          ctxRef.current.onPickBundle({ kind: 'note-blocks', blocks: { planOrderSets: [o] }, label: o.name, subLabel: 'Order set' })
+          ctxRef.current.onPickBundle?.({ kind: 'note-blocks', blocks: { planOrderSets: [o] }, label: o.name, subLabel: 'Order set' })
         } else {
           const t = dataRef.current.textTemplates.find(x => `te:${x.abbr}` === r.id)
           if (!t) return
-          ctxRef.current.onPickBundle({ kind: 'note-blocks', blocks: { textExpanders: [t] }, label: t.abbr, subLabel: 'Text template' })
+          ctxRef.current.onPickBundle?.({ kind: 'note-blocks', blocks: { textExpanders: [t] }, label: t.abbr, subLabel: 'Text template' })
         }
       },
     }
@@ -231,6 +235,7 @@ export function SharedObjectPicker({
 
     return [
       { key: 'photo', label: 'Photo', icon: ImageIcon, onAction: () => ctxRef.current.onPickPhoto() },
+      { key: 'file', label: 'File', icon: Paperclip, onAction: () => ctxRef.current.onPickFile() },
       { key: 'event', label: 'Event', icon: Calendar, search: eventSpec },
       { key: 'map', label: 'Map', icon: MapIcon, search: mapSpec },
       { key: 'property', label: 'Property', icon: Package, search: propertySpec, onAction: prefetchProperty },
@@ -238,13 +243,18 @@ export function SharedObjectPicker({
     ]
   }, [])
 
+  const hasRef = !!onPick, hasBundle = !!onPickBundle
+  const shownItems = useMemo(() => menuItems.filter(i =>
+    i.key === 'template' ? hasBundle : i.key === 'photo' || i.key === 'file' || hasRef,
+  ), [menuItems, hasRef, hasBundle])
+
   return (
     <AnchoredMenu
       isOpen={isOpen}
       anchorRef={anchorRef}
       layout="list"
       align="left"
-      items={menuItems}
+      items={shownItems}
       onClose={onClose}
     />
   )

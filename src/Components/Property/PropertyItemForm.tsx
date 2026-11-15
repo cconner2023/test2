@@ -1,5 +1,6 @@
-import { useState, useMemo, useCallback, useEffect, forwardRef, useImperativeHandle } from 'react'
-import { X, Square, CheckSquare, Plus } from 'lucide-react'
+import { useState, useMemo, useCallback, useEffect, useRef, forwardRef, useImperativeHandle } from 'react'
+import { X, Square, CheckSquare, Plus, Paperclip } from 'lucide-react'
+import { usePropertyPhotoUrl, commitPropertyPhoto } from '../../lib/propertyPhotoService'
 import { TextInput, TextArea, PickerInput, DatePickerInput } from '@/Components/primitives/FormInputs'
 import { usePropertyStore } from '../../stores/usePropertyStore'
 import { isCustomPar, isLinContainer } from '../../Utilities/propertyAuthorized'
@@ -91,6 +92,22 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
     return ''
   })
   const [notes, setNotes] = useState(editingItem?.notes ?? '')
+  // Item photo (R2 p/, 800px JPEG). Seeded from the row, written back only when touched.
+  const existingPhotoUrl = usePropertyPhotoUrl(editingItem ? { photo_ref: editingItem.photo_ref, photo_data: editingItem.photo_url } : null)
+  const [photoData, setPhotoData] = useState<string | null>(null)
+  const [photoTouched, setPhotoTouched] = useState(false)
+  useEffect(() => { if (!photoTouched && existingPhotoUrl) setPhotoData(existingPhotoUrl) }, [existingPhotoUrl, photoTouched])
+  const photoInputRef = useRef<HTMLInputElement>(null)
+  const handlePhotoPick = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    try {
+      const { resizeImage } = await import('../../Utilities/imageUtils')
+      setPhotoData(await resizeImage(file, 800, 0.7))
+      setPhotoTouched(true)
+    } catch { /* non-fatal */ }
+  }, [])
   const [expiryDate, setExpiryDate] = useState(editingItem?.expiry_date ?? '')
   const [isSaving, setIsSaving] = useState(false)
   // Authorized/BOM lines are fungible by default (unit/pack + auth qty apply); normal
@@ -310,6 +327,15 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
         : {}),
     }
 
+    // Items never delete the replaced object themselves: batch serial adds share one ref,
+    // so another item may still point at it. The nightly orphan sweep collects it once
+    // no item does. Offline, commitPropertyPhoto keeps the bytes inline in photo_url.
+    const photoPatch = !photoTouched ? {}
+      : photoData
+        ? await commitPropertyPhoto(photoData, 'property_items').then(f => ({ photo_ref: f.photo_ref ?? null, photo_url: f.photo_data ?? null }))
+        : { photo_ref: null, photo_url: null }
+    Object.assign(sharedPayload, photoPatch)
+
     try {
       if (editingIsLin && editingItem) {
         // Edit a LIN header — only name + LIN change; everything else is preserved. If this LIN
@@ -373,7 +399,7 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
           serial_number: null,
           quantity: Math.max(minQuantity, parseInt(quantity) || 0),
           location_tag_id: null,
-          photo_url: null,
+          photo_url: (photoPatch as { photo_url?: string | null }).photo_url ?? null,
           visual_fingerprint: null,
         })
         if (created) onEnrollNew?.(created)
@@ -390,7 +416,7 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
             serial_number: validSerials[0] ?? null,
             quantity: 1,
             location_tag_id: null,
-            photo_url: null,
+            photo_url: (photoPatch as { photo_url?: string | null }).photo_url ?? null,
             visual_fingerprint: null,
           })
           if (created) onEnrollNew?.(created)
@@ -405,7 +431,7 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
               serial_number: serial,
               quantity: 1,
               location_tag_id: null,
-              photo_url: null,
+              photo_url: (photoPatch as { photo_url?: string | null }).photo_url ?? null,
               visual_fingerprint: null,
             })
           }
@@ -423,6 +449,7 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
     itemType, unitOfIssue, packSize, authActive, quantityAuthorized, isNewLin, editingIsLin,
     isCustomAdd, isCustom,
     isEdit, editingItem, clinicId, addItem, editItem, editLocation, locations, onClose, onEnrollNew, conditionCode,
+    photoData, photoTouched,
   ])
 
   useImperativeHandle(ref, () => ({ submit: handleSave }), [handleSave])
@@ -735,6 +762,29 @@ export const PropertyItemForm = forwardRef<PropertyItemFormHandle, PropertyItemF
         onChange={setNotes}
         placeholder="Notes"
       />
+
+      <input ref={photoInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoPick} />
+      {photoData ? (
+        <div className="flex items-center gap-3 px-1 py-3">
+          <img src={photoData} alt="" className="w-11 h-11 rounded-lg object-cover border border-tertiary/15 shrink-0" />
+          <span className="flex-1 text-base md:text-sm text-primary truncate">Photo</span>
+          <button type="button" onClick={() => photoInputRef.current?.click()} className="text-[10pt] font-medium text-themeblue2 active:scale-95 transition-transform">
+            Change
+          </button>
+          <button type="button" onClick={() => { setPhotoData(null); setPhotoTouched(true) }} className="text-[10pt] font-medium text-themeredred active:scale-95 transition-transform">
+            Remove
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => photoInputRef.current?.click()}
+          className="w-full bg-transparent px-1 py-3 text-left text-base md:text-sm flex items-center justify-between gap-3 focus:outline-none text-tertiary"
+        >
+          <span>Add photo</span>
+          <Paperclip size={16} className="shrink-0 text-tertiary" />
+        </button>
+      )}
         </>
       )}
       </div>

@@ -24,7 +24,7 @@ interface DD1750SheetProps {
   /** Scopes the overlay to the property drawer (desktop); float+stack on mobile. */
   containerRef?: React.RefObject<HTMLElement | null>
   zIndex?: number
-  /** Desktop: morph into the detail card instead of opening an overlay. */
+  /** Morph into the host's detail card (desktop) or bottom sheet (mobile) instead of opening an overlay. */
   cardHost?: CardMorphHost
 }
 

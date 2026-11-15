@@ -25,7 +25,7 @@ import type { CalendarEvent, EventCategory } from '../Types/CalendarTypes'
 import type { MapOverlay, OverlayFeature } from '../Types/MapOverlayTypes'
 import type { PropertyItem, ItemType, UnitOfIssue, PropertyCondition } from '../Types/PropertyTypes'
 import type { TextExpander, PlanOrderSet, PlanOrderTags } from '../Data/User'
-import { uploadEncryptedAttachment, downloadDecryptedAttachment } from './signal/attachmentService'
+import { uploadEncryptedAttachment, downloadDecryptedAttachment, type UploadOptions } from './signal/attachmentService'
 import { ok, err, type Result } from './result'
 import { createLogger } from '../Utilities/Logger'
 
@@ -453,6 +453,7 @@ export interface PackedBundle {
   kind: ObjectBundle['kind']
   path: string
   key: string
+  store?: 'r2'
   contentHash: string
   label: string
   subLabel?: string
@@ -460,21 +461,26 @@ export interface PackedBundle {
 }
 
 /**
- * Serialize → hash → AES-encrypt → upload to the message-attachments bucket.
+ * Serialize → hash → AES-encrypt → upload to R2 m/ (expires with the message, 21 days).
  * Returns everything the SharedBundleContent message needs to carry. The blob
  * in storage is ciphertext; the key is returned to ride INSIDE the E2E message.
  */
-export async function packBundle(userId: string, bundle: ObjectBundle): Promise<Result<PackedBundle>> {
+export async function packBundle(
+  userId: string,
+  bundle: ObjectBundle,
+  transfer: Pick<UploadOptions, 'onProgress' | 'signal'> = {},
+): Promise<Result<PackedBundle>> {
   const json = JSON.stringify(bundle)
   const contentHash = await sha256Hex(json)
   const blob = new Blob([json], { type: 'application/json' })
-  const up = await uploadEncryptedAttachment(userId, blob)
+  const up = await uploadEncryptedAttachment(userId, blob, { class: 'm', ...transfer })
   if (!up.ok) return err(up.error)
   const { label, subLabel } = bundleLabel(bundle)
   return ok({
     kind: bundle.kind,
     path: up.data.path,
     key: up.data.key,
+    ...(up.data.store ? { store: up.data.store } : {}),
     contentHash,
     label,
     ...(subLabel ? { subLabel } : {}),
@@ -483,11 +489,11 @@ export async function packBundle(userId: string, bundle: ObjectBundle): Promise<
 }
 
 /**
- * Download ciphertext from the bucket, decrypt with the carried key, verify the
- * integrity hash, and parse back into a typed bundle.
+ * Download ciphertext (R2, or the legacy bucket when store is absent), decrypt with
+ * the carried key, verify the integrity hash, and parse back into a typed bundle.
  */
-export async function unpackBundle(path: string, key: string, expectedHash: string): Promise<Result<ObjectBundle>> {
-  const dl = await downloadDecryptedAttachment(path, key)
+export async function unpackBundle(path: string, key: string, expectedHash: string, store?: 'r2'): Promise<Result<ObjectBundle>> {
+  const dl = await downloadDecryptedAttachment(path, key, store)
   if (!dl.ok) return err(dl.error)
   let json: string
   try {

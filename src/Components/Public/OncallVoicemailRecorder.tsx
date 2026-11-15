@@ -4,6 +4,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { startRecording } from '../../Utilities/voiceUtils'
 import { base64ToBytes, bytesToBase64 } from '../../lib/base64Utils'
 import { aesGcmEncrypt } from '../../lib/aesGcm'
+import { padAttachment } from '../../lib/attachmentPadding'
 import { submitOncallVoicemail, type OncallGreetingWire } from '../../lib/oncallAnonService'
 
 const MAX_SECONDS = 60
@@ -74,10 +75,11 @@ export function OncallVoicemailRecorder({ supabase, passcode, passphrase, callId
     setState('sending')
     try {
       const rec = await controller.stop()
-      // Random AES-256-GCM key; encrypt the blob (aesGcmEncrypt prepends the 12-byte IV).
+      // Random AES-256-GCM key; encrypt the padded blob (aesGcmEncrypt prepends the
+      // 12-byte IV). Padding tells oncall-resolve to store on R2 v/, where readers unpad.
       const key = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt'])
       const plain = new Uint8Array(await rec.blob.arrayBuffer())
-      const combined = await aesGcmEncrypt(key, plain)
+      const combined = await aesGcmEncrypt(key, padAttachment(plain))
       const rawKey = await crypto.subtle.exportKey('raw', key)
       const ok = await submitOncallVoicemail(supabase, {
         passcode, passphrase, callId,

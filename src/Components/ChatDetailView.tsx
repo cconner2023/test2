@@ -1,11 +1,16 @@
 import { useState, useRef, useEffect, useCallback, type ReactNode } from 'react'
-import { ArrowUp, X, Plus, Mic, Copy, Pencil, Download, Reply, Trash2, Forward, SmilePlus, CalendarPlus, ScanLine, Calendar, Package, Map as MapIcon, Building2 } from 'lucide-react'
+import { ArrowUp, X, Plus, Mic, Copy, Pencil, Download, Reply, Trash2, Forward, SmilePlus, CalendarPlus, ScanLine, Calendar, Package, Map as MapIcon, Building2, FileText, type LucideIcon } from 'lucide-react'
 import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
 import { GlassBand } from '@/Components/primitives/GlassBand'
 import { MessageBubble } from './Settings/MessageBubble'
 import { SharedObjectPicker } from './Messages/SharedObjectPicker'
 import { ImageEditor } from './ImageEditor'
-import type { MessageContent, SharedBundleContent } from '../lib/signal/messageContent'
+import type { MessageContent, SharedBundleContent, SharedRefContent, FileContent, ImageContent } from '../lib/signal/messageContent'
+import { resizeAndThumbnail } from '../Hooks/useMessages'
+import { dataUrlToBlob } from '../Utilities/imageUtils'
+import { uploadEncryptedAttachment, attachmentFailureMessage, deleteAttachments, MAX_ATTACHMENT_BYTES } from '../lib/signal/attachmentService'
+import { UploadChip, useUploadTask } from '@/Components/primitives/UploadProgress'
+import { emitErrorToast } from '../lib/errorFeedback'
 import { packBundle, bundleSourceToBundle, type BundleSource } from '../lib/objectBundle'
 import { ContextMenu, type ContextMenuItem } from '@/Components/primitives/ContextMenu'
 import { LiftedRowMenu } from '@/Components/primitives/LiftedRowMenu'
@@ -38,12 +43,27 @@ export interface ParticipantStatus {
   reason?: UnavailableReason
 }
 
+type StagedSource =
+  | { kind: 'file'; file: File; preview?: undefined }
+  | { kind: 'image'; file: File; original: boolean; preview: string }
+  | { kind: 'ref'; content: SharedRefContent; preview?: undefined }
+  | { kind: 'bundle'; source: BundleSource; preview?: undefined }
+
+type StagedContent = FileContent | ImageContent | SharedRefContent | SharedBundleContent
+
+const REF_ICONS: Record<SharedRefContent['refKind'], LucideIcon> = {
+  'calendar-event': Calendar,
+  'map-overlay': MapIcon,
+  'property-item': Package,
+}
+
 export interface ChatDetailViewProps {
   conversationId: string
   conversations: Record<string, DecryptedSignalMessage[]>
   medics: ClinicMedic[]
   sendMessage: (id: string, text: string, threadId?: string) => Promise<boolean>
-  sendImage: (id: string, file: File) => Promise<boolean>
+  /** `original` skips the 800px downscale (still re-encoded, so metadata is stripped). */
+  sendImage: (id: string, file: File, opts?: { original?: boolean }) => Promise<boolean>
   /** Send a structured-content message (e.g. a shared object reference). When
    * supplied, the composer's + button opens an attachment menu (photo + share
    * event / map). When omitted, + falls back to the direct photo picker. */
@@ -67,6 +87,10 @@ export interface ChatDetailViewProps {
   isSelfChat?: boolean
   showForward?: boolean
   emptyText?: string
+  /** Who-this-is card above the first loaded message (main view only). Request
+   *  Accept/Decline never moves here: it stays pinned in the composer slot so it
+   *  is reachable however far the history scrolls. */
+  introCard?: ReactNode
   mobileHeader: ReactNode
   desktopHeader?: ReactNode
   /** Register a back-interceptor with the owning drawer. When a thread is open
@@ -160,6 +184,7 @@ export function ChatDetailView({
   isSelfChat,
   showForward,
   emptyText = 'No messages',
+  introCard,
   mobileHeader,
   desktopHeader,
   registerThreadBack,
@@ -185,6 +210,38 @@ export function ChatDetailView({
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const docInputRef = useRef<HTMLInputElement>(null)
+  // Anything from the + menu (photo, file, event, map, property, template) waits
+  // above the composer until the user sends, so it can go out with a message.
+  // Uploads start on pick. The source is kept for Retry; the ref mirrors
+  // stagedContent so clearing can delete the object without a side effect inside a
+  // state updater.
+  const fileUpload = useUploadTask<StagedContent>()
+  const [stagedSource, setStagedSource] = useState<StagedSource | null>(null)
+  const [stagedContent, setStagedContentState] = useState<StagedContent | null>(null)
+  const stagedContentRef = useRef<StagedContent | null>(null)
+  const stagedSourceRef = useRef<StagedSource | null>(null)
+  const setStagedContent = useCallback((c: StagedContent | null) => {
+    stagedContentRef.current = c
+    setStagedContentState(c)
+  }, [])
+  const setStaged = useCallback((s: StagedSource | null) => {
+    stagedSourceRef.current = s
+    setStagedSource(s)
+  }, [])
+  // deleteObject: true when the user removed it (or left the chat) before sending,
+  // so the object goes now rather than at the m/ lifecycle. A cancel that races a
+  // finished PUT still orphans one object; the lifecycle covers that.
+  const releaseStaged = useCallback((deleteObject: boolean) => {
+    fileUpload.clear()
+    const content = stagedContentRef.current
+    // shared_ref carries no object; it resolves against the receiver's vault.
+    if (deleteObject && content && content.type !== 'shared_ref') void deleteAttachments([content.path])
+    const preview = stagedSourceRef.current?.preview
+    if (preview) URL.revokeObjectURL(preview)
+    setStaged(null)
+    setStagedContent(null)
+  }, [fileUpload.clear, setStaged, setStagedContent])
   // A picked/pasted image awaiting the zoom/crop review step before it's sent.
   const [editFile, setEditFile] = useState<File | null>(null)
   const conversationRef = useRef<HTMLDivElement>(null)
@@ -192,33 +249,6 @@ export function ChatDetailView({
   // The share menu anchors to this live button ref (not a captured rect) so an iOS
   // keyboard collapse — the input was focused when + was tapped — re-pins it.
   const attachBtnRef = useRef<HTMLButtonElement>(null)
-
-  const handleShareObject = useCallback((content: MessageContent) => {
-    if (!sendStructured) return
-    const originId = crypto.randomUUID()
-    const preview = content.type === 'shared_ref' || content.type === 'shared_bundle' ? content.label : 'Shared item'
-    void sendStructured(conversationId, content, originId, preview)
-  }, [sendStructured, conversationId])
-
-  // Text templates / order sets have no live shared_ref (objectBundle.ts) — pack
-  // a frozen note-blocks bundle and send it as shared_bundle into this chat.
-  const handleShareBundle = useCallback(async (source: BundleSource) => {
-    if (!sendStructured || !userId) return
-    const bundle = bundleSourceToBundle(source, user?.clinicName ?? 'another cluster', new Date().toISOString())
-    const packed = await packBundle(userId, bundle)
-    if (!packed.ok) return
-    const content: SharedBundleContent = {
-      type: 'shared_bundle',
-      bundleKind: packed.data.kind,
-      path: packed.data.path,
-      key: packed.data.key,
-      contentHash: packed.data.contentHash,
-      label: packed.data.label,
-      ...(packed.data.subLabel ? { subLabel: packed.data.subLabel } : {}),
-      sourceCluster: packed.data.sourceCluster,
-    }
-    void sendStructured(conversationId, content, crypto.randomUUID(), content.label)
-  }, [sendStructured, userId, user?.clinicName, conversationId])
 
   const [threadClosing, setThreadClosing] = useState(false)
   const [highlightId, setHighlightId] = useState<string | null>(null)
@@ -353,17 +383,33 @@ export function ChatDetailView({
   }, [])
   useImagePaste(!sending && !hideImageUpload, handlePastedImage)
 
-  // Review step confirmed: send the cropped image through the unchanged pipeline.
-  const handleEditedImage = useCallback(async (edited: File) => {
-    setEditFile(null)
-    const success = await sendImage(conversationId, edited)
-    if (success) playSendSound()
-  }, [sendImage, conversationId])
-
   const handleSend = useCallback(async () => {
     const trimmed = text.trim()
-    if (!trimmed || sending) return
+    if (sending) return
+    // A staged item that is still uploading (or failed) blocks the send so the
+    // text can't go out ahead of, or without, the item it was written for.
+    if (fileUpload.task && !stagedContent) return
+    if (!trimmed && !stagedContent) return
     const threadId = activeThreadId ?? replyingTo?.originId ?? replyingTo?.id ?? undefined
+
+    if (stagedContent && sendStructured) {
+      const content = stagedContent
+      const preview = content.type === 'image' ? 'Photo'
+        : content.type === 'file' ? `File: ${content.name}`
+        : content.label
+      const sent = await sendStructured(conversationId, content, crypto.randomUUID(), preview)
+      if (!sent) {
+        emitErrorToast('Couldn’t send', 'The message did not send. Try again.')
+        return
+      }
+      // Sent: the object now belongs to the message, so release without deleting.
+      releaseStaged(false)
+      if (!trimmed) {
+        playSendSound()
+        return
+      }
+    }
+
     setText('')
     setReplyingTo(null)
     const success = await sendMessage(conversationId, trimmed, threadId)
@@ -373,7 +419,7 @@ export function ChatDetailView({
       setText(trimmed)
     }
     inputRef.current?.focus()
-  }, [text, sending, sendMessage, conversationId, activeThreadId, replyingTo])
+  }, [text, sending, sendMessage, conversationId, activeThreadId, replyingTo, fileUpload.task, releaseStaged, stagedContent, sendStructured])
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() }
@@ -402,6 +448,118 @@ export function ChatDetailView({
     if (file) setEditFile(file)
     e.target.value = ''
   }, [])
+
+  // Uploads on pick and stages; handleSend sends via sendStructured, which covers
+  // 1:1, self-note and group.
+  //   file    any type, byte-for-byte (no metadata stripping, by decision).
+  //   image   resized + re-encoded as sendImage does (strips metadata), then the
+  //           same ImageContent sendImage would have built.
+  //   ref     event / map feature / property item: nothing to upload, ready at once.
+  //   bundle  text templates / order sets have no live shared_ref (objectBundle.ts),
+  //           so a frozen note-blocks bundle is packed and uploaded.
+  const uploadStaged = useCallback(async (source: StagedSource) => {
+    setStagedContent(null)
+    const meta = source.kind === 'image' ? { name: 'Photo', size: source.file.size, preview: source.preview }
+      : source.kind === 'file' ? { name: source.file.name, size: source.file.size }
+      : source.kind === 'ref' ? { name: source.content.label, size: 0, icon: REF_ICONS[source.content.refKind], detail: source.content.subLabel }
+      : { name: source.source.kind === 'note-blocks' ? source.source.label : 'Shared item', size: 0, icon: FileText,
+          detail: source.source.kind === 'note-blocks' ? source.source.subLabel : undefined }
+    const content = await fileUpload.start(meta, async ({ onProgress, signal }) => {
+      if (source.kind === 'ref') return { ok: true, data: source.content }
+      if (source.kind === 'bundle') {
+        const bundle = bundleSourceToBundle(source.source, user?.clinicName ?? 'another cluster', new Date().toISOString())
+        const packed = await packBundle(userId, bundle, { onProgress, signal })
+        if (!packed.ok) return { ok: false, error: attachmentFailureMessage(packed.error) }
+        return {
+          ok: true,
+          data: {
+            type: 'shared_bundle',
+            bundleKind: packed.data.kind,
+            path: packed.data.path,
+            key: packed.data.key,
+            ...(packed.data.store ? { store: packed.data.store } : {}),
+            contentHash: packed.data.contentHash,
+            label: packed.data.label,
+            ...(packed.data.subLabel ? { subLabel: packed.data.subLabel } : {}),
+            sourceCluster: packed.data.sourceCluster,
+          },
+        }
+      }
+      const { file } = source
+      if (source.kind === 'file') {
+        const up = await uploadEncryptedAttachment(userId, file, { class: 'm', onProgress, signal })
+        if (!up.ok) return { ok: false, error: attachmentFailureMessage(up.error) }
+        return {
+          ok: true,
+          data: {
+            type: 'file', store: 'r2', path: up.data.path, key: up.data.key,
+            mime: file.type || 'application/octet-stream', name: file.name, size: file.size,
+          },
+        }
+      }
+      let resized: Awaited<ReturnType<typeof resizeAndThumbnail>>
+      try {
+        resized = await resizeAndThumbnail(file, source.original)
+      } catch {
+        return { ok: false, error: 'That image could not be read.' }
+      }
+      const { resizedDataUrl, width, height, thumbnail } = resized
+      const up = await uploadEncryptedAttachment(userId, dataUrlToBlob(resizedDataUrl), { class: 'm', onProgress, signal })
+      if (!up.ok) return { ok: false, error: attachmentFailureMessage(up.error) }
+      return {
+        ok: true,
+        data: {
+          type: 'image', mime: 'image/jpeg', key: up.data.key, path: up.data.path, store: up.data.store,
+          width, height, thumbnail,
+        },
+      }
+    })
+    if (content) setStagedContent(content)
+  }, [fileUpload.start, userId, user?.clinicName, setStagedContent])
+
+  const stage = useCallback((source: StagedSource) => {
+    releaseStaged(true)
+    setStaged(source)
+    void uploadStaged(source)
+    inputRef.current?.focus()
+  }, [releaseStaged, setStaged, uploadStaged])
+
+  const clearStaged = useCallback(() => releaseStaged(true), [releaseStaged])
+
+  // Review step confirmed. Without sendStructured (outside-entity and admin system
+  // threads) there is no staging path, so the photo sends at once as before.
+  const handleEditedImage = useCallback(async (edited: File, original: boolean) => {
+    setEditFile(null)
+    if (sendStructured && userId) {
+      stage({ kind: 'image', file: edited, original, preview: URL.createObjectURL(edited) })
+      return
+    }
+    const success = await sendImage(conversationId, edited, original ? { original: true } : undefined)
+    if (success) playSendSound()
+  }, [sendStructured, userId, stage, sendImage, conversationId])
+
+  const handleDocChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file || !sendStructured || !userId) return
+    if (file.size > MAX_ATTACHMENT_BYTES) {
+      emitErrorToast('File too large', 'Files must be 25 MB or smaller.')
+      return
+    }
+    stage({ kind: 'file', file })
+  }, [sendStructured, userId, stage])
+
+  const handleShareObject = useCallback((content: SharedRefContent) => {
+    if (!sendStructured) return
+    stage({ kind: 'ref', content })
+  }, [sendStructured, stage])
+
+  const handleShareBundle = useCallback((source: BundleSource) => {
+    if (!sendStructured || !userId) return
+    stage({ kind: 'bundle', source })
+  }, [sendStructured, userId, stage])
+
+  useEffect(() => clearStaged, [conversationId, clearStaged])
 
   const handleSendVoice = useCallback(async () => {
     const result = await stopRecording()
@@ -438,7 +596,8 @@ export function ChatDetailView({
     !requestFlow || requestFlow.status === 'accepted' || requestFlow.status === 'none' || !!isSelfChat
   )
 
-  const placeholder = activeThreadId ? 'Reply in thread...' : 'Type a message...'
+  const placeholder = fileUpload.task ? 'Add a message...'
+    : activeThreadId ? 'Reply in thread...' : 'Type a message...'
 
   const blockedReason: string | null = (() => {
     if (composerBlockedReason) return composerBlockedReason
@@ -520,6 +679,12 @@ export function ChatDetailView({
           className="px-4 pt-3 pb-3"
         >
           <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
+          <input ref={docInputRef} type="file" onChange={handleDocChange} className="hidden" />
+          <UploadChip
+            task={fileUpload.task}
+            onDismiss={clearStaged}
+            onRetry={stagedSource ? () => void uploadStaged(stagedSource) : undefined}
+          />
 
           {isRecording ? (
             /* Recording state: cancel | indicator | send */
@@ -586,15 +751,16 @@ export function ChatDetailView({
                   disabled={inputDisabled}
                 />
               </div>
-              {text.trim() ? (
+              {stagedContent || (text.trim() && !fileUpload.task) ? (
                 <button
                   onClick={handleSend}
+                  aria-label="Send"
                   disabled={inputDisabled}
                   className="animate-spring-in w-10 h-10 rounded-full bg-themeblue3 flex items-center justify-center disabled:opacity-30 active:scale-95 transition-all shrink-0"
                 >
                   <ArrowUp size={18} className="text-white" />
                 </button>
-              ) : canSendVoice ? (
+              ) : canSendVoice && !fileUpload.task ? (
                 <button
                   onClick={startRecording}
                   disabled={inputDisabled}
@@ -719,8 +885,9 @@ export function ChatDetailView({
           </div>
         )}
         <div className="px-4 pt-3 pb-28">
+          {!pinnedRoot && introCard}
           {listMsgs.length === 0 ? (
-            pinnedRoot ? null : (
+            pinnedRoot || introCard ? null : (
               <div className="flex items-center justify-center h-full">
                 <p className="text-[10pt] text-tertiary">{emptyLabel}</p>
               </div>
@@ -748,6 +915,7 @@ export function ChatDetailView({
           clinicId={clinicId ?? null}
           onClose={() => setAttachOpen(false)}
           onPickPhoto={() => fileInputRef.current?.click()}
+          onPickFile={() => docInputRef.current?.click()}
           onPick={handleShareObject}
           onPickBundle={handleShareBundle}
         />
@@ -772,7 +940,7 @@ export function ChatDetailView({
           cursor-anchored pill for cards that didn't supply one. */}
       {contextMenu && contextMsg && (() => {
         const isOwn = contextMsg.senderId === userId
-        const isMedia = contextMsg.content?.type === 'image' || contextMsg.content?.type === 'voice'
+        const isMedia = contextMsg.content?.type === 'image' || contextMsg.content?.type === 'voice' || contextMsg.content?.type === 'file'
         const cardType = contextMsg.content?.type
         const isClearableCard = cardType === 'outside_message' || cardType === 'oncall_call' || cardType === 'outside_session'
         // Dedicated cards render without a chip row, so skip the React action there.
@@ -821,7 +989,8 @@ export function ChatDetailView({
           ...sharedItems,
           { key: 'reply', label: 'Reply', icon: Reply, onAction: handleContextReply },
           ...(!isMedia ? [{ key: 'copy', label: 'Copy', icon: Copy, onAction: handleCopy }] : []),
-          ...(isMedia && handleSaveImage ? [{ key: 'save', label: 'Save', icon: Download, onAction: handleSaveImage }] : []),
+          // handleSaveImage only handles photos; files save from their bubble, voice has no save.
+          ...(contextMsg.content?.type === 'image' && handleSaveImage ? [{ key: 'save', label: 'Save', icon: Download, onAction: handleSaveImage }] : []),
           ...(menuDetectedDate ? [{ key: 'calendar', label: 'Add to calendar', icon: CalendarPlus, onAction: handleMenuAddToCalendar }] : []),
           ...(menuDecoded ? [{ key: 'decode', label: 'Decode note', icon: ScanLine, onAction: handleMenuDecode }] : []),
           ...(isOwn && !isMedia ? [{ key: 'edit', label: 'Edit', icon: Pencil, onAction: handleStartEdit }] : []),

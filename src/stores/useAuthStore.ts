@@ -16,7 +16,7 @@ import { removeBiometric } from '../lib/biometricService'
 import { clearServiceWorkerCaches } from '../lib/cacheService'
 import { clearPasswordVerification } from '../lib/authService'
 import { prefetchBarcodeKey, prefetchClinicKey, clearKeyStore } from '../lib/cryptoService'
-import { startHeartbeat, stopHeartbeat } from '../lib/activityHeartbeat'
+import { startHeartbeat, stopHeartbeat, heartbeatGapAtResumeMs } from '../lib/activityHeartbeat'
 import { initSignalBundle, clearPersistedDeviceRole } from '../lib/signal/signalInit'
 import { clearSignalKeys, destroySignalKeys, getLocalDeviceId } from '../lib/signal/keyManager'
 import { clearAllSessions } from '../lib/signal/session'
@@ -39,7 +39,7 @@ import { clearBackupKey, createBackup, scheduleBackup, restoreBackup } from '../
 import { clearVaultKey } from '../lib/signal/vaultDevice'
 import { resetVaultCursor } from '../lib/signal/vaultCursor'
 import { clearSystemIdentity } from '../lib/signal/systemIdentity'
-import { deriveAndCacheClinicVaultKey, ensureClinicVaultExists, processClinicVaultMessages, clearClinicVaultKey } from '../lib/signal/clinicVaultDevice'
+import { readClinicVaultRow, deriveAndCacheClinicVaultKey, ensureClinicVaultExists, processClinicVaultMessages, clearClinicVaultKey } from '../lib/signal/clinicVaultDevice'
 import { unsubscribeFromPush, resyncPushSubscription } from '../lib/pushNotificationService'
 import { LORA_MESH_ENABLED } from '../lib/featureFlags'
 import { registerSessionCleanup, updateCleanupToken, updateCleanupDeviceId, updateCleanupIsPrimary } from '../lib/sessionCleanup'
@@ -181,6 +181,27 @@ interface AuthActions {
  *  Lives in JS memory only — cannot be spoofed across sessions. */
 let _userInitiatedSignOut = false
 let _pendingSignOutCleanup: Promise<void> | null = null
+
+/** Which user the login pipeline in handleSignedIn last ran for, and when.
+ *  auth-js emits SIGNED_IN on every hidden->visible tab change
+ *  (_recoverAndRefresh) and once more at boot beside INITIAL_SESSION; without
+ *  this the full pipeline (profile, Signal init, vault provisioning, backup
+ *  restore) re-ran on each resume, ~20 requests apiece. Resume drains are owned
+ *  by useSignalMessages (visibility / SUBSCRIBED / online), live profile edits by
+ *  useProfileRealtime, so a same-user repeat only needs the token bookkeeping,
+ *  unless the device sat unrefreshed long enough to be reaped (see
+ *  PIPELINE_STALE_GAP_MS). Memory-only on purpose: a cold page load has none of the pipeline's
+ *  in-memory state and must always run it. Cleared on sign-out and on a failed
+ *  or unconfirmed Signal init so the next auth event retries. */
+let _pipelineRun: { userId: string; at: number } | null = null
+/** Long-lived tabs still re-run the pipeline this often, so the OTP top-up and
+ *  signed-pre-key rotation checks in initSignalBundle keep firing. */
+const PIPELINE_RERUN_MS = 6 * 60 * 60 * 1000
+/** A resume whose device rows went this long without a heartbeat re-runs the
+ *  pipeline: the 30-min stale-device reapers may have deleted this device's
+ *  user_devices row and key bundle (personal linked and clinic), and only the
+ *  pipeline re-registers them. 5 min under the TTL for reaper/clock slack. */
+const PIPELINE_STALE_GAP_MS = 25 * 60 * 1000
 
 /** Sync load from localStorage for instant hydration (prevents login screen flash).
  *  Exported so the boot-time auth-link exchange can name the incumbent account
@@ -342,6 +363,7 @@ async function fetchProfileFromSupabase(userId: string): Promise<{ profile: User
   // Confidence flag for the loan read — membership eviction must NOT fire on a
   // failed/partial loan fetch (would falsely evict a still-valid loan clinic).
   let loanReadOk = true
+  let clinicContentVer = 0
   let needsPasswordSetup = false
   let clinicTextExpanders: TextExpander[] | null = null
   let clinicPlanOrderTags: UserTypes['planOrderTags'] | null = null
@@ -360,7 +382,10 @@ async function fetchProfileFromSupabase(userId: string): Promise<{ profile: User
   // Note-blocks columns (text_expanders / plan_* / provider_note_templates) are
   // intentionally NOT selected here — they're version-gated below via
   // app_content_version so the large JSONB only rides the wire when it changed.
-  const PROFILE_SELECT = 'first_name, last_name, middle_initial, credential, component, rank, uic, roles, clinic_id, surrogate_clinic_id, sub_cluster_id, clinic:clinics!profiles_clinic_id_fkey(name), pin_hash, pin_salt, ack_version_accepted, notify_dev_alerts, notify_calendar_assignments, app_content_version, needs_password_setup, favorite_medications, overview_widgets, theme, swipe_actions, allow_calls, seed_algorithm_note, avatar_id, avatar_blob, note_template_clinic_ids'
+  // The home clinic's app_content_version and the loan rows are embedded so the
+  // profile load is one request, not three. The loans embed needs the FK hint
+  // (profile_clinic_loans has two FKs to profiles: user_id and created_by).
+  const PROFILE_SELECT = 'first_name, last_name, middle_initial, credential, component, rank, uic, roles, clinic_id, surrogate_clinic_id, sub_cluster_id, clinic:clinics!profiles_clinic_id_fkey(name, app_content_version), loans:profile_clinic_loans!profile_clinic_loans_user_id_fkey(clinic_id, created_at, clinic:clinics(name)), pin_hash, pin_salt, ack_version_accepted, notify_dev_alerts, notify_calendar_assignments, app_content_version, needs_password_setup, favorite_medications, overview_widgets, theme, swipe_actions, allow_calls, seed_algorithm_note, avatar_id, avatar_blob, avatar_ref, note_template_clinic_ids'
   const { data, error: fetchError } = await supabase
     .from('profiles')
     .select(PROFILE_SELECT)
@@ -373,7 +398,8 @@ async function fetchProfileFromSupabase(userId: string): Promise<{ profile: User
     console.error('fetchProfileFromSupabase failed:', fetchError.message)
   }
   if (data) {
-    const clinicRow = (data as { clinic?: { name: string } | null }).clinic ?? null
+    const clinicRow = (data as { clinic?: { name: string; app_content_version: number | null } | null }).clinic ?? null
+    clinicContentVer = clinicRow?.app_content_version ?? 0
     clinicId = (data as Record<string, unknown>).clinic_id as string | null
 
     profile.firstName = data.first_name ?? undefined
@@ -389,7 +415,7 @@ async function fetchProfileFromSupabase(userId: string): Promise<{ profile: User
     // Avatar lives on the same row. Map with ?? null (not undefined) so a loaded
     // profile with no avatar is distinguishable from "not loaded yet" (undefined).
     profile.avatarId = ((data as Record<string, unknown>).avatar_id as string | null) ?? null
-    profile.avatarBlob = ((data as Record<string, unknown>).avatar_blob as AvatarBlob | null) ?? null
+    profile.avatarBlob = (((data as Record<string, unknown>).avatar_ref ?? (data as Record<string, unknown>).avatar_blob) as AvatarBlob | null) ?? null
     // Template-source subscriptions (loaned users pick which clinics' note content
     // they merge). Folded into PROFILE_SELECT — the column is present on both
     // backends — so it no longer costs a second GET /profiles per login. `!= null`
@@ -397,20 +423,19 @@ async function fetchProfileFromSupabase(userId: string): Promise<{ profile: User
     const noteTemplateIds = (data as Record<string, unknown>).note_template_clinic_ids as string[] | null | undefined
     if (noteTemplateIds != null) profile.noteTemplateClinicIds = noteTemplateIds
 
-    // Resolve all active loan clinics in one join select on the new table.
-    // Falls back to the legacy single-slot profiles.surrogate_clinic_id if the
-    // new table isn't queryable (migration not yet applied, RLS denying read).
+    // Active loan clinics come from the embedded `loans` (oldest first).
+    // Falls back to the legacy single-slot profiles.surrogate_clinic_id when
+    // there are none. A non-array embed means the loans weren't readable, which
+    // must not be mistaken for "no loans" (loanReadOk gates membership-loss
+    // handling in refreshProfile).
     let surrogateClinics: { id: string; name: string }[] = []
-    const { data: loanRows, error: loanError } = await supabase
-      .from('profile_clinic_loans')
-      .select('clinic_id, created_at, clinic:clinics(name)')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: true })
-    if (loanError) {
+    const loanRows = (data as { loans?: Array<{ clinic_id: string; created_at: string; clinic: { name: string } | null }> | null }).loans
+    if (!Array.isArray(loanRows)) {
       loanReadOk = false
-      console.warn('profile_clinic_loans read failed, falling back to legacy surrogate_clinic_id:', loanError.message)
-    } else if (loanRows && loanRows.length > 0) {
-      surrogateClinics = (loanRows as Array<{ clinic_id: string; clinic: { name: string } | null }>)
+      console.warn('profile_clinic_loans embed missing, falling back to legacy surrogate_clinic_id')
+    } else if (loanRows.length > 0) {
+      surrogateClinics = [...loanRows]
+        .sort((a, b) => a.created_at.localeCompare(b.created_at))
         .map((r) => ({ id: r.clinic_id, name: r.clinic?.name ?? '' }))
         .filter((c) => !!c.name)
     }
@@ -484,15 +509,11 @@ async function fetchProfileFromSupabase(userId: string): Promise<{ profile: User
   }
 
   // ── Clinic-level note-blocks (version-gated) ────────────────────────────
-  // Cheap version probe first; the heavy columns only on a cache miss. This also
+  // The version rode in on the profile select's clinic embed; the heavy columns
+  // are fetched only on a cache miss. This also
   // adds cross-session caching for clinic content, which was refetched every init.
   if (clinicId) {
-    const { data: verRow } = await supabase
-      .from('clinics')
-      .select('app_content_version')
-      .eq('id', clinicId)
-      .single()
-    const clinicVer = ((verRow as Record<string, unknown> | null)?.app_content_version as number | null) ?? 0
+    const clinicVer = clinicContentVer
     const cachedC = appCache.clinics?.[clinicId]
 
     if (cachedC && cachedC.ver === clinicVer) {
@@ -585,9 +606,16 @@ async function provisionClinicVaults(
 
       // Derive wrapping key + ensure vault peer + drain unread.
       // Per-clinic key cache means dual membership doesn't conflict.
-      await deriveAndCacheClinicVaultKey(cId, clinicRow.encryption_key)
-      await ensureClinicVaultExists(cId, clinicRow.encryption_key)
-      await processClinicVaultMessages(cId, { publishReconcile: opts.publishReconcile })
+      // One vault-row read feeds all three steps. On a failed read pass nothing,
+      // so each step re-reads and keeps its own fail-closed handling.
+      const vaultRead = await readClinicVaultRow(cId)
+      const knownRow = vaultRead.ok ? vaultRead.data : undefined
+      await deriveAndCacheClinicVaultKey(cId, clinicRow.encryption_key, knownRow)
+      await ensureClinicVaultExists(cId, clinicRow.encryption_key, knownRow)
+      await processClinicVaultMessages(cId, {
+        publishReconcile: opts.publishReconcile,
+        vaultRow: knownRow ?? undefined,
+      })
 
       // Register this browser as a clinic linked device. clinicDeviceId is
       // `clinic-{userId}-{personalDeviceId}` — same value across clinics. The
@@ -609,6 +637,9 @@ async function provisionClinicVaults(
 
 export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
   const handleSignedOut = (wasPrimary: boolean) => {
+    // Both branches stop the heartbeat, so the restore's SIGNED_IN must re-run
+    // the full pipeline.
+    _pipelineRun = null
     // ---- Involuntary sign-out (token expiry, iOS background kill) ----
     // Preserve local session and all local data. Only clear the Supabase
     // user object so sync pauses. The app remains usable offline.
@@ -751,6 +782,7 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
       import('../lib/lora/loraDb').then(m => m.clearLoraDb()).catch(() => {})
     }
     clearClinicUsersCache().catch(() => {})
+    import('../lib/attachmentCache').then(m => m.clearAttachmentCache()).catch(() => {})
     clearSubClusterCache().catch(() => {})
     clearDeviceCache()
     clearSubClusterSnapshots()
@@ -809,6 +841,17 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
     // usable session (no stuck "Loading profile…" gate) — the reset is then
     // surfaced non-blockingly via PasswordResetOverlay, not a blocking screen.
     if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'PASSWORD_RECOVERY') {
+      const now = Date.now()
+      if (
+        event !== 'PASSWORD_RECOVERY'
+        && _pipelineRun?.userId === userId
+        && now - _pipelineRun.at < PIPELINE_RERUN_MS
+        && heartbeatGapAtResumeMs() < PIPELINE_STALE_GAP_MS
+      ) {
+        diag('boot', `auth ${event} same user, pipeline skipped`)
+        return
+      }
+      _pipelineRun = { userId, at: now }
       const isFirstSession = !get().localSession
       startHeartbeat(userId)
       // Login owns clinic-vault provisioning below (with the calendar-replay
@@ -830,6 +873,8 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
             updateCleanupIsPrimary(initResult.role === 'primary')
           } else {
             set({ signalReady: true })
+            // Unconfirmed registration: let the next auth event retry it.
+            _pipelineRun = null
           }
           startHeartbeat(userId, initResult.deviceId)
           updateCleanupDeviceId(initResult.deviceId)
@@ -910,8 +955,11 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
           restoreBackup(userId)
             .catch(() => {})
             .finally(() => scheduleBackup(userId))
+        } else {
+          _pipelineRun = null
         }
       }).catch(e => {
+        _pipelineRun = null
         diag('error', 'signal init failed', e)
         set({ signalReady: true }) // Mark ready even on failure — don't block UI permanently
         // Signal init failed — no trustworthy full-replay set, so never prune.

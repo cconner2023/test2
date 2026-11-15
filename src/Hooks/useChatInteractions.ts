@@ -182,7 +182,7 @@ export function useChatInteractions({
     if (!contextMsg || contextMsg.content?.type !== 'image') return
     setContextMenu(null)
     const { downloadDecryptedAttachment } = await import('../lib/signal/attachmentService')
-    const result = await downloadDecryptedAttachment(contextMsg.content.path, contextMsg.content.key)
+    const result = await downloadDecryptedAttachment(contextMsg.content.path, contextMsg.content.key, contextMsg.content.store)
     if (!result.ok) return
     const url = URL.createObjectURL(result.data)
     const a = document.createElement('a')

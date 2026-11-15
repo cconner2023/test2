@@ -1,22 +1,32 @@
-import { createContext, useContext, useState, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useRef, useState, type ChangeEvent, type ReactNode } from 'react'
 import { UnderlineTabs } from '@/Components/primitives/UnderlineTabs'
-import { ArrowRightLeft, ArrowRight, CircleCheck, Eye, Trash2, Ban, Pencil, Navigation, MapPinCheck, MapPin, X } from 'lucide-react'
+import { ArrowRightLeft, ArrowRight, CircleCheck, Eye, Trash2, Ban, Pencil, Navigation, MapPinCheck, MapPin, X, ArrowUp, Plus, Copy } from 'lucide-react'
 import { ListItemRow } from '@/Components/primitives/ListItemRow'
 import { PersonnelGroupBand } from '@/Components/primitives/PersonnelRow'
 import { BrnPinInput, BRN_PATTERN } from '@/Components/DomainInputs'
 import { LiftedRowMenu } from '@/Components/primitives/LiftedRowMenu'
 import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
-import type { ContextMenuItem } from '@/Components/primitives/ContextMenu'
+import { ContextMenu, type ContextMenuItem } from '@/Components/primitives/ContextMenu'
 import { SwipeActionRow, type SwipeSide } from '@/Components/primitives/SwipeActionRow'
 import { SwipeBindingPicker, type SwipeBindingDisplay } from '@/Components/Settings/SwipeActionsSection'
 import {
   TRACKING_SWIPE_POOL, useTrackingSwipeActions, setTrackingSwipeActions, type TrackingSwipeBinding,
 } from '../../Utilities/trackingSwipeActions'
-import { SectionCard, CardLabel, PageSectionHeader } from '@/Components/primitives/Section'
+import { SectionCard, PageSectionHeader } from '@/Components/primitives/Section'
 import { TextArea } from '@/Components/primitives/FormInputs'
-import { TintedCard, TintedCardHead, TintedCardFoot, type CardTint } from '@/Components/primitives/TintedCard'
+import { TintedCard, TintedCardFoot, type CardTint } from '@/Components/primitives/TintedCard'
 import { formatDtg } from '../../Utilities/propertyDates'
 import { ToggleSwitch } from '../Settings/ToggleSwitch'
+import { MessageBubble } from '../Settings/MessageBubble'
+import { SharedObjectPicker } from '../Messages/SharedObjectPicker'
+import { ImageEditor } from '../ImageEditor'
+import { UploadChip, useUploadTask } from '@/Components/primitives/UploadProgress'
+import { uploadEncryptedAttachment, attachmentFailureMessage, deleteAttachments, MAX_ATTACHMENT_BYTES } from '../../lib/signal/attachmentService'
+import { resizeAndThumbnail } from '../../Hooks/useMessages'
+import { dataUrlToBlob } from '../../Utilities/imageUtils'
+import { emitErrorToast } from '../../lib/errorFeedback'
+import { useAuthStore } from '../../stores/useAuthStore'
+import type { DecryptedSignalMessage } from '../../lib/signal/transportTypes'
 import type { LinkedFeatureRef } from '../../Types/MissionTypes'
 import {
   clusterById, positionOf, sinceAt, placeKey, samePlace, stationLabel, placeLabel, originUic,
@@ -336,22 +346,25 @@ export function tintFor(e: TrackingEntry): CardTint {
   return STATION_TINTS[Math.abs(h) % STATION_TINTS.length]
 }
 
-/** Card head — BRN with the origin UIC under it. Shared by the list card and
- *  the expanded overlay. */
-export function BrnCardHead({ entry }: { entry: TrackingEntry }) {
+/** Selected-BRN head line — BRN with the origin UIC beside it. `reserveRight`
+ *  keeps the UIC clear of the overlay's absolute header pills. */
+export function BrnDetailTitle({ entry, reserveRight = false }: { entry: TrackingEntry; reserveRight?: boolean }) {
   const { net } = useBoardScope()
-  return <TintedCardHead title={entry.brnLabel} subtitle={originUic(net.clusters, entry)} />
-}
-
-/** Current station — the overlay's third head line, same rhythm as the UIC. */
-export function BrnStationLine({ entry }: { entry: TrackingEntry }) {
-  const { net } = useBoardScope()
+  const uic = originUic(net.clusters, entry)
   return (
-    <p className="mt-0.5 text-[9pt] font-medium text-secondary truncate">
-      {placeLabel(net, entry)}
-      {entry.transit && <span className="text-themeblue2"> → {destinationLabel(net, entry.transit.to)}</span>}
+    <p className={`flex items-baseline gap-2 min-w-0 leading-tight ${reserveRight ? 'pr-20' : ''}`}>
+      <span className="text-[16pt] font-mono font-bold tracking-wide text-primary truncate">{entry.brnLabel}</span>
+      {uic && <span className="text-[10pt] font-mono font-medium text-tertiary shrink-0">{uic}</span>}
     </p>
   )
+}
+
+/** Selected-BRN sub line — the origin cluster's label (nickname / name).
+ *  Location is left to History and the footer band. */
+export function BrnDetailLines({ entry }: { entry: TrackingEntry }) {
+  const { net } = useBoardScope()
+  const origin = clusterById(net.clusters, entry.originClinicId)?.label
+  return origin ? <p className="mt-0.5 text-[9pt] font-medium text-tertiary truncate">{origin}</p> : null
 }
 
 const latestNote = (e: TrackingEntry) => e.comments[e.comments.length - 1]?.text
@@ -372,11 +385,10 @@ function useBrnFoot(entry: TrackingEntry, arrowIcon: boolean) {
   return { left, right }
 }
 
-/** Footer band on the tint: location · since — or, while in transit, the
- *  "→ destination" marker and when they left. */
+/** Selected-BRN footer band on the tint: location · origin (check-in) DTG. */
 export function BrnCardFoot({ entry }: { entry: TrackingEntry }) {
-  const { left, right } = useBrnFoot(entry, true)
-  return <TintedCardFoot tint={tintFor(entry)} left={left} right={right} />
+  const { left } = useBrnFoot(entry, true)
+  return <TintedCardFoot tint={tintFor(entry)} left={left} right={fmtDateTime(entry.checkedInAt)} />
 }
 
 /** Card body — rendered in the list AND as the lifted clone in the menu, and
@@ -415,7 +427,7 @@ function BrnRailCardBody({ entry }: { entry: TrackingEntry }) {
   )
 }
 
-/** Desktop rail card. Click grows it into the centered TrackingCardOverlay;
+/** Desktop rail card. Click opens the BRN PaneCard over the grid pane;
  *  right-click / long-press lifts it into the shared card menu. */
 function BrnRailCard({ entry, hidden, onOpen, onMenu }: {
   entry: TrackingEntry
@@ -587,36 +599,114 @@ export function TrackingCardList({ entries, onSelect, onEdit, onMove, onTransit,
 
 // ── Detail ──
 
-/** Comments — read-only thread in the detail (Calendar "Notes" idiom). All
- *  writes (add / change / remove) go through the form: check-in or ellipsis Edit. */
-function TrackingComments({ entry }: { entry: TrackingEntry }) {
-  if (entry.comments.length === 0) return null
-  return (
-    <CardLabel label="Comments">
-      <SectionCard>
-        {entry.comments.map(c => (
-          <div key={c.id} className="px-4 py-2.5 border-b border-primary/5 last:border-b-0">
-            <CommentMeta comment={c} />
-            <p className="text-[10pt] text-primary whitespace-pre-wrap break-words">{c.text}</p>
-          </div>
-        ))}
-      </SectionCard>
-    </CardLabel>
-  )
+/** Own = the author stamp matches this member's rank + last name (comments
+ *  carry a display name, not a user id — same string the writer stamps). */
+function useOwnStamp() {
+  const rank = useAuthStore(s => s.profile?.rank) ?? ''
+  const last = useAuthStore(s => s.profile?.lastName) ?? ''
+  return [rank, last].filter(Boolean).join(' ')
 }
 
-/** Author · edited marker on the left, DTG (last write) on the right. */
-function CommentMeta({ comment }: { comment: TrackingComment }) {
-  const edited = comment.editedAt
-    ? ` · edited${comment.editedBy && comment.editedBy !== comment.by ? ` by ${comment.editedBy}` : ''}`
-    : ''
+interface ThreadItem {
+  key: string
+  text: string
+  by: string
+  at: number
+  editedBy?: string
+  attachment?: TrackingComment['attachment']
+  /** Sent from the Edit form's input, not saved yet — clock glyph like a sending message. */
+  pending?: boolean
+  /** Check-in / move, not a comment — never takes the Edit menu. */
+  history?: boolean
+}
+
+/** Ordered by first write (chat order), so an edit doesn't move the bubble. */
+const commentItem = (c: TrackingComment, text = c.text): ThreadItem =>
+  ({ key: c.id, text, by: c.by, at: c.at, editedBy: c.editedBy, attachment: c.attachment })
+
+/** Check-in + moves as incoming messages from "System": they are the
+ *  cluster's actions, not a member's (legacy move `by` is ignored). */
+function historyItems(net: TrackingNetwork, entry: TrackingEntry): ThreadItem[] {
+  return [
+    { key: `checkin-${entry.id}`, text: 'Checked in', by: 'System', at: entry.checkedInAt, history: true },
+    ...entry.moves.map(m => ({
+      key: `move-${m.id}`,
+      text: m.complete ? 'Complete' : `Moved to ${stationLabel(net, m.to)}`,
+      by: 'System',
+      at: m.at,
+      history: true,
+    })),
+  ]
+}
+
+/** One conversation: history and comments by time; ties keep history first. */
+const byTime = (items: ThreadItem[]) =>
+  items.map((i, n) => [i, n] as const).sort(([a, na], [b, nb]) => a.at - b.at || na - nb).map(([i]) => i)
+
+/** Item → the message shape MessageBubble renders (text, or the chat's own
+ *  image / file content). */
+const itemMessage = (i: ThreadItem): DecryptedSignalMessage => ({
+  id: i.key,
+  senderId: i.by,
+  recipientId: '',
+  plaintext: i.text,
+  content: i.attachment ?? { type: 'text', text: i.text },
+  messageType: 'message',
+  createdAt: new Date(i.at).toISOString(),
+  readAt: null,
+  status: i.pending ? 'sending' : 'sent',
+})
+
+type BubbleLongPress = (key: string, x: number, y: number, rect?: DOMRect, cloneHtml?: string) => void
+
+/** Comment thread drawn with the chat conversation's MessageBubble, date pill
+ *  when the day changes. Without onLongPress it is read-only. */
+function CommentThread({ items, onLongPress, editingKey, editText, onEditTextChange, onSaveEdit, onCancelEdit }: {
+  items: ThreadItem[]
+  onLongPress?: BubbleLongPress
+  editingKey?: string | null
+  editText?: string
+  onEditTextChange?: (t: string) => void
+  onSaveEdit?: () => void
+  onCancelEdit?: () => void
+}) {
+  const me = useOwnStamp()
+  let prevDay = ''
   return (
-    <div className="flex items-center justify-between gap-3">
-      <span className="text-[9pt] text-tertiary truncate">{comment.by}{edited}</span>
-      <span className="text-[9pt] font-mono text-tertiary shrink-0">{fmtDateTime(comment.editedAt ?? comment.at)}</span>
+    <div className="pt-1">
+      {items.map(i => {
+        const day = new Date(i.at).toDateString()
+        const showDay = day !== prevDay
+        prevDay = day
+        const own = !i.history && !!me && i.by === me
+        const editing = editingKey === i.key
+        return (
+          <div key={i.key}>
+            {showDay && (
+              <div className="flex justify-center my-2">
+                <span className="text-[9pt] font-medium text-tertiary px-2.5 py-0.5 rounded-full bg-themewhite2">
+                  {formatDtg(new Date(i.at).toISOString())}
+                </span>
+              </div>
+            )}
+            <MessageBubble
+              message={itemMessage(i)}
+              isOwn={own}
+              senderName={own ? undefined : i.editedBy && i.editedBy !== i.by ? `${i.by} · edited by ${i.editedBy}` : i.by}
+              onLongPress={onLongPress && !i.history ? (m, x, y, rect, html) => onLongPress(m.id, x, y, rect, html) : undefined}
+              isEditing={editing}
+              editText={editing ? editText : undefined}
+              onEditTextChange={onEditTextChange}
+              onSaveEdit={onSaveEdit}
+              onCancelEdit={onCancelEdit}
+            />
+          </div>
+        )
+      })}
     </div>
   )
 }
+
 
 // ── Form (check-in create + ellipsis Edit; Calendar EventForm idiom) ──
 
@@ -629,8 +719,6 @@ export const draftFromEntry = (e: TrackingEntry): TrackingEditDraft => ({
 })
 
 export const draftIsValid = (d: TrackingEditDraft) => BRN_PATTERN.test(d.brn)
-
-const commentAreaClass = 'w-full bg-transparent px-4 pt-1 pb-2.5 text-base md:text-[10pt] text-primary placeholder:text-tertiary focus:outline-none resize-none'
 
 /** Check-in — self-rowing primitives straight in the PreviewOverlay card
  *  (no section chrome); Save rides the overlay's right footer. */
@@ -652,14 +740,186 @@ export function TrackingCheckInFields({ draft, onChange }: {
   )
 }
 
-/** BRN + comments — the open BRN's ellipsis Edit form. */
+type StagedSource = { kind: 'image'; file: File; original: boolean; preview: string } | { kind: 'file'; file: File }
+type StagedAttachment = NonNullable<TrackingComment['attachment']>
+
+/** BRN + comments — the open BRN's ellipsis Edit form. Comments read as the
+ *  chat conversation: bubbles (long-press / hover ellipsis -> the chat's lifted
+ *  menu: Copy, Edit, Delete) over the chat input bar with its + (Photo / File).
+ *  Nothing writes until the header Save; "sent" comments show the sending clock
+ *  until then, and a removed comment drops out of the thread (soft-deleted on
+ *  save). Save also keeps unsent input: typed text and a finished upload
+ *  (draft.staged). Uploads run on pick (chat staging idiom) to R2 m/, so backing
+ *  out of the Edit orphans objects the m/ lifecycle reaps; only an explicit
+ *  dismiss / Delete of a never-saved attachment deletes now. */
 export function TrackingEditForm({ entry, draft, onChange }: {
   entry?: TrackingEntry
   draft: TrackingEditDraft
   onChange: (d: TrackingEditDraft) => void
 }) {
-  const setComment = (id: string, text: string) =>
-    onChange({ ...draft, comments: draft.comments.map(c => c.id === id ? { ...c, text } : c) })
+  const me = useOwnStamp()
+  const userId = useAuthStore(s => s.user?.id) ?? ''
+  const [menu, setMenu] = useState<{ key: string; x: number; y: number; rect?: DOMRect; cloneHtml?: string } | null>(null)
+  const [editing, setEditing] = useState<{ key: string; text: string } | null>(null)
+  const [attachOpen, setAttachOpen] = useState(false)
+  const [editFile, setEditFile] = useState<File | null>(null)
+  const [stagedSource, setStagedSource] = useState<StagedSource | null>(null)
+  const staged = draft.staged ?? null
+  // Upload completion lands after awaits; write through the latest draft.
+  const draftRef = useRef(draft)
+  draftRef.current = draft
+  const setStaged = (a: StagedAttachment | null) => {
+    const { staged: _, ...rest } = draftRef.current
+    const next = a ? { ...rest, staged: a } : rest
+    draftRef.current = next
+    onChange(next)
+  }
+  const upload = useUploadTask<StagedAttachment>()
+  const inputRef = useRef<HTMLTextAreaElement>(null)
+  const attachBtnRef = useRef<HTMLButtonElement>(null)
+  const photoInputRef = useRef<HTMLInputElement>(null)
+  const docInputRef = useRef<HTMLInputElement>(null)
+  const added = draft.added ?? []
+  const addedKey = (i: number) => `added-${i}`
+  const addedIndex = (key: string) => key.startsWith('added-') ? Number(key.slice(6)) : -1
+
+  // Auto-grow to 120px, same as the chat input.
+  useEffect(() => {
+    const el = inputRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${Math.min(el.scrollHeight, 120)}px`
+  }, [draft.newComment])
+
+  // A staged object the user dismisses goes now rather than at the m/ lifecycle.
+  const releaseStaged = (deleteObject: boolean) => {
+    upload.clear()
+    const content = draftRef.current.staged
+    if (deleteObject && content) void deleteAttachments([content.path])
+    if (stagedSource?.kind === 'image') URL.revokeObjectURL(stagedSource.preview)
+    setStagedSource(null)
+    if (content) setStaged(null)
+  }
+
+  const runUpload = async (source: StagedSource) => {
+    if (draftRef.current.staged) setStaged(null)
+    const meta = source.kind === 'image'
+      ? { name: 'Photo', size: source.file.size, preview: source.preview }
+      : { name: source.file.name, size: source.file.size }
+    const content = await upload.start(meta, async ({ onProgress, signal }) => {
+      const { file } = source
+      if (source.kind === 'file') {
+        const up = await uploadEncryptedAttachment(userId, file, { class: 'm', onProgress, signal })
+        if (!up.ok) return { ok: false, error: attachmentFailureMessage(up.error) }
+        return {
+          ok: true,
+          data: {
+            type: 'file', store: 'r2', path: up.data.path, key: up.data.key,
+            mime: file.type || 'application/octet-stream', name: file.name, size: file.size,
+          },
+        }
+      }
+      let resized: Awaited<ReturnType<typeof resizeAndThumbnail>>
+      try {
+        resized = await resizeAndThumbnail(file, source.original)
+      } catch {
+        return { ok: false, error: 'That image could not be read.' }
+      }
+      const { resizedDataUrl, width, height, thumbnail } = resized
+      const up = await uploadEncryptedAttachment(userId, dataUrlToBlob(resizedDataUrl), { class: 'm', onProgress, signal })
+      if (!up.ok) return { ok: false, error: attachmentFailureMessage(up.error) }
+      return {
+        ok: true,
+        data: {
+          type: 'image', mime: 'image/jpeg', key: up.data.key, path: up.data.path, store: up.data.store,
+          width, height, thumbnail,
+        },
+      }
+    })
+    if (content) setStaged(content)
+  }
+  const stage = (source: StagedSource) => {
+    releaseStaged(true)
+    setStagedSource(source)
+    void runUpload(source)
+    inputRef.current?.focus()
+  }
+  const onPhoto = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (file) setEditFile(file)
+  }
+  const onDoc = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    if (file.size > MAX_ATTACHMENT_BYTES) {
+      emitErrorToast('File too large', 'Files must be 25 MB or smaller.')
+      return
+    }
+    stage({ kind: 'file', file })
+  }
+
+  const { net } = useBoardScope()
+  const now = Date.now()
+  const items: ThreadItem[] = byTime([
+    ...(entry ? historyItems(net, entry) : []),
+    ...draft.comments.flatMap(dc => {
+      const c = entry?.comments.find(x => x.id === dc.id)
+      return c && !dc.removed && (dc.text.trim() || c.attachment) ? [commentItem(c, dc.text)] : []
+    }),
+    ...added.map((a, i) => ({ key: addedKey(i), text: a.text, attachment: a.attachment, by: me || 'Member', at: now, pending: true })),
+  ])
+
+  const setText = (key: string, text: string) => {
+    const ai = addedIndex(key)
+    if (ai >= 0) onChange({ ...draft, added: added.map((a, i) => i === ai ? { ...a, text } : a) })
+    else onChange({ ...draft, comments: draft.comments.map(c => c.id === key ? { ...c, text } : c) })
+  }
+  const remove = (key: string) => {
+    const ai = addedIndex(key)
+    if (ai >= 0) {
+      // Never saved — nothing references the object, so it goes now.
+      const att = added[ai]?.attachment
+      if (att) void deleteAttachments([att.path])
+      onChange({ ...draft, added: added.filter((_, i) => i !== ai) })
+    } else {
+      onChange({ ...draft, comments: draft.comments.map(c => c.id === key ? { ...c, removed: true } : c) })
+    }
+  }
+  // Chat rule: a finished upload sends; text alone only with no upload in the chip.
+  const canSend = !!staged || (!!draft.newComment.trim() && !upload.task)
+  const send = () => {
+    if (!canSend) return
+    // Chat send order: the attachment is its own bubble, then the text.
+    const text = draft.newComment.trim()
+    const next = [...added, ...(staged ? [{ text: '', attachment: staged }] : []), ...(text ? [{ text }] : [])]
+    const { staged: _, ...rest } = draft
+    draftRef.current = { ...rest, added: next, newComment: '' }
+    // Ownership passes to the comment; release without deleting the object.
+    upload.clear()
+    if (stagedSource?.kind === 'image') URL.revokeObjectURL(stagedSource.preview)
+    setStagedSource(null)
+    onChange(draftRef.current)
+  }
+  const saveEdit = () => {
+    if (editing) {
+      const item = items.find(i => i.key === editing.key)
+      // A text-only comment cleared to nothing is a delete.
+      if (!editing.text.trim() && !item?.attachment) remove(editing.key)
+      else setText(editing.key, editing.text)
+    }
+    setEditing(null)
+  }
+
+  const menuItem = menu ? items.find(i => i.key === menu.key) : undefined
+  const menuItems: ContextMenuItem[] = menu && menuItem ? [
+    ...(menuItem.text ? [{ key: 'copy', label: 'Copy', icon: Copy, onAction: () => { void navigator.clipboard?.writeText(menuItem.text) } }] : []),
+    ...(!menuItem.attachment ? [{ key: 'edit', label: 'Edit', icon: Pencil, onAction: () => setEditing({ key: menu.key, text: menuItem.text }) }] : []),
+    { key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => remove(menu.key) },
+  ] : []
+  const menuOwn = !!menuItem && !!me && menuItem.by === me
+
   return (
     <div className="space-y-4">
       <section>
@@ -675,67 +935,104 @@ export function TrackingEditForm({ entry, draft, onChange }: {
       </section>
 
       <section>
-        <PageSectionHeader>Comments</PageSectionHeader>
-        <SectionCard>
-          {draft.comments.map(dc => {
-            const c = entry?.comments.find(x => x.id === dc.id)
-            return (
-              <div key={dc.id} className="border-b border-primary/5">
-                {c && <div className="px-4 pt-2.5"><CommentMeta comment={c} /></div>}
-                <TextArea
-                  bare
-                  autoGrow
-                  rows={1}
-                  value={dc.text}
-                  onChange={t => setComment(dc.id, t)}
-                  placeholder="Cleared — removed on save"
-                  maxLength={500}
-                  ariaLabel="Comment"
-                  inputClassName={commentAreaClass}
-                />
-              </div>
-            )
-          })}
-          <TextArea
-            value={draft.newComment}
-            onChange={newComment => onChange({ ...draft, newComment })}
-            placeholder="Add a comment"
-            maxLength={500}
-            rows={2}
+        <PageSectionHeader>Activity</PageSectionHeader>
+        {/* History rides the thread (no menu on those bubbles). */}
+        <CommentThread
+          items={items}
+          onLongPress={(key, x, y, rect, cloneHtml) => setMenu({ key, x, y, rect, cloneHtml })}
+          editingKey={editing?.key}
+          editText={editing?.text}
+          onEditTextChange={text => setEditing(e => e && { ...e, text })}
+          onSaveEdit={saveEdit}
+          onCancelEdit={() => setEditing(null)}
+        />
+        {/* Chat composer (ChatDetailView idiom): + | input | send. No voice. */}
+        <div className="mt-2">
+          <input ref={photoInputRef} type="file" accept="image/*" onChange={onPhoto} className="hidden" />
+          <input ref={docInputRef} type="file" onChange={onDoc} className="hidden" />
+          <UploadChip
+            task={upload.task}
+            onDismiss={() => releaseStaged(true)}
+            onRetry={stagedSource ? () => void runUpload(stagedSource) : undefined}
           />
-        </SectionCard>
+          <div className="flex items-end gap-2">
+            <button
+              ref={attachBtnRef}
+              onClick={() => setAttachOpen(true)}
+              aria-label="Attach"
+              className={`w-10 h-10 rounded-full bg-themewhite2/90 dark:bg-themewhite3/90 flex items-center justify-center active:scale-95 transition-all shrink-0
+                          ${attachOpen ? 'rotate-45' : ''}`}
+            >
+              <Plus size={18} className="text-tertiary" />
+            </button>
+            <div className="chat-input-bar relative flex flex-1 items-center rounded-2xl border border-themeblue3/10 shadow-xs bg-themewhite
+                focus-within:border-themeblue1/30 focus-within:bg-themewhite2 transition-all duration-300">
+              <textarea
+                ref={inputRef}
+                rows={1}
+                value={draft.newComment}
+                maxLength={500}
+                onChange={e => onChange({ ...draft, newComment: e.target.value })}
+                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
+                placeholder={upload.task ? 'Add a comment...' : 'Type a comment...'}
+                aria-label="Comment"
+                className="w-full bg-transparent outline-none text-[12pt] text-tertiary px-3.5 py-2.5
+                    rounded-2xl min-w-0 placeholder:text-tertiary resize-none leading-snug"
+              />
+            </div>
+            {canSend && (
+              <button
+                onClick={send}
+                aria-label="Send"
+                className="animate-spring-in w-10 h-10 rounded-full bg-themeblue3 flex items-center justify-center active:scale-95 transition-all shrink-0"
+              >
+                <ArrowUp size={18} className="text-white" />
+              </button>
+            )}
+          </div>
+        </div>
+        <SharedObjectPicker
+          isOpen={attachOpen}
+          anchorRef={attachBtnRef}
+          clinicId={null}
+          onClose={() => setAttachOpen(false)}
+          onPickPhoto={() => photoInputRef.current?.click()}
+          onPickFile={() => docInputRef.current?.click()}
+        />
+        <ImageEditor
+          file={editFile}
+          onCancel={() => setEditFile(null)}
+          onConfirm={(edited, original) => {
+            setEditFile(null)
+            stage({ kind: 'image', file: edited, original, preview: URL.createObjectURL(edited) })
+          }}
+        />
+        {/* The chat's message menu: lifted bubble clone with the list beneath;
+            cursor pill when no rect was captured. */}
+        {menu && (menu.rect && menu.cloneHtml ? (
+          <LiftedRowMenu
+            isOpen
+            anchorRect={menu.rect}
+            row={<div dangerouslySetInnerHTML={{ __html: menu.cloneHtml }} />}
+            items={menuItems}
+            onClose={() => setMenu(null)}
+            bare
+            align={menuOwn ? 'right' : 'left'}
+            layout="list"
+          />
+        ) : (
+          <ContextMenu x={menu.x} y={menu.y} items={menuItems} onClose={() => setMenu(null)} />
+        ))}
       </section>
     </div>
   )
 }
 
+/** Detail — history and comments as one read-only conversation. All comment
+ *  writes (add / change / remove) go through the form: check-in or ellipsis Edit. */
 export function TrackingBoardDetail({ entry }: { entry: TrackingEntry }) {
   const { net } = useBoardScope()
-  return (
-    <div className="space-y-4">
-      <CardLabel label="History">
-        <SectionCard>
-          {[...entry.moves].reverse().map(m => (
-            <ListItemRow
-              key={m.id}
-              as="div"
-              className="px-4 py-2.5 border-b border-primary/5"
-              center={<p className="text-[10pt] text-primary truncate">{m.complete ? 'Complete' : stationLabel(net, m.to)}</p>}
-              right={<span className="text-[9pt] font-mono text-tertiary shrink-0">{fmtDateTime(m.at)}</span>}
-            />
-          ))}
-          <ListItemRow
-            as="div"
-            className="px-4 py-2.5"
-            center={<p className="text-[10pt] text-primary truncate">Checked in</p>}
-            right={<span className="text-[9pt] font-mono text-tertiary shrink-0">{fmtDateTime(entry.checkedInAt)}</span>}
-          />
-        </SectionCard>
-      </CardLabel>
-
-      <TrackingComments entry={entry} />
-    </div>
-  )
+  return <CommentThread items={byTime([...historyItems(net, entry), ...entry.comments.map(c => commentItem(c))])} />
 }
 
 // ── Settings (mirrors Messaging settings: section header + card, in Sheet / PreviewOverlay) ──

@@ -275,7 +275,7 @@ export function useTrainingCompletions() {
   // ── Auth state tracking — re-init on login/logout ─────────
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT') {
         setCompletions([]);
         setViewedTasks(new Set());
@@ -286,7 +286,11 @@ export function useTrainingCompletions() {
         userIdRef.current = null;
         initDone.current = false;
       }
-      if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
+      // auth-js re-emits SIGNED_IN for the same user on every tab resume; the
+      // refocus catch-up below already covers that, so only a real user change
+      // re-inits (each re-init is a read_audit pull).
+      const sameUser = event === 'SIGNED_IN' && !!userIdRef.current && session?.user?.id === userIdRef.current;
+      if ((event === 'SIGNED_IN' && !sameUser) || event === 'SIGNED_OUT') {
         setAuthVersion((v) => v + 1);
       }
     });

@@ -9,6 +9,7 @@
  * the parent is selected (direct children) or on the selection's ancestor chain.
  */
 import { useState, useEffect, useRef, useCallback, useMemo, useImperativeHandle, forwardRef, memo } from 'react'
+import { usePropertyPhotoMap, commitPropertyPhoto, removePropertyPhoto } from '../../lib/propertyPhotoService'
 import { flushSync } from 'react-dom'
 import { Pencil, Check, PenTool, Minus, Scissors, Merge, X, Copy, Camera, Trash2, Maximize2, Move, ChevronLeft, ChevronRight, Plus, Package } from 'lucide-react'
 import { usePropertyStore } from '../../stores/usePropertyStore'
@@ -1836,13 +1837,7 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
   }, [pendingZoneDelete, clinicId, onDeleteLocation, store])
 
   // ── Photo map: location_id → photo_data for zone background images ──
-  const photoMap = useMemo(() => {
-    const m = new Map<string, string>()
-    for (const loc of locations) {
-      if (loc.photo_data) m.set(loc.id, loc.photo_data)
-    }
-    return m
-  }, [locations])
+  const photoMap = usePropertyPhotoMap(locations)
 
   const photoInputRef = useRef<HTMLInputElement>(null)
   const [photoTargetId, setPhotoTargetId] = useState<string | null>(null)
@@ -1864,11 +1859,12 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
     try {
       const { resizeImage } = await import('../../Utilities/imageUtils')
       const resized = await resizeImage(file, 800, 0.7)
-      await onUpdateLocation(photoTargetId, { photo_data: resized })
+      const prev = locations.find(l => l.id === photoTargetId)?.photo_ref
+      await onUpdateLocation(photoTargetId, await commitPropertyPhoto(resized, 'property_locations', prev))
     } catch { /* non-fatal */ }
     e.target.value = ''
     setPhotoTargetId(null)
-  }, [photoTargetId, onUpdateLocation])
+  }, [photoTargetId, onUpdateLocation, locations])
 
   const triggerPhotoUpload = useCallback((locationId: string) => {
     setPhotoTargetId(locationId)
@@ -2539,7 +2535,7 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
                 <ActionButton icon={Plus} label="Add child zone" onClick={() => handleEnterEdit(true)} />
                 <ActionButton icon={Camera} label={hasSelectedPhoto ? 'Change photo' : 'Add photo'} onClick={() => triggerPhotoUpload(store.selectedZoneId!)} />
                 {onCreateItem && <ActionButton icon={Package} label="New item" onClick={onCreateItem} />}
-                {hasSelectedPhoto && <ActionButton icon={X} label="Remove photo" onClick={() => onUpdateLocation?.(store.selectedZoneId!, { photo_data: null })} />}
+                {hasSelectedPhoto && <ActionButton icon={X} label="Remove photo" onClick={() => onUpdateLocation?.(store.selectedZoneId!, removePropertyPhoto(locations.find(l => l.id === store.selectedZoneId)?.photo_ref))} />}
                 <ActionButton
                   icon={Trash2}
                   label="Delete zone"

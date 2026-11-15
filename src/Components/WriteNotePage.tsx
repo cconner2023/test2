@@ -35,6 +35,18 @@ import { useSavedNotesStore } from '../stores/useSavedNotesStore';
 import { SAVED_NOTES_CAP } from '../lib/savedNotesDb';
 import { emitCopied } from '../lib/copyFeedback';
 import type { RestoredNote } from '../stores/useNavigationStore';
+import { PaneCard } from '@/Components/primitives/PaneCard';
+import { useStack } from '@/Components/primitives/useStack';
+import { PillButton } from '@/Components/primitives/HeaderPill';
+import { TextInput } from '@/Components/primitives/FormInputs';
+import { type StackScreen } from './stackNav';
+import { useEscBackout } from '../Hooks/useEscBackout';
+import { TextSectionEditor } from './Provider/ProviderPaneSections';
+import { usePEPaneScreens, PECenter, makeTemplatePEState, defaultItemState } from './Provider/ProviderPESections';
+import { usePlanPaneScreens } from './Provider/ProviderPlanSections';
+import { generatePEText } from './PhysicalExam';
+import { parsePlanState } from './Plan';
+import type { PlanState } from '../Types/PlanTypes';
 
 const SECTION_LABEL_CLASS = 'text-[9pt] font-semibold text-primary uppercase tracking-wider';
 const CARD_CLASS = 'relative rounded-2xl bg-themewhite2 overflow-hidden';
@@ -42,19 +54,24 @@ const TEXTAREA_CLASS =
     'w-full bg-transparent px-4 py-3 text-base md:text-sm text-primary placeholder:text-tertiary ' +
     'focus:outline-none resize-none overflow-hidden min-h-[200px]';
 
-/** Empty → overlay → populated card pattern, mirrors ProviderNote's TextSectionCard. */
-function TextSectionCard({ addLabel, value, onChange, expanders, placeholder }: {
+/** Empty → overlay → populated card pattern, mirrors ProviderNote's TextSectionCard.
+ *  With `onOpen` (desktop) the tap routes to the host's PaneCard and no overlay mounts. */
+function TextSectionCard({ addLabel, value, onChange, expanders, placeholder, onOpen }: {
     addLabel: string;
     value: string;
     onChange: (v: string) => void;
     expanders: TextExpander[];
     placeholder: string;
+    onOpen?: () => void;
 }) {
     const [isOpen, setIsOpen] = useState(false);
     const [anchor, setAnchor] = useState<DOMRect | null>(null);
     const cardRef = useRef<HTMLDivElement>(null);
 
-    const openFromAnchor = (rect: DOMRect) => { setAnchor(rect); setIsOpen(true); };
+    const openFromAnchor = (rect: DOMRect) => {
+        if (onOpen) { onOpen(); return; }
+        setAnchor(rect); setIsOpen(true);
+    };
     const openFromCard = () => {
         if (cardRef.current) openFromAnchor(cardRef.current.getBoundingClientRect());
     };
@@ -81,7 +98,7 @@ function TextSectionCard({ addLabel, value, onChange, expanders, placeholder }: 
                     }}
                 />
             )}
-            <PreviewOverlay
+            {!onOpen && <PreviewOverlay
                 isOpen={isOpen}
                 onClose={() => setIsOpen(false)}
                 anchorRect={anchor}
@@ -105,7 +122,7 @@ function TextSectionCard({ addLabel, value, onChange, expanders, placeholder }: 
                     className={TEXTAREA_CLASS}
                     placeholder={placeholder}
                 />
-            </PreviewOverlay>
+            </PreviewOverlay>}
         </>
     );
 }
@@ -324,6 +341,182 @@ export const WriteNotePage = ({
         }
     }, [selectedDdx, customDdx, setCustomDdx]);
 
+    // ── Desktop: section editors float in one PaneCard (ProviderDrawer parity) ──
+    // Mobile keeps the anchored PreviewOverlays and the inline PhysicalExam / Plan.
+    const paneMode = !isMobile;
+    // A restored legacy note carries PE text but no structured state; only the
+    // mounted PhysicalExam can parse it, so that case stays inline on desktop too.
+    const peInPane = paneMode && !(restore && !restore.peState && !!peNote);
+    const [paneScreen, setPaneScreen] = useState<{ key: string; params?: unknown } | null>(null);
+    const closePane = useCallback(() => setPaneScreen(null), []);
+    const paneVisible = paneMode && isVisible && paneScreen !== null
+        && currentPageId === 'edit' && viewMode === 'fullnote';
+    useEscBackout(paneVisible, closePane);
+    useEffect(() => {
+        if (!isVisible || currentPageId !== 'edit' || viewMode !== 'fullnote') setPaneScreen(null);
+    }, [isVisible, currentPageId, viewMode]);
+
+    // Plan in the pane edits structured state; the inline Plan parses text on mount instead.
+    const [planState, setPlanState] = useState<PlanState | null>(null);
+
+    // The inline PhysicalExam / Plan seed peNote / planNote when Full Note first mounts
+    // them. In pane mode neither mounts, so seed the lifted state here at the same moment.
+    const paneSeededRef = useRef(false);
+    useEffect(() => {
+        if (!paneMode || paneSeededRef.current || viewMode !== 'fullnote') return;
+        paneSeededRef.current = true;
+        if (peInPane && !peState) {
+            const items = Object.fromEntries(selectedBlockKeys.map(k => [k, algoPeSeed?.items[k] ?? defaultItemState()]));
+            const seeded = makeTemplatePEState(selectedBlockKeys, items);
+            setPeState(seeded);
+            setPeNote(generatePEText(seeded));
+        }
+        if (planSeedText) {
+            setPlanState(parsePlanState(planSeedText, orderTags, instructionTags));
+            if (!planNote) setPlanNote(planSeedText);
+        }
+    }, [paneMode, viewMode, peInPane, peState, selectedBlockKeys, algoPeSeed, setPeState, setPeNote, planSeedText, planNote, setPlanNote, orderTags, instructionTags]);
+
+    const { screens: pePaneScreens, reorder: reorderPe } = usePEPaneScreens({
+        peState,
+        selectedBlockKeys,
+        onPeStateChange: setPeState,
+        onBlockKeysChange: setSelectedBlockKeys,
+        onPeNoteChange: setPeNote,
+        onClose: closePane,
+    });
+    const { screens: planPaneScreens } = usePlanPaneScreens({
+        planState,
+        orderTags,
+        instructionTags,
+        orderSets,
+        onPlanStateChange: setPlanState,
+        onPlanNoteChange: setPlanNote,
+        onClose: closePane,
+    });
+
+    const ddxList = (() => {
+        const combined = [...selectedDdx, ...customDdx];
+        const unselected = availableDdx.filter(d => !selectedDdx.includes(d));
+        return (
+            <div className="py-1.5">
+                {combined.length > 0 && (
+                    <div className="px-3 pb-2.5">
+                        <p className="text-[9pt] font-semibold text-tertiary uppercase tracking-wider pb-1.5">Selected</p>
+                        <div className="rounded-xl overflow-hidden">
+                            {combined.map((dx, i) => (
+                                <div
+                                    key={dx}
+                                    className={`flex items-center gap-2 px-3 py-2.5 bg-tertiary/4 ${i > 0 ? 'border-t border-tertiary/10' : ''}`}
+                                >
+                                    <span className="text-[9pt] text-tertiary w-4 text-right shrink-0">{i + 1}.</span>
+                                    <span className="flex-1 text-[11pt] text-primary min-w-0 truncate">{dx}</span>
+                                    <button
+                                        type="button"
+                                        onClick={() => toggleDdx(dx)}
+                                        className="shrink-0 p-1 text-tertiary active:text-themeredred transition-colors"
+                                    >
+                                        <X size={12} />
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {unselected.length > 0 && (
+                    <div>
+                        {combined.length > 0 && (
+                            <p className="px-3 text-[9pt] font-semibold text-tertiary uppercase tracking-wider pb-0.5">Suggested</p>
+                        )}
+                        <div className="px-3 pb-2 space-y-0.5">
+                            {unselected.map(dx => (
+                                <button
+                                    key={dx}
+                                    type="button"
+                                    onClick={() => toggleDdx(dx)}
+                                    className="flex items-center gap-2.5 w-full text-left py-1.5 px-2 rounded-lg transition-colors active:scale-[0.98] hover:bg-tertiary/5"
+                                >
+                                    <span className="w-4 h-4 rounded-full shrink-0 ring-[1.5px] ring-inset ring-tertiary/25 bg-transparent" />
+                                    <span className="text-sm text-primary min-w-0 truncate">{dx}</span>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {combined.length === 0 && unselected.length === 0 && (
+                    <p className="px-4 py-4 text-[10pt] text-tertiary italic">No differentials — use + to add</p>
+                )}
+            </div>
+        );
+    })();
+
+    const [ddxDraft, setDdxDraft] = useState('');
+    const submitDdxDraft = () => {
+        const v = ddxDraft.trim();
+        if (!v) return;
+        addCustomDdxItem(v);
+        setDdxDraft('');
+    };
+
+    // Edits bind live, so the pane's Done just closes it (ProviderDrawer's doneHeaderAction).
+    const doneHeaderAction = (
+        <PillButton icon={Check} iconSize={18} accent="success" onClick={closePane} label="Done" />
+    );
+
+    const paneScreens: Record<string, StackScreen> = {
+        ...pePaneScreens,
+        ...planPaneScreens,
+        's-hpi': {
+            title: 'History of Present Illness',
+            headerActions: doneHeaderAction,
+            render: () => <TextSectionEditor value={note} onChange={setNote} placeholder="Chief complaint, onset, duration, character, associated symptoms..." />,
+        },
+        's-ddx': {
+            title: 'Differential Diagnosis',
+            headerActions: doneHeaderAction,
+            footer: (selectedDdx.length > 0 || customDdx.length > 0) ? (
+                <FooterPill side="left">
+                    <ActionButton icon={RotateCcw} label="Reset" onClick={() => { setSelectedDdx([]); setCustomDdx([]); }} />
+                </FooterPill>
+            ) : undefined,
+            render: () => (
+                <div className="-mx-4 -my-3">
+                    <div className="flex items-center border-b border-primary/6">
+                        <div className="flex-1 min-w-0">
+                            <TextInput
+                                bare
+                                value={ddxDraft}
+                                onChange={setDdxDraft}
+                                placeholder="Add differential..."
+                                ariaLabel="Add differential"
+                                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); submitDdxDraft(); } }}
+                            />
+                        </div>
+                        {ddxDraft.trim() && (
+                            <button
+                                type="button"
+                                onClick={submitDdxDraft}
+                                aria-label="Add differential"
+                                className="shrink-0 w-9 h-9 mr-3 rounded-full bg-themeblue3 text-white flex items-center justify-center active:scale-95 transition-all"
+                            >
+                                <Plus size={16} />
+                            </button>
+                        )}
+                    </div>
+                    {ddxList}
+                </div>
+            ),
+        },
+    };
+
+    const paneStack = useStack({
+        isOpen: paneVisible,
+        initial: paneScreen ?? { key: 's-hpi' },
+        screens: paneScreens,
+    });
+
     const handleLog = useCallback(async () => {
         if (logged) return;
         setLogged(true);
@@ -435,10 +628,24 @@ export const WriteNotePage = ({
                                         onChange={setNote}
                                         expanders={expanders}
                                         placeholder="Chief complaint, onset, duration, character, associated symptoms..."
+                                        onOpen={paneMode ? () => setPaneScreen({ key: 's-hpi' }) : undefined}
                                     />
                                 </div>
 
                                 {/* Physical Exam — symptom-templated, typically populated on mount */}
+                                {peInPane ? (
+                                    <PECenter
+                                        selectedBlockKeys={selectedBlockKeys}
+                                        items={peState?.items ?? {}}
+                                        vitals={peState?.vitals ?? {}}
+                                        onOpenSelector={() => setPaneScreen({ key: 's-pe' })}
+                                        onOpenBlock={(blockKey) => setPaneScreen({ key: 's-pe-block', params: { blockKey } })}
+                                        onOpenVitals={() => setPaneScreen({ key: 's-pe-vitals' })}
+                                        onReorder={reorderPe}
+                                        additional={peState?.additional ?? ''}
+                                        onOpenFreeText={() => setPaneScreen({ key: 's-pe-freetext' })}
+                                    />
+                                ) : (
                                 <div className="space-y-2">
                                     <p className={SECTION_LABEL_CLASS}>Physical Exam</p>
                                     <div
@@ -474,13 +681,14 @@ export const WriteNotePage = ({
                                         />
                                     )}
                                 </div>
+                                )}
 
                                 {/* Differential Diagnosis — assessment itself is the ADTMC algorithm */}
                                 <div className="space-y-2">
                                     <p className={SECTION_LABEL_CLASS}>Differential Diagnosis</p>
                                     {(selectedDdx.length > 0 || customDdx.length > 0) ? (
                                         <div
-                                            onClick={openDdxPopover}
+                                            onClick={paneMode ? () => setPaneScreen({ key: 's-ddx' }) : openDdxPopover}
                                             className={`${CARD_CLASS} cursor-pointer active:scale-[0.99] transition-all`}
                                         >
                                             <div className="px-4 py-3 text-sm text-primary whitespace-pre-wrap max-h-64 overflow-y-auto">
@@ -494,6 +702,7 @@ export const WriteNotePage = ({
                                                 icon: Plus,
                                                 label: 'Add differential',
                                                 onClick: (a) => {
+                                                    if (paneMode) { setPaneScreen({ key: 's-ddx' }); return; }
                                                     setDdxAnchorRect(a.getBoundingClientRect());
                                                     setDdxPopoverVisible(true);
                                                 },
@@ -503,67 +712,12 @@ export const WriteNotePage = ({
                                 </div>
 
                                 <PreviewOverlay
-                                    isOpen={ddxPopoverVisible}
+                                    isOpen={!paneMode && ddxPopoverVisible}
                                     onClose={() => setDdxPopoverVisible(false)}
                                     anchorRect={ddxAnchorRect}
                                     maxWidth={340}
                                     title="Differential Diagnosis"
-                                    preview={(() => {
-                                        const combined = [...selectedDdx, ...customDdx];
-                                        const unselected = availableDdx.filter(d => !selectedDdx.includes(d));
-                                        return (
-                                            <div className="py-1.5">
-                                                {combined.length > 0 && (
-                                                    <div className="px-3 pb-2.5">
-                                                        <p className="text-[9pt] font-semibold text-tertiary uppercase tracking-wider pb-1.5">Selected</p>
-                                                        <div className="rounded-xl overflow-hidden">
-                                                            {combined.map((dx, i) => (
-                                                                <div
-                                                                    key={dx}
-                                                                    className={`flex items-center gap-2 px-3 py-2.5 bg-tertiary/4 ${i > 0 ? 'border-t border-tertiary/10' : ''}`}
-                                                                >
-                                                                    <span className="text-[9pt] text-tertiary w-4 text-right shrink-0">{i + 1}.</span>
-                                                                    <span className="flex-1 text-[11pt] text-primary min-w-0 truncate">{dx}</span>
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={() => toggleDdx(dx)}
-                                                                        className="shrink-0 p-1 text-tertiary active:text-themeredred transition-colors"
-                                                                    >
-                                                                        <X size={12} />
-                                                                    </button>
-                                                                </div>
-                                                            ))}
-                                                        </div>
-                                                    </div>
-                                                )}
-
-                                                {unselected.length > 0 && (
-                                                    <div>
-                                                        {combined.length > 0 && (
-                                                            <p className="px-3 text-[9pt] font-semibold text-tertiary uppercase tracking-wider pb-0.5">Suggested</p>
-                                                        )}
-                                                        <div className="px-3 pb-2 space-y-0.5">
-                                                            {unselected.map(dx => (
-                                                                <button
-                                                                    key={dx}
-                                                                    type="button"
-                                                                    onClick={() => toggleDdx(dx)}
-                                                                    className="flex items-center gap-2.5 w-full text-left py-1.5 px-2 rounded-lg transition-colors active:scale-[0.98] hover:bg-tertiary/5"
-                                                                >
-                                                                    <span className="w-4 h-4 rounded-full shrink-0 ring-[1.5px] ring-inset ring-tertiary/25 bg-transparent" />
-                                                                    <span className="text-sm text-primary min-w-0 truncate">{dx}</span>
-                                                                </button>
-                                                            ))}
-                                                        </div>
-                                                    </div>
-                                                )}
-
-                                                {combined.length === 0 && unselected.length === 0 && (
-                                                    <p className="px-4 py-4 text-[10pt] text-tertiary italic">No differentials — use + to add</p>
-                                                )}
-                                            </div>
-                                        );
-                                    })()}
+                                    preview={ddxList}
                                     actions={(selectedDdx.length > 0 || customDdx.length > 0) ? [{
                                         key: 'reset',
                                         label: 'Reset',
@@ -584,6 +738,21 @@ export const WriteNotePage = ({
                                 {/* Plan */}
                                 <div className="space-y-2">
                                     <p className={SECTION_LABEL_CLASS}>Plan</p>
+                                    {paneMode ? (planNote ? (
+                                        <div
+                                            onClick={() => setPaneScreen({ key: 's-plan' })}
+                                            className={`${CARD_CLASS} cursor-pointer active:scale-[0.99] transition-all`}
+                                        >
+                                            <div className="px-4 py-3 text-sm text-primary whitespace-pre-wrap max-h-64 overflow-y-auto">
+                                                {planNote}
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <EmptyState
+                                            title="Add plan"
+                                            action={{ icon: Plus, label: 'Add plan', onClick: () => setPaneScreen({ key: 's-plan' }) }}
+                                        />
+                                    )) : (<>
                                     <div
                                         style={planHasContent ? undefined : { display: 'none' }}
                                         aria-hidden={!planHasContent}
@@ -612,6 +781,7 @@ export const WriteNotePage = ({
                                             }}
                                         />
                                     )}
+                                    </>)}
                                 </div>
                                 </>
                                 )}
@@ -689,6 +859,28 @@ export const WriteNotePage = ({
                         handleNext={handleDone}
                         isMobile={isMobile}
                     />
+                )}
+                {/* Desktop section editor — ONE card for the whole open; screens swap
+                    inside it via paneStack. z-40 clears the bottom island (z-20). */}
+                {paneMode && (
+                    <PaneCard
+                        isOpen={paneVisible && paneStack.hasScreen}
+                        onClose={closePane}
+                        title={paneStack.title ?? 'Note section'}
+                        onBack={paneStack.canBack ? paneStack.onBack : undefined}
+                        leading={paneStack.headerLeft}
+                        actions={paneStack.headerActions}
+                        footer={(paneStack.footer || paneStack.rightFooter) ? (
+                            <div className="flex items-center justify-between gap-2 px-3 py-2">
+                                <div className="flex items-center gap-2">{paneStack.footer}</div>
+                                <div className="flex items-center gap-2">{paneStack.rightFooter}</div>
+                            </div>
+                        ) : undefined}
+                        closeOnEsc={false}
+                        zIndex={40}
+                    >
+                        <div className="px-4 py-3 overflow-x-hidden">{paneStack.body('')}</div>
+                    </PaneCard>
                 )}
                 <ConfirmDialog
                     visible={dmConfirmOpen}

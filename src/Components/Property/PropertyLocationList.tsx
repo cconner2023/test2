@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useRef, forwardRef, useImperativeHandle } from 'react'
+import { usePropertyPhotoUrl } from '../../lib/propertyPhotoService'
 import { ChevronRight, Pencil, Trash2, Map as MapIcon, FolderPlus, PackagePlus, FolderClosed, User, MoreHorizontal } from 'lucide-react'
 import { EmptyState } from '@/Components/primitives/EmptyState'
 import { Section, SectionCard } from '@/Components/primitives/Section'
@@ -266,8 +267,8 @@ export const PropertyLocationList = forwardRef<PropertyLocationListHandle, Prope
   }
 
   const renderItemIcon = (item: LocalPropertyItem) => {
-    if (item.photo_url) {
-      return <img src={item.photo_url} alt="" className="w-10 h-10 rounded-xl object-cover shrink-0" />
+    if (item.photo_ref || item.photo_url) {
+      return <ItemPhotoThumb item={item} fallback={itemInitials(item.name)} />
     }
     return (
       <div className="w-10 h-10 rounded-xl bg-themeblue3/10 flex items-center justify-center shrink-0">
@@ -568,3 +569,14 @@ export const PropertyLocationList = forwardRef<PropertyLocationListHandle, Prope
     </div>
   )
 })
+
+/** Item photo thumbnail; resolves an R2 photo_ref asynchronously, initials until then. */
+function ItemPhotoThumb({ item, fallback }: { item: LocalPropertyItem; fallback: string }) {
+  const url = usePropertyPhotoUrl({ photo_ref: item.photo_ref, photo_data: item.photo_url })
+  if (url) return <img src={url} alt="" className="w-10 h-10 rounded-xl object-cover shrink-0" />
+  return (
+    <div className="w-10 h-10 rounded-xl bg-themeblue3/10 flex items-center justify-center shrink-0">
+      <span className="text-[10pt] font-semibold text-themeblue2">{fallback}</span>
+    </div>
+  )
+}

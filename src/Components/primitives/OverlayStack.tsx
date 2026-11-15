@@ -10,6 +10,7 @@ import { LoadingOverlay } from '@/Components/primitives/LoadingOverlay'
 import { PaneHeader } from '@/Components/primitives/PaneHeader'
 import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill'
 import { useEscBackout } from '../../Hooks/useEscBackout'
+import type { SheetMorphStore } from '@/Components/primitives/sheetMorph'
 
 export type { StackNav, StackScreen } from '@/Components/stackNav'
 
@@ -45,10 +46,56 @@ export type { StackNav, StackScreen } from '@/Components/stackNav'
  */
 
 /** A lifted detail card that a stack can morph into instead of opening an overlay.
- *  The host owns the slot and hides its own card while `onActiveChange(true)` holds. */
+ *  The host owns the slot and hides its own card while `onActiveChange(true)` holds.
+ *  With `sheet` set (mobile), the stack publishes into the host's bottom Sheet instead
+ *  and `el` is unused. */
 export interface CardMorphHost {
   el: HTMLElement | null
   onActiveChange: (active: boolean) => void
+  sheet?: SheetMorphStore
+}
+
+/** The host-Sheet shell for useStack: renders nothing itself, publishing the current
+ *  screen to the host's SheetMorphSlots. The left footer has no Sheet slot, so it pins
+ *  under the body; the right footer (the screen's one primary action) rides the header
+ *  as SheetStack does. */
+function SheetStackPublisher({ stack, host, sheet, onClose, loading }: {
+  stack: StackController
+  host: CardMorphHost
+  sheet: SheetMorphStore
+  onClose: () => void
+  loading?: boolean
+}) {
+  const { onActiveChange } = host
+  useLayoutEffect(() => {
+    onActiveChange(true)
+    return () => { onActiveChange(false); sheet.set(null) }
+  }, [onActiveChange, sheet])
+
+  // Every render on purpose: screens close over the host's live state.
+  useLayoutEffect(() => {
+    sheet.set({
+      title: stack.title,
+      onBack: stack.onBack ?? onClose,
+      onClose,
+      headerActions: stack.headerActions,
+      rightFooter: stack.rightFooter,
+      body: (
+        <StackNavContext.Provider value={stack.nav}>
+          <div className="relative">
+            <LoadingOverlay visible={!!loading} />
+            <LayeredStackBody frames={stack.frames} searchPlaceholder={stack.searchPlaceholder} />
+          </div>
+          {stack.footer && (
+            <div className="sticky bottom-0 bg-themewhite3 border-t border-tertiary/10 flex items-center px-2 py-2">
+              {stack.footer}
+            </div>
+          )}
+        </StackNavContext.Provider>
+      ),
+    })
+  })
+  return null
 }
 
 /** The lifted-card shell for useStack: same engine and screens as the overlay, but
@@ -135,6 +182,9 @@ export function OverlayStack({
   // the pre-extraction behavior (the card never mounted in that state).
   if (!stack.hasScreen) return null
 
+  if (cardHost?.sheet) {
+    return isOpen ? <SheetStackPublisher stack={stack} host={cardHost} sheet={cardHost.sheet} onClose={onClose} loading={loading} /> : null
+  }
   if (cardHost) {
     return isOpen ? <CardStackShell stack={stack} host={cardHost} onClose={onClose} loading={loading} /> : null
   }

@@ -323,13 +323,14 @@ export const newTrackingData = (brn: string, at: number): TrackingData =>
 export const COMPLETE = 'complete' as const
 export type TrackingTarget = TrackingPosition | typeof COMPLETE
 
-/** Add a move; supersedes any transit marker. Unchanged position = no-op. */
-export function moveData(d: TrackingData, target: TrackingTarget, by: string, at: number): TrackingData {
+/** Add a move; supersedes any transit marker. Unchanged position = no-op.
+ *  No author: moves are the cluster's, not a member's (shown as "System"). */
+export function moveData(d: TrackingData, target: TrackingTarget, at: number): TrackingData {
   const last = [...d.moves].sort((a, b) => a.at - b.at)[d.moves.length - 1]
   const complete = target === COMPLETE
   const to = complete ? null : target
   if (!!last?.complete === complete && samePlace(last?.to ?? null, to)) return d
-  return { ...d, transit: null, transit_at: at, moves: [...d.moves, { id: newId(), to, at, by, ...(complete ? { complete } : {}) }] }
+  return { ...d, transit: null, transit_at: at, moves: [...d.moves, { id: newId(), to, at, ...(complete ? { complete } : {}) }] }
 }
 
 /** Set (or clear, null) the "leaving → destination station" marker. */
@@ -339,27 +340,36 @@ export const transitData = (d: TrackingData, to: LinkedFeatureRef | null, by: st
 /** Draft the drawer owns — the Save pill lives in the surface header. */
 export interface TrackingEditDraft {
   brn: string
-  /** Existing comments by id; cleared text = removed on save. */
-  comments: { id: string; text: string }[]
-  /** New comment appended on save (blank = none). */
+  /** Existing comments by id; `removed` (or cleared text on a text-only comment)
+   *  = soft-deleted on save. */
+  comments: { id: string; text: string; removed?: boolean }[]
+  /** New comment appended on save (blank = none). In the Edit form this is the
+   *  chat input's unsent text — saved too, so Save never drops typed text. */
   newComment: string
+  /** Edit form only: comments "sent" from the chat input, appended on save in order. */
+  added?: { text: string; attachment?: TrackingComment['attachment'] }[]
+  /** Edit form only: uploaded but unsent attachment. Saved like unsent text, ahead of it. */
+  staged?: TrackingComment['attachment']
 }
 
 /** Apply a saved draft. Removed comments are soft-deleted so the merge keeps them gone. */
 export function draftData(d: TrackingData, draft: TrackingEditDraft, by: string, at: number): TrackingData {
-  const byId = new Map(draft.comments.map(c => [c.id, c.text.trim()]))
-  const added = draft.newComment.trim()
+  const byId = new Map(draft.comments.map(c => [c.id, c]))
+  const added = [...(draft.added ?? []), ...(draft.staged ? [{ text: '', attachment: draft.staged }] : []), { text: draft.newComment }]
+    .map(a => ({ ...a, text: a.text.trim() }))
+    .filter(a => a.text || a.attachment)
   return {
     ...d,
     ...(draft.brn !== d.brn ? { brn: draft.brn, brn_at: at } : {}),
     comments: [
       ...d.comments.map(c => {
-        if (c.deleted || !byId.has(c.id)) return c
-        const text = byId.get(c.id)!
-        if (!text) return { ...c, deleted: true, editedAt: at, editedBy: by }
+        const dc = byId.get(c.id)
+        if (c.deleted || !dc) return c
+        const text = dc.text.trim()
+        if (dc.removed || (!text && !c.attachment)) return { ...c, deleted: true, editedAt: at, editedBy: by }
         return text === c.text ? c : { ...c, text, editedAt: at, editedBy: by }
       }),
-      ...(added ? [{ id: newId(), text: added, by, at }] : []),
+      ...added.map(a => ({ id: newId(), text: a.text, by, at, ...(a.attachment ? { attachment: a.attachment } : {}) })),
     ],
   }
 }

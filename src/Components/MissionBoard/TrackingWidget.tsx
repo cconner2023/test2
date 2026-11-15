@@ -17,6 +17,11 @@ import { ActionButton } from '@/Components/primitives/ActionButton'
 import { EmptyState } from '@/Components/primitives/EmptyState'
 
 const LANE_LIMIT = 3
+// ~3.5 columns fill the widget; the rest scroll in on x. The half column is
+// the affordance that more stations sit off to the right.
+const VISIBLE_COLS = 3.5
+const COL_MIN = 84
+const GAP = 2
 
 const CLONE_W = 240
 const CLONE_H = 52
@@ -66,13 +71,17 @@ export function TrackingWidget() {
   const shown = columns.reduce((n, c) => n + Math.min(c.rows.length, LANE_LIMIT), 0)
   const extra = total - shown
   const laneCount = Math.min(LANE_LIMIT, Math.max(0, ...columns.map(c => c.rows.length)))
-  const grid = { gridTemplateColumns: `repeat(${columns.length}, minmax(0, 1fr))` }
+  // cqw = the scroller's width (containerType below). Few columns stretch to
+  // fill via 1fr; many keep the fixed width and overflow.
+  const colW = `max(${COL_MIN}px, calc((100cqw - ${GAP * 3}px) / ${VISIBLE_COLS}))`
+  const grid = { gridTemplateColumns: `repeat(${columns.length}, minmax(${colW}, 1fr))`, columnGap: GAP }
+  const trackWidth = `max(100%, calc(${columns.length} * ${colW} + ${(columns.length - 1) * GAP}px))`
   const action = { icon: Plus, label: 'Check in', onClick: openTrackingCheckIn }
 
   const menuItems = (e: TrackingEntry) => buildTrackingMenuItems(e, {
     onOpen: x => openTrackingEntry(x.id),
     onEdit: x => openTrackingEntry(x.id, true),
-    onMove: (x, to) => { void updateEntry(x.id, d => moveData(d, to, me, Date.now())) },
+    onMove: (x, to) => { void updateEntry(x.id, d => moveData(d, to, Date.now())) },
     onTransit: (x, to) => { void updateEntry(x.id, d => transitData(d, to, me, Date.now())) },
     onDelete: setPendingDelete,
     net,
@@ -84,45 +93,49 @@ export function TrackingWidget() {
 
   return (
     <div className="px-3 relative">
-      <div className="grid mb-0.5 gap-0.5" style={grid}>
-        {columns.map(c => (
-          <div key={c.key} className="flex justify-center min-w-0">
-            <span className="text-[9pt] font-semibold uppercase text-secondary truncate">{c.label}</span>
+      <div className="overflow-x-auto" style={{ containerType: 'inline-size' }}>
+        <div style={{ width: trackWidth }}>
+          <div className="grid mb-0.5" style={grid}>
+            {columns.map(c => (
+              <div key={c.key} className="h-8 flex items-center justify-center min-w-0">
+                <span className="text-[9pt] font-semibold uppercase text-secondary truncate">{c.label}</span>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
-      <div className="border-t border-themeblue3/10" />
-      <div className="flex flex-col gap-0.5">
-        {Array.from({ length: laneCount }, (_, li) => (
-          <div key={li} className="grid gap-0.5" style={grid}>
-            {columns.map(c => {
-              const e = c.rows[li]
-              if (!e) return <div key={c.key} />
-              return (
-                <button
-                  key={c.key}
-                  type="button"
-                  {...menuPressHandlers(rect => setMenu({ entry: e, rect: cloneAnchor(rect) }), pressRef, { onTap: () => openTrackingEntry(e.id) })}
-                  className={`min-w-0 h-5 flex items-center px-1.5 rounded text-left overflow-hidden active:opacity-60 ${tintFor(e).shell}`}
-                >
-                  <span className="block min-w-0 text-[9pt] font-mono text-primary truncate whitespace-nowrap leading-tight">
-                    {e.transit ? '→ ' : ''}{e.brnLabel}
-                  </span>
-                </button>
-              )
-            })}
+          <div className="border-t border-themeblue3/10" />
+          <div className="flex flex-col gap-0.5">
+            {Array.from({ length: laneCount }, (_, li) => (
+              <div key={li} className="grid" style={grid}>
+                {columns.map(c => {
+                  const e = c.rows[li]
+                  if (!e) return <div key={c.key} />
+                  return (
+                    <button
+                      key={c.key}
+                      type="button"
+                      {...menuPressHandlers(rect => setMenu({ entry: e, rect: cloneAnchor(rect) }), pressRef, { onTap: () => openTrackingEntry(e.id) })}
+                      className={`min-w-0 h-10 flex items-center px-1.5 rounded text-left overflow-hidden active:opacity-60 ${tintFor(e).shell}`}
+                    >
+                      <span className="block min-w-0 text-[9pt] font-mono text-primary truncate whitespace-nowrap leading-tight">
+                        {e.transit ? '→ ' : ''}{e.brnLabel}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+            ))}
           </div>
-        ))}
-        {extra > 0 && (
-          <button
-            type="button"
-            onClick={open}
-            className="h-5 flex items-center text-[9pt] font-medium text-secondary text-left px-1 active:text-themeblue1"
-          >
-            +{extra} more
-          </button>
-        )}
+        </div>
       </div>
+      {extra > 0 && (
+        <button
+          type="button"
+          onClick={open}
+          className="h-5 mt-0.5 flex items-center text-[9pt] font-medium text-secondary text-left px-1 active:text-themeblue1"
+        >
+          +{extra} more
+        </button>
+      )}
       <ActionPill shadow="sm" placement="overlay">
         <ActionButton icon={action.icon} label={action.label} onClick={action.onClick} />
       </ActionPill>

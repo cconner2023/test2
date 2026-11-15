@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { AvatarBlob } from '../Types/SupervisorTestTypes'
-import { decryptAvatarToUrl, getCachedAvatarUrl } from '../lib/avatarBlobService'
+import { decryptAvatarToUrl, getCachedAvatarUrl, avatarCacheKey } from '../lib/avatarBlobService'
 
 /**
  * Resolves a custom avatar to a renderable data URL.
@@ -16,7 +16,8 @@ export function useResolvedAvatar(
   userId?: string | null,
 ): string | null {
   const isCustom = avatarId === 'custom'
-  const enc = isCustom ? (avatarBlob?.enc ?? null) : null
+  // R2 object key or legacy ciphertext; both identify the image immutably.
+  const enc = isCustom && avatarBlob ? avatarCacheKey(avatarBlob) : null
   const userKey = isCustom && userId ? `user:${userId}` : null
 
   const [url, setUrl] = useState<string | null>(() => {

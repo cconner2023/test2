@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronLeft, Settings, Plus, MoreHorizontal, X, Check } from 'lucide-react'
 import { BaseDrawer } from '@/Components/primitives/BaseDrawer'
-import { PaneSurface } from '@/Components/primitives/PaneCard'
+import { PaneSurface, PaneCard } from '@/Components/primitives/PaneCard'
 import { MobileSearchBar } from '@/Components/primitives/MobileSearchBar'
 import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill'
 import { GlassBand } from '@/Components/primitives/GlassBand'
@@ -20,14 +20,14 @@ import { useTrackingBoardData } from '../../Hooks/useTrackingBoardData'
 import { useTrackingWrite } from '../../Hooks/useTrackingWrite'
 import { useMapOverlayWrite } from '../../Hooks/useMapOverlayWrite'
 import {
-    TrackingBoardList, TrackingGrid, TrackingBoardDetail, TrackingBoardSettings,
+    TrackingBoardList, TrackingGrid, TrackingBoardDetail, TrackingBoardSettings, BrnDetailLines,
     TrackingCategoryBar, TrackingCardList, filterByCategory, buildTrackingMenuItems,
     filterEntries, type TrackingEntry, type TrackingCategory, type CardOrigin,
     TrackingEditForm, TrackingCheckInFields, draftFromEntry, draftIsValid, emptyDraft, type TrackingEditDraft,
     measureBrnCard, measureRailCard, measureGridRow, TrackingBoardScope,
 } from './TrackingBoardPanel'
 import {
-    boardEntries, moveData, transitData, draftData, newTrackingData, toggledFeature,
+    boardEntries, moveData, transitData, draftData, newTrackingData, toggledFeature, originUic,
     type TrackingTarget,
 } from './trackingModel'
 import { TrackingCardOverlay } from './TrackingCardOverlay'
@@ -43,10 +43,11 @@ interface TrackingBoardDrawerProps {
  * mounts it in the same slide as Messages, via useRightPanelSlide). Mirrors Messaging.
  * Desktop: persistent left rail (search + gear + condensed BRN cards grouped by
  * station) and a main pane that always shows the T2T-style grid. A rail card or
- * grid row opens the same TrackingCardOverlay as mobile, centered (placement
- * 'center'): it grows out of the clicked card / row and collapses back into it.
+ * grid row opens the BRN as a PaneCard over the grid pane (the shared card
+ * slot), not TrackingCardOverlay: the overlay's per-frame geometry spring lags
+ * on NIPR desktops. Edit = Back / Save / Close; view = ellipsis + Close.
  * Rail cards right-click / long-press into the same LiftedRowMenu as mobile.
- * Ellipsis + close sit in the card head; Esc / scrim backs out.
+ * Esc backs out (edit → detail → closed).
  * Mobile: header = back · title · [check in + settings] (Messaging), then
  * search + a horizontal-scroll category strip (All / Pending / stations / Complete)
  * over BRN cards; cards swipe (user bindings) / long-press (LiftedRowMenu) /
@@ -124,7 +125,7 @@ export function TrackingBoardDrawer({ isVisible, onClose }: TrackingBoardDrawerP
     // Move to any station in the origin's chain. Moving up an echelon is just a
     // move into a station the parent cluster uses.
     const moveEntry = (entry: TrackingEntry, to: TrackingTarget) =>
-        updateEntry(entry.id, d => moveData(d, to, me, Date.now()))
+        updateEntry(entry.id, d => moveData(d, to, Date.now()))
     // Transit marker: "leaving → destination" (null clears). The patient stays put.
     const transitEntry = (entry: TrackingEntry, to: LinkedFeatureRef | null) =>
         updateEntry(entry.id, d => transitData(d, to, me, Date.now()))
@@ -142,7 +143,8 @@ export function TrackingBoardDrawer({ isVisible, onClose }: TrackingBoardDrawerP
     const openEntry = (e: TrackingEntry, from?: CardOrigin, src: 'card' | 'rail' | 'grid' = 'card') => {
         setOrigin(from ?? null)
         // Grid rows stay visible (a hole in the grid reads worse than the overlap).
-        setExpandedId(from && src !== 'grid' ? e.id : null)
+        // Desktop never hides the rail card: the PaneCard doesn't grow out of it.
+        setExpandedId(isMobile && from && src !== 'grid' ? e.id : null)
         setOriginSrc(src)
         setSelectedId(e.id)
         // One card at a time: a BRN takes the slot from settings / check-in.
@@ -327,16 +329,35 @@ export function TrackingBoardDrawer({ isVisible, onClose }: TrackingBoardDrawerP
 
     // Mobile bypasses BaseDrawer, same as MessagesDrawer: App.tsx owns the
     // horizontal slide-in, which BaseDrawer's vertical drawer model would fight.
-    // BRN detail — the card itself, expanded (card → lifted → overlay). Mobile:
-    // in the card's column; desktop: centered. Edit mode (Calendar idiom): Back
-    // → detail, Save once valid, Close.
+    // Mobile BRN detail — the card itself, expanded (card → lifted → overlay) in
+    // the card's column. Edit mode (Calendar idiom): Back → detail, Save once
+    // valid, Close.
     const cardEntry = selected ?? lastSelected.current
+    // A decoded note (MessageBubble's decode affordance) opens the app-level
+    // ImportedNoteDrawer (z-60), far under this overlay (z 1200+). Rather than
+    // re-stack app surfaces, the card collapses back into its list card while
+    // the note is up and grows out again, from a fresh rest rect, once it closes.
+    // Selection and any edit draft are kept throughout.
+    // `paused` (state, not the store flag) so the fresh origin and the reopen
+    // land in one render: the overlay seeds from `origin` in its open effect.
+    const noteOpen = useNavigationStore(s => !!s.importPreview) && isMobile
+    const [paused, setPaused] = useState(false)
+    useEffect(() => {
+        if (noteOpen) { setPaused(true); return }
+        if (!paused) return
+        if (selected) {
+            const r = measureRest(selected.id)
+            setOrigin(r ? { left: r.left, width: r.width, top: r.top, height: r.height, scale: 1 } : null)
+            if (r && originSrc !== 'grid') setExpandedId(selected.id)
+        }
+        setPaused(false)
+    }, [noteOpen]) // eslint-disable-line react-hooks/exhaustive-deps
     const cardOverlay = (
         <TrackingCardOverlay
             entry={cardEntry}
-            open={!!selected}
+            open={!!selected && !paused}
             origin={origin}
-            placement={isMobile ? 'column' : 'center'}
+            placement="column"
             measureRest={measureRest}
             onClose={() => { if (!busy) clear() }}
             onSettled={() => setExpandedId(null)}
@@ -357,6 +378,32 @@ export function TrackingBoardDrawer({ isVisible, onClose }: TrackingBoardDrawerP
             {/* Child of the overlay so it stacks above it (overlay publishes the z ceiling). */}
             {deleteConfirm}
         </TrackingCardOverlay>
+    )
+
+    // Desktop BRN detail. Esc stays with the drawer's useEscBackout (edit → detail
+    // before close), so the card's own Esc is off.
+    const paneCard = (
+        <PaneCard
+            isOpen={!!selected}
+            onClose={() => { if (!busy) clear() }}
+            title={selected ? [selected.brnLabel, originUic(scope.net.clusters, selected)].filter(Boolean).join(' · ') : ''}
+            closeOnEsc={false}
+            loading={busy}
+            onBack={editing && !busy ? cancelEdit : undefined}
+            rightContent={!editing && !busy && selected ? <HeaderPill>{moreButton}</HeaderPill> : undefined}
+            actions={editing && canSave ? <PillButton icon={Check} iconSize={18} accent="success" onClick={saveEdit} label="Save" /> : undefined}
+        >
+            {selected && (
+                <div className="px-4 pt-1 pb-5">
+                    {editing ? editForm : (
+                        <>
+                            <div className="mb-3"><BrnDetailLines entry={selected} /></div>
+                            <TrackingBoardDetail entry={selected} />
+                        </>
+                    )}
+                </div>
+            )}
+        </PaneCard>
     )
 
     if (isMobile) {
@@ -451,13 +498,14 @@ export function TrackingBoardDrawer({ isVisible, onClose }: TrackingBoardDrawerP
                     {/* Main pane — the grid, always; a row opens the centered card overlay */}
                     <div className="relative flex-1 min-w-0 bg-themewhite">
                         <TrackingGrid entries={entries} now={now} activeId={activeId} onSelect={(e, from) => openEntry(e, from, 'grid')} />
+                        {paneCard}
                         {checkInSurface}
                         {settingsSurface}
-                            </div>
+                    </div>
                 </div>
             </div>
-            {cardOverlay}
             {moreMenu}
+            {deleteConfirm}
         </BaseDrawer>
         </TrackingBoardScope>
     )

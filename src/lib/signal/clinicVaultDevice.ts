@@ -70,6 +70,7 @@ import type { LocalPropertyItem, LocalPropertyLocation, LocalCustodyEntry, Local
 import type { PublicKeyBundle, InitialMessage, EncryptedMessage, RatchetState } from './types'
 import type { SignalMessageRow } from './transportTypes'
 import type { SealedEnvelope } from './sealedSender'
+import type { Database } from '../../Types/database.types.generated'
 
 const logger = createLogger('ClinicVault')
 
@@ -300,6 +301,25 @@ async function importVaultKeys(blob: VaultBlobPlaintext): Promise<VaultPrivateKe
 
 // ---- Public API ----
 
+export type ClinicVaultRow = Database['public']['Tables']['vault_device_keys']['Row']
+
+/**
+ * One read of a clinic's vault row, shared by the login provisioning steps
+ * (derive key, ensure exists, drain), which each read it separately before.
+ * err = the read failed, which is NOT "absent". Callers must not pass anything
+ * down on err, so each step does its own read and keeps its own fail-closed
+ * handling. ok(null) = definitely absent.
+ */
+export async function readClinicVaultRow(clinicId: string): Promise<Result<ClinicVaultRow | null>> {
+  const { data, error } = await supabase
+    .from('vault_device_keys')
+    .select('*')
+    .eq('user_id', clinicId)
+    .maybeSingle()
+  if (error) return err(error.message)
+  return ok(data)
+}
+
 /**
  * Derive and cache the clinic vault wrapping key.
  * Must be called after login before processClinicVaultMessages.
@@ -307,12 +327,14 @@ async function importVaultKeys(blob: VaultBlobPlaintext): Promise<VaultPrivateKe
 export async function deriveAndCacheClinicVaultKey(
   clinicId: string,
   encryptionKey: string,
+  /** From a successful readClinicVaultRow; undefined = read it here. */
+  knownRow?: ClinicVaultRow | null,
 ): Promise<void> {
-  const { data } = await supabase
+  const data = knownRow !== undefined ? knownRow : (await supabase
     .from('vault_device_keys')
     .select('salt, kdf_iterations')
     .eq('user_id', clinicId)
-    .maybeSingle()
+    .maybeSingle()).data
 
   if (!data) return // Vault doesn't exist yet
 
@@ -448,12 +470,17 @@ export async function provisionClinicVaultAsAdmin(
 export async function ensureClinicVaultExists(
   clinicId: string,
   encryptionKey: string,
+  /** From a SUCCESSFUL readClinicVaultRow only (null = confirmed absent);
+   *  undefined = check here. Never pass a value derived from a failed read. */
+  knownRow?: ClinicVaultRow | null,
 ): Promise<Result<void>> {
-  const { data, error: existsError } = await supabase
-    .from('vault_device_keys')
-    .select('user_id')
-    .eq('user_id', clinicId)
-    .maybeSingle()
+  const { data, error: existsError } = knownRow !== undefined
+    ? { data: knownRow, error: null }
+    : await supabase
+        .from('vault_device_keys')
+        .select('user_id')
+        .eq('user_id', clinicId)
+        .maybeSingle()
 
   // FAIL CLOSED. A read error (transient network, RLS visibility blip) makes
   // maybeSingle() return null — which is NOT proof the vault is absent. Treating
@@ -544,6 +571,9 @@ export interface ClinicDrainOptions {
    * prune. A partial/unhealthy decrypt poisons it instead (fail-closed).
    */
   publishReconcile?: boolean
+  /** The vault row as read at the start of provisioning. Only pass a row that
+   *  exists; if ensureClinicVaultExists just created it, let the drain read it. */
+  vaultRow?: ClinicVaultRow
 }
 
 // ---- Clinic Snapshot (cached resolved state + tail) ----
@@ -690,12 +720,12 @@ export async function processClinicVaultMessages(
   await initOverlayTombstones()
   await initPropertyTombstones()
 
-  // 1. Fetch vault row
-  const { data: vaultRow } = await supabase
+  // 1. Fetch vault row (unless provisioning already did)
+  const vaultRow = opts.vaultRow ?? (await supabase
     .from('vault_device_keys')
     .select('*')
     .eq('user_id', clinicId)
-    .single()
+    .single()).data
 
   if (!vaultRow) {
     logger.info('No clinic vault found — skipping')

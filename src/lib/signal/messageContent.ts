@@ -42,8 +42,10 @@ export interface ImageContent {
   mime: string
   /** Base64-encoded AES-256-GCM key for decrypting the attachment blob. */
   key: string
-  /** Storage path in the message-attachments bucket. */
+  /** R2 object key (store 'r2') or legacy message-attachments path. */
   path: string
+  /** 'r2' for Cloudflare R2; absent = legacy Supabase bucket. */
+  store?: 'r2'
   /** Image width (after resize). */
   width: number
   /** Image height (after resize). */
@@ -58,8 +60,28 @@ export interface VoiceContent {
   mime: string
   key: string
   path: string
+  /** 'r2' for Cloudflare R2; absent = legacy Supabase bucket. */
+  store?: 'r2'
   duration: number
   waveform: number[]
+  replyTo?: ReplyTo
+}
+
+/** Arbitrary file sent byte-for-byte (any MIME). Always R2; there is no legacy file path. */
+export interface FileContent {
+  type: 'file'
+  store: 'r2'
+  /** R2 object key m/<hex>. */
+  path: string
+  /** Base64 AES-256-GCM key, carried only inside the E2E envelope. */
+  key: string
+  mime: string
+  /** Original filename, shown to the recipient. */
+  name: string
+  /** Plaintext byte length. */
+  size: number
+  /** Tiny data-URL preview for images / first PDF page (optional). */
+  thumbnail?: string
   replyTo?: ReplyTo
 }
 
@@ -256,8 +278,10 @@ export interface IntakeRequestContent {
 export interface OncallVoicemailData {
   /** Base64 AES-256-GCM key for the audio blob (carried inside the E2E envelope). */
   key: string
-  /** Storage path in the message-attachments bucket (oncall/<clinic_id>/<uuid>.enc). */
+  /** R2 key v/<hex> (store 'r2') or legacy message-attachments path oncall/<clinic_id>/<uuid>.enc. */
   path: string
+  /** 'r2' for Cloudflare R2; absent = legacy Supabase bucket. */
+  store?: 'r2'
   mime: string
   duration: number
   waveform: number[]
@@ -322,8 +346,10 @@ export interface SharedBundleContent {
   /** Which kind of object the bundle holds. ('note-blocks' = text templates /
    *  order sets / plan tags — config blocks, no vault object, no PHI.) */
   bundleKind: 'calendar-event' | 'map-overlay' | 'property-item' | 'note-blocks'
-  /** Storage path of the encrypted bundle blob in message-attachments. */
+  /** R2 object key (store 'r2') or legacy message-attachments path of the bundle blob. */
   path: string
+  /** 'r2' for Cloudflare R2; absent = legacy Supabase bucket. */
+  store?: 'r2'
   /** Base64 AES-256-GCM key for the bundle blob (carried inside the E2E msg). */
   key: string
   /** sha-256 of the canonical bundle JSON — integrity + ingest idempotency. */
@@ -540,7 +566,7 @@ export interface ReactionContent {
   remove?: boolean
 }
 
-export type MessageContent = TextContent | ImageContent | VoiceContent | CalendarEventContent | MapOverlayContent | MapFeatureContent | PropertyEventContent | ReadinessSummaryContent | SharedRefContent | SharedBundleContent | IntakeRequestContent | OncallCallContent | OutsideMessageContent | OutsideSessionContent | OutsideSessionUpdate | OutsideEntityContent | OutsideEntityReplyContent | ReactionContent
+export type MessageContent = TextContent | ImageContent | VoiceContent | FileContent | CalendarEventContent | MapOverlayContent | MapFeatureContent | PropertyEventContent | ReadinessSummaryContent | SharedRefContent | SharedBundleContent | IntakeRequestContent | OncallCallContent | OutsideMessageContent | OutsideSessionContent | OutsideSessionUpdate | OutsideEntityContent | OutsideEntityReplyContent | ReactionContent
 
 // ---- Compact wire shapes ----
 
@@ -564,6 +590,7 @@ interface WireImage {
   w: number
   h: number
   thumb?: string
+  st?: 'r2'
   rt?: WireReplyTo
 }
 
@@ -574,6 +601,22 @@ interface WireVoice {
   path: string
   dur: number
   wf: number[]
+  st?: 'r2'
+  rt?: WireReplyTo
+}
+
+/** Arbitrary file. An old client has no 'f' branch and shows the raw JSON as text
+ *  (parse falls through to the plain-text fallback); it neither crashes nor drops it. */
+interface WireFile {
+  t: 'f'
+  p: string
+  key: string
+  mime: string
+  /** filename */
+  n: string
+  /** plaintext size in bytes */
+  sz: number
+  thumb?: string
   rt?: WireReplyTo
 }
 
@@ -642,6 +685,7 @@ interface WireSharedBundle {
   s?: string
   /** source cluster label */
   sc: string
+  st?: 'r2'
 }
 
 /** Outside event-intake request, authored by the edge fn inside the Signal envelope. */
@@ -697,6 +741,7 @@ interface WireOncallCall {
     mime: string
     dur: number
     wf: number[]
+    st?: 'r2'
   }
 }
 
@@ -728,7 +773,7 @@ interface WireOutsideEntityReply {
   ts: string
 }
 
-type WireContent = WireText | WireImage | WireVoice | WireCalendarEvent | WireMapOverlay | WireMapFeature | WirePropertyEvent | WireReadinessSummary | WireSharedRef | WireSharedBundle | WireIntake | WireOutsideMessage | WireOutsideEntityReply | WireOncallCall | WireReaction
+type WireContent = WireText | WireImage | WireVoice | WireFile | WireCalendarEvent | WireMapOverlay | WireMapFeature | WirePropertyEvent | WireReadinessSummary | WireSharedRef | WireSharedBundle | WireIntake | WireOutsideMessage | WireOutsideEntityReply | WireOncallCall | WireReaction
 
 // ---- Serialization ----
 
@@ -754,6 +799,21 @@ export function serializeContent(content: MessageContent): string {
       path: content.path,
       w: content.width,
       h: content.height,
+    }
+    if (content.thumbnail) wire.thumb = content.thumbnail
+    if (content.store) wire.st = content.store
+    if (content.replyTo) wire.rt = toWireReplyTo(content.replyTo)
+    return JSON.stringify(wire)
+  }
+
+  if (content.type === 'file') {
+    const wire: WireFile = {
+      t: 'f',
+      p: content.path,
+      key: content.key,
+      mime: content.mime,
+      n: content.name,
+      sz: content.size,
     }
     if (content.thumbnail) wire.thumb = content.thumbnail
     if (content.replyTo) wire.rt = toWireReplyTo(content.replyTo)
@@ -833,6 +893,7 @@ export function serializeContent(content: MessageContent): string {
       sc: content.sourceCluster,
     }
     if (content.subLabel) wire.s = content.subLabel
+    if (content.store) wire.st = content.store
     return JSON.stringify(wire)
   }
 
@@ -916,6 +977,7 @@ export function serializeContent(content: MessageContent): string {
         dur: content.voicemail.duration,
         wf: content.voicemail.waveform,
       }
+      if (content.voicemail.store) wire.vm.st = content.voicemail.store
     }
     return JSON.stringify(wire)
   }
@@ -928,6 +990,7 @@ export function serializeContent(content: MessageContent): string {
     dur: content.duration,
     wf: content.waveform,
   }
+  if (content.store) wire.st = content.store
   if (content.replyTo) wire.rt = toWireReplyTo(content.replyTo)
   return JSON.stringify(wire)
 }
@@ -974,6 +1037,25 @@ export function parseMessageContent(raw: string): ParsedContent {
           width: wire.w,
           height: wire.h,
           thumbnail: wire.thumb,
+          ...(wire.st === 'r2' && { store: 'r2' as const }),
+          ...(replyTo && { replyTo }),
+        },
+        replyTo,
+      }
+    }
+
+    if (wire.t === 'f') {
+      return {
+        plaintext: `File: ${wire.n}`,
+        content: {
+          type: 'file',
+          store: 'r2',
+          path: wire.p,
+          key: wire.key,
+          mime: wire.mime,
+          name: wire.n,
+          size: wire.sz,
+          ...(wire.thumb && { thumbnail: wire.thumb }),
           ...(replyTo && { replyTo }),
         },
         replyTo,
@@ -990,6 +1072,7 @@ export function parseMessageContent(raw: string): ParsedContent {
           path: wire.path,
           duration: wire.dur,
           waveform: wire.wf,
+          ...(wire.st === 'r2' && { store: 'r2' as const }),
           ...(replyTo && { replyTo }),
         },
         replyTo,
@@ -1091,6 +1174,7 @@ export function parseMessageContent(raw: string): ParsedContent {
           label: wire.l,
           ...(wire.s && { subLabel: wire.s }),
           sourceCluster: wire.sc,
+          ...(wire.st === 'r2' && { store: 'r2' as const }),
         } satisfies SharedBundleContent,
       }
     }
@@ -1169,6 +1253,7 @@ export function parseMessageContent(raw: string): ParsedContent {
                 mime: wire.vm.mime,
                 duration: wire.vm.dur,
                 waveform: wire.vm.wf,
+                ...(wire.vm.st === 'r2' && { store: 'r2' as const }),
               },
             }
           : {}),

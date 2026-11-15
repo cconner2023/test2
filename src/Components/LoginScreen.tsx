@@ -204,16 +204,20 @@ export function LoginScreen() {
     <div className="fixed inset-0 z-30 bg-themewhite dark:bg-themewhite3 overflow-y-auto lg:overflow-hidden lg:flex"
       style={{ paddingTop: 'var(--sat)', paddingBottom: 'var(--sab)' }}>
 
-      {/* Desktop brand pane. Branding moves here so the form pane carries only the
-          flow; it stays fixed while the form pane scrolls (request view is tall). */}
-      <aside className="relative overflow-hidden hidden lg:flex lg:w-[45%] shrink-0 flex-col justify-between gap-10 px-12 py-10 bg-themewhite2 dark:bg-themewhite border-r border-primary/6">
+      {/* Desktop brand lockup, pinned to the screen's top-left corner rather than the
+          brand pane's padding. Absolute top ignores the root's safe-area padding, so
+          --sat is added back by hand. */}
+      <header className="hidden lg:flex absolute z-10 left-4 top-[calc(var(--sat)+1rem)] items-center gap-3">
+        <BrandMark className="shrink-0 w-10 h-10" />
+        <p className="text-[10pt] text-secondary leading-snug max-w-[220px]">
+          Medical Knowledge Repository and Operational Network
+        </p>
+      </header>
+
+      {/* Desktop brand pane: art and disclaimer only; it stays fixed while the
+          form pane scrolls (request view is tall). */}
+      <aside className="relative overflow-hidden hidden lg:flex lg:w-[45%] shrink-0 flex-col justify-end px-12 py-10 bg-themewhite2 dark:bg-themewhite border-r border-primary/6">
         <LoginArt className="absolute inset-0 w-full h-full pointer-events-none" />
-        <div className="relative flex items-center gap-3">
-          <BrandMark className="shrink-0 w-10 h-10" />
-          <p className="text-[10pt] text-secondary leading-snug max-w-[220px]">
-            Medical Knowledge Repository and Operational Network
-          </p>
-        </div>
         <Disclaimer className="relative max-w-sm text-[9pt] text-tertiary" />
       </aside>
 
@@ -221,7 +225,7 @@ export function LoginScreen() {
           Background matches the "or" divider's label fill, so keep them in step. */}
       <div className="min-h-full flex flex-col items-center justify-center py-8 px-4 lg:justify-start lg:flex-1 lg:min-w-0 lg:min-h-0 lg:h-full lg:overflow-y-auto lg:py-12 lg:px-12">
         <div className="w-full max-w-sm lg:max-w-[400px] lg:my-auto">
-          {/* Branding (mobile only; desktop shows it in the brand pane) */}
+          {/* Branding (mobile only; desktop shows the top-left lockup) */}
           <div className={`text-center lg:hidden ${view === 'request' ? 'mb-6' : 'mb-8'}`}>
             <BrandMark className={`mx-auto mb-2 transition-all duration-300 ease-out ${view === 'request' ? 'w-10 h-10' : 'w-17 h-17'}`} />
             <h1 className="text-xl font-semibold tracking-[2px] text-themeblue2 dark:text-themeblue1">

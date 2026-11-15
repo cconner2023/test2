@@ -32,6 +32,7 @@ import { Sheet } from '@/Components/primitives/Sheet'
 import { useStack } from '@/Components/primitives/useStack'
 import { LayeredStackBody } from '@/Components/primitives/LayeredStackBody'
 import { StackNavContext } from '@/Components/stackNav'
+import { createSheetMorphStore, SheetMorphSlot } from '@/Components/primitives/sheetMorph'
 import { LoadingOverlay } from '@/Components/primitives/LoadingOverlay'
 import { useMinLoadTime } from '../../Hooks/useMinLoadTime'
 import { useClinicName } from '../../Hooks/useClinicNameResolver'
@@ -398,6 +399,11 @@ export const PropertyPanel = memo(function PropertyPanel({
   const [cardMorphEl, setCardMorphEl] = useState<HTMLDivElement | null>(null)
   const [cardMorphActive, setCardMorphActive] = useState(false)
   const cardHost = useMemo(() => ({ el: cardMorphEl, onActiveChange: setCardMorphActive }), [cardMorphEl])
+  // Mobile: the same sheets morph the property Sheet in place rather than floating an
+  // overlay above it.
+  const [sheetMorph] = useState(createSheetMorphStore)
+  const [sheetMorphActive, setSheetMorphActive] = useState(false)
+  const sheetHost = useMemo(() => ({ el: null, onActiveChange: setSheetMorphActive, sheet: sheetMorph }), [sheetMorph])
   // Set when we programmatically navigate the canvas to an item's zone (item
   // select), so the resulting onSelectZone doesn't close the item we just opened.
   const pendingItemZoneRef = useRef<string | null>(null)
@@ -1183,7 +1189,7 @@ export const PropertyPanel = memo(function PropertyPanel({
         items={store.items}
         locations={visibleLocations}
         containerRef={panelRef}
-        cardHost={isMobile ? undefined : cardHost}
+        cardHost={isMobile ? sheetHost : cardHost}
         onView={handleSelectItem}
         onEdit={handleEditItemRow}
         onDelete={onDeleteItem ? (it) => setPendingDeleteItem(it) : undefined}
@@ -1204,7 +1210,7 @@ export const PropertyPanel = memo(function PropertyPanel({
       items={store.items}
       locations={visibleLocations}
       containerRef={panelRef}
-      cardHost={isMobile ? undefined : cardHost}
+      cardHost={isMobile ? sheetHost : cardHost}
       onEdit={handleEditLocation}
       onNewItem={(loc) => handleAddItemAtLocation(loc.id)}
       onNewArea={(loc) => handleAddChildLocation(loc.id)}
@@ -1318,13 +1324,13 @@ export const PropertyPanel = memo(function PropertyPanel({
     </StackNavContext.Provider>
   )
 
-  // The card sits over the live canvas with no scrim, so a morphed sheet would keep
-  // showing its old subject after a new selection. Close it when the selection moves.
+  // The card (desktop) and the mobile sheet both sit over the live canvas with no scrim,
+  // so a morphed sheet would keep showing its old subject after a new selection. Close it
+  // when the selection moves.
   useEffect(() => {
-    if (isMobile) return
     itemActionRef.current?.closeCardSheets()
     locationActionRef.current?.closeCardSheets()
-  }, [isMobile, selectedLocationId, selectedItem?.id])
+  }, [isMobile, selectedLocationId, selectedItem?.id, mobileItem?.id])
 
   // Desktop detail card open state — any detail/editor/book view is up.
   const detailCardOpen = view === 'property-form' || view === 'property-detail' || !!editLocationTarget || !!selectedLocation || signOutOpen || importOpen || shortageOpen || authorizedOpen || !!da2062Preview || !!selectedReceipt || !!selectedRecord
@@ -1934,10 +1940,13 @@ export const PropertyPanel = memo(function PropertyPanel({
           nest as leaf steps whose back = close. One sheet, no separate tree sheet. */}
       <Sheet
         loading={formSaving}
-        isOpen={(showLocations || detailOpen) && !drawingZone}
-        onClose={() => { closeMobileForm(); setMobileItem(null); closeLocationDetail(); closeRosterDetail(); setSignOutOpen(false); setImportOpen(false); setShortageOpen(false); setAuthorizedOpen(false); clearDA2062Preview(); setShowLocations(false) }}
+        isOpen={((showLocations || detailOpen) && !drawingZone) || sheetMorphActive}
+        // X dismisses the whole sheet at any depth, morph included (Back steps out of it).
+        onClose={() => { sheetMorph.get()?.onClose(); closeMobileForm(); setMobileItem(null); closeLocationDetail(); closeRosterDetail(); setSignOutOpen(false); setImportOpen(false); setShortageOpen(false); setAuthorizedOpen(false); clearDA2062Preview(); setShowLocations(false) }}
         title={
-          formDrilled
+          sheetMorphActive
+            ? undefined
+            : formDrilled
             ? formStack.title
             : treeStep
             ? 'Locations'
@@ -1962,6 +1971,7 @@ export const PropertyPanel = memo(function PropertyPanel({
               : mobileItem ? mobileItem.name : (selectedLocation?.name ?? '')
         }
         titleNode={
+          sheetMorphActive ? <SheetMorphSlot store={sheetMorph} part="title" /> :
           formDrilled ? undefined :
           selectedReceipt ? (
             <div className="min-w-0">
@@ -2007,7 +2017,7 @@ export const PropertyPanel = memo(function PropertyPanel({
         // Authorized morph mirrors the standalone item surfaces: its edit/add FORM caps
         // at 60 (like mobileForm) and its read-only VIEW at 50 (like the item detail); only
         // the authorized LIST itself is a big task surface at 85.
-        maxHeight={formDrilled ? 85 : treeStep ? 70 : da2062Editing ? 60 : authorizedOpen ? (authForm ? 60 : authView ? 50 : 60) : shortageOpen ? 60 : da2062Preview || signOutOpen || importOpen ? 85 : mobileForm ? 60 : 50}
+        maxHeight={sheetMorphActive ? 60 : formDrilled ? 85 : treeStep ? 70 : da2062Editing ? 60 : authorizedOpen ? (authForm ? 60 : authView ? 50 : 60) : shortageOpen ? 60 : da2062Preview || signOutOpen || importOpen ? 85 : mobileForm ? 60 : 50}
         // Detail/form are non-blocking like the map's mobile feature editor: the
         // canvas stays interactive and the body swaps detail↔form in the SAME sheet.
         // Sign-out is a focused task, so dim the canvas (non-dismissing) to block
@@ -2019,9 +2029,11 @@ export const PropertyPanel = memo(function PropertyPanel({
         zIndex={1200}
         // While a picker is drilled the Back chevron owns reversal; a stray drag must
         // not dismiss the whole sheet mid-selection (matches SheetStack).
-        draggable={!formDrilled}
+        draggable={!formDrilled && !sheetMorphActive}
         leftContent={
-          formDrilled ? (
+          sheetMorphActive ? (
+            <SheetMorphSlot store={sheetMorph} part="back" />
+          ) : formDrilled ? (
             <button onClick={formStack.onBack} aria-label="Back" className="w-9 h-9 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all">
               <ChevronLeft size={20} />
             </button>
@@ -2083,8 +2095,11 @@ export const PropertyPanel = memo(function PropertyPanel({
             </HeaderPill>
           ) : undefined
         }
+        rightContent={sheetMorphActive ? <SheetMorphSlot store={sheetMorph} part="right" /> : undefined}
         actions={
-          formDrilled ? (
+          sheetMorphActive ? (
+            <SheetMorphSlot store={sheetMorph} part="actions" />
+          ) : formDrilled ? (
             formStack.rightFooter ?? undefined
           ) : da2062Editing ? (
             <PillButton icon={Check} iconSize={18} accent="success" onClick={() => da2062EditorRef.current?.submit()} label="Save" />
@@ -2131,6 +2146,8 @@ export const PropertyPanel = memo(function PropertyPanel({
           ) : undefined
         }
       >
+        {/* Hidden, not unmounted, under a morph so the detail keeps its state for Back. */}
+        <div className={sheetMorphActive ? 'hidden' : 'contents'}>
         {treeStep ? (
           // Step 0 — the location tree. Selecting a zone/item morphs THIS sheet into
           // that node's detail; the breadcrumb walks back up to here. The filter +
@@ -2242,6 +2259,8 @@ export const PropertyPanel = memo(function PropertyPanel({
             onOpenLocationMenu={openLocationMenu}
           />
         ) : null}
+        </div>
+        {sheetMorphActive && <SheetMorphSlot store={sheetMorph} part="body" />}
       </Sheet>
 
       {locationActionMenuEl}

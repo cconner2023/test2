@@ -40,6 +40,11 @@ let _owner: { userId: string; deviceId: string } | null = null
 let _cursor: VaultCursor | null = null
 let _flushTimer: ReturnType<typeof setTimeout> | null = null
 let _dirty = false
+/** The server had no cursor row for _owner. Only this device writes that row
+ *  (advance_vault_cursor), and it advances _cursor locally first, so the answer
+ *  can't change underneath us; remembering it stops a cursorless device (empty
+ *  vault, no backup watermark) re-querying vault_cursors on every drain. */
+let _serverEmpty = false
 
 const cursorKey = (userId: string, deviceId: string) => `vault_cursor:${userId}:${deviceId}`
 const processedKey = (userId: string, deviceId: string) => `vault_processed:${userId}:${deviceId}`
@@ -69,6 +74,7 @@ export async function loadVaultCursor(userId: string, deviceId: string): Promise
     _owner = { userId, deviceId }
     _cursor = null
     _dirty = false
+    _serverEmpty = false
   }
   if (_cursor) return _cursor
 
@@ -77,6 +83,8 @@ export async function loadVaultCursor(userId: string, deviceId: string): Promise
     _cursor = local
     return local
   }
+
+  if (_serverEmpty) return null
 
   const { data, error } = await supabase
     .from('vault_cursors')
@@ -89,7 +97,10 @@ export async function loadVaultCursor(userId: string, deviceId: string): Promise
     logger.warn('loadVaultCursor failed:', error.message)
     throw new Error(`loadVaultCursor failed: ${error.message}`)
   }
-  if (!data) return null
+  if (!data) {
+    _serverEmpty = true
+    return null
+  }
   _cursor = { createdAt: data.last_created_at, id: data.last_id }
   writeLocal(userId, deviceId, _cursor)
   return _cursor
@@ -169,4 +180,5 @@ export function resetVaultCursor(): void {
   _owner = null
   _cursor = null
   _dirty = false
+  _serverEmpty = false
 }

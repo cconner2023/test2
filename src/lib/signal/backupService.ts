@@ -679,28 +679,27 @@ export async function restoreBackup(userId: string): Promise<void> {
     // tombstones (restored first, below) keep the fold delete-correct: an older
     // snapshot can never resurrect a message tombstoned in a newer one. After a
     // fold the device's IDB is rich again, so its next backup self-heals.
-    type SnapRow = { snapshot_id: string; salt: string; ciphertext: string; created_at: string; vault_watermark: string | null }
+    type SnapRow = { snapshot_id: string; salt: string; ciphertext: string; created_at: string; vault_watermark: string | null; message_count: number | null }
 
-    const { data: recentSnaps, error } = await supabase
+    // One read for both sets. trim_all_signal_backups keeps the newest
+    // BACKUP_RETAIN_COUNT plus the high-water row, so a user has at most
+    // BACKUP_RETAIN_COUNT + 1 rows and this window holds all of them (the limit
+    // only bounds the download if the trim cron ever stops). The high-water
+    // snapshot (most messages) may be older than the recent window.
+    const { data: allSnaps, error } = await supabase
       .from('signal_backups')
-      .select('snapshot_id, salt, ciphertext, created_at, vault_watermark')
+      .select('snapshot_id, salt, ciphertext, created_at, vault_watermark, message_count')
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
-      .limit(BACKUP_RETAIN_COUNT)
+      .limit(BACKUP_RETAIN_COUNT * 3)
 
-    // High-water snapshot (most messages) — may be older than the recent window.
-    // Best-effort: a failure here just falls back to the recent set.
-    const { data: richSnaps } = await supabase
-      .from('signal_backups')
-      .select('snapshot_id, salt, ciphertext, created_at, vault_watermark')
-      .eq('user_id', userId)
-      .order('message_count', { ascending: false })
-      .limit(1)
-
-    if (error || !recentSnaps || recentSnaps.length === 0) {
+    if (error || !allSnaps || allSnaps.length === 0) {
       logger.info('No backup found for user')
       return
     }
+    const recentSnaps = allSnaps.slice(0, BACKUP_RETAIN_COUNT)
+    const richSnaps = [allSnaps.reduce((best, s) =>
+      (s.message_count ?? 0) > (best.message_count ?? 0) ? s : best)]
 
     // Merge recent + high-water, newest-first, de-duped by snapshot_id.
     const snapshots: SnapRow[] = []

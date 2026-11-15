@@ -56,7 +56,9 @@ export async function startRecording(): Promise<RecordingController> {
   const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
 
   const mime = selectMimeType()
-  const recorder = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined)
+  // 24 kbps keeps a 120 s note near 360 KB on R2. Browser defaults run 64-128 kbps;
+  // iOS Safari's audio/mp4 (AAC) may ignore the hint and fall back to its own default.
+  const recorder = new MediaRecorder(stream, { ...(mime ? { mimeType: mime } : {}), audioBitsPerSecond: 24000 })
 
   const audioCtx = new AudioContext()
   const source = audioCtx.createMediaStreamSource(stream)

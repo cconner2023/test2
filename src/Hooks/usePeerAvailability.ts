@@ -3,7 +3,10 @@
  *
  * Offline-first: hydrates from localStorage cache immediately, then fetches
  * from the server in the background and silently updates. Progressive rechecks
- * at 5s and 15s catch peers whose vaults were still being created.
+ * at 5s and 15s catch peers whose vaults were still being created. The same peer
+ * set is re-checked at most every FRESH_MS (the cache already holds the answer);
+ * the MessagesPanel remounts and re-renders often enough that this was ~3
+ * requests per open.
  */
 
 import { useState, useEffect, useRef } from 'react'
@@ -13,6 +16,9 @@ export type UnavailableReason = 'no_device' | 'no_keys'
 
 const RECHECK_DELAYS_MS = [5_000, 15_000]
 const CACHE_KEY = 'adtmc_peer_availability'
+const FRESH_MS = 10 * 60 * 1000
+/** Sorted peer-set key -> last server check (ms). Memory-only: a reload re-checks. */
+const checkedAt = new Map<string, number>()
 
 // ---- Cache helpers ----
 
@@ -78,13 +84,14 @@ function hydrateFromCache(userIds: string[]): Map<string, UnavailableReason> {
 
 async function fetchAvailability(
   userIds: string[]
-): Promise<Map<string, UnavailableReason>> {
+): Promise<Map<string, UnavailableReason> | null> {
   const { data, error } = await supabase.rpc('check_users_messageable', {
     p_user_ids: userIds,
   })
 
+  // null on failure: an empty map would read as "everyone available".
+  if (error || !data) return null
   const map = new Map<string, UnavailableReason>()
-  if (error || !data) return map
 
   for (const row of data as { user_id: string; has_devices: boolean; has_keys: boolean }[]) {
     if (!row.has_devices) {
@@ -117,7 +124,12 @@ export function usePeerAvailability(medicIds: string[]): Map<string, Unavailable
   }
 
   useEffect(() => {
+    // Keyed on `key`, not the medicIds array: callers rebuild the array every
+    // render, which re-ran this effect (and the RPC) on unrelated state changes.
+    const sorted = key ? key.split(',') : []
     if (sorted.length === 0) return
+    if (Date.now() - (checkedAt.get(key) ?? 0) < FRESH_MS) return
+    checkedAt.set(key, Date.now())
 
     // Background server fetch + silent update
     let cancelled = false
@@ -125,14 +137,16 @@ export function usePeerAvailability(medicIds: string[]): Map<string, Unavailable
 
     async function refresh() {
       const serverMap = await fetchAvailability(sorted)
-      if (cancelled) return
-
-      // Persist to cache
+      if (!serverMap) {
+        checkedAt.delete(key)
+        return
+      }
+      // Persist before the cancel check: the FRESH_MS memo skips the next mount's
+      // fetch, so that mount must find this answer in the cache.
       writeCache(serverMap)
-
-      // Evict peers that are now available
       const nowAvailable = sorted.filter(id => !serverMap.has(id))
       if (nowAvailable.length > 0) evictFromCache(nowAvailable)
+      if (cancelled) return
 
       // Silent update — only set state if data actually changed
       setUnavailableMap(prev => {
@@ -154,7 +168,7 @@ export function usePeerAvailability(medicIds: string[]): Map<string, Unavailable
             if (stillUnavailable.length === 0) return
 
             const refreshed = await fetchAvailability(stillUnavailable)
-            if (cancelled) return
+            if (cancelled || !refreshed) return
 
             if (refreshed.size < currentMap.size) {
               currentMap = refreshed
@@ -174,7 +188,7 @@ export function usePeerAvailability(medicIds: string[]): Map<string, Unavailable
       cancelled = true
       for (const timer of timers) clearTimeout(timer)
     }
-  }, [medicIds])
+  }, [key])
 
   return unavailableMap
 }

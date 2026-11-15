@@ -75,8 +75,8 @@ export type AuditEventType =
   //    · mileage/fuelLevel — vehicle intake readings.
   //    · operator (soldier from the clinic roster who performed it) + mechanic
   //      (optional free-text name of who serviced it). No PHI (operational names).
-  //    · doc = { path, key, mime?, name? } — an attached 5988E worksheet, encrypted
-  //      client-side into the message-attachments bucket (random AES key); the
+  //    · doc = { path, key, store?, mime?, name? } — an attached 5988E worksheet, encrypted
+  //      client-side to R2 p/ (store 'r2') or the legacy bucket (random AES key); the
   //      decryption key rides inside this (clinic-key-encrypted) payload, so the
   //      server never sees the file plaintext.
   //    · faultsOpened = [{ id, description }] — faults FOUND this check (id is a

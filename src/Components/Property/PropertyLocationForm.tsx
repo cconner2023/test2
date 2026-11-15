@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useEffect, useRef, forwardRef, useImperativeHandle } from 'react'
+import { usePropertyPhotoUrl, commitPropertyPhoto, removePropertyPhoto } from '../../lib/propertyPhotoService'
 import { Paperclip } from 'lucide-react'
 import { TextInput, PickerInput } from '@/Components/primitives/FormInputs'
 import { usePropertyStore } from '../../stores/usePropertyStore'
@@ -124,7 +125,12 @@ export const PropertyLocationForm = forwardRef<PropertyLocationFormHandle, Prope
   const [isSaving, setIsSaving] = useState(false)
   // Zone photo — the map-tile background. Staged locally (raw resize, NO crop) and
   // committed on Save; create seeds null. resizeImage preserves aspect ratio.
+  // photoData is the preview; the row's own photo (R2 ref or inline) seeds it, and it is
+  // only written back when touched, so an unchanged R2 photo is never re-uploaded.
+  const existingPhotoUrl = usePropertyPhotoUrl(editingLocation)
   const [photoData, setPhotoData] = useState<string | null>(editingLocation?.photo_data ?? null)
+  const [photoTouched, setPhotoTouched] = useState(false)
+  useEffect(() => { if (!photoTouched && existingPhotoUrl) setPhotoData(existingPhotoUrl) }, [existingPhotoUrl, photoTouched])
   const photoInputRef = useRef<HTMLInputElement>(null)
   const handlePhotoPick = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -132,6 +138,7 @@ export const PropertyLocationForm = forwardRef<PropertyLocationFormHandle, Prope
       try {
         const { resizeImage } = await import('../../Utilities/imageUtils')
         setPhotoData(await resizeImage(file, 800, 0.7))
+        setPhotoTouched(true)
       } catch { /* non-fatal */ }
     }
     e.target.value = ''
@@ -263,11 +270,18 @@ export const PropertyLocationForm = forwardRef<PropertyLocationFormHandle, Prope
     setIsSaving(true)
     try {
       if (isEdit && editingLocation) {
+        // Untouched legacy inline photo: move it to R2 on this edit (lazy backfill).
+        const photoPatch = !photoTouched
+          ? (editingLocation.photo_data && !editingLocation.photo_ref
+              ? await commitPropertyPhoto(editingLocation.photo_data, 'property_locations')
+              : {})
+          : photoData ? await commitPropertyPhoto(photoData, 'property_locations', editingLocation.photo_ref)
+          : removePropertyPhoto(editingLocation.photo_ref)
         await store.editLocation(editingLocation.id, {
           name: trimmed,
           parent_id: parentId || null,
           ...(isLevel ? {} : { kind }),
-          photo_data: photoData,
+          ...photoPatch,
         })
         await syncShadow(editingLocation.id, trimmed)
         onClose()
@@ -278,7 +292,7 @@ export const PropertyLocationForm = forwardRef<PropertyLocationFormHandle, Prope
         parent_id: parentId || null,
         name: trimmed,
         kind,
-        photo_data: photoData,
+        ...(photoData ? await commitPropertyPhoto(photoData, 'property_locations') : { photo_data: null }),
         holder_user_id: null,
         created_by: '',
       })
@@ -318,7 +332,7 @@ export const PropertyLocationForm = forwardRef<PropertyLocationFormHandle, Prope
     } finally {
       setIsSaving(false)
     }
-  }, [name, parentId, kind, parentLin, role, nsn, isLevel, photoData, isEdit, editingLocation, pendingTag, store, onClose])
+  }, [name, parentId, kind, parentLin, role, nsn, isLevel, photoData, photoTouched, isEdit, editingLocation, pendingTag, store, onClose])
 
   useImperativeHandle(ref, () => ({ submit: handleSave }), [handleSave])
 
@@ -405,7 +419,7 @@ export const PropertyLocationForm = forwardRef<PropertyLocationFormHandle, Prope
             </button>
             <button
               type="button"
-              onClick={() => setPhotoData(null)}
+              onClick={() => { setPhotoData(null); setPhotoTouched(true) }}
               className="text-[10pt] font-medium text-themeredred active:scale-95 transition-transform"
             >
               Remove

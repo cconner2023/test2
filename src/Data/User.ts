@@ -8,7 +8,10 @@ export type Credential =
     | 'PA-C' | 'NP' | 'MD' | 'DO'
     | 'RN' | 'LPN' | 'CNA' | 'APRN' | 'CRNA' | 'CNM'
     | 'RRT' | 'PharmD' | 'RPh' | 'MA' | 'CMA'
-    | 'LCSW' | 'LPC' | 'PsyD' | 'PhD' | 'BHT';
+    | 'LCSW' | 'LPC' | 'PsyD' | 'PhD' | 'BHT'
+    | 'DDS' | 'DMD' | 'RDH'
+    | 'DPT' | 'PTA'
+    | 'OTR' | 'COTA';
 export type Component = 'USA' | 'USN' | 'USMC' | 'USAF';
 export type Rank = string;
 
@@ -227,6 +230,12 @@ export const credentials: Credential[] = [
     'RRT', 'PharmD', 'RPh', 'MA', 'CMA',
     // Behavioral Health
     'LCSW', 'LPC', 'PsyD', 'PhD', 'BHT',
+    // Dental
+    'DDS', 'DMD', 'RDH',
+    // Physical Therapy
+    'DPT', 'PTA',
+    // Occupational Therapy
+    'OTR', 'COTA',
 ];
 export const components: Component[] = ['USA', 'USN', 'USMC', 'USAF'];
 

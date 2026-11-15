@@ -33,6 +33,7 @@ export async function fetchProfileById(id: string): Promise<ClinicMedic | null> 
       clinic_name: string | null
       voicemail_greeting: VoicemailGreeting | null
       avatar_blob: AvatarBlob | null
+      avatar_ref: AvatarBlob | null
     }
     return {
       id: p.id,
@@ -42,7 +43,7 @@ export async function fetchProfileById(id: string): Promise<ClinicMedic | null> 
       rank: p.rank,
       credential: p.credential,
       avatarId: p.avatar_id ?? null,
-      avatarBlob: p.avatar_blob ?? null,
+      avatarBlob: p.avatar_ref ?? p.avatar_blob ?? null,
       clinicId: p.clinic_id ?? undefined,
       clinicName: p.clinic_name ?? undefined,
       voicemailGreeting: p.voicemail_greeting ?? null,

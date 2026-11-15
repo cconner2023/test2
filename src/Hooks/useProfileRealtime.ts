@@ -11,7 +11,7 @@
  * not just the avatar.
  *
  * Egress discipline: an avatar change applies as a pure DELTA — the realtime row
- * carries avatar_id/avatar_blob inline, so patchProfile() updates the cache with
+ * carries avatar_id/avatar_ref (or legacy avatar_blob), so patchProfile() updates the cache with
  * NO round-trip. A full refreshProfile() fires only when roles or clinic_id
  * change, because those need the embedded clinic name (a join) and the
  * profile_clinic_loans reconcile, neither of which is in the raw row. An
@@ -33,6 +33,7 @@ const logger = createLogger('ProfileRealtime')
 interface ProfileRealtimeRow extends Record<string, unknown> {
   avatar_id?: string | null
   avatar_blob?: AvatarBlob | null
+  avatar_ref?: AvatarBlob | null
   roles?: string[] | null
   clinic_id?: string | null
 }
@@ -53,7 +54,7 @@ export function useProfileRealtime(userId?: string): void {
       // Avatar: strict delta, no fetch.
       store.patchProfile({
         avatarId: row.avatar_id ?? null,
-        avatarBlob: row.avatar_blob ?? null,
+        avatarBlob: row.avatar_ref ?? row.avatar_blob ?? null,
       })
 
       // Roles / clinic reassignment need the joined clinic name + loan reconcile

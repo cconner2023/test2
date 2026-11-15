@@ -7,6 +7,7 @@ import { downloadDecryptedAttachment } from '../../lib/signal/attachmentService'
 import { ReactionChips, hasReactions, type ReactionCode } from '../Messages/ReactionGlyphs'
 import { IntakeRequestCard } from '../Messages/IntakeRequestCard'
 import { OncallCallCard } from '../Messages/OncallCallCard'
+import { FileAttachmentBubble } from '../Messages/FileAttachmentBubble'
 import { OutsideMessageCard } from '../Messages/OutsideMessageCard'
 import { OutsideSessionCard } from '../Messages/OutsideSessionCard'
 import { OutsideEntityCard } from '../Messages/OutsideEntityCard'
@@ -73,22 +74,30 @@ function formatTime(iso: string): string {
   return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
 }
 
-/** Lazy-load and decrypt an image attachment, caching the object URL. */
-function useDecryptedImage(path: string | undefined, key: string | undefined) {
+/**
+ * Lazy-load and decrypt an image or audio attachment into an object URL.
+ * `gone` is set when the object no longer exists (21-day R2 lifecycle or sender
+ * delete), so the bubble can say so instead of spinning or showing a dead control.
+ */
+function useDecryptedAttachment(path: string | undefined, key: string | undefined, store: 'r2' | undefined) {
   const [url, setUrl] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [gone, setGone] = useState(false)
 
   useEffect(() => {
     if (!path || !key) return
 
     let revoked = false
     setLoading(true)
+    setGone(false)
 
-    downloadDecryptedAttachment(path, key).then(result => {
+    downloadDecryptedAttachment(path, key, store).then(result => {
       if (revoked) return
       if (result.ok) {
         const objectUrl = URL.createObjectURL(result.data)
         setUrl(objectUrl)
+      } else if (result.error === 'not_found') {
+        setGone(true)
       }
     }).catch(() => {}).finally(() => {
       if (!revoked) setLoading(false)
@@ -98,39 +107,9 @@ function useDecryptedImage(path: string | undefined, key: string | undefined) {
       revoked = true
       setUrl(prev => { if (prev) URL.revokeObjectURL(prev); return null })
     }
-  }, [path, key])
+  }, [path, key, store])
 
-  return { url, loading }
-}
-
-/** Lazy-load and decrypt an audio attachment, caching the object URL. */
-function useDecryptedAudio(path: string | undefined, key: string | undefined) {
-  const [url, setUrl] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
-
-  useEffect(() => {
-    if (!path || !key) return
-
-    let revoked = false
-    setLoading(true)
-
-    downloadDecryptedAttachment(path, key).then(result => {
-      if (revoked) return
-      if (result.ok) {
-        const objectUrl = URL.createObjectURL(result.data)
-        setUrl(objectUrl)
-      }
-    }).catch(() => {}).finally(() => {
-      if (!revoked) setLoading(false)
-    })
-
-    return () => {
-      revoked = true
-      setUrl(prev => { if (prev) URL.revokeObjectURL(prev); return null })
-    }
-  }, [path, key])
-
-  return { url, loading }
+  return { url, loading, gone }
 }
 
 /** Format seconds to m:ss display. */
@@ -366,14 +345,17 @@ export function MessageBubble({
   const isImage = !!imageContent
   const voiceContent = message.content?.type === 'voice' ? message.content : null
   const isVoice = !!voiceContent
+  const fileContent = message.content?.type === 'file' ? message.content : null
 
-  const { url: fullImageUrl, loading: imageLoading } = useDecryptedImage(
+  const { url: fullImageUrl, loading: imageLoading, gone: imageGone } = useDecryptedAttachment(
     imageContent?.path,
     imageContent?.key,
+    imageContent?.store,
   )
-  const { url: audioUrl, loading: audioLoading } = useDecryptedAudio(
+  const { url: audioUrl, loading: audioLoading, gone: audioGone } = useDecryptedAttachment(
     voiceContent?.path,
     voiceContent?.key,
+    voiceContent?.store,
   )
 
   // ── Direct DOM touch handling ──
@@ -663,8 +645,24 @@ export function MessageBubble({
                 </g>
               </svg>
             </div>
+          ) : imageGone ? (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+              <span className="text-[9pt] text-white">No longer available</span>
+            </div>
           ) : null}
         </div>
+      )
+    }
+
+    if (fileContent) {
+      return <FileAttachmentBubble content={fileContent} isOwn={isOwn} />
+    }
+
+    if (isVoice && voiceContent && audioGone) {
+      return (
+        <span className={`text-[10pt] italic ${isOwn ? 'text-white/70' : 'text-tertiary'}`}>
+          Voice message no longer available
+        </span>
       )
     }
 

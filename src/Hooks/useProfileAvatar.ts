@@ -86,7 +86,7 @@ export function resizeImage(file: File, maxSize = 160): Promise<string> {
 /**
  * Manages the signed-in user's avatar: selection, custom-image upload/encryption,
  * and localStorage persistence. Cross-device sync is now sourced from the profile
- * cache (PROFILE_SELECT pulls avatar_id/avatar_blob; useProfileRealtime applies
+ * cache (PROFILE_SELECT pulls avatar_id/avatar_ref (legacy avatar_blob); useProfileRealtime applies
  * live deltas) — this hook no longer owns a Supabase fetch or realtime channel.
  * Self-only: localStorage keys are device-global, so `userId` is the signed-in
  * user (also the cache-seed key), not an arbitrary profile.
@@ -98,7 +98,7 @@ export function useProfileAvatar(userId?: string) {
     const lastBlobKeyRef = useRef<string | null>(null);
 
     // Avatar now lives on the profile cache: PROFILE_SELECT pulls avatar_id /
-    // avatar_blob and useProfileRealtime applies cross-device deltas. This hook
+    // avatar_ref (legacy avatar_blob) and useProfileRealtime applies cross-device deltas. This hook
     // reads from the store instead of owning a Supabase fetch + realtime channel
     // (the channel moved to useProfileRealtime; owning it here, mounted twice,
     // was the duplicate-topic "binding mismatch" source).
@@ -146,11 +146,15 @@ export function useProfileAvatar(userId?: string) {
             // unchanged but the image was cleared).
             if (lastBlobKeyRef.current !== blobKey || !customImage) {
                 lastBlobKeyRef.current = blobKey;
+                const legacy = storeAvatarBlob.store !== 'r2';
                 void decryptAvatarToUrl(storeAvatarBlob).then(url => {
                     if (!url) return;
                     setCustomImageState(url);
                     try { localStorage.setItem(CUSTOM_IMAGE_KEY, url); } catch { /* */ }
                     if (userId) seedAvatarCache(`user:${userId}`, url);
+                    // Lazy backfill: an inline barcode-key blob moves to R2 on the owner's
+                    // next load; the save nulls avatar_blob so rosters stop carrying it.
+                    if (legacy) void saveOwnAvatarBlob(url);
                 });
             }
         }

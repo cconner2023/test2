@@ -105,6 +105,7 @@ export function ShareToChatPicker({ isOpen, content, bundleSource, onClose, zInd
           bundleKind: packed.data.kind,
           path: packed.data.path,
           key: packed.data.key,
+          ...(packed.data.store ? { store: packed.data.store } : {}),
           contentHash: packed.data.contentHash,
           label: packed.data.label,
           ...(packed.data.subLabel ? { subLabel: packed.data.subLabel } : {}),

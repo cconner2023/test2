@@ -68,7 +68,7 @@ interface PmcsSheetProps {
    *  which mounts OUTSIDE any sheet (so there's no sheet context to inherit a ceiling
    *  from). Pass a value above the host sheet on mobile; omit when scoped (desktop). */
   zIndex?: number
-  /** Desktop: morph into the detail card instead of opening an overlay. */
+  /** Morph into the host's detail card (desktop) or bottom sheet (mobile) instead of opening an overlay. */
   cardHost?: CardMorphHost
 }
 
@@ -196,14 +196,14 @@ export function PmcsSheet({ isOpen, onClose, subjectType = 'item', subjectId, cl
     let doc: PmcsDoc | undefined
     if (docFile && userId) {
       const pdf = await ensurePdfFile(docFile)
-      const up = await uploadEncryptedAttachment(userId, pdf)
+      const up = await uploadEncryptedAttachment(userId, pdf, { class: 'p' })
       if (!up.ok) {
         logger.warn('5988E upload failed:', up.error)
         setDocError('Could not upload the document — try again.')
         setBusy(false)
         return
       }
-      doc = { path: up.data.path, key: up.data.key, mime: pdf.type || undefined, name: pdf.name }
+      doc = { path: up.data.path, key: up.data.key, ...(up.data.store ? { store: up.data.store } : {}), mime: pdf.type || undefined, name: pdf.name }
     }
 
     const miles = parseInt(mileage, 10)

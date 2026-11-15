@@ -183,7 +183,7 @@ interface LocationActionMenuProps {
   /** The property drawer/pane the co-located overlays (PMCS/Dispatch/DD1750) scope
    *  to on desktop. Null on mobile → centered/floated above the detail sheet. */
   containerRef?: RefObject<HTMLElement | null>
-  /** Desktop: PMCS, Dispatch and DD 1750 morph into the detail card instead of an overlay. */
+  /** PMCS, Dispatch and DD 1750 morph into the host's detail card (desktop) or bottom sheet (mobile) instead of an overlay. */
   cardHost?: CardMorphHost
   onEdit: (loc: LocalPropertyLocation) => void
   onNewItem: (loc: LocalPropertyLocation) => void

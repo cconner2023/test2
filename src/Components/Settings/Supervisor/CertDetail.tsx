@@ -15,6 +15,7 @@ import {
   hasCertDocument,
   uploadCertDocument,
 } from '../../../lib/certDocumentService'
+import { UploadCard, useUploadTask } from '@/Components/primitives/UploadProgress'
 
 /**
  * One certification's terminal — what is on file, and every act a supervisor has
@@ -99,7 +100,8 @@ export function CertDetail({
   // The document lives in storage, not on the row, so its presence is a fetched
   // fact rather than a rendered one — see certDocumentService.
   const [hasDoc, setHasDoc] = useState<boolean | null>(null)
-  const [docBusy, setDocBusy] = useState(false)
+  const docUpload = useUploadTask<true>()
+  const lastFileRef = useRef<File | null>(null)
   const [docError, setDocError] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -129,24 +131,39 @@ export function CertDetail({
 
   const handleFile = useCallback(async (file: File | undefined) => {
     if (!file) return
-    setDocBusy(true)
+    lastFileRef.current = file
     setDocError(null)
-    const res = await uploadCertDocument(cert.user_id, cert.id, file)
-    setDocBusy(false)
-    if (!res.success) { setDocError(res.error); return }
-    setHasDoc(true)
-  }, [cert.user_id, cert.id])
+    const done = await docUpload.start(file, async ({ onProgress, signal }) => {
+      const res = await uploadCertDocument(cert.user_id, cert.id, file, { onProgress, signal })
+      return res.success ? { ok: true, data: true } : { ok: false, error: res.error }
+    })
+    if (done) setHasDoc(true)
+  }, [cert.user_id, cert.id, docUpload.start])
 
-  /** Signed on demand rather than held: a URL minted at render would be stale by
-   *  the time anyone pressed it, and it is a link to a credential card. */
+  // Hold the finished card long enough for the check and ping to land, then let it
+  // fold away to the View row.
+  const docPhase = docUpload.task?.phase
+  useEffect(() => {
+    if (docPhase !== 'done') return
+    const t = setTimeout(docUpload.clear, 1400)
+    return () => clearTimeout(t)
+  }, [docPhase, docUpload.clear])
+
+  /** Resolved on demand rather than held: the card is decrypted (or, for a legacy
+   *  card, signed) only when someone asks to see it. The tab is opened synchronously
+   *  inside the tap, before the decrypt, because iOS Safari blocks window.open once
+   *  the user activation has been spent on an await. */
   const openDocument = useCallback(async () => {
     setDocError(null)
+    const tab = window.open('', '_blank')
     const url = await certDocumentUrl(cert.user_id, cert.id)
     if (!url) {
+      tab?.close()
       setDocError('Could not open the document — you may be offline.')
       return
     }
-    window.open(url, '_blank', 'noopener,noreferrer')
+    if (tab) tab.location.href = url
+    else window.open(url, '_blank')
   }, [cert.user_id, cert.id])
 
   const headerActions = useMemo(() => {
@@ -222,7 +239,12 @@ export function CertDetail({
           thing here that is fetched, can fail, and is pressed. */}
       <div className="mt-4">
         <SectionHeader>Document</SectionHeader>
-        {hasDoc ? (
+        <UploadCard
+          task={docUpload.task}
+          onDismiss={docUpload.clear}
+          onRetry={() => void handleFile(lastFileRef.current ?? undefined)}
+        />
+        {docUpload.task ? null : hasDoc ? (
           <SectionCard>
             <button
               onClick={() => void openDocument()}
@@ -231,13 +253,13 @@ export function CertDetail({
             >
               <FileText size={16} className="text-tertiary shrink-0" />
               <span className="text-[10pt] text-primary flex-1 min-w-0 truncate">
-                {docBusy ? 'Uploading…' : 'View PDF'}
+                View PDF
               </span>
             </button>
           </SectionCard>
         ) : hasDoc === false ? (
           <EmptyState
-            title={docBusy ? 'Uploading…' : 'Upload a PDF'}
+            title="Upload a PDF"
             action={{ icon: Upload, label: 'Upload PDF', onClick: () => pickDocument() }}
           />
         ) : (

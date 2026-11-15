@@ -113,6 +113,14 @@ const norm = (n: Node): Pt => [(n.x - NET_BOX.x) / NET_BOX.w, (n.y - NET_BOX.y) 
 const SPAN_X = 0.8
 const SPAN_Y = 0.7
 
+/** Patient-flow feeder: one extra chain of points that enters from the left
+ *  edge and converges onto a node of the highlighted path, so the
+ *  net reads as streamlining an incoming flow. Start is in pane fractions. */
+const FEED = { x: 0, y: 0.2, points: 4 }
+const FEED_TARGET = NET.nodes.filter(n => n.active)[2]
+
+const FADE = 'linear-gradient(to right, #000 55%, transparent)'
+
 function useSize<T extends Element>() {
   const ref = useRef<T>(null)
   const [size, setSize] = useState({ w: 0, h: 0 })
@@ -135,7 +143,10 @@ export function LoginArt({ className = '' }: { className?: string }) {
     return [w * ((1 - SPAN_X) / 2 + x * SPAN_X), h * ((1 - SPAN_Y) / 2 + y * SPAN_Y)]
   }
   return (
-    <div className={className} aria-hidden="true">
+    // Mask fades the art out along the right edge so it dissolves into the form
+    // pane instead of stopping hard at the divider.
+    <div className={className} aria-hidden="true"
+      style={{ maskImage: FADE, WebkitMaskImage: FADE }}>
       <svg className="absolute inset-0 w-full h-full" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid slice" fill="none" xmlns="http://www.w3.org/2000/svg">
         <g className="stroke-themeblue3">
           {GRID.map(v => (
@@ -164,6 +175,29 @@ export function LoginArt({ className = '' }: { className?: string }) {
                   strokeOpacity={e.active ? 0.85 : 0.12} strokeWidth={e.active ? 1.5 : 1} />
               })}
             </g>
+            {(() => {
+              const [tx, ty] = px(FEED_TARGET)
+              const sx = w * FEED.x, sy = h * FEED.y
+              // Ease-out on y so the chain bends early, then runs flat into the node.
+              const pts: Pt[] = Array.from({ length: FEED.points + 1 }, (_, i) => {
+                const t = i / FEED.points
+                return [sx + (tx - sx) * t, sy + (ty - sy) * (1 - (1 - t) * (1 - t))]
+              })
+              return (
+                <g className="stroke-themeblue3">
+                  <polyline points={pts.map(p => p.join(',')).join(' ')} strokeOpacity={0.5} strokeWidth={1.25} />
+                  {/* Pane-coloured disc under each translucent dot so the polyline
+                      doesn't show through the fill. */}
+                  {pts.slice(1, -1).map(([cx, cy], i) => (
+                    <g key={i}>
+                      <circle cx={cx} cy={cy} r={3.5} stroke="none" className="fill-themewhite2 dark:fill-themewhite" />
+                      <circle cx={cx} cy={cy} r={3.5} strokeWidth={1} strokeOpacity={0.6}
+                        className="fill-themeblue3" fillOpacity={0.5} />
+                    </g>
+                  ))}
+                </g>
+              )
+            })()}
             <g>
               {NET.nodes.map((n, i) => {
                 const [cx, cy] = px(n)

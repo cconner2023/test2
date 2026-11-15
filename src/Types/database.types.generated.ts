@@ -166,6 +166,7 @@ export type Database = {
           archived_at: string | null
           cert_number: string | null
           created_at: string
+          doc_key: string | null
           exp_date: string | null
           id: string
           is_primary: boolean
@@ -181,6 +182,7 @@ export type Database = {
           archived_at?: string | null
           cert_number?: string | null
           created_at?: string
+          doc_key?: string | null
           exp_date?: string | null
           id?: string
           is_primary?: boolean
@@ -196,6 +198,7 @@ export type Database = {
           archived_at?: string | null
           cert_number?: string | null
           created_at?: string
+          doc_key?: string | null
           exp_date?: string | null
           id?: string
           is_primary?: boolean
@@ -1327,6 +1330,7 @@ export type Database = {
           allow_calls: boolean
           app_content_version: number
           avatar_blob: Json | null
+          avatar_ref: Json | null
           avatar_id: string | null
           clinic_id: string | null
           component: string | null
@@ -1369,6 +1373,7 @@ export type Database = {
           allow_calls?: boolean
           app_content_version?: number
           avatar_blob?: Json | null
+          avatar_ref?: Json | null
           avatar_id?: string | null
           clinic_id?: string | null
           component?: string | null
@@ -1411,6 +1416,7 @@ export type Database = {
           allow_calls?: boolean
           app_content_version?: number
           avatar_blob?: Json | null
+          avatar_ref?: Json | null
           avatar_id?: string | null
           clinic_id?: string | null
           component?: string | null
@@ -1494,6 +1500,7 @@ export type Database = {
           pack_size: number | null
           parent_item_id: string | null
           photo_url: string | null
+          photo_ref: Json | null
           quantity: number
           quantity_authorized: number | null
           represents_location_id: string | null
@@ -1528,6 +1535,7 @@ export type Database = {
           pack_size?: number | null
           parent_item_id?: string | null
           photo_url?: string | null
+          photo_ref?: Json | null
           quantity?: number
           quantity_authorized?: number | null
           represents_location_id?: string | null
@@ -1562,6 +1570,7 @@ export type Database = {
           pack_size?: number | null
           parent_item_id?: string | null
           photo_url?: string | null
+          photo_ref?: Json | null
           quantity?: number
           quantity_authorized?: number | null
           represents_location_id?: string | null
@@ -1623,6 +1632,7 @@ export type Database = {
           overlay_id: string | null
           parent_id: string | null
           photo_data: string | null
+          photo_ref: Json | null
           target_clinic_ids: string[]
           updated_at: string
         }
@@ -1642,6 +1652,7 @@ export type Database = {
           overlay_id?: string | null
           parent_id?: string | null
           photo_data?: string | null
+          photo_ref?: Json | null
           target_clinic_ids?: string[]
           updated_at?: string
         }
@@ -1661,6 +1672,7 @@ export type Database = {
           overlay_id?: string | null
           parent_id?: string | null
           photo_data?: string | null
+          photo_ref?: Json | null
           target_clinic_ids?: string[]
           updated_at?: string
         }
@@ -2411,6 +2423,7 @@ export type Database = {
         Args: { user_ids: string[] }
         Returns: {
           avatar_blob: Json
+          avatar_ref: Json
           avatar_id: string
           clinic_id: string
           clinic_name: string
@@ -2422,6 +2435,16 @@ export type Database = {
           rank: string
           voicemail_greeting: Json
         }[]
+      }
+      fetch_unread_signal_messages: {
+        Args: { p_device_id: string; p_recipient_id: string; p_since: string }
+        Returns: Database["public"]["Tables"]["signal_messages"]["Row"][]
+        SetofOptions: {
+          from: "*"
+          to: "signal_messages"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       find_active_outside_entity: {
         Args: { p_email_hmac: string }
@@ -2468,6 +2491,7 @@ export type Database = {
         Args: never
         Returns: {
           avatar_blob: Json
+          avatar_ref: Json
           avatar_id: string
           clinic_id: string
           clinic_name: string

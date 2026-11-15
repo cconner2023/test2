@@ -26,15 +26,15 @@ export interface VoicemailGreeting {
   dur: number
 }
 
-/** A user's custom profile photo. `enc` is base64(IV + AES-GCM ciphertext) of the
- *  (already downscaled, ~160px JPEG) image bytes, encrypted with the app-wide
- *  barcode key (getBarcodeKey) so any authenticated viewer can decrypt it.
- *  Mirrors VoicemailGreeting; rides the same profiles row / fetch_profiles_by_ids
- *  resolution path. Not PHI. Inline today — the seam for a future S3/storage move. */
-export interface AvatarBlob {
-  enc: string
-  mime: string
-}
+/** A user's custom profile photo, ~160px JPEG. Two shapes:
+ *  - R2 ref {store:'r2', k, ak, mime}: bytes at R2 p/<k> encrypted with the per-object
+ *    key `ak`; profiles.avatar_ref. Current write path.
+ *  - legacy inline {enc, mime}: base64(IV + ciphertext) under the app-wide barcode key on
+ *    profiles.avatar_blob. Read-only; the owner's next sign-in re-uploads it to R2.
+ *  Readers coalesce avatar_ref ?? avatar_blob into this one field. Not PHI. */
+export type AvatarBlob =
+  | { store: 'r2'; k: string; ak: string; mime: string }
+  | { store?: undefined; enc: string; mime: string }
 
 export interface ClinicMedic {
   id: string

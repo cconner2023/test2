@@ -17,6 +17,7 @@
  */
 
 import type { LinkedFeatureRef } from './MissionTypes'
+import type { ImageContent, FileContent } from '../lib/signal/messageContent'
 
 /** Pin ref (a map waypoint with `tracking: true`), or null = Pending. */
 export type TrackingPosition = LinkedFeatureRef | null
@@ -26,7 +27,8 @@ export interface TrackingMove {
   to: TrackingPosition
   /** epoch ms */
   at: number
-  /** Mover display name (rank + last), stamped at write. */
+  /** Legacy mover name. No longer written and never shown: moves belong to
+   *  the cluster, so the thread attributes them to "System". */
   by?: string
   /** Dispositioned — `to` stays null. A later move reopens the entry. */
   complete?: boolean
@@ -49,6 +51,10 @@ export interface TrackingComment {
   editedBy?: string
   /** Soft delete — kept so a union merge can't resurrect it. */
   deleted?: boolean
+  /** Photo / file, the chat's own content shape: an R2 m/ pointer (21-day
+   *  lifecycle, well past TRACKING_EXPIRE_MS) whose AES key rides only this E2E
+   *  payload. Immutable once written; text may still be empty. */
+  attachment?: ImageContent | FileContent
 }
 
 export interface TrackingData {

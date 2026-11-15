@@ -45,7 +45,7 @@ export function OncallCallCard({ content, messageId, onLongPress }: Props) {
     if (!vm) return null
     setBusy(true)
     try {
-      const res = await downloadDecryptedAttachment(vm.path, vm.key)
+      const res = await downloadDecryptedAttachment(vm.path, vm.key, vm.store, vm.mime)
       if (!res.ok) { setError(true); return null }
       // Tag the decrypted bytes with the recorded mime so <audio> can play them.
       const blob = new Blob([await res.data.arrayBuffer() as BlobPart], { type: vm.mime || 'audio/webm' })

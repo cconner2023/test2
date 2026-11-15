@@ -37,7 +37,7 @@ interface ItemActionMenuProps {
    *  scope to on desktop — they dim/center within it. Null on mobile → centered
    *  fixed above the sheet. */
   containerRef?: RefObject<HTMLElement | null>
-  /** Desktop: PMCS morphs into the detail card instead of opening an overlay. */
+  /** PMCS morphs into the host's detail card (desktop) or bottom sheet (mobile) instead of opening an overlay. */
   cardHost?: CardMorphHost
   /** Open the item's detail — only emitted (as "View") when the menu is opened with
    *  `{ view: true }`, i.e. from a surface that isn't already showing the item. */

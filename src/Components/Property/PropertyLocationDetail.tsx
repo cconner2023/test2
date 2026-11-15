@@ -1,4 +1,5 @@
 import { useCallback } from 'react'
+import { usePropertyPhotoUrl } from '../../lib/propertyPhotoService'
 import { Download } from 'lucide-react'
 import type { LocalPropertyItem, LocalPropertyLocation, HolderInfo } from '../../Types/PropertyTypes'
 import { downloadBlob } from '../../Utilities/downloadUtils'
@@ -48,15 +49,16 @@ export function PropertyLocationDetail({
   // The zone photo already IS the map tile background — so the detail doesn't
   // re-preview it. Instead we surface it as a downloadable file (edit lives in
   // the zone Edit form). resizeImage always writes JPEG; older data may be PNG.
-  const photoExt = location.photo_data?.startsWith('data:image/png') ? 'png' : 'jpg'
+  const photoUrl = usePropertyPhotoUrl(location)
+  const photoExt = photoUrl?.startsWith('data:image/png') ? 'png' : 'jpg'
   const photoFilename = `${(location.name || 'photo').trim().replace(/[^\w.-]+/g, '_') || 'photo'}.${photoExt}`
   const handleDownloadPhoto = useCallback(() => {
-    if (location.photo_data) downloadBlob(dataUrlToBlob(location.photo_data), photoFilename)
-  }, [location.photo_data, photoFilename])
+    if (photoUrl) downloadBlob(dataUrlToBlob(photoUrl), photoFilename)
+  }, [photoUrl, photoFilename])
 
   return (
     <div className="flex flex-col pt-1 pb-2">
-      {location.photo_data && (
+      {photoUrl && (
         <button
           type="button"
           onClick={handleDownloadPhoto}

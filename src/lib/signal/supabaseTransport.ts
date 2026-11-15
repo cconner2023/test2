@@ -122,39 +122,21 @@ export class SupabaseTransport implements SignalTransport {
   }
 
   async fetchUnread(userId: string, deviceId?: string): Promise<Result<SignalMessageRow[]>> {
-    // Per-recipient read state lives in signal_message_reads. Legacy
-    // signal_messages.read_at is kept as a silent-fail "already read"
-    // fallback for rows that pre-date the 20260514_signal_message_reads
-    // migration, so cutover doesn't replay history.
-    const { data: readRows, error: readErr } = await supabase
-      .from('signal_message_reads')
-      .select('message_id')
-      .eq('recipient_id', userId)
-    if (readErr) {
-      logger.error('fetchUnread reads-lookup error:', readErr.message)
-      return err(readErr.message)
-    }
-    const readIds = (readRows ?? []).map(r => r.message_id)
-
-    return this.runQuery<SignalMessageRow[]>(() => {
-      const horizon = new Date(Date.now() - UNREAD_FETCH_HORIZON_MS).toISOString()
-      let query = supabase
-        .from('signal_messages')
-        .select('*')
-        .eq('recipient_id', userId)
-        .is('read_at', null)
-        .gte('created_at', horizon)
-        .order('created_at', { ascending: true })
-
-      if (readIds.length > 0) {
-        query = query.not('id', 'in', `(${readIds.join(',')})`)
-      }
-      if (deviceId) {
-        query = query.or(`recipient_device_id.eq.${deviceId},recipient_device_id.is.null`)
-      }
-
-      return query
-    }, 'fetchUnread', [])
+    // Per-recipient read state lives in signal_message_reads; the RPC filters
+    // it server-side (NOT EXISTS) and still honours legacy signal_messages.read_at
+    // for rows that pre-date the 20260514_signal_message_reads migration. It is
+    // SECURITY INVOKER, so RLS is what it was for the old two-query version, which
+    // also pulled every read id ever (silently capped at PostgREST's max-rows).
+    const horizon = new Date(Date.now() - UNREAD_FETCH_HORIZON_MS).toISOString()
+    return this.runQuery<SignalMessageRow[]>(
+      () => supabase.rpc('fetch_unread_signal_messages', {
+        p_recipient_id: userId,
+        // SQL treats null as "any device"; the generated arg type can't say so.
+        p_device_id: (deviceId ?? null) as string,
+        p_since: horizon,
+      }),
+      'fetchUnread', [],
+    )
   }
 
   async markRead(messageIds: string[], recipientId?: string): Promise<Result<void>> {

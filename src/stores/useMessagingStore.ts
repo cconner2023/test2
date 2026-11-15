@@ -20,6 +20,7 @@ import {
   deleteTombstone,
   deleteConversation as deleteConversationFromDb,
   deleteMessages as deleteMessagesFromDb,
+  saveMessage,
   loadAllPeerProfiles,
   savePeerProfile,
   deletePeerProfile,
@@ -54,6 +55,27 @@ function recomputeUnread(
     if (isIncoming && !m.readAt && m.messageType !== 'request-accepted') count++
   }
   return count
+}
+
+/**
+ * How far a conversation delete reaches, modelled on Signal's linked-device
+ * delete: everything created at or before `through` (the newest message the
+ * deleting device held, not the wall clock), plus the deleting device's newest
+ * few messages by originId. A device applying a synced delete late must not
+ * touch messages that arrived after it, and a wall-clock cutoff also dropped
+ * replies whenever the deleting device's clock ran ahead of the server's.
+ */
+export interface ConversationDeleteBound {
+  through: string
+  origins: string[]
+}
+
+/** Signal sends a handful of the newest message identifiers; same here. */
+const DELETE_BOUND_RECENT = 5
+
+function inDeleteBound(m: DecryptedSignalMessage, throughMs: number, origins: Set<string>): boolean {
+  if (m.originId && origins.has(m.originId)) return true
+  return !(Date.parse(m.createdAt) > throughMs)
 }
 
 // ── State shape ────────────────────────────────────────────────────────────
@@ -140,12 +162,17 @@ interface MessagingActions {
   removeMessagesByOriginIds: (originIds: string[]) => void
 
   /**
-   * Delete an entire conversation:
-   * - Writes tombstone with deletedAt = now (state + IDB)
-   * - Removes messages from state
-   * - Removes unread count
+   * Delete a conversation's history up to a bound (see ConversationDeleteBound).
+   * Local delete: the bound is computed from what this device holds and
+   * returned so the caller can sync it to own devices. Synced delete: pass the
+   * other device's bound; messages newer than it survive.
+   * preserveAcceptance keeps a local request-accepted marker so the request
+   * handshake is not re-run with a peer already accepted (1:1 only).
    */
-  deleteConversation: (conversationKey: string) => Promise<void>
+  deleteConversation: (
+    conversationKey: string,
+    opts?: { bound?: ConversationDeleteBound; preserveAcceptance?: boolean },
+  ) => Promise<ConversationDeleteBound>
 
   /** Bulk-set conversations (for hydration). Does NOT overwrite with empty. */
   setConversations: (conversations: Record<string, DecryptedSignalMessage[]>) => void
@@ -475,23 +502,87 @@ export const useMessagingStore = create<MessagingStore>()((set, get) => ({
     })
   },
 
-  deleteConversation: async (conversationKey) => {
+  deleteConversation: async (conversationKey, opts) => {
+    // deletedAt is the wall clock: it stamps origin tombstones and the
+    // tombstone's recordedAt (30-day expiry). The suppression cutoff is the
+    // bound's `through`, which can be older.
     const deletedAt = new Date().toISOString()
-    const wasGroup = !!get().groups[conversationKey]
+    const { groups, localUserId } = get()
+    const wasGroup = !!groups[conversationKey]
+    const live = get().conversations[conversationKey] ?? []
+
+    let bound: ConversationDeleteBound
+    if (opts?.bound) {
+      // Synced delete. A listed origin may sit here under a later createdAt than
+      // on the deleting device (own sends arrive by sync stamped with the
+      // sending device's clock), so widen `through` to cover it; otherwise every
+      // message after that point on this device would survive the delete.
+      const origins = new Set(opts.bound.origins)
+      let throughMs = Date.parse(opts.bound.through)
+      for (const m of live) {
+        if (m.originId && origins.has(m.originId)) throughMs = Math.max(throughMs, Date.parse(m.createdAt))
+      }
+      bound = {
+        through: Number.isFinite(throughMs) ? new Date(throughMs).toISOString() : deletedAt,
+        origins: opts.bound.origins,
+      }
+    } else {
+      const sorted = [...live].sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt))
+      const newest = sorted.length > 0 ? Date.parse(sorted[sorted.length - 1].createdAt) : NaN
+      bound = {
+        // Nothing loaded (e.g. deleting a request that was never opened): fall
+        // back to the wall clock, the old behaviour.
+        through: Number.isFinite(newest) ? new Date(newest).toISOString() : deletedAt,
+        origins: sorted
+          .slice(-DELETE_BOUND_RECENT)
+          .map(m => m.originId)
+          .filter((o): o is string => !!o),
+      }
+    }
+    const throughMs = Date.parse(bound.through)
+    const boundOrigins = new Set(bound.origins)
+    const removed = live.filter(m => inDeleteBound(m, throughMs, boundOrigins))
+    const kept = live.filter(m => !inDeleteBound(m, throughMs, boundOrigins))
+
+    // The marker carries acceptance across the delete. createdAt === through so
+    // it passes every tombstone guard (all are strict `<`) without counting as a
+    // post-deletion message, which would clear the tombstone in addMessage.
+    // Every list, preview, search and bubble path already hides request-accepted.
+    const marker: DecryptedSignalMessage | null =
+      opts?.preserveAcceptance && !wasGroup && localUserId
+        && !kept.some(m => m.messageType === 'request-accepted')
+        ? {
+            id: crypto.randomUUID(),
+            senderId: localUserId,
+            recipientId: conversationKey,
+            plaintext: '',
+            messageType: 'request-accepted',
+            createdAt: bound.through,
+            readAt: bound.through,
+          }
+        : null
+    const remaining = marker ? [marker, ...kept] : kept
+    // Signal keeps the contact when a chat is deleted. Drop the cached profile
+    // only when nothing at all is left for this peer.
+    const dropProfile = !wasGroup && remaining.length === 0
+
     // Origins currently in live state — tombstone them immediately so a
     // same-session vault/realtime echo can't resurrect the conversation before
     // the async IDB purge folds in the complete set below.
-    const stateOrigins = (get().conversations[conversationKey] ?? [])
+    const stateOrigins = removed
       .map(m => m.originId)
       .filter((o): o is string => !!o)
 
     // Write tombstone to state and IDB immediately (offline-safe)
     set(s => {
       const next = { ...s.conversations }
-      delete next[conversationKey]
+      if (remaining.length > 0) next[conversationKey] = remaining
+      else delete next[conversationKey]
       const unread = { ...s.unreadCounts }
-      delete unread[conversationKey]
-      const peerProfiles = wasGroup ? s.peerProfiles : (() => {
+      const left = recomputeUnread(conversationKey, remaining, s.localUserId, s.systemGroupIds)
+      if (left > 0) unread[conversationKey] = left
+      else delete unread[conversationKey]
+      const peerProfiles = !dropProfile ? s.peerProfiles : (() => {
         const p = { ...s.peerProfiles }
         delete p[conversationKey]
         return p
@@ -502,15 +593,21 @@ export const useMessagingStore = create<MessagingStore>()((set, get) => ({
         conversations: next,
         unreadCounts: unread,
         peerProfiles,
-        deletedConversations: { ...s.deletedConversations, [conversationKey]: deletedAt },
+        deletedConversations: { ...s.deletedConversations, [conversationKey]: bound.through },
         deletedOrigins,
       }
     })
 
-    await saveTombstone(conversationKey, deletedAt)
+    await saveTombstone(conversationKey, bound.through, deletedAt)
     // deleteConversationFromDb writes a per-origin tombstone for every message
     // it purges (the durable delete identity) and returns those origins.
-    const purgedOrigins = await deleteConversationFromDb(conversationKey, deletedAt)
+    const purgedOrigins = await deleteConversationFromDb(conversationKey, deletedAt, bound)
+    // After the purge, or the purge would take the marker with it.
+    if (marker && localUserId) {
+      await saveMessage(marker, localUserId).catch(e =>
+        logger.warn('Failed to persist acceptance marker:', e),
+      )
+    }
     // Fold in any origins that were in IDB but not live state (partial load).
     if (purgedOrigins.length > 0) {
       set(s => {
@@ -522,11 +619,12 @@ export const useMessagingStore = create<MessagingStore>()((set, get) => ({
         return changed ? { deletedOrigins } : s
       })
     }
-    if (!wasGroup) {
+    if (dropProfile) {
       await deletePeerProfile(conversationKey).catch(e =>
         logger.warn('Failed to delete peer profile from IDB:', e),
       )
     }
+    return bound
   },
 
   setConversations: (conversations) => {

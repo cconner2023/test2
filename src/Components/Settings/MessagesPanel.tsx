@@ -1,10 +1,11 @@
 import { useState, useRef, useEffect, useCallback, memo, useImperativeHandle, forwardRef, useMemo } from 'react'
 import { clusterLabel } from '../../Utilities/clusterLabel'
 import type { ReactNode } from 'react'
-import { Trash2, Headset, Play, MessageSquare, Info, ChevronRight, ChevronDown, Pin, Check, Send } from 'lucide-react'
+import { Trash2, Headset, Play, MessageSquare, ChevronRight, ChevronDown, Pin, Check, Send, Users } from 'lucide-react'
 import { useSpring, animated } from '@react-spring/web'
 import { SearchInput } from '@/Components/primitives/SearchInput'
-import { MobilePageHeader, PageCircleButton } from '@/Components/primitives/MobilePageHeader'
+import { MobilePageHeader, ConversationTitlePill, ConversationActionsReserve } from '@/Components/primitives/MobilePageHeader'
+import { ConversationIntroCard } from '../Messages/ConversationIntroCard'
 import { RailSearchRow } from '@/Components/primitives/RailSearchRow'
 import { DesktopRail } from '@/Components/primitives/DesktopRail'
 import { FooterPill } from '@/Components/primitives/FooterPill'
@@ -718,7 +719,7 @@ function ChatDetail({
   conversations: Record<string, DecryptedSignalMessage[]>
   medics: ClinicMedic[]
   sendMessage: (peerId: string, text: string, threadId?: string) => Promise<boolean>
-  sendImage: (peerId: string, file: File) => Promise<boolean>
+  sendImage: (peerId: string, file: File, opts?: { original?: boolean }) => Promise<boolean>
   sendStructured: (peerId: string, content: MessageContent, originId: string, preview: string) => Promise<boolean>
   sendVoice: (peerId: string, recording: any) => Promise<boolean>
   sending: boolean
@@ -745,8 +746,10 @@ function ChatDetail({
   const userId = user?.id ?? ''
   const isSelf = peerId === userId
   const isDevRole = useAuthStore(s => s.isDevRole)
-  // Conversation info + shared-media browsing is a dev-only surface for now.
-  const showInfoButton = isDevRole && !isSelf
+  // Conversation info + shared-media browsing is a dev-only surface for now,
+  // except in Notes: its card is how you get back to photos and files you sent
+  // yourself.
+  const showInfoButton = isDevRole || isSelf
   const [showInfo, setShowInfo] = useState(false)
   const [mediaJumpId, setMediaJumpId] = useState<string | null>(null)
 
@@ -767,24 +770,38 @@ function ChatDetail({
 
   const canCall = !isSelf && (requestStatus === 'accepted' || requestStatus === 'none') && (onStartCall || onStartVideoCall)
 
+  const peer = medics.find(m => m.id === peerId)
+  const title = isSelf ? 'Notes' : peerName ?? 'Chat'
+  const openInfo = showInfoButton ? () => setShowInfo(true) : undefined
+  const peerAvatar = (className: string) => (
+    <UserAvatar avatarId={peerAvatarId} firstName={peerFirstName} lastName={peerLastName} avatarBlob={peer?.avatarBlob} userId={peerId} className={className} />
+  )
+
+  // Signal layout: info opens from the name capsule, not a separate button.
   const mobileHeader = (
     <MobilePageHeader
       className="md:hidden"
       onBack={onBack}
-      title={peerName ?? (isSelf ? 'Notes' : 'Chat')}
-      actions={canCall || showInfoButton ? (
+      title={<ConversationTitlePill avatar={peerAvatar('w-11 h-11')} title={title} onClick={openInfo} />}
+      actions={canCall ? (
         <HeaderPill>
-          {canCall && onStartVideoCall && (
+          {onStartVideoCall && (
             <PillButton icon={Play} onClick={onStartVideoCall} label="Video call" />
           )}
-          {canCall && onStartCall && (
+          {onStartCall && (
             <PillButton icon={Headset} onClick={onStartCall} label="Voice call" />
           )}
-          {showInfoButton && (
-            <PillButton icon={Info} onClick={() => setShowInfo(true)} label="Conversation info" />
-          )}
         </HeaderPill>
-      ) : undefined}
+      ) : <ConversationActionsReserve />}
+    />
+  )
+
+  const introCard = (
+    <ConversationIntroCard
+      avatar={peerAvatar('w-14 h-14')}
+      title={isSelf ? title : peer ? [peer.rank, peer.firstName, peer.lastName].filter(Boolean).join(' ') || title : title}
+      subtitle={isSelf ? 'Your messages to yourself' : [peer?.credential, peer?.clinicName].filter(Boolean).join(' · ')}
+      onInfo={openInfo}
     />
   )
 
@@ -822,6 +839,7 @@ function ChatDetail({
       isSelfChat={isSelf}
       showForward
       emptyText={isSelf ? 'Write a note...' : 'No messages'}
+      introCard={introCard}
       mobileHeader={mobileHeader}
       desktopHeader={null}
       registerThreadBack={registerThreadBack}
@@ -835,11 +853,11 @@ function ChatDetail({
           isOpen={showInfo}
           onClose={() => setShowInfo(false)}
           messages={conversations[peerId] ?? []}
-          isDevRole={isDevRole}
+          showMedia
           onJumpToMessage={setMediaJumpId}
           peer={{
             userId: peerId,
-            name: peerName ?? 'Chat',
+            name: title,
             avatarId: peerAvatarId,
             firstName: peerFirstName,
             lastName: peerLastName,
@@ -974,17 +992,28 @@ function GroupChatDetail({
     return res
   }, [purgeGroup, onBack])
 
+  const groupTitle = displayGroupName(group.name)
+  const groupAvatar = (iconClassName: string) => (
+    <div className="w-full h-full rounded-full bg-themeblue3/15 text-themeblue3 flex items-center justify-center">
+      <Users className={iconClassName} />
+    </div>
+  )
+
   const mobileHeader = (
     <MobilePageHeader
       className="md:hidden"
       onBack={onBack}
-      title={
-        <div className="text-center">
-          <p className="text-sm font-medium text-primary truncate">{displayGroupName(group.name)}</p>
-          <p className="text-[9pt] text-tertiary">{group.memberCount} members</p>
-        </div>
-      }
-      actions={<PageCircleButton icon={Info} onClick={() => onShowGroupInfo(true)} label="Group info" iconClassName="w-5 h-5" />}
+      title={<ConversationTitlePill avatar={groupAvatar('w-5 h-5')} title={groupTitle} onClick={() => onShowGroupInfo(true)} />}
+      actions={<ConversationActionsReserve />}
+    />
+  )
+
+  const introCard = (
+    <ConversationIntroCard
+      avatar={<div className="w-14 h-14">{groupAvatar('w-7 h-7')}</div>}
+      title={groupTitle}
+      subtitle={`${group.memberCount} ${group.memberCount === 1 ? 'member' : 'members'}`}
+      onInfo={() => onShowGroupInfo(true)}
     />
   )
 
@@ -1007,6 +1036,7 @@ function GroupChatDetail({
       resolveAvatar={resolveAvatar}
       resolveSenderName={resolveSenderName}
       emptyText="No messages"
+      introCard={introCard}
       mobileHeader={mobileHeader}
       desktopHeader={null}
       registerThreadBack={registerThreadBack}
@@ -1019,7 +1049,7 @@ function GroupChatDetail({
         isOpen={showGroupInfo}
         onClose={() => onShowGroupInfo(false)}
         messages={conversations[groupId] ?? []}
-        isDevRole={isDevRole}
+        showMedia={isDevRole}
         onJumpToMessage={setMediaJumpId}
         group={group}
         userId={userId}
@@ -1465,7 +1495,7 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
       <div className="hidden md:flex items-center justify-center h-full">
         <div className="text-center">
           <MessageSquare className="w-10 h-10 text-tertiary mx-auto mb-3" />
-          <p className="text-sm text-tertiary">Select a conversation to start chatting</p>
+          <p className="text-sm text-tertiary">Message nearby medical assets</p>
         </div>
       </div>
     )

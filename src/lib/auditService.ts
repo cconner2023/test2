@@ -530,6 +530,24 @@ function maxSeq(events: AuditEvent[]): number {
  * nothing to re-read. A short page (limit hit) advances the cursor to its last
  * seq and the next call resumes there, so coverage is monotonic either way.
  */
+/**
+ * Per-cursor pull throttle for the load* readers. Several surfaces call them on
+ * mount, focus and post-sync within seconds of each other, and the cursor moves
+ * between calls, so the same-tick coalescer can't merge them. Skipping the server
+ * half is safe because every pulled row is already in IDB (cacheAuditRows) and
+ * the local read always answers; the cost is up to PULL_TTL_MS before another
+ * user's new event shows up. Memory-only: a fresh page pulls immediately.
+ */
+const PULL_TTL_MS = 60_000
+const lastPullAt = new Map<string, number>()
+
+function pullDue(cursorKey: string): boolean {
+  const now = Date.now()
+  if (now - (lastPullAt.get(cursorKey) ?? 0) < PULL_TTL_MS) return false
+  lastPullAt.set(cursorKey, now)
+  return true
+}
+
 export async function loadAuditByClinicDomain(
   clinicId: string,
   domain: AuditDomain,
@@ -541,6 +559,7 @@ export async function loadAuditByClinicDomain(
     getAuditByClinicDomainLocal(clinicId, domain).catch(() => [] as AuditEvent[]),
     getAuditCursor(cursorKey),
   ])
+  if (!pullDue(cursorKey)) return mergeEvents(local, [])
   const fresh = await fetchAuditByClinicDomain(clinicId, domain, {
     since,
     limit: opts.limit,
@@ -565,13 +584,12 @@ export async function loadAuditBySubject(
     getAuditBySubjectLocal(subjectId).catch(() => [] as AuditEvent[]),
     getAuditCursor(cursorKey),
   ])
-  const fresh = isUuid(clinicId)
-    ? await fetchAuditBySubject(subjectId, {
-        clinicId,
-        since,
-        limit: opts.limit,
-      }).catch(() => [] as AuditEvent[])
-    : []
+  if (!isUuid(clinicId) || !pullDue(cursorKey)) return mergeEvents(local, [])
+  const fresh = await fetchAuditBySubject(subjectId, {
+    clinicId,
+    since,
+    limit: opts.limit,
+  }).catch(() => [] as AuditEvent[])
   await putAuditCursor(cursorKey, maxSeq(fresh))
   return mergeEvents(local, fresh)
 }

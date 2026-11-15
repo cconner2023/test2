@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Info } from 'lucide-react'
 import type { DecryptedSignalMessage } from '../../lib/signal/transportTypes'
 import type { OutsideEntityMessageEntry } from '../../lib/signal/messageContent'
 import type { OutsideEntityChannel } from '../../lib/outsideEntityChannelStore'
@@ -12,8 +11,7 @@ import { useAuth } from '../../Hooks/useAuth'
 import { ChatDetailView, type ParticipantStatus } from '../ChatDetailView'
 import { ConversationInfoPanel } from '../Settings/ConversationInfoPanel'
 import { UserAvatar } from '../Settings/UserAvatar'
-import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill'
-import { MobilePageHeader } from '@/Components/primitives/MobilePageHeader'
+import { MobilePageHeader, ConversationTitlePill, ConversationActionsReserve } from '@/Components/primitives/MobilePageHeader'
 import { ErrorPill } from '@/Components/primitives/ErrorPill'
 
 interface Props {
@@ -198,12 +196,14 @@ export function OutsideEntityConversation({
     <MobilePageHeader
       className="md:hidden"
       onBack={onBack}
-      title={clusterName}
-      actions={
-        <HeaderPill>
-          <PillButton icon={Info} onClick={() => onShowInfo(true)} label="Conversation info" />
-        </HeaderPill>
+      title={
+        <ConversationTitlePill
+          avatar={<UserAvatar avatarId={null} firstName={channel.recipient_email} lastName={null} className="w-11 h-11" />}
+          title={clusterName}
+          onClick={() => onShowInfo(true)}
+        />
       }
+      actions={<ConversationActionsReserve />}
     />
   )
 
@@ -244,7 +244,7 @@ export function OutsideEntityConversation({
         isOpen={showInfo}
         onClose={() => onShowInfo(false)}
         messages={thread}
-        isDevRole={isDevRole}
+        showMedia={isDevRole}
         onJumpToMessage={setMediaJumpId}
         peer={{
           userId: peerId,
