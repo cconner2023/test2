@@ -4,6 +4,7 @@ import { createClient } from '@supabase/supabase-js'
 import { IntakeForm } from './Components/Public/IntakeForm'
 import { OutsideInviteView } from './Components/Public/OutsideInviteView'
 import './intake.css'
+import { isFramed } from './lib/frameGuard'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -42,13 +43,23 @@ const root = document.getElementById('intake-root')
 if (!root) throw new Error('intake-root mount node missing')
 
 const invite = parseInvite()
+const initialPasscode = parsePasscodeFromHash()
+
+// The invite token, its #k= fragment secret and the #p= passcode are read once above;
+// drop them from the address bar and history so they don't linger for the next person
+// on a shared device or in synced browser history.
+if (invite || initialPasscode) {
+  try { window.history.replaceState(null, '', window.location.pathname) } catch { /* ignore */ }
+}
+
+if (isFramed()) throw new Error('Refusing to render inside a frame')
 
 createRoot(root).render(
   <StrictMode>
     {invite ? (
       <OutsideInviteView supabase={supabase} token={invite.token} fragment={invite.fragment} />
     ) : (
-      <IntakeForm supabase={supabase} initialPasscode={parsePasscodeFromHash()} />
+      <IntakeForm supabase={supabase} initialPasscode={initialPasscode} />
     )}
   </StrictMode>,
 )

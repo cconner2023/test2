@@ -91,7 +91,7 @@ export async function submitFeedback(
       display_name = profileResult.ok ? profileResult.data.display_name : null
     }
 
-    // Encrypt + upload any images first (auth only — the bucket rejects anon
+    // Encrypt + upload any images first (auth only — attachment-sign rejects anon
     // inserts). A single failed upload aborts the whole submission so the row
     // never references a missing blob.
     let attachments: FeedbackAttachment[] | null = null
@@ -118,11 +118,7 @@ export async function submitFeedback(
 
     if (insertError) return fail(insertError.message)
 
-    fireNotification({
-      type: 'new_feedback',
-      name: display_name,
-      email: null,
-    })
+    fireNotification({ type: 'new_feedback' })
 
     return succeed()
   } catch (error) {

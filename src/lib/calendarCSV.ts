@@ -1,4 +1,5 @@
 import type { EventCategory } from '../Types/CalendarTypes'
+import { neutralizeCsvFormula, restoreCsvFormula } from '../Utilities/csvSafe'
 
 export interface ParsedCalendarRow {
   title: string
@@ -134,10 +135,11 @@ function parseCSVRow(line: string): string[] {
     }
   }
   fields.push(current)
-  return fields
+  return fields.map(restoreCsvFormula)
 }
 
-function escapeCSVField(value: string): string {
+function escapeCSVField(raw: string): string {
+  const value = neutralizeCsvFormula(raw)
   if (value.includes(',') || value.includes('"') || value.includes('\n')) {
     return `"${value.replace(/"/g, '""')}"`
   }

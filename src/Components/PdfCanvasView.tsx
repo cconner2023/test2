@@ -71,7 +71,7 @@ export function PdfCanvasView({ bytes, className = '', scroll = true }: PdfCanva
       setStatus('loading')
       try {
         // slice() — getDocument detaches the ArrayBuffer; the caller reuses `bytes`.
-        doc = await pdfjsLib.getDocument({ data: bytes.slice() }).promise
+        doc = await pdfjsLib.getDocument({ data: bytes.slice(), isEvalSupported: false, enableXfa: false }).promise
         if (cancelled) return
         pagesEl.replaceChildren()
         const dpr = window.devicePixelRatio || 1

@@ -1,29 +1,30 @@
 /**
  * Encrypted attachment service for FEEDBACK images.
  *
- * Mirrors the messaging attachment model (src/lib/signal/attachmentService.ts)
- * but is deliberately OUTSIDE the security-critical signal/ wing and targets a
- * dedicated `feedback-attachments` bucket. It reuses the shared, non-signal
- * crypto primitives (aesGcm + base64Utils) rather than importing anything from
- * signal/*.
+ * New images go to R2 as p/ objects through the shared attachment pipeline
+ * (attachmentService, class 'p'): encrypted client-side with a random AES-256-GCM key,
+ * the key stored on the feedback row so a dev (the only role with SELECT on feedback)
+ * can decrypt it in the admin panel. Attachment bytes never go to Supabase Storage.
  *
- * Each image is encrypted client-side with a random AES-256-GCM key before
- * upload; the key is stored on the feedback row so a dev (the only role with
- * SELECT on feedback + this bucket) can decrypt it in the admin panel. Storage
- * breach alone yields ciphertext only.
+ * LEGACY. Images uploaded before the move sit in the `feedback-attachments` bucket
+ * under "{userId}/{uuid}.enc" and stay there (not migrated); reads and deletes route by
+ * key shape. R2 deletes are owner-only in attachment-sign, so a dev deleting someone
+ * else's feedback leaves the p/ ciphertext behind (unreadable without the row's key).
  *
  * Blob format: IV (12 bytes) || ciphertext
  */
 
 import { createLogger } from '../Utilities/Logger'
-import { bytesToBase64, base64ToBytes } from './base64Utils'
-import { aesGcmEncrypt, aesGcmDecrypt } from './aesGcm'
+import { base64ToBytes } from './base64Utils'
+import { aesGcmDecrypt } from './aesGcm'
 import { supabase } from './supabase'
 import { ok, err, type Result } from './result'
+import { uploadEncryptedAttachment, downloadDecryptedAttachment, deleteAttachments } from './signal/attachmentService'
 
 const logger = createLogger('FeedbackAttachments')
 
-const BUCKET = 'feedback-attachments'
+const LEGACY_BUCKET = 'feedback-attachments'
+const isR2Key = (path: string) => /^p\/[0-9a-f]{32}$/.test(path)
 
 /**
  * One stored image: storage path + its base64 AES-256-GCM key.
@@ -31,7 +32,7 @@ const BUCKET = 'feedback-attachments'
  * generated `Json` column type when written to feedback.attachments.
  */
 export type FeedbackAttachment = {
-  /** Storage path: "{userId}/{uuid}.enc" */
+  /** R2 key "p/{hex}", or legacy storage path "{userId}/{uuid}.enc". */
   path: string
   /** Base64-encoded AES-256-GCM key for a dev to decrypt. */
   key: string
@@ -45,37 +46,13 @@ export async function uploadEncryptedFeedbackImage(
   userId: string,
   imageBlob: Blob,
 ): Promise<Result<FeedbackAttachment>> {
-  try {
-    const key = await crypto.subtle.generateKey(
-      { name: 'AES-GCM', length: 256 },
-      true,
-      ['encrypt', 'decrypt'],
-    )
-
-    const plainBytes = new Uint8Array(await imageBlob.arrayBuffer())
-    const combined = await aesGcmEncrypt(key, plainBytes)
-    const encBlob = new Blob([combined as BlobPart], { type: 'application/octet-stream' })
-
-    const path = `${userId}/${crypto.randomUUID()}.enc`
-    const { error: uploadError } = await supabase.storage
-      .from(BUCKET)
-      .upload(path, encBlob, { contentType: 'application/octet-stream', upsert: false })
-
-    if (uploadError) {
-      logger.warn('Upload failed:', uploadError.message)
-      return err(uploadError.message)
-    }
-
-    const rawKey = await crypto.subtle.exportKey('raw', key)
-    const keyBase64 = bytesToBase64(new Uint8Array(rawKey))
-
-    logger.info(`Uploaded encrypted feedback image: ${path} (${combined.byteLength} bytes)`)
-    return ok({ path, key: keyBase64 })
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : 'Unknown upload error'
-    logger.warn('uploadEncryptedFeedbackImage error:', msg)
-    return err(msg)
+  const up = await uploadEncryptedAttachment(userId, imageBlob, { class: 'p' })
+  if (!up.ok) {
+    logger.warn('Upload failed:', up.error)
+    return err(up.error)
   }
+  logger.info(`Uploaded encrypted feedback image: ${up.data.path}`)
+  return ok({ path: up.data.path, key: up.data.key })
 }
 
 /**
@@ -85,8 +62,16 @@ export async function uploadEncryptedFeedbackImage(
  */
 export async function deleteFeedbackImages(paths: string[]): Promise<void> {
   if (!paths.length) return
-  const { error } = await supabase.storage.from(BUCKET).remove(paths)
-  if (error) logger.warn('Failed to remove feedback images:', error.message)
+  const r2 = paths.filter(isR2Key)
+  const legacy = paths.filter((p) => !isR2Key(p))
+  if (r2.length) {
+    const res = await deleteAttachments(r2)
+    if (!res.ok) logger.warn('Failed to remove feedback images:', res.error)
+  }
+  if (legacy.length) {
+    const { error } = await supabase.storage.from(LEGACY_BUCKET).remove(legacy)
+    if (error) logger.warn('Failed to remove feedback images:', error.message)
+  }
 }
 
 /**
@@ -97,8 +82,12 @@ export async function downloadDecryptedFeedbackImage(
   path: string,
   keyBase64: string,
 ): Promise<Result<Blob>> {
+  if (isR2Key(path)) {
+    const res = await downloadDecryptedAttachment(path, keyBase64, 'r2', 'image/jpeg')
+    return res.ok ? ok(res.data) : err(res.error)
+  }
   try {
-    const { data, error: dlError } = await supabase.storage.from(BUCKET).download(path)
+    const { data, error: dlError } = await supabase.storage.from(LEGACY_BUCKET).download(path)
     if (dlError || !data) {
       const msg = dlError?.message ?? 'No data returned'
       logger.warn('Download failed:', msg)

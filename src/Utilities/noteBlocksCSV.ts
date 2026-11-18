@@ -34,6 +34,7 @@ import type { TemplateNode, ChoiceNode, BranchNode } from '../Data/TemplateTypes
 import { getChoiceLabels } from './templateEngine'
 import { MASTER_BLOCKS } from '../Data/PhysicalExamData'
 import type { NoteBlocksData } from '../lib/objectBundle'
+import { neutralizeCsvFormula, restoreCsvFormula } from './csvSafe'
 
 export type NoteBlocksCSVKind = 'templates' | 'orderSets' | 'providerTemplates'
 
@@ -45,7 +46,8 @@ export interface CsvParseCtx {
 
 // ── Low-level CSV (shares the shape of PropertyCSV's helpers) ────────────────
 
-function escapeCSVField(value: string): string {
+function escapeCSVField(raw: string): string {
+  const value = neutralizeCsvFormula(raw)
   if (value.includes(',') || value.includes('"') || value.includes('\n') || value.includes('\r')) {
     return `"${value.replace(/"/g, '""')}"`
   }
@@ -93,7 +95,7 @@ function parseCSVRow(line: string): string[] {
     }
   }
   fields.push(current)
-  return fields
+  return fields.map(restoreCsvFormula)
 }
 
 function downloadCSVString(csv: string, filename: string): void {

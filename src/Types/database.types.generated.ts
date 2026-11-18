@@ -1324,6 +1324,38 @@ export type Database = {
           },
         ]
       }
+      profile_pins: {
+        Row: {
+          fail_count: number
+          pin_hash: string
+          pin_salt: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          fail_count?: number
+          pin_hash: string
+          pin_salt: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          fail_count?: number
+          pin_hash?: string
+          pin_salt?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profile_pins_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           ack_version_accepted: number | null
@@ -2686,6 +2718,14 @@ export type Database = {
         Returns: number
       }
       reap_orphaned_group_messages: { Args: never; Returns: number }
+      record_policy_acceptance: {
+        Args: {
+          p_age_attested: boolean
+          p_privacy_version: number
+          p_terms_version: number
+        }
+        Returns: undefined
+      }
       redeem_clinic_invite: { Args: { p_code: string }; Returns: Json }
       register_device_with_role: {
         Args: {

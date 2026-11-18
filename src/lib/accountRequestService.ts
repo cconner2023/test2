@@ -132,11 +132,10 @@ export async function submitAccountRequest(
 
     // The dev is told either way -- the difference is whether it is a queue item
     // or a heads-up that an account already exists.
-    fireNotification({
-      type: autoApproved ? 'new_account_auto' : 'new_account',
-      name: `${request.firstName} ${request.lastName}`.trim(),
-      email: request.email,
-    })
+    // The push function rebuilds the copy from the row named by request_id.
+    if (result?.id) {
+      fireNotification({ type: autoApproved ? 'new_account_auto' : 'new_account', request_id: result.id })
+    }
 
     return succeed({
       statusCheckToken: result?.status_check_token,
@@ -248,11 +247,7 @@ export async function submitSupportRequest(
     )
     const result = validated.ok ? validated.data : null
 
-    fireNotification({
-      type: 'new_feedback',
-      name: name.trim(),
-      email,
-    })
+    if (result?.id) fireNotification({ type: 'account_request', request_id: result.id })
 
     return succeed({
       statusCheckToken: result?.status_check_token,

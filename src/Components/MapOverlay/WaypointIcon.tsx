@@ -19,7 +19,19 @@ function normalize(type: string | undefined): WaypointType {
   return (KNOWN_TYPES as string[]).includes(type ?? '') ? (type as WaypointType) : 'circle';
 }
 
-function glyphMarkup(type: WaypointType, size: number, color: string): string {
+/**
+ * Feature colours reach this markup from imported GPX/KML files and from overlays
+ * other clinic members sync, and the markup is injected as HTML (L.divIcon,
+ * dangerouslySetInnerHTML). Anything that isn't a plain hex, rgb(a) or theme var()
+ * becomes the default, so a crafted colour can't close the style attribute.
+ */
+const SAFE_COLOR = /^(#[0-9a-f]{3,8}|var\(--[a-z0-9-]{1,64}\)|rgba?\(\s*[\d.]+%?(\s*,\s*[\d.]+%?){2,3}\s*\))$/i;
+export function safeCssColor(color: unknown): string {
+  return typeof color === 'string' && SAFE_COLOR.test(color.trim()) ? color.trim() : 'var(--color-themeblue2)';
+}
+
+function glyphMarkup(type: WaypointType, size: number, rawColor: string): string {
+  const color = safeCssColor(rawColor);
   const c = size / 2;
   const fill = `style="fill: ${color}"`;
   const stroke = `style="stroke: ${color}"`;
@@ -147,7 +159,8 @@ function glyphMarkup(type: WaypointType, size: number, color: string): string {
   }
 }
 
-function selectionRingMarkup(size: number, color: string): string {
+function selectionRingMarkup(size: number, rawColor: string): string {
+  const color = safeCssColor(rawColor);
   const c = size / 2;
   return `<circle cx="${c}" cy="${c}" r="${size * 0.46}" fill="none" style="stroke: ${color}" stroke-width="1.5" opacity="0.4"/>`;
 }

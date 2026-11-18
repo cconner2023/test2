@@ -225,6 +225,15 @@ function makeRecord(
  * seen or changed key must match an identity the claimed user has published
  * under their own auth (signal_key_bundles RLS), or the message is rejected.
  *
+ * SYSTEM is the exception: its identities aren't in the directory, so a SYSTEM
+ * claim is instead bound to the row. Only dev-gated / SECURITY DEFINER paths
+ * (send_signal_message_as_system, intake_insert_system_rows) write rows whose
+ * sender_id is SYSTEM — signal_messages_insert pins sender_id = auth.uid() — so a
+ * user who mints a self-signed SYSTEM cert can't get it onto such a row. This runs
+ * before the known-key shortcut: without it any member could deliver forged
+ * System / on-call / outside cards, and the first one would also replace SYSTEM's
+ * stored identity. `rowSenderId` absent means unbound, which rejects SYSTEM.
+ *
  * @throws if the identity is not published, or the directory is unreachable
  *         (retriable — the row stays unread and catch-up tries again).
  */
@@ -232,7 +241,17 @@ async function verifySenderIdentity(
   senderUuid: string,
   senderDeviceId: string,
   cert: SenderCertificate,
+  rowSenderId?: string,
 ): Promise<void> {
+  if (senderUuid === SYSTEM_USER_ID) {
+    if (rowSenderId !== SYSTEM_USER_ID) {
+      throw new Error('SYSTEM certificate on a row not sent by SYSTEM — rejecting')
+    }
+    // Trust-on-first-use for SYSTEM's keys, now only from rows the server attributes
+    // to SYSTEM.
+    return
+  }
+
   const known = await getPeerIdentity(senderUuid, senderDeviceId)
   if (
     known &&
@@ -241,9 +260,6 @@ async function verifySenderIdentity(
   ) {
     return
   }
-  // SYSTEM's edge-function identity is not in the published directory, so
-  // SYSTEM stays trust-on-first-use.
-  if (senderUuid === SYSTEM_USER_ID) return
 
   const published = await fetchPublishedIdentities(senderUuid)
   if (!published.ok) {
@@ -467,6 +483,8 @@ export async function unsealOnly(
   envelope: SealedEnvelope,
   myUuid: string,
   senderDeviceId: string,
+  /** signal_messages.sender_id of the row; required for SYSTEM-sealed envelopes. */
+  rowSenderId?: string,
 ): Promise<{ inner: Record<string, unknown>; senderUuid: string }> {
   const identity = await ensureLocalIdentity()
   const { inner, senderUuid, cert } = await unseal(
@@ -475,7 +493,7 @@ export async function unsealOnly(
     identity.dhPrivateKey,
     identity.dhPublicKeyBase64,
   )
-  await verifySenderIdentity(senderUuid, senderDeviceId, cert)
+  await verifySenderIdentity(senderUuid, senderDeviceId, cert, rowSenderId)
   return { inner, senderUuid }
 }
 
@@ -636,12 +654,14 @@ async function decryptWithRecord(
  * @param senderDeviceId - from row.sender_device_id (or 'unknown' for legacy)
  * @param envelope - the SealedEnvelope from the DB row payload
  * @param myUuid - this device's user UUID (recipient)
+ * @param rowSenderId - row.sender_id; required for SYSTEM-sealed envelopes
  * @returns Decrypted plaintext + verified sender UUID
  */
 export async function processIncomingMessage(
   senderDeviceId: string,
   envelope: SealedEnvelope,
-  myUuid: string
+  myUuid: string,
+  rowSenderId?: string,
 ): Promise<{ plaintext: string; senderUuid: string; identityKeyChanged?: boolean }> {
   const identity = await ensureLocalIdentity()
 
@@ -654,7 +674,7 @@ export async function processIncomingMessage(
   )
 
   return withSessionLock(makeSessionKey(senderUuid, senderDeviceId), async () => {
-    await verifySenderIdentity(senderUuid, senderDeviceId, cert)
+    await verifySenderIdentity(senderUuid, senderDeviceId, cert, rowSenderId)
 
     const existing = await getSession(senderUuid, senderDeviceId)
     let record: StoredSession
@@ -737,6 +757,8 @@ export async function openVaultEnvelope(
   envelope: SealedEnvelope,
   myUuid: string,
   keys: VaultDecryptKeys,
+  /** row.sender_id; required for SYSTEM-sealed envelopes. */
+  rowSenderId?: string,
 ): Promise<{ plaintext: string; senderUuid: string }> {
   const { inner, senderUuid, cert } = await unseal(
     envelope,
@@ -745,7 +767,7 @@ export async function openVaultEnvelope(
     keys.dhPublicKeyBase64,
     { skipExpiry: true },
   )
-  await verifySenderIdentity(senderUuid, senderDeviceId, cert)
+  await verifySenderIdentity(senderUuid, senderDeviceId, cert, rowSenderId)
   const legacyKey = makeSessionKey(senderUuid, senderDeviceId)
 
   if (!('identitySigningKey' in inner)) {

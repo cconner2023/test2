@@ -9,6 +9,7 @@ import { SetPasswordScreen } from './SetPasswordScreen'
 import { SessionReauthScreen } from './SessionReauthScreen'
 import { RecoveryPasswordSetScreen } from './RecoveryPasswordSetScreen'
 import { UserAcknowledgment, ACK_VERSION } from './UserAcknowledgment'
+import { PRIVACY_POLICY_VERSION } from './Settings/PrivacyPolicyPanel'
 import { supabase } from '../lib/supabase'
 import { LoginScreen } from './LoginScreen'
 import { PostLoginLoader } from './PostLoginLoader'
@@ -83,7 +84,13 @@ export function LockGate({ children }: { children: ReactNode }) {
       // Server is the source of truth; patch in-memory (flips the gate
       // immediately) then fire-and-forget the persist.
       patchProfile({ ackVersionAccepted: ACK_VERSION })
-      supabase.from('profiles').update({ ack_version_accepted: ACK_VERSION }).eq('id', user.id)
+      // The RPC logs both documents to policy_acceptances with server time and
+      // the 18+ attestation, and raises profiles.ack_version_accepted.
+      supabase.rpc('record_policy_acceptance', {
+        p_terms_version: ACK_VERSION,
+        p_privacy_version: PRIVACY_POLICY_VERSION,
+        p_age_attested: true,
+      })
         .then(({ error }) => { if (error) console.warn('[LockGate] ack persist failed', error) })
     } else {
       setAckDismissed(true)

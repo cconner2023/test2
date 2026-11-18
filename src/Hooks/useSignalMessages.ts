@@ -329,12 +329,14 @@ async function decryptRow(
     // with the vault keys; per-device rows (edge-authored) still go through the
     // pairwise session.
     const openRow = async (): Promise<{ plaintext: string; senderUuid: string }> => {
+      // row.sender_id binds any SYSTEM certificate to a row the server attributes
+      // to SYSTEM (see verifySenderIdentity).
       if (row.recipient_device_id !== VAULT_DEVICE_ID) {
-        return processIncomingMessage(senderDeviceId, envelope, myUuid)
+        return processIncomingMessage(senderDeviceId, envelope, myUuid, row.sender_id)
       }
       const keys = await getVaultDecryptKeys(myUuid)
       if (!keys) throw new Error('No vault for this user')
-      return openVaultEnvelope(senderDeviceId, envelope, myUuid, keys)
+      return openVaultEnvelope(senderDeviceId, envelope, myUuid, keys, row.sender_id)
     }
 
     // Delete messages: decrypt through session, extract originIds
@@ -1043,7 +1045,7 @@ export function useSignalMessages({
         try {
           const envelope = row.payload as unknown as SealedEnvelope
           const senderDeviceId = row.sender_device_id ?? 'unknown'
-          const { plaintext: rawPlaintext } = await processClinicIncomingMessage(senderDeviceId, envelope, cId)
+          const { plaintext: rawPlaintext } = await processClinicIncomingMessage(senderDeviceId, envelope, cId, undefined, undefined, row.sender_id)
           clearRowFailure(scope, row.id)
           const { content } = parseMessageContent(rawPlaintext)
           if (isCalendarEvent(content)) {

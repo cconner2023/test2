@@ -19,8 +19,15 @@ function humanSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
-/** Types iOS Safari and desktop browsers render natively in a tab. */
-const previewable = (mime: string) => mime.startsWith('image/') || mime === 'application/pdf' || mime.startsWith('video/') || mime.startsWith('text/')
+/**
+ * Types opened in a tab. The mime is sender-declared and the blob URL is
+ * same-origin, so anything that renders as a document (text/html, image/svg+xml,
+ * xml) would run as the app; only inert raster/media/pdf/plain text qualify.
+ */
+const SAFE_INLINE = /^(image\/(png|jpe?g|gif|webp|heic|heif|avif|bmp)|video\/(mp4|webm|quicktime)|audio\/[a-z0-9.+-]+|application\/pdf|text\/plain)$/i
+const previewable = (mime: string) => SAFE_INLINE.test(mime)
+/** Everything else is materialised as octet-stream so the browser downloads it. */
+const blobType = (mime: string) => (SAFE_INLINE.test(mime) ? mime : 'application/octet-stream')
 
 type Phase = 'idle' | 'loading' | 'ready' | 'gone' | 'error'
 
@@ -42,7 +49,7 @@ export function FileAttachmentBubble({ content, isOwn }: { content: FileContent;
     setPhase('loading')
     const res = await downloadDecryptedAttachment(content.path, content.key, content.store, content.mime)
     if (!res.ok) { setPhase(res.error === 'not_found' ? 'gone' : 'error'); return }
-    const f = new File([res.data], content.name, { type: content.mime })
+    const f = new File([res.data], content.name, { type: blobType(content.mime) })
     setFile(f)
     setUrl(URL.createObjectURL(f))
     setPhase('ready')

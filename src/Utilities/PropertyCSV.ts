@@ -1,13 +1,15 @@
 import type { LocalPropertyItem, LocalPropertyLocation, ItemType, UnitOfIssue } from '../Types/PropertyTypes'
 import type { OrderLine } from './propertyShortage'
 import { isLinContainer, isZoneShadow } from './propertyAuthorized'
+import { neutralizeCsvFormula, restoreCsvFormula } from './csvSafe'
 
 const ITEM_TYPES: ItemType[] = ['CI', 'DI', 'SI']
 const UNITS_OF_ISSUE: UnitOfIssue[] = ['EA', 'SET', 'PR', 'BOT', 'PK', 'TUB']
 
 // ── CSV Escaping ────────────────────────────────────────────
 
-function escapeCSVField(value: string): string {
+function escapeCSVField(raw: string): string {
+  const value = neutralizeCsvFormula(raw)
   if (value.includes(',') || value.includes('"') || value.includes('\n')) {
     return `"${value.replace(/"/g, '""')}"`
   }
@@ -326,7 +328,7 @@ function parseCSVRow(line: string): string[] {
     }
   }
   fields.push(current)
-  return fields
+  return fields.map(restoreCsvFormula)
 }
 
 // ── Reconcile (additive-or-merge import) ────────────────────

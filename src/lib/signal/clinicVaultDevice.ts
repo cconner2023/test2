@@ -71,6 +71,7 @@ import type { PublicKeyBundle, InitialMessage, EncryptedMessage, RatchetState } 
 import type { SignalMessageRow } from './transportTypes'
 import type { SealedEnvelope } from './sealedSender'
 import type { Database } from '../../Types/database.types.generated'
+import { SYSTEM_USER_ID } from './systemConstants'
 
 const logger = createLogger('ClinicVault')
 
@@ -872,6 +873,13 @@ export async function processClinicVaultMessages(
         ))
       } catch (e) {
         logger.error(`Vault unseal failed for message ${row.id}:`, e)
+        markDead(row)
+        continue
+      }
+      // A SYSTEM certificate counts only on a row the server attributes to SYSTEM
+      // (see session.ts verifySenderIdentity); anyone can mint a self-signed one.
+      if (senderUuid === SYSTEM_USER_ID && row.sender_id !== SYSTEM_USER_ID) {
+        logger.warn(`Clinic vault row ${row.id}: SYSTEM certificate on a non-SYSTEM row, dropping`)
         markDead(row)
         continue
       }

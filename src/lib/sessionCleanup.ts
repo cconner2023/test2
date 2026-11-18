@@ -18,7 +18,7 @@
  * cleanup (device unregistration + token invalidation).
  */
 
-import { isPWA } from './supabase'
+import { isPWA, supabase } from './supabase'
 import { secureRemove } from './secureStorage'
 import { createLogger } from '../Utilities/Logger'
 
@@ -108,10 +108,10 @@ function handlePageHide(event: PageTransitionEvent): void {
   // Mark that an unload is in progress (survives refresh, lost on close)
   try { sessionStorage.setItem(UNLOAD_MARKER, '1') } catch { /* ignore */ }
 
-  // Stash cleanup data so a future fresh tab can execute it
+  // Stash cleanup data so a future fresh tab can execute it. No token: localStorage
+  // is plaintext, and the next load reads the session back from the encrypted store.
   try {
     localStorage.setItem(CLEANUP_STASH, JSON.stringify({
-      token: cachedAccessToken,
       deviceId: cachedDeviceId,
       clinicDeviceId: cachedClinicDeviceId,
       ts: Date.now(),
@@ -162,17 +162,20 @@ export function registerSessionCleanup(): void {
     if (raw) {
       localStorage.removeItem(CLEANUP_STASH)
       try {
-        const { token, deviceId, clinicDeviceId, ts } = JSON.parse(raw) as {
-          token: string; deviceId: string | null; clinicDeviceId: string | null; ts: number
+        const { deviceId, clinicDeviceId, ts } = JSON.parse(raw) as {
+          deviceId: string | null; clinicDeviceId: string | null; ts: number
         }
         const age = Date.now() - ts
         // Only clean up if the stash is recent (< 5 minutes).
         // Older entries likely expired naturally or were handled by heartbeat.
-        if (age < 5 * 60 * 1000 && token) {
+        if (age < 5 * 60 * 1000) {
           logger.info(`Executing deferred session cleanup (stale by ${Math.round(age / 1000)}s)`)
-          performCleanup(token, deviceId, clinicDeviceId)
-          // Remove encrypted Supabase session from IDB (browser tab was closed)
-          removeSupabaseSessionFromIdb()
+          void supabase.auth.getSession().then(({ data }) => {
+            const token = data.session?.access_token
+            if (token) performCleanup(token, deviceId, clinicDeviceId)
+            // Remove encrypted Supabase session from IDB (browser tab was closed)
+            removeSupabaseSessionFromIdb()
+          }).catch(() => removeSupabaseSessionFromIdb())
         } else {
           logger.info('Stale cleanup data discarded (too old)')
         }

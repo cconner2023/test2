@@ -385,7 +385,7 @@ async function fetchProfileFromSupabase(userId: string): Promise<{ profile: User
   // The home clinic's app_content_version and the loan rows are embedded so the
   // profile load is one request, not three. The loans embed needs the FK hint
   // (profile_clinic_loans has two FKs to profiles: user_id and created_by).
-  const PROFILE_SELECT = 'first_name, last_name, middle_initial, credential, component, rank, uic, roles, clinic_id, surrogate_clinic_id, sub_cluster_id, clinic:clinics!profiles_clinic_id_fkey(name, app_content_version), loans:profile_clinic_loans!profile_clinic_loans_user_id_fkey(clinic_id, created_at, clinic:clinics(name)), pin_hash, pin_salt, ack_version_accepted, notify_dev_alerts, notify_calendar_assignments, app_content_version, needs_password_setup, favorite_medications, overview_widgets, theme, swipe_actions, allow_calls, seed_algorithm_note, avatar_id, avatar_blob, avatar_ref, note_template_clinic_ids'
+  const PROFILE_SELECT = 'first_name, last_name, middle_initial, credential, component, rank, uic, roles, clinic_id, surrogate_clinic_id, sub_cluster_id, clinic:clinics!profiles_clinic_id_fkey(name, app_content_version), loans:profile_clinic_loans!profile_clinic_loans_user_id_fkey(clinic_id, created_at, clinic:clinics(name)), ack_version_accepted, notify_dev_alerts, notify_calendar_assignments, app_content_version, needs_password_setup, favorite_medications, overview_widgets, theme, swipe_actions, allow_calls, seed_algorithm_note, avatar_id, avatar_blob, avatar_ref, note_template_clinic_ids'
   const { data, error: fetchError } = await supabase
     .from('profiles')
     .select(PROFILE_SELECT)
@@ -457,11 +457,18 @@ async function fetchProfileFromSupabase(userId: string): Promise<{ profile: User
 
     roles = (data.roles as string[]) ?? []
 
-    // PIN hydration
+    // PIN hydration. The hash lives in profile_pins (own-row RLS), not on profiles,
+    // because profiles rows are readable by clinic peers and a 4-digit PIN cracks
+    // offline.
     const sec = data as Record<string, unknown>
     await initPinService()
-    if (sec.pin_hash && sec.pin_salt && !isPinEnabled()) {
-      await hydrateFromCloud(sec.pin_hash as string, sec.pin_salt as string)
+    if (!isPinEnabled()) {
+      const { data: pin } = await supabase
+        .from('profile_pins')
+        .select('pin_hash, pin_salt')
+        .eq('user_id', userId)
+        .maybeSingle()
+      if (pin?.pin_hash && pin?.pin_salt) await hydrateFromCloud(pin.pin_hash, pin.pin_salt)
     }
 
     if (sec.ack_version_accepted != null) profile.ackVersionAccepted = sec.ack_version_accepted as number
@@ -1179,6 +1186,14 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
       try { await _pendingSignOutCleanup } catch { /* allSettled inside, but be defensive */ }
       _pendingSignOutCleanup = null
     }
+    // Casualty cards go only on a deliberate sign-out, not in handleSignedOut: that
+    // also runs on involuntary SIGNED_OUT (iOS PWA kills, expiry), which would wipe an
+    // in-progress MASCAL queue mid-event.
+    try {
+      const tc3 = (await import('./useTC3Store')).useTC3Store.getState()
+      tc3.resetCard()
+      tc3.clearQueue()
+    } catch { /* best-effort */ }
   },
 
   patchProfile: (fields) => {

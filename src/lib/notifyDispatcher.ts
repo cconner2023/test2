@@ -3,7 +3,9 @@ import { createLogger } from '../Utilities/Logger'
 
 const logger = createLogger('NotifyDispatcher')
 
-export function fireNotification(payload: { user_id?: string; user_ids?: string[]; title?: string; body?: string; url?: string; type?: string; name?: string | null; email?: string | null; clinic_id?: string | null; author_id?: string }): void {
+/** Notification copy is server-built (send-push-notification); title/body here are
+ *  ignored by the server and kept only for older call sites. */
+export function fireNotification(payload: { user_id?: string; user_ids?: string[]; title?: string; body?: string; type?: string; request_id?: string; author_id?: string }): void {
   supabase.functions.invoke('send-push-notification', {
     body: payload,
   }).then((response) => {

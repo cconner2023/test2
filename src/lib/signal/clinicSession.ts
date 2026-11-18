@@ -31,6 +31,7 @@ import type {
   EncryptedMessage,
   InitialMessage,
 } from './types'
+import { SYSTEM_USER_ID } from './systemConstants'
 
 const logger = createLogger('ClinicSession')
 
@@ -222,6 +223,9 @@ export async function processClinicIncomingMessage(
   clinicId: string,
   userId?: string,
   personalDeviceId?: string,
+  /** row.sender_id. A SYSTEM certificate is accepted only on a row the server
+   *  attributes to SYSTEM (see session.ts verifySenderIdentity). */
+  rowSenderId?: string,
 ): Promise<{ plaintext: string; senderUuid: string }> {
   const identity = await getClinicLocalIdentity()
   if (!identity) throw new Error('Clinic identity not initialized')
@@ -232,6 +236,9 @@ export async function processClinicIncomingMessage(
     identity.dhPrivateKey,
     identity.dhPublicKeyBase64
   )
+  if (senderUuid === SYSTEM_USER_ID && rowSenderId !== SYSTEM_USER_ID) {
+    throw new Error('SYSTEM certificate on a row not sent by SYSTEM — rejecting')
+  }
 
   return withSessionLock(makeSessionKey(senderUuid, senderDeviceId), async () => {
     await storeClinicPeerIdentity(

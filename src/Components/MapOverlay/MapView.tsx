@@ -24,7 +24,7 @@ import { createMGRSGridLayer, createLLGridLayer, getGridTheme } from './MGRSGrid
 import { MGRSGridLabels } from './MGRSGridLabels';
 import type { OverlayFeature, DrawMode } from '../../Types/MapOverlayTypes';
 import { resolveColor } from '../../Types/MapOverlayTypes';
-import { waypointIconSvg } from './WaypointIcon';
+import { waypointIconSvg, safeCssColor } from './WaypointIcon';
 import { FloorSelector } from './FloorSelector';
 import { useMapPrefsStore } from '../../stores/useMapPrefsStore';
 import { formatBearing } from '../../lib/declination';
@@ -162,7 +162,7 @@ function addVertexHandles(
   onChange: (featureId: string, geometry: [number, number][]) => void,
 ) {
   geometry.forEach(([lat, lng], idx) => {
-    const html = `<div style="width:12px;height:12px;border-radius:50%;background:#FFFFFF;border:2px solid ${color};box-shadow:0 1px 2px rgba(0,0,0,0.35);"></div>`;
+    const html = `<div style="width:12px;height:12px;border-radius:50%;background:#FFFFFF;border:2px solid ${safeCssColor(color)};box-shadow:0 1px 2px rgba(0,0,0,0.35);"></div>`;
     const icon = L.divIcon({ html, className: '', iconSize: [12, 12], iconAnchor: [6, 6] });
     const handle = L.marker([lat, lng], { icon, draggable: true });
     handle.on('dragend', () => {

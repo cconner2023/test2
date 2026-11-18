@@ -2,6 +2,7 @@
 import { diag } from './lib/diagLog'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+import { isFramed } from './lib/frameGuard'
 import './index.css'
 import App from './App.tsx'
 import { initSW } from './lib/swService.ts'
@@ -62,6 +63,8 @@ if (
     document.documentElement.style.setProperty('--sat', `max(env(safe-area-inset-top, 0px), ${fallback})`)
   }
 }
+
+if (isFramed()) throw new Error('Refusing to render inside a frame')
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

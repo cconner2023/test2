@@ -12,7 +12,7 @@ import { createLogger } from '../Utilities/Logger'
 import { hashWithSalt, verifyHash } from './cryptoUtils'
 import { secureSet, secureGet, secureRemove } from './secureStorage'
 import { deriveAndStoreBackupKey } from './signal/backupService'
-import { generateVaultIdentity, uploadVaultDevice, deriveAndCacheVaultKey, ensureVaultExists, setVaultKeyReady } from './signal/vaultDevice'
+import { deriveAndCacheVaultKey, ensureVaultExists, setVaultKeyReady } from './signal/vaultDevice'
 import { succeed, fail, getErrorMessage as getErrMsg, type ServiceResult } from './result'
 import { rememberSignInEmail } from './loginPrefill'
 
@@ -77,74 +77,6 @@ export interface AuthResult {
   error: AuthError | null
 }
 
-export interface ProfileData {
-  display_name: string
-  rank: string
-  uic: string
-}
-
-/**
- * Register a new user with email/password and create their profile.
- */
-export async function signUp(
-  email: string,
-  password: string,
-  profile: ProfileData
-): Promise<AuthResult> {
-  const { data, error } = await supabase.auth.signUp({
-    email,
-    password,
-  })
-
-  if (error) {
-    return { user: null, session: null, error }
-  }
-
-  // Update the auto-created profile with user-provided data
-  if (data.user) {
-    const { error: profileError } = await supabase
-      .from('profiles')
-      .update({
-        display_name: profile.display_name,
-        rank: profile.rank,
-        uic: profile.uic,
-      })
-      .eq('id', data.user.id)
-
-    if (profileError) {
-      logger.error('Failed to update profile after signup:', profileError)
-    }
-
-    // Auto-associate clinic based on UIC
-    await associateClinic(data.user.id, profile.uic)
-
-    // Generate vault device while password is in scope.
-    // Awaited with single retry — the vault makes the user messageable immediately.
-    try {
-      const vaultBundle = await generateVaultIdentity(data.user.id, password)
-      const uploadResult = await uploadVaultDevice(data.user.id, vaultBundle)
-      if (!uploadResult.ok) {
-        // Retry once on upload failure
-        await uploadVaultDevice(data.user.id, vaultBundle)
-      }
-    } catch {
-      // Single retry on generation failure
-      try {
-        const vaultBundle = await generateVaultIdentity(data.user.id, password)
-        await uploadVaultDevice(data.user.id, vaultBundle)
-      } catch {
-        logger.warn('Vault creation failed after retry — will be created on next sign-in')
-      }
-    }
-  }
-
-  return {
-    user: data.user,
-    session: data.session,
-    error: null,
-  }
-}
-
 /**
  * Log in with email and password.
  */
@@ -189,31 +121,6 @@ export async function signIn(
     user: data.user,
     session: data.session,
     error: error,
-  }
-}
-
-/**
- * Associate a user with a clinic based on their UIC.
- * UIC-match only — the legacy additional_user_ids fallback was retired in PR 7
- * (surrogate clinic membership replaces it; admin/supervisor-set, never auto).
- */
-async function associateClinic(userId: string, uic: string): Promise<void> {
-  if (!uic) return
-
-  const upperUic = uic.toUpperCase().trim()
-
-  const { data: clinic } = await supabase
-    .from('clinics')
-    .select('id')
-    .contains('uics', [upperUic])
-    .limit(1)
-    .single()
-
-  if (clinic) {
-    await supabase
-      .from('profiles')
-      .update({ clinic_id: clinic.id })
-      .eq('id', userId)
   }
 }
 

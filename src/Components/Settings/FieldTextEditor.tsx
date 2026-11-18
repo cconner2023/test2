@@ -261,8 +261,9 @@ export const FieldTextEditor = forwardRef<FieldEditorHandle, FieldTextEditorProp
 
         if (html && html.includes('data-field')) {
             // Came from our editor — parse and reconstruct pills
-            const temp = document.createElement('div');
-            temp.innerHTML = html;
+            // DOMParser, not innerHTML on a live-document div: the latter fetches
+            // <img src> and fires onerror handlers from whatever is on the clipboard.
+            const temp = new DOMParser().parseFromString(html, 'text/html').body;
 
             const walk = (parent: Node) => {
                 for (const node of Array.from(parent.childNodes)) {

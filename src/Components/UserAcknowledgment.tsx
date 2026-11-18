@@ -1,13 +1,16 @@
 import { useState } from 'react'
-import { ShieldCheck, Activity, EyeOff, FileText, Scale } from 'lucide-react'
+import { ShieldCheck, Activity, EyeOff, FileText, Scale, Lock, ChevronDown } from 'lucide-react'
 import { SectionCard } from '@/Components/primitives/Section'
+import { PrivacyPolicyContent } from '@/Components/Settings/PrivacyPolicyPanel'
 
 /**
- * Bump this when the acknowledgment content changes materially. Authenticated
- * users who accepted a previous version will be re-prompted once (their
- * profiles.ack_version_accepted is below this number). See LockGate for the gate.
+ * Bump this when the acknowledgment or the privacy policy changes materially.
+ * Authenticated users who accepted a previous version will be re-prompted once
+ * (their profiles.ack_version_accepted is below this number). See LockGate for
+ * the gate; each acceptance is also logged to policy_acceptances.
+ * v2: privacy policy acceptance and 18+ attestation added.
  */
-export const ACK_VERSION = 1
+export const ACK_VERSION = 2
 
 interface UserAcknowledgmentProps {
   onAccept: () => void
@@ -24,9 +27,12 @@ const AckRow = ({ icon, children }: { icon: React.ReactNode; children: React.Rea
 
 export const UserAcknowledgment = ({ onAccept }: UserAcknowledgmentProps) => {
   const [checked, setChecked] = useState(false)
+  const [ageChecked, setAgeChecked] = useState(false)
+  const [policyOpen, setPolicyOpen] = useState(false)
+  const canAccept = checked && ageChecked
 
   const handleAccept = () => {
-    if (!checked) return
+    if (!canAccept) return
     onAccept()
   }
 
@@ -74,7 +80,43 @@ export const UserAcknowledgment = ({ onAccept }: UserAcknowledgmentProps) => {
                 This software is provided without warranty. Clinical content is for reference only. Always verify critical information through authoritative sources.
               </p>
             </AckRow>
+            <AckRow icon={<Lock size={16} className="text-tertiary" />}>
+              <p>
+                <strong className="text-primary font-medium">Privacy Policy.</strong>{' '}
+                Explains what account data is collected, the services the app connects to, browser storage use, and your rights.
+              </p>
+              <button
+                type="button"
+                onClick={() => setPolicyOpen(o => !o)}
+                aria-expanded={policyOpen}
+                className="mt-1.5 inline-flex items-center gap-1 text-themeblue2 font-medium"
+              >
+                {policyOpen ? 'Hide Privacy Policy' : 'Read Privacy Policy'}
+                <ChevronDown size={14} className={`transition-transform ${policyOpen ? 'rotate-180' : ''}`} />
+              </button>
+            </AckRow>
           </SectionCard>
+
+        {policyOpen && (
+          <div className="w-full space-y-4 mb-6 select-text">
+            <PrivacyPolicyContent />
+          </div>
+        )}
+
+        {/* Age attestation. The app cannot verify age, so it asks; the policy
+            commits to deleting accounts found to belong to minors. */}
+        <label className="flex items-start gap-3 mb-3 cursor-pointer px-1 w-full">
+          <input
+            type="checkbox"
+            checked={ageChecked}
+            onChange={(e) => setAgeChecked(e.target.checked)}
+              className="mt-0.5 w-4 h-4 rounded border-themeblue3/10 text-themeblue2 focus:ring-themeblue2 shrink-0 cursor-pointer accent-themeblue2"
+          />
+            <span className="text-sm text-primary leading-relaxed">
+            I am 18 years of age or older.
+          </span>
+        </label>
+
         {/* Acceptance checkbox */}
         <label className="flex items-start gap-3 mb-5 cursor-pointer px-1 w-full">
           <input
@@ -84,14 +126,14 @@ export const UserAcknowledgment = ({ onAccept }: UserAcknowledgmentProps) => {
               className="mt-0.5 w-4 h-4 rounded border-themeblue3/10 text-themeblue2 focus:ring-themeblue2 shrink-0 cursor-pointer accent-themeblue2"
           />
             <span className="text-sm text-primary leading-relaxed">
-            I understand no patient data is stored externally. I accept responsibility for any unauthorized PHI/PII release resulting from my use of this application.
+            I have read and agree to the Privacy Policy. I understand no patient data is stored externally. I accept responsibility for any unauthorized PHI/PII release resulting from my use of this application.
           </span>
         </label>
 
         {/* Accept button */}
         <button
           onClick={handleAccept}
-          disabled={!checked}
+          disabled={!canAccept}
             className="w-full py-2.5 px-4 rounded-full bg-themeblue3 text-white text-sm font-medium active:scale-95 transition-all disabled:opacity-30"
         >
           Continue

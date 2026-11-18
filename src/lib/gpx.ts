@@ -202,7 +202,12 @@ function extChild(el: Element, localName: string): string | null {
 }
 
 function extId(el: Element): string | null { return extChild(el, 'id') }
-function extColor(el: Element): string | null { return extChild(el, 'color') }
+// Only hex or a theme var() survive import; the value ends up in HTML marker markup
+// (see WaypointIcon safeCssColor, which re-checks at the sink).
+function extColor(el: Element): string | null {
+  const c = extChild(el, 'color')
+  return c && /^(#[0-9a-f]{3,8}|var\(--[a-z0-9-]{1,64}\))$/i.test(c) ? c : null
+}
 const ALL_GLYPHS: WaypointType[] = [
   'circle', 'cross', 'triangle',
   'friendly', 'enemy', 'neutral',

@@ -42,7 +42,7 @@ self.addEventListener('message', async (event: MessageEvent<InitMessage>) => {
     const { file, options } = event.data
     const { bounds, pageNumber = 1, renderScale = 2, maxZoomCap = 14 } = options
 
-    const pdf = await pdfjsLib.getDocument({ data: file }).promise
+    const pdf = await pdfjsLib.getDocument({ data: file, isEvalSupported: false, enableXfa: false }).promise
     if (pageNumber < 1 || pageNumber > pdf.numPages) {
       post({ kind: 'error', message: `Page ${pageNumber} out of range (PDF has ${pdf.numPages})` })
       return

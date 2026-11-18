@@ -2,7 +2,7 @@
 import { precacheAndRoute, cleanupOutdatedCaches } from 'workbox-precaching';
 import { clientsClaim } from 'workbox-core';
 import { registerRoute, NavigationRoute } from 'workbox-routing';
-import { StaleWhileRevalidate, CacheFirst, NetworkFirst } from 'workbox-strategies';
+import { CacheFirst } from 'workbox-strategies';
 import { ExpirationPlugin } from 'workbox-expiration';
 import { CacheableResponsePlugin } from 'workbox-cacheable-response';
 import { createHandlerBoundToURL } from 'workbox-precaching';
@@ -38,54 +38,10 @@ registerRoute(navigationRoute);
 
 // ─── Runtime caching ─────────────────────────────────────────────────
 
-// Google Fonts stylesheets (CSS)
-registerRoute(
-  /^https:\/\/fonts\.googleapis\.com\/.*/i,
-  new StaleWhileRevalidate({
-    cacheName: 'google-fonts-stylesheets',
-    plugins: [
-      new ExpirationPlugin({ maxEntries: 10, maxAgeSeconds: 60 * 60 * 24 * 365 }),
-      new CacheableResponsePlugin({ statuses: [0, 200] }),
-    ],
-  })
-);
-
-// Google Fonts files (woff2)
-registerRoute(
-  /^https:\/\/fonts\.gstatic\.com\/.*/i,
-  new CacheFirst({
-    cacheName: 'google-fonts-webfonts',
-    plugins: [
-      new ExpirationPlugin({ maxEntries: 30, maxAgeSeconds: 60 * 60 * 24 * 365 }),
-      new CacheableResponsePlugin({ statuses: [0, 200] }),
-    ],
-  })
-);
-
-// Supabase REST API
-registerRoute(
-  /^https:\/\/.*\.supabase\.co\/rest\/v1\/.*/i,
-  new NetworkFirst({
-    cacheName: 'supabase-api-cache',
-    networkTimeoutSeconds: 10,
-    plugins: [
-      new ExpirationPlugin({ maxEntries: 50, maxAgeSeconds: 60 * 60 * 24 }),
-      new CacheableResponsePlugin({ statuses: [0, 200] }),
-    ],
-  })
-);
-
-// Supabase Storage
-registerRoute(
-  /^https:\/\/.*\.supabase\.co\/storage\/v1\/.*/i,
-  new CacheFirst({
-    cacheName: 'supabase-storage-cache',
-    plugins: [
-      new ExpirationPlugin({ maxEntries: 50, maxAgeSeconds: 60 * 60 * 24 * 30 }),
-      new CacheableResponsePlugin({ statuses: [0, 200] }),
-    ],
-  })
-);
+// Supabase REST and Storage responses are NOT runtime-cached. Cache Storage keys by
+// URL only, so a cached RLS-scoped row (profiles, clinic keys) could be served to the
+// next account on a shared device, and it sat in plaintext between sessions. Offline
+// data lives in the app's own encrypted IDB stores instead.
 
 // How-To video clips — cached on first watch, not precached
 registerRoute(
@@ -212,13 +168,16 @@ self.addEventListener('install', (event) => {
 
 // ─── Activate: stamp build ID in meta cache ───────────────────────────
 self.addEventListener('activate', (event) => {
-  event.waitUntil(
+  event.waitUntil(Promise.all([
     caches.open(SW_META_CACHE).then(cache =>
       cache.put(SW_BUILD_KEY, new Response(__BUILD_ID__, {
         headers: { 'Content-Type': 'text/plain' },
       }))
-    )
-  );
+    ),
+    // Left behind by builds that runtime-cached Supabase responses (see above).
+    caches.delete('supabase-api-cache'),
+    caches.delete('supabase-storage-cache'),
+  ]));
 });
 
 // ─── Skip waiting + queue notification on message ────────────────────

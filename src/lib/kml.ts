@@ -247,7 +247,7 @@ function resolveStyleColor(placemark: Element, styles: Map<string, string>): str
 
 function kmlColorToHex(kml: string): string {
   const c = kml.replace(/^#/, '').padStart(8, '0').toLowerCase()
-  if (c.length !== 8) return FALLBACK_HEX
+  if (!/^[0-9a-f]{8}$/.test(c)) return FALLBACK_HEX
   // KML: AABBGGRR → #RRGGBB
   const r = c.slice(6, 8)
   const g = c.slice(4, 6)
