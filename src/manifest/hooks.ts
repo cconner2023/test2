@@ -90,7 +90,6 @@ export const hooks = {
   useSupabaseSubscription: { path: 'Hooks/useSupabaseSubscription.ts', stores: [], services: ['supabase'], purpose: 'Shared Realtime channel lifecycle with visibility pause' },
 
   // ─── Misc ──────────────────────────────────────────────────────
-  useMinLoadTime:         { path: 'Hooks/useMinLoadTime.ts',         stores: [], services: [], purpose: 'Keep loading state for min 500ms to prevent flash' },
 } as const;
 
 export type HookId = keyof typeof hooks;

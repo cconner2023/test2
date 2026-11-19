@@ -3,7 +3,7 @@ import type { CalendarEvent } from '../../Types/CalendarTypes'
 import type { ResourceAllocation } from '../../Types/MissionTypes'
 import { useMissionBoard } from '../../Hooks/useMissionBoard'
 import { AllocationPanel } from './AllocationPanel'
-import { LoadingOverlay } from '@/Components/primitives/LoadingOverlay'
+import { Skeleton, SkeletonSections } from '@/Components/primitives/Skeleton'
 import { usePropertyStore } from '../../stores/usePropertyStore'
 import { useIsMobile } from '../../Hooks/useIsMobile'
 
@@ -45,7 +45,7 @@ export function MissionBoard({ event, medics, onClose, onSave }: MissionBoardPro
             Mission Board
           </span>
           <span className="text-[9pt] font-semibold tracking-widest uppercase text-tertiary truncate">
-            {overlay?.name ?? 'No overlay linked'}
+            {overlay?.name ?? (loading ? <Skeleton className="h-2.5 w-24 mt-1 rounded-full" /> : 'No overlay linked')}
           </span>
         </div>
         <div className="flex items-center gap-1.5 shrink-0 ml-2">
@@ -100,7 +100,7 @@ export function MissionBoard({ event, medics, onClose, onSave }: MissionBoardPro
             onUpdateAllocation={updateAllocation}
           />
         )}
-        <LoadingOverlay visible={loading} size={120} />
+        {loading && <SkeletonSections sections={[2, 2]} variant="icon" className="py-3" />}
       </div>
     </div>
   )

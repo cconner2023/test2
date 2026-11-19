@@ -27,6 +27,7 @@ import {
   type VotersByCandidate,
 } from '../../lib/featureVotingService'
 import { EmptyState } from '@/Components/primitives/EmptyState'
+import { SkeletonRows, SkeletonSections } from '@/Components/primitives/Skeleton'
 import { FooterPill } from '@/Components/primitives/FooterPill'
 import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
 import { ErrorDisplay } from '@/Components/primitives/ErrorDisplay'
@@ -327,9 +328,8 @@ export function AdminFeatureVotesSection() {
 
   if (loading) {
     return (
-      <div className="px-5 py-8 flex items-center justify-center text-tertiary">
-        <Loader2 size={18} className="animate-spin mr-2" />
-        <span className="text-[10pt]">Loading…</span>
+      <div className="px-5 py-4">
+        <SkeletonSections sections={[1, 4]} variant="text" />
       </div>
     )
   }
@@ -627,10 +627,7 @@ export function AdminFeatureVotesSection() {
                 const loaded = voters[optionPopover.cycleId] !== undefined
                 if (!loaded) {
                   return (
-                    <div className="flex items-center justify-center py-3 text-tertiary">
-                      <Loader2 size={14} className="animate-spin mr-2" />
-                      <span className="text-[10pt]">Loading voters…</span>
-                    </div>
+                    <SkeletonRows count={3} variant="text" divided={false} className="-mx-4 -my-3" />
                   )
                 }
                 if (list.length === 0) {

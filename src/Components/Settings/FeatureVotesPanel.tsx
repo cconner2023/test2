@@ -10,7 +10,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { Check, Loader2, MessageCircleQuestion, MessageSquare } from 'lucide-react'
-import { LoadingOverlay } from '@/Components/primitives/LoadingOverlay'
+import { Skeleton, SkeletonRows } from '@/Components/primitives/Skeleton'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { useFeatureVotesStore, OTHER_CANDIDATE_ID } from '../../stores/useFeatureVotesStore'
 import { ErrorDisplay } from '@/Components/primitives/ErrorDisplay'
@@ -79,8 +79,12 @@ export const FeatureVotesPanel = ({ onOpenFeedback }: Props) => {
 
   if (loading && !activeCycle) {
     return (
-      <div className="relative h-full overflow-y-auto">
-        <LoadingOverlay visible size={140} label="LOADING" />
+      <div className="h-full overflow-y-auto">
+        <div className="px-5 pb-8 pt-[calc(var(--drawer-header-h,3.5rem)+0.75rem)] space-y-3">
+          <Skeleton className="h-4 w-1/2 rounded-full" />
+          <Skeleton className="h-3 w-3/4 rounded-full" />
+          <SkeletonRows count={4} variant="text" className="pt-2" />
+        </div>
       </div>
     )
   }

@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo, useEffect, useRef, type ReactNode } from 'react'
 import { Building2, Trash2, Check, Mail } from 'lucide-react'
-import { TextInput, PickerInput, MultiPickerInput } from '@/Components/primitives/FormInputs'
+import { TextInput, TextArea, PickerInput, MultiPickerInput } from '@/Components/primitives/FormInputs'
 import { UicPinInput } from '@/Components/DomainInputs'
 import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
 import { ErrorDisplay } from '@/Components/primitives/ErrorDisplay'
@@ -29,6 +29,10 @@ import type { AccountRequest } from '../../lib/accountRequestService'
 import { buildMailtoHref } from '../../lib/mailto'
 import { invalidate, useInvalidation } from '../../stores/useInvalidationStore'
 
+
+// .mil approvals go through the A365 relay, which composes its own body; the
+// custom intro can't ride that envelope, so the field is hidden for .mil.
+const isMilEmail = (e: string) => (e.trim().toLowerCase().split('@')[1] ?? '').endsWith('.mil')
 
 export interface RequestDetailProps {
   request: AccountRequest
@@ -75,6 +79,7 @@ export function RequestDetail({ request, onApproved, onClose, onHeaderActions }:
   const [uic, setUic] = useState(request.uic || '')
   const [roles, setRoles] = useState<string[]>(['medic'])
   const [selectedClinicId, setSelectedClinicId] = useState('')
+  const [intro, setIntro] = useState('')
   const [processing, setProcessing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -201,7 +206,10 @@ export function RequestDetail({ request, onApproved, onClose, onHeaderActions }:
 
     // Step 5: approval email
     if (approvedEmailLocal && !alreadyOk('email')) {
-      const r = await sendApprovalEmail(approvedEmailLocal)
+      const r = await sendApprovalEmail(
+        approvedEmailLocal,
+        isMilEmail(approvedEmailLocal) ? undefined : { text: intro, rank, lastName },
+      )
       upsert({
         key: 'email',
         label: 'Approval email sent',
@@ -225,7 +233,7 @@ export function RequestDetail({ request, onApproved, onClose, onHeaderActions }:
     }
   }, [
     request, email, firstName, lastName, middleInitial, credential, component, rank, uic,
-    roles, selectedClinicId, onApproved, stepResults, approvedUserId, approvedEmail,
+    roles, selectedClinicId, intro, onApproved, stepResults, approvedUserId, approvedEmail,
   ])
 
   const handleApprove = useCallback(() => {
@@ -370,6 +378,15 @@ export function RequestDetail({ request, onApproved, onClose, onHeaderActions }:
               placeholder="Roles *"
               required
             />
+            {!isMilEmail(email) && (
+              <TextArea
+                value={intro}
+                onChange={setIntro}
+                placeholder={`Custom intro (optional) — sent as "${[rank, lastName].filter(Boolean).join(' ') || 'Rank Last'}, …"`}
+                maxLength={1000}
+                autoGrow
+              />
+            )}
           </>
         )}
 

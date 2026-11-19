@@ -1,3 +1,4 @@
+import { SkeletonRows } from '@/Components/primitives/Skeleton'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { clusterLabel } from '../../../Utilities/clusterLabel'
 import { Plus } from 'lucide-react'
@@ -92,7 +93,7 @@ export function ChildClinicRosterBody({
   }, [removeTarget, clinicId])
 
   const roster = loading ? (
-    <p className="text-sm text-tertiary py-8 text-center">Loading…</p>
+    <SkeletonRows count={4} variant="avatar" />
   ) : members.length === 0 ? (
     <p className="text-sm text-tertiary py-8 text-center">No members assigned.</p>
   ) : (

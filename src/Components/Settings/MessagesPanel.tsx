@@ -20,8 +20,8 @@ import { GroupListItem } from './GroupListItem'
 import { getDisplayName } from '../../Utilities/nameUtils'
 import { ConversationInfoPanel } from './ConversationInfoPanel'
 import { UserAvatar } from './UserAvatar'
-import { LoadingSpinner } from '@/Components/primitives/LoadingSpinner'
-import { useMinLoadTime } from '../../Hooks/useMinLoadTime'
+import { SkeletonSections } from '@/Components/primitives/Skeleton'
+import { SyncBanner } from '@/Components/primitives/SyncBanner'
 import { ProvisionalDeviceModal } from './ProvisionalDeviceModal'
 import { useAuth } from '../../Hooks/useAuth'
 import { useCallActions } from '../../Hooks/CallContext'
@@ -246,7 +246,9 @@ function ConversationPane({
     })
   }, [nearbyClinicNames])
   const [pendingDelete, setPendingDelete] = useState<PreviewTarget | null>(null)
-  const showLoading = useMinLoadTime(loading ?? false)
+  // Skeleton only while the roster is genuinely empty; cached contacts/groups render
+  // straight away and a background refresh never blanks them.
+  const firstLoad = !!loading && medics.length === 0 && Object.keys(groups).length === 0
 
   const closeMenu = useCallback(() => setLiftedMenu(null), [])
 
@@ -425,20 +427,18 @@ function ConversationPane({
     return { medics: matchedMedics, groups: matchedGroups, messages: messageMatches }
   }, [searchQuery, medics, groups, conversations, selfMedic])
 
-  if (showLoading) {
+  if (firstLoad) {
     return (
-      <LoadingSpinner label="Loading contacts..." className="py-12 text-tertiary" />
+      <div className="flex flex-col">
+        {!signalReady && <SyncBanner label="Setting up encryption…" />}
+        <SkeletonSections sections={[2, 4]} variant="avatar" className="pt-3" />
+      </div>
     )
   }
 
   return (
     <div className="flex flex-col">
-      {!signalReady && (
-        <div className="flex items-center gap-2 px-3 py-2 bg-themeblue2/10 border-b border-themeblue2/20">
-          <div className="w-3 h-3 border-2 border-themeblue2 border-t-transparent rounded-full animate-spin" />
-          <span className="text-[10pt] text-themeblue2 font-medium">Setting up encryption…</span>
-        </div>
-      )}
+      {!signalReady && <SyncBanner label="Setting up encryption…" />}
       <div className="pt-1 pb-28 md:pb-10">
         {/* Search results */}
         {searchResults ? (

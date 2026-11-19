@@ -1,3 +1,4 @@
+import { SkeletonRows } from '@/Components/primitives/Skeleton'
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { Radio, ChevronRight } from 'lucide-react'
 import { PreviewOverlay } from '../PreviewOverlay'
@@ -114,7 +115,7 @@ export function LineOncallRow({
           {error && <p className="text-[10pt] text-themeredred px-1 pb-2">{error}</p>}
 
           {roster == null && !error && (
-            <p className="text-[10pt] text-tertiary py-4 text-center">Loading…</p>
+            <SkeletonRows count={3} variant="avatar" divided={false} className="-mx-3" />
           )}
 
           {roster != null && roster.memberIds.length === 0 && (

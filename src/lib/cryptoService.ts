@@ -20,10 +20,11 @@
  *   is fetched on next online session
  */
 
-import { type DBSchema } from 'idb'
+import { type DBSchema, type IDBPDatabase } from 'idb'
 import { supabase } from './supabase'
 import { createLogger } from '../Utilities/Logger'
 import { createIdbSingleton } from './idbFactory'
+import { withTimeout } from '../Utilities/withTimeout'
 import { uint8ToBase64, base64ToUint8 } from '../Utilities/textCodec'
 import { aesGcmEncrypt, aesGcmDecrypt } from './aesGcm'
 import { succeed, fail, type ServiceResult } from './result'
@@ -58,7 +59,7 @@ interface KeyStoreDB extends DBSchema {
 const KEY_DB_NAME = 'packagebackend-keystore'
 const KEY_DB_VERSION = 1
 
-const { getDb: getKeyDb } = createIdbSingleton<KeyStoreDB>(KEY_DB_NAME, KEY_DB_VERSION, {
+const { getDb: getKeyDb, reset: resetKeyDb } = createIdbSingleton<KeyStoreDB>(KEY_DB_NAME, KEY_DB_VERSION, {
   upgrade(db) {
     if (!db.objectStoreNames.contains('keys')) {
       db.createObjectStore('keys')
@@ -66,12 +67,36 @@ const { getDb: getKeyDb } = createIdbSingleton<KeyStoreDB>(KEY_DB_NAME, KEY_DB_V
   },
 })
 
+// iOS can leave an IDB request pending forever on a wedged connection (often
+// after backgrounding) with no `terminated` event. Unbounded, a hung read here
+// stalls every key lookup behind it and the server fallback is never reached.
+const KEY_DB_TIMEOUT_MS = 5000
+
+/** Bounded key-store op; on failure drop the cached connection and retry once
+ *  on a fresh one. Same pattern as savedNotesDb.run. */
+async function runKeyDb<T>(label: string, op: (db: IDBPDatabase<KeyStoreDB>) => Promise<T>): Promise<T> {
+  try {
+    return await withTimeout(getKeyDb().then(op), KEY_DB_TIMEOUT_MS, label)
+  } catch (err) {
+    logger.warn(`${label} failed, retrying on a fresh connection:`, err)
+    resetKeyDb()
+    return withTimeout(getKeyDb().then(op), KEY_DB_TIMEOUT_MS, label)
+  }
+}
+
 // ---- In-Memory Key Cache ----
 
 const keyCache = new Map<string, CryptoKey>()
 
 /** Dedicated cache slot for the app-wide barcode encryption key. */
 let barcodeKeyCache: CryptoKey | null = null
+/** True once a read-back has confirmed the cached key is in IDB. */
+let barcodeKeyPersisted = false
+let barcodeKeyInflight: Promise<CryptoKey | null> | null = null
+let barcodePersistInflight: Promise<boolean> | null = null
+/** Bumped by clearKeyStore; in-flight loads/writes from before a sign-out
+ *  compare it and must not re-cache. */
+let barcodeKeyGen = 0
 const BARCODE_KEY_ID = 'barcode_v1'
 const BARCODE_STORE_KEY = `app:${BARCODE_KEY_ID}`
 
@@ -106,8 +131,7 @@ export function generateClinicKeyBase64(): string {
 /** Load a clinic key from the local IDB key store (offline cache). */
 async function loadKeyFromStore(clinicId: string): Promise<CryptoKey | null> {
   try {
-    const db = await getKeyDb()
-    const key = await db.get('keys', storeKey(clinicId))
+    const key = await runKeyDb('keyStore.loadClinic', db => db.get('keys', storeKey(clinicId)))
     return key ?? null
   } catch (err) {
     logger.warn('Failed to load clinic key from store:', err)
@@ -117,8 +141,7 @@ async function loadKeyFromStore(clinicId: string): Promise<CryptoKey | null> {
 
 /** Save a clinic key to the local IDB key store for offline access. */
 async function saveKeyToStore(clinicId: string, key: CryptoKey): Promise<void> {
-  const db = await getKeyDb()
-  await db.put('keys', key, storeKey(clinicId))
+  await runKeyDb('keyStore.saveClinic', db => db.put('keys', key, storeKey(clinicId)))
 }
 
 /** Fetch a clinic's raw encryption key from Supabase. */
@@ -211,26 +234,39 @@ export async function prefetchClinicKeys(clinicIds: string[]): Promise<void> {
  * Get the app-wide barcode encryption key.
  * Checks: memory cache → IDB key store → Supabase app_keys table.
  * Returns null if the key cannot be obtained (offline + never cached).
+ * A key held in memory but not yet confirmed on disk is still returned; the
+ * disk write is retried on later calls until a read-back confirms it.
  */
 export async function getBarcodeKey(): Promise<CryptoKey | null> {
-  // 1. Check memory cache
-  if (barcodeKeyCache) return barcodeKeyCache
+  if (barcodeKeyCache) {
+    if (!barcodeKeyPersisted) void persistBarcodeKey(barcodeKeyCache)
+    return barcodeKeyCache
+  }
+  // Prefetch at sign-in and a decode tap can race; share one lookup so they
+  // don't each fetch and write.
+  barcodeKeyInflight ??= loadBarcodeKey().finally(() => { barcodeKeyInflight = null })
+  return barcodeKeyInflight
+}
 
-  // 2. Check IDB key store
+async function loadBarcodeKey(): Promise<CryptoKey | null> {
+  const gen = barcodeKeyGen
+
+  // A store that times out or throws falls through to the server; it must not
+  // block the fetch.
   try {
-    const db = await getKeyDb()
-    const stored = await db.get('keys', BARCODE_STORE_KEY)
+    const stored = await runKeyDb('keyStore.loadBarcode', db => db.get('keys', BARCODE_STORE_KEY))
     if (stored) {
-      barcodeKeyCache = stored
+      if (gen === barcodeKeyGen) { barcodeKeyCache = stored; barcodeKeyPersisted = true }
       return stored
     }
   } catch (err) {
     logger.warn('Failed to load barcode key from store:', err)
   }
 
-  // 3. Fetch from Supabase app_keys table (bounded — lie-fi must not stall callers)
+  // Bounded — lie-fi must not stall callers.
   const abort = new AbortController()
   const abortTimer = setTimeout(() => abort.abort(), 8000)
+  let cryptoKey: CryptoKey
   try {
     const { data, error } = await supabase
       .from('app_keys')
@@ -243,21 +279,61 @@ export async function getBarcodeKey(): Promise<CryptoKey | null> {
       logger.warn('Failed to fetch barcode key from server:', error?.message)
       return null
     }
-
-    const cryptoKey = await importKey(data.key_base64)
-
-    // Cache in memory + IDB
-    barcodeKeyCache = cryptoKey
-    const db = await getKeyDb()
-    await db.put('keys', cryptoKey, BARCODE_STORE_KEY)
-
-    return cryptoKey
+    cryptoKey = await importKey(data.key_base64)
   } catch (err) {
     logger.warn('Failed to fetch barcode encryption key:', err)
     return null
   } finally {
     clearTimeout(abortTimer)
   }
+
+  // Sign-out cleared the store mid-fetch: hand the key to this caller but
+  // don't re-cache key material the user just wiped.
+  if (gen !== barcodeKeyGen) return cryptoKey
+
+  barcodeKeyCache = cryptoKey
+  barcodeKeyPersisted = false
+  // Not awaited: a slow or failed write must not delay or cost this caller the
+  // key it already has. prefetchBarcodeKey awaits the same (deduped) write.
+  void persistBarcodeKey(cryptoKey)
+  return cryptoKey
+}
+
+/** Write the barcode key and confirm it with a read-back; a put can resolve
+ *  without landing. Leaves barcodeKeyPersisted false on failure so the next
+ *  getBarcodeKey retries. Deduped. */
+function persistBarcodeKey(key: CryptoKey): Promise<boolean> {
+  barcodePersistInflight ??= (async () => {
+    const gen = barcodeKeyGen
+    requestStoragePersistence()
+    try {
+      const landed = await runKeyDb('keyStore.saveBarcode', async db => {
+        // Checked at issue time: a put queued after a sign-out clear would
+        // restore the wiped key. One queued before it is ordered ahead of the
+        // clear by IDB and gets wiped with it.
+        if (gen !== barcodeKeyGen) return false
+        await db.put('keys', key, BARCODE_STORE_KEY)
+        return !!(await db.get('keys', BARCODE_STORE_KEY))
+      })
+      if (gen !== barcodeKeyGen) return false
+      if (!landed) throw new Error('barcode key did not persist')
+      if (gen === barcodeKeyGen && barcodeKeyCache === key) barcodeKeyPersisted = true
+      return true
+    } catch (err) {
+      logger.warn('Failed to persist barcode key (will retry):', err)
+      return false
+    }
+  })().finally(() => { barcodePersistInflight = null })
+  return barcodePersistInflight
+}
+
+let storagePersistRequested = false
+/** Ask the browser not to evict this origin's storage (iOS evicts idle
+ *  origins). Best effort, once per page life. */
+function requestStoragePersistence(): void {
+  if (storagePersistRequested) return
+  storagePersistRequested = true
+  navigator.storage?.persist?.().catch(() => { /* unsupported */ })
 }
 
 /**
@@ -266,10 +342,14 @@ export async function getBarcodeKey(): Promise<CryptoKey | null> {
  */
 export async function prefetchBarcodeKey(): Promise<void> {
   const key = await getBarcodeKey()
-  if (key) {
+  if (!key) {
+    logger.warn('Could not prefetch barcode encryption key')
+    return
+  }
+  if (barcodeKeyPersisted || await persistBarcodeKey(key)) {
     logger.info('Barcode encryption key cached')
   } else {
-    logger.warn('Could not prefetch barcode encryption key')
+    logger.warn('Barcode key held in memory only; disk write will be retried')
   }
 }
 
@@ -566,10 +646,13 @@ export async function clearKeyStore(): Promise<void> {
   try {
     keyCache.clear()
     barcodeKeyCache = null
-    const db = await getKeyDb()
-    const tx = db.transaction('keys', 'readwrite')
-    await tx.objectStore('keys').clear()
-    await tx.done
+    barcodeKeyPersisted = false
+    barcodeKeyGen++
+    await runKeyDb('keyStore.clear', async db => {
+      const tx = db.transaction('keys', 'readwrite')
+      await tx.objectStore('keys').clear()
+      await tx.done
+    })
     logger.info('Cleared crypto key store')
   } catch (err) {
     logger.warn('Failed to clear crypto key store:', err)

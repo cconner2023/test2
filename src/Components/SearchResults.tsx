@@ -11,8 +11,7 @@ import {
     Package, Warehouse, FileText, Search, type LucideIcon,
 } from 'lucide-react';
 import type { SearchResultType } from "../Types/CatTypes";
-import { Skeleton } from '@/Components/primitives/Skeleton';
-import { useMinLoadTime } from '../Hooks/useMinLoadTime';
+import { SkeletonRows } from '@/Components/primitives/Skeleton';
 import { UnderlineTabs } from '@/Components/primitives/UnderlineTabs';
 import { kbCategories } from '../Data/KnowledgeBaseCategories'
 
@@ -105,7 +104,9 @@ export function SearchResults({
     isSearching = false,
     className = '',
 }: SearchResultsProps) {
-    const showLoading = useMinLoadTime(isSearching)
+    // Refining a query keeps the previous results on screen; the skeleton is only for
+    // a search with nothing to show yet.
+    const showLoading = isSearching && results.length === 0
     const [scope, setScope] = useState<Scope>('all')
 
     // Reset to All only when the box is emptied — a chosen scope survives typing.
@@ -132,19 +133,7 @@ export function SearchResults({
 
     let body: React.ReactNode
     if (showLoading) {
-        body = (
-            <div className="py-1" aria-hidden="true">
-                {Array.from({ length: 5 }).map((_, i) => (
-                    <div key={i} className="flex items-center gap-3 px-4 py-2.5">
-                        <Skeleton className="w-10 h-10 rounded-full shrink-0" />
-                        <div className="flex-1 min-w-0 space-y-2">
-                            <Skeleton className="h-3.5 w-3/5 rounded-full" />
-                            <Skeleton className="h-2.5 w-2/5 rounded-full" />
-                        </div>
-                    </div>
-                ))}
-            </div>
-        )
+        body = <SkeletonRows count={5} variant="avatar" divided={false} className="py-1" />
     } else if (results.length === 0) {
         body = (
             <div className="px-4 py-6 text-center">

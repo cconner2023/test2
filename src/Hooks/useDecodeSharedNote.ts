@@ -3,6 +3,7 @@ import { useNoteImport } from './useNoteImport'
 import { useNavigationStore } from '../stores/useNavigationStore'
 import { isEncryptedBarcode, decryptBarcode } from '../Utilities/NoteCodec'
 import { logError } from '../Utilities/ErrorHandler'
+import { emitErrorToast } from '../lib/errorFeedback'
 
 /**
  * Decode a shared note token found in a chat message and open it in the
@@ -21,7 +22,11 @@ export function useDecodeSharedNote() {
       let ascii = token
       if (isEncryptedBarcode(token)) {
         const decrypted = await decryptBarcode(token)
-        if (!decrypted) { logError('useDecodeSharedNote', new Error('decrypt failed — key unavailable')); return }
+        if (!decrypted) {
+          logError('useDecodeSharedNote', new Error('decrypt failed — key unavailable or token unreadable'))
+          emitErrorToast('Couldn’t decode note', 'The note key isn’t available on this device. Check your connection and try again.')
+          return
+        }
         ascii = decrypted
       }
       const preview = importFromBarcode(ascii)
@@ -30,6 +35,7 @@ export function useDecodeSharedNote() {
       setImportPreview(preview)
     } catch (e) {
       logError('useDecodeSharedNote', e)
+      emitErrorToast('Couldn’t decode note', 'This note couldn’t be read.')
     }
   }, [importFromBarcode, setImportPreview])
 }

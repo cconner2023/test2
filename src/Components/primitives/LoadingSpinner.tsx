@@ -14,7 +14,9 @@ interface LoadingSpinnerProps {
 const sizes = { sm: 28, md: 44, lg: 72 }
 
 /** Shared loading indicator — the sci-fi HUD loader (Star of Life at center).
- *  Stands still and breathes (no spin on the mark); the orbits/sweeps rotate. */
+ *  Stands still and breathes (no spin on the mark); the orbits/sweeps rotate.
+ *  For processes (import, parse, linking, reauth), not for a list's first load:
+ *  that is a skeleton (Skeleton.tsx). */
 export const LoadingSpinner = memo(function LoadingSpinner({ size = 'md', label, className = '' }: LoadingSpinnerProps) {
   return (
     <div className={`flex flex-col items-center justify-center ${className}`}>

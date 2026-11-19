@@ -12,13 +12,18 @@ interface LoadingOverlayProps {
   size?: number
   /** Optional caption under the mark — the admin look: breathing, wide-tracked. */
   label?: string
+  /** Stacking class. Separate from className because appending a second z-* utility
+   *  there loses to whichever Tailwind emits last. The map needs z-[1002] to clear
+   *  Leaflet's panes and controls (z 400-1000). */
+  zClassName?: string
 }
 
 /**
- * Contained HUD gate — THE loading treatment for any component fetching info or
- * with a save in flight. No spinners: the component fades to the HUD over its
- * own region (siblings outside the gate keep posting), then fades out to reveal
- * the content sitting underneath.
+ * Contained HUD gate for a save or mutation in flight over a form or record card:
+ * the region fades to the HUD (siblings outside the gate keep posting), then fades
+ * out to reveal the content underneath. Not for a list / panel first load; that is
+ * a skeleton (see Skeleton.tsx), because a HUD over rows that are merely arriving
+ * reads as a blocking modal.
  *
  * Renders HudLoader directly (not LoadingSpinner) so it escapes the 28/44/72px
  * size floor — the shrunk HUD doesn't read, which is the whole reason this
@@ -30,6 +35,7 @@ export const LoadingOverlay = memo(function LoadingOverlay({
   className = '',
   size = 140,
   label,
+  zClassName = 'z-50',
 }: LoadingOverlayProps) {
   const spring = useSpring({
     opacity: visible ? 1 : 0,
@@ -37,7 +43,7 @@ export const LoadingOverlay = memo(function LoadingOverlay({
   })
   return (
     <animated.div
-      className={`absolute inset-0 z-50 flex flex-col items-center justify-center gap-5 bg-themewhite dark:bg-themewhite ${className}`}
+      className={`absolute inset-0 ${zClassName} flex flex-col items-center justify-center gap-5 bg-themewhite dark:bg-themewhite ${className}`}
       style={{ opacity: spring.opacity, pointerEvents: visible ? 'auto' : 'none' }}
     >
       <HudLoader size={size} />

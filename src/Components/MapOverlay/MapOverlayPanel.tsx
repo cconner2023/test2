@@ -1,6 +1,5 @@
 import { useState, useCallback, useRef, useEffect, useMemo, type ReactNode } from 'react';
 import type { CalendarEvent } from '../../Types/CalendarTypes';
-import { useSpring, animated } from '@react-spring/web';
 import { ChevronLeft, ChevronRight, MapPin, Route, Pentagon, Trash2, X, Ruler, Undo2, Activity, Pause, Play, Square, Plus, Check, Navigation, Layers, Pencil, Clock, MoreHorizontal, MessageSquare, Share2, Copy, LocateFixed, RadioTower } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { ActionSheet, type ActionSheetOption } from '@/Components/primitives/ActionSheet';
@@ -13,7 +12,7 @@ function waypointGlyphIcon(type: WaypointType): LucideIcon {
     <WaypointIcon type={type} color="currentColor" size={props.size ?? 16} />
   )) as unknown as LucideIcon;
 }
-import { LoadingSpinner } from '@/Components/primitives/LoadingSpinner';
+import { LoadingOverlay } from '@/Components/primitives/LoadingOverlay';
 import { BaseDrawer } from '@/Components/primitives/BaseDrawer';
 import { Sheet } from '@/Components/primitives/Sheet';
 import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill';
@@ -487,6 +486,11 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
   // Overlay list + loading
   const [overlays, setOverlays] = useState<LocalMapOverlay[]>([]);
   const [loading, setLoading] = useState(false);
+  // `loading` flips on inside the load effect, i.e. after the first paint, so on its
+  // own it lets the tree flash "No overlays yet" for a frame. Treat a clinic whose
+  // list has never landed as pending too.
+  const [loadedClinicId, setLoadedClinicId] = useState<string | null>(null);
+  const listPending = loading || (!!activeClinicId && loadedClinicId !== activeClinicId);
 
   // Save flow
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -1075,6 +1079,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
       if (result.ok) setOverlays(loaded);
       setTileMetaMap(meta);
       setLoading(false);
+      setLoadedClinicId(activeClinicId);
       if (!hasAutoNavigated.current) {
         hasAutoNavigated.current = true;
         if (initialOverlayId) {
@@ -1151,12 +1156,6 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
     })();
     return () => { cancelled = true; };
   }, [activeClinicId, initialCenter]);
-
-  // ── Spinner fade spring ──
-  const spinnerSpring = useSpring({
-    opacity: searchPending ? 1 : 0,
-    config: { tension: 200, friction: 22 },
-  });
 
   // Import GPX / KML from a File. Creates a new overlay seeded with the
   // parsed features and named after the file (or its embedded metadata).
@@ -2583,6 +2582,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
               )}
               <MapOverlayTree
                 overlays={treeOverlays}
+                loading={listPending}
                 readOnlyOverlayIds={readOnlyOverlayIds}
                 activeOverlayId={overlayId}
                 visibleOverlayIds={visibleOverlayIds}
@@ -2825,6 +2825,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                         <p className="px-4 pt-3 pb-1 text-[9pt] tracking-widest uppercase text-tertiary">Overlays</p>
                         <MapOverlayTree
                           overlays={treeOverlays}
+                          loading={listPending}
                           readOnlyOverlayIds={readOnlyOverlayIds}
                           activeOverlayId={overlayId}
                           visibleOverlayIds={visibleOverlayIds}
@@ -3148,13 +3149,8 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                 className="hidden"
               />
 
-              {/* Search spinner overlay */}
-              <animated.div
-                className="absolute inset-0 z-[1002] flex items-center justify-center bg-themewhite dark:bg-themewhite"
-                style={{ opacity: spinnerSpring.opacity, pointerEvents: searchPending ? 'auto' : 'none' }}
-              >
-                <LoadingSpinner size="lg" className="text-themeblue2" />
-              </animated.div>
+              {/* Masks the flyTo camera move while a search is in flight. */}
+              <LoadingOverlay visible={searchPending} zClassName="z-[1002]" />
 
               {/* Track recorder card — visible while in track mode OR while a recording is in progress */}
               {(drawMode === 'track' || recorder.status !== 'idle') && (

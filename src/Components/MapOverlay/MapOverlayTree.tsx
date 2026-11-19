@@ -3,6 +3,7 @@ import { ChevronRight, ChevronDown, Eye, EyeOff, Pencil, Trash2, X, Check, Arrow
 import { LiftedRowMenu } from '@/Components/primitives/LiftedRowMenu';
 import type { ContextMenuItem } from '@/Components/primitives/ContextMenu';
 import { EmptyState } from '@/Components/primitives/EmptyState';
+import { SkeletonRows } from '@/Components/primitives/Skeleton';
 import { useLongPress } from '../../Hooks/useLongPress';
 import { useShareToChat } from '../Messages/ShareToChatPicker';
 import type { LocalMapOverlay, OverlayFeature } from '../../Types/MapOverlayTypes';
@@ -91,6 +92,8 @@ interface MapOverlayTreeProps {
   onDeleteOverlay: (overlayId: string) => void;
   onSelectFeature: (feature: OverlayFeature, overlayId: string) => void;
   onNewOverlay: () => void;
+  /** List still fetching. Empty + loading shows a skeleton instead of the empty state. */
+  loading?: boolean;
   tileMeta: Map<string, TileMetadata>;
   downloadingId: string | null;
   onDownloadTiles: (overlay: LocalMapOverlay) => void;
@@ -131,6 +134,7 @@ export function MapOverlayTree({
   onDeleteOverlay,
   onSelectFeature,
   onNewOverlay,
+  loading = false,
   tileMeta,
   downloadingId,
   onDownloadTiles,
@@ -217,7 +221,9 @@ export function MapOverlayTree({
     <div className="flex flex-col h-full">
       {/* Tree body — empty state primitive, or populated list with corner action */}
       <div className="flex-1 min-h-0 overflow-y-auto py-1 relative">
-        {sorted.length === 0 ? (
+        {sorted.length === 0 && loading ? (
+          <SkeletonRows count={4} variant="icon" divided={false} />
+        ) : sorted.length === 0 ? (
           <EmptyState
             title="No overlays yet"
             bordered={false}

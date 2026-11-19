@@ -230,12 +230,21 @@ export async function approveAccountRequest(
  * user account is already created at this point, so a failure here is
  * non-fatal but worth telling the admin about.
  */
-export async function sendApprovalEmail(email: string): Promise<ServiceResult> {
+export async function sendApprovalEmail(
+  email: string,
+  /** Optional admin intro, rendered "[rank] [lastName], [intro]" above the
+   *  template. Ignored server-side for .mil recipients (relay envelope). */
+  intro?: { text: string; rank?: string; lastName?: string },
+): Promise<ServiceResult> {
   try {
     // send-auth-email mints a 24h magic link (GoTrue) and delivers it via Resend,
     // with .mil relay routing. Replaces the old GoTrue signInWithOtp magic-link send.
     const { error } = await supabase.functions.invoke('send-auth-email', {
-      body: { kind: 'magiclink', email },
+      body: {
+        kind: 'magiclink',
+        email,
+        ...(intro?.text.trim() ? { intro: intro.text, rank: intro.rank, lastName: intro.lastName } : {}),
+      },
     })
     if (error) {
       logger.warn('Approval notification email failed:', error)

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, type ReactNode } from 'react'
 import { RefreshCw, Trash2, ArrowUpDown, Calendar, Archive, Map, MessageSquare, Loader2, Bug, Eye } from 'lucide-react'
 import { ActionButton } from '@/Components/primitives/ActionButton'
 import { ActionPill } from '@/Components/primitives/ActionPill'
+import { Skeleton } from '@/Components/primitives/Skeleton'
 import { getStorageStats, type StorageStats } from '../../lib/storageService'
 import { clearTileCache, resetAllFailedItems } from '../../lib/offlineDb'
 import { useAuth } from '../../Hooks/useAuth'
@@ -111,7 +112,7 @@ export function StoragePanel() {
             <StorageCard
                 preview={
                     !stats ? (
-                        <div className="w-3/4 h-2 rounded-full bg-tertiary/10 animate-pulse" />
+                        <Skeleton className="w-3/4 h-2 rounded-full" />
                     ) : sqTotal === 0 ? (
                         <div className="flex items-center gap-2">
                             <div className="w-1.5 h-1.5 rounded-full bg-themegreen" />

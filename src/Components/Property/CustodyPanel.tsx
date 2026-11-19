@@ -27,6 +27,7 @@ import type { ContextMenuItem } from '@/Components/primitives/ContextMenu'
 import { expiryStatus, type HandReceipt, type CustodyLedgerEntry, type TurnInDoc } from '../../Types/PropertyTypes'
 import { formatDtg as formatDate } from '../../Utilities/propertyDates'
 import type { AuditEvent } from '../../lib/auditTypes'
+import { SkeletonRows } from '@/Components/primitives/Skeleton'
 
 /**
  * The clinic's pending DA 3161 — every staged, not-yet-verified turn_in ledger row,
@@ -719,8 +720,8 @@ export function CustodyPanel({
           'Signed Out',
           outstanding.length > 0
             ? outstanding.map(renderReceiptCard)
-            : emptyLine(loading ? 'Loading…' : 'Nothing signed out.'),
-          outstanding.length === 0,
+            : loading ? <SkeletonRows count={2} /> : emptyLine('Nothing signed out.'),
+          outstanding.length === 0 && !loading,
         )}
 
         {/* Turn-In (DA 3161) — ONE pending card (the staging zone's whole contents) that
@@ -738,10 +739,12 @@ export function CustodyPanel({
               {pending && renderPendingTurnInCard(pending)}
               {turnIns.history.map(renderTurnInDocCard)}
             </>
+          ) : loading ? (
+            <SkeletonRows count={1} />
           ) : (
-            emptyLine(loading ? 'Loading…' : 'Nothing turned in.')
+            emptyLine('Nothing turned in.')
           ),
-          !pending && turnIns.history.length === 0,
+          !pending && turnIns.history.length === 0 && !loading,
         )}
 
         {/* Expired — items lapsed or expiring within 30 days (expiry_date window).

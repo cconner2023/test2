@@ -33,8 +33,7 @@ import { useStack } from '@/Components/primitives/useStack'
 import { LayeredStackBody } from '@/Components/primitives/LayeredStackBody'
 import { StackNavContext } from '@/Components/stackNav'
 import { createSheetMorphStore, SheetMorphSlot } from '@/Components/primitives/sheetMorph'
-import { LoadingOverlay } from '@/Components/primitives/LoadingOverlay'
-import { useMinLoadTime } from '../../Hooks/useMinLoadTime'
+import { SkeletonCanvas, SkeletonRows } from '@/Components/primitives/Skeleton'
 import { useClinicName } from '../../Hooks/useClinicNameResolver'
 import type { LocalPropertyItem, LocalPropertyLocation, HandReceipt } from '../../Types/PropertyTypes'
 import { ROOT_LOCATION_NAME } from '../../Types/PropertyTypes'
@@ -322,7 +321,9 @@ export const PropertyPanel = memo(function PropertyPanel({
     return true
   })
   const hasData = visibleLocations.length > 0 || store.items.length > 0
-  const showLoading = useMinLoadTime(store.isLoading) && !hasData
+  // First load only: cached zones/items render immediately (offline-first), so the
+  // skeleton never covers real data.
+  const firstLoad = store.isLoading && !hasData
 
   // The TREE (rail/sheet) lists physical/shared zones PLUS the filtered personnel zones.
   // The MAP still receives the full location/item set (member zones stay in its tag index
@@ -1639,24 +1640,28 @@ export const PropertyPanel = memo(function PropertyPanel({
               {accountabilityNav}
               {propertyFilterPanel}
               {sectionHeader('Zones')}
-              <PropertyLocationTree
-                locations={treeLocations}
-                items={displayItems}
-                clinicName={clinicName}
-                holders={store.holders}
-                searchQuery=""
-                hoverActions
-                mineOnly={mineOnly}
-                currentUserId={currentUserId}
-                myZoneIds={myZoneIds}
-                activeLocationId={selectedLocationId}
-                onSelectLocation={(loc) => { clearDetailSurfaces(); handleSelectLocationDesktop(loc) }}
-                onSelectItem={(item) => { clearDetailSurfaces(); handleSelectItem(item) }}
-                onSelectAll={() => { clearDetailSurfaces(); cameraTo({ kind: 'reset' }) }}
-                allSelected={!selectedLocationId}
-                onOpenItemMenu={(item, rect) => openItemMenu(item, rect, { view: true })}
-                onOpenLocationMenu={openLocationMenu}
-              />
+              {firstLoad ? (
+                <SkeletonRows count={5} variant="icon" divided={false} />
+              ) : (
+                <PropertyLocationTree
+                  locations={treeLocations}
+                  items={displayItems}
+                  clinicName={clinicName}
+                  holders={store.holders}
+                  searchQuery=""
+                  hoverActions
+                  mineOnly={mineOnly}
+                  currentUserId={currentUserId}
+                  myZoneIds={myZoneIds}
+                  activeLocationId={selectedLocationId}
+                  onSelectLocation={(loc) => { clearDetailSurfaces(); handleSelectLocationDesktop(loc) }}
+                  onSelectItem={(item) => { clearDetailSurfaces(); handleSelectItem(item) }}
+                  onSelectAll={() => { clearDetailSurfaces(); cameraTo({ kind: 'reset' }) }}
+                  allSelected={!selectedLocationId}
+                  onOpenItemMenu={(item, rect) => openItemMenu(item, rect, { view: true })}
+                  onOpenLocationMenu={openLocationMenu}
+                />
+              )}
             </div>
           </DesktopRail>
 
@@ -1697,7 +1702,7 @@ export const PropertyPanel = memo(function PropertyPanel({
               <>
                 {mapEl}
                 {addFab}
-                <LoadingOverlay visible={showLoading} />
+                <SkeletonCanvas visible={firstLoad} />
                 {/* Search results overlay the LIVE map (mirrors mobile) — the canvas
                     stays mounted underneath, so a result tap can actually drive it
                     (focusItem / navigateToZone) and clearing the query reveals the
@@ -1897,7 +1902,7 @@ export const PropertyPanel = memo(function PropertyPanel({
         ) : (
           <>
             {mapEl}
-            <LoadingOverlay visible={showLoading} />
+            <SkeletonCanvas visible={firstLoad} className="pt-[calc(var(--drawer-header-h,3.5rem)+0.5rem)]" />
           </>
         )}
         {/* Personnel carousel — only at the ROOT overview; collapses on zone select.
@@ -2156,21 +2161,25 @@ export const PropertyPanel = memo(function PropertyPanel({
             {accountabilityNav}
             {propertyFilterPanel}
             {sectionHeader('Zones')}
-            <PropertyLocationTree
-              locations={treeLocations}
-              items={displayItems}
-              clinicName={clinicName}
-              mineOnly={mineOnly}
-              currentUserId={currentUserId}
-              myZoneIds={myZoneIds}
-              activeLocationId={selectedLocationId}
-              allSelected={!selectedLocationId}
-              onSelectAll={() => cameraTo({ kind: 'reset' })}
-              onSelectLocation={(loc) => cameraTo({ kind: 'zone', id: loc.id })}
-              onSelectItem={(item) => handleSelectItem(item)}
-              onOpenItemMenu={(item, rect) => openItemMenu(item, rect, { view: true })}
-              onOpenLocationMenu={openLocationMenu}
-            />
+            {firstLoad ? (
+              <SkeletonRows count={5} variant="icon" divided={false} />
+            ) : (
+              <PropertyLocationTree
+                locations={treeLocations}
+                items={displayItems}
+                clinicName={clinicName}
+                mineOnly={mineOnly}
+                currentUserId={currentUserId}
+                myZoneIds={myZoneIds}
+                activeLocationId={selectedLocationId}
+                allSelected={!selectedLocationId}
+                onSelectAll={() => cameraTo({ kind: 'reset' })}
+                onSelectLocation={(loc) => cameraTo({ kind: 'zone', id: loc.id })}
+                onSelectItem={(item) => handleSelectItem(item)}
+                onOpenItemMenu={(item, rect) => openItemMenu(item, rect, { view: true })}
+                onOpenLocationMenu={openLocationMenu}
+              />
+            )}
           </>
         ) : da2062Preview ? (
           <div className="h-[70vh]">

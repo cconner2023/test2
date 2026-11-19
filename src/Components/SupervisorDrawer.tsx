@@ -71,8 +71,7 @@ import { TrainingExportOverlay } from './Settings/Supervisor/TrainingExportOverl
 import { useTrainingCompletions } from '../Hooks/useTrainingCompletions'
 import { type TreeSelection } from './Settings/Supervisor/SupervisorTree'
 import type { ClinicMedic, StepResult } from '../Types/SupervisorTestTypes'
-import { LoadingOverlay } from '@/Components/primitives/LoadingOverlay'
-import { useMinLoadTime } from '../Hooks/useMinLoadTime'
+import { SkeletonRows, SkeletonSections } from '@/Components/primitives/Skeleton'
 
 /** When the child computed what the parent is looking at. Published numbers are
  *  as old as their last fan, and a supervisor acting on them needs to know. */
@@ -293,7 +292,10 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
     resolveName,
     refreshData,
   } = useSupervisorData()
-  const loading = useMinLoadTime(_loading)
+  // Skeleton only while nothing usable is in hand. Cached medics with a known role
+  // render straight away; holding them back for the auth / roster refresh would blank
+  // the drawer. `!isSupervisor` stays gated so "Access Denied" can't flash pre-auth.
+  const loading = _loading && (medics.length === 0 || !isSupervisor)
 
   // The write side. useSupervisorData is a READ fold over the audit stream, so a
   // grade goes out through the completions hook and comes back on the next fold
@@ -1494,9 +1496,18 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
 
   const guarded = (body: ReactNode) => {
     if (loading) {
-      return (
-        <div className="relative h-full">
-          <LoadingOverlay visible size={140} />
+      return isMobile ? (
+        <SkeletonSections
+          sections={[3, 3]}
+          variant="avatar"
+          className="pt-[calc(var(--drawer-header-h,3.5rem)+0.75rem)]"
+        />
+      ) : (
+        <div className="flex h-full">
+          <div className="w-[260px] shrink-0 border-r border-tertiary/10 bg-themewhite pt-3">
+            <SkeletonRows count={6} variant="avatar" divided={false} />
+          </div>
+          <SkeletonSections sections={[2, 3]} variant="icon" className="flex-1 min-w-0 pt-4" />
         </div>
       )
     }

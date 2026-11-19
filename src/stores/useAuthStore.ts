@@ -865,6 +865,10 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
       // prune). Tell refreshProfile to skip its mid-session provisioning so the
       // two don't race / double-drain on the same login.
       const profileP = get().refreshProfile({ provisionVaults: false })
+      // Barcode key alongside the profile, not behind it: refreshProfile only
+      // reaches its own prefetch after the profile fetch succeeds, so a failed
+      // profile fetch on lie-fi would leave the first decode with no key.
+      prefetchBarcodeKey().catch(() => {})
 
       // Initialize Signal Protocol keys independently of profile fetch.
       // Signal init runs in the background — the app unlocks after profile only.
@@ -1334,7 +1338,8 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
         }
       }
 
-      // Prefetch barcode encryption key for offline use (fire-and-forget)
+      // Login starts the barcode key fetch itself; this is the retry point for
+      // a fetch or disk write that failed then (memory hit is free; deduped).
       prefetchBarcodeKey().catch(() => {})
 
       // Re-sync any existing browser push subscription to the DB so the

@@ -1,3 +1,4 @@
+import { SkeletonRows } from '@/Components/primitives/Skeleton'
 import { useEffect, useState } from 'react'
 import { clusterLabel } from '../../../Utilities/clusterLabel'
 import { PersonnelRow, PersonnelGroupBand } from '@/Components/primitives/PersonnelRow'
@@ -83,7 +84,7 @@ export function SubordinateClusterNode({
         onSelect={() => onSelect({ type: 'child-cluster', clinicId: card.clinicId, name: card.clinicName })}
       />
       {expanded && members === null && (
-        <p className="text-[9pt] text-tertiary py-2 px-4">Loading…</p>
+        <SkeletonRows count={2} variant="avatar" divided={false} />
       )}
       {expanded && members !== null && rows.length === 0 && (
         <p className="text-[9pt] text-tertiary py-2 px-4">No members assigned.</p>

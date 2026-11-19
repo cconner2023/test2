@@ -30,6 +30,7 @@ import { AnchoredMenu } from '@/Components/primitives/LiftedRowMenu'
 import { type ContextMenuItem } from '@/Components/primitives/ContextMenu'
 import { PreviewOverlay } from './PreviewOverlay'
 import { HQ_BUCKET } from '../Utilities/subCluster'
+import { SkeletonRows } from '@/Components/primitives/Skeleton'
 import type { SubCluster } from '../lib/subClusterService'
 
 /** Group id for the headerless list used when a cluster defines no sub-units. */
@@ -77,8 +78,11 @@ interface ClusterRosterSectionProps<T> {
   itemsClassName?: string
   /** Card overrides (radius, padding). Card is borderless by default. */
   cardClassName?: string
-  /** Rendered inside the card, after the groups — e.g. a LoadingOverlay. */
+  /** Rendered inside the card, after the groups. */
   children?: ReactNode
+  /** Roster still fetching. With no members yet the card shows skeleton rows in
+   *  place of the groups, so the bare "No members assigned" line never flashes. */
+  loading?: boolean
   emptyText?: string
   /** Section wrapper spacing. Default 'mt-4'; a gap-laid parent passes ''. */
   className?: string
@@ -99,6 +103,7 @@ export function ClusterRosterSection<T>({
   itemsClassName,
   cardClassName = 'rounded-2xl bg-themewhite2 overflow-hidden',
   children,
+  loading = false,
   emptyText = 'No members assigned',
   className = 'mt-4',
 }: ClusterRosterSectionProps<T>) {
@@ -226,7 +231,7 @@ export function ClusterRosterSection<T>({
           {/* NOTE: no blanket empty state. A cluster with sub-units but no
               members must still render its group headers — they're the only
               manage surface. */}
-          {groups.map((g, idx) => {
+          {loading && members.length === 0 ? <SkeletonRows count={4} variant="avatar" /> : groups.map((g, idx) => {
             const rows = (
               <div className={itemsClassName}>
                 {g.items.length === 0

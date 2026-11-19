@@ -21,7 +21,6 @@ import { useClinicInvites } from '../../Hooks/useClinicInvites'
 import { useBarcodeScanner } from '../../Hooks/useBarcodeScanner'
 import { useClinicMedics } from '../../Hooks/useClinicMedics'
 import { useClinicLoans } from '../../Hooks/useClinicLoans'
-import { LoadingOverlay } from '@/Components/primitives/LoadingOverlay'
 import {
   updateSupervisorClinic,
   disassociateClinic,
@@ -956,9 +955,8 @@ export function ClinicPanel({
               if (r.success) invalidate('subClusters', 'users')
               return r.success
             } : undefined}
-          >
-            <LoadingOverlay visible={medicsLoading} size={120} className="rounded-xl" />
-          </ClusterRosterSection>
+            loading={medicsLoading}
+          />
           </div>
         )}
 

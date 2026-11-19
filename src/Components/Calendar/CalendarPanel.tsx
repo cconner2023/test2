@@ -49,6 +49,7 @@ import { usePropertyStore } from '../../stores/usePropertyStore'
 import { useCalendarSync } from '../../Hooks/useCalendarSync'
 import { useCalendarWrite } from '../../Hooks/useCalendarWrite'
 import { LoadingOverlay } from '@/Components/primitives/LoadingOverlay'
+import { SyncBanner } from '@/Components/primitives/SyncBanner'
 import { useAuth } from '../../Hooks/useAuth'
 import { getOverlays } from '../../lib/mapOverlayService'
 import { useMapOverlayWrite } from '../../Hooks/useMapOverlayWrite'
@@ -1443,12 +1444,8 @@ export function CalendarPanel({ onBack, scrollNonce, onOpenControls }: CalendarP
   return (
     <>
       <div className="relative h-full flex">
-        {/* Vault sync banner — mirrors messaging's "Setting up encryption…" pattern */}
         {!vaultReplayDone && (
-          <div className="absolute top-0 inset-x-0 z-30 flex items-center gap-2 px-3 py-2 bg-themeblue2/10 border-b border-themeblue2/20">
-            <div className="w-3 h-3 border-2 border-themeblue2 border-t-transparent rounded-full animate-spin" />
-            <span className="text-[10pt] text-themeblue2 font-medium">Syncing calendar…</span>
-          </div>
+          <SyncBanner label="Syncing calendar…" className="absolute top-0 inset-x-0 z-30" />
         )}
         {/* Vault hydration error banner */}
         {hydrationError && (

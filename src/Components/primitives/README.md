@@ -80,7 +80,7 @@ the two tokens, so mixing them only shows up in dark. See App.css ELEVATION.
 
 **Feedback / status**
 - `EmptyState` — `variant="card"` (SectionCard chrome + overlay ActionPill corner action) / `variant="gate"` (icon+title+subtitle access gate).
-- `ConfirmDialog` · `ErrorDisplay` · `ErrorPill` · `LoadingOverlay` · `LoadingSpinner` · `HudLoader` · `Skeleton`
+- `ConfirmDialog` · `ErrorDisplay` · `ErrorPill` · `LoadingOverlay` · `LoadingSpinner` · `HudLoader` · `Skeleton` · `SyncBanner`
 - `Chip`
 
 ## Which wrapper when (decision guide)
