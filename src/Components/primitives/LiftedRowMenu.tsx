@@ -44,11 +44,6 @@ interface AnchoredMenuProps {
   /** Reaction glyphs — rendered as a horizontal icon strip (the icon context
    *  menu) ABOVE the lifted row. List layout only. */
   reactions?: ContextMenuItem[]
-  /** Backdrop. Defaults to 'dim' (fade-in dim+blur) for BOTH the lifted-row peek
-   *  and clone-less ellipsis/selector menus — so the no-clone case keeps the same
-   *  lifted feel. Pass 'plain' to opt back into a transparent context-preserving
-   *  catcher (true dropdown). */
-  backdrop?: 'dim' | 'plain'
   /** Optional uppercase section header at the top of a list card (selectors). */
   header?: string
   /** Open the menu DIRECTLY into a searchable card list (list layout only) — the
@@ -84,8 +79,8 @@ type Level =
 
 /** A single row in the vertical list-card. Mirrors ActionSheet's option rows
  *  (the calendar add-FAB menu): icon-left, `text-[10pt] font-medium`, divider
- *  between rows. */
-function MenuListRow({ item, onSelect }: { item: ContextMenuItem; onSelect: (item: ContextMenuItem) => void }) {
+ *  between rows. Exported for hover cards that list the same actions. */
+export function MenuListRow({ item, onSelect }: { item: ContextMenuItem; onSelect: (item: ContextMenuItem) => void }) {
   const variant = contextMenuItemVariant(item)
   const isDisabled = variant === 'disabled'
   const Icon = item.icon
@@ -155,17 +150,18 @@ function MenuCardListRow({ row, onSelect }: { row: MenuCardRow; onSelect: (row: 
  *
  * WITH a `row` clone (iOS "peek"): the pressed row lifts off the list — scales up,
  * gains a shadow (reads as selected) — and slides upward just enough to make room
- * for the action menu that drops in beneath it, over a dimmed/blurred backdrop.
- * Shared by mobile (long-press) and desktop (right-click) object rows.
+ * for the action menu that drops in beneath it, over a light tint+blur (Scrim
+ * 'peek') that sets the lifted row apart. Shared by mobile (long-press) and
+ * desktop (right-click) object rows.
  *
- * WITHOUT a `row` (ellipsis menus, selectors): no clone to lift, but it keeps the
- * same lifted feel — the dim+blur backdrop still fades in and the menu card RISES
- * up into place off the anchor (rather than a flat dropdown). Pass backdrop='plain'
- * to opt back into a transparent context-preserving dropdown.
+ * WITHOUT a `row` (ellipsis menus, selectors): NO scrim — the menu floats over the
+ * live page like PaneCard (2026-11-19). The card RISES into place off the anchor;
+ * its shadow carries the elevation. A transparent catcher still dismisses on an
+ * outside press and swallows that press so it can't hit the row beneath.
  *
  * `LiftedRowMenu` is a back-compat alias for callers that pass a clone.
  */
-export function AnchoredMenu({ isOpen, anchorRect: anchorRectProp, anchorRef, row, items, onClose, bare = false, align = 'left', direction = 'auto', layout = 'pill', reactions, backdrop, header, rootSearch }: AnchoredMenuProps) {
+export function AnchoredMenu({ isOpen, anchorRect: anchorRectProp, anchorRef, row, items, onClose, bare = false, align = 'left', direction = 'auto', layout = 'pill', reactions, header, rootSearch }: AnchoredMenuProps) {
   // Stays mounted through the exit so the menu (and scrim / lifted clone) animate
   // OUT the same way they came in, rather than blinking away on close.
   const { mounted, open: visible } = useOverlay(isOpen)
@@ -277,9 +273,6 @@ export function AnchoredMenu({ isOpen, anchorRect: anchorRectProp, anchorRef, ro
   const vh = window.innerHeight
 
   const hasClone = !!row
-  // Dim by default (fade-in bg) for clone peeks AND clone-less menus alike — the
-  // no-clone case shouldn't read as a flat dropdown. 'plain' opts out.
-  const dimmed = backdrop ? backdrop === 'dim' : true
 
   // Widen the card when the menu drills into searchable card lists (label/sub rows
   // need room); plain menus keep the tight 216 width. Constant across the flow so a
@@ -358,7 +351,7 @@ export function AnchoredMenu({ isOpen, anchorRect: anchorRectProp, anchorRef, ro
     item.render ? (
       // Custom renderer owns its button + click + status feedback; the whole row is
       // the tap target and forwards to the inner button (pointer-events-none wrapper
-      // keeps it firing once). The menu does NOT auto-close (dismiss via backdrop).
+      // keeps it firing once). The menu does NOT auto-close (dismiss via outside press).
       <div
         key={item.key}
         onClick={(e) => e.currentTarget.querySelector('button')?.click()}
@@ -458,12 +451,13 @@ export function AnchoredMenu({ isOpen, anchorRect: anchorRectProp, anchorRef, ro
   return createPortal(
     // A closing menu no longer catches input — taps reach the page while it exits.
     <div className="fixed inset-0" style={{ zIndex: 9998, pointerEvents: isOpen ? undefined : 'none' }}>
-      {/* Backdrop — dim+blur for peek, transparent catcher for dropdowns */}
-      {/* Scrim is visual only (interactive={false}); the catcher below owns
-          dismissal, because this menu closes on PRESS (mousedown/touchstart)
+      {/* Peek only: light tint+blur behind the lifted row. Clone-less menus get no
+          scrim. Scrim is visual only (interactive={false}); the catcher below owns
+          dismissal for both, because this menu closes on PRESS (mousedown/touchstart)
           rather than click — Scrim's onClick would fire too late. */}
-      {dimmed && (
+      {hasClone && (
         <Scrim
+          variant="peek"
           progress={visible ? 1 : 0}
           position="absolute"
           interactive={false}

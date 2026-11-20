@@ -1,8 +1,7 @@
 // NavTop.tsx - Simplified version with grouped props
 import { X, ChevronLeft, Info, MessageSquare, Upload, BookOpen } from "lucide-react";
-import { ImportInputBar } from "./ImportInputBar";
 import { HeaderPill, PillButton } from "@/Components/primitives/HeaderPill";
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useSpring, animated, to } from '@react-spring/web';
 import type { NavTopProps } from "../Types/NavTopTypes";
 import { useAvatar } from "../Utilities/AvatarContext";
@@ -93,28 +92,10 @@ export function NavTop({ search, import: importProps, actions, ui }: NavTopProps
         config: { tension: 260, friction: 24 },
     });
 
-    // Import expansion props
-    const {
-        isImportExpanded = false,
-        onImportExpandToggle,
-        onImportSubmit,
-        onImportScan,
-        onImportImage,
-        importError,
-    } = importProps ?? {};
+    // Import opens the app-level import pane (ImportResultPopover entry stage).
+    const { onImportExpandToggle } = importProps ?? {};
 
-    const importInputRef = useRef<HTMLInputElement>(null);
-    const [importText, setImportText] = useState('');
-
-    // Either search or import can be expanded (mutually exclusive via store)
-    const isAnyExpanded = isSearchExpanded || isImportExpanded;
-
-    // Desktop import spring
-    const desktopImportSpring = useSpring({
-        overlayOpacity: isImportExpanded ? 1 : 0,
-        overlayScale: isImportExpanded ? 1 : 0.97,
-        config: { tension: 260, friction: 26 },
-    });
+    const isAnyExpanded = isSearchExpanded;
 
     // Focus input when mobile search expands
     useEffect(() => {
@@ -122,25 +103,6 @@ export function NavTop({ search, import: importProps, actions, ui }: NavTopProps
             inputRef.current.focus();
         }
     }, [isSearchExpanded, inputRef]);
-
-    // No auto-focus on import expand — iOS keyboard open shifts the viewport
-
-    // Clear import text when collapsing
-    useEffect(() => {
-        if (!isImportExpanded) setImportText('');
-    }, [isImportExpanded]);
-
-    const handleImportSubmit = useCallback(() => {
-        const text = importText.trim();
-        if (!text) return;
-        onImportSubmit?.(text);
-        setImportText('');
-    }, [importText, onImportSubmit]);
-
-    const handleImportCollapse = useCallback(() => {
-        setImportText('');
-        onImportExpandToggle?.();
-    }, [onImportExpandToggle]);
 
     // Handle mobile search icon click
     const handleMobileSearchClick = () => {
@@ -304,21 +266,6 @@ export function NavTop({ search, import: importProps, actions, ui }: NavTopProps
             {/* Search Container - mobile only */}
             {isMobile && (
                 <div className={`flex items-center min-w-0 ${isAnyExpanded ? 'flex-1' : 'shrink-0 justify-end'}`}>
-                    {/* Mobile import input */}
-                    {isImportExpanded && (
-                        <ImportInputBar
-                            value={importText}
-                            onChange={setImportText}
-                            onSubmit={handleImportSubmit}
-                            onClose={handleImportCollapse}
-                            onScan={() => { handleImportCollapse(); onImportScan?.(); }}
-                            onImage={(file) => { handleImportCollapse(); onImportImage?.(file); }}
-                            error={importError}
-                            inputRef={importInputRef}
-                            className="w-full animate-expandSearch"
-                        />
-                    )}
-
                     {/* Mobile collapsed: messages + info buttons, with mode-scoped rightSlot tacked into the same pill */}
                     {!isAnyExpanded && (
                         <div className="flex items-center justify-end h-full">
@@ -441,27 +388,6 @@ export function NavTop({ search, import: importProps, actions, ui }: NavTopProps
                         </button>
                     )}
 
-                    {/* Import overlay — covers search + buttons */}
-                    <animated.div
-                        className="absolute inset-0 z-10 bg-themewhite"
-                        style={{
-                            opacity: desktopImportSpring.overlayOpacity,
-                            transform: desktopImportSpring.overlayScale.to(s => `scale(${s})`),
-                            pointerEvents: isImportExpanded ? 'auto' : 'none',
-                        }}
-                    >
-                        <ImportInputBar
-                            value={importText}
-                            onChange={setImportText}
-                            onSubmit={handleImportSubmit}
-                            onClose={handleImportCollapse}
-                            onScan={() => { handleImportCollapse(); onImportScan?.(); }}
-                            onImage={(file) => { handleImportCollapse(); onImportImage?.(file); }}
-                            error={importError}
-                            inputRef={importInputRef}
-                            className="h-full"
-                        />
-                    </animated.div>
                 </div>
             )}
         </div>

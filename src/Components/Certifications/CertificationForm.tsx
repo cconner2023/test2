@@ -1,8 +1,9 @@
 import { useRef, useEffect } from 'react'
-import { Trash2, X, Check, RefreshCw } from 'lucide-react'
+import { Trash2, X, Check } from 'lucide-react'
 import { credentials } from '../../Data/User'
 import { ToggleSwitch } from '../Settings/ToggleSwitch'
 import { TextInput, DatePickerInput } from '@/Components/primitives/FormInputs'
+import { LoadingOverlay } from '@/Components/primitives/LoadingOverlay'
 import type { CertFormData } from './certHelpers'
 
 interface CertificationFormProps {
@@ -50,7 +51,8 @@ export function CertificationForm({
   const listId = `cert-sug-${datalistId}`
 
   return (
-    <div className="bg-tertiary/5">
+    <div className="bg-tertiary/5 relative">
+      <LoadingOverlay visible={saving} />
       <label className="block border-b border-primary/6">
         <input
           ref={titleRef}
@@ -123,7 +125,7 @@ export function CertificationForm({
             aria-label={mode === 'add' ? 'Add certification' : 'Save certification'}
             className={`shrink-0 h-9 rounded-full flex items-center justify-center bg-themeblue3 text-white overflow-hidden transition-all duration-300 ease-out active:scale-95 disabled:opacity-30 ${canSubmit ? 'w-9 opacity-100' : 'w-0 opacity-0 pointer-events-none'}`}
           >
-            {saving ? <RefreshCw size={14} className="animate-spin" /> : <Check size={16} />}
+            <Check size={16} />
           </button>
         </div>
       )}

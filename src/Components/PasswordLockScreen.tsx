@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
-import { Lock, Lightbulb, X, Check, RefreshCw, ScanFace } from 'lucide-react'
+import { Lock, Lightbulb, X, Check, ScanFace } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { verifyPasswordLocally, storePasswordHash } from '../lib/authService'
 import { isBiometricAvailable, isBiometricEnrolled, verifyBiometric } from '../lib/biometricService'
@@ -8,6 +8,7 @@ import { ensureVaultExists, deriveAndCacheVaultKey, setVaultKeyReady } from '../
 import { useAuthStore } from '../stores/useAuthStore'
 import { PasswordInput } from '@/Components/primitives/FormInputs'
 import { ErrorDisplay } from '@/Components/primitives/ErrorDisplay'
+import { LoadingOverlay } from '@/Components/primitives/LoadingOverlay'
 import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
 import { FORGOT_PREFILL_KEY } from './LoginScreen'
 import { DeviceLinkQrView } from './DeviceLinkQrView'
@@ -243,7 +244,8 @@ export const PasswordLockScreen = ({ onUnlock, email, reason = 'inactivity' }: P
       style={{ paddingTop: 'var(--sat)', paddingBottom: 'var(--sab)' }}
     >
       <div className="min-h-full flex flex-col items-center justify-center py-8 px-6">
-      <div className="w-full max-w-sm">
+      <div className="w-full max-w-sm relative">
+        <LoadingOverlay visible={submitting} className="rounded-2xl" />
         {/* Header */}
         <div className="flex flex-col items-center mb-8">
           <div className="w-14 h-14 rounded-full bg-themeblue2/10 flex items-center justify-center mb-4">
@@ -304,7 +306,7 @@ export const PasswordLockScreen = ({ onUnlock, email, reason = 'inactivity' }: P
                 disabled={submitting || isLockedOut}
                 className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center bg-themeblue3 text-white disabled:opacity-30 active:scale-95 transition-all"
               >
-                {submitting ? <RefreshCw size={14} className="animate-spin" /> : <Check size={16} />}
+                <Check size={16} />
               </button>
             </div>
           </div>

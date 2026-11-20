@@ -1,8 +1,9 @@
 import { useState, useRef } from 'react'
-import { Star, Check, CheckCircle, RefreshCw, ImagePlus, X } from 'lucide-react'
+import { Star, Check, CheckCircle, ImagePlus, X } from 'lucide-react'
 import { submitFeedback } from '../../lib/feedbackService'
 import { ActionButton } from '@/Components/primitives/ActionButton'
 import { ErrorDisplay } from '@/Components/primitives/ErrorDisplay'
+import { LoadingOverlay } from '@/Components/primitives/LoadingOverlay'
 import { TextInput, TextArea } from '@/Components/primitives/FormInputs'
 import { SectionCard, SectionHeader } from '@/Components/primitives/Section'
 import { EmptyState } from '@/Components/primitives/EmptyState'
@@ -98,7 +99,7 @@ export const FeedbackPanel = () => {
 
         {error && <ErrorDisplay message={error} />}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4 relative">
 
           {/* Rating card */}
           <SectionCard className="px-4 py-3">
@@ -203,11 +204,12 @@ export const FeedbackPanel = () => {
                 disabled={submitting}
                 className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center bg-themeblue3 text-white disabled:opacity-30 active:scale-95 transition-all"
               >
-                {submitting ? <RefreshCw size={14} className="animate-spin" /> : <Check size={16} />}
+                <Check size={16} />
               </button>
             </div>
           </SectionCard>
 
+          <LoadingOverlay visible={submitting} className="rounded-2xl" />
         </form>
 
       </div>

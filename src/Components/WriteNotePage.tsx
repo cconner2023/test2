@@ -20,7 +20,10 @@ import { PdfPreviewModal } from './PdfPreviewModal';
 import { PatientIdPopover, type PatientIdForm } from './PatientIdPopover';
 import { BottomIsland } from '@/Components/primitives/BottomIsland';
 import { AddFab } from '@/Components/primitives/AddFab';
-import { NoteOutputSections } from './NoteOutputSections';
+import { NoteOutputSections, noteExportOptions } from './NoteOutputSections';
+import { isEncryptedBarcode, decryptBarcode } from '../Utilities/NoteCodec';
+import { emitErrorToast } from '../lib/errorFeedback';
+import { useAuthStore } from '../stores/useAuthStore';
 import { EmptyState } from '@/Components/primitives/EmptyState';
 import { ActionButton } from '@/Components/primitives/ActionButton';
 import { FooterPill } from '@/Components/primitives/FooterPill';
@@ -34,7 +37,7 @@ import { ActionSheet, type ActionSheetOption } from '@/Components/primitives/Act
 import { useSavedNotesStore } from '../stores/useSavedNotesStore';
 import { SAVED_NOTES_CAP } from '../lib/savedNotesDb';
 import { emitCopied } from '../lib/copyFeedback';
-import type { RestoredNote } from '../stores/useNavigationStore';
+import { useNavigationStore, type RestoredNote } from '../stores/useNavigationStore';
 import { PaneCard } from '@/Components/primitives/PaneCard';
 import { useStack } from '@/Components/primitives/useStack';
 import { PillButton } from '@/Components/primitives/HeaderPill';
@@ -167,6 +170,8 @@ export const WriteNotePage = ({
     const [logged, setLogged] = useState(false);
     const savedNotes = useSavedNotesStore(s => s.notes);
     const saveNote = useSavedNotesStore(s => s.save);
+    const isProviderRole = useAuthStore(s => s.isProviderRole);
+    const openProviderNote = useNavigationStore(s => s.openProviderNote);
     // My Notes entry this session writes to — the reopened one, or the first save.
     const savedIdRef = useRef(restore?.savedNoteId);
     const { expanders, orderTags, instructionTags, orderSets } = useMergedNoteContent();
@@ -553,34 +558,33 @@ export const WriteNotePage = ({
         const close = () => onExpansionChange(false);
         const opts: ActionSheetOption[] = [];
         if (encodedValue) {
-            // Failed save keeps the page open (store already showed why) so the note isn't lost.
+            // Save and Log stay on the page (no combo row) so either can follow the other.
             opts.push({ key: 'save', label: saveLabel, icon: Save, onAction: async () => {
-                if (!await handleSave()) return;
-                emitCopied('Saved to My Notes');
-                close();
+                if (await handleSave()) emitCopied('Saved to My Notes');
             } });
         }
         if (!logged) {
             opts.push({ key: 'log', label: 'Log training', icon: GraduationCap, onAction: () => {
                 void handleLog();
                 emitCopied('Training logged');
-                close();
             } });
-            if (encodedValue) {
-                opts.push({ key: 'save-log', label: `${isUpdate ? 'Update' : 'Save'} & log training`, icon: Check, onAction: async () => {
-                void handleLog();
-                if (!await handleSave()) return;
-                emitCopied('Saved & logged');
-                close();
-            } });
-            }
         }
+        opts.push(...noteExportOptions({
+            onExportSF600: () => { if (previewNote) setPatientGate('sf600'); },
+            onExportDD689: () => { if (encodedValue) setPatientGate('dd689'); },
+            onShare: handleShare,
+            onEditInProvider: isProviderRole && encodedValue ? async () => {
+                // The Provider drawer re-imports plaintext; signed-in notes carry an enc: token.
+                const payload = isEncryptedBarcode(encodedValue) ? await decryptBarcode(encodedValue) : encodedValue;
+                if (!payload) { emitErrorToast('Couldn’t open in Provider', 'This note could not be unlocked on this device.'); return; }
+                close();
+                openProviderNote({ payload });
+            } : undefined,
+        }));
         return opts;
-    }, [savedNotes, encodedValue, logged, handleSave, handleLog, onExpansionChange]);
+    }, [savedNotes, encodedValue, previewNote, logged, isProviderRole, handleSave, handleLog, handleShare, onExpansionChange, openProviderNote]);
 
-    // Nothing left to save or log: Done just closes.
     const handleDone = (e: MouseEvent<HTMLButtonElement>) => {
-        if (finishOptions.length === 0) { onExpansionChange(false); return; }
         setFinishAnchor(e.currentTarget.getBoundingClientRect());
         setFinishOpen(true);
     };
@@ -806,11 +810,7 @@ export const WriteNotePage = ({
                                     <NoteOutputSections
                                         previewNote={previewNote}
                                         onCopyNote={() => handleCopy(previewNote)}
-                                        onExportSF600={() => { if (previewNote) setPatientGate('sf600'); }}
                                         onCopyEncoded={() => handleCopy(encodedValue)}
-                                        onShare={handleShare}
-                                        onExportDD689={() => { if (encodedValue) setPatientGate('dd689'); }}
-                                        encodedLength={encodedValue.length}
                                         barcode={
                                             <NoteBarcodeGenerator
                                                 algorithmOptions={algorithmOptions}

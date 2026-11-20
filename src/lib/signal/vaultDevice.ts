@@ -625,7 +625,8 @@ export async function uploadVaultDevice(
     if (!uploadResult.ok) return uploadResult
 
     // 3. Register vault device entry
-    await registerDevice(userId, VAULT_DEVICE_ID, 'Vault')
+    const deviceResult = await registerDevice(userId, VAULT_DEVICE_ID, 'Vault')
+    if (!deviceResult.ok) return deviceResult
 
     logger.info('Vault device uploaded successfully')
     return ok(undefined)
@@ -700,28 +701,106 @@ export function clearVaultKey(): void {
   void clearVaultRowFromIdb().catch(() => {})
 }
 
+/** In-flight ensure per user — signIn, PasswordLockScreen and SetPasswordScreen
+ *  can overlap; two concurrent generations would last-write-win the row and the
+ *  bundle independently, leaving a blob that doesn't match the published keys. */
+const _ensureInFlight = new Map<string, Promise<void>>()
+
 /**
- * Ensure a vault exists for this user. If not, create one.
- * Called during signIn for migration of existing users.
+ * Ensure a COMPLETE vault exists for this user (encrypted row + public bundle +
+ * device entry), creating or repairing it as needed. Called wherever the
+ * password is in scope (signIn, PasswordLockScreen, SetPasswordScreen).
+ *
+ * Throws on any failure so callers' retry/catch paths actually engage — a
+ * swallowed failure leaves the user unmessageable until they next type their
+ * password.
+ *
+ *  - Probe errors throw: reading a failed probe as "no vault" would regenerate
+ *    and overwrite a live vault.
+ *  - Row present, bundle missing: a prior upload died between steps, or
+ *    primary_logout_all reaped the bundle because the 'vault' user_devices row
+ *    was absent. Regenerate rather than republish from the blob: a deleted
+ *    bundle row resets the OTPK guard, so republishing would re-expose
+ *    already-handed-out OTPKs. Cost: undrained vault rows sealed to the old
+ *    identity become undecryptable (none existed when this was added).
+ *  - Row + bundle present, device row missing: re-register only, no regen.
  */
-export async function ensureVaultExists(
-  userId: string,
-  password: string
-): Promise<void> {
-  const { data } = await supabase
-    .from('vault_device_keys')
-    .select('user_id')
-    .eq('user_id', userId)
-    .maybeSingle()
+export function ensureVaultExists(userId: string, password: string): Promise<void> {
+  const inFlight = _ensureInFlight.get(userId)
+  if (inFlight) return inFlight
+  const p = ensureVaultExistsInternal(userId, password)
+    .finally(() => _ensureInFlight.delete(userId))
+  _ensureInFlight.set(userId, p)
+  return p
+}
 
-  if (data) return // Vault already exists
+interface VaultParts { row: boolean; bundle: boolean; device: boolean }
 
-  logger.info('No vault found — creating vault for existing user')
-  const bundle = await generateVaultIdentity(userId, password)
-  const result = await uploadVaultDevice(userId, bundle)
-  if (!result.ok) {
-    logger.warn('Failed to create vault during migration:', result.error)
+/** Probe the three server-side parts of a personal vault. Throws
+ *  VaultUnavailableError on any read failure — never guess "missing". */
+async function probeVaultParts(userId: string): Promise<VaultParts> {
+  const [rowRes, bundleRes, deviceRes] = await Promise.all([
+    supabase.from('vault_device_keys').select('user_id')
+      .eq('user_id', userId).maybeSingle(),
+    supabase.from('signal_key_bundles').select('user_id')
+      .eq('user_id', userId).eq('device_id', VAULT_DEVICE_ID).maybeSingle(),
+    supabase.from('user_devices').select('user_id')
+      .eq('user_id', userId).eq('device_id', VAULT_DEVICE_ID).maybeSingle(),
+  ])
+  const probeError = rowRes.error ?? bundleRes.error ?? deviceRes.error
+  if (probeError) throw new VaultUnavailableError(probeError.message)
+  return { row: !!rowRes.data, bundle: !!bundleRes.data, device: !!deviceRes.data }
+}
+
+/** Fired on window when the vault is found or made unhealthy (e.g. the
+ *  auth-tag wipe in getVaultDecryptKeys) so the lock gate re-checks at once. */
+export const VAULT_UNHEALTHY_EVENT = 'vault-unhealthy'
+
+export type VaultHealth = 'healthy' | 'unhealthy' | 'unknown'
+
+/**
+ * Health of the signed-in user's personal vault: row + public bundle + device
+ * entry all present. 'unknown' on any read failure (offline / flaky link) —
+ * callers must NOT treat that as unhealthy.
+ *
+ * Waits for an in-flight ensure / sign-in provisioning first, so a vault that
+ * is mid-creation is never reported missing.
+ */
+export async function checkVaultHealth(userId: string): Promise<VaultHealth> {
+  try {
+    const inFlight = _ensureInFlight.get(userId)
+    if (inFlight) await inFlight.catch(() => {})
+    if (_vaultKeyReady) await _vaultKeyReady.catch(() => {})
+    const parts = await probeVaultParts(userId)
+    return parts.row && parts.bundle && parts.device ? 'healthy' : 'unhealthy'
+  } catch {
+    return 'unknown'
   }
+}
+
+async function ensureVaultExistsInternal(userId: string, password: string): Promise<void> {
+  const parts = await probeVaultParts(userId)
+
+  if (parts.row && parts.bundle) {
+    if (parts.device) return // Complete vault
+    logger.info('Vault device entry missing — re-registering')
+    const r = await registerDevice(userId, VAULT_DEVICE_ID, 'Vault')
+    if (!r.ok) throw new VaultUnavailableError(r.error)
+    return
+  }
+
+  logger.info(parts.row
+    ?'Vault row without published bundle — regenerating incomplete vault'
+    : 'No vault found — creating vault')
+
+  const bundle = await generateVaultIdentity(userId, password)
+  // Drop any cached view of the old (incomplete) row before it's replaced.
+  // version restarts at 1, so a stale IDB row cache could otherwise match.
+  _probeCache = null
+  _cachedDecryptKeys = null
+  await clearVaultRowFromIdb()
+  const result = await uploadVaultDevice(userId, bundle)
+  if (!result.ok) throw new VaultUnavailableError(result.error)
 }
 
 // ---- Vault Key Recovery ----
@@ -908,6 +987,11 @@ export async function getVaultDecryptKeys(userId: string): Promise<VaultDecryptK
     void clearVaultRowFromIdb().catch(() => {})
     _cachedDecryptKeys = null
     _probeCache = null
+    // The cached key is stale too — drop it so the gate's password entry
+    // re-derives against the re-provisioned vault.
+    cachedVaultKey = null
+    void clearVaultKeyFromIdb().catch(() => {})
+    window.dispatchEvent(new Event(VAULT_UNHEALTHY_EVENT))
     return null
   }
 

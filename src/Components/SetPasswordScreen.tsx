@@ -1,11 +1,13 @@
 import { useState } from 'react'
-import { KeyRound, X, Check, RefreshCw } from 'lucide-react'
+import { KeyRound, X, Check } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../stores/useAuthStore'
 import { deriveAndStoreBackupKey, createBackup } from '../lib/signal/backupService'
 import { storePasswordHash } from '../lib/authService'
+import { ensureVaultExists, deriveAndCacheVaultKey, setVaultKeyReady } from '../lib/signal/vaultDevice'
 import { PasswordInput } from '@/Components/primitives/FormInputs'
 import { ErrorDisplay } from '@/Components/primitives/ErrorDisplay'
+import { LoadingOverlay } from '@/Components/primitives/LoadingOverlay'
 
 interface SetPasswordScreenProps {
   /** 'recovery' = user clicked a password-reset link (forgot password flow)
@@ -45,6 +47,27 @@ export const SetPasswordScreen = ({ mode = 'recovery' }: SetPasswordScreenProps)
     // accepting the previous password offline until the next online sign-in.
     await storePasswordHash(password).catch(() => { })
 
+    // Provision the personal vault. A first-login user arrives by link, not
+    // signIn(), so this is the only point the password is in scope — skipping it
+    // left new accounts unmessageable until they happened to re-enter a password.
+    // Only when NO vault row exists: an existing vault is wrapped under the OLD
+    // password, and caching a new-password key against it would trip the
+    // OperationError → vault-wipe path. Re-wrap on reset is handled elsewhere.
+    if (user) {
+      const uid = user.id
+      const { data: existing, error: probeError } = await supabase
+        .from('vault_device_keys')
+        .select('user_id')
+        .eq('user_id', uid)
+        .maybeSingle()
+      if (!probeError && !existing) {
+        const vaultKeyP = ensureVaultExists(uid, password)
+          .then(() => deriveAndCacheVaultKey(password, uid))
+          .catch(() => { })
+        setVaultKeyReady(vaultKeyP)
+      }
+    }
+
     // Derive non-extractable backup CryptoKey from new password
     await deriveAndStoreBackupKey(password, user?.id ?? '')
     if (user) {
@@ -79,7 +102,8 @@ export const SetPasswordScreen = ({ mode = 'recovery' }: SetPasswordScreenProps)
       style={{ paddingTop: 'var(--sat)', paddingBottom: 'var(--sab)' }}
     >
       <div className="min-h-full flex flex-col items-center justify-center py-8 px-6">
-      <div className="w-full max-w-sm">
+      <div className="w-full max-w-sm relative">
+        <LoadingOverlay visible={submitting} className="rounded-2xl" />
         {/* Header */}
         <div className="flex flex-col items-center mb-8">
           <div className="w-14 h-14 rounded-full bg-themeblue2/10 flex items-center justify-center mb-4">
@@ -125,7 +149,7 @@ export const SetPasswordScreen = ({ mode = 'recovery' }: SetPasswordScreenProps)
                 disabled={!isValid || submitting}
                 className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center bg-themeblue3 text-white disabled:opacity-30 active:scale-95 transition-all"
               >
-                {submitting ? <RefreshCw size={14} className="animate-spin" /> : <Check size={16} />}
+                <Check size={16} />
               </button>
             </div>
           </div>

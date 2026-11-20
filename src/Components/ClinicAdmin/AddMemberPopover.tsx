@@ -2,8 +2,9 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { rankForComponent } from '../../Utilities/rank'
 import { type SupervisorAssignableRole } from '../../Utilities/roles'
 import type { Component } from '../../Data/User'
-import { Check, Loader2 } from 'lucide-react'
+import { Check } from 'lucide-react'
 import { OverlayStack, type StackScreen, type StackNav } from '@/Components/primitives/OverlayStack'
+import { PaneStack } from '@/Components/primitives/PaneStack'
 import { FooterPill } from '@/Components/primitives/FooterPill'
 import { ActionButton } from '@/Components/primitives/ActionButton'
 import { ErrorPill } from '@/Components/primitives/ErrorPill'
@@ -21,7 +22,15 @@ type Role = SupervisorAssignableRole
 
 interface AddMemberPopoverProps {
   isOpen: boolean
-  anchorRect: DOMRect | null
+  /** Overlay surface only — the PreviewOverlay anchor. Ignored for 'pane'. */
+  anchorRect?: DOMRect | null
+  /**
+   * 'overlay' (default): anchored PreviewOverlay morph stack — for hosts that are
+   * already a Sheet/PaneCard (child-cluster roster), where a second pane would stack.
+   * 'pane': PaneStack — Sheet on mobile, PaneCard (or the host's pane-host card) on
+   * desktop. Same screens, same morph, either way.
+   */
+  surface?: 'overlay' | 'pane'
   clinicId: string | null
   onClose: () => void
   /** Called after a member is added (existing user or freshly created) */
@@ -30,7 +39,8 @@ interface AddMemberPopoverProps {
 
 export function AddMemberPopover({
   isOpen,
-  anchorRect,
+  anchorRect = null,
+  surface = 'overlay',
   clinicId,
   onClose,
   onAdded,
@@ -180,8 +190,8 @@ export function AddMemberPopover({
       rightFooter: (
         <FooterPill side="right">
           <ActionButton
-            icon={lookupLoading ? Loader2 : Check}
-            label={lookupLoading ? 'Checking…' : 'Add'}
+            icon={Check}
+            label="Add"
             variant={lookupLoading || !email.trim() ? 'disabled' : 'confirm'}
             onClick={handleLookup}
           />
@@ -220,8 +230,8 @@ export function AddMemberPopover({
       rightFooter: (
         <FooterPill side="right">
           <ActionButton
-            icon={submitting ? Loader2 : Check}
-            label={submitting ? 'Creating…' : 'Create & add'}
+            icon={Check}
+            label="Create & add"
             variant={
               submitting || !firstName.trim() || !lastName.trim() || tempPassword.length < 12
                 ? 'disabled'
@@ -263,6 +273,21 @@ export function AddMemberPopover({
     },
   }
 
+  const loading = lookupLoading || submitting
+
+  if (surface === 'pane') {
+    return (
+      <PaneStack
+        isOpen={isOpen}
+        onClose={handleClose}
+        initial={{ key: 'lookup' }}
+        screens={screens}
+        navRef={navRef}
+        loading={loading}
+      />
+    )
+  }
+
   return (
     <OverlayStack
       isOpen={isOpen}
@@ -273,6 +298,7 @@ export function AddMemberPopover({
       navRef={navRef}
       maxWidth={360}
       previewMaxHeight="70dvh"
+      loading={loading}
     />
   )
 }

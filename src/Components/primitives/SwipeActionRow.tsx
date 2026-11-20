@@ -1,6 +1,6 @@
 import { useRef, type ReactNode } from 'react'
 import type { LucideIcon } from 'lucide-react'
-import { GESTURE_THRESHOLDS } from '@/Utilities/GestureUtils'
+import { GESTURE_THRESHOLDS, isScreenEdge } from '@/Utilities/GestureUtils'
 
 /**
  * SwipeActionRow — the chat-bubble gesture set for a list row / card:
@@ -13,8 +13,9 @@ import { GESTURE_THRESHOLDS } from '@/Utilities/GestureUtils'
  * sides with caller-supplied icon + panel colour, so a user's swipe bindings
  * (Messaging-style picker) can drive it. A side with no `SwipeSide` rubber-bands.
  *
- * Touches starting in the left edge zone are ignored so panel swipe-back wins
- * (same rule as MessageBubble). Long-press fires after `longPressMs` held
+ * Touches starting in either screen-edge strip are ignored so the page's
+ * menu / swipe-back (left) and messages slide (right) win. The row is a gesture
+ * zone (`data-swipe-row`), so page carousels stand down everywhere else. Long-press fires after `longPressMs` held
  * without crossing the direction-lock distance; any swipe cancels it.
  */
 
@@ -89,7 +90,7 @@ export function SwipeActionRow({
   const onTouchStart = (e: React.TouchEvent) => {
     consumed.current = false
     const t = e.touches[0]
-    if (t.clientX < GESTURE_THRESHOLDS.EDGE_ZONE) return
+    if (isScreenEdge(t.clientX)) return
     drag.current = { startX: t.clientX, startY: t.clientY, locked: null }
     if (contentRef.current) contentRef.current.style.transition = 'none'
     cancelPress()
@@ -153,7 +154,7 @@ export function SwipeActionRow({
   }
 
   return (
-    <div ref={wrapRef} className={`relative overflow-hidden ${className}`}>
+    <div ref={wrapRef} data-swipe-row className={`relative overflow-hidden ${className}`}>
       {reveal(ltr, leftRef, 'left')}
       {reveal(rtl, rightRef, 'right')}
       <div

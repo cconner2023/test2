@@ -2,13 +2,15 @@ import type { ClinicMedic } from '../../Types/SupervisorTestTypes'
 import type { UnavailableReason } from '../../Hooks/usePeerAvailability'
 import { getDisplayName } from '../../Utilities/nameUtils'
 import { UserAvatar } from './UserAvatar'
-import { ListItemRow, UnreadBadge } from '@/Components/primitives/ListItemRow'
+import { ListItemRow, UnreadBadge, RowMoreButton } from '@/Components/primitives/ListItemRow'
 
 interface ContactListItemProps {
   medic: ClinicMedic
   lastMessage?: string
   unreadCount?: number
   onClick: () => void
+  /** Ellipsis → the row's context menu (rect = the row). */
+  onMore?: (rect: DOMRect) => void
   unavailable?: boolean
   unavailableReason?: UnavailableReason
 }
@@ -18,9 +20,10 @@ const UNAVAILABLE_LABELS: Record<UnavailableReason, string> = {
   no_keys: 'Setting up encryption',
 }
 
-export function ContactListItem({ medic, lastMessage, unreadCount, onClick, unavailable, unavailableReason }: ContactListItemProps) {
+export function ContactListItem({ medic, lastMessage, unreadCount, onClick, onMore, unavailable, unavailableReason }: ContactListItemProps) {
   return (
     <ListItemRow
+      as={onMore ? 'div' : 'button'}
       onClick={onClick}
       className={`px-4 py-4 transition-all duration-150 hover:bg-primary/3 active:scale-[0.98] cursor-pointer${unavailable ? ' opacity-50' : ''}`}
       left={
@@ -43,7 +46,12 @@ export function ContactListItem({ medic, lastMessage, unreadCount, onClick, unav
           )}
         </>
       }
-      right={<UnreadBadge count={unreadCount ?? 0} />}
+      right={onMore ? (
+        <div className="flex items-center gap-2 shrink-0">
+          <UnreadBadge count={unreadCount ?? 0} />
+          <RowMoreButton onMore={onMore} />
+        </div>
+      ) : <UnreadBadge count={unreadCount ?? 0} />}
     />
   )
 }

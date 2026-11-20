@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react'
-import { Check, Clock, ListChecks, Loader2, Plus, Trash2, X } from 'lucide-react'
+import { Check, Clock, ListChecks, Plus, Trash2, X } from 'lucide-react'
 import { useAuth } from '../../Hooks/useAuth'
 import { useClinicHuddleTasks } from '../../Hooks/useClinicHuddleTasks'
 import { useClinicAppointmentTypes } from '../../Hooks/useClinicAppointmentTypes'
@@ -275,6 +275,7 @@ export function CalendarClinicEditor({ variant = 'calendar' }: { variant?: Clini
 
       <PreviewOverlay
         isOpen={!!taskPopover}
+        loading={taskSaving}
         onClose={closeTaskPopover}
         anchorRect={taskPopover?.anchor ?? null}
         title={taskPopover?.mode === 'new' ? 'New huddle task' : 'Edit huddle task'}
@@ -300,8 +301,8 @@ export function CalendarClinicEditor({ variant = 'calendar' }: { variant?: Clini
           taskPopover ? (
             <FooterPill side="right">
               <ActionButton
-                icon={taskSaving ? Loader2 : Check}
-                label={taskSaving ? 'Saving…' : 'Save'}
+                icon={Check}
+                label="Save"
                 variant={taskSaving || !taskDraftName.trim() ? 'disabled' : 'confirm'}
                 onClick={handleSaveTask}
               />
@@ -340,6 +341,7 @@ export function CalendarClinicEditor({ variant = 'calendar' }: { variant?: Clini
 
       <PreviewOverlay
         isOpen={!!apptPopover}
+        loading={apptSaving}
         onClose={closeApptPopover}
         anchorRect={apptPopover?.anchor ?? null}
         title={apptPopover?.mode === 'new' ? 'New appointment type' : 'Edit appointment type'}
@@ -365,8 +367,8 @@ export function CalendarClinicEditor({ variant = 'calendar' }: { variant?: Clini
           apptPopover ? (
             <FooterPill side="right">
               <ActionButton
-                icon={apptSaving ? Loader2 : Check}
-                label={apptSaving ? 'Saving…' : 'Save'}
+                icon={Check}
+                label="Save"
                 variant={apptSaving || !apptDraftName.trim() || !(parseInt(apptDraftDuration, 10) > 0) ? 'disabled' : 'confirm'}
                 onClick={handleSaveAppt}
               />

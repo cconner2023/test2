@@ -3,6 +3,7 @@ import { Palette, Shield, Lock, MessageSquare, Bell, Stethoscope, Scale, X, Buil
 import { BaseDrawer } from '@/Components/primitives/BaseDrawer';
 import { useIsMobile } from '../../Hooks/useIsMobile';
 import { ChildClinicRosterCard } from './Supervisor/ChildClinicRosterSheet';
+import { createPaneHostStore, PaneHostContext, HostedPaneCard, type PaneHost } from '@/Components/primitives/paneHost';
 import { resizeImage } from '../../Hooks/useProfileAvatar';
 import { useAvatar } from '../../Utilities/AvatarContext';
 import { useUserProfile } from '../../Hooks/useUserProfile';
@@ -72,6 +73,8 @@ type DetailView =
     | { kind: 'child-cluster'; id: string; name: string }
     | { kind: 'app-content'; panel: 'plan-settings' | 'text-templates' | 'provider-templates' };
 
+const CLOSED_PANE = { isOpen: false, title: '', onClose: () => {}, children: null };
+
 export const Settings = ({
     isVisible,
     onClose,
@@ -94,6 +97,14 @@ export const Settings = ({
     const [morphEl, setMorphEl] = useState<HTMLDivElement | null>(null);
     const [morphActive, setMorphActive] = useState(false);
     const cardHost = useMemo<CardMorphHost>(() => ({ el: morphEl, onActiveChange: setMorphActive }), [morphEl]);
+    // Cluster panel's member Add / Edit (PaneStack) publish into ONE desktop card
+    // shared with the child-cluster roster: last opened wins. A published view
+    // closes the roster detail; opening the roster closes the published view.
+    const [clinicPaneStore] = useState(createPaneHostStore);
+    const clinicPaneHost = useMemo<PaneHost>(() => ({
+        store: clinicPaneStore,
+        onActiveChange: (active) => { if (active) setDetailView({ kind: 'none' }); },
+    }), [clinicPaneStore]);
     // The User Guide is its own top-level drawer on every platform (also in the
     // SideNav). Opening it runs CLOSE_ALL_DRAWERS, taking Settings with it. The
     // desktop guide once lived inside this drawer's rail; that buried it and gave
@@ -599,6 +610,7 @@ const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
                             'lora':                 <LoRaPanel />,
                             'pin-setup':            <PinSetupPanel />,
                             'clinic': (
+                                <PaneHostContext.Provider value={isMobile ? null : clinicPaneHost}>
                                 <ClinicPanel
                                     clinicEditing={clinicEditing}
                                     onEditingChange={(v) => { setClinicEditing(v); if (!v) setClinicDeleteSelection(new Set()); }}
@@ -609,9 +621,10 @@ const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
                                     addingMember={clinicAddingMember}
                                     onAddingMemberChange={setClinicAddingMember}
                                     onPendingChangesChange={setClinicHasPending}
-                                    onOpenChild={isMobile ? undefined : (child) => setDetailView({ kind: 'child-cluster', id: child.id, name: child.name })}
+                                    onOpenChild={isMobile ? undefined : (child) => { clinicPaneStore.get()?.onClose(); setDetailView({ kind: 'child-cluster', id: child.id, name: child.name }); }}
                                     activeChildId={detailView.kind === 'child-cluster' ? detailView.id : undefined}
                                 />
+                                </PaneHostContext.Provider>
                             ),
                 };
 
@@ -692,6 +705,10 @@ const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
                                         {panelMap[activePanel === 'main' ? homePanel : activePanel] ?? null}
                                     </div>
                                     {renderDetail()}
+                                    {/* Cluster member Add / Edit (PaneStack publishers). Closed
+                                        fallback = same PaneCard instance, so a view exits with
+                                        its held content. */}
+                                    <HostedPaneCard store={clinicPaneStore} fallback={CLOSED_PANE} />
                                 </div>
                             </div>
                         )}

@@ -1,6 +1,6 @@
 // Utilities/DD689Export.ts — Generate a filled DD Form 689 PDF with Data Matrix barcode
 
-import { renderBarcodeToCanvas } from './NoteCodec';
+import { barcodeSymbols, renderBarcodeSymbol, type BarcodeSymbol } from './barcodeCodec';
 import { logError } from './ErrorHandler';
 import { base64ToBytes } from '../lib/base64Utils';
 import { toWinAnsi, wrapText } from './pdfText';
@@ -15,6 +15,9 @@ export { downloadPdfBytes } from './downloadUtils';
 const COORDS = {
     // encoded note in provider comments
     barcode: { x: 306, y: 425, size: 90 },
+    // Multi-symbol series: 5×5 grid in the blank bottom half, below the form's
+    // outer border (y≈339). Row-major from top-left; symbols grow when fewer rows.
+    seriesGrid: { x: 36, y: 36, width: 540, gridTop: 328, cols: 5, gap: 6, maxSize: 78 },
     // Note author — centered below barcode
     authorLine: { x: 310, y: 390 },
     // Right-of-barcode column inside the remarks box: disposition, then profile
@@ -59,11 +62,11 @@ function yyyymmdd(d: Date): string {
 }
 
 /**
- * Generate a Data Matrix barcode as PNG bytes using bwip-js.
+ * Generate one Data Matrix symbol as PNG bytes using bwip-js.
  */
-function generateBarcodePng(data: string): Uint8Array {
+function generateBarcodePng(symbol: BarcodeSymbol): Uint8Array {
     const canvas = document.createElement('canvas');
-    renderBarcodeToCanvas(canvas, data, { scale: 4, padding: 2 });
+    renderBarcodeSymbol(canvas, symbol, { scale: 4, padding: 2 });
 
     const dataUrl = canvas.toDataURL('image/png');
     const base64 = dataUrl.split(',')[1];
@@ -86,17 +89,38 @@ export async function generateDD689Pdf(params: DD689ExportParams): Promise<Uint8
     const fontBold = await pdfDoc.embedFont(StandardFonts.Helvetica);
     const gray = rgb(0.502, 0.522, 0.533);
 
-    // ── Draw barcode ──
+    // ── Draw barcode(s) ──
+    // One symbol → the original 90pt box in remarks. A series → 5×5 grid in the
+    // bottom half (no captions or labels).
     if (params.encodedValue) {
         try {
-            const pngBytes = generateBarcodePng(params.encodedValue);
-            const barcodeImage = await pdfDoc.embedPng(pngBytes);
-            page.drawImage(barcodeImage, {
-                x: COORDS.barcode.x,
-                y: COORDS.barcode.y,
-                width: COORDS.barcode.size,
-                height: COORDS.barcode.size,
-            });
+            const symbols = barcodeSymbols(params.encodedValue);
+            const images = await Promise.all(symbols.map(sym => pdfDoc.embedPng(generateBarcodePng(sym))));
+            const n = images.length;
+            if (n === 1) {
+                page.drawImage(images[0], {
+                    x: COORDS.barcode.x,
+                    y: COORDS.barcode.y,
+                    width: COORDS.barcode.size,
+                    height: COORDS.barcode.size,
+                });
+            } else {
+                const g = COORDS.seriesGrid;
+                const rows = Math.ceil(n / g.cols);
+                const pitchX = g.width / g.cols;
+                const size = Math.min(
+                    g.maxSize,
+                    pitchX - g.gap,
+                    (g.gridTop - g.y - (rows - 1) * g.gap) / rows,
+                );
+                images.forEach((img, i) => {
+                    const col = i % g.cols;
+                    const row = Math.floor(i / g.cols);
+                    const x = g.x + col * pitchX;
+                    const y = g.gridTop - (row + 1) * size - row * g.gap;
+                    page.drawImage(img, { x, y, width: size, height: size });
+                });
+            }
         } catch (e) {
             logError('DD689Export.barcode', e);
         }

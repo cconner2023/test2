@@ -301,10 +301,11 @@ function summarizeVitals(vitals: Record<string, string>): string {
 interface PEBodyProps {
   selectedBlockKeys: string[];
   items: Record<string, PEItemState>;
-  vitals: Record<string, string>;
+  /** Vital Signs row renders only with onOpenVitals (templates don't carry vitals). */
+  vitals?: Record<string, string>;
   onOpenSelector: () => void;
   onOpenBlock: (blockKey: string) => void;
-  onOpenVitals: () => void;
+  onOpenVitals?: () => void;
   onReorder: (keys: string[]) => void;
   /** Exam-level free text ("Additional Findings"). Row renders only with onOpenFreeText. */
   additional?: string;
@@ -332,11 +333,12 @@ export function PECenter({ medicCard, ...body }: PEBodyProps & {
 
 /** Vitals row + movable system cards + "+" — shared by the provider's exam and the
  *  imported medic's exam (amended through its own pane screens). */
-export function PEBody({ selectedBlockKeys, items, vitals, onOpenSelector, onOpenBlock, onOpenVitals, onReorder, additional = '', onOpenFreeText }: PEBodyProps) {
+export function PEBody({ selectedBlockKeys, items, vitals = {}, onOpenSelector, onOpenBlock, onOpenVitals, onReorder, additional = '', onOpenFreeText }: PEBodyProps) {
   const blocks = getBlocksForTemplate(selectedBlockKeys);
   const vitalsSummary = summarizeVitals(vitals);
   return (
     <div className="space-y-3 md:space-y-2">
+      {onOpenVitals && (
       <ListItemRow
         as="div"
         onClick={onOpenVitals}
@@ -351,6 +353,7 @@ export function PEBody({ selectedBlockKeys, items, vitals, onOpenSelector, onOpe
           </>
         }
       />
+      )}
       {blocks.length > 0 && (
         <PEDetailList blocks={blocks} items={items} onTap={onOpenBlock} onReorder={onReorder} />
       )}

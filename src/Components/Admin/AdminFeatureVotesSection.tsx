@@ -9,7 +9,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Check, Lightbulb, Loader2, Lock, Pencil, Plus, Trash2, Users, X } from 'lucide-react'
+import { Check, Lightbulb, Lock, Pencil, Plus, Trash2, Users, X } from 'lucide-react'
 import { useAuthStore } from '../../stores/useAuthStore'
 import {
   fetchAllCycles,
@@ -470,6 +470,7 @@ export function AdminFeatureVotesSection() {
       {/* New cycle popover — cycle title + up to 3 option inputs */}
       <PreviewOverlay
         isOpen={newCycleOpen}
+        loading={busy}
         onClose={closeNewCyclePopover}
         anchorRect={newCycleAnchor}
         title="New cycle"
@@ -477,8 +478,8 @@ export function AdminFeatureVotesSection() {
         rightFooter={
           <FooterPill side="right">
             <ActionButton
-              icon={busy ? Loader2 : Check}
-              label={busy ? 'Saving…' : 'Open cycle'}
+              icon={Check}
+              label="Open cycle"
               onClick={handleCreateCycle}
               variant={busy || !newCycleTitle.trim() || trimmedOptionCount === 0 ? 'disabled' : 'confirm'}
             />
@@ -532,6 +533,7 @@ export function AdminFeatureVotesSection() {
       {/* Add-option popover — anchored to the header add icon */}
       <PreviewOverlay
         isOpen={!!addOptionPopover}
+        loading={busy}
         onClose={() => setAddOptionPopover(null)}
         anchorRect={addOptionPopover?.anchor ?? null}
         title="Add option"
@@ -540,8 +542,8 @@ export function AdminFeatureVotesSection() {
           addOptionPopover ? (
             <FooterPill side="right">
               <ActionButton
-                icon={busy ? Loader2 : Check}
-                label={busy ? 'Saving…' : 'Add option'}
+                icon={Check}
+                label="Add option"
                 onClick={() => handleAddOption(addOptionPopover.cycleId)}
                 variant={busy || !(optionDrafts[addOptionPopover.cycleId] ?? '').trim() ? 'disabled' : 'confirm'}
               />

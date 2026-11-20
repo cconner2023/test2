@@ -246,11 +246,20 @@ function AppContent() {
       navigation.setShowKnowledgeBase(true, 'training')
     } else if (_initialViewParam === 'kb') {
       navigation.setShowKnowledgeBase(true)
+    } else if (_initialViewParam === 'tracking') {
+      // Tracking Board push deep link (send-push-notification tracking_board)
+      navigation.setShowTrackingBoardDrawer(true)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // When image is staged, collapse the import bar so the popover is the focus
+  // Closing the import entry (Import toggle, decode, or a stage taking over) drops the pasted text.
+  const setImportText = barcodeImport.setImportText
+  useEffect(() => {
+    if (!navigation.isImportExpanded) setImportText('')
+  }, [navigation.isImportExpanded, setImportText])
+
+  // When image is staged or a scan starts, the import pane swaps from entry to that stage
   useEffect(() => {
     if (barcodeImport.stagedImage || barcodeImport.scanRequested) {
       navigation.setImportExpanded(false)
@@ -258,10 +267,6 @@ function AppContent() {
   }, [barcodeImport.stagedImage, barcodeImport.scanRequested, navigation.setImportExpanded])
 
   // Inline import submit: decode via hook → popover shows result
-  const handleInlineImportSubmit = useCallback((barcodeText: string) => {
-    barcodeImport.decodeText(barcodeText)
-  }, [barcodeImport.decodeText])
-
   const openTrainingTask = useCallback((taskId: string) => {
     setInitialTrainingTaskId(taskId)
     navigation.setShowKnowledgeBase(true, 'training-detail')
@@ -629,10 +634,6 @@ case 'mapOverlay':
               import={{
                 isImportExpanded: navigation.isImportExpanded,
                 onImportExpandToggle: navigation.toggleImportExpanded,
-                onImportSubmit: handleInlineImportSubmit,
-                onImportScan: barcodeImport.handleScan,
-                onImportImage: barcodeImport.stageImage,
-                importError: barcodeImport.error,
               }}
               actions={{
                 onBackClick: handleBackClick,
@@ -816,17 +817,29 @@ case 'mapOverlay':
           </div>
         )}
 
-        {/* ── Import popover (scan / staged image / decoding) ── */}
+        {/* ── Import pane (entry / scan / staged image / decoding) ── */}
         <ImportResultPopover
+          entry={{
+            isOpen: navigation.isImportExpanded,
+            text: barcodeImport.importText,
+            onTextChange: barcodeImport.setImportText,
+            onSubmit: barcodeImport.handleSubmit,
+            onClose: () => { navigation.setImportExpanded(false); barcodeImport.reset() },
+            error: barcodeImport.error,
+          }}
           stagedImage={barcodeImport.stagedImage}
           isScanning={barcodeImport.isScanning}
           scanRequested={barcodeImport.scanRequested}
           videoRef={barcodeImport.videoRef}
           isDecodingImage={barcodeImport.isDecodingImage}
+          partProgress={barcodeImport.partProgress}
+          onResetParts={barcodeImport.resetParts}
           anchorRect={null}
           onConfirmImage={barcodeImport.confirmStagedImage}
           onDismissImage={() => { barcodeImport.clearStagedImage(); }}
           onStopScan={barcodeImport.handleStopScan}
+          onScanRest={barcodeImport.handleScan}
+          onAddImage={barcodeImport.stageImage}
           onClose={() => { setImportPreview(null); barcodeImport.reset(); }}
         />
 

@@ -1,6 +1,6 @@
 import { useCallback, useRef, useLayoutEffect, useEffect, useState } from 'react'
 import { useDrag } from '@use-gesture/react'
-import { GESTURE_THRESHOLDS } from '../Utilities/GestureUtils'
+import { GESTURE_THRESHOLDS, isGestureZoneStart } from '../Utilities/GestureUtils'
 
 interface UseColumnCarouselOptions {
   /** Whether drag gestures are enabled (e.g., only on mobile) */
@@ -117,11 +117,20 @@ export function useColumnCarousel({
 
   // ── Drag gesture ──────────────────────────────────────────────
   const edgeDelegateRef = useRef<'menu' | 'messages' | null>(null)
+  const zoneOwnedRef = useRef(false)
   const panelPercent = 100 / panelCount
 
   const bind = useDrag(
-    ({ active, first, movement: [mx], velocity: [vx], direction: [dx], tap, event, initial: [ix] }) => {
+    ({ active, first, movement: [mx], velocity: [vx], direction: [dx], tap, event, initial: [ix, iy] }) => {
       if (!enabled || tap) return
+
+      // Gesture began inside a gesture zone (Mission Board, swipe rows) — the
+      // zone owns horizontal drags; only the screen-edge strips stay with us.
+      if (first) zoneOwnedRef.current = isGestureZoneStart(ix, iy)
+      if (zoneOwnedRef.current) {
+        if (!active) zoneOwnedRef.current = false
+        return
+      }
 
       const panel = panelRef.current
       const target = event?.currentTarget as HTMLElement | null

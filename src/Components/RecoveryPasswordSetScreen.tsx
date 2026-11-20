@@ -1,11 +1,12 @@
 import { useState, useCallback } from 'react'
-import { KeyRound, Check, RefreshCw, CheckCircle } from 'lucide-react'
+import { KeyRound, Check, CheckCircle } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../stores/useAuthStore'
 import { storePasswordHash } from '../lib/authService'
 import { clearPinPermanentLock, resetLockout } from '../lib/pinService'
 import { PasswordInput } from '@/Components/primitives/FormInputs'
 import { ErrorDisplay } from '@/Components/primitives/ErrorDisplay'
+import { LoadingOverlay } from '@/Components/primitives/LoadingOverlay'
 
 /**
  * Password reset for a recovery link opened on a LOCKED browser belonging to the
@@ -64,7 +65,8 @@ export function RecoveryPasswordSetScreen({ email }: { email: string }) {
       style={{ paddingTop: 'var(--sat)', paddingBottom: 'var(--sab)' }}
     >
       <div className="min-h-full flex flex-col items-center justify-center py-8 px-6">
-        <div className="w-full max-w-sm">
+        <div className="w-full max-w-sm relative">
+          <LoadingOverlay visible={submitting} className="rounded-2xl" />
           {success ? (
             <div className="flex flex-col items-center">
               <div className="w-14 h-14 rounded-full bg-themegreen/10 flex items-center justify-center mb-4">
@@ -117,8 +119,8 @@ export function RecoveryPasswordSetScreen({ email }: { email: string }) {
                   disabled={submitting}
                   className="w-full mt-3 py-3 rounded-2xl bg-themeblue3 text-white text-sm font-medium flex items-center justify-center gap-2 disabled:opacity-40 active:scale-95 transition-all"
                 >
-                  {submitting ? <RefreshCw size={16} className="animate-spin" /> : <Check size={16} />}
-                  {submitting ? 'Updating…' : 'Update password'}
+                  <Check size={16} />
+                  Update password
                 </button>
               )}
             </>

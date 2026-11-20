@@ -394,11 +394,12 @@ export function BrnCardFoot({ entry }: { entry: TrackingEntry }) {
 /** Card body — rendered in the list AND as the lifted clone in the menu, and
  *  the collapsed state of TrackingCardOverlay. Tinted shell → white inner card
  *  (BRN, UIC, latest note) → footer band (location) on the tint. */
-function BrnCard({ entry }: { entry: TrackingEntry }) {
+function BrnCard({ entry, onMore }: { entry: TrackingEntry; onMore?: (rect: DOMRect) => void }) {
   const { net } = useBoardScope()
   const { left, right } = useBrnFoot(entry, true)
   return (
     <TintedCard
+      onMore={onMore}
       tint={tintFor(entry)}
       title={entry.brnLabel}
       subtitle={originUic(net.clusters, entry)}
@@ -411,12 +412,13 @@ function BrnCard({ entry }: { entry: TrackingEntry }) {
 
 /** Condensed BrnCard — same tinted shell → white inner (BRN · UIC, latest note)
  *  → footer band (location · since). Rail card and its lifted clone. */
-function BrnRailCardBody({ entry }: { entry: TrackingEntry }) {
+function BrnRailCardBody({ entry, onMore }: { entry: TrackingEntry; onMore?: (rect: DOMRect) => void }) {
   const { net } = useBoardScope()
   const { left, right } = useBrnFoot(entry, false)
   return (
     <TintedCard
       compact
+      onMore={onMore}
       tint={tintFor(entry)}
       title={entry.brnLabel}
       subtitle={originUic(net.clusters, entry)}
@@ -444,7 +446,7 @@ function BrnRailCard({ entry, hidden, onOpen, onMenu }: {
         onClick={onOpen}
         onLongPress={onMenu}
       >
-        <BrnRailCardBody entry={entry} />
+        <BrnRailCardBody entry={entry} onMore={onMenu} />
       </SwipeActionRow>
     </div>
   )
@@ -588,7 +590,7 @@ export function TrackingCardList({ entries, onSelect, onEdit, onMove, onTransit,
             onClick={() => cardMenu.open(e)}
             onLongPress={rect => cardMenu.setMenu({ entry: e, rect, mode: 'all' })}
           >
-            <BrnCard entry={e} />
+            <BrnCard entry={e} onMore={rect => cardMenu.setMenu({ entry: e, rect, mode: 'all' })} />
           </SwipeActionRow>
         </div>
       ))}
@@ -712,6 +714,10 @@ function CommentThread({ items, onLongPress, editingKey, editText, onEditTextCha
 
 export const emptyDraft = (): TrackingEditDraft => ({ brn: '', comments: [], newComment: '' })
 
+/** Must fit a pasted encrypted note token (enc:… runs well past 500); a silent
+ *  maxLength truncation cuts the GCM tag and the note can never decrypt. */
+const COMMENT_MAX_CHARS = 4000
+
 export const draftFromEntry = (e: TrackingEntry): TrackingEditDraft => ({
   brn: e.brn,
   comments: e.comments.map(c => ({ id: c.id, text: c.text })),
@@ -733,7 +739,7 @@ export function TrackingCheckInFields({ draft, onChange }: {
         value={draft.newComment}
         onChange={newComment => onChange({ ...draft, newComment })}
         placeholder="Comment"
-        maxLength={500}
+        maxLength={COMMENT_MAX_CHARS}
         rows={3}
       />
     </>
@@ -971,7 +977,7 @@ export function TrackingEditForm({ entry, draft, onChange }: {
                 ref={inputRef}
                 rows={1}
                 value={draft.newComment}
-                maxLength={500}
+                maxLength={COMMENT_MAX_CHARS}
                 onChange={e => onChange({ ...draft, newComment: e.target.value })}
                 onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
                 placeholder={upload.task ? 'Add a comment...' : 'Type a comment...'}

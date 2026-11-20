@@ -101,6 +101,69 @@ export type Database = {
         }
         Relationships: []
       }
+      attachment_objects: {
+        Row: {
+          bytes: number
+          class: string
+          created_at: string
+          deleted_at: string | null
+          expires_at: string | null
+          key: string
+          owner_clinic: string | null
+          owner_user: string | null
+          purge_at: string | null
+          ref_id: string | null
+          ref_table: string | null
+        }
+        Insert: {
+          bytes: number
+          class: string
+          created_at?: string
+          deleted_at?: string | null
+          expires_at?: string | null
+          key: string
+          owner_clinic?: string | null
+          owner_user?: string | null
+          purge_at?: string | null
+          ref_id?: string | null
+          ref_table?: string | null
+        }
+        Update: {
+          bytes?: number
+          class?: string
+          created_at?: string
+          deleted_at?: string | null
+          expires_at?: string | null
+          key?: string
+          owner_clinic?: string | null
+          owner_user?: string | null
+          purge_at?: string | null
+          ref_id?: string | null
+          ref_table?: string | null
+        }
+        Relationships: []
+      }
+      attachment_usage: {
+        Row: {
+          gets: number
+          live_bytes: number
+          month: string
+          puts: number
+        }
+        Insert: {
+          gets?: number
+          live_bytes?: number
+          month: string
+          puts?: number
+        }
+        Update: {
+          gets?: number
+          live_bytes?: number
+          month?: string
+          puts?: number
+        }
+        Relationships: []
+      }
       audit_log: {
         Row: {
           actor_id: string | null
@@ -295,6 +358,8 @@ export type Database = {
           plan_order_tags: Json | null
           pre_combat_checks: Json
           text_expanders: Json | null
+          tracking_receive: boolean
+          tracking_send: boolean
           uics: string[]
           updated_at: string
           vault_chain_key: string | null
@@ -324,6 +389,8 @@ export type Database = {
           plan_order_tags?: Json | null
           pre_combat_checks?: Json
           text_expanders?: Json | null
+          tracking_receive?: boolean
+          tracking_send?: boolean
           uics?: string[]
           updated_at?: string
           vault_chain_key?: string | null
@@ -353,6 +420,8 @@ export type Database = {
           plan_order_tags?: Json | null
           pre_combat_checks?: Json
           text_expanders?: Json | null
+          tracking_receive?: boolean
+          tracking_send?: boolean
           uics?: string[]
           updated_at?: string
           vault_chain_key?: string | null
@@ -1081,6 +1150,7 @@ export type Database = {
           fail_count: number
           from_label: string
           id: string
+          invite_sends: number
           locked_until: string | null
           medic_pub: string
           opened_at: string | null
@@ -1098,6 +1168,7 @@ export type Database = {
           fail_count?: number
           from_label?: string
           id?: string
+          invite_sends?: number
           locked_until?: string | null
           medic_pub: string
           opened_at?: string | null
@@ -1115,6 +1186,7 @@ export type Database = {
           fail_count?: number
           from_label?: string
           id?: string
+          invite_sends?: number
           locked_until?: string | null
           medic_pub?: string
           opened_at?: string | null
@@ -1281,6 +1353,41 @@ export type Database = {
           },
         ]
       }
+      policy_acceptances: {
+        Row: {
+          accepted_at: string
+          age_attested: boolean
+          document: string
+          id: number
+          user_id: string
+          version: number
+        }
+        Insert: {
+          accepted_at?: string
+          age_attested: boolean
+          document: string
+          id?: never
+          user_id: string
+          version: number
+        }
+        Update: {
+          accepted_at?: string
+          age_attested?: boolean
+          document?: string
+          id?: never
+          user_id?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "policy_acceptances_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profile_clinic_loans: {
         Row: {
           clinic_id: string
@@ -1362,8 +1469,8 @@ export type Database = {
           allow_calls: boolean
           app_content_version: number
           avatar_blob: Json | null
-          avatar_ref: Json | null
           avatar_id: string | null
+          avatar_ref: Json | null
           clinic_id: string | null
           component: string | null
           created_at: string
@@ -1380,6 +1487,7 @@ export type Database = {
           notify_calendar_assignments: boolean
           notify_clinic_notes: boolean | null
           notify_dev_alerts: boolean | null
+          notify_tracking_board: boolean
           overview_widgets: Json | null
           pin_hash: string | null
           pin_salt: string | null
@@ -1405,8 +1513,8 @@ export type Database = {
           allow_calls?: boolean
           app_content_version?: number
           avatar_blob?: Json | null
-          avatar_ref?: Json | null
           avatar_id?: string | null
+          avatar_ref?: Json | null
           clinic_id?: string | null
           component?: string | null
           created_at?: string
@@ -1423,6 +1531,7 @@ export type Database = {
           notify_calendar_assignments?: boolean
           notify_clinic_notes?: boolean | null
           notify_dev_alerts?: boolean | null
+          notify_tracking_board?: boolean
           overview_widgets?: Json | null
           pin_hash?: string | null
           pin_salt?: string | null
@@ -1448,8 +1557,8 @@ export type Database = {
           allow_calls?: boolean
           app_content_version?: number
           avatar_blob?: Json | null
-          avatar_ref?: Json | null
           avatar_id?: string | null
+          avatar_ref?: Json | null
           clinic_id?: string | null
           component?: string | null
           created_at?: string
@@ -1466,6 +1575,7 @@ export type Database = {
           notify_calendar_assignments?: boolean
           notify_clinic_notes?: boolean | null
           notify_dev_alerts?: boolean | null
+          notify_tracking_board?: boolean
           overview_widgets?: Json | null
           pin_hash?: string | null
           pin_salt?: string | null
@@ -1531,8 +1641,8 @@ export type Database = {
           owner_user_id: string | null
           pack_size: number | null
           parent_item_id: string | null
-          photo_url: string | null
           photo_ref: Json | null
+          photo_url: string | null
           quantity: number
           quantity_authorized: number | null
           represents_location_id: string | null
@@ -1566,8 +1676,8 @@ export type Database = {
           owner_user_id?: string | null
           pack_size?: number | null
           parent_item_id?: string | null
-          photo_url?: string | null
           photo_ref?: Json | null
+          photo_url?: string | null
           quantity?: number
           quantity_authorized?: number | null
           represents_location_id?: string | null
@@ -1601,8 +1711,8 @@ export type Database = {
           owner_user_id?: string | null
           pack_size?: number | null
           parent_item_id?: string | null
-          photo_url?: string | null
           photo_ref?: Json | null
+          photo_url?: string | null
           quantity?: number
           quantity_authorized?: number | null
           represents_location_id?: string | null
@@ -1725,6 +1835,21 @@ export type Database = {
           },
         ]
       }
+      push_dedupe: {
+        Row: {
+          created_at: string
+          key: string
+        }
+        Insert: {
+          created_at?: string
+          key: string
+        }
+        Update: {
+          created_at?: string
+          key?: string
+        }
+        Relationships: []
+      }
       push_subscriptions: {
         Row: {
           auth_key: string | null
@@ -1794,6 +1919,30 @@ export type Database = {
         }
         Relationships: []
       }
+      signal_identity_log: {
+        Row: {
+          device_id: string
+          first_seen: string
+          identity_dh_key: string
+          identity_signing_key: string
+          user_id: string
+        }
+        Insert: {
+          device_id: string
+          first_seen?: string
+          identity_dh_key: string
+          identity_signing_key: string
+          user_id: string
+        }
+        Update: {
+          device_id?: string
+          first_seen?: string
+          identity_dh_key?: string
+          identity_signing_key?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       signal_key_bundles: {
         Row: {
           device_id: string
@@ -1829,30 +1978,6 @@ export type Database = {
           signed_pre_key_id?: number
           signed_pre_key_sig?: string
           updated_at?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
-      signal_identity_log: {
-        Row: {
-          device_id: string
-          first_seen: string
-          identity_dh_key: string
-          identity_signing_key: string
-          user_id: string
-        }
-        Insert: {
-          device_id: string
-          first_seen?: string
-          identity_dh_key: string
-          identity_signing_key: string
-          user_id: string
-        }
-        Update: {
-          device_id?: string
-          first_seen?: string
-          identity_dh_key?: string
-          identity_signing_key?: string
           user_id?: string
         }
         Relationships: []
@@ -2133,10 +2258,6 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      advance_vault_cursor: {
-        Args: { p_created_at: string; p_device_id: string; p_id: string }
-        Returns: undefined
-      }
       _assert_line_supervisor: { Args: { p_cred_id: string }; Returns: string }
       _assert_supervisor_or_dev: {
         Args: { p_clinic_id: string }
@@ -2304,6 +2425,10 @@ export type Database = {
         Args: { new_email: string; target_user_id: string }
         Returns: Json
       }
+      advance_vault_cursor: {
+        Args: { p_created_at: string; p_device_id: string; p_id: string }
+        Returns: undefined
+      }
       approve_account_request: {
         Args: { admin_user_id: string; request_id: string }
         Returns: Json
@@ -2312,8 +2437,29 @@ export type Database = {
         Args: { p_uic: string; p_user_id: string }
         Returns: undefined
       }
+      attachment_count_gets: {
+        Args: { p_cap: number; p_n: number }
+        Returns: boolean
+      }
+      attachment_ledger_maintain: { Args: never; Returns: undefined }
+      attachment_orphan_keys: { Args: { p_limit: number }; Returns: string[] }
+      attachment_reserve_put: {
+        Args: {
+          p_bytes: number
+          p_class: string
+          p_daily_cap: number
+          p_key: string
+          p_live_cap: number
+          p_owner_user: string
+          p_put_cap: number
+          p_ttl_days: number
+        }
+        Returns: string
+      }
+      attachment_sweep_token_ok: { Args: { p_token: string }; Returns: boolean }
       auth_clinic_ids: { Args: never; Returns: string[] }
       auth_supervisor_scope_ids: { Args: never; Returns: string[] }
+      auth_visible_clinic_ids: { Args: never; Returns: string[] }
       backfill_location_clinic_associations: {
         Args: never
         Returns: {
@@ -2455,8 +2601,8 @@ export type Database = {
         Args: { user_ids: string[] }
         Returns: {
           avatar_blob: Json
-          avatar_ref: Json
           avatar_id: string
+          avatar_ref: Json
           clinic_id: string
           clinic_name: string
           credential: string
@@ -2470,7 +2616,19 @@ export type Database = {
       }
       fetch_unread_signal_messages: {
         Args: { p_device_id: string; p_recipient_id: string; p_since: string }
-        Returns: Database["public"]["Tables"]["signal_messages"]["Row"][]
+        Returns: {
+          created_at: string
+          group_id: string | null
+          id: string
+          message_type: string
+          origin_id: string
+          payload: Json
+          read_at: string | null
+          recipient_device_id: string | null
+          recipient_id: string | null
+          sender_device_id: string | null
+          sender_id: string | null
+        }[]
         SetofOptions: {
           from: "*"
           to: "signal_messages"
@@ -2513,18 +2671,19 @@ export type Database = {
         Returns: {
           id: string
           name: string
-          nickname: string | null
+          nickname: string
           relation: string
         }[]
       }
       get_current_user_clinic_id: { Args: never; Returns: string }
       get_line_greeting: { Args: { p_cred_id: string }; Returns: Json }
+      get_line_oncall_roster: { Args: { p_cred_id: string }; Returns: Json }
       get_location_medics: {
         Args: never
         Returns: {
           avatar_blob: Json
-          avatar_ref: Json
           avatar_id: string
+          avatar_ref: Json
           clinic_id: string
           clinic_name: string
           credential: string
@@ -2610,7 +2769,6 @@ export type Database = {
       leave_own_cluster: { Args: never; Returns: Json }
       list_intake_lines: { Args: { p_clinic_id: string }; Returns: Json }
       list_line_oncall_rosters: { Args: { p_clinic_id: string }; Returns: Json }
-      get_line_oncall_roster: { Args: { p_cred_id: string }; Returns: Json }
       mark_signal_messages_read: {
         Args: { p_message_ids: string[]; p_recipient_id?: string }
         Returns: undefined
@@ -2648,9 +2806,20 @@ export type Database = {
         Args: { p_origin_id: string; p_rows: Json }
         Returns: undefined
       }
+      outside_invite_authorize: {
+        Args: { p_code: string; p_token_hash: string; p_uid: string }
+        Returns: Json
+      }
       outside_message_authorize_and_bundles: {
         Args: { p_passcode: string; p_passphrase: string }
         Returns: Json
+      }
+      pin_login_begin: {
+        Args: { p_user_id: string }
+        Returns: {
+          pin_hash: string
+          pin_salt: string
+        }[]
       }
       poll_oncall_signal: {
         Args: { p_call_id: string; p_passcode: string }
@@ -2718,6 +2887,7 @@ export type Database = {
         Returns: number
       }
       reap_orphaned_group_messages: { Args: never; Returns: number }
+      reap_personal_vaults: { Args: never; Returns: number }
       record_policy_acceptance: {
         Args: {
           p_age_attested: boolean
@@ -3027,6 +3197,10 @@ export type Database = {
         Args: { p_sub_cluster_id: string; p_user_id: string }
         Returns: undefined
       }
+      supervisor_set_tracking_sharing: {
+        Args: { p_clinic_id: string; p_receive: boolean; p_send: boolean }
+        Returns: undefined
+      }
       supervisor_transfer_user: {
         Args: { p_target_clinic_code: string; p_user_id: string }
         Returns: undefined
@@ -3086,22 +3260,39 @@ export type Database = {
         Args: { p_clinic_id: string; p_on: boolean; p_user_id: string }
         Returns: Json
       }
+      tracking_clinic_chain: {
+        Args: { p_clinic_id: string }
+        Returns: {
+          clinic_id: string
+          depth: number
+        }[]
+      }
+      tracking_push_bump: { Args: { p_clinic_id: string }; Returns: undefined }
+      tracking_push_claim: { Args: never; Returns: { n: number; user_id: string }[] }
+      tracking_push_flush: { Args: never; Returns: undefined }
+      tracking_cluster_tree: {
+        Args: { p_clinic_id?: string }
+        Returns: {
+          id: string
+          name: string
+          nickname: string
+          parent_clinic_id: string
+          tracking_receive: boolean
+          tracking_send: boolean
+          uics: string[]
+        }[]
+      }
+      tracking_related_clinic_ids: {
+        Args: { p_clinic_id?: string }
+        Returns: string[]
+      }
       trim_all_signal_backups: { Args: { p_keep?: number }; Returns: number }
       trim_signal_backups: { Args: { p_keep?: number }; Returns: number }
       update_own_email: { Args: { p_new_email: string }; Returns: Json }
-      update_own_security_settings:
-        | {
-            Args: { p_pin_hash?: string; p_pin_salt?: string }
-            Returns: undefined
-          }
-        | {
-            Args: {
-              p_notifications_enabled?: boolean
-              p_pin_hash?: string
-              p_pin_salt?: string
-            }
-            Returns: undefined
-          }
+      update_own_security_settings: {
+        Args: { p_pin_hash?: string; p_pin_salt?: string }
+        Returns: undefined
+      }
       update_system_shared_blob: {
         Args: {
           p_encrypted_blob: string
@@ -3195,12 +3386,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -3224,11 +3415,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -3249,11 +3440,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -3274,11 +3465,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -3291,11 +3482,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }

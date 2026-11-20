@@ -2,14 +2,16 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { clusterLabel } from '../../Utilities/clusterLabel'
 import { rankForComponent } from '../../Utilities/rank'
 import { type SupervisorAssignableRole } from '../../Utilities/roles'
-import { Building2, Check, Pencil, Trash2, Loader2, Camera, Send, ArrowRightLeft, KeyRound, AlertCircle, Home } from 'lucide-react'
+import { Building2, Check, Pencil, Trash2, Camera, Send, ArrowRightLeft, KeyRound, AlertCircle, Home } from 'lucide-react'
 import { OverlayStack, type StackNav } from '@/Components/primitives/OverlayStack'
+import { PaneStack } from '@/Components/primitives/PaneStack'
 import { FooterPill } from '@/Components/primitives/FooterPill'
 import { ActionButton } from '@/Components/primitives/ActionButton'
 import { buildOverlayActionRail, type OverlayRailAction } from '@/Components/primitives/OverlayActionRail'
 import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
 import { ErrorPill } from '@/Components/primitives/ErrorPill'
 import { PickerInput } from '@/Components/primitives/FormInputs'
+import { Skeleton } from '@/Components/primitives/Skeleton'
 import { ResetPasswordForm } from '../Admin/ResetPasswordForm'
 import {
   getMemberProfile,
@@ -39,7 +41,14 @@ type Role = SupervisorAssignableRole
 
 interface MemberEditPopoverProps {
   isOpen: boolean
-  anchorRect: DOMRect | null
+  /** Overlay surface only — the PreviewOverlay anchor. Ignored for 'pane'. */
+  anchorRect?: DOMRect | null
+  /**
+   * 'overlay' (default): anchored PreviewOverlay morph stack — for hosts already
+   * inside a Sheet/PaneCard (child-cluster roster). 'pane': PaneStack — Sheet on
+   * mobile, PaneCard (or the host's pane-host card) on desktop.
+   */
+  surface?: 'overlay' | 'pane'
   memberId: string | null
   clinicId: string | null
   /** Used if the live profile fetch fails — typically built from the roster row */
@@ -77,7 +86,8 @@ interface MemberEditPopoverProps {
 
 export function MemberEditPopover({
   isOpen,
-  anchorRect,
+  anchorRect = null,
+  surface = 'overlay',
   memberId,
   clinicId,
   fallbackProfile,
@@ -566,14 +576,19 @@ export function MemberEditPopover({
   // OverlayStackContext floors it above the card. Back clears the screen's flag and
   // pops; the header X closes the whole stack (handleClose resets all flags).
   //
-  // The detail actions used to pile up to FOUR ActionButtons in the footer. They
-  // now feed OverlayActionRail: the reserved destructive/reset pair (Remove · Reset)
-  // stays in the footer, and the rest (Loans · Transfer) collapse into the header's
-  // left ellipsis. Empty buckets yield undefined slots (no empty pill, no stray
-  // ellipsis), so edit mode / hidden-cluster surfaces render only what applies.
+  // Every detail action (Edit · Loans · Transfer · Reset password · Remove) lives in
+  // the header's left ellipsis — none are `reserved`, so the footer stays empty and
+  // the only footer action is Save while editing. Edit mode empties the menu (the
+  // rail then yields no ellipsis), leaving just Save.
   const detailActions: OverlayRailAction[] = []
-  if (profile) {
-    if (!hideClusterActions && !editMode) {
+  if (profile && !editMode) {
+    detailActions.push({
+      key: 'edit',
+      icon: Pencil,
+      label: 'Edit',
+      onClick: () => setEditMode(true),
+    })
+    if (!hideClusterActions) {
       detailActions.push({
         key: 'loans',
         icon: Send,
@@ -581,7 +596,7 @@ export function MemberEditPopover({
         onClick: () => { setLoansMode(true); navRef.current?.push('loans') },
       })
     }
-    if (!hideClusterActions && loanState !== 'loaned-in' && !editMode) {
+    if (!hideClusterActions && loanState !== 'loaned-in') {
       detailActions.push({
         key: 'transfer',
         icon: ArrowRightLeft,
@@ -589,26 +604,22 @@ export function MemberEditPopover({
         onClick: () => { setMoveMode('transfer'); navRef.current?.push('transfer') },
       })
     }
-    if (!editMode) {
-      detailActions.push({
-        key: 'reset',
-        icon: KeyRound,
-        label: 'Reset password',
-        reserved: true,
-        onClick: () => {
-          resetPw.reset()
-          setResetError(null)
-          setResetMode(true)
-          navRef.current?.push('reset')
-        },
-      })
-    }
+    detailActions.push({
+      key: 'reset',
+      icon: KeyRound,
+      label: 'Reset password',
+      onClick: () => {
+        resetPw.reset()
+        setResetError(null)
+        setResetMode(true)
+        navRef.current?.push('reset')
+      },
+    })
     if (!hideClusterActions) {
       detailActions.push({
         key: 'remove',
         icon: Trash2,
         label: removeLabel,
-        reserved: true,
         variant: 'danger',
         onClick: () => setConfirmDelete(true),
       })
@@ -616,16 +627,13 @@ export function MemberEditPopover({
   }
   const detailRail = buildOverlayActionRail(detailActions)
 
-  const detailRightFooter = profile ? (
+  const detailRightFooter = profile && editMode ? (
     <FooterPill side="right">
       <ActionButton
-        icon={editMode ? Check : Pencil}
-        label={editMode ? (saving ? 'Saving…' : 'Save') : 'Edit'}
-        variant={editMode ? (saving ? 'disabled' : 'confirm') : 'default'}
-        onClick={() => {
-          if (editMode) handleSave()
-          else setEditMode(true)
-        }}
+        icon={Check}
+        label="Save"
+        variant={saving ? 'disabled' : 'confirm'}
+        onClick={handleSave}
       />
     </FooterPill>
   ) : undefined
@@ -789,7 +797,7 @@ export function MemberEditPopover({
                       >
                         <div className="w-8 h-8 rounded-full flex items-center justify-center bg-tertiary/10 shrink-0">
                           {busy
-                            ? <Loader2 size={14} className="text-tertiary animate-spin" />
+                            ? <Skeleton className="w-full h-full rounded-full" />
                             : <Building2 size={14} className="text-tertiary" />}
                         </div>
                         <div className="flex-1 min-w-0">
@@ -908,7 +916,7 @@ export function MemberEditPopover({
                     >
                       <div className="w-8 h-8 rounded-full flex items-center justify-center bg-tertiary/10 shrink-0">
                         {state === 'busy'
-                          ? <Loader2 size={14} className="text-tertiary animate-spin" />
+                          ? <Skeleton className="w-full h-full rounded-full" />
                           : state === 'error'
                             ? <AlertCircle size={14} className="text-themeredred" />
                             : <Building2 size={14} className="text-tertiary" />}
@@ -950,7 +958,7 @@ export function MemberEditPopover({
                     disabled={loansApplying}
                     className="flex-1 bg-transparent font-mono tracking-[0.15em] text-primary placeholder:font-sans placeholder:tracking-normal placeholder:text-tertiary focus:outline-none text-sm min-w-0 disabled:opacity-40"
                   />
-                  {rowState.get('__pending__') === 'busy' && <Loader2 size={14} className="text-tertiary animate-spin ml-2" />}
+                  {rowState.get('__pending__') === 'busy' && <Skeleton className="w-14 h-2.5 rounded-full ml-2 shrink-0" />}
                 </div>
                 {rowError.get('__pending__') && (
                   <p className="px-4 py-2 text-[10pt] text-themeredred">{rowError.get('__pending__')}</p>
@@ -1015,7 +1023,7 @@ export function MemberEditPopover({
       rightFooter: (
         <FooterPill side="right">
           <ActionButton
-            icon={loansApplying ? Loader2 : Check}
+            icon={Check}
             label={overCap ? `Over limit (${postSaveCount}/4)` : 'Save'}
             variant={overCap || loansApplying ? 'disabled' : 'confirm'}
             onClick={applyLoanChanges}
@@ -1062,7 +1070,7 @@ export function MemberEditPopover({
       rightFooter: (
         <FooterPill side="right">
           <ActionButton
-            icon={moveSaving ? Loader2 : Check}
+            icon={Check}
             label="Transfer"
             variant={!moveCode || moveSaving ? 'disabled' : 'confirm'}
             onClick={() => submitMove(moveCode)}
@@ -1093,6 +1101,21 @@ export function MemberEditPopover({
     },
   }
 
+  const busy = loading || !profile || saving || loansApplying || moveSaving
+
+  if (surface === 'pane') {
+    return (
+      <PaneStack
+        isOpen={isOpen}
+        onClose={handleClose}
+        navRef={navRef}
+        initial={{ key: 'detail' }}
+        screens={screens}
+        loading={busy}
+      />
+    )
+  }
+
   return (
     <OverlayStack
       isOpen={isOpen}
@@ -1103,7 +1126,7 @@ export function MemberEditPopover({
       screens={screens}
       maxWidth={360}
       previewMaxHeight="55dvh"
-      loading={loading || !profile}
+      loading={busy}
     />
   )
 }

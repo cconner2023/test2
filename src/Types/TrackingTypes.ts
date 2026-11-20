@@ -101,7 +101,7 @@ export function mergeTrackingData(a: TrackingData, b: TrackingData): TrackingDat
 }
 
 /** Entry drops off every board (and out of the vault snapshot) this long after check-in. */
-export const TRACKING_EXPIRE_MS = 72 * 60 * 60 * 1000
+export const TRACKING_EXPIRE_MS = 30 * 24 * 60 * 60 * 1000
 /** Max entries a board shows — newest check-ins kept. */
 export const TRACKING_MAX_ENTRIES = 200
 

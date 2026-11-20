@@ -1,9 +1,9 @@
 import { useState, useMemo, useCallback, useRef, type ReactNode } from 'react';
-import { ChevronRight, ChevronDown, Eye, EyeOff, Pencil, Trash2, X, Check, ArrowDownToLine, Wifi, Loader2, Plus, CalendarClock, Link2, Link2Off, MessageSquare, MoreHorizontal, Copy, Layers } from 'lucide-react';
+import { ChevronRight, ChevronDown, Eye, EyeOff, Pencil, Trash2, X, Check, ArrowDownToLine, Wifi, Plus, CalendarClock, Link2, Link2Off, MessageSquare, MoreHorizontal, Copy, Layers } from 'lucide-react';
 import { LiftedRowMenu } from '@/Components/primitives/LiftedRowMenu';
 import type { ContextMenuItem } from '@/Components/primitives/ContextMenu';
 import { EmptyState } from '@/Components/primitives/EmptyState';
-import { SkeletonRows } from '@/Components/primitives/Skeleton';
+import { Skeleton, SkeletonRows } from '@/Components/primitives/Skeleton';
 import { useLongPress } from '../../Hooks/useLongPress';
 import { useShareToChat } from '../Messages/ShareToChatPicker';
 import type { LocalMapOverlay, OverlayFeature } from '../../Types/MapOverlayTypes';
@@ -321,7 +321,7 @@ export function MapOverlayTree({
 
                   {/* Tile-cache state indicator */}
                   {!isRenaming && isDownloading && (
-                    <Loader2 size={12} className="shrink-0 text-themeblue2 animate-spin" aria-label="Downloading tiles" />
+                    <Skeleton className="w-3 h-3 rounded-full shrink-0" />
                   )}
                   {!isRenaming && !isDownloading && isCached && (
                     <Wifi size={12} className="shrink-0 text-themegreen" aria-label="Cached for offline" />
@@ -465,7 +465,7 @@ export function MapOverlayTree({
                 : {
                     key: 'download',
                     label: isDownloading ? 'Downloading…' : 'Download offline tiles',
-                    icon: isDownloading ? Loader2 : ArrowDownToLine,
+                    icon: ArrowDownToLine,
                     disabled: isDownloading || noFeatures || cacheBusy,
                     onAction: () => onDownloadTiles(overlay),
                   },

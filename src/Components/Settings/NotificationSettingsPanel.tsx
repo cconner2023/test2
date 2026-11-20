@@ -5,6 +5,7 @@ import { useUserProfile } from '../../Hooks/useUserProfile'
 import { useAuth } from '../../Hooks/useAuth'
 import { isMessageSoundsEnabled, setMessageSoundsEnabled } from '../../lib/soundService'
 import { SettingsToggleRow } from './SettingsToggleRow'
+import { PlayingCardsFan } from '../navIcons'
 import { ErrorDisplay } from '@/Components/primitives/ErrorDisplay'
 import { SectionCard } from '@/Components/primitives/Section'
 import { UI_TIMING } from '../../Utilities/constants'
@@ -18,6 +19,7 @@ export const NotificationSettingsPanel = () => {
 
   const devAlerts = profile.notifyDevAlerts ?? false
   const calendarAssignments = profile.notifyCalendarAssignments ?? false
+  const trackingBoard = profile.notifyTrackingBoard ?? false
   const [soundsEnabled, setSoundsEnabled] = useState(isMessageSoundsEnabled)
 
   const showSuccess = useCallback((msg: string) => {
@@ -82,6 +84,22 @@ export const NotificationSettingsPanel = () => {
     showSuccess(newValue ? 'Event assignment alerts enabled' : 'Event assignment alerts disabled')
   }, [isSubscribed, subscribe, pushError, updateProfile, syncProfileField, showSuccess, showError])
 
+  const handleTrackingBoardToggle = useCallback(async (newValue: boolean) => {
+    setError('')
+
+    if (newValue && !isSubscribed) {
+      const ok = await subscribe()
+      if (!ok) {
+        showError(pushError || 'Could not enable notifications')
+        return
+      }
+    }
+
+    updateProfile({ notifyTrackingBoard: newValue })
+    syncProfileField({ notify_tracking_board: newValue })
+    showSuccess(newValue ? 'Tracking board alerts enabled' : 'Tracking board alerts disabled')
+  }, [isSubscribed, subscribe, pushError, updateProfile, syncProfileField, showSuccess, showError])
+
   return (
     <div className="h-full overflow-y-auto">
       <div className="px-5 pb-4 space-y-5 pt-[calc(var(--drawer-header-h,3.5rem)+0.75rem)]">
@@ -139,6 +157,15 @@ export const NotificationSettingsPanel = () => {
                   subtitle="Get notified when you're assigned to a calendar event"
                   checked={calendarAssignments}
                   onChange={() => handleCalendarAssignToggle(!calendarAssignments)}
+                  divided
+                />
+
+                <SettingsToggleRow
+                  icon={PlayingCardsFan}
+                  label="Tracking Board"
+                  subtitle="Get notified when your cluster checks in new tracking items"
+                  checked={trackingBoard}
+                  onChange={() => handleTrackingBoardToggle(!trackingBoard)}
                   divided
                 />
 

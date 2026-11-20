@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef, type ReactNode } from 'react'
 import { isPinEnabled, isAppLockEnabled, isSessionUnlocked, setSessionUnlocked, clearSessionUnlocked, initPinService } from '../lib/pinService'
 import { useInactivityTimer } from '../Hooks/useInactivityTimer'
+import { useVaultHealthGate } from '../Hooks/useVaultHealthGate'
 import { useAuth } from '../Hooks/useAuth'
 import { useAuthStore } from '../stores/useAuthStore'
 import { PinLockScreen } from './PinLockScreen'
@@ -162,6 +163,14 @@ export function LockGate({ children }: { children: ReactNode }) {
     }
   }, [])
 
+  // Vault health double-check: a missing/partial personal vault raises the
+  // vault password gate below, whose unlock repairs it (ensureVaultExists).
+  useVaultHealthGate({
+    userId: user?.id ?? null,
+    enabled: !isGuest && !shouldLoad && sessionReady && !needsPasswordSetup && !isPasswordRecovery,
+    promptOpen: vaultKeyPromptNeeded,
+  })
+
   useInactivityTimer({
     enabled: (!!user || !!localSession) && !isGuest && !isPinLocked && !pwLock && !isInitialPasswordLocked,
     onTimeout: handleInactivityTimeout,
@@ -233,7 +242,8 @@ export function LockGate({ children }: { children: ReactNode }) {
         />
       )}
       {/* Vault re-auth: live session resumed but the password-derived wrapping key
-          isn't cached and vault messages are waiting. Blocking re-entry (replaces the
+          isn't cached and vault messages are waiting, OR useVaultHealthGate found
+          the vault missing/partial (unlock repairs it). Blocking re-entry (replaces the
           old non-blocking VaultUnlockBanner) — verify→derive→cache→drain happens inside
           PasswordLockScreen's reason="vault" path. */}
       {vaultKeyPromptNeeded && !shouldLoad && !isPinLocked && !pwLock && !isInitialPasswordLocked && !needsReauth && (user?.email || localSession?.email) && (

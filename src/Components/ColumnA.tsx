@@ -275,7 +275,10 @@ export const ColumnA = memo(function ColumnA({ onNavigate, onEdgeDrag, onEdgeDra
         <div ref={panel0ScrollRef} className="h-full overflow-y-auto bg-themewhite" style={{ flex: `0 0 ${panelWidth}` }}>
           <div className="px-2 md:px-0 min-h-full" style={{ paddingTop: mobilePanelPadding }}>
             {isMobile && (
-              <div ref={missionBoardSectionRef} className="pb-2">
+              // Gesture zone: the Mission Board owns horizontal swipes (tracking
+              // cards, week paging, …) — the carousel only pages from the
+              // category list below; screen edges still open menu / messages.
+              <div ref={missionBoardSectionRef} data-gesture-zone className="pb-2">
                 <MissionBoardPanel />
               </div>
             )}

@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef } from 'react'
-import { Check, X, RefreshCw, Copy, ChevronRight, ChevronLeft } from 'lucide-react'
+import { Check, X, Copy, ChevronRight, ChevronLeft } from 'lucide-react'
 import type { Component } from '../../Data/User'
 import { submitAccountRequest, checkRequestStatus, type AccountRequest } from '../../lib/accountRequestService'
 import { TextInput, PickerInput, PasswordInput } from '@/Components/primitives/FormInputs'
 import { UicPinInput } from '@/Components/DomainInputs'
 import { ErrorDisplay } from '@/Components/primitives/ErrorDisplay'
 import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
+import { LoadingOverlay } from '@/Components/primitives/LoadingOverlay'
 import { validatePasswordComplexity, PASSWORD_RULES } from '../../lib/constants'
 import { parseNameFromEmail, componentFromEmail, readRequestDraft, saveRequestDraft, clearRequestDraft } from '../../lib/loginPrefill'
 import { SectionCard } from '@/Components/primitives/Section'
@@ -436,7 +437,8 @@ export const AccountRequestForm = ({ onBack, initialEmail = '', onSignIn }: Acco
         </div>
       )}
 
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleSubmit} className="relative">
+        <LoadingOverlay visible={submitting} className="rounded-2xl" />
         <SectionCard>
           <StackBody screenKey={step} dir={stepDir}>
           {step === 'identity' ? (<>
@@ -566,7 +568,7 @@ export const AccountRequestForm = ({ onBack, initialEmail = '', onSignIn }: Acco
               disabled={submitting}
               className={`shrink-0 h-9 rounded-full flex items-center justify-center bg-themeblue3 text-white overflow-hidden transition-all duration-300 ease-out active:scale-95 ${canSubmit ? 'w-9 opacity-100' : 'w-0 opacity-0 pointer-events-none'}`}
             >
-              {submitting ? <RefreshCw size={14} className="animate-spin" /> : <Check size={16} />}
+              <Check size={16} />
             </button>
           </div>
           </>)}

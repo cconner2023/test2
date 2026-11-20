@@ -72,9 +72,10 @@ export interface RestoredNote {
     includeDecisionMaking: boolean;
 }
 
-/** Reopened provider My Notes entry — decrypted payload the Provider drawer re-imports. */
+/** Decrypted payload the Provider drawer re-imports: a reopened My Notes entry
+ *  (savedNoteId set, so a re-save overwrites it) or an Edit in Provider hand-off. */
 export interface ProviderRestore {
-    savedNoteId: string;
+    savedNoteId?: string;
     payload: string;
 }
 

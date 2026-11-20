@@ -7,7 +7,6 @@ import {
   Check,
   Plus,
   Trash2,
-  Loader2,
   Copy,
   Share2,
   MapPin,
@@ -16,6 +15,7 @@ import {
 import bwipjs from 'bwip-js'
 import { useAuth } from '../../Hooks/useAuth'
 import { ErrorPill } from '@/Components/primitives/ErrorPill'
+import { Skeleton } from '@/Components/primitives/Skeleton'
 import { FooterPill } from '@/Components/primitives/FooterPill'
 import { useClinicInvites } from '../../Hooks/useClinicInvites'
 import { useBarcodeScanner } from '../../Hooks/useBarcodeScanner'
@@ -134,9 +134,8 @@ export function ClinicPanel({
   const clinicCardRef = useRef<HTMLDivElement>(null)
   const [clinicEditAnchor, setClinicEditAnchor] = useState<DOMRect | null>(null)
 
-  // Add-member FAB ref + popover (Users section)
+  // Add-member FAB ref (Users section roster menu anchor)
   const addMemberFabRef = useRef<HTMLDivElement>(null)
-  const [addMemberAnchor, setAddMemberAnchor] = useState<DOMRect | null>(null)
 
   // Share QR — hidden high-res canvas drives navigator.share / clipboard.write
   const shareCanvasElRef = useRef<HTMLCanvasElement | null>(null)
@@ -251,7 +250,7 @@ export function ClinicPanel({
       <div className="w-full flex items-center gap-3 py-2 px-2 rounded-lg hover:bg-secondary/5 transition-all">
         <button
           type="button"
-          onClick={(e) => openMemberPopover(member.id, e.currentTarget)}
+          onClick={() => openMemberPopover(member.id)}
           className="flex items-center gap-3 flex-1 min-w-0 text-left active:scale-95 transition-transform"
         >
           <UserAvatar
@@ -319,7 +318,7 @@ export function ClinicPanel({
   const [assocCodeLoading, setAssocCodeLoading] = useState(false)
 
   // Member popover (tap-to-edit roster row)
-  const [memberPopover, setMemberPopover] = useState<{ memberId: string; anchor: DOMRect } | null>(null)
+  const [memberPopover, setMemberPopover] = useState<{ memberId: string } | null>(null)
 
   // Swipe-to-remove target from the Users roster. Loaned-in → end the loan from
   // this clinic; otherwise remove from the cluster (mirrors MemberEditPopover).
@@ -588,9 +587,11 @@ export function ClinicPanel({
 
   // ─── Member popover wiring (state lives in MemberEditPopover) ─────
 
-  const openMemberPopover = useCallback((memberId: string, target: HTMLElement) => {
-    setMemberPopover({ memberId, anchor: target.getBoundingClientRect() })
-  }, [])
+  // Add and Edit share one pane/sheet slot — opening one closes the other.
+  const openMemberPopover = useCallback((memberId: string) => {
+    onAddingMemberChange(false)
+    setMemberPopover({ memberId })
+  }, [onAddingMemberChange])
 
   const memberFallback = useMemo(() => {
     if (!memberPopover) return undefined
@@ -612,22 +613,19 @@ export function ClinicPanel({
 
   // ─── Add Member wiring ────────────────────────────────────────────
 
+  // PaneStack: Sheet on mobile, the Settings pane-host card on desktop.
   const openAddMemberPopover = useCallback(() => {
-    if (!addMemberFabRef.current) return
-    setAddMemberAnchor(addMemberFabRef.current.getBoundingClientRect())
+    setMemberPopover(null)
     onAddingMemberChange(true)
   }, [onAddingMemberChange])
 
-  /** Second entry in the roster's ellipsis menu, alongside "New sub-unit".
-   *  Declared here (not with the rest of the roster wiring) because it closes
-   *  over openAddMemberPopover, which anchors to the pill via addMemberFabRef. */
+  /** Second entry in the roster's ellipsis menu, alongside "New sub-unit". */
   const rosterAddActions = useMemo<ContextMenuItem[]>(
     () => [{ key: 'add-member', label: 'Add member', icon: Plus, onAction: openAddMemberPopover }],
     [openAddMemberPopover],
   )
 
   const closeAddMemberPopover = useCallback(() => {
-    setAddMemberAnchor(null)
     onAddingMemberChange(false)
   }, [onAddingMemberChange])
 
@@ -997,19 +995,19 @@ export function ClinicPanel({
         }}
       />
 
-      {/* Add member popover — shared with SupervisorDrawer */}
+      {/* Add member — PaneStack (Sheet on mobile, Settings pane-host card on desktop) */}
       <AddMemberPopover
-        isOpen={!!addMemberAnchor}
-        anchorRect={addMemberAnchor}
+        surface="pane"
+        isOpen={addingMember}
         clinicId={clinicId}
         onClose={closeAddMemberPopover}
         onAdded={refreshMedics}
       />
 
-      {/* Member tap-to-edit popover — shared with SupervisorDrawer */}
+      {/* Member edit — PaneStack (Sheet on mobile, Settings pane-host card on desktop) */}
       <MemberEditPopover
+        surface="pane"
         isOpen={!!memberPopover}
-        anchorRect={memberPopover?.anchor ?? null}
         memberId={memberPopover?.memberId ?? null}
         clinicId={clinicId}
         fallbackProfile={memberFallback}
@@ -1029,6 +1027,7 @@ export function ClinicPanel({
       {/* Associated clinic popover — info (with delete) or add (code/scan/upload) */}
       <PreviewOverlay
         isOpen={!!assocPopover}
+        loading={assocSaving}
         onClose={closeAssocPopover}
         anchorRect={assocPopover?.anchor ?? null}
         title={
@@ -1073,7 +1072,7 @@ export function ClinicPanel({
           assocPopover?.mode === 'add' ? (
             <FooterPill side="right">
               <ActionButton
-                icon={assocSaving ? Loader2 : Check}
+                icon={Check}
                 label="Associate"
                 variant={!joinCode || assocSaving ? 'disabled' : 'confirm'}
                 onClick={() => redeemAssocCode(joinCode)}
@@ -1095,7 +1094,7 @@ export function ClinicPanel({
             <div className="flex items-center justify-between gap-3 px-4 py-3">
               <FieldLabel className="w-20">Code</FieldLabel>
               {assocCodeLoading ? (
-                <Loader2 size={14} className="animate-spin text-tertiary" />
+                <Skeleton className="h-3 w-24 rounded-full" />
               ) : assocCode ? (
                 <button
                   type="button"

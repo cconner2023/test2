@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react'
-import { Eye, Pencil, Trash2, MoreHorizontal } from 'lucide-react'
+import { Eye, Pencil, Trash2, MoreHorizontal, FileInput } from 'lucide-react'
 import { LiftedRowMenu } from '@/Components/primitives/LiftedRowMenu'
 import type { ContextMenuItem } from '@/Components/primitives/ContextMenu'
 import { liftPressHandlers, type LiftPressState } from '../liftPress'
@@ -19,8 +19,6 @@ interface ProviderTemplateTreeProps {
   onEdit?: (template: ProviderNoteTemplate, anchor: DOMRect) => void
   /** Context-menu "Delete". */
   onDelete?: (template: ProviderNoteTemplate) => void
-  /** Reveal the ellipsis only on hover (desktop rail); off = always shown (mobile). */
-  hoverActions?: boolean
 }
 
 /** One-line summary of which note sections a template fills — used for search matching. */
@@ -36,10 +34,10 @@ function fieldPreview(t: ProviderNoteTemplate): string {
 /**
  * Flat, tree-styled list of note templates — the provider analogue of
  * PropertyLocationTree / MapOverlayTree. Single-line name rows (no icon); a row
- * tap APPLIES the template. View · Edit · Delete ride a lifted context menu
- * opened by the hover-revealed ellipsis (desktop), right-click, or long-press
- * (mobile) — same primitive across platforms. Templates are flat (no hierarchy),
- * so there are no chevrons or nesting.
+ * tap APPLIES the template. Place · View · Edit · Delete ride a lifted context
+ * menu opened by the always-visible ellipsis, right-click, or long-press — same
+ * primitive across platforms. Templates are flat (no hierarchy), so there are no
+ * chevrons or nesting.
  */
 export function ProviderTemplateTree({
   templates,
@@ -49,7 +47,6 @@ export function ProviderTemplateTree({
   onView,
   onEdit,
   onDelete,
-  hoverActions,
 }: ProviderTemplateTreeProps) {
   const q = (searchQuery ?? '').trim().toLowerCase()
   const shown = useMemo(() => {
@@ -62,7 +59,6 @@ export function ProviderTemplateTree({
   // One press is active at a time — a single ref bucket serves every row.
   const pressRef = useRef<LiftPressState | null>(null)
   const [menu, setMenu] = useState<{ template: ProviderNoteTemplate; rect: DOMRect } | null>(null)
-  const hasMenu = !!(onView || onEdit || onDelete)
 
   if (shown.length === 0) {
     return (
@@ -72,17 +68,14 @@ export function ProviderTemplateTree({
     )
   }
 
-  const ellipsisCls = `w-7 h-7 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all shrink-0 ${
-    hoverActions ? 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100' : ''
-  }`
+  // Always visible (no hover reveal) so users can see the row has actions.
+  const ellipsisCls = 'w-7 h-7 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all shrink-0'
 
   return (
     <div className="flex flex-col py-1">
       {shown.map((t) => {
         const isActive = activeTemplateId === t.id
-        const press = hasMenu
-          ? liftPressHandlers((snap) => setMenu({ template: t, rect: snap.rect }), pressRef)
-          : {}
+        const press = liftPressHandlers((snap) => setMenu({ template: t, rect: snap.rect }), pressRef)
         return (
           <div
             key={t.id}
@@ -99,8 +92,7 @@ export function ProviderTemplateTree({
             {...press}
           >
             <p className="flex-1 min-w-0 text-[10pt] font-medium text-primary truncate">{t.name}</p>
-            {hasMenu && (
-              <button
+            <button
                 onClick={(e) => {
                   e.stopPropagation()
                   const row = (e.currentTarget as HTMLElement).closest('[data-tmpl-row]') as HTMLElement | null
@@ -111,15 +103,15 @@ export function ProviderTemplateTree({
               >
                 <MoreHorizontal size={15} />
               </button>
-            )}
           </div>
         )
       })}
 
-      {/* View · Edit · Delete — lifted context menu (ellipsis / right-click / long-press) */}
+      {/* Place · View · Edit · Delete — lifted context menu (ellipsis / right-click / long-press) */}
       {menu && (() => {
         const t = menu.template
         const items: ContextMenuItem[] = [
+          { key: 'place', label: 'Place', icon: FileInput, onAction: () => onSelect(t) },
           ...(onView ? [{ key: 'view', label: 'View', icon: Eye, onAction: () => onView(t) }] : []),
           ...(onEdit ? [{ key: 'edit', label: 'Edit', icon: Pencil, onAction: () => onEdit(t, menu.rect) }] : []),
           ...(onDelete ? [{ key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => onDelete(t) }] : []),

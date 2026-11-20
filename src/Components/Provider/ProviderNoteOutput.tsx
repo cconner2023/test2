@@ -1,8 +1,9 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, type ReactNode } from 'react';
 import { useClusterLabel } from '../../Utilities/clusterLabel';
 import { useSF600Export } from '../../Hooks/useSF600Export';
 import { useDD689Export } from '../../Hooks/useDD689Export';
-import { NoteOutputSections } from '../NoteOutputSections';
+import { NoteOutputSections, noteExportOptions } from '../NoteOutputSections';
+import type { ActionSheetOption } from '@/Components/primitives/ActionSheet';
 import { BarcodeDisplay } from '../Barcode';
 import { useUserProfile } from '../../Hooks/useUserProfile';
 import { useIsMobile } from '../../Hooks/useIsMobile';
@@ -18,7 +19,7 @@ import { formatHistory, type NoteHistory } from '../../Utilities/noteHistory';
 
 import type { ImportedMedicNote } from '../ProviderDrawer'
 
-export interface ProviderNoteOutputProps {
+export interface ProviderNoteInputs {
     hpiNote: string;
     peNote: string;
     assessmentNote: string;
@@ -30,7 +31,11 @@ export interface ProviderNoteOutputProps {
     encodedValue: string;
 }
 
-export function ProviderNoteOutput({
+/**
+ * Provider note output state, owned by ProviderDrawer: the composed preview, the
+ * Finish-menu export rows (SF600 / DD689 / share) and their overlays, mounted once.
+ */
+export function useProviderNoteOutput({
     hpiNote,
     peNote,
     assessmentNote,
@@ -38,7 +43,7 @@ export function ProviderNoteOutput({
     history,
     importedMedicNote,
     encodedValue,
-}: ProviderNoteOutputProps) {
+}: ProviderNoteInputs): { previewNote: string; exportOptions: ActionSheetOption[]; overlays: ReactNode } {
     const { profile } = useUserProfile();
     const isMobile = useIsMobile();
     const { shareNote } = useNoteShare();
@@ -145,18 +150,14 @@ export function ProviderNoteOutput({
         });
     }
 
-    return (
-        <div className="space-y-4">
-            <NoteOutputSections
-                previewNote={previewNote}
-                onCopyNote={() => copyWithHtml(previewNote)}
-                onExportSF600={() => { if (previewNote) setPatientGate('sf600'); }}
-                onCopyEncoded={() => copyWithHtml(encodedValue)}
-                onShare={handleShare}
-                onExportDD689={() => { if (encodedValue) setPatientGate('dd689'); }}
-                encodedLength={encodedValue.length}
-                barcode={<BarcodeDisplay encodedText={encodedValue} layout={encodedValue.length > 300 ? 'col' : 'row'} />}
-            />
+    const exportOptions = noteExportOptions({
+        onExportSF600: () => { if (previewNote) setPatientGate('sf600'); },
+        onExportDD689: () => { if (encodedValue) setPatientGate('dd689'); },
+        onShare: handleShare,
+    });
+
+    const overlays = (
+        <>
             <PatientIdPopover
                 isOpen={patientGate !== null}
                 anchorRect={null}
@@ -169,6 +170,22 @@ export function ProviderNoteOutput({
                 generating={sf600ExportStatus === 'generating' || exportStatus === 'generating'}
                 onDownload={sf600Preview ? downloadSF600 : downloadDD689}
                 onClose={sf600Preview ? clearSF600Preview : clearDD689Preview}
+            />
+        </>
+    );
+
+    return { previewNote, exportOptions, overlays };
+}
+
+/** Provider Note Output page body — copy-only sections; exports live in the Finish menu. */
+export function ProviderNoteOutput({ previewNote, encodedValue }: { previewNote: string; encodedValue: string }) {
+    return (
+        <div className="space-y-4">
+            <NoteOutputSections
+                previewNote={previewNote}
+                onCopyNote={() => copyWithHtml(previewNote)}
+                onCopyEncoded={() => copyWithHtml(encodedValue)}
+                barcode={<BarcodeDisplay encodedText={encodedValue} layout={encodedValue.length > 300 ? 'col' : 'row'} />}
             />
         </div>
     );

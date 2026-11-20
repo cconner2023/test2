@@ -4,6 +4,7 @@ import { useNavigationStore } from '../stores/useNavigationStore'
 import { isEncryptedBarcode, decryptBarcode } from '../Utilities/NoteCodec'
 import { logError } from '../Utilities/ErrorHandler'
 import { emitErrorToast } from '../lib/errorFeedback'
+import { getBarcodeKey } from '../lib/cryptoService'
 
 /**
  * Decode a shared note token found in a chat message and open it in the
@@ -23,8 +24,13 @@ export function useDecodeSharedNote() {
       if (isEncryptedBarcode(token)) {
         const decrypted = await decryptBarcode(token)
         if (!decrypted) {
-          logError('useDecodeSharedNote', new Error('decrypt failed — key unavailable or token unreadable'))
-          emitErrorToast('Couldn’t decode note', 'The note key isn’t available on this device. Check your connection and try again.')
+          // decryptBarcode returns null for both a missing key and a token that
+          // fails GCM auth (truncated/corrupted) — tell them apart for the user.
+          const hasKey = !!(await getBarcodeKey())
+          logError('useDecodeSharedNote', new Error(hasKey ? 'decrypt failed — token unreadable' : 'decrypt failed — key unavailable'))
+          emitErrorToast('Couldn’t decode note', hasKey
+            ? 'This note is incomplete or damaged. Ask the sender to share it again.'
+            : 'The note key isn’t available on this device. Check your connection and try again.')
           return
         }
         ascii = decrypted

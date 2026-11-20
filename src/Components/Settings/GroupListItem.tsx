@@ -1,17 +1,20 @@
 import { displayGroupName, type GroupInfo } from '../../lib/signal/groupTypes'
-import { ListItemRow, UnreadBadge } from '@/Components/primitives/ListItemRow'
+import { ListItemRow, UnreadBadge, RowMoreButton } from '@/Components/primitives/ListItemRow'
 
 interface GroupListItemProps {
   group: GroupInfo
   lastMessage?: string
   unreadCount?: number
   onClick: () => void
+  /** Ellipsis → the row's context menu (rect = the row). */
+  onMore?: (rect: DOMRect) => void
 }
 
-export function GroupListItem({ group, lastMessage, unreadCount, onClick }: GroupListItemProps) {
+export function GroupListItem({ group, lastMessage, unreadCount, onClick, onMore }: GroupListItemProps) {
   const label = displayGroupName(group.name)
   return (
     <ListItemRow
+      as={onMore ? 'div' : 'button'}
       onClick={onClick}
       className="px-4 py-4 transition-all duration-150 hover:bg-primary/3 active:scale-[0.98] cursor-pointer"
       left={
@@ -27,7 +30,12 @@ export function GroupListItem({ group, lastMessage, unreadCount, onClick }: Grou
           )}
         </>
       }
-      right={<UnreadBadge count={unreadCount ?? 0} />}
+      right={onMore ? (
+        <div className="flex items-center gap-2 shrink-0">
+          <UnreadBadge count={unreadCount ?? 0} />
+          <RowMoreButton onMore={onMore} />
+        </div>
+      ) : <UnreadBadge count={unreadCount ?? 0} />}
     />
   )
 }

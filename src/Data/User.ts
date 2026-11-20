@@ -155,6 +155,8 @@ export interface UserTypes {
     notifyDevAlerts?: boolean;
     /** Opt-in: push when assigned to a calendar event */
     notifyCalendarAssignments?: boolean;
+    /** Opt-in: push when the origin cluster checks in tracking items (3-min batched) */
+    notifyTrackingBoard?: boolean;
     /** @deprecated Use MASTER_BLOCKS from PhysicalExamData. Kept for backward compat. */
     customPEBlocks?: CustomPEBlock[];
     /** User-defined named exam templates (custom mode) */

@@ -385,7 +385,7 @@ async function fetchProfileFromSupabase(userId: string): Promise<{ profile: User
   // The home clinic's app_content_version and the loan rows are embedded so the
   // profile load is one request, not three. The loans embed needs the FK hint
   // (profile_clinic_loans has two FKs to profiles: user_id and created_by).
-  const PROFILE_SELECT = 'first_name, last_name, middle_initial, credential, component, rank, uic, roles, clinic_id, surrogate_clinic_id, sub_cluster_id, clinic:clinics!profiles_clinic_id_fkey(name, app_content_version), loans:profile_clinic_loans!profile_clinic_loans_user_id_fkey(clinic_id, created_at, clinic:clinics(name)), ack_version_accepted, notify_dev_alerts, notify_calendar_assignments, app_content_version, needs_password_setup, favorite_medications, overview_widgets, theme, swipe_actions, allow_calls, seed_algorithm_note, avatar_id, avatar_blob, avatar_ref, note_template_clinic_ids'
+  const PROFILE_SELECT = 'first_name, last_name, middle_initial, credential, component, rank, uic, roles, clinic_id, surrogate_clinic_id, sub_cluster_id, clinic:clinics!profiles_clinic_id_fkey(name, app_content_version), loans:profile_clinic_loans!profile_clinic_loans_user_id_fkey(clinic_id, created_at, clinic:clinics(name)), ack_version_accepted, notify_dev_alerts, notify_calendar_assignments, notify_tracking_board, app_content_version, needs_password_setup, favorite_medications, overview_widgets, theme, swipe_actions, allow_calls, seed_algorithm_note, avatar_id, avatar_blob, avatar_ref, note_template_clinic_ids'
   const { data, error: fetchError } = await supabase
     .from('profiles')
     .select(PROFILE_SELECT)
@@ -474,6 +474,7 @@ async function fetchProfileFromSupabase(userId: string): Promise<{ profile: User
     if (sec.ack_version_accepted != null) profile.ackVersionAccepted = sec.ack_version_accepted as number
     if (sec.notify_dev_alerts != null) profile.notifyDevAlerts = sec.notify_dev_alerts as boolean
     if (sec.notify_calendar_assignments != null) profile.notifyCalendarAssignments = sec.notify_calendar_assignments as boolean
+    if (sec.notify_tracking_board != null) profile.notifyTrackingBoard = sec.notify_tracking_board as boolean
     if (sec.favorite_medications != null) profile.favoriteMedications = sec.favorite_medications as string[]
     if ('overview_widgets' in sec) profile.overviewWidgets = sec.overview_widgets as UserTypes['overviewWidgets']
     if (typeof sec.theme === 'string') profile.theme = sec.theme

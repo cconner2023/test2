@@ -105,7 +105,7 @@ const VersionStatusCard = () => {
                         className="px-3 py-1.5 rounded-xl text-[9pt] font-semibold text-white bg-themeblue3 active:scale-95 transition-all disabled:opacity-60 flex items-center gap-1.5"
                     >
                         {isUpdating
-                            ? <><RefreshCw size={11} className="animate-spin" /> Installing…</>
+                            ? <><Download size={11} className="animate-pulse" /> Installing…</>
                             : <><Download size={11} /> Install</>
                         }
                     </button>
@@ -116,7 +116,7 @@ const VersionStatusCard = () => {
                         className="w-8 h-8 rounded-full flex items-center justify-center bg-tertiary/10 active:scale-95 transition-all disabled:opacity-60"
                         aria-label="Check for updates"
                     >
-                        <RefreshCw size={15} className={`${justChecked ? 'text-themegreen' : 'text-tertiary'} ${checking ? 'animate-spin' : ''}`} />
+                        <RefreshCw size={15} className={`${justChecked ? 'text-themegreen' : 'text-tertiary'} ${checking ? 'animate-pulse' : ''}`} />
                     </button>
                 )}
             </div>

@@ -1,7 +1,6 @@
 import { useState, useCallback, useMemo, useRef, useEffect, type MouseEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { ScanLine, X, LayoutTemplate, Pencil, Check, ChevronRight, Save } from 'lucide-react'
-import { ImportInputBar } from './ImportInputBar'
 import { ImportResultPopover } from './ImportResultPopover'
 import { BaseDrawer } from '@/Components/primitives/BaseDrawer'
 import { FooterPill } from '@/Components/primitives/FooterPill'
@@ -24,7 +23,7 @@ import { useProviderEncoded } from '../Hooks/useProviderEncoded'
 import { UI_TIMING } from '../Utilities/constants'
 import { ProviderNote, MedicContextCard, MedicSectionFrame, type ProviderSection } from './Provider/ProviderNote'
 import { MEDIC_FIELD_TITLES, MEDIC_FIELD_KEYS, medicFieldText, type MedicField } from './Provider/medicFields'
-import { ProviderNoteOutput } from './Provider/ProviderNoteOutput'
+import { ProviderNoteOutput, useProviderNoteOutput } from './Provider/ProviderNoteOutput'
 import { ProviderTemplateTree } from './Provider/ProviderTemplateTree'
 import { TemplateDetailBody } from './Provider/ProviderTemplateDetail'
 import { TextSectionEditor } from './Provider/ProviderPaneSections'
@@ -154,7 +153,6 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
 
   // ── Import bar state ──────────────────────────────────────────────────────
   const [importExpanded, setImportExpanded] = useState(false)
-  const importInputRef = useRef<HTMLInputElement>(null)
   // My Notes entry this session writes to — the reopened one, or the first save.
   const savedIdRef = useRef<string | undefined>(undefined)
 
@@ -528,6 +526,10 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
     return !!id
   }, [encodedValue, medicBarcode, saveNote, authUserId])
 
+  const { previewNote, exportOptions, overlays: outputOverlays } = useProviderNoteOutput({
+    hpiNote, peNote, assessmentNote, planNote, history, importedMedicNote, encodedValue,
+  })
+
   const finishOptions = useMemo<ActionSheetOption[]>(() => {
     const isUpdate = !!savedIdRef.current && savedNotes.some(n => n.id === savedIdRef.current)
     const saveLabel = isUpdate
@@ -542,12 +544,11 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
         handleClose()
       } })
     }
+    opts.push(...exportOptions)
     return opts
-  }, [savedNotes, encodedValue, handleSave, handleClose])
+  }, [savedNotes, encodedValue, handleSave, handleClose, exportOptions])
 
-  // Nothing to save: Done just closes.
   const handleDone = (e: MouseEvent<HTMLButtonElement>) => {
-    if (finishOptions.length === 0) { handleClose(); return }
     setFinishAnchor(e.currentTarget.getBoundingClientRect())
     setFinishOpen(true)
   }
@@ -735,38 +736,14 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
     screens: paneScreens,
   })
 
-  // ── Desktop header (import bar in right content) ─────────────────────────
+  // ── Desktop header ────────────────────────────────────────────────────────
+  // Import opens the ImportResultPopover pane (entry stage), not an inline bar.
 
   const desktopHeaderRight = (
-    <div className="flex items-center flex-1 min-w-0 justify-end relative">
-      <div className={`transition-all duration-300 ${
-        importExpanded
-          ? 'opacity-0 scale-90 pointer-events-none absolute right-0'
-          : 'opacity-100 scale-100'
-      }`}>
-        <HeaderPill>
-          <PillButton icon={ScanLine} iconSize={20} onClick={handleExpandImport} label="Import Medic Note" />
-          <PillButton icon={X} onClick={handleClose} label="Close" />
-        </HeaderPill>
-      </div>
-      <div className={`flex-1 min-w-0 transition-all duration-300 origin-right ${
-        importExpanded
-          ? 'opacity-100 scale-100'
-          : 'opacity-0 scale-95 pointer-events-none absolute right-0 left-0'
-      }`}>
-        <ImportInputBar
-          value={barcodeImport.importText}
-          onChange={barcodeImport.setImportText}
-          onSubmit={barcodeImport.handleSubmit}
-          onClose={handleCollapseImport}
-          onScan={barcodeImport.handleScan}
-          onImage={barcodeImport.stageImage}
-          inputRef={importInputRef}
-          isDecodingImage={barcodeImport.isDecodingImage}
-          hasStaged={!!barcodeImport.stagedImage}
-        />
-      </div>
-    </div>
+    <HeaderPill>
+      <PillButton icon={ScanLine} iconSize={20} onClick={handleExpandImport} label="Import Medic Note" />
+      <PillButton icon={X} onClick={handleClose} label="Close" />
+    </HeaderPill>
   )
 
   // ── Header config ─────────────────────────────────────────────────────────
@@ -786,29 +763,6 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
       }
     }
     if (isMobile) {
-      if (importExpanded) {
-        return {
-          title: '',
-          rightContentFill: true,
-          hideDefaultClose: true,
-          rightContent: (
-            <ImportInputBar
-              value={barcodeImport.importText}
-              onChange={barcodeImport.setImportText}
-              onSubmit={barcodeImport.handleSubmit}
-              onClose={handleCollapseImport}
-              onScan={barcodeImport.handleScan}
-              onSerialScan={barcodeImport.handleSerialScan}
-              isSerialSupported={barcodeImport.isSerialSupported}
-              onImage={barcodeImport.stageImage}
-              inputRef={importInputRef}
-              isDecodingImage={barcodeImport.isDecodingImage}
-              hasStaged={!!barcodeImport.stagedImage}
-              className="w-full animate-expandSearch"
-            />
-          ),
-        }
-      }
       return {
         title: 'Provider',
         leftContent: (
@@ -829,13 +783,8 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
       title: 'Provider',
       rightContent: desktopHeaderRight,
       hideDefaultClose: true,
-      rightContentFill: importExpanded,
     }
-  }, [view, handleBack, isMobile, importExpanded, desktopHeaderRight, handleClose,
-      handleExpandImport, handleCollapseImport, barcodeImport.importText,
-      barcodeImport.setImportText, barcodeImport.handleSubmit, barcodeImport.handleScan,
-      barcodeImport.handleSerialScan, barcodeImport.isSerialSupported,
-      barcodeImport.stageImage, barcodeImport.isDecodingImage, barcodeImport.stagedImage])
+  }, [view, handleBack, isMobile, desktopHeaderRight, handleClose, handleExpandImport])
 
   // ── Render ──────────────────────────────────────────────────────────────────
 
@@ -878,7 +827,6 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
                   onView={(t) => { setSelectedTemplateId(t.id); setPaneScreen({ key: 'detail' }) }}
                   onEdit={(t) => { handleTemplateEdit(t, new DOMRect()); setPaneScreen({ key: 'editor' }) }}
                   onDelete={(t) => handleTemplateDelete(t.id)}
-                  hoverActions
                 />
               </div>
             </DesktopRail>
@@ -992,15 +940,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
                   importedMedicNote={importedMedicNote}
                 />
               ) : (
-                <ProviderNoteOutput
-                  hpiNote={hpiNote}
-                  peNote={peNote}
-                  assessmentNote={assessmentNote}
-                  planNote={planNote}
-                  history={history}
-                  importedMedicNote={importedMedicNote}
-                  encodedValue={encodedValue}
-                />
+                <ProviderNoteOutput previewNote={previewNote} encodedValue={encodedValue} />
               )}
             </div>
               </div>
@@ -1025,15 +965,27 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
 
         {/* Import popover for scan + staged image preview */}
         <ImportResultPopover
+          entry={{
+            isOpen: importExpanded,
+            text: barcodeImport.importText,
+            onTextChange: barcodeImport.setImportText,
+            onSubmit: barcodeImport.handleSubmit,
+            onClose: handleCollapseImport,
+            error: barcodeImport.error,
+          }}
           stagedImage={barcodeImport.stagedImage}
           isScanning={barcodeImport.isScanning}
           scanRequested={barcodeImport.scanRequested}
           videoRef={barcodeImport.videoRef}
           isDecodingImage={barcodeImport.isDecodingImage}
+          partProgress={barcodeImport.partProgress}
+          onResetParts={barcodeImport.resetParts}
           anchorRect={null}
           onConfirmImage={barcodeImport.confirmStagedImage}
           onDismissImage={barcodeImport.clearStagedImage}
           onStopScan={barcodeImport.handleStopScan}
+          onScanRest={barcodeImport.handleScan}
+          onAddImage={barcodeImport.stageImage}
           onClose={barcodeImport.reset}
         />
 
@@ -1044,6 +996,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
           onClose={() => setFinishOpen(false)}
           anchorRect={finishAnchor}
         />
+        {outputOverlays}
 
         {/* Note output — portaled out of this panel so it can push it. */}
         {!isMobile && drawerRoot && createPortal(
@@ -1066,15 +1019,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
             <div className="h-full relative flex flex-col">
               <div className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain">
                 <div className="px-4 pt-4 pb-32">
-                  <ProviderNoteOutput
-                    hpiNote={hpiNote}
-                    peNote={peNote}
-                    assessmentNote={assessmentNote}
-                    planNote={planNote}
-                    history={history}
-                    importedMedicNote={importedMedicNote}
-                    encodedValue={encodedValue}
-                  />
+                  <ProviderNoteOutput previewNote={previewNote} encodedValue={encodedValue} />
                 </div>
               </div>
               <NoteWizardFooter
@@ -1122,7 +1067,6 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
               onSelect={(t) => { handleApplyTemplate(t); setTemplateDrawerOpen(false) }}
               onEdit={handleTemplateEdit}
               onDelete={(t) => handleTemplateDelete(t.id)}
-              hoverActions={false}
             />
           </Sheet>
         )}

@@ -1,6 +1,6 @@
 import { useRef } from 'react'
 import { useDrag } from '@use-gesture/react'
-import { GESTURE_THRESHOLDS } from '../Utilities/GestureUtils'
+import { GESTURE_THRESHOLDS, isGestureZoneStart } from '../Utilities/GestureUtils'
 
 interface UseSwipeNavigationOptions {
   /** Whether swipe navigation is enabled */
@@ -36,10 +36,19 @@ export function useSwipeNavigation({
 }: UseSwipeNavigationOptions) {
   const committedRef = useRef(false)
   const edgeDelegateRef = useRef(false)
+  const zoneOwnedRef = useRef(false)
 
   const bind = useDrag(
-    ({ active, first, movement: [mx], velocity: [vx], direction: [dx], tap, initial: [ix] }) => {
+    ({ active, first, movement: [mx], velocity: [vx], direction: [dx], tap, initial: [ix, iy] }) => {
       if (!enabled || tap) return
+
+      // Gesture began inside a gesture zone — the zone owns horizontal drags;
+      // the screen-edge strips (incl. right-edge messages) stay with us.
+      if (first) zoneOwnedRef.current = isGestureZoneStart(ix, iy)
+      if (zoneOwnedRef.current) {
+        if (!active) zoneOwnedRef.current = false
+        return
+      }
 
       // Decide delegation on first significant move
       if (first) {

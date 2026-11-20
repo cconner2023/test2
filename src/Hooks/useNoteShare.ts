@@ -1,6 +1,6 @@
 // Hooks/useNoteShare.ts — Share a note as a Data Matrix barcode image
 import { useCallback, useState } from 'react';
-import { renderBarcodeToCanvas } from '../Utilities/NoteCodec';
+import { barcodeSymbols, renderBarcodeSymbol } from '../Utilities/barcodeCodec';
 import { createLogger } from '../Utilities/Logger';
 import { UI_TIMING } from '../Utilities/constants';
 import { emitCopied } from '../lib/copyFeedback';
@@ -17,19 +17,47 @@ const logger = createLogger('NoteShare');
 
 type ShareStatus = 'idle' | 'generating' | 'sharing' | 'shared' | 'copied' | 'error';
 
+const SHARE_RENDER = { scale: 6, padding: 6, backgroundcolor: 'ffffff' } as const;
+/** White gutter between grid cells — keeps symbols separable for the tile-sweep import. */
+const GRID_GAP = 64;
+const LABEL_HEIGHT = 40;
+
 /**
- * Generates a shareable image containing only the Data Matrix barcode
+ * Generates a shareable image containing only the Data Matrix symbol(s)
  * on a white background. Keeping the image barcode-only ensures it can
  * be reliably decoded by ZXing when re-imported via paste or upload.
+ * A multi-symbol series is laid out as a labeled grid with wide gutters.
  * Metadata (disposition, date) is sent as plain text alongside the image.
  */
 function generateShareCanvas(note: ShareableNote): HTMLCanvasElement {
     const canvas = document.createElement('canvas');
     try {
-        renderBarcodeToCanvas(canvas, note.encodedText, {
-            scale: 6,
-            padding: 6,
-            backgroundcolor: 'ffffff',
+        const symbols = barcodeSymbols(note.encodedText);
+        if (symbols.length === 1) {
+            renderBarcodeSymbol(canvas, symbols[0], SHARE_RENDER);
+            return canvas;
+        }
+        const cells = symbols.map(sym => {
+            const c = document.createElement('canvas');
+            renderBarcodeSymbol(c, sym, SHARE_RENDER);
+            return c;
+        });
+        const cell = Math.max(...cells.map(c => Math.max(c.width, c.height)));
+        const cols = Math.ceil(Math.sqrt(cells.length));
+        const rows = Math.ceil(cells.length / cols);
+        canvas.width = cols * cell + (cols + 1) * GRID_GAP;
+        canvas.height = rows * (cell + LABEL_HEIGHT) + (rows + 1) * GRID_GAP;
+        const ctx = canvas.getContext('2d')!;
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#444444';
+        ctx.font = '28px sans-serif';
+        ctx.textAlign = 'center';
+        cells.forEach((c, i) => {
+            const x = GRID_GAP + (i % cols) * (cell + GRID_GAP);
+            const y = GRID_GAP + Math.floor(i / cols) * (cell + LABEL_HEIGHT + GRID_GAP);
+            ctx.drawImage(c, x + (cell - c.width) / 2, y + (cell - c.height) / 2);
+            ctx.fillText(`${i + 1} / ${cells.length}`, x + cell / 2, y + cell + LABEL_HEIGHT - 8);
         });
     } catch {
         canvas.width = 200;

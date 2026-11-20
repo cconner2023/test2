@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
-import { X } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode, type Ref } from 'react'
+import { ChevronLeft, X } from 'lucide-react'
 import { Sheet } from '@/Components/primitives/Sheet'
 import { PaneHeader } from '@/Components/primitives/PaneHeader'
 import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill'
@@ -101,6 +101,11 @@ export interface PaneCardProps extends Omit<PaneSlotProps, 'children'> {
      *  edge, vertical centre) instead of the slot, and inert, so no drag, close
      *  pill or Esc. Held through the exit like the rest of the content. */
     anchor?: { x: number; y: number }
+    /** With `anchor`: the hint takes pointer input (a hover card with actions).
+     *  Pair with useSafeTriangle so the pointer can travel onto it. */
+    interactive?: boolean
+    /** With `anchor`: ref on the pinned wrapper, for hover-intent geometry. */
+    anchorRef?: Ref<HTMLDivElement>
 }
 
 const DRAG_IGNORE = 'button, a, input, textarea, select, [role="button"], [contenteditable="true"]'
@@ -122,6 +127,10 @@ function usePaneDrag(mounted: boolean) {
     }, [])
 
     const onPointerDown = useCallback((e: ReactPointerEvent<HTMLDivElement>) => {
+        // Portaled descendants (a header ellipsis's AnchoredMenu catcher) bubble here
+        // through the React tree; capturing + preventDefault on them swallows their
+        // mousedown, so click-out never closes the menu. Only DOM-contained presses drag.
+        if (!e.currentTarget.contains(e.target as Node)) return
         if (e.button !== 0 || (e.target as Element).closest(DRAG_IGNORE)) return
         const box = boxRef.current
         const parent = box?.parentElement?.offsetParent
@@ -174,7 +183,7 @@ interface Held {
 
 export function PaneCard({
     isOpen, onClose, title, children, eyebrow, onBack, leading, rightContent, actions,
-    hideClose, ariaLabel, loading, fill, selfScroll, header, footer, keepMounted, closeOnEsc = true, anchor,
+    hideClose, ariaLabel, loading, fill, selfScroll, header, footer, keepMounted, closeOnEsc = true, anchor, interactive, anchorRef,
     side, inset, width, zIndex, hidden,
 }: PaneCardProps) {
     const card = useOverlay(isOpen)
@@ -208,11 +217,11 @@ export function PaneCard({
 
     const surface = (
         <div
-            role={hint ? 'tooltip' : 'dialog'}
+            role={hint ? (interactive ? 'menu' : 'tooltip') : 'dialog'}
             aria-label={shown.ariaLabel || shown.title}
             aria-hidden={!card.open || undefined}
             className={`relative flex flex-col min-h-0 ${fill ? 'h-full' : 'max-h-full'} rounded-2xl bg-themewhite3 border border-primary/15 shadow-xl overflow-hidden surface-motion ${
-                card.open ? (hint ? '' : 'pointer-events-auto') : 'surface-hidden-above'
+                card.open ? (hint && !interactive ? '' : 'pointer-events-auto') : 'surface-hidden-above'
             }`}
         >
             {shown.header !== false && (hint ? headerRow : (
@@ -232,7 +241,7 @@ export function PaneCard({
 
     if (hint) {
         return (
-            <div className="fixed -translate-y-1/2 w-max pointer-events-none" style={{ left: hint.x, top: hint.y, zIndex: zIndex ?? 100 }}>
+            <div ref={anchorRef} className="fixed -translate-y-1/2 w-max pointer-events-none" style={{ left: hint.x, top: hint.y, zIndex: zIndex ?? 100 }}>
                 {surface}
             </div>
         )
@@ -249,11 +258,14 @@ export function PaneCard({
     )
 }
 
-export interface PaneSurfaceProps extends Omit<PaneCardProps, 'fill' | 'selfScroll' | 'header' | 'footer' | 'keepMounted' | 'leading' | 'onBack' | 'eyebrow' | 'hideClose'> {
+export interface PaneSurfaceProps extends Omit<PaneCardProps, 'fill' | 'selfScroll' | 'header' | 'footer' | 'keepMounted' | 'leading' | 'eyebrow' | 'hideClose'> {
     /** Mobile Sheet cap, % of dvh. Default 80. */
     maxHeight?: number
     /** Mobile Sheet z-index. Default 1200 (clears the mobileFullScreen drawers). */
     zIndex?: number
+    /** Desktop PaneCard z-index. Default 50; raise it for an app-level card that
+     *  must clear the desktop drawers (z-60 / z-[65]). */
+    desktopZIndex?: number
 }
 
 /**
@@ -261,10 +273,10 @@ export interface PaneSurfaceProps extends Omit<PaneCardProps, 'fill' | 'selfScro
  * a PaneCard on desktop, a fit Sheet on mobile, from one set of props. Content
  * is held through the exit on both.
  */
-export function PaneSurface({ maxHeight = 80, zIndex = 1200, ...card }: PaneSurfaceProps) {
+export function PaneSurface({ maxHeight = 80, zIndex = 1200, desktopZIndex, ...card }: PaneSurfaceProps) {
     const isMobile = useIsMobile()
     const shown = useHeldWhileOpen(card.isOpen, card)
-    if (!isMobile) return <PaneCard {...card} />
+    if (!isMobile) return <PaneCard {...card} zIndex={desktopZIndex} />
     return (
         <Sheet
             isOpen={card.isOpen}
@@ -274,6 +286,11 @@ export function PaneSurface({ maxHeight = 80, zIndex = 1200, ...card }: PaneSurf
             maxHeight={maxHeight}
             zIndex={zIndex}
             loading={card.loading}
+            leftContent={card.onBack ? (
+                <HeaderPill>
+                    <PillButton icon={ChevronLeft} iconSize={18} onClick={card.onBack} label="Back" />
+                </HeaderPill>
+            ) : undefined}
             rightContent={shown.rightContent}
             actions={card.loading ? undefined : shown.actions}
         >

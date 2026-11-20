@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
-import { Check, Loader2, ChevronDown } from 'lucide-react'
+import { Check, ChevronDown } from 'lucide-react'
 import { PreviewOverlay } from '../PreviewOverlay'
 import { ActionButton } from '@/Components/primitives/ActionButton'
 import { FooterPill } from '@/Components/primitives/FooterPill'
@@ -159,6 +159,7 @@ export function ClinicIdentityEditPopover({
   return (
     <PreviewOverlay
       isOpen={isOpen}
+      loading={saving}
       onClose={onClose}
       anchorRect={anchorRect}
       title={isPickMode ? 'Location' : 'Edit cluster'}
@@ -220,8 +221,8 @@ export function ClinicIdentityEditPopover({
         isOpen && !isPickMode ? (
           <FooterPill side="right">
             <ActionButton
-              icon={saving ? Loader2 : Check}
-              label={saving ? 'Saving…' : 'Save'}
+              icon={Check}
+              label="Save"
               variant={saving ? 'disabled' : 'confirm'}
               onClick={handleSave}
             />

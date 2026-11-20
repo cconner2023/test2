@@ -8,7 +8,8 @@
  *  - every write applies a MUTATOR to the latest store copy and sends the whole
  *    record; receivers union-merge moves / comments (calendarRouting), so two
  *    clusters editing one patient at once both keep their changes.
- *  - no assignment push, no training-completion relink.
+ *  - no assignment push, no training-completion relink. Check-in bumps the
+ *    origin cluster's tracking push window (tracking_push_bump) instead.
  *
  * The prior vault row is hard-deleted in the ORIGIN cluster's vault. A member
  * of an ancestor cluster can't delete there — that call fails, is logged, and
@@ -123,6 +124,11 @@ export function useTrackingWrite(): UseTrackingWriteResult {
       tracking_data: data,
     }
     await send(ev, undefined)
+    // Bump the origin cluster's 3-min push window; pg_cron sends one
+    // "N new tracking item(s) added" when it closes. Count only — no PHI.
+    supabase.rpc('tracking_push_bump', { p_clinic_id: originClinicId }).then(({ error }) => {
+      if (error) logger.warn('tracking_push_bump failed:', error.message)
+    })
   }, [send, userId])
 
   const updateEntry = useCallback(async (id: string, mutate: (d: TrackingData) => TrackingData) => {

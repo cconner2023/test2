@@ -24,7 +24,7 @@ import type { CSSProperties } from 'react'
  * of named constructions — not a number you pass in:
  *   • 'blur'  (default) — 45% black + 6px backdrop blur. Raised surfaces that
  *     sit OVER live content and want it legible behind them: sheets, modals,
- *     pickers, lifted rows.
+ *     pickers.
  *   • 'solid' — 94% black, NO blur. Top-level surface SWAPS, where what's behind
  *     is meant to read as gone: the root left-nav slide-over. There is nothing
  *     worth blurring behind a near-opaque field, and the blur cost on a
@@ -38,6 +38,10 @@ import type { CSSProperties } from 'react'
  *     drawer's own edge failing rather than as depth. Kept distinct from 'solid'
  *     because the two answer to different surfaces — retuning the root nav must
  *     not silently retune every drawer.
+ *   • 'peek'  — 20% black + 2px blur. ONLY the AnchoredMenu lifted-row peek
+ *     (long-press / right-click with a row clone): just enough to set the lifted
+ *     row apart. Clone-less menus (ellipsis, selectors) get NO scrim at all —
+ *     they float like PaneCard (2026-11-19).
  * Adding a variant means adding a NAME here, never a numeric prop.
  *
  * SCOPE (2026-07-25). A scrim dims the APP, never the browser window. The root
@@ -62,8 +66,9 @@ export interface ScrimProps {
     progress: number
     /** Named construction. 'blur' (default) = 45% + 6px blur, for surfaces over
      *  live content. 'solid' = 94% black, no blur, for the root slide-overs.
-     *  'drawer-mobile' = 94% black, no blur, for BaseDrawer on mobile. */
-    variant?: 'blur' | 'solid' | 'drawer-mobile'
+     *  'drawer-mobile' = 94% black, no blur, for BaseDrawer on mobile.
+     *  'peek' = 20% black + 2px blur, for the AnchoredMenu lifted-row peek only. */
+    variant?: 'blur' | 'solid' | 'drawer-mobile' | 'peek'
     /** 'fixed' (default) covers the viewport; 'absolute' scopes to the nearest
      *  positioned ancestor — use inside an already-portaled container.
      *  Ignored under scope='app', which pins to the measured app rect. */
@@ -129,7 +134,9 @@ export function Scrim({
     const shown = progress > 0
     const paint = variant === 'solid' || variant === 'drawer-mobile'
         ? 'bg-black/94'
-        : 'bg-black/45 backdrop-blur-[6px]'
+        : variant === 'peek'
+            ? 'bg-black/20 backdrop-blur-[2px]'
+            : 'bg-black/45 backdrop-blur-[6px]'
     const appRect = useAppRect(scope === 'app')
     const box = appRect
         ? { position: 'fixed' as const, top: appRect.top, left: appRect.left, width: appRect.width, height: appRect.height }

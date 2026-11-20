@@ -519,6 +519,11 @@ function ConversationPane({
             {selfMedic && (() => {
               const selfTarget: PreviewTarget = { key: userId!, type: 'contact', medic: selfMedic, hasConversation: !!conversations[userId!]?.length, isPinned: false }
               const selfItem = <ContactListItem medic={selfMedic} lastMessage={activityPreview(lastActivityMessage(conversations[userId!]))} unreadCount={0} onClick={() => {}} />
+              // Inline row carries the ellipsis (only when there's a menu worth
+              // opening); the lifted clone stays plain.
+              const selfRow = selfTarget.hasConversation
+                ? <ContactListItem medic={selfMedic} lastMessage={activityPreview(lastActivityMessage(conversations[userId!]))} unreadCount={0} onClick={() => {}} onMore={(rect) => openMenu(rect, selfItem, selfTarget)} />
+                : selfItem
               return (
                 <div>
                   {isMobile ? (
@@ -526,7 +531,7 @@ function ConversationPane({
                       onClick={() => onSelectPeer(selfMedic)}
                       onLongPress={(rect) => openMenu(rect, selfItem, selfTarget)}
                     >
-                      {selfItem}
+                      {selfRow}
                     </LongPressRow>
                   ) : (
                     <div
@@ -534,7 +539,7 @@ function ConversationPane({
                       onContextMenu={(e) => { e.preventDefault(); openMenu(e.currentTarget.getBoundingClientRect(), selfItem, selfTarget) }}
                       style={{ cursor: 'pointer' }}
                     >
-                      {selfItem}
+                      {selfRow}
                     </div>
                   )}
                 </div>
@@ -553,12 +558,14 @@ function ConversationPane({
                     else if (entry.type === 'contact' && entry.medic) onSelectPeer(entry.medic)
                   }
 
-                  const listItem = entry.type === 'group' && entry.group ? (
+                  // onMore set = the inline row (with ellipsis); unset = the lifted clone.
+                  const renderItem = (onMore?: (rect: DOMRect) => void) => entry.type === 'group' && entry.group ? (
                     <GroupListItem
                       group={entry.group}
                       lastMessage={activityPreview(lastMsg)}
                       unreadCount={unreadCounts[entry.key] ?? 0}
                       onClick={() => {}}
+                      onMore={onMore}
                     />
                   ) : entry.type === 'contact' && entry.medic ? (
                     <ContactListItem
@@ -568,12 +575,15 @@ function ConversationPane({
                       unavailable={unavailableIds.has(entry.key)}
                       unavailableReason={unavailableIds.get(entry.key)}
                       onClick={() => {}}
+                      onMore={onMore}
                     />
                   ) : null
 
+                  const listItem = renderItem()
                   if (!listItem) return null
 
                   const entryTarget: PreviewTarget = { key: entry.key, type: entry.type, medic: entry.medic, group: entry.group, hasConversation: true, isPinned }
+                  const rowItem = renderItem((rect) => openMenu(rect, listItem, entryTarget))
 
                   return isMobile ? (
                     <LongPressRow
@@ -581,7 +591,7 @@ function ConversationPane({
                       onClick={handleTap}
                       onLongPress={(rect) => openMenu(rect, listItem, entryTarget)}
                     >
-                      {listItem}
+                      {rowItem}
                     </LongPressRow>
                   ) : (
                     <div
@@ -590,7 +600,7 @@ function ConversationPane({
                       onContextMenu={(e) => { e.preventDefault(); openMenu(e.currentTarget.getBoundingClientRect(), listItem, entryTarget) }}
                       style={{ cursor: 'pointer' }}
                     >
-                      {listItem}
+                      {rowItem}
                     </div>
                   )
                 })}

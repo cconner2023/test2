@@ -20,10 +20,6 @@ interface SearchProps {
 interface ImportProps {
   isImportExpanded?: boolean
   onImportExpandToggle?: () => void
-  onImportSubmit?: (barcodeText: string) => void
-  onImportScan?: () => void
-  onImportImage?: (file: File) => void
-  importError?: string
 }
 
 /**

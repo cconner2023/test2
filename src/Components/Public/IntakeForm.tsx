@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Check, X, RefreshCw } from 'lucide-react'
+import { Check, X } from 'lucide-react'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { DateTimeRow, combineDateTime } from './IntakePickers'
 import { IntakeRejectDialog } from './IntakeRejectDialog'
+import { LoadingOverlay } from '@/Components/primitives/LoadingOverlay'
 import { OncallCallView } from './OncallCallView'
 import { OutsideSessionView } from './OutsideSessionView'
 import { submitClusterMessage, submitEventIntake } from '../../lib/oncallAnonService'
@@ -236,6 +237,7 @@ export function IntakeForm({ supabase, initialPasscode }: IntakeFormProps) {
 
   return (
     <Shell>
+      <LoadingOverlay visible={submit.kind === 'submitting'} className="rounded-2xl" />
       {/* Branding */}
       <div className={`text-center ${submit.kind === 'submitted' ? 'mb-6' : 'mb-8'}`}>
         <div className={`relative mx-auto mb-2 ${submit.kind === 'submitted' ? 'w-10 h-10' : 'w-17 h-17'}`}>
@@ -348,7 +350,7 @@ export function IntakeForm({ supabase, initialPasscode }: IntakeFormProps) {
                     disabled={submit.kind === 'submitting' || !messageReady}
                     className={`shrink-0 h-9 rounded-full flex items-center justify-center bg-themeblue3 text-white overflow-hidden transition-all duration-300 ease-out active:scale-95 ${messageReady ? 'w-9 opacity-100' : 'w-0 opacity-0 pointer-events-none'}`}
                   >
-                    {submit.kind === 'submitting' ? <RefreshCw size={14} className="animate-spin" /> : <Check size={16} />}
+                    <Check size={16} />
                   </button>
                 )
               })()}
@@ -549,7 +551,7 @@ export function IntakeForm({ supabase, initialPasscode }: IntakeFormProps) {
                     disabled={submit.kind === 'submitting' || !stage2Ready}
                     className={`shrink-0 h-9 rounded-full flex items-center justify-center bg-themeblue3 text-white overflow-hidden transition-all duration-300 ease-out active:scale-95 ${stage2Ready ? 'w-9 opacity-100' : 'w-0 opacity-0 pointer-events-none'}`}
                   >
-                    {submit.kind === 'submitting' ? <RefreshCw size={14} className="animate-spin" /> : <Check size={16} />}
+                    <Check size={16} />
                   </button>
                 </div>
               </div>
@@ -678,7 +680,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
       style={{ paddingTop: 'var(--sat)', paddingBottom: 'var(--sab)' }}
     >
       <div className="min-h-full flex flex-col items-center justify-center py-8 px-4">
-        <div className="w-full max-w-sm">{children}</div>
+        <div className="w-full max-w-sm relative">{children}</div>
       </div>
     </div>
   )

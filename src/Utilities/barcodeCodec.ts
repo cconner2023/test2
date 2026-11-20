@@ -20,6 +20,7 @@ import { getBarcodeKey } from '../lib/cryptoService'
 import { uint8ToBase64, base64ToUint8 } from './textCodec'
 import { aesGcmEncrypt, aesGcmDecrypt } from '../lib/aesGcm'
 import { logError } from './ErrorHandler'
+import { splitEnvelope, splitPlaintext } from './barcodeParts'
 
 // ---- Constants ----
 
@@ -294,7 +295,7 @@ export async function decryptBarcode(text: string): Promise<string | null> {
  *
  * Skips base64 decode since raw bytes come directly from the scanner.
  */
-export async function decryptBarcodeBytes(bytes: Uint8Array): Promise<string | null> {
+export async function decryptBarcodeBytes(bytes: Uint8Array, quiet = false): Promise<string | null> {
   const key = await getBarcodeKey()
   if (!key) return null
 
@@ -303,7 +304,7 @@ export async function decryptBarcodeBytes(bytes: Uint8Array): Promise<string | n
     const inflated = inflateRaw(plainBytes)
     return unpackFromMixedBinary(inflated)
   } catch (err) {
-    logError('barcodeCodec.decryptBytes', err)
+    if (!quiet) logError('barcodeCodec.decryptBytes', err)
     return null
   }
 }
@@ -323,6 +324,11 @@ export function toEncryptedText(text: string): string {
   const bytes = new Uint8Array(text.length)
   for (let i = 0; i < text.length; i++) bytes[i] = text.charCodeAt(i)
   return ENCRYPTED_PREFIX + uint8ToBase64(bytes)
+}
+
+/** "enc:" form of a raw envelope (e.g. one reassembled from a multi-symbol set). */
+export function envelopeToEncryptedText(envelope: Uint8Array): string {
+  return ENCRYPTED_PREFIX + uint8ToBase64(envelope)
 }
 
 /** Check if a string is an encrypted barcode ("enc:" prefix). */
@@ -391,6 +397,45 @@ export function renderBarcodeToCanvas(
     bcid: 'datamatrix',
     text: binary ? bytesToLatin1(base64ToUint8(encodedData.slice(ENCRYPTED_PREFIX.length))) : encodedData,
     ...(binary ? { binarytext: true } : {}),
+    scale: options?.scale ?? 2,
+    padding: options?.padding ?? 3,
+    ...(options?.backgroundcolor ? { backgroundcolor: options.backgroundcolor } : {}),
+  })
+}
+
+// ---- Multi-symbol rendering ----
+
+/** One printable Data Matrix symbol: latin1 bytes (binary) or plain ASCII text. */
+export interface BarcodeSymbol {
+  text: string
+  binary: boolean
+}
+
+/**
+ * The symbols to print for an encoded value. Short "enc:" envelopes and short
+ * plain text → one symbol (unchanged legacy format); long ones → a 2–25 symbol
+ * series (see barcodeParts.ts). The "enc:" string itself is never split.
+ */
+export function barcodeSymbols(encodedData: string): BarcodeSymbol[] {
+  if (!isEncryptedBarcode(encodedData)) {
+    const parts = splitPlaintext(encodedData)
+    if (!parts) return [{ text: encodedData, binary: false }]
+    return parts.map(bytes => ({ text: bytesToLatin1(bytes), binary: true }))
+  }
+  const envelope = base64ToUint8(encodedData.slice(ENCRYPTED_PREFIX.length))
+  return splitEnvelope(envelope).map(bytes => ({ text: bytesToLatin1(bytes), binary: true }))
+}
+
+/** Render one symbol from barcodeSymbols() to a canvas. */
+export function renderBarcodeSymbol(
+  canvas: HTMLCanvasElement,
+  symbol: BarcodeSymbol,
+  options?: { scale?: number; padding?: number; backgroundcolor?: string }
+): void {
+  bwipjs.toCanvas(canvas, {
+    bcid: 'datamatrix',
+    text: symbol.text,
+    ...(symbol.binary ? { binarytext: true } : {}),
     scale: options?.scale ?? 2,
     padding: options?.padding ?? 3,
     ...(options?.backgroundcolor ? { backgroundcolor: options.backgroundcolor } : {}),

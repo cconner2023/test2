@@ -25,7 +25,7 @@ function fmtDtgTime(iso: string): string {
 
 /** Roster card — the Tracking Board's TintedCard, tinted by triage band:
  *  triage code + BRN, name · mechanism, band · injury (or opened) time. */
-function CasualtyCard({ card, code, compact, selected }: { card: TC3Card; code: string; compact: boolean; selected: boolean }) {
+function CasualtyCard({ card, code, compact, selected, onMore }: { card: TC3Card; code: string; compact: boolean; selected: boolean; onMore?: (rect: DOMRect) => void }) {
   const meta = BAND_META[bandOf(card)] ?? BAND_META['']
   const mech = card.mechanism.types
     .map((t) => (t === 'Other' && card.mechanism.otherDescription ? card.mechanism.otherDescription : t))
@@ -36,6 +36,7 @@ function CasualtyCard({ card, code, compact, selected }: { card: TC3Card; code: 
     <TintedCard
       compact={compact}
       selected={selected}
+      onMore={onMore}
       tint={meta.tint}
       title={code}
       subtitle={card.casualty.battleRosterNo || undefined}
@@ -162,7 +163,7 @@ export const CasualtyList = memo(function CasualtyList({ onAfterSelect, variant 
               onClick={() => handleSelect(c.id, isActive)}
               onLongPress={(rect) => setMenu({ cardId: c.id, rect })}
             >
-              <CasualtyCard card={c} code={labelById.get(c.id) ?? ''} compact={compact} selected={isActive} />
+              <CasualtyCard card={c} code={labelById.get(c.id) ?? ''} compact={compact} selected={isActive} onMore={(rect) => setMenu({ cardId: c.id, rect })} />
             </SwipeActionRow>
           ))}
           {filtered.length === 0 && (

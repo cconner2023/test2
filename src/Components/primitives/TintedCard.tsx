@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { MoreHorizontal } from 'lucide-react'
 import { SelectedCheck } from './SelectedCheck'
 
 /** Shell tint + footer text class. Footer text stays text-primary — accent
@@ -48,6 +49,33 @@ interface TintedCardProps {
   compact?: boolean
   /** Check badge in the card's top-right corner — this is the open/active card. */
   selected?: boolean
+  /** Ellipsis in the top-right — opens the card's menu (same as long-press /
+   *  right-click). Receives the enclosing SwipeActionRow's rect so the lifted
+   *  menu anchors exactly like a long-press. Omit on lifted clones. */
+  onMore?: (rect: DOMRect) => void
+}
+
+/** Card-menu ellipsis. Swallows touch/click so the host row's tap, swipe and
+ *  long-press never fire from it. */
+function MoreButton({ onMore, compact }: { onMore: (rect: DOMRect) => void; compact: boolean }) {
+  return (
+    <button
+      type="button"
+      aria-label="More actions"
+      onTouchStart={(e) => e.stopPropagation()}
+      onTouchEnd={(e) => e.stopPropagation()}
+      onContextMenu={(e) => e.stopPropagation()}
+      onClick={(e) => {
+        e.stopPropagation()
+        e.preventDefault()
+        const host = (e.currentTarget.closest('[data-swipe-row]') ?? e.currentTarget) as HTMLElement
+        onMore(host.getBoundingClientRect())
+      }}
+      className={`${compact ? 'w-6 h-6 -my-1 -mr-1.5' : 'w-8 h-8'} shrink-0 rounded-full flex items-center justify-center text-tertiary hover:bg-primary/10 active:bg-primary/10`}
+    >
+      <MoreHorizontal size={compact ? 14 : 18} />
+    </button>
+  )
 }
 
 /**
@@ -56,7 +84,7 @@ interface TintedCardProps {
  * SwipeActionRow / button for gestures. Used by the Tracking Board (BRN cards)
  * and the TC3 casualty roster.
  */
-export function TintedCard({ tint, title, subtitle, monoSubtitle = true, note, footLeft, footRight, compact = false, selected = false }: TintedCardProps) {
+export function TintedCard({ tint, title, subtitle, monoSubtitle = true, note, footLeft, footRight, compact = false, selected = false, onMore }: TintedCardProps) {
   if (compact) {
     return (
       <div className={`p-1 ${tint.shell}`}>
@@ -68,6 +96,7 @@ export function TintedCard({ tint, title, subtitle, monoSubtitle = true, note, f
                 <span className={`text-[8pt] ${monoSubtitle ? 'font-mono ' : ''}font-medium text-tertiary`}>{subtitle}</span>
               )}
               {selected && <SelectedCheck className="-my-1" colorClass={tint.shell} />}
+              {onMore && <MoreButton onMore={onMore} compact />}
             </span>
           </div>
           {note && <p className="mt-0.5 text-[8.5pt] text-secondary truncate">{note}</p>}
@@ -81,8 +110,13 @@ export function TintedCard({ tint, title, subtitle, monoSubtitle = true, note, f
   }
   return (
     <div className={`p-1.5 ${tint.shell}`}>
-      <div className={`relative rounded-xl bg-themewhite py-3 pl-4 shadow-sm min-w-0 ${selected ? 'pr-10' : 'pr-4'}`}>
-        {selected && <SelectedCheck className="absolute top-3 right-3" colorClass={tint.shell} />}
+      <div className={`relative rounded-xl bg-themewhite py-3 pl-4 shadow-sm min-w-0 ${selected && onMore ? 'pr-20' : selected || onMore ? 'pr-12' : 'pr-4'}`}>
+        {(selected || onMore) && (
+          <div className={`absolute flex items-center gap-1 ${onMore ? 'top-2 right-2' : 'top-3 right-3'}`}>
+            {selected && <SelectedCheck colorClass={tint.shell} />}
+            {onMore && <MoreButton onMore={onMore} compact={false} />}
+          </div>
+        )}
         <TintedCardHead title={title} subtitle={subtitle} monoSubtitle={monoSubtitle} />
         {note && <p className="mt-1 text-[9.5pt] text-secondary truncate">{note}</p>}
       </div>

@@ -1,7 +1,7 @@
 /* Modal tokens: bg-themewhite rounded-2xl shadow-2xl border-tertiary/10. Ref: ProvisionalDeviceModal
    z-[110]: mounted outside LockGate and must sit above the login (z-30) and lock screens (z-100). */
 import React, { useEffect } from 'react';
-import { X, Download, RefreshCw } from 'lucide-react';
+import { X, Download } from 'lucide-react';
 import { useServiceWorker } from '../Hooks/useServiceWorker';
 
 const UpdateNotification: React.FC<{ onVisibilityChange?: (visible: boolean) => void }> = ({ onVisibilityChange }) => {
@@ -83,7 +83,7 @@ const UpdateNotification: React.FC<{ onVisibilityChange?: (visible: boolean) => 
                             >
                                 {isUpdating ? (
                                     <>
-                                        <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                                        <Download className="h-3.5 w-3.5 animate-pulse" />
                                         Installing...
                                     </>
                                 ) : (

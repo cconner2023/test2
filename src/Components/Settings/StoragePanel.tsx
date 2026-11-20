@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, type ReactNode } from 'react'
-import { RefreshCw, Trash2, ArrowUpDown, Calendar, Archive, Map, MessageSquare, Loader2, Bug, Eye } from 'lucide-react'
+import { RefreshCw, Trash2, ArrowUpDown, Calendar, Archive, Map, MessageSquare, Bug, Eye } from 'lucide-react'
 import { ActionButton } from '@/Components/primitives/ActionButton'
 import { ActionPill } from '@/Components/primitives/ActionPill'
 import { Skeleton } from '@/Components/primitives/Skeleton'
@@ -53,12 +53,9 @@ function StorageCard({ preview, icon, label, tagline, action, indicator }: Stora
     )
 }
 
-function SpinnerSlot() {
-    return (
-        <div className="w-9 h-9 flex items-center justify-center">
-            <Loader2 size={15} className="text-tertiary animate-spin" />
-        </div>
-    )
+/** Busy stand-in for a row action button — same 36px footprint, skeleton pulse. */
+function BusySlot() {
+    return <Skeleton className="w-9 h-9 rounded-full shrink-0" />
 }
 
 export function StoragePanel() {
@@ -142,7 +139,7 @@ export function StoragePanel() {
                         : `${sq!.pending} pending · ${sq!.failed} failed`
                 }
                 action={hasFailed ? (
-                    retrying ? <SpinnerSlot /> : (
+                    retrying ? <BusySlot /> : (
                         <ActionButton icon={RefreshCw} label="Retry failed" onClick={handleRetry} />
                     )
                 ) : undefined}
@@ -218,7 +215,7 @@ export function StoragePanel() {
                         : `${stats.map.overlays} overlays · No tiles cached`
                 }
                 action={hasTiles ? (
-                    clearing ? <SpinnerSlot /> : (
+                    clearing ? <BusySlot /> : (
                         <ActionButton icon={Trash2} label="Clear tile cache" onClick={handleClearTiles} variant="danger" />
                     )
                 ) : undefined}

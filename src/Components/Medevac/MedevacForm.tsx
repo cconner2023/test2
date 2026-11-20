@@ -1,5 +1,5 @@
 import { useEffect, useCallback, useState, useRef } from 'react'
-import { MapPin, Check, ChevronRight, ChevronLeft, RefreshCw, Loader, X, Plus } from 'lucide-react'
+import { MapPin, Check, ChevronRight, ChevronLeft, RefreshCw, X, Plus } from 'lucide-react'
 import { latLngToMgrs } from '../../lib/mgrsFormat'
 import { SectionCard } from '@/Components/primitives/Section'
 import { TextInput, TextArea } from '@/Components/primitives/FormInputs'
@@ -507,7 +507,7 @@ export function LineEditor({
               className="w-8 h-8 shrink-0 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all hover:text-primary disabled:opacity-40"
             >
               {locating
-                ? <Loader size={15} className="animate-spin" />
+                ? <MapPin size={15} className="animate-pulse" />
                 : <MapPin size={15} />
               }
             </button>

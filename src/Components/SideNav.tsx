@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type MouseEvent } from 'react'
-import { Eye, Pin, ChevronUp, ChevronDown, EyeOff, Trash2, FileText } from 'lucide-react'
+import { Eye, Pin, ChevronUp, ChevronDown, EyeOff, FileText, MoreHorizontal } from 'lucide-react'
 import { NavIcon, DESKTOP_HIDDEN_ACTIONS, NAV_OPEN_STATE } from './navIcons'
 import { useShallow } from 'zustand/react/shallow'
 import { useNavigationStore } from '../stores/useNavigationStore'
@@ -11,10 +11,11 @@ import { useFeatureVotesStore, selectHasUnvotedActiveCycle } from '../stores/use
 import { getInitials } from '../Utilities/nameUtils'
 import { useNavItems } from '../Hooks/useNavItems'
 import { type ContextMenuItem } from '@/Components/primitives/ContextMenu'
-import { LiftedRowMenu } from '@/Components/primitives/LiftedRowMenu'
+import { AnchoredMenu, LiftedRowMenu, MenuListRow } from '@/Components/primitives/LiftedRowMenu'
 import { liftPressHandlers, type LiftPressState, type LiftSnapshot } from './liftPress'
 import { useSavedNotesStore } from '../stores/useSavedNotesStore'
-import { useOpenSavedNote } from '../Hooks/useOpenSavedNote'
+import { useOpenSavedNote, useSavedNoteActions } from '../Hooks/useOpenSavedNote'
+import { useSafeTriangle } from '../Hooks/useSafeTriangle'
 import { hotkeyKeys } from '../Hooks/useDesktopHotkeys'
 import { PaneCard } from './primitives/PaneCard'
 import type { SavedNote } from '../lib/savedNotesDb'
@@ -55,8 +56,13 @@ export function SideNav({ onClose, onMenuItemClick, rail }: SideNavProps) {
   } = useNavItems()
 
   // Collapsed-rail hover hint, a PaneCard pinned at a viewport point: the rail's scroller would clip an in-flow one.
-  const [railTip, setRailTip] = useState<{ text: string; hotkey: string[] | null; detail?: string; x: number; y: number } | null>(null)
-  useEffect(() => { if (!rail?.collapsed) setRailTip(null) }, [rail?.collapsed])
+  // A note's hint carries its actions, so the pointer can travel onto it (safe triangle).
+  const [railTip, setRailTip] = useState<{ text: string; hotkey: string[] | null; detail?: string; note?: SavedNote; x: number; y: number } | null>(null)
+  const railTipRef = useRef<HTMLDivElement>(null)
+  const closeRailTip = useCallback(() => setRailTip(null), [])
+  const tipAim = useSafeTriangle(railTipRef, closeRailTip)
+  const cancelTipAim = tipAim.cancel
+  useEffect(() => { if (!rail?.collapsed) { cancelTipAim(); setRailTip(null) } }, [rail?.collapsed, cancelTipAim])
 
   const [lifted, setLifted] = useState<({ action: string; label: string } & LiftSnapshot) | null>(null)
   const pressRef = useRef<LiftPressState | null>(null)
@@ -65,9 +71,10 @@ export function SideNav({ onClose, onMenuItemClick, rail }: SideNavProps) {
   const authUserId = useAuthStore(s => s.user?.id ?? null)
   const savedNotes = useSavedNotesStore(s => s.notes)
   const loadSavedNotes = useSavedNotesStore(s => s.load)
-  const removeSavedNote = useSavedNotesStore(s => s.remove)
   const openSavedNote = useOpenSavedNote()
+  const noteActions = useSavedNoteActions()
   const [liftedNote, setLiftedNote] = useState<({ note: SavedNote } & LiftSnapshot) | null>(null)
+  const [noteMenu, setNoteMenu] = useState<{ note: SavedNote; rect: DOMRect } | null>(null)
   useEffect(() => { loadSavedNotes(authUserId) }, [authUserId, loadSavedNotes])
 
   const handleNoteClick = async (note: SavedNote) => {
@@ -112,15 +119,18 @@ export function SideNav({ onClose, onMenuItemClick, rail }: SideNavProps) {
           row={<div dangerouslySetInnerHTML={{ __html: liftedNote.html }} />}
           onClose={() => setLiftedNote(null)}
           layout="list"
-          items={[{
-            key: 'delete',
-            label: 'Delete',
-            icon: Trash2,
-            onAction: () => removeSavedNote(liftedNote.note.id),
-            destructive: true,
-          }]}
+          items={noteActions(liftedNote.note, onClose)}
         />
       )}
+
+      <AnchoredMenu
+        isOpen={!!noteMenu}
+        anchorRect={noteMenu?.rect ?? null}
+        onClose={() => setNoteMenu(null)}
+        align="right"
+        layout="list"
+        items={noteMenu ? noteActions(noteMenu.note, onClose) : []}
+      />
 
       {lifted && (() => {
         const canMoveUp = currentActionOrder.indexOf(lifted.action) > 0
@@ -194,10 +204,13 @@ export function SideNav({ onClose, onMenuItemClick, rail }: SideNavProps) {
       <div key={key} className={`mx-3 my-1.5 border-t border-tertiary/10 transition-[width] duration-300 ${collapsed ? 'w-8' : 'w-[calc(100%-1.5rem)]'}`} />
     )
 
-    const showTip = (e: MouseEvent<HTMLElement>, text: string, hotkey: string[] | null, detail?: string) => {
+    const showTip = (e: MouseEvent<HTMLElement>, text: string, hotkey: string[] | null, detail?: string, note?: SavedNote) => {
+      // Mid-aim at an open note card: crossing a neighbour row mustn't steal it.
+      if (tipAim.active() && tipAim.holds({ x: e.clientX, y: e.clientY })) return
+      tipAim.cancel()
       const r = (e.currentTarget.closest('nav') ?? e.currentTarget).getBoundingClientRect()
       const row = e.currentTarget.getBoundingClientRect()
-      setRailTip({ text, hotkey, detail, x: r.right + 8, y: row.top + row.height / 2 })
+      setRailTip({ text, hotkey, detail, note, x: r.right + 8, y: row.top + row.height / 2 })
     }
 
     const railRow = (item: (typeof railItems)[number]) => {
@@ -211,7 +224,7 @@ export function SideNav({ onClose, onMenuItemClick, rail }: SideNavProps) {
           aria-label={item.text}
           aria-pressed={active}
           onMouseEnter={collapsed ? (e) => showTip(e, item.text, hotkeyKeys(item.action)) : undefined}
-          onMouseLeave={() => setRailTip(null)}
+          onMouseLeave={() => { if (!tipAim.active()) setRailTip(null) }}
           className={`group relative flex items-center mx-2 w-[calc(100%-1rem)] h-10 px-1 shrink-0 rounded-full text-left active:scale-95 transform-gpu transition-colors ${collapsed ? '' : 'hover:bg-themewhite2/60'}`}
         >
           {/* Same chip as the NavTop header buttons. */}
@@ -297,26 +310,41 @@ export function SideNav({ onClose, onMenuItemClick, rail }: SideNavProps) {
                 <p className="pl-4 pt-1 pb-1 text-[9pt] font-semibold text-tertiary uppercase tracking-wider whitespace-nowrap">My Notes</p>
               )}
               {savedNotes.map(note => {
-                const label = `${note.symptomIcon ? `${note.symptomIcon} ` : ''}${note.symptomText}`
+                const label = note.symptomText
                 const meta = [note.kind === 'provider' ? 'Provider' : note.dispositionType, new Date(note.savedAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })].filter(Boolean).join(' · ')
                 return (
-                  <button
+                  <div
                     key={note.id}
-                    onClick={() => handleNoteClick(note)}
-                    {...(collapsed ? {} : liftPressHandlers((snap) => setLiftedNote({ note, ...snap }), pressRef))}
-                    aria-label={label}
-                    onMouseEnter={collapsed ? (e) => showTip(e, label, null, meta) : undefined}
-                    onMouseLeave={() => setRailTip(null)}
-                    className={`group relative flex items-center mx-2 w-[calc(100%-1rem)] h-10 px-1 shrink-0 rounded-full text-left active:scale-95 transform-gpu transition-colors ${collapsed ? '' : 'hover:bg-themewhite2/60'}`}
+                    className={`flex items-center mx-2 w-[calc(100%-1rem)] h-10 shrink-0 rounded-full transition-colors ${collapsed ? '' : 'hover:bg-themewhite2/60'}`}
                   >
-                    <span className="w-8 h-8 shrink-0 rounded-full flex items-center justify-center bg-themewhite2 group-hover:bg-themewhite transition-colors">
-                      <FileText size={16} className="stroke-themeblue1" />
-                    </span>
-                    <div className={`ml-3 min-w-0 flex-1 ${reveal}`}>
-                      <div className="text-[10pt] text-primary font-medium truncate">{label}</div>
-                      <div className="text-[9pt] text-tertiary truncate leading-tight">{meta}</div>
-                    </div>
-                  </button>
+                    <button
+                      onClick={() => handleNoteClick(note)}
+                      {...(collapsed ? {} : liftPressHandlers((snap) => setLiftedNote({ note, ...snap }), pressRef))}
+                      aria-label={label}
+                      onMouseEnter={collapsed ? (e) => showTip(e, label, null, meta, note) : undefined}
+                      onMouseLeave={collapsed ? (e) => tipAim.track(e) : undefined}
+                      className="group relative flex items-center flex-1 min-w-0 h-10 px-1 rounded-full text-left active:scale-95 transform-gpu"
+                    >
+                      <span className="w-8 h-8 shrink-0 rounded-full flex items-center justify-center bg-themeblue2/10">
+                        {note.symptomIcon
+                          ? <span className="text-[11pt] leading-none">{note.symptomIcon}</span>
+                          : <FileText size={15} className="text-themeblue2" />}
+                      </span>
+                      <div className={`ml-3 min-w-0 flex-1 ${reveal}`}>
+                        <div className="text-[10pt] text-primary font-medium truncate">{label}</div>
+                        <div className="text-[9pt] text-tertiary truncate leading-tight">{meta}</div>
+                      </div>
+                    </button>
+                    {!collapsed && (
+                      <button
+                        onClick={(e) => setNoteMenu({ note, rect: e.currentTarget.getBoundingClientRect() })}
+                        aria-label="Note actions"
+                        className={`w-7 h-7 mr-1.5 shrink-0 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all ${reveal}`}
+                      >
+                        <MoreHorizontal size={15} />
+                      </button>
+                    )}
+                  </div>
                 )
               })}
             </>
@@ -342,9 +370,22 @@ export function SideNav({ onClose, onMenuItemClick, rail }: SideNavProps) {
           onClose={() => setRailTip(null)}
           title={railTip?.text ?? ''}
           anchor={railTip ? { x: railTip.x, y: railTip.y } : undefined}
+          interactive={!!railTip?.note}
+          anchorRef={railTipRef}
         >
           {railTip?.detail && (
             <p className="px-3 py-2 text-[9pt] text-tertiary whitespace-nowrap">{railTip.detail}</p>
+          )}
+          {railTip?.note && (
+            <div className="w-[216px] border-t border-tertiary/10 divide-y divide-black/[0.06]">
+              {noteActions(railTip.note, onClose).map(item => (
+                <MenuListRow
+                  key={item.key}
+                  item={item}
+                  onSelect={(it) => { tipAim.cancel(); setRailTip(null); it.onAction?.() }}
+                />
+              ))}
+            </div>
           )}
           {railTip?.hotkey && (
             <div className="flex gap-1 px-3 py-2">
@@ -460,11 +501,11 @@ export function SideNav({ onClose, onMenuItemClick, rail }: SideNavProps) {
             <p className={`pl-7 pt-1 pb-1 text-[9pt] font-semibold text-tertiary uppercase tracking-wider`}>My Notes</p>
             <div className="space-y-1">
               {savedNotes.map(note => (
+                <div key={note.id} className="flex items-center rounded-xl hover:bg-themewhite2/60 transition-colors">
                 <button
-                  key={note.id}
                   onClick={() => handleNoteClick(note)}
                   {...liftPressHandlers((snap) => setLiftedNote({ note, ...snap }), pressRef)}
-                  className={`w-full text-left flex items-center pl-7 pr-4 py-3 rounded-xl cursor-pointer hover:bg-themewhite2/60 bg-transparent active:scale-95 transform-gpu transition-colors`}
+                  className={`flex-1 min-w-0 text-left flex items-center pl-7 pr-2 py-3 rounded-xl cursor-pointer bg-transparent active:scale-95 transform-gpu`}
                 >
                   <div className="min-w-0 flex-1">
                     <div className={`text-[11pt] text-primary font-medium truncate`}>
@@ -475,6 +516,14 @@ export function SideNav({ onClose, onMenuItemClick, rail }: SideNavProps) {
                     </div>
                   </div>
                 </button>
+                <button
+                  onClick={(e) => setNoteMenu({ note, rect: e.currentTarget.getBoundingClientRect() })}
+                  aria-label="Note actions"
+                  className="w-9 h-9 mr-2 shrink-0 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
+                >
+                  <MoreHorizontal size={18} />
+                </button>
+                </div>
               ))}
             </div>
           </div>

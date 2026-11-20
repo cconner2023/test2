@@ -74,6 +74,32 @@ export function isInteractiveTarget(target: HTMLElement): boolean {
 }
 
 /**
+ * Gesture zones — subtrees that own their horizontal gestures, independent of the
+ * page carousel. Mark with `data-gesture-zone` (a whole surface, e.g. the Mission
+ * Board) or `data-swipe-row` (SwipeActionRow sets it itself).
+ */
+export const GESTURE_ZONE_SELECTOR = '[data-gesture-zone], [data-swipe-row]';
+
+/** True when the touch starts in either screen-edge strip — those always belong to
+ *  the page (left: menu / swipe-back, right: messages slide). */
+export function isScreenEdge(x: number): boolean {
+  return x < GESTURE_THRESHOLDS.EDGE_ZONE || x > window.innerWidth - GESTURE_THRESHOLDS.EDGE_ZONE;
+}
+
+/**
+ * True when a page-level drag (column carousel, menu slide) must stand down because
+ * the gesture began inside a gesture zone. Edge strips never count, so the menu and
+ * messages edge-swipes still work over a zone.
+ */
+export function isGestureZoneStart(startX: number, startY: number): boolean {
+  if (isScreenEdge(startX)) return false;
+  // Hit-test the start point: @use-gesture captures the pointer, so the move
+  // event's target is the capturing container, not the element under the finger.
+  const el = document.elementFromPoint(startX, startY);
+  return !!el?.closest(GESTURE_ZONE_SELECTOR);
+}
+
+/**
  * Apply direction-lock logic to a drag state based on current displacement.
  * Mutates `state.locked`. Returns true if the gesture is horizontal (continue tracking).
  */

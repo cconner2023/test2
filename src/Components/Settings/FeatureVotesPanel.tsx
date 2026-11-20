@@ -9,7 +9,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react'
-import { Check, Loader2, MessageCircleQuestion, MessageSquare } from 'lucide-react'
+import { Check, MessageCircleQuestion, MessageSquare } from 'lucide-react'
 import { Skeleton, SkeletonRows } from '@/Components/primitives/Skeleton'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { useFeatureVotesStore, OTHER_CANDIDATE_ID } from '../../stores/useFeatureVotesStore'
@@ -149,7 +149,7 @@ export const FeatureVotesPanel = ({ onOpenFeedback }: Props) => {
                       }`}
                     >
                       {isSubmitting ? (
-                        <Loader2 size={12} className="animate-spin text-themeblue2" />
+                        <Skeleton className="w-full h-full rounded-full" />
                       ) : isMyVote ? (
                         <Check size={12} className="text-white" />
                       ) : null}

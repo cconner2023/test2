@@ -1,6 +1,6 @@
 import { useCallback, useState, useEffect, useRef, useMemo } from 'react'
 import type { ReactNode } from 'react'
-import { ChevronLeft, ChevronRight, Pencil, Pin, Plus, Trash2, Users, MessageSquare, Map as MapIcon, Package, FileText } from 'lucide-react'
+import { ChevronLeft, ChevronRight, MoreHorizontal, Pencil, Pin, Plus, Trash2, Users, MessageSquare, Map as MapIcon, Package, FileText } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useAuth } from '../../Hooks/useAuth'
 import { useNavigationStore } from '../../stores/useNavigationStore'
@@ -31,7 +31,7 @@ import { TrackingWidget } from './TrackingWidget'
 import { PropertyWidget } from './PropertyWidget'
 import { useFeatureGate } from '../../lib/featureGate'
 import { useSavedNotesStore } from '../../stores/useSavedNotesStore'
-import { useOpenSavedNote } from '../../Hooks/useOpenSavedNote'
+import { useOpenSavedNote, useSavedNoteActions } from '../../Hooks/useOpenSavedNote'
 import { statusMenuItems, offsetDate } from './MissionGantt'
 import { useCategoryColors } from '../../Hooks/useCategoryColors'
 import { useClinicCategoryColorsSync } from '../../Hooks/useClinicCategoryColors'
@@ -318,10 +318,11 @@ function SavedNotesWidget() {
   const authUserId = useAuthStore(s => s.user?.id ?? null)
   const notes = useSavedNotesStore(s => s.notes)
   const loadNotes = useSavedNotesStore(s => s.load)
-  const removeNote = useSavedNotesStore(s => s.remove)
   const openSavedNote = useOpenSavedNote()
+  const noteActions = useSavedNoteActions()
   const toggleMenu = useNavigationStore(s => s.toggleMenu)
   const [liftedMenu, setLiftedMenu] = useState<{ rect: DOMRect; note: SavedNote } | null>(null)
+  const [ellipsisMenu, setEllipsisMenu] = useState<{ rect: DOMRect; note: SavedNote } | null>(null)
   const closeMenu = useCallback(() => setLiftedMenu(null), [])
 
   useEffect(() => { loadNotes(authUserId) }, [authUserId, loadNotes])
@@ -336,13 +337,24 @@ function SavedNotesWidget() {
   return (
     <div className="divide-y divide-themeblue3/8">
       {displayed.map(note => (
-        <ConvRow
-          key={note.id}
-          onTap={() => { void openSavedNote(note) }}
-          onOpenMenu={(rect) => setLiftedMenu({ rect, note })}
-        >
-          <SavedNoteRowContent note={note} />
-        </ConvRow>
+        <div key={note.id} className="flex items-center">
+          <div className="flex-1 min-w-0">
+            <ConvRow
+              onTap={() => { void openSavedNote(note) }}
+              onOpenMenu={(rect) => setLiftedMenu({ rect, note })}
+            >
+              <SavedNoteRowContent note={note} />
+            </ConvRow>
+          </div>
+          <button
+            type="button"
+            onClick={(e) => setEllipsisMenu({ note, rect: e.currentTarget.getBoundingClientRect() })}
+            aria-label="Note actions"
+            className="w-7 h-7 mr-2 shrink-0 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all"
+          >
+            <MoreHorizontal size={15} />
+          </button>
+        </div>
       ))}
       {extra > 0 && (
         <button
@@ -356,14 +368,16 @@ function SavedNotesWidget() {
         isOpen={!!liftedMenu}
         anchorRect={liftedMenu?.rect ?? null}
         row={liftedMenu ? <SavedNoteRowContent note={liftedMenu.note} /> : null}
-        items={liftedMenu ? [{
-          key: 'delete',
-          label: 'Delete',
-          icon: Trash2,
-          destructive: true,
-          onAction: () => removeNote(liftedMenu.note.id),
-        }] : []}
+        items={liftedMenu ? noteActions(liftedMenu.note) : []}
         onClose={closeMenu}
+        layout="list"
+      />
+      <LiftedRowMenu
+        isOpen={!!ellipsisMenu}
+        anchorRect={ellipsisMenu?.rect ?? null}
+        items={ellipsisMenu ? noteActions(ellipsisMenu.note) : []}
+        onClose={() => setEllipsisMenu(null)}
+        align="right"
         layout="list"
       />
     </div>
@@ -446,12 +460,11 @@ export function MissionBoardPanel({ standalone = false }: MissionBoardPanelProps
   }, [clinicId])
 
   // Week-view swipe: attach native pointer listeners that detect a horizontal
-  // week-paging swipe. Only stopPropagation ONCE a horizontal drag is locked
-  // (see onPointerMove) — do NOT swallow the bare pointerdown. Swallowing every
-  // pointerdown disrupts the synthesized click on iOS when it stacks with the
-  // event button's own menuPress touchstart stopPropagation, killing taps while
-  // the long-press timer still fires. (The carousel uses touch events, not
-  // pointer events, so a pointerdown stopPropagation never shielded it anyway.)
+  // week-paging swipe. The ColumnA carousel stands down for the whole board via
+  // its `data-gesture-zone` wrapper (GestureUtils.isGestureZoneStart); the
+  // locked-move stopPropagation is belt-and-braces. Do NOT swallow the bare
+  // pointerdown — on iOS that stacks with the event button's menuPress touchstart
+  // stopPropagation and kills taps while the long-press timer still fires.
   useEffect(() => {
     const el = weekViewElRef.current
     if (!el) return

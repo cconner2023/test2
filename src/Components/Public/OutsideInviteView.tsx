@@ -10,6 +10,7 @@ import {
 import { unwrapOutsidePriv } from '../../lib/outsideEntityKey'
 import { sealPair, openAsOutside } from '../../lib/outsideEntitySeal'
 import { Shell, Glitch404 } from './IntakeForm'
+import { LoadingOverlay } from '@/Components/primitives/LoadingOverlay'
 
 interface OutsideInviteViewProps {
   supabase: SupabaseClient
@@ -186,6 +187,7 @@ export function OutsideInviteView({ supabase, token, fragment }: OutsideInviteVi
 
   return (
     <Shell>
+      <LoadingOverlay visible={phase === 'opening'} className="rounded-2xl" />
       <Branding />
 
       {phase === 'active' ? (
@@ -298,7 +300,7 @@ export function OutsideInviteView({ supabase, token, fragment }: OutsideInviteVi
                 disabled={phase === 'opening'}
                 className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center bg-themeblue3 text-white active:scale-95 transition-all"
               >
-                {phase === 'opening' ? <RefreshCw size={14} className="animate-spin" /> : <Check size={16} />}
+                <Check size={16} />
               </button>
             </div>
           </div>

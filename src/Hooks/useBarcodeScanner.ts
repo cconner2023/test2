@@ -10,8 +10,19 @@ interface ScannerState {
     resultBytes: Uint8Array | null;
 }
 
+interface BarcodeScannerOptions {
+    /**
+     * Sees every decoded frame first. Return true to consume it and keep the
+     * camera running (multi-symbol series); false falls through to the normal
+     * stop-and-report-result path.
+     */
+    onFrame?: (text: string, bytes: Uint8Array | null) => boolean;
+}
+
 /** Manages camera access and continuous barcode scanning using ZXing, with auto-cleanup on unmount. */
-export const useBarcodeScanner = () => {
+export const useBarcodeScanner = (options?: BarcodeScannerOptions) => {
+    const onFrameRef = useRef(options?.onFrame);
+    onFrameRef.current = options?.onFrame;
     const [state, setState] = useState<ScannerState>({
         isScanning: false,
         error: null,
@@ -84,6 +95,7 @@ export const useBarcodeScanner = () => {
                             let offset = 0;
                             for (const seg of segments) { resultBytes.set(seg, offset); offset += seg.length; }
                         }
+                        if (onFrameRef.current?.(result.getText(), resultBytes)) return;
                         setState(prev => ({
                             ...prev,
                             result: result.getText(),
