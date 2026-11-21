@@ -42,8 +42,14 @@ export function useEditableClinicContent(clinicId: string | null) {
     setLoading(true)
     getClinicNoteContent(clinicId).then(res => {
       if (cancelled) return
-      if (res.ok) setRemote(res.data)
-      else setRemote(EMPTY)
+      if (res.success) {
+        setRemote({
+          textExpanders: res.textExpanders,
+          planOrderTags: res.planOrderTags,
+          planInstructionTags: res.planInstructionTags,
+          planOrderSets: res.planOrderSets,
+        })
+      } else setRemote(EMPTY)
       setLoading(false)
     })
     return () => { cancelled = true }

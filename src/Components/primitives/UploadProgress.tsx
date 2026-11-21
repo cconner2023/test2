@@ -275,8 +275,9 @@ export function UploadCard({ task: live, onDismiss, onRetry }: UploadViewProps) 
   )
 }
 
-/** One-line chip that rests above a composer. */
-export function UploadChip({ task: live, onDismiss, onRetry }: UploadViewProps) {
+/** One-line chip that rests above a composer (or heads an import review).
+ *  `doneLabel` is the suffix once ready — default 'Ready to send'. */
+export function UploadChip({ task: live, onDismiss, onRetry, doneLabel = 'Ready to send' }: UploadViewProps & { doneLabel?: string }) {
   const task = useHeldWhileOpen(!!live, live)
   return (
     <Presence show={!!live}>
@@ -287,7 +288,7 @@ export function UploadChip({ task: live, onDismiss, onRetry }: UploadViewProps) 
             <div className="flex-1 min-w-0">
               <p className="text-[10pt] font-medium text-primary truncate">{task.name}</p>
               <p aria-live="polite" className={`text-[9pt] truncate tabular-nums ${task.phase === 'error' ? 'text-themeredred' : 'text-tertiary'}`}>
-                {task.phase === 'done' ? [statusLine(task), 'Ready to send'].filter(Boolean).join(' · ') : statusLine(task)}
+                {task.phase === 'done' ? [statusLine(task), doneLabel].filter(Boolean).join(' · ') : statusLine(task)}
               </p>
             </div>
             {task.phase === 'error' && onRetry && (

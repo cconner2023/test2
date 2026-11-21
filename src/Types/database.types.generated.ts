@@ -3197,6 +3197,10 @@ export type Database = {
         Args: { p_sub_cluster_id: string; p_user_id: string }
         Returns: undefined
       }
+      supervisor_set_tracking_link: {
+        Args: { p_clinic_id: string; p_other_clinic_id: string; p_receive?: boolean | null; p_send?: boolean | null }
+        Returns: undefined
+      }
       supervisor_set_tracking_sharing: {
         Args: { p_clinic_id: string; p_receive: boolean; p_send: boolean }
         Returns: undefined
@@ -3270,6 +3274,20 @@ export type Database = {
       tracking_push_bump: { Args: { p_clinic_id: string }; Returns: undefined }
       tracking_push_claim: { Args: never; Returns: { n: number; user_id: string }[] }
       tracking_push_flush: { Args: never; Returns: undefined }
+      tracking_cluster_directory: {
+        Args: { p_clinic_id: string }
+        Returns: {
+          i_receive: boolean
+          i_send: boolean
+          id: string
+          name: string
+          nickname: string
+          parent_clinic_id: string
+          they_receive: boolean
+          they_send: boolean
+          uics: string[]
+        }[]
+      }
       tracking_cluster_tree: {
         Args: { p_clinic_id?: string }
         Returns: {

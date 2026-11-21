@@ -29,7 +29,8 @@ import { useGeolocation } from '../../Hooks/useGeolocation';
 import { useIsMobile } from '../../Hooks/useIsMobile';
 import { useAuth } from '../../Hooks/useAuth';
 import { getOverlays } from '../../lib/mapOverlayService';
-import { getLocalMapOverlay } from '../../lib/offlineDb';
+import { getLocalMapOverlay, getAllLocalMapOverlays } from '../../lib/offlineDb';
+import { cachedTrackingSenders } from '../../Hooks/useTrackingBoardData';
 import { useMapOverlayWrite } from '../../Hooks/useMapOverlayWrite';
 import { useMapOverlaySync } from '../../Hooks/useMapOverlaySync';
 import { useInvalidation } from '../../stores/useInvalidationStore';
@@ -903,7 +904,15 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
     }
   }, [setBasemapId]);
 
-  const selectedFeature = features.find(f => f.id === selectedFeatureId) ?? null;
+  // A received tracking feature open in the card — VIEW ONLY (no Edit, no
+  // overlay-scoped actions). Not in `features`: it belongs to another
+  // cluster's overlay, never the active one.
+  const [viewedReceived, setViewedReceived] = useState<{ feature: OverlayFeature; overlayName: string } | null>(null);
+  const ownSelected = features.find(f => f.id === selectedFeatureId) ?? null;
+  const selectedFeature = ownSelected
+    ?? (viewedReceived && viewedReceived.feature.id === selectedFeatureId ? viewedReceived.feature : null);
+  const selectedIsViewOnly = !!selectedFeature && !ownSelected;
+  const selectedOverlayName = selectedIsViewOnly ? viewedReceived!.overlayName : (overlayName.trim() || 'Overlay');
 
   // The desktop detail card / mobile sheet holds one surface at a time. Anything that claims it
   // retires My location outright, so closing that surface doesn't resurrect it.
@@ -1112,6 +1121,32 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
     // refetching IDB so the panel reflects remote changes without a manual reload.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isVisible, activeClinicId, overlayGen]);
+
+  // Received tracking maps — overlays of clusters live-sending their tracking
+  // stations to this one. View only, just the tracking features, hidden until
+  // the viewer turns them on (opt-in). The sender's own map is unchanged.
+  const [receivedOverlays, setReceivedOverlays] = useState<LocalMapOverlay[]>([]);
+  useEffect(() => {
+    if (!isVisible || !activeClinicId) return;
+    const senders = cachedTrackingSenders(activeClinicId);
+    if (senders.size === 0) { setReceivedOverlays([]); return; }
+    let cancelled = false;
+    getAllLocalMapOverlays().then(all => {
+      if (cancelled) return;
+      setReceivedOverlays(all
+        .filter(o => senders.has(o.clinic_id) && (o.target_clinic_ids?.includes(activeClinicId) ?? false))
+        .map(o => ({ ...o, name: `${o.name || 'Untitled'} · ${senders.get(o.clinic_id)}`, features: o.features.filter(f => f.tracking) }))
+        .filter(o => o.features.length > 0));
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [isVisible, activeClinicId, overlayGen]);
+  const receivedIds = useMemo(() => new Set(receivedOverlays.map(o => o.id)), [receivedOverlays]);
+
+  // Received tracking overlay: tapping frames it / a feature — never opens it.
+  const focusReceived = useCallback((features: OverlayFeature[]) => {
+    const bbox = computeOverlayBbox(features);
+    if (bbox) mapRef.current?.fitBounds(bbox);
+  }, []);
 
   // ── Auto-clear save error ──
   useEffect(() => {
@@ -1897,6 +1932,13 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
       setShowMyLocation(true);
       return;
     }
+    if (receivedIds.has(sourceOverlayId)) {
+      const src = receivedOverlays.find(o => o.id === sourceOverlayId);
+      setViewedReceived({ feature, overlayName: src?.name || 'Overlay' });
+      setSelectedFeatureId(feature.id);
+      focusReceived([feature]);
+      return;
+    }
     const switching = sourceOverlayId !== overlayId;
     setSelectedFeatureId(feature.id);
     if (switching) {
@@ -1908,7 +1950,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
     } else {
       focusFeature(feature);
     }
-  }, [drawMode, overlayId, overlays, mapZoom, user, handleCloseTempPoint, handleCloseTempRoute, handleOpenOverlay, focusFeature]);
+  }, [drawMode, overlayId, overlays, mapZoom, user, handleCloseTempPoint, handleCloseTempRoute, handleOpenOverlay, focusFeature, receivedIds, receivedOverlays, focusReceived]);
 
   const handleUpdateSelectedFeature = useCallback((updated: OverlayFeature) => {
     setFeatures(prev => prev.map(f => f.id === updated.id ? updated : f));
@@ -2297,17 +2339,17 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
   ), [presenceBeta, presenceOverlay]);
 
   const treeOverlays = useMemo(
-    () => personnelOverlay ? [...userOverlays, personnelOverlay] : userOverlays,
-    [userOverlays, personnelOverlay],
+    () => [...userOverlays, ...receivedOverlays, ...(personnelOverlay ? [personnelOverlay] : [])],
+    [userOverlays, receivedOverlays, personnelOverlay],
   );
 
   const readOnlyOverlayIds = useMemo(
-    () => new Set(personnelOverlay ? [personnelOverlay.id] : []),
-    [personnelOverlay],
+    () => new Set([...receivedIds, ...(personnelOverlay ? [personnelOverlay.id] : [])]),
+    [receivedIds, personnelOverlay],
   );
 
   // Read-only features from other visible overlays (excludes the active overlay — those are editable)
-  const visibleReadOnlyFeatures = userOverlays
+  const visibleReadOnlyFeatures = [...userOverlays, ...receivedOverlays]
     .filter(o => visibleOverlayIds.has(o.id) && o.id !== overlayId)
     .flatMap(o => o.features);
 
@@ -2419,7 +2461,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
     ),
     eyebrow: isFeatureEditMode ? undefined : (
       <MapOverlayBreadcrumb
-        label={overlayName.trim() || 'Overlay'}
+        label={selectedOverlayName}
         onNavigate={handleFeatureBreadcrumbUp}
       />
     ),
@@ -2438,7 +2480,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
       <FeatureEditor
         key={selectedFeature.id}
         feature={selectedFeature}
-        onUpdate={handleUpdateSelectedFeature}
+        onUpdate={selectedIsViewOnly ? () => {} : handleUpdateSelectedFeature}
         waypoints={features.filter(f => f.type === 'waypoint')}
         onFocusLeg={(bbox) => mapRef.current?.fitBounds(bbox)}
         linkedEventCount={allEvents.reduce((n, e) => {
@@ -2446,8 +2488,8 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
           const implied = e.linked_overlays?.includes(selectedFeature.overlay_id)
           return n + (explicit || implied ? 1 : 0)
         }, 0)}
-        onOpenLinksEditor={(anchor) => handleOpenFeatureLinksEditor(selectedFeature.overlay_id, selectedFeature.id, anchor)}
-        isEditMode={isFeatureEditMode}
+        onOpenLinksEditor={selectedIsViewOnly ? undefined : (anchor) => handleOpenFeatureLinksEditor(selectedFeature.overlay_id, selectedFeature.id, anchor)}
+        isEditMode={isFeatureEditMode && !selectedIsViewOnly}
         floors={floorLevels}
         onChangeFloor={handleChangeFeatureFloor}
       />
@@ -2587,7 +2629,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                 activeOverlayId={overlayId}
                 visibleOverlayIds={visibleOverlayIds}
                 selectedFeatureId={selectedFeatureId}
-                onMakeActive={(o) => isPresenceOverlayId(o.id) ? handleFocusPersonnel() : handleOpenOverlay(o as MapOverlay)}
+                onMakeActive={(o) => isPresenceOverlayId(o.id) ? handleFocusPersonnel() : receivedIds.has(o.id) ? focusReceived(o.features) : handleOpenOverlay(o as MapOverlay)}
                 onToggleVisible={handleToggleVisible}
                 onRenameOverlay={handleRenameOverlay}
                 onDeleteOverlay={handleDeleteOverlay}
@@ -2757,7 +2799,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                     !mobileTreeStep && selectedFeature && !isFeatureEditMode ? (
                       <div className="min-w-0">
                         <MapOverlayBreadcrumb
-                          label={overlayName.trim() || 'Overlay'}
+                          label={selectedOverlayName}
                           onNavigate={handleFeatureBreadcrumbUp}
                           className="mb-0.5"
                         />
@@ -2832,6 +2874,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                           selectedFeatureId={selectedFeatureId}
                           onMakeActive={(o) => {
                             if (isPresenceOverlayId(o.id)) handleFocusPersonnel();
+                            else if (receivedIds.has(o.id)) focusReceived(o.features);
                             else handleOpenOverlay(o as MapOverlay);
                             setShowMobileTree(false);
                           }}
@@ -2867,7 +2910,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                   ) : selectedFeature ? (
                     <FeatureEditor
                       feature={selectedFeature}
-                      onUpdate={handleUpdateSelectedFeature}
+                      onUpdate={selectedIsViewOnly ? () => {} : handleUpdateSelectedFeature}
                       waypoints={features.filter(f => f.type === 'waypoint')}
                       onFocusLeg={(bbox) => mapRef.current?.fitBounds(bbox)}
                       linkedEventCount={allEvents.reduce((n, e) => {
@@ -2875,8 +2918,8 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
                         const implied = e.linked_overlays?.includes(selectedFeature.overlay_id)
                         return n + (explicit || implied ? 1 : 0)
                       }, 0)}
-                      onOpenLinksEditor={(anchor) => handleOpenFeatureLinksEditor(selectedFeature.overlay_id, selectedFeature.id, anchor)}
-                      isEditMode={isFeatureEditMode}
+                      onOpenLinksEditor={selectedIsViewOnly ? undefined : (anchor) => handleOpenFeatureLinksEditor(selectedFeature.overlay_id, selectedFeature.id, anchor)}
+                      isEditMode={isFeatureEditMode && !selectedIsViewOnly}
                       floors={floorLevels}
                       onChangeFloor={handleChangeFeatureFloor}
                     />
@@ -3354,18 +3397,19 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
           layout="list"
           align="right"
           items={[
-            { key: 'edit', label: 'Edit', icon: Pencil, onAction: handleToggleFeatureEditMode },
+            // View-only (received tracking feature): location actions only.
+            ...(selectedIsViewOnly ? [] : [{ key: 'edit', label: 'Edit', icon: Pencil, onAction: handleToggleFeatureEditMode }]),
             ...(selectedFeature.type === 'waypoint' && selectedFeature.geometry.length > 0
               ? [{ key: 'navigate', label: 'Navigate', icon: Navigation, onAction: handleNavigateSelected }]
               : []),
-            { key: 'forward', label: 'Share to chat', icon: MessageSquare, onAction: handleForwardSelected },
+            ...(selectedIsViewOnly ? [] : [{ key: 'forward', label: 'Share to chat', icon: MessageSquare, onAction: handleForwardSelected }]),
             ...(selectedFeature.geometry.length > 0
               ? [{ key: 'share', label: 'Share location', icon: Share2, onAction: handleShareLocationSelected }]
               : []),
-            ...(overlayId
+            ...(overlayId && !selectedIsViewOnly
               ? [{ key: 'copy-to-overlay', label: 'Copy to overlay…', icon: Copy, onAction: () => handleCopyFeatureToOverlay(overlayId, selectedFeature.id) }]
               : []),
-            { key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: handleDeleteSelected },
+            ...(selectedIsViewOnly ? [] : [{ key: 'delete', label: 'Delete', icon: Trash2, destructive: true as const, onAction: handleDeleteSelected }]),
           ]}
         />
       )}

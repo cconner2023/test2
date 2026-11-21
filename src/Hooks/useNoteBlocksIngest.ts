@@ -17,6 +17,7 @@ import { useCallback } from 'react'
 import { useAuthStore } from '../stores/useAuthStore'
 import { useUserProfile } from './useUserProfile'
 import { useEditableClinicContent } from './useEditableClinicContent'
+import { getClinicNoteContent, updateClinicNoteContent, type ClinicNoteContent } from '../lib/supervisorService'
 import type { NoteBlocksBundle } from '../lib/objectBundle'
 import type { TextExpander, PlanOrderSet, PlanOrderTags } from '../Data/User'
 import { PLAN_ORDER_CATEGORIES } from '../Data/User'
@@ -93,6 +94,27 @@ function mergeOrderTags(existing: PlanOrderTags, incoming: PlanOrderTags): { nex
   return { next, added, skipped }
 }
 
+/** Merge a bundle into one cluster's content: the patch to write + counts. */
+function mergeClinicContent(c: Pick<ClinicNoteContent, 'textExpanders' | 'planOrderSets' | 'planOrderTags' | 'planInstructionTags'>, bundle: NoteBlocksBundle) {
+  const exp = mergeExpanders(c.textExpanders ?? [], bundle.textExpanders ?? [])
+  const sets = mergeOrderSets(c.planOrderSets ?? [], bundle.planOrderSets ?? [])
+  const tags = mergeOrderTags(c.planOrderTags ?? EMPTY_TAGS, bundle.planOrderTags ?? EMPTY_TAGS)
+  const instr = mergeStringList(c.planInstructionTags ?? [], bundle.planInstructionTags ?? [])
+  const patch: Partial<ClinicNoteContent> = {}
+  if (exp.added) patch.textExpanders = exp.next
+  if (sets.added) patch.planOrderSets = sets.next
+  if (tags.added) patch.planOrderTags = tags.next
+  if (instr.added) patch.planInstructionTags = instr.next
+  const result: IngestResult = {
+    added: { templates: exp.added, orderSets: sets.added, tags: tags.added + instr.added },
+    skipped: { templates: exp.skipped, orderSets: sets.skipped, tags: tags.skipped + instr.skipped },
+  }
+  return { patch, result }
+}
+
+/** Ingest target: the user's own blocks, or a cluster by id. */
+export type IngestTarget = 'personal' | { clinicId: string }
+
 export function useNoteBlocksIngest() {
   const { profile, updateProfile, syncProfileField } = useUserProfile()
   const homeClinicId = useAuthStore(s => s.clinicId)
@@ -114,22 +136,14 @@ export function useNoteBlocksIngest() {
 
     if (scope === 'clinic') {
       if (!canIngestToClinic) return zero
-      const exp = mergeExpanders(clinicTextExpanders ?? [], bundle.textExpanders ?? [])
-      const sets = mergeOrderSets(clinicPlanOrderSets ?? [], bundle.planOrderSets ?? [])
-      const tags = mergeOrderTags(clinicPlanOrderTags ?? EMPTY_TAGS, bundle.planOrderTags ?? EMPTY_TAGS)
-      const instr = mergeStringList(clinicPlanInstructionTags ?? [], bundle.planInstructionTags ?? [])
-
-      const patch: Parameters<typeof updateClinic>[0] = {}
-      if (exp.added) patch.textExpanders = exp.next
-      if (sets.added) patch.planOrderSets = sets.next
-      if (tags.added) patch.planOrderTags = tags.next
-      if (instr.added) patch.planInstructionTags = instr.next
+      const { patch, result } = mergeClinicContent({
+        textExpanders: clinicTextExpanders ?? [],
+        planOrderSets: clinicPlanOrderSets ?? [],
+        planOrderTags: clinicPlanOrderTags ?? null,
+        planInstructionTags: clinicPlanInstructionTags ?? [],
+      }, bundle)
       if (Object.keys(patch).length) updateClinic(patch)
-
-      return {
-        added: { templates: exp.added, orderSets: sets.added, tags: tags.added + instr.added },
-        skipped: { templates: exp.skipped, orderSets: sets.skipped, tags: tags.skipped + instr.skipped },
-      }
+      return result
     }
 
     // Personal
@@ -158,7 +172,22 @@ export function useNoteBlocksIngest() {
     profile.textExpanders, profile.planOrderSets, profile.planOrderTags, profile.planInstructionTags, updateProfile, syncProfileField,
   ])
 
-  return { ingest, canIngestToClinic }
+  /** Ingest into a cluster the supervisor is attached to (home or surrogate).
+   *  Home goes through the cached path; a surrogate is fetched, merged, written. */
+  const ingestToClinic = useCallback(async (bundle: NoteBlocksBundle, clinicId: string): Promise<IngestResult | null> => {
+    if (!isSupervisorRole) return null
+    if (clinicId === homeClinicId) return ingest(bundle, 'clinic')
+    const res = await getClinicNoteContent(clinicId)
+    if (!res.success) return null
+    const { patch, result } = mergeClinicContent(res, bundle)
+    if (Object.keys(patch).length) {
+      const w = await updateClinicNoteContent(clinicId, patch)
+      if (!w.success) return null
+    }
+    return result
+  }, [isSupervisorRole, homeClinicId, ingest])
+
+  return { ingest, ingestToClinic, canIngestToClinic }
 }
 
 /** Human one-liner for an ingest result — e.g. "Added 4 · skipped 1 duplicate". */

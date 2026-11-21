@@ -7,8 +7,8 @@ import type { StackNav, StackScreen } from '@/Components/primitives/OverlayStack
 import { ActionButton } from '@/Components/primitives/ActionButton';
 import { ActionPill } from '@/Components/primitives/ActionPill';
 import { TextInput, TextArea, PickerInput } from '@/Components/primitives/FormInputs';
-import { FooterPill } from '@/Components/primitives/FooterPill'
-import { FooterMenuButton } from '@/Components/primitives/FooterMenuButton';
+import { PillButton } from '@/Components/primitives/HeaderPill';
+import { HeaderMenuPill } from '@/Components/primitives/HeaderMenuPill';
 import type { ContextMenuItem } from '@/Components/primitives/ContextMenu';
 
 /**
@@ -22,12 +22,12 @@ import type { ContextMenuItem } from '@/Components/primitives/ContextMenu';
  *    sub-tree list) StackScreens, keyed by a PATH into the node tree. Spread into the
  *    host stack's screens.
  *  - `TemplateNodeList` — the inline node list (rows) for the host's root body.
- *  - `AddStepFooter` — the footer-LEFT Add action; tapping (+) opens a lifted menu of
+ *  - `AddStepHeader` — the header Add action; tapping (+) opens a lifted menu of
  *    the four step types (no picker overlay), then the host appends + drills.
  *  - path helpers `getList` / `setList` / `makeNode` / `addTemplateNode` + `pathEq`.
  * `TextExpanderEditPopover` uses these to host the shortcut editor + template nodes
- * in ONE stack. Each AddStepFooter owns its own menu, so a host threads no add-target
- * state through — the footer's `path` closure already names the list being added to.
+ * in ONE stack. Each AddStepHeader owns its own menu, so a host threads no add-target
+ * state through — the screen's `path` closure already names the list being added to.
  */
 
 // Authoring hint text. One phrasing per input ROLE, shared with the simple-mode
@@ -376,18 +376,15 @@ const STEP_TYPES: Array<{ type: TemplateNode['type']; label: string; icon: Lucid
     { type: 'branch', label: 'Branch', icon: GitBranch },
 ];
 
-export function AddStepFooter({ onPick }: { onPick: (type: TemplateNode['type']) => void }) {
+/** Header Add — the step types as a lifted menu (HeaderMenuPill with Plus). */
+export function AddStepHeader({ onPick }: { onPick: (type: TemplateNode['type']) => void }) {
     const items: ContextMenuItem[] = STEP_TYPES.map(t => ({
         key: t.type,
         label: t.label,
         icon: t.icon,
         onAction: () => onPick(t.type),
     }));
-    return (
-        <FooterPill>
-            <FooterMenuButton icon={Plus} label="Add step" items={items} />
-        </FooterPill>
-    );
+    return <HeaderMenuPill icon={Plus} label="Add step" items={items} />;
 }
 
 // ─── Inline node list (host root-screen body): rows + FAB ─────────────────────
@@ -467,15 +464,12 @@ export function makeTemplateScreens({
                 const node = getList(nodes, p.path)[p.index];
                 return node ? `Edit ${nodeTypeLabel(node.type)}` : 'Edit';
             },
-            footer: (p: { path: ListPath; index: number }, nav: StackNav) => (
-                <FooterPill>
-                    <ActionButton icon={Trash2} label="Delete" variant="danger" onClick={() => { deleteNode(p.path, p.index); upOrClose(nav); }} />
-                </FooterPill>
-            ),
-            rightFooter: (_: { path: ListPath; index: number }, nav: StackNav) => (
-                <FooterPill side="right">
-                    <ActionButton icon={Check} label="Done" variant="confirm" onClick={() => upOrClose(nav)} />
-                </FooterPill>
+            // Delete rides the ⋯; Done (check) the header.
+            headerActions: (p: { path: ListPath; index: number }, nav: StackNav) => (
+                <>
+                    <HeaderMenuPill items={[{ key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => { deleteNode(p.path, p.index); upOrClose(nav); } }]} />
+                    <PillButton icon={Check} iconSize={18} accent="success" label="Done" onClick={() => upOrClose(nav)} />
+                </>
             ),
             render: (p: { path: ListPath; index: number }, nav: StackNav) => {
                 const node = getList(nodes, p.path)[p.index];
@@ -495,14 +489,12 @@ export function makeTemplateScreens({
                 const last = p.path[p.path.length - 1];
                 return last ? `Path: ${last.option}` : 'Path';
             },
-            // Add rides the footer-left (lifted type menu), Done the footer-right.
-            footer: (p: { path: ListPath }) => (
-                <AddStepFooter onPick={(type) => handleAddAt(p.path, type)} />
-            ),
-            rightFooter: (_: { path: ListPath }, nav: StackNav) => (
-                <FooterPill side="right">
-                    <ActionButton icon={Check} label="Done" variant="confirm" onClick={() => nav.pop()} />
-                </FooterPill>
+            // Add (lifted type menu) and Done (check) ride the header.
+            headerActions: (p: { path: ListPath }, nav: StackNav) => (
+                <>
+                    <AddStepHeader onPick={(type) => handleAddAt(p.path, type)} />
+                    <PillButton icon={Check} iconSize={18} accent="success" label="Done" onClick={() => nav.pop()} />
+                </>
             ),
             render: (p: { path: ListPath }, nav: StackNav) => {
                 const list = getList(nodes, p.path);
@@ -525,4 +517,4 @@ export function makeTemplateScreens({
 // NOTE: the standalone `TemplateBuilder` component (its own OverlayStack + inline
 // root list) was removed 2026-06-30 — it was dead code and the last user of the
 // nested TemplateAddPicker overlay. Hosts fold template editing into their OWN stack
-// via makeTemplateScreens + TemplateNodeList (showFab={false}) + AddStepFooter.
+// via makeTemplateScreens + TemplateNodeList (showFab={false}) + AddStepHeader.

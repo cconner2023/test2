@@ -1,24 +1,26 @@
 import { useState, useCallback, useEffect, useMemo, useRef, type ReactNode } from 'react';
-import { Check, X, User, Building2, Plus } from 'lucide-react';
+import { Check, X, User, Building2, Plus, Trash2, CheckSquare, ListChecks, Tag } from 'lucide-react';
 import { useUserProfile } from '../../Hooks/useUserProfile';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useEditableClinicContent } from '../../Hooks/useEditableClinicContent';
 import type { UserTypes, PlanBlockKey, PlanOrderSet, PlanOrderTags } from '../../Data/User';
 import { PLAN_ORDER_CATEGORIES } from '../../Data/User';
-import { PreviewOverlay } from '../PreviewOverlay';
-import { OverlayStack, type CardMorphHost } from '@/Components/primitives/OverlayStack';
+import type { CardMorphHost } from '@/Components/primitives/OverlayStack';
 import { PillButton } from '@/Components/primitives/HeaderPill';
 import { SearchInput } from '@/Components/primitives/SearchInput';
 import { TextInput } from '@/Components/primitives/FormInputs';
-import { ActionButton } from '@/Components/primitives/ActionButton';
 import { PlanAllBlocksPreview } from '../PlanBlockPreview';
-import { CATEGORY_META, PlanTagManager } from './PlanTagManager';
+import { CATEGORY_META, PlanTagManager, tagSelKey } from './PlanTagManager';
 import { OrderSetManager } from './OrderSetManager';
+import { ContentStack, useRowMenu, itemMenuItems } from './contentPrimitives';
+import { usePublishHeaderActions } from './panelHeaderSlot';
+import { HeaderMenuPill } from '@/Components/primitives/HeaderMenuPill';
+import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog';
+import { EmptyState } from '@/Components/primitives/EmptyState';
+import { exportOrderSetsCSV, exportPlanCSV } from '../../Utilities/noteBlocksCSV';
 import { useClusterEditItem } from './ClusterEditPicker';
 import { useNoteBlocksTransferItems } from './NoteBlocksTransferMenu';
 import { useNoteBlocksTransfer } from '../../Hooks/useNoteBlocksTransfer';
-import { FooterPill } from '@/Components/primitives/FooterPill'
-import { OverlayHeaderMenu } from '@/Components/primitives/OverlayHeaderMenu';
 import type { ContextMenuItem } from '@/Components/primitives/ContextMenu';
 import { parseMedTag, composeMedTag, planTagDisplay } from '@/Utilities/medTag';
 import { ListGroupLabel } from '@/Components/primitives/Section';
@@ -29,15 +31,19 @@ const EMPTY_TAGS: PlanOrderTags = { referral: [], meds: [], radiology: [], lab: 
 type Scope = 'personal' | 'clinic';
 
 type TagPopover =
-    | { mode: 'edit'; anchor: DOMRect; key: PlanBlockKey; original: string; isClinic: boolean }
-    | { mode: 'new'; anchor: DOMRect };
+    | { mode: 'edit'; key: PlanBlockKey; original: string; isClinic: boolean }
+    | { mode: 'new' };
 
 type OrderSetPopover =
-    | { mode: 'edit'; anchor: DOMRect; orderSet: PlanOrderSet; isClinic: boolean }
-    | { mode: 'new'; anchor: DOMRect };
+    | { mode: 'edit'; orderSet: PlanOrderSet; isClinic: boolean }
+    | { mode: 'new' };
 
-/** `cardHost` (desktop Settings): item editors morph into the host card's slot
- *  instead of floating a PreviewOverlay over it. */
+/** Plan content: order sets + plan tags.
+ *
+ *  Header (published to the container): Add [New order set, New tag, Multiselect]
+ *  and ⋯ [cluster, share, export, import]. Tapping a row lifts it with its item
+ *  menu. Editors are PaneStack — a Sheet on mobile; `cardHost` (desktop Settings)
+ *  morphs them into the subpage card's slot. */
 export const PlanPanel = ({ cardHost }: { cardHost?: CardMorphHost } = {}) => {
     const { profile, updateProfile, syncProfileField } = useUserProfile();
     const transfer = useNoteBlocksTransfer();
@@ -189,8 +195,8 @@ export const PlanPanel = ({ cardHost }: { cardHost?: CardMorphHost } = {}) => {
     // Batch delete — resolve each tag's scope, then commit ONE write per scope
     // (tags + instructions + order-set cascade folded together) instead of the
     // 2·N writes/syncs a per-item loop would fire.
-    const deleteTags = useCallback((items: Array<{ key: PlanBlockKey; tag: string }>) => {
-        if (items.length === 0) return;
+    const deleteMany = useCallback((items: Array<{ key: PlanBlockKey; tag: string }>, setIds: Set<string>) => {
+        if (items.length === 0 && setIds.size === 0) return;
         const personalByKey = new Map<PlanBlockKey, Set<string>>();
         const clinicByKey = new Map<PlanBlockKey, Set<string>>();
         for (const { key, tag } of items) {
@@ -206,10 +212,11 @@ export const PlanPanel = ({ cardHost }: { cardHost?: CardMorphHost } = {}) => {
             baseSets: PlanOrderSet[],
             write: (u: { planOrderTags?: PlanOrderTags; planInstructionTags?: string[]; planOrderSets?: PlanOrderSet[] }) => void,
         ) => {
-            if (byKey.size === 0) return;
+            const dropSets = baseSets.some(os => setIds.has(os.id));
+            if (byKey.size === 0 && !dropSets) return;
             let nextOrderTags = baseOrderTags;
             let nextInstr = baseInstr;
-            let sets = baseSets;
+            let sets = dropSets ? baseSets.filter(os => !setIds.has(os.id)) : baseSets;
             let touchedOrderTags = false;
             for (const [key, tags] of byKey) {
                 if (key === 'instructions') {
@@ -252,20 +259,83 @@ export const PlanPanel = ({ cardHost }: { cardHost?: CardMorphHost } = {}) => {
     // ── Popover state ──────────────────────────────────────────────
     const [tagPopover, setTagPopover] = useState<TagPopover | null>(null);
     const [orderSetPopover, setOrderSetPopover] = useState<OrderSetPopover | null>(null);
+    const [viewSet, setViewSet] = useState<PlanOrderSet | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
+    const rowMenu = useRowMenu();
 
-    // ── Consolidated corner ⋯ actions (cluster picker + Share/Export/Import) ──
+    const isClinicSet = useCallback((os: PlanOrderSet) => clinicOrderSetIds.has(os.id), [clinicOrderSetIds]);
+    const canEditSet = useCallback((os: PlanOrderSet) => !isClinicSet(os) || !!isSupervisorRole, [isClinicSet, isSupervisorRole]);
+    const isClinicTag = useCallback((key: PlanBlockKey, tag: string) => clinicTagSets[key]?.has(tag) ?? false, [clinicTagSets]);
+    const canEditTag = useCallback((key: PlanBlockKey, tag: string) => !isClinicTag(key, tag) || !!isSupervisorRole, [isClinicTag, isSupervisorRole]);
+
+    const editSet = useCallback((os: PlanOrderSet) =>
+        setOrderSetPopover({ mode: 'edit', orderSet: os, isClinic: isClinicSet(os) }), [isClinicSet]);
+    const setActions = useCallback((os: PlanOrderSet, withOpen: boolean) => itemMenuItems({
+        canEdit: canEditSet(os),
+        onOpen: withOpen ? () => setViewSet(os) : undefined,
+        onEdit: () => { setViewSet(null); editSet(os); },
+        onShare: () => transfer.share({ planOrderSets: [os] }, os.name),
+        onExport: () => exportOrderSetsCSV([os]),
+        onDelete: () => { setViewSet(null); deleteOrderSet(isClinicSet(os) ? 'clinic' : 'personal', os.id); },
+    }), [canEditSet, editSet, transfer, deleteOrderSet, isClinicSet]);
+    const tagActions = useCallback((key: PlanBlockKey, tag: string) => itemMenuItems({
+        canEdit: canEditTag(key, tag),
+        onEdit: () => setTagPopover({ mode: 'edit', key, original: tag, isClinic: isClinicTag(key, tag) }),
+        onShare: () => transfer.share(tagToData(key, tag), tag),
+        onExport: () => { const d = tagToData(key, tag); exportPlanCSV({ orderTags: d.planOrderTags, instructionTags: d.planInstructionTags, base: 'plan-tag' }); },
+        onDelete: () => deleteTag(isClinicTag(key, tag) ? 'clinic' : 'personal', key, tag),
+    }), [canEditTag, isClinicTag, transfer, deleteTag]);
+
+    // ── Multiselect (sets + tags together) ─────────────────────────
+    const [selectMode, setSelectMode] = useState(false);
+    const [selectedSets, setSelectedSets] = useState<Set<string>>(new Set());
+    const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set());
+    const [confirmDelete, setConfirmDelete] = useState(false);
+    const exitSelect = useCallback(() => { setSelectMode(false); setSelectedSets(new Set()); setSelectedTags(new Set()); }, []);
+    const toggleIn = (set: Set<string>, k: string) => { const n = new Set(set); n.has(k) ? n.delete(k) : n.add(k); return n; };
+    const selectedTagItems = useMemo(() =>
+        ALL_KEYS.flatMap(key => (key === 'instructions' ? activePlanInstructionTags : activePlanOrderTags[key] ?? [])
+            .filter(tag => selectedTags.has(tagSelKey(key, tag)))
+            .map(tag => ({ key, tag }))),
+        [activePlanOrderTags, activePlanInstructionTags, selectedTags]);
+    const selectedCount = selectedSets.size + selectedTagItems.length;
+    const hasEditable = activePlanOrderSets.some(canEditSet)
+        || ALL_KEYS.some(key => (key === 'instructions' ? activePlanInstructionTags : activePlanOrderTags[key] ?? []).some(t => canEditTag(key, t)));
+
+    // ── Container header: Add + ⋯ (cluster picker + Share/Export/Import) ──
     const clusterItem = useClusterEditItem({ selectedClinicId: editingClinicId, onSelect: setEditingClinicId });
     const { items: transferItems, overlays: transferOverlays } = useNoteBlocksTransferItems({
         baseName: 'order sets',
         kind: 'orderSets',
+        cardHost,
         data: { planOrderSets, planOrderTags, planInstructionTags },
         hasData: planOrderSets.length > 0 || planInstructionTags.length > 0 || Object.values(planOrderTags).some(v => v.length > 0),
     });
-    const orderSetCornerItems = [...(clusterItem ? [clusterItem] : []), ...transferItems];
+    const addItems: ContextMenuItem[] = [
+        { key: 'new-set', label: 'New order set', icon: ListChecks, onAction: () => setOrderSetPopover({ mode: 'new' }) },
+        { key: 'new-tag', label: 'New tag', icon: Tag, onAction: () => setTagPopover({ mode: 'new' }) },
+        ...(hasEditable ? [{ key: 'multiselect', label: 'Multiselect', icon: CheckSquare, onAction: () => setSelectMode(true) }] : []),
+    ];
+    const moreItems: ContextMenuItem[] = [...(clusterItem ? [clusterItem] : []), ...transferItems];
+
+    usePublishHeaderActions(selectMode ? (
+        <>
+            {selectedCount > 0 && (
+                <PillButton icon={Trash2} iconSize={18} variant="danger" label={`Delete ${selectedCount}`} onClick={() => setConfirmDelete(true)} />
+            )}
+            <PillButton icon={Check} iconSize={18} label="Done" onClick={exitSelect} />
+        </>
+    ) : (
+        <>
+            <HeaderMenuPill icon={Plus} label="Add" items={addItems} />
+            <HeaderMenuPill items={moreItems} />
+        </>
+    ));
 
     return (
         <>
+            {/* The pane body owns its scroll (the desktop subpage card is `fill`). */}
+            <div className="h-full overflow-y-auto overscroll-contain">
             <div className="px-3 pb-2 pt-[calc(var(--drawer-header-h,3.5rem)+0.75rem)]">
                 <SearchInput
                     value={searchQuery}
@@ -275,8 +345,10 @@ export const PlanPanel = ({ cardHost }: { cardHost?: CardMorphHost } = {}) => {
             </div>
             <div className="px-5 py-4 space-y-5">
                     <p className="text-[10pt] text-tertiary leading-relaxed">
-                        Manage order tags and order sets for the plan section of your notes.
-                        {(clinicPlanOrderTags || (clinicPlanOrderSets?.length ?? 0) > 0) && (
+                        {selectMode
+                            ? 'Select order sets and tags to delete.'
+                            : 'Manage order tags and order sets for the plan section of your notes.'}
+                        {!selectMode && (clinicPlanOrderTags || (clinicPlanOrderSets?.length ?? 0) > 0) && (
                             <span className="text-tertiary"> Includes cluster-wide items.</span>
                         )}
                     </p>
@@ -286,16 +358,10 @@ export const PlanPanel = ({ cardHost }: { cardHost?: CardMorphHost } = {}) => {
                         clinicOrderSetIds={clinicOrderSetIds}
                         isSupervisorRole={isSupervisorRole}
                         filter={searchQuery}
-                        onTapRow={(os, anchor) => setOrderSetPopover({
-                            mode: 'edit',
-                            anchor: anchor.getBoundingClientRect(),
-                            orderSet: os,
-                            isClinic: clinicOrderSetIds.has(os.id),
-                        })}
-                        onTapNew={(anchor) => setOrderSetPopover({ mode: 'new', anchor: anchor.getBoundingClientRect() })}
-                        onShareItem={(os) => transfer.share({ planOrderSets: [os] }, os.name)}
-                        onDeleteItem={(os) => deleteOrderSet(clinicOrderSetIds.has(os.id) ? 'clinic' : 'personal', os.id)}
-                        cornerItems={orderSetCornerItems}
+                        onTapRow={(os, el) => rowMenu.open(el, setActions(os, true))}
+                        selectMode={selectMode}
+                        selectedIds={selectedSets}
+                        onToggleSelect={(os) => setSelectedSets(prev => toggleIn(prev, os.id))}
                     />
 
                     <PlanTagManager
@@ -304,19 +370,22 @@ export const PlanPanel = ({ cardHost }: { cardHost?: CardMorphHost } = {}) => {
                         clinicTagSets={clinicTagSets}
                         isSupervisorRole={isSupervisorRole}
                         filter={searchQuery}
-                        onTapTag={(key, tag, anchor) => setTagPopover({
-                            mode: 'edit',
-                            anchor: anchor.getBoundingClientRect(),
-                            key,
-                            original: tag,
-                            isClinic: clinicTagSets[key]?.has(tag) ?? false,
-                        })}
-                        onTapNew={(anchor) => setTagPopover({ mode: 'new', anchor: anchor.getBoundingClientRect() })}
-                        onShareItem={(key, tag) => transfer.share(tagToData(key, tag), tag)}
-                        onDeleteItem={(key, tag) => deleteTag((clinicTagSets[key]?.has(tag) ?? false) ? 'clinic' : 'personal', key, tag)}
-                        onDeleteMany={deleteTags}
+                        onTapTag={(key, tag, el) => rowMenu.open(el, tagActions(key, tag))}
+                        selectMode={selectMode}
+                        selected={selectedTags}
+                        onToggleSelect={(key, tag) => setSelectedTags(prev => toggleIn(prev, tagSelKey(key, tag)))}
                     />
             </div>
+            </div>
+
+            {rowMenu.node}
+
+            <OrderSetView
+                orderSet={viewSet}
+                onClose={() => setViewSet(null)}
+                items={viewSet ? setActions(viewSet, false) : []}
+                cardHost={cardHost}
+            />
 
             <TagEditPopover
                 state={tagPopover}
@@ -339,11 +408,68 @@ export const PlanPanel = ({ cardHost }: { cardHost?: CardMorphHost } = {}) => {
                 cardHost={cardHost}
             />
 
+            <ConfirmDialog
+                visible={confirmDelete}
+                variant="danger"
+                title={`Delete ${selectedCount} item${selectedCount === 1 ? '' : 's'}?`}
+                subtitle={selectedTagItems.length > 0 ? "Deleted tags are also removed from any order sets that use them." : undefined}
+                confirmLabel="Delete"
+                onConfirm={() => {
+                    deleteMany(selectedTagItems, selectedSets);
+                    setConfirmDelete(false);
+                    exitSelect();
+                }}
+                onCancel={() => setConfirmDelete(false)}
+            />
+
             {transfer.picker}
             {transferOverlays}
         </>
     );
 };
+
+/** Read-only order set: its tags grouped by category. Item actions ride the ⋯. */
+function OrderSetView({ orderSet, onClose, items, cardHost }: {
+    orderSet: PlanOrderSet | null;
+    onClose: () => void;
+    items: ContextMenuItem[];
+    cardHost?: CardMorphHost;
+}) {
+    return (
+        <ContentStack
+            isOpen={!!orderSet}
+            onClose={onClose}
+            initial={{ key: 'view' }}
+            cardHost={cardHost}
+            screens={{
+                view: {
+                    title: orderSet?.name ?? 'Order set',
+                    headerActions: <HeaderMenuPill items={items} />,
+                    render: () => {
+                        const keys = orderSet ? ALL_KEYS.filter(k => (orderSet.presets[k]?.length ?? 0) > 0) : [];
+                        if (keys.length === 0) return <p className="text-[10pt] text-tertiary py-6 text-center">No tags in this order set</p>;
+                        return (
+                            <div className="pb-2">
+                                {keys.map(k => (
+                                    <div key={k}>
+                                        <div className="border-b border-primary/6">
+                                            <ListGroupLabel>{CATEGORY_META[k].label}</ListGroupLabel>
+                                        </div>
+                                        {orderSet!.presets[k]!.map(tag => (
+                                            <p key={tag} className="px-4 py-2 text-sm text-primary break-words border-b border-primary/6 last:border-0">
+                                                {planTagDisplay(k, tag)}
+                                            </p>
+                                        ))}
+                                    </div>
+                                ))}
+                            </div>
+                        );
+                    },
+                },
+            }}
+        />
+    );
+}
 
 /** Build a single-tag note-blocks payload — instructions land in their own list,
  *  every other category goes under planOrderTags keyed by category. */
@@ -509,7 +635,7 @@ function TagEditPopover({ state, onClose, isSupervisorRole, hasClinic, onSubmitM
     const editTitle = isEdit ? `Edit ${editMeta?.label ?? ''} tag` : newTitle;
 
     // Modifiers (category + scope) → header ellipsis; only on new (category/scope
-    // are fixed when editing). Footer carries the primary commit (Save, right).
+    // are fixed when editing). Save → header check.
     const modifierItems: ContextMenuItem[] = [];
     if (!isEdit) {
         modifierItems.push({
@@ -537,15 +663,9 @@ function TagEditPopover({ state, onClose, isSupervisorRole, hasClinic, onSubmitM
         }
     }
 
-    // Left footer: "Add additional" appends a shapeable row for the next tag.
-    // Rendered only once the current last row has content (no dimmed dead-end,
+    // Multi-add: the dashed EmptyState add-row under the latest row appends a row
+    // for the next tag. Rendered only once that row has content (no dimmed dead-end,
     // no stacked blanks); the array grows one non-empty row at a time.
-    const addFooter = !isEdit && lastFilled ? (
-        <FooterPill>
-            <ActionButton icon={Plus} label="Add additional" onClick={addRow} />
-        </FooterPill>
-    ) : undefined;
-
     const body = isEdit ? (
             <div className="px-3 py-2 space-y-1.5">
             <div className="flex items-center gap-2">
@@ -604,56 +724,34 @@ function TagEditPopover({ state, onClose, isSupervisorRole, hasClinic, onSubmitM
                     {isMedCategory && <SigInput value={sigs[i] ?? ''} onChange={(v) => setSigAt(i, v)} onEnter={handleSave} />}
                     </div>
                 ))}
+                {lastFilled && (
+                    <div className="px-3 pt-1 pb-2">
+                        <EmptyState title="Add another" action={{ icon: Plus, label: 'Add another', onClick: addRow }} />
+                    </div>
+                )}
             </div>
         );
 
-    if (cardHost) {
-        // In the card, Save rides the header and renders only when usable.
-        return (
-            <OverlayStack
-                isOpen={isOpen}
-                onClose={onClose}
-                initial={{ key: 'edit' }}
-                cardHost={cardHost}
-                screens={{
-                    edit: {
-                        title: editTitle,
-                        headerActions: (
-                            <>
-                                <OverlayHeaderMenu items={modifierItems} />
-                                {canSave && <PillButton icon={Check} iconSize={18} accent="success" label="Save" onClick={handleSave} />}
-                            </>
-                        ),
-                        footer: addFooter,
-                        render: () => body,
-                    },
-                }}
-            />
-        );
-    }
-
+    // Save rides the header and renders only when usable; modifiers ride the ⋯.
     return (
-        <PreviewOverlay
+        <ContentStack
             isOpen={isOpen}
             onClose={onClose}
-            anchorRect={state?.anchor ?? null}
-            title={editTitle}
-            maxWidth={360}
-            headerActions={<OverlayHeaderMenu items={modifierItems} />}
-            footer={addFooter}
-            rightFooter={
-                <FooterPill side="right">
-                    <ActionButton
-                        icon={Check}
-                        label="Save"
-                        variant={canSave ? 'confirm' : 'disabled'}
-                        onClick={handleSave}
-                    />
-                </FooterPill>
-            }
-        >
-            {body}
-        </PreviewOverlay>
+            initial={{ key: 'edit' }}
+            cardHost={cardHost}
+            screens={{
+                edit: {
+                    title: editTitle,
+                    headerActions: (
+                        <>
+                            <HeaderMenuPill items={modifierItems} />
+                            {canSave && <PillButton icon={Check} iconSize={18} accent="success" label="Save" onClick={handleSave} />}
+                        </>
+                    ),
+                    render: () => body,
+                },
+            }}
+        />
     );
 }
 
@@ -742,8 +840,7 @@ function OrderSetEditPopover({
 
     const osTitle = isEdit ? 'Edit order set' : 'New order set';
 
-    // Scope modifier → header ellipsis (new + supervisor only). Primary commit
-    // (Save) rides the bottom-right footer.
+    // Scope modifier → header ellipsis (new + supervisor only). Save → header check.
     const modifierItems: ContextMenuItem[] = [];
     if (!isEdit && supervisorScopeAvailable) {
         modifierItems.push({
@@ -795,65 +892,31 @@ function OrderSetEditPopover({
         </div>
     );
 
-    if (cardHost) {
-        // In the card the search is local to the body: the stack shell's pinned
-        // search has no clear hook, and picking a tag should reset the filter.
-        return (
-            <OverlayStack
-                isOpen={isOpen}
-                onClose={onClose}
-                initial={{ key: 'edit' }}
-                cardHost={cardHost}
-                screens={{
-                    edit: {
-                        title: osTitle,
-                        headerActions: (
-                            <>
-                                <OverlayHeaderMenu items={modifierItems} />
-                                {canSave && <PillButton icon={Check} iconSize={18} accent="success" label="Save" onClick={handleSave} />}
-                            </>
-                        ),
-                        render: () => <LocalSearch placeholder="Search tags" pinned={nameField}>{renderList}</LocalSearch>,
-                    },
-                }}
-            />
-        );
-    }
-
+    // The search is local to the body: picking a tag resets the filter.
     return (
-        <PreviewOverlay
+        <ContentStack
             isOpen={isOpen}
             onClose={onClose}
-            anchorRect={state?.anchor ?? null}
-            title={osTitle}
-            maxWidth={520}
-            previewMaxHeight="40dvh"
-            searchPlaceholder="Search tags"
-            preview={(filter, clearFilter) => (
-                <div>
-                    {/* Sits on the PreviewOverlay card surface — a distinct bg here
-                        reads as a second, standalone search bar under the real one. */}
-                    <div className="sticky top-0 z-10 bg-themewhite3">{nameField}</div>
-                    {renderList(filter, clearFilter)}
-                </div>
-            )}
-            headerActions={<OverlayHeaderMenu items={modifierItems} />}
-            rightFooter={
-                <FooterPill side="right">
-                    <ActionButton
-                        icon={Check}
-                        label="Save"
-                        variant={canSave ? 'confirm' : 'disabled'}
-                        onClick={handleSave}
-                    />
-                </FooterPill>
-            }
+            initial={{ key: 'edit' }}
+            cardHost={cardHost}
+            screens={{
+                edit: {
+                    title: osTitle,
+                    headerActions: (
+                        <>
+                            <HeaderMenuPill items={modifierItems} />
+                            {canSave && <PillButton icon={Check} iconSize={18} accent="success" label="Save" onClick={handleSave} />}
+                        </>
+                    ),
+                    render: () => <LocalSearch placeholder="Search tags" pinned={nameField}>{renderList}</LocalSearch>,
+                },
+            }}
         />
     );
 }
 
-/** Search row owned by the body, for card-hosted editors whose filter must be
- *  clearable from inside (see OrderSetEditPopover). `pinned` sticks with it. */
+/** Search row owned by the body, for editors whose filter must be clearable from
+ *  inside (see OrderSetEditPopover). `pinned` sticks with it. */
 function LocalSearch({ placeholder, pinned, children }: {
     placeholder: string;
     pinned?: ReactNode;

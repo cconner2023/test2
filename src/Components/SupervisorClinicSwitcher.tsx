@@ -93,15 +93,21 @@ export function SupervisorClinicFilterPanel() {
  * Shown only to users with at least one active loan. value/onChange override
  * the calendar's clusterFilter (pass both or neither).
  */
-export function ClusterFilterPanel({ value, onChange }: { value?: string[] | null; onChange?: (ids: string[] | null) => void } = {}) {
-  const options = useSupervisorContextOptions()
+export function ClusterFilterPanel({ value, onChange, allowedIds }: {
+  value?: string[] | null
+  onChange?: (ids: string[] | null) => void
+  /** Narrow the options (Tracking Board: only clusters on the board). Fewer than two left = no panel. */
+  allowedIds?: string[]
+} = {}) {
+  const all = useSupervisorContextOptions()
+  const options = all && allowedIds ? all.filter(c => allowedIds.includes(c.id)) : all
   const calendar = useCalendarStore(useShallow(s => ({
     clusterFilter: s.clusterFilter,
     setClusterFilter: s.setClusterFilter,
   })))
   const clusterFilter = onChange ? value ?? null : calendar.clusterFilter
   const setClusterFilter = onChange ?? calendar.setClusterFilter
-  if (!options) return null
+  if (!options || options.length < 2) return null
 
   const activeSet = clusterFilter === null ? new Set(options.map(c => c.id)) : new Set(clusterFilter)
   const toggle = (id: string) => {

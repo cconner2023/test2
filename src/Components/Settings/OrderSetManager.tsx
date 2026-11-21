@@ -1,87 +1,82 @@
-import { Plus, MessageSquare, Trash2, Building2 } from 'lucide-react';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { Building2 } from 'lucide-react';
+import { useMemo } from 'react';
 import type { PlanOrderSet, PlanBlockKey } from '../../Data/User';
 import { PLAN_ORDER_CATEGORIES } from '../../Data/User';
-import { OverlayActionMenu } from '@/Components/primitives/OverlayActionMenu';
-import { LiftedRowMenu } from '@/Components/primitives/LiftedRowMenu';
-import { liftPressHandlers, type LiftPressState, type LiftSnapshot } from '../liftPress';
-import type { ContextMenuItem } from '@/Components/primitives/ContextMenu';
 import { planTagDisplay } from '@/Utilities/medTag';
 import { PageSectionHeader } from '@/Components/primitives/Section';
+import { SelectBox } from './contentPrimitives';
 
 const ALL_PLAN_BLOCK_KEYS: PlanBlockKey[] = [...PLAN_ORDER_CATEGORIES, 'instructions'];
+
+export const orderSetTags = (os: PlanOrderSet): string[] =>
+    ALL_PLAN_BLOCK_KEYS.flatMap(k => (os.presets[k] ?? []).map(t => planTagDisplay(k, t)));
 
 interface OrderSetManagerProps {
     orderSets: PlanOrderSet[];
     clinicOrderSetIds: Set<string>;
     isSupervisorRole?: boolean;
     filter?: string;
-    onTapRow: (os: PlanOrderSet, anchor: HTMLElement) => void;
-    onTapNew: (anchor: HTMLElement) => void;
-    /** Cluster picker + Share/Export/Import items, folded into the single corner ⋯
-     *  menu alongside the New action this manager owns. */
-    cornerItems?: ContextMenuItem[];
-    /** Per-row actions (long-press / right-click lifted-row menu). When any are
-     *  set, editable rows raise a clone-and-menu with Share / Delete. */
-    onShareItem?: (os: PlanOrderSet) => void;
-    onDeleteItem?: (os: PlanOrderSet) => void;
+    /** Tap a row → the panel lifts it and drops its item menu. */
+    onTapRow: (os: PlanOrderSet, el: HTMLElement) => void;
+    /** Multiselect (driven by the panel header's Add menu). */
+    selectMode?: boolean;
+    selectedIds?: Set<string>;
+    onToggleSelect?: (os: PlanOrderSet) => void;
 }
 
+/** Order set list. Add / Multiselect live on the container header; item actions
+ *  ride the tapped row. */
 export const OrderSetManager = ({
-    orderSets, clinicOrderSetIds, isSupervisorRole, filter = '', onTapRow, onTapNew, cornerItems,
-    onShareItem, onDeleteItem,
+    orderSets, clinicOrderSetIds, isSupervisorRole, filter = '', onTapRow,
+    selectMode = false, selectedIds, onToggleSelect,
 }: OrderSetManagerProps) => {
-    const fabRef = useRef<HTMLDivElement>(null);
-
-    // Lift-and-clone row menu (long-press / right-click) — Share / Delete
-    // ride the row itself (clone includes the text) instead of an editor-header icon.
-    const [lifted, setLifted] = useState<({ os: PlanOrderSet } & LiftSnapshot) | null>(null);
-    const pressRef = useRef<LiftPressState | null>(null);
-    const hasRowActions = !!(onShareItem || onDeleteItem);
-    const makeHandlers = useCallback((os: PlanOrderSet) =>
-        liftPressHandlers((snap) => setLifted({ os, ...snap }), pressRef), []);
-
-    const collectTags = (os: PlanOrderSet): string[] =>
-        ALL_PLAN_BLOCK_KEYS.flatMap(k => (os.presets[k] ?? []).map(t => planTagDisplay(k, t)));
-
     const lc = filter.trim().toLowerCase();
     const visibleSets = useMemo(() => {
         if (!lc) return orderSets;
         return orderSets.filter(os =>
             os.name.toLowerCase().includes(lc) ||
-            collectTags(os).some(t => t.toLowerCase().includes(lc))
+            orderSetTags(os).some(t => t.toLowerCase().includes(lc))
         );
     }, [orderSets, lc]);
 
     return (
         <section>
             <PageSectionHeader>Order Sets</PageSectionHeader>
-            <div className="relative"><div className="rounded-xl bg-themewhite2 overflow-hidden">
+            <div className="rounded-xl bg-themewhite2 overflow-hidden">
                 <div className="px-4 py-3">
                     {visibleSets.length > 0 ? (
                         <div className="space-y-0.5">
                             {visibleSets.map(os => {
-                                const tags = collectTags(os);
+                                const tags = orderSetTags(os);
                                 const isClinic = clinicOrderSetIds.has(os.id);
                                 const canEdit = !isClinic || (isSupervisorRole ?? false);
+                                const selectable = selectMode && canEdit;
+                                const checked = selectedIds?.has(os.id) ?? false;
                                 return (
                                     <button
                                         key={os.id}
                                         type="button"
-                                        disabled={!canEdit}
-                                        onClick={(e) => { if (pressRef.current?.fired) return; onTapRow(os, e.currentTarget); }}
-                                        {...(canEdit && hasRowActions ? makeHandlers(os) : {})}
-                                        className="w-full text-left py-2 px-2 rounded-lg cursor-pointer active:scale-[0.98] disabled:active:scale-100 hover:bg-tertiary/5 transition-all"
+                                        disabled={selectMode && !canEdit}
+                                        onClick={(e) => {
+                                            if (selectMode) { if (selectable) onToggleSelect?.(os); return; }
+                                            onTapRow(os, e.currentTarget);
+                                        }}
+                                        className="w-full text-left py-2 px-2 rounded-lg cursor-pointer active:scale-[0.98] disabled:active:scale-100 disabled:opacity-50 hover:bg-tertiary/5 transition-all"
                                     >
-                                        <div className="flex items-center">
-                                            <p className="text-sm font-medium text-primary truncate">{os.name}</p>
-                                            {isClinic && (
-                                                <Building2 size={12} className="text-themeblue2 shrink-0 ml-1.5" aria-label="Cluster" />
-                                            )}
+                                        <div className="flex items-center gap-2.5">
+                                            {selectable && <SelectBox checked={checked} />}
+                                            <div className="min-w-0 flex-1">
+                                                <div className="flex items-center">
+                                                    <p className="text-sm font-medium text-primary truncate">{os.name}</p>
+                                                    {isClinic && (
+                                                        <Building2 size={12} className="text-themeblue2 shrink-0 ml-1.5" aria-label="Cluster" />
+                                                    )}
+                                                </div>
+                                                {tags.length > 0 && (
+                                                    <p className="text-[9pt] text-tertiary mt-0.5 pl-0.5 break-words">{tags.join(', ')}</p>
+                                                )}
+                                            </div>
                                         </div>
-                                        {tags.length > 0 && (
-                                            <p className="text-[9pt] text-tertiary mt-0.5 pl-0.5 break-words">{tags.join(', ')}</p>
-                                        )}
                                     </button>
                                 );
                             })}
@@ -92,30 +87,7 @@ export const OrderSetManager = ({
                         </p>
                     )}
                 </div>
-                </div>
-                <OverlayActionMenu
-                    ref={fabRef}
-                    shadow="sm"
-                    items={[
-                        { key: 'new', label: 'New order set', icon: Plus, onAction: () => fabRef.current && onTapNew(fabRef.current) },
-                        ...(cornerItems ?? []),
-                    ]}
-                />
             </div>
-
-            {lifted && (
-                <LiftedRowMenu
-                    isOpen
-                    anchorRect={lifted.rect}
-                    row={<div dangerouslySetInnerHTML={{ __html: lifted.html }} />}
-                    onClose={() => setLifted(null)}
-                    layout="list"
-                    items={[
-                        ...(onShareItem ? [{ key: 'share', label: 'Share to chat', icon: MessageSquare, onAction: () => onShareItem(lifted.os) }] : []),
-                        ...(onDeleteItem ? [{ key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => onDeleteItem(lifted.os) }] : []),
-                    ] as ContextMenuItem[]}
-                />
-            )}
         </section>
     );
 };

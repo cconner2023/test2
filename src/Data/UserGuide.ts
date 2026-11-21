@@ -372,21 +372,20 @@ export const UserGuide: GuideChapter[] = [
             {
                 id: 'tracking-sharing',
                 title: 'Sharing the Tracking Board',
-                summary: 'Link your cluster\'s board with its parent cluster using Sending and Receiving.',
+                summary: 'Send your stations to specific clusters, and receive theirs.',
                 tier: 'supervisor',
                 blocks: [
-                    { kind: 'p', text: ['A Tracking Board stays inside its cluster until supervisors link it. Open the board settings with the ', { btn: 'settings' }, ' gear and use the Sharing toggles. Both are off by default.'] },
+                    { kind: 'p', text: ['A Tracking Board stays inside its cluster until supervisors link it. Open the board settings with the ', { btn: 'settings' }, ' gear. Sharing is set one cluster at a time, and all of it is off by default.'] },
                     {
                         kind: 'list', items: [
-                            'Sending: your parent cluster sees your board when it is receiving.',
-                            'Receiving: you see the boards of clusters under you that are sending.',
+                            'Send stations to: turn on each cluster that should get your stations. You can pick your parent cluster, the clusters under you, and your sibling clusters.',
+                            'Receive stations from: a cluster shows here once it sends to you. Turn it on to accept.',
                         ]
                     },
-                    { kind: 'p', text: 'A link needs both sides: the lower cluster sends and the upper cluster receives. To reach more than one echelon up, every link in the chain must be on.' },
+                    { kind: 'p', text: 'A link needs both sides: one cluster sends and the other receives. The receiving cluster then sees those stations on its board, and on its map as a view-only overlay that you turn on from the overlay list. The sending cluster\'s own map does not change.' },
                     {
                         kind: 'list', items: [
-                            'Patients are shared upward only. A parent cluster sees patients checked in below it, but a lower cluster does not see its parent\'s patients.',
-                            'Stations are shared across active links in both directions, and between sibling clusters under the same parent.',
+                            'Patients are shared upward only, over a live link to the parent cluster. A parent cluster sees patients checked in below it, but a lower cluster does not see its parent\'s patients. To reach more than one echelon up, every link in the chain must be on.',
                             'Stations reach a newly linked cluster once a member of the cluster that owns them opens the board.',
                         ]
                     },
@@ -595,15 +594,15 @@ export const UserGuide: GuideChapter[] = [
                         id: 'tracking-stations',
                         title: 'Setting up stations',
                         blocks: [
-                            { kind: 'p', text: 'Stations are map pins. Pending and Completed are default, and anything inbetween is up to your specific AXP or CCPs' },
+                            { kind: 'p', text: 'Stations are map features. Pending and Completed are default, and anything inbetween is up to your specific AXP or CCPs' },
                             {
                                 kind: 'steps', items: [
-                                    'On the map, drop a pin where the station is (or use one you already have).',
-                                    'Turn on Add to tracking board. The pin\'s name becomes the station name.',
-                                    ['Open the board settings with the ', { btn: 'settings' }, ' gear. Toggle under Your stations and Other clusters to choose which stations appear on your board.'],
+                                    'On any map, add the feature where the station is (or use one you already have).',
+                                    'Edit it and turn on Add to tracking board. The feature\'s name becomes the station name.',
+                                    'All your stations show on your board. Stations from a cluster that sends to you show too, once you receive from it.',
                                 ]
                             },
-                            { kind: 'note', text: 'Rename or remove a station on the map; only the cluster that owns the pin can do this. If a station is removed, casualties who were at it go back to Pending.' },
+                            { kind: 'note', text: 'Rename or remove a station on the map; only the cluster that owns it can do this. If a station is removed, casualties who were at it go back to Pending.' },
                         ],
                     },
                     {

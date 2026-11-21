@@ -6,13 +6,15 @@
  *    tracking_data (Types/TrackingTypes.ts), fanned to origin + every ancestor
  *    (tracking_clinic_chain). Visibility therefore = origin + ancestors: an
  *    entry reaches a board only when the viewer is its origin or above it.
- *  - STATIONS ARE MAP PINS. A waypoint with `tracking: true` (pin editor →
- *    "Add to tracking board") is a station; AXPs, CCPs, tents — all just pins.
- *    Only the overlay's own cluster edits / removes the pin (on the map). Other
- *    related clusters toggle it onto their board in board settings →
- *    `tracking_clinic_ids`. Overlays reach related clusters via target_clinic_ids.
- *  - A position is a pin ref { overlay_id, feature_id } or null = UNASSIGNED.
- *    A board lists each station once, under the first cluster using it.
+ *  - STATIONS ARE MAP FEATURES. Any feature on any map with `tracking: true`
+ *    (feature editor → "Add to tracking board") is a station. Only the
+ *    overlay's own cluster edits / removes it (on the map).
+ *  - Sharing is cluster-to-cluster (2026-11-20): A sends to B, B receives from
+ *    A → B's board gets A's stations, and B's map a view-only copy of A's
+ *    overlays holding just those features. Overlays reach B via
+ *    target_clinic_ids. No per-station opt-in.
+ *  - A position is a feature ref { overlay_id, feature_id } or null = Pending.
+ *    A board groups stations under the cluster that owns them.
  *  - Entries hold pin refs only → renames show up everywhere; a removed pin (or
  *    one no longer a station) resolves AT READ TIME to Pending
  *    (resolvePlaces). Events are never rewritten for it.
@@ -28,7 +30,7 @@
 
 import type { LinkedFeatureRef } from '../../Types/MissionTypes'
 import type { CalendarEvent } from '../../Types/CalendarTypes'
-import type { LocalMapOverlay, OverlayFeature } from '../../Types/MapOverlayTypes'
+import type { LocalMapOverlay } from '../../Types/MapOverlayTypes'
 import {
   TRACKING_MAX_ENTRIES, isTrackingExpired,
   type TrackingData, type TrackingMove, type TrackingTransit, type TrackingComment, type TrackingPosition,
@@ -48,15 +50,13 @@ export interface TrackingCluster {
   parentId: string | null
 }
 
-/** A station — a tracking pin, flattened. */
+/** A station — a tracking feature, flattened. */
 export interface TrackingPlace {
   overlayId: string
   featureId: string
   label: string
-  /** The overlay's cluster — the only one that edits / removes the pin. */
+  /** The overlay's cluster — owns the station; the only one that edits / removes it. */
   clinicId: string
-  /** Clusters showing it on their board. */
-  targetClinicIds: string[]
 }
 
 /** Board view of one entry (derived from its calendar event). */
@@ -78,7 +78,7 @@ export interface TrackingEntry {
 
 export interface TrackingNetwork {
   clusters: TrackingCluster[]
-  /** Every tracking pin the viewer's device knows (own + related clusters'). */
+  /** Every station the board shows — own + live senders'. */
   places: TrackingPlace[]
 }
 
@@ -101,16 +101,15 @@ export function buildClusters(rows: { id: string; label: string; uic: string; pa
   return rows.map(r => ({ ...r, echelon: max - (depths.get(r.id) ?? 0) + 1 }))
 }
 
-/** Tracking pins → stations. Unset tracking_clinic_ids = the overlay's cluster only. */
+/** Tracking features → stations. */
 export const derivePlaces = (overlays: LocalMapOverlay[]): TrackingPlace[] =>
   overlays.flatMap(o => o.features
-    .filter(f => f.tracking && f.type === 'waypoint')
+    .filter(f => f.tracking)
     .map(f => ({
       overlayId: o.id,
       featureId: f.id,
       label: f.label || 'Station',
       clinicId: o.clinic_id,
-      targetClinicIds: f.tracking_clinic_ids ?? [o.clinic_id],
     })))
 
 /** Calendar event → board entry. Soft-deleted comments and stale transit dropped. */
@@ -135,39 +134,6 @@ export function toEntry(ev: CalendarEvent): TrackingEntry | null {
 
 export const clusterById = (clusters: TrackingCluster[], id: string) => clusters.find(c => c.id === id)
 
-/** `id` + every ancestor, nearest first. */
-export function ancestorChain(clusters: TrackingCluster[], id: string): string[] {
-  const out: string[] = []
-  let cur = clusterById(clusters, id)
-  if (!cur) return [id]
-  while (cur && !out.includes(cur.id)) {
-    out.push(cur.id)
-    cur = cur.parentId ? clusterById(clusters, cur.parentId) : undefined
-  }
-  return out
-}
-
-/** `id` + every descendant. */
-export function subtree(clusters: TrackingCluster[], id: string): Set<string> {
-  const out = new Set<string>([id])
-  let grew = true
-  while (grew) {
-    grew = false
-    for (const c of clusters) {
-      if (c.parentId && out.has(c.parentId) && !out.has(c.id)) { out.add(c.id); grew = true }
-    }
-  }
-  return out
-}
-
-/** Clusters whose stations `id` knows about: ancestors, descendants, siblings. */
-export function relatedClusters(clusters: TrackingCluster[], id: string): Set<string> {
-  const out = new Set([...ancestorChain(clusters, id), ...subtree(clusters, id)])
-  const parent = clusterById(clusters, id)?.parentId
-  if (parent) for (const c of clusters) if (c.parentId === parent) out.add(c.id)
-  return out
-}
-
 // ── Place helpers ──
 
 /** Stable key for a position — `pl:<feature id>` or `pending`. */
@@ -178,15 +144,9 @@ export const refOf = (p: TrackingPlace): LinkedFeatureRef => ({ overlay_id: p.ov
 export const placeByRef = (net: TrackingNetwork, ref: LinkedFeatureRef) =>
   net.places.find(p => p.featureId === ref.feature_id && p.overlayId === ref.overlay_id)
 
-/** Stations a cluster shows on its board, in network order. */
-export const placesOf = (net: TrackingNetwork, clinicId: string) =>
-  net.places.filter(p => p.targetClinicIds.includes(clinicId))
-
-/** Stations a cluster can toggle in board settings — its own pins plus related clusters'. */
-export const knownPlaces = (net: TrackingNetwork, clinicId: string) => {
-  const related = relatedClusters(net.clusters, clinicId)
-  return net.places.filter(p => related.has(p.clinicId))
-}
+/** Stations a cluster owns, in network order. */
+const placesOf = (net: TrackingNetwork, clinicId: string) =>
+  net.places.filter(p => p.clinicId === clinicId)
 
 // ── Position helpers ──
 
@@ -268,48 +228,28 @@ export interface BoardPlace {
   label: string
 }
 
-/** A column group: one cluster's stations. Pending sits outside every group. */
+/** A column group: the stations one cluster owns. Pending sits outside every group. */
 export interface BoardGroupDef {
   cluster: TrackingCluster
   places: BoardPlace[]
 }
 
 /**
- * Groups along the patient flow (Role I → Role III). A shared station appears
- * ONCE — under the first listed cluster showing it. Clusters with no stations
- * left are dropped.
+ * A viewer's board: every known station, grouped by owning cluster — the
+ * viewer's own first, then along the patient flow (Role I → Role III).
+ * Clusters with no stations are dropped.
  */
-function buildGroups(net: TrackingNetwork, clusterIds: Set<string>): BoardGroupDef[] {
-  const placed = new Set<string>()
+export function boardLayout(net: TrackingNetwork, viewerId: string): BoardGroupDef[] {
   return net.clusters
-    .filter(c => clusterIds.has(c.id))
-    .sort((a, b) => a.echelon - b.echelon || a.label.localeCompare(b.label))
-    .map(c => {
-      const own = placesOf(net, c.id).filter(p => !placed.has(p.featureId))
-      own.forEach(p => placed.add(p.featureId))
-      return { cluster: c, places: own.map(p => ({ pos: refOf(p), label: p.label })) }
-    })
+    .slice()
+    .sort((a, b) => Number(b.id === viewerId) - Number(a.id === viewerId) || a.echelon - b.echelon || a.label.localeCompare(b.label))
+    .map(c => ({ cluster: c, places: placesOf(net, c.id).map(p => ({ pos: refOf(p), label: p.label })) }))
     .filter(g => g.places.length > 0)
 }
 
-/**
- * A viewer's board: its subtree's clusters, plus the pin's cluster for any
- * entry sitting at a station nobody on the board shows (moved above the viewer,
- * or checked in by a loan cluster outside it).
- */
-export function boardLayout(net: TrackingNetwork, viewerId: string, entries: TrackingEntry[]): BoardGroupDef[] {
-  const clusterIds = subtree(net.clusters, viewerId)
-  for (const e of entries) {
-    const p = positionOf(e)
-    const pl = p && placeByRef(net, p)
-    if (pl && !pl.targetClinicIds.some(id => clusterIds.has(id))) clusterIds.add(pl.targetClinicIds.includes(pl.clinicId) ? pl.clinicId : pl.targetClinicIds[0])
-  }
-  return buildGroups(net, clusterIds)
-}
-
-/** Stations an entry may move to: what its origin's chain shows, lowest echelon first. */
-export const moveTargets = (net: TrackingNetwork, e: TrackingEntry): BoardGroupDef[] =>
-  buildGroups(net, new Set(ancestorChain(net.clusters, e.originClinicId)))
+/** Move to / Send to targets — every station on the board, one flat list in board order. */
+export const moveTargets = (net: TrackingNetwork, viewerId: string): BoardPlace[] =>
+  boardLayout(net, viewerId).flatMap(g => g.places)
 
 // ── Writes (mutators over TrackingData — useTrackingWrite.updateEntry) ──
 
@@ -374,15 +314,3 @@ export function draftData(d: TrackingData, draft: TrackingEditDraft, by: string,
   }
 }
 
-/**
- * Board settings toggle — show / hide a station on `clinicId`'s board. Returns
- * the edited pin for useMapOverlayWrite.upsertFeature (fans to the overlay's targets).
- */
-export function toggledFeature(f: OverlayFeature, ownerClinicId: string, clinicId: string): OverlayFeature {
-  const cur = f.tracking_clinic_ids ?? [ownerClinicId]
-  return {
-    ...f,
-    tracking_clinic_ids: cur.includes(clinicId) ? cur.filter(c => c !== clinicId) : [...cur, clinicId],
-    updated_at: new Date().toISOString(),
-  }
-}

@@ -1,13 +1,12 @@
 import { useState, useRef, useCallback } from 'react'
-import { Upload, AlertTriangle, CheckCircle2, User, Building2, Variable } from 'lucide-react'
-import { Sheet } from '@/Components/primitives/Sheet'
-import { PreviewOverlay } from '../PreviewOverlay'
+import { AlertTriangle, CheckCircle2, User, Building2, Check, Upload } from 'lucide-react'
 import { Section, SectionCard } from '@/Components/primitives/Section'
-import { LoadingSpinner } from '@/Components/primitives/LoadingSpinner'
-import { useIsMobile } from '../../Hooks/useIsMobile'
-import { useAuthStore } from '../../stores/useAuthStore'
+import { SkeletonRows } from '@/Components/primitives/Skeleton'
+import { PillButton } from '@/Components/primitives/HeaderPill'
+import { UploadChip, useUploadTask } from '@/Components/primitives/UploadProgress'
+import type { CardMorphHost } from '@/Components/primitives/OverlayStack'
+import { ContentStack, SelectBox } from './contentPrimitives'
 import { useNoteBlocksCsvImport } from '../../Hooks/useNoteBlocksCsvImport'
-import type { IngestScope } from '../../Hooks/useNoteBlocksIngest'
 import {
   parseNoteBlocksCSV,
   downloadNoteBlocksTemplate,
@@ -19,6 +18,8 @@ interface Props {
   visible: boolean
   onClose: () => void
   kind: NoteBlocksCSVKind
+  /** Desktop Settings: morph into the subpage card instead of a separate pane. */
+  cardHost?: CardMorphHost
 }
 
 type Step = 'pick' | 'preview' | 'importing' | 'done'
@@ -29,57 +30,111 @@ const NOUN: Record<NoteBlocksCSVKind, string> = {
   providerTemplates: 'provider templates',
 }
 
-export function NoteBlocksCSVImportDrawer({ visible, onClose, kind }: Props) {
-  const isMobile = useIsMobile()
-  const clinicName = useAuthStore(s => s.user?.clinicName ?? null)
-  const { ctx, canImport, scopeSelectable, importParsed } = useNoteBlocksCsvImport()
+/**
+ * CSV import, a small step-machine on ContentStack (Sheet on mobile, the Settings
+ * subpage card or its own pane on desktop — never an anchored overlay).
+ *   pick    → file drop
+ *   preview → the shared file-upload chip (ring + check) for the parsed file, any
+ *             issues, and "Add to": Personal plus every cluster the user supervises
+ *             — multi-select, so one file lands in several places at once
+ *   done    → one summary line per destination
+ * Back steps preview → pick; Import / Done are the header check.
+ */
+export function NoteBlocksCSVImportDrawer({ visible, onClose, kind, cardHost }: Props) {
+  const { ctx, canImport, scopeSelectable, importParsedTo, clusterTargets } = useNoteBlocksCsvImport()
+  const upload = useUploadTask<NoteBlocksCsvParse>()
 
   const [step, setStep] = useState<Step>('pick')
   const [parsed, setParsed] = useState<NoteBlocksCsvParse | null>(null)
-  const [scope, setScope] = useState<IngestScope>('personal')
-  const [resultMsg, setResultMsg] = useState('')
+  const [targets, setTargets] = useState<Set<string>>(new Set(['personal']))
+  const [results, setResults] = useState<string[]>([])
+  /** A rejected file (wrong type / wrong sheet / empty): shown over the picker. */
+  const [pickError, setPickError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const lastFileRef = useRef<File | null>(null)
 
-  const handleClose = useCallback(() => {
+  const reset = useCallback(() => {
+    upload.clear()
     setStep('pick')
     setParsed(null)
-    setScope('personal')
-    setResultMsg('')
-    onClose()
-  }, [onClose])
+    setTargets(new Set(['personal']))
+    setResults([])
+    setPickError(null)
+  }, [upload])
+
+  const handleClose = useCallback(() => { reset(); onClose() }, [reset, onClose])
+
+  const noun = NOUN[kind]
 
   const handleFileChange = useCallback(async (file: File | null | undefined) => {
     if (fileInputRef.current) fileInputRef.current.value = ''
     if (!file) return
-    const result = await parseNoteBlocksCSV(file, kind, ctx)
-    setParsed(result)
+    lastFileRef.current = file
+    setPickError(null)
     setStep('preview')
-  }, [kind, ctx])
+    let rejected: string | null = null
+    const result = await upload.start(
+      { name: file.name, size: file.size },
+      async ({ onProgress }) => {
+        onProgress(0.4)
+        const r = await parseNoteBlocksCSV(file, kind, ctx)
+        onProgress(1)
+        if (r.previews.length === 0) {
+          rejected = r.errors[0] ?? `No ${noun} found in this file.`
+          return { ok: false, error: rejected }
+        }
+        return { ok: true, data: r }
+      },
+    )
+    if (!result) {
+      // Don't proceed on a bad file: back to the picker with the reason.
+      upload.clear()
+      setStep('pick')
+      if (rejected) setPickError(rejected)
+      return
+    }
+    setParsed(result)
+  }, [upload, kind, ctx, noun])
 
-  const previews = parsed?.previews ?? []
-  const importable = previews.length
+  const importable = parsed?.previews.length ?? 0
+  const issues = [...(parsed?.errors ?? []), ...(parsed?.warnings ?? [])]
+  const showTargets = scopeSelectable(kind) && clusterTargets.length > 0
+  const targetIds = showTargets ? [...targets] : ['personal']
+
+  const task = upload.task
 
   const handleImport = useCallback(async () => {
-    if (!parsed || !importable) return
+    if (!parsed || !importable || targetIds.length === 0) return
     setStep('importing')
-    const msg = await importParsed(parsed, scope)
-    setResultMsg(msg)
+    setResults(await importParsedTo(parsed, targetIds))
     setStep('done')
-  }, [parsed, importable, importParsed, scope])
+  }, [parsed, importable, targetIds, importParsedTo])
 
-  const noun = NOUN[kind]
-  const issues = [...(parsed?.errors ?? []), ...(parsed?.warnings ?? [])]
-  const showScope = scopeSelectable(kind)
+  const toggleTarget = (id: string) => setTargets(prev => {
+    const n = new Set(prev)
+    n.has(id) ? n.delete(id) : n.add(id)
+    return n
+  })
 
   const headerTitle =
     step === 'pick' ? `Import ${noun} CSV`
-    : step === 'preview' ? 'Preview'
+    : step === 'preview' ? 'Review import'
     : step === 'importing' ? 'Importing…'
-    : 'Import Complete'
+    : 'Import complete'
 
-  // Small step-machine: an overlay popover on desktop, a fit sheet on mobile
-  // (mirrors the map/messaging settings standard). A full BaseDrawer here nested
-  // wrong inside the Settings drawer — this is a light import surface, not a page.
+  const targetRow = (id: string, label: string, Icon: typeof User) => (
+    <button
+      key={id}
+      type="button"
+      onClick={() => toggleTarget(id)}
+      className="w-full flex items-center gap-3 px-3 py-3 border-b border-themeblue3/10 last:border-b-0 active:bg-themeblue2/5 transition-colors"
+    >
+      <Icon className="w-5 h-5 text-tertiary shrink-0" />
+      <span className="flex-1 min-w-0 text-left text-[11pt] text-primary truncate">{label}</span>
+      <SelectBox checked={targets.has(id)} />
+    </button>
+  )
+
   const body = (
     <div className="px-4 py-4">
       {step === 'pick' && (
@@ -91,6 +146,12 @@ export function NoteBlocksCSVImportDrawer({ visible, onClose, kind }: Props) {
             </div>
           ) : (
             <>
+              {pickError && (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl text-[10pt] text-amber-800 p-3 flex gap-2">
+                  <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>{pickError}</span>
+                </div>
+              )}
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
@@ -129,7 +190,14 @@ export function NoteBlocksCSVImportDrawer({ visible, onClose, kind }: Props) {
       )}
 
       {step === 'preview' && (
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-2">
+          <UploadChip
+            task={task}
+            onDismiss={reset}
+            onRetry={() => void handleFileChange(lastFileRef.current)}
+            doneLabel=""
+          />
+
           {issues.length > 0 && (
             <div className="bg-amber-50 border border-amber-200 rounded-xl text-[10pt] text-amber-800 p-3 flex gap-2">
               <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
@@ -140,119 +208,51 @@ export function NoteBlocksCSVImportDrawer({ visible, onClose, kind }: Props) {
             </div>
           )}
 
-          <p className="text-sm text-secondary">{importable} {noun} to import</p>
-
-          {importable > 0 && (
-            <Section title="Preview">
-              <SectionCard>
-                <div className="flex flex-col">
-                  {previews.slice(0, 20).map((p, i) => (
-                    <div key={i} className="border-b border-themeblue3/10 last:border-b-0 px-3 py-2 flex flex-col gap-0.5">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-primary text-[11pt] font-medium">{p.primary}</span>
-                        {p.flag && <Variable className="w-3.5 h-3.5 text-themeblue3" />}
-                      </div>
-                      <span className="text-tertiary text-[10pt] truncate">{p.secondary}</span>
-                    </div>
-                  ))}
-                  {previews.length > 20 && (
-                    <div className="px-3 py-2 text-tertiary text-center text-[10pt]">+ {previews.length - 20} more</div>
-                  )}
-                </div>
-              </SectionCard>
-            </Section>
-          )}
-
-          {importable > 0 && showScope && (
+          {importable > 0 && showTargets && (
             <Section title="Add to">
               <SectionCard>
-                <button
-                  type="button"
-                  onClick={() => setScope('personal')}
-                  className="w-full flex items-center gap-3 px-3 py-3 border-b border-themeblue3/10"
-                >
-                  <User className="w-5 h-5 text-tertiary" />
-                  <span className="flex-1 text-left text-[11pt] text-primary">My personal blocks</span>
-                  <span className={`w-4 h-4 rounded-full border-2 ${scope === 'personal' ? 'border-themeblue3 bg-themeblue3' : 'border-tertiary/40'}`} />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setScope('clinic')}
-                  className="w-full flex items-center gap-3 px-3 py-3"
-                >
-                  <Building2 className="w-5 h-5 text-tertiary" />
-                  <span className="flex-1 text-left text-[11pt] text-primary">{clinicName ? `${clinicName} (cluster)` : 'My cluster'}</span>
-                  <span className={`w-4 h-4 rounded-full border-2 ${scope === 'clinic' ? 'border-themeblue3 bg-themeblue3' : 'border-tertiary/40'}`} />
-                </button>
+                {targetRow('personal', 'My personal blocks', User)}
+                {clusterTargets.map(c => targetRow(c.id, c.name, Building2))}
               </SectionCard>
             </Section>
           )}
-
-          <div className="flex gap-3">
-            <button
-              type="button"
-              onClick={() => setStep('pick')}
-              className="flex-1 rounded-full px-6 py-3 text-sm font-medium bg-themewhite2 border border-tertiary/20 text-primary"
-            >
-              Back
-            </button>
-            {importable > 0 && (
-              <button
-                type="button"
-                onClick={handleImport}
-                className="flex-1 rounded-full px-6 py-3 text-sm font-medium bg-themeblue3 text-white"
-              >
-                Import {importable}
-              </button>
-            )}
-          </div>
         </div>
       )}
 
-      {step === 'importing' && (
-        <div className="flex flex-col items-center justify-center gap-4 py-16">
-          <LoadingSpinner />
-          <p className="text-sm text-secondary">Importing…</p>
-        </div>
-      )}
+      {step === 'importing' && <SkeletonRows count={4} variant="text" delay={0} />}
 
       {step === 'done' && (
-        <div className="flex flex-col items-center justify-center gap-4 py-16">
+        <div className="flex flex-col items-center justify-center gap-3 py-12">
           <CheckCircle2 className="w-12 h-12 text-themegreen" />
-          <p className="text-sm text-secondary text-center px-6">{resultMsg}</p>
-          <button
-            type="button"
-            onClick={handleClose}
-            className="rounded-full px-6 py-3 text-sm font-medium bg-themeblue3 text-white"
-          >
-            Done
-          </button>
+          {results.map((line, i) => (
+            <p key={i} className="text-sm text-secondary text-center px-6">{line}</p>
+          ))}
         </div>
       )}
     </div>
   )
 
-  return isMobile ? (
-    <Sheet
+  const headerActions =
+    step === 'preview' && importable > 0 && targetIds.length > 0
+      ? <PillButton icon={Check} iconSize={18} accent="success" label={`Import ${importable}`} onClick={handleImport} />
+      : step === 'done'
+        ? <PillButton icon={Check} iconSize={18} accent="success" label="Done" onClick={handleClose} />
+        : undefined
+
+  return (
+    <ContentStack
       isOpen={visible}
       onClose={handleClose}
-      title={headerTitle}
-      height="fit"
-      maxHeight={85}
-      zIndex={1200}
-    >
-      {body}
-    </Sheet>
-  ) : (
-    <PreviewOverlay
-      isOpen={visible}
-      onClose={handleClose}
-      anchorRect={null}
-      title={headerTitle}
-      maxWidth={420}
-      previewMaxHeight="70dvh"
-    >
-      {body}
-    </PreviewOverlay>
+      initial={{ key: 'import' }}
+      cardHost={cardHost}
+      screens={{
+        import: {
+          title: headerTitle,
+          onBack: step === 'preview' ? reset : undefined,
+          headerActions,
+          render: () => body,
+        },
+      }}
+    />
   )
 }

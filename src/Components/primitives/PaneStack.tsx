@@ -104,7 +104,8 @@ export function PaneStack({
   if (!stack.hasScreen) return null
 
   if (isMobile) {
-    const drilled = stack.canBack
+    // A screen's own onBack (e.g. a form stage at the root) also earns the chevron.
+    const drilled = !!stack.onBack
     return (
       <Sheet
         isOpen={isOpen}

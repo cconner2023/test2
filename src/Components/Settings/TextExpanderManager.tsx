@@ -1,11 +1,8 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
-import { Plus, TextCursorInput, Layers, MessageSquare, Trash2, Building2 } from 'lucide-react';
+import { useMemo } from 'react';
+import { TextCursorInput, Layers, Building2 } from 'lucide-react';
 import type { TextExpander } from '../../Data/User';
 import { isFlatTemplate } from '../../Utilities/templateParser';
-import { OverlayActionMenu } from '@/Components/primitives/OverlayActionMenu';
-import { LiftedRowMenu } from '@/Components/primitives/LiftedRowMenu';
-import { liftPressHandlers, type LiftPressState, type LiftSnapshot } from '../liftPress';
-import type { ContextMenuItem } from '@/Components/primitives/ContextMenu';
+import { SelectBox } from './contentPrimitives';
 
 export const hasBranches = (e: TextExpander): boolean =>
     !!(e.template && e.template.length > 0 && !isFlatTemplate(e.template));
@@ -26,40 +23,29 @@ export const expansionPreview = (e: TextExpander): string => {
 
 interface TextExpanderManagerProps {
     expanders: TextExpander[];
-    onCardTap: (expander: TextExpander, anchor: HTMLElement) => void;
-    onStartNew: (anchor: HTMLElement) => void;
+    /** Tap a row → the panel lifts it and drops its item menu. */
+    onCardTap: (expander: TextExpander, el: HTMLElement) => void;
     filter: string;
     clinicAbbrSet?: Set<string>;
     isSupervisorRole?: boolean;
-    /** Cluster picker + Share/Export/Import items, folded into the single corner ⋯
-     *  menu alongside the New action this manager owns. */
-    cornerItems?: ContextMenuItem[];
-    /** Per-row actions (long-press / right-click lifted-row menu). */
-    onShareItem?: (expander: TextExpander) => void;
-    onDeleteItem?: (expander: TextExpander) => void;
+    /** Multiselect (driven by the panel header's Add menu); keyed by abbr. */
+    selectMode?: boolean;
+    selected?: Set<string>;
+    onToggleSelect?: (expander: TextExpander) => void;
 }
 
+/** Shortcut / template list. Add / Multiselect live on the container header; item
+ *  actions ride the tapped row. */
 export const TextExpanderManager = ({
     expanders,
     onCardTap,
-    onStartNew,
     filter,
     clinicAbbrSet,
     isSupervisorRole = false,
-    cornerItems,
-    onShareItem,
-    onDeleteItem,
+    selectMode = false,
+    selected,
+    onToggleSelect,
 }: TextExpanderManagerProps) => {
-    const fabRef = useRef<HTMLDivElement>(null);
-
-    // Lift-and-clone row menu (long-press / right-click) — Share / Export / Delete
-    // ride the row (clone includes the text) instead of an editor-header icon.
-    const [lifted, setLifted] = useState<({ expander: TextExpander } & LiftSnapshot) | null>(null);
-    const pressRef = useRef<LiftPressState | null>(null);
-    const hasRowActions = !!(onShareItem || onDeleteItem);
-    const makeHandlers = useCallback((expander: TextExpander) =>
-        liftPressHandlers((snap) => setLifted({ expander, ...snap }), pressRef), []);
-
     const lc = filter.trim().toLowerCase();
     const visible = useMemo(() => {
         if (!lc) return expanders;
@@ -69,27 +55,18 @@ export const TextExpanderManager = ({
         );
     }, [expanders, lc]);
 
-    const hasItems = visible.length > 0;
-
     return (
         <section className="space-y-3">
-            <div className="relative">
-                <OverlayActionMenu
-                    ref={fabRef}
-                    shadow="sm"
-                    items={[
-                        { key: 'new', label: 'New shortcut', icon: Plus, onAction: () => fabRef.current && onStartNew(fabRef.current) },
-                        ...(cornerItems ?? []),
-                    ]}
-                />
-                <div className="rounded-xl bg-themewhite2 overflow-hidden">
+            <div className="rounded-xl bg-themewhite2 overflow-hidden">
                 <div className="px-2 py-2">
-                    {hasItems ? (
+                    {visible.length > 0 ? (
                         <div className="divide-y divide-tertiary/8">
                             {visible.map(e => {
                                 const isTemplate = hasBranches(e);
                                 const isClinic = clinicAbbrSet?.has(e.abbr.toLowerCase()) ?? false;
                                 const canEdit = !isClinic || isSupervisorRole;
+                                const selectable = selectMode && canEdit;
+                                const checked = selected?.has(e.abbr) ?? false;
                                 const Icon = isTemplate ? Layers : TextCursorInput;
                                 const iconBg = isClinic ? 'bg-tertiary/10' : isTemplate ? 'bg-themepurple/15' : 'bg-themeblue2/15';
                                 const iconColor = isClinic && !isSupervisorRole ? 'text-tertiary' : isTemplate ? 'text-themepurple' : 'text-themeblue2';
@@ -97,12 +74,16 @@ export const TextExpanderManager = ({
                                 return (
                                     <div
                                         key={e.abbr}
-                                        onClick={canEdit ? (ev) => { if (pressRef.current?.fired) return; onCardTap(e, ev.currentTarget); } : undefined}
-                                        {...(canEdit && hasRowActions ? makeHandlers(e) : {})}
+                                        role="button"
+                                        onClick={(ev) => {
+                                            if (selectMode) { if (selectable) onToggleSelect?.(e); return; }
+                                            onCardTap(e, ev.currentTarget);
+                                        }}
                                         className={`flex items-start gap-3 py-2 px-2 rounded-lg transition-colors ${
-                                            canEdit ? 'cursor-pointer active:scale-[0.98] hover:bg-themeblue3/5' : 'opacity-60'
+                                            selectMode && !canEdit ? 'opacity-50' : 'cursor-pointer active:scale-[0.98] hover:bg-themeblue3/5'
                                         }`}
                                     >
+                                        {selectable && <span className="pt-2"><SelectBox checked={checked} /></span>}
                                         <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${iconBg}`}>
                                             <Icon size={14} className={iconColor} />
                                         </div>
@@ -127,22 +108,7 @@ export const TextExpanderManager = ({
                         </p>
                     )}
                 </div>
-                </div>
             </div>
-
-            {lifted && (
-                <LiftedRowMenu
-                    isOpen
-                    anchorRect={lifted.rect}
-                    row={<div dangerouslySetInnerHTML={{ __html: lifted.html }} />}
-                    onClose={() => setLifted(null)}
-                    layout="list"
-                    items={[
-                        ...(onShareItem ? [{ key: 'share', label: 'Share to chat', icon: MessageSquare, onAction: () => onShareItem(lifted.expander) }] : []),
-                        ...(onDeleteItem ? [{ key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => onDeleteItem(lifted.expander) }] : []),
-                    ] as ContextMenuItem[]}
-                />
-            )}
         </section>
     );
 };

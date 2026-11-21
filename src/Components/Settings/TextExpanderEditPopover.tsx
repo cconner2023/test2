@@ -1,21 +1,21 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { Check, User, Building2, TextCursorInput, Layers } from 'lucide-react';
+import { PillButton } from '@/Components/primitives/HeaderPill';
+import { HeaderMenuPill } from '@/Components/primitives/HeaderMenuPill';
+import { ContentStack } from './contentPrimitives';
 import type { TextExpander } from '../../Data/User';
 import type { TemplateNode } from '../../Data/TemplateTypes';
 import type { FieldInfo } from '../../Utilities/templateParser';
 import { templateNodesToFieldText, parseFieldText, isFlatTemplate } from '../../Utilities/templateParser';
 import {
     TemplateNodeList,
-    AddStepFooter,
+    AddStepHeader,
     makeTemplateScreens,
     makeNode,
 } from './TemplateBuilder';
 import { FieldTextEditor, type FieldEditorHandle } from './FieldTextEditor';
-import { InsertFieldForm, FieldInsertFooter, buildFieldInfo, emptyInsertDraft, type InsertDraft, type FieldType } from './InsertFieldButton';
-import { ActionButton } from '@/Components/primitives/ActionButton';
-import { OverlayStack, type StackNav, type CardMorphHost } from '@/Components/primitives/OverlayStack';
-import { FooterPill } from '@/Components/primitives/FooterPill'
-import { OverlayHeaderMenu } from '@/Components/primitives/OverlayHeaderMenu';
+import { InsertFieldForm, FieldInsertButton, buildFieldInfo, emptyInsertDraft, type InsertDraft, type FieldType } from './InsertFieldButton';
+import type { StackNav, CardMorphHost } from '@/Components/primitives/OverlayStack';
 import type { ContextMenuItem } from '@/Components/primitives/ContextMenu';
 import { TextInput } from '@/Components/primitives/FormInputs';
 
@@ -44,8 +44,10 @@ const initialModeFromState = (state: TextExpanderEditState | null): 'simple' | '
 };
 
 /**
- * TextExpanderEditPopover — the shortcut/template authoring surface. ONE OverlayStack
- * (the drill-down/morph primitive): the `shortcut` root screen holds the abbreviation
+ * TextExpanderEditPopover — the shortcut/template authoring surface. ONE stack
+ * (ContentStack: PaneStack Sheet on mobile, card morph on desktop Settings). Header
+ * carries ⋯ (scope / type), template Add, and the Save check; the `[ ]` field insert
+ * sits inside the text box. The `shortcut` root screen holds the abbreviation
  * + the content editor (simple FieldTextEditor, or — in template mode — the inline
  * template node list). Tapping a template node DRILLS into the shared template screens
  * (`tpl-node` / `tpl-list`) on the SAME stack, instead of stacking a second overlay
@@ -72,9 +74,9 @@ export const TextExpanderEditPopover = ({
     const navRef = useRef<StackNav | null>(null);
 
     // Simple-mode field insert: an IN-CARD panel (not an overlay, not a drill). The
-    // editor stays mounted (CSS-hidden) so its caret survives; commit rides rightFooter.
-    // The TYPE is chosen in the footer's lifted menu (FieldInsertFooter), so a set
-    // draft type IS the form stage — picking a type is the only way in.
+    // editor stays mounted (CSS-hidden) so its caret survives; commit rides the header
+    // check. The TYPE is chosen from the in-textarea `[ ]` menu (FieldInsertButton),
+    // so a set draft type IS the form stage — picking a type is the only way in.
     const fieldEditorRef = useRef<FieldEditorHandle>(null);
     const [insertDraft, setInsertDraft] = useState<InsertDraft>(emptyInsertDraft);
     const insertFormStage = insertDraft.type !== null;
@@ -161,7 +163,7 @@ export const TextExpanderEditPopover = ({
         : (isSupervisorRole ? `Edit ${scopeWord} ${kindWord}` : `Edit ${kindWord}`);
 
     // Modifiers (scope + type) live in the header ellipsis — lifted-row submenus,
-    // not footer toggles. Footer stays focused on the primary commit (Save, right).
+    // not footer toggles. Save is the header check.
     const modifierItems: ContextMenuItem[] = [];
     if (isSupervisorRole) {
         modifierItems.push({
@@ -201,39 +203,20 @@ export const TextExpanderEditPopover = ({
 
     const screens = {
         shortcut: {
-            // Insert flow (simple mode): the footer `[ ]` opens the field-type menu;
-            // picking a type enters the FORM stage — the whole screen becomes "Insert
-            // field", ellipsis suppressed, Save→Insert, editor CSS-hidden (never
-            // unmounted, so the caret survives). Back cancels. The trigger stays put
-            // through the form stage, so re-opening it switches type in place.
+            // Insert flow (simple mode): the in-textarea `[ ]` opens the field-type
+            // menu; picking a type enters the FORM stage — the whole screen becomes
+            // "Insert field", ellipsis suppressed, Save→Insert, editor CSS-hidden
+            // (never unmounted, so the caret survives). Back cancels.
             title: insertFormStage ? 'Insert field' : titleText,
-            headerActions: insertFormStage ? undefined : <OverlayHeaderMenu items={modifierItems} />,
             onBack: insertFormStage ? () => closeInsert() : undefined,
-            // Footer-LEFT: template Add / simple insert `[ ]` — both open their type
-            // options as a lifted menu (no overlay, no in-pill morph).
-            footer: mode === 'template' ? (
-                <AddStepFooter onPick={handleAddRoot} />
+            headerActions: insertFormStage ? (
+                insertValid && <PillButton icon={Check} iconSize={18} accent="success" label="Insert" onClick={commitInsert} />
             ) : (
-                <FieldInsertFooter type={insertDraft.type} onPick={pickInsertType} />
-            ),
-            rightFooter: insertFormStage ? (
-                <FooterPill side="right">
-                    <ActionButton
-                        icon={Check}
-                        label="Insert"
-                        variant={insertValid ? 'confirm' : 'disabled'}
-                        onClick={insertValid ? commitInsert : () => {}}
-                    />
-                </FooterPill>
-            ) : (
-                <FooterPill side="right">
-                    <ActionButton
-                        icon={Check}
-                        label="Save"
-                        variant={saveDisabled ? 'disabled' : 'confirm'}
-                        onClick={saveDisabled ? () => {} : handleSave}
-                    />
-                </FooterPill>
+                <>
+                    <HeaderMenuPill items={modifierItems} />
+                    {mode === 'template' && <AddStepHeader onPick={handleAddRoot} />}
+                    {!saveDisabled && <PillButton icon={Check} iconSize={18} accent="success" label="Save" onClick={handleSave} />}
+                </>
             ),
             render: (_: unknown, nav: StackNav) => (
                 <div className="px-4 pb-3 space-y-3">
@@ -248,7 +231,10 @@ export const TextExpanderEditPopover = ({
 
                     {mode === 'simple' ? (
                         <>
-                            <div className={`rounded-xl bg-themewhite2 px-3 py-2.5${insertFormStage ? ' hidden' : ''}`}>
+                            <div className={`relative rounded-xl bg-themewhite2 pl-3 pr-12 py-2.5${insertFormStage ? ' hidden' : ''}`}>
+                                <div className="absolute right-1.5 bottom-1.5">
+                                    <FieldInsertButton type={insertDraft.type} onPick={pickInsertType} />
+                                </div>
                                 <FieldTextEditor
                                     ref={fieldEditorRef}
                                     hidden={insertFormStage}
@@ -277,14 +263,12 @@ export const TextExpanderEditPopover = ({
     };
 
     return (
-        <OverlayStack
+        <ContentStack
             isOpen={isOpen}
             onClose={onClose}
-            anchorRect={state?.anchor ?? null}
             initial={{ key: 'shortcut' }}
             screens={screens}
-            maxWidth={560}
-            previewMaxHeight="60dvh"
+            navRef={navRef}
             cardHost={cardHost}
         />
     );

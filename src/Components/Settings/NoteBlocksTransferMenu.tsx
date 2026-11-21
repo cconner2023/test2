@@ -5,7 +5,8 @@ import { AnchoredMenu } from '@/Components/primitives/LiftedRowMenu'
 import type { ContextMenuItem } from '@/Components/primitives/ContextMenu'
 import { useNoteBlocksTransfer } from '../../Hooks/useNoteBlocksTransfer'
 import { NoteBlocksCSVImportDrawer } from './NoteBlocksCSVImportDrawer'
-import { exportTemplatesCSV, exportOrderSetsCSV, type NoteBlocksCSVKind } from '../../Utilities/noteBlocksCSV'
+import { exportTemplatesCSV, exportPlanCSV, type NoteBlocksCSVKind } from '../../Utilities/noteBlocksCSV'
+import type { CardMorphHost } from '@/Components/primitives/OverlayStack'
 import type { NoteBlocksData } from '../../lib/objectBundle'
 
 interface Props {
@@ -17,27 +18,29 @@ interface Props {
   hasData: boolean
   /** Which CSV schema this panel imports/exports. */
   kind: NoteBlocksCSVKind
+  /** Desktop Settings: the import surface morphs into the subpage card. */
+  cardHost?: CardMorphHost
 }
 
 /**
  * Panel-wide Share / CSV actions. Returns the menu items plus all the overlays
- * (CSV import drawer + share picker) so a manager can fold the items into one
- * consolidated corner ⋯ (OverlayActionMenu) alongside the cluster picker and New —
- * a single action menu, not a separate floating ellipsis. Per-item Share lives in
- * the manager lifted-row menus via the same `useNoteBlocksTransfer` hook.
+ * (CSV import drawer + share picker) so a panel can fold the items into its
+ * container-header ⋯ alongside the cluster picker (Add lives on its own header +).
+ * Per-item Share / Export live in the tapped-row menus.
  *
  * Two transports, two jobs: the JSON `note-blocks` bundle is app-internal and rides
  * chat only (Share to chat → received via the chat bundle card; never a file), while
  * the human-authorable `.csv` is the only file in/out (mirrors property import — see
  * noteBlocksCSV.ts).
  */
-export function useNoteBlocksTransferItems({ data, baseName, hasData, kind }: Props): { items: ContextMenuItem[]; overlays: ReactNode } {
+export function useNoteBlocksTransferItems({ data, baseName, hasData, kind, cardHost }: Props): { items: ContextMenuItem[]; overlays: ReactNode } {
   const { share, picker } = useNoteBlocksTransfer()
   const [csvImportOpen, setCsvImportOpen] = useState(false)
 
   const exportCSV = () => {
     if (kind === 'templates') exportTemplatesCSV(data.textExpanders ?? [])
-    else exportOrderSetsCSV(data.planOrderSets ?? [])
+    // Order sets + the tag library (loose tags ride a blank-Name row).
+    else exportPlanCSV({ orderSets: data.planOrderSets, orderTags: data.planOrderTags, instructionTags: data.planInstructionTags })
   }
 
   const items: ContextMenuItem[] = [
@@ -51,7 +54,7 @@ export function useNoteBlocksTransferItems({ data, baseName, hasData, kind }: Pr
 
   const overlays = (
     <>
-      <NoteBlocksCSVImportDrawer visible={csvImportOpen} onClose={() => setCsvImportOpen(false)} kind={kind} />
+      <NoteBlocksCSVImportDrawer visible={csvImportOpen} onClose={() => setCsvImportOpen(false)} kind={kind} cardHost={cardHost} />
       {picker}
     </>
   )

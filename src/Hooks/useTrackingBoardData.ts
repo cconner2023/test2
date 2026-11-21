@@ -4,24 +4,30 @@
  *  - viewerId : the operating-as cluster (supervisingClinicId, else home). Its
  *               stations are the board's columns / groups; check-ins stamp it as
  *               origin; settings, sharing and reconcile act on it
- *  - viewerIds: home + every active loan. The board holds every casualty fanned
- *               to any of them, regardless of operating-as
+ *  - viewerIds: the viewer + any of my other clusters (loans) it live-receives
+ *               from. The board holds every casualty fanned to them; the origin
+ *               filter offers exactly these
  *  - originFilter: render-only trackingClusterFilter, by check-in origin (null = all)
- *  - clusters : tracking_cluster_tree RPC per reachable cluster, merged (clusters joined by an active
- *               send → receive link), cached per viewer in localStorage (names /
- *               UICs / parents / sharing flags only — no PHI) so the board groups
+ *  - clusters : tracking_cluster_directory RPC for the viewer (itself,
+ *               its parent / children / siblings, live patient-chain clusters and
+ *               live senders), cached per viewer in localStorage (names / UICs /
+ *               parents / link flags only — no PHI) so the board groups
  *               offline. Cache-first: the RPC runs once per session per viewer
  *               (shared by drawer + widget), then only after TREE_TTL_MS, a
  *               'clinics' invalidation, or this cluster's own sharing toggle —
  *               never on every open / mount
- *  - places   : tracking pins from local overlays — own and those fanned in from
- *               linked clusters (getAllLocalMapOverlays; the by-clinic map store
- *               would miss the latter). Overlays from a cluster no longer linked
- *               drop out here, before the owner's reconcile lands.
+ *  - places   : tracking features from local overlays — own and those fanned in
+ *               from clusters sending to us over a live link (getAllLocalMapOverlays;
+ *               the by-clinic map store would miss the latter). Overlays from a
+ *               cluster no longer linked drop out here, before the owner's
+ *               reconcile lands.
  *  - events   : useCalendarStore.tracking (hidden tracking calendar events)
- *  - sharing  : this cluster's send / receive toggles (null until known)
- *  - relatedIds: linked cluster ids from the latest tree fetch (null until one
- *               lands this session); the drawer feeds it to reconcileTargets
+ *  - links    : per-cluster link rows for settings — every hierarchy neighbour
+ *               (parent / children / siblings) with both sides' flags. A link
+ *               A → B is live when A sends to B AND B receives from A.
+ *  - relatedIds: clusters live-receiving from the viewer, from this session's
+ *               fetch (null until one lands); the drawer feeds it to
+ *               reconcileTargets
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -39,10 +45,9 @@ const logger = createLogger('TrackingBoardData')
 
 /** Per-cluster cache key — the tree is the viewer's, so a different viewer
  *  must never paint from another cluster's rows. */
-const cacheKey = (viewerId: string) => `tracking.clusterTree:${viewerId}`
+const cacheKey = (viewerId: string) => `tracking.clusterDir:${viewerId}`
 
-/** Tree re-pull floor. The tree only changes when a link's send / receive
- *  flag flips, so serve the cache and refresh at most this often — plus on a
+/** Tree re-pull floor. The tree only changes when a link flag flips, so serve the cache and refresh at most this often — plus on a
  *  'clinics' invalidation or our own sharing toggle. */
 const TREE_TTL_MS = 10 * 60 * 1000
 
@@ -58,11 +63,33 @@ interface ClusterRow {
   nickname: string | null
   uic: string
   parentId: string | null
-  send?: boolean
-  receive?: boolean
+  /** Flags relative to the tree's viewer: viewer sends to / receives from this
+   *  cluster; this cluster sends to / receives from the viewer. */
+  iSend?: boolean
+  iReceive?: boolean
+  theySend?: boolean
+  theyReceive?: boolean
 }
 
-export interface TrackingSharing { send: boolean; receive: boolean }
+/** One hierarchy neighbour in board settings. */
+export interface TrackingLink {
+  clinicId: string
+  label: string
+  iSend: boolean
+  iReceive: boolean
+  theySend: boolean
+  theyReceive: boolean
+}
+
+/** Live senders to `viewerId` (id → label) from its cached directory — the Map
+ *  reads this to surface their tracking overlays without a fetch of its own. The
+ *  cache refreshes when the board (or its overview widget) loads. */
+export const cachedTrackingSenders = (viewerId: string): Map<string, string> =>
+  new Map(loadCachedRows(viewerId)
+    .filter(r => r.theySend && r.iReceive)
+    .map(r => [r.id, clusterLabelParts(r.id, r.name).primary || r.nickname || r.name || 'Cluster']))
+
+const liveReceivers = (rows: ClusterRow[]) => rows.filter(r => r.iSend && r.theyReceive).map(r => r.id)
 
 function loadCachedRows(viewerId: string): ClusterRow[] {
   if (!viewerId) return []
@@ -83,17 +110,20 @@ function fetchTree(viewerId: string): Promise<ClusterRow[] | null> {
   if (running) return running
   const p = (async () => {
     try {
-      const { data, error } = await supabase.rpc('tracking_cluster_tree', { p_clinic_id: viewerId })
+      const { data, error } = await supabase.rpc('tracking_cluster_directory', { p_clinic_id: viewerId })
       if (error || !Array.isArray(data)) {
-        if (error) logger.warn('tracking_cluster_tree failed:', error.message)
+        if (error) logger.warn('tracking_cluster_directory failed:', error.message)
         return null
       }
-      const next: ClusterRow[] = (data as Array<{ id: string; name: string | null; nickname: string | null; uics: string[] | null; parent_clinic_id: string | null; tracking_send: boolean; tracking_receive: boolean }>)
-        .map(r => ({ id: r.id, name: r.name ?? '', nickname: r.nickname, uic: r.uics?.[0] ?? '', parentId: r.parent_clinic_id, send: r.tracking_send, receive: r.tracking_receive }))
+      const next: ClusterRow[] = (data as Array<{ id: string; name: string | null; nickname: string | null; uics: string[] | null; parent_clinic_id: string | null; i_send: boolean; i_receive: boolean; they_send: boolean; they_receive: boolean }>)
+        .map(r => ({
+          id: r.id, name: r.name ?? '', nickname: r.nickname, uic: r.uics?.[0] ?? '', parentId: r.parent_clinic_id,
+          iSend: r.i_send, iReceive: r.i_receive, theySend: r.they_send, theyReceive: r.they_receive,
+        }))
       saveCachedRows(viewerId, next)
       return next
     } catch (e) {
-      logger.warn('tracking_cluster_tree threw:', e instanceof Error ? e.message : e)
+      logger.warn('tracking_cluster_directory threw:', e instanceof Error ? e.message : e)
       return null
     } finally {
       inflight.delete(viewerId)
@@ -115,17 +145,9 @@ export function useTrackingBoardData(isVisible: boolean) {
   // A stale operating-as id (loan ended) falls back to home rather than
   // writing check-ins into a cluster we can no longer reach.
   const viewerId = supervisingClinicId && reachable.includes(supervisingClinicId) ? supervisingClinicId : home
-  const viewerIds = reachable
-  // Check-in origin narrowing; null = every one of my clusters. A selection that
-  // no longer matches any reachable cluster (loan ended) reads as no filter.
-  const originFilter = useMemo(() => {
-    if (!filter) return null
-    const narrowed = reachable.filter(id => filter.includes(id))
-    return narrowed.length > 0 ? narrowed : null
-  }, [reachable, filter])
-  // Trees to hold: every reachable cluster (the operating-as one among them), so
-  // a loan's check-ins resolve their stations and move targets.
-  const scopeIds = reachable
+  // The board is the operating-as cluster's: only its own directory is held.
+  // Other clusters (loans included) reach it only by live-sending to it.
+  const scopeIds = useMemo(() => (viewerId ? [viewerId] : []), [viewerId])
   const scopeKey = scopeIds.join(',')
 
   // Cache-first: paint from each cluster's cached tree; the RPC only refreshes it.
@@ -147,7 +169,7 @@ export function useTrackingBoardData(isVisible: boolean) {
       if (seen && seen.gen === clinicsGen && Date.now() - seen.at < TREE_TTL_MS) continue
       void fetchTree(id).then(next => {
         if (!next) return
-        treeSession.set(id, { at: Date.now(), gen: clinicsGen, relatedIds: next.map(r => r.id) })
+        treeSession.set(id, { at: Date.now(), gen: clinicsGen, relatedIds: liveReceivers(next) })
         if (!cancelled) setTree(id, next)
       })
     }
@@ -160,28 +182,41 @@ export function useTrackingBoardData(isVisible: boolean) {
     for (const id of scopeIds) for (const r of treeOf(id)) if (!byId.has(r.id)) byId.set(r.id, r)
     return Array.from(byId.values())
   }, [scopeKey, treeOf]) // eslint-disable-line react-hooks/exhaustive-deps
-  // Linked ids from this session's fetch (any instance's), null until one lands.
+  // Live receivers from this session's fetch (any instance's), null until one lands.
   // Read at render: the fetch writes treeSession before setTree re-renders.
   const relatedIds = treeSession.get(viewerId)?.relatedIds ?? null
 
-  const me = treeOf(viewerId).find(r => r.id === viewerId)
-  const sharing = useMemo<TrackingSharing | null>(
-    () => (me ? { send: !!me.send, receive: !!me.receive } : null),
-    [me],
-  )
+  // Hierarchy neighbours — the only clusters a link can be made with.
+  const viewerRows = treeOf(viewerId)
+  const links = useMemo<TrackingLink[]>(() => {
+    const me = viewerRows.find(r => r.id === viewerId)
+    if (!me) return []
+    return viewerRows
+      .filter(r => r.id !== viewerId
+        && (r.id === me.parentId || r.parentId === viewerId || (!!me.parentId && r.parentId === me.parentId)))
+      .map(r => ({
+        clinicId: r.id,
+        label: clusterLabelParts(r.id, r.name).primary || r.nickname || r.name || 'Cluster',
+        iSend: !!r.iSend, iReceive: !!r.iReceive, theySend: !!r.theySend, theyReceive: !!r.theyReceive,
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label))
+  }, [viewerRows, viewerId])
 
-  /** Optimistic toggle; a re-fetched tree then drives reconcileTargets. */
-  const setSharing = useCallback(async (next: TrackingSharing): Promise<void> => {
+  /** Optimistic per-cluster toggle; a re-fetched tree then drives reconcileTargets. */
+  const setLink = useCallback(async (otherId: string, next: { send?: boolean; receive?: boolean }): Promise<void> => {
     if (!viewerId) return
     const prev = treeOf(viewerId)
-    setTree(viewerId, prev.map(r => (r.id === viewerId ? { ...r, ...next } : r)))
-    const { error } = await supabase.rpc('supervisor_set_tracking_sharing', {
+    setTree(viewerId, prev.map(r => (r.id === otherId
+      ? { ...r, ...(next.send !== undefined ? { iSend: next.send } : {}), ...(next.receive !== undefined ? { iReceive: next.receive } : {}) }
+      : r)))
+    const { error } = await supabase.rpc('supervisor_set_tracking_link', {
       p_clinic_id: viewerId,
-      p_send: next.send,
-      p_receive: next.receive,
+      p_other_clinic_id: otherId,
+      p_send: next.send ?? null,
+      p_receive: next.receive ?? null,
     })
     if (error) {
-      logger.warn('supervisor_set_tracking_sharing failed:', error.message)
+      logger.warn('supervisor_set_tracking_link failed:', error.message)
       setTree(viewerId, prev)
       return
     }
@@ -201,12 +236,32 @@ export function useTrackingBoardData(isVisible: boolean) {
     return () => { cancelled = true }
   }, [isVisible, overlayGen])
 
-  const overlays = useMemo(() => {
-    const scoped = new Set(scopeIds)
-    const linked = new Set(rows.map(r => r.id))
-    return allOverlays.filter(o => scoped.has(o.clinic_id)
-      || ((o.target_clinic_ids?.some(id => scoped.has(id)) ?? false) && (rows.length === 0 || linked.has(o.clinic_id))))
-  }, [allOverlays, rows, scopeKey]) // eslint-disable-line react-hooks/exhaustive-deps
+  // Clusters live-sending to the viewer (it sends AND we receive). Not
+  // receiving from a cluster = none of its stations, overlays or filter row.
+  const senderKey = viewerRows.filter(r => r.theySend && r.iReceive).map(r => r.id).sort().join(',')
+  const senders = useMemo(() => new Set(senderKey ? senderKey.split(',') : []), [senderKey])
+
+  // Board scope: the viewer + any of my other clusters (loans) it receives from.
+  // Entries fanned to them show; the origin filter offers exactly these.
+  const viewerIds = useMemo(
+    () => (viewerId ? [viewerId, ...reachable.filter(id => id !== viewerId && senders.has(id))] : []),
+    [viewerId, reachable, senders],
+  )
+  // Check-in origin narrowing; null = the whole scope. A selection that no
+  // longer matches it (loan ended, link dropped) reads as no filter.
+  const originFilter = useMemo(() => {
+    if (!filter) return null
+    const narrowed = viewerIds.filter(id => filter.includes(id))
+    return narrowed.length > 0 ? narrowed : null
+  }, [viewerIds, filter])
+
+  // Own overlays + those of live senders aimed at the viewer. No link list yet
+  // (first offline run) = own only — never every overlay that names us.
+  const overlays = useMemo(
+    () => allOverlays.filter(o => o.clinic_id === viewerId
+      || (senders.has(o.clinic_id) && (o.target_clinic_ids?.includes(viewerId) ?? false))),
+    [allOverlays, viewerId, senders],
+  )
 
   const events = useCalendarStore(s => s.tracking)
 
@@ -215,7 +270,7 @@ export function useTrackingBoardData(isVisible: boolean) {
     // Any cluster the board references but the trees haven't returned (offline
     // first run, RPC miss) still gets a group so its stations / origins show.
     const known = new Map(rows.map(r => [r.id, r]))
-    const referenced = [...scopeIds, ...places.map(p => p.clinicId), ...places.flatMap(p => p.targetClinicIds), ...events.map(e => e.clinic_id)]
+    const referenced = [...scopeIds, ...places.map(p => p.clinicId), ...events.map(e => e.clinic_id)]
     for (const id of referenced) {
       if (id && !known.has(id)) known.set(id, { id, name: '', nickname: null, uic: '', parentId: null })
     }
@@ -228,5 +283,5 @@ export function useTrackingBoardData(isVisible: boolean) {
     return { clusters, places }
   }, [rows, overlays, events, scopeKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  return { viewerId, viewerIds, originFilter, net, events, overlays, sharing, setSharing, relatedIds }
+  return { viewerId, viewerIds, originFilter, net, events, overlays, links, setLink, relatedIds }
 }

@@ -16,6 +16,7 @@ import { PrivacyPolicyPanel } from './PrivacyPolicyPanel';
 import { NoteContentPanel } from './NoteContentPanel';
 import { OverviewWidgetsPanel } from './OverviewWidgetsPanel';
 import { PlanPanel } from './PlanPanel';
+import { HeaderSlotContext, HeaderSlotOutlet, useHeaderSlotStore } from './panelHeaderSlot';
 import { TextTemplatesPanel } from './TextTemplatesPanel';
 import { ProviderTemplatesPanel } from './ProviderTemplatesPanel';
 import { ProfilePage } from './ProfilePage';
@@ -101,6 +102,9 @@ export const Settings = ({
     // shared with the child-cluster roster: last opened wins. A published view
     // closes the roster detail; opening the roster closes the published view.
     const [clinicPaneStore] = useState(createPaneHostStore);
+    // App Content panels (Plan, Text Templates) publish their Add / ⋯ menus up into
+    // the container header: the mobile drawer header, or the desktop subpage card.
+    const contentHeaderSlot = useHeaderSlotStore();
     const clinicPaneHost = useMemo<PaneHost>(() => ({
         store: clinicPaneStore,
         onActiveChange: (active) => { if (active) setDetailView({ kind: 'none' }); },
@@ -412,6 +416,13 @@ const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
                     title: 'Text Templates',
                     showBack: true as const,
                     onBack: doTemplatesBack,
+                    rightContent: (
+                        <HeaderPill multi>
+                            <HeaderSlotOutlet store={contentHeaderSlot} />
+                            <PillButton icon={X} onClick={handleClose} label="Close" />
+                        </HeaderPill>
+                    ),
+                    hideDefaultClose: true,
                 };
             }
             case 'provider-templates': {
@@ -428,6 +439,13 @@ const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
                     title: 'Plan',
                     showBack: true as const,
                     onBack: doPlanBack,
+                    rightContent: (
+                        <HeaderPill multi>
+                            <HeaderSlotOutlet store={contentHeaderSlot} />
+                            <PillButton icon={X} onClick={handleClose} label="Close" />
+                        </HeaderPill>
+                    ),
+                    hideDefaultClose: true,
                 };
             }
             case 'clinic': {
@@ -472,7 +490,7 @@ const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
             }
 
         }
-    }, [activePanel, backTo, handleClose, isSupervisorRole, clinicEditing, handleSlideAnimation, guardedClinicAction, isMobile]);
+    }, [activePanel, backTo, handleClose, isSupervisorRole, clinicEditing, handleSlideAnimation, guardedClinicAction, isMobile, contentHeaderSlot]);
 
     /** The drawer header names the DRAWER (v2/conventions, PaneHeader). Mobile's
      *  header IS the panel's chrome so it keeps the panel title; on desktop the rail
@@ -602,9 +620,9 @@ const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
                             'overview-widgets': <OverviewWidgetsPanel />,
                             'theme-picker':     <ThemePickerPanel />,
                             'storage':          <StoragePanel />,
-                            'plan-settings':    <PlanPanel />,
+                            'plan-settings':    <HeaderSlotContext.Provider value={contentHeaderSlot}><PlanPanel /></HeaderSlotContext.Provider>,
                             'provider-templates': <ProviderTemplatesPanel />,
-                            'text-templates': <TextTemplatesPanel />,
+                            'text-templates': <HeaderSlotContext.Provider value={contentHeaderSlot}><TextTemplatesPanel /></HeaderSlotContext.Provider>,
                             'notification-settings': <NotificationSettingsPanel />,
                             'sessions-devices':     <SessionsDevicesPanel />,
                             'lora':                 <LoRaPanel />,
@@ -663,12 +681,15 @@ const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
                                 width={420}
                                 fill
                                 hidden={morphActive}
+                                actions={shownDetail.panel === 'provider-templates' ? undefined : <HeaderSlotOutlet store={contentHeaderSlot} />}
                             >
+                                <HeaderSlotContext.Provider value={contentHeaderSlot}>
                                 <div key={shownDetail.panel} className="h-full" style={paneStyle}>
                                     {shownDetail.panel === 'plan-settings' && <PlanPanel cardHost={cardHost} />}
                                     {shownDetail.panel === 'text-templates' && <TextTemplatesPanel cardHost={cardHost} />}
                                     {shownDetail.panel === 'provider-templates' && <ProviderTemplatesPanel cardHost={cardHost} />}
                                 </div>
+                                </HeaderSlotContext.Provider>
                             </PaneCard>
                             <PaneSlot width={420}>
                                 <div ref={setMorphEl} className="flex flex-col min-h-0 max-h-full" />

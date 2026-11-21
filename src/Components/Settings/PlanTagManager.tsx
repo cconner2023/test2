@@ -1,17 +1,11 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
-import { Plus, UserPlus, Pill, ScanLine, FlaskConical, CalendarCheck, ClipboardList, MessageSquare, Trash2, Building2, CheckSquare, Check, X } from 'lucide-react';
+import { useMemo } from 'react';
+import { UserPlus, Pill, ScanLine, FlaskConical, CalendarCheck, ClipboardList, Building2 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { PlanOrderTags, PlanBlockKey } from '../../Data/User';
 import { PLAN_ORDER_CATEGORIES } from '../../Data/User';
-import { ActionButton } from '@/Components/primitives/ActionButton';
-import { ActionPill } from '@/Components/primitives/ActionPill'
-import { OverlayActionMenu } from '@/Components/primitives/OverlayActionMenu';
-import { LiftedRowMenu } from '@/Components/primitives/LiftedRowMenu';
-import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog';
-import { liftPressHandlers, type LiftPressState, type LiftSnapshot } from '../liftPress';
-import type { ContextMenuItem } from '@/Components/primitives/ContextMenu';
 import { planTagDisplay } from '@/Utilities/medTag';
 import { ListGroupLabel, PageSectionHeader } from '@/Components/primitives/Section';
+import { SelectBox } from './contentPrimitives';
 
 const ALL_KEYS: PlanBlockKey[] = [...PLAN_ORDER_CATEGORIES, 'instructions'];
 
@@ -20,7 +14,7 @@ const ALL_KEYS: PlanBlockKey[] = [...PLAN_ORDER_CATEGORIES, 'instructions'];
 // and diff tools and hid the delimiter from anyone reading the line. NUL stays
 // the right separator: no block key or tag can contain one, so the composite
 // key cannot collide.
-const selKey = (key: PlanBlockKey, tag: string) => `${key}\u0000${tag}`;
+export const tagSelKey = (key: PlanBlockKey, tag: string) => `${key}\u0000${tag}`;
 
 export const CATEGORY_META: Record<PlanBlockKey, { label: string; icon: LucideIcon; color: string; bg: string }> = {
     referral:     { label: 'Referral',      icon: UserPlus,      color: 'text-themeblue2',    bg: 'bg-themeblue2/15' },
@@ -37,57 +31,25 @@ interface PlanTagManagerProps {
     clinicTagSets: Record<string, Set<string>>;
     isSupervisorRole?: boolean;
     filter?: string;
-    onTapTag: (key: PlanBlockKey, tag: string, anchor: HTMLElement) => void;
-    onTapNew: (anchor: HTMLElement) => void;
-    /** Per-row actions (long-press / right-click lifted-row menu). */
-    onShareItem?: (key: PlanBlockKey, tag: string) => void;
-    onDeleteItem?: (key: PlanBlockKey, tag: string) => void;
-    /** Batch delete of the selected (key, tag) pairs — enables Multiselect mode. */
-    onDeleteMany?: (items: Array<{ key: PlanBlockKey; tag: string }>) => void;
+    /** Tap a tag → the panel lifts the row and drops its item menu. */
+    onTapTag: (key: PlanBlockKey, tag: string, el: HTMLElement) => void;
+    /** Multiselect (driven by the panel header's Add menu); keys via tagSelKey. */
+    selectMode?: boolean;
+    selected?: Set<string>;
+    onToggleSelect?: (key: PlanBlockKey, tag: string) => void;
 }
 
+/** Plan tag list, grouped by category. Add / Multiselect live on the container
+ *  header; item actions ride the tapped row. */
 export const PlanTagManager = ({
-    orderTags, instructionTags, clinicTagSets, isSupervisorRole, filter = '', onTapTag, onTapNew,
-    onShareItem, onDeleteItem, onDeleteMany,
+    orderTags, instructionTags, clinicTagSets, isSupervisorRole, filter = '', onTapTag,
+    selectMode = false, selected, onToggleSelect,
 }: PlanTagManagerProps) => {
-    const fabRef = useRef<HTMLDivElement>(null);
-
-    // Lift-and-clone row menu (long-press / right-click) — Share / Delete
-    // ride the tag row (clone includes the text) instead of an editor-header icon.
-    const [lifted, setLifted] = useState<({ key: PlanBlockKey; tag: string } & LiftSnapshot) | null>(null);
-    const pressRef = useRef<LiftPressState | null>(null);
-    const hasRowActions = !!(onShareItem || onDeleteItem);
-    const makeHandlers = useCallback((key: PlanBlockKey, tag: string) =>
-        liftPressHandlers((snap) => setLifted({ key, tag, ...snap }), pressRef), []);
-
-    // ── Multiselect mode ───────────────────────────────────────────
-    const [selectMode, setSelectMode] = useState(false);
-    const [selected, setSelected] = useState<Set<string>>(new Set());
-    const [confirmDelete, setConfirmDelete] = useState(false);
-
-    const exitSelect = useCallback(() => { setSelectMode(false); setSelected(new Set()); }, []);
-    const toggleSelected = useCallback((key: PlanBlockKey, tag: string) => {
-        setSelected(prev => {
-            const next = new Set(prev);
-            const k = selKey(key, tag);
-            next.has(k) ? next.delete(k) : next.add(k);
-            return next;
-        });
-    }, []);
-
-    const getTagsForKey = (key: PlanBlockKey): string[] =>
-        key === 'instructions' ? instructionTags : (orderTags[key] ?? []);
-
-    const canEditTag = useCallback((key: PlanBlockKey, tag: string) => {
-        const isClinic = clinicTagSets[key]?.has(tag) ?? false;
-        return !isClinic || (isSupervisorRole ?? false);
-    }, [clinicTagSets, isSupervisorRole]);
-
     const lc = filter.trim().toLowerCase();
     const tagsByKey = useMemo(() => {
         const out: Record<string, string[]> = {};
         for (const key of ALL_KEYS) {
-            const all = getTagsForKey(key);
+            const all = key === 'instructions' ? instructionTags : (orderTags[key] ?? []);
             out[key] = lc ? all.filter(t => t.toLowerCase().includes(lc)) : all;
         }
         return out;
@@ -95,42 +57,17 @@ export const PlanTagManager = ({
 
     const visibleCategories = ALL_KEYS.filter(k => tagsByKey[k].length > 0);
 
-    // Any editable tag in view → Multiselect is offered (clinic-only tags a
-    // non-supervisor can't touch don't count).
-    const hasEditable = useMemo(() =>
-        visibleCategories.some(k => tagsByKey[k].some(t => canEditTag(k, t))),
-        [visibleCategories, tagsByKey, canEditTag]
-    );
-
-    const selectedItems = useMemo(() =>
-        visibleCategories.flatMap(k => tagsByKey[k]
-            .filter(t => selected.has(selKey(k, t)))
-            .map(t => ({ key: k, tag: t }))),
-        [visibleCategories, tagsByKey, selected]
-    );
-    const selectedCount = selectedItems.length;
-
-    const menuItems: ContextMenuItem[] = [
-        { key: 'new', label: 'New tag', icon: Plus, onAction: () => fabRef.current && onTapNew(fabRef.current) },
-        ...(onDeleteMany && hasEditable
-            ? [{ key: 'multiselect', label: 'Multiselect', icon: CheckSquare, onAction: () => setSelectMode(true) } as ContextMenuItem]
-            : []),
-    ];
-
     return (
         <section>
             <PageSectionHeader>Plan Tags</PageSectionHeader>
-            <div className="relative"><div className="rounded-xl bg-themewhite2 overflow-hidden">
+            <div className="rounded-xl bg-themewhite2 overflow-hidden">
                 {visibleCategories.length > 0 ? (
                     <div className="p-2 space-y-2">
                         {visibleCategories.map(key => {
                             const meta = CATEGORY_META[key];
                             const tags = tagsByKey[key];
                             return (
-                                <div
-                                    key={key}
-                                    className="overflow-hidden"
-                                >
+                                <div key={key} className="overflow-hidden">
                                     <div className="border-b border-primary/6">
                                         <ListGroupLabel>{meta.label}</ListGroupLabel>
                                     </div>
@@ -138,26 +75,21 @@ export const PlanTagManager = ({
                                         {tags.map((tag, i) => {
                                             const isClinic = clinicTagSets[key]?.has(tag) ?? false;
                                             const canEdit = !isClinic || (isSupervisorRole ?? false);
-                                            const isSelected = selected.has(selKey(key, tag));
+                                            const selectable = selectMode && canEdit;
+                                            const isSelected = selected?.has(tagSelKey(key, tag)) ?? false;
                                             return (
                                                 <button
                                                     key={i}
                                                     type="button"
-                                                    disabled={!canEdit}
+                                                    disabled={selectMode && !canEdit}
                                                     onClick={(e) => {
-                                                        if (selectMode) { toggleSelected(key, tag); return; }
-                                                        if (pressRef.current?.fired) return;
+                                                        if (selectMode) { if (selectable) onToggleSelect?.(key, tag); return; }
                                                         onTapTag(key, tag, e.currentTarget);
                                                     }}
-                                                    {...(!selectMode && canEdit && hasRowActions ? makeHandlers(key, tag) : {})}
-                                                    className="w-full flex items-center justify-between gap-2 px-3 py-2.5 text-left border-b border-primary/6 last:border-0 hover:bg-themeblue3/5 active:scale-[0.99] disabled:active:scale-100 transition-colors"
+                                                    className="w-full flex items-center justify-between gap-2 px-3 py-2.5 text-left border-b border-primary/6 last:border-0 hover:bg-themeblue3/5 active:scale-[0.99] disabled:active:scale-100 disabled:opacity-50 transition-colors"
                                                 >
                                                     <span className="flex items-center gap-2.5 min-w-0">
-                                                        {selectMode && (
-                                                            <span className={`w-4 h-4 rounded-[5px] border shrink-0 flex items-center justify-center transition-colors ${isSelected ? 'bg-themeblue2 border-themeblue2' : 'border-tertiary/40'}`}>
-                                                                {isSelected && <Check size={11} className="text-white" strokeWidth={3} />}
-                                                            </span>
-                                                        )}
+                                                        {selectable && <SelectBox checked={isSelected} />}
                                                         <span className="text-sm text-primary min-w-0 break-words">{planTagDisplay(key, tag)}</span>
                                                     </span>
                                                     {isClinic && (
@@ -178,51 +110,7 @@ export const PlanTagManager = ({
                         </p>
                     </div>
                 )}
-                </div>
-                {selectMode ? (
-                    <ActionPill shadow="sm" placement="overlay">
-                        {selectedCount > 0 && (
-                            <ActionButton
-                                icon={Trash2}
-                                label={`Delete ${selectedCount}`}
-                                variant="danger"
-                                onClick={() => setConfirmDelete(true)}
-                            />
-                        )}
-                        <ActionButton icon={X} label="Done" onClick={exitSelect} />
-                    </ActionPill>
-                ) : (
-                    <OverlayActionMenu ref={fabRef} shadow="sm" items={menuItems} />
-                )}
             </div>
-
-            {lifted && (
-                <LiftedRowMenu
-                    isOpen
-                    anchorRect={lifted.rect}
-                    row={<div dangerouslySetInnerHTML={{ __html: lifted.html }} />}
-                    onClose={() => setLifted(null)}
-                    layout="list"
-                    items={[
-                        ...(onShareItem ? [{ key: 'share', label: 'Share to chat', icon: MessageSquare, onAction: () => onShareItem(lifted.key, lifted.tag) }] : []),
-                        ...(onDeleteItem ? [{ key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => onDeleteItem(lifted.key, lifted.tag) }] : []),
-                    ] as ContextMenuItem[]}
-                />
-            )}
-
-            <ConfirmDialog
-                visible={confirmDelete}
-                variant="danger"
-                title={`Delete ${selectedCount} tag${selectedCount === 1 ? '' : 's'}?`}
-                subtitle="They'll also be removed from any order sets that use them."
-                confirmLabel="Delete"
-                onConfirm={() => {
-                    onDeleteMany?.(selectedItems);
-                    setConfirmDelete(false);
-                    exitSelect();
-                }}
-                onCancel={() => setConfirmDelete(false)}
-            />
         </section>
     );
 };

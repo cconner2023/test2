@@ -53,12 +53,6 @@ export interface OverlayFeature {
    * only, no PHI).
    */
   tracking?: boolean
-  /**
-   * Clusters showing this station on their board — the creating cluster by
-   * default, plus related clusters that toggled it on in board settings (same
-   * physical spot, no duplicate station).
-   */
-  tracking_clinic_ids?: string[]
 }
 
 /**

@@ -250,11 +250,10 @@ export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg, l
     });
   }, [feature, onUpdate]);
 
-  // Station on/off. Off clears the opt-ins too; undefined tracking_clinic_ids
-  // = the overlay's own cluster only (the board fills that default in).
+  // Station on/off. Clusters receiving this cluster's stations see it too.
   const handleTrackingToggle = useCallback(() => {
     const on = !feature.tracking;
-    onUpdate({ ...feature, tracking: on || undefined, tracking_clinic_ids: on ? feature.tracking_clinic_ids : undefined, updated_at: new Date().toISOString() });
+    onUpdate({ ...feature, tracking: on || undefined, updated_at: new Date().toISOString() });
   }, [feature, onUpdate]);
 
   const handleWaypointTypeChange = useCallback((waypoint_type: WaypointType) => {
@@ -375,10 +374,10 @@ export function FeatureEditor({ feature, onUpdate, waypoints = [], onFocusLeg, l
         </div>
       )}
 
-      {/* Tracking Board station — EDIT mode, waypoints only. On = the pin is a
-          station on this cluster's tracking board (other related clusters can
-          toggle it onto theirs). Off = plain pin; patients there read as Pending. */}
-      {isEditMode && feature.type === 'waypoint' && (
+      {/* Tracking Board station — EDIT mode, any feature. On = a station on this
+          cluster's tracking board, and on the board + view-only map of every
+          cluster receiving from it. Off = plain feature; patients there read as Pending. */}
+      {isEditMode && (
         <button
           type="button"
           onClick={handleTrackingToggle}

@@ -9,11 +9,11 @@
  *                   vault (pair-cleans 'c'/'d' on next replay), removes from
  *                   IDB and bumps the invalidation counter.
  *
- * TRACKING PINS: while an overlay carries any OverlayFeature.tracking pin, its
- * target_clinic_ids = {owner} ∪ related clusters (tracking_related_clinic_ids
- * RPC — clusters joined by an active send → receive link, see
- * supervisor_set_tracking_sharing). They surface only its tracking pins
- * (Tracking Board), never on their map.
+ * TRACKING STATIONS: while an overlay carries any OverlayFeature.tracking
+ * feature, its target_clinic_ids = {owner} ∪ clusters live-receiving from the
+ * owner (tracking_related_clinic_ids RPC — owner sends to them AND they receive
+ * from it, see supervisor_set_tracking_link). They surface only its tracking
+ * features: on their Tracking Board, and as a view-only overlay on their map.
  * Targets are fetched once, when an overlay gains its first tracking pin; pin
  * edits after that keep the stored set. A link change arrives through
  * reconcileTargets (board open / settings toggle), which only sends when the
@@ -77,7 +77,7 @@ const union = (a: string[], b: string[]) => Array.from(new Set([...a, ...b]))
 const storedTargets = (o: { clinic_id: string; target_clinic_ids?: string[] } | undefined, fallback: string) =>
   o?.target_clinic_ids?.length ? o.target_clinic_ids : [o?.clinic_id ?? fallback]
 
-/** Clusters actively linked to `clinicId` (itself included). null on failure. */
+/** `clinicId` + every cluster live-receiving its stations. null on failure. */
 async function fetchRelatedClinicIds(clinicId: string): Promise<string[] | null> {
   try {
     const { data, error } = await supabase.rpc('tracking_related_clinic_ids', { p_clinic_id: clinicId })

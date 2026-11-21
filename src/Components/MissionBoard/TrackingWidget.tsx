@@ -61,7 +61,7 @@ export function TrackingWidget() {
 
   const columns = useMemo(() => {
     const board = boardEntries(events, net, viewerIds, now, originFilter)
-    return boardGroups(net, viewerId, board).map(g => ({
+    return boardGroups(net, viewerId).map(g => ({
       ...g,
       rows: board.filter(g.match).sort((a, b) => sinceAt(b) - sinceAt(a)),
     }))
@@ -85,6 +85,7 @@ export function TrackingWidget() {
     onTransit: (x, to) => { void updateEntry(x.id, d => transitData(d, to, me, Date.now())) },
     onDelete: setPendingDelete,
     net,
+    viewerId,
   })
 
   if (total === 0) {

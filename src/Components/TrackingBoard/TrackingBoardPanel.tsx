@@ -28,9 +28,10 @@ import { emitErrorToast } from '../../lib/errorFeedback'
 import { useAuthStore } from '../../stores/useAuthStore'
 import type { DecryptedSignalMessage } from '../../lib/signal/transportTypes'
 import type { LinkedFeatureRef } from '../../Types/MissionTypes'
+import type { TrackingLink } from '../../Hooks/useTrackingBoardData'
 import {
   clusterById, positionOf, sinceAt, placeKey, samePlace, stationLabel, placeLabel, originUic,
-  destinationLabel, moveTargets, boardLayout, knownPlaces, refOf, isComplete, isPending, COMPLETE,
+  destinationLabel, moveTargets, boardLayout, isComplete, isPending, COMPLETE,
   type TrackingEntry, type TrackingComment, type TrackingTarget, type TrackingNetwork, type BoardGroupDef,
   type TrackingEditDraft,
 } from './trackingModel'
@@ -42,15 +43,15 @@ export type { TrackingEntry, TrackingComment, TrackingEditDraft } from './tracki
  * Pure presentation over trackingModel.ts; data + writes live in the drawer
  * (useTrackingBoardData / useTrackingWrite).
  *
- * Every BRN sits at one station — a map pin marked "Add to tracking board"
- * (AXPs included), shown by the pin's cluster plus related clusters that toggled
- * it on — or at none (Pending: the lack of a station, not a pin). Complete =
+ * Every BRN sits at one station — a map feature marked "Add to tracking board",
+ * shown by its cluster plus every cluster live-receiving from it — or at none
+ * (Pending: the lack of a station, not a feature). Complete =
  * dispositioned, a place of its own at the far end. In transit
  * is a card marker ("→ destination"), not a place. A board shows patients ORIGINATED in the viewer's
  * cluster or below (origin + ancestors visibility), so a Role II board carries
  * its Role Is' patients and follows them up to Role III.
  * Desktop: T2T-style grid — a leading Pending column, then one flat column per
- * station along the patient flow (Role I → Role III; a shared station listed once),
+ * station, grouped by owning cluster (own first, then Role I → Role III),
  * then a trailing Complete column; the current place's whole cell is the marker. Rail / mobile tabs: the viewer's own
  * places one by one, every other cluster as one group.
  *
@@ -88,8 +89,6 @@ export const filterEntries = (entries: TrackingEntry[], query: string) => {
 
 /** A board group's stations. */
 const groupPlaces = (g: BoardGroupDef) => g.places
-const groupKey = (g: BoardGroupDef) => `cluster:${g.cluster.id}`
-const groupLabel = (g: BoardGroupDef) => g.cluster.label
 
 interface ListProps {
   entries: TrackingEntry[]
@@ -120,7 +119,7 @@ export function TrackingGrid({ entries, activeId, onSelect }: ListProps) {
   // Pending leads, stations along the patient flow (Role I → Role III), Complete last.
   const columns: { key: string; label: string; here: (e: TrackingEntry) => boolean }[] = [
     { key: 'pending', label: 'Pending', here: isPending },
-    ...boardLayout(net, viewerId, entries).flatMap(g => groupPlaces(g)).map(pl => ({
+    ...boardLayout(net, viewerId).flatMap(g => groupPlaces(g)).map(pl => ({
       key: placeKey(pl.pos), label: pl.label, here: (e: TrackingEntry) => samePlace(positionOf(e), pl.pos),
     })),
     { key: COMPLETE, label: 'Complete', here: isComplete },
@@ -194,9 +193,9 @@ export interface BoardGroup {
   match: (e: TrackingEntry) => boolean
 }
 
-export function boardGroups(net: TrackingNetwork, viewerId: string, entries: TrackingEntry[]): BoardGroup[] {
+export function boardGroups(net: TrackingNetwork, viewerId: string): BoardGroup[] {
   const out: BoardGroup[] = [{ key: 'pending', label: 'Pending', match: isPending }]
-  for (const g of boardLayout(net, viewerId, entries)) {
+  for (const g of boardLayout(net, viewerId)) {
     for (const pl of groupPlaces(g)) out.push({ key: placeKey(pl.pos), label: pl.label, match: e => samePlace(positionOf(e), pl.pos) })
   }
   out.push({ key: COMPLETE, label: 'Complete', match: isComplete })
@@ -221,7 +220,7 @@ export function TrackingBoardList({ entries, onSelect, onEdit, onMove, onTransit
   })
   return (
     <div className="pb-8">
-      {boardGroups(net, viewerId, entries).map(g => {
+      {boardGroups(net, viewerId).map(g => {
         const rows = entries.filter(g.match)
         const open = !collapsed.has(g.key)
         return (
@@ -256,15 +255,15 @@ export function TrackingBoardList({ entries, onSelect, onEdit, onMove, onTransit
 
 /** Horizontal-scroll category strip: All, own places, then other clusters.
  *  Plain text tabs; the active one alone carries a themeblue3 underline. */
-export function TrackingCategoryBar({ entries, value, onChange }: { entries: TrackingEntry[]; value: TrackingCategory; onChange: (v: TrackingCategory) => void }) {
+export function TrackingCategoryBar({ value, onChange }: { entries: TrackingEntry[]; value: TrackingCategory; onChange: (v: TrackingCategory) => void }) {
   const { net, viewerId } = useBoardScope()
-  const tabs = [{ key: 'all', label: 'All' }, ...boardGroups(net, viewerId, entries).map(g => ({ key: g.key, label: g.label }))]
+  const tabs = [{ key: 'all', label: 'All' }, ...boardGroups(net, viewerId).map(g => ({ key: g.key, label: g.label }))]
   return <UnderlineTabs tabs={tabs} value={value} onChange={onChange} ariaLabel="Location" />
 }
 
 export function filterByCategory(entries: TrackingEntry[], cat: TrackingCategory, net: TrackingNetwork, viewerId: string): TrackingEntry[] {
   if (cat === 'all') return entries
-  const g = boardGroups(net, viewerId, entries).find(x => x.key === cat)
+  const g = boardGroups(net, viewerId).find(x => x.key === cat)
   return g ? entries.filter(g.match) : entries
 }
 
@@ -452,33 +451,26 @@ function BrnRailCard({ entry, hidden, onOpen, onMenu }: {
   )
 }
 
-/** "Move to" targets — Pending, every station the origin's chain shows
- *  (Role I → Role III), then Complete, minus the BRN's current spot. One cluster
- *  = flat list; several = a submenu per cluster. Moving a Complete BRN reopens it. */
-export function trackingMoveItems(e: TrackingEntry, onMove: (entry: TrackingEntry, to: TrackingTarget) => void, net: TrackingNetwork): ContextMenuItem[] {
+/** "Move to" targets — one flat list: Pending, every station on the board (board
+ *  order), then Complete, minus the BRN's current spot. No per-cluster buckets.
+ *  Moving a Complete BRN reopens it. */
+export function trackingMoveItems(e: TrackingEntry, onMove: (entry: TrackingEntry, to: TrackingTarget) => void, net: TrackingNetwork, viewerId: string): ContextMenuItem[] {
   const at = positionOf(e)
-  const placeItems = (g: BoardGroupDef): ContextMenuItem[] => groupPlaces(g)
-    .filter(pl => !samePlace(pl.pos, at))
-    .map(pl => ({ key: placeKey(pl.pos), label: pl.label, icon: ArrowRight, onAction: () => onMove(e, pl.pos) }))
   const pending: ContextMenuItem[] = isPending(e) ? [] : [{ key: 'pending', label: 'Pending', icon: ArrowRight, onAction: () => onMove(e, null) }]
   const complete: ContextMenuItem[] = isComplete(e) ? [] : [{ key: COMPLETE, label: 'Complete', icon: CircleCheck, onAction: () => onMove(e, COMPLETE) }]
-  const groups = moveTargets(net, e)
-  if (groups.length === 1) return [...pending, ...placeItems(groups[0]), ...complete]
-  return [...pending, ...groups.map(g => ({ key: groupKey(g), label: groupLabel(g), icon: ArrowRightLeft, submenu: placeItems(g) })), ...complete]
+  const places: ContextMenuItem[] = moveTargets(net, viewerId)
+    .filter(pl => !samePlace(pl.pos, at))
+    .map(pl => ({ key: placeKey(pl.pos), label: pl.label, icon: ArrowRight, onAction: () => onMove(e, pl.pos) }))
+  return [...pending, ...places, ...complete]
 }
 
-/** "Send to" destinations — every station the origin's chain shows, minus where
- *  the BRN sits / is already headed. Submenu per cluster when there are several. */
-export function trackingTransitItems(e: TrackingEntry, onTransit: (entry: TrackingEntry, to: LinkedFeatureRef | null) => void, net: TrackingNetwork): ContextMenuItem[] {
+/** "Send to" destinations — the same flat station list, minus where the BRN
+ *  sits / is already headed. */
+export function trackingTransitItems(e: TrackingEntry, onTransit: (entry: TrackingEntry, to: LinkedFeatureRef | null) => void, net: TrackingNetwork, viewerId: string): ContextMenuItem[] {
   const at = positionOf(e)
-  const items = (g: BoardGroupDef): ContextMenuItem[] => g.places
+  return moveTargets(net, viewerId)
     .filter(d => !samePlace(d.pos, at) && !(e.transit && samePlace(d.pos, e.transit.to)))
     .map(d => ({ key: placeKey(d.pos), label: d.label, icon: Navigation, onAction: () => onTransit(e, d.pos) }))
-  const groups = moveTargets(net, e)
-  if (groups.length === 1) return items(groups[0])
-  return groups
-    .map(g => ({ key: groupKey(g), label: groupLabel(g), icon: Navigation, submenu: items(g) }))
-    .filter(g => g.submenu.length > 0)
 }
 
 /** BRN action menu — shared by the card long-press, the mobile detail Sheet
@@ -491,14 +483,15 @@ export function buildTrackingMenuItems(e: TrackingEntry, h: {
   onTransit: (entry: TrackingEntry, to: LinkedFeatureRef | null) => void
   onDelete: (entry: TrackingEntry) => void
   net: TrackingNetwork
+  viewerId: string
 }): ContextMenuItem[] {
   const t = e.transit
   // Complete = done moving; reopen through Move to… first.
-  const sendTo = isComplete(e) ? [] : trackingTransitItems(e, h.onTransit, h.net)
+  const sendTo = isComplete(e) ? [] : trackingTransitItems(e, h.onTransit, h.net, h.viewerId)
   return [
     ...(h.onOpen ? [{ key: 'open', label: 'Open', icon: Eye, onAction: () => h.onOpen!(e) }] : []),
     { key: 'edit', label: 'Edit', icon: Pencil, onAction: () => h.onEdit(e) },
-    { key: 'move', label: 'Move to…', icon: ArrowRightLeft, submenu: trackingMoveItems(e, h.onMove, h.net) },
+    { key: 'move', label: 'Move to…', icon: ArrowRightLeft, submenu: trackingMoveItems(e, h.onMove, h.net, h.viewerId) },
     // In transit: land them (move to the destination) or call it off.
     ...(t ? [
       { key: 'arrived', label: 'Arrived', icon: MapPinCheck, onAction: () => h.onMove(e, t.to) },
@@ -519,7 +512,7 @@ function useBrnCardMenu(
   measure: (id: string) => DOMRect | null,
   row: (entry: TrackingEntry) => ReactNode,
 ) {
-  const { net } = useBoardScope()
+  const { net, viewerId } = useBoardScope()
   // mode 'all' = full menu; 'move' = swipe-bound Move, straight to the places.
   const [menu, setMenu] = useState<{ entry: TrackingEntry; rect: DOMRect; mode: 'all' | 'move' } | null>(null)
   const [pendingDelete, setPendingDelete] = useState<TrackingEntry | null>(null)
@@ -528,8 +521,8 @@ function useBrnCardMenu(
   // when onAction fires); tap / swipe-open grow out of the rest card.
   const open = (e: TrackingEntry) => onSelect(e, originFor(e.id, measure))
   const edit = (e: TrackingEntry) => onEdit(e, originFor(e.id, measure))
-  const moveItems = (e: TrackingEntry) => trackingMoveItems(e, onMove, net)
-  const menuItems = (e: TrackingEntry) => buildTrackingMenuItems(e, { onOpen: open, onEdit: edit, onMove, onTransit, onDelete: setPendingDelete, net })
+  const moveItems = (e: TrackingEntry) => trackingMoveItems(e, onMove, net, viewerId)
+  const menuItems = (e: TrackingEntry) => buildTrackingMenuItems(e, { onOpen: open, onEdit: edit, onMove, onTransit, onDelete: setPendingDelete, net, viewerId })
 
   const surfaces = (
     <>
@@ -1044,22 +1037,40 @@ export function TrackingBoardDetail({ entry }: { entry: TrackingEntry }) {
 // ── Settings (mirrors Messaging settings: section header + card, in Sheet / PreviewOverlay) ──
 
 export interface TrackingSettingsHandlers {
-  /** Show / hide a known station on this cluster's board (writes the pin's
-   *  tracking_clinic_ids). Stations themselves are made / renamed / removed on
-   *  the map ("Add to tracking board" on a pin). */
-  onTogglePlace?: (ref: LinkedFeatureRef) => void
-  /** This cluster's sharing toggles. null = hidden (not a supervisor, or not loaded). */
-  sharing?: { send: boolean; receive: boolean } | null
-  onSetSharing?: (next: { send: boolean; receive: boolean }) => void
+  /** Hierarchy neighbours with both sides' link flags. null = hidden (not a
+   *  supervisor, or not loaded). */
+  links?: TrackingLink[] | null
+  onSetLink?: (clinicId: string, next: { send?: boolean; receive?: boolean }) => void
 }
 
+/** Link row sub-line — what the other side has done. */
+const sendSub = (l: TrackingLink) => (l.iSend ? (l.theyReceive ? 'Receiving your stations' : 'Waiting for them to receive') : undefined)
+
 export function TrackingBoardSettings(h: TrackingSettingsHandlers) {
-  const { net, viewerId } = useBoardScope()
+  const { net } = useBoardScope()
   const swipe = useTrackingSwipeActions()
-  const known = knownPlaces(net, viewerId)
-  const own = known.filter(p => p.clinicId === viewerId)
-  const others = known.filter(p => p.clinicId !== viewerId)
-  const clusterName = (id: string) => clusterById(net.clusters, id)?.label ?? ''
+  // Receive rows only for clusters sending to us (or still on) — nothing to accept otherwise.
+  const receivable = (h.links ?? []).filter(l => l.theySend || l.iReceive)
+
+  const linkRow = (l: TrackingLink, key: 'send' | 'receive', on: boolean, sub?: string) => (
+    <ListItemRow
+      key={`${key}:${l.clinicId}`}
+      onClick={() => h.onSetLink!(l.clinicId, { [key]: !on })}
+      className="px-4 py-2.5 border-b border-primary/5 last:border-b-0"
+      left={
+        <span className="w-9 h-9 rounded-full bg-themewhite2 flex items-center justify-center text-themeblue3 shrink-0">
+          {key === 'send' ? <Navigation size={15} /> : <MapPin size={15} />}
+        </span>
+      }
+      center={
+        <div className="min-w-0">
+          <p className="text-[10pt] text-primary truncate">{l.label}</p>
+          {sub && <p className="text-[9pt] text-tertiary truncate">{sub}</p>}
+        </div>
+      }
+      right={<ToggleSwitch checked={on} />}
+    />
+  )
 
   return (
     <div className="px-5 py-4 space-y-6">
@@ -1072,71 +1083,31 @@ export function TrackingBoardSettings(h: TrackingSettingsHandlers) {
         onChange={setTrackingSwipeActions}
       />
 
-      {/* Sharing — a link runs only when the lower cluster sends AND the upper
-          cluster receives. Both off = this cluster's board stays internal. */}
-      {h.sharing && h.onSetSharing && (
-        <section>
-          <PageSectionHeader>Sharing</PageSectionHeader>
-          <SectionCard>
-            {[
-              { key: 'send' as const, label: 'Sending', sub: 'Your parent cluster sees your board when it is receiving' },
-              { key: 'receive' as const, label: 'Receiving', sub: 'You see the boards of clusters under you that are sending' },
-            ].map(row => (
-              <ListItemRow
-                key={row.key}
-                onClick={() => h.onSetSharing!({ ...h.sharing!, [row.key]: !h.sharing![row.key] })}
-                className="px-4 py-2.5 border-b border-primary/5 last:border-b-0"
-                center={
-                  <div className="min-w-0">
-                    <p className="text-[10pt] text-primary truncate">{row.label}</p>
-                    <p className="text-[9pt] text-tertiary">{row.sub}</p>
-                  </div>
-                }
-                right={<ToggleSwitch checked={h.sharing![row.key]} />}
-              />
-            ))}
-          </SectionCard>
-        </section>
+      {/* Sharing — per cluster. A link runs only when this cluster sends AND the
+          other receives: the receiver gets these stations on its board and a
+          view-only copy of them on its map. A live link to the parent also
+          carries patients up. */}
+      {h.links && h.onSetLink && h.links.length > 0 && (
+        <>
+          <section>
+            <PageSectionHeader>Send stations to</PageSectionHeader>
+            <SectionCard>
+              {h.links.map(l => linkRow(l, 'send', l.iSend, sendSub(l)))}
+            </SectionCard>
+          </section>
+          {receivable.length > 0 && (
+            <section>
+              <PageSectionHeader>Receive stations from</PageSectionHeader>
+              <SectionCard>
+                {receivable.map(l => linkRow(l, 'receive', l.iReceive, l.theySend ? undefined : 'No longer sending'))}
+              </SectionCard>
+            </section>
+          )}
+        </>
       )}
 
-      {/* Stations — every tracking pin this cluster knows: its own, then related
-          clusters'. Toggle = show on this board (same physical spot, no duplicate).
-          Made / renamed / removed on the map. */}
-      {[{ title: 'Your stations', rows: own }, { title: 'Other clusters', rows: others }].map(sec => sec.rows.length > 0 && (
-        <section key={sec.title}>
-          <PageSectionHeader>{sec.title}</PageSectionHeader>
-          <SectionCard>
-            {sec.rows.map(pl => {
-              const on = pl.targetClinicIds.includes(viewerId)
-              const alsoOn = pl.targetClinicIds.filter(id => id !== viewerId && id !== pl.clinicId).map(clusterName)
-              const sub = pl.clinicId === viewerId
-                ? (alsoOn.length > 0 ? `Also on ${alsoOn.join(', ')}` : undefined)
-                : clusterName(pl.clinicId)
-              return (
-                <ListItemRow
-                  key={pl.featureId}
-                  onClick={h.onTogglePlace ? () => h.onTogglePlace!(refOf(pl)) : undefined}
-                  className="px-4 py-2.5 border-b border-primary/5 last:border-b-0"
-                  left={pl.clinicId === viewerId ? undefined : (
-                    <span className="w-9 h-9 rounded-full bg-themewhite2 flex items-center justify-center text-themeblue3 shrink-0">
-                      <MapPin size={15} />
-                    </span>
-                  )}
-                  center={
-                    <div className="min-w-0">
-                      <p className="text-[10pt] text-primary truncate">{pl.label}</p>
-                      {sub && <p className="text-[9pt] text-tertiary truncate">{sub}</p>}
-                    </div>
-                  }
-                  right={<ToggleSwitch checked={on} />}
-                />
-              )
-            })}
-          </SectionCard>
-        </section>
-      ))}
-      {known.length === 0 && (
-        <p className="text-[9pt] text-tertiary px-1">No stations yet — on the map, open a pin and turn on “Add to tracking board”.</p>
+      {net.places.length === 0 && (
+        <p className="text-[9pt] text-tertiary px-1">No stations yet — on the map, open a feature and turn on “Add to tracking board”.</p>
       )}
 
     </div>

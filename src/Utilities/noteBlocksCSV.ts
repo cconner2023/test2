@@ -20,6 +20,11 @@
  *   IF Field = value:      → conditional block, indented body lines (linked branch)
  *   IF [Field: a | b] = b: → inline gate (defines the choice inline; not inserted)
  *
+ * ORDER SETS + LOOSE TAGS: the order-set sheet carries the whole plan library. A
+ * row with a Name is an order set (its tags join the library too); a row with a
+ * BLANK Name is a tag-library row — its cells add tags without creating a set. So
+ * one sheet round-trips sets, tags that belong to no set, and a single tag.
+ *
  * PORTABLE REFERENCES: provider templates name their plan order set (not its id)
  * and their PE blocks by label. Ids are resolved against the importer's own world
  * at parse time (see CsvParseCtx).
@@ -319,11 +324,28 @@ export function exportTemplatesCSV(expanders: TextExpander[]): void {
   download([TEMPLATE_HEADERS.join(','), ...rows], 'text-templates')
 }
 
-export function exportOrderSetsCSV(orderSets: PlanOrderSet[]): void {
+/** Order sets plus any library tags not already carried by an exported set (one
+ *  blank-Name row). Pass only tags to export loose tags — e.g. a single tag. */
+export function exportPlanCSV({ orderSets = [], orderTags, instructionTags = [], base = 'order-sets' }: {
+  orderSets?: PlanOrderSet[]
+  orderTags?: Partial<PlanOrderTags>
+  instructionTags?: string[]
+  base?: string
+}): void {
   const rows = orderSets.map(os =>
     buildRow([os.name, ...ORDER_SET_COLUMNS.map(c => (os.presets[c.key] ?? []).join('; '))], ORDER_SET_HEADERS.length),
   )
-  download([ORDER_SET_HEADERS.join(','), ...rows], 'order-sets')
+  const inSets = new Set(orderSets.flatMap(os => ORDER_SET_COLUMNS.flatMap(c => (os.presets[c.key] ?? []).map(t => `${c.key}|${t}`))))
+  const loose = ORDER_SET_COLUMNS.map(c => {
+    const all = c.key === 'instructions' ? instructionTags : (orderTags?.[c.key as keyof PlanOrderTags] ?? [])
+    return all.filter(t => !inSets.has(`${c.key}|${t}`))
+  })
+  if (loose.some(l => l.length)) rows.push(buildRow(['', ...loose.map(l => l.join('; '))], ORDER_SET_HEADERS.length))
+  download([ORDER_SET_HEADERS.join(','), ...rows], base)
+}
+
+export function exportOrderSetsCSV(orderSets: PlanOrderSet[]): void {
+  exportPlanCSV({ orderSets })
 }
 
 export function exportProviderTemplatesCSV(templates: ProviderNoteTemplate[], orderSets: PlanOrderSet[]): void {
@@ -361,6 +383,8 @@ export function downloadNoteBlocksTemplate(kind: NoteBlocksCSVKind): void {
     download([
       ORDER_SET_HEADERS.join(','),
       buildRow(['URI', 'Acetaminophen 1000mg; Ibuprofen 800mg', '', '', '', 'RTC if worsening', 'Rest, fluids'], ORDER_SET_HEADERS.length),
+      // Blank Name = tags only (no order set).
+      buildRow(['', 'Naproxen 500mg', 'CBC', 'Chest X-ray', 'PT', '', ''], ORDER_SET_HEADERS.length),
     ], 'order-sets-import')
   } else {
     download([
@@ -401,7 +425,15 @@ const HEADER_HINTS: Record<NoteBlocksCSVKind, (norm: string[]) => boolean> = {
   providerTemplates: norm => norm.includes('name') && norm.some(h => h.includes('hpi') || h.includes('assessment')),
 }
 
+const WRONG_FILE: Record<NoteBlocksCSVKind, string> = {
+  templates: 'This isn’t a text templates CSV. Expected columns: Abbr, Body.',
+  orderSets: 'This isn’t an order sets CSV. Expected columns: Name, Medications, Lab, …',
+  providerTemplates: 'This isn’t a provider templates CSV. Expected columns: Name, HPI Shortcuts, …',
+}
+
 export function parseNoteBlocksCSV(file: File, kind: NoteBlocksCSVKind, ctx: CsvParseCtx = {}): Promise<NoteBlocksCsvParse> {
+  const isCsv = /\.csv$/i.test(file.name) || file.type === 'text/csv'
+  if (!isCsv) return Promise.resolve({ kind, errors: ['Pick a .csv file.'], warnings: [], previews: [] })
   return new Promise(resolve => {
     const reader = new FileReader()
     reader.onload = () => resolve(parseText(reader.result as string, kind, ctx))
@@ -416,9 +448,10 @@ function parseText(text: string, kind: NoteBlocksCSVKind, ctx: CsvParseCtx): Not
   const warnings: string[] = []
   if (lines.length === 0) return { kind, errors: ['File is empty'], warnings, previews: [] }
 
+  // Wrong sheet (or not a CSV at all): refuse rather than guess at the columns.
   const headerNorm = parseCSVRow(lines[0]).map(f => f.trim().toLowerCase())
   if (!HEADER_HINTS[kind](headerNorm)) {
-    warnings.push('Header row doesn’t match this content type — parsed anyway.')
+    return { kind, errors: [WRONG_FILE[kind]], warnings, previews: [] }
   }
 
   const dataLines = lines.slice(1)
@@ -486,8 +519,7 @@ function parseOrderSetRows(kind: NoteBlocksCSVKind, dataLines: string[], errors:
     if (fields.every(f => f.trim() === '')) continue
 
     const name = (fields[0] ?? '').trim()
-    if (!name) { errors.push(`Row ${lineNum}: Name is required`); continue }
-    if (!dedupeName(name, seen, lineNum, 'order set', warnings)) continue
+    if (name && !dedupeName(name, seen, lineNum, 'order set', warnings)) continue
 
     const presets: Partial<Record<PlanBlockKey, string[]>> = {}
     let count = 0
@@ -506,6 +538,11 @@ function parseOrderSetRows(kind: NoteBlocksCSVKind, dataLines: string[], errors:
       }
     })
 
+    if (!name) {
+      // Tag-library row: tags only, no set.
+      if (count) previews.push({ primary: 'Tags', secondary: `${count} tag${count === 1 ? '' : 's'}` })
+      continue
+    }
     orderSets.push({ id: crypto.randomUUID(), name, presets })
     previews.push({ primary: name, secondary: count ? `${count} tag${count === 1 ? '' : 's'}` : 'no tags' })
   }

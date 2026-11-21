@@ -1,6 +1,5 @@
 import { TextCursor, ChevronDown } from 'lucide-react';
 import { TextArea } from '@/Components/primitives/FormInputs';
-import { FooterPill } from '@/Components/primitives/FooterPill';
 import { FooterMenuButton } from '@/Components/primitives/FooterMenuButton';
 import type { ContextMenuItem } from '@/Components/primitives/ContextMenu';
 import { HINT } from './TemplateBuilder';
@@ -8,11 +7,11 @@ import type { FieldInfo } from '../../Utilities/templateParser';
 import { ListGroupLabel } from '@/Components/primitives/Section';
 
 /**
- * Insert-field UI for the simple shortcut editor. NO overlay. The TYPE is chosen in
- * the ACTION FOOTER (FieldInsertFooter — mirrors template's AddStepFooter): the `[ ]`
- * trigger opens a lifted menu of the field types. Picking a type reveals the in-card
- * <InsertFieldForm> (label / options) while the mounted-but-CSS-hidden editor
- * preserves the caret; commit rides the host's rightFooter Insert.
+ * Insert-field UI for the simple shortcut editor. NO overlay. The TYPE is chosen from
+ * the `[ ]` trigger INSIDE the text box (FieldInsertButton): it opens a lifted menu of
+ * the field types. Picking a type reveals the in-card <InsertFieldForm> (label /
+ * options) while the mounted-but-CSS-hidden editor preserves the caret; commit rides
+ * the host header's Insert check.
  */
 
 export type FieldType = 'variable' | 'dropdown';
@@ -43,10 +42,10 @@ export function buildFieldInfo(d: InsertDraft): { label: string; field: FieldInf
     };
 }
 
-/** Footer-LEFT insert control — the `[ ]` trigger, options in a lifted menu. Stays
- *  mounted through the form stage, so `type` marks the row the draft is already on
- *  and re-picking switches type without discarding the label/options typed so far. */
-export function FieldInsertFooter({
+/** In-textarea insert control — the `[ ]` trigger, options in a lifted menu. Its
+ *  mousedown guard keeps the editor's caret alive while the menu opens. `type` marks
+ *  the row a draft is already on, so re-picking switches type in place. */
+export function FieldInsertButton({
     type, onPick,
 }: {
     type: FieldType | null;
@@ -57,13 +56,11 @@ export function FieldInsertFooter({
         { key: 'dropdown', label: 'Dropdown', icon: ChevronDown, selected: type === 'dropdown', onAction: () => onPick('dropdown') },
     ];
     return (
-        <FooterPill>
-            <FooterMenuButton
-                label="Insert field"
-                items={items}
-                node={<span className="font-mono text-[10pt] font-semibold">[ ]</span>}
-            />
-        </FooterPill>
+        <FooterMenuButton
+            label="Insert field"
+            items={items}
+            node={<span className="font-mono text-[10pt] font-semibold">[ ]</span>}
+        />
     );
 }
 

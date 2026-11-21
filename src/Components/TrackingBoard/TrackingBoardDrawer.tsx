@@ -27,7 +27,7 @@ import {
     measureBrnCard, measureRailCard, measureGridRow, TrackingBoardScope,
 } from './TrackingBoardPanel'
 import {
-    boardEntries, moveData, transitData, draftData, newTrackingData, toggledFeature, originUic,
+    boardEntries, moveData, transitData, draftData, newTrackingData, originUic,
     type TrackingTarget,
 } from './trackingModel'
 import { TrackingCardOverlay } from './TrackingCardOverlay'
@@ -73,13 +73,13 @@ interface TrackingBoardDrawerProps {
  */
 export function TrackingBoardDrawer({ isVisible, onClose }: TrackingBoardDrawerProps) {
     const isMobile = useIsMobile()
-    const { viewerId, viewerIds, originFilter, net, events, overlays, sharing, setSharing, relatedIds } = useTrackingBoardData(isVisible)
+    const { viewerId, viewerIds, originFilter, net, events, links, setLink, relatedIds } = useTrackingBoardData(isVisible)
     const trackingClusterFilter = useCalendarStore(s => s.trackingClusterFilter)
     const setTrackingClusterFilter = useCalendarStore(s => s.setTrackingClusterFilter)
     // Re-read on every board change so expiry / dwell track the data.
     const now = useMemo(() => Date.now(), [isVisible, events]) // eslint-disable-line react-hooks/exhaustive-deps
     const { checkIn, updateEntry, deleteEntry: removeEntry } = useTrackingWrite()
-    const { upsertFeature, reconcileTargets } = useMapOverlayWrite()
+    const { reconcileTargets } = useMapOverlayWrite()
     const canManageSharing = useAuthStore(s => s.isSupervisorRole || s.isDevRole)
     // Link changes reach this cluster's stations here. Compares locally first, so
     // an unchanged set sends nothing.
@@ -165,6 +165,7 @@ export function TrackingBoardDrawer({ isVisible, onClose }: TrackingBoardDrawerP
         onTransit: (e, to) => { void runAction(() => transitEntry(e, to)) },
         onDelete: setPendingDelete,
         net,
+        viewerId,
     }) : []
     const openMore = () => {
         const rect = moreBtnRef.current?.getBoundingClientRect()
@@ -205,15 +206,6 @@ export function TrackingBoardDrawer({ isVisible, onClose }: TrackingBoardDrawerP
         } finally {
             setCheckInBusy(false)
         }
-    }
-
-    // Board settings toggle — edits the pin's tracking_clinic_ids on its overlay
-    // (fans to the overlay's targets like any pin edit).
-    const togglePlace = (ref: LinkedFeatureRef) => {
-        const o = overlays.find(x => x.id === ref.overlay_id)
-        const f = o?.features.find(x => x.id === ref.feature_id)
-        if (!o || !f || !viewerId) return
-        void upsertFeature({ overlayId: o.id, clinicId: o.clinic_id, feature: toggledFeature(f, o.clinic_id, viewerId) })
     }
 
     const select = (e: TrackingEntry, from?: CardOrigin) => openEntry(e, from)
@@ -289,14 +281,14 @@ export function TrackingBoardDrawer({ isVisible, onClose }: TrackingBoardDrawerP
     // Settings + check-in share the board's one card slot (PaneSurface: lifted
     // card over the grid pane on desktop, fit Sheet on mobile). Opening one
     // closes the other and any open BRN.
-    const clusterFilterPanel = <ClusterFilterPanel value={trackingClusterFilter} onChange={setTrackingClusterFilter} />
+    const clusterFilterPanel = <ClusterFilterPanel value={trackingClusterFilter} onChange={setTrackingClusterFilter} allowedIds={viewerIds} />
     const settingsSurface = (
         <PaneSurface
             isOpen={showSettings}
             onClose={() => setShowSettings(false)}
             title="Tracking board settings"
         >
-            <TrackingBoardSettings onTogglePlace={togglePlace} sharing={canManageSharing ? sharing : null} onSetSharing={setSharing} />
+            <TrackingBoardSettings links={canManageSharing ? links : null} onSetLink={(id, next) => { void setLink(id, next) }} />
             {/* Calendar idiom: scope panels ride the settings sheet on mobile;
                 desktop has them in the rail. Both render null without a loan. */}
             {isMobile && (

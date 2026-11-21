@@ -15,7 +15,7 @@ export interface LiftPressState {
 
 /** Strip inter-row separators so a cloned single row reads clean on its white
  *  card (e.g. `border-t border-tertiary/8`, `border-b border-primary/6`). */
-function snapshot(el: HTMLElement): LiftSnapshot {
+export function liftSnapshot(el: HTMLElement): LiftSnapshot {
   return {
     rect: el.getBoundingClientRect(),
     html: el.outerHTML.replace(/border-[tb] border-[a-z]+\/\d+/g, ''),
@@ -40,7 +40,7 @@ export function liftPressHandlers(
     onContextMenu: (e: MouseEvent) => {
       e.preventDefault()
       e.stopPropagation()
-      onLift(snapshot(e.currentTarget as HTMLElement))
+      onLift(liftSnapshot(e.currentTarget as HTMLElement))
     },
     onTouchStart: (e: TouchEvent) => {
       const el = e.currentTarget as HTMLElement
@@ -48,7 +48,7 @@ export function liftPressHandlers(
         fired: false,
         timer: setTimeout(() => {
           state.fired = true
-          onLift(snapshot(el))
+          onLift(liftSnapshot(el))
         }, delay),
       }
       ref.current = state
