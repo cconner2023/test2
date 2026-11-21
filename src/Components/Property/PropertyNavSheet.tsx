@@ -2,7 +2,7 @@ import { forwardRef, useImperativeHandle, useState, useEffect, useCallback, useR
 import { ChevronLeft, Check, MoreHorizontal } from 'lucide-react'
 import { Sheet } from '@/Components/primitives/Sheet'
 import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
-import { PillButton } from '@/Components/primitives/HeaderPill'
+import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill'
 import { PropertyLocationList } from './PropertyLocationList'
 import { PropertyItemDetail } from './PropertyItemDetail'
 import { ItemActionMenu, type ItemActionMenuHandle } from './ItemActionMenu'
@@ -111,7 +111,7 @@ export const PropertyNavSheet = forwardRef<PropertyNavSheetHandle, PropertyNavSh
     // (with a leading "View" that pushes the item screen) and the item screen header
     // (View omitted, already focused).
     const openItemMenu = useCallback(
-      (item: LocalPropertyItem, rect: DOMRect, opts?: { view?: boolean }) =>
+      (item: LocalPropertyItem, rect: DOMRect, opts?: { view?: boolean; align?: 'left' | 'right' }) =>
         itemActionRef.current?.openMenu(item, rect, opts),
       [],
     )
@@ -159,11 +159,18 @@ export const PropertyNavSheet = forwardRef<PropertyNavSheetHandle, PropertyNavSh
       </button>
     ) : undefined
 
-    const itemActions = top?.kind === 'item' && liveItem ? (
-      <span className="inline-flex" onClick={(e) => openItemMenu(liveItem, (e.currentTarget as HTMLElement).getBoundingClientRect())}>
-        <PillButton icon={MoreHorizontal} iconSize={16} onClick={() => {}} label="More actions" />
-      </span>
-    ) : top?.kind === 'item-form' ? (
+    const itemMenu = top?.kind === 'item' && liveItem ? (
+      <HeaderPill>
+        <span className="inline-flex" onClick={(e) => openItemMenu(liveItem, (e.currentTarget as HTMLElement).getBoundingClientRect(), { align: 'left' })}>
+          <PillButton icon={MoreHorizontal} iconSize={16} onClick={() => {}} label="More actions" />
+        </span>
+      </HeaderPill>
+    ) : undefined
+    const left = back && itemMenu
+      ? <div className="flex items-center gap-1">{back}{itemMenu}</div>
+      : back ?? itemMenu
+
+    const itemActions = top?.kind === 'item-form' ? (
       <PillButton icon={Check} iconSize={16} accent="success" onClick={() => itemFormRef.current?.submit()} label="Save" />
     ) : top?.kind === 'location-form' ? (
       <PillButton icon={Check} iconSize={16} accent="success" onClick={() => locationFormRef.current?.submit()} label="Save" />
@@ -181,7 +188,7 @@ export const PropertyNavSheet = forwardRef<PropertyNavSheetHandle, PropertyNavSh
           maxHeight={50}
           zIndex={1200}
           title={title}
-          leftContent={back}
+          leftContent={left}
           actions={itemActions}
         >
           {top?.kind === 'location' && (

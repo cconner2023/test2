@@ -2,6 +2,7 @@ import { useRef, useEffect, useCallback, useMemo, useState } from 'react'
 import { Check, ChevronRight, Lock, CalendarDays, ClipboardList, Pin, RotateCcw } from 'lucide-react'
 import { AddFab } from '@/Components/primitives/AddFab'
 import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
+import { ErrorDisplay } from '@/Components/primitives/ErrorDisplay'
 import { useCalendarVault } from '../../Hooks/useCalendarVault'
 import { useCalendarStore } from '../../stores/useCalendarStore'
 import { stp68wTraining } from '../../Data/TrainingTaskList'
@@ -446,21 +447,23 @@ function TaskDetail({
 
             {/* Assignment banner */}
             {isAssigned && assignment.dueDate && (
-                <div className={`flex items-center gap-2 px-3 py-2.5 rounded-lg mb-4 ${
-                    isOverdue
-                        ? 'bg-themeredred/10 border border-themeredred/20'
-                        : 'bg-themeblue3/10 border border-themeblue3/20'
-                }`}>
-                    <CalendarDays size={15} className={isOverdue ? 'text-themeredred' : 'text-themeblue2'} />
-                    <span className={`text-sm font-medium ${isOverdue ? 'text-themeredred' : 'text-themeblue2'}`}>
-                        {isOverdue ? 'Overdue' : 'Due'}: {formatDueDate(assignment.dueDate)}
-                    </span>
-                    {assignment.supervisorNotes && (
-                        <span className="text-[10pt] text-tertiary ml-auto truncate max-w-[50%]">
-                            {assignment.supervisorNotes}
-                        </span>
-                    )}
-                </div>
+                <ErrorDisplay
+                    type={isOverdue ? 'error' : 'info'}
+                    icon={CalendarDays}
+                    className="mb-4"
+                    message={
+                        <div className="flex items-center gap-2">
+                            <span className="shrink-0">
+                                {isOverdue ? 'Overdue' : 'Due'}: {formatDueDate(assignment.dueDate)}
+                            </span>
+                            {assignment.supervisorNotes && (
+                                <span className="text-[10pt] font-normal text-tertiary ml-auto truncate max-w-[50%]">
+                                    {assignment.supervisorNotes}
+                                </span>
+                            )}
+                        </div>
+                    }
+                />
             )}
 
             {/* Conditions */}

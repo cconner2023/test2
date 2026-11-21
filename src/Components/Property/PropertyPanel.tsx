@@ -108,12 +108,14 @@ type CardSpec = {
   body: ReactNode
 }
 
-/** Ellipsis pill that hands its rect to a detail's menu opener. */
+/** Left-slot ellipsis pill that hands its rect to a detail's menu opener. */
 function MoreActionsPill({ onOpen }: { onOpen: (rect: DOMRect) => void }) {
   return (
-    <span className="inline-flex" onClick={(e) => onOpen((e.currentTarget as HTMLElement).getBoundingClientRect())}>
-      <PillButton icon={MoreHorizontal} iconSize={18} onClick={() => {}} label="More actions" />
-    </span>
+    <HeaderPill>
+      <span className="inline-flex" onClick={(e) => onOpen((e.currentTarget as HTMLElement).getBoundingClientRect())}>
+        <PillButton icon={MoreHorizontal} iconSize={18} onClick={() => {}} label="More actions" />
+      </span>
+    </HeaderPill>
   )
 }
 
@@ -1036,8 +1038,8 @@ export const PropertyPanel = memo(function PropertyPanel({
     else cameraTo({ kind: 'zone', id: loc.id })
   }, [propertyTab, selectedLocationId, cameraTo])
 
-  const openLocationMenu = useCallback((loc: LocalPropertyLocation, rect: DOMRect) => {
-    locationActionRef.current?.openMenu(loc, rect)
+  const openLocationMenu = useCallback((loc: LocalPropertyLocation, rect: DOMRect, opts?: { align?: 'left' | 'right' }) => {
+    locationActionRef.current?.openMenu(loc, rect, opts)
   }, [])
 
   // Breadcrumb (in the detail header) → navigate the canvas to an ancestor zone,
@@ -1079,7 +1081,7 @@ export const PropertyPanel = memo(function PropertyPanel({
   // Custody item cards, item detail header). `view` gates the leading "View" row — on
   // for surfaces not already showing the item, off on the item detail itself.
   const openItemMenu = useCallback(
-    (item: LocalPropertyItem, rect: DOMRect, opts?: { view?: boolean }) =>
+    (item: LocalPropertyItem, rect: DOMRect, opts?: { view?: boolean; align?: 'left' | 'right' }) =>
       itemActionRef.current?.openMenu(item, rect, opts),
     [],
   )
@@ -1393,9 +1395,10 @@ export const PropertyPanel = memo(function PropertyPanel({
       eyebrow: da2062DetailSubtitle(selectedReceipt),
       title: selectedReceipt.recipientLabel,
       onClose: da2062Editing ? () => setReceiptEditingId(null) : closeRosterDetail,
+      leading: da2062Editing ? undefined : <MoreActionsPill onOpen={(rect) => da2062DetailRef.current?.openMenu(rect)} />,
       actions: da2062Editing
         ? <PillButton icon={Check} iconSize={18} accent="success" onClick={() => da2062EditorRef.current?.submit()} label="Save" />
-        : <MoreActionsPill onOpen={(rect) => da2062DetailRef.current?.openMenu(rect)} />,
+        : undefined,
       body: da2062Editing ? (
         <Da2062Editor
           ref={da2062EditorRef}
@@ -1438,7 +1441,7 @@ export const PropertyPanel = memo(function PropertyPanel({
         </button>
       ),
       onClose: closeRosterDetail,
-      actions: <MoreActionsPill onOpen={(rect) => recordDetailRef.current?.openMenu(rect)} />,
+      leading: <MoreActionsPill onOpen={(rect) => recordDetailRef.current?.openMenu(rect)} />,
       body: (
         <PropertyRecordDetail
           ref={recordDetailRef}
@@ -1460,7 +1463,7 @@ export const PropertyPanel = memo(function PropertyPanel({
       ),
       title: selectedItem.name,
       onClose: () => { onBack(); closeLocationDetail() },
-      actions: <MoreActionsPill onOpen={(rect) => openItemMenu(selectedItem, rect)} />,
+      leading: <MoreActionsPill onOpen={(rect) => openItemMenu(selectedItem, rect, { align: 'left' })} />,
       body: (
         <PropertyItemDetail
           item={selectedItem}
@@ -1501,7 +1504,7 @@ export const PropertyPanel = memo(function PropertyPanel({
       ),
       title: selectedLocation.name,
       onClose: closeLocationDetail,
-      actions: <MoreActionsPill onOpen={(rect) => openLocationMenu(selectedLocation, rect)} />,
+      leading: <MoreActionsPill onOpen={(rect) => openLocationMenu(selectedLocation, rect, { align: 'left' })} />,
       body: (
         <PropertyLocationDetail
           location={selectedLocation}
@@ -1539,20 +1542,25 @@ export const PropertyPanel = memo(function PropertyPanel({
         // Morph header — back returns to the list; Save persists a form.
         onBack: authImport ? () => csvImportRef.current?.back() : closeAuthMorph,
         leading: authImport && csvImportInPreview
-          ? <PillButton icon={MoreHorizontal} iconSize={18} onClick={() => csvImportRef.current?.openMenu()} label="Import actions" />
-          : undefined,
+          ? <HeaderPill><PillButton icon={MoreHorizontal} iconSize={18} onClick={() => csvImportRef.current?.openMenu()} label="Import actions" /></HeaderPill>
+          : authView
+            ? <MoreActionsPill onOpen={(rect) => setAuthViewMenu({ rect })} />
+            : undefined,
         title: authForm ? (authForm.item ? 'Edit authorized item' : 'Add authorized item') : authView ? authView.name : 'Import Property CSV',
         actions: (
           <>
             {authForm && <PillButton icon={Check} iconSize={18} accent="success" onClick={() => authFormRef.current?.submit()} label="Save" />}
             {authImport && csvImportReady && <PillButton icon={Check} iconSize={18} accent="success" onClick={() => csvImportRef.current?.apply()} label="Import" />}
-            {authView && <MoreActionsPill onOpen={(rect) => setAuthViewMenu({ rect })} />}
           </>
         ),
       } : {
         // List header — Import (its only "more action", morphs in place) left;
         // add + close right.
-        leading: <PillButton icon={Download} iconSize={18} onClick={openAuthImport} label="Import from CSV" />,
+        leading: (
+          <HeaderPill>
+            <PillButton icon={Download} iconSize={18} onClick={openAuthImport} label="Import from CSV" />
+          </HeaderPill>
+        ),
         title: 'Authorized items',
         actions: <PillButton icon={Plus} iconSize={18} onClick={openAuthAdd} label="Add authorized item" />,
       }),
@@ -1761,7 +1769,7 @@ export const PropertyPanel = memo(function PropertyPanel({
             anchorRect={authViewMenu.rect}
             onClose={() => setAuthViewMenu(null)}
             layout="list"
-            align="right"
+            align="left"
             items={
               isLinContainer(authView)
                 ? [
@@ -2070,9 +2078,12 @@ export const PropertyPanel = memo(function PropertyPanel({
                   )}
                 </div>
               ) : (
-                <button onClick={closeAuthMorph} aria-label="Back" className="w-9 h-9 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all">
-                  <ChevronLeft size={20} />
-                </button>
+                <div className="flex items-center gap-1">
+                  <button onClick={closeAuthMorph} aria-label="Back" className="w-9 h-9 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all">
+                    <ChevronLeft size={20} />
+                  </button>
+                  {!authForm && authView && <MoreActionsPill onOpen={(rect) => setAuthViewMenu({ rect })} />}
+                </div>
               )
             ) : (
               <HeaderPill>
@@ -2089,9 +2100,9 @@ export const PropertyPanel = memo(function PropertyPanel({
                     : selectedRecord
                     ? (e) => recordDetailRef.current?.openMenu((e.currentTarget as HTMLElement).getBoundingClientRect())
                     : mobileItem
-                    ? (e) => openItemMenu(mobileItem, (e.currentTarget as HTMLElement).getBoundingClientRect())
+                    ? (e) => openItemMenu(mobileItem, (e.currentTarget as HTMLElement).getBoundingClientRect(), { align: 'left' })
                     : selectedLocation
-                    ? (e) => openLocationMenu(selectedLocation, (e.currentTarget as HTMLElement).getBoundingClientRect())
+                    ? (e) => openLocationMenu(selectedLocation, (e.currentTarget as HTMLElement).getBoundingClientRect(), { align: 'left' })
                     : undefined
                 }
               >
@@ -2124,9 +2135,7 @@ export const PropertyPanel = memo(function PropertyPanel({
             ) : authImport ? (
               csvImportReady ? <PillButton icon={Check} iconSize={18} accent="success" onClick={() => csvImportRef.current?.apply()} label="Import" /> : undefined
             ) : authView ? (
-              <span className="inline-flex" onClick={(e) => setAuthViewMenu({ rect: (e.currentTarget as HTMLElement).getBoundingClientRect() })}>
-                <PillButton icon={MoreHorizontal} iconSize={18} onClick={() => {}} label="More actions" />
-              </span>
+              undefined
             ) : (
               <PillButton icon={Plus} iconSize={18} onClick={openAuthAdd} label="Add authorized item" />
             )
@@ -2280,7 +2289,7 @@ export const PropertyPanel = memo(function PropertyPanel({
           anchorRect={authViewMenu.rect}
           onClose={() => setAuthViewMenu(null)}
           layout="list"
-          align="right"
+          align="left"
           items={
             isLinContainer(authView)
               ? [

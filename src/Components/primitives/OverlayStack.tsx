@@ -79,6 +79,7 @@ function SheetStackPublisher({ stack, host, sheet, onClose, loading }: {
       onBack: stack.onBack ?? onClose,
       onClose,
       headerActions: stack.headerActions,
+      headerLeft: stack.headerLeft,
       rightFooter: stack.rightFooter,
       body: (
         <StackNavContext.Provider value={stack.nav}>

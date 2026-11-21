@@ -9,6 +9,7 @@ import type { ContextMenuItem } from '@/Components/primitives/ContextMenu'
 import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog'
 import type { SliderStop } from '@/Components/primitives/SliderRail'
 import { ContentWrapper } from '@/Components/primitives/ContentWrapper'
+import { ErrorDisplay } from '@/Components/primitives/ErrorDisplay'
 import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill'
 import { Sheet } from '@/Components/primitives/Sheet'
 import { SlideRevealPane } from '@/Components/primitives/SlideRevealPane'
@@ -1331,17 +1332,16 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
     // where it is read on the way back in, not where it was dismissed.
     const isCertPane = pane.kind === 'cert' || pane.kind === 'cert-new'
     const errorBanner = paneError ? (
-      <div className="mx-4 mt-4 rounded-lg bg-themeredred/10 px-3 py-2">
-        <p className="text-sm text-themeredred">{paneError}</p>
-        <p className="text-[9pt] text-tertiary mt-0.5">
-          {isCertPane
+      <ErrorDisplay
+        className="mx-4 mt-4"
+        title={paneError}
+        message={isCertPane
             // A cert write is online-only (the row is not event-sourced, so it
             // does not ride the sync queue), which is what most refusals here
             // actually mean.
             ? 'Nothing was saved. The card is unchanged — try again when you are back on a connection.'
             : 'Nothing was recorded. The grades below are still here — submit again.'}
-        </p>
-      </div>
+      />
     ) : null
 
     if (pane.kind === 'week') {

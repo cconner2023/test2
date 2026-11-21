@@ -302,16 +302,17 @@ export function ClusterRosterSection<T>({
         anchorRect={addRect}
         title="New sub-unit"
         maxWidth={320}
-        rightFooter={
+        loading={busy}
+        rightFooter={draft.trim() && !busy ? (
           <FooterPill side="right">
             <ActionButton
               icon={Check}
               label="Add"
-              variant={draft.trim() && !busy ? 'confirm' : 'disabled'}
+              variant="confirm"
               onClick={() => void saveAdd()}
             />
           </FooterPill>
-        }
+        ) : undefined}
       >
         {nameField(() => void saveAdd())}
       </PreviewOverlay>
@@ -333,16 +334,17 @@ export function ClusterRosterSection<T>({
             />
           </FooterPill>
         }
-        rightFooter={
+        loading={busy}
+        rightFooter={draft.trim() && !busy ? (
           <FooterPill side="right">
             <ActionButton
               icon={Check}
               label="Save"
-              variant={draft.trim() && !busy ? 'confirm' : 'disabled'}
+              variant="confirm"
               onClick={() => void saveEdit()}
             />
           </FooterPill>
-        }
+        ) : undefined}
       >
         {nameField(() => void saveEdit())}
       </PreviewOverlay>

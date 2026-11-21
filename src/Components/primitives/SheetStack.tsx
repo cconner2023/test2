@@ -110,7 +110,7 @@ export function SheetStack({
       loading={loading}
       hudSize={hudSize}
       title={drilled ? stack.title : rootTitle}
-      leftContent={drilled ? back : rootLeftContent}
+      leftContent={drilled ? <div className="flex items-center gap-2">{back}{stack.headerLeft}</div> : rootLeftContent}
       rightContent={drilled ? (stack.rightFooter ?? undefined) : rootRightContent}
       actions={drilled ? stack.headerActions : undefined}
     >

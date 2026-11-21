@@ -26,7 +26,7 @@ export interface ItemActionMenuHandle {
    *  `{ view: true }` from surfaces where the item isn't already open (tree /
    *  sign-out tab) so a leading "View" row is offered; omit it on the item detail
    *  itself (already focused). */
-  openMenu: (item: LocalPropertyItem, anchor: DOMRect, opts?: { view?: boolean }) => void
+  openMenu: (item: LocalPropertyItem, anchor: DOMRect, opts?: { view?: boolean; align?: 'left' | 'right' }) => void
 }
 
 interface ItemActionMenuProps {
@@ -120,6 +120,7 @@ export const ItemActionMenu = forwardRef<ItemActionMenuHandle, ItemActionMenuPro
   // The LATCHED subject: survives the menu closing so an open sheet keeps its item.
   const [active, setActive] = useState<{ item: LocalPropertyItem; showView: boolean } | null>(null)
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null)
+  const [menuAlign, setMenuAlign] = useState<'left' | 'right'>('right')
   const [showSplitSheet, setShowSplitSheet] = useState(false)
   const [showMergeSheet, setShowMergeSheet] = useState(false)
   const [showExpendSheet, setShowExpendSheet] = useState(false)
@@ -134,6 +135,7 @@ export const ItemActionMenu = forwardRef<ItemActionMenuHandle, ItemActionMenuPro
     openMenu: (item, anchor, opts) => {
       setActive({ item, showView: !!opts?.view })
       setAnchorRect(anchor)
+      setMenuAlign(opts?.align ?? 'right')
       setShowSplitSheet(false)
       setShowMergeSheet(false)
       setShowExpendSheet(false)
@@ -339,7 +341,7 @@ export const ItemActionMenu = forwardRef<ItemActionMenuHandle, ItemActionMenuPro
           anchorRect={anchorRect}
           onClose={() => setAnchorRect(null)}
           layout="list"
-          align="right"
+          align={menuAlign}
           items={[
             ...(onView && active?.showView ? [{ key: 'view', label: 'View', icon: Eye, onAction: () => onView(item) } as ContextMenuItem] : []),
             ...(onEdit ? [{ key: 'edit', label: 'Edit', icon: Pencil, onAction: () => onEdit(item) } as ContextMenuItem] : []),

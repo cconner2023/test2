@@ -7,6 +7,7 @@ import { Plus, Check, Trash2, CheckSquare, TextCursorInput, Layers } from 'lucid
 import { SearchInput } from '@/Components/primitives/SearchInput';
 import { PillButton } from '@/Components/primitives/HeaderPill';
 import { HeaderMenuPill } from '@/Components/primitives/HeaderMenuPill';
+import { OverlayHeaderMenu } from '@/Components/primitives/OverlayHeaderMenu';
 import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog';
 import type { ContextMenuItem } from '@/Components/primitives/ContextMenu';
 import { TextExpanderManager, expansionPreview, hasBranches } from './TextExpanderManager';
@@ -156,11 +157,8 @@ export const TextTemplatesPanel = ({ cardHost }: { cardHost?: CardMorphHost } = 
             <PillButton icon={Check} iconSize={18} label="Done" onClick={exitSelect} />
         </>
     ) : (
-        <>
-            <HeaderMenuPill icon={Plus} label="Add" items={addItems} />
-            <HeaderMenuPill items={moreItems} />
-        </>
-    ));
+        <HeaderMenuPill icon={Plus} label="Add" items={addItems} />
+    ), selectMode ? [] : moreItems);
 
     return (
         <>
@@ -208,7 +206,7 @@ export const TextTemplatesPanel = ({ cardHost }: { cardHost?: CardMorphHost } = 
                 screens={{
                     view: {
                         title: viewing?.abbr ?? '',
-                        headerActions: <HeaderMenuPill items={viewing ? itemActions(viewing, false) : []} />,
+                        headerLeft: <OverlayHeaderMenu items={viewing ? itemActions(viewing, false) : []} align="left" />,
                         render: () => viewing ? (
                             <div className="px-4 pb-4 space-y-2">
                                 <p className="text-[9pt] font-semibold uppercase tracking-wider text-tertiary">

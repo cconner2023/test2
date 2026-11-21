@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { Check, User, Building2, TextCursorInput, Layers } from 'lucide-react';
 import { PillButton } from '@/Components/primitives/HeaderPill';
-import { HeaderMenuPill } from '@/Components/primitives/HeaderMenuPill';
+import { OverlayHeaderMenu } from '@/Components/primitives/OverlayHeaderMenu';
 import { ContentStack } from './contentPrimitives';
 import type { TextExpander } from '../../Data/User';
 import type { TemplateNode } from '../../Data/TemplateTypes';
@@ -209,11 +209,11 @@ export const TextExpanderEditPopover = ({
             // (never unmounted, so the caret survives). Back cancels.
             title: insertFormStage ? 'Insert field' : titleText,
             onBack: insertFormStage ? () => closeInsert() : undefined,
+            headerLeft: insertFormStage ? undefined : <OverlayHeaderMenu items={modifierItems} align="left" />,
             headerActions: insertFormStage ? (
                 insertValid && <PillButton icon={Check} iconSize={18} accent="success" label="Insert" onClick={commitInsert} />
             ) : (
                 <>
-                    <HeaderMenuPill items={modifierItems} />
                     {mode === 'template' && <AddStepHeader onPick={handleAddRoot} />}
                     {!saveDisabled && <PillButton icon={Check} iconSize={18} accent="success" label="Save" onClick={handleSave} />}
                 </>

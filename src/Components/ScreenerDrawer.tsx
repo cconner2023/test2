@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback } from 'react';
 import { BaseDrawer } from '@/Components/primitives/BaseDrawer';
+import { ErrorDisplay } from '@/Components/primitives/ErrorDisplay';
 import { useIsMobile } from '@/Hooks/useIsMobile';
 import { DRAWER_TIMING } from '@/Utilities/constants';
 import type { ScreenerConfig, ScreenerWordList } from '../Types/AlgorithmTypes';
@@ -283,13 +284,13 @@ export function ScreenerDrawer({
 
                                 {/* Gate banner — rendered right after the last pre-gate question */}
                                 {gate && qIdx === gate.gatedFromIndex - 1 && gateEvaluated && (
-                                    <div className={`mx-1 my-3 px-3 py-2.5 rounded-md text-[10pt] font-medium text-center ${
-                                        gateOpen
-                                            ? 'bg-themegreen/10 text-themegreen border border-themegreen/20'
-                                            : 'bg-themeyellow/15 text-secondary border border-themeyellow/30'
-                                    }`}>
-                                        {gateOpen ? gate.positiveMessage : gate.negativeMessage}
-                                    </div>
+                                    <ErrorDisplay
+                                        type={gateOpen ? 'success' : 'warning'}
+                                        icon={null}
+                                        centered
+                                        className="mx-1 my-3 text-center"
+                                        message={gateOpen ? gate.positiveMessage : gate.negativeMessage}
+                                    />
                                 )}
                             </div>
                         );

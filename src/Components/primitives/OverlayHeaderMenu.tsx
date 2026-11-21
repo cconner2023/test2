@@ -1,43 +1,19 @@
-import { useRef, useState } from 'react'
-import { MoreHorizontal } from 'lucide-react'
-import { AnchoredMenu } from '@/Components/primitives/LiftedRowMenu'
+import { HeaderMenuPill } from '@/Components/primitives/HeaderMenuPill'
 import type { ContextMenuItem } from '@/Components/primitives/ContextMenu'
 
 /**
- * Overflow menu for popovers/detail sheets — a single ellipsis that opens an
- * anchored vertical list (AnchoredMenu). Object-level secondary actions (Share,
- * Export, Delete) live here so the footer stays focused on the primary commit.
- * Uses AnchoredMenu (portal @ z-9998) rather than ActionSheet so it layers ABOVE
- * an open PreviewOverlay (Z.POPOVER). Renders nothing when `items` is empty, so
- * callers can pass a conditionally-empty list (new vs. edit mode).
+ * The header ellipsis: object-level secondary actions (Edit first, Share, Export,
+ * Delete) in an anchored vertical list, so the footer stays on the primary commit.
+ * AnchoredMenu portals above an open PreviewOverlay. Renders nothing when `items`
+ * is empty, so callers can pass a conditionally-empty list (new vs. edit mode).
  *
- * `align` sets both the header edge the button reads as and the edge the menu
- * follows — 'right' (default) for a right-header overflow, 'left' for a
- * left-header ellipsis (the mobile sheet ellipsis-left / close-right idiom).
+ * `align` is the header edge:
+ *   - 'left': a specific item's header (detail pane, item sheet, drilled screen).
+ *     Its own pill in the left slot (stack `headerLeft`, Sheet `leftContent`,
+ *     PaneHeader `leading`).
+ *   - 'right' (default): rail / list / sheet-root and main-drawer headers. A bare
+ *     button inside the close HeaderPill.
  */
-export function OverlayHeaderMenu({ items, align = 'right' }: { items: ContextMenuItem[]; align?: 'left' | 'right' }) {
-  const btnRef = useRef<HTMLButtonElement>(null)
-  const [rect, setRect] = useState<DOMRect | null>(null)
-  if (items.length === 0) return null
-  return (
-    <>
-      <button
-        ref={btnRef}
-        type="button"
-        onClick={() => setRect(btnRef.current?.getBoundingClientRect() ?? null)}
-        className="w-8 h-8 rounded-full flex items-center justify-center text-tertiary hover:text-tertiary active:scale-95 transition-all"
-        aria-label="More actions"
-      >
-        <MoreHorizontal size={16} />
-      </button>
-      <AnchoredMenu
-        isOpen={!!rect}
-        anchorRect={rect}
-        items={items}
-        onClose={() => setRect(null)}
-        layout="list"
-        align={align}
-      />
-    </>
-  )
+export function OverlayHeaderMenu({ items, align = 'right', label }: { items: ContextMenuItem[]; align?: 'left' | 'right'; label?: string }) {
+  return <HeaderMenuPill items={items} side={align} label={label} />
 }

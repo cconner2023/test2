@@ -715,11 +715,12 @@ const AdminClinicDetail = ({
         // so fall back to opening the user to edit their assignment manually.
         const canAssign = !!clinic?.id
         return (
-          <div className="px-4 py-3 bg-themeblue2/5 border-b border-primary/6">
-            <p className="text-[9pt] text-themeblue2 font-medium mb-1">
-              {suggested.length} user{suggested.length !== 1 ? 's' : ''} self-report these UICs but aren't assigned here
-            </p>
-            <p className="text-[9pt] text-tertiary mb-1.5">
+          <ErrorDisplay
+            strip
+            type="info"
+            title={<>{suggested.length} user{suggested.length !== 1 ? 's' : ''} self-report these UICs but aren't assigned here</>}
+            message={<>
+            <p className="mb-1.5">
               {canAssign
                 ? 'Tap a user to set this cluster as their home.'
                 : 'Open a user to update their assigned clinic.'}
@@ -738,7 +739,8 @@ const AdminClinicDetail = ({
                 </button>
               ))}
             </div>
-          </div>
+            </>}
+          />
         )
       })()}
 
@@ -753,11 +755,12 @@ const AdminClinicDetail = ({
         )
         if (matches.length === 0) return null
         return (
-          <div className="px-4 py-3 bg-themeyellow/5 border-b border-primary/6">
-            <p className="text-[9pt] text-themeyellow font-medium mb-1">
-              {matches.length} pending request{matches.length !== 1 ? 's' : ''} self-report these UICs
-            </p>
-            <p className="text-[9pt] text-tertiary mb-1.5">
+          <ErrorDisplay
+            strip
+            type="warning"
+            title={<>{matches.length} pending request{matches.length !== 1 ? 's' : ''} self-report these UICs</>}
+            message={<>
+            <p className="mb-1.5">
               Tap a request to review and approve it into this cluster.
             </p>
             <div className="space-y-0.5">
@@ -772,7 +775,8 @@ const AdminClinicDetail = ({
                 </button>
               ))}
             </div>
-          </div>
+            </>}
+          />
         )
       })()}
 

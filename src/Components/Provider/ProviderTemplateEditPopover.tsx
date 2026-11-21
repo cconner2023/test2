@@ -11,7 +11,6 @@ import { usePlanPaneScreens } from './ProviderPlanSections';
 import { TextSectionEditor } from './ProviderPaneSections';
 import { ActionButton } from '@/Components/primitives/ActionButton';
 import { PillButton } from '@/Components/primitives/HeaderPill';
-import { OverlayHeaderMenu } from '@/Components/primitives/OverlayHeaderMenu';
 import { OverlayStack, type StackNav, type StackScreen, type CardMorphHost } from '@/Components/primitives/OverlayStack';
 import { TextInput } from '@/Components/primitives/FormInputs';
 import { FooterPill } from '@/Components/primitives/FooterPill'
@@ -167,7 +166,7 @@ export function useProviderTemplateEditorScreens({
         onClose: () => peNavRef.current?.pop(),
         keyPrefix: 'tmpl-',
     });
-    const { screens: planPaneScreens, headerMenuItems: planMenuItems } = usePlanPaneScreens({
+    const { screens: planPaneScreens } = usePlanPaneScreens({
         planState,
         orderTags,
         instructionTags,
@@ -183,10 +182,8 @@ export function useProviderTemplateEditorScreens({
     );
 
     // PE + Plan are drill-down screens of the same editor card; back pops to the
-    // editor. They borrow the drawer's pane screens (render + state), override Done
-    // to pop, and — since the OverlayStack shell ignores headerLeft — surface Plan's
-    // Free text / Reset in headerActions via OverlayHeaderMenu (the text-expander
-    // modifier-menu pattern), dropping the pane-only headerLeft.
+    // editor. They borrow the drawer's pane screens (render + state) and override
+    // Done to pop.
     const screens: Record<string, StackScreen> = {
         editor: {
             title: isEdit ? 'Edit template' : 'New template',
@@ -253,13 +250,7 @@ export function useProviderTemplateEditorScreens({
             ...planPaneScreens['s-plan'],
             title: 'Plan',
             maxWidth: 560,
-            headerLeft: undefined, // overlay shell ignores it; menu moves to headerActions
-            headerActions: (_: unknown, nav: StackNav) => (
-                <>
-                    <OverlayHeaderMenu items={planMenuItems} />
-                    <PillButton icon={Check} iconSize={18} accent="success" label="Done" onClick={() => nav.pop()} />
-                </>
-            ),
+            headerActions: drillDone,
         },
     };
 

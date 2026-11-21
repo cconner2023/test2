@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Route, Pencil, Trash2, Check, MoreHorizontal, X } from 'lucide-react'
+import { Route, Pencil, Trash2, Check, X } from 'lucide-react'
 import { loadAuditBySubject } from '../../lib/auditService'
 import type { AuditEvent } from '../../lib/auditTypes'
 import { getLocalPropertyLocations } from '../../lib/offlineDb'
@@ -7,9 +7,8 @@ import { useInvalidation } from '../../stores/useInvalidationStore'
 import { useRecordPreview } from '../Property/RecordPreview'
 import { PaneHeader } from '@/Components/primitives/PaneHeader'
 import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill'
-import { AnchoredMenu } from '@/Components/primitives/LiftedRowMenu'
+import { OverlayHeaderMenu } from '@/Components/primitives/OverlayHeaderMenu'
 import { LoadingOverlay } from '@/Components/primitives/LoadingOverlay'
-import { useIsMobile } from '../../Hooks/useIsMobile'
 import { formatDtg } from '../../Utilities/propertyDates'
 import { createLogger } from '../../Utilities/Logger'
 
@@ -31,9 +30,7 @@ const logger = createLogger('DispatchExpiryDetail')
  *
  * CHROME follows the calendar's event surfaces, not the property sheets it borrows
  * its body from — this is a calendar entry, so it must not read as a foreign panel:
- *  - read mode  → ellipsis (Edit · Delete) + Close. Desktop groups both pills right
- *    (EventDetailPanel); mobile puts the ellipsis LEFT and Close right, the
- *    cross-domain mobile selected-surface invariant.
+ *  - read mode  → ellipsis (Edit · Delete) LEFT, Close RIGHT.
  *  - edit mode  → bare Back LEFT (exit edit, no save) + Save · Close RIGHT, the map
  *    FeatureEditor pattern the event form pane and Sheet both use. Delete is NOT
  *    duplicated here; it stays the read-mode ellipsis action.
@@ -64,7 +61,6 @@ export function DispatchExpiryDetail({
   onClose,
   containerRef,
 }: DispatchExpiryDetailProps) {
-  const isMobile = useIsMobile()
   const [event, setEvent] = useState<AuditEvent | null>(null)
   const [vehicleName, setVehicleName] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -72,8 +68,6 @@ export function DispatchExpiryDetail({
   // so each press re-seeds the shared form (its seeding effect keys on the event
   // identity) and an abandoned edit doesn't linger in the fields. Null = read mode.
   const [editTarget, setEditTarget] = useState<AuditEvent | null>(null)
-  const [moreMenu, setMoreMenu] = useState<DOMRect | null>(null)
-  const moreBtnRef = useRef<HTMLDivElement>(null)
   const propGen = useInvalidation('properties')
   // The load effect closes the pane when the event is gone; keep onClose out of
   // its dep list so a new parent callback identity can't re-run the fetch.
@@ -140,46 +134,25 @@ export function DispatchExpiryDetail({
     { key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: record.requestDelete },
   ] : []
 
-  // One trigger node, placed on the LEFT (mobile) or grouped with Close on the RIGHT
-  // (desktop) — never both at once, so the single anchor ref stays unambiguous.
-  const moreButton = (
-    <div ref={moreBtnRef}>
-      <PillButton
-        icon={MoreHorizontal}
-        iconSize={18}
-        onClick={() => {
-          const rect = moreBtnRef.current?.getBoundingClientRect()
-          if (rect) setMoreMenu(rect)
-        }}
-        label="More actions"
-      />
-    </div>
-  )
-
   return (
     <div className="relative flex flex-col flex-1 min-h-0">
       <PaneHeader
         eyebrow={vehicleName ?? undefined}
         title={event ? `Dispatch ${formatDtg(event.occurredAt)}` : 'Dispatch'}
         onBack={editing ? () => setEditTarget(null) : undefined}
-        // Mobile read mode: ellipsis LEFT of the title, Close alone on the right.
-        leading={!editing && isMobile && menuItems.length > 0 ? <HeaderPill>{moreButton}</HeaderPill> : undefined}
+        leading={editing ? undefined : <OverlayHeaderMenu align="left" items={menuItems} />}
         actions={
           editing ? (
             <HeaderPill>
-              <PillButton
-                icon={Check}
-                iconSize={18}
-                accent="success"
-                disabled={!record.canSave || record.busy}
-                onClick={record.save}
-                label="Save"
-              />
-              <PillButton icon={X} iconSize={18} onClick={onClose} label="Close" />
-            </HeaderPill>
-          ) : !isMobile && menuItems.length > 0 ? (
-            <HeaderPill>
-              {moreButton}
+              {record.canSave && !record.busy && (
+                <PillButton
+                  icon={Check}
+                  iconSize={18}
+                  accent="success"
+                  onClick={record.save}
+                  label="Save"
+                />
+              )}
               <PillButton icon={X} iconSize={18} onClick={onClose} label="Close" />
             </HeaderPill>
           ) : (
@@ -199,17 +172,6 @@ export function DispatchExpiryDetail({
       {/* Delete confirm — a descendant of the host surface, so it stacks above a
           mobile Sheet via OverlayStackContext without explicit z plumbing. */}
       {record.confirm}
-
-      {moreMenu && (
-        <AnchoredMenu
-          isOpen
-          anchorRect={moreMenu}
-          onClose={() => setMoreMenu(null)}
-          layout="list"
-          align={isMobile ? 'left' : 'right'}
-          items={menuItems}
-        />
-      )}
 
       <LoadingOverlay visible={loading || record.saving} className="rounded-xl" />
     </div>

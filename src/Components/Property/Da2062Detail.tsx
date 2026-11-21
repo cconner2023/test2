@@ -152,7 +152,7 @@ export const Da2062Detail = forwardRef<Da2062DetailHandle, Da2062DetailProps>(
             anchorRect={menuAnchor.rect}
             onClose={() => setMenuAnchor(null)}
             layout="list"
-            align="right"
+            align="left"
             items={menuItems}
           />
         )}

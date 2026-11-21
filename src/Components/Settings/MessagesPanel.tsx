@@ -21,7 +21,7 @@ import { getDisplayName } from '../../Utilities/nameUtils'
 import { ConversationInfoPanel } from './ConversationInfoPanel'
 import { UserAvatar } from './UserAvatar'
 import { SkeletonSections } from '@/Components/primitives/Skeleton'
-import { SyncBanner } from '@/Components/primitives/SyncBanner'
+import { ErrorDisplay } from '@/Components/primitives/ErrorDisplay'
 import { ProvisionalDeviceModal } from './ProvisionalDeviceModal'
 import { useAuth } from '../../Hooks/useAuth'
 import { useCallActions } from '../../Hooks/CallContext'
@@ -430,7 +430,7 @@ function ConversationPane({
   if (firstLoad) {
     return (
       <div className="flex flex-col">
-        {!signalReady && <SyncBanner label="Setting up encryption…" />}
+        {!signalReady && <ErrorDisplay type="sync" strip message="Setting up encryption…" />}
         <SkeletonSections sections={[2, 4]} variant="avatar" className="pt-3" />
       </div>
     )
@@ -438,7 +438,7 @@ function ConversationPane({
 
   return (
     <div className="flex flex-col">
-      {!signalReady && <SyncBanner label="Setting up encryption…" />}
+      {!signalReady && <ErrorDisplay type="sync" strip message="Setting up encryption…" />}
       <div className="pt-1 pb-28 md:pb-10">
         {/* Search results */}
         {searchResults ? (

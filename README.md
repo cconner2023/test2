@@ -1,4 +1,4 @@
-# MKRON: Medical Knowledge Repository and Operational Network (name in progress)
+# Medical Knowledge Repository and Operational Network (name in progress)
 I started making this with 2017 SPC me in mind - what could he have used, what would've made us more effective as medics. Triage algorithms, expedited documentation, property management, E2EE comms and map navigation so we could evac faster, and training IAW updated CPGs, STP, MEDCOM PAM 40-7-21. Built mobile-first, offline-first, E2EE and hashed to outpace a post-quantum world. Maybe its a playground, maybe it actually goes somewhere, maybe its the next system of record.
 
 ```

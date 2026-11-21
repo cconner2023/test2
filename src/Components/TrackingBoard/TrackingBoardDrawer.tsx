@@ -257,7 +257,7 @@ export function TrackingBoardDrawer({ isVisible, onClose }: TrackingBoardDrawerP
             anchorRect={moreRect}
             onClose={() => setMoreRect(null)}
             layout="list"
-            align="right"
+            align={isMobile ? 'right' : 'left'}
             items={detailMenuItems}
         />
     )
@@ -382,7 +382,7 @@ export function TrackingBoardDrawer({ isVisible, onClose }: TrackingBoardDrawerP
             closeOnEsc={false}
             loading={busy}
             onBack={editing && !busy ? cancelEdit : undefined}
-            rightContent={!editing && !busy && selected ? <HeaderPill>{moreButton}</HeaderPill> : undefined}
+            leading={!editing && !busy && selected ? <HeaderPill>{moreButton}</HeaderPill> : undefined}
             actions={editing && canSave ? <PillButton icon={Check} iconSize={18} accent="success" onClick={saveEdit} label="Save" /> : undefined}
         >
             {selected && (

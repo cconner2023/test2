@@ -1123,8 +1123,8 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
   }, [isVisible, activeClinicId, overlayGen]);
 
   // Received tracking maps — overlays of clusters live-sending their tracking
-  // stations to this one. View only, just the tracking features, hidden until
-  // the viewer turns them on (opt-in). The sender's own map is unchanged.
+  // stations to this one. View only, just the tracking features, shown on
+  // arrival until the viewer hides them. The sender's own map is unchanged.
   const [receivedOverlays, setReceivedOverlays] = useState<LocalMapOverlay[]>([]);
   useEffect(() => {
     if (!isVisible || !activeClinicId) return;
@@ -1141,6 +1141,14 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
     return () => { cancelled = true; };
   }, [isVisible, activeClinicId, overlayGen]);
   const receivedIds = useMemo(() => new Set(receivedOverlays.map(o => o.id)), [receivedOverlays]);
+  // Seed each received overlay visible once; a later hide sticks.
+  const seededReceivedRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const fresh = receivedOverlays.map(o => o.id).filter(id => !seededReceivedRef.current.has(id));
+    if (fresh.length === 0) return;
+    for (const id of fresh) seededReceivedRef.current.add(id);
+    setVisibleOverlayIds(prev => new Set([...prev, ...fresh]));
+  }, [receivedOverlays]);
 
   // Received tracking overlay: tapping frames it / a feature — never opens it.
   const focusReceived = useCallback((features: OverlayFeature[]) => {
@@ -2468,13 +2476,16 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
     onBack: isFeatureEditMode ? handleToggleFeatureEditMode : undefined,
     onClose: handleCloseFeatureEditor,
     loading: savingOverlay,
+    leading: isFeatureEditMode ? undefined : (
+      <HeaderPill>
+        <span className="inline-flex" onClick={openFeatureMenu}>
+          <PillButton icon={MoreHorizontal} iconSize={18} onClick={() => {}} label="More actions" />
+        </span>
+      </HeaderPill>
+    ),
     actions: isFeatureEditMode ? (
       <PillButton icon={Check} iconSize={18} onClick={handleSaveAndExitEdit} label="Save changes" accent={isDirty ? 'info' : undefined} />
-    ) : (
-      <span className="inline-flex" onClick={openFeatureMenu}>
-        <PillButton icon={MoreHorizontal} iconSize={18} onClick={() => {}} label="More actions" />
-      </span>
-    ),
+    ) : undefined,
     // Keyed so a different feature remounts the editor (fresh local state).
     children: (
       <FeatureEditor
@@ -2514,27 +2525,30 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
     onClose: handleCloseTempRoute,
     actions: (
       <>
-        <PillButton
-          icon={Undo2}
-          iconSize={18}
-          onClick={handleUndoTempRoute}
-          label="Undo"
-          disabled={tempRoute.history.length === 0}
-        />
-        <PillButton
-          icon={Route}
-          iconSize={18}
-          onClick={handleSaveTempRouteAsFeature}
-          label="Save as route"
-          disabled={tempRoute.points.length < 2}
-        />
-        <PillButton
-          icon={Pentagon}
-          iconSize={18}
-          onClick={handleSaveTempRouteAsArea}
-          label="Save as area"
-          disabled={tempRoute.points.length < 3}
-        />
+        {tempRoute.history.length > 0 && (
+          <PillButton
+            icon={Undo2}
+            iconSize={18}
+            onClick={handleUndoTempRoute}
+            label="Undo"
+          />
+        )}
+        {tempRoute.points.length >= 2 && (
+          <PillButton
+            icon={Route}
+            iconSize={18}
+            onClick={handleSaveTempRouteAsFeature}
+            label="Save as route"
+          />
+        )}
+        {tempRoute.points.length >= 3 && (
+          <PillButton
+            icon={Pentagon}
+            iconSize={18}
+            onClick={handleSaveTempRouteAsArea}
+            label="Save as area"
+          />
+        )}
       </>
     ),
     children: <TempRouteBody points={tempRoute.points} onRemoveVertex={handleRemoveTempRouteVertex} onAddVertex={handleAddTempRouteVertex} />,
@@ -3395,7 +3409,7 @@ export function MapOverlayPanel({ isVisible, onClose, initialOverlayId, initialF
           anchorRect={featureMenu.rect}
           onClose={() => setFeatureMenu(null)}
           layout="list"
-          align="right"
+          align="left"
           items={[
             // View-only (received tracking feature): location actions only.
             ...(selectedIsViewOnly ? [] : [{ key: 'edit', label: 'Edit', icon: Pencil, onAction: handleToggleFeatureEditMode }]),

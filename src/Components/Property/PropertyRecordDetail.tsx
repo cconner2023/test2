@@ -105,7 +105,7 @@ export const PropertyRecordDetail = forwardRef<PropertyRecordDetailHandle, Prope
             anchorRect={menuAnchor.rect}
             onClose={() => setMenuAnchor(null)}
             layout="list"
-            align="right"
+            align="left"
             items={menuItems}
           />
         )}

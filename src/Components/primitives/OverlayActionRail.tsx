@@ -1,9 +1,8 @@
-import { useState, useRef, type ReactNode } from 'react'
-import { MoreHorizontal, type LucideIcon } from 'lucide-react'
+import type { ReactNode } from 'react'
+import type { LucideIcon } from 'lucide-react'
 import { ActionButton } from '@/Components/primitives/ActionButton'
 import { FooterPill } from '@/Components/primitives/FooterPill'
-import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill'
-import { AnchoredMenu } from '@/Components/primitives/LiftedRowMenu'
+import { OverlayHeaderMenu } from '@/Components/primitives/OverlayHeaderMenu'
 import type { ContextMenuItem } from '@/Components/primitives/ContextMenu'
 
 /**
@@ -18,10 +17,8 @@ import type { ContextMenuItem } from '@/Components/primitives/ContextMenu'
  * card corners, applied here to a screen's footer):
  *   - RESERVED actions (delete / reset — the ones that must stay one tap away and
  *     visually distinct) pin to the footer-left pill, capped at 2.
- *   - Everything else — plus any reserved beyond the cap — collapses into a single
- *     MoreHorizontal ellipsis riding the header's LEFT edge (HeaderPill trigger →
- *     AnchoredMenu vertical list, align="left"), matching the ellipsis-left
- *     convention established by the provider PE-block menu.
+ *   - Everything else — plus any reserved beyond the cap — collapses into the
+ *     left-aligned OverlayHeaderMenu (content-pane ellipsis-left convention).
  *
  * Returns the two ready-to-drop nodes for a StackScreen: `footer` and `headerLeft`.
  * Both are undefined when their bucket is empty (no empty pill, no bare ellipsis).
@@ -42,23 +39,6 @@ export interface OverlayRailAction {
 }
 
 const MAX_RESERVED = 2
-
-// The header-left ellipsis — owns its own open state + anchor so the rail builder
-// can stay a pure function (no hook, safe to call inside a screens map literal).
-function OverlayRailEllipsis({ items }: { items: ContextMenuItem[] }) {
-  const [open, setOpen] = useState(false)
-  const anchor = useRef<HTMLDivElement>(null)
-  return (
-    <>
-      <div ref={anchor} className="flex">
-        <HeaderPill>
-          <PillButton icon={MoreHorizontal} iconSize={18} label="More actions" onClick={() => setOpen(true)} />
-        </HeaderPill>
-      </div>
-      <AnchoredMenu isOpen={open} anchorRef={anchor} layout="list" align="left" onClose={() => setOpen(false)} items={items} />
-    </>
-  )
-}
 
 export function buildOverlayActionRail(actions: OverlayRailAction[]): { footer?: ReactNode; headerLeft?: ReactNode } {
   const reserved: OverlayRailAction[] = []
@@ -83,7 +63,7 @@ export function buildOverlayActionRail(actions: OverlayRailAction[]): { footer?:
     destructive: a.variant === 'danger',
     onAction: a.onClick,
   }))
-  const headerLeft = overflow.length > 0 ? <OverlayRailEllipsis items={menuItems} /> : undefined
+  const headerLeft = overflow.length > 0 ? <OverlayHeaderMenu items={menuItems} align="left" /> : undefined
 
   return { footer, headerLeft }
 }

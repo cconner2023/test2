@@ -49,7 +49,7 @@ import { usePropertyStore } from '../../stores/usePropertyStore'
 import { useCalendarSync } from '../../Hooks/useCalendarSync'
 import { useCalendarWrite } from '../../Hooks/useCalendarWrite'
 import { LoadingOverlay } from '@/Components/primitives/LoadingOverlay'
-import { SyncBanner } from '@/Components/primitives/SyncBanner'
+import { ErrorDisplay } from '@/Components/primitives/ErrorDisplay'
 import { useAuth } from '../../Hooks/useAuth'
 import { getOverlays } from '../../lib/mapOverlayService'
 import { useMapOverlayWrite } from '../../Hooks/useMapOverlayWrite'
@@ -1386,7 +1386,7 @@ export function CalendarPanel({ onBack, scrollNonce, onOpenControls }: CalendarP
 
   // Desktop card chrome per mode — formStack drill > form root > detail > tools.
   const closeToCalendar = () => setPanelView('calendar')
-  const desktopCardChrome: Pick<PaneCardProps, 'title' | 'onClose' | 'onBack' | 'actions' | 'rightContent' | 'hideClose' | 'header' | 'selfScroll'> =
+  const desktopCardChrome: Pick<PaneCardProps, 'title' | 'onClose' | 'onBack' | 'leading' | 'actions' | 'rightContent' | 'hideClose' | 'header' | 'selfScroll'> =
     panelView === 'form' ? (
       formStack.canBack
         ? { title: formStack.title ?? '', onClose: handleDetailBack, onBack: formStack.onBack, rightContent: formStack.rightFooter, hideClose: true }
@@ -1410,18 +1410,20 @@ export function CalendarPanel({ onBack, scrollNonce, onOpenControls }: CalendarP
     ) : panelView === 'detail' ? {
       title: selectedEvent?.title || 'Event',
       onClose: handleDetailBack,
-      actions: detailMenu?.hasMenu ? (
-        <div ref={detailMoreBtnRef}>
-          <PillButton
-            icon={MoreHorizontal}
-            iconSize={18}
-            onClick={() => {
-              const rect = detailMoreBtnRef.current?.getBoundingClientRect()
-              if (rect) setDetailMoreMenu(rect)
-            }}
-            label="More actions"
-          />
-        </div>
+      leading: detailMenu?.hasMenu ? (
+        <HeaderPill>
+          <div ref={detailMoreBtnRef}>
+            <PillButton
+              icon={MoreHorizontal}
+              iconSize={18}
+              onClick={() => {
+                const rect = detailMoreBtnRef.current?.getBoundingClientRect()
+                if (rect) setDetailMoreMenu(rect)
+              }}
+              label="More actions"
+            />
+          </div>
+        </HeaderPill>
       ) : undefined,
     } : panelView === 'template' ? {
       title: 'Provider Template',
@@ -1445,32 +1447,33 @@ export function CalendarPanel({ onBack, scrollNonce, onOpenControls }: CalendarP
     <>
       <div className="relative h-full flex">
         {!vaultReplayDone && (
-          <SyncBanner label="Syncing calendar…" className="absolute top-0 inset-x-0 z-30" />
+          <ErrorDisplay type="sync" strip message="Syncing calendar…" className="absolute top-0 inset-x-0 z-30" />
         )}
-        {/* Vault hydration error banner */}
         {hydrationError && (
-          <div className="absolute top-0 inset-x-0 z-30 flex items-center justify-between gap-2 px-3 py-2 bg-amber-100 border-b border-amber-300 text-amber-900 text-[10pt]">
-            <span>Some calendar events could not be decrypted. They may appear after the next sync.</span>
-            <button onClick={clearHydrationError} className="shrink-0 text-amber-700 hover:text-amber-900 font-medium">
-              Dismiss
-            </button>
-          </div>
+          <ErrorDisplay
+            type="warning"
+            strip
+            message="Some calendar events could not be decrypted. They may appear after the next sync."
+            onDismiss={clearHydrationError}
+            className="absolute top-0 inset-x-0 z-30"
+          />
         )}
         {/* Move-mode banner — tap a day to relocate the chosen event */}
         {moveModeEventId && (() => {
           const mv = events.find(e => e.id === moveModeEventId)
           return (
-            <div className="absolute top-0 inset-x-0 z-30 flex items-center justify-between gap-2 px-3 py-2 bg-themeblue3/15 border-b border-themeblue2/30 text-[10pt]">
-              <span className="text-themeblue1 font-medium truncate">
-                Tap a day to move{mv ? ` “${mv.title}”` : ' the event'}
-              </span>
-              <button
-                onClick={() => setMoveModeEventId(null)}
-                className="shrink-0 text-themeblue2 hover:text-themeblue1 font-semibold"
-              >
-                Cancel
-              </button>
-            </div>
+            <ErrorDisplay
+              type="info"
+              strip
+              icon={null}
+              message={<span className="block truncate">Tap a day to move{mv ? ` “${mv.title}”` : ' the event'}</span>}
+              action={
+                <button onClick={() => setMoveModeEventId(null)} className="text-themeblue2 hover:text-themeblue1 font-semibold">
+                  Cancel
+                </button>
+              }
+              className="absolute top-0 inset-x-0 z-30"
+            />
           )
         })()}
         {/* Calendar — always visible */}
@@ -1922,7 +1925,7 @@ export function CalendarPanel({ onBack, scrollNonce, onOpenControls }: CalendarP
               anchorRect={detailMoreMenu}
               onClose={() => setDetailMoreMenu(null)}
               layout="list"
-              align={isMobile ? 'left' : 'right'}
+              align="left"
               reactions={detailMenu.reactions}
               items={detailMenu.items}
             />

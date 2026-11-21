@@ -1,8 +1,8 @@
 import { useState, useRef, useCallback } from 'react';
-import { Check, X, RotateCcw, GripVertical, MoreHorizontal, Type } from 'lucide-react';
+import { Check, X, RotateCcw, GripVertical, Type } from 'lucide-react';
 import { SearchInput } from '@/Components/primitives/SearchInput';
-import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill';
-import { AnchoredMenu } from '@/Components/primitives/LiftedRowMenu';
+import { PillButton } from '@/Components/primitives/HeaderPill';
+import { OverlayHeaderMenu } from '@/Components/primitives/OverlayHeaderMenu';
 import type { ContextMenuItem } from '@/Components/primitives/ContextMenu';
 import { Chip, ChipBar } from '@/Components/primitives/Chip';
 import { TextSectionEditor } from './ProviderPaneSections';
@@ -297,23 +297,8 @@ function PlanEditorBody({ planState, orderSets, allTags, showFreeText, onToggleT
   );
 }
 
-// Header ellipsis for the plan screen — Free text (reveal block) + Reset (clear plan).
-// Rides the header's LEFT (pane shell), matching the ellipsis-left convention (see
-// PEBlockMenu). Overlay shells that ignore headerLeft instead feed `planHeaderMenuItems`
-// into an OverlayHeaderMenu in headerActions (see ProviderTemplateEditPopover).
 function PlanHeaderMenu({ items }: { items: ContextMenuItem[] }) {
-  const [open, setOpen] = useState(false);
-  const anchor = useRef<HTMLDivElement>(null);
-  return (
-    <>
-      <div ref={anchor} className="flex">
-        <HeaderPill>
-          <PillButton icon={MoreHorizontal} iconSize={18} label="Plan actions" onClick={() => setOpen(true)} />
-        </HeaderPill>
-      </div>
-      <AnchoredMenu isOpen={open} anchorRef={anchor} layout="list" align="left" onClose={() => setOpen(false)} items={items} />
-    </>
-  );
+  return <OverlayHeaderMenu items={items} align="left" label="Plan actions" />;
 }
 
 // ── Pane screen: a single `s-plan` editor (no per-category drill) ──
@@ -332,7 +317,7 @@ export function usePlanPaneScreens({
   /** Namespaces the screen key so a host stack can merge two instances (provider
    *  plan vs the imported medic's plan). */
   keyPrefix?: string;
-}): { screens: Record<string, StackScreen>; headerMenuItems: ContextMenuItem[] } {
+}): { screens: Record<string, StackScreen> } {
   const base = planState ?? FRESH_PLAN_STATE;
   const allTags = allTagsFor(base, orderTags, instructionTags);
   const [showFreeText, setShowFreeText] = useState(false);
@@ -375,5 +360,5 @@ export function usePlanPaneScreens({
     },
   };
 
-  return { screens, headerMenuItems };
+  return { screens };
 }

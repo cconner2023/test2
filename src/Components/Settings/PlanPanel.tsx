@@ -15,6 +15,7 @@ import { OrderSetManager } from './OrderSetManager';
 import { ContentStack, useRowMenu, itemMenuItems } from './contentPrimitives';
 import { usePublishHeaderActions } from './panelHeaderSlot';
 import { HeaderMenuPill } from '@/Components/primitives/HeaderMenuPill';
+import { OverlayHeaderMenu } from '@/Components/primitives/OverlayHeaderMenu';
 import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog';
 import { EmptyState } from '@/Components/primitives/EmptyState';
 import { exportOrderSetsCSV, exportPlanCSV } from '../../Utilities/noteBlocksCSV';
@@ -326,11 +327,8 @@ export const PlanPanel = ({ cardHost }: { cardHost?: CardMorphHost } = {}) => {
             <PillButton icon={Check} iconSize={18} label="Done" onClick={exitSelect} />
         </>
     ) : (
-        <>
-            <HeaderMenuPill icon={Plus} label="Add" items={addItems} />
-            <HeaderMenuPill items={moreItems} />
-        </>
-    ));
+        <HeaderMenuPill icon={Plus} label="Add" items={addItems} />
+    ), selectMode ? [] : moreItems);
 
     return (
         <>
@@ -444,7 +442,7 @@ function OrderSetView({ orderSet, onClose, items, cardHost }: {
             screens={{
                 view: {
                     title: orderSet?.name ?? 'Order set',
-                    headerActions: <HeaderMenuPill items={items} />,
+                    headerLeft: <OverlayHeaderMenu items={items} align="left" />,
                     render: () => {
                         const keys = orderSet ? ALL_KEYS.filter(k => (orderSet.presets[k]?.length ?? 0) > 0) : [];
                         if (keys.length === 0) return <p className="text-[10pt] text-tertiary py-6 text-center">No tags in this order set</p>;
@@ -742,12 +740,8 @@ function TagEditPopover({ state, onClose, isSupervisorRole, hasClinic, onSubmitM
             screens={{
                 edit: {
                     title: editTitle,
-                    headerActions: (
-                        <>
-                            <HeaderMenuPill items={modifierItems} />
-                            {canSave && <PillButton icon={Check} iconSize={18} accent="success" label="Save" onClick={handleSave} />}
-                        </>
-                    ),
+                    headerLeft: <OverlayHeaderMenu items={modifierItems} align="left" />,
+                    headerActions: canSave && <PillButton icon={Check} iconSize={18} accent="success" label="Save" onClick={handleSave} />,
                     render: () => body,
                 },
             }}
@@ -902,12 +896,8 @@ function OrderSetEditPopover({
             screens={{
                 edit: {
                     title: osTitle,
-                    headerActions: (
-                        <>
-                            <HeaderMenuPill items={modifierItems} />
-                            {canSave && <PillButton icon={Check} iconSize={18} accent="success" label="Save" onClick={handleSave} />}
-                        </>
-                    ),
+                    headerLeft: <OverlayHeaderMenu items={modifierItems} align="left" />,
+                    headerActions: canSave && <PillButton icon={Check} iconSize={18} accent="success" label="Save" onClick={handleSave} />,
                     render: () => <LocalSearch placeholder="Search tags" pinned={nameField}>{renderList}</LocalSearch>,
                 },
             }}

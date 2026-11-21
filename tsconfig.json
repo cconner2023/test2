@@ -5,9 +5,8 @@
     { "path": "./tsconfig.node.json" }
   ],
   /* Mirror of tsconfig.app.json paths. tsc -b ignores it (files is empty), but
-     tools that read only the root config (graphify, some editors) need it to
-     resolve "@/" imports; without it every "@/" import edge is dropped. Keep
-     in sync with tsconfig.app.json. */
+     tools that read only the root config (some editors) need it to resolve "@/"
+     imports. Keep in sync with tsconfig.app.json. */
   "compilerOptions": {
     "baseUrl": ".",
     "paths": {

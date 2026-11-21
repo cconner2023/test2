@@ -1,5 +1,6 @@
 import { memo } from 'react'
 import type { TQAlert } from '../../Hooks/useTQAlerts'
+import { ErrorDisplay } from '../primitives/ErrorDisplay'
 
 /** Presentational — the caller owns `useTQAlerts()`. TC3CardColumn needs the
  *  same alert list to decide who takes the floating-header clearance (the
@@ -17,12 +18,14 @@ export const TQAlertBanner = memo(function TQAlertBanner({ alerts }: { alerts: T
     : `TQ — ${top.location}: ${top.elapsedMinutes} min`
 
   return (
-    <div
-      className={`flex items-center justify-center px-3 h-9 text-white text-[10pt] font-semibold tracking-wide shrink-0 ${
-        hasCritical ? 'bg-themeredred' : 'bg-amber-500'
-      }`}
-    >
-      {label}
-    </div>
+    <ErrorDisplay
+      type={hasCritical ? 'error' : 'warning'}
+      solid
+      strip
+      centered
+      icon={null}
+      message={label}
+      className="h-9 tracking-wide shrink-0"
+    />
   )
 })

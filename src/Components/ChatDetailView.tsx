@@ -11,6 +11,7 @@ import { dataUrlToBlob } from '../Utilities/imageUtils'
 import { uploadEncryptedAttachment, attachmentFailureMessage, deleteAttachments, MAX_ATTACHMENT_BYTES } from '../lib/signal/attachmentService'
 import { UploadChip, useUploadTask } from '@/Components/primitives/UploadProgress'
 import { emitErrorToast } from '../lib/errorFeedback'
+import { ErrorDisplay } from './primitives/ErrorDisplay'
 import { packBundle, bundleSourceToBundle, type BundleSource } from '../lib/objectBundle'
 import { ContextMenu, type ContextMenuItem } from '@/Components/primitives/ContextMenu'
 import { LiftedRowMenu } from '@/Components/primitives/LiftedRowMenu'
@@ -141,10 +142,7 @@ function UnavailableBanner({ participants, peerName }: { participants: Participa
       : `${peerName ?? p.displayName} hasn't set up a device yet. Messages can't be delivered until they log in.`
     return (
       <div className="shrink-0 px-4 py-3 border-t border-primary/10">
-        <div className="flex items-center gap-2 px-3 py-2.5">
-          <div className="w-2 h-2 bg-transparent shrink-0" />
-          <p className="text-[10pt] text-secondary">{message}</p>
-        </div>
+        <ErrorDisplay type="warning" message={message} />
       </div>
     )
   }
@@ -152,12 +150,7 @@ function UnavailableBanner({ participants, peerName }: { participants: Participa
   const names = unavailable.map(p => p.displayName).join(', ')
   return (
     <div className="shrink-0 px-4 py-1.5">
-      <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-themeyellow/10">
-        <div className="w-2 h-2 rounded-full bg-themeyellow shrink-0" />
-        <p className="text-[10pt] text-themeyellow">
-          {names} can't receive messages
-        </p>
-      </div>
+      <ErrorDisplay type="warning" message={`${names} can't receive messages`} />
     </div>
   )
 }

@@ -173,7 +173,7 @@ export interface LocationActionMenuHandle {
   closeCardSheets: () => void
   /** Open the shared zone action menu anchored to a trigger's bounding rect —
    *  called from the location tree rows AND the zone-detail header. */
-  openMenu: (location: LocalPropertyLocation, anchor: DOMRect) => void
+  openMenu: (location: LocalPropertyLocation, anchor: DOMRect, opts?: { align?: 'left' | 'right' }) => void
 }
 
 interface LocationActionMenuProps {
@@ -218,6 +218,7 @@ export const LocationActionMenu = forwardRef<LocationActionMenuHandle, LocationA
   // The LATCHED subject: survives the menu closing so an open sheet keeps its zone.
   const [active, setActive] = useState<LocalPropertyLocation | null>(null)
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null)
+  const [menuAlign, setMenuAlign] = useState<'left' | 'right'>('right')
   const [showPmcs, setShowPmcs] = useState(false)
   const [showDispatch, setShowDispatch] = useState(false)
   const [showDD1750, setShowDD1750] = useState(false)
@@ -227,9 +228,10 @@ export const LocationActionMenu = forwardRef<LocationActionMenuHandle, LocationA
 
   useImperativeHandle(ref, () => ({
     closeCardSheets: () => { setShowPmcs(false); setShowDispatch(false); setShowDD1750(false) },
-    openMenu: (location, anchor) => {
+    openMenu: (location, anchor, opts) => {
       setActive(location)
       setAnchorRect(anchor)
+      setMenuAlign(opts?.align ?? 'right')
       setShowPmcs(false)
       setShowDispatch(false)
       setShowDD1750(false)
@@ -281,7 +283,7 @@ export const LocationActionMenu = forwardRef<LocationActionMenuHandle, LocationA
           anchorRect={anchorRect}
           onClose={() => setAnchorRect(null)}
           layout="list"
-          align="right"
+          align={menuAlign}
           items={buildLocationMenuItems({
             location,
             // The default cluster zone (BAS) is a standing concept — never deletable.

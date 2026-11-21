@@ -116,13 +116,15 @@ export function ForeignLinkSwitchScreen() {
 
           <ErrorDisplay message={error} centered />
 
-          <div className="mb-6 p-3 rounded-lg bg-themeyellow/10 border border-themeyellow/20">
-            <p className="text-[10pt] text-primary leading-relaxed">
+          <ErrorDisplay
+            type="warning"
+            className="mb-6"
+            message={<>
               Continuing signs this device out of{' '}
-              <span className="font-medium">{incumbent?.email}</span> and erases its
+              <span className="font-semibold">{incumbent?.email}</span> and erases its
               messages and offline data from this browser. Anything not yet synced is lost.
-            </p>
-          </div>
+            </>}
+          />
 
           {busy ? (
             <div className="flex flex-col items-center gap-3 py-4">

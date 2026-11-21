@@ -18,6 +18,7 @@ import { formatShortDayLabel, isEventEditable, isTemplateStructureMutable, isUns
 import { useAuthStore } from '../../stores/useAuthStore'
 import { useNavigationStore } from '../../stores/useNavigationStore'
 import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill'
+import { PaneHeader } from '@/Components/primitives/PaneHeader'
 import { UserAvatar } from '../Settings/UserAvatar'
 import { shareSingleEvent } from '../../lib/calendarExport'
 import { useIsMobile } from '../../Hooks/useIsMobile'
@@ -210,17 +211,21 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete, onMove, onC
           so the chrome doesn't reshape when the body swaps to the form; the
           ellipsis menu is built in CalendarPanel from the same shared builders. */}
       {!inSheet && (
-        <div className="flex items-center justify-between px-3 py-2 border-b border-primary/10 shrink-0">
-          <h2 className="min-w-0 flex-1 mr-2 text-sm font-semibold text-primary truncate">{event.title}</h2>
-          <HeaderPill>
-            {hasMenu && (
+        <PaneHeader
+          title={event.title}
+          leading={hasMenu ? (
+            <HeaderPill>
               <div ref={moreBtnRef}>
                 <PillButton icon={MoreHorizontal} iconSize={16} onClick={openMoreMenu} label="More" />
               </div>
-            )}
-            <PillButton icon={X} iconSize={16} onClick={onClose} label="Close" />
-          </HeaderPill>
-        </div>
+            </HeaderPill>
+          ) : undefined}
+          actions={
+            <HeaderPill>
+              <PillButton icon={X} iconSize={16} onClick={onClose} label="Close" />
+            </HeaderPill>
+          }
+        />
       )}
 
       <div className={`${inSheet ? '' : 'flex-1 overflow-y-auto'} ${isMobile ? 'px-4 py-4 space-y-4' : 'px-3 py-3 space-y-3'}`}>
@@ -471,7 +476,7 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete, onMove, onC
           anchorRect={moreMenu.rect}
           onClose={() => setMoreMenu(null)}
           layout="list"
-          align={inSheet ? 'left' : 'right'}
+          align="left"
           reactions={statusReactions}
           items={moreItems}
         />

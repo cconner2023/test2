@@ -276,9 +276,7 @@ export const PasswordLockScreen = ({ onUnlock, email, reason = 'inactivity' }: P
 
         {/* Lockout */}
         {isLockedOut && (
-          <div className="mb-4 p-3 rounded-lg bg-themeyellow/10 border border-themeyellow/20 text-primary text-sm text-center">
-            Too many attempts. Try again in {lockoutRemaining}s
-          </div>
+          <ErrorDisplay type="warning" centered className="mb-4" message={<>Too many attempts. Try again in {lockoutRemaining}s</>} />
         )}
 
         {/* Password form */}
@@ -374,12 +372,12 @@ export const PasswordLockScreen = ({ onUnlock, email, reason = 'inactivity' }: P
 
         {/* Tip banner — only shown for inactivity/initial lock, not session-expired/vault */}
         {reason !== 'session-expired' && reason !== 'vault' && (
-          <div className="mt-8 flex items-start gap-2.5 p-3 rounded-lg bg-themeblue2/5 border border-themeblue2/10">
-            <Lightbulb size={16} className="text-themeblue2 shrink-0 mt-0.5" />
-            <p className="text-[10pt] text-tertiary leading-relaxed">
-              <span className="font-medium text-primary">Tip:</span> Enable App Lock in Settings &gt; Security for quicker re-entry with a PIN.
-            </p>
-          </div>
+          <ErrorDisplay
+            type="info"
+            icon={Lightbulb}
+            className="mt-8"
+            message={<><span className="text-primary">Tip:</span> Enable App Lock in Settings &gt; Security for quicker re-entry with a PIN.</>}
+          />
         )}
       </div>
       </div>

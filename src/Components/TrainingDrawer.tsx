@@ -10,6 +10,7 @@ import { useCalendarStore } from '../stores/useCalendarStore'
 import { AudioAidPlayer } from './AudioAidPlayer'
 import { StepCallout, PerformanceStepItem } from './TrainingStepComponents'
 import { SectionHeader } from '@/Components/primitives/Section'
+import { ErrorDisplay } from '@/Components/primitives/ErrorDisplay'
 
 interface TrainingDrawerProps {
     isVisible: boolean
@@ -100,21 +101,21 @@ function TrainingDrawerContent({ taskId }: { taskId: string }) {
 
                 {/* Assignment banner */}
                 {isAssigned && assignment.dueDate && (
-                    <div className={`flex items-center gap-2 px-3 py-2.5 rounded-lg mb-4 ${
-                        isOverdue
-                            ? 'bg-themeredred/10 border border-themeredred/20'
-                            : 'bg-themeblue3/10 border border-themeblue3/20'
-                    }`}>
-                        <CalendarDays size={15} className={isOverdue ? 'text-themeredred' : 'text-themeblue2'} />
-                        <span className={`text-sm font-medium ${isOverdue ? 'text-themeredred' : 'text-themeblue2'}`}>
-                            {isOverdue ? 'Overdue' : 'Due'}: {formatDueDate(assignment.dueDate)}
-                        </span>
-                        {assignment.supervisorNotes && (
-                            <span className="text-[10pt] text-tertiary ml-auto truncate max-w-[50%]">
-                                {assignment.supervisorNotes}
+                    <ErrorDisplay
+                        type={isOverdue ? 'error' : 'info'}
+                        icon={CalendarDays}
+                        className="mb-4"
+                        message={
+                            <span className="flex items-center gap-2">
+                                <span>{isOverdue ? 'Overdue' : 'Due'}: {formatDueDate(assignment.dueDate)}</span>
+                                {assignment.supervisorNotes && (
+                                    <span className="text-[10pt] font-normal text-tertiary ml-auto truncate max-w-[50%]">
+                                        {assignment.supervisorNotes}
+                                    </span>
+                                )}
                             </span>
-                        )}
-                    </div>
+                        }
+                    />
                 )}
 
                 {/* Warning (task-level) */}

@@ -10,7 +10,6 @@ import {
   Copy,
   Share2,
   MapPin,
-  X,
 } from 'lucide-react'
 import bwipjs from 'bwip-js'
 import { useAuth } from '../../Hooks/useAuth'
@@ -833,15 +832,15 @@ export function ClinicPanel({
             Associated
           </PageSectionHeader>
           {showColocatedBanner && (
-            <div className="mb-2 rounded-xl bg-themeblue2/8 border border-themeblue2/20 px-3.5 py-3">
-              <div className="flex items-start gap-2.5">
-                <div className="w-7 h-7 rounded-full bg-themeblue2/12 flex items-center justify-center shrink-0 mt-0.5">
-                  <MapPin size={14} className="text-themeblue2" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-[10pt] text-primary leading-snug">
+            <ErrorDisplay
+              type="info"
+              icon={MapPin}
+              className="mb-2"
+              onDismiss={dismissColocated}
+              message={<>
+                  <p className="text-primary leading-snug">
                     {colocated.length === 1 ? '1 cluster is' : `${colocated.length} clusters are`} also at{' '}
-                    <span className="font-medium">
+                    <span className="font-semibold">
                       {selectedLocation?.display_name || clinicLocation || 'this location'}
                     </span>
                     .
@@ -856,17 +855,8 @@ export function ClinicPanel({
                   >
                     Exchange codes to associate
                   </button>
-                </div>
-                <button
-                  type="button"
-                  onClick={dismissColocated}
-                  aria-label="Dismiss"
-                  className="w-7 h-7 rounded-full flex items-center justify-center text-tertiary hover:bg-primary/5 active:scale-95 transition-all shrink-0"
-                >
-                  <X size={14} />
-                </button>
-              </div>
-            </div>
+              </>}
+            />
           )}
           <div className="relative"><div className="rounded-xl bg-themewhite2 overflow-hidden">
             <div className="px-4 py-3">

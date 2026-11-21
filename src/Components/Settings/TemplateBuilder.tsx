@@ -9,6 +9,7 @@ import { ActionPill } from '@/Components/primitives/ActionPill';
 import { TextInput, TextArea, PickerInput } from '@/Components/primitives/FormInputs';
 import { PillButton } from '@/Components/primitives/HeaderPill';
 import { HeaderMenuPill } from '@/Components/primitives/HeaderMenuPill';
+import { OverlayHeaderMenu } from '@/Components/primitives/OverlayHeaderMenu';
 import type { ContextMenuItem } from '@/Components/primitives/ContextMenu';
 
 /**
@@ -465,11 +466,11 @@ export function makeTemplateScreens({
                 return node ? `Edit ${nodeTypeLabel(node.type)}` : 'Edit';
             },
             // Delete rides the ⋯; Done (check) the header.
-            headerActions: (p: { path: ListPath; index: number }, nav: StackNav) => (
-                <>
-                    <HeaderMenuPill items={[{ key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => { deleteNode(p.path, p.index); upOrClose(nav); } }]} />
-                    <PillButton icon={Check} iconSize={18} accent="success" label="Done" onClick={() => upOrClose(nav)} />
-                </>
+            headerLeft: (p: { path: ListPath; index: number }, nav: StackNav) => (
+                <OverlayHeaderMenu align="left" items={[{ key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => { deleteNode(p.path, p.index); upOrClose(nav); } }]} />
+            ),
+            headerActions: (_p: { path: ListPath; index: number }, nav: StackNav) => (
+                <PillButton icon={Check} iconSize={18} accent="success" label="Done" onClick={() => upOrClose(nav)} />
             ),
             render: (p: { path: ListPath; index: number }, nav: StackNav) => {
                 const node = getList(nodes, p.path)[p.index];

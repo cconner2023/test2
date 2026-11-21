@@ -1,10 +1,10 @@
 import { useState, useRef, useCallback, type ReactNode } from 'react';
-import { Check, Plus, GripVertical, MoreHorizontal, RotateCcw, Trash2, ChevronLeft, ChevronRight, Activity, Type } from 'lucide-react';
+import { Check, Plus, GripVertical, RotateCcw, Trash2, ChevronLeft, ChevronRight, Activity, Type } from 'lucide-react';
 import { SearchInput } from '@/Components/primitives/SearchInput';
 import { HeaderPill, PillButton } from '@/Components/primitives/HeaderPill';
 import { ListItemRow } from '@/Components/primitives/ListItemRow';
 import { EmptyState } from '@/Components/primitives/EmptyState';
-import { AnchoredMenu } from '@/Components/primitives/LiftedRowMenu';
+import { OverlayHeaderMenu } from '@/Components/primitives/OverlayHeaderMenu';
 import type { ContextMenuItem } from '@/Components/primitives/ContextMenu';
 import { ExamBlockPreview, addCustomFinding, removeCustomFinding } from '../ExamBlockPreview';
 import { TextSectionEditor } from './ProviderPaneSections';
@@ -383,22 +383,11 @@ export function PEBody({ selectedBlockKeys, items, vitals = {}, onOpenSelector, 
 
 // Header ellipsis for the findings screen — Refresh (reset block) + Remove.
 function PEBlockMenu({ onRefresh, onRemove }: { onRefresh: () => void; onRemove: () => void }) {
-  const [open, setOpen] = useState(false);
-  const anchor = useRef<HTMLDivElement>(null);
   const items: ContextMenuItem[] = [
     { key: 'refresh', label: 'Refresh', icon: RotateCcw, onAction: onRefresh },
     { key: 'remove', label: 'Remove', icon: Trash2, destructive: true, onAction: onRemove },
   ];
-  return (
-    <>
-      <div ref={anchor} className="flex">
-        <HeaderPill>
-          <PillButton icon={MoreHorizontal} iconSize={18} label="Block actions" onClick={() => setOpen(true)} />
-        </HeaderPill>
-      </div>
-      <AnchoredMenu isOpen={open} anchorRef={anchor} layout="list" align="left" onClose={() => setOpen(false)} items={items} />
-    </>
-  );
+  return <OverlayHeaderMenu items={items} align="left" label="Block actions" />;
 }
 
 // ── Pane screens: `s-pe` (select systems) → `s-pe-block` (findings); `s-pe-vitals`; `s-pe-freetext` ──

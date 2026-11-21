@@ -16,7 +16,7 @@ import { PrivacyPolicyPanel } from './PrivacyPolicyPanel';
 import { NoteContentPanel } from './NoteContentPanel';
 import { OverviewWidgetsPanel } from './OverviewWidgetsPanel';
 import { PlanPanel } from './PlanPanel';
-import { HeaderSlotContext, HeaderSlotOutlet, useHeaderSlotStore } from './panelHeaderSlot';
+import { HeaderSlotContext, HeaderSlotMenu, HeaderSlotOutlet, useHeaderSlotStore } from './panelHeaderSlot';
 import { TextTemplatesPanel } from './TextTemplatesPanel';
 import { ProviderTemplatesPanel } from './ProviderTemplatesPanel';
 import { ProfilePage } from './ProfilePage';
@@ -419,6 +419,7 @@ const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
                     rightContent: (
                         <HeaderPill multi>
                             <HeaderSlotOutlet store={contentHeaderSlot} />
+                            <HeaderSlotMenu store={contentHeaderSlot} align="right" />
                             <PillButton icon={X} onClick={handleClose} label="Close" />
                         </HeaderPill>
                     ),
@@ -442,6 +443,7 @@ const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
                     rightContent: (
                         <HeaderPill multi>
                             <HeaderSlotOutlet store={contentHeaderSlot} />
+                            <HeaderSlotMenu store={contentHeaderSlot} align="right" />
                             <PillButton icon={X} onClick={handleClose} label="Close" />
                         </HeaderPill>
                     ),
@@ -681,7 +683,12 @@ const handleItemClick = useCallback((id: PanelId, closeDrawer: () => void) => {
                                 width={420}
                                 fill
                                 hidden={morphActive}
-                                actions={shownDetail.panel === 'provider-templates' ? undefined : <HeaderSlotOutlet store={contentHeaderSlot} />}
+                                actions={shownDetail.panel === 'provider-templates' ? undefined : (
+                                    <>
+                                        <HeaderSlotOutlet store={contentHeaderSlot} />
+                                        <HeaderSlotMenu store={contentHeaderSlot} align="right" />
+                                    </>
+                                )}
                             >
                                 <HeaderSlotContext.Provider value={contentHeaderSlot}>
                                 <div key={shownDetail.panel} className="h-full" style={paneStyle}>

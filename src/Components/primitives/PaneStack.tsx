@@ -117,14 +117,17 @@ export function PaneStack({
         draggable={!drilled}
         title={stack.title}
         leftContent={drilled ? (
-          <button
-            type="button"
-            onClick={stack.onBack}
-            aria-label="Back"
-            className="w-9 h-9 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
-          >
-            <ChevronLeft size={20} />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={stack.onBack}
+              aria-label="Back"
+              className="w-9 h-9 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
+            >
+              <ChevronLeft size={20} />
+            </button>
+            {stack.headerLeft}
+          </div>
         ) : stack.headerLeft}
         rightContent={stack.rightFooter ?? undefined}
         actions={stack.headerActions}

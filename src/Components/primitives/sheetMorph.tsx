@@ -21,6 +21,7 @@ export interface SheetMorphView {
   /** Closes just the morph. The host's X calls this and then dismisses the sheet. */
   onClose: () => void
   headerActions?: ReactNode
+  headerLeft?: ReactNode
   rightFooter?: ReactNode
   body: ReactNode
 }
@@ -50,9 +51,12 @@ export function SheetMorphSlot({ store, part }: { store: SheetMorphStore; part: 
   switch (part) {
     case 'back':
       return (
-        <button onClick={view.onBack} aria-label="Back" className="w-9 h-9 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all">
-          <ChevronLeft size={20} />
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={view.onBack} aria-label="Back" className="w-9 h-9 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all">
+            <ChevronLeft size={20} />
+          </button>
+          {view.headerLeft}
+        </div>
       )
     case 'title':
       return <span className="block truncate text-[13pt] font-semibold text-primary">{view.title}</span>
