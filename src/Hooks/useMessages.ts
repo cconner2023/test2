@@ -74,7 +74,7 @@ import { useCalendarStore } from '../stores/useCalendarStore'
 import { isCalendarEvent, routeCalendarEvent } from '../lib/calendarRouting'
 import { isMapOverlay, isMapFeature, routeMapOverlay, routeMapFeature } from '../lib/mapOverlayRouting'
 import { isPropertyEvent, routePropertyEvent } from '../lib/propertyEventRouting'
-import { uploadEncryptedAttachment, attachmentFailureMessage } from '../lib/signal/attachmentService'
+import { uploadEncryptedAttachment, attachmentFailureMessage, deleteAttachments } from '../lib/signal/attachmentService'
 import { emitErrorToast } from '../lib/errorFeedback'
 import { createBackup, markHydrationComplete, scheduleBackup } from '../lib/signal/backupService'
 import { ok as okResult, err as errResult, type Result } from '../lib/result'
@@ -1959,6 +1959,10 @@ export function useMessages(): UseMessagesReturn {
         return
       }
       await removeOutsideEntityChannel(conversationKey).catch(() => {})
+      const sentKeys = msgs.flatMap(m =>
+        m.senderId === userId && (m.content?.type === 'image' || m.content?.type === 'file') && m.content.store === 'r2'
+          ? [m.content.path] : [])
+      for (let i = 0; i < sentKeys.length; i += 50) void deleteAttachments(sentKeys.slice(i, i + 50)).catch(() => {})
     }
 
     // Deleting history must not re-run the request handshake with a peer we

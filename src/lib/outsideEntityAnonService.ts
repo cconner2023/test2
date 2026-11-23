@@ -17,6 +17,12 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { SealedPair } from './outsideEntitySeal'
 import type { WrappedOutsidePriv } from './outsideEntityKey'
+import type { OutsideAttachment } from './outsideEntityAttachment'
+import { aesGcmDecrypt } from './aesGcm'
+import { unpadAttachment } from './attachmentPadding'
+import { base64ToBytes } from './base64Utils'
+
+const SAFE_IMAGE_RE = /^image\/(jpeg|png|webp|gif)$/
 
 /** A stored message row. `dir` is 'to_outside' (medic→outside) or 'to_medic' (outside→medic). */
 export interface OutsideEntityMessage {
@@ -131,4 +137,31 @@ export async function postOutsideEntityMessage(
   })
   if (error || !data) return false
   return (data as { ok?: boolean }).ok === true
+}
+
+/**
+ * Fetch + decrypt a medic-sent attachment. Only images render inline; everything
+ * else comes back as octet-stream so a blob URL can never execute in this origin.
+ */
+export async function fetchOutsideEntityAttachment(
+  supabase: SupabaseClient,
+  entityId: string,
+  att: OutsideAttachment,
+): Promise<Blob | null> {
+  try {
+    const { data, error } = await supabase.functions.invoke('attachment-sign', {
+      body: { action: 'entity_get', entityId, key: att.path },
+    })
+    const url = (data as { ok?: boolean; url?: string } | null)?.url
+    if (error || !url) return null
+    const res = await fetch(url)
+    if (!res.ok) return null
+    const key = await crypto.subtle.importKey('raw', base64ToBytes(att.key) as BufferSource,
+      { name: 'AES-GCM', length: 256 }, false, ['decrypt'])
+    const plain = unpadAttachment(await aesGcmDecrypt(key, new Uint8Array(await res.arrayBuffer())))
+    const type = att.kind === 'image' && SAFE_IMAGE_RE.test(att.mime) ? att.mime : 'application/octet-stream'
+    return new Blob([plain as BlobPart], { type })
+  } catch {
+    return null
+  }
 }

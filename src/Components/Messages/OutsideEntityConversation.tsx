@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { DecryptedSignalMessage } from '../../lib/signal/transportTypes'
-import type { OutsideEntityMessageEntry } from '../../lib/signal/messageContent'
+import type { OutsideEntityMessageEntry, MessageContent } from '../../lib/signal/messageContent'
 import type { OutsideEntityChannel } from '../../lib/outsideEntityChannelStore'
 import type { ClinicMedic } from '../../Types/SupervisorTestTypes'
-import { pollOutsideEntityInbound, sendOutsideEntityReply } from '../../lib/outsideEntityService'
+import { pollOutsideEntityInbound, sendOutsideEntityReply, sendOutsideEntityAttachment } from '../../lib/outsideEntityService'
 import { useMessagingStore } from '../../stores/useMessagingStore'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { saveMessage } from '../../lib/signal/messageStore'
@@ -112,15 +112,15 @@ export function OutsideEntityConversation({
   )
 
   /** Author a channel message into the store + IDB as a normal 1:1 message. */
-  const fileMessage = useCallback((entry: OutsideEntityMessageEntry) => {
+  const fileMessage = useCallback((entry: OutsideEntityMessageEntry, attached?: { content: MessageContent; preview: string }) => {
     if (!userId) return
     const mine = entry.dir === 'to_outside'
     const msg: DecryptedSignalMessage = {
       id: entry.id,
       senderId: mine ? userId : peerId,
       recipientId: mine ? peerId : userId,
-      plaintext: entry.text,
-      content: { type: 'text', text: entry.text },
+      plaintext: attached?.preview ?? entry.text,
+      content: attached?.content ?? { type: 'text', text: entry.text },
       messageType: 'message',
       createdAt: entry.created_at || new Date().toISOString(),
       readAt: new Date().toISOString(),
@@ -181,8 +181,20 @@ export function OutsideEntityConversation({
     return true
   }, [peerId, sendMessage, active, channel, fileMessage])
 
-  // Attachments have no delivery path to an email recipient — the RPC seals text
-  // only — so the + entry point is hidden and this can never be reached.
+  // Photo and file only; the outside page has no resolver for refs or bundles.
+  const handleSendStructured = useCallback(async (id: string, content: MessageContent, _originId: string, preview: string) => {
+    if (id !== peerId || !active) return false
+    if (content.type !== 'image' && content.type !== 'file') return false
+    setSending(true)
+    setError(null)
+    const res = await sendOutsideEntityAttachment(channel, content)
+    setSending(false)
+    if (!res.ok) { setError(res.error ?? 'Could not send.'); return false }
+    fileMessage(res.data, { content, preview })
+    return true
+  }, [peerId, active, channel, fileMessage])
+
+  // Unreachable: sendStructured routes every staged photo.
   const handleSendImage = useCallback(async () => false, [])
 
   const resolveAvatar = useCallback((_msg: DecryptedSignalMessage, isOwn: boolean) => {
@@ -214,6 +226,7 @@ export function OutsideEntityConversation({
       medics={medics}
       sendMessage={handleSend}
       sendImage={handleSendImage}
+      sendStructured={handleSendStructured}
       editMessage={editMessage}
       deleteMessages={deleteMessages}
       markAsRead={markAsRead}
@@ -227,7 +240,7 @@ export function OutsideEntityConversation({
       mobileHeader={mobileHeader}
       desktopHeader={null}
       registerThreadBack={registerThreadBack}
-      hideImageUpload
+      mediaOnlyAttach
       canReact={false}
       conversationIsGroup={false}
       conversationPeerName={clusterName}

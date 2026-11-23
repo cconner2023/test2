@@ -103,6 +103,8 @@ export interface ChatDetailViewProps {
    * path doesn't accept attachments — currently the admin system-conversation
    * view, which v1 routes through `sendSystemMessageToUser` (text only). */
   hideImageUpload?: boolean
+  /** Attach menu offers photo and file only (no shared refs or bundles). */
+  mediaOnlyAttach?: boolean
   /** When false, embedded intake-request cards render read-only (no
    * Email/Approve/Decline pill). Set by the dev's AdminDrawer system view —
    * intake actions belong to supervisors in the clinic system group. */
@@ -182,6 +184,7 @@ export function ChatDetailView({
   desktopHeader,
   registerThreadBack,
   hideImageUpload,
+  mediaOnlyAttach,
   intakeActionable = true,
   canReact = true,
   conversationIsGroup = false,
@@ -519,8 +522,7 @@ export function ChatDetailView({
 
   const clearStaged = useCallback(() => releaseStaged(true), [releaseStaged])
 
-  // Review step confirmed. Without sendStructured (outside-entity and admin system
-  // threads) there is no staging path, so the photo sends at once as before.
+  // Review step confirmed. Without sendStructured (admin system threads) there is no staging path, so the photo sends at once as before.
   const handleEditedImage = useCallback(async (edited: File, original: boolean) => {
     setEditFile(null)
     if (sendStructured && userId) {
@@ -912,8 +914,8 @@ export function ChatDetailView({
           onClose={() => setAttachOpen(false)}
           onPickPhoto={() => fileInputRef.current?.click()}
           onPickFile={() => docInputRef.current?.click()}
-          onPick={handleShareObject}
-          onPickBundle={handleShareBundle}
+          onPick={mediaOnlyAttach ? undefined : handleShareObject}
+          onPickBundle={mediaOnlyAttach ? undefined : handleShareBundle}
         />
       )}
       {/* Zoom/crop review step between picking an image and sending it. */}

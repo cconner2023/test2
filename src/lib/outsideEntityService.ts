@@ -24,7 +24,8 @@ import { sealPair, openAsMedic, type SealedPair } from './outsideEntitySeal'
 import { computeEmailHmac } from './outsideEmailHmac'
 import { getClinicRawKeyBase64 } from './cryptoService'
 import { putOutsideEntityChannel, type OutsideEntityChannel } from './outsideEntityChannelStore'
-import type { OutsideEntityContent, OutsideEntityMessageEntry } from './signal/messageContent'
+import type { OutsideEntityContent, OutsideEntityMessageEntry, ImageContent, FileContent } from './signal/messageContent'
+import { encodeOutsideAttachment, type OutsideAttachment } from './outsideEntityAttachment'
 
 const logger = createLogger('OutsideEntityService')
 
@@ -221,6 +222,32 @@ export async function sendOutsideEntityReply(
   } catch (err) {
     logger.error('sendOutsideEntityReply failed', err)
     return { ok: false, error: 'Message could not be sent.' }
+  }
+}
+
+/**
+ * Send an already-uploaded m/ image or file. Binds the object to the channel first
+ * (the outside party can only fetch bound keys), then seals the pointer like text.
+ */
+export async function sendOutsideEntityAttachment(
+  channel: OutsideEntityChannel,
+  content: ImageContent | FileContent,
+): Promise<Result<OutsideEntityMessageEntry>> {
+  if (content.store !== 'r2') return { ok: false, error: 'This attachment can’t be sent to an outside contact.' }
+  try {
+    const { data, error } = await supabase.functions.invoke('attachment-sign', {
+      body: { action: 'bind_entity', entityId: channel.entity_id, keys: [content.path] },
+    })
+    if (error || !(data as { ok?: boolean } | null)?.ok) {
+      return { ok: false, error: 'The attachment could not be shared with this contact.' }
+    }
+    const att: OutsideAttachment = content.type === 'image'
+      ? { kind: 'image', path: content.path, key: content.key, mime: content.mime, name: 'Photo', size: 0 }
+      : { kind: 'file', path: content.path, key: content.key, mime: content.mime, name: content.name, size: content.size }
+    return await sendOutsideEntityReply(channel, encodeOutsideAttachment(att))
+  } catch (err) {
+    logger.error('sendOutsideEntityAttachment failed', err)
+    return { ok: false, error: 'The attachment could not be sent.' }
   }
 }
 

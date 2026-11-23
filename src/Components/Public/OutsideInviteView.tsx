@@ -1,12 +1,14 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Check, X, RefreshCw, ShieldCheck, Send } from 'lucide-react'
+import { Check, X, RefreshCw, ShieldCheck, Send, Paperclip, Download } from 'lucide-react'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import {
   openOutsideEntity,
   pollOutsideEntity,
   postOutsideEntityMessage,
+  fetchOutsideEntityAttachment,
   type OutsideEntityMessage,
 } from '../../lib/outsideEntityAnonService'
+import { decodeOutsideAttachment, type OutsideAttachment } from '../../lib/outsideEntityAttachment'
 import { unwrapOutsidePriv } from '../../lib/outsideEntityKey'
 import { sealPair, openAsOutside } from '../../lib/outsideEntitySeal'
 import { Shell, Glitch404 } from './IntakeForm'
@@ -25,6 +27,7 @@ interface RenderedMsg {
   mine: boolean
   text: string
   at: string
+  att?: OutsideAttachment
 }
 
 const POLL_MS = 3000
@@ -75,7 +78,9 @@ export function OutsideInviteView({ supabase, token, fragment }: OutsideInviteVi
     for (const r of rows) {
       try {
         const text = await openAsOutside(key, r.sealed)
-        out.push({ id: r.id, mine: r.dir === 'to_medic', text, at: r.created_at })
+        const mine = r.dir === 'to_medic'
+        const att = mine ? null : decodeOutsideAttachment(text)
+        out.push({ id: r.id, mine, text: att ? '' : text, at: r.created_at, ...(att ? { att } : {}) })
       } catch { /* undecryptable — drop */ }
     }
     return out
@@ -219,7 +224,9 @@ export function OutsideInviteView({ supabase, token, fragment }: OutsideInviteVi
                         {!m.mine && (
                           <p className="text-[9pt] text-tertiary uppercase tracking-widest mb-0.5">{fromLabel}</p>
                         )}
-                        <p className="text-[11pt] leading-snug whitespace-pre-wrap break-words">{m.text}</p>
+                        {m.att
+                          ? <AttachmentBubble supabase={supabase} entityId={entityIdRef.current} att={m.att} />
+                          : <p className="text-[11pt] leading-snug whitespace-pre-wrap break-words">{m.text}</p>}
                       </div>
                     </div>
                   ))}
@@ -311,6 +318,70 @@ export function OutsideInviteView({ supabase, token, fragment }: OutsideInviteVi
         Not affiliated with or endorsed by the Department of Defense.
       </p>
     </Shell>
+  )
+}
+
+function humanSize(n: number): string {
+  if (n < 1024) return `${n} B`
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`
+}
+
+function AttachmentBubble({ supabase, entityId, att }: { supabase: SupabaseClient; entityId: string; att: OutsideAttachment }) {
+  const [url, setUrl] = useState<string | null>(null)
+  const [state, setState] = useState<'idle' | 'loading' | 'failed'>('idle')
+  const urlRef = useRef<string | null>(null)
+
+  const load = useCallback(async (): Promise<string | null> => {
+    if (urlRef.current) return urlRef.current
+    setState('loading')
+    const blob = await fetchOutsideEntityAttachment(supabase, entityId, att)
+    if (!blob) { setState('failed'); return null }
+    const u = URL.createObjectURL(blob)
+    urlRef.current = u
+    setUrl(u)
+    setState('idle')
+    return u
+  }, [supabase, entityId, att])
+
+  useEffect(() => {
+    if (att.kind === 'image') void load()
+    return () => { if (urlRef.current) URL.revokeObjectURL(urlRef.current) }
+  }, [att.kind, load])
+
+  const save = useCallback(async () => {
+    const u = await load()
+    if (!u) return
+    const a = document.createElement('a')
+    a.href = u
+    a.download = att.kind === 'image' ? 'photo.jpg' : att.name
+    a.rel = 'noopener'
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+  }, [load, att.kind, att.name])
+
+  if (att.kind === 'image') {
+    if (state === 'failed') return <p className="text-[10pt] text-tertiary">Photo no longer available.</p>
+    if (!url) return <div className="w-48 h-32 rounded-lg bg-themewhite2 flex items-center justify-center"><RefreshCw size={14} className="animate-spin text-tertiary" /></div>
+    return (
+      <button type="button" onClick={() => void save()} className="block active:scale-[0.98] transition-transform">
+        <img src={url} alt="Photo" className="max-w-full max-h-[40vh] rounded-lg" />
+      </button>
+    )
+  }
+
+  return (
+    <button type="button" onClick={() => void save()} disabled={state === 'loading'} className="flex items-center gap-2.5 min-w-0 text-left active:scale-95 transition-transform">
+      <Paperclip size={16} className="shrink-0 text-tertiary" />
+      <span className="min-w-0">
+        <span className="block text-[11pt] leading-snug truncate">{att.name}</span>
+        <span className="block text-[9pt] text-tertiary">
+          {state === 'failed' ? 'No longer available' : state === 'loading' ? 'Opening…' : humanSize(att.size)}
+        </span>
+      </span>
+      {state === 'loading' ? <RefreshCw size={14} className="shrink-0 animate-spin text-tertiary" /> : <Download size={14} className="shrink-0 text-tertiary" />}
+    </button>
   )
 }
 
