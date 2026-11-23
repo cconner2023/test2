@@ -39,17 +39,17 @@ export function parseThemeId(raw: string | null): { name: ThemeName; mode: Theme
 
 const META_COLORS: Record<ThemeId, string> = {
     'default-light':      'rgb(255, 251, 251)',
-    'default-dark':       'rgb(15, 25, 35)',
-    'ironclad-light':     'rgb(251, 241, 199)',
+    'default-dark':       'rgb(24, 31, 38)',
+    'ironclad-light':     'rgb(252, 249, 242)',
     'ironclad-dark':      'rgb(29, 32, 33)',
     'void-light':         'rgb(245, 246, 248)',
-    'void-dark':          'rgb(10, 11, 13)',
+    'void-dark':          'rgb(26, 30, 39)',
     'slipstream-light':   'rgb(248, 246, 240)',
-    'slipstream-dark':    'rgb(12, 15, 18)',
+    'slipstream-dark':    'rgb(20, 32, 36)',
     'topo-light':         'rgb(241, 234, 211)',
-    'topo-dark':          'rgb(12, 16, 10)',
+    'topo-dark':          'rgb(27, 32, 23)',
     'violet-light':       'rgb(250, 247, 253)',
-    'violet-dark':        'rgb(16, 12, 24)',
+    'violet-dark':        'rgb(31, 28, 38)',
 };
 
 /** Provides multi-theme context (named palette + light/dark mode) with localStorage persistence and system preference detection. */

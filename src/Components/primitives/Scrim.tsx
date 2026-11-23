@@ -14,7 +14,7 @@ import type { CSSProperties } from 'react'
  * opacity at 1, so its backdrop-filter renders at full strength. That is the
  * entire reason the lifted row looked right and modals/sheets/drawers didn't.
  *
- * THE INVARIANT: alpha lives in the class (`bg-black/45`). The `progress` prop
+ * THE INVARIANT: alpha lives in the class (`bg-themewhite/70`). The `progress` prop
  * drives element opacity 0 -> 1 for the fade ONLY, and must reach exactly 1 at
  * rest. Never park this at a fractional opacity. There is deliberately no
  * opacity/intensity prop — the value is not tunable per consumer, because
@@ -22,22 +22,10 @@ import type { CSSProperties } from 'react'
  *
  * VARIANTS are the ONE sanctioned axis of difference, and they are a CLOSED set
  * of named constructions — not a number you pass in:
- *   • 'blur'  (default) — 45% black + 6px backdrop blur. Raised surfaces that
- *     sit OVER live content and want it legible behind them: sheets, modals,
- *     pickers.
- *   • 'solid' — 94% black, NO blur. Top-level surface SWAPS, where what's behind
- *     is meant to read as gone: the root left-nav slide-over. There is nothing
- *     worth blurring behind a near-opaque field, and the blur cost on a
- *     full-viewport layer that rides a drag is real on iOS Safari.
- *   • 'drawer-mobile' — 94% black, NO blur. BaseDrawer on MOBILE. Same value as
- *     'solid' and a separate NAME on purpose: a mobile drawer covers nearly the
- *     whole viewport, so what little shows around it is the content the drawer
- *     replaced, not a peer surface worth keeping legible. 60% was tuned when the
- *     drawer had its own lifted surface token; now that a drawer paints at
- *     content level (themewhite, same as the shell) a faint trace reads as the
- *     drawer's own edge failing rather than as depth. Kept distinct from 'solid'
- *     because the two answer to different surfaces — retuning the root nav must
- *     not silently retune every drawer.
+ *   • 'blur'  (default) — 70% themewhite + 6px backdrop blur. Every backdrop:
+ *     root left-nav (mobile slide-over and desktop rail), drawers (mobile and
+ *     desktop half), sheets, modals, pickers. Black under the iOS status bar
+ *     tinted the light-mode header.
  *   • 'peek'  — 20% black + 2px blur. ONLY the AnchoredMenu lifted-row peek
  *     (long-press / right-click with a row clone): just enough to set the lifted
  *     row apart. Clone-less menus (ellipsis, selectors) get NO scrim at all —
@@ -64,11 +52,9 @@ export interface ScrimProps {
     /** Fade progress, 0 -> 1. Must be exactly 1 at rest, or the blur degrades.
      *  Drag-driven surfaces pass their travel fraction here. */
     progress: number
-    /** Named construction. 'blur' (default) = 45% + 6px blur, for surfaces over
-     *  live content. 'solid' = 94% black, no blur, for the root slide-overs.
-     *  'drawer-mobile' = 94% black, no blur, for BaseDrawer on mobile.
-     *  'peek' = 20% black + 2px blur, for the AnchoredMenu lifted-row peek only. */
-    variant?: 'blur' | 'solid' | 'drawer-mobile' | 'peek'
+    /** Named construction. 'blur' (default) = 70% themewhite + 6px blur, every
+     *  backdrop. 'peek' = 20% black + 2px blur, AnchoredMenu lifted-row peek only. */
+    variant?: 'blur' | 'peek'
     /** 'fixed' (default) covers the viewport; 'absolute' scopes to the nearest
      *  positioned ancestor — use inside an already-portaled container.
      *  Ignored under scope='app', which pins to the measured app rect. */
@@ -132,11 +118,9 @@ export function Scrim({
     style,
 }: ScrimProps) {
     const shown = progress > 0
-    const paint = variant === 'solid' || variant === 'drawer-mobile'
-        ? 'bg-black/94'
-        : variant === 'peek'
-            ? 'bg-black/20 backdrop-blur-[2px]'
-            : 'bg-black/45 backdrop-blur-[6px]'
+    const paint = variant === 'peek'
+        ? 'bg-black/20 backdrop-blur-[2px]'
+        : 'bg-themewhite/70 backdrop-blur-[6px]'
     const appRect = useAppRect(scope === 'app')
     const box = appRect
         ? { position: 'fixed' as const, top: appRect.top, left: appRect.left, width: appRect.width, height: appRect.height }

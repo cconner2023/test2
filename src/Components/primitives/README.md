@@ -69,7 +69,7 @@ the two tokens, so mixing them only shows up in dark. See App.css ELEVATION.
 - Menus: `Menu` · `ContextMenu` · `OverlayActionMenu` · `OverlayHeaderMenu` · `LiftedRowMenu` · `ActionSheet`
 
 **Layout / structure**
-- `Section` (exports `SectionCard` chrome + titled `Section`) · `ContentWrapper` · `ConnectorDots` · `GlassBand`
+- `Section` (exports `SectionCard` chrome + titled `Section`) · `ContentWrapper` · `GlassBand`
 - `SlideRevealPane` — the desktop rail/detail split. Never hand-roll a `w-0`/`w-[N]` width toggle.
 - `PaneHeader` — the header row for a `side="right"` detail pane: optional back, eyebrow/title/subtitle,
   `leading` slot, `actions` slot (pass a `HeaderPill`). A detail pane owns its own chrome — do NOT hoist a

@@ -1,6 +1,7 @@
-import { useRef } from 'react'
+import { useRef, type RefObject } from 'react'
 import { useDrag } from '@use-gesture/react'
 import { GESTURE_THRESHOLDS, isGestureZoneStart } from '../Utilities/GestureUtils'
+import { followPanel } from './useColumnSwipe'
 
 interface UseSwipeNavigationOptions {
   /** Whether swipe navigation is enabled */
@@ -17,13 +18,14 @@ interface UseSwipeNavigationOptions {
   threshold?: number
   /** Minimum velocity to trigger navigation (px/ms) */
   velocityThreshold?: number
+  /** Panel nudged during a back swipe */
+  followRef?: RefObject<HTMLElement | null>
 }
 
 /**
  * Cross-column swipe gesture detector.
  * Detects swipe-right gestures and calls onSwipeBack.
  * Detects right-edge leftward drags and delegates to messages slide.
- * The actual visual transition is handled by CSS grid column animation.
  */
 export function useSwipeNavigation({
   enabled,
@@ -33,6 +35,7 @@ export function useSwipeNavigation({
   onRightEdgeDragEnd,
   threshold = GESTURE_THRESHOLDS.SWIPE_BACK_THRESHOLD,
   velocityThreshold = GESTURE_THRESHOLDS.FLING_VELOCITY,
+  followRef,
 }: UseSwipeNavigationOptions) {
   const committedRef = useRef(false)
   const edgeDelegateRef = useRef(false)
@@ -73,7 +76,9 @@ export function useSwipeNavigation({
 
       if (active) {
         committedRef.current = false
+        if (viewDepth > 0) followPanel(followRef?.current, mx, true)
       } else {
+        if (viewDepth > 0) followPanel(followRef?.current, 0, false)
         // Gesture ended — check if threshold met for back navigation
         if (committedRef.current) return
         const clampedOffset = Math.max(0, mx)

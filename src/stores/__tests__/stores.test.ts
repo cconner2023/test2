@@ -73,7 +73,6 @@ import { useNavigationStore } from '../useNavigationStore'
 import {
   selectShowQuestionCard,
   selectIsMobileColumnB,
-  selectMobileGridClass,
 } from '../useNavigationStore'
 
 // ═════════════════════════════════════════════════════════════════════════
@@ -811,15 +810,6 @@ describe('useNavigationStore', () => {
     it('columnAPanel is 2 after navigating to a CC', () => {
       getState().handleNavigation({ type: 'CC', id: mockSymptom.id, icon: '', text: '', data: { categoryRef: mockCategory as any, symptomRef: mockSymptom as any, categoryId: mockCategory.id, symptomId: mockSymptom.id } })
       expect(getState().columnAPanel).toBe(2)
-    })
-
-    it('selectMobileGridClass returns column-B-visible class when search expanded', () => {
-      const state = { ...getState(), isSearchExpanded: true }
-      expect(selectMobileGridClass(state)).toBe('grid-cols-[0fr_1fr]')
-    })
-
-    it('selectMobileGridClass returns column-A-visible class by default', () => {
-      expect(selectMobileGridClass(getState())).toBe('grid-cols-[1fr_0fr]')
     })
   })
 })

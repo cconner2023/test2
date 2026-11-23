@@ -155,7 +155,6 @@ function NavigationRow({
 interface CategoryListProps {
     onNavigate: (result: SearchResultType) => void
     desktopMode?: boolean
-    /** When set, renders only the specified mobile carousel panel (no conditional switching, no key remounts) */
     mobilePanel?: 'main' | 'subcategory' | 'guidelines'
 }
 
@@ -213,8 +212,6 @@ export function CategoryList({
         }
     })
 
-    // Mobile carousel panel mode: render a single always-mounted view
-    // Each panel is a separate instance in App.tsx's carousel — no conditional switching
     if (mobilePanel) {
         switch (mobilePanel) {
             case 'main':

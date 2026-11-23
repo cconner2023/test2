@@ -3,7 +3,6 @@ import { useShallow } from 'zustand/react/shallow'
 import {
     useNavigationStore,
     selectShowQuestionCard,
-    selectMobileGridClass,
     selectIsMobileColumnB,
 } from '../stores/useNavigationStore'
 
@@ -66,7 +65,6 @@ export function useNavigation() {
 
         // Derived selectors
         showQuestionCard: selectShowQuestionCard(s),
-        mobileGridClass: selectMobileGridClass(s),
         columnAPanel: s.columnAPanel,
         isMobileColumnB: selectIsMobileColumnB(s),
 

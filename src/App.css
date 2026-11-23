@@ -43,25 +43,25 @@
   --color-glass-tint: rgba(255, 255, 255, 0.95);
 }
 [data-theme="default-dark"] {
-  --color-themeredred: rgb(170, 65, 65, 1);
-  --color-themered: rgba(160, 105, 100, 1);
+  --color-themeredred: rgba(192, 85, 83, 1);
+  --color-themered: rgba(163, 108, 103, 1);
   --color-themeyellow: rgba(255, 194, 34, 1);
   --color-themeyellowlow: rgba(255, 194, 34, 0.7);
-  --color-themegreen: rgba(96, 146, 92, 1);
-  --color-themewhite: rgba(15, 25, 35, 1);
-  --color-themewhite2: rgba(25, 35, 45, 1);
-  --color-themewhite3: rgba(30, 40, 50, 1);
-  --color-themegray1: rgba(55, 65, 75, 1);
-  --color-themegray2: rgba(75, 85, 95, 1);
+  --color-themegreen: rgba(100, 151, 96, 1);
+  --color-themewhite: rgba(24, 31, 38, 1);
+  --color-themewhite2: rgba(30, 38, 47, 1);
+  --color-themewhite3: rgba(35, 44, 54, 1);
+  --color-themegray1: rgba(47, 59, 70, 1);
+  --color-themegray2: rgba(61, 75, 89, 1);
   --color-themeblue1: rgba(129, 161, 181, 1);
-  --color-themeblue2: rgba(21, 142, 172, 1);
-  --color-themeblue3: rgba(0, 66, 92, 1);
-  --color-themepurple: rgba(120,75,160,1);
-  --color-primary: rgba(203,209,214,1);
-  --color-secondary: rgba(179,186,201,1);
-  --color-tertiary:rgba(132, 139, 146, 1);
-  --color-zone-accent: rgba(21,142,172,1);
-  --color-glass-tint: rgba(25, 35, 45, 0.98);
+  --color-themeblue2: rgba(30, 147, 177, 1);
+  --color-themeblue3: rgba(33, 90, 117, 1);
+  --color-themepurple: rgba(144, 99, 186, 1);
+  --color-primary: rgba(219, 226, 233, 1);
+  --color-secondary: rgba(174, 185, 196, 1);
+  --color-tertiary: rgba(137, 151, 165, 1);
+  --color-zone-accent: rgba(30, 147, 177, 1);
+  --color-glass-tint: rgba(30, 38, 47, 0.98);
 }
 [data-theme="ironclad-dark"] {
   --color-themeredred: rgb(170, 65, 65, 1);
@@ -106,27 +106,26 @@
   --color-glass-tint: rgba(252, 249, 242, 0.95);
 }
 [data-theme="void-dark"] {
-  /* Canvas is deep space — near-black with an indigo cast, so the surface ladder reads as
-     structure instead of flat black. Electric cyan accents do the work — like monitors in a dark room. */
-  --color-themeredred: rgb(196, 58, 58, 1);
-  --color-themered: rgba(175, 88, 78, 1);
+  /* Deep-space indigo. Electric cyan accents. */
+  --color-themeredred: rgba(210, 72, 70, 1);
+  --color-themered: rgba(188, 100, 89, 1);
   --color-themeyellow: rgba(236, 196, 48, 1);
   --color-themeyellowlow: rgba(236, 196, 48, 0.7);
   --color-themegreen: rgba(52, 186, 116, 1);
-  --color-themewhite: rgba(11, 13, 20, 1);       /* deep-space indigo black (was neutral 10,11,13) */
-  --color-themewhite2: rgba(19, 23, 32, 1);      /* indigo panel — 1.08:1 vs w (was 1.05, unreadable step) */
-  --color-themewhite3: rgba(28, 33, 45, 1);      /* raised surface — 1.11:1 vs w2 */
-  --color-themegray1: rgba(44, 51, 68, 1);       /* indigo separator — 1.42:1 vs w2 */
-  --color-themegray2: rgba(60, 69, 90, 1);       /* indigo raised element */
-  --color-themeblue1: rgba(0, 212, 232, 1);      /* electric cyan — holographic highlight */
-  --color-themeblue2: rgba(0, 164, 190, 1);      /* active display — primary accent */
-  --color-themeblue3: rgba(0, 88, 118, 1);       /* deep command anchor */
-  --color-themepurple: rgba(96, 68, 206, 1);     /* violet datastream trace */
-  --color-primary: rgba(210, 218, 230, 1);       /* cool-white readout — eased off pure glare, 12.8:1 vs w2 */
-  --color-secondary: rgba(150, 166, 186, 1);     /* dimmer neutral — 7.6:1 vs w2 (was 6.0) */
-  --color-tertiary: rgba(124, 140, 160, 1);      /* 5.5:1 vs w2, 4.8 vs w3 (was 3.9 vs w2) */
+  --color-themewhite: rgba(26, 30, 39, 1);
+  --color-themewhite2: rgba(33, 37, 47, 1);
+  --color-themewhite3: rgba(38, 43, 55, 1);
+  --color-themegray1: rgba(51, 57, 71, 1);
+  --color-themegray2: rgba(65, 73, 90, 1);
+  --color-themeblue1: rgba(0, 212, 232, 1);
+  --color-themeblue2: rgba(0, 164, 190, 1);
+  --color-themeblue3: rgba(17, 97, 127, 1);
+  --color-themepurple: rgba(119, 96, 235, 1);
+  --color-primary: rgba(221, 225, 234, 1);
+  --color-secondary: rgba(177, 183, 197, 1);
+  --color-tertiary: rgba(142, 149, 166, 1);
   --color-zone-accent: rgba(0, 212, 232, 1);
-  --color-glass-tint: rgba(19, 23, 32, 0.98);
+  --color-glass-tint: rgba(33, 37, 47, 0.98);
 }
 [data-theme="void-light"] {
   /* Canvas is neutral light gray. Same cyan accents — clinical and precise. */
@@ -151,26 +150,26 @@
   --color-glass-tint: rgba(245, 246, 248, 0.96);
 }
 [data-theme="slipstream-dark"] {
-  /* Canvas is deep blue-gray sky. Muted seafoam accent — aviation chart at dusk, layered greens/blues/tans. */
-  --color-themeredred: rgb(188, 64, 60, 1);
-  --color-themered: rgba(166, 96, 86, 1);
+  /* Teal-slate dusk. Muted seafoam accent. */
+  --color-themeredred: rgba(204, 78, 73, 1);
+  --color-themered: rgba(172, 102, 92, 1);
   --color-themeyellow: rgba(218, 188, 72, 1);
   --color-themeyellowlow: rgba(218, 188, 72, 0.7);
   --color-themegreen: rgba(56, 168, 108, 1);
-  --color-themewhite: rgba(18, 23, 28, 1);       /* deep blue-gray dusk — lifted off near-black (was 12,15,18) */
-  --color-themewhite2: rgba(26, 33, 39, 1);      /* blue-gray panel */
-  --color-themewhite3: rgba(33, 41, 48, 1);      /* raised surface */
-  --color-themegray1: rgba(46, 58, 66, 1);       /* blue-gray separator — 1.39:1 vs w2 (was 1.20, vanished) */
-  --color-themegray2: rgba(62, 76, 86, 1);       /* blue-gray raised element */
-  --color-themeblue1: rgba(148, 196, 184, 1);    /* muted seafoam highlight */
-  --color-themeblue2: rgba(96, 156, 142, 1);     /* dusty teal-sage — primary accent, 5.2:1 vs w2 (was 4.3) */
-  --color-themeblue3: rgba(36, 80, 72, 1);       /* deep muted teal anchor */
-  --color-themepurple: rgba(120, 148, 164, 1);   /* dusty blue-gray */
-  --color-primary: rgba(206, 218, 216, 1);       /* muted cool near-white */
-  --color-secondary: rgba(156, 178, 176, 1);     /* dusty mid — 7.3:1 vs w2 (was 5.7) */
-  --color-tertiary: rgba(124, 148, 146, 1);      /* 5.0:1 vs w2, 4.6 vs w3 (was 3.9 vs w2) */
-  --color-zone-accent: rgba(84, 136, 124, 1);
-  --color-glass-tint: rgba(20, 26, 31, 0.98);
+  --color-themewhite: rgba(20, 32, 36, 1);
+  --color-themewhite2: rgba(26, 40, 44, 1);
+  --color-themewhite3: rgba(31, 46, 51, 1);
+  --color-themegray1: rgba(42, 61, 67, 1);
+  --color-themegray2: rgba(55, 77, 84, 1);
+  --color-themeblue1: rgba(148, 196, 184, 1);
+  --color-themeblue2: rgba(96, 156, 142, 1);
+  --color-themeblue3: rgba(49, 93, 84, 1);
+  --color-themepurple: rgba(120, 148, 164, 1);
+  --color-primary: rgba(217, 227, 231, 1);
+  --color-secondary: rgba(170, 187, 192, 1);
+  --color-tertiary: rgba(132, 153, 160, 1);
+  --color-zone-accent: rgba(90, 142, 130, 1);
+  --color-glass-tint: rgba(26, 40, 44, 0.98);
 }
 [data-theme="slipstream-light"] {
   /* Canvas is tan aviation paper. Muted teal-sage accent — warm, airy, layered. */
@@ -195,26 +194,26 @@
   --color-glass-tint: rgba(248, 246, 240, 0.96);
 }
 [data-theme="topo-dark"] {
-  /* Canvas is deep field-ink — warm near-black. Olive contour-line accent on parchment text. */
-  --color-themeredred: rgb(192, 76, 64, 1);
-  --color-themered: rgba(170, 102, 84, 1);
+  /* Olive field-ink. Contour accent on cream text. */
+  --color-themeredred: rgba(206, 89, 76, 1);
+  --color-themered: rgba(183, 114, 95, 1);
   --color-themeyellow: rgba(220, 188, 76, 1);
   --color-themeyellowlow: rgba(220, 188, 76, 0.7);
-  --color-themegreen: rgba(96, 168, 96, 1);      /* vegetation green */
-  --color-themewhite: rgba(12, 16, 10, 1);       /* deep field ink */
-  --color-themewhite2: rgba(20, 26, 16, 1);      /* warm dark surface */
-  --color-themewhite3: rgba(26, 34, 21, 1);      /* raised surface */
-  --color-themegray1: rgba(46, 56, 36, 1);       /* olive-ink separator — ~1.4:1 vs w2 (was 1.23) */
-  --color-themegray2: rgba(64, 76, 48, 1);       /* olive-ink raised */
-  --color-themeblue1: rgba(204, 188, 112, 1);    /* parchment-olive highlight */
-  --color-themeblue2: rgba(164, 148, 76, 1);     /* olive contour — primary accent */
-  --color-themeblue3: rgba(96, 84, 36, 1);       /* deep olive anchor */
-  --color-themepurple: rgba(180, 116, 76, 1);    /* elevation sienna */
-  --color-primary: rgba(220, 212, 188, 1);       /* warm cream text */
-  --color-secondary: rgba(176, 166, 136, 1);     /* faded parchment — 7.3:1 vs w2 (was 6.0) */
-  --color-tertiary: rgba(146, 138, 108, 1);      /* 5.1:1 vs w2, 4.7 vs w3 (was 3.8 vs w2) */
+  --color-themegreen: rgba(96, 168, 96, 1);
+  --color-themewhite: rgba(27, 32, 23, 1);
+  --color-themewhite2: rgba(33, 39, 29, 1);
+  --color-themewhite3: rgba(39, 46, 35, 1);
+  --color-themegray1: rgba(52, 60, 46, 1);
+  --color-themegray2: rgba(67, 77, 60, 1);
+  --color-themeblue1: rgba(204, 188, 112, 1);
+  --color-themeblue2: rgba(164, 148, 76, 1);
+  --color-themeblue3: rgba(102, 90, 42, 1);
+  --color-themepurple: rgba(190, 125, 85, 1);
+  --color-primary: rgba(222, 227, 219, 1);
+  --color-secondary: rgba(178, 186, 173, 1);
+  --color-tertiary: rgba(143, 153, 137, 1);
   --color-zone-accent: rgba(164, 148, 76, 1);
-  --color-glass-tint: rgba(16, 20, 12, 0.98);
+  --color-glass-tint: rgba(33, 39, 29, 0.98);
 }
 [data-theme="topo-light"] {
   /* Canvas is mil-spec topo paper — warm cream parchment. Olive contour-line accent. */
@@ -239,26 +238,26 @@
   --color-glass-tint: rgba(241, 234, 211, 0.96);
 }
 [data-theme="violet-dark"] {
-  /* Canvas is deep violet-black. Amethyst accent, rose secondary in the purple slot. */
-  --color-themeredred: rgb(196, 70, 80, 1);
-  --color-themered: rgba(172, 100, 108, 1);
+  /* Violet-black. Amethyst accent, rose in purple slot. */
+  --color-themeredred: rgba(210, 83, 91, 1);
+  --color-themered: rgba(185, 112, 120, 1);
   --color-themeyellow: rgba(236, 196, 60, 1);
   --color-themeyellowlow: rgba(236, 196, 60, 0.7);
   --color-themegreen: rgba(96, 160, 110, 1);
-  --color-themewhite: rgba(16, 12, 24, 1);       /* violet-black canvas */
-  --color-themewhite2: rgba(25, 20, 36, 1);      /* in-content surface */
-  --color-themewhite3: rgba(32, 26, 46, 1);      /* raised surface — above w2 */
-  --color-themegray1: rgba(50, 42, 68, 1);       /* separator */
-  --color-themegray2: rgba(70, 60, 94, 1);       /* raised separator */
-  --color-themeblue1: rgba(196, 172, 240, 1);    /* lavender highlight */
-  --color-themeblue2: rgba(142, 100, 214, 1);    /* amethyst — primary accent */
-  --color-themeblue3: rgba(84, 52, 140, 1);      /* deep violet anchor */
-  --color-themepurple: rgba(204, 112, 160, 1);   /* rose — distinct from accent */
-  --color-primary: rgba(228, 220, 242, 1);       /* lavender-white text */
-  --color-secondary: rgba(180, 170, 200, 1);
-  --color-tertiary: rgba(146, 136, 168, 1);
-  --color-zone-accent: rgba(142, 100, 214, 1);
-  --color-glass-tint: rgba(20, 15, 30, 0.98);
+  --color-themewhite: rgba(31, 28, 38, 1);
+  --color-themewhite2: rgba(38, 35, 46, 1);
+  --color-themewhite3: rgba(44, 41, 53, 1);
+  --color-themegray1: rgba(59, 54, 69, 1);
+  --color-themegray2: rgba(75, 70, 87, 1);
+  --color-themeblue1: rgba(196, 172, 240, 1);
+  --color-themeblue2: rgba(154, 112, 228, 1);
+  --color-themeblue3: rgba(96, 65, 154, 1);
+  --color-themepurple: rgba(204, 112, 160, 1);
+  --color-primary: rgba(226, 224, 232, 1);
+  --color-secondary: rgba(185, 181, 195, 1);
+  --color-tertiary: rgba(151, 146, 164, 1);
+  --color-zone-accent: rgba(154, 112, 228, 1);
+  --color-glass-tint: rgba(38, 35, 46, 0.98);
 }
 [data-theme="violet-light"] {
   /* Canvas is pale lilac paper. Deep violet accent. */
@@ -284,24 +283,25 @@
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme]) {
-    --color-themeredred: rgb(170, 65, 65, 1);
-    --color-themered: rgba(160, 105, 100, 1);
+    --color-themeredred: rgba(192, 85, 83, 1);
+    --color-themered: rgba(163, 108, 103, 1);
     --color-themeyellow: rgba(255, 194, 34, 1);
     --color-themeyellowlow: rgba(255, 194, 34, 0.7);
-    --color-themegreen: rgba(96, 146, 92, 1);
-    --color-themewhite: rgba(15, 25, 35, 1);
-    --color-themewhite2: rgba(25, 35, 45, 1);
-    --color-themewhite3: rgba(30, 40, 50, 1);
-    --color-themegray1: rgba(55, 65, 75, 1);
-    --color-themegray2: rgba(75, 85, 95, 1);
+    --color-themegreen: rgba(100, 151, 96, 1);
+    --color-themewhite: rgba(24, 31, 38, 1);
+    --color-themewhite2: rgba(30, 38, 47, 1);
+    --color-themewhite3: rgba(35, 44, 54, 1);
+    --color-themegray1: rgba(47, 59, 70, 1);
+    --color-themegray2: rgba(61, 75, 89, 1);
     --color-themeblue1: rgba(129, 161, 181, 1);
-    --color-themeblue2: rgba(21, 142, 172, 1);
-    --color-themeblue3: rgba(0, 66, 92, 1);
-    --color-themepurple: rgba(120,75,160,1);
-    --color-primary: rgba(203,209,214,1);
-    --color-secondary: rgba(179,186,201,1);
-    --color-tertiary: rgba(132, 139, 146, 1);
-    --color-zone-accent: rgba(21,142,172,1);
+    --color-themeblue2: rgba(30, 147, 177, 1);
+    --color-themeblue3: rgba(33, 90, 117, 1);
+    --color-themepurple: rgba(144, 99, 186, 1);
+    --color-primary: rgba(219, 226, 233, 1);
+    --color-secondary: rgba(174, 185, 196, 1);
+    --color-tertiary: rgba(137, 151, 165, 1);
+    --color-zone-accent: rgba(30, 147, 177, 1);
+    --color-glass-tint: rgba(30, 38, 47, 0.98);
   }
 }
 /* ELEVATION — themewhite3 IS the raised surface. Every surface that floats over
@@ -315,8 +315,8 @@
    a raised surface read darker than the in-content panels it was floating over.
    Current values clear themewhite2 by ~1.07:1 and the SCRIMMED canvas (canvas
    composited with black/45) by 1.22–1.31:1:
-     default-dark    30,40,50   ironclad-dark 42,42,42   void-dark  28,33,45
-     slipstream-dark 33,41,48   topo-dark     26,34,21   violet-dark 32,26,46
+     default-dark    35,44,54   ironclad-dark 42,42,42   void-dark  38,43,55
+     slipstream-dark 31,46,51   topo-dark     39,46,35   violet-dark 44,41,53
    That band is deliberately about half the lift tried on 2026-07-24, which went
    to ~1.36:1 and washed the dark themes out — a soft surface edge was mostly the
    scrim compositing wrong (see Scrim.tsx), not a token-contrast shortfall. Check
@@ -600,41 +600,25 @@ html {
   }
 }
 
-/* Connector dot-dot-arrow: sequential stagger animation */
-@keyframes connectorDotIn {
-    from {
-        opacity: 0;
-        transform: scale(0);
-    }
-    to {
-        opacity: 1;
-        transform: scale(1);
+/* Algorithm trace layer */
+:root {
+    --trace-accent: #d4862e;
+}
+[data-theme$="-dark"] {
+    --trace-accent: #e6b25c;
+}
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme]) {
+        --trace-accent: #e6b25c;
     }
 }
-
-@keyframes connectorArrowIn {
-    from {
-        opacity: 0;
-        transform: translateY(-4px) scale(0.5);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0) scale(1);
-    }
-}
-
-.connector-dot {
-    width: 4px;
-    height: 4px;
-    border-radius: 50%;
-    margin-top: 3px;
-    margin-bottom: 3px;
-    opacity: 0;
-    animation: connectorDotIn 0.15s ease-out both;
+.trace-mono {
+    font: 500 7.5px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    letter-spacing: .12em;
 }
 
 
-/* Card appear animation — waits for connector stagger (~500ms) then fades in */
+/* Card appear animation — 0.5s delayed fade in */
 @keyframes cardAppearIn {
     from {
         opacity: 0;
@@ -729,8 +713,8 @@ html {
 
 /* Algorithm card fade-up — the shared entrance at reveal pace. No built-in
    delay. While the parent carries data-reveal-hold="true" the animation is
-   paused on its `from` frame, so new cards stay hidden through the connector
-   stagger + scroll, then fade up. */
+   paused on its `from` frame, so new cards stay hidden through the trace
+   draw + scroll, then fade up. */
 .animate-cardFadeUp {
     animation: surfaceIn 0.45s var(--surface-ease) both;
 }

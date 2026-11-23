@@ -4,7 +4,7 @@ import type { AlgorithmOptions, decisionMakingType, dispositionType } from '../T
 import type { CardState } from '../Hooks/useAlgorithm'
 import { DecisionMakingItem } from './DecisionMakingItem'
 import { MedicationSections } from './MedicationPage'
-import { PreviewOverlay } from './PreviewOverlay'
+import { PaneSurface } from '@/Components/primitives/PaneCard'
 import type { medListTypes } from '../Data/MedData'
 
 interface DecisionMakingProps {
@@ -21,7 +21,6 @@ export function DecisionMaking({
     dispositionType,
 }: DecisionMakingProps) {
     const [selectedMedication, setSelectedMedication] = useState<medListTypes | null>(null)
-    const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null)
 
     const findTriggeringDecisionMaking = (): decisionMakingType[] => {
         // Deferred-stop fallback: the "Refer to clinic" disposition isn't attached to
@@ -67,8 +66,7 @@ export function DecisionMaking({
 
     const decisionMakingContent = findTriggeringDecisionMaking()
 
-    const handleMedicationClick = (medication: medListTypes, rect: DOMRect) => {
-        setAnchorRect(rect)
+    const handleMedicationClick = (medication: medListTypes) => {
         setSelectedMedication(medication)
     }
 
@@ -88,19 +86,18 @@ export function DecisionMaking({
                 ))}
             </div>
 
-            <PreviewOverlay
+            <PaneSurface
                 isOpen={!!selectedMedication}
                 onClose={handleCloseMedication}
-                anchorRect={anchorRect}
-                title={selectedMedication?.text}
-                previewMaxHeight="60dvh"
+                title={selectedMedication?.text ?? ''}
+                desktopZIndex={40}
             >
                 {selectedMedication && (
                     <div className="px-4 py-3">
                         <MedicationSections medication={selectedMedication} />
                     </div>
                 )}
-            </PreviewOverlay>
+            </PaneSurface>
         </div>
     )
 }

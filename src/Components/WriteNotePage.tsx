@@ -6,15 +6,11 @@ import { useUserProfile } from '../Hooks/useUserProfile';
 import { getColorClasses } from '../Utilities/ColorUtilities';
 import { NoteBarcodeGenerator } from './Barcode';
 import { DecisionMaking } from './DecisionMaking';
-import { PhysicalExam } from './PhysicalExam';
-import { Plan } from './Plan';
 import { BaseDrawer } from '@/Components/primitives/BaseDrawer';
 import { NoteWizardFooter } from './WriteNoteHelpers';
-import { ExpandableInput } from '@/Components/primitives/ExpandableInput';
 import { useAlgorithmMetrics } from '../Hooks/useAlgorithmMetrics';
 import { useMergedNoteContent } from '../Hooks/useMergedNoteContent';
 import { X, Plus, Check, RotateCcw, ChevronRight, ClipboardList, FileText, Save, GraduationCap } from 'lucide-react';
-import { PreviewOverlay } from './PreviewOverlay';
 import { ConfirmDialog } from '@/Components/primitives/ConfirmDialog';
 import { PdfPreviewModal } from './PdfPreviewModal';
 import { PatientIdPopover, type PatientIdForm } from './PatientIdPopover';
@@ -27,7 +23,6 @@ import { useAuthStore } from '../stores/useAuthStore';
 import { EmptyState } from '@/Components/primitives/EmptyState';
 import { ActionButton } from '@/Components/primitives/ActionButton';
 import { FooterPill } from '@/Components/primitives/FooterPill';
-import type { TextExpander } from '../Data/User';
 import { getBlocksForFocusedExam, getCategoryFromSymptomCode } from '../Data/PhysicalExamData';
 import type { CategoryLetter } from '../Data/PhysicalExamData';
 import { composeAlgorithmNoteRouting } from '../Utilities/algorithmNoteRouting';
@@ -39,6 +34,7 @@ import { SAVED_NOTES_CAP } from '../lib/savedNotesDb';
 import { emitCopied } from '../lib/copyFeedback';
 import { useNavigationStore, type RestoredNote } from '../stores/useNavigationStore';
 import { PaneCard } from '@/Components/primitives/PaneCard';
+import { StackSheet } from '@/Components/primitives/PaneStack';
 import { useStack } from '@/Components/primitives/useStack';
 import { PillButton } from '@/Components/primitives/HeaderPill';
 import { TextInput } from '@/Components/primitives/FormInputs';
@@ -47,87 +43,34 @@ import { useEscBackout } from '../Hooks/useEscBackout';
 import { TextSectionEditor } from './Provider/ProviderPaneSections';
 import { usePEPaneScreens, PECenter, makeTemplatePEState, defaultItemState } from './Provider/ProviderPESections';
 import { usePlanPaneScreens } from './Provider/ProviderPlanSections';
-import { generatePEText } from './PhysicalExam';
+import { generatePEText, parsePEText } from './PhysicalExam';
 import { parsePlanState } from './Plan';
 import type { PlanState } from '../Types/PlanTypes';
 import { NoteHistorySection, historyPaneScreen } from './NoteHistorySection';
 
 const SECTION_LABEL_CLASS = 'text-[9pt] font-semibold text-primary uppercase tracking-wider';
 const CARD_CLASS = 'relative rounded-2xl bg-themewhite2 overflow-hidden';
-const TEXTAREA_CLASS =
-    'w-full bg-transparent px-4 py-3 text-base md:text-sm text-primary placeholder:text-tertiary ' +
-    'focus:outline-none resize-none overflow-hidden min-h-[200px]';
 
-/** Empty → overlay → populated card pattern, mirrors ProviderNote's TextSectionCard.
- *  With `onOpen` (desktop) the tap routes to the host's PaneCard and no overlay mounts. */
-function TextSectionCard({ addLabel, value, onChange, expanders, placeholder, onOpen }: {
+/** Empty → populated card; a tap opens the section in the pane / sheet. */
+function TextSectionCard({ addLabel, value, onOpen }: {
     addLabel: string;
     value: string;
-    onChange: (v: string) => void;
-    expanders: TextExpander[];
-    placeholder: string;
-    onOpen?: () => void;
+    onOpen: () => void;
 }) {
-    const [isOpen, setIsOpen] = useState(false);
-    const [anchor, setAnchor] = useState<DOMRect | null>(null);
-    const cardRef = useRef<HTMLDivElement>(null);
-
-    const openFromAnchor = (rect: DOMRect) => {
-        if (onOpen) { onOpen(); return; }
-        setAnchor(rect); setIsOpen(true);
-    };
-    const openFromCard = () => {
-        if (cardRef.current) openFromAnchor(cardRef.current.getBoundingClientRect());
-    };
-
-    return (
-        <>
-            {value ? (
-                <div
-                    ref={cardRef}
-                    onClick={openFromCard}
-                    className={`${CARD_CLASS} cursor-pointer active:scale-[0.99] transition-all`}
-                >
-                    <div className="px-4 py-3 text-sm text-primary whitespace-pre-wrap max-h-64 overflow-y-auto">
-                        {value}
-                    </div>
-                </div>
-            ) : (
-                <EmptyState
-                    title={addLabel}
-                    action={{
-                        icon: Plus,
-                        label: addLabel,
-                        onClick: (a) => openFromAnchor(a.getBoundingClientRect()),
-                    }}
-                />
-            )}
-            {!onOpen && <PreviewOverlay
-                isOpen={isOpen}
-                onClose={() => setIsOpen(false)}
-                anchorRect={anchor}
-                title={addLabel}
-                previewMaxHeight="50dvh"
-                actions={[
-                    { key: 'reset', label: 'Reset', icon: RotateCcw, onAction: () => onChange(''), closesOnAction: false },
-                ]}
-                rightFooter={
-                    <FooterPill side="right">
-                        <ActionButton icon={Check} label="Done" onClick={() => setIsOpen(false)} />
-                    </FooterPill>
-                }
-            >
-                <ExpandableInput
-                    value={value}
-                    onChange={onChange}
-                    expanders={expanders}
-                    multiline
-                    hideClear
-                    className={TEXTAREA_CLASS}
-                    placeholder={placeholder}
-                />
-            </PreviewOverlay>}
-        </>
+    return value ? (
+        <div
+            onClick={onOpen}
+            className={`${CARD_CLASS} cursor-pointer active:scale-[0.99] transition-all`}
+        >
+            <div className="px-4 py-3 text-sm text-primary whitespace-pre-wrap max-h-64 overflow-y-auto">
+                {value}
+            </div>
+        </div>
+    ) : (
+        <EmptyState
+            title={addLabel}
+            action={{ icon: Plus, label: addLabel, onClick: () => onOpen() }}
+        />
     );
 }
 
@@ -174,7 +117,7 @@ export const WriteNotePage = ({
     const openProviderNote = useNavigationStore(s => s.openProviderNote);
     // My Notes entry this session writes to — the reopened one, or the first save.
     const savedIdRef = useRef(restore?.savedNoteId);
-    const { expanders, orderTags, instructionTags, orderSets } = useMergedNoteContent();
+    const { orderTags, instructionTags, orderSets } = useMergedNoteContent();
     const colors = getColorClasses(disposition.type);
     const [viewMode, setViewMode] = useState<'preview' | 'fullnote'>(restore ? 'fullnote' : 'preview');
     const [includeDecisionMaking, setIncludeDecisionMaking] = useState(restore?.includeDecisionMaking ?? true);
@@ -244,9 +187,6 @@ export const WriteNotePage = ({
         const templateKeys = getBlocksForFocusedExam(cat, symptomCode).blocks.map(b => b.key);
         return [...new Set([...templateKeys, ...algoRouting.peBlockKeys])];
     });
-    const [pePickerSignal, setPePickerSignal] = useState(0);
-    const [pePickerAnchor, setPePickerAnchor] = useState<DOMRect | null>(null);
-    const peHasContent = !!peNote || selectedBlockKeys.length > 0;
 
     // PE seed from algorithm tags — overlays normal/abnormal findings at mount
     // (initialState is consumed once by PhysicalExam's state initializer).
@@ -285,26 +225,11 @@ export const WriteNotePage = ({
     }, [viewMode, algoRouting.assessmentText, setAssessmentNote]);
 
 
-    // ── Plan empty-state picker signal ──────────────────────────────────────
-    const [planPickerSignal, setPlanPickerSignal] = useState(0);
-    const [planPickerAnchor, setPlanPickerAnchor] = useState<DOMRect | null>(null);
-    // Plan seed from the active disposition's decision-making (meds + instructions).
-    // Passed as Plan initialText at mount (Plan parses initialText once); planNote
-    // empty → seed used, non-destructive once the medic edits (planNote wins).
+    // Plan seed from the active disposition's decision-making (meds + instructions);
+    // planNote wins once the medic edits.
     const planSeedText = planNote || (restore ? '' : algoRouting.planText);
-    const planHasContent = !!planSeedText;
 
 
-    // ── DDx popover state ──────────────────────────────────────────────────
-    const [ddxPopoverVisible, setDdxPopoverVisible] = useState(false);
-    const [ddxAnchorRect, setDdxAnchorRect] = useState<DOMRect | null>(null);
-
-    const openDdxPopover = useCallback((e: React.MouseEvent) => {
-        setDdxAnchorRect((e.currentTarget as HTMLElement).getBoundingClientRect());
-        setDdxPopoverVisible(true);
-    }, []);
-
-    // ── Available DDx from algorithm context ────────────────────────────────
     const availableDdx = useMemo(() => {
         const ddxSet = new Set<string>();
         for (let i = cardStates.length - 1; i >= 0; i--) {
@@ -350,31 +275,29 @@ export const WriteNotePage = ({
         }
     }, [selectedDdx, customDdx, setCustomDdx]);
 
-    // ── Desktop: section editors float in one PaneCard (ProviderDrawer parity) ──
-    // Mobile keeps the anchored PreviewOverlays and the inline PhysicalExam / Plan.
-    const paneMode = !isMobile;
-    // A restored legacy note carries PE text but no structured state; only the
-    // mounted PhysicalExam can parse it, so that case stays inline on desktop too.
-    const peInPane = paneMode && !(restore && !restore.peState && !!peNote);
+    // ── Section editors: PaneCard on desktop, Sheet on mobile (ProviderDrawer parity) ──
     const [paneScreen, setPaneScreen] = useState<{ key: string; params?: unknown } | null>(null);
     const closePane = useCallback(() => setPaneScreen(null), []);
-    const paneVisible = paneMode && isVisible && paneScreen !== null
+    const paneVisible = isVisible && paneScreen !== null
         && currentPageId === 'edit' && viewMode === 'fullnote';
-    useEscBackout(paneVisible, closePane);
+    useEscBackout(!isMobile && paneVisible, closePane);
     useEffect(() => {
         if (!isVisible || currentPageId !== 'edit' || viewMode !== 'fullnote') setPaneScreen(null);
     }, [isVisible, currentPageId, viewMode]);
 
-    // Plan in the pane edits structured state; the inline Plan parses text on mount instead.
     const [planState, setPlanState] = useState<PlanState | null>(null);
 
-    // The inline PhysicalExam / Plan seed peNote / planNote when Full Note first mounts
-    // them. In pane mode neither mounts, so seed the lifted state here at the same moment.
+    // Seed the lifted PE / Plan state when Full Note first opens.
     const paneSeededRef = useRef(false);
     useEffect(() => {
-        if (!paneMode || paneSeededRef.current || viewMode !== 'fullnote') return;
+        if (paneSeededRef.current || viewMode !== 'fullnote') return;
         paneSeededRef.current = true;
-        if (peInPane && !peState) {
+        if (!peState && restore && peNote) {
+            // Legacy restore: PE text without structured state; keep the text as-is.
+            const parsed = parsePEText(peNote, (getCategoryFromSymptomCode(symptomCode) || 'A') as CategoryLetter);
+            setSelectedBlockKeys(parsed.blockKeys ?? []);
+            setPeState(parsed);
+        } else if (!peState) {
             const items = Object.fromEntries(selectedBlockKeys.map(k => [k, algoPeSeed?.items[k] ?? defaultItemState()]));
             const seeded = makeTemplatePEState(selectedBlockKeys, items);
             setPeState(seeded);
@@ -384,7 +307,7 @@ export const WriteNotePage = ({
             setPlanState(parsePlanState(planSeedText, orderTags, instructionTags));
             if (!planNote) setPlanNote(planSeedText);
         }
-    }, [paneMode, viewMode, peInPane, peState, selectedBlockKeys, algoPeSeed, setPeState, setPeNote, planSeedText, planNote, setPlanNote, orderTags, instructionTags]);
+    }, [viewMode, restore, peNote, symptomCode, setSelectedBlockKeys, peState, selectedBlockKeys, algoPeSeed, setPeState, setPeNote, planSeedText, planNote, setPlanNote, orderTags, instructionTags]);
 
     const { screens: pePaneScreens, reorder: reorderPe } = usePEPaneScreens({
         peState,
@@ -634,77 +557,35 @@ export const WriteNotePage = ({
                                     <TextSectionCard
                                         addLabel="Add HPI"
                                         value={note}
-                                        onChange={setNote}
-                                        expanders={expanders}
-                                        placeholder="Chief complaint, onset, duration, character, associated symptoms..."
-                                        onOpen={paneMode ? () => setPaneScreen({ key: 's-hpi' }) : undefined}
+                                        onOpen={() => setPaneScreen({ key: 's-hpi' })}
                                     />
                                     {/* History items sit in the HPI group, no section label of their own */}
                                     <NoteHistorySection
                                         value={history}
                                         onChange={setHistory}
-                                        expanders={expanders}
-                                        onOpenPane={paneMode ? (key) => setPaneScreen({ key: 's-hx', params: { key } }) : undefined}
+                                        onOpenPane={(key) => setPaneScreen({ key: 's-hx', params: { key } })}
                                     />
                                 </div>
 
                                 {/* Physical Exam — symptom-templated, typically populated on mount */}
-                                {peInPane ? (
-                                    <PECenter
-                                        selectedBlockKeys={selectedBlockKeys}
-                                        items={peState?.items ?? {}}
-                                        vitals={peState?.vitals ?? {}}
-                                        onOpenSelector={() => setPaneScreen({ key: 's-pe' })}
-                                        onOpenBlock={(blockKey) => setPaneScreen({ key: 's-pe-block', params: { blockKey } })}
-                                        onOpenVitals={() => setPaneScreen({ key: 's-pe-vitals' })}
-                                        onReorder={reorderPe}
-                                        additional={peState?.additional ?? ''}
-                                        onOpenFreeText={() => setPaneScreen({ key: 's-pe-freetext' })}
-                                    />
-                                ) : (
-                                <div className="space-y-2">
-                                    <p className={SECTION_LABEL_CLASS}>Physical Exam</p>
-                                    <div
-                                        style={peHasContent ? undefined : { display: 'none' }}
-                                        aria-hidden={!peHasContent}
-                                    >
-                                        <PhysicalExam
-                                            initialText={peNote}
-                                            initialState={peState ?? (restore ? null : algoPeSeed)}
-                                            onChange={setPeNote}
-                                            onStateChange={setPeState}
-                                            colors={colors}
-                                            symptomCode={symptomCode}
-                                            mode="template"
-                                            templateBlockKeys={selectedBlockKeys}
-                                            onBlockKeysChange={setSelectedBlockKeys}
-                                            expanders={expanders}
-                                            pickerOpenSignal={pePickerSignal}
-                                            pickerOpenAnchor={pePickerAnchor}
-                                        />
-                                    </div>
-                                    {!peHasContent && (
-                                        <EmptyState
-                                            title="Add physical exam"
-                                            action={{
-                                                icon: Plus,
-                                                label: 'Add physical exam',
-                                                onClick: (a) => {
-                                                    setPePickerAnchor(a.getBoundingClientRect());
-                                                    setPePickerSignal(s => s + 1);
-                                                },
-                                            }}
-                                        />
-                                    )}
-                                </div>
-                                )}
+                                <PECenter
+                                    selectedBlockKeys={selectedBlockKeys}
+                                    items={peState?.items ?? {}}
+                                    vitals={peState?.vitals ?? {}}
+                                    onOpenSelector={() => setPaneScreen({ key: 's-pe' })}
+                                    onOpenBlock={(blockKey) => setPaneScreen({ key: 's-pe-block', params: { blockKey } })}
+                                    onOpenVitals={() => setPaneScreen({ key: 's-pe-vitals' })}
+                                    onReorder={reorderPe}
+                                    additional={peState?.additional ?? ''}
+                                    onOpenFreeText={() => setPaneScreen({ key: 's-pe-freetext' })}
+                                />
 
                                 {/* Differential Diagnosis — assessment itself is the ADTMC algorithm */}
                                 <div className="space-y-2">
                                     <p className={SECTION_LABEL_CLASS}>Differential Diagnosis</p>
                                     {(selectedDdx.length > 0 || customDdx.length > 0) ? (
                                         <div
-                                            onClick={paneMode ? () => setPaneScreen({ key: 's-ddx' }) : openDdxPopover}
+                                            onClick={() => setPaneScreen({ key: 's-ddx' })}
                                             className={`${CARD_CLASS} cursor-pointer active:scale-[0.99] transition-all`}
                                         >
                                             <div className="px-4 py-3 text-sm text-primary whitespace-pre-wrap max-h-64 overflow-y-auto">
@@ -717,44 +598,16 @@ export const WriteNotePage = ({
                                             action={{
                                                 icon: Plus,
                                                 label: 'Add differential',
-                                                onClick: (a) => {
-                                                    if (paneMode) { setPaneScreen({ key: 's-ddx' }); return; }
-                                                    setDdxAnchorRect(a.getBoundingClientRect());
-                                                    setDdxPopoverVisible(true);
-                                                },
+                                                onClick: () => setPaneScreen({ key: 's-ddx' }),
                                             }}
                                         />
                                     )}
                                 </div>
 
-                                <PreviewOverlay
-                                    isOpen={!paneMode && ddxPopoverVisible}
-                                    onClose={() => setDdxPopoverVisible(false)}
-                                    anchorRect={ddxAnchorRect}
-                                    maxWidth={340}
-                                    title="Differential Diagnosis"
-                                    preview={ddxList}
-                                    actions={(selectedDdx.length > 0 || customDdx.length > 0) ? [{
-                                        key: 'reset',
-                                        label: 'Reset',
-                                        icon: RotateCcw,
-                                        variant: 'danger' as const,
-                                        closesOnAction: false,
-                                        onAction: () => { setSelectedDdx([]); setCustomDdx([]); },
-                                    }] : []}
-                                    onAdd={addCustomDdxItem}
-                                    addPlaceholder="Add differential..."
-                                    rightFooter={
-                                        <FooterPill side="right">
-                                            <ActionButton icon={Check} label="Done" onClick={() => setDdxPopoverVisible(false)} />
-                                        </FooterPill>
-                                    }
-                                />
-
                                 {/* Plan */}
                                 <div className="space-y-2">
                                     <p className={SECTION_LABEL_CLASS}>Plan</p>
-                                    {paneMode ? (planNote ? (
+                                    {planNote ? (
                                         <div
                                             onClick={() => setPaneScreen({ key: 's-plan' })}
                                             className={`${CARD_CLASS} cursor-pointer active:scale-[0.99] transition-all`}
@@ -768,36 +621,7 @@ export const WriteNotePage = ({
                                             title="Add plan"
                                             action={{ icon: Plus, label: 'Add plan', onClick: () => setPaneScreen({ key: 's-plan' }) }}
                                         />
-                                    )) : (<>
-                                    <div
-                                        style={planHasContent ? undefined : { display: 'none' }}
-                                        aria-hidden={!planHasContent}
-                                    >
-                                        <Plan
-                                            orderTags={orderTags}
-                                            instructionTags={instructionTags}
-                                            orderSets={orderSets}
-                                            initialText={planSeedText}
-                                            onChange={setPlanNote}
-                                            expanders={expanders}
-                                            pickerOpenSignal={planPickerSignal}
-                                            pickerOpenAnchor={planPickerAnchor}
-                                        />
-                                    </div>
-                                    {!planHasContent && (
-                                        <EmptyState
-                                            title="Add plan"
-                                            action={{
-                                                icon: Plus,
-                                                label: 'Add plan',
-                                                onClick: (a) => {
-                                                    setPlanPickerAnchor(a.getBoundingClientRect());
-                                                    setPlanPickerSignal(s => s + 1);
-                                                },
-                                            }}
-                                        />
                                     )}
-                                    </>)}
                                 </div>
                                 </>
                                 )}
@@ -875,7 +699,7 @@ export const WriteNotePage = ({
                 )}
                 {/* Desktop section editor — ONE card for the whole open; screens swap
                     inside it via paneStack. z-40 clears the bottom island (z-20). */}
-                {paneMode && (
+                {!isMobile && (
                     <PaneCard
                         isOpen={paneVisible && paneStack.hasScreen}
                         onClose={closePane}
@@ -914,6 +738,11 @@ export const WriteNotePage = ({
                 />
             </div>
         </BaseDrawer>
+        {isMobile && paneStack.hasScreen && (
+            <StackSheet stack={paneStack} isOpen={paneVisible} onClose={closePane} maxHeight={80}>
+                <div className="px-4 py-3 overflow-x-hidden">{paneStack.body('')}</div>
+            </StackSheet>
+        )}
         <PatientIdPopover
             isOpen={patientGate !== null}
             anchorRect={null}

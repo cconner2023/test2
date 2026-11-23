@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { ChevronLeft } from 'lucide-react'
 import { Sheet } from '@/Components/primitives/Sheet'
 import { PaneCard } from '@/Components/primitives/PaneCard'
@@ -93,6 +94,53 @@ function PaneStackPublisher({ host, onClose, stack, loading }: {
   return null
 }
 
+/** Mobile shell for a stack controller; hosts that own their useStack render this. */
+export function StackSheet({ stack, isOpen, onClose, maxHeight = 70, zIndex = 1250, children }: {
+  stack: StackController
+  isOpen: boolean
+  onClose: () => void
+  maxHeight?: number
+  zIndex?: number
+  children: ReactNode
+}) {
+  // A screen's own onBack (e.g. a form stage at the root) also earns the chevron.
+  const drilled = !!stack.onBack
+  return (
+    <Sheet
+      isOpen={isOpen}
+      onClose={onClose}
+      height="fit"
+      maxHeight={maxHeight}
+      zIndex={zIndex}
+      // A drag mid-drill shouldn't dismiss an in-flight form; Back owns reversal.
+      draggable={!drilled}
+      title={stack.title}
+      leftContent={drilled ? (
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={stack.onBack}
+            aria-label="Back"
+            className="w-9 h-9 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
+          >
+            <ChevronLeft size={20} />
+          </button>
+          {stack.headerLeft}
+        </div>
+      ) : stack.headerLeft}
+      rightContent={stack.rightFooter ?? undefined}
+      actions={stack.headerActions}
+    >
+      {children}
+      {stack.footer && (
+        <div className="sticky bottom-0 bg-themewhite3 border-t border-tertiary/10 flex items-center px-2 py-2">
+          {stack.footer}
+        </div>
+      )}
+    </Sheet>
+  )
+}
+
 export function PaneStack({
   isOpen, onClose, initial, screens, navRef, loading, maxHeight = 70, zIndex = 1250, width,
 }: PaneStackProps) {
@@ -104,41 +152,10 @@ export function PaneStack({
   if (!stack.hasScreen) return null
 
   if (isMobile) {
-    // A screen's own onBack (e.g. a form stage at the root) also earns the chevron.
-    const drilled = !!stack.onBack
     return (
-      <Sheet
-        isOpen={isOpen}
-        onClose={onClose}
-        height="fit"
-        maxHeight={maxHeight}
-        zIndex={zIndex}
-        // A drag mid-drill shouldn't dismiss an in-flight form; Back owns reversal.
-        draggable={!drilled}
-        title={stack.title}
-        leftContent={drilled ? (
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={stack.onBack}
-              aria-label="Back"
-              className="w-9 h-9 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
-            >
-              <ChevronLeft size={20} />
-            </button>
-            {stack.headerLeft}
-          </div>
-        ) : stack.headerLeft}
-        rightContent={stack.rightFooter ?? undefined}
-        actions={stack.headerActions}
-      >
+      <StackSheet stack={stack} isOpen={isOpen} onClose={onClose} maxHeight={maxHeight} zIndex={zIndex}>
         {stackBody(stack, loading)}
-        {stack.footer && (
-          <div className="sticky bottom-0 bg-themewhite3 border-t border-tertiary/10 flex items-center px-2 py-2">
-            {stack.footer}
-          </div>
-        )}
-      </Sheet>
+      </StackSheet>
     )
   }
 

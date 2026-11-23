@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { DRAWER_SLIDE_TRANSITION } from './Utilities/constants'
 import { drawerShift, useDrawerPushStore } from './stores/useDrawerPushStore'
 import './App.css'
@@ -15,8 +15,10 @@ import { useSearch } from './Hooks/useSearch'
 import { useNavigation } from './Hooks/useNavigation'
 import { useNavigationStore } from './stores/useNavigationStore'
 import { useSwipeNavigation } from './Hooks/useSwipeNavigation'
+import { panelMotion, PANEL_MS } from './Hooks/useColumnSwipe'
+import { useHeldWhileOpen } from './Hooks/useHeldWhileOpen'
 import { useDesktopHotkeys } from './Hooks/useDesktopHotkeys'
-import { useMenuSlide, MENU_NAV_WIDTH } from './Hooks/useMenuSlide'
+import { useMenuSlide } from './Hooks/useMenuSlide'
 import { useRightPanelSlide } from './Hooks/useRightPanelSlide'
 import UpdateNotification from './Components/UpdateNotification'
 import PasswordResetOverlay from './Components/PasswordResetOverlay'
@@ -392,7 +394,9 @@ case 'mapOverlay':
 
   // Cross-column swipe: swipe back from Column B (algorithm) to Column A,
   // or swipe left from right edge to open messages
+  const columnBRef = useRef<HTMLDivElement>(null)
   const swipe = useSwipeNavigation({
+    followRef: columnBRef,
     enabled: navigation.isMobile && !search.searchInput && !navigation.isWriteNoteVisible,
     viewDepth: navigation.isMobileColumnB ? 1 : 0,
     onSwipeBack: useCallback(() => {
@@ -566,14 +570,21 @@ case 'mapOverlay':
   // Title: empty when searching, otherwise from navigation
   const title = search.searchInput ? "" : navigation.dynamicTitle
 
-  // Content key — drives fade-in animation on content change.
-  // On mobile, search is handled by a separate overlay so the key stays stable
-  // to prevent AlgorithmPage from remounting (and losing state) during search.
-  const desktopContentKey = useMemo(() => {
-    if (navigation.selectedSymptom && navigation.showQuestionCard)
-      return `algo-${navigation.selectedSymptom.icon}`
-    return 'empty'
-  }, [navigation.selectedSymptom, navigation.showQuestionCard])
+  const showAlgorithm = !!(navigation.selectedSymptom && navigation.showQuestionCard)
+  const algorithmSymptom = useHeldWhileOpen(showAlgorithm, navigation.selectedSymptom)
+  const [algorithmExiting, setAlgorithmExiting] = useState(false)
+  useEffect(() => {
+    if (showAlgorithm || !navigation.isMobile) { setAlgorithmExiting(false); return }
+    setAlgorithmExiting(true)
+    const t = window.setTimeout(() => setAlgorithmExiting(false), PANEL_MS)
+    return () => window.clearTimeout(t)
+  }, [showAlgorithm, navigation.isMobile])
+  const renderAlgorithm = !!algorithmSymptom && (showAlgorithm || algorithmExiting)
+
+  const desktopContentKey = renderAlgorithm ? `algo-${algorithmSymptom!.icon}` : 'empty'
+  const mobileColumn = (i: number) => navigation.isMobile
+    ? { ...panelMotion(i, navigation.isMobileColumnB ? 1 : 0), className: 'absolute inset-0 overflow-hidden motion-reduce:!transition-none' }
+    : { className: 'h-full overflow-hidden', style: { minWidth: 0 } }
 
   return (
     <AvatarProvider value={avatarState}>
@@ -592,12 +603,12 @@ case 'mapOverlay':
 
         {/* Viewport strip — SideNav + content side by side, pans to reveal nav or shift for messages */}
         <div
-          className="flex h-full"
+          className={`flex h-full ${navigation.isMobile ? 'bg-themewhite2' : ''}`}
           inert={hasOpenDrawer}
           style={{
-            width: navigation.isMobile ? `calc(100% + ${MENU_NAV_WIDTH}px)` : '100%',
+            width: navigation.isMobile ? `calc(100% + ${menuSlide.navWidth}px)` : '100%',
             transform: navigation.isMobile
-              ? `translateX(${menuSlide.position - MENU_NAV_WIDTH - rightPanelProgress * 80}px)`
+              ? `translateX(${menuSlide.position - menuSlide.navWidth - rightPanelProgress * 80}px)`
               : `translateX(calc(${drawerPushOffset} * 100%))`,
             transition: (menuSlide.isDragging || rightPanelDragging) ? 'none' : DRAWER_SLIDE_TRANSITION,
             willChange: (menuSlide.isDragging || rightPanelDragging) ? 'transform' : 'auto',
@@ -605,7 +616,7 @@ case 'mapOverlay':
         >
           {/* SideNav — same level, left of content */}
           {navigation.isMobile && (
-            <div className="h-full shrink-0" style={{ width: MENU_NAV_WIDTH }}>
+            <div className="h-full shrink-0" style={{ width: menuSlide.navWidth }}>
               <SideNav
                 onClose={navigation.closeMenu}
                 onMenuItemClick={handleMenuItemClick}
@@ -614,7 +625,10 @@ case 'mapOverlay':
           )}
 
           {/* Content — takes full viewport width */}
-          <div className="flex flex-col h-full flex-1 min-w-0 relative">
+          <div
+            className={`flex flex-col h-full flex-1 min-w-0 relative ${navigation.isMobile ? 'bg-themewhite' : ''}`}
+            style={navigation.isMobile ? menuSlide.cardStyle : undefined}
+          >
           {/* Navbar - overlaps content on mobile for blur effect, extends into safe area on iOS */}
           <div className={`${navigation.isMobile
             ? 'absolute top-0 left-0 right-0 z-30 pt-[var(--sat)] backdrop-blur-xs bg-themewhite/10 overflow-hidden h-[calc(var(--sat,0px)+3.75rem)]'
@@ -664,11 +678,11 @@ case 'mapOverlay':
           {/* Content area — ADTMC 2-column grid (TC3 now lives in its own drawer) */}
           <div className="md:flex-1 h-full overflow-hidden absolute inset-0 md:relative md:inset-auto md:mt-2 md:mx-2">
             <div
-              className={`h-full grid gap-1 transition-[grid-template-columns] duration-300 ease-in-out ${navigation.mobileGridClass} md:grid-cols-[min(45%,560px)_minmax(0,1fr)]`}
+              className={navigation.isMobile ? 'h-full relative' : 'h-full grid gap-1 grid-cols-[min(45%,560px)_minmax(0,1fr)]'}
               {...(navigation.isMobile ? swipe.touchHandlers : {})}
             >
-              {/* Column A: Navigation carousel (ADTMC) */}
-              <div className="h-full overflow-hidden" style={{ minWidth: 0 }}>
+              {/* Column A: ADTMC navigation */}
+              <div {...mobileColumn(0)}>
                 <ColumnA
                   onNavigate={handleNavigationClick}
                   onEdgeDrag={navigation.isMobile ? menuSlide.onEdgeDrag : undefined}
@@ -683,13 +697,14 @@ case 'mapOverlay':
               </div>
 
               {/* Column B: Content — algorithm, search, or empty */}
-              <div className="h-full overflow-hidden" style={{ minWidth: 0 }}>
-                <div key={desktopContentKey} className="h-full animate-desktopContentIn md:pt-3">
-                  {navigation.selectedSymptom && navigation.showQuestionCard ? (
+              <div ref={columnBRef} {...mobileColumn(1)}>
+                <div key={desktopContentKey} className={`h-full md:pt-3 ${navigation.isMobile ? '' : 'animate-desktopContentIn'}`}>
+                  {renderAlgorithm ? (
                     <div className="h-full overflow-hidden">
                       <ErrorBoundary>
                       <AlgorithmPage
-                        key={`algo-${navigation.selectedSymptom.icon}`}
+                        key={`algo-${algorithmSymptom!.icon}`}
+                        heldSymptom={algorithmSymptom}
                         searchInput={search.searchInput}
                         onSearchChange={navigation.isMobile ? handleSearchChange : undefined}
                         searchResults={search.searchResults}
@@ -709,8 +724,7 @@ case 'mapOverlay':
 
           </div>
 
-          {/* Menu backdrop — overlays content when menu is open, handles tap/drag to close.
-              The NavRail brings its own scrim. */}
+          {/* Menu close target — tap/drag the revealed card to close. */}
           {navigation.isMobile && <div
             className="absolute inset-0 z-40"
             style={{
@@ -718,16 +732,7 @@ case 'mapOverlay':
               touchAction: navigation.isMenuOpen ? 'none' : 'auto',
             }}
             {...menuSlide.closeHandlers}
-          >
-            <Scrim
-              progress={menuSlide.backdropProgress}
-              variant="solid"
-              position="absolute"
-              scope="container"
-              interactive={false}
-              transition={menuSlide.backdropTransition}
-            />
-          </div>}
+          />}
 
           {/* Messages backdrop — overlays content when messages is open */}
           {navigation.isMobile && (

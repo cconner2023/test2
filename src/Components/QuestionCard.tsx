@@ -5,7 +5,6 @@ import type { AlgorithmOptions } from '../Types/AlgorithmTypes';
 import type { CardState } from '../Hooks/useAlgorithm';
 import { getScreenerMaxScore, getScreenerScore, isScreenerGateOpen } from '../Data/SpecTesting';
 import { Check, ClipboardList, X } from 'lucide-react';
-import { ConnectorDots } from '@/Components/primitives/ConnectorDots';
 import { ActionPill } from '@/Components/primitives/ActionPill';
 
 interface QuestionCardProps {
@@ -70,7 +69,7 @@ export const QuestionCard = memo(function QuestionCard({
 
                     return (
                         <div key={card.index} className={`flex flex-col items-center ${idx > 0 ? 'animate-cardFadeUp' : ''}`}>
-                            <div className={`flex flex-col rounded-2xl w-full overflow-hidden shadow-sm bg-themewhite2 border-3 border-dashed border-themeblue2/30`}>
+                            <div data-trace-card={card.index} className={`flex flex-col rounded-2xl w-full overflow-hidden shadow-sm bg-themewhite2 border-3 border-dashed border-themeblue2/30`}>
                                 <div className="px-4 py-3 text-center">
                                     <div className="text-[9pt] font-semibold mb-1 uppercase tracking-wider text-themeblue2">
                                         Screening Tool
@@ -92,6 +91,7 @@ export const QuestionCard = memo(function QuestionCard({
                                             </span>
                                         </div>
                                         <button
+                                            data-trace-on
                                             onClick={() => onOpenScreener?.(card.index)}
                                             className="w-full py-2 text-[10pt] text-themeblue2 bg-themeblue2/8 rounded-md font-medium active:scale-95 transition-all"
                                         >
@@ -111,9 +111,7 @@ export const QuestionCard = memo(function QuestionCard({
                                 )}
                             </div>
 
-                            {hasNext && (
-                                <ConnectorDots colorClass={cardColors.badgeBg} />
-                            )}
+                            {hasNext && <div className="h-[120px]" />}
                         </div>
                     );
                 }
@@ -133,7 +131,7 @@ export const QuestionCard = memo(function QuestionCard({
                     return (
                         <div key={card.index} className={`flex flex-col items-center ${idx > 0 ? 'animate-cardFadeUp' : ''}`}>
                             <div className="relative w-full">
-                            <div className={`flex flex-col rounded-2xl w-full overflow-hidden shadow-sm bg-themewhite2 border-3 border-dashed ${isDeferred ? 'border-themered/30' : 'border-themeblue2/30'}`}>
+                            <div data-trace-card={card.index} className={`flex flex-col rounded-2xl w-full overflow-hidden shadow-sm bg-themewhite2 border-3 border-dashed ${isDeferred ? 'border-themered/30' : 'border-themeblue2/30'}`}>
                                 <div className="px-12 py-3 text-center">
                                     <div className={`text-[9pt] font-semibold mb-1 uppercase tracking-wider ${isDeferred ? 'text-themered' : 'text-themeblue2'}`}>
                                         Action Required
@@ -173,6 +171,7 @@ export const QuestionCard = memo(function QuestionCard({
                                         `} />
                                         <button
                                             type="button"
+                                            data-trace-on={isDeferredStop || undefined}
                                             onClick={() => onActionStatus?.(card.index, 'deferred-stop')}
                                             disabled={isTransitioning}
                                             className="relative h-full w-1/2 text-[10pt] flex items-center justify-center"
@@ -183,6 +182,7 @@ export const QuestionCard = memo(function QuestionCard({
                                         </button>
                                         <button
                                             type="button"
+                                            data-trace-on={isDeferredContinue || undefined}
                                             onClick={() => onActionStatus?.(card.index, 'deferred-continue')}
                                             disabled={isTransitioning}
                                             className="relative h-full w-1/2 text-[10pt] flex items-center justify-center"
@@ -199,6 +199,7 @@ export const QuestionCard = memo(function QuestionCard({
                                 <ActionPill shadow="sm" placement="overlay">
                                     <button
                                         type="button"
+                                        data-trace-on={isPerformed || undefined}
                                         onClick={() => onActionStatus?.(card.index, 'performed')}
                                         disabled={isTransitioning}
                                         aria-label="Performed"
@@ -211,6 +212,7 @@ export const QuestionCard = memo(function QuestionCard({
                                     </button>
                                     <button
                                         type="button"
+                                        data-trace-on={(isDeferred && !(gatesChain && (isDeferredStop || isDeferredContinue))) || undefined}
                                         onClick={() => {
                                             // Only transition off a non-deferred state. For a chain-gating action
                                             // go to 'deferred-pending' so the medic resolves STOP/CONTINUE; for a
@@ -232,9 +234,7 @@ export const QuestionCard = memo(function QuestionCard({
                                 </ActionPill>
                             </div>
 
-                            {hasNext && (
-                                <ConnectorDots colorClass={cardColors.badgeBg} />
-                            )}
+                            {hasNext && <div className="h-[120px]" />}
                         </div>
                     );
                 }
@@ -242,6 +242,7 @@ export const QuestionCard = memo(function QuestionCard({
                 return (
                     <div key={card.index} className={`flex flex-col items-center ${idx > 0 ? 'animate-cardFadeUp' : ''}`}>
                         <div
+                            data-trace-card={card.index}
                             className={`
               flex flex-col rounded-2xl w-full overflow-hidden shadow-sm
               bg-themewhite2 border
@@ -321,6 +322,7 @@ export const QuestionCard = memo(function QuestionCard({
                                     {question.answerOptions.map((option, optionIndex) => (
                                         <button
                                             key={option.text}
+                                            data-trace-on={card.answer === option || undefined}
                                             onClick={() => onAnswer(card.index, optionIndex)}
                                             className="relative h-full w-1/2 text-[10pt] flex items-center justify-center"
                                             disabled={isTransitioning}
@@ -345,10 +347,7 @@ export const QuestionCard = memo(function QuestionCard({
                             <div className="h-6" />
                         )}
 
-                        {/* Dot-dot-arrow connector — sequential stagger */}
-                        {hasNext && !isRF && (
-                            <ConnectorDots colorClass={cardColors.badgeBg} />
-                        )}
+                        {hasNext && !isRF && <div className="h-[120px]" />}
                     </div>
                 );
             })}

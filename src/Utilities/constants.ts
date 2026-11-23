@@ -2,8 +2,14 @@
 
 /** Scroll/animation delays for algorithm page transitions */
 export const ALGORITHM_TIMING = {
-    /** Delay before scrolling — connector dot stagger ends at ~440ms (ms) */
-    SCROLL_AFTER_STAGGER: 450,
+    /** Trace line draw between cards (ms) */
+    TRACE_DRAW: 420,
+    /** Fraction of the draw at which the next card reveals */
+    TRACE_REVEAL_AT: 0.7,
+    /** Retract of later traces when an earlier answer changes (ms) */
+    TRACE_RETRACT: 240,
+    /** Releases the reveal hold if the trace never signals (ms) */
+    TRACE_REVEAL_FALLBACK: 1200,
     /** Delay for initial algorithm load scroll (ms) */
     INITIAL_SCROLL_DELAY: 300,
     /** Max wait for `scrollend` before revealing held cards anyway (ms) */

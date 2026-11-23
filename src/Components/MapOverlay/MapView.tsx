@@ -878,7 +878,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
       <div
         ref={containerRef}
         className="w-full h-full"
-        style={{ backgroundColor: theme === 'dark' ? 'rgb(15, 25, 35)' : 'rgb(240, 242, 245)' }}
+        style={{ backgroundColor: theme === 'dark' ? 'rgb(24, 31, 38)' : 'rgb(240, 242, 245)' }}
       />
 
       {showGrid && (

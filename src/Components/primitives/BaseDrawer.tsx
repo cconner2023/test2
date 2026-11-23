@@ -464,12 +464,11 @@ export function BaseDrawer({
 
     return (
         <>
-            {/* Backdrop. Desktop half panels dim the pushed content with the same
-                'solid' the left-nav uses, and drop it under a full panel above.
+            {/* Backdrop. Desktop half panels dim the pushed content,
+                and drop it under a full panel above.
                 Desktop full panels have none: nothing is left to dim. */}
             {desktopHalf && (
                 <Scrim
-                    variant="solid"
                     progress={desktopOpen && !drawersAbove.some((d) => d.width === 1) ? 1 : 0}
                     zIndexClass={panelZIndex}
                     transition={DRAWER_FADE_TRANSITION}
@@ -480,11 +479,7 @@ export function BaseDrawer({
                 // progress is the drawer's TRAVEL fraction (0 -> 1), not a dim
                 // level — the tint lives in Scrim's class. Parking this below 1
                 // at rest would composite the paint away. See Scrim.tsx.
-                // A surface swap like the root left-nav's 'solid', and no blur:
-                // nothing behind a field this dark is worth the iOS Safari cost
-                // on a layer that rides a drag.
                 <Scrim
-                    variant="drawer-mobile"
                     progress={drawerPosition / 100}
                     zIndexClass={zIndex}
                     transition={isDragging ? 'none' : 'opacity 300ms ease-out'}

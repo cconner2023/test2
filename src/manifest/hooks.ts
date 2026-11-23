@@ -21,7 +21,7 @@ export const hooks = {
   useIsMobile:            { path: 'Hooks/useIsMobile.ts',            stores: [], services: [], purpose: 'Media query: viewport ≤ 767px' },
   useOnboardingReady:     { path: 'Hooks/useOnboardingReady.ts',     stores: [], services: [], purpose: 'Aggregate blocking UI signals into readiness boolean' },
   useSearch:              { path: 'Hooks/useSearch.ts',              stores: [], services: [], purpose: 'Debounced search across categories, symptoms, meds, training' },
-  useColumnCarousel:      { path: 'Hooks/useColumnCarousel.ts',      stores: [], services: [], purpose: 'CSS-transition horizontal panel carousel with swipe' },
+  useColumnSwipe:         { path: 'Hooks/useColumnSwipe.ts',         stores: [], services: [], purpose: 'Column A swipe-back + menu/messages edge delegation' },
 
   // ─── Gestures ──────────────────────────────────────────────────
   useCanvasGesture:       { path: 'Hooks/useCanvasGesture.ts',       stores: [], services: [], purpose: 'Pan/zoom for property canvas with spring animations' },

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type MouseEvent } from 'react'
-import { Eye, Pin, ChevronUp, ChevronDown, EyeOff, FileText, MoreHorizontal } from 'lucide-react'
+import { Eye, Pin, ChevronUp, ChevronDown, EyeOff, FileText, MoreHorizontal, PanelLeftClose } from 'lucide-react'
 import { NavIcon, DESKTOP_HIDDEN_ACTIONS, NAV_OPEN_STATE } from './navIcons'
 import { useShallow } from 'zustand/react/shallow'
 import { useNavigationStore } from '../stores/useNavigationStore'
@@ -39,7 +39,7 @@ interface SideNavProps {
   onMenuItemClick: (action: string) => void
   /** Desktop md+: render as the NavRail, icon-only when collapsed and widening
    *  in place when expanded, instead of the off-canvas panel. */
-  rail?: { collapsed: boolean; onExpand: () => void }
+  rail?: { collapsed: boolean; onExpand: () => void; onCollapse: () => void }
 }
 
 export function SideNav({ onClose, onMenuItemClick, rail }: SideNavProps) {
@@ -184,7 +184,7 @@ export function SideNav({ onClose, onMenuItemClick, rail }: SideNavProps) {
   )
 
   if (rail) {
-    const { collapsed, onExpand } = rail
+    const { collapsed, onExpand, onCollapse } = rail
     const railItems = visibleItems.filter(i => !DESKTOP_HIDDEN_ACTIONS.has(i.action))
     const systemItems = railItems.filter(i => SYSTEM_ACTIONS.has(i.action))
     // Labels fade in after the width starts moving, out before it shrinks.
@@ -225,14 +225,10 @@ export function SideNav({ onClose, onMenuItemClick, rail }: SideNavProps) {
           aria-pressed={active}
           onMouseEnter={collapsed ? (e) => showTip(e, item.text, hotkeyKeys(item.action)) : undefined}
           onMouseLeave={() => { if (!tipAim.active()) setRailTip(null) }}
-          className={`group relative flex items-center mx-2 w-[calc(100%-1rem)] h-10 px-1 shrink-0 rounded-full text-left active:scale-95 transform-gpu transition-colors ${collapsed ? '' : 'hover:bg-themewhite2/60'}`}
+          className={`relative flex items-center mx-2 w-[calc(100%-1rem)] h-10 px-1 shrink-0 rounded-full text-left hover:bg-secondary/5 active:scale-95 transition-all`}
         >
-          {/* Same chip as the NavTop header buttons. */}
-          <span className={`relative w-8 h-8 shrink-0 rounded-full flex items-center justify-center transition-colors ${active
-            ? 'bg-themeblue3/15 ring-1 ring-themeblue3/40'
-            : 'bg-themewhite2 group-hover:bg-themewhite'}`}
-          >
-            <NavIcon action={item.action} size={16} className={active ? 'stroke-themeblue3' : 'stroke-themeblue1'} />
+          <span className="relative w-8 h-8 shrink-0 rounded-full flex items-center justify-center bg-themewhite2">
+            <NavIcon action={item.action} size={16} className={active ? 'stroke-themeblue3 fill-themeblue3/25' : 'stroke-themeblue1'} />
             {item.badge && totalUnread > 0 && (
               <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 flex items-center justify-center rounded-full bg-themeredred text-white text-[9pt] font-bold leading-none">
                 {totalUnread > 99 ? '99+' : totalUnread}
@@ -252,12 +248,13 @@ export function SideNav({ onClose, onMenuItemClick, rail }: SideNavProps) {
     return (
       <div className="h-full w-full flex flex-col">
         {/* Same height as the NavTop row so the avatar lines up with the header. */}
+        <div className="flex items-center h-13.75 shrink-0">
         <button
           onClick={collapsed ? onExpand : handleProfileClick}
           aria-label={collapsed ? 'Open menu' : 'Profile'}
-          className="flex items-center h-13.75 px-3 shrink-0 text-left"
+          className="flex items-center flex-1 min-w-0 h-full px-3 text-left active:scale-95 transition-all"
         >
-          <span className="w-8 h-8 rounded-full overflow-hidden shrink-0 active:scale-95 transition-transform">
+          <span className="w-8 h-8 rounded-full overflow-hidden shrink-0">
             {isCustom && customImage ? (
               <img src={customImage} alt="Profile" className="w-full h-full object-cover rounded-full" />
             ) : isInitials ? (
@@ -283,6 +280,14 @@ export function SideNav({ onClose, onMenuItemClick, rail }: SideNavProps) {
             )}
           </div>
         </button>
+        <button
+          onClick={onCollapse}
+          aria-label="Collapse menu"
+          className={`w-8 h-8 mr-3 shrink-0 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 ${reveal}`}
+        >
+          <PanelLeftClose size={16} />
+        </button>
+        </div>
 
         <div className={`mx-3 border-t border-tertiary/10 transition-[width] duration-300 ${collapsed ? 'w-8' : 'w-[calc(100%-1.5rem)]'}`} />
 
@@ -296,7 +301,7 @@ export function SideNav({ onClose, onMenuItemClick, rail }: SideNavProps) {
           {!collapsed && hiddenCount > 0 && (
             <button
               onClick={() => hidden.forEach(a => toggleHide(a))}
-              className="flex items-center justify-center gap-1.5 w-full py-2.5 mt-2 text-[10pt] text-tertiary whitespace-nowrap active:scale-95 transform-gpu transition-colors"
+              className="flex items-center justify-center gap-1.5 w-full py-2.5 mt-2 text-[10pt] text-tertiary hover:text-primary whitespace-nowrap active:scale-95 transition-all"
             >
               <Eye size={12} />
               <span>{hiddenCount} hidden — tap to restore</span>
@@ -315,7 +320,7 @@ export function SideNav({ onClose, onMenuItemClick, rail }: SideNavProps) {
                 return (
                   <div
                     key={note.id}
-                    className={`flex items-center mx-2 w-[calc(100%-1rem)] h-10 shrink-0 rounded-full transition-colors ${collapsed ? '' : 'hover:bg-themewhite2/60'}`}
+                    className={`flex items-center mx-2 w-[calc(100%-1rem)] h-10 shrink-0 rounded-full hover:bg-secondary/5 transition-colors`}
                   >
                     <button
                       onClick={() => handleNoteClick(note)}
@@ -323,7 +328,7 @@ export function SideNav({ onClose, onMenuItemClick, rail }: SideNavProps) {
                       aria-label={label}
                       onMouseEnter={collapsed ? (e) => showTip(e, label, null, meta, note) : undefined}
                       onMouseLeave={collapsed ? (e) => tipAim.track(e) : undefined}
-                      className="group relative flex items-center flex-1 min-w-0 h-10 px-1 rounded-full text-left active:scale-95 transform-gpu"
+                      className="relative flex items-center flex-1 min-w-0 h-10 px-1 rounded-full text-left active:scale-95 transition-all"
                     >
                       <span className="w-8 h-8 shrink-0 rounded-full flex items-center justify-center bg-themeblue2/10">
                         {note.symptomIcon
@@ -339,7 +344,7 @@ export function SideNav({ onClose, onMenuItemClick, rail }: SideNavProps) {
                       <button
                         onClick={(e) => setNoteMenu({ note, rect: e.currentTarget.getBoundingClientRect() })}
                         aria-label="Note actions"
-                        className={`w-7 h-7 mr-1.5 shrink-0 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all ${reveal}`}
+                        className={`w-7 h-7 mr-1.5 shrink-0 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 ${reveal}`}
                       >
                         <MoreHorizontal size={15} />
                       </button>
@@ -404,13 +409,13 @@ export function SideNav({ onClose, onMenuItemClick, rail }: SideNavProps) {
 
   return (
     <div
-      className="h-full w-full bg-themewhite flex flex-col"
+      className="h-full w-full bg-themewhite2 flex flex-col"
       style={{ paddingTop: 'var(--sat)' }}
     >
       {/* User profile card */}
       <button
         onClick={handleProfileClick}
-        className={`flex items-center gap-3 mx-3 mt-3 mb-2 px-4 py-3.5 rounded-xl hover:bg-themewhite2/60 active:scale-95 transform-gpu transition-colors text-left`}
+        className={`flex items-center gap-3 mx-3 mt-3 mb-2 px-4 py-3.5 rounded-xl hover:bg-secondary/5 active:scale-95 transition-all text-left`}
       >
         <div className={`w-11 h-11 rounded-full overflow-hidden shrink-0`}>
           {isCustom && customImage ? (
@@ -456,7 +461,7 @@ export function SideNav({ onClose, onMenuItemClick, rail }: SideNavProps) {
                 <button
                   onClick={() => handleClick(item.action)}
                   {...(isPinned ? {} : makeHandlers(item.action, item.text))}
-                  className={`w-full text-left flex items-center pl-7 pr-4 py-3.5 rounded-xl cursor-pointer hover:bg-themewhite2/60 bg-transparent active:scale-95 transform-gpu transition-colors`}
+                  className={`w-full text-left flex items-center pl-7 pr-4 py-3.5 rounded-xl cursor-pointer hover:bg-secondary/5 active:scale-95 transition-all`}
                 >
                   <div className="mr-4 relative">
                     <NavIcon action={item.action} size={20} />
@@ -488,7 +493,7 @@ export function SideNav({ onClose, onMenuItemClick, rail }: SideNavProps) {
             onClick={() => {
               hidden.forEach(a => toggleHide(a))
             }}
-            className="flex items-center justify-center gap-1.5 w-full py-2.5 mt-2 text-[10pt] text-tertiary hover:text-tertiary active:scale-95 transform-gpu transition-colors"
+            className="flex items-center justify-center gap-1.5 w-full py-2.5 mt-2 text-[10pt] text-tertiary hover:text-primary active:scale-95 transition-all"
           >
             <Eye size={12} />
             <span>{hiddenCount} hidden — tap to restore</span>
@@ -501,11 +506,11 @@ export function SideNav({ onClose, onMenuItemClick, rail }: SideNavProps) {
             <p className={`pl-7 pt-1 pb-1 text-[9pt] font-semibold text-tertiary uppercase tracking-wider`}>My Notes</p>
             <div className="space-y-1">
               {savedNotes.map(note => (
-                <div key={note.id} className="flex items-center rounded-xl hover:bg-themewhite2/60 transition-colors">
+                <div key={note.id} className="flex items-center rounded-xl hover:bg-secondary/5 transition-colors">
                 <button
                   onClick={() => handleNoteClick(note)}
                   {...liftPressHandlers((snap) => setLiftedNote({ note, ...snap }), pressRef)}
-                  className={`flex-1 min-w-0 text-left flex items-center pl-7 pr-2 py-3 rounded-xl cursor-pointer bg-transparent active:scale-95 transform-gpu`}
+                  className={`flex-1 min-w-0 text-left flex items-center pl-7 pr-2 py-3 rounded-xl cursor-pointer active:scale-95 transition-all`}
                 >
                   <div className="min-w-0 flex-1">
                     <div className={`text-[11pt] text-primary font-medium truncate`}>
@@ -519,7 +524,7 @@ export function SideNav({ onClose, onMenuItemClick, rail }: SideNavProps) {
                 <button
                   onClick={(e) => setNoteMenu({ note, rect: e.currentTarget.getBoundingClientRect() })}
                   aria-label="Note actions"
-                  className="w-9 h-9 mr-2 shrink-0 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
+                  className="w-9 h-9 mr-2 shrink-0 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all"
                 >
                   <MoreHorizontal size={18} />
                 </button>

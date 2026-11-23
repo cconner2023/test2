@@ -738,10 +738,5 @@ export const useNavigationStore = create<NavigationStore>()((set, get) => ({
 export const selectShowQuestionCard = (s: NavigationState) =>
     s.selectedSymptom !== null && s.viewState === 'questions'
 
-export const selectMobileGridClass = (s: NavigationState) => {
-    if (s.isSearchExpanded || selectShowQuestionCard(s)) return 'grid-cols-[0fr_1fr]'
-    return 'grid-cols-[1fr_0fr]'
-}
-
 export const selectIsMobileColumnB = (s: NavigationState) =>
     s.isMobile && (s.isSearchExpanded || selectShowQuestionCard(s))

@@ -24,22 +24,22 @@ export interface GridTheme {
 
 const GRID_THEMES: Record<`${ThemeName}-${ThemeMode}`, GridTheme> = {
   'default-light':    { lineColor: 'rgba(0,66,92,0.75)',       lineColorMajor: 'rgba(0,66,92,0.95)',       labelColor: '#00425C', labelBg: 'rgba(240,242,245,0.9)' },
-  'default-dark':     { lineColor: 'rgba(129,161,181,0.75)',   lineColorMajor: 'rgba(129,161,181,0.95)',   labelColor: '#81A1B5', labelBg: 'rgba(14,22,32,0.9)' },
+  'default-dark':     { lineColor: 'rgba(129,161,181,0.75)',   lineColorMajor: 'rgba(129,161,181,0.95)',   labelColor: '#81A1B5', labelBg: 'rgba(24,31,38,0.9)' },
 
   'ironclad-light':   { lineColor: 'rgba(160,100,20,0.80)',    lineColorMajor: 'rgba(160,100,20,1.00)',    labelColor: '#8B6010', labelBg: 'rgba(248,242,225,0.9)' },
   'ironclad-dark':    { lineColor: 'rgba(218,140,38,0.75)',    lineColorMajor: 'rgba(218,140,38,0.95)',    labelColor: '#C8901A', labelBg: 'rgba(30,26,20,0.9)' },
 
   'void-light':       { lineColor: 'rgba(0,110,148,0.78)',     lineColorMajor: 'rgba(0,110,148,1.00)',     labelColor: '#006E94', labelBg: 'rgba(238,242,248,0.9)' },
-  'void-dark':        { lineColor: 'rgba(0,164,190,0.75)',     lineColorMajor: 'rgba(0,164,190,0.95)',     labelColor: '#00A4BE', labelBg: 'rgba(10,12,16,0.9)' },
+  'void-dark':        { lineColor: 'rgba(0,164,190,0.75)',     lineColorMajor: 'rgba(0,164,190,0.95)',     labelColor: '#00A4BE', labelBg: 'rgba(26,30,39,0.9)' },
 
   'slipstream-light': { lineColor: 'rgba(48,100,88,0.78)',     lineColorMajor: 'rgba(48,100,88,1.00)',     labelColor: '#306458', labelBg: 'rgba(242,244,240,0.9)' },
-  'slipstream-dark':  { lineColor: 'rgba(84,136,124,0.75)',    lineColorMajor: 'rgba(84,136,124,0.95)',    labelColor: '#54887C', labelBg: 'rgba(14,18,22,0.9)' },
+  'slipstream-dark':  { lineColor: 'rgba(90,142,130,0.75)',    lineColorMajor: 'rgba(90,142,130,0.95)',    labelColor: '#5A8E82', labelBg: 'rgba(20,32,36,0.9)' },
 
   'topo-light':       { lineColor: 'rgba(96,88,36,0.80)',      lineColorMajor: 'rgba(96,88,36,1.00)',      labelColor: '#605824', labelBg: 'rgba(241,234,211,0.9)' },
-  'topo-dark':        { lineColor: 'rgba(164,148,76,0.75)',    lineColorMajor: 'rgba(164,148,76,0.95)',    labelColor: '#A4944C', labelBg: 'rgba(12,16,10,0.9)' },
+  'topo-dark':        { lineColor: 'rgba(164,148,76,0.75)',    lineColorMajor: 'rgba(164,148,76,0.95)',    labelColor: '#A4944C', labelBg: 'rgba(27,32,23,0.9)' },
 
   'violet-light':     { lineColor: 'rgba(100,60,160,0.78)',    lineColorMajor: 'rgba(100,60,160,1.00)',    labelColor: '#643CA0', labelBg: 'rgba(250,247,253,0.9)' },
-  'violet-dark':      { lineColor: 'rgba(170,136,230,0.75)',   lineColorMajor: 'rgba(170,136,230,0.95)',   labelColor: '#AA88E6', labelBg: 'rgba(16,12,24,0.9)' },
+  'violet-dark':      { lineColor: 'rgba(170,136,230,0.75)',   lineColorMajor: 'rgba(170,136,230,0.95)',   labelColor: '#AA88E6', labelBg: 'rgba(31,28,38,0.9)' },
 }
 
 export function getGridTheme(name: ThemeName, mode: ThemeMode): GridTheme {

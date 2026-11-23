@@ -8,11 +8,28 @@ import { ScreenerDrawer } from './ScreenerDrawer';
 import { SearchResults } from './SearchResults';
 import { MobileSearchBar } from '@/Components/primitives/MobileSearchBar';
 import { getColorClasses } from '../Utilities/ColorUtilities';
-import { ConnectorDots } from '@/Components/primitives/ConnectorDots';
+import { AlgorithmTrace, type TraceNode } from './AlgorithmTrace';
 import { ALGORITHM_TIMING } from '../Utilities/constants';
 import { useNavigationStore } from '../stores/useNavigationStore';
-import type { SearchResultType } from '../Types/CatTypes';
+import type { SearchResultType, subCatDataTypes } from '../Types/CatTypes';
+import type { AlgorithmOptions } from '../Types/AlgorithmTypes';
+import type { CardState } from '../Hooks/useAlgorithm';
 import { ActionPill } from '@/Components/primitives/ActionPill'
+
+const ACTION_CODE: Record<string, string> = {
+    'performed': 'DONE',
+    'deferred-pending': 'DEFER',
+    'deferred-stop': 'STOP',
+};
+
+function traceCode(question: AlgorithmOptions, card: CardState): string | undefined {
+    if (question.type === 'action') {
+        if (question.screenerConfig) return card.completedScreenerId ? 'SCRN' : undefined;
+        if (card.actionStatus === 'deferred-continue') return card.pendingAfter !== undefined ? 'CONT' : 'DEFER';
+        return card.actionStatus ? ACTION_CODE[card.actionStatus] : undefined;
+    }
+    return card.answer ? card.answer.text.toUpperCase().slice(0, 10) : undefined;
+}
 
 interface AlgorithmPageProps {
     searchInput?: string
@@ -20,10 +37,13 @@ interface AlgorithmPageProps {
     searchResults?: SearchResultType[]
     isSearching?: boolean
     onSearchResultClick?: (result: SearchResultType) => void
+    /** Held symptom while the page animates out after store clears it. */
+    heldSymptom?: subCatDataTypes | null
 }
 
-export function AlgorithmPage({ searchInput = '', onSearchChange, searchResults, isSearching, onSearchResultClick }: AlgorithmPageProps) {
-    const selectedSymptom = useNavigationStore((s) => s.selectedSymptom);
+export function AlgorithmPage({ searchInput = '', onSearchChange, searchResults, isSearching, onSearchResultClick, heldSymptom }: AlgorithmPageProps) {
+    const liveSymptom = useNavigationStore((s) => s.selectedSymptom);
+    const selectedSymptom = liveSymptom ?? heldSymptom ?? null;
     const isMobile = useNavigationStore((s) => s.isMobile);
     const openWriteNote = useNavigationStore((s) => s.openWriteNote);
     const navigateToAlgorithm = useNavigationStore((s) => s.navigateToAlgorithm);
@@ -32,6 +52,7 @@ export function AlgorithmPage({ searchInput = '', onSearchChange, searchResults,
     const markerRef = useRef<HTMLDivElement>(null);
     const initialScrollDone = useRef(false);
     const transitionIdRef = useRef(0);
+    const pendingRevealRef = useRef<number | null>(null);
     // Also the reveal hold — new cards stay paused on their hidden frame while true
     const [isTransitioning, setIsTransitioning] = useState(false);
 
@@ -84,14 +105,25 @@ export function AlgorithmPage({ searchInput = '', onSearchChange, searchResults,
         container.scrollTo({ top: container.scrollTop + overflow, behavior: 'smooth' });
     }, []);
 
-    // Sequence: connector dots stagger → scroll (if needed) → new card fades up.
+    const releaseTransition = useCallback((id: number) => {
+        if (pendingRevealRef.current !== id) return;
+        pendingRevealRef.current = null;
+        scrollThenReveal(id);
+    }, [scrollThenReveal]);
+
+    // Sequence: trace draws → scroll (if needed) → new card fades up.
     // Must be called in the same handler as the state change that mounts new
     // cards so the hold is on before their animation starts.
     const beginTransition = useCallback(() => {
         const id = ++transitionIdRef.current;
+        pendingRevealRef.current = id;
         setIsTransitioning(true);
-        setTimeout(() => scrollThenReveal(id), ALGORITHM_TIMING.SCROLL_AFTER_STAGGER);
-    }, [scrollThenReveal]);
+        setTimeout(() => releaseTransition(id), ALGORITHM_TIMING.TRACE_REVEAL_FALLBACK);
+    }, [releaseTransition]);
+
+    const handleTraceReveal = useCallback(() => {
+        if (pendingRevealRef.current !== null) releaseTransition(pendingRevealRef.current);
+    }, [releaseTransition]);
 
     const handleAnswer = useCallback((cardIndex: number, answerIndex: number) => {
         beginTransition();
@@ -155,6 +187,16 @@ export function AlgorithmPage({ searchInput = '', onSearchChange, searchResults,
         }
     }, [selectedSymptom?.id, algorithm, scrollThenReveal]);
 
+    const visibleCards = getVisibleCards();
+    const traceNodes: TraceNode[] = [];
+    for (const card of visibleCards) {
+        const question = algorithmOptions[card.index];
+        if (question) traceNodes.push({ id: String(card.index), code: traceCode(question, card), rf: question.type === 'rf' });
+    }
+    if (currentDisposition) {
+        traceNodes.push({ id: `dispo:${currentDisposition.type}:${currentDisposition.text}`, dispoType: currentDisposition.type });
+    }
+
     // Early returns
     if (!selectedSymptom) {
         return (
@@ -171,7 +213,6 @@ export function AlgorithmPage({ searchInput = '', onSearchChange, searchResults,
         );
     }
 
-    const visibleCards = getVisibleCards();
     const colors = currentDisposition ? getColorClasses(currentDisposition.type) : null;
 
     const hasMobileSearch = isMobile && !!onSearchChange
@@ -195,7 +236,12 @@ export function AlgorithmPage({ searchInput = '', onSearchChange, searchResults,
                     />
                 ) : undefined}
             >
-                    <div className="flex flex-col px-4 pt-5 pb-32 space-y-1 w-full" data-reveal-hold={isTransitioning}>
+                    <AlgorithmTrace
+                        nodes={traceNodes}
+                        hold={isTransitioning}
+                        onReveal={handleTraceReveal}
+                        innerClassName="flex flex-col px-[46px] pt-5 pb-32 space-y-1 w-full"
+                    >
                         <QuestionCard
                             algorithmOptions={algorithmOptions}
                             cardStates={cardStates}
@@ -209,12 +255,14 @@ export function AlgorithmPage({ searchInput = '', onSearchChange, searchResults,
 
                         {currentDisposition && colors && (
                             <div className="flex flex-col items-center">
-                                <ConnectorDots colorClass={colors.badgeBg} />
+                                <div className="h-[120px]" />
                                 <div
                                     key={`dispo-${currentDisposition.type}-${currentDisposition.text}`}
                                     className="w-full animate-cardFadeUp"
                                 >
-                                    <div className={`flex flex-col rounded-2xl w-full overflow-hidden shadow-sm
+                                    <div
+                                        data-trace-card={`dispo:${currentDisposition.type}:${currentDisposition.text}`}
+                                        className={`flex flex-col rounded-2xl w-full overflow-hidden shadow-sm
                                             bg-themewhite2 border ${colors.badgeBorder}`}>
                                         <div className="p-4">
                                             <div className="flex items-center justify-between">
@@ -272,7 +320,7 @@ export function AlgorithmPage({ searchInput = '', onSearchChange, searchResults,
                             aria-hidden="true"
                             style={{ marginTop: '1rem', marginBottom: '1rem' }}
                         />
-                    </div>
+                    </AlgorithmTrace>
             </MobileSearchBar>
 
             {openScreenerCardIndex !== null && algorithmOptions[openScreenerCardIndex]?.screenerConfig &&

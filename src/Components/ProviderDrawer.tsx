@@ -14,6 +14,7 @@ import { ActionSheet, type ActionSheetOption } from '@/Components/primitives/Act
 import { DesktopRail } from '@/Components/primitives/DesktopRail'
 import { PaneCard } from '@/Components/primitives/PaneCard'
 import { useStack } from '@/Components/primitives/useStack'
+import { StackSheet } from '@/Components/primitives/PaneStack'
 import { type StackNav, type StackScreen } from './stackNav'
 import { useSwipeBack } from '../Hooks/useSwipeBack'
 import { useIsMobile } from '../Hooks/useIsMobile'
@@ -30,7 +31,7 @@ import { TextSectionEditor } from './Provider/ProviderPaneSections'
 import { NoteWizardFooter } from './WriteNoteHelpers'
 import { usePEPaneScreens, PECenter, PEBody } from './Provider/ProviderPESections'
 import { usePlanPaneScreens } from './Provider/ProviderPlanSections'
-import { generatePEText } from './PhysicalExam'
+import { generatePEText, parsePEText } from './PhysicalExam'
 import { parsePlanState } from './Plan'
 import { useMergedNoteContent } from '../Hooks/useMergedNoteContent'
 import type { PlanState } from '../Types/PlanTypes'
@@ -136,8 +137,6 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
   const [peNote, setPeNote] = useState('')
   const [peState, setPeState] = useState<PEState | null>(null)
   const [planState, setPlanState] = useState<PlanState | null>(null)
-  const [peResetKey, setPeResetKey] = useState(0)
-  const [planResetKey, setPlanResetKey] = useState(0)
   const [selectedBlockKeys, setSelectedBlockKeys] = useState<string[]>([])
   const [assessmentNote, setAssessmentNote] = useState('')
   const [planNote, setPlanNote] = useState('')
@@ -146,10 +145,8 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
   const [history, setHistory] = useState<NoteHistory>(EMPTY_HISTORY)
   const [importedMedicNote, setImportedMedicNote] = useState<ImportedMedicNote | null>(null)
   const [medicBarcode, setMedicBarcode] = useState('')
-  // Desktop medic plan editor state (the pane editor commits PlanState → text).
+  // Medic plan editor state (the pane editor commits PlanState → text).
   const [medicPlanState, setMedicPlanState] = useState<PlanState | null>(null)
-  // Remounts the mobile medic exam/plan editors on a new import.
-  const [medicResetKey, setMedicResetKey] = useState(0)
 
   // ── Import bar state ──────────────────────────────────────────────────────
   const [importExpanded, setImportExpanded] = useState(false)
@@ -281,15 +278,14 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
       }
       setSelectedBlockKeys(template.peBlockKeys)
       setPeState(nextPeState)
-      // Desktop center no longer mounts PhysicalExam, so derive peNote here (mobile
-      // still emits via its mounted PE — same generatePEText, so outputs match).
       setPeNote(generatePEText(nextPeState))
     } else {
-      setSelectedBlockKeys([])
-      setPeState(null)
-      setPeNote(expandTemplateText(template.peText, template.peExpanderAbbrs, template.peExpanderAbbr, expanders))
+      const peText = expandTemplateText(template.peText, template.peExpanderAbbrs, template.peExpanderAbbr, expanders)
+      const parsedPe = peText ? parsePEText(peText, 'A') : null
+      setSelectedBlockKeys(parsedPe?.blockKeys ?? [])
+      setPeState(parsedPe)
+      setPeNote(peText)
     }
-    setPeResetKey(k => k + 1)
 
     setAssessmentNote(expandTemplateText(template.assessmentText, template.assessmentExpanderAbbrs, template.assessmentExpanderAbbr, expanders))
 
@@ -299,13 +295,18 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
       if (orderSet) planText = generatePlanFromOrderSet(orderSet)
     }
     setPlanNote(planText)
-    // Seed the lifted plan state so the desktop center reflects the applied text
-    // (mobile still re-parses planNote on its own mount — same parser).
     setPlanState(planText ? parsePlanState(planText, planOrderTags, planInstructionTags) : null)
-    setPlanResetKey(k => k + 1)
   }, [profile.textExpanders, profile.planOrderSets, expandTemplateText, generatePlanFromOrderSet, planOrderTags, planInstructionTags])
 
   // ── Import decode logic ────────────────────────────────────────────────────
+
+  // Imported PE: structured state wins; text-only PE is parsed into blocks.
+  const seedPe = useCallback((restored: PEState | null, text: string | undefined) => {
+    const next = restored ?? (text ? parsePEText(text, 'A') : null)
+    if (!next) return
+    setPeState(next)
+    setSelectedBlockKeys(next.blockKeys ?? Object.keys(next.items))
+  }, [])
 
   // Throws on unusable payloads — useBarcodeImport surfaces the message.
   const handleProviderDecoded = useCallback(({ payload }: { payload: string; encodedText: string }) => {
@@ -315,16 +316,16 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
     if (parsed.symptomCode === 'PRV') {
       if (parsed.providerHpi) setHpiNote(parsed.providerHpi)
       if (parsed.providerPe) setPeNote(parsed.providerPe)
+      let restored: PEState | null = null
       if (parsed.providerPeRaw) {
         // A PE codec mismatch must not abort the rest of the import.
         try {
-          const restored = decodePEState(parsed.providerPeRaw, 'PRV')
-          if (restored) setPeState(restored)
+          restored = decodePEState(parsed.providerPeRaw, 'PRV')
         } catch (e) {
           logError('ProviderDrawer.decodePE', e)
         }
       }
-      setPeResetKey(k => k + 1)
+      seedPe(restored, parsed.providerPe)
       if (parsed.providerAssessment) setAssessmentNote(parsed.providerAssessment)
       if (parsed.providerPlan) {
         setPlanNote(parsed.providerPlan)
@@ -344,11 +345,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
     if (parsed.providerHpi || parsed.providerPe || parsed.providerAssessment || parsed.providerPlan) {
       if (parsed.providerHpi) setHpiNote(parsed.providerHpi)
       if (parsed.providerPe) setPeNote(parsed.providerPe)
-      if (parsed.providerPeRaw) {
-        const restored = decodePEState(parsed.providerPeRaw, parsed.symptomCode)
-        if (restored) setPeState(restored)
-      }
-      setPeResetKey(k => k + 1)
+      seedPe(parsed.providerPeRaw ? decodePEState(parsed.providerPeRaw, parsed.symptomCode) : null, parsed.providerPe)
       if (parsed.providerAssessment) setAssessmentNote(parsed.providerAssessment)
       if (parsed.providerPlan) {
         setPlanNote(parsed.providerPlan)
@@ -361,9 +358,8 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
     setImportedMedicNote(buildImportedMedicNote(parsed, algorithmOptions))
     setMedicBarcode(payload)
     setMedicPlanState(parsed.planText ? parsePlanState(parsed.planText, planOrderTags, planInstructionTags) : null)
-    setMedicResetKey(k => k + 1)
     setImportExpanded(false)
-  }, [planOrderTags, planInstructionTags])
+  }, [planOrderTags, planInstructionTags, seedPe])
 
   const barcodeImport = useBarcodeImport({ onDecoded: handleProviderDecoded })
 
@@ -437,12 +433,12 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
     }
   }, [view, handleSlideAnimation])
 
-  // Desktop: open a section editor in the pane (Case B).
+  // Open a section editor in the pane / sheet (Case B).
   const openSection = useCallback((s: ProviderSection) => {
     setPaneScreen({ key: `s-${s}` })
   }, [])
 
-  // Desktop: amend a medic text section in the pane; plan opens the plan editor.
+  // Amend a medic text section; plan opens the plan editor.
   const openMedic = useCallback((field: MedicField) => {
     setPaneScreen(field === 'plan' ? { key: 'm-s-plan' } : { key: 'm-edit', params: { field } })
   }, [])
@@ -464,8 +460,6 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
     setPeNote('')
     setPeState(null)
     setSelectedBlockKeys([])
-    setPeResetKey(k => k + 1)
-    setPlanResetKey(k => k + 1)
     setAssessmentNote('')
     setPlanNote('')
     setPlanState(null)
@@ -566,7 +560,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
 
   // No auto-focus on expand — iOS keyboard open shifts the viewport
 
-  // ── Detail-card stack (desktop): detail · template editor · sections · output ─
+  // ── Detail-card stack: detail · template editor · sections (desktop card / mobile sheet) ─
   // No onDelete → the editor hides its footer Delete; deletion lives on the template
   // tree's ellipsis (desktop rail + mobile Sheet) via handleTemplateDelete.
   const { screens: templateEditorScreens } = useProviderTemplateEditorScreens({
@@ -574,7 +568,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
     onSave: handleTemplateSave,
   })
 
-  // PE pane screens (desktop): s-pe (select systems + drill rows) → s-pe-block
+  // PE pane screens: s-pe (select systems + drill rows) → s-pe-block
   // (per-system findings). Drives the lifted peState + keeps peNote synced.
   const { screens: pePaneScreens, reorder: reorderPe } = usePEPaneScreens({
     peState,
@@ -585,7 +579,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
     onClose: closePane,
   })
 
-  // Medic exam pane screens (desktop, `m-` prefixed): the same system selector /
+  // Medic exam pane screens (`m-` prefixed): the same system selector /
   // findings / vitals editors, amending the bundled medic exam.
   const medicPeState = importedMedicNote?.medicPeState ?? null
   const medicPeKeys = useMemo(() => {
@@ -625,7 +619,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
     )
   )
 
-  // PE section for the desktop center (MAIN pane) — movable cards once systems are
+  // PE section for the note center — movable cards once systems are
   // selected; tap a card → findings in the detail card; dashed + → the selector.
   const peCenter = (
     <PECenter
@@ -642,7 +636,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
     />
   )
 
-  // Plan pane screen (desktop): a single s-plan editor modeled on order-set creation
+  // Plan pane screen: a single s-plan editor modeled on order-set creation
   // (order-set chips + Selected list + search + all-category picker). Drives the
   // lifted planState + keeps planNote synced. The center is a plain summary (below).
   const { screens: planPaneScreens } = usePlanPaneScreens({
@@ -655,7 +649,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
     onClose: closePane,
   })
 
-  // Medic plan (desktop `m-s-plan`): the same plan editor, amending the medic plan.
+  // Medic plan (`m-s-plan`): the same plan editor, amending the medic plan.
   const { screens: medicPlanPaneScreens } = usePlanPaneScreens({
     planState: medicPlanState,
     orderTags: planOrderTags,
@@ -786,6 +780,21 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
     }
   }, [view, handleBack, isMobile, desktopHeaderRight, handleClose, handleExpandImport])
 
+  const providerNote = (
+    <ProviderNote
+      onOpenSection={openSection}
+      onOpenMedic={openMedic}
+      peCenter={peCenter}
+      hpiNote={hpiNote}
+      assessmentNote={assessmentNote}
+      planNote={planNote}
+      history={history}
+      setHistory={setHistory}
+      onOpenHistory={(key) => setPaneScreen({ key: 's-hx', params: { key } })}
+      importedMedicNote={importedMedicNote}
+    />
+  )
+
   // ── Render ──────────────────────────────────────────────────────────────────
 
   return (
@@ -841,30 +850,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
                     </div>
                   )}
                   <div className="p-5 pb-24">
-                    <ProviderNote
-                      summaryMode
-                      onOpenSection={openSection}
-                      onOpenMedic={openMedic}
-                      peCenter={peCenter}
-                      hpiNote={hpiNote}
-                      setHpiNote={setHpiNote}
-                      peNote={peNote}
-                      setPeNote={setPeNote}
-                      peState={peState}
-                      onPeStateChange={setPeState}
-                      peResetKey={peResetKey}
-                      planResetKey={planResetKey}
-                      selectedBlockKeys={selectedBlockKeys}
-                      onBlockKeysChange={setSelectedBlockKeys}
-                      assessmentNote={assessmentNote}
-                      setAssessmentNote={setAssessmentNote}
-                      planNote={planNote}
-                      setPlanNote={setPlanNote}
-                      history={history}
-                      setHistory={setHistory}
-                      onOpenHistory={(key) => setPaneScreen({ key: 's-hx', params: { key } })}
-                      importedMedicNote={importedMedicNote}
-                    />
+                    {providerNote}
                   </div>
                 </ContentWrapper>
               </div>
@@ -917,28 +903,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
               )}
               <div className={view === 'note' ? 'px-5 pb-24' : 'px-4 pt-2 pb-32'}>
                 {view === 'note' ? (
-                <ProviderNote
-                  onEditMedic={handleEditMedic}
-                  onEditMedicPe={handleEditMedicPe}
-                  medicResetKey={medicResetKey}
-                  hpiNote={hpiNote}
-                  setHpiNote={setHpiNote}
-                  peNote={peNote}
-                  setPeNote={setPeNote}
-                  peState={peState}
-                  onPeStateChange={setPeState}
-                  peResetKey={peResetKey}
-                  planResetKey={planResetKey}
-                  selectedBlockKeys={selectedBlockKeys}
-                  onBlockKeysChange={setSelectedBlockKeys}
-                  assessmentNote={assessmentNote}
-                  setAssessmentNote={setAssessmentNote}
-                  planNote={planNote}
-                  setPlanNote={setPlanNote}
-                  history={history}
-                  setHistory={setHistory}
-                  importedMedicNote={importedMedicNote}
-                />
+                providerNote
               ) : (
                 <ProviderNoteOutput previewNote={previewNote} encodedValue={encodedValue} />
               )}
@@ -953,6 +918,11 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
           <div className="absolute bottom-4 right-4 z-30 pb-[max(0rem,var(--sab,0px))] pointer-events-none">
             <AddFab icon={ChevronRight} label="Next" onClick={goToOutput} />
           </div>
+        )}
+        {isMobile && paneStack.hasScreen && (
+          <StackSheet stack={paneStack} isOpen={paneOpen && view === 'note'} onClose={closePane} maxHeight={80}>
+            <div className="px-4 py-3 overflow-x-hidden">{paneStack.body('')}</div>
+          </StackSheet>
         )}
         {/* Mobile output: Done (save) FAB over the glass footer — WriteNote's Full Note. */}
         {isMobile && view === 'output' && (

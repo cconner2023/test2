@@ -58,6 +58,8 @@ interface SheetProps {
     height?: SheetHeight;
     /** 'fit' cap as a percentage of the dynamic viewport (dvh). Default 90. */
     maxHeight?: number;
+    /** 'fit' floor as a percentage of svh. Default 33 (0 when backdrop 'none'). */
+    minHeight?: number;
     /** 'snap' lower height as a percentage of dvh. Default 40. */
     peekHeight?: number;
     /** 'snap' upper height as a percentage of dvh. Default 92. */
@@ -101,6 +103,7 @@ export function Sheet({
     children,
     height = 'fit',
     maxHeight = 90,
+    minHeight: minHeightProp,
     peekHeight = 40,
     fullHeight = 92,
     title,
@@ -119,6 +122,7 @@ export function Sheet({
     hudSize = 88,
 }: SheetProps) {
     const isSnap = height === 'snap';
+    const minHeight = minHeightProp ?? (backdrop === 'none' ? 0 : 33);
 
     // Floor our z above any ancestor overlay's published ceiling, the same way
     // BaseOverlay does. The Sheet has always PUBLISHED a ceiling (so pickers and
@@ -273,14 +277,15 @@ export function Sheet({
             if (wrapRef.current) setWrapW(wrapRef.current.offsetWidth);
             if (morphContentRef.current && !isPuckRef.current) {
                 const capPx = Math.min((maxHeight / 100) * window.innerHeight, window.innerHeight - 24);
-                setFullH(Math.min(morphContentRef.current.scrollHeight, capPx));
+                const floorPx = Math.min((minHeight / 100) * window.innerHeight, capPx);
+                setFullH(Math.min(Math.max(morphContentRef.current.scrollHeight, floorPx), capPx));
             }
         };
         measure();
         const ro = new ResizeObserver(measure);
         if (morphContentRef.current) ro.observe(morphContentRef.current);
         return () => ro.disconnect();
-    }, [morphActive, maxHeight, isMounted]);
+    }, [morphActive, maxHeight, minHeight, isMounted]);
 
     // Shape-1 vessel height — a sheet-looking blank that slides up before it collapses.
     // Tracks the eventual content height when known, else a neutral ~42dvh fallback so
@@ -488,6 +493,7 @@ export function Sheet({
                         // shrink the sheet on input focus — see fitBody note above. Must
                         // match fitBody's unit or the card and its scroll body disagree.
                         maxHeight: isSnap ? undefined : `min(${maxHeight}svh, calc(100svh - 1.5rem))`,
+                        minHeight: isSnap ? undefined : `min(${minHeight}svh, ${maxHeight}svh, calc(100svh - 1.5rem))`,
                         transform: translate,
                         borderRadius: '1rem 1rem 0 0',
                         boxShadow: '0 4px 30px rgba(0, 0, 0, 0.12)',

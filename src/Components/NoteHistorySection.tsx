@@ -1,20 +1,13 @@
 import { useRef, useState, type ReactNode, type SetStateAction } from 'react';
-import { Check, GripVertical, RotateCcw } from 'lucide-react';
+import { GripVertical, RotateCcw } from 'lucide-react';
 import { ListItemRow } from '@/Components/primitives/ListItemRow';
-import { ExpandableInput } from '@/Components/primitives/ExpandableInput';
 import { ActionButton } from '@/Components/primitives/ActionButton';
 import { FooterPill } from '@/Components/primitives/FooterPill';
-import { PreviewOverlay } from './PreviewOverlay';
 import { TextSectionEditor } from './Provider/ProviderPaneSections';
 import { type StackScreen } from './stackNav';
-import type { TextExpander } from '../Data/User';
 import { HISTORY_FIELDS, orderedHistoryFields, type NoteHistory, type HistoryKey } from '../Utilities/noteHistory';
 
 type SetHistory = (next: SetStateAction<NoteHistory>) => void;
-
-const TEXTAREA_CLASS =
-    'w-full bg-transparent px-4 py-3 text-base md:text-sm text-primary placeholder:text-tertiary ' +
-    'focus:outline-none resize-none overflow-hidden min-h-[200px]';
 
 /**
  * History items as PE-style rows under the HPI, two columns. Tap opens that item's
@@ -98,71 +91,23 @@ function HistoryRows({ value, onOpen, onReorder }: {
     );
 }
 
-/**
- * History rows plus their editor, shared by Write Note and the provider note.
- * With onOpenPane (desktop) a tap routes to the caller's 's-hx' pane screen
- * (historyPaneScreen); without it the item edits in an anchored overlay.
- */
-export function NoteHistorySection({ value, onChange, expanders, onOpenPane }: {
+/** History rows shared by Write Note and the provider note; a tap opens the
+ *  caller's 's-hx' pane / sheet screen (historyPaneScreen). */
+export function NoteHistorySection({ value, onChange, onOpenPane }: {
     value: NoteHistory;
     onChange: SetHistory;
-    expanders?: TextExpander[];
-    onOpenPane?: (key: HistoryKey) => void;
+    onOpenPane: (key: HistoryKey) => void;
 }) {
-    const [field, setField] = useState<HistoryKey | null>(null);
-    const [anchor, setAnchor] = useState<DOMRect | null>(null);
-    const meta = field ? HISTORY_FIELDS.find(f => f.key === field) : undefined;
-    const setField_ = (key: HistoryKey, v: string) => onChange(prev => ({ ...prev, [key]: v }));
-
     return (
-        <>
-            <HistoryRows
-                value={value}
-                onOpen={(key, a) => {
-                    if (onOpenPane) { onOpenPane(key); return; }
-                    setAnchor(a);
-                    setField(key);
-                }}
-                onReorder={(order) => onChange(prev => ({ ...prev, order }))}
-            />
-            {!onOpenPane && (
-                <PreviewOverlay
-                    isOpen={field !== null}
-                    onClose={() => setField(null)}
-                    anchorRect={anchor}
-                    title={meta?.label ?? 'History'}
-                    previewMaxHeight="50dvh"
-                    actions={field && value[field].trim() ? [{
-                        key: 'reset',
-                        label: 'Reset',
-                        icon: RotateCcw,
-                        closesOnAction: false,
-                        onAction: () => setField_(field, ''),
-                    }] : []}
-                    rightFooter={
-                        <FooterPill side="right">
-                            <ActionButton icon={Check} label="Done" onClick={() => setField(null)} />
-                        </FooterPill>
-                    }
-                >
-                    {field && (
-                        <ExpandableInput
-                            value={value[field]}
-                            onChange={(v) => setField_(field, v)}
-                            expanders={expanders}
-                            multiline
-                            hideClear
-                            className={TEXTAREA_CLASS}
-                            placeholder={meta?.placeholder}
-                        />
-                    )}
-                </PreviewOverlay>
-            )}
-        </>
+        <HistoryRows
+            value={value}
+            onOpen={(key) => onOpenPane(key)}
+            onReorder={(order) => onChange(prev => ({ ...prev, order }))}
+        />
     );
 }
 
-/** Desktop pane screen for one history item; open with params { key }. */
+/** Pane / sheet screen for one history item; open with params { key }. */
 export function historyPaneScreen(value: NoteHistory, onChange: SetHistory, headerActions: ReactNode): StackScreen {
     const set = (key: HistoryKey, v: string) => onChange(prev => ({ ...prev, [key]: v }));
     return {

@@ -153,28 +153,3 @@ export function parallaxTransform(
     opacity: 0.6 + progress * 0.4,
   }
 }
-
-// ─── Carousel helpers ──────────────────────────────────────────
-
-/** Parallax fraction — how far behind-layers shift left (30% of screen) */
-const PARALLAX_FRACTION = 0.3
-/** Opacity of behind-layers in their parallax position */
-const PARALLAX_OPACITY = 0.6
-
-/**
- * Compute resting {x, opacity} for each carousel layer at a given depth.
- * - Layers behind current depth: shifted left with reduced opacity (parallax)
- * - Active layer: centered, full opacity
- * - Layers ahead: off-screen right, full opacity
- */
-export function carouselPositions(
-  depth: number,
-  screenWidth: number,
-  layerCount: number = 3,
-): Array<{ x: number; opacity: number }> {
-  return Array.from({ length: layerCount }, (_, i) => {
-    if (i < depth) return { x: -screenWidth * PARALLAX_FRACTION, opacity: PARALLAX_OPACITY }
-    if (i === depth) return { x: 0, opacity: 1 }
-    return { x: screenWidth, opacity: 1 }
-  })
-}
